@@ -1,0 +1,4 @@
+Hero background clip cut from the school's own advert (2026-09-15).
+Source: ~/Downloads/常春藤廣告+配音.mp4 (1080×1080, 30fps, 55s, with burned-in subtitles + logo watermark).
+Build: design/hero-video/build.sh (delogo top-right, crop out subtitle band → 1080×800, 0.5× slow motion with frame interpolation, 7 shots, seamless loop anchored on one shot split in half).
+hero-campus-still.webp = first frame of the clip, used as <img> and poster.

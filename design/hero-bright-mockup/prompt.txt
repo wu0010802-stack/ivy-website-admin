@@ -1,0 +1,32 @@
+Use case: ui-mockup. Create one polished, faithful desktop homepage HERO mock-up for the existing Taiwanese Ivy Kindergarten website, in a 16:10 landscape canvas (ideally 1440x900, or high-resolution same ratio). This is a full-bleed website screenshot, not a laptop device, not an annotated presentation, no outside margins.
+
+Input image roles:
+Image 1 is the CURRENT UI LAYOUT reference: preserve the existing school logo, desktop navigation, two-line main headline, left alignment, typography size and restrained thin-outline buttons. It happens to show a different video frame: do NOT use the boy or the white-shirt child from that reference.
+Image 2 is the exact PHOTOGRAPH reference to use as full-bleed background: preserve the laughing girl wearing yellow with teal collar/sleeve, her face, hair clip, joyful expression, natural skin and the magenta-shirt adult behind her. Do not invent different children or replace clothes. Use the actual photo look, without retouching identities.
+Image 3 is a supporting framing/brightness reference of that same girl as a full-screen hero with navigation. Its missing hero copy must be added as specified below; do not copy the empty layout.
+
+Requested revision:
+The right half containing the smiling girl's face and yellow clothes must stay bright, clear, naturally colored like the original photograph. REMOVE the overall grey-green/dim veil, the dark bottom gradient, and the right-bottom radial dark mask. Keep darkening ONLY in two separate localized gradients:
+1) Left-side text-protection gradient in neutral deep charcoal/forest tint, strongest left 0-35% at roughly 65-75% opacity, fades progressively and reaches FULL transparency by 62% of screen width. Smooth feathering, never a hard panel. At her face and the right edge, zero veil.
+2) Separate subtle top-to-bottom dark gradient confined to the upper navigation strip, fading completely below approximately 160px. White navigation remains readable.
+Keep natural daylight and lively yellow/teal clothing. Do NOT wash out highlights, bleach skin or add a pale overlay to the right. The adult's magenta shirt remains real and unchanged, de-emphasized on left by the localized gradient. Keep the girl's face to the right of the text; no text crossing her face.
+
+Layout at a 1440x900 reference scale:
+Header inset 80px from both sides, approximately 90px tall. Use the ORIGINAL school logo appearance from reference images at upper left, colorful crest and white Chinese/English wordmark; do not redesign. Right navigation exact Traditional Chinese text: 關於常春藤    孩子的一天    五所校園    參觀須知, followed by thin white outline button with a small check icon and 預約參觀. Fine 1px translucent divider below header.
+Hero copy block begins x=80px, y about 285px, balanced generous breathing room. Small white eyebrow: 常春藤幼兒園 · 高雄五校.
+Preserve main headline, bold friendly clean LINE Seed TW style sans-serif, about 60px reference scale, no increase in font size. Exact two lines:
+在常春藤，
+每一天都有新發現。
+Use white text and natural clear letter spacing. No duplicate headline.
+One short warm yellow hand-drawn gentle underline ONLY directly beneath the final 3 characters 新發現, NOT beneath the entire line and NOT under the period. Approximately the width of these 3 characters; thin single stroke. This is the only playful decoration. Do not add stars, scribbles or icons.
+
+Replace the long paragraph with the following EXACT Traditional Chinese text as precisely TWO intentional lines. Regular/light weight about 18px, comfortable roughly 34px line-height, width around 510px, clearly smaller/lighter than headline, all left aligned:
+一起讀故事、做作品，也到戶外探索。
+在老師的陪伴下，動手試試，說出自己的想法。
+No extra body text, no awkward splitting inside phrases, do not let copy extend into the face.
+
+Below the paragraph, one understated transparent rectangular thin white outline CTA: 看看孩子的一天. Keep it smaller than the headline and off the face.
+A small discreet outlined play-circle icon at lower right can remain, without a large dark panel or extra caption.
+Leave the lower edge visually clean. No global footer darkening; no badges, review cards, floating stickers, redesign flourishes, new yellow filled buttons, annotations, measurements, or mock-up labels.
+
+Goal: a highly credible restrained revision of this exact website, recognizably brighter and warmer on the right, with text legibility concentrated on the left. Photo realism, editorial daycare warmth, precise Traditional Chinese typesetting. This is a visual mock-up only, not a claim of measured WCAG compliance.

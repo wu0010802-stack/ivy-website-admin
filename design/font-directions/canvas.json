@@ -1,0 +1,79 @@
+{
+ "pages": [
+  {
+   "id": "page-1",
+   "name": "選定：方向 B"
+  },
+  {
+   "id": "page-2",
+   "name": "未採用的方向"
+  }
+ ],
+ "artboards": [
+  {
+   "file": "Main.dc.html",
+   "title": "方向 B · LINE Seed TW 標題（園方選定）",
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 2600,
+   "page": "page-1"
+  },
+  {
+   "file": "DirectionA.dc.html",
+   "title": "方向 A · 系統字（現況）",
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 2600,
+   "page": "page-2"
+  },
+  {
+   "file": "DirectionC.dc.html",
+   "title": "方向 C · LINE Seed TW ＋ 芫荽點綴",
+   "x": 1320,
+   "y": 0,
+   "w": 1200,
+   "h": 2600,
+   "page": "page-2"
+  }
+ ],
+ "annotations": [
+  {
+   "id": "brief",
+   "x": 0,
+   "y": -420,
+   "w": 620,
+   "page": "page-1",
+   "text": "字型方向：園方於 2026-09-10 選定方向 B。\n標題改用 LINE Seed TW，內文維持系統字，已接進網站；未採用的方向 A 與 C 保留在第二頁。"
+  },
+  {
+   "id": "note-b",
+   "x": 0,
+   "y": -200,
+   "w": 1200,
+   "page": "page-1",
+   "text": "方向 B · LINE Seed TW 標題\n動機：標題換成圓角親和的 LINE Seed TW，所有裝置長相一致；內文仍是系統字，閱讀習慣不變。\n取捨：多載入約 190KB 字型（已只保留全站用到的字）；頁尾已註明字型來源。"
+  },
+  {
+   "id": "note-a",
+   "x": 0,
+   "y": -200,
+   "w": 1200,
+   "page": "page-2",
+   "text": "方向 A · 系統字（現況）\n動機：零載入成本；iPhone 上是 PingFang，讀起來最熟悉。\n取捨：Windows 變成微軟正黑體、Android 是 Noto Sans，三種裝置長相不同，品牌感無法統一。"
+  },
+  {
+   "id": "note-c",
+   "x": 1320,
+   "y": -200,
+   "w": 1200,
+   "page": "page-2",
+   "text": "方向 C · B ＋ 芫荽點綴\n動機：孩子視角的句子改用教育部標準寫法的硬筆楷書，一眼看出「這是孩子說的話」，也是台灣幼教熟悉的語彙。\n取捨：多一套字型與一條使用規則；只能留給引言，用多了會顯得幼稚。"
+  }
+ ],
+ "launch": {
+  "view": "canvas",
+  "page": "page-1"
+ }
+}

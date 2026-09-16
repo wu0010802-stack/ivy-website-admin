@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>五校介紹 · 呈現方向比較｜常春藤官網提案</title>
+<link rel="icon" href="data:,">
+<link rel="preload" as="font" type="font/woff" href="../../assets/fonts/lineseed-bd.woff" crossorigin>
+<link rel="preconnect" href="https://www.google.com">
+<link rel="stylesheet" href="../../styles.css"><link rel="stylesheet" href="../../studio.css"><link rel="stylesheet" href="campus.css">
+</head>
+<body>
+<div class="cd-bar cd-only-full"><div class="container"><strong>五校介紹 · 呈現方向比較</strong><nav aria-label="方向"><a href="#dir-a">A 地圖清單</a><a href="#dir-b">B 卡片加地圖</a><a href="#dir-c">C 校區分頁</a><a href="#phones">手機預覽</a><a href="#notes">備註</a></nav></div></div>
+
+<section class="cd-intro cd-only-full"><div class="container">
+ <h1>五所校園，用地圖與聯絡方式呈現的三個方向</h1>
+ <p>三個方向都放在首頁「五校介紹」原本的位置，沿用同一組標題、照片、色彩與字型；差別在於地圖是主角、配角，還是與校園同框。每個方向都內嵌真實的 Google 地圖，並替每所校區留下電話、LINE 官方帳號與 Facebook 的位置。可以直接點選、切換、開地圖。</p>
+ <div class="cd-status"><span><i></i>已有連結：義華校 LINE 與 Facebook、常春藤機構 Facebook</span><span><i class="pending"></i>虛線＝待園方提供（明華、崇德、國際、仁武的 LINE 官方帳號與各校粉絲專頁）</span></div>
+</div></section>
+
+<div class="cd-label cd-only-full" id="dir-a"><div class="container"><div><h2><span>方向 A</span>地圖清單</h2><p>左邊一張地圖固定在畫面上，右邊五所校區排成清單。點校區，地圖切到那一校的 Google 地圖；「五校位置」則把五校一次標在北高雄示意圖上，方便家長先看離家遠近。</p></div><dl><dt>適合</dt><dd>先比距離、再挑校區的家長；接送路線是決策重點時。</dd><dt>注意</dt><dd>校園照片縮成縮圖，氛圍讓位給資訊。示意圖依道路概略標示，正式版建議換成有五個標記的 Google 地圖（需 API 金鑰）或園方自建的 My Maps。</dd></dl></div></div>
+<section class="cd-section" data-direction="a" aria-labelledby="dir-a"></section>
+
+<div class="cd-label cd-only-full" id="dir-b"><div class="container"><div><h2><span>方向 B</span>卡片加地圖抽屜</h2><p>保留現在的五張校園照卡片，在每張卡加上電話、LINE、Facebook 與「地圖」四個動作。按地圖，卡片下方展開一個抽屜，放該校的 Google 地圖、聯絡方式與預約入口；手機上抽屜會直接接在那張卡下面。</p></div><dl><dt>適合</dt><dd>想維持現有版面、以校園影像為主的方向；改動最小，也最容易搬進站內。</dd><dt>注意</dt><dd>一次只展開一校的地圖。五欄卡片的動作列在 1100px 以下改成三欄、760px 以下改成列表。</dd></dl></div></div>
+<section class="cd-section" data-direction="b" aria-labelledby="dir-b"></section>
+
+<div class="cd-label cd-only-full" id="dir-c"><div class="container"><div><h2><span>方向 C</span>校區分頁</h2><p>五校變成一列分頁，一次只看一所：大幅校園照、一句介紹、地址電話、預約與認識校區，以及有品牌色圓標的 LINE、Facebook 按鈕，Google 地圖同框放在右下。手機上依序往下看。</p></div><dl><dt>適合</dt><dd>各校社群經營活躍、希望 LINE 與 Facebook 顯眼；或之後各校會有不同的介紹文與活動。</dd><dt>注意</dt><dd>一次只看一校，比較五校位置要靠切換。分頁列在手機是橫向捲動；鍵盤可用方向鍵切換。</dd></dl></div></div>
+<section class="cd-section" data-direction="c" aria-labelledby="dir-c"></section>
+
+<section class="cd-phones cd-only-full" id="phones"><div class="container"><h2 class="section-title" style="font-size:1.5rem">手機版預覽（390px）</h2><p>每個方向載入同一頁的手機版，可以直接在框裡捲動與操作。</p><div class="cd-phone-row"><figure class="cd-phone"><iframe src="index.html?only=a" title="方向 A 手機預覽" loading="lazy"></iframe><figcaption>A 地圖清單</figcaption></figure><figure class="cd-phone"><iframe src="index.html?only=b" title="方向 B 手機預覽" loading="lazy"></iframe><figcaption>B 卡片加地圖抽屜</figcaption></figure><figure class="cd-phone"><iframe src="index.html?only=c" title="方向 C 手機預覽" loading="lazy"></iframe><figcaption>C 校區分頁</figcaption></figure></div></div></section>
+
+<section class="cd-notes cd-only-full" id="notes"><div class="container">
+ <div><h2>Google 地圖怎麼接</h2><ul><li>本頁用的是免金鑰的單點嵌入（<code>google.com/maps?q=地址&amp;output=embed</code>），可直接上線，但一次只能顯示一個地點。</li><li>要在同一張圖標出五校：園方用 Google「我的地圖」建一張「常春藤五校」再嵌入（免金鑰、免費），或申請 Maps JavaScript API 金鑰自訂五個標記（要綁 Google Cloud 帳單，每月有免費額度）。</li><li>「規劃路線」與「開啟 Google 地圖」都走 Maps URLs，手機會直接開地圖 App。</li></ul></div>
+ <div><h2>LINE 與 Facebook 資料</h2><ul><li>目前只查到義華校的 LINE 官方帳號（lin.ee/gwl8fnA）與粉絲專頁（facebook.com/ivy.kids.fb），以及機構粉絲專頁（facebook.com/ivykid）。</li><li>其他四校的 Facebook 先指向機構粉絲專頁；LINE 官方帳號以虛線「待補」呈現，不拿義華的帳號冒充。請園方提供各校 LINE ID 或 lin.ee 連結。</li><li>LINE 與 Facebook 標誌取自 Simple Icons，是全站 Phosphor 圖示規則的唯一例外（品牌標誌必須用原樣）。</li></ul></div>
+ <div><h2>接下來</h2><ul><li>選定方向後，把它搬進 <code>app.js</code> 的 <code>home()</code> 五校區塊，校區內頁「交通與聯絡」同樣改用內嵌地圖。</li><li>五校資料加 <code>line</code>、<code>facebook</code> 欄位，之後接後端的 tenant-meta 也可以從各租戶設定帶出。</li><li>示意位置圖的產生器與 OSM 邊界檔在 <code>design/campus-directions/</code>，換座標重跑 <code>gen-map.py</code> 即可。</li></ul></div>
+</div></section>
+
+<script src="icons.js"></script><script src="map-data.js"></script><script src="campus.js"></script>
+</body></html>

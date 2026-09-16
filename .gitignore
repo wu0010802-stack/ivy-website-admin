@@ -1,0 +1,33 @@
+# macOS 與編輯器暫存
+.DS_Store
+._*
+*~
+*.swp
+*.swo
+
+# 本機工具設定與瀏覽器操作紀錄
+/.codex/
+/.impeccable/
+/.playwright-cli/
+/.playwright-mcp/
+/output/
+/test-results/
+/playwright-report/
+*.log
+
+# 相依套件與 Python 快取
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# 環境設定與私密金鑰
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+
+# preview.html、design/、versions/ 刻意納入版控。

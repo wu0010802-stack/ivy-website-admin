@@ -1,0 +1,26 @@
+[
+  {
+    "family": "Huninn",
+    "weight": 400,
+    "file": "huninn.ttf",
+    "source": "https://fonts.googleapis.com/css2?family=Huninn%3Awght%40400&text=%E8%AE%93%E6%AF%8F%E4%B8%80%E4%BB%BD%E5%A5%BD%E5%A5%87%EF%BC%8C%E6%85%A2%E6%85%A2%E9%95%B7%E5%A4%A7%E3%80%82&display=swap",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/huninn/OFL.txt",
+    "bytes": 4844
+  },
+  {
+    "family": "Noto Serif TC",
+    "weight": 600,
+    "file": "noto-serif-tc.ttf",
+    "source": "https://fonts.googleapis.com/css2?family=Noto+Serif+TC%3Awght%40600&text=%E8%AE%93%E6%AF%8F%E4%B8%80%E4%BB%BD%E5%A5%BD%E5%A5%87%EF%BC%8C%E6%85%A2%E6%85%A2%E9%95%B7%E5%A4%A7%E3%80%82&display=swap",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoseriftc/OFL.txt",
+    "bytes": 5424
+  },
+  {
+    "family": "Iansui",
+    "weight": 400,
+    "file": "iansui.ttf",
+    "source": "https://fonts.googleapis.com/css2?family=Iansui%3Awght%40400&text=%E8%AE%93%E6%AF%8F%E4%B8%80%E4%BB%BD%E5%A5%BD%E5%A5%87%EF%BC%8C%E6%85%A2%E6%85%A2%E9%95%B7%E5%A4%A7%E3%80%82&display=swap",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/iansui/OFL.txt",
+    "bytes": 7436
+  }
+]

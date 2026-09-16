@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>常春藤｜首屏字體比較</title>
+<style>
+:root{color-scheme:light;--paper:oklch(98% .01 95);--ink:oklch(28% .04 162);--muted:oklch(47% .025 155);--line:oklch(84% .022 145);--green:oklch(37% .057 157);--yellow:oklch(87% .13 88)}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.65 'PingFang TC','Microsoft JhengHei',sans-serif}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-underline-offset:.25em}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--green);outline-offset:4px}h1,h2,p{margin:0}
+.top{padding:26px 32px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:24px}.top h1{font-size:1.5rem;font-weight:600;letter-spacing:.03em}.top p{font-size:.875rem;color:var(--muted);margin-top:5px}.tag{font-size:.75rem;letter-spacing:.12em;white-space:nowrap}
+.workspace{display:grid;grid-template-columns:258px minmax(0,1fr)}aside{padding:28px 24px;border-right:1px solid var(--line)}fieldset{padding:0;border:0;margin:0 0 28px}legend{font-size:.75rem;letter-spacing:.1em;color:var(--muted);margin-bottom:12px}.options{display:grid;gap:8px}.option{position:relative;display:block;padding:12px 12px 12px 34px;border:1px solid transparent;cursor:pointer;line-height:1.5}.option input{position:absolute;left:10px;top:17px;accent-color:var(--green)}.option:has(input:checked){background:oklch(93% .025 145);border-color:var(--line)}.option strong{display:block;font-size:.9375rem;font-weight:600}.option small{display:block;color:var(--muted);font-size:.75rem;margin-top:3px}.recommend{display:inline-block;background:var(--yellow);font-size:.625rem;vertical-align:middle;padding:0 5px;margin-left:4px;letter-spacing:.04em}
+.devices{display:flex;gap:8px}.devices button{padding:8px 14px;min-height:44px;border:1px solid var(--line);background:transparent;border-radius:2px;font-size:.875rem}.devices [aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}.range-label{display:flex;justify-content:space-between;font-size:.8125rem}input[type=range]{width:100%;height:32px;accent-color:var(--green)}.reset{background:transparent;color:var(--muted);border:0;padding:5px 0;min-height:44px;font-size:.75rem;text-decoration:underline;text-underline-offset:4px}.aside-note{font-size:.75rem;line-height:1.9;color:var(--muted);padding-top:16px;border-top:1px solid var(--line)}
+main{min-width:0;padding:26px 28px 32px}.description{min-height:96px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px}.description h2{font-size:1.125rem;font-weight:600}.description p{color:var(--muted);font-size:.875rem;margin-top:5px;max-width:52em}.spec{font-size:.75rem;white-space:nowrap;line-height:1.8;text-align:right}.stage-wrap{background:oklch(92% .012 145);padding:20px;overflow:hidden}.stage{position:relative;margin:0 auto;overflow:hidden;box-shadow:0 3px 20px oklch(28% .04 162 / .08)}iframe{border:0;display:block;transform-origin:top left;background:var(--ink);pointer-events:none}.caption{display:flex;justify-content:space-between;gap:20px;padding-top:12px;font-size:.75rem;color:var(--muted)}.caption p{max-width:58em}.source{font-size:.75rem;color:var(--muted);margin-top:24px;display:flex;flex-wrap:wrap;gap:8px 20px}
+.overview{display:none}.overview-cell{min-width:0}.overview-heading{display:flex;justify-content:space-between;gap:16px;align-items:baseline;margin-bottom:10px}.overview-heading h2{font-size:1.125rem}.overview-heading span{font-size:.8125rem;color:var(--muted)}.overview-view{position:relative;overflow:hidden}.overview-view iframe{position:absolute;left:0;top:0}.overview-mode .workspace{display:none}.overview-mode .overview{display:grid;grid-template-columns:1fr 1fr;gap:30px 28px;padding:26px 32px}.overview-mode .top p{max-width:70em}
+@media(max-width:950px){.workspace{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line);padding:20px}.options{grid-template-columns:repeat(2,minmax(0,1fr))}aside fieldset{margin-bottom:16px}.aside-note{display:none}main{padding:20px}.top{padding:20px}.description{display:block;min-height:0;margin-bottom:18px}.spec{text-align:left;margin-top:10px}.stage-wrap{padding:12px}.caption{display:block}.caption span{display:block;margin-top:6px}.overview-mode .overview{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:no-preference){.option{transition:background-color .15s ease-out}}
+</style>
+</head>
+<body>
+<header class="top"><div><h1>讓好奇，有自己的字樣。</h1><p>常春藤首屏字體提案 · 相同文案、相同校園畫面，看看哪一種語氣最適合。</p></div><span class="tag">字體探索 / 2026.09</span></header>
+<div class="workspace">
+<aside>
+<fieldset><legend>選擇方向</legend><div class="options">
+<label class="option"><input type="radio" name="variant" value="A" checked><strong>A　清爽溫暖<span class="recommend">推薦</span></strong><small>LINE Seed TW · Bold</small></label>
+<label class="option"><input type="radio" name="variant" value="B"><strong>B　親切圓潤</strong><small>jf open 粉圓 · Regular</small></label>
+<label class="option"><input type="radio" name="variant" value="C"><strong>C　沉穩書卷</strong><small>Noto Serif TC · SemiBold</small></label>
+<label class="option"><input type="radio" name="variant" value="D"><strong>D　自然手寫</strong><small>芫荽 Iansui · Regular</small></label>
+<label class="option"><input type="radio" name="variant" value="original"><strong>原版　對照</strong><small>LINE Seed TW · ExtraBold</small></label>
+</div></fieldset>
+<fieldset><legend>預覽尺寸</legend><div class="devices"><button type="button" data-device="desktop" aria-pressed="true">桌面</button><button type="button" data-device="mobile" aria-pressed="false">手機</button></div></fieldset>
+<div><label class="range-label" for="scale">主標大小微調 <output id="scale-value" for="scale">100%</output></label><input id="scale" type="range" min="0.85" max="1.15" step="0.05" value="1"><button class="reset" type="button" id="reset">還原建議大小</button></div>
+<p class="aside-note">A 延續品牌識別；B 增加親切感；C 偏沉穩；D 像老師寫給孩子的話。先挑語氣，再微調大小。</p>
+</aside>
+<main>
+<section class="description" aria-live="polite"><div><h2 id="variant-title"></h2><p id="variant-description"></p></div><div class="spec" id="spec"></div></section>
+<div class="stage-wrap"><div class="stage"><iframe id="preview" title="所選字體的首屏視覺預覽" tabindex="-1"></iframe></div></div>
+<div class="caption"><p>以同一張影片海報比較。導覽、按鈕與配色沿用現有設計；副標建議桌面 18px、手機 16px。</p><span id="viewport-caption"></span></div>
+<footer class="source"><span>字體來源</span><a href="https://seed.line.me/index_tw.html" target="_blank" rel="noopener">LINE Seed TW</a><a href="https://github.com/justfont/open-huninn-font" target="_blank" rel="noopener">jf open 粉圓</a><a href="https://fonts.google.com/noto/specimen/Noto+Serif+TC" target="_blank" rel="noopener">Noto Serif TC</a><a href="https://github.com/ButTaiwan/iansui" target="_blank" rel="noopener">芫荽</a><a href="?overview=1">四款並排比較</a></footer>
+</main>
+</div>
+<section class="overview" aria-label="四款字體並排比較"></section>
+<script>
+const scene = new TextDecoder().decode(Uint8Array.from(atob('__SCENE_B64__'), c=>c.charCodeAt(0)));
+const variants = {
+ A:{title:'A　清爽溫暖',family:'LINE Seed TW',weight:700,desktop:60,mobile:34,line:1.32,tracking:.015,description:'把原本的厚重感收一點，保留圓潤與辨識度；讓孩子的表情和文案一起被看見。'},
+ B:{title:'B　親切圓潤',family:'Huninn',weight:400,desktop:64,mobile:36,line:1.4,tracking:.025,description:'圓潤、開放的筆畫，帶出輕鬆的幼兒園氣氛。比 A 更活潑，也比較柔和。'},
+ C:{title:'C　沉穩書卷',family:'Noto Serif TC',weight:600,desktop:60,mobile:34,line:1.36,tracking:.035,description:'有粗細變化的明體，讓「慢慢長大」多一點安定與細緻；整體會更偏教育品牌。'},
+ D:{title:'D　自然手寫',family:'Iansui',weight:400,desktop:64,mobile:36,line:1.42,tracking:.01,description:'像老師寫給孩子的一句話，溫柔、有人味。筆畫較細，搭影片時更需要留意背景亮度。'},
+ original:{title:'原版　目前的字體與大小',family:'LINE Seed TW',weight:800,desktop:73.6,mobile:36.32,line:1.24,tracking:.01,description:'較粗、較大的主標，第一眼很有存在感；可以切回這版，比較新方向讓畫面多出的空間。'}
+};
+const params=new URLSearchParams(location.search);
+let current=variants[params.get('variant')]?params.get('variant'):'A';
+let device=innerWidth<600?'mobile':'desktop';
+let scale=1;
+let changeId=0;
+const preview=document.querySelector('#preview');
+const stage=document.querySelector('.stage');
+const wrap=document.querySelector('.stage-wrap');
+const sizes={desktop:{width:1440,height:900},mobile:{width:390,height:844}};
+function variantCSS(key, factor=1){
+ const v=variants[key];
+ const desktop=key==='original'?4.6:v.desktop/16;
+ const mobile=key==='original'?2.27:v.mobile/16;
+ const base=key==='original'?`clamp(2.5rem,1.55rem + 3.6vw,4.6rem)`:`clamp(2.75rem,1.5rem + 3vw,${desktop}rem)`;
+ const small=key==='original'?`clamp(2.125rem,1.1rem + 4.8vw,3rem)`:`clamp(2rem,1rem + 5.5vw,${mobile}rem)`;
+ return `.studio-hero h1{font-family:'${v.family}',var(--font);font-weight:${v.weight};font-synthesis:none;font-size-adjust:from-font;font-size:calc(${base} * ${factor});line-height:${v.line};letter-spacing:${v.tracking}em}.studio-hero-copy>p{font-size:${key==='original'?'clamp(1.0625rem,.95rem + .45vw,1.25rem)':'1.125rem'};line-height:1.85}@media(max-width:760px){.studio-hero h1{font-size:calc(${small} * ${factor})}.studio-hero-copy>p{font-size:1rem}}`;
+}
+function fit(){
+ const size=sizes[device];
+ const available=wrap.clientWidth-parseFloat(getComputedStyle(wrap).paddingLeft)*2;
+ const ratio=Math.min(1,available/size.width);
+ preview.style.width=size.width+'px';preview.style.height=size.height+'px';preview.style.transform=`scale(${ratio})`;
+ stage.style.width=size.width*ratio+'px';stage.style.height=size.height*ratio+'px';
+ document.querySelector('#viewport-caption').textContent=`${size.width} × ${size.height} · 畫面顯示 ${Math.round(ratio*100)}%`;
+}
+async function apply(){
+ if(!preview.contentDocument?.querySelector('#type-variant'))return;
+ const version=++changeId,v=variants[current],doc=preview.contentDocument;
+ preview.dataset.ready='false';
+ doc.querySelector('#type-variant').textContent=variantCSS(current,scale);
+ fit();
+ await doc.fonts.load(`${v.weight} 64px "${v.family}"`,'讓每一份好奇，慢慢長大。');
+ await doc.fonts.ready;
+ if(version!==changeId)return;
+ const style=preview.contentWindow.getComputedStyle(doc.querySelector('#home-title'));
+ document.querySelector('#variant-title').textContent=v.title;
+ document.querySelector('#variant-description').textContent=v.description;
+ document.querySelector('#spec').textContent=`主標 ${Number.parseFloat(style.fontSize).toFixed(1)}px / 字重 ${v.weight} / 行高 ${v.line}`;
+ document.querySelector('#scale-value').textContent=Math.round(scale*100)+'%';
+ document.querySelectorAll('[name=variant]').forEach(el=>el.checked=el.value===current);
+ document.querySelectorAll('[data-device]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.device===device)));
+ preview.dataset.ready='true';
+}
+preview.addEventListener('load',()=>apply().catch(()=>{document.querySelector('#variant-description').textContent='字體載入失敗，請重新開啟預覽。';}));
+document.querySelectorAll('[name=variant]').forEach(el=>el.addEventListener('change',()=>{current=el.value;scale=1;document.querySelector('#scale').value='1';apply();}));
+document.querySelectorAll('[data-device]').forEach(el=>el.addEventListener('click',()=>{device=el.dataset.device;apply();}));
+document.querySelector('#scale').addEventListener('input',e=>{scale=Number(e.target.value);apply();});
+document.querySelector('#reset').addEventListener('click',()=>{scale=1;document.querySelector('#scale').value='1';apply();});
+new ResizeObserver(fit).observe(wrap);
+if(params.has('overview')){
+ document.body.classList.add('overview-mode');
+ const overview=document.querySelector('.overview');
+ for(const key of ['A','B','C','D']){
+  const v=variants[key],cell=document.createElement('article');
+  cell.className='overview-cell';
+  cell.innerHTML=`<div class="overview-heading"><h2>${v.title}</h2><span>${v.family} ${v.weight} · ${v.desktop}px</span></div><div class="overview-view"><iframe title="${v.title}首屏預覽" tabindex="-1"></iframe></div>`;
+  overview.append(cell);
+  const frame=cell.querySelector('iframe'),view=cell.querySelector('.overview-view');
+  const size=()=>{const ratio=view.clientWidth/1440;frame.style.width='1440px';frame.style.height='900px';frame.style.transform=`scale(${ratio})`;view.style.height=900*ratio+'px';};
+  new ResizeObserver(size).observe(view);
+  frame.addEventListener('load',async()=>{const doc=frame.contentDocument;doc.querySelector('#type-variant').textContent=variantCSS(key);await doc.fonts.load(`${v.weight} 64px "${v.family}"`,'讓每一份好奇，慢慢長大。');await doc.fonts.ready;frame.dataset.ready='true';});
+  frame.srcdoc=scene;
+ }
+}else{preview.srcdoc=scene;}
+</script>
+</body>
+</html>
