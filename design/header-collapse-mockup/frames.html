@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>常春藤｜更多細框設計提案</title>
+<link rel="stylesheet" href="drawer.css">
+<style>
+*{box-sizing:border-box}body{--sheet:#f9f8f2;--ink:#203f32;--muted:#6c7d6e;--line:#203f3224;--hover:#203f3206;--tag:#e5eddf;background:var(--sheet);color:var(--ink);margin:0;font-family:'PingFang TC','Microsoft JhengHei',sans-serif;transition:background-color .2s,color .2s}body[data-theme=sage]{--sheet:#c5ded0;--muted:#496553;--line:#203f3233;--tag:#e4eddf}body[data-theme=dark]{--sheet:#20382d;--ink:#fffdf5;--muted:#bac9b7;--line:#fffdf538;--hover:#fffdf508;--tag:#ffffff12}main{max-width:1140px;width:calc(100% - 80px);margin:34px auto 24px}.intro{display:flex;justify-content:space-between;gap:32px;align-items:flex-end;margin-bottom:24px}.kicker{font-size:10px;letter-spacing:.18em;color:var(--muted)}h1{font-size:31px;font-weight:600;line-height:1.4;margin:9px 0 10px;letter-spacing:.01em}.intro p{font-size:12px;color:var(--muted);line-height:1.7;margin:0}.themes{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:6px;white-space:nowrap}.themes button{font:inherit;font-size:11px;min-height:38px;padding:0 12px;color:inherit;border:0;border-bottom:2px solid transparent;background:transparent;cursor:pointer}.themes button[aria-pressed=true]{border-bottom-color:currentColor}.themes button:hover{background:var(--hover)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}.study{position:relative;display:flex;flex-direction:column;align-items:center;padding:20px 20px 17px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-height:191px;color:inherit;text-decoration:none;transition:background-color .15s}.study:hover{background:var(--hover)}.study-top{position:absolute;left:17px;right:17px;top:13px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted)}.study-top em{font-style:normal;font-size:9px;padding:3px 7px;border-radius:3px;background:var(--tag);color:var(--ink)}.fine-specimen{width:74px;height:74px;margin:8px 0 17px}.study h2{font-size:14px;font-weight:600;margin:0 0 7px;letter-spacing:.03em}.study p{font-size:10px;line-height:1.8;color:var(--muted);margin:0;text-align:center}.study .open-label{position:absolute;right:16px;bottom:17px;font-size:15px;opacity:0;transition:opacity .15s}.study:hover .open-label,.study:focus-visible .open-label{opacity:1}.reference-specimen{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:74px;height:74px;margin:8px 0 17px}.reference-specimen>i{display:block;width:35px;height:1.5px;background:currentColor}.reference-specimen::before,.reference-specimen::after{width:23px;height:23px;opacity:.75}.reference-specimen::before{left:4px;top:4px}.reference-specimen::after{right:4px;bottom:4px}footer{display:flex;justify-content:space-between;gap:24px;padding-top:20px;font-size:10px;color:var(--muted);line-height:1.8}footer a{color:inherit;text-underline-offset:4px}:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
+@media(max-width:800px){main{width:calc(100% - 40px);margin-top:24px}.intro{align-items:flex-start;flex-direction:column;gap:16px}h1{font-size:27px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.study{padding-inline:14px;min-height:196px}.study p{max-width:15em}.themes{align-self:flex-start}footer{flex-direction:column;gap:10px}}@media(max-width:400px){main{width:calc(100% - 28px)}h1{font-size:25px}.study p{font-size:9px}.study h2{font-size:13px}.study{padding:22px 8px 14px}.study-top{left:10px;right:10px}.fine-specimen,.reference-specimen{width:66px;height:66px}}@media(prefers-reduced-motion:reduce){body,.study,.study .open-label{transition:none}}
+.rounds{display:flex;flex-wrap:wrap;align-items:center;gap:22px;margin:0 0 15px;font-size:11px}.rounds a{color:var(--muted);text-decoration:none;min-height:34px;display:flex;align-items:center;border-bottom:1px solid transparent}.rounds a[aria-current=page]{color:var(--ink);border-bottom-color:currentColor}.rounds a:hover{color:var(--ink)}body[data-round="3"] .grid{grid-template-columns:repeat(4,minmax(0,1fr))}body[data-round="3"] .study{min-height:194px;padding-inline:12px}body[data-round="3"] .study p{max-width:22em}@media(max-width:1000px){body[data-round="3"] .grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:800px){body[data-round="3"] .grid{grid-template-columns:repeat(2,minmax(0,1fr))}body[data-round="3"] .study p{max-width:15em}}
+</style>
+</head>
+<body>
+<main>
+  <header class="intro"><div><div class="kicker">IVY · FINE FRAME EXPLORATIONS / 02</div><h1>再多一點個性，仍然保持留白。</h1><p>8 款新方向 ＋ 原版對照。每款都保留三條線、透明底與相同線寬。<br>點選任一款，就能套進整頁，試開有社群區的抽屜。</p></div><div class="themes" aria-label="比較不同背景"><button data-theme="paper" aria-pressed="true">米白底</button><button data-theme="sage" aria-pressed="false">淡綠底</button><button data-theme="dark" aria-pressed="false">深色底</button></div></header>
+  <nav class="rounds" aria-label="細框提案輪次"><a href="frames.html" data-round="2">第二輪 · 幾何留白</a><a href="frames.html?round=3" data-round="3">第三輪 · 多一點想像</a><a href="drawer.html?variant=menu-only&frame=mascot">X · 人物 Logo 選單 ↗</a></nav>
+  <div class="grid" id="studies"></div>
+  <footer><span>外框 1px · 三條線 1.5px · 上方為放大比較，整頁按鈕維持 54px<br>先看輪廓，再看它放回網站之後的感覺。</span><a href="drawer.html?variant=menu-only&frame=corners">回到原本三款與抽屜預覽 ↗</a></footer>
+</main>
+<script src="frames.js"></script>
+<script>
+const studies=document.querySelector('#studies');
+const thirdRound=new URLSearchParams(location.search).get('round')==='3';
+document.body.dataset.round=thirdRound?'3':'2';
+document.querySelector(`.rounds a[data-round="${thirdRound?'3':'2'}"]`).setAttribute('aria-current','page');
+if(thirdRound){
+  document.title='常春藤｜十二款新細框・第三輪';
+  document.querySelector('.kicker').textContent='IVY · FINE FRAME EXPLORATIONS / 03';
+  document.querySelector('h1').textContent='讓細框，再多一點想像。';
+  document.querySelector('.intro p').innerHTML='12 款全新方向：書頁、窗扉、折角、弧線與自然輪廓。<br>保持透明底、細線與三條線；點選任一款，可放回整頁試開抽屜。';
+}
+const reference='<a class="study" href="drawer.html?variant=menu-only&frame=corners"><div class="study-top"><span>A / ORIGINAL</span><em>原版對照</em></div><span class="reference-specimen frame-corners" aria-hidden="true"><i></i><i></i><i></i></span><h2>雙角留白</h2><p>保留原版作為比較基準。</p><span class="open-label" aria-hidden="true">↗</span></a>';
+studies.innerHTML=(thirdRound?'':reference)+IvyFineFrames.frames.filter(frame=>thirdRound?frame.round===3:frame.round!==3).map(frame=>`<a class="study" href="drawer.html?variant=menu-only&frame=${frame.id}"><div class="study-top"><span>${frame.code} / NEW</span>${frame.pick?`<em>${frame.pick}</em>`:''}</div>${IvyFineFrames.specimen(frame.id)}<h2>${frame.name}</h2><p>${frame.note}</p><span class="open-label" aria-hidden="true">↗</span></a>`).join('');
+document.querySelectorAll('.themes button').forEach(button=>button.addEventListener('click',()=>{document.body.dataset.theme=button.dataset.theme;document.querySelectorAll('.themes button').forEach(other=>other.setAttribute('aria-pressed',String(other===button)));}));
+</script>
+</body>
+</html>

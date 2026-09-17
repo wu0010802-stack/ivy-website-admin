@@ -1,0 +1,69 @@
+/* Only injected into the mock-up iframe. The website files remain untouched. */
+body.header-mockup .header.header{background:transparent!important;box-shadow:none!important;border:0!important;color:#fffdf5;pointer-events:none;transition:color 240ms ease}
+body.header-mockup .header .header-top{position:relative;height:92px;border-bottom:1px solid rgb(255 255 255 / .5);transition:border-color 240ms ease}
+body.header-mockup .header .brand{pointer-events:auto;--brand-chinese:#fffdf5;--brand-english:#fffdf5;transition:opacity 200ms ease,transform 360ms cubic-bezier(.22,1,.36,1)}
+body.header-mockup .header .navigation{position:absolute;inset:auto calc(var(--mock-book-width,130px) + 32px) auto auto;display:block!important;width:var(--mock-nav-width,370px);margin:0;overflow:hidden;border:0;background:none;color:inherit;pointer-events:auto;clip-path:inset(0);transition:clip-path 480ms cubic-bezier(.65,0,.25,1),opacity 300ms ease,transform 480ms cubic-bezier(.65,0,.25,1)}
+body.header-mockup .header .nav-inner{display:flex;flex-wrap:nowrap;width:max-content;gap:32px;padding:0;margin:0;min-height:44px;align-items:center}
+body.header-mockup .header .nav-inner>a{font-size:14px;min-height:44px;display:flex;align-items:center;white-space:nowrap;border:0;color:inherit}
+body.header-mockup .header .header-actions{margin-left:auto;position:relative;gap:0;pointer-events:auto}
+body.header-mockup .header .header-book{display:inline-flex!important;min-height:46px;border:1px solid rgb(255 255 255 / .6)!important;background:transparent!important;color:inherit!important;border-radius:12px;padding:10px 24px;transition:border-color 240ms ease,background-color 200ms ease}
+body.header-mockup .header .header-book:hover{background:rgb(255 255 255 / .12)!important}
+body.header-mockup .header .mock-menu{position:absolute;right:calc(100% + 26px);top:50%;margin-top:-24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:48px;height:48px;padding:8px;border:0;border-radius:0;background:transparent;color:inherit;cursor:pointer;opacity:0;visibility:hidden;transform:translateX(-12px);transition:opacity 200ms ease 240ms,transform 320ms cubic-bezier(.22,1,.36,1) 200ms,visibility 0s 0s}
+body.header-mockup .mock-menu span{display:block;width:32px;height:2px;background:currentColor;transform-origin:center;transition:transform 250ms ease,opacity 160ms ease}
+body.header-mockup .header.mock-ink{color:#203f32}
+body.header-mockup .header.mock-ink .brand{--brand-chinese:#203f32;--brand-english:#203f32}
+body.header-mockup .header.mock-ink .header-book{border-color:#203f3280!important}
+body.header-mockup .header.mock-compact .header-top{border-bottom-color:transparent}
+body.header-mockup .header.mock-compact .brand{opacity:0;transform:translateY(-8px);pointer-events:none}
+body.header-mockup .header.mock-compact .navigation{opacity:0;clip-path:inset(0 0 0 100%);transform:translateX(18px);pointer-events:none}
+body.header-mockup .header.mock-compact .mock-menu{opacity:1;visibility:visible;transform:translateX(0)}
+body.header-mockup .header :focus-visible{outline:2px solid currentColor;outline-offset:5px}
+body.header-mockup .mock-menu[aria-expanded=true] span:nth-child(1){transform:translateY(8px) rotate(45deg)}
+body.header-mockup .mock-menu[aria-expanded=true] span:nth-child(2){opacity:0}
+body.header-mockup .mock-menu[aria-expanded=true] span:nth-child(3){transform:translateY(-8px) rotate(-45deg)}
+body.header-mockup .mock-dropdown{position:absolute;top:78px;right:0;width:310px;background:#fffdf5;color:#203f32;border:1px solid #203f3224;border-radius:12px;padding:18px 24px;box-shadow:0 15px 35px #163b2918;pointer-events:auto}
+body.header-mockup .mock-dropdown[hidden]{display:none}
+body.header-mockup .mock-dropdown:not([hidden]){animation:mock-menu-open 220ms ease both}
+body.header-mockup .mock-dropdown>span{display:block;font-size:10px;letter-spacing:.16em;color:#6e7c70;padding:6px 0 10px}
+body.header-mockup .mock-dropdown a{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:56px;border-bottom:1px solid #203f3218;font-size:16px;color:inherit;text-decoration:none}
+body.header-mockup .mock-dropdown a:last-child{border:0}
+body.header-mockup .mock-dropdown a::after{content:'↗';font-size:18px;font-weight:400}
+body.header-mockup .mock-dropdown a:hover{color:#2d8f5a}
+body.header-mockup .mock-visit-note{position:fixed;inset:auto 20px 116px auto;max-width:min(320px,calc(100% - 40px));padding:18px 22px;background:#fffdf5;border:1px solid #203f3224;border-radius:12px;color:#203f32;z-index:90;font-size:14px;box-shadow:0 8px 24px #203f3220}
+@keyframes mock-menu-open{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media(max-width:1100px){body.header-mockup .header .nav-inner{gap:20px}body.header-mockup .header .nav-inner>a{font-size:13px}body.header-mockup .header .navigation{right:calc(var(--mock-book-width,130px) + 20px)}}
+@media(max-width:900px){body.header-mockup .header .navigation{display:none!important}body.header-mockup .header .mock-menu{opacity:1;visibility:visible;transform:none;right:calc(100% + 16px)}}
+@media(max-width:760px){body.header-mockup .header .header-top{height:78px;width:calc(100% - 32px)}body.header-mockup .header .header-book{padding:8px 12px;font-size:12px;min-height:44px}body.header-mockup .header .header-book .icon{width:14px;height:14px}body.header-mockup .header .mock-menu{width:44px;height:44px;right:calc(100% + 8px);margin-top:-22px}body.header-mockup .mock-menu span{width:27px}body.header-mockup .header .brand{--brand-type:14px;--brand-crest-size:29px;gap:6px}body.header-mockup .mock-dropdown{width:min(310px,calc(100vw - 32px));top:70px}}
+@media(max-width:370px){body.header-mockup .header .brand{--brand-type:12px;--brand-crest-size:25px}body.header-mockup .header .header-book{padding-inline:9px}}
+@media(prefers-reduced-motion:reduce){body.header-mockup .header,body.header-mockup .header *,body.header-mockup .mock-dropdown{animation:none!important;transition:none!important}}
+
+/* Optional comparison variants: original mock-up remains the default. */
+body.header-mockup[data-header-variant] .header .header-actions{isolation:isolate}
+body.header-mockup[data-header-variant] .header .header-actions::before{content:'';position:absolute;inset:0 0 0 -61px;border:1px solid #203f3266;border-radius:14px;background:rgb(255 253 245 / .96);pointer-events:none;z-index:-1;opacity:0;clip-path:inset(0 0 0 61px round 14px);transition:clip-path 420ms cubic-bezier(.22,1,.36,1) 100ms,opacity 200ms ease}
+body.header-mockup[data-header-variant] .header.mock-compact .header-actions::before{opacity:1;clip-path:inset(0 round 14px)}
+body.header-mockup[data-header-variant] .header.mock-compact .header-book{height:52px;min-width:145px;padding:10px 23px;border:0!important;border-radius:0 14px 14px 0;color:#203f32!important;font-size:15px;justify-content:center}
+body.header-mockup[data-header-variant] .header.mock-compact .header-book .icon{display:none}
+body.header-mockup[data-header-variant] .header.mock-compact .mock-menu{right:100%;width:60px;height:52px;margin-top:-26px;border-radius:14px 0 0 14px;color:#203f32}
+body.header-mockup[data-header-variant] .header.mock-compact .mock-menu span{width:26px}
+body.header-mockup[data-header-variant] .header.mock-compact .mock-menu::after{content:'';position:absolute;right:0;top:14px;bottom:14px;border-right:1px solid #203f3238}
+body.header-mockup[data-header-variant] .header.mock-compact .mock-menu:hover{background:#203f320b}
+body.header-mockup[data-header-variant] .header.mock-compact .header-book:hover{background:#203f320b!important}
+body.header-mockup[data-header-variant] .header.mock-compact .mock-menu:focus-visible,body.header-mockup[data-header-variant] .header.mock-compact .header-book:focus-visible{outline-offset:-4px}
+body.header-mockup[data-header-variant="filled"] .header.mock-compact .header-book{background:#203f32!important;color:#fffdf5!important}
+body.header-mockup[data-header-variant="filled"] .header.mock-compact .header-book:hover{background:#2b5943!important}
+body.header-mockup[data-header-variant="filled"] .header.mock-compact .mock-menu::after{display:none}
+body.header-mockup[data-header-variant="soft"] .header.mock-compact .header-actions::before{border-color:transparent;box-shadow:0 4px 18px #203f3214;border-radius:28px}
+body.header-mockup[data-header-variant="soft"] .header.mock-compact .header-book{border-radius:0 28px 28px 0}
+body.header-mockup[data-header-variant="soft"] .header.mock-compact .mock-menu{border-radius:28px 0 0 28px}
+@media(max-width:760px){body.header-mockup[data-header-variant] .header.mock-compact .header-book{height:48px;min-width:128px;padding-inline:18px;font-size:14px}body.header-mockup[data-header-variant] .header.mock-compact .mock-menu{height:48px;width:56px;margin-top:-24px}body.header-mockup[data-header-variant] .header.mock-compact .header-actions::before{left:-57px}body.header-mockup[data-header-variant] .header.mock-compact .mock-menu span{width:24px}}
+@media(prefers-reduced-motion:reduce){body.header-mockup[data-header-variant] .header .header-actions::before{transition:none}}
+
+/* Minimal variant: only the three-line menu remains after the hero transition. */
+body.header-mockup.mock-menu-only .header .header-book{transition:opacity 180ms ease,transform 320ms ease,visibility 0s 0s}
+body.header-mockup.mock-menu-only .header .mock-menu{transition:opacity 220ms ease 180ms,right 480ms cubic-bezier(.22,1,.36,1),transform 320ms cubic-bezier(.22,1,.36,1) 180ms,visibility 0s 0s}
+body.header-mockup.mock-menu-only .header.mock-compact .header-book{opacity:0;visibility:hidden;transform:translateX(8px);pointer-events:none;transition:opacity 180ms ease,transform 320ms ease,visibility 0s 180ms}
+body.header-mockup.mock-menu-only .header.mock-compact .header-actions{pointer-events:none}
+body.header-mockup.mock-menu-only .header.mock-compact .mock-menu{right:0;pointer-events:auto}
+body.header-mockup.mock-menu-only .mock-dropdown .mock-menu-visit{margin-top:16px;min-height:50px;padding:0 18px;background:#203f32;color:#fffdf5;border-radius:8px;border:0;font-weight:600}
+body.header-mockup.mock-menu-only .mock-dropdown .mock-menu-visit:hover{background:#2b5943}
+@media(prefers-reduced-motion:reduce){body.header-mockup.mock-menu-only .header .header-book,body.header-mockup.mock-menu-only .header .mock-menu{transition:none}}

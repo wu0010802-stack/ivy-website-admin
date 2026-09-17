@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>常春藤｜兩位小嚮導・捲動分鏡</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body>
+<header class="project-bar"><div><strong>IVY <span>兩位小嚮導</span></strong><small>人物導覽 · 動態分鏡提案</small></div><div class="project-actions"><button id="motion-toggle" aria-pressed="true">動態開啟</button><button id="menu-toggle" aria-label="開啟導覽選單" aria-haspopup="dialog" aria-controls="journey-menu" aria-expanded="false"><i></i><i></i><i></i></button></div></header>
+<main id="journey"><div class="pin">
+  <nav class="chapters" aria-label="分鏡章節"></nav>
+  <div class="workbench">
+    <div class="canvas" id="canvas" aria-label="人物與首頁區段的動態示意">
+      <section class="scene scene-hero" data-scene="0" aria-label="Hero，從 Logo 出發">
+        <img class="hero-image" src="../../assets/hero-campus-still.webp" alt="常春藤孩子在校園活動的情境照片"><div class="hero-shade"></div>
+        <div class="hero-brand"><svg viewBox="30 26 124 132" width="48" height="51" aria-hidden="true"><defs><filter id="crest-cutout" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -4.252 -14.304 -1.444 20 0"/></filter></defs><image href="../../assets/logo.png" width="552" height="192" filter="url(#crest-cutout)"/></svg><span>常春藤教育機構<small>Ivy Educational Institution</small></span></div>
+        <div class="lead"><span class="eyebrow">LET'S EXPLORE IVY</span><h1>跟著我們，<br>逛逛常春藤。</h1><p>從熟悉的笑臉，走進孩子的每一天。</p></div><span class="scene-foot">往下捲動，人物會從 Logo 出發 ↓</span>
+      </section>
+      <section class="scene scene-about" data-scene="1" aria-label="關於常春藤，照片旁相見" hidden>
+        <div class="lead"><span class="eyebrow">ABOUT IVY</span><h2>把每個孩子，<br>放在心上。</h2><p>兩位嚮導來到照片邊，<br>陪你認識這裡的陪伴與日常。</p><span class="quiet-link">認識常春藤 ↗</span></div><img class="about-photo" src="../../assets/hero-campus-still.webp" alt="常春藤孩子開心活動的情境照片"><div class="photo-caption">把日常，變成值得記住的童年。</div><div class="ground"></div>
+      </section>
+      <section class="scene scene-day" data-scene="2" aria-label="孩子的一天，分開帶路" hidden>
+        <div class="lead"><span class="eyebrow">A DAY AT IVY</span><h2>跟著孩子，<br>過一天。</h2><p>一位領路，一位在下一個生活片刻等你。</p></div><div class="day-stops"><div><span class="day-symbol">☀</span><b>早安入園</b><small>從一句早安開始</small></div><div><span class="day-symbol">✧</span><b>好奇探索</b><small>動手試試新發現</small></div><div><span class="day-symbol">☾</span><b>故事回家</b><small>把今天帶回家</small></div></div><div class="day-line"></div>
+      </section>
+      <section class="scene scene-campuses" data-scene="3" aria-label="五所校園，沿路尋找" hidden>
+        <div class="lead"><span class="eyebrow">OUR CAMPUSES</span><h2>五所校園，<br>找到熟悉的方向。</h2><p>人物依序停靠五個校園位置，<br>陪你找離家最近的一站。</p></div><div class="campus-route" aria-label="五校位置的分鏡示意"><svg viewBox="0 0 800 110" preserveAspectRatio="none" aria-hidden="true"><path d="M0 80C100 80 100 20 200 20S300 80 400 80 500 20 600 20 700 80 800 80"/></svg><div class="campus-stops"><span>義華</span><span>明華</span><span>崇德</span><span>國際</span><span>仁武</span></div></div><span class="scene-foot">位置與路線為分鏡示意，非實際地圖</span>
+      </section>
+      <section class="scene scene-news" data-scene="4" aria-label="最新消息，探頭發現新故事" hidden>
+        <div class="lead"><span class="eyebrow">NEWS & EVENTS</span><h2>今天，也有<br>新的小發現。</h2><p>在消息卡片邊緣探頭，提醒你看看新故事。</p></div><div class="news-cards"><article><span>校園故事</span><strong>一起探索，<br>一起長大。</strong><i>↗</i></article><article><span>近期活動</span><strong>下一個精彩，<br>等你一起參與。</strong><i>↗</i></article></div><div class="ground"></div>
+      </section>
+      <section class="scene scene-visit" data-scene="5" aria-label="頁尾，會合並邀請參觀" hidden>
+        <div class="lead"><span class="eyebrow">SEE YOU AT IVY</span><h2>下一站，<br>來校園見面。</h2><p>兩位小嚮導在這裡會合，<br>把探索變成一次真實的相遇。</p><button class="visit-button">預約參觀 <span aria-hidden="true">↗</span></button></div><div class="visit-arch"></div><div class="social-row" aria-label="機構社群位置示意"><span>Facebook</span><span>Instagram</span><span>LINE</span></div><span class="scene-foot">頁尾新增邀請段落的設計提案</span>
+      </section>
+      <div class="actor boy" aria-hidden="true"><img src="characters.png" alt=""></div><div class="actor girl" aria-hidden="true"><img src="characters.png" alt=""></div>
+      <div class="canvas-counter" aria-hidden="true"><span id="canvas-step">01</span> / 06</div>
+    </div>
+    <aside class="direction"><span class="direction-kicker">SCROLL STORYBOARD</span><h2 id="chapter-name">從 Logo 出發</h2><p class="chapter-intent" id="chapter-intent"></p><dl><dt>人物位置</dt><dd id="position-note"></dd><dt>這一段的動作</dt><dd id="action-note"></dd><dt>引導使用者</dt><dd id="purpose-note"></dd></dl><div class="rhythm"><span>進場</span><span>停留閱讀</span><span>接力</span><i id="rhythm-marker"></i></div><p class="rhythm-note">移動之後停一停，讓視線回到內容。</p></aside>
+  </div>
+  <div class="controls"><button id="previous" aria-label="上一段分鏡">←</button><label for="story-progress">捲動分鏡 <input type="range" id="story-progress" min="0" max="599" value="0" step="1"></label><button id="next" aria-label="下一段分鏡">→</button><span id="status" role="status">01 / 06 · Hero</span></div>
+  <p class="proposal-note">原生捲動或拖動分鏡軸皆可預覽。人物拆分與動作為提案示意；正式動畫需依品牌原稿製作。</p>
+</div></main>
+<dialog id="journey-menu" aria-label="常春藤導覽抽屜"><div class="drawer-top"><strong>常春藤教育機構</strong><button id="close-menu" aria-label="關閉導覽選單">×</button></div><p>選單固定在右上角，隨時都找得到。</p><nav class="drawer-chapters" aria-label="選擇分鏡區段"></nav><div class="drawer-bottom"><button class="visit-button">預約參觀 ↗</button><span>機構社群位置</span><div class="drawer-socials"><button aria-label="Facebook 社群示意">f</button><button aria-label="Instagram 社群示意">◎</button><button aria-label="LINE 社群示意">LINE</button></div><p id="drawer-feedback" role="status"></p></div></dialog>
+<div id="notice" role="status" hidden></div><style id="route-keyframes"></style>
+</body></html>

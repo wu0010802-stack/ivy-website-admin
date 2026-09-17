@@ -1,0 +1,35 @@
+.modern-emblem{position:relative;display:block;flex:none;isolation:isolate;color:#203f32}
+.modern-emblem>.modern-surface{position:absolute;display:block;inset:0;background:#fffdf7;border:1px solid #203f323d;box-sizing:border-box;transition:background-color 180ms ease,border-color 180ms ease}
+.modern-emblem>.modern-divider{position:absolute;display:block;background:#203f322d}
+.modern-emblem>svg{position:absolute;display:block;max-width:none;overflow:visible}
+.modern-emblem>.modern-crest{overflow:hidden;transition:transform 240ms cubic-bezier(.22,1,.36,1)}
+.modern-lines{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+.modern-lines path{transform-box:fill-box;transform-origin:right center;transition:transform 220ms ease}
+.modern-lines .middle-line{transform:scaleX(.7)}
+.modern-duo>.modern-surface{border-radius:42px}
+.modern-duo>.modern-divider{left:84px;top:24px;width:1px;height:34px}
+.modern-tab>.modern-surface{border-radius:40px 40px 18px 18px}
+.modern-tab>.modern-divider{left:18px;top:81px;width:44px;height:1px}
+.modern-halo{color:var(--halo-ink,#203f32)}
+.modern-emblem>.modern-halo{inset:0;fill:none;stroke:currentColor;stroke-width:1;opacity:.65;transition:opacity 200ms ease}
+.modern-halo circle{stroke-dasharray:256 40;stroke-linecap:round;transform:rotate(65deg);transform-origin:50px 50px}
+.modern-rise{color:#fffdf7}
+.modern-rise>.modern-surface{inset:28px 0 4px;border-radius:28px;background:#203f32;border-color:#ffffff38}
+button:hover .modern-lines .middle-line,a:hover .modern-lines .middle-line,button:focus-visible .modern-lines .middle-line,a:focus-visible .modern-lines .middle-line{transform:scaleX(1)}
+button:hover .modern-crest,a:hover .modern-crest{transform:translateY(-2px)}
+button:hover .modern-duo>.modern-surface,a:hover .modern-duo>.modern-surface,button:hover .modern-tab>.modern-surface,a:hover .modern-tab>.modern-surface{background:#f1f5e9;border-color:#203f3266}
+button:hover .modern-emblem>.modern-halo,a:hover .modern-emblem>.modern-halo{opacity:1}
+button:hover .modern-rise>.modern-surface,a:hover .modern-rise>.modern-surface{background:#2e5540}
+body.header-mockup .mock-menu>.modern-emblem{background:transparent;transform:none;transition:none}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-modern]{width:var(--modern-width);height:var(--modern-height);margin-top:calc(var(--modern-height) / -2);padding:0}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-modern]>.modern-emblem{display:block;width:var(--modern-width);height:var(--modern-height)}
+body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact:has([data-modern]) .header-top{height:calc(var(--modern-height) + 36px)}
+.mascot-specimen:has(.modern-emblem){display:grid;place-items:center;padding:0;flex-basis:148px;height:128px}
+.mascot-modern-link{display:none;font-size:11px;color:inherit;text-underline-offset:4px;margin:-6px 0 18px}
+.mascot-study .mascot-modern-link{display:block}
+.modern-study .mascot-concept{gap:18px}
+.modern-study .mascot-concept h1{font-size:18px}
+@media(max-width:760px){body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-modern]{width:calc(var(--modern-width) * .82);height:calc(var(--modern-height) * .82);margin-top:calc(var(--modern-height) * -.41)}body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-modern]>.modern-emblem{transform:scale(.82);transform-origin:center}body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact:has([data-modern]) .header-top{height:calc(var(--modern-height) * .82 + 28px)}}
+@media(max-width:900px){body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot[data-modern]{width:44px;height:44px;margin-top:-22px;padding:8px}body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot[data-modern]>.modern-emblem{display:none}}
+@media(max-width:600px){.mascot-specimen:has(.modern-emblem){flex-basis:126px;height:112px}.mascot-specimen>.modern-emblem{transform:scale(.84)}.modern-study .mascot-concept{gap:12px}.modern-study .mascot-concept h1{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.modern-emblem *{transition:none!important}button:hover .modern-crest,a:hover .modern-crest{transform:none}}

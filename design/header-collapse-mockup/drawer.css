@@ -1,0 +1,77 @@
+.frame-corners::before,.frame-corners::after{content:'';position:absolute;width:17px;height:17px;pointer-events:none;opacity:.7}
+.frame-corners::before{left:0;top:0;border-top:1px solid currentColor;border-left:1px solid currentColor;border-top-left-radius:5px}
+.frame-corners::after{right:0;bottom:0;border-bottom:1px solid currentColor;border-right:1px solid currentColor;border-bottom-right-radius:5px}
+.frame-circle>svg{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1;pointer-events:none;opacity:.7;transform:rotate(-68deg)}
+.frame-circle>svg circle{stroke-dasharray:133 25;stroke-linecap:round}
+.frame-leaf::before{content:'';position:absolute;inset:0;border:1px solid currentColor;border-radius:50% 50% 8px 50%;opacity:.6;pointer-events:none}
+.fine-frame-art{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;opacity:.75;pointer-events:none}
+.fine-frame-art>*{vector-effect:non-scaling-stroke}
+.fine-specimen{position:relative;display:block;flex-shrink:0;color:inherit}
+.fine-menu-lines{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;pointer-events:none}
+.fine-menu-lines path{vector-effect:non-scaling-stroke}
+body.header-mockup.mock-drawer-preview .header .mock-menu{width:54px;height:54px;margin-top:-27px;gap:5px;padding:12px;border:0!important;border-radius:0;background:transparent!important}
+body.header-mockup.mock-drawer-preview .header .mock-menu>span{width:26px;height:1.5px}
+body.header-mockup.mock-drawer-preview .header .mock-menu:hover{color:#2d8f5a}
+/* X: the original Ivy crest becomes the trigger; a small menu mark explains the action. */
+.mascot-art{display:block;flex:none;overflow:hidden}
+.mascot-menu-mark{position:absolute;right:0;bottom:0;width:28px;height:28px;fill:none;color:#203f32;pointer-events:none}
+.mascot-menu-mark circle{fill:#fffdf7;stroke:#203f3280;stroke-width:1}
+.mascot-menu-mark path{stroke:currentColor;stroke-width:1.2;stroke-linecap:round}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot{width:88px;height:88px;margin-top:-44px;padding:0 8px 3px 0}
+body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact .header-top{height:120px}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot>span{display:none}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot>.mascot-art{width:76px;height:81px;transition:transform 220ms cubic-bezier(.22,1,.36,1)}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot:hover>.mascot-art{transform:translateY(-2px)}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot:hover>.mascot-menu-mark circle{fill:#e9f0e3;stroke:#203f32}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot:active>.mascot-art{transform:scale(.96)}
+.mascot-concept{display:none;align-items:center;gap:22px;margin:22px 0 25px}
+.mascot-study .mascot-concept{display:flex}
+.mascot-study .frame-choices{display:none}
+.mascot-specimen{position:relative;flex:0 0 112px;height:120px;padding:4px 15px 10px 2px}
+.mascot-specimen>.mascot-art{width:100%;height:100%}
+.mascot-specimen>.mascot-menu-mark{width:32px;height:32px}
+.mascot-kicker{font-size:9px;letter-spacing:.15em;color:#72816e}
+.mascot-concept h1{font-size:18px;line-height:1.5;letter-spacing:.015em;font-weight:600;margin:7px 0 10px}
+.mascot-concept p{font-size:11px;line-height:1.8;color:#6b7b69;margin:0}
+@media(max-width:760px){body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot{width:67px;height:70px;margin-top:-35px;padding:0 5px 2px 0}body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot>.mascot-art{width:60px;height:64px}.mock-menu.frame-mascot>.mascot-menu-mark{width:24px;height:24px}}
+@media(max-width:760px){body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact .header-top{height:96px}}
+@media(max-width:900px){body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot{width:44px;height:44px;margin-top:-22px;padding:8px}body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot>span{display:block}body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot>.mascot-art,body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot>.mascot-menu-mark{display:none}}
+@media(max-width:600px){.mascot-concept{margin:16px 0 18px;gap:18px}.mascot-specimen{flex-basis:88px;height:96px;padding-right:11px}.mascot-specimen>.mascot-menu-mark{width:27px;height:27px}.mascot-concept h1{font-size:16px;margin:5px 0 7px}.mascot-concept p{font-size:10px}}
+.ivy-drawer-lock{overflow:hidden!important}
+dialog.ivy-menu-drawer{border-radius:0;outline:0}
+dialog.ivy-menu-drawer{position:fixed;inset:0 0 0 auto;margin:0;width:min(710px,90vw);height:100dvh;max-width:none;max-height:none;padding:0;border:0;border-left:1px solid #203f3214;background:#fffdf7;color:#203f32;overflow-y:auto;overscroll-behavior:contain;font-family:var(--font,'PingFang TC',sans-serif);box-shadow:-16px 0 64px #19382812}
+.ivy-menu-drawer::backdrop{background:#122c2442}
+.ivy-menu-drawer[open]{animation:ivy-drawer-enter 420ms cubic-bezier(.22,1,.36,1) both}
+.ivy-menu-drawer[open]::backdrop{animation:ivy-backdrop-enter 320ms ease both}
+.ivy-menu-drawer[open].is-closing{animation:ivy-drawer-leave 260ms cubic-bezier(.55,0,1,.45) both}
+.ivy-menu-drawer[open].is-closing::backdrop{animation:ivy-backdrop-leave 260ms ease both}
+.ivy-drawer-inner{min-height:100%;padding:34px 46px 30px;display:flex;flex-direction:column}
+.ivy-drawer-top{display:flex;gap:20px;align-items:center;justify-content:space-between}
+.ivy-drawer-identity{margin-right:auto;min-width:0;font-family:'Noto Sans TC',var(--font);font-size:19px;font-weight:600;letter-spacing:.03em;line-height:1.5}
+.ivy-drawer-identity small{display:block;font-family:'Source Sans 3',sans-serif;font-size:10px;font-weight:400;letter-spacing:.035em;margin-top:4px;color:#768574}
+.ivy-drawer-book{display:flex;align-items:center;justify-content:center;gap:18px;min-height:46px;padding:9px 20px;border:1px solid #203f3260;border-radius:24px;color:inherit;text-decoration:none;font-size:13px;white-space:nowrap}
+.ivy-drawer-book:hover{background:#eaf0e2}
+.ivy-drawer-close{position:relative;display:block;width:48px;height:48px;flex-shrink:0;background:none;border:0;cursor:pointer;color:inherit;padding:10px}
+.ivy-drawer-close::before,.ivy-drawer-close::after{content:'';position:absolute;left:7px;top:23px;width:34px;height:1.5px;background:currentColor;transform:rotate(45deg)}
+.ivy-drawer-close::after{transform:rotate(-45deg)}
+.ivy-drawer-close:hover{color:#2d8f5a}
+.ivy-drawer-nav{margin-top:42px;margin-bottom:36px}
+.ivy-drawer-nav a{display:flex;align-items:center;gap:22px;min-height:76px;text-decoration:none;color:inherit;font-family:var(--font-head,'PingFang TC',sans-serif);font-size:38px;font-weight:700;line-height:1.3;letter-spacing:.005em}
+.ivy-drawer-nav a>span{font-family:'Source Sans 3',sans-serif;color:#8a9888;font-size:12px;letter-spacing:.08em;font-weight:400;flex:0 0 22px}
+.ivy-drawer-nav a>svg{width:27px;height:27px;margin-left:auto;fill:none;stroke:currentColor;stroke-width:1.2;opacity:0;transform:translateX(-8px);transition:transform 180ms ease,opacity 180ms ease}
+.ivy-drawer-nav a:hover{color:#3c7454}.ivy-drawer-nav a:hover>svg,.ivy-drawer-nav a:focus-visible>svg{opacity:1;transform:none}
+.ivy-drawer-bottom{margin-top:auto;border-top:1px solid #203f3228;padding-top:26px;display:flex;justify-content:space-between;align-items:center;gap:28px}
+.ivy-drawer-social-title{font-size:15px;line-height:1.6}.ivy-drawer-social-title small{display:block;font-family:'Source Sans 3',sans-serif;font-size:10px;letter-spacing:.14em;color:#7a8978;margin-bottom:5px}
+.ivy-drawer-socials{display:flex;gap:12px}
+.ivy-social{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:11px;border:1px solid #203f3240;border-radius:50%;background:transparent;color:#203f32;cursor:pointer;transition:background-color 180ms ease,color 180ms ease}
+.ivy-social:hover{background:#203f32;color:#fffdf7}
+.ivy-social svg{width:22px;height:22px;display:block;flex-shrink:0;fill:currentColor}.ivy-social .stroke{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ivy-drawer-feedback{font-size:11px;line-height:1.6;min-height:18px;margin:16px 0 0;color:#6c7c6b}
+.ivy-menu-drawer :focus-visible{outline:2px solid #2d8f5a;outline-offset:5px}
+@keyframes ivy-drawer-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes ivy-drawer-leave{from{transform:translateX(0)}to{transform:translateX(100%)}}
+@keyframes ivy-backdrop-enter{from{background:#122c2400}to{background:#122c2442}}
+@keyframes ivy-backdrop-leave{from{background:#122c2442}to{background:#122c2400}}
+@media(max-height:720px) and (min-width:601px){.ivy-drawer-inner{padding:24px 40px 16px}.ivy-drawer-nav{margin-block:28px}.ivy-drawer-nav a{min-height:66px;font-size:35px}.ivy-drawer-bottom{padding-top:22px}.ivy-drawer-feedback{margin-top:10px}}
+@media(max-width:600px){dialog.ivy-menu-drawer{width:100%;border-left:0}.ivy-drawer-inner{padding:24px 24px max(20px,env(safe-area-inset-bottom))}.ivy-drawer-top{gap:12px}.ivy-drawer-identity{font-size:16px;letter-spacing:0}.ivy-drawer-identity small{font-size:9px;max-width:120px;line-height:1.3}.ivy-drawer-book{padding:8px 13px;font-size:12px;gap:9px;min-height:44px}.ivy-drawer-close{width:40px;height:44px}.ivy-drawer-close::before,.ivy-drawer-close::after{left:5px;top:21px;width:30px}.ivy-drawer-nav{margin-top:46px}.ivy-drawer-nav a{font-size:30px;min-height:70px;gap:14px}.ivy-drawer-nav a>span{font-size:10px;flex-basis:18px}.ivy-drawer-nav a>svg{opacity:.55;width:22px;height:22px;transform:none}.ivy-drawer-bottom{flex-direction:column;align-items:flex-start;gap:18px}.ivy-drawer-socials{gap:16px}.ivy-social{width:46px;height:46px}.ivy-drawer-feedback{min-height:36px}}
+@media(prefers-reduced-motion:reduce){.ivy-menu-drawer[open],.ivy-menu-drawer[open]::backdrop{animation:none!important}.ivy-menu-drawer *{transition:none!important}}

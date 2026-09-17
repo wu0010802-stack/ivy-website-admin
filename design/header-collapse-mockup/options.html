@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>常春藤｜選單與預約按鈕整合提案</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f6f5ef;color:#203f32;font-family:'PingFang TC','Microsoft JhengHei',sans-serif}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:pointer;color:inherit}a{color:inherit}main{width:min(1060px,calc(100% - 64px));margin:42px auto 32px}.eyebrow{font-size:11px;letter-spacing:.16em;color:#617365}h1{font-size:34px;font-weight:600;letter-spacing:.01em;margin:12px 0 12px}header p{font-size:14px;line-height:1.8;color:#627166;margin:0 0 26px}.options{display:grid;gap:14px}.option{display:grid;grid-template-columns:1fr 390px;align-items:center;border:1px solid #d4dbce;border-radius:16px;overflow:visible;background:#fffdf7;min-height:148px}.option.recommended{border-color:#8eaa94}.description{padding:23px 28px}h2{font-size:19px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:14px}h2 small{font-size:10px;font-weight:500;letter-spacing:.03em;background:#e6eedf;padding:4px 9px;border-radius:4px}p{font-size:13px;line-height:1.8;color:#627166;margin:0}.sample{align-self:stretch;position:relative;background:#e7eee3;border-radius:0 16px 16px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;padding:20px}.group{position:relative;display:flex;align-items:center;height:54px;color:#203f32;background:#fffdf5;border:1px solid #203f3266;border-radius:14px}.menu{position:relative;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;width:61px;height:52px;padding:0;border:0;background:transparent;border-radius:13px 0 0 13px}.menu span{display:block;width:26px;height:2px;background:currentColor}.menu::after{content:'';position:absolute;right:0;top:14px;bottom:14px;border-right:1px solid #203f3238}.book{height:52px;min-width:150px;border:0;background:transparent;padding:0 25px;font-size:16px;font-weight:600;border-radius:0 13px 13px 0}.menu:hover,.book:hover{background:#203f3209}.filled .book{background:#203f32;color:#fffdf5}.filled .book:hover{background:#2b5943}.filled .menu::after{display:none}.soft .group{border-color:transparent;border-radius:28px;box-shadow:0 4px 18px #203f3214}.soft .menu{border-radius:28px 0 0 28px}.soft .book{border-radius:0 28px 28px 0}.view{font-size:11px;text-decoration:none;min-height:24px;display:flex;align-items:center;gap:16px;color:#596e5e}.view:hover{text-decoration:underline;text-underline-offset:4px}footer{display:flex;justify-content:space-between;gap:20px;margin-top:22px;font-size:11px;color:#6d7a6d;line-height:1.8}footer a{text-underline-offset:4px}:focus-visible{outline:2px solid #2d8f5a;outline-offset:4px}.popover{position:absolute;z-index:5;right:0;top:65px;width:230px;background:#fffdf5;padding:16px 20px;border:1px solid #203f3233;border-radius:12px;box-shadow:0 12px 24px #203f3220}.popover[hidden]{display:none}.popover a{display:flex;min-height:44px;align-items:center;text-decoration:none;font-size:14px;border-bottom:1px solid #203f3218}.popover a:last-child{border:0}.notice{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:calc(100% - 32px);padding:14px 22px;background:#203f32;color:#fffdf5;box-shadow:0 8px 30px #203f3224;border-radius:10px;font-size:13px;text-align:center;z-index:10}.notice:empty{display:none}
+    @media(max-width:760px){main{width:calc(100% - 32px);margin-top:28px}h1{font-size:27px}.option{grid-template-columns:1fr}.description{padding:21px 24px}.sample{border-radius:0 0 16px 16px;padding:24px}.option h2{font-size:18px}footer{display:block}footer a{display:inline-block;margin-top:10px}}
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="eyebrow">IVY · HEADER STUDY</div><h1>把選單與預約，收成同一組。</h1><p>保留兩個獨立點擊區：左側開啟導覽，右側直接預約。移除勾勾，讓三條線成為唯一圖示。</p></header>
+  <div class="options">
+    <section class="option recommended">
+      <div class="description"><h2>A · 共用細框 <small>推薦</small></h2><p>用一個圓角外框包住兩側，短直線輕輕分區。<br>延續現在的細線風格，整體最俐落。</p></div>
+      <div class="sample"><div class="group"><button class="menu" aria-label="開啟 A 版選單" aria-expanded="false" aria-controls="nav-a"><span></span><span></span><span></span></button><button class="book">預約參觀</button><nav class="popover" id="nav-a" aria-label="A 版選單" hidden></nav></div><a class="view" href="./?variant=outline">看整頁效果 <span>↗</span></a></div>
+    </section>
+    <section class="option filled">
+      <div class="description"><h2>B · 預約更醒目</h2><p>沿用同一個外框，右側填入深綠色。<br>預約入口更突出，視覺份量也比較重。</p></div>
+      <div class="sample"><div class="group"><button class="menu" aria-label="開啟 B 版選單" aria-expanded="false" aria-controls="nav-b"><span></span><span></span><span></span></button><button class="book">預約參觀</button><nav class="popover" id="nav-b" aria-label="B 版選單" hidden></nav></div><a class="view" href="./?variant=filled">看整頁效果 <span>↗</span></a></div>
+    </section>
+    <section class="option soft">
+      <div class="description"><h2>C · 共用淺底</h2><p>拿掉外框，改用米白膠囊底與淡陰影。<br>比較柔和，捲動到照片上也容易辨識。</p></div>
+      <div class="sample"><div class="group"><button class="menu" aria-label="開啟 C 版選單" aria-expanded="false" aria-controls="nav-c"><span></span><span></span><span></span></button><button class="book">預約參觀</button><nav class="popover" id="nav-c" aria-label="C 版選單" hidden></nav></div><a class="view" href="./?variant=soft">看整頁效果 <span>↗</span></a></div>
+    </section>
+  </div>
+  <footer><span>收合動畫：導覽縮成三條線 → 預約按鈕外框向左延伸 → 形成同一組。<br>設計預覽 · 尚未套用首頁</span><a href="./">查看原本分開的版本 ↗</a></footer>
+</main>
+<div class="notice" role="status"></div>
+<script>
+  const menuLinks = [['關於常春藤','about'],['孩子的一天','life'],['五所校園','campuses'],['最新消息','latest-news']];
+  let noticeTimer;
+  function closeMenus(){document.querySelectorAll('.popover').forEach(nav=>nav.hidden=true);document.querySelectorAll('.menu').forEach(button=>button.setAttribute('aria-expanded','false'));}
+  document.querySelectorAll('.popover').forEach(nav=>{nav.innerHTML=menuLinks.map(([label,anchor])=>`<a href="../../index.html#/home/${anchor}">${label}</a>`).join('');});
+  document.querySelectorAll('.menu').forEach(button=>button.addEventListener('click',()=>{const nav=document.getElementById(button.getAttribute('aria-controls'));const open=nav.hidden;closeMenus();nav.hidden=!open;button.setAttribute('aria-expanded',String(open));}));
+  document.addEventListener('click',event=>{if(!event.target.closest('.group'))closeMenus();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){const active=document.querySelector('.menu[aria-expanded="true"]');closeMenus();active?.focus();}});
+  document.querySelectorAll('.book').forEach(button=>button.addEventListener('click',()=>{closeMenus();const notice=document.querySelector('.notice');notice.textContent='右側保留直接預約功能，點擊不會展開選單。此處為設計示意。';clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>notice.textContent='',3500);}));
+</script>
+</body>
+</html>

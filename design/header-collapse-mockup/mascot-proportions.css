@@ -1,0 +1,20 @@
+.proportion-emblem{position:relative;display:block;flex:none;color:#203f32;isolation:isolate}
+.proportion-emblem>.proportion-surface{position:absolute;display:block;border:1px solid #203f3242;background:#fffdf7;border-radius:50%;box-sizing:border-box}
+.proportion-emblem[data-shape=none]>.proportion-surface{display:none}
+.proportion-emblem[data-shape=soft]>.proportion-surface{border-radius:26%}
+.proportion-emblem>.proportion-crest{position:absolute;display:block;overflow:hidden;max-width:none;transition:transform 180ms ease}
+.proportion-emblem>.proportion-mark{position:absolute;display:block;max-width:none;fill:none;overflow:visible}
+.proportion-mark circle{fill:#fffdf7;stroke:#203f3290;stroke-width:1}
+.proportion-mark path{stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+button:hover .proportion-crest,a:hover .proportion-crest{transform:translateY(-2px)}
+body.header-mockup .mock-menu>.proportion-emblem{background:transparent;transform:none;transition:none}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-proportion]{width:var(--proportion-width);height:var(--proportion-height);margin-top:calc(var(--proportion-height) / -2);padding:0}
+body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-proportion]>.proportion-emblem{display:block;width:var(--proportion-width);height:var(--proportion-height)}
+body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact:has([data-proportion]) .header-top{height:calc(var(--proportion-height) + 36px)}
+.mascot-specimen:has(.proportion-emblem){display:grid;place-items:center;padding:0;flex-basis:130px;height:132px}
+.mascot-ratio-link{display:none;font-size:11px;color:inherit;text-underline-offset:4px;margin:-6px 0 18px}
+.mascot-study .mascot-ratio-link{display:block}
+@media(max-width:760px){body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-proportion]{width:calc(var(--proportion-width) * .8);height:calc(var(--proportion-height) * .8);margin-top:calc(var(--proportion-height) * -.4)}body.header-mockup.mock-drawer-preview .header .mock-menu.frame-mascot[data-proportion]>.proportion-emblem{transform:scale(.8);transform-origin:center}body.header-mockup.mock-drawer-preview .header.mock-mascot.mock-compact:has([data-proportion]) .header-top{height:calc(var(--proportion-height) * .8 + 28px)}}
+@media(max-width:900px){body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot[data-proportion]{width:44px;height:44px;margin-top:-22px;padding:8px}body.header-mockup.mock-drawer-preview .header:not(.mock-compact) .mock-menu.frame-mascot[data-proportion]>.proportion-emblem{display:none}}
+@media(max-width:600px){.mascot-specimen:has(.proportion-emblem){flex-basis:112px;height:116px}.mascot-specimen>.proportion-emblem{transform:scale(.86)}}
+@media(prefers-reduced-motion:reduce){.proportion-emblem>.proportion-crest{transition:none}}

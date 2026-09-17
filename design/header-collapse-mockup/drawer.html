@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>常春藤｜簡約外框與社群抽屜 Mock-up</title>
+<link rel="stylesheet" href="drawer.css">
+<link rel="stylesheet" href="mascot-proportions.css">
+<link rel="stylesheet" href="mascot-modern.css">
+<style>
+*{box-sizing:border-box}html,body{height:100%;margin:0;overflow:hidden;background:#c5ded0;color:#203f32;font-family:'PingFang TC','Microsoft JhengHei',sans-serif}iframe{display:block;width:100%;height:100%;border:0}.design-panel{position:fixed;z-index:100;left:24px;bottom:22px;width:412px;background:#fffdf5;border:1px solid #cad4c8;border-radius:14px;padding:18px 20px;box-shadow:0 8px 28px #203f3220}.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px}.panel-heading strong{font-weight:600}.panel-heading span{font-size:10px;color:#6d7f70;letter-spacing:.08em}.frame-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}.frame-choice{border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 2px 10px;background:transparent;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:12px}.frame-choice[aria-pressed=true]{border-bottom-color:#315c44;background:#edf1e6}.frame-choice:hover{background:#edf1e6}.frame-choice b{font-size:11px;font-weight:500}.sample-icon{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:52px;height:52px}.sample-icon>i{display:block;width:25px;height:1.5px;background:currentColor}.demo-buttons{display:flex;align-items:center;justify-content:space-between;gap:4px}.demo-buttons button{font:inherit;font-size:11px;border:0;min-height:40px;padding:0 12px;border-radius:7px;background:transparent;color:inherit;cursor:pointer}.demo-buttons button:hover,.demo-buttons button[aria-pressed=true]{background:#e5ecde}.demo-buttons #open-drawer{background:#203f32;color:#fffdf5;font-size:12px}.demo-buttons button:disabled{opacity:.4;cursor:wait}.panel-foot{display:flex;justify-content:space-between;gap:12px;margin-top:10px;font-size:10px;color:#6d7f70}.drawer-open .design-panel{visibility:hidden}.design-panel :focus-visible{outline:2px solid #2d8f5a;outline-offset:4px}
+@media(max-width:600px){.design-panel{left:12px;bottom:12px;width:calc(100% - 24px);padding:12px 15px}.frame-choices{margin:8px 0;gap:8px}.frame-choice{gap:6px;padding:5px 2px 7px}.panel-heading{font-size:12px}.sample-icon{width:44px;height:44px}.sample-icon>i{width:23px}.demo-buttons button{padding-inline:10px}.panel-foot{margin-top:6px}}
+.frame-library{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 12px;font-size:11px}.frame-library label{display:flex;align-items:center;gap:9px;color:#63745f}.frame-library select{min-height:36px;max-width:190px;border:1px solid #cbd5c6;border-radius:6px;padding:5px 28px 5px 8px;background:#fffdf5;color:#203f32;font:inherit}.frame-library a{color:inherit;text-underline-offset:4px;white-space:nowrap}
+</style>
+</head>
+<body>
+<iframe id="preview" src="../../index.html#/home" title="外框與右側抽屜預覽"></iframe>
+<aside class="design-panel" aria-label="外框設計比較">
+  <div class="panel-heading"><strong>三條線，也可以有一點個性。</strong><span>MOCK-UP</span></div>
+  <div class="mascot-concept"><div class="mascot-specimen" aria-hidden="true"></div><div><span class="mascot-kicker">X / IVY EMBLEM</span><h1>熟悉的笑臉，<br>帶你走進常春藤。</h1><p>原色人物徽章 ＋ 小選單提示<br>點擊右上角 Logo，展開右側抽屜。</p></div></div>
+  <a class="mascot-ratio-link" href="mascot-ratios.html">比較人物、三條線與背景比例 ↗</a>
+  <a class="mascot-modern-link" href="mascot-modern.html">探索四款全新組合 ↗</a>
+  <div class="frame-choices" aria-label="選擇三條線的外框">
+    <button class="frame-choice" data-frame="corners" aria-pressed="true"><span class="sample-icon frame-corners" aria-hidden="true"><i></i><i></i><i></i></span><b>A · 雙角留白（推薦）</b></button>
+    <button class="frame-choice" data-frame="circle" aria-pressed="false"><span class="sample-icon frame-circle" aria-hidden="true"><i></i><i></i><i></i><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="25"/></svg></span><b>B · 開口圓框</b></button>
+    <button class="frame-choice" data-frame="leaf" aria-pressed="false"><span class="sample-icon frame-leaf" aria-hidden="true"><i></i><i></i><i></i></span><b>C · 葉形細框</b></button>
+  </div>
+  <div class="frame-library"><label>外框款式 <select id="all-frames" aria-label="選擇所有細框款式"></select></label><a href="frames.html">全部細框 ↗</a></div>
+  <div class="demo-buttons"><button id="hero" aria-pressed="true" disabled>Hero</button><button id="compact" aria-pressed="false" disabled>收合後</button><button id="play" disabled>↻ 重播</button><button id="open-drawer" disabled>打開抽屜 ↗</button></div>
+  <div class="panel-foot"><span id="status" role="status">載入中</span><span>社群圖示為位置示意</span></div>
+</aside>
+<script src="frames.js"></script><script src="mascot-proportions.js"></script><script src="mascot-modern.js"></script><script src="drawer.js"></script><script src="mockup.js"></script>
+</body>
+</html>

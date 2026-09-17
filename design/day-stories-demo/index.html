@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#fffdf5">
+  <title>孩子的每一天｜常春藤生活故事 Demo</title>
+  <link rel="icon" href="data:,">
+  <link rel="preload" href="day-font.woff" as="font" type="font/woff" crossorigin>
+  <link rel="preload" href="media/hello.webp" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="day.css">
+  <script src="day.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳至主要內容</a>
+  <header class="topbar">
+    <a href="../../index.html#/home" class="brand"><img src="../../assets/logo.png" width="552" height="192" alt="常春藤幼兒園，回目前首頁"></a>
+    <span class="demo-label">孩子的一天 <span aria-hidden="true">／</span> 故事影像版 DEMO</span>
+    <a class="back-link" href="../wellington-demo/">看整站方向 <span aria-hidden="true">↗</span></a>
+  </header>
+  <main class="wrap" id="main" tabindex="-1">
+    <section class="introduction">
+      <div><p class="eyebrow" lang="en">LITTLE MOMENTS. BIG DISCOVERIES.</p><h1><span class="hash" aria-hidden="true">#</span><span class="first-word">孩子的</span><span>每一天</span></h1></div>
+      <p class="intro-copy">把一天，交給小小的我。<br><span>跟著六個生活片刻，看見成長的樣子。</span></p>
+    </section>
+
+    <div class="chapter-toolbar">
+      <p><span class="live-dot" aria-hidden="true"></span> <span id="moment-period">一天的開始</span><span class="toolbar-divider" aria-hidden="true"></span><span id="moment-type">陪伴互動短片</span></p>
+      <div class="chapter-arrows"><button type="button" id="previous" aria-label="上一個片刻">←</button><span id="moment-count" aria-live="polite" aria-atomic="true">01 <span>/ 06</span></span><button type="button" id="next" aria-label="下一個片刻">→</button></div>
+    </div>
+
+    <div id="chapter-tabs" class="chapter-tabs" role="tablist" aria-label="孩子的一天，選擇生活片刻">
+      <button type="button" role="tab" id="tab-hello" aria-controls="story" aria-selected="true" data-index="0"><span class="thumb"><img src="media/hello.webp" width="810" height="600" alt=""><span class="thumb-type" aria-hidden="true">▷ 短片</span></span><span class="thumb-copy"><span class="chapter-number">01</span><span>早安入園</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+      <button type="button" role="tab" id="tab-discover" aria-controls="story" aria-selected="false" tabindex="-1" data-index="1"><span class="thumb"><img src="media/discover.webp" width="810" height="600" alt=""><span class="thumb-type" aria-hidden="true">▷ 短片</span></span><span class="thumb-copy"><span class="chapter-number">02</span><span>好奇探索</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+      <button type="button" role="tab" id="tab-lunch" aria-controls="story" aria-selected="false" tabindex="-1" data-index="2"><span class="thumb"><img src="media/lunch.webp" width="810" height="600" alt=""><span class="thumb-type" aria-hidden="true">▷ 短片</span></span><span class="thumb-copy"><span class="chapter-number">03</span><span>一起用餐</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+      <button type="button" role="tab" id="tab-rest" aria-controls="story" aria-selected="false" tabindex="-1" data-index="3"><span class="thumb placeholder-thumb rest-thumb"><span aria-hidden="true">☾</span><span class="thumb-type">實拍待補</span></span><span class="thumb-copy"><span class="chapter-number">04</span><span>安靜片刻</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+      <button type="button" role="tab" id="tab-outside" aria-controls="story" aria-selected="false" tabindex="-1" data-index="4"><span class="thumb"><img src="media/outside.webp" width="810" height="600" alt=""><span class="thumb-type" aria-hidden="true">▷ 短片</span></span><span class="thumb-copy"><span class="chapter-number">05</span><span>午後玩耍</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+      <button type="button" role="tab" id="tab-home" aria-controls="story" aria-selected="false" tabindex="-1" data-index="5"><span class="thumb"><img src="media/home.webp" width="810" height="600" alt=""><span class="thumb-type" aria-hidden="true">▷ 短片</span></span><span class="thumb-copy"><span class="chapter-number">06</span><span>帶故事回家</span><span class="active-arrow" aria-hidden="true">↗</span></span></button>
+    </div>
+
+    <article id="story" class="story" role="tabpanel" aria-labelledby="tab-hello" tabindex="0" data-moment="hello">
+      <div class="scene" id="scene">
+        <img id="scene-image" src="media/hello.webp" width="810" height="600" alt="大人與孩子靠近彼此、溫柔互動的片刻" fetchpriority="high">
+        <video id="scene-video" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video>
+        <div id="pending-scene" class="pending-scene" hidden></div>
+        <div class="scene-top"><span id="scene-badge">園方影片 · 陪伴互動情境</span><button type="button" id="enlarge" aria-haspopup="dialog" aria-label="放大觀看目前片段"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button></div>
+        <div class="scene-bottom" id="scene-bottom"><p id="scene-caption">一個溫柔的回應，是安心的開始。</p><button type="button" id="play-toggle" aria-controls="scene-video"><span aria-hidden="true">▷</span> 播放片刻</button></div>
+        <div class="video-track" aria-hidden="true"><span id="video-progress"></span></div>
+      </div>
+      <div class="story-copy">
+        <p class="story-label"><span id="story-label">早安入園</span><span id="story-english" lang="en">A LITTLE COURAGE</span></p>
+        <h2 id="story-title">有你在，<br>我就安心了。</h2>
+        <p class="story-narrative" id="story-narrative">剛開始，想再靠近你一點。<br>一個擁抱、一句溫柔的回應，<br>讓我慢慢準備好，走進今天。</p>
+        <div class="learning"><span class="learning-mark" aria-hidden="true">↗</span><div><p class="eyebrow">從日常，看見成長</p><h3 id="learning-title">安心，是探索的第一步。</h3><p id="learning-copy">在被理解的關係裡，練習表達需要，也累積嘗試新事物的勇氣。</p></div></div>
+        <div class="parent-questions" id="parent-questions">
+          <p class="eyebrow">家長想知道</p>
+          <details><summary>第一次上學，哭了怎麼辦？<span aria-hidden="true">＋</span></summary><p>參觀時，可以請園所說明初次入園的適應方式、老師如何陪伴，以及家長可以事先做哪些準備。</p></details>
+          <details><summary>我怎麼了解孩子在校的狀況？<span aria-hidden="true">＋</span></summary><p>可以詢問家長與老師的聯繫方式、分享孩子日常的管道，以及需要特別關注時如何溝通。</p></details>
+        </div>
+      </div>
+    </article>
+
+    <div class="under-story"><p id="source-note">影像取自園方廣告片的陪伴互動段落，作為入園故事情境示範。</p><button type="button" id="continue-story">接著看：好奇探索 <span aria-hidden="true">→</span></button></div>
+    <section class="visit-strip"><div><p class="eyebrow">把想了解的事，帶來聊聊。</p><h2>下一次，和孩子一起走進來。</h2></div><a href="../../index.html#/home/campuses">認識五所校園 <span aria-hidden="true">↗</span></a></section>
+    <noscript><p class="noscript-note">此頁為互動故事提案，啟用 JavaScript 可切換六個片刻與播放影片。上方保留第一段故事供閱讀。</p><style>.chapter-tabs,.chapter-arrows,#enlarge,#play-toggle,#continue-story{display:none!important}</style></noscript>
+  </main>
+  <footer class="wrap footer"><p>常春藤生活故事 · 設計方向 Demo</p><p>故事文案為提案，影片取自既有園方素材，並非同一天的連續紀錄。<br>用餐片段呈現餐具準備，午休實拍待補；各校實際作息與照顧方式，請向園所確認。</p></footer>
+
+  <dialog id="film-dialog" aria-labelledby="film-title" aria-describedby="film-description">
+    <div class="film-heading"><h2 id="film-title">早安入園</h2><button type="button" id="close-film" aria-label="關閉放大影片">關閉 <span aria-hidden="true">×</span></button></div>
+    <video id="film-video" controls playsinline muted preload="none" aria-label="校園生活無聲片段"></video>
+    <p id="film-description"></p>
+  </dialog>
+</body>
+</html>

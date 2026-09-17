@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>常春藤｜導覽收合動畫 Mock-up</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#c5ded0;color:#203f32;font-family:'PingFang TC','Microsoft JhengHei',sans-serif}
+    iframe{width:100%;height:100%;border:0;display:block}
+    .demo-bar{position:fixed;z-index:100;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:24px;padding:10px 12px 10px 22px;border:1px solid #d8ded4;border-radius:14px;background:#fffdf5;box-shadow:0 5px 30px #183b2920;white-space:nowrap}
+    .demo-title{font-size:11px;letter-spacing:.08em}.demo-title strong{display:block;font-size:13px;letter-spacing:0;margin-bottom:4px}.demo-title span{color:#657467}
+    .demo-buttons{display:flex;gap:5px}button{font:inherit;cursor:pointer;border:0;background:transparent;color:inherit;min-height:42px;padding:0 15px;border-radius:8px;font-size:13px}
+    button[aria-pressed=true]{background:#e4eddf}button:hover{background:#edf0e6}button:focus-visible{outline:2px solid #2d8f5a;outline-offset:2px}button:disabled{opacity:.45;cursor:wait}
+    #play{background:#203f32;color:#fffdf5}.demo-tip{font-size:11px;color:#647568;line-height:1.6;border-left:1px solid #d8ded4;padding-left:20px}
+    @media(max-width:760px){.demo-bar{bottom:12px;gap:8px;padding:8px;max-width:calc(100% - 24px);width:max-content}.demo-title{padding-inline:5px}.demo-title strong{font-size:11px}.demo-title span{font-size:9px}.demo-tip{display:none}button{padding-inline:10px;font-size:11px}}
+  </style>
+</head>
+<body>
+  <iframe id="preview" src="../../index.html#/home" title="常春藤導覽收合動畫預覽"></iframe>
+  <aside class="demo-bar" aria-label="Mock-up 預覽控制">
+    <div class="demo-title"><strong>導覽收合 · MOCK-UP</strong><span id="status" role="status">載入中</span></div>
+    <div class="demo-buttons">
+      <button id="hero" aria-pressed="true" disabled>Hero</button>
+      <button id="compact" aria-pressed="false" disabled>收合後</button>
+      <button id="play" disabled>↻ 播放收合</button>
+    </div>
+    <span class="demo-tip">也可以直接捲動<br>三條線可展開選單</span>
+  </aside>
+  <script src="mockup.js"></script>
+</body>
+</html>

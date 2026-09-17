@@ -1,0 +1,11 @@
+# 人物素材提示
+
+工具：內建 imagegen。用途：動態分鏡的角色拆分示意。
+
+第一版提示：
+
+Use case: background-extraction / identity-preserve. Make one transparent PNG character sprite sheet for a conceptual website animation, based faithfully on the two cartoon children in the supplied Ivy Kindergarten logo. Remove ALL lettering, ribbon, laurel branches, stars, crown, border, and white background. Keep only the two full-body cartoon characters, restoring any tiny obscured arm/leg portions in the same simple flat outlined style. Preserve the original identities and design: boy with short spiky pale hair, peach round smiling face, dark navy outline, turquoise/cyan blue shirt and shorts, arms held out; girl with long dark blue/purple hair, pink-purple bow, peach smiling face, pink top and magenta skirt, arms out. Match their existing naive hand-drawn dark outlines, facial features, proportions, and solid colors; do not modernize, add shading, or create 3D characters. Layout requirement: wide canvas aspect ratio 3:2, split into two equal invisible half-width cells. Boy centered exactly at 25% of total width, girl centered exactly at 75%. Equal overall visible character heights about 72% of canvas height, vertically centered, at least 12% clear transparent padding around every character. The two characters MUST NOT overlap or touch, each remains entirely in its own cell, no panel divider or labels. Real transparent alpha background, not a checkerboard drawing. This is a motion concept asset, not a replacement institutional logo.
+
+第二版清理提示：
+
+Edit this transparent two-character sprite sheet. Change only the cleanup and finish: completely REMOVE the blue glow, blur, drop shadow and every hazy pixel OUTSIDE the crisp dark outlines of both characters. All empty space around the figures must be 100% transparent alpha, including the gap between figures, with clean anti-aliased outline edges. Keep both characters, exact poses, placement, size, facial features, hair, bow, clothing and colors unchanged. Keep the same 1536 by 1024 canvas and two equal side-by-side cells. Restore fully opaque skin and clothing, using simple flat solid fills instead of gradients, but keep the existing dark outlines. This is a clean website sprite cutout, NOT artwork on a dark or blue background. No glow, no shadow, no backdrop, no checkered pattern, no added elements.

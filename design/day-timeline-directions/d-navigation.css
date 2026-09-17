@@ -1,0 +1,154 @@
+/* D: small paper labels; the rail stays behind an opaque reading surface. */
+.direction-d {
+  --marker-paper: var(--paper);
+  --marker-ink: var(--ink);
+  --marker-accent: var(--yellow);
+  --marker-muted: oklch(47% .028 151);
+  --marker-rule: color-mix(in oklch, var(--paper) 65%, transparent);
+}
+.direction-d .time-marker {
+  z-index: 2;
+  width: 116px;
+  min-width: 0;
+  margin-top: 110px;
+  padding: 9px 8px 11px;
+  gap: 2px;
+  border: 1px solid var(--marker-paper);
+  border-radius: 5px;
+  background: var(--marker-paper);
+  color: var(--marker-ink);
+  box-shadow: 0 3px 12px color-mix(in oklch, var(--ink) 16%, transparent);
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+.direction-d .time-marker::before {
+  top: 50%;
+  width: 42px;
+  border-color: var(--marker-rule);
+  pointer-events: none;
+}
+.direction-d .marker-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 18px;
+  color: var(--marker-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: .02em;
+}
+.direction-d .time-dot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  outline: 0;
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+}
+.direction-d .time-marker time {
+  font-size: 28px;
+  line-height: 1.12;
+  letter-spacing: -.015em;
+}
+.direction-d .time-marker > .marker-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: .025em;
+  white-space: nowrap;
+}
+.direction-d .moment.is-past .time-marker {
+  color: var(--marker-ink);
+}
+.direction-d .moment.is-past .time-dot {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.direction-d .moment.is-past .time-dot::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: 8px;
+  height: 5px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.direction-d .moment.is-active .time-marker {
+  background: var(--marker-accent);
+  border-color: var(--marker-accent);
+  color: var(--marker-ink);
+}
+.direction-d .moment.is-active .marker-state {color: var(--marker-ink)}
+.direction-d .moment.is-active .time-dot {
+  background: currentColor;
+  border-color: currentColor;
+}
+.direction-d .moment.is-active .time-marker::before {border-color: var(--marker-accent)}
+.direction-d .time-marker:focus-visible {
+  outline: 2px solid var(--marker-ink);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px var(--marker-paper);
+}
+.direction-d .time-marker:active {border-color: var(--marker-ink)}
+@media (hover: hover) {
+  .direction-d .time-marker:hover {border-color: var(--marker-ink)}
+  .direction-d .time-marker:hover .marker-title {text-decoration: underline; text-underline-offset: 4px}
+}
+@media (min-width: 801px) and (max-width: 1100px) {
+  .direction-d .time-marker::before {width: 14px}
+}
+@media (max-width: 800px) {
+  /* Keep the photographs wide. Time labels sit above them, beside the rail. */
+  .direction-d .moment {
+    grid-template-columns: 20px minmax(0, 1fr);
+    column-gap: 18px;
+  }
+  .direction-d .timeline-rail {left: 10px}
+  .direction-d .moment:nth-child(n) .time-marker {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+    display: grid;
+    grid-template-columns: auto auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    width: max-content;
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 0;
+    padding: 8px 12px 10px;
+    border-radius: 5px;
+    text-align: left;
+  }
+  .direction-d .marker-state {grid-column: 1 / -1; justify-content: flex-start}
+  .direction-d .time-marker time {font-size: 26px; align-self: center}
+  .direction-d .time-marker > .marker-title {font-size: 14px; align-self: center}
+  .direction-d .moment:nth-child(n) .time-marker::before {
+    left: auto;
+    right: 100%;
+    top: 50%;
+    width: 29px;
+  }
+  .direction-d .moment:nth-child(n) .moment-card {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .direction-d .time-marker {transition: none}
+}
+@media (forced-colors: active) {
+  .direction-d .time-marker {border-color: ButtonText}
+  .direction-d .moment.is-active .time-marker {outline: 2px solid Highlight; outline-offset: 2px}
+  .direction-d .moment .time-marker:focus-visible {outline: 3px solid Highlight; outline-offset: 5px}
+  .direction-d .time-marker::before {border-color: CanvasText}
+  .direction-d .time-dot {border-color: CanvasText}
+  .direction-d .moment.is-active .time-dot {background: CanvasText}
+}

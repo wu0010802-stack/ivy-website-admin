@@ -1,0 +1,86 @@
+/* Three compositions sharing the approved video, copy, and scroll curtain. */
+/* Anchor navigation between mock-ups must settle before reading scroll state. */
+html{scroll-behavior:auto}
+.design-toolbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:5px;padding:7px;background:#fffdf5;color:#203f32;border:1px solid #203f3230;box-shadow:0 6px 35px #06180f30;border-radius:9px;white-space:nowrap}
+.design-toolbar>a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 13px;font-size:11px;border-radius:4px}.design-toolbar>a b{font-size:14px}.design-toolbar>a[aria-current]{background:#203f32;color:#fffdf5}.design-toolbar>a:hover:not([aria-current]){background:#dce8d8}.design-toolbar .overview-link{font-size:11px}.toolbar-divider{height:23px;width:1px;background:#203f3230;margin-inline:4px}
+.day-ending{padding-bottom:140px}.film-toggle{bottom:auto;top:18px}.film-caption{bottom:28px}.day-word::after{content:'';position:absolute;bottom:-.05em;left:0;right:0;border-bottom:2px solid currentColor;transform:rotate(-2deg)}
+
+/* B — photographs lead; smaller blocks overlap the edge of each photograph. */
+.direction-b .day-intro{align-items:flex-start;text-align:left;padding-left:max(8vw,30px)}
+.direction-b .day-intro h2{font-size:clamp(65px,7vw,108px);line-height:1.32}
+.direction-b .begin-link{margin-left:4px;text-align:center}.direction-b .film-shade{background:linear-gradient(90deg,#0e251cac,#0e251c48 65%),linear-gradient(0deg,#0e251c77,transparent 80%)}
+.direction-b .timeline{width:min(1420px,calc(100% - 128px));padding-top:60px}
+.direction-b .moments{grid-template-columns:minmax(0,1fr) 164px minmax(0,1fr)}
+.direction-b .moment+.moment{margin-top:-180px}
+.direction-b .moment-card{background:none;box-shadow:none;overflow:visible}
+.direction-b .moment-card figure{box-shadow:0 22px 55px #06180f22}
+.direction-b .moment-card img{aspect-ratio:1.13;object-position:50% 38%}
+.direction-b .moment:nth-child(even) .moment-card img{aspect-ratio:1.4}
+.direction-b .moment-card figcaption{top:14px;bottom:auto;left:14px}
+.direction-b .card-copy{position:relative;width:90%;margin:-92px 0 0 10%;background:var(--card);padding:25px 28px 27px;box-shadow:0 16px 34px #14271f1c}
+.direction-b .moment:nth-child(even) .card-copy{margin-left:0;margin-right:10%}
+.direction-b .card-kicker{font-size:10px}.direction-b .card-kicker>span:last-child{font-size:8px}
+.direction-b .card-copy h3{font-size:clamp(25px,2.2vw,36px);line-height:1.43;margin-top:14px}.direction-b .card-copy>p:not(.card-kicker){font-size:14px;margin-top:15px}.direction-b .card-note{margin-top:20px;padding-top:13px}
+.direction-b .time-marker{margin-top:110px;min-width:88px;padding:9px 7px 11px;background:#143b2de8;border:0}.direction-b .time-marker:before{width:38px}.direction-b .time-marker time{font-size:30px}
+
+/* C — each moment spans the timeline, with its image and narrative opposite. */
+.direction-c .film-shade{background:linear-gradient(90deg,#112d25d9,#112d2596 50%,#112d25d9),#09261d40}
+.direction-c .day-intro h2{font-size:clamp(60px,7.2vw,112px);letter-spacing:.055em}.direction-c .day-lead{max-width:32em}
+.direction-c .timeline{width:min(1320px,calc(100% - 144px));padding-top:64px}
+.direction-c .moments{grid-template-columns:minmax(0,1fr) 184px minmax(0,1fr);row-gap:125px}
+.direction-c .moment+.moment{margin-top:0}
+.direction-c .moment:nth-child(n) .moment-card{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:subgrid;align-items:center;background:transparent;box-shadow:none;color:#fffdf5}
+.direction-c .moment-card figure{grid-column:1;grid-row:1;border:6px solid #fffdf5;box-shadow:0 18px 48px #051a1540}
+.direction-c .moment-card img{aspect-ratio:1.05;object-position:center 38%}.direction-c .moment:nth-child(even) .moment-card figure{grid-column:3}
+.direction-c .card-copy{grid-column:3;grid-row:1;position:relative;padding:65px 0 30px;isolation:isolate}
+.direction-c .moment:nth-child(even) .card-copy{grid-column:1;padding-right:8px}
+.direction-c .card-copy:before{content:attr(data-number);position:absolute;top:-28px;left:-5px;font-family:'Source Sans 3',sans-serif;font-size:160px;line-height:1;color:#fffdf512;z-index:-1;font-weight:400;letter-spacing:-.06em}
+.direction-c .card-kicker{font-size:12px;color:#ffd75e;justify-content:flex-start}.direction-c .card-kicker>span:last-child{display:none}
+.direction-c .card-copy h3{font-size:clamp(30px,3.1vw,46px);line-height:1.5;margin-top:23px;letter-spacing:.01em}.direction-c .card-copy>p:not(.card-kicker){font-size:16px;line-height:2.1;margin-top:26px;color:#f3f3e8}
+.direction-c .card-note{border-color:#fffdf54d;font-size:12px;color:#dfebdb;max-width:310px;margin-top:32px}.direction-c .card-note i{color:#ffd75e}
+.direction-c .time-marker{margin-top:140px;background:#173d30;border:0;min-width:104px;padding:12px 10px 15px;z-index:2}.direction-c .time-marker time{font-size:32px}.direction-c .time-marker:before{width:39px}
+.direction-c .timeline-rail{background:#fffdf530}
+
+/* D — a collection of paper photographs, with a gentler, more personal pace. */
+.direction-d .film-shade{background:linear-gradient(180deg,#2943339c,#233c3261 40%,#25372a9c)}
+.direction-d .day-intro h2{font-size:clamp(64px,7.4vw,110px);letter-spacing:.045em}.direction-d .day-word{color:#ffefb8}
+.direction-d .timeline{width:min(1220px,calc(100% - 160px));padding-top:70px}
+.direction-d .moments{grid-template-columns:minmax(0,1fr) 200px minmax(0,1fr)}
+.direction-d .moment+.moment{margin-top:-150px}
+.direction-d .moment-card{position:relative;background:#fffaf0;padding:12px 12px 0;box-shadow:4px 15px 45px #13291d38;rotate:-2.3deg;max-width:460px;justify-self:end;isolation:isolate}
+.direction-d .moment:nth-child(even) .moment-card{rotate:2.8deg;justify-self:start;max-width:440px}
+.direction-d .moment:nth-child(3n) .moment-card{rotate:-.8deg}
+.direction-d .moment-card:before{content:'';position:absolute;top:-14px;left:calc(50% - 54px);width:108px;height:30px;background:#ffdf90dc;transform:rotate(5deg);z-index:2;clip-path:polygon(2% 0,98% 4%,100% 93%,0 100%);box-shadow:0 1px 2px #1b322918}
+.direction-d .moment-card img{aspect-ratio:1.25;object-position:50% 40%}.direction-d .moment:nth-child(even) .moment-card img{aspect-ratio:1.4}
+.direction-d .moment-card figcaption{position:static;font-size:9px;letter-spacing:.03em;background:transparent;color:#5b6d59;padding:9px 2px 0;border:0}
+.direction-d .card-copy{padding:17px 17px 25px}.direction-d .card-kicker{font-size:10px;color:#6e7c5b}.direction-d .card-kicker>span:last-child{display:none}
+.direction-d .card-copy h3{font-size:clamp(24px,2.25vw,33px);line-height:1.5;letter-spacing:.025em;margin-top:13px}.direction-d .card-copy>p:not(.card-kicker){font-size:13px;line-height:1.95;margin-top:15px;color:#546151}
+.direction-d .card-note{border-top:1px dashed #203f3240;margin-top:21px;padding-top:13px;font-size:10px;color:#6b7654}.direction-d .card-note i{font-size:18px}
+
+
+
+@media(min-width:1700px){.direction-b .card-copy h3{font-size:40px}.direction-b .moment+.moment{margin-top:-260px}.direction-c .card-copy h3{font-size:48px}.direction-d .timeline{width:1400px}.direction-d .moment-card{max-width:500px}.direction-d .moment:nth-child(even) .moment-card{max-width:480px}.direction-d .moment+.moment{margin-top:-180px}.direction-d .card-copy h3{font-size:35px}}
+@media(min-width:801px) and (max-width:1100px){
+ .direction-b .timeline{width:calc(100% - 72px)}.direction-b .moments{grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr)}.direction-b .card-copy{padding:22px;width:95%;margin-left:5%;margin-top:-55px}.direction-b .card-copy h3{font-size:25px}.direction-b .card-copy>p:not(.card-kicker){font-size:13px}.direction-b .time-marker{min-width:80px}.direction-b .time-marker:before{width:20px}
+ .direction-c .timeline{width:calc(100% - 72px)}.direction-c .moments{grid-template-columns:minmax(0,1fr) 124px minmax(0,1fr);row-gap:90px}.direction-c .time-marker{min-width:86px;margin-top:100px}.direction-c .time-marker:before{width:20px}.direction-c .card-copy h3{font-size:30px}.direction-c .card-copy>p:not(.card-kicker){font-size:14px}.direction-c .card-copy>p:not(.card-kicker)>br{display:none}.direction-c .card-copy:before{font-size:130px;top:-5px}.direction-c .card-copy{padding-top:45px}
+ .direction-d .timeline{width:calc(100% - 90px)}.direction-d .moments{grid-template-columns:minmax(0,1fr) 144px minmax(0,1fr)}.direction-d .card-copy{padding-inline:12px}.direction-d .card-copy h3{font-size:25px}.direction-d .moment+.moment{margin-top:-70px}
+}
+@media(max-width:800px){
+ .design-toolbar{bottom:12px;width:calc(100% - 24px);max-width:530px;padding:5px;gap:2px;justify-content:space-between}.design-toolbar>a{gap:5px;font-size:10px;padding:7px 9px}.design-toolbar .overview-link{font-size:10px}.design-toolbar>a b{font-size:12px}.toolbar-divider{margin-inline:0}.design-toolbar>a span{font-size:10px}.film-toggle{top:12px;bottom:auto}.film-caption{bottom:87px}.day-ending{padding-bottom:155px}
+ .direction-b .day-intro{padding-left:30px}.direction-b .day-intro h2{font-size:clamp(43px,8.5vw,70px)}.direction-b .day-lead{font-size:14px;text-align:left}.direction-b .timeline,.direction-c .timeline,.direction-d .timeline{width:calc(100% - 36px);max-width:600px;padding-top:38px}
+ .direction-b .moments,.direction-c .moments,.direction-d .moments{display:block}
+ .direction-b .moment,.direction-c .moment,.direction-d .moment{grid-template-columns:58px minmax(0,1fr);column-gap:12px}
+ .direction-b .timeline-rail,.direction-c .timeline-rail,.direction-d .timeline-rail{left:27px}
+ .direction-b .moment+.moment,.direction-d .moment+.moment{margin-top:66px}
+ .direction-b .moment-card img,.direction-b .moment:nth-child(even) .moment-card img{aspect-ratio:.96}.direction-b .card-copy,.direction-b .moment:nth-child(even) .card-copy{width:95%;margin:-58px 0 0 5%;padding:19px 17px 18px}.direction-b .card-copy h3{font-size:clamp(21px,4.8vw,30px)}.direction-b .card-copy>p:not(.card-kicker){font-size:12px}.direction-b .card-kicker>span:last-child{display:none}.direction-b .card-note{font-size:9px;margin-top:17px}.direction-b .moment-card figcaption{font-size:8px;top:9px;left:9px}
+ .direction-b .time-marker{margin-top:50px;min-width:58px;padding:8px 2px 10px}.direction-b .time-marker time{font-size:23px}.direction-b .time-marker:before{width:12px}
+ .direction-c .day-intro h2{font-size:clamp(51px,9vw,80px)}.direction-c .day-lead{font-size:14px;max-width:21em}.direction-c .day-lead br{display:none}.direction-c .moment+.moment{margin-top:70px}
+ .direction-c .moment:nth-child(n) .moment-card{grid-column:2;display:block}.direction-c .moment-card img{aspect-ratio:1.1}.direction-c .moment-card figure{border-width:4px}.direction-c .card-copy,.direction-c .moment:nth-child(even) .card-copy{padding:35px 0 0}.direction-c .card-copy:before{font-size:90px;top:20px;left:auto;right:0;color:#ffffff10}.direction-c .card-kicker{font-size:10px}.direction-c .card-copy h3{font-size:clamp(25px,5.7vw,38px);margin-top:17px}.direction-c .card-copy>p:not(.card-kicker){font-size:13px;line-height:2;margin-top:18px}.direction-c .card-note{font-size:10px;margin-top:22px}.direction-c .time-marker{grid-column:1;min-width:58px;margin-top:50px;padding:9px 2px 12px}.direction-c .time-marker time{font-size:23px}.direction-c .time-marker:before{width:12px}
+ .direction-d .day-intro h2{font-size:clamp(53px,10vw,83px)}.direction-d .moment-card,.direction-d .moment:nth-child(even) .moment-card{width:calc(100% - 7px);justify-self:center;rotate:-1.4deg;padding:9px 9px 0}.direction-d .moment:nth-child(even) .moment-card{rotate:1.5deg}.direction-d .card-copy{padding:14px 10px 21px}.direction-d .card-copy h3{font-size:clamp(21px,4.7vw,31px)}.direction-d .card-copy>p:not(.card-kicker){font-size:12px}.direction-d .card-note{font-size:9px;margin-top:17px}.direction-d .moment-card figcaption{font-size:8px;padding-top:7px}.direction-d .moment-card:before{width:85px;height:25px;left:calc(50% - 43px);top:-12px}
+ 
+}
+@media(max-width:370px){
+ .design-toolbar{width:calc(100% - 16px);bottom:8px}.design-toolbar>a{padding-inline:8px}.design-toolbar>a span{font-size:9px}.design-toolbar .overview-link{font-size:9px}.design-toolbar .toolbar-divider{display:none}
+ .direction-b .timeline,.direction-c .timeline,.direction-d .timeline{width:calc(100% - 24px)}.direction-b .moment,.direction-c .moment,.direction-d .moment{grid-template-columns:50px minmax(0,1fr);column-gap:10px}.direction-b .timeline-rail,.direction-c .timeline-rail,.direction-d .timeline-rail{left:24px}.direction-b .time-marker,.direction-c .time-marker{min-width:50px}.direction-b .time-marker time,.direction-c .time-marker time{font-size:19px}.direction-b .time-marker:before,.direction-c .time-marker:before{width:10px}
+ .direction-b .card-copy{padding-inline:14px}.direction-b .card-copy h3,.direction-d .card-copy h3{font-size:20px}.direction-c .card-copy h3{font-size:25px}.direction-b .day-intro{padding-left:23px}.direction-b .day-intro h2{font-size:40px}.direction-d .card-copy{padding-inline:5px}
+}
