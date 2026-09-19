@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
 from app.campuses.routes import router as campuses_router
+from app.content.routes import router as content_router
 from app.media.routes import router as media_router
 from app.config import Settings, get_settings
 from app.db import create_engine, create_session_factory
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(campuses_router)
     app.include_router(media_router)
+    app.include_router(content_router)
 
     return app
 

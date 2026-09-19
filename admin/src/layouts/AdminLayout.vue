@@ -21,7 +21,13 @@ async function handleLogout() {
         border-bottom: 1px solid var(--el-border-color);
       "
     >
-      <strong>常春藤官網後台</strong>
+      <div style="display: flex; align-items: center; gap: 1.5rem">
+        <strong>常春藤官網後台</strong>
+        <nav style="display: flex; gap: 1rem">
+          <router-link to="/">使用者管理</router-link>
+          <router-link to="/content/home-about">首頁內容</router-link>
+        </nav>
+      </div>
       <div style="display: flex; align-items: center; gap: 1rem">
         <span v-if="authStore.user">{{ authStore.user.email }}（{{ authStore.user.role }}）</span>
         <el-button size="small" @click="handleLogout">登出</el-button>

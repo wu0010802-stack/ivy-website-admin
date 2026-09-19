@@ -26,6 +26,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "campuses.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     "media.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "media.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
+    "content.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
+    "content.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
 }
 
 

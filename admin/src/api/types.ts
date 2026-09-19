@@ -15,3 +15,26 @@ export interface CampusOut {
 }
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
+
+export interface HomeAboutPayload {
+  title: string
+  since_label: string
+  body_text: string
+  caption: string
+}
+
+export interface ContentRevisionOut {
+  id: string
+  version: number
+  payload: HomeAboutPayload
+  created_at: string
+}
+
+export interface ContentItemOut {
+  id: string
+  kind: string
+  campus_key: string | null
+  latest_version: number
+  current_published_revision_id: string | null
+  latest_revision: ContentRevisionOut | null
+}

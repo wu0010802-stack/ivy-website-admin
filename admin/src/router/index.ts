@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/auth'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import LoginView from '../views/LoginView.vue'
 import UsersView from '../views/UsersView.vue'
+import HomeContentView from '../views/HomeContentView.vue'
 
 const router = createRouter({
   history: createWebHistory('/admin/'),
@@ -11,7 +12,10 @@ const router = createRouter({
     {
       path: '/',
       component: AdminLayout,
-      children: [{ path: '', name: 'users', component: UsersView }],
+      children: [
+        { path: '', name: 'users', component: UsersView },
+        { path: 'content/home-about', name: 'home-about', component: HomeContentView },
+      ],
     },
   ],
 })

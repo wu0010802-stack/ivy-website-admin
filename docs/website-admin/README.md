@@ -24,7 +24,14 @@ uv run uvicorn app.main:app --port 8000 --host 127.0.0.1
 curl http://127.0.0.1:8000/api/website/v1/health
 ```
 
-管理者帳號：Task 3（階段 B）才會加入 `cli.py` 的互動式 `bootstrap-admin`，階段 A 尚無登入系統。
+管理者帳號（階段 B 起可用）：
+
+```bash
+uv run python -m app.cli bootstrap-admin   # 互動輸入 email/密碼，密碼不進 log
+uv run python -m app.cli seed --dry-run    # 檢查五校 seed 是否需要補
+uv run python -m app.cli content-seed-from-fixture ../content/site-fixture.json
+  # 一次性：把 fixture 現有「關於常春藤」文案灌成第一筆已發布內容
+```
 
 ## 管理後台殼（Vue + Vite，admin/）
 
@@ -67,6 +74,12 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 - `scripts/check-font-coverage.py`：字型缺字檢查（`python3 scripts/check-font-coverage.py`）。
 - `scripts/capture-baseline.mjs`：重新拍攝基準截圖用（需先跑 `python3 -m http.server 8765` 服務根目錄原型）。
 
-## 尚未涵蓋（階段 B 起）
+## 階段 B 起已涵蓋
 
-帳號登入、素材庫、內容 CRUD／審核／發布、六種預約模式、通知 worker、統計與備份還原，均屬階段 B–D，本文件屆時會補上對應命令。
+- 帳號登入、CSRF、重新整理後恢復登入狀態、使用者管理、分校 scope（Task 3）
+- 素材上傳／驗證／引用保護／替換（Task 4，admin 尚無素材庫 UI，只有 API）
+- 首頁「關於常春藤」文字草稿／發布，Nuxt 讀取已發布內容（Task 5，範圍縮小到單一內容項，見 `docs/website-admin/acceptance.md` 階段 B 小結）
+
+## 尚未涵蓋
+
+其餘 10 種內容欄位的 editor、素材庫 UI、六種預約模式、通知 worker、統計與備份還原，均屬階段 C–D，本文件屆時會補上對應命令。

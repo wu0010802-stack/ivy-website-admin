@@ -13,6 +13,7 @@ from app.db import Base
 from app.auth import models as auth_models  # noqa: F401
 from app.campuses import models as campus_models  # noqa: F401
 from app.media import models as media_models  # noqa: F401
+from app.content import models as content_models  # noqa: F401
 
 config = context.config
 

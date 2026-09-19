@@ -6,12 +6,17 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+import json
+from pathlib import Path
+
 from sqlalchemy import select
 
 from app.auth import service
 from app.auth.models import Role, User
 from app.campuses.models import Campus
 from app.config import get_settings
+from app.content import service as content_service
+from app.content.routes import HOME_ABOUT_KIND
 from app.db import create_engine, create_session_factory
 
 CAMPUSES = [
@@ -88,6 +93,35 @@ async def bootstrap_admin() -> None:
         print(f"已建立總管理者：{email}")
 
 
+async def content_seed_from_fixture(fixture_path: str) -> None:
+    """階段 B 一次性工具：把 fixture 目前的 home.about 文字灌進 typed content
+    系統並直接發布，讓 Nuxt 一開始讀到的內容跟現行原型一致，不必園方
+    手動重打一次首頁文案。重跑會用目前 latest_version 建新 revision，
+    不會出錯，但會多一版歷史（属預期行為，不是覆寫 bug）。"""
+    data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
+    about = data["home"]["about"]
+    payload = {
+        "title": about["title"],
+        "since_label": about["sinceLabel"],
+        "body_text": about["bodyText"],
+        "caption": about["caption"],
+    }
+
+    factory = await _session_factory()
+    async with factory() as db:
+        result = await db.execute(select(User).where(User.role == Role.SUPER_ADMIN).limit(1))
+        admin_user = result.scalar_one_or_none()
+        created_by = admin_user.id if admin_user else None
+
+        item = await content_service.get_or_create_content_item(db, HOME_ABOUT_KIND, None)
+        revision = await content_service.create_revision(
+            db, item, payload, item.latest_version, created_by
+        )
+        await content_service.publish_revision(db, item, revision, created_by)
+        await db.commit()
+        print(f"已建立並發布 {HOME_ABOUT_KIND} revision v{revision.version}（來源：{fixture_path}）")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print("用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin>", file=sys.stderr)
@@ -99,6 +133,11 @@ def main() -> None:
         asyncio.run(seed(dry_run))
     elif command == "bootstrap-admin":
         asyncio.run(bootstrap_admin())
+    elif command == "content-seed-from-fixture":
+        if len(sys.argv) < 3:
+            print("用法：python -m app.cli content-seed-from-fixture <fixture路徑>", file=sys.stderr)
+            raise SystemExit(1)
+        asyncio.run(content_seed_from_fixture(sys.argv[2]))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)
