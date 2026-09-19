@@ -1,0 +1,14 @@
+{
+  "name": "ivy-website-monorepo",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test:website": "npm --prefix web run test:unit",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
