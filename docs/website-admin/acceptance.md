@@ -23,6 +23,6 @@
 | A24 無 hydration mismatch / 私有資產不外洩 | 部分 | dev/start log 未見 hydration 警告；**未做**「原始碼/私有素材不可被靜態服務讀到」的邊界測試 |
 | A25 缺字檢查（階段 A 範圍） | 通過 | 見上方「字型缺字檢查」，已知限制已記錄，未默默退回系統字（沿用子集現況） |
 
-**原型凍結點**：尚未建立（未經使用者要求不 commit；根目錄 vanilla 檔案本階段未被觸碰，仍是目前 HEAD `8417864`）。
+**原型凍結點**：commit `63a0c05`（2026-09-19，`feat(website-admin): 階段 A - Nuxt 官網骨架、後台殼、獨立 API 基礎`）。根目錄 vanilla 檔案（`index.html`/`app.js`/`styles.css`/`studio.css`/`preview.html`）未修改。
 
-**使用者親自看過同意**：**尚未**——此為進入階段 B 的硬性閘門。已具備可看的方式：`cd web && npm run dev`（需先啟動 `backend/`，見 `docs/website-admin/README.md`）。
+**使用者親自看過同意**：**已同意**（2026-09-19，使用者確認進入階段 B）。之後所有設計迭代改在 `web/`，不再回寫根目錄。

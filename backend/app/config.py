@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     session_secret: str
     enable_fixture: bool = False
     indexing_enabled: bool = False
+    admin_origin: str | None = None
 
     @field_validator("database_url", "test_database_url")
     @classmethod
