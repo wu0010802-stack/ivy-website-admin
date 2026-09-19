@@ -6,9 +6,12 @@
   },
   "scripts": {
     "test:website": "npm --prefix web run test:unit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "contract:generate": "cd backend && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_openapi.py && cd .. && npx openapi-typescript contracts/openapi.json -o contracts/generated/website-api.d.ts",
+    "contract:check": "cd backend && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_openapi.py --check && cd .. && node scripts/check-contract-types.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "openapi-typescript": "^7.13.0"
   }
 }

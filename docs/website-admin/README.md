@@ -30,7 +30,7 @@ curl http://127.0.0.1:8000/api/website/v1/health
 uv run python -m app.cli bootstrap-admin   # 互動輸入 email/密碼，密碼不進 log
 uv run python -m app.cli seed --dry-run    # 檢查五校 seed 是否需要補
 uv run python -m app.cli content-seed-from-fixture ../content/site-fixture.json
-  # 一次性：把 fixture 現有「關於常春藤」文案灌成第一筆已發布內容
+  # 一次性：把 fixture 現有 home_about/home_hero/site_footer 文案灌成第一筆已發布內容
 ```
 
 ## 管理後台殼（Vue + Vite，admin/）
@@ -60,8 +60,10 @@ npm run test:unit
 ## 根目錄整合腳本
 
 ```bash
-npm run test:website   # 轉呼叫 web 的 Vitest
-npm run test:e2e       # Playwright，四視口設定見 playwright.config.ts
+npm run test:website       # 轉呼叫 web 的 Vitest
+npm run test:e2e           # Playwright，四視口設定見 playwright.config.ts
+npm run contract:generate  # 匯出 backend OpenAPI → contracts/openapi.json，再產生 contracts/generated/website-api.d.ts
+npm run contract:check     # 檢查上述兩個產物是否與目前 API 一致（CI 用，非零表示 drift）
 ```
 
 Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不需另外下載瀏覽器二進位。
@@ -77,9 +79,11 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 ## 階段 B 起已涵蓋
 
 - 帳號登入、CSRF、重新整理後恢復登入狀態、使用者管理、分校 scope（Task 3）
-- 素材上傳／驗證／引用保護／替換（Task 4，admin 尚無素材庫 UI，只有 API）
-- 首頁「關於常春藤」文字草稿／發布，Nuxt 讀取已發布內容（Task 5，範圍縮小到單一內容項，見 `docs/website-admin/acceptance.md` 階段 B 小結）
+- 素材庫：上傳／驗證／引用保護／替換 API + admin UI（列表、縮圖、上傳對話框、刪除）（Task 4）
+- 內容草稿／發布：`home_about`／`home_hero`／`site_footer` 三個 content kind，Nuxt 讀取已發布內容（Task 5，其餘內容項見 `docs/website-admin/acceptance.md` 階段 B 小結）
+- 共用 OpenAPI 型別：`contracts/openapi.json` + `contracts/generated/website-api.d.ts`，admin 主要型別已改為引用生成檔（見上方 `contract:generate`/`contract:check`）
+- Element Plus 介面語系已設為 `zh-tw`（原本對話框按鈕會顯示英文 OK/Cancel）
 
 ## 尚未涵蓋
 
-其餘 10 種內容欄位的 editor、素材庫 UI、六種預約模式、通知 worker、統計與備份還原，均屬階段 C–D，本文件屆時會補上對應命令。
+其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、六種預約模式、通知 worker、統計與備份還原，均屬階段 C–D 或待補，本文件屆時會補上對應命令。

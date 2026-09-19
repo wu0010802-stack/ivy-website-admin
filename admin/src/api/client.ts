@@ -56,8 +56,46 @@ async function request<T>(
   return payload as T
 }
 
+async function upload<T>(path: string, method: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers,
+    credentials: 'include',
+    body: formData,
+  })
+
+  const text = await response.text()
+  let payload: unknown = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = text
+    }
+  }
+
+  if (!response.ok) {
+    const detail =
+      payload && typeof payload === 'object' && 'detail' in payload
+        ? (payload as { detail: unknown }).detail
+        : payload
+    throw new ApiError(response.status, detail)
+  }
+
+  return payload as T
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body, mutating: true }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body, mutating: true }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE', mutating: true }),
+  upload: <T>(path: string, formData: FormData) => upload<T>(path, 'POST', formData),
+}
+
+export function mediaFileUrl(id: string): string {
+  return `${BASE_URL}/admin/media/${id}/file`
 }

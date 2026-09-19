@@ -32,9 +32,36 @@ class HomeAboutPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
+class HomeHeroPayload(BaseModel):
+    eyebrow: str
+    copy_lines: list[str]
+    cta_label: str
+
+    @field_validator("eyebrow", "cta_label")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("copy_lines")
+    @classmethod
+    def _copy_lines_safe_and_bounded(cls, value: list[str]) -> list[str]:
+        if not (1 <= len(value) <= 3):
+            raise ValueError("copy_lines 需為 1 到 3 行")
+        return [_reject_unsafe_scheme(line) for line in value]
+
+
+class SiteFooterPayload(BaseModel):
+    tagline: str
+
+    @field_validator("tagline")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
 class ContentRevisionCreateRequest(BaseModel):
     expected_version: int
-    payload: HomeAboutPayload
+    payload: dict
 
 
 class ContentRevisionOut(BaseModel):

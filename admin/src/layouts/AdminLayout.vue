@@ -25,7 +25,10 @@ async function handleLogout() {
         <strong>常春藤官網後台</strong>
         <nav style="display: flex; gap: 1rem">
           <router-link to="/">使用者管理</router-link>
-          <router-link to="/content/home-about">首頁內容</router-link>
+          <router-link to="/content/home-about">關於常春藤</router-link>
+          <router-link to="/content/home-hero">首頁 Hero</router-link>
+          <router-link to="/content/site-footer">頁尾標語</router-link>
+          <router-link to="/media">素材庫</router-link>
         </nav>
       </div>
       <div style="display: flex; align-items: center; gap: 1rem">

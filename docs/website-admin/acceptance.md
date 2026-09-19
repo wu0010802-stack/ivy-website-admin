@@ -10,11 +10,11 @@
 | A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 見下方階段 A 小結 | raw HTML 檢查 |
 | A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | not-run | 待 Playwright E2E |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
-| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 只有首頁「關於常春藤」文字有真實 editor；其餘欄位仍是 fixture，尚無 editor（見階段 B 小結） |
+| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 首頁「關於常春藤」／Hero／頁尾標語三個 content kind 有真實 editor；其餘 8 種欄位仍是 fixture，尚無 editor（見階段 B 補缺口小結） |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
 | A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
-| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試；裁切焦點欄位存在但無 admin UI；熱點複核未做 |
-| A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 部分 | 各自 build/test 可重現（見下方指令）；**尚未**產生共用 OpenAPI/型別產物（`contracts/`），型別目前是手抄 |
+| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，**admin 素材庫 UI 已補上**（列表/預覽/上傳/刪除）；裁切焦點欄位仍無 UI；熱點複核、既有素材 dry-run importer 未做 |
+| A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
 | A05–A17, A23 | C/D | — | not-run（屬後續階段） | — |
 
 ## 階段 A 小結（2026-09-19）
@@ -67,8 +67,25 @@ cd admin && npm run typecheck && npm run build                   # 都過
 
 ### 尚缺／已知限制（誠實列出，不算已完成）
 
-- 完整字型檔（階段 B 前置，規格 3.1.1）：需使用者提供 LINE Seed TW 原始檔，本機無法自行生成，**外部阻擋項**。
-- `contracts/` 共用 OpenAPI 型別（A20 部分項）：admin/web 的 TS 型別目前手抄自後端 schema，未自動生成，有 drift 風險，屬 Task 10（階段 D）範圍但也可提前做。
-- 除 `home_about` 外的 10 種內容（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、footer/siteMeta、預約設定文案）仍是 Nuxt 端靜態 fixture，沒有 admin editor，也沒有寫進 typed content 系統。
+- 完整字型檔（階段 B 前置，規格 3.1.1）：需使用者提供 LINE Seed TW 原始檔，本機無法自行生成，**外部阻擋項，仍未解決**。
+- 除 `home_about`／`home_hero`／`site_footer` 外的其餘 8 種內容（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta、預約設定文案）仍是 Nuxt 端靜態 fixture，沒有 admin editor，也沒有寫進 typed content 系統。
 - 審核流程／排程發布／版本還原：階段 D 範圍，未做。
+- 素材庫裁切焦點（crop_focus_x/y）與既有素材 dry-run importer 未做。
 - 沒有對外發送任何通知、沒有 push、沒有部署；所有資料庫操作都在隔離的 `ivy_website_dev`/`ivy_website_test`。
+
+## 階段 B 補缺口小結（2026-09-19，使用者要求「先補階段 B 缺口，再進 Task 6」）
+
+- **內容系統通用化**：`backend/app/content` 從硬編碼 `home-about` 改成 `CONTENT_KIND_REGISTRY` 註冊表驅動的通用路由（`/admin/content-items/{kind}`），新增 `home_hero`（首頁 Hero 文案）、`site_footer`（頁尾標語）兩個 kind，皆為純文字欄位、無網址（避免 XSS 風險欄位）。發布交易機制不變，其他內容項不受影響。12 項 content 測試全過（含新 kind 的 roundtrip 與 `home_hero.copy_lines` 行數上限驗證）。
+- **素材庫 admin UI**：新增 `admin/src/views/MediaLibraryView.vue`（列表、縮圖預覽、上傳對話框、刪除，含引用中素材禁止刪除的前端提示）與 `admin/src/api/client.ts` 的 `upload()`／`mediaFileUrl()`。已用 Playwright 對真實後端跑過上傳→縮圖顯示→刪除→列表清空的完整流程。
+- **共用 OpenAPI 型別（A20）**：`backend/scripts/export_openapi.py` 匯出 schema、根目錄 `npm run contract:generate`／`contract:check`（用 `openapi-typescript` 產生 `contracts/generated/website-api.d.ts`）。admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 已改為直接引用生成型別。
+- **修掉一個真的會讓後台看起來像英文站的 bug**：Element Plus 預設語系是英文，`el-message-box` 的確認對話框顯示「OK」/「Cancel」，跟全站繁體中文不一致；已在 `main.ts` 掛上 `zh-tw` locale，Playwright 實測確認對話框已變成「確定」/「取消」。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 43 passed
+cd web && npm run typecheck && npm run test:unit                 # 過；12 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+npm run contract:check                                           # 契約與型別皆一致
+```
+
+**仍未解決**：完整字型檔（外部阻擋，需使用者提供原始檔）、裁切焦點 UI、既有素材 dry-run importer、其餘 8 種內容 editor、版本還原、審核流程——這些留給階段 C/D 或使用者決定是否要在階段 B 再補。

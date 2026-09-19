@@ -16,7 +16,6 @@ from app.auth.models import Role, User
 from app.campuses.models import Campus
 from app.config import get_settings
 from app.content import service as content_service
-from app.content.routes import HOME_ABOUT_KIND
 from app.db import create_engine, create_session_factory
 
 CAMPUSES = [
@@ -94,17 +93,31 @@ async def bootstrap_admin() -> None:
 
 
 async def content_seed_from_fixture(fixture_path: str) -> None:
-    """階段 B 一次性工具：把 fixture 目前的 home.about 文字灌進 typed content
-    系統並直接發布，讓 Nuxt 一開始讀到的內容跟現行原型一致，不必園方
-    手動重打一次首頁文案。重跑會用目前 latest_version 建新 revision，
-    不會出錯，但會多一版歷史（属預期行為，不是覆寫 bug）。"""
+    """階段 B 一次性工具：把 fixture 目前的 home_about／home_hero／
+    site_footer 文字灌進 typed content 系統並直接發布，讓 Nuxt 一開始讀到
+    的內容跟現行原型一致，不必園方手動重打一次文案。重跑會用目前
+    latest_version 建新 revision，不會出錯，但會多一版歷史
+    （屬預期行為，不是覆寫 bug）。"""
     data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
     about = data["home"]["about"]
-    payload = {
-        "title": about["title"],
-        "since_label": about["sinceLabel"],
-        "body_text": about["bodyText"],
-        "caption": about["caption"],
+    hero = data["home"]["hero"]
+    footer = data["footer"]
+
+    payloads = {
+        "home_about": {
+            "title": about["title"],
+            "since_label": about["sinceLabel"],
+            "body_text": about["bodyText"],
+            "caption": about["caption"],
+        },
+        "home_hero": {
+            "eyebrow": hero["eyebrow"],
+            "copy_lines": hero["copyLines"],
+            "cta_label": hero["ctaLabel"],
+        },
+        "site_footer": {
+            "tagline": footer["tagline"],
+        },
     }
 
     factory = await _session_factory()
@@ -113,13 +126,15 @@ async def content_seed_from_fixture(fixture_path: str) -> None:
         admin_user = result.scalar_one_or_none()
         created_by = admin_user.id if admin_user else None
 
-        item = await content_service.get_or_create_content_item(db, HOME_ABOUT_KIND, None)
-        revision = await content_service.create_revision(
-            db, item, payload, item.latest_version, created_by
-        )
-        await content_service.publish_revision(db, item, revision, created_by)
+        for kind, payload in payloads.items():
+            item = await content_service.get_or_create_content_item(db, kind, None)
+            revision = await content_service.create_revision(
+                db, item, payload, item.latest_version, created_by
+            )
+            await content_service.publish_revision(db, item, revision, created_by)
+            print(f"已建立並發布 {kind} revision v{revision.version}")
         await db.commit()
-        print(f"已建立並發布 {HOME_ABOUT_KIND} revision v{revision.version}（來源：{fixture_path}）")
+        print(f"（來源：{fixture_path}）")
 
 
 def main() -> None:
