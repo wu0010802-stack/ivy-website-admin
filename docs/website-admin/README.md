@@ -1,4 +1,4 @@
-# 官網後台：本機啟動與測試命令（階段 A）
+# 官網後台：本機啟動與測試命令（階段 A–C 起點）
 
 所有 Node 指令需先確保使用 Node 22（本機系統預設是 25.x，不符 `.nvmrc`）：
 
@@ -83,7 +83,8 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 - 內容草稿／發布：`home_about`／`home_hero`／`site_footer` 三個 content kind，Nuxt 讀取已發布內容（Task 5，其餘內容項見 `docs/website-admin/acceptance.md` 階段 B 小結）
 - 共用 OpenAPI 型別：`contracts/openapi.json` + `contracts/generated/website-api.d.ts`，admin 主要型別已改為引用生成檔（見上方 `contract:generate`/`contract:check`）
 - Element Plus 介面語系已設為 `zh-tw`（原本對話框按鈕會顯示英文 OK/Cancel）
+- 各校預約模式設定（`inquiry`/`line`/`phone`/`external`/`paused`，`slots` 保留但擋啟用）+ 公開需求提交 API（idempotency、真實 PostgreSQL 併發驗證）（Task 6，階段 C 起點）
 
 ## 尚未涵蓋
 
-其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、六種預約模式、通知 worker、統計與備份還原，均屬階段 C–D 或待補，本文件屆時會補上對應命令。
+其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線（屬 Task 8）、slots 容量與接待工作台（Task 7）、通知 worker（Task 9）、統計與備份還原（Task 10），均屬階段 C–D 或待補，本文件屆時會補上對應命令。

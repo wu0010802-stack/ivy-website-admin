@@ -54,7 +54,9 @@ async def _clean_tables(app):
                 "TRUNCATE TABLE sessions, user_campus_scopes, users, "
                 "media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
-                "content_revisions, content_items RESTART IDENTITY CASCADE"
+                "content_revisions, content_items, "
+                "outbox_messages, visit_request_events, visit_requests, "
+                "booking_configs RESTART IDENTITY CASCADE"
             )
         )
     yield

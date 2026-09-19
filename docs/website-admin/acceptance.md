@@ -15,7 +15,12 @@
 | A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
 | A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，**admin 素材庫 UI 已補上**（列表/預覽/上傳/刪除）；裁切焦點欄位仍無 UI；熱點複核、既有素材 dry-run importer 未做 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
-| A05–A17, A23 | C/D | — | not-run（屬後續階段） | — |
+| A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
+| A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 部分 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt 端表單尚未接上真實 API（見下方 Task 6 小結，Nuxt CTA 接線屬 Task 8） |
+| A08 | C | 舊 config version 被拒；成功後重播仍回原結果 | 通過 | `test_stale_config_version_rejected_then_switch_to_line`、`test_request_retry_is_same_case` |
+| A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | not-run（slots／Task 7 範圍） | — |
+| A06, A16 | C | CTA 一致／SEO | not-run | 屬 Task 8 |
+| A10–A15, A17, A23 | C/D | — | not-run（屬後續階段） | — |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -89,3 +94,29 @@ npm run contract:check                                           # 契約與型�
 ```
 
 **仍未解決**：完整字型檔（外部阻擋，需使用者提供原始檔）、裁切焦點 UI、既有素材 dry-run importer、其餘 8 種內容 editor、版本還原、審核流程——這些留給階段 C/D 或使用者決定是否要在階段 B 再補。
+
+## Task 6 小結（2026-09-19，階段 C 起點：各校預約模式與真實需求提交）
+
+依計畫 Task 6 範圍（不含 slots）：
+
+- `backend/app/booking`：`BookingConfig`（每校一列，樂觀鎖 `version`）、`VisitRequest`（`(campus_key, idempotency_key)` 唯一鍵 + `payload_hash` 判斷重播內容是否相同）、`VisitRequestEvent`（歷程，目前只寫 created）、`OutboxMessage`（本階段只寫入，不發送）。
+- 模式驗證：`line`/`phone`/`external` 分別要求對應聯絡欄位非空才能啟用；`slots` enum 保留但更新時一律拒絕（`BOOKING_MODE_FIELD_MISSING`），符合「階段 C 不含 slots」。
+- 公開提交交易：查重播 → 鎖 `booking_config` 列 → 重驗 `config_version`（不符回 `BOOKING_CONFIG_CHANGED`）→ 重驗模式是否為 `inquiry`（其餘模式回 `BOOKING_UNAVAILABLE`）→ 寫入案件/歷程/outbox → commit。
+- **抓到並修一個真的會在正式流量下爆炸的併發 bug**：idempotency 的「查重播」與「鎖設定列」之間有時間差，兩個真正同時的請求都可能通過「查無既有案件」檢查，接著各自嘗試 INSERT 同一組 `(campus_key, idempotency_key)`，其中一個會撞唯一鍵約束丟 `IntegrityError`。原本這個例外沒有被接住，會讓其中一個請求收到 500。已加上 catch：撞到唯一鍵時 rollback 並重新查詢既有案件，安全地當成重播處理。用 10 個獨立連線真的同時送出同一個 idempotency key 驗證過，只有 1 筆 `201`、其餘 `200`，且只有一個 `receipt_id`。
+- `web/app/utils/booking-action.ts`：型別化 `resolveBookingAction(campusKey, config)`，涵蓋未選校／inquiry／line／phone／external／paused／slots（視同尚未開放），不寫死任何校的聯絡方式；11 項 Vitest 全過。
+- `admin/src/views/BookingSettingsView.vue`：各校預約模式切換畫面，依模式動態顯示對應欄位，樂觀鎖衝突會提示並自動重新載入。已用 Playwright 對真實後端跑過切換模式並儲存成功的流程。
+
+**22 項 pytest 全過**（`test_booking_modes.py` 21 項 + `test_booking_concurrency.py` 2 項，含上述真實 PostgreSQL 併發驗證）。
+
+**本次刻意不做（屬 Task 8／Task 7 範圍，避免跨越任務邊界搶做）**：
+- Nuxt `VisitForm.vue` 尚未接上真實 `POST /public/visit-requests`，目前仍是階段 A 就有的純前端示範表單；把所有站內 CTA 接上 `resolveBookingAction` 與真實設定 API 是 Task 8「先接公開內容...再接所有 CTA」的範圍。
+- `slots` 容量／時段、接待工作台、狀態機（取消/改期/到期）屬 Task 7（階段 D），開工前計畫要求先跟園方確認是否要用 slots。
+- 通知 worker 真的寄送 outbox 訊息屬 Task 9（階段 D）；本階段 outbox 只保證交易內寫入正確。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 66 passed
+cd web && npm run typecheck && npm run test:unit                 # 過；23 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+npm run contract:check                                           # 契約與型別皆一致
+```

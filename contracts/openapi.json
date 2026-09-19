@@ -67,6 +67,149 @@
         "title": "Body_upload_media_api_website_v1_admin_media_post",
         "type": "object"
       },
+      "BookingConfigOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Url"
+          },
+          "line_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Url"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/BookingMode"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "mode",
+          "version",
+          "line_url",
+          "phone",
+          "external_url",
+          "message"
+        ],
+        "title": "BookingConfigOut",
+        "type": "object"
+      },
+      "BookingConfigUpdateRequest": {
+        "properties": {
+          "expected_version": {
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Url"
+          },
+          "line_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Url"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/BookingMode"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "expected_version",
+          "mode"
+        ],
+        "title": "BookingConfigUpdateRequest",
+        "type": "object"
+      },
+      "BookingMode": {
+        "enum": [
+          "inquiry",
+          "slots",
+          "line",
+          "phone",
+          "external",
+          "paused"
+        ],
+        "title": "BookingMode",
+        "type": "string"
+      },
       "CampusOut": {
         "properties": {
           "active": {
@@ -526,6 +669,77 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "PublicBookingConfigOut": {
+        "description": "公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Url"
+          },
+          "line_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Url"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/BookingMode"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "mode",
+          "version",
+          "line_url",
+          "phone",
+          "external_url",
+          "message"
+        ],
+        "title": "PublicBookingConfigOut",
+        "type": "object"
+      },
       "PublicSiteOut": {
         "properties": {
           "content": {
@@ -726,6 +940,100 @@
         ],
         "title": "VariantKind",
         "type": "string"
+      },
+      "VisitRequestCreate": {
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "consent_given": {
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "parent_name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferred_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Time"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          }
+        },
+        "required": [
+          "campus_key",
+          "config_version",
+          "parent_name",
+          "phone",
+          "consent_given"
+        ],
+        "title": "VisitRequestCreate",
+        "type": "object"
+      },
+      "VisitRequestOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt_id",
+          "status",
+          "created_at"
+        ],
+        "title": "VisitRequestOut",
+        "type": "object"
       }
     }
   },
@@ -735,6 +1043,162 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/booking-config/{campus_key}": {
+      "get": {
+        "operationId": "get_booking_config_api_website_v1_admin_booking_config__campus_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Config",
+        "tags": [
+          "booking"
+        ]
+      },
+      "patch": {
+        "operationId": "update_booking_config_api_website_v1_admin_booking_config__campus_key__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingConfigUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Booking Config",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/campuses": {
       "get": {
         "operationId": "list_admin_campuses_api_website_v1_admin_campuses_get",
@@ -2241,6 +2705,48 @@
         "summary": "Health"
       }
     },
+    "/api/website/v1/public/booking-config/{campus_key}": {
+      "get": {
+        "operationId": "get_public_booking_config_api_website_v1_public_booking_config__campus_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBookingConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Booking Config",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/public/site": {
       "get": {
         "operationId": "get_public_site_api_website_v1_public_site_get",
@@ -2259,6 +2765,58 @@
         "summary": "Get Public Site",
         "tags": [
           "content"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-requests": {
+      "post": {
+        "operationId": "create_visit_request_api_website_v1_public_visit_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Visit Request",
+        "tags": [
+          "booking"
         ]
       }
     }

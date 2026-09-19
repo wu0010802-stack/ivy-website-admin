@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/booking-config/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Booking Config */
+        get: operations["get_booking_config_api_website_v1_admin_booking_config__campus_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Booking Config */
+        patch: operations["update_booking_config_api_website_v1_admin_booking_config__campus_key__patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/campuses": {
         parameters: {
             query?: never;
@@ -297,6 +315,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/booking-config/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Booking Config */
+        get: operations["get_public_booking_config_api_website_v1_public_booking_config__campus_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/site": {
         parameters: {
             query?: never;
@@ -308,6 +343,23 @@ export interface paths {
         get: operations["get_public_site_api_website_v1_public_site_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Visit Request */
+        post: operations["create_visit_request_api_website_v1_public_visit_requests_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -336,6 +388,41 @@ export interface components {
             /** Source Attribution */
             source_attribution?: string | null;
         };
+        /** BookingConfigOut */
+        BookingConfigOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** External Url */
+            external_url: string | null;
+            /** Line Url */
+            line_url: string | null;
+            /** Message */
+            message: string | null;
+            mode: components["schemas"]["BookingMode"];
+            /** Phone */
+            phone: string | null;
+            /** Version */
+            version: number;
+        };
+        /** BookingConfigUpdateRequest */
+        BookingConfigUpdateRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** External Url */
+            external_url?: string | null;
+            /** Line Url */
+            line_url?: string | null;
+            /** Message */
+            message?: string | null;
+            mode: components["schemas"]["BookingMode"];
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
+         * BookingMode
+         * @enum {string}
+         */
+        BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
         /** CampusOut */
         CampusOut: {
             /** Active */
@@ -489,6 +576,25 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /**
+         * PublicBookingConfigOut
+         * @description 公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。
+         */
+        PublicBookingConfigOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** External Url */
+            external_url: string | null;
+            /** Line Url */
+            line_url: string | null;
+            /** Message */
+            message: string | null;
+            mode: components["schemas"]["BookingMode"];
+            /** Phone */
+            phone: string | null;
+            /** Version */
+            version: number;
+        };
         /** PublicSiteOut */
         PublicSiteOut: {
             /** Content */
@@ -571,6 +677,40 @@ export interface components {
          * @enum {string}
          */
         VariantKind: "thumbnail" | "poster";
+        /** VisitRequestCreate */
+        VisitRequestCreate: {
+            /** Age */
+            age?: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Config Version */
+            config_version: number;
+            /** Consent Given */
+            consent_given: boolean;
+            /** Parent Name */
+            parent_name: string;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time?: string | null;
+            /** Questions */
+            questions?: string | null;
+        };
+        /** VisitRequestOut */
+        VisitRequestOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /** Status */
+            status: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -580,6 +720,80 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_booking_config_api_website_v1_admin_booking_config__campus_key__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_booking_config_api_website_v1_admin_booking_config__campus_key__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingConfigUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_admin_campuses_api_website_v1_admin_campuses_get: {
         parameters: {
             query?: never;
@@ -1316,6 +1530,37 @@ export interface operations {
             };
         };
     };
+    get_public_booking_config_api_website_v1_public_booking_config__campus_key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campus_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBookingConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_public_site_api_website_v1_public_site_get: {
         parameters: {
             query?: never;
@@ -1332,6 +1577,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicSiteOut"];
+                };
+            };
+        };
+    };
+    create_visit_request_api_website_v1_public_visit_requests_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

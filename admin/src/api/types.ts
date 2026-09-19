@@ -34,3 +34,4 @@ export type VariantKind = 'thumbnail' | 'poster'
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
 export type ContentItemOut = components['schemas']['ContentItemOut']
+export type BookingConfigOut = components['schemas']['BookingConfigOut']

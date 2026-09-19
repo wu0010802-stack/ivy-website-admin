@@ -7,6 +7,7 @@ import HomeAboutView from '../views/HomeAboutView.vue'
 import HomeHeroView from '../views/HomeHeroView.vue'
 import SiteFooterView from '../views/SiteFooterView.vue'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
+import BookingSettingsView from '../views/BookingSettingsView.vue'
 
 const router = createRouter({
   history: createWebHistory('/admin/'),
@@ -21,6 +22,7 @@ const router = createRouter({
         { path: 'content/home-hero', name: 'home-hero', component: HomeHeroView },
         { path: 'content/site-footer', name: 'site-footer', component: SiteFooterView },
         { path: 'media', name: 'media', component: MediaLibraryView },
+        { path: 'booking', name: 'booking', component: BookingSettingsView },
       ],
     },
   ],
