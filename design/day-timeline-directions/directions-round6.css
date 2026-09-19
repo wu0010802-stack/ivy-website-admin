@@ -1,0 +1,211 @@
+/* Round 6: no string, no pegs. Photographs and stickers on the wall; the story on the back. */
+/* N/P: square instant prints. O: postcards. Finales: album page (N), envelope (O), film strip (P). */
+.round6 .timeline-rail{display:none}
+.round6 .day-intro h2{font-size:clamp(56px,6.6vw,102px);letter-spacing:.04em}
+.round6 .day-word{color:#ffefb8}
+.round6 .film-shade{background:linear-gradient(180deg,#2943339c,#233c3261 40%,#25372a9c)}
+.round6 .timeline{width:min(1120px,calc(100% - 160px));padding-top:80px}
+.round6 .moments{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}
+.round6 .moment{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:start;padding:0;margin:0;scroll-margin-top:calc(var(--header) + 24px)}
+.round6 .moment+.moment{margin-top:-140px}
+.round6 .moment:nth-child(n) .moment-card{grid-row:1}
+.round6 .moment:nth-child(odd) .moment-card{grid-column:1;justify-self:end}
+.round6 .moment:nth-child(even) .moment-card{grid-column:3;justify-self:start}
+.round6 .moment-card{position:relative;width:min(460px,100%);rotate:-2.2deg;background:none;box-shadow:none;color:var(--ink)}
+.round6 .moment:nth-child(even) .moment-card{rotate:2.4deg}
+.round6 .moment:nth-child(3n) .moment-card{rotate:-.8deg}
+
+/* Stickers: washi tape on the wall, a round number sticker on the print. */
+.round6 .washi{position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;opacity:.92;background:repeating-linear-gradient(45deg,color-mix(in oklch,var(--card) 78%,white) 0 6px,color-mix(in oklch,var(--card) 34%,white) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);transform:rotate(-4deg);box-shadow:0 1px 2px #1b322926;pointer-events:none}
+.round6 .moment:nth-child(even) .washi{transform:rotate(5deg);left:auto;right:26px}
+.round6 .sticker{position:absolute;z-index:4;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:var(--card);color:var(--ink);font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1;letter-spacing:-.01em;box-shadow:0 4px 10px #06180f2e,inset 0 0 0 2px #ffffff8c;rotate:-8deg}
+
+/* Film-camera date stamp inside the photograph: the per-moment marker. */
+.round6 .datestamp.time-marker{position:absolute;right:12px;bottom:10px;z-index:3;display:flex;flex-direction:row;align-items:baseline;justify-content:flex-end;gap:10px;margin:0;padding:2px 4px;min-width:0;background:none;border:0;color:#ffb347;font-family:'Source Sans 3',sans-serif;font-size:22px;line-height:1;letter-spacing:.06em;font-variant-numeric:tabular-nums;text-shadow:0 0 6px #ff8a00c0,0 0 1px #fff5;transform:skewX(-6deg);opacity:.8;transition:opacity .2s;text-align:right}
+.round6 .datestamp.time-marker::before{display:none}
+.round6 .datestamp .marker-state,.round6 .datestamp .marker-title{position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:0}.round6 .datestamp .marker-state{display:block}
+.round6 .datestamp:hover .marker-title,.round6 .datestamp:focus-visible .marker-title{position:static;width:auto;height:auto;clip:auto;font-family:var(--body);font-size:11px;letter-spacing:.12em;color:#ffe2b8}
+.round6 .datestamp time{font-size:inherit;line-height:1;letter-spacing:inherit}
+.round6 .moment.is-past .datestamp.time-marker{opacity:.85}
+.round6 .moment.is-active .datestamp.time-marker{opacity:1;color:#ffc36b;text-shadow:0 0 9px #ff8a00,0 0 2px #fff8}
+.round6 .datestamp.time-marker:focus-visible{outline:2px solid #ffb347;outline-offset:4px;opacity:1}
+
+/* Flip, shared. */
+.round6 .polaroid-wrap{position:relative;perspective:1600px}
+.round6 .polaroid{transform-style:preserve-3d;transition:transform .8s cubic-bezier(.4,.1,.2,1)}
+.round6 .is-flipped .polaroid{transform:rotateY(180deg)}
+.round6 .polaroid-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;color:var(--ink)}
+.round6 .flip{position:absolute;right:14px;bottom:16px;z-index:5;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 13px;border:1px solid #203f3255;border-radius:100px;background:#fffaf0;color:var(--ink);font-size:11px;letter-spacing:.04em;cursor:pointer;transition:background-color .2s}
+.round6 .flip:hover{background:var(--yellow);border-color:var(--yellow)}
+.round6 .flip:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.round6 .flip i{font-style:normal;font-size:15px;line-height:1;transition:rotate .4s}
+.round6 .is-flipped .flip i{rotate:180deg}
+.round6 figure{position:relative;overflow:hidden;background:#e8e2d2;margin:0}
+.round6 figure img{display:block;width:100%;height:auto;object-fit:cover;object-position:50% 40%}
+.round6 figure::after{content:'';position:absolute;inset:0;background:linear-gradient(115deg,#ffffff2e 0%,#ffffff00 38%),linear-gradient(0deg,#0000000d,#0000 30%);pointer-events:none}
+.round6 figcaption{position:absolute;left:10px;top:10px;bottom:auto;background:#182d25b8;color:var(--paper);border:0;padding:3px 8px;font-size:9px;letter-spacing:.02em}
+.round6 .card-kicker{font-size:10px;color:#7a8570;letter-spacing:.08em;justify-content:flex-start}
+.round6 .card-kicker>span:last-child{display:none}
+
+/* N/P — square instant print: thick paper, a wide foot for one handwritten line. */
+.direction-n .polaroid-face,.direction-p .polaroid-face{background:linear-gradient(180deg,#fffdf7,#fbf4e4);box-shadow:0 2px 0 #0000000a,6px 18px 46px #13291d40}
+.direction-n .polaroid-front,.direction-p .polaroid-front{position:relative;padding:8% 8% 0}
+.direction-n .polaroid-front figure,.direction-p .polaroid-front figure{box-shadow:inset 0 0 0 1px #00000014}
+.direction-n .polaroid-front img,.direction-p .polaroid-front img{aspect-ratio:1}
+.direction-n .frame-foot,.direction-p .frame-foot{position:relative;padding:18px 112px 20px 4px;min-height:104px}
+.direction-n .frame-foot .sticker,.direction-p .frame-foot .sticker{left:-18px;top:-24px}
+.direction-n .frame-foot .card-kicker,.direction-p .frame-foot .card-kicker{padding-left:36px}
+.direction-n .caption,.direction-p .caption{margin:6px 0 0;font-family:var(--display);font-weight:700;font-size:clamp(20px,1.6vw,25px);line-height:1.45;letter-spacing:.02em;rotate:-.8deg}
+.direction-n .polaroid-back,.direction-p .polaroid-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:38px 34px 60px;background:#fff6df repeating-linear-gradient(transparent 0 31px,#20402f14 31px 32px)}
+.direction-n .polaroid-back p:not(.card-kicker),.direction-p .polaroid-back p:not(.card-kicker){font-size:15px;line-height:2.13;margin-top:18px;color:#3f5045}
+.direction-n .polaroid-back .card-note,.direction-p .polaroid-back .card-note{border-top:1px dashed #203f3240;margin-top:22px;padding-top:12px;font-size:11px;color:#6b7654}
+
+/* O — postcard: thin white border, full-bleed photograph, a label sticker for the line. */
+.direction-o .moment-card{width:min(500px,100%)}
+.direction-o .polaroid-face{background:#fff;border-radius:4px;box-shadow:0 2px 0 #0000000a,6px 18px 46px #13291d40}
+.direction-o .postcard-front{position:relative;padding:7px}
+.direction-o .postcard-front figure{border-radius:2px}
+.direction-o .postcard-front img{aspect-ratio:1.5}
+.direction-o .postcard-front .sticker{left:-14px;top:-14px}
+.direction-o .label{position:absolute;left:20px;bottom:22px;z-index:3;max-width:66%;padding:10px 14px 11px;background:#fffdf7;border-radius:4px;box-shadow:0 6px 16px #06180f3a;rotate:-2deg}
+.direction-o .caption{margin:0;font-family:var(--display);font-weight:700;font-size:clamp(17px,1.35vw,21px);line-height:1.4;letter-spacing:.02em}
+.direction-o .flip{top:14px;right:14px;bottom:auto;min-height:36px;padding:5px 11px;font-size:10px}
+.direction-o .postcard-back{position:absolute;inset:0;transform:rotateY(180deg);display:grid;grid-template-columns:minmax(0,1.1fr) 1px minmax(0,.9fr);column-gap:18px;padding:22px 20px 18px;background:#fffdf9;border-radius:4px}
+.direction-o .postcard-back::before{content:'';grid-column:2;background:#0000001c}
+.direction-o .back-left{grid-column:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.direction-o .back-left p:not(.card-kicker){font-size:13.5px;line-height:1.95;margin-top:12px;color:#3f5045}
+.direction-o .back-left .card-note{border-top:1px dashed #203f3240;margin-top:16px;padding-top:10px;font-size:10px;color:#6b7654}
+.direction-o .back-right{grid-column:3;position:relative;display:grid;grid-template-rows:auto 1fr;justify-items:end;min-width:0}
+.direction-o .stamp{position:relative;z-index:1;display:grid;justify-items:center;gap:2px;width:48px;padding:5px 4px 3px;background:#dfe9e2;border:3px dotted #fff;box-shadow:0 0 0 1px #00000014;color:#3b4f44}
+.direction-o .stamp svg{width:34px;height:36px;display:block}
+.direction-o .stamp small{font-family:'Source Sans 3',sans-serif;font-size:6px;letter-spacing:.06em}
+.direction-o .postmark{position:absolute;right:30px;top:-6px;z-index:2;width:112px;height:80px;color:#3b4f44;opacity:.78;rotate:-12deg;mix-blend-mode:multiply;font-family:'Source Sans 3',sans-serif}
+.direction-o .address{align-self:end;display:grid;gap:17px;width:100%;padding-bottom:6px}
+.direction-o .address i{display:block;height:1px;background:#0000002a}
+
+/* Finale N — a page of the album, prints held by photo corners. */
+.round6 .finale{position:relative;padding:70px 0 30px;text-align:center}
+.round6 .finale-copy{margin-top:44px}
+.round6 .finale-copy h2{font-size:clamp(34px,3.6vw,54px);line-height:1.45;letter-spacing:.03em;color:var(--paper);text-shadow:0 2px 30px #14251a20}
+.round6 .finale-copy p{font-size:13px;letter-spacing:.06em;margin-top:14px;color:#fff5d0}
+.round6 .album{position:relative;width:min(980px,100%);margin:0 auto;padding:46px 48px 40px;background:linear-gradient(90deg,#ece2cc,#f7f0e1 10%,#f7f0e1 90%,#ece2cc);border-radius:6px;box-shadow:0 24px 60px #06180f4d,inset 0 0 0 1px #ffffff80}
+.round6 .album::before{content:'';position:absolute;left:0;top:0;bottom:0;width:40px;border-radius:6px 0 0 6px;background:linear-gradient(90deg,#00000024,#0000)}
+.round6 .album-page{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 30px}
+.round6 .album-page a{display:block;rotate:var(--tilt,0deg);transition:rotate .3s,translate .3s}
+.round6 .album-page a:hover,.round6 .album-page a:focus-visible{rotate:0deg;translate:0 -4px}
+.round6 .album-page a:focus-visible{outline:2px solid var(--ink);outline-offset:6px}
+.round6 .print{position:relative;display:block;background:#fff;padding:5px;box-shadow:0 3px 10px #06180f2e}
+.round6 .print img{aspect-ratio:1.3}
+.round6 .corner{position:absolute;width:20px;height:20px;background:linear-gradient(135deg,#3a322a,#1f1a15);box-shadow:0 1px 2px #0003}
+.round6 .corner.tl{left:-3px;top:-3px;clip-path:polygon(0 0,100% 0,0 100%)}
+.round6 .corner.tr{right:-3px;top:-3px;clip-path:polygon(0 0,100% 0,100% 100%)}
+.round6 .corner.bl{left:-3px;bottom:-3px;clip-path:polygon(0 0,0 100%,100% 100%)}
+.round6 .corner.br{right:-3px;bottom:-3px;clip-path:polygon(100% 0,100% 100%,0 100%)}
+.round6 .album-caption{display:grid;gap:2px;margin-top:10px;font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1;color:#4f4739;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.round6 .album-caption small{font-family:var(--body);font-size:10px;letter-spacing:.06em;color:#7a7160}
+.round6 [data-jump][aria-current] .print{box-shadow:0 0 0 3px var(--yellow),0 3px 10px #06180f2e}
+
+/* Finale O — postcards fanned out of a kraft envelope. */
+.round6 .envelope{position:relative;width:min(640px,100%);height:440px;margin:0 auto}
+.round6 .env-back,.round6 .env-front{position:absolute;left:0;right:0;bottom:0;height:250px;border-radius:6px}
+.round6 .env-back{background:#cfb48b;box-shadow:0 22px 56px #06180f4d}
+.round6 .env-flap{position:absolute;left:0;right:0;bottom:250px;height:120px;background:linear-gradient(180deg,#b99b6f,#c8ab80);clip-path:polygon(0 100%,50% 0,100% 100%);opacity:.95}
+.round6 .env-front{z-index:3;background:linear-gradient(180deg,#e8d2a9,#d5b98b);clip-path:polygon(0 0,50% 44%,100% 0,100% 100%,0 100%);border-radius:0 0 6px 6px;box-shadow:inset 0 1px 0 #ffffff66}
+.round6 .fan{position:absolute;left:50%;bottom:168px;z-index:2;list-style:none;margin:0;padding:0;width:0}
+.round6 .fan li{position:absolute;left:0;bottom:0;width:190px;translate:calc(-50% + var(--x)) var(--y);rotate:var(--r);transform-origin:50% 100%}
+.round6 .fan a{display:block;transition:translate .3s}
+.round6 .fan li:hover,.round6 .fan li:focus-within{z-index:5}
+.round6 .fan a:hover,.round6 .fan a:focus-visible{translate:0 -26px}
+.round6 .fan a:focus-visible{outline:2px solid var(--paper);outline-offset:6px}
+.round6 .mini-card{display:block;background:#fff;padding:5px 5px 0;border-radius:3px;box-shadow:0 6px 18px #06180f3a;color:var(--ink);text-align:left}
+.round6 .mini-card img{display:block;width:100%;height:auto;aspect-ratio:1.4;object-fit:cover;object-position:50% 40%;border-radius:2px;background:#e8e2d2}
+.round6 .mini-card>span{display:grid;gap:2px;padding:8px 3px 10px;font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.round6 .mini-card small{font-family:var(--body);font-size:10px;letter-spacing:.05em;color:#5b6b58}
+.round6 [data-jump][aria-current] .mini-card{box-shadow:0 0 0 3px var(--yellow),0 6px 18px #06180f3a}
+
+/* Finale P — a strip of film with sprocket holes and orange frame numbers. */
+.round6 .film-scroll{width:100%}
+.round6 .filmstrip{position:relative;display:flex;gap:16px;list-style:none;margin:0 auto;padding:42px 34px 40px;width:max-content;max-width:100%;background:#141414;border-radius:4px;box-shadow:0 24px 60px #06180f66}
+.round6 .filmstrip::before,.round6 .filmstrip::after{content:'';position:absolute;left:0;right:0;height:16px;background:radial-gradient(ellipse 6px 4.5px at center,#efe9d8 97%,transparent 100%) 0 0/28px 16px repeat-x}
+.round6 .filmstrip::before{top:6px}.round6 .filmstrip::after{bottom:6px}
+.round6 .filmstrip a{display:block;transition:translate .3s}
+.round6 .filmstrip a:hover,.round6 .filmstrip a:focus-visible{translate:0 -4px}
+.round6 .filmstrip a:focus-visible{outline:2px solid #ffb347;outline-offset:5px}
+.round6 .frame{position:relative;display:block;width:172px;background:#000;border:2px solid #000}
+.round6 .frame img{display:block;width:100%;height:auto;aspect-ratio:1.5;object-fit:cover;object-position:50% 40%;filter:saturate(.95) contrast(1.04)}
+.round6 .frame-no,.round6 .frame-time{position:absolute;color:#ffb347;font-family:'Source Sans 3',sans-serif;line-height:1;letter-spacing:.08em;text-shadow:0 0 5px #ff8a00b0;font-variant-numeric:tabular-nums}
+.round6 .frame-no{top:-17px;left:0;font-size:11px}
+.round6 .frame-time{right:7px;bottom:6px;font-size:14px;display:grid;justify-items:end;gap:2px;transform:skewX(-6deg)}
+.round6 .frame-time small{font-family:var(--body);font-size:8px;letter-spacing:.1em;color:#ffd9a6}
+.round6 [data-jump][aria-current] .frame{outline:2px solid #ffb347;outline-offset:2px}
+@supports (animation-timeline:view()) and (animation-range:entry 0% entry 70%){
+ html[data-motion=native] .round6 .album-page li,html[data-motion=native] .round6 .fan li,html[data-motion=native] .round6 .filmstrip li{animation:arrive linear both;animation-timeline:view();animation-range:entry 0% entry 70%}
+}
+
+@media(min-width:1700px){.round6 .timeline{width:1220px}.round6 .moment-card{width:500px}.direction-o .moment-card{width:540px}}
+@media(min-width:801px) and (max-width:1100px){
+ .round6 .timeline{width:calc(100% - 80px);padding-top:64px}.round6 .moments{grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr)}.round6 .moment+.moment{margin-top:-60px}.round6 .moment-card{width:100%}
+ .direction-n .caption,.direction-p .caption{font-size:20px}.direction-n .frame-foot,.direction-p .frame-foot{padding-right:104px}
+ .direction-o .label{max-width:62%}.direction-o .caption{font-size:16px}.direction-o .postcard-back{padding:16px 14px 14px;column-gap:12px}.direction-o .back-left p:not(.card-kicker){font-size:12.5px;line-height:1.8}.direction-o .postmark{width:96px;height:70px;right:24px}
+ .round6 .album{padding:34px 32px 30px}.round6 .album-page{gap:26px 20px}.round6 .envelope{height:400px}.round6 .fan li{width:160px}.round6 .frame{width:150px}
+ .round6 .finale-p{margin-inline:-40px}.round6 .film-scroll{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:0 40px 16px;scrollbar-width:none;contain:inline-size}.round6 .film-scroll::-webkit-scrollbar{display:none}.round6 .filmstrip{max-width:none}.round6 .filmstrip li{scroll-snap-align:center}
+}
+@media(max-width:800px){
+ .round6 .timeline{width:calc(100% - 36px);max-width:520px;padding-top:44px}
+ .round6 .moments{display:block}
+ .round6 .moment{display:block;padding:0 0 54px;margin:0}
+ .round6 .moment+.moment{margin-top:0}
+ .round6 .moment:nth-child(n) .moment-card{width:92%;margin:0;rotate:-1.5deg}
+ .round6 .moment:nth-child(even) .moment-card{margin-left:auto;rotate:1.6deg}
+ .round6 .washi{width:84px;height:22px;top:-10px;left:calc(50% - 42px)}
+ .round6 .sticker{width:38px;height:38px;font-size:12px}
+ .round6 .datestamp.time-marker{font-size:18px;right:8px;bottom:7px}
+ .round6 .flip{right:10px;bottom:12px;min-height:38px;padding:5px 11px;font-size:10px}
+ .direction-n .polaroid-front,.direction-p .polaroid-front{padding:7% 7% 0}
+ .direction-n .frame-foot,.direction-p .frame-foot{padding:14px 100px 16px 2px;min-height:92px}
+ .direction-n .frame-foot .sticker,.direction-p .frame-foot .sticker{left:-14px;top:-20px}.direction-n .frame-foot .card-kicker,.direction-p .frame-foot .card-kicker{padding-left:30px}
+ .direction-n .caption,.direction-p .caption{font-size:clamp(18px,4.8vw,22px)}
+ .direction-n .polaroid-back,.direction-p .polaroid-back{padding:26px 22px 54px}.direction-n .polaroid-back p:not(.card-kicker),.direction-p .polaroid-back p:not(.card-kicker){font-size:13.5px;line-height:1.95;margin-top:12px}
+ .direction-o .moment:nth-child(n) .moment-card{width:calc(100% - 10px)}.direction-o .postcard-front .sticker{left:-8px;top:-10px}
+ .direction-o .postcard-front{padding:5px}.direction-o .postcard-front img{aspect-ratio:1.35}
+ .direction-o .label{left:12px;bottom:14px;max-width:72%;padding:8px 11px 9px}.direction-o .caption{font-size:clamp(15px,4.2vw,18px)}
+ .direction-o .flip{top:10px;right:10px;bottom:auto;min-height:34px}
+ .direction-o .postcard-back{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;column-gap:0;row-gap:12px;padding:14px 16px 14px}
+ .direction-o .postcard-back::before{display:none}
+ .direction-o .back-left p:not(.card-kicker){font-size:12.5px;line-height:1.75;margin-top:8px}.direction-o .back-left .card-note{margin-top:10px;padding-top:8px;font-size:9px}
+ .direction-o .back-right{grid-column:1;grid-template-columns:auto 1fr;grid-template-rows:auto;align-items:center;gap:12px;justify-items:start}
+ .direction-o .stamp{width:40px}.direction-o .stamp svg{width:28px;height:30px}
+ .direction-o .postmark{position:static;width:84px;height:60px;rotate:-8deg}
+ .direction-o .address{display:none}
+ .round6 .film-toggle{top:auto;bottom:84px}.round6 .film-caption{display:none}
+ /* Finales */
+ .round6 .finale{padding:44px 0 10px}
+ .round6 .finale-copy{margin-top:26px}.round6 .finale-copy h2{font-size:clamp(28px,7vw,40px)}.round6 .finale-copy p{font-size:12px}
+ .round6 .album{padding:22px 16px 20px;border-radius:4px}.round6 .album::before{width:18px}.round6 .album-page{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}.round6 .corner{width:14px;height:14px}.round6 .album-caption{font-size:13px;margin-top:7px}
+ .round6 .envelope{height:360px;max-width:340px}.round6 .env-back,.round6 .env-front{height:210px}.round6 .env-flap{bottom:210px;height:96px}.round6 .fan{bottom:132px}.round6 .fan li{width:106px}
+ .round6 .fan li:nth-child(1){--x:-78px!important;--r:-20deg!important}.round6 .fan li:nth-child(2){--x:-48px!important;--r:-12deg!important}.round6 .fan li:nth-child(3){--x:-16px!important;--r:-4deg!important}.round6 .fan li:nth-child(4){--x:16px!important;--r:4deg!important}.round6 .fan li:nth-child(5){--x:48px!important;--r:12deg!important}.round6 .fan li:nth-child(6){--x:78px!important;--r:20deg!important}
+ .round6 .mini-card>span{font-size:12px}
+ .round6 .finale-p{margin-inline:-18px}
+ .round6 .film-scroll{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:0 18px 16px;scrollbar-width:none;contain:inline-size}
+ .round6 .film-scroll::-webkit-scrollbar{display:none}
+ .round6 .filmstrip{padding:36px 22px 34px;gap:12px;max-width:none}
+ .round6 .filmstrip li{scroll-snap-align:center}
+ .round6 .frame{width:150px}
+ .round6 .finale-p .finale-copy{padding-inline:18px}
+}
+@media(max-width:370px){
+ .round6 .timeline{width:calc(100% - 24px)}.round6 .finale-p{margin-inline:-12px}.round6 .film-scroll{padding-inline:12px}
+ .direction-n .frame-foot,.direction-p .frame-foot{padding-right:92px}.direction-n .caption,.direction-p .caption{font-size:17px}.round6 .flip{font-size:9px;padding-inline:9px}
+ .round6 .envelope{max-width:280px}.round6 .fan li{width:90px}
+ .round6 .fan li:nth-child(1){--x:-62px!important}.round6 .fan li:nth-child(2){--x:-38px!important}.round6 .fan li:nth-child(3){--x:-13px!important}.round6 .fan li:nth-child(4){--x:13px!important}.round6 .fan li:nth-child(5){--x:38px!important}.round6 .fan li:nth-child(6){--x:62px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ .round6 .polaroid,.round6 .flip,.round6 .flip i,.round6 .datestamp.time-marker,.round6 .album-page a,.round6 .fan a,.round6 .filmstrip a{transition:none}
+ .round6 .album-page a:hover,.round6 .fan a:hover,.round6 .filmstrip a:hover{translate:none}
+ .round6 .album-page li,.round6 .fan li,.round6 .filmstrip li{animation:none!important}
+}
+@media(forced-colors:active){
+ .round6 .datestamp.time-marker,.round6 .flip,.round6 .print,.round6 .mini-card,.round6 .frame,.round6 .sticker,.round6 .label{border:1px solid CanvasText}
+ .round6 .moment.is-active .datestamp.time-marker,.round6 [data-jump][aria-current] .print,.round6 [data-jump][aria-current] .mini-card,.round6 [data-jump][aria-current] .frame{outline:2px solid Highlight;outline-offset:2px}
+ .round6 .datestamp.time-marker{color:CanvasText;text-shadow:none;background:Canvas}
+}

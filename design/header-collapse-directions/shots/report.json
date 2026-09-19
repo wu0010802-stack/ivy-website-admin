@@ -1,0 +1,662 @@
+[
+ {
+  "direction": "a",
+  "device": "desktop",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 72,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 72,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 72,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  }
+ },
+ {
+  "direction": "b",
+  "device": "desktop",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  }
+ },
+ {
+  "direction": "c",
+  "device": "desktop",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 836,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 92,
+   "navVisible": true,
+   "toggleVisible": [
+    false,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  }
+ },
+ {
+  "direction": "a",
+  "device": "mobile",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  }
+ },
+ {
+  "direction": "b",
+  "device": "mobile",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    false,
+    true
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": true,
+   "bookText": "",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  }
+ },
+ {
+  "direction": "c",
+  "device": "mobile",
+  "errors": [],
+  "hero": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "compact": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "BODY.:跳到主要內容\n\n\n \n "
+  },
+  "menu": {
+   "state": "compact",
+   "menu": "open",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "true",
+    "true"
+   ],
+   "panelHidden": false,
+   "panelOpen": true,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "A.:關於常春藤About I"
+  },
+  "closed": {
+   "state": "compact",
+   "menu": "closed",
+   "scrollY": 696,
+   "overflow": false,
+   "barH": 64,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  },
+  "back": {
+   "state": "hero",
+   "menu": "closed",
+   "scrollY": 0,
+   "overflow": false,
+   "barH": 78,
+   "navVisible": false,
+   "toggleVisible": [
+    true,
+    false
+   ],
+   "expanded": [
+    "false",
+    "false"
+   ],
+   "panelHidden": true,
+   "panelOpen": false,
+   "pillVisible": false,
+   "bookText": "預約參觀 Book a Visit",
+   "active": "BUTTON.menu-toggle:選單Menu"
+  }
+ }
+]

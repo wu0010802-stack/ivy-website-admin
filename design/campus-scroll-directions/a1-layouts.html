@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>a1 藍圖板三種版面</title>
+<style>
+:root{--green:oklch(38% .055 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--gold:oklch(82% .14 84)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font:1rem/1.75 'PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
+a{color:var(--green)}
+main{width:min(1480px,calc(100% - 48px));margin:0 auto;padding:48px 0 96px}
+h1{font-size:2rem;margin:0 0 8px}
+.lead{max-width:60em;color:var(--muted);margin:0 0 32px}
+.lead code{background:rgb(0 0 0 / .05);padding:1px 6px;border-radius:4px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+article header{padding:20px 22px 14px}
+article h2{margin:0;font-size:1.375rem}
+article h2 small{display:block;font-size:.8125rem;font-weight:400;color:var(--muted);letter-spacing:.06em;margin-top:2px}
+article p{margin:10px 0 0;font-size:.9375rem}
+.open{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:8px 14px;border-radius:100px;background:var(--green);color:#fff;text-decoration:none;font-size:.875rem;font-weight:600}
+.shots{display:grid;gap:8px;padding:0 12px 12px}
+.shots img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+.shots figure{margin:0}
+.shots figcaption{font-size:.75rem;color:var(--muted);letter-spacing:.06em;margin:4px 2px 0}
+.phones{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+dl{margin:0;padding:16px 22px 22px;border-top:1px solid var(--line);font-size:.9rem}
+dt{font-weight:700;color:var(--green);margin-top:10px}
+dt:first-child{margin-top:0}
+dd{margin:2px 0 0}
+.notes{margin-top:40px;padding:24px 28px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
+.notes h2{font-size:1.25rem;margin:0 0 8px}
+.notes ul{margin:0;padding-left:1.2em}
+.notes li{margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>a1 藍圖板 · 三種版面</h1>
+<p class="lead">使用者選定 a1，並指定：地圖換成 Google 地圖、線稿縮小不佔版面、拿掉「認識Ｘ校」、社群圖示換掉。三版都跑在主站首頁：<code>index.html?campus=a1|a1b|a1c#/home</code>。共同修改：每校面板各嵌一個 Google 地圖（只在區塊接近視窗、且輪到那一校時才載入，避免 Google 嵌入搶焦點把頁面捲走）；線稿縮成一枚章；社群徽章改成單色細圈、hover 轉金；手機版不放地圖，改成「在 Google 地圖開啟 ↗」文字連結。</p>
+<div class="grid">
+<article>
+ <header>
+  <h2>a1 側板＋玻璃地圖 <small>板子放資訊，Google 地圖是照片上的玻璃卡</small></h2>
+  <p>維持上一輪 a1 的骨架：左 46% 墨綠板子，右 54% 照片。線稿縮成一枚章放在板子右上角、標題旁；資訊在板子左下。Google 地圖做成 320×210 的圓角玻璃卡壓在照片右下、計數器上方，和上一輪示意地圖同一個位置。</p>
+  <a class="open" href="../../index.html?campus=a1#/home" target="_blank" rel="noopener">開啟 a1 ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a1-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a1-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a1-phone-t0.png" alt=""><img src="shots/a1-phone-t2.png" alt=""><img src="shots/a1-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>板子最乾淨，只有標題、章、資訊；地圖在照片上有真實地點的感覺。</dd>
+  <dt>代價</dt><dd>地圖卡壓掉一角照片；Google 地圖的白底色塊在深色照片上比較跳。</dd>
+ </dl>
+</article>
+<article>
+ <header>
+  <h2>a1b 板子含地圖 <small>Google 地圖嵌在板子底部，照片全高乾淨</small></h2>
+  <p>資訊往上收到板子的上半（標題、章、校名、地址、專線、預約、社群），板子底部 32% 整塊嵌 Google 地圖，邊到邊。右邊照片完全不被遮，只有校名清單與計數器。</p>
+  <a class="open" href="../../index.html?campus=a1b#/home" target="_blank" rel="noopener">開啟 a1b ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a1b-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a1b-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a1b-phone-t0.png" alt=""><img src="shots/a1b-phone-t2.png" alt=""><img src="shots/a1b-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>照片最完整；「資訊在板子上、地圖在板子下」一眼看懂；地圖面積最大最好用。</dd>
+  <dt>代價</dt><dd>板子上半塞得比較滿，矮視窗（&lt;760px 高）要先收社群列。</dd>
+ </dl>
+</article>
+<article>
+ <header>
+  <h2>a1c 底板 <small>照片在上全幅，墨綠板橫在下方</small></h2>
+  <p>把板子轉九十度：照片佔上方 58% 全幅，下方 42% 是橫向墨綠板。板上從左到右：校名、地址、專線、預約、社群 ｜ 線稿章 ｜ Google 地圖。校名清單留在照片右側，計數器在照片右下。</p>
+  <a class="open" href="../../index.html?campus=a1c#/home" target="_blank" rel="noopener">開啟 a1c ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a1c-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a1c-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a1c-phone-t0.png" alt=""><img src="shots/a1c-phone-t2.png" alt=""><img src="shots/a1c-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>照片回到全幅寬度，最有氣勢；資訊、章、地圖三件事並排，一列讀完。</dd>
+  <dt>代價</dt><dd>照片切成 2.4:1 橫幅，塔樓、屋頂容易被裁；板子高度固定，資訊沒有伸縮空間。</dd>
+ </dl>
+</article>
+</div>
+<section class="notes" style="margin-top:40px">
+ <h2>第四輪：d 底板卡（不滿版、不放地圖）</h2>
+ <p>使用者要求：沿用站上原本的區塊外框（米白底、置中標題、右上線稿、← 校名軌道 →），舞台改成 a1c 的「全寬照片＋墨綠底板」。不做滿版釘住，切換走站上現成的輪播（點校名、←→、6 秒自動、200ms 淡出淡入）。開啟：<a href="../../index.html?campus=d#/home" target="_blank" rel="noopener">index.html?campus=d#/home ↗</a></p>
+ <div class="grid" style="grid-template-columns:2fr 1fr;margin-top:16px"><img src="shots/d-desktop-section.png" alt="" style="width:100%;border:1px solid var(--line);border-radius:8px"><img src="shots/d-phone-section.png" alt="" style="width:100%;border:1px solid var(--line);border-radius:8px"></div>
+</section>
+<section class="notes" style="margin-top:24px">
+ <h2>第五輪：d 底板卡的三種比例</h2>
+ <p>只調整照片比例與底板大小，其餘同 d。</p>
+ <div class="grid" style="margin-top:16px">
+  <article><header><h2>d1 寬幅＋細板 <small>照片 2.8:1，底板一列</small></h2><p>校名、地址電話、社群、預約鈕排成一行，整張卡桌機一屏看完。</p><a class="open" href="../../index.html?campus=d1#/home" target="_blank" rel="noopener">開啟 d1 ↗</a></header><div class="shots"><img src="shots/d1-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/d1-phone-yihua.png" alt=""><img src="shots/d1-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>最緊湊、照片最寬，區塊高度最矮。</dd><dt>代價</dt><dd>2.8:1 會裁掉塔樓頂；資訊擠在一列，字級最小。</dd></dl></article>
+  <article><header><h2>d2 標準＋大板 <small>照片 2.2:1，底板加高</small></h2><p>字級放大、地址與專線直排、社群帶第二行說明，右側大顆預約鈕。</p><a class="open" href="../../index.html?campus=d2#/home" target="_blank" rel="noopener">開啟 d2 ↗</a></header><div class="shots"><img src="shots/d2-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/d2-phone-yihua.png" alt=""><img src="shots/d2-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>資訊最好讀、最有份量，社群說明（哪校粉專）看得到。</dd><dt>代價</dt><dd>區塊最高，桌機要捲一下才看完整張卡。</dd></dl></article>
+  <article><header><h2>d3 高照片＋窄板 <small>照片 1.85:1，底板最窄</small></h2><p>建築最完整，底板一列：校名、地址電話、兩顆社群圓圈、預約鈕。</p><a class="open" href="../../index.html?campus=d3#/home" target="_blank" rel="noopener">開啟 d3 ↗</a></header><div class="shots"><img src="shots/d3-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/d3-phone-yihua.png" alt=""><img src="shots/d3-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>照片是主角，塔樓、屋頂都在；底板像一條簽名列。</dd><dt>代價</dt><dd>社群只剩圖示（文字給螢幕閱讀器）；手機版才會展開名稱。</dd></dl></article>
+ </div>
+</section>
+<section class="notes" style="margin-top:24px">
+ <h2>第六輪：卡片相對米白背景的比例（底板同 d1）</h2>
+ <div class="grid" style="margin-top:16px">
+  <article><header><h2>e1 窄卡 <small>卡片 1180px 置中</small></h2><p>左右留大片米白，像一張擺在桌上的相片卡；照片 2.4:1。</p><a class="open" href="../../index.html?campus=e1#/home" target="_blank" rel="noopener">開啟 e1 ↗</a></header><div class="shots"><img src="shots/e1-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/e1-phone-yihua.png" alt=""><img src="shots/e1-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>最像「一張卡」，和標題、軌道的寬度呼應；右上線稿不被卡片切到。</dd><dt>代價</dt><dd>照片最小；寬螢幕兩側留白多。</dd></dl></article>
+  <article><header><h2>e2 全出血 <small>貼齊視窗兩側、無圓角</small></h2><p>照片 3:1 橫跨整個畫面，底板也整條到底，區塊下緣直接接下一區。</p><a class="open" href="../../index.html?campus=e2#/home" target="_blank" rel="noopener">開啟 e2 ↗</a></header><div class="shots"><img src="shots/e2-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/e2-phone-yihua.png" alt=""><img src="shots/e2-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>照片最大最有氣勢；和上方「孩子的一天」同樣是滿寬語彙。</dd><dt>代價</dt><dd>不再是「卡」，米白只剩上半段；3:1 更容易裁到塔樓。</dd></dl></article>
+  <article><header><h2>e3 浮卡跨色帶 <small>下半整條墨綠色帶，照片卡騎在上緣</small></h2><p>區塊下方 300px 變成滿寬墨綠帶，照片卡（1320px）一半在米白、一半壓進色帶，底板資訊落在色帶裡、不另畫框。</p><a class="open" href="../../index.html?campus=e3#/home" target="_blank" rel="noopener">開啟 e3 ↗</a></header><div class="shots"><img src="shots/e3-desktop-section.png" alt=""><div class="phones" style="grid-template-columns:1fr 1fr"><img src="shots/e3-phone-yihua.png" alt=""><img src="shots/e3-phone-chongde.png" alt=""></div></div><dl><dt>好處</dt><dd>照片有「浮起來」的層次；深綠色帶把區塊收尾，接下一區塊有明確的斷點。</dd><dt>代價</dt><dd>多一個滿寬深色帶，首頁色塊節奏要再看一次；線稿浮水印下半被色帶吃掉。</dd></dl></article>
+ </div>
+</section>
+<p class="lead" style="margin-top:32px">前兩輪比稿：<a href="index.html">三方向 a／b／c</a>、<a href="line-art.html">線稿三放法 a1／a2／a3</a>。</p>
+</main>
+</body>
+</html>

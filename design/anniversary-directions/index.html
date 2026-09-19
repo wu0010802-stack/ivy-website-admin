@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>頁首品牌 30 週年版：三個方向</title>
+<style>
+:root{
+ --green:oklch(38% .055 162);--deep:oklch(28% .04 162);--leaf:oklch(52% .09 158);
+ --paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--gold:oklch(82% .14 84);
+ --text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);
+ --font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font:1rem/1.75 var(--font)}
+.wrap{width:min(1180px,calc(100% - 48px));margin-inline:auto;padding-block:56px 80px}
+h1{font-size:1.9rem;line-height:1.4;margin:0 0 8px;letter-spacing:.02em}
+h2{font-size:1.25rem;margin:56px 0 16px;letter-spacing:.02em}
+.lede{color:var(--muted);max-width:62ch;margin:0 0 4px}
+.meta{font-size:.8125rem;color:var(--muted);letter-spacing:.06em;margin-bottom:32px}
+.rules{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:24px 28px;margin-bottom:8px}
+.rules ol{margin:0;padding-left:1.3em}
+.rules li{margin-bottom:10px;font-size:.9375rem}
+.rules li:last-child{margin-bottom:0}
+code{background:var(--cream);padding:1px 6px;border-radius:3px;font-size:.85em}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:22px}
+.card.is-now{border-style:dashed;opacity:.92}
+.card-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 24px 14px}
+.tag{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:5px;background:var(--green);color:var(--paper);font-size:.8125rem;font-weight:700}
+.card.is-now .tag{background:var(--muted)}
+.card-head h3{margin:0;font-size:1.0625rem;letter-spacing:.02em}
+.card-head .open{margin-left:auto;font-size:.8125rem;color:var(--leaf);border-bottom:1px solid currentColor;text-decoration:none;padding-bottom:1px}
+.card-head .open:hover{color:var(--deep)}
+.card img{display:block;width:100%;height:auto;border-block:1px solid var(--line)}
+.shots{display:grid;grid-template-columns:2fr 1fr;border-block:1px solid var(--line)}
+.shots img{border:0}
+.shots .side{display:grid;grid-template-rows:1fr 1fr;border-left:1px solid var(--line)}
+.shots .side img:first-child{border-bottom:1px solid var(--line)}
+.card-foot{display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;padding:16px 24px 20px;font-size:.875rem}
+.card-foot p{margin:0}
+.card-foot .good::before{content:"＋ ";color:var(--leaf);font-weight:700}
+.card-foot .cost::before{content:"− ";color:oklch(55% .12 40);font-weight:700}
+.note{font-size:.875rem;color:var(--muted);max-width:66ch}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:16px}
+.pair figure{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pair img{display:block;width:100%;height:auto}
+.pair figcaption{padding:10px 16px;font-size:.8125rem;color:var(--muted)}
+@media(max-width:760px){.shots{grid-template-columns:1fr}.shots .side{grid-template-rows:none;grid-template-columns:1fr 1fr;border-left:0;border-top:1px solid var(--line)}.shots .side img:first-child{border-bottom:0;border-right:1px solid var(--line)}.card-foot{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>頁首品牌的 30 週年版：三個方向</h1>
+<p class="lede">1997 年在高雄創立，2027 滿 30 年。校徽是 PNG 動不了，週年記號只能掛在字標旁邊；三個方向都不動「常春藤教育機構／Ivy Educational Institution」兩行本身，只決定「30 週年」放哪裡、長什麼樣。</p>
+<p class="meta">2026-09-18 ・ 直接跑在主站真實頁首上：<code>index.html?anni=a|b|c#/home</code></p>
+
+<div class="rules">
+<ol>
+<li><strong>金色是唯一的新顏色。</strong>站內已有 <code>--gold</code>（孩子的一天 kicker 用的那個），週年記號全走它，不另調色。壓在首屏影片上時用鏤空描邊，捲動後與分校頁的淺底改成實心金、深綠字。</li>
+<li><strong>「30」用標題字型 LINE Seed Bold，「週年」用品牌字型 Noto Sans TC 600。</strong>「週年」不在品牌字型子集裡，另切了 1.8 KB 的 <code>noto-sans-tc-600-anni.woff</code>，靠 unicode-range 分流。</li>
+<li><strong>收合後的膠囊三個方向共用同一招：</strong>白色圓徽章右下角一顆金色「30」小點。手機頁首放不下印章與外掛籤，a／c 也退成同一顆小點，b 保留「30 週年」第三行。</li>
+</ol>
+</div>
+
+<h2>方向</h2>
+
+<div class="card is-now">
+ <div class="card-head"><span class="tag">現況</span><h3>沒有週年記號</h3><a class="open" href="../../index.html#/home" target="_blank">開啟</a></div>
+ <div class="shots"><img src="shots/current-desktop-hero.png" alt="現況首屏頁首"><div class="side"><img src="shots/current-desktop-pill.png" alt="現況膠囊"><img src="shots/current-phone-hero.png" alt="現況手機"></div></div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">a</span><h3>印章：校徽等高的一枚圓，掛在字標右側</h3><a class="open" href="../../index.html?anni=a#/home" target="_blank">開啟 ?anni=a</a></div>
+ <div class="shots"><img src="shots/a-desktop-hero.png" alt="a 首屏"><div class="side"><img src="shots/a-desktop-pill.png" alt="a 膠囊"><img src="shots/a-phone-hero.png" alt="a 手機"></div></div>
+ <img src="shots/a-desktop-campus.png" alt="a 分校頁的淺底頁首">
+ <div class="card-foot">
+  <p class="good">最像一枚「紀念章」，30 是視覺主角；淺底時實心金圓和校徽的金冠、黃星同族。</p>
+  <p class="cost">品牌區從 280px 變 350px，把字標推離校徽，讀起來是三件東西並排；手機放不下，退成小點。</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">b</span><h3>第三行：英文行底下「30 週年 ── 1997–2027」</h3><a class="open" href="../../index.html?anni=b#/home" target="_blank">開啟 ?anni=b</a></div>
+ <div class="shots"><img src="shots/b-desktop-hero.png" alt="b 首屏"><div class="side"><img src="shots/b-desktop-pill.png" alt="b 膠囊"><img src="shots/b-phone-hero.png" alt="b 手機"></div></div>
+ <img src="shots/b-desktop-campus.png" alt="b 分校頁的淺底頁首">
+ <div class="card-foot">
+  <p class="good">最安靜，也是唯一寫出年份的一版；寬度不變、和上兩行同欄對齊，手機也保留得住「30 週年」。</p>
+  <p class="cost">字標高度 60→77px，三行疊在一起密度高；金色細字壓在影片亮幀上會弱。</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">c</span><h3>上標小籤：掛在「常春藤教育機構」右上角，像 ® 的位置</h3><a class="open" href="../../index.html?anni=c#/home" target="_blank">開啟 ?anni=c</a></div>
+ <div class="shots"><img src="shots/c-desktop-hero.png" alt="c 首屏"><div class="side"><img src="shots/c-desktop-pill.png" alt="c 膠囊"><img src="shots/c-phone-hero.png" alt="c 手機"></div></div>
+ <img src="shots/c-desktop-campus.png" alt="c 分校頁的淺底頁首">
+ <div class="card-foot">
+  <p class="good">最省空間，字標本身完全不動，記號小而明確、像個貼紙，活動結束撕掉最不痛。</p>
+  <p class="cost">最不「慶祝」，遠看只是一個小黃點；掛在欄位外側，900px 以下會頂到 CTA，退成小點。</p>
+ </div>
+</div>
+
+<h2>膠囊與手機</h2>
+<div class="pair">
+ <figure><img src="shots/sheet-pill.png" alt="四版膠囊對照"><figcaption>膠囊：現況／a／b／c。三個方向同一顆金點。</figcaption></figure>
+ <figure><img src="shots/sheet-phone.png" alt="四版手機對照"><figcaption>手機：現況／a／b／c，再兩張手機膠囊。</figcaption></figure>
+</div>
+<p class="note" style="margin-top:32px">定案後把選中的那組併進 <code>studio.css</code> 的 header 段落，DOM 改寫進 <code>index.html</code>，其餘連同 <code>?anni=</code> 參數一起刪掉。</p>
+</div>
+</body>
+</html>

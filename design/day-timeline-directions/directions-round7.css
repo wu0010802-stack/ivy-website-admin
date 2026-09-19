@@ -1,0 +1,73 @@
+/* Round 7 (Q): instant prints that develop as they arrive, richer stickers, a tilting 3D flip, and a box that gathers the day. */
+
+/* Developing: the picture starts milky and low-contrast, then clears over a few seconds. */
+.round7 .polaroid-front img{filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
+.round7 .polaroid-front figure::after{background:linear-gradient(160deg,#dfe9e7cc,#f3ead0aa 55%,#dfe9e7cc),linear-gradient(115deg,#ffffff2e 0%,#ffffff00 38%);transition:opacity 3.2s ease .3s}
+.round7 .moment.is-revealed .polaroid-front img{filter:none;opacity:1}
+.round7 .moment.is-revealed .polaroid-front figure::after{opacity:0}
+.round7 .datestamp.time-marker{opacity:0;transition:opacity 1.6s ease 1.8s}
+.round7 .moment.is-revealed .datestamp.time-marker{opacity:.85}
+.round7 .moment.is-revealed.is-active .datestamp.time-marker{opacity:1}
+
+/* Tilt, glare and lift. --rx/--ry/--gx/--gy are written by round7.js from the pointer. */
+.round7 .polaroid-wrap{perspective:1400px;transition:translate .5s cubic-bezier(.2,.7,.2,1)}
+.round7 .polaroid-wrap:hover{translate:0 -6px}
+.round7 .polaroid{transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .95s cubic-bezier(.34,1.25,.4,1)}
+.round7 .polaroid-wrap.is-tilting .polaroid{transition:transform .18s ease-out}
+.round7 .is-flipped .polaroid{--flip:180deg}
+.round7 .polaroid-wrap.is-flipping .polaroid{animation:lift .95s cubic-bezier(.34,1.25,.4,1)}
+@keyframes lift{50%{translate:0 -18px;scale:1.04}}
+.round7 .polaroid-face{box-shadow:0 2px 0 #0000000a,6px 18px 46px #13291d40;transition:box-shadow .5s}
+.round7 .polaroid-wrap:hover .polaroid-face{box-shadow:0 2px 0 #0000000a,12px 32px 60px #13291d55}
+.round7 .polaroid-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),#ffffff55 0,#ffffff18 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
+.round7 .polaroid-wrap{cursor:pointer}
+.round7 .polaroid-wrap .datestamp,.round7 .polaroid-wrap .flip{cursor:pointer}
+.round7 .flip-hint{position:absolute;left:14px;bottom:18px;z-index:5;font-size:10px;letter-spacing:.1em;color:#7a8570;opacity:0;transition:opacity .3s;pointer-events:none}
+.round7 .polaroid-wrap:hover .flip-hint{opacity:1}
+.round7 .polaroid-back{padding:36px 34px 64px}
+.round7 .polaroid-back .flip-back{position:absolute;right:14px;bottom:16px;display:inline-flex;gap:8px;align-items:center;font-size:11px;letter-spacing:.04em;color:#6b7654}
+
+/* Tape stays; the round number sticker goes. */
+.round7 .sticker{display:none}
+.round7 .frame-foot .card-kicker{padding-left:0}
+
+/* Finale: the six prints fly in and settle into an open wooden box. */
+.round7 .finale{overflow-x:clip;padding-top:90px}
+.round7 .box{position:relative;width:min(760px,100%);height:560px;margin:0 auto}
+.round7 .box-lid,.round7 .box-body,.round7 .box-front{position:absolute;left:50%;translate:-50% 0}
+.round7 .box-lid{bottom:296px;width:392px;height:150px;background:linear-gradient(#c8a377,#b48d63);border-radius:8px;transform:perspective(700px) rotateX(58deg);transform-origin:50% 100%;box-shadow:0 -6px 20px #0003,inset 0 0 0 2px #ffffff22}
+.round7 .box-body{bottom:60px;width:380px;height:236px;background:linear-gradient(#a98159,#8f6a48);border-radius:6px;box-shadow:inset 0 22px 34px #00000045,0 34px 70px #06180f66}
+.round7 .box-front{bottom:60px;width:380px;height:132px;z-index:3;background:linear-gradient(#b48c62,#a17851);border-radius:0 0 6px 6px;box-shadow:inset 0 1px 0 #ffffff33}
+.round7 .box-label{position:absolute;left:50%;bottom:104px;translate:-50% 0;z-index:4;padding:7px 16px;background:#fff8ea;color:#5b4a33;font-family:'Source Sans 3',sans-serif;font-size:12px;letter-spacing:.16em;border-radius:2px;box-shadow:0 3px 8px #0003;rotate:-1deg}
+.round7 .gather{position:absolute;left:50%;bottom:192px;width:0;z-index:2;list-style:none;margin:0;padding:0}
+.round7 .gather li{position:absolute;left:0;bottom:0;width:180px;translate:calc(-50% + var(--tx)) var(--ty);rotate:var(--tr);transform-origin:50% 100%}
+.round7 .gather a{display:block;transition:translate .3s}
+.round7 .gather li:hover,.round7 .gather li:focus-within{z-index:5}
+.round7 .gather a:hover,.round7 .gather a:focus-visible{translate:0 -70px}
+.round7 .gather a:focus-visible{outline:2px solid var(--paper);outline-offset:6px}
+.round7 .gather .mini{display:block;background:linear-gradient(180deg,#fffdf7,#fbf4e4);padding:7px 7px 0;box-shadow:0 8px 22px #06180f4a;color:var(--ink);text-align:left}
+.round7 .gather .mini img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover;object-position:50% 40%;background:#e8e2d2}
+.round7 .gather .mini>span{display:grid;gap:2px;padding:9px 2px 12px;font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1;font-variant-numeric:tabular-nums}
+.round7 .gather .mini small{font-family:var(--body);font-size:10px;letter-spacing:.05em;color:#5b6b58}
+.round7 [data-jump][aria-current] .mini{box-shadow:0 0 0 3px var(--yellow),0 8px 22px #06180f4a}
+@supports (animation-timeline:view()) and (animation-range:entry 0% cover 60%){
+ html[data-motion=native] .round7 .gather li{animation:gather linear both;animation-timeline:view();animation-range:entry -40% cover 55%}
+}
+@keyframes gather{from{translate:calc(-50% + var(--fx)) var(--fy);rotate:var(--fr);opacity:0}25%{opacity:1}to{translate:calc(-50% + var(--tx)) var(--ty);rotate:var(--tr);opacity:1}}
+.round7 .finale-copy{margin-top:20px}
+
+@media(min-width:801px) and (max-width:1100px){.round7 .box{height:500px}.round7 .gather li{width:150px}}
+@media(max-width:800px){
+ .round7 .box{height:440px;max-width:360px}.round7 .box-lid{bottom:236px;width:300px;height:110px}.round7 .box-body{bottom:40px;width:290px;height:196px}.round7 .box-front{bottom:40px;width:290px;height:104px}.round7 .box-label{bottom:76px;font-size:10px;padding:5px 12px}
+ .round7 .gather{bottom:144px}.round7 .gather li{width:132px}.round7 .gather a:hover,.round7 .gather a:focus-visible{translate:0 -50px}
+ .round7 .gather li:nth-child(1){--fx:-160px!important}.round7 .gather li:nth-child(2){--fx:160px!important}.round7 .gather li:nth-child(3){--fx:-150px!important}.round7 .gather li:nth-child(4){--fx:150px!important}.round7 .gather li:nth-child(5){--fx:-120px!important}.round7 .gather li:nth-child(6){--fx:120px!important}
+ .round7 .polaroid-back{padding:26px 22px 56px}
+}
+@media(prefers-reduced-motion:reduce){
+ .round7 .polaroid-front img,.round7 .polaroid-front figure::after,.round7 .datestamp.time-marker,.round7 .polaroid,.round7 .polaroid-wrap,.round7 .polaroid-face,.round7 .polaroid-face::before,.round7 .gather a{transition:none}
+ .round7 .polaroid-front img{filter:none;opacity:1}.round7 .polaroid-front figure::after{opacity:0}.round7 .datestamp.time-marker{opacity:.85}
+ .round7 .polaroid{transform:rotateY(var(--flip,0deg))}.round7 .polaroid-wrap.is-flipping .polaroid{animation:none}
+ .round7 .gather li{animation:none!important}
+}
+@media(forced-colors:active){.round7 .box-body,.round7 .box-front,.round7 .box-lid{border:1px solid CanvasText}.round7 .polaroid-front img{filter:none;opacity:1}}
+

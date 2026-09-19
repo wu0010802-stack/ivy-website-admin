@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>導覽收合三方向</title>
+<meta name="description" content="常春藤官網：導覽列離開首屏後收進漢堡選單的三種互動 mock-up 比較頁。">
+<link rel="stylesheet" href="compare.css">
+<script src="compare.js" defer></script>
+</head>
+<body>
+<header class="review-header">
+ <a class="review-brand" href="../../#/home">IVY <span>常春藤幼兒園</span></a>
+ <div class="review-title"><span>DESIGN STUDY / 2026.09.17 · 已定案 B</span><h1>離開首屏後，導覽怎麼收。</h1></div>
+ <a class="review-home" href="placement.html">膠囊放哪裡 ↗</a>
+</header>
+
+<nav class="review-tools" aria-label="切換方向與尺寸">
+ <div class="review-options" role="group" aria-label="三個方向">
+  <button data-direction="a" aria-pressed="false"><b>A</b> 同組收合</button>
+  <button data-direction="b" aria-pressed="true"><b>B</b> 浮動膠囊 <small>定案</small></button>
+  <button data-direction="c" aria-pressed="false"><b>C</b> 極簡列＋全幕選單</button>
+ </div>
+ <div class="review-devices" role="group" aria-label="預覽尺寸">
+  <button data-device="desktop" aria-pressed="true">桌面</button>
+  <button data-device="mobile" aria-pressed="false">手機</button>
+ </div>
+</nav>
+
+<div class="review-states">
+ <div class="review-actions" role="group" aria-label="跳到某個狀態">
+  <span class="review-actions-label">看狀態：</span>
+  <button data-action="hero">首屏</button>
+  <button data-action="compact">離開首屏</button>
+  <button data-action="menu">打開選單</button>
+  <button data-action="play" class="play">▶ 重播收合</button>
+ </div>
+ <div class="review-context">
+  <label><input type="checkbox" id="reduced"> 減少動態（模擬系統設定）</label>
+  <span class="review-b" id="b-controls" hidden><label>尺寸 <select id="b-size"><option value="s">S</option><option value="m" selected>M</option><option value="l">L</option></select></label><label>色調 <select id="b-tone"><option value="deep">深綠</option><option value="paper">米白</option><option value="white">純白</option><option value="sage">淡綠</option></select></label><a href="b-tuning.html">大小與顏色比較 ↗</a></span><span class="review-status" id="status" role="status">目前：首屏</span>
+  <a id="standalone" href="view.html?direction=b&amp;size=m&amp;tone=deep" target="_blank" rel="noopener">單獨開啟 ↗</a>
+ </div>
+</div>
+
+<aside class="review-note"><div><strong id="direction-title">B／浮動膠囊</strong><p id="direction-note"></p></div><p class="review-hint">直接在預覽裡捲動也可以。首屏頁首三個方向完全相同（透明底、白字、雙語導覽），差別都在離開首屏之後。</p></aside>
+
+<div class="preview-area"><iframe id="preview" src="view.html?direction=b&amp;size=m&amp;tone=deep" title="B 浮動膠囊 桌面 mock-up"></iframe></div>
+
+<section class="research" aria-labelledby="research-title">
+ <div class="research-head"><span>三個方向的取捨</span><h2 id="research-title">同一個觸發點，三種收法。</h2><p>三個方向共用同一條規則：首屏（hero）底緣捲到頁首下方前 40px 時切換成「收合」狀態，回到首屏就還原。首屏中途捲動時頁首先套一層半透明深綠，避免白字壓在淺色照片上。以下是離開首屏後各自的長相。</p></div>
+ <div class="research-grid">
+  <article>
+   <span>A</span><h3>同組收合</h3>
+   <p><b>收法</b>：四個導覽項目由右往左依序淡出、滑進三條線；三條線與「預約參觀」併成一組（左細框、右綠底），頁首縮到 72px、米白底加陰影，Logo 轉回綠字。</p>
+   <p><b>選單</b>：右上下拉小卡，四個雙語項目直排，下方一列五校膠囊。點外面、Esc、回到首屏都會收起。</p>
+   <p class="tradeoff"><b>取捨</b>：最接近現有主站與上一輪 header 提案，改動最小、最不會嚇到家長；但下拉卡容量有限，未來項目變多會擠。</p>
+   <p class="fit"><b>適合</b>：想沿用現有版面、只解決「離開首屏後導覽太滿」的情況。</p>
+  </article>
+  <article>
+   <span>B</span><h3>浮動膠囊</h3>
+   <p><b>收法</b>：整條頁首淡出讓位，改由置頂居中的米白膠囊接手：校徽＋校名、「選單」、綠底「預約參觀」。內容從膠囊兩側流過，畫面更空、更像編輯刊物。</p>
+   <p><b>選單</b>：膠囊的下緣打開，長出同寬的卡片：四個項目兩欄、五校一列、電話一行；膠囊圓角同步變成只有上緣圓。</p>
+   <p class="tradeoff"><b>取捨</b>：品牌識別最強、最現代；但頁首不再是一條「安全帶」，深色照片區塊上膠囊會很跳，也需要多維護一組膠囊元件。</p>
+   <p class="fit"><b>適合</b>：想讓官網明顯升級質感、內容區塊已有足夠留白的情況。</p>
+  </article>
+  <article>
+   <span>C</span><h3>極簡列＋全幕選單</h3>
+   <p><b>收法</b>：頁首壓到 64px、半透明米白加毛玻璃；字標收進去只留校徽，右邊只剩綠底「預約參觀」膠囊與一顆圓形漢堡。導覽項目往上淡出。</p>
+   <p><b>選單</b>：全幕深綠，從漢堡位置以圓形擴散開；左邊四個大字項目依序浮出，右邊五校清單、預約參觀與電話。漢堡同步變成 ✕。</p>
+   <p class="tradeoff"><b>取捨</b>：最乾淨、手機與桌機體驗一致，選單有空間放更多東西；但多一次全幕切換，導覽不再「一眼可見」，長輩家長可能要多想一下。</p>
+   <p class="fit"><b>適合</b>：內容之後會長出更多分頁（活動、招生、各校）需要一個能長大的選單。</p>
+  </article>
+ </div>
+ <div class="research-recommend"><b>定案：B（深綠 × M），2026-09-18 已套用主站首頁。</b>大小與顏色的比較過程見「<a href="b-tuning.html">膠囊要多大、什麼顏色</a>」，實作規則寫在 repo 的 <code>DESIGN.md</code>。以下為當時三個方向的比較紀錄。<br><br><b>當時的建議是先做 A。</b>它和現有首屏、預約鈕、Logo 規則完全相容，實作只需在現有 <code>is-scrolled</code> 之外多一個「離開 hero」狀態；B、C 需要新的元件與更多對比實測。若園方偏好更明顯的品牌感，B 的膠囊也可以只用在桌機、手機回到 A 的做法。</div>
+ <div class="research-foot">
+  <p>技術：狀態切換用 IntersectionObserver 觀察首屏底部的哨兵元素，不綁 scroll 事件；所有動畫只動 transform、opacity 與少量寬高，尊重 <code>prefers-reduced-motion</code>（可用上方勾選模擬）。選單支援 Esc、點外面關閉、焦點回到按鈕；C 開啟時頁面內容設為 inert 並鎖捲動。沒有加任何套件。</p>
+  <p>B 已於 2026-09-18 套進主站首頁（深綠 × M），並打包進 <code>preview.html</code>；A 與 C 沒有進站。Safari 與 Firefox 實機尚未驗證。此頁與 <code>view.html</code> 仍是獨立 mock-up，與主站檔案互不影響。</p>
+  <div class="shot-links"><span>截圖</span><span>首屏</span><a href="shots/hero-desktop.png">桌</a><a href="shots/hero-mobile.png">機</a><span>A</span><a href="shots/a-desktop-compact.png">收</a><a href="shots/a-desktop-menu.png">選</a><a href="shots/a-mobile-compact.png">機</a><a href="shots/a-mobile-menu.png">選</a><span>B</span><a href="shots/b-desktop-compact.png">收</a><a href="shots/b-desktop-menu.png">選</a><a href="shots/b-mobile-compact.png">機</a><a href="shots/b-mobile-menu.png">選</a><span>C</span><a href="shots/c-desktop-compact.png">收</a><a href="shots/c-desktop-menu.png">選</a><a href="shots/c-mobile-compact.png">機</a><a href="shots/c-mobile-menu.png">選</a></div>
+ </div>
+</section>
+</body>
+</html>

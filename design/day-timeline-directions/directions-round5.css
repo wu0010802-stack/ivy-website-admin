@@ -1,0 +1,141 @@
+/* Round 5: I's flip photographs strung on a finer line with wooden pegs; no clock. */
+/* L ends with all six hung on one line, M ends with them piled and collected. */
+.round5 .timeline-rail{display:none}
+.round5 .defs{position:absolute;width:0;height:0}
+.round5 .day-intro h2{font-size:clamp(56px,6.6vw,102px);letter-spacing:.04em}
+.round5 .day-word{color:#ffefb8}
+.round5 .film-shade{background:linear-gradient(180deg,#2943339c,#233c3261 40%,#25372a9c)}
+.round5 .timeline{width:min(1040px,calc(100% - 160px));padding-top:110px}
+.round5 .moments{display:block}
+.round5 .moment{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:40px;align-items:start;margin:0;padding:34px 0 84px;scroll-margin-top:calc(var(--header) + 20px)}
+.round5 .moment+.moment{margin-top:0}
+
+/* String: a thin cord with a soft shadow and a twisted highlight. */
+.round5 .rope,.round5 .finale-rope{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:visible}
+.round5 .rope path,.round5 .finale-rope path{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.round5 .rope .m,.round5 .finale-rope .m{display:none}
+.round5 .cord{stroke:#c9ab7c;stroke-width:2.4;filter:drop-shadow(1px 2px 1.5px #0f251b5c)}
+.round5 .twist{stroke:#f6ead0;stroke-width:1;stroke-dasharray:.9 1.4;opacity:.9}
+
+/* Wooden peg */
+.round5 .pin{position:absolute;top:-31px;left:calc(50% - 11px);width:22px;height:56px;z-index:4;filter:drop-shadow(0 3px 4px #0f251b4a)}
+.round5 .hanger{grid-row:1;position:relative;z-index:1;width:min(440px,100%)}
+.round5 .moment:nth-child(odd) .hanger{grid-column:1;justify-self:end}
+.round5 .moment:nth-child(even) .hanger{grid-column:2;justify-self:start}
+
+/* Paper tag hanging beside the peg: the per-moment marker. */
+.round5 .tag.time-marker{position:absolute;top:-10px;left:calc(50% + 24px);z-index:5;display:grid;gap:1px;justify-items:start;min-width:0;margin:0;padding:8px 12px 9px 17px;background:linear-gradient(135deg,#f7edd6,#eadbb8);border:0;border-radius:3px 9px 9px 3px;color:var(--ink);text-align:left;rotate:7deg;transform-origin:left top;box-shadow:0 5px 14px #06180f30,inset 0 0 0 1px #ffffff66;transition:background-color .2s}
+.round5 .tag.time-marker::before{content:'';position:absolute;left:-22px;right:auto;top:6px;width:22px;height:9px;border:0;border-bottom:1px solid #9c7a4a;border-radius:0 0 0 9px;transform:none;background:none}
+.round5 .tag.time-marker::after{content:'';position:absolute;left:6px;top:12px;width:5px;height:5px;border-radius:50%;background:#0f251b26;box-shadow:inset 0 0 0 1px #ffffff90}
+.round5 .tag .marker-state{order:3;display:flex;gap:5px;align-items:center;font-size:9px;letter-spacing:.08em;color:#6b7654}
+.round5 .tag .time-dot{width:7px;height:7px;margin:0;outline:0;border:1px solid currentColor;border-radius:50%;background:transparent}
+.round5 .tag time{font-size:19px;line-height:1.1;letter-spacing:-.02em}
+.round5 .tag .marker-title{font-size:11px;margin:0;letter-spacing:.05em}
+.round5 .moment.is-past .tag .time-dot{background:currentColor}
+.round5 .moment.is-active .tag.time-marker{background:var(--yellow);color:var(--ink)}
+.round5 .moment.is-active .tag .marker-state{color:#6b5410}
+.round5 .moment.is-active .tag .time-dot{background:var(--ink);border-color:var(--ink)}
+.round5 .tag.time-marker:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+/* Photograph: front carries the picture, a number sticker and one handwritten line; the back tells the story. */
+.round5 .moment-card{rotate:-2.4deg;background:none;box-shadow:none;margin-top:22px;color:var(--ink)}
+.round5 .moment:nth-child(even) .moment-card{rotate:2.5deg}
+.round5 .moment:nth-child(3n) .moment-card{rotate:-1deg}
+.round5 .polaroid-wrap{position:relative;perspective:1600px}
+.round5 .polaroid{transform-style:preserve-3d;transition:transform .8s cubic-bezier(.4,.1,.2,1)}
+.round5 .is-flipped .polaroid{transform:rotateY(180deg)}
+.round5 .polaroid-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;background:#fffaf0;box-shadow:4px 15px 45px #13291d3d;color:var(--ink)}
+.round5 .polaroid-front{position:relative;padding:14px 14px 0}
+.round5 .polaroid-front figure{position:relative;overflow:hidden;background:#e8e2d2;margin:0}
+.round5 .polaroid-front img{display:block;width:100%;height:auto;aspect-ratio:1.05;object-fit:cover;object-position:50% 40%}
+.round5 .polaroid-front figcaption{position:absolute;right:10px;top:10px;left:auto;bottom:auto;background:#182d25b8;color:var(--paper);border:0;padding:3px 8px;font-size:9px;letter-spacing:.02em}
+.round5 .sticker{position:absolute;left:-13px;bottom:80px;z-index:3;width:46px;height:46px;display:grid;place-items:center;border-radius:50%;background:var(--card);color:var(--ink);font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1;letter-spacing:-.01em;box-shadow:0 4px 10px #06180f2e,inset 0 0 0 2px #ffffff8c;rotate:-8deg}
+.round5 .caption{margin:0;padding:20px 118px 24px 6px;min-height:94px;font-family:var(--display);font-weight:700;font-size:clamp(21px,1.75vw,27px);line-height:1.45;letter-spacing:.02em;rotate:-1deg}
+.round5 .polaroid-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:38px 34px 60px;background:#fff6df repeating-linear-gradient(transparent 0 31px,#20402f14 31px 32px)}
+.round5 .polaroid-back .card-kicker{font-size:10px;color:#6e7c5b;justify-content:flex-start}
+.round5 .polaroid-back .card-kicker>span:last-child{display:none}
+.round5 .polaroid-back p:not(.card-kicker){font-size:15px;line-height:2.13;margin-top:18px;color:#3f5045}
+.round5 .polaroid-back .card-note{border-top:1px dashed #203f3240;margin-top:22px;padding-top:12px;font-size:11px;color:#6b7654}
+.round5 .flip{position:absolute;right:14px;bottom:16px;z-index:5;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 13px;border:1px solid #203f3255;border-radius:100px;background:#fffaf0;color:var(--ink);font-size:11px;letter-spacing:.04em;cursor:pointer;transition:background-color .2s}
+.round5 .flip:hover{background:var(--yellow);border-color:var(--yellow)}
+.round5 .flip:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.round5 .flip i{font-style:normal;font-size:15px;line-height:1;transition:rotate .4s}
+.round5 .is-flipped .flip i{rotate:180deg}
+
+/* Finale: every photograph, collected. */
+.round5 .finale{position:relative;padding:60px 0 30px;text-align:center}
+.round5 .finale-track{position:relative}
+.round5 .finale-rope{height:220px;inset:auto;top:0;left:0}
+.round5 .finale-line{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;align-items:start;position:relative;z-index:1}
+.round5 .finale-line li{padding-top:var(--sag,0px)}
+.round5 .finale-line a{position:relative;display:block;margin:0 auto;width:min(150px,100%);rotate:var(--swing,-2deg);transition:rotate .3s,translate .3s}
+.round5 .finale-line a:hover,.round5 .finale-line a:focus-visible{rotate:0deg;translate:0 -6px}
+.round5 .finale-line a:focus-visible{outline:2px solid var(--paper);outline-offset:6px}
+.round5 .finale-line .pin{top:-25px;width:18px;height:46px;left:calc(50% - 9px)}
+.round5 .mini{display:block;background:#fffaf0;padding:8px 8px 0;box-shadow:3px 10px 26px #13291d3d;margin-top:18px;color:var(--ink);text-align:left}
+.round5 .mini img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover;object-position:50% 40%;background:#e8e2d2}
+.round5 .mini>span{display:grid;gap:3px;padding:10px 2px 12px;font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.round5 .mini small{font-family:var(--body);font-size:10px;letter-spacing:.05em;color:#5b6b58}
+.round5 [data-jump][aria-current] .mini{box-shadow:0 0 0 3px var(--yellow),3px 10px 26px #13291d3d}
+.round5 .finale-copy{margin-top:44px}
+.round5 .finale-copy h2{font-size:clamp(34px,3.6vw,54px);line-height:1.45;letter-spacing:.03em;color:var(--paper);text-shadow:0 2px 30px #14251a20}
+.round5 .finale-copy p{font-size:13px;letter-spacing:.06em;margin-top:14px;color:#fff5d0}
+.round5 .pile{position:relative;list-style:none;margin:0 auto;padding:0;width:min(560px,100%);height:440px}
+.round5 .pile li{position:absolute;left:50%;top:20px;width:200px;translate:calc(-50% + var(--dx)) var(--dy);rotate:var(--tilt)}
+.round5 .pile a{position:relative;display:block;transition:translate .3s,rotate .3s}
+.round5 .pile li:hover,.round5 .pile li:focus-within{z-index:10}
+.round5 .pile a:hover,.round5 .pile a:focus-visible{translate:0 -10px}
+.round5 .pile a:focus-visible{outline:2px solid var(--paper);outline-offset:6px}
+.round5 .pile .mini{margin-top:0;padding:10px 10px 0}
+.round5 .pile .tape{position:absolute;top:-12px;left:calc(50% - 44px);width:88px;height:26px;background:#ffdf90d9;transform:rotate(4deg);z-index:4;clip-path:polygon(2% 0,98% 4%,100% 93%,0 100%);box-shadow:0 1px 2px #1b322918;pointer-events:none}
+.round5 .pile li:nth-child(even) .tape{transform:rotate(-5deg)}
+@supports (animation-timeline:view()) and (animation-range:entry 0% entry 70%){
+ html[data-motion=native] .round5 .finale-line li,html[data-motion=native] .round5 .pile li{animation:arrive linear both;animation-timeline:view();animation-range:entry 0% entry 70%}
+}
+
+@media(min-width:1700px){.round5 .timeline{width:1160px}.round5 .hanger{width:480px}.round5 .finale-line a{width:170px}}
+@media(min-width:801px) and (max-width:1100px){
+ .round5 .timeline{width:calc(100% - 80px);padding-top:90px}.round5 .moment{column-gap:24px;padding:30px 0 64px}.round5 .hanger{width:100%}.round5 .caption{font-size:21px;padding-right:110px}
+ .round5 .finale-line{gap:8px}.round5 .finale-line a{width:100%}.round5 .mini>span{font-size:13px}.round5 .pile{height:400px}.round5 .pile li{width:170px}
+}
+@media(max-width:800px){
+ .round5 .timeline{width:calc(100% - 36px);max-width:560px;padding-top:70px}
+ .round5 .moment{grid-template-columns:minmax(0,1fr);column-gap:0;padding:40px 0 48px}
+ .round5 .moment:nth-child(n) .hanger{grid-column:1;width:84%;justify-self:start}
+ .round5 .moment:nth-child(even) .hanger{justify-self:end}
+ .round5 .rope .d,.round5 .finale-rope .d{display:none}.round5 .rope .m,.round5 .finale-rope .m{display:block}
+ .round5 .pin{height:46px;width:20px;left:calc(50% - 10px);top:-25px}
+ .round5 .moment-card,.round5 .moment:nth-child(3n) .moment-card{rotate:-1.6deg;margin-top:16px}.round5 .moment:nth-child(even) .moment-card{rotate:1.7deg}
+ .round5 .tag.time-marker{left:calc(50% + 18px);top:-10px;padding:6px 10px 7px 15px}.round5 .tag time{font-size:16px}.round5 .tag .marker-title{font-size:10px}.round5 .tag .marker-state{font-size:8px}
+ .round5 .polaroid-front{padding:10px 10px 0}.round5 .caption{padding:16px 104px 20px 4px;min-height:82px;font-size:clamp(19px,5vw,24px)}
+ .round5 .sticker{width:38px;height:38px;font-size:13px;bottom:70px;left:-8px}
+ .round5 .polaroid-back{padding:26px 22px 54px}.round5 .polaroid-back p:not(.card-kicker){font-size:13.5px;line-height:1.95;margin-top:12px}.round5 .polaroid-back .card-note{font-size:10px;margin-top:16px}
+ .round5 .flip{right:10px;bottom:12px;min-height:38px;padding:5px 11px;font-size:10px}
+ .round5 .film-toggle{top:auto;bottom:84px}.round5 .film-caption{display:none}
+ /* L: the line scrolls sideways; M: a smaller pile. */
+ .round5 .finale{padding:44px 0 10px;margin-inline:-18px}
+ .round5 .finale-scroll{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:0 18px 22px;scrollbar-width:none;contain:inline-size}
+ .round5 .finale-scroll::-webkit-scrollbar{display:none}
+ .round5 .finale-track{width:max-content;padding-top:6px}
+ .round5 .finale-rope{height:150px}
+ .round5 .finale-line{display:flex;gap:14px}
+ .round5 .finale-line li{flex:0 0 auto;width:150px;scroll-snap-align:center}
+ .round5 .finale-copy{margin-top:16px;padding-inline:18px}.round5 .finale-copy h2{font-size:clamp(28px,7vw,40px)}.round5 .finale-copy p{font-size:12px}
+ .round5 .pile{height:380px;width:100%}.round5 .pile li{width:150px;top:16px}
+ .round5 .pile li:nth-child(1){--dx:-70px!important}.round5 .pile li:nth-child(2){--dx:60px!important}.round5 .pile li:nth-child(3){--dx:-30px!important}.round5 .pile li:nth-child(4){--dx:76px!important;--dy:110px!important}.round5 .pile li:nth-child(5){--dx:-66px!important;--dy:130px!important}.round5 .pile li:nth-child(6){--dx:10px!important}
+}
+@media(max-width:370px){
+ .round5 .timeline{width:calc(100% - 24px)}.round5 .finale{margin-inline:-12px}.round5 .finale-scroll{padding-inline:12px}
+ .round5 .tag.time-marker{left:calc(50% + 14px)}.round5 .tag time{font-size:14px}.round5 .caption{padding-right:96px;font-size:18px}.round5 .flip{font-size:9px;padding-inline:9px}
+ .round5 .pile li{width:132px}
+}
+@media(prefers-reduced-motion:reduce){
+ .round5 .polaroid,.round5 .flip,.round5 .flip i,.round5 .tag.time-marker,.round5 .finale-line a,.round5 .pile a{transition:none}
+ .round5 .finale-line a:hover,.round5 .pile a:hover{translate:none}
+ .round5 .finale-line li,.round5 .pile li{animation:none!important}
+}
+@media(forced-colors:active){
+ .round5 .cord,.round5 .twist{stroke:CanvasText;filter:none}
+ .round5 .tag.time-marker,.round5 .flip,.round5 .mini,.round5 .sticker{border:1px solid CanvasText}
+ .round5 .moment.is-active .tag.time-marker,.round5 [data-jump][aria-current] .mini{outline:2px solid Highlight;outline-offset:2px}
+}

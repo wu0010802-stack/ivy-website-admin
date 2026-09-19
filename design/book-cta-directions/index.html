@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>頁首預約參觀 CTA：比稿與定案</title>
+<style>
+:root{
+ --green:oklch(38% .055 162);--deep:oklch(28% .04 162);--leaf:oklch(52% .09 158);
+ --paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--yellow:oklch(87% .13 88);
+ --text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);
+ --font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font:1rem/1.75 var(--font)}
+.wrap{width:min(1180px,calc(100% - 48px));margin-inline:auto;padding-block:56px 80px}
+h1{font-size:1.9rem;line-height:1.4;margin:0 0 8px;letter-spacing:.02em}
+h2{font-size:1.25rem;margin:56px 0 16px;letter-spacing:.02em}
+.lede{color:var(--muted);max-width:62ch;margin:0 0 4px}
+.meta{font-size:.8125rem;color:var(--muted);letter-spacing:.06em;margin-bottom:32px}
+.problems{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:24px 28px;margin-bottom:8px}
+.problems ol{margin:0;padding-left:1.3em}
+.problems li{margin-bottom:10px;font-size:.9375rem}
+.problems li:last-child{margin-bottom:0}
+.problems code{background:var(--cream);padding:1px 6px;border-radius:3px;font-size:.85em}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:22px}
+.card.is-now{border-style:dashed;opacity:.92}
+.card-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 24px 14px}
+.tag{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:5px;background:var(--green);color:var(--paper);font-size:.8125rem;font-weight:700}
+.card.is-now .tag{background:var(--muted)}
+.card-head h3{margin:0;font-size:1.0625rem;letter-spacing:.02em}
+.card-head .open{margin-left:auto;font-size:.8125rem;color:var(--leaf);border-bottom:1px solid currentColor;text-decoration:none;padding-bottom:1px}
+.card-head .open:hover{color:var(--deep)}
+.card img{display:block;width:100%;height:auto;border-block:1px solid var(--line)}
+.card-foot{display:grid;grid-template-columns:1fr 1fr;gap:4px 28px;padding:16px 24px 20px;font-size:.875rem}
+.card-foot p{margin:0}
+.card-foot .good::before{content:"＋ ";color:var(--leaf);font-weight:700}
+.card-foot .cost::before{content:"− ";color:oklch(55% .12 40);font-weight:700}
+.note{font-size:.875rem;color:var(--muted);max-width:66ch}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:16px}
+.pair figure{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pair img{display:block;width:100%;height:auto}
+.pair figcaption{padding:12px 16px;font-size:.8125rem;color:var(--muted)}
+.wrap>h3{font-size:.9375rem;margin:26px 0 10px;letter-spacing:.04em;color:var(--green)}
+.sheet{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.rec{background:var(--paper);border-left:4px solid var(--yellow);border-radius:0 8px 8px 0;padding:22px 26px;margin-top:20px}
+.rec p{margin:0 0 10px;font-size:.9375rem}
+.rec p:last-child{margin-bottom:0}
+.rec strong{color:var(--green)}
+@media(max-width:760px){.wrap{width:calc(100% - 32px);padding-block:36px 56px}.card-foot{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>頁首「預約參觀」CTA：比稿與定案</h1>
+<p class="lede">兩輪比稿的紀錄。所有方向都直接跑在主站首頁的真實首屏上（影片背景固定在同一幀），不是另做的 mock-up。<strong>已定案 d9 並套成預設</strong>，<code>?book=</code> 參數與調校頁隨定案移除，下面的截圖是當時的紀錄。</p>
+<p class="meta">2026-09-18 · 桌機 1440×900 · 第一輪選色與形制 → 第二輪形狀 → 定案 d9</p>
+
+<div class="problems">
+ <ol>
+  <li><strong>它讀起來是第五個導覽項。</strong><code>studio.css:21</code> 讓 <code>.header-label</code> 和 <code>.nav-inner&gt;a</code> 共用同一套排版（中文在上、英文在下、置中），CTA 的內部結構跟「最新消息」一模一樣，只多一個框。</li>
+  <li><strong>打勾圖示的語意是反的。</strong>原本用 <code>#i-check</code>（已完成／已選取），但這顆是「去預約」。sprite 裡閒置的 <code>#i-calendar-check</code> 才對。</li>
+  <li><strong>最弱的長相出現在第一眼。</strong>首屏是透明框，往下捲 40px 就整條讓位給深綠膠囊上的<strong>暖黃</strong>預約鈕——同一個入口兩種長相，而且第一眼那個最不像按鈕。</li>
+  <li><strong>白字透明底壓在影片上，對比看運氣。</strong>只靠 <code>--hero-line</code>（60% 白）撐邊框，影片亮幀時幾乎消失，非文字對比 3:1 過不了。</li>
+ </ol>
+</div>
+
+<h2>首屏比較</h2>
+
+<div class="card is-now">
+ <div class="card-head"><span class="tag">現況</span><h3>透明底 · 白細框 · 打勾</h3></div>
+ <img src="shots/current-hero.png" alt="現況：透明底白細框的預約參觀按鈕">
+ <div class="card-foot">
+  <p class="cost">和四個導覽項同色同字重，只多一個框</p>
+  <p class="cost">邊框在亮幀上幾乎消失</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">a</span><h3>暖黃實心 — 和捲動後的膠囊同一顆</h3></div>
+ <img src="shots/a-hero.png" alt="方向 a：暖黃實心的預約參觀按鈕">
+ <div class="card-foot">
+  <p class="good">首屏、捲動後、膠囊全程同色，入口只有一種長相</p>
+  <p class="good">暖黃是品牌色裡唯一沒被導覽與 logo 用掉的顏色</p>
+  <p class="cost">首屏多一塊高彩度色塊，安靜感會少一點</p>
+  <p class="cost">中英雙行仍在，形狀還是和導覽項同一族</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">b</span><h3>米白實心 — 對比最穩的一種</h3></div>
+ <img src="shots/b-hero.png" alt="方向 b：米白實心的預約參觀按鈕">
+ <div class="card-foot">
+  <p class="good">任何影片幀上都讀得到，對比最不挑背景</p>
+  <p class="good">乾淨、不搶首屏的安靜</p>
+  <p class="cost">和白色導覽文字同色系，跳出的力道比 a 弱</p>
+  <p class="cost">捲動後仍得交回黃膠囊，兩種長相沒解決</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">c</span><h3>留住透明感 — 底色加薄白、框加到 2px、中文單行</h3></div>
+ <img src="shots/c-hero.png" alt="方向 c：加重的透明框預約參觀按鈕">
+ <div class="card-foot">
+  <p class="good">首屏維持現在的克制，改動最小</p>
+  <p class="cost">已經加到 22% 白底＋純白 2px 框＋毛玻璃，仍然跳不出來</p>
+  <p class="cost">中文單行後整顆反而變小，這條路到頂就是這樣</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">d</span><h3>滿高色塊 — 從頁首頂緣垂下來，貼齊內容欄右緣</h3></div>
+ <img src="shots/d-hero.png" alt="方向 d：滿高暖黃色塊的預約參觀入口">
+ <div class="card-foot">
+  <p class="good">形狀徹底脫離「框起來的導覽項」，一眼是動作不是連結</p>
+  <p class="good">可點面積最大，落點也最好瞄</p>
+  <p class="cost">首屏最搶眼的東西變成它，不是照片裡的孩子</p>
+  <p class="cost">手機沒有貼邊的位置（右邊還有漢堡），得降級成 a 的膠囊</p>
+ </div>
+</div>
+
+<div class="card">
+ <div class="card-head"><span class="tag">e</span><h3>雙層 — 主按鈕底下掛一條致電捷徑</h3></div>
+ <img src="shots/e-hero.png" alt="方向 e：預約按鈕下方加上致電各校的小字連結">
+ <div class="card-foot">
+  <p class="good">接住「先打電話問」的家長，不用先捲到頁尾找號碼</p>
+  <p class="good">兩層結構讓這一區自成一組，不再混進導覽</p>
+  <p class="cost">頁首多一層資訊，手機放不下（已設為隱藏）</p>
+  <p class="cost">致電那行目前連到五校頁，要接真電話得依頁面帶入校區</p>
+ </div>
+</div>
+
+<h2>捲動之後：五個方向都一樣</h2>
+<p class="note">往下捲 40px，整條頁首就讓位給深綠膠囊，預約鈕是暖黃的——這是既有設計，<code>?book=</code> 只換掉圖示。所以「首屏該長什麼樣」等於在選：要不要和這顆黃鈕接上。</p>
+<div class="pair">
+ <figure><img src="shots/a-scrolled.png" alt="捲動後的深綠膠囊與暖黃預約鈕"><figcaption>捲動後（a–e 相同，圖示已換成日曆勾）</figcaption></figure>
+</div>
+
+<h2>破版檢查</h2>
+<div class="pair">
+ <figure><img src="shots/d-phone.png" alt="方向 d 的手機頁首"><figcaption>d · 390px：色塊降級成黃膠囊</figcaption></figure>
+ <figure><img src="shots/e-phone.png" alt="方向 e 的手機頁首"><figcaption>e · 390px：致電那行隱藏，按鈕單行不斷字</figcaption></figure>
+ <figure><img src="shots/e-campus.png" alt="方向 e 的分校頁頁首"><figcaption>e · 分校頁：換色規則不套用，只留雙層結構</figcaption></figure>
+</div>
+
+<h2>第二輪：形狀</h2>
+<p class="note">金色滿高色塊定案之後，剩下的題目是形狀。但在圓角半徑之前，有一個更大的選擇先決定其他一切：<strong>色塊要貼內容欄右緣，還是貼視窗右緣。</strong></p>
+
+<h3>貼內容欄右緣 — d1 至 d8</h3>
+<img class="sheet" src="shots/shape-sheet.png" alt="d1 到 d8 八種形狀的色塊特寫">
+<p class="note">色塊右緣停在 <code>.container</code> 的 gutter（和膠囊、原本的預約鈕同一條線），右邊留一段底圖，看起來是「浮在頁首上的一張卡」。d2 的全直角在這個前提下最不合理——沒有貼到邊的直角像被裁掉。d4 半圓底最有記憶點但吃掉可點面積，d8 斜切和整站的圓潤語彙不同調。</p>
+
+<h3>貼視窗右緣 — d9 至 d12</h3>
+<img class="sheet" src="shots/shape-sheet-bleed.png" alt="d9 到 d12 四種貼邊形狀的色塊特寫">
+<p class="note">色塊滿出到視窗右緣，成為頁首結構的一部分而不是放在上面的東西。右緣一旦貼邊，<strong>右下角就不該再有圓角</strong>，形狀的自由度只剩左邊與下緣：d9 左下 44px、d12 左下 96px 的長弧、d10 左緣斜切、d11 垂過底線的吊牌。代價是頁首那條底線跟著拉成滿版。</p>
+
+<h2>形狀調校頁</h2>
+<p class="note">比稿期間用的工具：左下／右下圓角、垂出底線、左右內距五個滑桿即時改 iframe 裡真正的首頁，同步吐出可貼回 <code>studio.css</code> 的片段。已隨定案移除（連同 <code>?book=dx</code>），保留截圖為紀錄。</p>
+<div class="pair"><figure><img src="shots/tuning.png" alt="形狀調校頁"><figcaption>滑桿改的是 iframe 裡真正的首頁，不是示意圖</figcaption></figure></div>
+
+<h2>定案：d9（已套成預設）</h2>
+<p class="note">貼視窗右緣、左下一道 44px 的弧。桌機 901px 以上 <code>.header-top</code> 從置中容器改成滿版、左邊補回 gutter，色塊才貼得到邊；900px 以下右邊還有漢堡，退回金色膠囊。</p>
+<div class="pair">
+ <figure><img src="shots/final-1440.png" alt="定案後的首頁頁首 1440px"><figcaption>1440px</figcaption></figure>
+ <figure><img src="shots/final-1920.png" alt="定案後的首頁頁首 1920px"><figcaption>1920px：gutter 變大，色塊仍貼邊</figcaption></figure>
+ <figure><img src="shots/final-1024.png" alt="定案後的首頁頁首 1024px"><figcaption>1024px：gutter 32px</figcaption></figure>
+ <figure><img src="shots/final-phone.png" alt="定案後的手機頁首"><figcaption>390px：退回金色膠囊</figcaption></figure>
+ <figure><img src="shots/unified-campus.png" alt="分校頁頁首"><figcaption>分校頁：同日跟上，同一顆</figcaption></figure>
+ <figure><img src="shots/unified-visit.png" alt="預約頁頁首"><figcaption>預約頁：同一顆，帶 aria-current</figcaption></figure>
+</div>
+
+<div class="rec">
+ <p><strong>同日追加：</strong>分校頁與預約頁也換成同一顆（規則從首頁專用區段移到共用區），全站頁首現在只有一種預約鈕。</p>
+ <p><strong>還沒決定的一件事：</strong>人在預約頁時這顆指向原地。已經補上 <code>aria-current="page"</code>，但視覺沒降級——它在那一頁仍是最強的元素。要不要在該頁換成低調樣式，是下一個題目。</p>
+</div>
+
+</div>
+</body>
+</html>

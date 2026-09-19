@@ -162,15 +162,50 @@ body:has(.studio-hero) .header.is-scrolled {
   box-shadow:0 2px 5px rgb(var(--ink) / .14),0 8px 20px -8px rgb(var(--ink) / .16);
 }
 body:has(.studio-hero) .header-top {border-bottom:1px solid var(--hero-line)}
-body:has(.studio-hero) .header-book {
-  background:transparent;
-  color:inherit;
-  border-color:var(--hero-line);
-}
-body:has(.studio-hero) .header-book:hover {background:var(--hero-veil)}
 body:has(.studio-hero) .nav-inner a:hover {color:inherit}
 body:has(.studio-hero) .menu-toggle {border:1px solid var(--hero-line);border-radius:2px}
 body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;width:22px}
+/* 預約鈕：金色滿高色塊，貼齊視窗右緣、左下一道 44px 的弧收回內容
+   （2026-09-18 定案，比稿與其他形狀見 design/book-cta-directions/）。全站共用——
+   首頁壓在影片上，分校頁與預約頁壓在米白頁首上，兩邊都是同一顆。
+   .header-top 在 901px 以上從置中容器改成滿版、左邊補回 gutter，色塊才貼得到邊；
+   寫成 .header-book 的負邊距會失敗——自訂屬性裡的百分比是在「用它的元素」上解析的，
+   對到的是 .header-actions（約 200px），max() 會一路退回 48px。 */
+.header-actions {align-self:stretch}
+.header-book {
+  height:100%;
+  min-height:0;
+  padding:0 48px 0 34px;
+  border:0;
+  border-radius:0 0 0 44px;
+  background:var(--yellow);
+  color:var(--deep);
+  text-shadow:none;
+}
+@media(min-width:901px) {
+  .header-top {
+    width:100%;
+    padding-inline:max(48px,calc((100% - 1280px) / 2)) 0;
+  }
+}
+@media(min-width:901px) and (max-width:1100px) {
+  /* 這個斷點的 .container 是 calc(100% - 64px)，max() 算不出 32px 的 gutter，要明寫。 */
+  .header-top {padding-inline:32px 0}
+}
+@media(max-width:900px) {
+  /* 手機的右邊還有漢堡，色塊貼不到邊，退回金色膠囊。 */
+  .header-actions {align-self:center}
+  .header-book {
+    height:auto;
+    min-height:44px;
+    padding:9px 18px;
+    border-radius:10px;
+  }
+}
+@media(hover:hover) {
+  .header-book:hover {background:var(--paper);color:var(--deep)}
+}
+
 /* Both wordmark rows share the seven-character Chinese width. */
 .brand {--brand-type:1.875rem;--brand-crest-size:3.5rem;--brand-chinese:oklch(41.466% .10216 153.575);--brand-english:oklch(31.943% .11932 279.102);display:flex;align-items:center;gap:.875rem;min-block-size:44px;color:var(--green)}
 .brand-crest {display:block;flex-shrink:0;width:var(--brand-crest-size);height:auto;aspect-ratio:124/132;overflow:hidden}
@@ -204,9 +239,9 @@ body:has(.studio-hero) .header.is-scrolled .header-top {
 }
 body:has(.studio-hero) .header.is-scrolled .navigation {color:inherit}
 body:has(.studio-hero) .header.is-scrolled .header-book {
-  background:var(--green);
-  border-color:var(--green);
-  color:var(--paper);
+  background:var(--yellow);
+  border-color:transparent;
+  color:var(--deep);
 }
 body:has(.studio-hero) .header.is-scrolled .menu-toggle {
   border-color:rgb(var(--ink) / .2);
@@ -215,8 +250,8 @@ body:has(.studio-hero) .header.is-scrolled .menu-toggle {
 body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--green)}
 @media(hover:hover) {
   body:has(.studio-hero) .header.is-scrolled .header-book:hover {
-    background:var(--deep);
-    border-color:var(--deep);
+    background:var(--paper);
+    border-color:transparent;
   }
   body:has(.studio-hero) .header.is-scrolled .nav-inner a:hover {
     color:var(--green);
@@ -389,9 +424,18 @@ body:has(.studio-hero) .header-top,
 .home-reveal[data-motion]:not([data-motion="still"]) .studio-hero {
   position:sticky;top:0;height:var(--reveal-height);min-height:0;
 }
-.home-reveal[data-motion]:not([data-motion="still"]) .home-belief {
+.home-reveal[data-motion]:not([data-motion="still"]) .belief-reveal {
   margin-top:calc(-1 * var(--reveal-height));
 }
+/* 第二道簾幕：關於常春藤黏住後被由下往上擦掉，露出下面的孩子的一天。 */
+.belief-reveal {position:relative;z-index:1;isolation:isolate;--belief-distance:calc(var(--reveal-height,100svh) * .72)}
+.belief-reveal[data-motion="on"] .belief-reveal-track {height:calc(var(--belief-own,100svh) + var(--belief-distance))}
+.belief-reveal[data-motion="on"] .home-belief {position:sticky;top:var(--belief-stick,0px);z-index:2}
+.belief-reveal[data-motion="on"] .day-reveal {margin-top:calc(-1 * var(--reveal-height,100svh))}
+.day-reveal {position:relative;z-index:1;isolation:isolate;--day-distance:calc(var(--reveal-height,100svh) * .72)}
+.day-reveal[data-motion="on"] .day-reveal-track {height:calc(var(--day-own,100svh) + var(--day-distance))}
+.day-reveal[data-motion="on"] .day-experience {position:sticky;top:var(--day-stick,0px);z-index:2}
+.day-reveal[data-motion="on"] .campus-panorama {position:relative;z-index:1;margin-top:calc(-1 * var(--reveal-height,100svh))}
 .home-reveal[data-motion="native"] .home-reveal-track {
   view-timeline:--home-reveal block;
   /* Do not inherit the navigation's scroll-padding into the timeline. */
@@ -453,12 +497,13 @@ body:has(.studio-hero) .header-top,
 }
 .belief-content {
   grid-area:1/1;position:relative;z-index:1;min-width:0;
-  padding-top:var(--belief-entry-space);
+  /* Hold the mint backdrop for the same stretch on the way out as on the way in. */
+  padding-block:var(--belief-entry-space);
 }
 .belief-layout {
   display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
   min-height:calc(100svh - var(--belief-header-height));
-  padding-block:clamp(48px,7svh,78px);align-content:center;align-items:center;
+  padding-block:clamp(48px,7svh,78px);align-content:center;align-items:start;
   column-gap:clamp(48px,6vw,96px);row-gap:40px;
 }
 .belief-main {min-width:0}
@@ -472,8 +517,7 @@ body:has(.studio-hero) .header-top,
   margin:0 0 30px;text-wrap:balance;
 }
 .belief-text {margin:0;max-width:34em;font-size:17px;line-height:2;text-wrap:pretty}
-.belief-main .text-link {gap:30px;margin-top:26px;font-size:14px;font-weight:500;min-height:44px}
-.belief-photo-pair {position:relative;margin:0;min-width:0;padding:0 0 110px 34px;align-self:center}
+.belief-photo-pair {position:relative;margin:0;min-width:0;padding:0 0 110px 34px;align-self:start}
 .belief-photo-pair img {height:auto;object-fit:cover;border-radius:0}
 .belief-portrait {
   width:100%;aspect-ratio:1.05;object-position:58% center;
@@ -504,7 +548,7 @@ body:has(.studio-hero) .header-top,
   }
 }
 @media(max-width:900px) {
-  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(180px,28svh,280px)}
+  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(260px,28svh,280px)}
   .home-belief .container {width:calc(100% - 64px)}
   .belief-layout {grid-template-columns:1fr;gap:32px;width:min(650px,100%);margin-inline:auto;padding-block:48px}
   .belief-main h2 {font-size:52px}
@@ -521,7 +565,6 @@ body:has(.studio-hero) .header-top,
   .belief-since::before {width:28px}
   .belief-main h2 {font-size:clamp(34px,9.8vw,48px);line-height:1.38;margin-bottom:24px}
   .belief-text {font-size:16px;line-height:1.95}
-  .belief-main .text-link {margin-top:22px}
   .belief-photo-pair {padding:0 0 84px 20px}
   .belief-portrait {border-width:6px;aspect-ratio:1.08}
   .belief-moment {border-width:5px;width:68%;bottom:23px}
@@ -550,3 +593,445 @@ body:has(.studio-hero) .header-top,
   .belief-photo-pair img {border-color:CanvasText}
   .belief-since::before {background:CanvasText}
 }
+
+/* 離開首屏：整條頁首讓位，置頂居中的深綠膠囊接手（提案 design/header-collapse-directions，2026-09-18）。
+   膠囊底色用 --green，因為首頁捲過首屏後的五段背景都是淺色，米白膠囊與它們的邊界對比只有 1.0–1.4。 */
+.header-pill {display:none}
+body:has(.studio-hero) .header {
+  --pill-top:12px;--pill-pad:4px;--pill-ctrl:40px;--pill-crest:28px;
+  --pill-x:0;--pill-y:-14px;--pill-scale:.94;
+  --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
+  --pill-gutter:max(48px,calc((100% - 1280px) / 2));
+  /* 2026-09-18 晚定案毛玻璃：膠囊底色是墨綠 74% 透明＋blur(16px)；74% 是壓在首頁最淺的米白上仍讓米白字有 6.5、--mint 英文有 4.7 的下限（58% 只有 3.9／2.8）。選單卡不透明，仍用 --green，否則壓在照片上導覽字不好讀。 */
+  --pill-bg:rgb(var(--ink) / .74);--pill-solid:var(--green);--pill-fg:var(--paper);--pill-soft:var(--mint);
+  --pill-border:rgb(255 255 255 / .28);--pill-line:rgb(255 255 255 / .16);--pill-hover:rgb(255 255 255 / .12);
+  --pill-ease:cubic-bezier(.22,1,.36,1);
+}
+body:has(.studio-hero) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
+body:has(.studio-hero) .header[data-state="compact"],
+body:has(.studio-hero) .header.is-scrolled[data-state="compact"] {
+  background:transparent;
+  box-shadow:none;
+  pointer-events:none;
+}
+body:has(.studio-hero) .header[data-state="compact"] .header-top {
+  --vis-delay:.22s;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+body:has(.studio-hero) .header-pill {
+  --vis-delay:.42s;
+  position:absolute;
+  top:var(--pill-top);
+  left:auto;
+  right:var(--pill-gutter);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:var(--pill-pad);
+  background:var(--pill-bg);
+  -webkit-backdrop-filter:blur(16px) saturate(1.3);
+  backdrop-filter:blur(16px) saturate(1.3);
+  color:var(--pill-fg);
+  border:1px solid var(--pill-border);
+  border-radius:999px;
+  box-shadow:var(--pill-shadow);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transform:translate(var(--pill-x),var(--pill-y)) scale(var(--pill-scale));
+  transition:transform .42s var(--pill-ease),opacity .25s ease,border-radius .3s ease,box-shadow .3s ease,visibility 0s linear var(--vis-delay);
+}
+body:has(.studio-hero) .header[data-state="compact"] .header-pill {
+  --vis-delay:0s;
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  --pill-y:0px;
+  --pill-scale:1;
+  transition-delay:.1s;
+}
+body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {transition-delay:0s}
+body:has(.studio-hero) .pill-brand {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:var(--pill-ctrl);
+  padding-right:16px;
+  font-family:'Noto Sans TC',var(--font);
+  font-size:1rem;
+  font-weight:600;
+  line-height:1.2;
+  white-space:nowrap;
+  color:var(--pill-fg);
+}
+body:has(.studio-hero) .pill-crest {
+  display:grid;
+  place-items:center;
+  flex-shrink:0;
+  width:calc(var(--pill-ctrl) - 4px);
+  height:calc(var(--pill-ctrl) - 4px);
+  border-radius:50%;
+  background:var(--white);
+}
+body:has(.studio-hero) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
+/* 2026-09-18：膠囊只留圓形校徽，校名與英文字收掉（校名仍在 .pill-brand 的 aria-label）。
+   要退回顯示校名，把這兩行刪掉即可。 */
+body:has(.studio-hero) .pill-name {display:none}
+body:has(.studio-hero) .pill-brand {padding-right:4px}
+body:has(.studio-hero) .pill-name small {
+  display:block;
+  font-family:var(--font-en);
+  font-size:.6875rem;
+  font-weight:400;
+  letter-spacing:.02em;
+  color:var(--pill-soft);
+}
+body:has(.studio-hero) .pill-actions {display:flex;align-items:center;gap:6px}
+body:has(.studio-hero) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:rgb(255 255 255 / .22)}
+body:has(.studio-hero) .header-pill .menu-toggle {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  height:var(--pill-ctrl);
+  min-height:var(--pill-ctrl);
+  padding:0 12px 0 10px;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:inherit;
+  transition:background-color .2s ease;
+}
+body:has(.studio-hero) .header-pill .menu-toggle:hover,
+body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
+/* 900px 以下站內的 .menu-toggle span 會把這個容器本身壓成 1px 高，要擋回來。 */
+body:has(.studio-hero) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
+body:has(.studio-hero) .header-pill .menu-lines span {
+  display:block;
+  width:20px;
+  height:2px;
+  border-radius:1px;
+  background:currentColor;
+  transition:transform .3s var(--pill-ease)}
+body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:first-child {transform:translateY(4px) rotate(45deg)}
+body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:last-child {transform:translateY(-4px) rotate(-45deg)}
+/* 站內 body:has(.studio-hero) .menu-toggle span 會把這個 span 壓成 22x2 的白條，要明確擋回來。 */
+body:has(.studio-hero) .header-pill .menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
+body:has(.studio-hero) .header-pill .menu-word small {display:block;font-family:var(--font-en);font-size:.625rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
+body:has(.studio-hero) .pill-book {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  height:var(--pill-ctrl);
+  padding:0 16px;
+  border-radius:999px;
+  background:var(--yellow);
+  color:var(--deep);
+  font-size:.875rem;
+  font-weight:600;
+  white-space:nowrap;
+  transition:background-color .2s ease,color .2s ease;
+}
+body:has(.studio-hero) .pill-book:hover {background:var(--paper);color:var(--deep)}
+/* 選單卡：位置與寬度由 app.js 對齊膠囊（首屏狀態則對齊頁首容器）。 */
+body:has(.studio-hero) .menu-panel {
+  position:absolute;
+  padding:10px 18px 22px;
+  background:var(--pill-solid);
+  color:var(--pill-fg);
+  border:1px solid var(--pill-border);
+  border-radius:24px;
+  box-shadow:0 28px 56px -22px rgb(var(--ink) / .5);
+  opacity:0;
+  transform:translateY(-8px);
+  transition:opacity .22s ease,transform .32s var(--pill-ease);
+}
+body:has(.studio-hero) .menu-panel.is-open {opacity:1;transform:none}
+body:has(.studio-hero) .menu-panel {padding-top:14px}
+body:has(.studio-hero) .menu-links {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+}
+body:has(.studio-hero) .menu-links a {
+  display:grid;
+  gap:2px;
+  min-height:64px;
+  padding:12px 14px;
+  border-radius:14px;
+  font-size:1.0625rem;
+  font-weight:600;
+  line-height:1.35;
+  transition:background-color .15s ease;
+}
+body:has(.studio-hero) .menu-links a small {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--pill-soft)}
+body:has(.studio-hero) .menu-links a:hover {background:var(--pill-hover)}
+body:has(.studio-hero) .menu-campuses {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-top:12px;
+  padding:14px 14px 0;
+  border-top:1px solid var(--pill-line);
+}
+body:has(.studio-hero) .menu-campuses p {font-size:.8125rem;color:var(--pill-soft)}
+body:has(.studio-hero) #menu-campuses {display:flex;flex-wrap:wrap;gap:4px}
+body:has(.studio-hero) #menu-campuses a {
+  display:inline-flex;
+  align-items:center;
+  min-height:36px;
+  padding:0 10px;
+  border-radius:999px;
+  font-size:.875rem;
+  font-weight:500;
+  transition:background-color .15s ease;
+}
+body:has(.studio-hero) #menu-campuses a:hover {background:var(--pill-hover)}
+body:has(.studio-hero) .menu-foot {display:flex;justify-content:flex-end;padding:10px 14px 0}
+body:has(.studio-hero) .menu-phone {display:inline-flex;align-items:center;gap:10px;min-height:44px;font-weight:600;font-variant-numeric:tabular-nums}
+body:has(.studio-hero) .menu-phone small {display:block;font-size:.6875rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
+body:has(.studio-hero) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
+body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
+body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
+body:has(.studio-hero) .header-pill :focus-visible,
+body:has(.studio-hero) .menu-panel :focus-visible {outline-color:var(--paper)}
+
+/* 向下捲收起、向上捲出現（預覽 index.html?autohide=1#/home）。只在收合狀態有作用，
+   選單開著、焦點在膠囊裡、回到首屏、減少動態時一律維持顯示。 */
+body:has(.studio-hero) .header[data-state="compact"][data-peek="out"] .header-pill {
+  --pill-y:calc(-100% - var(--pill-top) - 10px);
+  opacity:0;
+  pointer-events:none;
+  transition:transform .32s cubic-bezier(.4,0,.6,1),opacity .2s ease;
+}
+body:has(.studio-hero) .header[data-state="compact"][data-peek="in"] .header-pill {
+  transition:transform .34s var(--pill-ease),opacity .2s ease,border-radius .3s ease,box-shadow .3s ease;
+  transition-delay:0s;
+}
+@media(prefers-reduced-motion:reduce) {
+  body:has(.studio-hero) .header[data-state="compact"][data-peek="out"] .header-pill {--pill-y:0px;opacity:1;pointer-events:auto}
+}
+
+/* 膠囊放哪：預設靠右，右緣貼內容欄右緣，和原本頁首的預約鈕同一條線。
+   其餘擺法留作比較，用 html[data-pill] 切換（預覽 index.html?pill=center#/home），
+   比較頁在 design/header-collapse-directions/placement.html。900px 以下全部是滿版膠囊。 */
+/* 容器在 1100 以下改成 calc(100% - 64px)（studio.css 第 16 行），gutter 跟著走。 */
+@media(min-width:901px) and (max-width:1100px) {
+  body:has(.studio-hero) .header {--pill-gutter:32px}
+}
+@media(min-width:901px) {
+  [data-pill="center"] body:has(.studio-hero) .header {--pill-x:-50%}
+  [data-pill="center"] body:has(.studio-hero) .header-pill {left:50%;right:auto}
+  [data-pill="left"] body:has(.studio-hero) .header-pill {left:var(--pill-gutter);right:auto}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header-pill {
+    left:var(--pill-gutter);
+    right:var(--pill-gutter);
+    justify-content:space-between;
+    gap:16px;
+    padding:0;
+    background:none;
+    border-color:transparent;
+    box-shadow:none;
+  }
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) :is(.pill-brand,.pill-actions) {
+    padding:var(--pill-pad);
+    background:var(--pill-bg);
+    border:1px solid var(--pill-border);
+    border-radius:999px;
+    box-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
+  }
+  [data-pill="split"] body:has(.studio-hero) .pill-brand {padding-right:22px}
+  /* split-mini：左邊只留圓形校徽，深綠的量最少。 */
+  [data-pill="split"] body:has(.studio-hero) .pill-name {display:block}
+  [data-pill="split-mini"] body:has(.studio-hero) .pill-brand {padding-right:var(--pill-pad)}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .pill-divider {display:none}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .pill-actions {
+    border-radius:24px 24px 0 0;
+    box-shadow:0 1px 2px rgb(var(--ink) / .06);
+  }
+}
+/* side：側邊直欄（預覽 index.html?pill=side#/home）。校徽、選單、預約由上而下疊成一條，
+   靠右貼內容欄右緣；預約鈕文字直排；選單卡開在直欄左側、頂端齊平。 */
+@media(min-width:901px) {
+  [data-pill="side"] body:has(.studio-hero) .header-pill {flex-direction:column;align-items:center;gap:8px}
+  [data-pill="side"] body:has(.studio-hero) .pill-brand {padding:0;min-height:0}
+  [data-pill="side"] body:has(.studio-hero) .pill-actions {flex-direction:column;gap:8px}
+  [data-pill="side"] body:has(.studio-hero) .pill-divider {width:calc(var(--pill-ctrl) * .58);height:1px}
+  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-toggle {flex-direction:column;gap:8px;width:var(--pill-ctrl);height:auto;min-height:0;padding:12px 0 10px}
+  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-toggle {padding:0;height:var(--pill-ctrl)}
+  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-word small {font-size:.625rem}
+  [data-pill="side"] body:has(.studio-hero) .pill-book {
+    writing-mode:vertical-rl;text-orientation:upright;
+    width:var(--pill-ctrl);height:auto;padding:18px 0 20px;gap:10px;
+    font-size:.875rem;letter-spacing:.12em;
+  }
+  [data-pill="side"] body:has(.studio-hero) .pill-book .icon {width:20px;height:20px}
+  [data-pill="side"] body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:var(--pill-shadow)}
+  body:has(.studio-hero) .menu-panel.beside {border-top:1px solid var(--pill-border);border-radius:24px;padding-top:14px;transform:translateX(8px)}
+  body:has(.studio-hero) .menu-panel.beside.is-open {transform:none}
+  body:has(.studio-hero) .menu-panel.beside .menu-links {padding-top:0;border-top:0}
+}
+/* 2026-09-18 晚探索：三顆都留、但更不擋內容的四個方向（預覽 index.html?pill=glass|edge|dock|bare#/home）。 */
+@media(min-width:901px) {
+  /* edge：貼視窗右緣的書籤片，左半圓右直邊；離開內容欄，只壓到頁面留白。 */
+  [data-pill="edge"] body:has(.studio-hero) .header-pill {right:0;border-right:0;border-radius:999px 0 0 999px;padding-right:10px}
+  /* dock：停在視窗右下角，像手機 app 的拇指區；上方閱讀區完全不擋。 */
+  [data-pill="dock"] body:has(.studio-hero) .header-pill {position:fixed;top:auto;bottom:20px;--pill-y:14px}
+  [data-pill="dock"] body:has(.studio-hero) .header[data-state="compact"] .header-pill {--pill-y:0px}
+  [data-pill="dock"] body:has(.studio-hero) .menu-panel {position:fixed}
+  body:has(.studio-hero) .menu-panel.above {transform:translateY(8px)}
+  body:has(.studio-hero) .menu-panel.above.is-open {transform:none}
+  body:has(.studio-hero) .menu-panel.above .menu-links {padding-top:0;border-top:0}
+  /* bare：不要外殼，三顆各自成圓，中間透空；深綠面積最少。 */
+  [data-pill="bare"] body:has(.studio-hero) .header-pill {gap:8px;padding:0;background:none;border-color:transparent;box-shadow:none}
+  [data-pill="bare"] body:has(.studio-hero) .pill-divider {display:none}
+  [data-pill="bare"] body:has(.studio-hero) .pill-brand {padding:0}
+  [data-pill="bare"] body:has(.studio-hero) .pill-crest {width:var(--pill-ctrl);height:var(--pill-ctrl);box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle {background:var(--pill-bg);border:1px solid var(--pill-border);box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle:hover,
+  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--deep)}
+  [data-pill="bare"] body:has(.studio-hero) .pill-book {box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
+}
+@media(max-width:900px) {
+  body:has(.studio-hero) .header {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
+  body:has(.studio-hero) .header-pill {
+    left:16px;
+    right:16px;
+    justify-content:space-between;
+  }
+  body:has(.studio-hero) .pill-brand {font-size:.9375rem;padding-right:8px}
+  body:has(.studio-hero) .pill-name small {display:none}
+  body:has(.studio-hero) .pill-actions {display:flex;align-items:center;gap:6px}
+body:has(.studio-hero) .pill-divider {display:none}
+  body:has(.studio-hero) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
+  body:has(.studio-hero) .header-pill .menu-word {display:none}
+  body:has(.studio-hero) .pill-book {padding:0 16px;font-size:.875rem}
+  body:has(.studio-hero) .menu-links {grid-template-columns:1fr}
+  body:has(.studio-hero) .menu-links a {min-height:56px;padding:10px 14px}
+}
+@media(max-width:360px) {
+  body:has(.studio-hero) .pill-name {display:none}
+  .pill-brand {padding-right:0}
+}
+/* 收合後頁首的白字已經不在照片上，首屏頂部那條為導覽而設的遮罩帶就收掉：照片更完整，
+   深綠膠囊也才浮得出來（壓在遮罩上時膠囊對背景只有 1.08 的對比）。 */
+.studio-hero::before {transition:background-size .35s ease}
+.header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto}
+/* 壓在首屏照片上時，膠囊的外框與陰影給重一點，讓形狀在任何一張照片上都站得住。
+   只改變數，不直接寫 box-shadow，免得蓋掉左右分離版「膠囊本身不投影」的設定。 */
+body:has(.studio-hero) .header[data-state="compact"] .header-pill {
+  --pill-border:rgb(255 255 255 / .28);
+  --pill-shadow:0 18px 40px -14px rgb(var(--ink) / .7),0 2px 8px -2px rgb(var(--ink) / .4);
+}
+@media(prefers-reduced-motion:reduce) {
+  .studio-hero::before {transition:none}
+}
+@media(prefers-reduced-motion:reduce) {
+  body:has(.studio-hero) :is(.header-top,.header-pill,.menu-panel,.menu-lines span) {
+    transition-duration:.01ms!important;
+    transition-delay:0s!important;
+  }
+}
+
+/* 試作：?seam=1 —— 兩個大字接成同一欄。
+   關於區塊照常捲走（不用 clip-path 簾幕），孩子的一天黏在底下等著被掀出來；
+   浮水印貼關於區塊底邊、日常大標貼日常區塊頂邊，字級／字距／左邊 x 共用同一組。 */
+[data-seam="1"] {
+  --display-size:clamp(56px,13vw,200px);
+  --display-tracking:-.03em;
+  --display-left:max(56px,calc((100% - 1440px) / 2));
+}
+[data-seam="1"] .belief-reveal-track {position:relative;z-index:2}
+[data-seam="1"] .belief-reveal .day-reveal {margin-top:calc(-1 * var(--reveal-height,100svh))}
+[data-seam="1"] .belief-watermark {
+  top:auto;bottom:-.06em;transform:none;
+  font-size:var(--display-size);letter-spacing:var(--display-tracking);line-height:1;
+  white-space:nowrap;opacity:.5;
+}
+[data-seam="1"] .belief-watermark br {display:none}
+[data-seam="1"] .day-intro {
+  align-items:flex-start;justify-content:flex-start;text-align:left;
+  padding:clamp(110px,20svh,220px) var(--display-left) 0;
+}
+[data-seam="1"] .day-title {
+  margin-left:-.05em;
+  font-size:var(--display-size);letter-spacing:var(--display-tracking);line-height:1;
+}
+[data-seam="1"] .day-intro .eyebrow {order:2;margin:22px 0 0;padding-left:.04em}
+/* 區塊被拉高 100svh 蓋在關於底下，卡片要等接縫走完再進場。 */
+[data-seam="1"] .day-prints {margin-top:calc(var(--reveal-height,100svh) - 10svh)}
+[data-seam="1"] .day-film-shade {
+  background:
+    linear-gradient(180deg,rgb(197 222 208 / .28),rgb(197 222 208 / 0) 26svh),
+    linear-gradient(180deg,rgb(var(--ink) / .5),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6));
+}
+@media(max-width:900px) {
+  [data-seam="1"] {--display-left:32px}
+  [data-seam="1"] .belief-watermark {font-size:var(--display-size)}
+}
+@media(max-width:760px) {
+  [data-seam="1"] {--display-left:20px}
+  [data-seam="1"] .day-intro {padding-top:clamp(96px,18svh,160px)}
+}
+
+/* 試作：?seam=2 —— 保留簾幕，但浮水印的「常春藤」對準大標「常春藤的一天」裡的「常春藤」，
+   關於區塊黏住被擦掉時，同一個位置的字從薄荷綠變成白色。eyebrow 移到大標下方。 */
+/* 字級同時看寬與高：兩行浮水印要塞進 header 到視窗中線之間，矮視窗就跟著縮。 */
+[data-seam="2"] {--display-size:clamp(56px,min(13vw,19svh),200px)}
+[data-seam="2"] .belief-watermark {
+  inset:0;transform:none;
+  font-size:var(--display-size);letter-spacing:0;line-height:1;opacity:.5;
+}
+[data-seam="2"] .belief-watermark br {display:none}
+[data-seam="2"] .belief-watermark span {position:absolute;white-space:nowrap;transform:translateY(-50%)}
+/* 大標置中在 100svh 的正中央；浮水印所在的 backdrop 從 header 高度開始，所以要扣掉。 */
+[data-seam="2"] .wm-b {left:calc(50% - 3em);top:calc(50svh - var(--belief-header-height))}
+[data-seam="2"] .wm-a {left:-.05em;top:calc(50svh - var(--belief-header-height) - 1.02em)}
+[data-seam="2"] .day-intro {padding-inline:0}
+[data-seam="2"] .day-title {font-size:var(--display-size);letter-spacing:0;line-height:1}
+[data-seam="2"] .day-intro .eyebrow {
+  position:absolute;left:50%;top:calc(50% + var(--display-size) * .68);
+  transform:translateX(-50%);margin:0;
+}
+/* 簾幕開始擦之前，日常區塊就要釘在視窗頂（多往上拉一個簾幕距離），大標才會停在浮水印的位置；卡片相對延後同樣距離。 */
+[data-seam="2"] .belief-reveal[data-motion="on"] .day-reveal {margin-top:calc(-1 * (var(--reveal-height,100svh) + var(--belief-distance)))}
+[data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28svh)}
+/* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
+[data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
+/* 黏住的最後一屏只留大字：底部留白撐到「關於」上緣以上，段落與相片先捲走，簾幕才開始擦。 */
+[data-seam="2"] .belief-content {padding-bottom:calc(50svh + var(--display-size) * .9)}
+
+/* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */
+.day-ghost {display:none}
+[data-seam="2"].relay-ghost .day-ghost {
+  display:block;position:absolute;
+  left:calc(max(56px,(100% - 1440px) / 2) - .05em);top:calc(50% - 1.02em);transform:translateY(-50%);
+  font-family:var(--font-head);font-weight:700;font-size:var(--display-size);line-height:1;letter-spacing:0;
+  white-space:nowrap;color:#e6f1e7;opacity:calc(.5 * var(--word-fade,1));pointer-events:none;
+}
+[data-seam="2"] .t-ivy,[data-seam="2"] .t-day {display:inline-block}
+[data-seam="2"].relay-day .t-day {
+  opacity:var(--relay-day,1);
+  transform:translateX(calc((1 - var(--relay-day,1)) * -.14em));
+}
+[data-seam="2"].relay-glint .home-belief::after {
+  content:"";position:absolute;z-index:3;pointer-events:none;
+  left:calc(50% - 3em);width:3em;font-size:var(--display-size);
+  bottom:var(--seam-inset,0px);height:3px;
+  background:var(--gold);box-shadow:0 0 14px 3px var(--gold),0 0 40px 10px rgb(255 215 94 / .35);
+  opacity:var(--relay-glow,0);
+}
+.relay-study {
+  position:fixed;left:16px;bottom:16px;z-index:60;
+  padding:10px 14px;border-radius:10px;background:rgb(32 63 50 / .92);color:#fffdf5;
+  font-size:12px;line-height:1.8;box-shadow:0 8px 24px rgb(0 0 0 / .25);
+}
+.relay-study summary {cursor:pointer;font-weight:600;letter-spacing:.06em}
+.relay-study label {display:flex;align-items:center;gap:8px;cursor:pointer}
+.relay-study input {accent-color:var(--gold)}
+@media(max-width:900px) {[data-seam="2"].relay-ghost .day-ghost {left:calc(32px - .05em)}}

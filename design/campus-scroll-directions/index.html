@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>分校資訊 滿版捲動三方向</title>
+<style>
+:root{--green:oklch(38% .055 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--gold:oklch(82% .14 84)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font:1rem/1.75 'PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
+a{color:var(--green)}
+main{width:min(1480px,calc(100% - 48px));margin:0 auto;padding:48px 0 96px}
+h1{font-size:2rem;margin:0 0 8px}
+.lead{max-width:60em;color:var(--muted);margin:0 0 32px}
+.lead code{background:rgb(0 0 0 / .05);padding:1px 6px;border-radius:4px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+article header{padding:20px 22px 14px}
+article h2{margin:0;font-size:1.375rem}
+article h2 small{display:block;font-size:.8125rem;font-weight:400;color:var(--muted);letter-spacing:.06em;margin-top:2px}
+article p{margin:10px 0 0;font-size:.9375rem}
+.open{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:8px 14px;border-radius:100px;background:var(--green);color:#fff;text-decoration:none;font-size:.875rem;font-weight:600}
+.shots{display:grid;gap:8px;padding:0 12px 12px}
+.shots img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+.shots figure{margin:0}
+.shots figcaption{font-size:.75rem;color:var(--muted);letter-spacing:.06em;margin:4px 2px 0}
+.phones{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+dl{margin:0;padding:16px 22px 22px;border-top:1px solid var(--line);font-size:.9rem}
+dt{font-weight:700;color:var(--green);margin-top:10px}
+dt:first-child{margin-top:0}
+dd{margin:2px 0 0}
+.notes{margin-top:40px;padding:24px 28px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
+.notes h2{font-size:1.25rem;margin:0 0 8px}
+.notes ul{margin:0;padding-left:1.2em}
+.notes li{margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>分校資訊 · 滿版釘住、往下捲切換五校</h1>
+<p class="lead">三個方向都直接跑在主站首頁：<code>index.html?campus=a|b|c#/home</code>。從「孩子的一天」簾幕掀開後，分校資訊就佔滿整個視窗釘住不動，往下捲每 80vh 換一校（手機 70vh），五校捲完才放開往下走到最新消息。右側／上方的校名都可點，會捲到那一校；地圖圖釘同樣可點。站上預設（不帶參數）仍是現在的輪播版。</p>
+
+<div class="grid">
+<article>
+ <header>
+  <h2>a 全幅顯影 <small>照片鋪滿視窗，一校一校淡入</small></h2>
+  <p>最接近上方「孩子的一天」的感受：整個視窗就是校舍照片，深綠底、暖黃點綴。校名與聯絡資訊壓在左下，右側一列五校名稱兼進度，右下角一張半透明小地圖跟著換圖釘。右上角保留現在站上的五校建築線稿（反相成白線疊在局部暗角上，跟著校區淡出淡入）。切校時照片交叉淡入、文字從下方浮起，停留期間照片有一點點緩慢推近。</p>
+  <a class="open" href="../../index.html?campus=a#/home" target="_blank" rel="noopener">開啟 a ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a-desktop-curtain.png" alt=""><figcaption>簾幕掀開一半，區塊從下方進場</figcaption></figure>
+  <figure><img src="shots/a-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a-desktop-t1_5.png" alt=""><figcaption>明華 → 崇德 交叉淡入中</figcaption></figure>
+  <figure><img src="shots/a-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a-phone-t0.png" alt=""><img src="shots/a-phone-t2.png" alt=""><img src="shots/a-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>最有氣勢、和上一區塊同一種語彙；手機版幾乎不用另外設計。</dd>
+  <dt>代價</dt><dd>目前每校只有 640px 的外觀照，鋪滿 1440 以上會軟；深色底讓整個首頁下半段連續兩段都是暗的。</dd>
+ </dl>
+</article>
+
+<article>
+ <header>
+  <h2>b 疊相片 <small>左邊固定清單，右邊相片卡一張張蓋上來</small></h2>
+  <p>延續「孩子的一天」拍立得堆疊的手感：左欄是標題、五校清單（目前那校亮起並露出地區）、01／05 與示意地圖；右欄每捲一校就有一張大相片卡從下方滑上來蓋住前一張，被蓋住的卡片微微縮小、變暗，五校捲完就是一疊。卡片下半是米白資訊區：校名、地址、專線、預約與社群。</p>
+  <a class="open" href="../../index.html?campus=b#/home" target="_blank" rel="noopener">開啟 b ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/b-desktop-curtain.png" alt=""><figcaption>簾幕掀開一半</figcaption></figure>
+  <figure><img src="shots/b-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/b-desktop-t1_5.png" alt=""><figcaption>崇德校正蓋上明華校</figcaption></figure>
+  <figure><img src="shots/b-desktop-t4.png" alt=""><figcaption>05 仁武校，前四校疊在後面</figcaption></figure>
+  <div class="phones"><img src="shots/b-phone-t0.png" alt=""><img src="shots/b-phone-t2.png" alt=""><img src="shots/b-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>淺色底，接在暗色的「孩子的一天」之後有喘息；五校名稱永遠可見，捲動與位置的關係最直覺；資訊區是實底，可讀性最穩。</dd>
+  <dt>代價</dt><dd>疊卡是連續動畫，捲得快時中間狀態會閃；較矮的視窗（&lt;760px 高）要先收掉社群列。</dd>
+ </dl>
+</article>
+
+<article>
+ <header>
+  <h2>c 地圖引路 <small>左半整面地圖跟著走，右半五校橫向滑過</small></h2>
+  <p>把「五校在高雄的哪裡」當主角：左半是放大的示意地圖，往下捲時鏡頭平移到目前校區，圖釘之間逐段畫出一條走過的路線；右半上方五校名稱＋底線指示，下方相片與資訊像底片一樣一格格橫向滑過，前後兩格半透明露一點邊。</p>
+  <a class="open" href="../../index.html?campus=c#/home" target="_blank" rel="noopener">開啟 c ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/c-desktop-curtain.png" alt=""><figcaption>簾幕掀開一半</figcaption></figure>
+  <figure><img src="shots/c-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/c-desktop-t1_5.png" alt=""><figcaption>明華 → 崇德 橫向滑動中、鏡頭移動中</figcaption></figure>
+  <figure><img src="shots/c-desktop-t4.png" alt=""><figcaption>05 仁武校，路線走完</figcaption></figure>
+  <div class="phones"><img src="shots/c-phone-t0.png" alt=""><img src="shots/c-phone-t2.png" alt=""><img src="shots/c-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>三者中唯一把「地理位置」講清楚的，對正在比較住家附近哪一校的家長最有用；橫向滑動和上方的直向堆疊形成對比。</dd>
+  <dt>代價</dt><dd>示意地圖只有行政區輪廓與相對位置，不是真地圖，放大後這一點更明顯；手機版地圖只剩 26vh，鏡頭移動的效果打折。</dd>
+ </dl>
+</article>
+</div>
+
+<section class="notes">
+ <h2>三個方向共用的做法</h2>
+ <ul>
+  <li>區塊高度＝100svh ＋ 4 × 80svh，裡面一層 <code>position:sticky</code> 的舞台；JS 只做一件事：把捲動進度換成 <code>--t</code>（0…4）與每校的 <code>--d</code>（自己的序號 − t），其餘全是 CSS。a 用 <code>round(t)</code> 切換 <code>.is-active</code>；b、c 直接拿 <code>--d</code> 算位移。</li>
+  <li>簾幕相容：分校區塊原本就被 <code>.day-reveal</code> 往上拉一個視窗高、墊在「孩子的一天」底下；舞台的 sticky 從區塊頂到達視窗頂那一刻才開始生效，剛好接在簾幕掀完之後（見各方向第一張截圖）。</li>
+  <li>校名清單是真按鈕：點了會 <code>scrollTo</code> 到那一校的位置；↑↓←→／Home／End 可鍵盤切換。切換後 400ms 才用 <code>aria-live</code> 播報一次，避免捲動時連續播報。非當前那一校的面板設 <code>inert</code>，Tab 不會跑進看不到的按鈕。</li>
+  <li><code>prefers-reduced-motion</code>：仍是捲動切換（這是內容導覽不是裝飾），但關掉淡入、推近與清單展開的過渡。</li>
+  <li>三個方向都保留現在輪播的所有資訊：校名、地區、地址、專線、預約按鈕、「認識Ｘ校」入口、LINE／FB、示意地圖與規劃路線；只是排法不同。</li>
+ </ul>
+</section>
+</main>
+</body>
+</html>

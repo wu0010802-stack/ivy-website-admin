@@ -1,0 +1,258 @@
+/* Round 4: D's paper photographs meet E's clock. Each direction answers two questions differently: */
+/* how the words join the photograph, and what the timeline looks like. */
+.direction-i .timeline-rail,.direction-j .timeline-rail,.direction-k .timeline-rail{display:none}
+.direction-i .day-intro h2,.direction-j .day-intro h2,.direction-k .day-intro h2{font-size:clamp(56px,6.6vw,102px);letter-spacing:.04em}
+.direction-i .day-word,.direction-j .day-word,.direction-k .day-word{color:#ffefb8}
+.direction-i .film-shade,.direction-j .film-shade,.direction-k .film-shade{background:linear-gradient(180deg,#2943339c,#233c3261 40%,#25372a9c)}
+
+/* Paper photograph, shared by all three. */
+.polaroid{position:relative;background:#fffaf0;padding:14px 14px 0;box-shadow:4px 15px 45px #13291d3d;color:var(--ink)}
+.polaroid figure{position:relative;overflow:hidden;background:#e8e2d2;margin:0}
+.polaroid img{display:block;width:100%;height:auto;aspect-ratio:1.05;object-fit:cover;object-position:50% 40%}
+.polaroid figcaption{position:absolute;left:10px;bottom:10px;background:#182d25b8;color:var(--paper);border:0;padding:3px 8px;font-size:9px;letter-spacing:.02em}
+.polaroid .caption{padding:20px 6px 24px;font-family:var(--display);font-weight:700;font-size:clamp(21px,1.75vw,27px);line-height:1.45;letter-spacing:.02em;rotate:-1deg;color:var(--ink)}
+.tape{position:absolute;top:-14px;left:calc(50% - 54px);width:108px;height:30px;background:#ffdf90d9;transform:rotate(4deg);z-index:4;clip-path:polygon(2% 0,98% 4%,100% 93%,0 100%);box-shadow:0 1px 2px #1b322918;pointer-events:none}
+.moment:nth-child(even) .tape{transform:rotate(-5deg);left:calc(50% - 48px)}
+
+/* Date stamp: the per-moment marker sits on the photograph like a stamped tag. */
+.stamp.time-marker{position:absolute;top:-16px;left:-18px;z-index:5;display:grid;justify-items:start;gap:1px;min-width:0;margin:0;padding:8px 12px 9px;background:#fff6df;border:1px dashed #203f3266;border-radius:4px;color:var(--ink);text-align:left;rotate:-6deg;box-shadow:0 4px 12px #06180f2e;transition:background-color .2s}
+.stamp.time-marker::before{display:none}
+.stamp .marker-state{display:flex;align-items:center;gap:5px;order:3;font-size:9px;letter-spacing:.08em;color:#6b7654}
+.stamp .time-dot{width:7px;height:7px;margin:0;outline:0;border:1px solid currentColor;border-radius:50%;background:transparent}
+.stamp time{font-size:20px;line-height:1.1;letter-spacing:-.02em}
+.stamp .marker-title{font-size:11px;letter-spacing:.05em;margin:0}
+.moment.is-past .stamp .time-dot{background:currentColor}
+.moment.is-active .stamp.time-marker{background:var(--yellow);border-style:solid;border-color:var(--yellow);color:var(--ink)}
+.moment.is-active .stamp .marker-state{color:#6b5410}
+.moment.is-active .stamp .time-dot{background:var(--ink);border-color:var(--ink)}
+.stamp.time-marker:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+/* Clock face, shared. --clock-minutes / --clock-progress are written on .timeline. */
+.clock{display:grid;justify-items:center;gap:18px}
+.clock-face{width:100%;height:auto;filter:drop-shadow(0 22px 40px #06180f40)}
+.clock-ring{fill:#fffaf0;stroke:#203f32;stroke-width:1.5}
+.clock-ticks line{stroke:#203f32;stroke-width:2;stroke-linecap:round}
+.clock-numerals text{font-family:'Source Sans 3',sans-serif;font-size:15px;fill:#203f32;text-anchor:middle;dominant-baseline:central}
+.clock-day,.clock-done{fill:none;stroke-width:8;stroke-dasharray:255 360;transform:rotate(150deg);transform-origin:100px 100px;transform-box:view-box}
+.clock-day{stroke:#203f321f}
+.clock-done{stroke:var(--yellow);stroke-linecap:round;stroke-dasharray:calc(var(--clock-progress,0) * 255px) 360px}
+.clock-stops circle{fill:#fffaf0;stroke:#203f32;stroke-width:1.5;transition:fill .2s}
+.clock-stops circle.is-past{fill:var(--yellow)}
+.hand-hour,.hand-minute{stroke:#203f32;stroke-linecap:round;transform-origin:100px 100px;transform-box:view-box}
+.hand-hour{stroke-width:5;transform:rotate(calc(var(--clock-minutes,480) * .5deg))}
+.hand-minute{stroke-width:2.5;transform:rotate(calc(var(--clock-minutes,480) * 6deg))}
+.clock-pin{fill:var(--yellow);stroke:#203f32;stroke-width:1.5}
+.clock-readout{display:flex;align-items:baseline;gap:12px;font-size:11px;letter-spacing:.1em;color:#ffe9a8}
+.clock-readout time{font-family:'Source Sans 3',sans-serif;font-size:30px;line-height:1;letter-spacing:-.02em;color:var(--paper);font-variant-numeric:tabular-nums}
+.clock-title{font-size:13px;letter-spacing:.06em;color:var(--paper)}
+
+/* I — the dial is the navigation; each photograph flips to show its story. */
+.direction-i .timeline{width:min(1320px,calc(100% - 144px));display:grid;grid-template-columns:440px minmax(0,1fr);column-gap:60px;align-items:start;padding-top:36px}
+.direction-i .clock-nav{position:sticky;top:calc(var(--header) + 36px);display:grid;justify-items:center;gap:22px;padding:34px 44px 10px}
+.direction-i .dial{position:relative;width:100%;max-width:340px}
+.direction-i .dial .clock-face{display:block}
+.direction-i .clock-stops-nav{list-style:none;margin:0;padding:0}
+.direction-i .clock-stop{position:absolute;left:calc(50% + (50% + 34px) * sin(var(--angle)));top:calc(50% - (50% + 34px) * cos(var(--angle)));translate:-50% -50%;display:flex;align-items:center;gap:7px;min-height:44px;padding:6px 12px;border-radius:100px;background:#fffaf0;color:var(--ink);border:1px solid #203f3244;font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;box-shadow:0 4px 12px #06180f2e;white-space:nowrap;transition:background-color .2s,border-color .2s}
+.direction-i .clock-stop i{width:8px;height:8px;border-radius:50%;border:1px solid currentColor;flex:0 0 auto}
+.direction-i .clock-stop[data-state=past] i{background:currentColor}
+.direction-i .clock-stop[aria-current]{background:var(--yellow);border-color:var(--yellow);font-weight:600}
+.direction-i .clock-stop[aria-current] i{background:var(--ink);border-color:var(--ink)}
+.direction-i .clock-stop:hover{border-color:var(--ink)}
+.direction-i .clock-stop:focus-visible{outline:2px solid var(--paper);outline-offset:3px}
+.direction-i .day-strip{display:none}
+.direction-i .moments{display:block;padding-top:24px}
+.direction-i .moment{display:block;position:relative;width:min(460px,100%);margin:0 0 96px;padding:0;scroll-margin-top:calc(var(--header) + 40px)}
+.direction-i .moment:nth-child(even){margin-left:auto}
+.direction-i .moment+.moment{margin-top:0}
+.direction-i .moment-card{position:relative;rotate:-2deg;background:none;box-shadow:none;color:var(--ink)}
+.direction-i .moment:nth-child(even) .moment-card{rotate:2.2deg}
+.direction-i .moment:nth-child(3n) .moment-card{rotate:-.7deg}
+.direction-i .polaroid-wrap{position:relative;perspective:1600px}
+.direction-i .polaroid{transform-style:preserve-3d;transition:transform .8s cubic-bezier(.4,.1,.2,1);background:none;padding:0;box-shadow:none}
+.direction-i .is-flipped .polaroid{transform:rotateY(180deg)}
+.direction-i .polaroid-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;background:#fffaf0;box-shadow:4px 15px 45px #13291d3d}
+.direction-i .polaroid-front{position:relative;padding:14px 14px 0}
+.direction-i .polaroid-front .caption{padding-right:118px;min-height:94px}
+.direction-i .polaroid-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:38px 34px 60px;background:#fff6df repeating-linear-gradient(transparent 0 31px,#20402f14 31px 32px);color:var(--ink)}
+.direction-i .polaroid-back .card-kicker{font-size:10px;color:#6e7c5b;justify-content:flex-start}
+.direction-i .polaroid-back .card-kicker>span:last-child{display:none}
+.direction-i .polaroid-back p:not(.card-kicker){font-size:15px;line-height:2.13;margin-top:18px;color:#3f5045}
+.direction-i .polaroid-back .card-note{border-top:1px dashed #203f3240;margin-top:22px;padding-top:12px;font-size:11px;color:#6b7654}
+.direction-i .flip{position:absolute;right:14px;bottom:16px;z-index:5;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 13px;border:1px solid #203f3255;border-radius:100px;background:#fffaf0;color:var(--ink);font-size:11px;letter-spacing:.04em;cursor:pointer;transition:background-color .2s}
+.direction-i .flip:hover{background:var(--yellow);border-color:var(--yellow)}
+.direction-i .flip:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.direction-i .flip i{font-style:normal;font-size:15px;line-height:1;transition:rotate .4s}
+.direction-i .is-flipped .flip i{rotate:180deg}
+
+/* J — a clothesline; the sticky note beside each photograph opens the story. */
+.direction-j .timeline{width:min(1240px,calc(100% - 160px));padding-top:70px}
+.direction-j .clock-corner{position:sticky;top:calc(var(--header) + 16px);z-index:3;width:150px;margin:0 0 -150px auto;gap:6px;pointer-events:none}
+.direction-j .clock-corner .clock-face{filter:drop-shadow(0 12px 24px #06180f40)}
+.direction-j .clock-corner .clock-readout{display:none}
+.direction-j .film-toggle{top:auto;bottom:26px}
+.direction-j .moments{display:block}
+.direction-j .moment{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:48px;align-items:start;margin:0;padding:40px 0 70px;scroll-margin-top:calc(var(--header) + 20px)}
+.direction-j .moment+.moment{margin-top:0}
+.direction-j .rope{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:visible}
+.direction-j .rope path{fill:none;stroke:#e6d3a3;stroke-width:3;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.direction-j .rope .m{display:none}
+.direction-j .hanger{grid-row:1;position:relative;justify-self:center;width:min(420px,100%);z-index:1}
+.direction-j .moment:nth-child(odd) .hanger{grid-column:1}.direction-j .moment:nth-child(even) .hanger{grid-column:2}
+.direction-j .pin{position:absolute;top:-26px;left:calc(50% - 13px);width:26px;height:56px;z-index:4;background:linear-gradient(90deg,#c99a5b,#e5bf85 45%,#c99a5b);border-radius:6px 6px 3px 3px;box-shadow:0 3px 6px #06180f33}
+.direction-j .pin::after{content:'';position:absolute;left:7px;right:7px;top:22px;height:3px;background:#8a6535;border-radius:2px}
+.direction-j .moment-card{rotate:-2.5deg;background:none;box-shadow:none;margin-top:24px;color:var(--ink)}
+.direction-j .moment:nth-child(even) .moment-card{rotate:2.6deg}
+.direction-j .moment:nth-child(3n) .moment-card{rotate:-1deg}
+.direction-j .tag.time-marker{position:absolute;top:-8px;left:calc(50% + 26px);z-index:5;display:grid;gap:1px;justify-items:start;min-width:0;margin:0;padding:8px 12px 9px 14px;background:#f1e3c2;border:0;border-radius:3px 8px 8px 3px;color:var(--ink);text-align:left;rotate:7deg;transform-origin:left top;box-shadow:0 5px 14px #06180f30;transition:background-color .2s}
+.direction-j .tag.time-marker::before{content:'';position:absolute;left:-20px;right:auto;top:10px;width:20px;height:1px;background:#8a6535;border:0;transform:none}
+.direction-j .tag .marker-state{order:3;display:flex;gap:5px;align-items:center;font-size:9px;letter-spacing:.08em;color:#6b7654}
+.direction-j .tag .time-dot{width:7px;height:7px;margin:0;outline:0;border:1px solid currentColor;border-radius:50%;background:transparent}
+.direction-j .tag time{font-size:19px;line-height:1.1;letter-spacing:-.02em}
+.direction-j .tag .marker-title{font-size:11px;margin:0;letter-spacing:.05em}
+.direction-j .moment.is-past .tag .time-dot{background:currentColor}
+.direction-j .moment.is-active .tag.time-marker{background:var(--yellow);color:var(--ink)}
+.direction-j .moment.is-active .tag .marker-state{color:#6b5410}
+.direction-j .moment.is-active .tag .time-dot{background:var(--ink);border-color:var(--ink)}
+.direction-j .tag.time-marker:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.direction-j .note-pad{grid-row:1;align-self:center;justify-self:center;width:min(330px,100%);margin-top:90px;position:relative;z-index:1;pointer-events:auto;background:#fff1a8;color:var(--ink);box-shadow:3px 10px 28px #13291d33;rotate:1.5deg}
+.direction-j .moment:nth-child(odd) .note-pad{grid-column:2}.direction-j .moment:nth-child(even) .note-pad{grid-column:1;rotate:-1.8deg}
+.direction-j .note-pad::before{content:'';position:absolute;top:-10px;left:calc(50% - 40px);width:80px;height:22px;background:#ffffff70;transform:rotate(-2deg);clip-path:polygon(2% 0,98% 4%,100% 93%,0 100%)}
+.direction-j .note-pad summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:56px;padding:18px 20px;font-size:13px;letter-spacing:.04em}
+.direction-j .note-pad summary::-webkit-details-marker{display:none}
+.direction-j .note-pad summary i{font-style:normal;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:1px solid #203f3266;display:grid;place-items:center;font-size:16px;line-height:1;transition:rotate .3s}
+.direction-j .note-pad[open] summary i{rotate:45deg}
+.direction-j .note-pad .summary-open{display:none}
+.direction-j .note-pad[open] .summary-closed{display:none}.direction-j .note-pad[open] .summary-open{display:inline}
+.direction-j .note-pad summary:focus-visible{outline:2px solid var(--ink);outline-offset:-4px}
+.direction-j .note-body{padding:0 22px 22px}
+.direction-j .note-body .card-kicker{font-size:10px;color:#6e6a3a;justify-content:flex-start}
+.direction-j .note-body .card-kicker>span:last-child{display:none}
+.direction-j .note-body p:not(.card-kicker){font-size:14px;line-height:2;margin-top:12px;color:#3f4a2d}
+.direction-j .note-body .card-note{border-top:1px dashed #203f3240;margin-top:18px;padding-top:12px;font-size:11px;color:#6b6a3a}
+@supports (interpolate-size:allow-keywords){
+ .direction-j .note-pad::details-content{height:0;overflow:clip;transition:height .35s ease,content-visibility .35s allow-discrete}
+ .direction-j .note-pad[open]::details-content{height:auto}
+}
+
+/* K — photographs pile onto the desk; the story is written on the wide frame. */
+.direction-k .timeline{width:min(1360px,calc(100% - 144px));display:grid;grid-template-columns:340px minmax(0,1fr);column-gap:80px;align-items:start;padding-top:30px}
+.direction-k .desk-side{position:sticky;top:calc(var(--header) + 30px);display:grid;gap:30px;justify-items:center}
+.direction-k .desk-side .clock{width:100%;max-width:300px}
+.direction-k .sheet-nav{width:100%}
+.direction-k .sheet{width:100%;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:12px 10px;background:#fffaf0;border-radius:6px;box-shadow:4px 12px 34px #13291d3d;rotate:-1deg}
+.direction-k .sheet a{display:grid;gap:5px;justify-items:center;min-height:44px;padding:4px 1px 6px;color:var(--ink);font-family:'Source Sans 3',sans-serif;font-size:11px;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;border-radius:3px;transition:translate .2s,background-color .2s}
+.direction-k .sheet img{width:100%;aspect-ratio:1;object-fit:cover;object-position:50% 35%;border:3px solid #fff;box-shadow:0 2px 6px #06180f33;display:block;height:auto}
+.direction-k .sheet a[data-state=past] img{filter:saturate(.75)}
+.direction-k .sheet a[aria-current]{translate:0 -5px;background:var(--yellow)}
+.direction-k .sheet a:hover{translate:0 -3px}
+.direction-k .sheet a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.direction-k .moments{display:block}
+.direction-k .moment{display:block;position:sticky;top:calc(var(--header) + 30px);height:calc(var(--screen) - 30px);margin:0 0 42vh;scroll-margin-top:0}
+.direction-k .moment+.moment{margin-top:0}
+.direction-k .moment:last-child{margin-bottom:8vh}
+.direction-k .moment-card{position:absolute;top:10px;left:50%;width:min(540px,calc(100% - 40px));translate:calc(-50% + var(--dx,0px)) var(--dy,0px);rotate:var(--tilt,-2deg);background:none;box-shadow:none;color:var(--ink)}
+.direction-k .moment:nth-child(1){--dx:-6px;--dy:0px;--tilt:-2.2deg}
+.direction-k .moment:nth-child(2){--dx:26px;--dy:14px;--tilt:2.4deg}
+.direction-k .moment:nth-child(3){--dx:-30px;--dy:6px;--tilt:-1.1deg}
+.direction-k .moment:nth-child(4){--dx:18px;--dy:22px;--tilt:1.7deg}
+.direction-k .moment:nth-child(5){--dx:-14px;--dy:-2px;--tilt:-2.7deg}
+.direction-k .moment:nth-child(6){--dx:30px;--dy:12px;--tilt:.9deg}
+.direction-k .polaroid.wide{padding:16px 16px 0}
+.direction-k .polaroid.wide img{aspect-ratio:1.22;object-position:50% 38%}
+.direction-k .card-copy{padding:20px 8px 26px}
+.direction-k .card-kicker{font-size:10px;color:#6e7c5b}.direction-k .card-kicker>span:last-child{display:none}
+.direction-k .card-copy h3{font-size:clamp(23px,1.9vw,29px);line-height:1.45;letter-spacing:.02em;margin-top:10px;rotate:-.6deg}
+.direction-k .card-copy>p:not(.card-kicker){font-size:13.5px;line-height:1.95;margin-top:12px;color:#546151}
+.direction-k .card-note{border-top:1px dashed #203f3240;margin-top:18px;padding-top:12px;font-size:10px;color:#6b7654}
+
+@media(min-width:1700px){
+ .direction-i .timeline{width:1480px;grid-template-columns:480px 1fr;column-gap:90px}.direction-i .moment{width:500px}
+ .direction-j .timeline{width:1400px}.direction-j .hanger{width:460px}
+ .direction-k .timeline{width:1500px;grid-template-columns:380px 1fr;column-gap:100px}.direction-k .desk-side .clock{max-width:340px}.direction-k .moment-card{width:600px}
+}
+@media(min-width:801px) and (max-width:1100px){
+ .direction-i .timeline{width:calc(100% - 72px);grid-template-columns:330px minmax(0,1fr);column-gap:30px;padding-top:28px}.direction-i .clock-nav{top:calc(var(--header) + 28px);padding:30px 40px 6px;gap:16px}.direction-i .clock-stop{font-size:13px;padding:5px 9px;min-height:40px}.direction-i .clock-readout time{font-size:26px}.direction-i .moment{width:100%;margin-bottom:70px}.direction-i .polaroid-front .caption{font-size:22px;padding-right:112px}
+ .direction-j .timeline{width:calc(100% - 72px);padding-top:56px}.direction-j .moment{column-gap:22px;padding:36px 0 56px}.direction-j .hanger{width:100%}.direction-j .note-pad{width:100%;margin-top:70px}.direction-j .polaroid .caption{font-size:21px}.direction-j .tag.time-marker{left:calc(50% + 22px)}
+ .direction-k .timeline{width:calc(100% - 64px);grid-template-columns:270px minmax(0,1fr);column-gap:36px;padding-top:24px}.direction-k .desk-side{top:calc(var(--header) + 24px);gap:20px}.direction-k .desk-side .clock{max-width:240px}.direction-k .clock-readout time{font-size:24px}.direction-k .sheet{gap:5px;padding:8px 6px}.direction-k .sheet a{font-size:9px}.direction-k .moment{top:calc(var(--header) + 24px);height:calc(var(--screen) - 24px)}.direction-k .moment-card{width:calc(100% - 20px)}.direction-k .polaroid.wide img{aspect-ratio:1.3}.direction-k .card-copy h3{font-size:23px}.direction-k .card-copy>p:not(.card-kicker){font-size:13px}.direction-k .card-copy>p>br{display:none}
+}
+@media(max-width:800px){
+ /* Shared sticky clock strip under the header. */
+ .clock-strip{position:sticky;top:var(--header);z-index:5;display:grid;grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:0 12px;margin:0 -18px 22px;padding:8px 126px 8px 16px;background:#10231de8;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid #fffdf51f;pointer-events:none}
+ .clock-strip .clock-face{width:54px;filter:none}
+ .clock-strip .clock-numerals,.clock-strip .clock-ticks,.clock-strip .clock-stops{display:none}
+ .clock-strip .clock-readout{display:flex;gap:8px;flex-wrap:wrap}.clock-strip .clock-readout time{font-size:22px}.clock-strip .clock-title{font-size:12px}
+ .polaroid{padding:10px 10px 0}.polaroid .caption{font-size:clamp(19px,5vw,24px);padding:16px 4px 20px}.polaroid figcaption{font-size:8px}
+ .tape{width:86px;height:24px;top:-11px;left:calc(50% - 43px)}
+ .stamp.time-marker{top:-12px;left:-10px;padding:6px 10px 7px}.stamp time{font-size:17px}.stamp .marker-title{font-size:10px}.stamp .marker-state{font-size:8px}
+ /* I: the dial gives way to a day strip; photographs stack in one column. */
+ .direction-i .timeline{display:block;width:calc(100% - 36px);max-width:520px;padding-top:0}
+ .direction-i .clock-nav{display:none}
+ .direction-i .day-strip{display:block;position:sticky;top:var(--header);z-index:5;margin:0 -18px 30px;padding:10px 16px 6px;background:#10231de8;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid #fffdf51f}
+ .direction-i .strip-track{position:relative;height:56px;margin:0 20px;padding:0;list-style:none}
+ .direction-i .strip-line{position:absolute;left:0;right:0;top:12px;height:2px;background:#fffdf54d}
+ .direction-i .strip-fill{position:absolute;left:0;top:12px;height:2px;width:calc(var(--clock-progress,0) * 100%);background:var(--yellow);box-shadow:0 0 8px #ffd75e66}
+ .direction-i .strip-track li{position:absolute;left:calc(var(--at) * 100%);top:0;translate:-50% 0}
+ .direction-i .strip-track a{display:grid;justify-items:center;gap:7px;min-width:44px;min-height:44px;padding-top:7px;color:var(--paper);font-family:'Source Sans 3',sans-serif;font-size:11px;line-height:1;letter-spacing:0;font-variant-numeric:tabular-nums}
+ .direction-i .strip-track a i{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--paper);background:#10231d;transition:background-color .2s}
+ .direction-i .strip-track a[data-state=past] i{background:var(--paper)}
+ .direction-i .strip-track a[aria-current]{color:var(--yellow);font-weight:600}
+ .direction-i .strip-track a[aria-current] i{background:var(--yellow);border-color:var(--yellow);box-shadow:0 0 0 4px #ffd75e33}
+ .direction-i .strip-track a:focus-visible{outline:2px solid var(--paper);outline-offset:2px}
+ .direction-i .moments{padding-top:6px}
+ .direction-i .moment,.direction-i .moment:nth-child(even){width:100%;margin:0 0 64px}
+ .direction-i .moment-card,.direction-i .moment:nth-child(even) .moment-card{rotate:-1.4deg}.direction-i .moment:nth-child(even) .moment-card{rotate:1.5deg}
+ .direction-i .polaroid-front{padding:10px 10px 0}.direction-i .polaroid-front .caption{padding-right:104px;min-height:82px}
+ .direction-i .polaroid-back{padding:26px 22px 54px}.direction-i .polaroid-back p:not(.card-kicker){font-size:13.5px;line-height:1.95;margin-top:12px}.direction-i .polaroid-back .card-note{font-size:10px;margin-top:16px}
+ .direction-i .flip{right:10px;bottom:12px;min-height:38px;padding:5px 11px;font-size:10px}
+ .direction-i .film-toggle{top:auto;bottom:84px}.direction-i .film-caption{display:none}
+ /* J: one column; photographs swing left and right on the rope; the note sits below. */
+ .direction-j .timeline{width:calc(100% - 36px);max-width:560px;padding-top:0}
+ .direction-j .clock-corner{width:auto;margin:0 -18px 22px;top:var(--header)}.direction-j .clock-corner .clock-readout{display:flex}.direction-j .film-toggle{top:12px;bottom:auto}
+ .direction-j .moment{grid-template-columns:minmax(0,1fr);column-gap:0;padding:44px 0 36px}
+ .direction-j .moment:nth-child(n) .hanger{grid-column:1;grid-row:1;width:82%;justify-self:start}
+ .direction-j .moment:nth-child(even) .hanger{justify-self:end}
+ .direction-j .moment:nth-child(n) .note-pad{grid-column:1;grid-row:2;width:min(330px,94%);margin:22px auto 0}
+ .direction-j .rope .d{display:none}.direction-j .rope .m{display:block}
+ .direction-j .pin{height:46px;top:-22px;width:22px;left:calc(50% - 11px)}.direction-j .pin::after{top:18px}
+ .direction-j .moment-card{margin-top:18px}
+ .direction-j .tag.time-marker{left:calc(50% + 20px);top:-10px;padding:6px 10px 7px 12px}.direction-j .tag time{font-size:16px}.direction-j .tag .marker-title{font-size:10px}.direction-j .tag .marker-state{font-size:8px}
+ .direction-j .note-pad summary{min-height:50px;padding:14px 16px;font-size:12px}.direction-j .note-body{padding:0 18px 18px}.direction-j .note-body p:not(.card-kicker){font-size:13px;line-height:1.9}
+ /* K: the desk side becomes a strip of clock and stickers; the pile fills the width. */
+ .direction-k .timeline{display:block;width:calc(100% - 36px);padding-top:0}
+ .direction-k .desk-side{position:sticky;top:var(--header);z-index:5;grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;gap:0 10px;margin:0 -18px 20px;padding:8px 12px 6px 14px;background:#10231de8;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid #fffdf51f}
+ .direction-k .desk-side .clock{width:50px;max-width:none}
+ .direction-k .desk-side .clock-face{filter:none}
+ .direction-k .desk-side .clock-numerals,.direction-k .desk-side .clock-ticks,.direction-k .desk-side .clock-stops,.direction-k .desk-side .clock-readout{display:none}
+ .direction-k .sheet{padding:0;background:none;box-shadow:none;rotate:0deg;gap:4px}
+ .direction-k .sheet a{color:var(--paper);font-size:9px;gap:3px;padding:2px 0 3px;border-radius:2px}
+ .direction-k .sheet img{border-width:2px;box-shadow:none}
+ .direction-k .sheet a[data-state=past] img{filter:saturate(.6) brightness(.9)}
+ .direction-k .sheet a[aria-current]{background:none;color:var(--yellow);translate:0 -3px}
+ .direction-k .sheet a[aria-current] img{border-color:var(--yellow)}
+ .direction-k .moment{top:calc(var(--header) + 76px);height:calc(var(--screen) - 76px);margin-bottom:34vh}
+ .direction-k .moment-card{width:calc(100% - 20px);top:8px}
+ .direction-k .moment:nth-child(n){--dx:0px;--dy:0px;--tilt:-1.2deg}.direction-k .moment:nth-child(2){--dx:5px;--dy:8px;--tilt:1.4deg}.direction-k .moment:nth-child(3){--dx:-5px;--dy:4px;--tilt:-.8deg}.direction-k .moment:nth-child(4){--dx:4px;--dy:12px;--tilt:1.1deg}.direction-k .moment:nth-child(5){--dx:-4px;--dy:0px;--tilt:-1.5deg}.direction-k .moment:nth-child(6){--dx:5px;--dy:8px;--tilt:.7deg}
+ .direction-k .polaroid.wide{padding:10px 10px 0}.direction-k .polaroid.wide img{aspect-ratio:1.3}
+ .direction-k .card-copy{padding:14px 6px 18px}.direction-k .card-copy h3{font-size:clamp(20px,5vw,25px)}.direction-k .card-copy>p:not(.card-kicker){font-size:12.5px;line-height:1.8}.direction-k .card-copy>p>br{display:none}.direction-k .card-note{font-size:9px;margin-top:12px;padding-top:9px}
+ .direction-k .film-toggle{top:auto;bottom:84px}.direction-k .film-caption{display:none}
+}
+@media(max-width:370px){
+ .direction-i .timeline,.direction-j .timeline,.direction-k .timeline{width:calc(100% - 24px)}
+ .clock-strip,.direction-i .day-strip,.direction-j .clock-corner,.direction-k .desk-side{margin-inline:-12px}
+ .direction-i .strip-track{margin:0 14px}.direction-i .strip-track a{font-size:10px}
+ .direction-i .polaroid-front .caption{padding-right:96px;font-size:18px}.direction-i .flip{font-size:9px;padding-inline:9px}
+ .direction-j .tag.time-marker{left:calc(50% + 16px)}.direction-j .tag time{font-size:14px}
+ .direction-k .sheet a{font-size:8px}.direction-k .card-copy h3{font-size:19px}
+}
+@media(prefers-reduced-motion:reduce){
+ .hand-minute{display:none}
+ .clock-stops circle,.stamp.time-marker,.direction-i .clock-stop,.direction-i .polaroid,.direction-i .flip,.direction-i .flip i,.direction-i .strip-track a i,.direction-j .tag.time-marker,.direction-j .note-pad summary i,.direction-k .sheet a{transition:none}
+ .direction-j .note-pad::details-content{transition:none}
+ .direction-k .sheet a:hover{translate:none}
+}
+@media(forced-colors:active){
+ .clock-ring{fill:Canvas;stroke:CanvasText}.hand-hour,.hand-minute,.clock-ticks line{stroke:CanvasText}.clock-done{stroke:Highlight}
+ .stamp.time-marker,.direction-i .clock-stop,.direction-i .flip,.direction-j .tag.time-marker,.direction-j .note-pad,.direction-k .sheet a{border:1px solid CanvasText}
+ .direction-i .clock-stop[aria-current],.direction-k .sheet a[aria-current],.moment.is-active .stamp.time-marker,.direction-j .moment.is-active .tag.time-marker{outline:2px solid Highlight;outline-offset:2px}
+ .direction-j .rope path{stroke:CanvasText}.direction-j .pin{background:ButtonFace;border:1px solid ButtonText}
+}

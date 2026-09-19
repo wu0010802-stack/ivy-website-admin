@@ -1,0 +1,56 @@
+/* Round 10 (Q): live studies. Paper colour on <body data-paper>, flip affordance on <body data-flip>. */
+.study-panel{position:fixed;top:calc(var(--header) + 14px);right:16px;z-index:45;width:230px;padding:12px 14px 10px;background:#fffdf5f2;color:#203f32;border:1px solid #203f3230;border-radius:10px;box-shadow:0 10px 36px #06180f30;font-size:11px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.study-panel h3{font:600 11px/1.4 var(--body);letter-spacing:.1em;margin:0 0 6px;color:#5b6b58}
+.study-panel fieldset{border:0;margin:0 0 10px;padding:0;display:flex;flex-wrap:wrap;gap:5px}
+.study-panel legend{font-size:10px;letter-spacing:.12em;color:#7a8570;margin-bottom:6px;padding:0}
+.study-panel label{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 9px;border:1px solid #203f3230;border-radius:100px;cursor:pointer;background:#fff}
+.study-panel label:has(:checked){background:#203f32;color:#fffdf5;border-color:#203f32}
+.study-panel input{position:absolute;width:1px;height:1px;opacity:0}
+.study-panel .swatch{width:12px;height:12px;border-radius:50%;border:1px solid #0002;background:var(--sw)}
+.study-panel summary{cursor:pointer;font-weight:600;letter-spacing:.08em;list-style:none;display:flex;justify-content:space-between;min-height:24px;align-items:center}
+.study-panel summary::-webkit-details-marker{display:none}
+.study-panel summary::after{content:'−'}.study-panel details:not([open]) summary::after{content:'+'}
+@media(max-width:800px){.study-panel{top:auto;bottom:76px;right:10px;width:calc(100% - 20px);max-width:340px}}
+
+/* Paper colours */
+.round7[data-paper=white] .polaroid-face{background:#fff}
+.round7[data-paper=cream] .polaroid-face{background:linear-gradient(180deg,#fffdf7,#fbf4e4)}
+.round7[data-paper=ivory] .polaroid-face{background:linear-gradient(180deg,#fbf3df,#f2e6c8)}
+.round7[data-paper=kraft] .polaroid-face{background:linear-gradient(180deg,#e4cfa6,#d5bd90)}
+.round7[data-paper=kraft] .caption{color:#3d2f1e}.round7[data-paper=kraft] .card-kicker{color:#6b5a3f}.round7[data-paper=kraft] .polaroid-back{background:#e9d7b3 repeating-linear-gradient(transparent 0 31px,#3d2f1e18 31px 32px)}
+.round7[data-paper=tint] .polaroid-face{background:color-mix(in oklch,var(--card) 26%,#fffdf7)}
+.round7[data-paper=tint] .polaroid-back{background:color-mix(in oklch,var(--card) 18%,#fffdf7) repeating-linear-gradient(transparent 0 31px,#20402f14 31px 32px)}
+.round7[data-paper=black] .polaroid-face{background:linear-gradient(180deg,#242322,#151414);color:#f3efe6}
+.round7[data-paper=black] .caption{color:#f6f1e6}.round7[data-paper=black] .card-kicker{color:#a9a396}
+.round7[data-paper=black] .polaroid-back{background:#1d1c1a repeating-linear-gradient(transparent 0 31px,#ffffff12 31px 32px)}
+.round7[data-paper=black] .polaroid-back p:not(.card-kicker){color:#e9e3d6}.round7[data-paper=black] .polaroid-back .card-note{color:#bdb6a6;border-color:#ffffff33}
+.round7[data-paper=black] .flip{background:#2a2927;color:#f3efe6;border-color:#ffffff33}.round7[data-paper=black] .flip:hover{background:var(--yellow);color:#203f32}
+.round7[data-paper=black] .flip-hint{color:#a9a396}
+
+/* Flip affordances */
+.round7[data-flip=button] .dogear{display:none}
+.round7[data-flip=dogear] .flip{opacity:0;pointer-events:none}
+.round7[data-flip=dogear] .flip:focus-visible{opacity:1;pointer-events:auto}
+.round7 .dogear{position:absolute;right:0;bottom:0;z-index:7;width:64px;height:64px;cursor:pointer;background:none;border:0;padding:0}
+.round7 .dogear::before{content:'';position:absolute;right:0;bottom:0;width:100%;height:100%;background:linear-gradient(225deg,#0000 50%,#e8dfc9 50%,#fffaf0 62%,#d9cfb6 100%);clip-path:polygon(100% 0,100% 100%,0 100%);box-shadow:-3px -3px 8px #06180f26;transition:width .3s,height .3s}
+.round7 .dogear::after{content:'';position:absolute;right:0;bottom:0;width:100%;height:100%;background:#182d25;clip-path:polygon(100% 0,100% 100%,0 100%);opacity:.0;z-index:-1}
+.round7 .dogear:hover::before,.round7 .dogear:focus-visible::before{width:96px;height:96px}
+.round7 .dogear span{position:absolute;right:8px;bottom:6px;font-size:9px;letter-spacing:.08em;color:#6b7654;transform:rotate(-45deg);transform-origin:right bottom;opacity:0;transition:opacity .3s}
+.round7 .polaroid-wrap:hover .dogear span{opacity:1}
+.round7[data-flip=tap] .flip{opacity:0;pointer-events:none}
+.round7[data-flip=tap] .flip:focus-visible{opacity:1;pointer-events:auto}
+.round7[data-flip=tap] .dogear{display:none}
+.round7[data-flip=tap] .tap-hint{position:absolute;left:50%;bottom:16px;translate:-50% 0;z-index:7;padding:6px 12px;border-radius:100px;background:#182d25cc;color:#fffdf5;font-size:10px;letter-spacing:.1em;pointer-events:none;opacity:.9;transition:opacity .3s}
+.round7[data-flip=tap] .is-flipped .tap-hint,.round7[data-flip=tap] .polaroid-wrap:hover .tap-hint{opacity:0}
+.round7 .tap-hint{display:none}.round7[data-flip=tap] .tap-hint{display:block}
+.round7[data-flip=drag] .flip{opacity:0;pointer-events:none}
+.round7[data-flip=drag] .flip:focus-visible{opacity:1;pointer-events:auto}
+.round7[data-flip=drag] .dogear{display:none}
+.round7[data-flip=drag] .polaroid-wrap{cursor:grab;touch-action:pan-y}
+.round7[data-flip=drag] .polaroid-wrap.is-dragging{cursor:grabbing}
+.round7[data-flip=drag] .polaroid-wrap.is-dragging .polaroid{transition:none}
+.round7[data-flip=drag] .drag-hint{display:block;position:absolute;left:50%;bottom:16px;translate:-50% 0;z-index:7;padding:6px 12px;border-radius:100px;background:#182d25cc;color:#fffdf5;font-size:10px;letter-spacing:.1em;pointer-events:none;transition:opacity .3s}
+.round7 .drag-hint{display:none}.round7[data-flip=drag] .is-flipped .drag-hint{opacity:0}
+.round7[data-flip=drag] .flip-hint,.round7[data-flip=tap] .flip-hint{display:none}
+.round7[data-flip=drag] .polaroid-wrap img{-webkit-user-drag:none;user-select:none}
+.round7[data-flip=drag] .polaroid-wrap{user-select:none}

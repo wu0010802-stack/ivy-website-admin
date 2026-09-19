@@ -1,0 +1,511 @@
+/* 分校資訊：滿版釘住、往下捲切換五校（2026-09-18 三方向比稿）
+   由 app.js 在 ?campus=a|b|c 時動態載入；三個方向共用同一份 DOM：
+   .cs-stage（sticky 100svh）裡有 .cs-head／.cs-rail／.cs-counter／.cs-map／.cs-panels（五張 .cs-panel）。
+   JS 每格寫入區塊的 --t（0…4，目前捲到第幾校）與各 panel 的 --d（= 自己的序號 − t：0 正在台上、正數還沒到、負數已經過）。 */
+
+/* ---------- 共用骨架 ---------- */
+.campus-scroll{--screen:100svh;--dwell:80svh;--pad-x:clamp(24px,5vw,72px);--pad-y:clamp(24px,5vh,56px);--pill-gap:54px;position:relative;padding:0;height:calc(var(--screen) + (var(--n) - 1) * var(--dwell));scroll-margin-top:0}
+.campus-scroll .campus-artwork{display:none}
+/* a 保留五校建築線稿：原稿是白底深綠線，反相後用 screen 疊在照片上，白底變黑不顯、線條變成淡色浮水印，跟著校區切換。 */
+.cs-a .campus-artwork{display:block;position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none}
+.cs-a .campus-art-building{left:auto;right:-30px;top:-36px;bottom:auto;width:clamp(380px,36vw,680px);max-width:none;height:auto;opacity:1;filter:invert(1) brightness(1.35);mix-blend-mode:screen;mask-image:linear-gradient(to right,transparent 2%,black 38%),linear-gradient(to bottom,black 64%,transparent 98%);mask-composite:intersect;-webkit-mask-composite:source-in;transition:opacity .5s}
+.cs-a .campus-art-building.is-swapping{opacity:0;transition-duration:.25s}
+@media (max-width:760px){.cs-a .campus-art-building{width:300px;right:-40px;top:calc(var(--pad-y) + var(--pill-gap) - 20px);opacity:.7}.cs-a .cs-photo::after{background:radial-gradient(70% 34% at 80% 16%,rgb(var(--ink) / .8),rgb(var(--ink) / .45) 50%,transparent 100%),linear-gradient(180deg,rgb(var(--ink) / .5),rgb(var(--ink) / .04) 38%,rgb(var(--ink) / .12) 60%,rgb(var(--ink) / .78)),linear-gradient(90deg,rgb(var(--ink) / .5),transparent 58%)}}
+.cs-stage{position:sticky;top:0;height:var(--screen);overflow:clip;display:grid;box-sizing:border-box}
+.cs-head{display:grid;gap:0;align-content:start}
+.cs-head .eyebrow{margin-bottom:8px}
+.campus-scroll .section-title{font-family:var(--campus-heading);font-size:clamp(1.875rem,2.8vw,2.75rem);font-weight:700;line-height:1.3;letter-spacing:.06em;margin:0}
+.cs-hint{display:inline-flex;align-items:center;gap:8px;margin:10px 0 0;font-size:.8125rem;letter-spacing:.06em;color:var(--muted)}
+.cs-hint .icon{width:16px;height:16px;animation:cs-bob 1.8s ease-in-out infinite}
+@keyframes cs-bob{0%,100%{transform:translateY(-2px)}50%{transform:translateY(3px)}}
+.campus-scroll.is-pinned .cs-hint{opacity:0;transition:opacity .4s}
+.cs-rail{display:flex;flex-direction:column;gap:2px}
+.cs-rail-item{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:baseline;min-height:44px;padding:6px 10px;border:0;border-radius:10px;background:none;text-align:left;font:inherit;color:var(--muted);cursor:pointer;transition:color .25s,background-color .25s}
+.cs-rail-num{font-family:Georgia,serif;font-size:.75rem;letter-spacing:.1em}
+.cs-rail-name{font-family:var(--campus-heading);font-size:1.25rem;font-weight:700;letter-spacing:.06em;line-height:1.3}
+.cs-rail-area{grid-column:2;font-size:.75rem;letter-spacing:.08em;line-height:1.4;max-height:0;opacity:0;overflow:hidden;transition:max-height .35s,opacity .35s}
+.cs-rail-item:hover{color:var(--leaf)}
+.cs-rail-item[aria-pressed="true"]{color:var(--green)}
+.cs-rail-item[aria-pressed="true"] .cs-rail-area{max-height:1.4em;opacity:1}
+.cs-rail-item:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.cs-counter{display:flex;align-items:baseline;gap:6px;margin:0;font-family:Georgia,serif;font-size:.875rem;letter-spacing:.12em;color:var(--muted)}
+.cs-counter b{font-size:2.25rem;font-weight:400;line-height:1;color:var(--green)}
+.cs-panels{position:relative;min-width:0;min-height:0}
+.cs-panel{min-width:0}
+.cs-photo{position:relative;margin:0;overflow:hidden;background:var(--line)}
+.cs-img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:var(--photo-pos,center)}
+.cs-body{min-width:0}
+.cs-name{display:flex;flex-direction:column;gap:6px;margin:0;font-family:var(--campus-heading);font-weight:700;line-height:1.15;color:var(--green)}
+.cs-name-zh{font-size:clamp(2.25rem,4vw,3.75rem);letter-spacing:.06em}
+.cs-name-area{font-family:var(--font);font-size:.9375rem;font-weight:400;letter-spacing:.08em;color:var(--muted)}
+.cs-intro{margin:12px 0 0;font-size:1.0625rem;line-height:1.8}
+.cs-facts{margin:20px 0 0;display:grid;gap:8px}
+.cs-facts div{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline}
+.cs-facts dt{display:inline-flex;align-items:center;gap:6px;font-size:.8125rem;white-space:nowrap;color:var(--muted)}
+.cs-facts dt .icon{width:16px;height:16px;color:var(--leaf)}
+.cs-facts dd{margin:0;font-size:.9375rem;line-height:1.6}
+.cs-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;margin-top:22px}
+.cs-actions .button{gap:12px}
+.cs-body .campus-links{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);gap:6px 24px}
+.cs-map{position:relative;overflow:hidden;background:oklch(97.5% .008 105)}
+.cs-map .campus-map-svg{display:block;width:100%;height:100%}
+.cs-map .map-embed-link{top:auto;right:10px;bottom:10px;min-height:40px;padding:6px 12px;font-size:.75rem}
+.cs-route-line{fill:none;stroke:var(--leaf);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:.75}
+@media (prefers-reduced-motion:reduce){.cs-hint .icon{animation:none}.cs-panel,.cs-body,.cs-img,.cs-rail-area{transition:none!important}}
+
+/* ---------- a 全幅顯影：照片鋪滿整個視窗，往下捲一校一校顯影，文字壓在左下 ---------- */
+.cs-a{background:var(--deep);color:var(--paper)}
+.cs-a .cs-stage{grid-template-columns:minmax(0,1fr)}
+.cs-a .cs-panels{position:absolute;inset:0}
+.cs-a .cs-panel{position:absolute;inset:0;opacity:0;transition:opacity .8s cubic-bezier(.22,1,.36,1)}
+.cs-a .cs-panel.is-active{opacity:1;z-index:1}
+.cs-a .cs-photo{position:absolute;inset:0;background:var(--deep)}
+.cs-a .cs-img{object-position:var(--panorama-pos,center 55%);transform:scale(calc(1.03 + min(1,max(var(--d),calc(-1 * var(--d)))) * .06));transition:transform .2s linear}
+.cs-a .cs-photo::after{content:"";position:absolute;inset:0;background:radial-gradient(52% 62% at 86% 14%,rgb(var(--ink) / .82),rgb(var(--ink) / .5) 45%,transparent 100%),linear-gradient(180deg,rgb(var(--ink) / .5),rgb(var(--ink) / .04) 38%,rgb(var(--ink) / .12) 60%,rgb(var(--ink) / .78)),linear-gradient(90deg,rgb(var(--ink) / .5),transparent 58%)}/* 右上角的暗角是給建築線稿當底 */
+.cs-a .cs-body{position:absolute;left:var(--pad-x);bottom:var(--pad-y);z-index:2;width:min(560px,calc(100% - var(--pad-x) * 2));color:var(--paper);opacity:0;transform:translateY(28px);transition:opacity .6s .2s,transform .7s .2s cubic-bezier(.22,1,.36,1)}
+.cs-a .is-active .cs-body{opacity:1;transform:none}
+.cs-a .cs-name{color:var(--paper);text-shadow:0 2px 24px rgb(var(--ink) / .4)}
+.cs-a .cs-name-area{color:var(--gold)}
+.cs-a .cs-intro{color:rgb(255 255 255 / .86)}
+.cs-a .cs-facts dt{color:rgb(255 255 255 / .62)}
+.cs-a .cs-facts dt .icon{color:var(--gold)}
+.cs-a .cs-facts dd,.cs-a .cs-facts dd a{color:var(--paper)}
+.cs-a .cs-actions .button.primary{background:var(--gold);border-color:var(--gold);color:var(--deep)}
+.cs-a .cs-actions .button.primary:hover{background:var(--yellow);border-color:var(--yellow)}
+.cs-a .cs-actions .text-link{color:var(--paper)}
+.cs-a .cs-body .campus-links{border-top-color:rgb(255 255 255 / .22)}
+.cs-a .campus-link,.cs-a .campus-link small{color:var(--paper)}
+.cs-a .campus-link-badge{border-color:rgb(255 255 255 / .35);background:rgb(255 255 255 / .1)}
+.cs-a .cs-head{position:absolute;left:var(--pad-x);top:var(--pad-y);z-index:3;color:var(--paper)}
+.cs-a .cs-head .eyebrow{color:var(--gold)}
+.cs-a .cs-head .section-title{color:var(--paper)}
+.cs-a .cs-hint{color:rgb(255 255 255 / .72)}
+.cs-a .cs-rail{position:absolute;right:var(--pad-x);top:50%;translate:0 -50%;z-index:3;align-items:flex-end;gap:0}
+.cs-a .cs-rail-item{grid-template-columns:1fr auto;column-gap:14px;text-align:right;padding:4px 0 4px 14px;border-radius:0;color:rgb(255 255 255 / .66);text-shadow:0 1px 10px rgb(var(--ink) / .7);border-right:2px solid rgb(255 255 255 / .2);margin-right:0;padding-right:14px}
+.cs-a .cs-rail-name{order:-1;font-size:1.125rem}
+.cs-a .cs-rail-num{color:inherit}
+.cs-a .cs-rail-area{display:none}
+.cs-a .cs-rail-item:hover{color:var(--paper)}
+.cs-a .cs-rail-item[aria-pressed="true"]{color:var(--paper);border-right-color:var(--gold)}
+.cs-a .cs-rail-item[aria-pressed="true"] .cs-rail-num{color:var(--gold)}
+.cs-a .cs-rail-item:focus-visible{outline-color:var(--gold)}
+.cs-a .cs-counter{position:absolute;right:var(--pad-x);bottom:var(--pad-y);z-index:3;color:rgb(255 255 255 / .7)}
+.cs-a .cs-counter b{color:var(--gold)}
+.cs-a .cs-map{position:absolute;right:var(--pad-x);bottom:calc(var(--pad-y) + 68px);z-index:3;width:min(280px,26vw);height:180px;border:1px solid rgb(255 255 255 / .22);border-radius:14px;background:rgb(var(--ink) / .5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.cs-a .cs-map .campus-map-areas path{fill:rgb(255 255 255 / .06);stroke:rgb(255 255 255 / .28)}
+.cs-a .cs-map .campus-map-areas path.is-core{fill:rgb(255 255 255 / .12)}
+.cs-a .cs-map .campus-map-labels text{fill:rgb(255 255 255 / .55)}
+.cs-a .cs-map .campus-map-pin .pin-dot circle{fill:rgb(255 255 255 / .8)}
+.cs-a .cs-map .campus-map-pin .pin-dot text{fill:rgb(255 255 255 / .8)}
+.cs-a .cs-map .campus-map-pin.is-selected{color:var(--gold)}
+.cs-a .cs-map .map-embed-link{background:rgb(var(--ink) / .7);color:var(--paper);border-color:rgb(255 255 255 / .3)}
+
+/* ---------- b 疊相片：左邊固定標題與五校清單，右邊每捲一校就有一張相片卡從下方蓋上來 ---------- */
+.cs-b{--campus-surface:oklch(97.9% .011 94);background:var(--campus-surface);color:var(--text)}
+.cs-b .cs-stage{grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr);grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"head panels" "rail panels" "counter panels" "map panels";column-gap:clamp(32px,4vw,72px);row-gap:20px;padding:var(--pad-y) var(--pad-x)}
+.cs-b .cs-head{grid-area:head}
+.cs-b .cs-rail{grid-area:rail;align-self:center;gap:4px}
+.cs-b .cs-rail-item{grid-template-columns:auto 1fr;padding:8px 14px 8px 18px;border-left:2px solid transparent;border-radius:0 10px 10px 0}
+.cs-b .cs-rail-name{font-size:clamp(1.25rem,1.8vw,1.625rem)}
+.cs-b .cs-rail-item[aria-pressed="true"]{border-left-color:var(--green);background:rgb(var(--ink) / .045)}
+.cs-b .cs-counter{grid-area:counter}
+.cs-b .cs-map{grid-area:map;height:clamp(150px,20vh,200px);border:1px solid var(--line);border-radius:16px}
+.cs-b .cs-panels{grid-area:panels;position:relative;margin-top:var(--pill-gap)}
+.cs-b .cs-panel{position:absolute;inset:0;z-index:calc(var(--i) + 1);display:grid;grid-template-rows:minmax(0,1fr) auto;border-radius:24px;overflow:hidden;background:var(--paper);box-shadow:0 30px 60px -30px rgb(var(--ink) / .45),0 0 0 1px rgb(var(--ink) / .06);--past:min(0,max(-2,var(--d)));--future:max(0,var(--d));transform:translateY(calc(var(--future) * 112% + var(--past) * 22px)) scale(calc(1 + var(--past) * .045));filter:brightness(calc(1 + var(--past) * .14));transition:none}
+.cs-b .cs-photo{border-radius:0}
+.cs-b .cs-img{object-position:var(--panorama-pos,center 55%)}
+.cs-b .cs-body{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:32px;align-items:end;padding:22px 30px 26px;background:var(--paper)}
+.cs-b .cs-body>.campus-links{grid-column:1/-1}
+.cs-b .cs-name-zh{font-size:clamp(1.875rem,3vw,2.75rem)}
+.cs-b .cs-intro{display:none}
+.cs-b .cs-facts{margin-top:12px}
+.cs-b .cs-actions{grid-column:2;grid-row:1/3;flex-direction:column;align-items:flex-end;gap:10px;margin:0}
+.cs-b .cs-body .campus-links{margin-top:16px;padding-top:12px}
+
+/* ---------- c 地圖引路：左半是整面示意地圖，鏡頭跟著往下捲移到目前校區；右半五校像底片橫走 ---------- */
+.cs-c{background:var(--paper);color:var(--text)}
+.cs-c .cs-stage{grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"map rail" "map panels";column-gap:clamp(32px,4vw,72px);row-gap:16px;padding:var(--pad-y) var(--pad-x) var(--pad-y) 0}
+.cs-c .cs-map{grid-area:map;border-radius:0 28px 28px 0;background:oklch(97.5% .012 100);box-shadow:inset -1px 0 0 var(--line)}
+.cs-c .cs-map .campus-map-svg{font-size:1.05em}
+.cs-c .cs-map .campus-map-pin.is-selected .pin-focus text{font-size:15px}
+.cs-c .cs-map::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 50%,transparent 55%,rgb(var(--ink) / .08))}
+.cs-c .cs-map .map-embed-link{top:auto;bottom:16px;right:16px}
+.cs-c .cs-head{position:absolute;left:var(--pad-x);top:var(--pad-y);z-index:3;max-width:min(40vw,420px);pointer-events:none;padding:14px 20px 16px;border-radius:14px;background:rgb(255 255 255 / .8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 1px 0 rgb(255 255 255 / .8) inset,0 8px 24px -12px rgb(var(--ink) / .25)}
+.cs-c .cs-counter{position:absolute;left:var(--pad-x);bottom:var(--pad-y);z-index:3}
+.cs-c .cs-rail{grid-area:rail;position:relative;flex-direction:row;gap:0;border-bottom:1px solid var(--line);padding-bottom:0;margin-top:var(--pill-gap)}
+.cs-c .cs-rail-item{flex:1 1 0;grid-template-columns:1fr;row-gap:0;padding:8px 6px 14px;border-radius:0;text-align:center;justify-items:center}
+.cs-c .cs-rail-num{display:none}
+.cs-c .cs-rail-name{font-size:1.0625rem}
+.cs-c .cs-rail-area{max-height:1.4em;opacity:.7}
+.cs-c .cs-rail::after{content:"";position:absolute;left:0;bottom:-1px;width:calc(100% / var(--n));height:2px;background:var(--green);transform:translateX(calc(var(--t) * 100%));}
+.cs-c .cs-panels{grid-area:panels;position:relative;overflow:clip}
+.cs-c .cs-panel{position:absolute;inset:0;display:grid;grid-template-rows:minmax(0,1fr) auto;row-gap:18px;--abs:min(1,max(var(--d),calc(-1 * var(--d))));transform:translateX(calc(var(--d) * 104%));opacity:calc(1 - var(--abs) * .5)}
+.cs-c .cs-photo{border-radius:20px}
+.cs-c .cs-body{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:28px;align-items:end}
+.cs-c .cs-body>.campus-links{grid-column:1/-1}
+.cs-c .cs-name-zh{font-size:clamp(1.875rem,3vw,2.75rem)}
+.cs-c .cs-intro{display:none}
+.cs-c .cs-facts{margin-top:12px}
+.cs-c .cs-actions{grid-column:2;grid-row:1/3;flex-direction:column;align-items:flex-end;gap:10px;margin:0}
+.cs-c .cs-body .campus-links{margin-top:14px;padding-top:12px}
+
+/* ---------- 較矮的視窗：先收社群與電話，保住照片與預約 ---------- */
+@media (max-height:760px){
+ .cs-b .cs-body .campus-links,.cs-c .cs-body .campus-links{display:none}
+ .cs-a .cs-intro{display:none}
+}
+
+/* ---------- 手機 ---------- */
+@media (max-width:760px){
+ .campus-scroll{--pad-x:20px;--pad-y:20px;--dwell:70svh;--pill-gap:64px}
+ .cs-a .cs-head{top:calc(var(--pad-y) + var(--pill-gap))}
+ .cs-b .cs-stage{padding-top:calc(var(--pad-y) + var(--pill-gap))}
+ .cs-b .cs-panels{margin-top:0}
+ .cs-c .cs-rail{margin-top:0}
+ .cs-name-zh{font-size:2rem}
+ .cs-facts div{grid-template-columns:1fr;gap:2px}
+ .cs-actions{gap:10px 16px;margin-top:16px}
+ .cs-actions .button{min-height:46px;padding:10px 18px}
+ /* a：文字往下貼，右側清單改成底部一排數字 */
+ .cs-a .cs-body{width:calc(100% - var(--pad-x) * 2);bottom:calc(var(--pad-y) + 52px)}
+ .cs-a .cs-intro,.cs-a .cs-body .campus-links,.cs-a .cs-map{display:none}
+ .cs-a .cs-rail{top:auto;bottom:var(--pad-y);right:auto;left:var(--pad-x);translate:none;flex-direction:row;gap:6px}
+ .cs-a .cs-rail-item{grid-template-columns:auto;padding:6px 10px;border:1px solid rgb(255 255 255 / .3);border-radius:100px;min-height:36px;font-size:.75rem}
+ .cs-a .cs-rail-name{display:none}
+ .cs-a .cs-rail-item[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--deep)}
+ .cs-a .cs-rail-item[aria-pressed="true"] .cs-rail-num{color:var(--deep)}
+ .cs-a .cs-head{right:var(--pad-x)}
+ .cs-a .cs-hint{display:none}
+ /* b：標題與清單改成上方，卡片佔剩下的高度 */
+ .cs-b .cs-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"head" "rail" "panels";row-gap:12px}
+ .cs-b .cs-map,.cs-b .cs-counter,.cs-b .cs-hint{display:none}
+ .cs-b .cs-rail{flex-direction:row;overflow-x:auto;gap:4px;margin-inline:calc(-1 * var(--pad-x));padding-inline:var(--pad-x);scrollbar-width:none}
+ .cs-b .cs-rail-item{flex:0 0 auto;grid-template-columns:auto;padding:6px 12px;border:1px solid var(--line);border-left-width:1px;border-radius:100px;min-height:40px}
+ .cs-b .cs-rail-num,.cs-b .cs-rail-area{display:none}
+ .cs-b .cs-rail-name{font-size:1rem}
+ .cs-b .cs-rail-item[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:var(--paper)}
+ .cs-b .cs-panel{border-radius:18px}
+ .cs-b .cs-body{grid-template-columns:minmax(0,1fr);padding:16px 18px 18px}
+ .cs-b .cs-actions{grid-column:1;grid-row:auto;flex-direction:row;align-items:center;margin-top:14px}
+ .cs-b .cs-body .campus-links{display:none}
+ /* c：地圖在上、底片在下 */
+ .cs-c .cs-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 26svh auto minmax(0,1fr);grid-template-areas:"head" "map" "rail" "panels";row-gap:12px;padding:calc(var(--pad-y) + var(--pill-gap)) var(--pad-x) var(--pad-y)}
+ .cs-c .cs-map{border-radius:16px}
+ .cs-c .cs-head{position:static;grid-area:head;max-width:none;padding:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+ .cs-c .cs-head .section-title{font-size:1.5rem}
+ .cs-c .cs-hint,.cs-c .cs-counter,.cs-c .cs-map .map-embed-link{display:none}
+ .cs-c .cs-rail-name{font-size:.9375rem}
+ .cs-c .cs-rail-area{display:none}
+ .cs-c .cs-panel{row-gap:12px}
+ .cs-c .cs-photo{border-radius:14px}
+ .cs-c .cs-body{grid-template-columns:minmax(0,1fr)}
+ .cs-c .cs-actions{grid-column:1;grid-row:auto;flex-direction:row;align-items:center;margin-top:12px}
+ .cs-c .cs-body .campus-links{display:none}
+}
+
+/* ======================================================================
+   A 保留建築線稿的三種放法（2026-09-18 第二輪）：?campus=a1|a2|a3
+   每個 .cs-panel 內多一張 <img class="cs-art">（該校線稿，白底深綠線、無 alpha），不再用共用的 .campus-artwork。
+   ====================================================================== */
+.cs-a1 .campus-artwork,.cs-a2 .campus-artwork,.cs-a3 .campus-artwork{display:none}
+.cs-art{position:absolute;pointer-events:none;max-width:none;height:auto}
+
+/* ---------- a1 藍圖板：左邊墨綠板子放大線稿＋資訊，右邊照片；線稿反相成米金色線條，像建築藍圖 ---------- */
+.cs-a1{--plate:min(46vw,640px)}
+.cs-a1 .cs-photo{left:var(--plate);background:var(--deep)}
+.cs-a1 .cs-img{object-position:var(--photo-pos,center)}
+.cs-a1 .cs-photo::after{background:linear-gradient(90deg,rgb(var(--ink) / .55),transparent 28%),linear-gradient(180deg,rgb(var(--ink) / .35),transparent 30%,transparent 70%,rgb(var(--ink) / .45))}
+.cs-a1 .cs-panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--plate);background:linear-gradient(160deg,oklch(30% .045 162),var(--deep) 70%);box-shadow:inset -1px 0 0 rgb(255 255 255 / .08)}
+.cs-a1 .cs-art{left:calc(var(--pad-x) * -.4);top:14%;width:calc(var(--plate) * 1.12);filter:invert(1) sepia(.55) saturate(1.6) brightness(1.05);mix-blend-mode:screen;opacity:.9;mask-image:linear-gradient(to bottom,black 55%,transparent 92%),linear-gradient(to right,black 70%,transparent 100%);mask-composite:intersect;transform:translateY(-16px);transition:opacity .6s .1s,transform .8s .1s cubic-bezier(.22,1,.36,1)}
+.cs-a1 .is-active .cs-art{transform:none}
+.cs-a1 .cs-body{left:var(--pad-x);bottom:var(--pad-y);width:calc(var(--plate) - var(--pad-x) * 1.6)}
+.cs-a1 .cs-name{text-shadow:none}
+.cs-a1 .cs-head{left:var(--pad-x)}
+.cs-a1 .cs-hint{color:rgb(255 255 255 / .6)}
+.cs-a1 .cs-intro{display:none}
+/* 板子上不再需要對比暗角；照片區清爽一點 */
+.cs-a1 .cs-map{background:rgb(var(--ink) / .62)}
+
+/* ---------- a2 米白資訊帶：照片佔上方，下方是站上原本那條米白帶，線稿維持深綠 multiply 浮水印在帶子右側 ---------- */
+.cs-a2{--band:min(40svh,360px);--campus-surface:oklch(97.9% .011 94);background:var(--campus-surface);color:var(--text)}
+.cs-a2 .cs-photo{bottom:var(--band);background:var(--deep)}
+.cs-a2 .cs-photo::after{background:linear-gradient(180deg,rgb(var(--ink) / .5),rgb(var(--ink) / .05) 40%,transparent 70%,rgb(var(--ink) / .18))}
+.cs-a2 .cs-panel::after{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--band);background:var(--campus-surface)}
+.cs-a2 .cs-art{right:-24px;bottom:-12px;width:clamp(360px,34vw,600px);z-index:2;opacity:.5;mix-blend-mode:multiply;mask-image:linear-gradient(to right,transparent,black 45%),linear-gradient(to top,black 55%,transparent 100%);mask-composite:intersect;transition:opacity .6s}
+.cs-a2 .cs-body{left:var(--pad-x);bottom:0;height:var(--band);width:min(640px,calc(100% - var(--pad-x) * 2 - 300px));z-index:3;display:grid;align-content:center;color:var(--text);transform:translateY(16px)}
+.cs-a2 .cs-name{color:var(--green);text-shadow:none}
+.cs-a2 .cs-name-zh{font-size:clamp(2rem,3.2vw,3rem)}
+.cs-a2 .cs-name-area{color:var(--muted)}
+.cs-a2 .cs-intro{display:none}
+.cs-a2 .cs-facts{margin-top:12px;grid-template-columns:auto auto;justify-content:start;column-gap:32px}
+.cs-a2 .cs-facts dt{color:var(--muted)}
+.cs-a2 .cs-facts dt .icon{color:var(--leaf)}
+.cs-a2 .cs-facts dd,.cs-a2 .cs-facts dd a{color:var(--text)}
+.cs-a2 .cs-actions{margin-top:16px}
+.cs-a2 .cs-actions .button.primary{background:var(--green);border-color:var(--green);color:var(--paper)}
+.cs-a2 .cs-actions .button.primary:hover{background:var(--leaf);border-color:var(--leaf)}
+.cs-a2 .cs-actions .text-link{color:var(--green)}
+.cs-a2 .cs-body .campus-links{border-top-color:var(--line);margin-top:14px;padding-top:10px}
+.cs-a2 .campus-link,.cs-a2 .campus-link small{color:var(--text)}
+.cs-a2 .campus-link-badge{border-color:var(--line);background:var(--paper)}
+.cs-a2 .cs-head{color:var(--paper)}
+.cs-a2 .cs-rail{top:calc((100% - var(--band)) / 2)}
+.cs-a2 .cs-map{bottom:auto;top:calc(100% - var(--band) + 28px);right:var(--pad-x);width:280px;height:calc(var(--band) - 56px);border-color:var(--line);background:oklch(97.5% .008 105);backdrop-filter:none;-webkit-backdrop-filter:none;z-index:3}
+.cs-a2 .cs-map .campus-map-areas path{fill:oklch(98.5% .006 100);stroke:var(--line)}
+.cs-a2 .cs-map .campus-map-areas path.is-core{fill:oklch(95% .02 150)}
+.cs-a2 .cs-map .campus-map-labels text{fill:var(--muted)}
+.cs-a2 .cs-map .campus-map-pin .pin-dot circle,.cs-a2 .cs-map .campus-map-pin .pin-dot text{fill:var(--text)}
+.cs-a2 .cs-map .campus-map-pin.is-selected{color:var(--green)}
+.cs-a2 .cs-map .map-embed-link{background:var(--paper);color:var(--green);border-color:var(--line)}
+.cs-a2 .cs-counter{bottom:auto;top:calc(100% - var(--band) - 52px);color:rgb(255 255 255 / .8)}
+.cs-a2 .cs-counter b{color:var(--gold)}
+
+/* ---------- a3 素描顯影：捲動中看到整張線稿，停下來照片在線稿上顯影；用 --d 連續驅動，不用淡入淡出 ---------- */
+.cs-a3 .cs-panel{opacity:1;transition:none;pointer-events:none;--abs:min(1,max(var(--d),calc(-1 * var(--d))))}
+.cs-a3 .cs-panel.is-active{pointer-events:auto}
+.cs-a3 .cs-photo{opacity:max(0,calc(1 - var(--abs) * 2.4));transition:none}
+.cs-a3 .cs-art{left:50%;top:50%;width:min(70vw,1040px);translate:-50% -50%;filter:invert(1) brightness(1.3);mix-blend-mode:screen;opacity:max(0,min(calc(var(--abs) * 2.6),calc(1.7 - var(--abs) * 2.1)));transform:scale(calc(1 + var(--abs) * .08));mask-image:radial-gradient(70% 70% at 50% 50%,black 55%,transparent 100%)}
+.cs-a3 .cs-body{opacity:max(0,calc(1 - var(--abs) * 3.2));transform:translateY(calc(var(--abs) * 40px));transition:none}
+.cs-a3 .cs-rail{text-shadow:0 1px 10px rgb(var(--ink) / .8)}
+
+@media (max-width:760px){
+ .cs-a1{--plate:100%}
+ .cs-a1 .cs-photo{left:0;top:0;height:52%}
+ .cs-a1 .cs-panel::before{top:auto;height:48%}
+ .cs-a1 .cs-art{left:auto;right:-30px;top:auto;bottom:40%;width:320px;opacity:.55}
+ .cs-a1 .cs-body{width:calc(100% - var(--pad-x) * 2);bottom:calc(var(--pad-y) + 52px)}
+ .cs-a2{--band:46svh}
+ .cs-a2 .cs-body{width:calc(100% - var(--pad-x) * 2);bottom:44px;height:calc(var(--band) - 44px);transform:none}
+ .cs-a2 .cs-facts{grid-template-columns:1fr}
+ .cs-a2 .cs-map{display:none}
+ .cs-a2 .cs-art{width:300px;right:-50px;bottom:30px;opacity:.28}
+ .cs-a2 .cs-rail{bottom:var(--pad-y);top:auto}
+ .cs-a2 .cs-rail-item{border-color:var(--line);color:var(--muted)}
+ .cs-a2 .cs-counter{top:auto;bottom:var(--pad-y);color:var(--muted)}
+ .cs-a2 .cs-counter b{color:var(--green)}
+ .cs-a3 .cs-art{width:150vw}
+}
+
+/* ======================================================================
+   選定 a1 之後的版面（2026-09-18 第三輪）：?campus=a1（更新）| a1b | a1c
+   共同修改：地圖改 Google 嵌入（每校面板各一個 .cs-gmap，只載當前校）、線稿縮小成一枚章、拿掉「認識Ｘ校」、社群徽章改單色細圈。
+   ====================================================================== */
+.cs-a1 .cs-map{display:none}
+.cs-a1 .cs-maplink{display:none}
+.cs-a1 .cs-art{left:auto;right:calc(100% - var(--plate) + var(--pad-x) * .5);top:calc(var(--pad-y) - 4px);width:min(var(--plate) * .42,270px);opacity:.78;filter:invert(1) sepia(.55) saturate(1.6) brightness(1.05);mask-image:linear-gradient(to bottom,black 60%,transparent 100%),linear-gradient(to left,black 70%,transparent 100%);mask-composite:intersect}
+.cs-a1 .cs-head{max-width:calc(var(--plate) - 300px)}
+.cs-a1 .cs-body{bottom:var(--pad-y)}
+.cs-a1 .cs-actions{margin-top:20px}
+.cs-a1 .cs-actions .button{min-height:50px;padding-inline:24px}
+/* 社群：單色細圈徽章，hover 變金；文字兩層 */
+.cs-a1 .cs-body .campus-links{display:flex;gap:8px 28px;margin-top:20px;padding-top:16px;border-top:1px solid rgb(255 255 255 / .16)}
+.cs-a1 .campus-link{gap:12px;min-height:44px}
+.cs-a1 .campus-link .campus-link-badge{width:40px;height:40px;border-radius:50%;border:1px solid rgb(255 255 255 / .38);background:transparent;color:var(--paper);transition:background-color .2s,border-color .2s,color .2s}
+.cs-a1 .campus-link-badge .icon{width:20px;height:20px}
+.cs-a1 .campus-link:hover .campus-link-badge{background:var(--gold);border-color:var(--gold);color:var(--deep)}
+.cs-a1 .campus-link.is-pending .campus-link-badge{border-style:dashed;color:rgb(255 255 255 / .55)}
+.cs-a1 .campus-link-title{font-size:.9375rem;font-weight:600;color:var(--paper)}
+.cs-a1 .campus-link small{font-size:.75rem;color:rgb(255 255 255 / .62)}
+/* Google 地圖卡（a1 預設：玻璃卡壓在照片右下） */
+.cs-a1 .cs-gmap{position:absolute;right:var(--pad-x);bottom:calc(var(--pad-y) + 68px);z-index:3;width:min(320px,28vw);height:210px;border-radius:14px;border:1px solid rgb(255 255 255 / .25);background:rgb(var(--ink) / .5);box-shadow:0 20px 50px -20px rgb(var(--ink) / .7)}
+.cs-a1 .cs-gmap iframe{filter:saturate(.85)}
+.cs-a1 .cs-gmap .map-embed-link{right:8px;bottom:8px;min-height:36px;padding:0 10px;font-size:.75rem;border-radius:100px}
+.cs-a1 .cs-gmap .map-embed-link .icon{width:14px;height:14px}
+.cs-a1 .cs-panel:not(.is-active) .cs-gmap{visibility:hidden}
+
+/* ---------- a1b 板子含地圖：Google 地圖嵌在板子底部、照片全高乾淨 ---------- */
+.cs-a1b{--map-h:32%}
+.cs-a1b .cs-gmap{left:0;right:auto;top:auto;bottom:0;width:var(--plate);height:var(--map-h);border-radius:0;border:0;border-top:1px solid rgb(255 255 255 / .12);box-shadow:none}
+.cs-a1b .cs-body{bottom:calc(var(--map-h) + 28px)}
+.cs-a1b .cs-body .campus-links{margin-top:16px;padding-top:12px}
+.cs-a1b .cs-counter{bottom:var(--pad-y)}
+
+/* ---------- a1c 底板：照片在上全幅，墨綠板橫在下方：資訊｜線稿章｜Google 地圖 ---------- */
+.cs-a1c{--band:42%;--plate:100%}
+.cs-a1c .cs-photo{left:0;bottom:var(--band);background:var(--deep)}
+.cs-a1c .cs-photo::after{background:linear-gradient(180deg,rgb(var(--ink) / .5),rgb(var(--ink) / .05) 40%,transparent 75%,rgb(var(--ink) / .3))}
+.cs-a1c .cs-panel::before{top:auto;width:100%;height:var(--band);background:linear-gradient(90deg,oklch(30% .045 162),var(--deep) 70%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .08)}
+.cs-a1c .cs-body{left:var(--pad-x);bottom:0;height:var(--band);width:min(560px,calc(100% - var(--pad-x) * 2 - 640px));display:grid;align-content:center}
+.cs-a1c .cs-name-zh{font-size:clamp(2rem,3.2vw,3rem)}
+.cs-a1c .cs-facts{margin-top:10px;grid-template-columns:auto auto;justify-content:start;column-gap:32px}
+.cs-a1c .cs-actions{margin-top:14px}
+.cs-a1c .cs-body .campus-links{margin-top:14px;padding-top:12px}
+.cs-a1c .cs-gmap{right:var(--pad-x);bottom:var(--pad-y);top:auto;width:min(380px,28vw);height:calc(var(--band) - var(--pad-y) * 2);border-radius:14px;border:1px solid rgb(255 255 255 / .18);box-shadow:none}
+.cs-a1c .cs-art{right:calc(var(--pad-x) + min(380px,28vw) + 32px);top:auto;bottom:calc(var(--pad-y) - 6px);width:clamp(200px,17vw,250px);opacity:.7;mask-image:linear-gradient(to bottom,black 70%,transparent 100%);mask-composite:add}
+.cs-a1c .cs-head{max-width:none}
+.cs-a1c .cs-rail{top:calc((100% - var(--band)) / 2)}
+.cs-a1c .cs-counter{bottom:calc(var(--band) + 18px)}
+
+@media (max-height:760px){.cs-a1b .cs-body .campus-links,.cs-a1c .cs-body .campus-links{display:none}}
+@media (max-width:760px){
+ .cs-a1 .cs-gmap{display:none}
+ .cs-a1 .cs-body{bottom:calc(var(--pad-y) + 52px)}
+ .cs-a1 .cs-maplink{display:inline-flex;font-size:.8125rem;min-height:40px}
+ .cs-a1 .cs-actions{gap:8px 14px;margin-top:14px}
+ .cs-a1 .cs-actions .button{padding-inline:16px;min-height:44px}
+ .cs-a1 .cs-facts{margin-top:12px;gap:4px}
+ .cs-a1 .cs-body .campus-links{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:12px;padding-top:10px}
+ .cs-a1 .campus-link{min-height:40px;gap:8px}
+ .cs-a1 .campus-link .campus-link-badge{width:32px;height:32px}
+ .cs-a1 .campus-link .campus-link-badge .icon{width:16px;height:16px}
+ .cs-a1 .campus-link small{display:none}
+ .cs-a1 .campus-link-title{font-size:.875rem}
+ .cs-a1 .cs-art{left:auto;right:-20px;top:auto;bottom:calc(48% - 30px);width:220px;opacity:.55}
+ .cs-a1 .cs-head{max-width:none}
+ .cs-a1b .cs-body,.cs-a1c .cs-body{height:auto;width:calc(100% - var(--pad-x) * 2);display:block;bottom:calc(var(--pad-y) + 52px)}
+ .cs-a1c{--band:48%}
+ .cs-a1c .cs-photo{height:52%;bottom:auto}
+ .cs-a1c .cs-panel::before{height:48%}
+ .cs-a1c .cs-facts{grid-template-columns:1fr}
+ .cs-a1c .cs-rail{top:auto}
+ .cs-a1c .cs-counter{bottom:var(--pad-y)}
+ .cs-a1c .cs-art{right:-20px;bottom:calc(48% - 30px);width:220px}
+}
+
+/* ======================================================================
+   d 底板卡（2026-09-18 第四輪）：站上原框架（米白、置中標題、右上線稿、← 校名軌道 →）＋ a1c 的「全寬照片＋墨綠底板」舞台。
+   不滿版釘住、不放地圖；切換沿用 setupCampusShowcase()（點校名、←→、6 秒自動、200ms 淡出淡入）。
+   .campus-scroll 的規則不套用（沒有 cs- class），這裡只覆寫舞台。
+   ====================================================================== */
+.campus-board .board-stage{display:block;margin-top:28px;border-radius:24px;overflow:hidden;box-shadow:0 30px 60px -36px rgb(var(--ink) / .45)}
+.campus-board .campus-stage-media{aspect-ratio:2.4/1;border-radius:0;background:var(--deep)}
+.campus-board .campus-stage-photo{border-radius:0;object-position:var(--panorama-pos,center 55%)}
+.campus-board .campus-stage-media::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 78%,rgb(var(--ink) / .22))}
+.campus-board .board-plate{position:relative;display:grid;grid-template-columns:minmax(0,1.25fr) auto;align-items:center;column-gap:48px;padding:32px 44px 36px;background:linear-gradient(90deg,oklch(30% .045 162),var(--deep) 70%);color:var(--paper)}
+.campus-board .campus-stage-info{display:block;color:var(--paper)}
+.campus-board .cs-name{display:flex;flex-direction:row;align-items:baseline;gap:16px;margin:0;font-family:var(--campus-heading);font-weight:700;line-height:1.2;color:var(--paper)}
+.campus-board .cs-name-zh{font-size:clamp(1.75rem,2.6vw,2.5rem);letter-spacing:.06em}
+.campus-board .cs-name-area{font-family:var(--font);font-size:.9375rem;font-weight:400;letter-spacing:.08em;color:var(--gold)}
+.campus-board .cs-facts{margin:14px 0 0;display:grid;grid-template-columns:auto auto;justify-content:start;column-gap:36px;row-gap:6px}
+.campus-board .cs-facts div{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:baseline}
+.campus-board .cs-facts dt{display:inline-flex;align-items:center;gap:6px;font-size:.8125rem;white-space:nowrap;color:rgb(255 255 255 / .62)}
+.campus-board .cs-facts dt .icon{width:16px;height:16px;color:var(--gold)}
+.campus-board .cs-facts dd{margin:0;font-size:.9375rem;line-height:1.6}
+.campus-board .cs-facts dd a{color:var(--paper)}
+.campus-board .campus-links{display:flex;flex-wrap:wrap;gap:6px 28px;margin-top:18px;padding-top:14px;border-top:1px solid rgb(255 255 255 / .16)}
+.campus-board .campus-link{gap:12px;min-height:44px;color:var(--paper)}
+.campus-board .campus-link .campus-link-badge{width:40px;height:40px;border-radius:50%;border:1px solid rgb(255 255 255 / .38);background:transparent;color:var(--paper);transition:background-color .2s,border-color .2s,color .2s}
+.campus-board .campus-link .campus-link-badge .icon{width:20px;height:20px}
+.campus-board .campus-link:hover .campus-link-badge{background:var(--gold);border-color:var(--gold);color:var(--deep)}
+.campus-board .campus-link.is-pending .campus-link-badge{border-style:dashed;color:rgb(255 255 255 / .55)}
+.campus-board .campus-link-title{font-size:.9375rem;font-weight:600;color:var(--paper)}
+.campus-board .campus-link small{font-size:.75rem;color:rgb(255 255 255 / .62)}
+.campus-board .campus-stage-actions{display:flex;flex-direction:column;align-items:flex-end;gap:12px;margin:0}
+.campus-board .campus-stage-actions .button{width:auto;min-height:52px;padding-inline:28px;gap:12px;background:var(--gold);border-color:var(--gold);color:var(--deep)}
+.campus-board .campus-stage-actions .button:hover{background:var(--yellow);border-color:var(--yellow)}
+.campus-board .campus-stage-actions .text-link{color:var(--paper);white-space:nowrap}
+.campus-board .campus-stage.is-switching :is(.campus-stage-photo,.campus-stage-info,.campus-stage-actions){opacity:0}
+@media (max-width:1100px){
+ .campus-board .board-plate{padding:28px 32px 32px;column-gap:32px}
+ .campus-board .cs-facts{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+ .campus-board .board-stage{border-radius:16px;margin-top:20px}
+ .campus-board .campus-stage-media{aspect-ratio:4/3}
+ .campus-board .campus-stage-nav{position:absolute;right:12px;top:12px;z-index:2}
+ .campus-board .campus-stage-nav .campus-stage-btn{background:rgb(var(--ink) / .55);border-color:rgb(255 255 255 / .35);color:var(--paper)}
+ .campus-board .board-stage{position:relative}
+ .campus-board .board-plate{grid-template-columns:minmax(0,1fr);row-gap:18px;padding:22px 20px 24px}
+ .campus-board .cs-name{flex-direction:column;gap:4px}
+ .campus-board .campus-stage-actions{flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px 16px}
+ .campus-board .campus-stage-actions .button{min-height:46px;padding-inline:18px}
+ .campus-board .campus-links{gap:4px 20px}
+ .campus-board .campus-link small{display:none}
+ .campus-board .campus-link .campus-link-badge{width:34px;height:34px}
+ .campus-board .campus-link .campus-link-badge .icon{width:17px;height:17px}
+}
+
+/* ---------- d 底板卡的三種比例（第五輪）：d1 寬幅細板／d2 標準大板／d3 高照片窄板 ---------- */
+/* d1：照片 2.8:1，底板一列 */
+.board-d1 .campus-stage-media{aspect-ratio:2.8/1}
+.board-d1 .board-plate{grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:40px;padding:22px 36px}
+.board-d1 .campus-stage-info{display:contents}
+.board-d1 .cs-name{flex-direction:column;align-items:flex-start;gap:2px}
+.board-d1 .cs-name-zh{font-size:clamp(1.5rem,2vw,1.875rem)}
+.board-d1 .cs-name-area{font-size:.8125rem}
+.board-d1 .cs-facts{margin:0;grid-template-columns:1fr;row-gap:4px}
+.board-d1 .cs-facts dd{font-size:.9375rem}
+.board-d1 .campus-links{margin:0;padding:0 0 0 36px;border-top:0;border-left:1px solid rgb(255 255 255 / .16);gap:4px 24px;flex-direction:column}
+.board-d1 .campus-link{min-height:36px;gap:10px}
+.board-d1 .campus-link .campus-link-badge{width:32px;height:32px}
+.board-d1 .campus-link .campus-link-badge .icon{width:16px;height:16px}
+.board-d1 .campus-link-title{font-size:.875rem}
+.board-d1 .campus-link small{display:none}
+.board-d1 .campus-stage-actions{gap:8px}
+.board-d1 .campus-stage-actions .button{min-height:48px;padding-inline:22px}
+.board-d1 .campus-stage-actions .text-link{font-size:.875rem;min-height:36px}
+/* d2：照片 2.2:1，底板加高、字級放大 */
+.board-d2 .campus-stage-media{aspect-ratio:2.2/1}
+.board-d2 .board-plate{padding:40px 52px 44px;column-gap:64px;grid-template-columns:minmax(0,1.3fr) auto}
+.board-d2 .cs-name{flex-direction:column;align-items:flex-start;gap:6px}
+.board-d2 .cs-name-zh{font-size:clamp(2.25rem,3.2vw,3rem)}
+.board-d2 .cs-name-area{font-size:1rem}
+.board-d2 .cs-facts{margin-top:20px;grid-template-columns:1fr;row-gap:10px}
+.board-d2 .cs-facts dt{font-size:.875rem}
+.board-d2 .cs-facts dd{font-size:1.0625rem}
+.board-d2 .campus-links{margin-top:24px;padding-top:20px;gap:8px 36px}
+.board-d2 .campus-link .campus-link-badge{width:44px;height:44px}
+.board-d2 .campus-link .campus-link-badge .icon{width:22px;height:22px}
+.board-d2 .campus-link-title{font-size:1rem}
+.board-d2 .campus-stage-actions{gap:14px}
+.board-d2 .campus-stage-actions .button{min-height:56px;padding-inline:32px;font-size:1.0625rem}
+/* d3：照片 1.85:1，底板最窄，社群只留圓圈 */
+.board-d3 .campus-stage-media{aspect-ratio:1.85/1}
+.board-d3 .board-plate{grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:32px;padding:18px 32px}
+.board-d3 .campus-stage-info{display:contents}
+.board-d3 .cs-name{align-items:baseline;gap:12px}
+.board-d3 .cs-name-zh{font-size:clamp(1.5rem,2vw,1.75rem)}
+.board-d3 .cs-name-area{font-size:.8125rem}
+.board-d3 .cs-facts{margin:0;grid-template-columns:auto auto;column-gap:28px}
+.board-d3 .cs-facts dd{font-size:.9375rem}
+.board-d3 .campus-links{margin:0;padding:0;border-top:0;gap:10px}
+.board-d3 .campus-link{min-height:40px;gap:0}
+.board-d3 .campus-link-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.board-d3 .campus-link .campus-link-badge{width:40px;height:40px}
+.board-d3 .campus-stage-actions{flex-direction:row;align-items:center;gap:20px}
+.board-d3 .campus-stage-actions .button{min-height:46px;padding-inline:22px}
+.board-d3 .campus-stage-actions .text-link{font-size:.875rem;min-height:40px}
+@media (max-width:1100px){
+ .board-d1 .board-plate,.board-d3 .board-plate{grid-template-columns:minmax(0,1fr) auto;row-gap:16px;padding:24px 32px}
+ .board-d1 .campus-links,.board-d3 .campus-links{padding:0;border-left:0;flex-direction:row}
+ .board-d3 .campus-stage-actions{flex-direction:column;align-items:flex-end}
+}
+@media (max-width:760px){
+ .board-d1 .campus-stage-media,.board-d2 .campus-stage-media,.board-d3 .campus-stage-media{aspect-ratio:4/3}
+ .board-d1 .board-plate,.board-d2 .board-plate,.board-d3 .board-plate{grid-template-columns:minmax(0,1fr);row-gap:16px;padding:22px 20px 24px}
+ .board-d1 .campus-stage-info,.board-d3 .campus-stage-info{display:block}
+ .board-d1 .cs-facts,.board-d3 .cs-facts{margin-top:12px;grid-template-columns:1fr}
+ .board-d1 .campus-links,.board-d3 .campus-links{margin-top:14px;padding-top:12px;border-top:1px solid rgb(255 255 255 / .16);flex-direction:row}
+ .board-d3 .campus-link{gap:10px}
+ .board-d3 .campus-link-text{position:static;width:auto;height:auto;clip-path:none}
+ .board-d2 .cs-name-zh{font-size:2rem}
+ .board-d2 .campus-stage-actions .button{min-height:48px;padding-inline:22px;font-size:1rem}
+ .board-d3 .campus-stage-actions{flex-direction:row}
+}
+
+/* ---------- 卡片相對米白背景的比例（第六輪，底板同 d1）：e1 窄卡／e2 全出血／e3 浮卡跨色帶 ---------- */
+/* e1：卡片 1180px 置中，左右留大片米白 */
+.board-e1 .board-stage{width:min(1180px,100%);margin-inline:auto}
+.board-e1 .campus-stage-media{aspect-ratio:2.4/1}
+/* e2：卡片貼齊視窗兩側、無圓角 */
+.board-e2>.container{width:100%}
+.board-e2 .section-heading,.board-e2 .campus-picker{width:min(1560px,calc(100% - 96px));margin-inline:auto}
+.board-e2 .board-stage{border-radius:0;box-shadow:none;margin-top:36px}
+.board-e2 .campus-stage-media{aspect-ratio:3/1}
+.board-e2 .board-plate{padding-inline:max(36px,calc((100% - 1560px) / 2 + 48px))}
+.board-e2.campus-panorama{padding-bottom:0}
+/* e3：區塊下半是整條墨綠色帶，照片卡騎在色帶上緣，底板落在色帶裡 */
+.board-e3{--band-top:calc(100% - 300px);background:linear-gradient(180deg,var(--campus-surface,oklch(97.9% .011 94)) 0,var(--campus-surface,oklch(97.9% .011 94)) var(--band-top),var(--deep) var(--band-top))}
+.board-e3 .board-stage{width:min(1320px,100%);margin-inline:auto;border-radius:24px 24px 0 0;box-shadow:0 30px 60px -30px rgb(var(--ink) / .6)}
+.board-e3 .campus-stage-media{aspect-ratio:2.4/1;border-radius:24px;overflow:hidden}
+.board-e3 .board-plate{background:none;padding-inline:24px}
+.board-e3 .campus-art-building{opacity:.5}
+@media (max-width:760px){
+ .board-e1 .board-stage{width:100%}
+ .board-e1 .campus-stage-media,.board-e2 .campus-stage-media,.board-e3 .campus-stage-media{aspect-ratio:4/3}
+ .board-e2 .section-heading,.board-e2 .campus-picker{width:calc(100% - 40px)}
+ .board-e2 .board-plate{padding-inline:20px}
+ .board-e3{--band-top:calc(100% - 420px)}
+ .board-e3 .board-stage{width:100%}
+ .board-e3 .board-plate{padding-inline:4px}
+}

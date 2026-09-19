@@ -17,6 +17,7 @@ pyftsubset LINESeedTW_OTF_Bd.otf --text-file=chars-bd.txt --flavor=woff --no-hin
 ## 頁首品牌字型（2026-09-16）
 
 - 中文「常春藤教育機構」使用 Noto Sans TC 600，檔案 `noto-sans-tc-600-brand.woff`。
+- 30 週年版（`index.html?anni=a|b|c#/home`）的「週年」兩字另切 `noto-sans-tc-600-anni.woff`（同家族同字重，`unicode-range:U+5E74,U+9031`），來源是 Google Fonts 的 `NotoSansTC[wght].ttf` 用 fontTools instancer 定在 wght 600 後 `pyftsubset --text=週年`。
 - 品牌英文與導覽英文使用 Source Sans 3 400，檔案 `source-sans-3-400-brand.woff`；2026-09-17 擴充為 ASCII U+0020–U+007E，涵蓋大小寫英文、數字與基本標點。
 - 來源為 [Google Fonts CSS API](https://developers.google.com/fonts/docs/css2)，分別指定上述 family、字重與 `text` 取得用字子集，再以 FontTools 轉為 WOFF。英文子集擴充時已確認既有品牌字元的字寬不變。
 - 原始授權：[Noto Sans TC](https://github.com/google/fonts/tree/main/ofl/notosanstc)、[Source Sans 3](https://github.com/google/fonts/tree/main/ofl/sourcesans3)。OFL 授權全文保存在各字型旁的 `*-OFL.txt`。

@@ -2,3 +2,23 @@ body{background:#f3f0e6;color:#203f32}.overview-header{padding:23px 4vw;border-b
 @media(max-width:1100px){.proposals{gap:20px}.overview-intro{gap:26px}.overview-intro h1{font-size:42px}.overview-intro>p{font-size:12px}.proposal-heading{gap:10px;flex-wrap:wrap;min-height:108px}.recommend{font-size:8px;margin-top:1px}.proposal-heading h2{font-size:19px}.proposal-heading p{font-size:10px}.letter{font-size:36px}.description{font-size:12px}.proposal-links{font-size:10px}}
 @media(max-width:760px){main{padding-inline:22px}.overview-header{padding:15px 22px;font-size:13px}.overview-header span[lang]{display:none}.overview-header>a:last-child{font-size:10px;gap:12px}.overview-intro{display:block;padding-top:34px;padding-bottom:30px}.overview-intro h1{font-size:clamp(32px,7.6vw,46px)}.overview-intro>p{margin-top:22px;font-size:13px}.overview-intro>p>span{font-size:10px;margin-top:12px}.proposals{grid-template-columns:1fr;gap:34px}.proposal-heading{min-height:88px;flex-wrap:nowrap;gap:16px}.proposal-heading h2{font-size:23px}.proposal-heading p{font-size:11px}.recommend{font-size:9px;margin-top:5px}.letter{font-size:45px}.description{font-size:13px;min-height:0;margin-top:17px}.proposal-links{font-size:11px;margin-top:10px}.overview-footer{align-items:flex-start;flex-direction:column;gap:12px;padding-block:30px}.preview img{aspect-ratio:1.3}.overview-footer p{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.preview img{transition:none}.preview:hover img{transform:none}}
+
+/* Round 3: two rounds on one page; the newer four sit first in a four-column grid. */
+.round+.round{margin-top:64px}.round-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;padding:14px 0 24px;border-top:2px solid #203f32}.round-heading .eyebrow{font-size:10px;letter-spacing:.12em;margin-bottom:12px}.round-heading h2{font-size:clamp(24px,2.2vw,34px);line-height:1.4}.round-heading>p{font-size:12px;color:#66705d;padding-bottom:4px}
+.proposals-4{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}.proposals-4 .proposal-heading h2{font-size:20px}.proposals-4 .description{font-size:12.5px;min-height:92px}.proposal-e .letter{color:#2d8f5a}.proposal-f .letter{color:#b8862a}.proposal-g .letter{color:#3d6fa3}.proposal-h .letter{color:#a8564c}
+@media(max-width:1100px){.proposals-4{grid-template-columns:repeat(2,minmax(0,1fr))}.proposals-4 .description{min-height:0}.round-heading h2{font-size:24px}}
+@media(max-width:760px){.proposals-4{grid-template-columns:1fr;gap:34px}.round+.round{margin-top:48px}.round-heading{display:block}.round-heading>p{margin-top:10px}.round-heading h2{font-size:22px}}
+
+/* Round 4 sits first with three columns; descriptions get a little more room. */
+.proposals-3 .description{min-height:100px}.proposal-i .letter{color:#2d8f5a}.proposal-j .letter{color:#b8862a}.proposal-k .letter{color:#3d6fa3}
+@media(max-width:1100px){.proposals-3 .description{min-height:0}}
+
+/* Round 5: two variants side by side. */
+.proposals-2{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.proposals-2 .description{min-height:0}.proposal-l .letter{color:#b8862a}.proposal-m .letter{color:#2d8f5a}.proposal-links a:nth-child(2){margin-left:auto;margin-right:18px}
+@media(max-width:760px){.proposals-2{grid-template-columns:1fr;gap:34px}}
+
+/* Round 6 */
+.proposal-n .letter{color:#2d8f5a}.proposal-o .letter{color:#b8862a}.proposal-p .letter{color:#3d6fa3}
+
+.proposal-q .letter{color:#a8564c}
+.proposal-r .letter{color:#3d6fa3}

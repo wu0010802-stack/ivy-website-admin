@@ -1,0 +1,43 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>膠囊怎麼更不擋內容：六個方向</title>
+<style>
+:root{--green:#2f5d46;--deep:#23483a;--paper:#fffdf5;--ink:#112a21;--line:#d9e3dc;--yellow:#f5cf6a}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.8 "Noto Sans TC",system-ui,sans-serif}
+header{padding:40px 48px 24px;border-bottom:1px solid var(--line)}h1{margin:0 0 8px;font-size:26px}header p{margin:0;max-width:72ch;color:#4a5c53}
+main{padding:0 48px 80px}section{padding:40px 0;border-bottom:1px solid var(--line)}
+.head{display:flex;justify-content:space-between;gap:24px;align-items:baseline;flex-wrap:wrap}h2{margin:0;font-size:20px}h2 small{margin-left:10px;font-size:13px;color:#4a5c53;font-weight:400}
+.head a{font-size:13px;color:var(--green);border-bottom:1px solid currentColor}
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px;margin:14px 0 22px;padding:0;list-style:none;font-size:14px;color:#33463d}.notes li::before{content:"· "}.notes li.bad::before{content:"✕ ";color:#b4462f}.notes li.good::before{content:"✓ ";color:var(--green)}
+.shots{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}figure{margin:0}figure img{display:block;width:100%;border:1px solid var(--line);border-radius:6px;background:#eee}figcaption{font-size:12px;color:#4a5c53;margin-top:6px}
+.pick{background:var(--green);color:var(--paper);border-radius:12px;padding:20px 24px;margin-top:40px}.pick h2{color:var(--yellow)}.pick p{margin:8px 0 0;max-width:80ch}
+.badge{display:inline-block;padding:1px 10px;border-radius:999px;background:var(--yellow);color:var(--deep);font-size:12px;font-weight:600;margin-left:8px}
+@media(max-width:900px){.shots{grid-template-columns:1fr 1fr}.notes{grid-template-columns:1fr}header,main{padding-inline:20px}}
+</style></head><body>
+<header><h1>膠囊怎麼更不擋內容：六個方向</h1><p>2026-09-18 晚。前提：三顆（校徽、選單、預約參觀）都要留。目前上站的是「靠右橫膠囊、只留校徽與兩條線、控制項 40」。以下都在真實首頁上截圖，四張分別是關於區、孩子的一天（全幅照片）、五校區、選單打開。點各節右上的連結可在本機預覽（需先在 repo 根目錄 <code>python3 -m http.server 8765</code>）。</p></header>
+<main>
+<section><div class="head"><h2>0 目前上站<small>靠右橫膠囊 220×50</small></h2><a href="http://localhost:8765/index.html#/home">預覽</a></div>
+<ul class="notes"><li class="good">已比昨天的 299×62 少三成面積。</li><li>仍會壓到內容欄右緣：五校輪播的照片、孩子的一天的拍立得。</li></ul>
+<div class="shots"><figure><img src="explore/right-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/right-day.png"><figcaption>孩子的一天</figcaption></figure><figure><img src="explore/right-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/right-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<section><div class="head"><h2>1 autohide 捲動收起<small>?autohide=1</small><span class="badge">建議</span></h2><a href="http://localhost:8765/index.html?autohide=1#/home">預覽</a></div>
+<ul class="notes"><li class="good">閱讀（往下捲）時完全不擋內容；想找按鈕時手指自然往上捲，膠囊就回來。</li><li class="good">手機瀏覽器網址列就是這個行為，家長已經習慣。</li><li>選單開著、焦點在膠囊、接近頁首、捲到底時都不收；減少動態時關閉。</li><li>可與下面任何一種外觀疊加。</li></ul>
+<div class="shots"><figure><img src="explore/autohide-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/autohide-day.png"><figcaption>孩子的一天（截圖是跳轉捲動，故仍顯示）</figcaption></figure><figure><img src="explore/autohide-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/autohide-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<section><div class="head"><h2>2 edge 貼視窗右緣<small>?pill=edge</small><span class="badge">建議搭配</span></h2><a href="http://localhost:8765/index.html?pill=edge#/home">預覽</a></div>
+<ul class="notes"><li class="good">離開內容欄，在 1280 以上的螢幕只壓到頁面留白（1440 寬時內容欄右側有 80px 邊）。</li><li class="good">左半圓右直邊，像書籤片，視覺上「屬於視窗」而不是浮在內容上。</li><li>全幅照片區（孩子的一天）無留白可躲，效果與目前相同。</li><li>1100 以下內容欄貼近視窗，優勢消失。</li></ul>
+<div class="shots"><figure><img src="explore/edge-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/edge-day.png"><figcaption>孩子的一天</figcaption></figure><figure><img src="explore/edge-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/edge-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<section><div class="head"><h2>3 glass 毛玻璃<small>?pill=glass</small></h2><a href="http://localhost:8765/index.html?pill=glass#/home">預覽</a></div>
+<ul class="notes"><li class="good">同尺寸下量感明顯減輕，底下內容透得出來。</li><li class="bad">選單卡也透明，壓在照片上時導覽字可讀性差；膠囊在雜亂照片上輪廓變糊。</li><li class="bad">對比度不再固定，無法保證每一段背景都過 AA。</li></ul>
+<div class="shots"><figure><img src="explore/glass-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/glass-day.png"><figcaption>孩子的一天</figcaption></figure><figure><img src="explore/glass-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/glass-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<section><div class="head"><h2>4 bare 三顆散開<small>?pill=bare</small></h2><a href="http://localhost:8765/index.html?pill=bare#/home">預覽</a></div>
+<ul class="notes"><li class="good">深綠面積最少，外殼拿掉後只剩三顆各自成圓。</li><li class="bad">三顆之間透出的內容讓它們看起來像散落的三個東西，少了「這是一組導覽」的整體感。</li><li>總寬度沒有變小，遮擋範圔其實差不多。</li></ul>
+<div class="shots"><figure><img src="explore/bare-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/bare-day.png"><figcaption>孩子的一天</figcaption></figure><figure><img src="explore/bare-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/bare-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<section><div class="head"><h2>5 dock 右下角停靠<small>?pill=dock</small></h2><a href="http://localhost:8765/index.html?pill=dock#/home">預覽</a></div>
+<ul class="notes"><li class="good">上方閱讀區完全不擋，選單往上開。</li><li class="bad">孩子的一天右下角已經有「暫停背景」按鈕，兩者直接撞在一起；頁尾區也常放社群連結。</li><li class="bad">家長找導覽的習慣在上方，右下角在桌機常被當成客服／聊天視窗。</li></ul>
+<div class="shots"><figure><img src="explore/dock-about.png"><figcaption>關於</figcaption></figure><figure><img src="explore/dock-day.png"><figcaption>孩子的一天（撞到暫停鈕）</figcaption></figure><figure><img src="explore/dock-campus.png"><figcaption>五校</figcaption></figure><figure><img src="explore/dock-open.png"><figcaption>選單打開</figcaption></figure></div></section>
+
+<div class="pick"><h2>建議</h2><p>把「捲動收起」（autohide）套成預設，外觀維持目前的橫膠囊；若想再退一步，加上 edge 讓它在寬螢幕貼視窗邊。理由：尺寸已縮到能縮的極限（三顆都要留、預約要有字），再往下只能靠「不需要時不出現」。glass 與 bare 都是換取視覺輕量卻犧牲可讀性或整體感；dock 與現有的影片控制鈕衝突。</p></div>
+</main></body></html>

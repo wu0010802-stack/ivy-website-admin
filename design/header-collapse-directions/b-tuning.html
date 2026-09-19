@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>浮動膠囊調校</title>
+<meta name="description" content="B 浮動膠囊的大小與顏色選項，直接疊在常春藤首頁各區塊的真實背景上比較，附對比度。">
+<link rel="stylesheet" href="b-tuning.css">
+</head>
+<body>
+<header class="review-header">
+ <a class="review-brand" href="index.html#b">IVY <span>常春藤幼兒園</span></a>
+ <div class="review-title"><span>DESIGN STUDY / 2026.09.17 · B 浮動膠囊</span><h1>膠囊要多大、什麼顏色。</h1></div>
+ <a class="review-home" href="index.html#b">回三方向比較 ↗</a>
+</header>
+
+<section class="intro">
+ <p>下面每一格都是<strong>真實首頁</strong>把頁首藏起來後的截圖（1440 與 390 寬、原尺寸），膠囊用同一份 <code>header.css</code> 疊上去，所以看到的就是套進站內的實際大小。首頁離開首屏後，頁首底下依序會是：淡綠「關於常春藤」、米白「孩子的一天」（左邊有校園照片）、米黃「分校資訊」（城堡照片）、米黃「最新消息」、頁尾。</p>
+ <p>對比度用 WCAG 2.1 相對亮度算：文字至少 4.5（大字 3.0），UI 邊界 3.0。膠囊本身跟淺色區塊的邊界對比不到 3 時，得靠邊框與陰影撐起「浮島」的感覺，這是米白系的先天限制。</p>
+ <div class="legend"><span>格內左下＝底下是首頁哪一段</span><span>每格右側＝該選項的尺寸／顏色與對比</span><span>每個選項都有「在捲動情境看」的連結</span></div>
+</section>
+
+<section class="block" id="sizes">
+ <h2>尺寸 <small>SIZE · 三檔，色調先用米白</small></h2>
+ <p class="lead">主站的按鈕高度是 44–52px、頁首 92px、標題 LINE Seed 40px。三檔分別對應「輕巧」「與主站按鈕同級」「接近原本頁首的份量」。</p>
+ <div id="size-rows"></div>
+</section>
+
+<section class="block" id="tones">
+ <h2>顏色 <small>TONE · 四種，尺寸固定 M</small></h2>
+ <p class="lead">四種色調都只用站內既有 token，不新增顏色。每種各看四段背景，最後一格是選單打開的樣子。</p>
+ <div id="tone-rows"></div>
+</section>
+
+<section class="block" id="mobile">
+ <h2>手機 <small>MOBILE · 390px</small></h2>
+ <p class="lead">手機膠囊撐滿左右 16px 留白，校名在 360px 以下收起只留徽章。第一列是建議色調的三檔尺寸，第二列是四種色調在「孩子的一天」上的樣子。</p>
+ <div id="mobile-rows"></div>
+</section>
+
+<section class="recommend" id="recommend">
+ <div class="card">
+  <h2>定案：深綠 × M（2026-09-18 已上站）</h2>
+  <div>
+   <p><strong>為什麼深綠。</strong>首頁離開首屏後的五段背景全是淺色（米白、米黃、淡綠），米白／白／淡綠膠囊跟它們的邊界對比只有 1.0–1.4，看起來像浮起來全靠陰影；深綠 <code>--green</code> 對每一段都有 7–10 的對比，不用陰影也是一座島，而且它就是站內預約鈕、頁尾與 hero 遮罩用的那個綠，不是新顏色。膠囊裡的預約改用暖黃 <code>--yellow</code>（站內既有 <code>.button.yellow</code>），黃底深綠字 9.66，在深綠上比綠底更醒目，也把品牌的黃帶回頁首。校徽放在白色圓徽章裡，避免 logo 原圖的白底在深色上變成方塊。</p>
+   <p><strong>為什麼 M。</strong>48px 控制項與主站 <code>.header-book</code>（44px）、<code>.button</code>（52px）同一級；S 在 40px 大標題旁邊顯得單薄，L 又把剛讓出來的頁首份量拿回去。手機用 44px 控制項（56px 膠囊），剛好是最小觸控尺寸。</p>
+   <p><strong>如果園方想要淺一點。</strong>退而求其次是米白 <code>--paper</code>＋ink 14% 細框＋陰影，跟現在捲動後的頁首同色系，最不突兀；白與淡綠不建議（淡綠在「關於常春藤」那段幾乎消失）。</p>
+   <div class="links"><a href="view.html?direction=b&amp;size=m&amp;tone=deep">在捲動情境看 深綠 × M ↗</a><a href="view.html?direction=b&amp;size=m&amp;tone=paper">米白 × M ↗</a><a href="index.html#b">回三方向比較頁 ↗</a></div>
+  </div>
+  <div>
+   <table>
+    <thead><tr><th>項目</th><th>桌機（≥901px）</th><th>手機（≤900px）</th></tr></thead>
+    <tbody>
+     <tr><td>膠囊</td><td>高 60（內距 6＋控制項 48＋6）、頂距 14、圓角 999、置中、寬度隨內容（約 470）</td><td>高 56（6＋44＋6）、頂距 14、左右各留 16</td></tr>
+     <tr><td>校徽</td><td>白色圓徽章 44、校徽 34</td><td>徽章 40、校徽 30；≤360px 只留徽章</td></tr>
+     <tr><td>校名</td><td>Noto Sans TC 600 16px／英文 Source Sans 3 11px</td><td>15px，不放英文</td></tr>
+     <tr><td>選單鈕</td><td>高 48、三條線 22×2＋「選單 Menu」14／11px、圓角 999</td><td>44×44，只留三條線</td></tr>
+     <tr><td>預約鈕</td><td>高 48、左右 22、15px 600、圓角 999</td><td>高 44、左右 16、14px</td></tr>
+     <tr><td>分隔線</td><td>1×28，白 22%</td><td>不顯示</td></tr>
+     <tr><td>底色</td><td colspan="2"><span class="swatch" style="background:#244933"></span><code>--green</code> oklch(37% .057 157) ≈ #244933；邊框 1px 白 14%</td></tr>
+     <tr><td>文字</td><td colspan="2"><span class="swatch" style="background:#fdfcf6"></span><code>--paper</code> #fdfcf6（校名、選單、三條線）、<span class="swatch" style="background:#cedcd0"></span><code>--mint</code> #cedcd0（英文）；對比 9.87／7.13</td></tr>
+     <tr><td>預約鈕</td><td colspan="2"><span class="swatch" style="background:#f8cf68"></span><code>--yellow</code> #f8cf68 底＋<code>--deep</code> #152f23 字（9.66）；hover 改米白底</td></tr>
+     <tr><td>hover</td><td colspan="2">選單鈕白 12%；選單打開時膠囊圓角改 24 只圓上緣，卡片同色深綠、字米白</td></tr>
+     <tr><td>陰影</td><td colspan="2">0 18px 40px -16px ink/.6，0 2px 6px -2px ink/.3</td></tr>
+     <tr><td>膠囊 vs 區塊</td><td colspan="2">淡綠 7.12、孩子的一天 9.58、分校 9.56、消息 9.21、頁尾 9.04</td></tr>
+    </tbody>
+   </table>
+  </div>
+ </div>
+</section>
+
+<script>
+(() => {
+  const strips = { about: '淡綠・關於常春藤', day: '米白・孩子的一天', campus: '米黃・分校資訊（城堡照片）', news: '米黃・最新消息', footer: '頁尾', hero: '首屏底部（切換瞬間）' };
+  const cell = (bg, size, tone, extra = '', tall = false) => `<div class="cell${tall ? ' tall' : ''}"><iframe loading="lazy" src="pill-sample.html?bg=${bg}&size=${size}&tone=${tone}${extra}" title="${strips[bg.replace(/^(desktop|mobile)-/, '')]}，尺寸 ${size.toUpperCase()}，色調 ${tone}"></iframe><span class="tag">${strips[bg.replace(/^(desktop|mobile)-/, '')]}</span></div>`;
+  const cr = (label, v, min = 4.5) => `<span>${label} <b class="${v >= min ? 'ok' : 'low'}">${v.toFixed(2)}</b></span>`;
+
+  const sizes = {
+    s: ['S・輕巧', '控制項 40、膠囊 52、校徽 28、校名 15／10、預約 14px；頂距 12。', '像一顆浮在頁面上的小工具，內容最清爽；但在 40px 大標題旁邊顯得單薄，預約鈕 40px 也低於主站按鈕。'],
+    m: ['M・與主站按鈕同級', '控制項 48、膠囊 60、校徽 34、校名 16／11、預約 15px；頂距 14。', '跟 header-book（44）與 .button（52）同一級，校名還看得清楚，手機縮成 44。建議。'],
+    l: ['L・接近原頁首份量', '控制項 56、膠囊 68、校徽 40、校名 18／12、預約 16px；頂距 16。', '存在感最強、最像「頁首縮成一顆」，但把讓出來的空間又拿回去，手機放不下英文。'],
+  };
+  document.querySelector('#size-rows').innerHTML = Object.entries(sizes).map(([k, [name, spec, take]]) => `
+   <div class="row"><div class="cells">${cell('desktop-about', k, 'paper')}${cell('desktop-day', k, 'paper')}</div>
+   <div class="note"><h3>${name}${k === 'm' ? '<span class="pick">建議</span>' : ''}</h3><p>${spec}</p><p>${take}</p><a href="view.html?direction=b&size=${k}&tone=paper">在捲動情境看 ↗</a></div></div>`).join('');
+
+  const tones = {
+    deep: ['深綠', '底 --green #244933、字 --paper、英文 --mint、預約黃底深綠字、白圓徽章。', '唯一不靠陰影就是一座島的選項；深綠＋暖黃是站內既有配對。缺點：頁面上多一塊深色，切換瞬間壓在深色照片上會暗一下。', [['米白字', 9.87], ['mint 英文', 7.13], ['黃底預約字', 9.66], ['膠囊 vs 淡綠', 7.12, 3], ['vs 米白區', 9.58, 3]]],
+    paper: ['米白＋細框', '底 --paper #fdfcf6、邊框 ink 14%、字標綠、預約綠底米白字。', '跟現在捲動後的頁首同色系，最不突兀；但在米白／米黃區塊上邊界對比只有 1.03–1.09，浮起來全靠陰影與那條細框。', [['中文字標', 8.01], ['英文字標', 12.82], ['預約鈕', 9.87], ['膠囊 vs 淡綠', 1.39, 3], ['vs 米白區', 1.03, 3]]],
+    white: ['純白', '底 --white #fefefc、邊框 ink 10%、其餘同米白。', '比米白亮一點點，在照片上最乾淨；在米白區塊上跟米白一樣分不出來，只是陰影更重。', [['中文字標', 8.17], ['英文字標', 13.08], ['預約鈕', 9.87], ['膠囊 vs 淡綠', 1.41, 3], ['vs 米白區', 1.05, 3]]],
+    sage: ['淡綠', '底 --studio-sage #e3efe0、邊框 --mint、字標綠。', '跟「關於常春藤」那段的淡綠只差 1.2，會整個融進去；在米白區塊上倒是最有顏色。不建議。', [['中文字標', 6.96], ['英文字標', 11.14], ['預約鈕', 9.87], ['膠囊 vs 淡綠', 1.20, 3], ['vs 米白區', 1.12, 3]]],
+  };
+  document.querySelector('#tone-rows').innerHTML = Object.entries(tones).map(([k, [name, spec, take, crs]]) => `
+   <div class="row"><div class="cells">${['desktop-about', 'desktop-day', 'desktop-campus', 'desktop-news'].map(bg => cell(bg, 'm', k)).join('')}${cell('desktop-news', 'm', k, '&menu=open', true)}</div>
+   <div class="note"><h3>${name}${k === 'deep' ? '<span class="pick">建議</span>' : ''}</h3><p>${spec}</p><p>${take}</p><div class="cr">${crs.map(([l, v, m]) => cr(l, v, m)).join('')}</div><a href="view.html?direction=b&size=m&tone=${k}">在捲動情境看 ↗</a></div></div>`).join('');
+
+  document.querySelector('#mobile-rows').innerHTML = `
+   <div class="row mobile"><div class="mobile-cells">${['s', 'm', 'l'].map(s => cell('mobile-about', s, 'deep')).join('')}</div><p class="mobile-note">深綠 × S／M／L（控制項 40／44／48）。M 是 44px 最小觸控尺寸。</p></div>
+   <div class="row mobile"><div class="mobile-cells">${['deep', 'paper', 'white', 'sage'].map(t => cell('mobile-day', 'm', t)).join('')}</div><p class="mobile-note">M × 深綠／米白／純白／淡綠，底下是「孩子的一天」。</p></div>
+   <div class="row mobile"><div class="mobile-cells">${['mobile-campus', 'mobile-news', 'mobile-hero'].map(bg => cell(bg, 'm', 'deep')).join('')}</div><p class="mobile-note">深綠 × M 在分校、消息與首屏底部。</p></div>`;
+})();
+</script>
+</body>
+</html>

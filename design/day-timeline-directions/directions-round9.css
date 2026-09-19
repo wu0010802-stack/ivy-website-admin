@@ -1,0 +1,36 @@
+/* Round 9: a giant title that stays put while the prints scroll over it and fades to a whisper. */
+.round9 .stage{position:relative}
+.round9 .day-intro{position:sticky;top:var(--header);z-index:0;height:var(--screen);min-height:0;padding:40px 24px 60px;justify-content:center}
+.round9 .day-intro>.eyebrow{margin-bottom:14px;opacity:.9}
+.round9 .day-intro h2{font-size:clamp(72px,13.2vw,206px);line-height:1.04;letter-spacing:0;white-space:nowrap;text-shadow:0 4px 40px #10251d33;transition:opacity .25s linear}
+.round9 .day-intro h2 .day-word{color:inherit}
+.round9 .day-lead{max-width:34em;margin-top:22px;font-size:clamp(14px,1.1vw,17px)}
+.round9 .begin-link{margin-top:22px}
+.round9 .day-intro.is-faded>*{opacity:var(--intro-fade,.16)}
+.round9 .timeline{position:relative;z-index:1;margin-top:calc(var(--screen) * -.28);padding-top:0}
+/* Prints spread wider and overlap less. */
+.round9 .timeline{width:min(1440px,calc(100% - 96px))}
+.round9 .moments{grid-template-columns:minmax(0,1fr) 140px minmax(0,1fr)}
+.round9 .moment+.moment{margin-top:-40px}
+.round9 .moment:nth-child(odd) .moment-card{justify-self:start;margin-left:6%}
+.round9 .moment:nth-child(even) .moment-card{justify-self:end;margin-right:4%}
+.round9 .moment:nth-child(3) .moment-card{margin-left:18%}
+.round9 .moment:nth-child(4) .moment-card{margin-right:14%}
+.round9 .moment:nth-child(5) .moment-card{margin-left:0}
+.round9 .moment:nth-child(6) .moment-card{margin-right:0}
+@media(min-width:801px) and (max-width:1100px){.round9 .timeline{width:calc(100% - 48px)}.round9 .moments{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.round9 .moment:nth-child(n) .moment-card{margin-left:0;margin-right:0}}
+@media(max-width:800px){
+ .round9 .day-intro{padding:30px 18px 40px}.round9 .day-intro h2{font-size:clamp(46px,13.5vw,70px)}.round9 .day-lead{font-size:13px}
+ .round9 .timeline{margin-top:calc(var(--screen) * -.2);padding-top:0}
+ .round9 .moment{padding-bottom:70px}
+ .round9 .moment:nth-child(n) .moment-card{width:86%;margin:0}.round9 .moment:nth-child(even) .moment-card{margin-left:auto}
+}
+@media(prefers-reduced-motion:reduce){.round9 .day-intro h2{transition:none}}
+
+/* Trimmed on request: no lead, no 08:00–16:30 cue, no finale copy, no closing section. */
+.round9 .day-lead,.round9 .begin-link,.round9 .finale-copy,.round9 .day-ending{display:none}
+.round9 .finale{padding-bottom:140px}
+.round9 .finale{display:none}
+.round9 .timeline{padding-bottom:160px}
+
+.round9 .timeline{padding-bottom:320px}

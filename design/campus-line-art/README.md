@@ -1,8 +1,10 @@
 # 五校校舍輪廓線稿
 
-日期：2026-09-16
+日期：2026-09-16；國際校更新：2026-09-17
 
 依使用者指定的國際校線稿風格，以內建 image_gen 工具，分別參考其他四校現行外觀照片製作。米白底、淡灰綠細線，不包含校名字樣。五校線稿已接入首頁分校切換，以及各校內頁的交通與聯絡區。
+
+2026-09-17：國際校改依 `../../assets/international.webp` 的完整校舍重製，對齊其他四校的清晰灰綠細線、米白底及 3:2 構圖；保留雙側方塔、尖頂窗與長拱廊。使用內建 image_gen 生成並調整濃淡，完整提示詞見 [international-prompt.md](international-prompt.md)。
 
 每校提供 1536×1024 PNG 生成原圖及 WebP quality 90 網站用壓縮版；轉檔未另行重繪。原圖與 WebP 檔名分別為 `<校區>-line-art.png`、`<校區>-line-art.webp`。
 
@@ -11,15 +13,16 @@
 | 義華 | yihua | `../../assets/yihua-exterior.webp`，使用者本次提供的新照片 |
 | 明華 | minghua | `../../assets/minghua.webp` |
 | 崇德 | chongde | `../../assets/chongde.webp` |
+| 國際 | international | `../../assets/international.webp` |
 | 仁武 | renwu | `../../assets/renwu.webp` |
 
 風格參考：使用者提供的國際校線稿截圖（2026-09-16 21:55），對應 `../campus-background-mockups/c-background-source.png` 中的建築線稿風格。插畫用於品牌裝飾，不作為工程圖。
 
 ## 網站套用
 
-- 上述四校 WebP 複製到 `../../assets/campus-line-art-<校區>.webp`。
-- 國際校沿用使用者提供的既有線稿截圖，原圖保留為 `international-line-art.png`，網站版為 `../../assets/campus-line-art-international.webp`。
-- `campusArtwork(key)` 建立裝飾圖片；首頁與選校照片同步切換，內頁依路由顯示。右側樹木與圍牆沿用原 C 版背景，並遮罩隱藏原固定建築。
+- 五校 WebP 複製到 `../../assets/campus-line-art-<校區>.webp`。
+- 國際校生成原圖為 `international-line-art.png`，壓縮版為 `international-line-art.webp`，取代原 830×604 截圖。
+- `campusArtwork(key)` 建立裝飾圖片；首頁標題右上與選校照片同步切換，內頁依路由顯示。共用花園、樹木與圍牆背景已移除，僅保留各校自己的線稿。
 - 執行 `python3 package_preview.py` 會把五校線稿內嵌到 `preview.html`。
 
 ## 最終生成提示詞

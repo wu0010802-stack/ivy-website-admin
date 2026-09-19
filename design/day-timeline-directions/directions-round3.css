@@ -1,0 +1,239 @@
+/* Round 3: four further compositions on the same video stage, copy, and curtain. */
+/* Each direction only restyles the shared markup; markers stay links with reading state. */
+
+/* E — a clock face keeps time beside a single column of moments. */
+.direction-e .film-shade{background:linear-gradient(180deg,#16332aa8,#16332a66 45%,#16332aa8)}
+.direction-e .day-intro h2{font-size:clamp(58px,6.8vw,104px)}
+.direction-e .timeline{width:min(1360px,calc(100% - 144px));display:grid;grid-template-columns:380px minmax(0,1fr);column-gap:96px;align-items:start;padding-top:48px}
+.direction-e .timeline-rail{left:calc(380px + 96px + 12px);top:48px}
+.direction-e .clock{position:sticky;top:calc(var(--header) + 48px);display:grid;justify-items:center;gap:22px;padding-top:12px}
+.direction-e .clock-face{width:100%;max-width:380px;height:auto;filter:drop-shadow(0 22px 40px #06180f40)}
+.direction-e .clock-ring{fill:#fffaf0;stroke:#203f32;stroke-width:1.5}
+.direction-e .clock-ticks line{stroke:#203f32;stroke-width:2;stroke-linecap:round}
+.direction-e .clock-numerals text{font-family:'Source Sans 3',sans-serif;font-size:15px;fill:#203f32;text-anchor:middle;dominant-baseline:central}
+.direction-e .clock-day,.direction-e .clock-done{fill:none;stroke-width:8;stroke-dasharray:255 360;transform:rotate(150deg);transform-origin:100px 100px;transform-box:view-box}
+.direction-e .clock-day{stroke:#203f321f}
+.direction-e .clock-done{stroke:var(--yellow);stroke-linecap:round;stroke-dasharray:calc(var(--clock-progress,0) * 255px) 360px}
+.direction-e .clock-stops circle{fill:#fffaf0;stroke:#203f32;stroke-width:1.5;transition:fill .2s}
+.direction-e .clock-stops circle.is-past{fill:var(--yellow)}
+.direction-e .hand-hour,.direction-e .hand-minute{stroke:#203f32;stroke-linecap:round;transform-origin:100px 100px;transform-box:view-box}
+.direction-e .hand-hour{stroke-width:5;transform:rotate(calc(var(--clock-minutes,480) * .5deg))}
+.direction-e .hand-minute{stroke-width:2.5;transform:rotate(calc(var(--clock-minutes,480) * 6deg))}
+.direction-e .clock-pin{fill:var(--yellow);stroke:#203f32;stroke-width:1.5}
+.direction-e .clock-readout{display:flex;align-items:baseline;gap:14px;font-size:11px;letter-spacing:.1em;color:#ffe9a8}
+.direction-e .clock-readout time{font-family:'Source Sans 3',sans-serif;font-size:34px;line-height:1;letter-spacing:-.02em;color:var(--paper);font-variant-numeric:tabular-nums}
+.direction-e .clock-title{font-size:14px;letter-spacing:.06em;color:var(--paper)}
+.direction-e .moments{display:block}
+.direction-e .moment{grid-template-columns:132px minmax(0,1fr);column-gap:0}
+.direction-e .moment+.moment{margin-top:64px}
+.direction-e .moment:nth-child(n) .moment-card{grid-column:2;grid-row:1}
+.direction-e .time-marker{grid-column:1;grid-row:1;justify-self:stretch;align-items:flex-start;text-align:left;margin:4px 0 0;padding:0 12px 0 34px;min-width:0;background:none;border:0;color:var(--paper);gap:0}
+.direction-e .time-marker::before{display:none}
+.direction-e .marker-state{display:flex;align-items:center;gap:6px;order:3;margin-top:10px;font-size:10px;letter-spacing:.1em;color:#ffe9a8}
+.direction-e .time-dot{position:absolute;left:6px;top:12px;width:13px;height:13px;margin:0;outline:0;background:#182d25;border:1.5px solid var(--paper);border-radius:50%;transition:background-color .2s,box-shadow .2s}
+.direction-e .time-marker time{font-size:36px;line-height:1.1}
+.direction-e .marker-title{font-size:13px;letter-spacing:.06em;margin-top:6px}
+.direction-e .moment.is-past .time-dot{background:var(--paper)}
+.direction-e .moment.is-active .time-dot{background:var(--yellow);border-color:var(--yellow);box-shadow:0 0 0 5px #ffd75e33}
+.direction-e .moment.is-active .time-marker{color:var(--paper)}.direction-e .moment.is-active .time-marker time{color:var(--yellow)}
+.direction-e .moment-card{background:#fffaf0;border-radius:8px;overflow:hidden;box-shadow:0 20px 50px #06180f33}
+.direction-e .moment-card img{aspect-ratio:1.6;object-position:50% 40%}
+.direction-e .moment-card figcaption{left:auto;right:12px}
+.direction-e .card-copy{padding:26px 30px 24px;border-top:6px solid var(--card)}
+.direction-e .card-kicker{color:#5b6b58}.direction-e .card-kicker>span:last-child{display:none}
+.direction-e .card-copy h3{font-size:clamp(24px,2vw,32px);margin-top:14px}.direction-e .card-copy>p:not(.card-kicker){font-size:14px;margin-top:14px;color:#3f5045}
+.direction-e .card-note{border-top:1px dashed #203f3240;color:#6b7654}
+@media(min-width:1101px){
+ .direction-e .moment-card{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);min-height:330px}
+ .direction-e .moment-card figure{min-height:0}
+ .direction-e .moment-card img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto}
+ .direction-e .card-copy{border-top:0;border-left:6px solid var(--card);padding:30px 32px 26px;align-self:center}
+}
+
+/* F — a winding trail; each leg is drawn as the reader walks past it. */
+.direction-f .film-shade{background:linear-gradient(180deg,#1d3b2fb3,#1d3b2f73 40%,#1d3b2fb8)}
+.direction-f .day-intro h2{font-size:clamp(60px,7vw,106px)}
+.direction-f .timeline{width:min(1240px,calc(100% - 160px));padding-top:96px}
+.direction-f .timeline-rail{display:none}
+.direction-f .moments{grid-template-columns:minmax(0,1fr) 190px minmax(0,1fr)}
+.direction-f .moment{padding-bottom:70px}
+.direction-f .moment+.moment{margin-top:0}
+.direction-f .trail{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:visible}
+.direction-f .trail path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.direction-f .trail .m{display:none}
+.direction-f .trail-base{stroke:#fffdf5b0;stroke-width:3;stroke-dasharray:0 2.4}
+.direction-f .trail-walk{stroke:var(--yellow);stroke-width:4;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .6s ease}
+.direction-f .moment.is-past .trail-walk{stroke-dashoffset:0}
+.direction-f .moment.is-active .trail-walk{stroke-dashoffset:45}
+html[data-motion=native] .direction-f .trail{view-timeline:--trail block;view-timeline-inset:50% 45%}
+@supports (animation-timeline:view()) and (animation-range:cover 0% cover 100%){
+ html[data-motion=native] .direction-f .trail-walk{animation:walk linear both;animation-timeline:--trail;animation-range:cover 0% cover 100%;transition:none}
+}
+@keyframes walk{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+.direction-f .time-marker{grid-column:2;grid-row:1;justify-self:center;z-index:2;width:112px;height:112px;margin-top:-56px;padding:0;justify-content:center;gap:1px;border-radius:50%;background:#fffaf0;border:3px solid #fffaf0;box-shadow:0 10px 30px #06180f3d,0 0 0 6px #fffdf526;color:var(--ink);transition:border-color .2s,box-shadow .2s,transform .2s}
+.direction-f .time-marker::before{display:none}
+.direction-f .marker-state{display:flex;align-items:center;gap:5px;min-height:14px;font-size:9px;letter-spacing:.08em;color:#6b7654}
+.direction-f .time-dot{width:7px;height:7px;margin:0;outline:0;background:transparent;border:1px solid currentColor;border-radius:50%}
+.direction-f .time-marker time{font-size:26px;line-height:1.1;letter-spacing:-.02em}
+.direction-f .marker-title{font-size:12px;letter-spacing:.05em;margin-top:2px}
+.direction-f .moment.is-past .time-dot{background:currentColor}
+.direction-f .moment.is-active .time-marker{color:var(--ink);border-color:var(--yellow);box-shadow:0 10px 30px #06180f3d,0 0 0 6px #ffd75e66;transform:scale(1.06)}
+.direction-f .moment.is-active .marker-state{color:#8a6a10}
+.direction-f .moment.is-active .time-dot{background:var(--yellow);border-color:#8a6a10}
+.direction-f .moment-card{position:relative;z-index:1;background:#fffaf0;border-radius:22px;overflow:hidden;box-shadow:0 22px 55px #06180f38;margin-top:70px;max-width:480px}
+.direction-f .moment:nth-child(odd) .moment-card{justify-self:end}.direction-f .moment:nth-child(even) .moment-card{justify-self:start}
+.direction-f .moment-card img{aspect-ratio:1.3;object-position:50% 40%}
+.direction-f .moment-card figcaption{left:auto;right:12px;bottom:12px}
+.direction-f .card-copy{position:relative;padding:40px 28px 24px}
+.direction-f .card-copy::before{content:attr(data-number);position:absolute;top:-30px;left:24px;width:60px;height:60px;display:grid;place-items:center;border-radius:50%;background:var(--card);font-family:'Source Sans 3',sans-serif;font-size:22px;color:var(--ink);box-shadow:0 6px 16px #06180f22}
+.direction-f .card-kicker{color:#5b6b58}.direction-f .card-kicker>span:last-child{display:none}
+.direction-f .card-copy h3{font-size:clamp(24px,2.1vw,32px);margin-top:12px}.direction-f .card-copy>p:not(.card-kicker){font-size:13.5px;margin-top:14px;color:#3f5045}
+.direction-f .card-note{border-top:1px dashed #203f3240;color:#6b7654}
+
+/* G — six full-height chapters that stack; earlier chapters stay visible as tabs. */
+.direction-g{--strip:56px}
+.direction-g .film-shade{background:linear-gradient(180deg,#0f2a20c0,#0f2a2080 50%,#0f2a20c0)}
+.direction-g .day-intro h2{font-size:clamp(58px,7vw,108px)}
+.direction-g .timeline{width:min(1400px,calc(100% - 96px));padding:0 0 40px}
+.direction-g .timeline-rail{display:none}
+.direction-g .film-toggle{top:auto;bottom:26px}
+.direction-g .moments{display:block}
+.direction-g .moment{display:grid;align-items:stretch;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--strip) minmax(0,1fr);position:sticky;top:calc(var(--header) + var(--stack,0px));height:calc(var(--screen) - var(--stack,0px));margin:0 0 45vh;scroll-margin-top:0;border-radius:22px 22px 0 0;overflow:hidden;background:#fffaf0;color:#1b3229;box-shadow:0 -18px 50px #06180f4d}
+.direction-g .moment+.moment{margin-top:0}
+.direction-g .moment:nth-child(2){--stack:calc(var(--strip) * 1)}.direction-g .moment:nth-child(3){--stack:calc(var(--strip) * 2)}.direction-g .moment:nth-child(4){--stack:calc(var(--strip) * 3)}.direction-g .moment:nth-child(5){--stack:calc(var(--strip) * 4)}.direction-g .moment:nth-child(6){--stack:calc(var(--strip) * 5)}
+.direction-g .moment-card{animation:none!important;opacity:1!important;transform:none!important;transition:none!important}
+.direction-g .time-marker{grid-row:1;grid-column:1;justify-self:stretch;flex-direction:row;align-items:center;gap:18px;height:var(--strip);margin:0;padding:0 30px;min-width:0;background:#fffaf0;border:0;border-bottom:1px solid #1b322922;color:var(--ink);text-align:left;transition:background-color .2s,color .2s}
+.direction-g .time-marker::before{display:none}
+.direction-g .marker-state{display:flex;align-items:center;gap:8px;order:3;margin-left:auto;font-size:11px;letter-spacing:.08em;color:inherit;opacity:.72}
+.direction-g .time-dot{width:12px;height:12px;margin:0;outline:0;border:0;border-radius:3px;background:var(--card)}
+.direction-g .time-marker time{font-size:24px;line-height:1}
+.direction-g .marker-title{font-size:14px;letter-spacing:.06em;margin:0}
+.direction-g .moment.is-active .time-marker{background:var(--ink);color:var(--paper);border-bottom-color:var(--ink)}
+.direction-g .moment:nth-child(n) .moment-card{grid-row:2;grid-column:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);min-height:0;background:#fffaf0;box-shadow:none}
+.direction-g .moment-card figure{position:relative;min-height:0}
+.direction-g .moment-card img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;object-position:50% 35%}
+.direction-g .card-copy{position:relative;display:flex;flex-direction:column;justify-content:center;min-height:0;overflow:auto;padding:40px 56px;background:var(--card)}
+.direction-g .card-copy::before{content:attr(data-time);font-family:'Source Sans 3',sans-serif;font-size:clamp(72px,8vw,128px);line-height:.95;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--ink);margin-bottom:18px}
+.direction-g .card-kicker{font-size:11px}.direction-g .card-kicker>span:last-child{display:none}
+.direction-g .card-copy h3{font-size:clamp(28px,2.6vw,40px);margin-top:14px}.direction-g .card-copy>p:not(.card-kicker){font-size:15px;margin-top:16px}
+.direction-g .card-note{border-top-color:#1b32294d}
+
+/* H — the whole day on one board; hover or focus a tile to read its story. */
+.direction-h .film-shade{background:linear-gradient(180deg,#14302699,#1430265e 50%,#143026a6)}
+.direction-h .day-intro{height:auto;min-height:0;padding:88px 24px 26px}
+.direction-h .day-intro h2{font-size:clamp(50px,5.6vw,86px)}
+.direction-h .begin-link{display:none}
+.direction-h .timeline{width:min(1400px,calc(100% - 96px));padding:26px 0 90px}
+.direction-h .timeline-rail{display:none}
+.direction-h .moments{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:clamp(200px,25vh,260px);gap:14px}
+.direction-h .moment{display:block;position:relative;margin:0;grid-column:span 2;overflow:hidden;border-radius:18px;background:#182d25;box-shadow:0 18px 50px #06180f3d;isolation:isolate;scroll-margin-top:calc(var(--header) + 20px)}
+.direction-h .moment+.moment{margin-top:0}
+.direction-h .moment:nth-child(1){grid-column:1/3;grid-row:1/3}
+.direction-h .moment:nth-child(4){grid-column:3/7}
+.direction-h .moment:nth-child(5){grid-column:1/4}.direction-h .moment:nth-child(6){grid-column:4/7}
+.direction-h .moment-card{position:absolute;inset:0;background:none;box-shadow:none;color:var(--paper)}
+.direction-h .moment-card figure{position:absolute;inset:0}
+.direction-h .moment-card img{width:100%;height:100%;aspect-ratio:auto;object-position:50% 35%;transition:transform .6s ease}
+.direction-h .moment:hover img,.direction-h .moment:focus-within img{transform:scale(1.04)}
+.direction-h .moment-card figure::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#0000 35%,#0e241be0)}
+.direction-h .moment-card figcaption{bottom:auto;left:auto;top:12px;right:12px}
+.direction-h .time-marker{position:absolute;top:14px;left:14px;z-index:2;flex-direction:row;align-items:baseline;gap:8px;margin:0;padding:6px 12px;min-width:0;background:#fffaf0;color:var(--ink);border:0;border-radius:100px;box-shadow:0 4px 14px #06180f33}
+.direction-h .time-marker::before,.direction-h .marker-state{display:none}
+.direction-h .time-marker time{font-size:18px;line-height:1.2}
+.direction-h .marker-title{font-size:12px;letter-spacing:.05em;margin:0}
+.direction-h .moment.is-active .time-marker{background:var(--yellow);color:var(--ink)}
+.direction-h .card-copy{position:absolute;left:0;right:0;bottom:0;z-index:1;padding:22px 24px 20px}
+.direction-h .card-kicker{font-size:10px;color:#ffe9a8}.direction-h .card-kicker>span:last-child{display:none}
+.direction-h .card-copy h3{font-size:clamp(20px,1.6vw,26px);line-height:1.45;margin-top:8px;text-shadow:0 1px 10px #06180f}
+.direction-h .moment:nth-child(1) .card-copy h3{font-size:clamp(26px,2.3vw,36px)}
+.direction-h .card-copy>p:not(.card-kicker),.direction-h .card-note{max-height:0;opacity:0;overflow:hidden;margin-top:0;padding-top:0;transition:max-height .45s ease,opacity .35s ease,margin .45s ease,padding .45s ease}
+.direction-h .moment:hover .card-copy>p:not(.card-kicker),.direction-h .moment:focus-within .card-copy>p:not(.card-kicker){max-height:120px;opacity:1;margin-top:10px}
+.direction-h .moment:hover .card-note,.direction-h .moment:focus-within .card-note{max-height:60px;opacity:1;margin-top:14px;padding-top:10px}
+.direction-h .card-copy>p:not(.card-kicker){font-size:13px;line-height:1.8;color:#f3f3e8}
+.direction-h .card-note{border-color:#fffdf54d;font-size:11px;color:#dfebdb}.direction-h .card-note i{color:var(--yellow)}
+
+@media(min-width:1700px){
+ .direction-e .timeline{width:1500px;grid-template-columns:420px 1fr;column-gap:120px}.direction-e .timeline-rail{left:calc(420px + 120px + 12px)}.direction-e .clock-face{max-width:420px}
+ .direction-f .timeline{width:1400px}.direction-f .moment-card{max-width:520px}
+ .direction-h .moments{grid-auto-rows:280px}
+}
+@media(min-width:801px) and (max-width:1100px){
+ .direction-e .timeline{width:calc(100% - 72px);grid-template-columns:270px minmax(0,1fr);column-gap:44px;padding-top:36px}.direction-e .timeline-rail{left:calc(270px + 44px + 12px);top:36px}.direction-e .clock{top:calc(var(--header) + 36px)}.direction-e .clock-readout time{font-size:28px}
+ .direction-e .moment{grid-template-columns:104px minmax(0,1fr)}.direction-e .time-marker{padding-left:30px}.direction-e .time-marker time{font-size:28px}.direction-e .marker-title{font-size:12px}.direction-e .card-copy{padding:22px}.direction-e .card-copy h3{font-size:24px}
+ .direction-f .timeline{width:calc(100% - 80px);padding-top:80px}.direction-f .moments{grid-template-columns:minmax(0,1fr) 130px minmax(0,1fr)}.direction-f .time-marker{width:96px;height:96px;margin-top:-48px}.direction-f .time-marker time{font-size:22px}.direction-f .marker-title{font-size:11px}.direction-f .moment-card{max-width:none;margin-top:60px}.direction-f .card-copy{padding:36px 22px 22px}.direction-f .card-copy h3{font-size:24px}.direction-f .card-copy>p:not(.card-kicker){font-size:13px}
+ .direction-g .timeline{width:calc(100% - 56px)}.direction-g .card-copy{padding:28px 32px}.direction-g .card-copy::before{font-size:72px}.direction-g .card-copy h3{font-size:27px}.direction-g .card-copy>p:not(.card-kicker){font-size:14px}.direction-g .card-copy>p>br{display:none}
+ .direction-h .timeline{width:calc(100% - 56px)}.direction-h .moments{grid-auto-rows:clamp(170px,22vh,220px);gap:12px}.direction-h .card-copy{padding:16px 18px 16px}.direction-h .card-copy h3{font-size:19px}.direction-h .moment:nth-child(1) .card-copy h3{font-size:25px}.direction-h .card-copy>p:not(.card-kicker){font-size:12px;line-height:1.7}.direction-h .card-copy>p>br{display:none}.direction-h .time-marker time{font-size:16px}
+}
+@media(max-width:800px){
+ /* E: the clock shrinks to a sticky strip; markers sit above wide photographs. */
+ .direction-e .timeline{display:block;width:calc(100% - 36px);max-width:600px;padding-top:0}
+ .direction-e .timeline-rail{left:10px;top:0}
+ .direction-e .clock{position:sticky;top:var(--header);z-index:5;grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:0 14px;margin:0 -18px 26px;padding:9px 130px 9px 16px;background:#10231de8;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid #fffdf51f}
+ .direction-e .clock-face{width:58px;max-width:none;filter:none}
+ .direction-e .clock-numerals,.direction-e .clock-ticks,.direction-e .clock-stops{display:none}
+ .direction-e .clock-readout{gap:10px;flex-wrap:wrap}.direction-e .clock-readout time{font-size:24px}.direction-e .clock-title{font-size:13px}
+ .direction-e .moment{grid-template-columns:20px minmax(0,1fr);column-gap:18px}
+ .direction-e .moment+.moment{margin-top:44px}
+ .direction-e .moment:nth-child(n) .time-marker{grid-column:2;grid-row:1;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:0 10px;margin:0 0 14px;padding:0}
+ .direction-e .time-dot{left:-34px;top:9px}
+ .direction-e .time-marker time{font-size:28px}.direction-e .marker-title{margin:0;font-size:14px}.direction-e .marker-state{order:3;margin:0 0 0 auto}
+ .direction-e .moment:nth-child(n) .moment-card{grid-column:2;grid-row:2}
+ .direction-e .moment-card img{aspect-ratio:1.4}.direction-e .card-copy{padding:18px 18px 18px}.direction-e .card-copy h3{font-size:clamp(21px,5vw,28px)}.direction-e .card-copy>p:not(.card-kicker){font-size:12.5px}.direction-e .card-note{font-size:10px}
+ /* F: the trail wobbles down a narrow left column; badges sit on it. */
+ .direction-f .timeline{width:calc(100% - 32px);max-width:600px;padding-top:70px}
+ .direction-f .moments{display:block}
+ .direction-f .moment{grid-template-columns:76px minmax(0,1fr);column-gap:12px;padding-bottom:48px}
+ .direction-f .trail{left:0;width:76px}
+ .direction-f .trail .d{display:none}.direction-f .trail .m{display:block}
+ .direction-f .moment:nth-child(n) .time-marker{grid-column:1;grid-row:1;justify-self:center;width:76px;height:76px;margin-top:-38px}
+ .direction-f .time-marker time{font-size:19px}.direction-f .marker-title{font-size:10px;margin-top:1px}.direction-f .marker-state{display:none}
+ .direction-f .moment:nth-child(n) .moment-card{grid-column:2;grid-row:1;justify-self:stretch;margin-top:0;max-width:none;border-radius:16px}
+ .direction-f .card-copy{padding:30px 18px 20px}.direction-f .card-copy::before{width:48px;height:48px;top:-24px;left:16px;font-size:18px}
+ .direction-f .card-copy h3{font-size:clamp(21px,5vw,28px)}.direction-f .card-copy>p:not(.card-kicker){font-size:12.5px}.direction-f .card-note{font-size:10px}
+ /* G: thinner tabs; the photograph sits above the coloured story panel. */
+ .direction-g{--strip:42px}
+ .direction-g .film-toggle{top:12px;bottom:auto}.direction-g .moment:first-child .marker-state{margin-right:104px}
+ .direction-g .timeline{width:calc(100% - 20px);padding-bottom:20px}
+ .direction-g .moment{border-radius:16px 16px 0 0}
+ .direction-g .time-marker{padding:0 16px;gap:12px}.direction-g .time-marker time{font-size:19px}.direction-g .marker-title{font-size:13px}.direction-g .marker-state{font-size:10px}
+ .direction-g .moment:nth-child(n) .moment-card{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,.85fr) minmax(0,1.15fr)}
+ .direction-g .card-copy{padding:18px 20px 20px;justify-content:flex-start}
+ .direction-g .card-copy::before{font-size:44px;margin-bottom:8px}
+ .direction-g .card-copy h3{font-size:clamp(20px,5vw,26px);margin-top:8px}.direction-g .card-copy>p:not(.card-kicker){font-size:12.5px;line-height:1.75;margin-top:10px}.direction-g .card-note{margin-top:14px;padding-top:10px;font-size:10px}
+ /* H: one column; stories stay visible instead of waiting for hover. */
+ .direction-h .day-intro{padding:64px 24px 10px}
+ .direction-h .timeline{width:calc(100% - 32px);padding:16px 0 50px}
+ .direction-h .moments{grid-template-columns:minmax(0,1fr);grid-auto-rows:auto;gap:16px}
+ .direction-h .moment:nth-child(n){grid-column:auto;grid-row:auto;border-radius:16px;background:#fffaf0;color:#1b3229}
+ .direction-h .moment-card{position:static;color:inherit}
+ .direction-h .moment-card figure{position:relative;inset:auto}
+ .direction-h .moment-card figure::after{display:none}
+ .direction-h .moment-card img{aspect-ratio:1.45;height:auto}
+ .direction-h .moment:hover img,.direction-h .moment:focus-within img{transform:none}
+ .direction-h .moment-card figcaption{top:auto;bottom:10px;right:10px}
+ .direction-h .card-copy{position:static;padding:18px 18px 18px}
+ .direction-h .card-kicker{color:#5b6b58}
+ .direction-h .card-copy h3,.direction-h .moment:nth-child(1) .card-copy h3{font-size:clamp(21px,5vw,27px);text-shadow:none}
+ .direction-h .card-copy>p:not(.card-kicker),.direction-h .card-note{max-height:none;opacity:1;overflow:visible;transition:none}
+ .direction-h .card-copy>p:not(.card-kicker){margin-top:12px;font-size:13px;color:#546151}
+ .direction-h .card-note{margin-top:16px;padding-top:12px;border-color:#1b322936;color:#6b7654}.direction-h .card-note i{color:inherit}
+ .direction-h .time-marker{top:12px;left:12px}
+}
+@media(max-width:370px){
+ .direction-e .timeline{width:calc(100% - 24px)}.direction-e .clock{margin-inline:-12px;padding-right:118px}.direction-e .time-marker time{font-size:24px}.direction-e .card-copy{padding-inline:12px}
+ .direction-f .timeline{width:calc(100% - 20px)}.direction-f .moment{grid-template-columns:64px minmax(0,1fr);column-gap:10px}.direction-f .trail{width:64px}.direction-f .moment:nth-child(n) .time-marker{width:64px;height:64px;margin-top:-32px}.direction-f .time-marker time{font-size:16px}.direction-f .marker-title{font-size:9px}.direction-f .card-copy{padding-inline:14px}
+ .direction-g .time-marker{padding:0 12px;gap:8px}.direction-g .time-marker time{font-size:17px}.direction-g .marker-title{font-size:12px}.direction-g .card-copy{padding:14px 14px 16px}.direction-g .card-copy::before{font-size:38px}
+ .direction-h .timeline{width:calc(100% - 24px)}.direction-h .card-copy{padding-inline:14px}
+}
+@media(prefers-reduced-motion:reduce){
+ .direction-e .hand-minute{display:none}
+ .direction-e .time-dot,.direction-e .clock-stops circle,.direction-f .time-marker,.direction-f .trail-walk,.direction-g .time-marker,.direction-h .moment-card img,.direction-h .card-copy>p:not(.card-kicker),.direction-h .card-note{transition:none}
+ .direction-f .moment.is-active .time-marker{transform:none}
+ .direction-h .moment:hover img,.direction-h .moment:focus-within img{transform:none}
+}
+@media(forced-colors:active){
+ .direction-e .clock-ring{fill:Canvas;stroke:CanvasText}.direction-e .hand-hour,.direction-e .hand-minute,.direction-e .clock-ticks line{stroke:CanvasText}.direction-e .clock-done{stroke:Highlight}
+ .direction-f .trail-base{stroke:CanvasText}.direction-f .trail-walk{stroke:Highlight}
+ .direction-e .time-marker,.direction-f .time-marker,.direction-g .time-marker,.direction-h .time-marker{border:1px solid CanvasText}
+ .direction-g .moment.is-active .time-marker,.direction-h .moment.is-active .time-marker{outline:2px solid Highlight;outline-offset:-3px}
+}

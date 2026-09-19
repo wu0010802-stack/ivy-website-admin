@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>捲動時收起</title>
+<meta name="description" content="常春藤官網：膠囊在向下捲時收起、向上捲時出現的互動 mock-up 與對照動畫。">
+<link rel="stylesheet" href="b-tuning.css">
+<style>
+.live{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.live figure{margin:0;display:grid;gap:8px}
+.live iframe{width:100%;height:620px;border:1px solid var(--line);border-radius:6px;background:#fffdf6;display:block}
+.live figcaption{font-size:12px;color:var(--muted)}
+.live figcaption b,.gifs figcaption b{color:var(--ink);font-size:13px;display:block;margin-bottom:2px}
+.hint{margin-top:10px;font-size:12px;color:var(--muted)}
+.gifs{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;margin-top:18px}
+.gifs figure{margin:0;display:grid;gap:8px}
+.gifs img{width:100%;height:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel);display:block}
+.gifs .mobile-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gifs .mobile-pair img{max-width:260px;justify-self:center}
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:20px 32px;margin-top:16px}
+.rules h3{font:700 17px/1.5 'LINE Seed TW',sans-serif;margin:0 0 8px}
+.rules ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.95}
+.rules li{margin-bottom:4px}
+@media(max-width:900px){.live,.gifs,.rules{grid-template-columns:1fr}.live iframe{height:480px}}
+</style>
+</head>
+<body>
+<header class="review-header">
+ <a class="review-brand" href="placement.html">IVY <span>常春藤幼兒園</span></a>
+ <div class="review-title"><span>DESIGN STUDY / 2026.09.18 · B 浮動膠囊</span><h1>向下捲收起，向上捲出現。</h1></div>
+ <a class="review-home" href="placement.html">回位置比較 ↗</a>
+</header>
+
+<section class="intro">
+ <p>不管膠囊放哪裡，它都是固定的、內容會從底下捲過去，所以一定會蓋到東西。這一版改成<strong>看方向</strong>：往下看內容時膠囊滑走，畫面完全乾淨；想找導覽時往上撥一下，它就回來。這是行為，不是位置，可以跟任何一種擺法搭配，下面用的是站上定案的「整顆靠右」。</p>
+ <p class="hint">主站加了預覽參數：<code>index.html?autohide=1#/home</code>。目前<strong>沒有</strong>套用到預設，站上仍是一直顯示。</p>
+</section>
+
+<section class="block" id="live" hidden>
+ <h2>自己捲捲看 <small>LIVE · 兩邊同步</small></h2>
+ <p class="lead">左右是同一個首頁，捲動任一邊另一邊會跟著。兩邊都已經先捲過首屏，直接往下滑再往上撥，比較膠囊在不在。</p>
+ <div class="live">
+  <figure><iframe title="一直顯示" src="../../index.html#/home" loading="lazy"></iframe><figcaption><b>一直顯示（現況）</b>膠囊固定在上面，捲到哪都在。</figcaption></figure>
+  <figure><iframe title="向下捲收起" src="../../index.html?autohide=1#/home" loading="lazy"></iframe><figcaption><b>向下捲收起</b>往下滑時滑走，往上撥就回來。</figcaption></figure>
+ </div>
+ <p class="hint">在真實網站整頁看：<a href="../../index.html?autohide=1#/home">向下捲收起 ↗</a>　<a href="../../index.html#/home">一直顯示 ↗</a></p>
+</section>
+
+<section class="block" id="clips">
+ <h2>對照動畫 <small>同一段捲動：先往下看內容，再往上撥一下</small></h2>
+ <div class="gifs">
+  <figure><img src="autohide/off-desktop.gif" alt="桌機，膠囊一直顯示" width="720" height="150" loading="lazy"><figcaption><b>桌機・一直顯示</b>往下捲的整段時間，膠囊都疊在標題與照片上。</figcaption></figure>
+  <figure><img src="autohide/on-desktop.gif" alt="桌機，膠囊向下捲時收起" width="720" height="150" loading="lazy"><figcaption><b>桌機・向下捲收起</b>開始往下就滑走，往上撥立刻回來。</figcaption></figure>
+ </div>
+ <div class="gifs" style="margin-top:8px">
+  <figure><div class="mobile-pair"><img src="autohide/off-mobile.gif" alt="手機，膠囊一直顯示" width="390" height="340" loading="lazy"><img src="autohide/on-mobile.gif" alt="手機，膠囊向下捲時收起" width="390" height="340" loading="lazy"></div><figcaption><b>手機・左邊一直顯示，右邊向下捲收起</b>手機畫面小，膠囊佔掉的比例更高，差別比桌機明顯。</figcaption></figure>
+ </div>
+</section>
+
+<section class="block" id="rules">
+ <h2>行為規則</h2>
+ <div class="rules">
+  <div>
+   <h3>什麼時候收起</h3>
+   <ul>
+    <li>只在<strong>離開首屏之後</strong>才有作用；首屏的頁首照舊。</li>
+    <li>向下捲超過 6px 才收，避免手指微抖就閃。</li>
+    <li>收起是往上滑出畫面加淡出，約 0.32 秒。</li>
+   </ul>
+  </div>
+  <div>
+   <h3>什麼時候一定留著</h3>
+   <ul>
+    <li>向上捲，立刻回來（約 0.34 秒）。</li>
+    <li>選單開著的時候不收；收起時按選單也會先把膠囊帶回來。</li>
+    <li>鍵盤 Tab 到膠囊裡、或焦點在膠囊上時。</li>
+    <li>捲回接近最上面、或已經捲到頁尾底部（橡皮筋回彈）時。</li>
+    <li>系統開了「減少動態」時整個停用，膠囊一直顯示。</li>
+   </ul>
+  </div>
+ </div>
+</section>
+
+<section class="recommend">
+ <div class="card">
+  <h2>要不要用</h2>
+  <div>
+   <p><strong>好處。</strong>閱讀時畫面完全乾淨，膠囊不再蓋到標題或照片，「放哪裡」的壓力也跟著變小——不管靠左、靠右還是置中，只要往下看就不在了。手機因為畫面小，差別最明顯。</p>
+   <p><strong>代價。</strong>導覽與「預約參觀」不再隨時看得見，家長想預約時要先往上撥一下。對不熟悉這個手勢的長輩，可能會覺得東西「不見了」。另外捲動方向判斷偶爾會誤觸發，例如用滑鼠滾輪小幅來回時。</p>
+   <p><strong>折衷做法。</strong>可以只收起左邊的校徽、右邊的「選單＋預約」永遠留著，這樣預約入口一直在，畫面又比現在乾淨。要的話我再做一版來比。</p>
+   <p class="hint">目前只是預覽參數，主站預設沒有改。決定要用再套成預設。</p>
+  </div>
+  <div>
+   <table>
+    <thead><tr><th>項目</th><th>設定</th></tr></thead>
+    <tbody>
+     <tr><td>觸發</td><td>捲動方向，門檻 6px；用 requestAnimationFrame 節流，不綁計時器</td></tr>
+     <tr><td>收起</td><td>往上位移整顆高度＋頂距＋10，同時淡出；0.32 秒</td></tr>
+     <tr><td>出現</td><td>回到原位；0.34 秒</td></tr>
+     <tr><td>例外</td><td>選單開啟、焦點在膠囊、接近頁首、捲到底、減少動態</td></tr>
+     <tr><td>切換</td><td><code>?autohide=1</code></td></tr>
+     <tr><td>搭配</td><td>與五種擺法皆可組合，圖用的是站上定案的靠右</td></tr>
+    </tbody>
+   </table>
+  </div>
+ </div>
+</section>
+
+<script>
+(() => {
+  // 即時預覽只在本機伺服器有用；發佈成畫布時只留動畫。
+  const local = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+  const live = document.querySelector('#live');
+  if (!local) { document.querySelectorAll('.review-home, #live .hint a, .recommend .hint').forEach(el => el.remove()); return; }
+  live.hidden = false;
+  const frames = [...document.querySelectorAll('.live iframe')];
+  let syncing = false;
+  frames.forEach(frame => frame.addEventListener('load', () => {
+    const win = frame.contentWindow;
+    try {
+      const track = win.document.querySelector('.home-reveal-track');
+      if (track) win.scrollTo(0, track.offsetTop + track.offsetHeight + 200);
+    } catch (e) { /* 跨來源時略過 */ }
+    win.addEventListener('scroll', () => {
+      if (syncing) return;
+      syncing = true;
+      const y = win.scrollY;
+      frames.filter(other => other !== frame).forEach(other => { try { other.contentWindow.scrollTo(0, y); } catch (e) {} });
+      requestAnimationFrame(() => { syncing = false; });
+    }, { passive: true });
+  }));
+})();
+</script>
+</body>
+</html>

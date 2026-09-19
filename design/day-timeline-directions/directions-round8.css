@@ -1,0 +1,14 @@
+/* R: the WebGL sheet sits over the DOM card; the DOM keeps layout, focus and assistive text. */
+.round8 .polaroid-wrap{perspective:none;cursor:pointer}
+.round8 .polaroid{transform:none!important;transition:none;animation:none!important}
+.round8 .webgl-ready .polaroid-face{opacity:0}
+.round8 .webgl-ready .polaroid-face::before{display:none}
+.round8 .paper-view{position:absolute;z-index:4;pointer-events:none;display:block}
+.round8 .webgl-ready .flip{z-index:8}
+.round8 .webgl-ready .flip-hint{z-index:8}
+.round8 .webgl-ready .datestamp.time-marker{z-index:8;opacity:0}
+.round8 .webgl-ready .datestamp.time-marker:focus-visible{opacity:1}
+.round8 .polaroid-wrap:hover{translate:none}
+.round8 .moment-card{rotate:0deg!important}
+.round8 .polaroid-front img{transition:none}
+.round8 .day-content{overflow-x:clip}

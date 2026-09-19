@@ -84,3 +84,12 @@ html{scroll-behavior:auto}
  .direction-b .timeline,.direction-c .timeline,.direction-d .timeline{width:calc(100% - 24px)}.direction-b .moment,.direction-c .moment,.direction-d .moment{grid-template-columns:50px minmax(0,1fr);column-gap:10px}.direction-b .timeline-rail,.direction-c .timeline-rail,.direction-d .timeline-rail{left:24px}.direction-b .time-marker,.direction-c .time-marker{min-width:50px}.direction-b .time-marker time,.direction-c .time-marker time{font-size:19px}.direction-b .time-marker:before,.direction-c .time-marker:before{width:10px}
  .direction-b .card-copy{padding-inline:14px}.direction-b .card-copy h3,.direction-d .card-copy h3{font-size:20px}.direction-c .card-copy h3{font-size:25px}.direction-b .day-intro{padding-left:23px}.direction-b .day-intro h2{font-size:40px}.direction-d .card-copy{padding-inline:5px}
 }
+
+/* Round 3 adds E–H to the toolbar; phones show letters only. */
+.design-toolbar>a{padding:8px 11px;gap:7px}
+@media(max-width:800px){.design-toolbar{max-width:440px;gap:0}.design-toolbar>a:not(.overview-link) span{display:none}.design-toolbar>a{padding:7px 8px;min-width:40px}.toolbar-divider{margin-inline:2px}}
+@media(max-width:370px){.design-toolbar>a{min-width:0;padding-inline:6px}.design-toolbar>a b{font-size:11px}.design-toolbar .toolbar-divider{display:block;height:18px}}
+
+/* Round 4 adds I–K: names only on wide screens; phones scroll the toolbar. */
+@media(max-width:1600px){.design-toolbar>a:not(.overview-link) span{display:none}.design-toolbar>a{padding:8px 9px;min-width:40px}}
+@media(max-width:800px){.design-toolbar{overflow-x:auto;justify-content:flex-start;scrollbar-width:none;max-width:calc(100% - 24px)}.design-toolbar::-webkit-scrollbar{display:none}.design-toolbar>a{flex:0 0 auto}}

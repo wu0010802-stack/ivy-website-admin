@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A 建築線稿三種放法</title>
+<style>
+:root{--green:oklch(38% .055 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--gold:oklch(82% .14 84)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font:1rem/1.75 'PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
+a{color:var(--green)}
+main{width:min(1480px,calc(100% - 48px));margin:0 auto;padding:48px 0 96px}
+h1{font-size:2rem;margin:0 0 8px}
+.lead{max-width:60em;color:var(--muted);margin:0 0 32px}
+.lead code{background:rgb(0 0 0 / .05);padding:1px 6px;border-radius:4px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+article{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+article header{padding:20px 22px 14px}
+article h2{margin:0;font-size:1.375rem}
+article h2 small{display:block;font-size:.8125rem;font-weight:400;color:var(--muted);letter-spacing:.06em;margin-top:2px}
+article p{margin:10px 0 0;font-size:.9375rem}
+.open{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:8px 14px;border-radius:100px;background:var(--green);color:#fff;text-decoration:none;font-size:.875rem;font-weight:600}
+.shots{display:grid;gap:8px;padding:0 12px 12px}
+.shots img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+.shots figure{margin:0}
+.shots figcaption{font-size:.75rem;color:var(--muted);letter-spacing:.06em;margin:4px 2px 0}
+.phones{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+dl{margin:0;padding:16px 22px 22px;border-top:1px solid var(--line);font-size:.9rem}
+dt{font-weight:700;color:var(--green);margin-top:10px}
+dt:first-child{margin-top:0}
+dd{margin:2px 0 0}
+.notes{margin-top:40px;padding:24px 28px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
+.notes h2{font-size:1.25rem;margin:0 0 8px}
+.notes ul{margin:0;padding-left:1.2em}
+.notes li{margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>A 全幅顯影 · 建築線稿的三種放法</h1>
+<p class="lead">使用者選定 A，並要保留五校建築線稿；第一版把線稿反相成白線壓在照片右上角，被判「太怪」。這三版都跑在主站首頁：<code>index.html?campus=a1|a2|a3#/home</code>，A 的其他部分（滿版釘住、往下捲切校、右側校名、右下地圖）不變，只換線稿進來的方式。</p>
+<div class="grid">
+<article>
+ <header>
+  <h2>a1 藍圖板 <small>左邊墨綠板子放線稿與資訊，右邊才是照片</small></h2>
+  <p>線稿不再壓在照片上，而是給它自己的一塊底：左邊 46% 是墨綠色板子，線稿反相成米金色線條像建築藍圖，放大擺在板子上半；校名、地址、預約、社群寫在板子下半，可讀性完全不受照片影響。右邊 54% 是校舍照片。切校時板子上的線稿與文字一起淡入、照片交叉淡入。</p>
+  <a class="open" href="../../index.html?campus=a1#/home" target="_blank" rel="noopener">開啟 a1 ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a1-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a1-desktop-t1_5.png" alt=""><figcaption>明華 → 崇德 交叉淡入中</figcaption></figure>
+  <figure><img src="shots/a1-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a1-phone-t0.png" alt=""><img src="shots/a1-phone-t2.png" alt=""><img src="shots/a1-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>線稿是主角、有自己的舞台，不跟照片打架；文字永遠在實底上；照片可以少壓一層陰影。</dd>
+  <dt>代價</dt><dd>照片只剩半邊，「全幅」的氣勢打折；手機版變成上照片、下板子。</dd>
+ </dl>
+</article>
+<article>
+ <header>
+  <h2>a2 米白資訊帶 <small>上面照片，下面是站上原本那條米白帶</small></h2>
+  <p>最接近現在站上的線稿用法：照片佔視窗上方 60%，下方 40% 是米白色資訊帶，線稿維持原本的深綠色 multiply 浮水印放在帶子右側，右邊一張淺色示意地圖，左邊校名、地址、專線、預約、社群一列排開。往下捲時照片與帶子的內容一起換。</p>
+  <a class="open" href="../../index.html?campus=a2#/home" target="_blank" rel="noopener">開啟 a2 ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a2-desktop-t0.png" alt=""><figcaption>01 義華校</figcaption></figure>
+  <figure><img src="shots/a2-desktop-t1_5.png" alt=""><figcaption>明華 → 崇德 交叉淡入中</figcaption></figure>
+  <figure><img src="shots/a2-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a2-phone-t0.png" alt=""><img src="shots/a2-phone-t2.png" alt=""><img src="shots/a2-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>線稿一模一樣沿用（顏色、混色、位置都是站上現況）；深色照片與淺色資訊分開，首頁下半段不會連兩段全暗；地圖也回到淺色版。</dd>
+  <dt>代價</dt><dd>照片被切成 2.4:1 的橫幅，屋頂或塔樓容易被裁；帶子高度固定，矮視窗要收社群列。</dd>
+ </dl>
+</article>
+<article>
+ <header>
+  <h2>a3 素描顯影 <small>捲動時看到線稿，停下來照片顯影</small></h2>
+  <p>把線稿當成切校的過場：停在某一校時是乾淨的全幅照片，一往下捲照片先褪掉、整張白線線稿浮在墨綠底上，繼續捲下一校的線稿接手、照片再顯影出來。線稿只在移動中出現，靜止時不干擾照片。</p>
+  <a class="open" href="../../index.html?campus=a3#/home" target="_blank" rel="noopener">開啟 a3 ↗</a>
+ </header>
+ <div class="shots">
+  <figure><img src="shots/a3-desktop-t0.png" alt=""><figcaption>停在 01 義華校：乾淨照片</figcaption></figure>
+  <figure><img src="shots/a3-desktop-t1_5.png" alt=""><figcaption>捲到一半：崇德校線稿</figcaption></figure>
+  <figure><img src="shots/a3-desktop-t4.png" alt=""><figcaption>05 仁武校</figcaption></figure>
+  <div class="phones"><img src="shots/a3-phone-t0.png" alt=""><img src="shots/a3-phone-t2.png" alt=""><img src="shots/a3-phone-t4.png" alt=""></div>
+ </div>
+ <dl>
+  <dt>好處</dt><dd>最有「顯影」的故事感，和上方拍立得顯影是同一個動作；靜止畫面是三者中最乾淨的。</dd>
+  <dt>代價</dt><dd>線稿只在捲動中出現，停下來看不到；捲得快時只是一閃而過，減少動態模式下要改成直接換。</dd>
+ </dl>
+</article>
+</div>
+<p class="lead" style="margin-top:32px">上一輪三方向（a／b／c）的比稿頁：<a href="index.html">index.html</a>。</p>
+</main>
+</body>
+</html>
