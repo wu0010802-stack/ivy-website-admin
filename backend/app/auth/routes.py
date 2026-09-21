@@ -28,6 +28,7 @@ from app.auth.schemas import (
     UserUpdateScopeRequest,
 )
 from app.config import Settings
+from app.operations import audit_service
 
 router = APIRouter(prefix="/api/website/v1", tags=["auth"])
 
@@ -170,6 +171,14 @@ async def update_user_active(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="不能停權最後一位總管理者"
         ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="user.set_active",
+        target_type="user",
+        target_id=str(user_id),
+        metadata={"is_active": payload.is_active},
+    )
     await db.commit()
     return _user_out(user)
 

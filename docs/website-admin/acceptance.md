@@ -25,7 +25,9 @@
 | A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過 | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領 |
 | A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕 |
 | A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | not-run（審核/排程屬 Task 10／內容審核流程，本輪未做） | — |
-| A14, A17, A23 | C/D | — | not-run（屬 Task 10） | — |
+| A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過 | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資 |
+| A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過 | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練（見 Task 10 小結） |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | not-run（Nuxt SSR 新鮮度測試屬 Task 8） | — |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -177,4 +179,30 @@ cd admin && npm run typecheck && npm run build                   # 都過
 npm run contract:check                                           # 契約與型別皆一致
 # 真實 worker 執行（本機 mail sink）：
 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=/tmp/xxx uv run python -m app.cli process-notifications
+```
+
+## Task 10 小結（2026-09-21，營運、統計、維護與完整契約）
+
+依計畫 Task 10（僅動 `backend/`／`admin/`，避開使用者的 `web/` 工作）：
+
+- **成效統計防偽造**：`AnalyticsEventType` 分兩類——點擊類（`cta_click_line/phone/external`）可由公開端點回報且有限流（60 秒 20 次）；成效類（`request_created`/`visit_confirmed`/`visit_completed`）只能由 `submit_visit_request`/`confirm_with_slot`/`mark_completed` 內部呼叫，公開端點直接送這幾種事件會被 `EventTypeNotAllowed` 拒絕（400）。已用測試驗證偽造請求不會改變統計數字。
+- **Dashboard／匯出跨校隔離**：`get_dashboard_summary()` 依呼叫者的 `campus_scopes` 決定範圍，super_admin 才看得到全部；CSV 匯出沿用既有 `require_scope`，非授權校區一律 404。
+- **稽核紀錄（部分覆蓋，誠實標註）**：`AuditLogEntry` 記錄 `booking_config.update`／`user.set_active`／`content.publish`／`site_settings.update` 四種操作，`metadata_json` 主動過濾 `phone`/`parent_name`/`password`/`email`/`questions` 等欄位，測試驗證電話號碼不會出現在稽核紀錄裡。**其餘管理操作（素材刪除、時段調整等）目前沒有寫入稽核**，見 `docs/website-admin/operations.md`。
+- **保存政策**：只清理 `cancelled`/`no_show` 且超過天數的案件（`new`/`confirmed` 不會被動到，即使案件很舊），改成匿名化文字，不動狀態/時段/預約設定。`POST /admin/retention/run` 預設回 403，需設定 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true` 才會真的執行——避免意外清掉個資。
+- **備份／還原（真實演練，非紙上談兵）**：`scripts/backup_website.py`／`scripts/restore_website.py` 用 `pg_dump`/`psql`，還原前檢查 `WEBSITE_ENVIRONMENT=test` 且 DSN 通過既有隔離驗證。已對 `ivy_website_test`（含真實媒體檔）備份，還原到全新的 `ivy_website_test_restore_check` 資料庫並確認 schema／五校資料正確，之後已清掉這個臨時資料庫。
+- **共用型別契約**：`contract:generate`/`contract:check` 持續維護，Task 10 結束時再次確認一致。
+- admin 新增 `DashboardView`（今日參觀/待跟進/待發布/通知失敗/缺設定校區）、`AnalyticsView`（成效漏斗）、`AuditView`（操作紀錄）、`PoliciesView`（SEO 設定＋保存政策 dry-run/執行）；登入後導向頁改成新的「總覽」（原本寫死導去使用者管理，屬本輪抓到的 bug，已修並重新驗證）。
+
+**14 項新增 pytest 全過**（`test_operations.py`），backend 累計 **106 項全過**。
+
+**刻意不做**：內容審核流程（送審/核准/退回）與排程發布（屬階段 D 擴充範圍，非「營運維護」核心）；週期性 cron 排程本身（已交付可執行指令，排程留給部署環境）；全面稽核覆蓋（只涵蓋 4 種高風險操作）。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 106 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+npm run contract:check                                           # 契約與型別皆一致
+# 備份還原演練：
+uv run python scripts/backup_website.py /tmp/xxx
+WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=... uv run python scripts/restore_website.py /tmp/xxx/website-db-*.sql
 ```

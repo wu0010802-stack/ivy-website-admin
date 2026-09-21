@@ -13,6 +13,7 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, require_scope
 from app.booking import service, slot_service, workflow_service
+from app.operations import audit_service
 from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitSlot
 from app.booking.schemas import (
     BookingConfigOut,
@@ -82,6 +83,15 @@ async def update_booking_config(
             detail={"code": "BOOKING_MODE_FIELD_MISSING", "message": exc.message},
         ) from exc
 
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="booking_config.update",
+        target_type="booking_config",
+        target_id=campus_key,
+        campus_key=campus_key,
+        metadata={"mode": payload.mode.value, "version": config.version},
+    )
     await db.commit()
     return BookingConfigOut.model_validate(config)
 

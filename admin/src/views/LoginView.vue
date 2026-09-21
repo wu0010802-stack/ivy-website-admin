@@ -16,7 +16,7 @@ async function handleSubmit() {
   submitting.value = true
   try {
     await authStore.login(form.email, form.password)
-    router.push({ name: 'users' })
+    router.push({ name: 'dashboard' })
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       errorMessage.value = '帳號或密碼錯誤'

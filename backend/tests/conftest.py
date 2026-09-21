@@ -56,6 +56,7 @@ async def _clean_tables(app):
                 "media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
+                "audit_log_entries, analytics_events, site_settings, "
                 "notification_inbox_items, "
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "

@@ -14,6 +14,7 @@ from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.content import service
 from app.content.models import ContentItem, ContentRevision
 from app.content.registry import CONTENT_KIND_REGISTRY
+from app.operations import audit_service
 from app.content.schemas import (
     ContentItemOut,
     ContentRevisionCreateRequest,
@@ -168,6 +169,15 @@ async def publish_content_item(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
 
     await service.publish_revision(db, item, revision, current_user.id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.publish",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "revision_version": revision.version},
+    )
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
     return _item_out(item, latest)

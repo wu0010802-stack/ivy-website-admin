@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     indexing_enabled: bool = False
     admin_origin: str | None = None
     notification_email_sink_dir: str | None = None
+    retention_allow_real_run: bool = False
 
     @field_validator("database_url", "test_database_url")
     @classmethod

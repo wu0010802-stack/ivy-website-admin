@@ -93,6 +93,14 @@ export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=./var/mail-sink
 uv run python -m app.cli process-notifications
 ```
 
+- 營運總覽 Dashboard、成效統計（防偽造）、操作稽核、全站設定與保存政策 dry-run、備份/還原指令（Task 10，見 `docs/website-admin/operations.md`）
+
+```bash
+# 備份 / 還原（詳見 operations.md）
+uv run python scripts/backup_website.py ./var/backups
+WEBSITE_ENVIRONMENT=test uv run python scripts/restore_website.py ./var/backups/website-db-*.sql
+```
+
 ## 尚未涵蓋
 
-其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線／`/visit/manage` 頁面（屬 Task 8）、週期時段規則產生器與占位到期釋放（Task 9 排程部分）、內容審核流程／排程發布、統計與備份還原（Task 10），均屬階段 C–D 或待補，本文件屆時會補上對應命令。
+其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線／`/visit/manage` 頁面（屬 Task 8）、週期時段規則產生器與占位到期釋放（Task 9 排程部分）、內容審核流程／排程發布（階段 D 擴充範圍）、全面稽核覆蓋，均待補，本文件屆時會補上對應命令。

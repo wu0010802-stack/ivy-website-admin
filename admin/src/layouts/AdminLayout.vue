@@ -23,8 +23,9 @@ async function handleLogout() {
     >
       <div style="display: flex; align-items: center; gap: 1.5rem">
         <strong>常春藤官網後台</strong>
-        <nav style="display: flex; gap: 1rem">
-          <router-link to="/">使用者管理</router-link>
+        <nav style="display: flex; gap: 1rem; flex-wrap: wrap; max-width: 900px">
+          <router-link to="/">總覽</router-link>
+          <router-link to="/users">使用者管理</router-link>
           <router-link to="/content/home-about">關於常春藤</router-link>
           <router-link to="/content/home-hero">首頁 Hero</router-link>
           <router-link to="/content/site-footer">頁尾標語</router-link>
@@ -33,6 +34,9 @@ async function handleLogout() {
           <router-link to="/slots">時段管理</router-link>
           <router-link to="/visit-requests">參觀案件</router-link>
           <router-link to="/notifications">站內通知</router-link>
+          <router-link to="/analytics">成效統計</router-link>
+          <router-link to="/audit">操作紀錄</router-link>
+          <router-link to="/policies">設定與政策</router-link>
         </nav>
       </div>
       <div style="display: flex; align-items: center; gap: 1rem">

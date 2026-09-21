@@ -19,6 +19,8 @@ from app.booking.models import (
 )
 from app.booking.exceptions import SlotFull
 from app.booking.outbox import enqueue_outbox
+from app.operations import analytics_service
+from app.operations.models import AnalyticsEventType
 
 
 class ConfigVersionConflict(Exception):
@@ -229,12 +231,18 @@ async def submit_visit_request(
         "visit_request_created",
         {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
     )
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key
+    )
     if status == VisitRequestStatus.CONFIRMED.value:
         enqueue_outbox(
             db,
             visit_request.id,
             "visit_request_confirmed",
             {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
+        )
+        await analytics_service.record_internal_event(
+            db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key
         )
     await db.flush()
     return visit_request, True

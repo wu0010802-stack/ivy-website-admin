@@ -12,6 +12,10 @@ import VisitSlotsView from '../views/VisitSlotsView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
+import DashboardView from '../views/DashboardView.vue'
+import AnalyticsView from '../views/AnalyticsView.vue'
+import AuditView from '../views/AuditView.vue'
+import PoliciesView from '../views/PoliciesView.vue'
 
 const router = createRouter({
   history: createWebHistory('/admin/'),
@@ -21,7 +25,8 @@ const router = createRouter({
       path: '/',
       component: AdminLayout,
       children: [
-        { path: '', name: 'users', component: UsersView },
+        { path: '', name: 'dashboard', component: DashboardView },
+        { path: 'users', name: 'users', component: UsersView },
         { path: 'content/home-about', name: 'home-about', component: HomeAboutView },
         { path: 'content/home-hero', name: 'home-hero', component: HomeHeroView },
         { path: 'content/site-footer', name: 'site-footer', component: SiteFooterView },
@@ -31,6 +36,9 @@ const router = createRouter({
         { path: 'visit-requests', name: 'visit-requests', component: VisitRequestsView },
         { path: 'visit-requests/:id', name: 'visit-detail', component: VisitDetailView },
         { path: 'notifications', name: 'notifications', component: NotificationsView },
+        { path: 'analytics', name: 'analytics', component: AnalyticsView },
+        { path: 'audit', name: 'audit', component: AuditView },
+        { path: 'policies', name: 'policies', component: PoliciesView },
       ],
     },
   ],
@@ -40,7 +48,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
-    if (authStore.user) return { name: 'users' }
+    if (authStore.user) return { name: 'dashboard' }
     return true
   }
 

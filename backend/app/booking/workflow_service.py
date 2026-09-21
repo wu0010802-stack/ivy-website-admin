@@ -9,6 +9,8 @@ from app.booking import slot_service
 from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.booking.outbox import enqueue_outbox
+from app.operations import analytics_service
+from app.operations.models import AnalyticsEventType
 
 __all__ = ["InvalidTransition", "SlotFull"]
 
@@ -51,6 +53,9 @@ async def confirm_with_slot(
         "visit_request_confirmed",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=visit_request.campus_key
+    )
     await db.flush()
     return visit_request
 
@@ -91,6 +96,9 @@ async def mark_completed(db: AsyncSession, visit_request: VisitRequest) -> Visit
         raise InvalidTransition("只有已確認的案件可以標記完成")
     visit_request.status = VisitRequestStatus.COMPLETED.value
     _add_event(db, visit_request.id, "completed")
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.VISIT_COMPLETED, campus_key=visit_request.campus_key
+    )
     await db.flush()
     return visit_request
 
