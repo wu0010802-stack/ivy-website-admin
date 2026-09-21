@@ -1,4 +1,6 @@
 import type { SiteContent } from '~/types/site-content'
+import type { ContentOverlay } from '~/utils/content-overlay'
+import { applyContentOverlay } from '~/utils/content-overlay'
 
 export interface PublishedSite {
   schemaVersion: string
@@ -6,31 +8,10 @@ export interface PublishedSite {
   content: SiteContent
 }
 
-interface LiveHomeAbout {
-  title: string
-  since_label: string
-  body_text: string
-  caption: string
-}
-
-interface LiveHomeHero {
-  eyebrow: string
-  copy_lines: string[]
-  cta_label: string
-}
-
-interface LiveSiteFooter {
-  tagline: string
-}
-
 interface LivePublicSite {
   schema_version: string
   release_id: string
-  content: {
-    home_about?: LiveHomeAbout
-    home_hero?: LiveHomeHero
-    site_footer?: LiveSiteFooter
-  }
+  content: ContentOverlay
 }
 
 /**
@@ -41,10 +22,13 @@ interface LivePublicSite {
  *   - home_hero：首頁 hero 的 eyebrow／文案兩行／CTA 按鈕文字
  *   - site_footer：頁尾標語
  *
- * 這不是 Task 8 要求的完整 CMS 接線（沒有 SSR 新鮮度測試、沒有換頁
- * 即時更新驗證、其餘內容仍是靜態的），Task 8 會把其餘內容逐項換成
- * 同一套機制。失敗或後端未發布任何內容時，安靜地退回 fixture 原文，
- * 不讓公開頁面因此壞掉。
+ * 這不是 Task 8 要求的完整 CMS 接線（其餘內容仍是靜態的），Task 8 會把
+ * 其餘內容逐項換成同一套機制。失敗或後端未發布任何內容時，安靜地退回
+ * fixture 原文，不讓公開頁面因此壞掉。
+ *
+ * 疊資料的邏輯抽在 `applyContentOverlay`（純函式，見 utils/content-
+ * overlay.ts），跟 `useDraftPreview` 共用，也讓這段邏輯能離開 Nuxt
+ * runtime 直接單元測試（`web/tests/content.spec.ts`）。
  */
 export function usePublishedSite() {
   const config = useRuntimeConfig()
@@ -54,44 +38,30 @@ export function usePublishedSite() {
     )
   }
 
-  return useAsyncData<PublishedSite>('published-site', async () => {
-    const content = await $fetch<SiteContent>('/api/site-fixture')
-    let releaseId = 'fixture-1'
+  const route = useRoute()
 
-    const live = await $fetch<LivePublicSite | null>('/api/public-site').catch(() => null)
-    if (live?.content) {
-      if (live.content.home_about) {
-        const about = live.content.home_about
-        content.home.about = {
-          ...content.home.about,
-          title: about.title,
-          sinceLabel: about.since_label,
-          bodyText: about.body_text,
-          caption: about.caption
-        }
-      }
-      if (live.content.home_hero) {
-        const hero = live.content.home_hero
-        content.home.hero = {
-          ...content.home.hero,
-          eyebrow: hero.eyebrow,
-          copyLines: hero.copy_lines,
-          ctaLabel: hero.cta_label
-        }
-      }
-      if (live.content.site_footer) {
-        content.footer = {
-          ...content.footer,
-          tagline: live.content.site_footer.tagline
-        }
-      }
-      releaseId = live.release_id
-    }
+  return useAsyncData<PublishedSite>(
+    'published-site',
+    async () => {
+      const fixture = await $fetch<SiteContent>('/api/site-fixture')
+      let releaseId = 'fixture-1'
+      let content = fixture
 
-    return {
-      schemaVersion: content.schemaVersion,
-      releaseId,
-      content
-    }
-  })
+      const live = await $fetch<LivePublicSite | null>('/api/public-site').catch(() => null)
+      if (live?.content) {
+        content = applyContentOverlay(fixture, live.content)
+        releaseId = live.release_id
+      }
+
+      return {
+        schemaVersion: content.schemaVersion,
+        releaseId,
+        content
+      }
+    },
+    // 目前沒有任何快取層（第一版刻意不開 SWR/ISR，見計畫 Task 8）：同一頁
+    // 多元件共用這個 key 不會重複打 API，但每次站內換頁都要看到最新發布
+    // 的內容，所以用 route.fullPath 當觸發訊號，換頁就重新抓一次。
+    { watch: [() => route.fullPath] }
+  )
 }

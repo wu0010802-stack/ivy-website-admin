@@ -1,4 +1,6 @@
 import type { SiteContent } from '~/types/site-content'
+import type { ContentOverlay } from '~/utils/content-overlay'
+import { applyContentOverlay } from '~/utils/content-overlay'
 
 interface MeResponse {
   csrf_token: string
@@ -14,7 +16,7 @@ interface ContentRevisionOut {
 
 interface ContentItemOut {
   id: string
-  kind: string
+  kind: keyof ContentOverlay
   campus_key: string | null
   latest_version: number
   current_published_revision_id: string | null
@@ -31,6 +33,9 @@ export interface DraftPreviewResult {
  * 帶的是不是有效的管理員 session（打 `/auth/me`，401 就視為未授權，
  * 不嘗試繞過或猜測），再讀已登入才能看的 `/admin/content-items/{kind}`
  * 取「最新一版 revision」（可能還沒發布），疊在 fixture 上顯示草稿。
+ *
+ * 疊資料用跟 `usePublishedSite` 同一支 `applyContentOverlay`：那邊疊的
+ * 是「已發布」內容，這裡疊的是「最新未發布」內容，形狀完全一樣。
  *
  * 目前 CONTENT_KIND_REGISTRY 只有 home_about/home_hero/site_footer 三種
  * kind 真的接了後端（其餘內容仍是 fixture），所以這裡也只疊這三項——
@@ -49,11 +54,7 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     return { authorized: false, content: null }
   }
 
-  const kinds: Array<'home_about' | 'home_hero' | 'site_footer'> = [
-    'home_about',
-    'home_hero',
-    'site_footer'
-  ]
+  const kinds: Array<keyof ContentOverlay> = ['home_about', 'home_hero', 'site_footer']
 
   const items = await Promise.all(
     kinds.map((kind) =>
@@ -61,28 +62,14 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     )
   )
 
+  const overlay: ContentOverlay = {}
   for (const item of items) {
     const draft = item?.latest_revision?.payload
-    if (!draft) continue
-    if (item!.kind === 'home_about') {
-      content.home.about = {
-        ...content.home.about,
-        title: draft.title as string,
-        sinceLabel: draft.since_label as string,
-        bodyText: draft.body_text as string,
-        caption: draft.caption as string
-      }
-    } else if (item!.kind === 'home_hero') {
-      content.home.hero = {
-        ...content.home.hero,
-        eyebrow: draft.eyebrow as string,
-        copyLines: draft.copy_lines as string[],
-        ctaLabel: draft.cta_label as string
-      }
-    } else if (item!.kind === 'site_footer') {
-      content.footer = { ...content.footer, tagline: draft.tagline as string }
-    }
+    if (!draft || !item) continue
+    if (item.kind === 'home_about') overlay.home_about = draft as unknown as ContentOverlay['home_about']
+    else if (item.kind === 'home_hero') overlay.home_hero = draft as unknown as ContentOverlay['home_hero']
+    else if (item.kind === 'site_footer') overlay.site_footer = draft as unknown as ContentOverlay['site_footer']
   }
 
-  return { authorized: true, content }
+  return { authorized: true, content: applyContentOverlay(content, overlay) }
 }
