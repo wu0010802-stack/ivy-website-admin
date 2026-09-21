@@ -6,17 +6,11 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking import slot_service
+from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
+from app.booking.outbox import enqueue_outbox
 
-
-class SlotFull(Exception):
-    pass
-
-
-class InvalidTransition(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(message)
+__all__ = ["InvalidTransition", "SlotFull"]
 
 
 def _add_event(db: AsyncSession, visit_request_id: uuid.UUID, event_type: str) -> None:
@@ -51,6 +45,12 @@ async def confirm_with_slot(
     visit_request.assigned_staff_id = staff_id
     visit_request.confirmed_at = datetime.now(timezone.utc)
     _add_event(db, visit_request.id, "confirmed")
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_confirmed",
+        {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
+    )
     await db.flush()
     return visit_request
 
@@ -67,6 +67,12 @@ async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
     visit_request.status = VisitRequestStatus.CANCELLED.value
     visit_request.cancelled_at = datetime.now(timezone.utc)
     _add_event(db, visit_request.id, "cancelled")
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_cancelled",
+        {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
+    )
     await db.flush()
     return visit_request
 
@@ -119,6 +125,12 @@ async def reschedule(
 
     visit_request.slot_id = new_slot.id
     _add_event(db, visit_request.id, "rescheduled")
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_rescheduled",
+        {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
+    )
     await db.flush()
     return visit_request
 

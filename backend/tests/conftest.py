@@ -36,6 +36,7 @@ def _test_settings() -> Settings:
         test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
         session_secret="test-only-secret-please-rotate",
         media_root="/tmp/ivy-website-test-media",
+        notification_email_sink_dir="/tmp/ivy-website-test-mail",
     )
 
 
@@ -55,6 +56,8 @@ async def _clean_tables(app):
                 "media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
+                "notification_inbox_items, "
+                "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, "
                 "booking_configs RESTART IDENTITY CASCADE"
@@ -134,6 +137,38 @@ async def minghua_client(app, db_session):
     client = await _logged_in_client(app, "minghua-admin@ivy.example", "minghua-admin-password-123")
     yield client
     await client.aclose()
+
+
+@pytest.fixture
+def failing_mail_adapter():
+    class _FailingAdapter:
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            raise RuntimeError("模擬寄信失敗")
+
+    return _FailingAdapter()
+
+
+@pytest.fixture
+def recording_mail_adapter():
+    class _RecordingAdapter:
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            self.sent.append({"to": to, "subject": subject, "body": body})
+
+    return _RecordingAdapter()
+
+
+@pytest_asyncio.fixture
+async def run_outbox_once(db_session):
+    from app.workers.runner import process_outbox_batch
+
+    async def _run(mail_adapter):
+        result = await process_outbox_batch(db_session, mail_adapter, limit=50)
+        return result
+
+    return _run
 
 
 @pytest_asyncio.fixture

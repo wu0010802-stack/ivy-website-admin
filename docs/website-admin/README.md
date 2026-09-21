@@ -85,7 +85,14 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 - Element Plus 介面語系已設為 `zh-tw`（原本對話框按鈕會顯示英文 OK/Cancel）
 - 各校預約模式設定（`inquiry`/`line`/`phone`/`external`/`paused`/`slots`）+ 公開需求提交 API（idempotency、真實 PostgreSQL 併發驗證）（Task 6）
 - 時段容量、確認/取消/未到場/改期狀態機、接待工作台（案件列表/詳情/聯絡紀錄/CSV 匯出）（Task 7，含最後名額真實 PostgreSQL 併發驗證）
+- 通知 worker（DB lease、重試退避、crash 恢復）、本機 Email sink、站內通知、家長安全連結（token 只存 hash）與自助取消/改期申請（Task 9）
+
+```bash
+# 跑一次通知 worker（單次批次，非常駐；排程交給部署環境的 cron）
+export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=./var/mail-sink
+uv run python -m app.cli process-notifications
+```
 
 ## 尚未涵蓋
 
-其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線（屬 Task 8）、週期時段規則產生器與占位到期釋放（Task 9 排程）、通知 worker 實際寄送（Task 9）、統計與備份還原（Task 10），均屬階段 C–D 或待補，本文件屆時會補上對應命令。
+其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線／`/visit/manage` 頁面（屬 Task 8）、週期時段規則產生器與占位到期釋放（Task 9 排程部分）、內容審核流程／排程發布、統計與備份還原（Task 10），均屬階段 C–D 或待補，本文件屆時會補上對應命令。

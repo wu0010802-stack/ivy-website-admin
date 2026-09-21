@@ -17,6 +17,8 @@ from app.campuses.models import Campus
 from app.config import get_settings
 from app.content import service as content_service
 from app.db import create_engine, create_session_factory
+from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
+from app.workers.runner import process_outbox_batch
 
 CAMPUSES = [
     ("yihua", "義華校"),
@@ -137,6 +139,24 @@ async def content_seed_from_fixture(fixture_path: str) -> None:
         print(f"（來源：{fixture_path}）")
 
 
+async def process_notifications_once() -> None:
+    """跑一輪 outbox worker；`WEBSITE_NOTIFICATION_EMAIL_SINK_DIR` 沒設定
+    時如實印出「未配置」，不假裝寄出。生產排程可用 cron 定期呼叫這個
+    指令，暫不內建常駐 daemon（避免跟本機 8GB RAM 限制下的其他背景
+    程序搶資源）。"""
+    settings = get_settings()
+    try:
+        adapter = get_email_adapter(settings.notification_email_sink_dir)
+    except EmailNotConfigured:
+        print("尚未設定 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
+        return
+
+    factory = await _session_factory()
+    async with factory() as db:
+        result = await process_outbox_batch(db, adapter, worker_id="cli-worker")
+        print(f"已處理：成功 {result['sent']} 筆、失敗 {result['failed']} 筆")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print("用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin>", file=sys.stderr)
@@ -153,6 +173,8 @@ def main() -> None:
             print("用法：python -m app.cli content-seed-from-fixture <fixture路徑>", file=sys.stderr)
             raise SystemExit(1)
         asyncio.run(content_seed_from_fixture(sys.argv[2]))
+    elif command == "process-notifications":
+        asyncio.run(process_notifications_once())
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

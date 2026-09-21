@@ -22,7 +22,10 @@
 | A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 部分 | 手動建立單次時段＋容量保護、滿額拒絕已測；週期規則產生器、例外日、提前時間/開放天數驗證屬 Task 9 範圍，未做 |
 | A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 部分 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）皆已測並有 admin UI；日曆視覺化用簡化的清單+日期區間取代，未做真正的月曆元件 |
 | A06, A16 | C | CTA 一致／SEO | not-run | 屬 Task 8 |
-| A12–A15, A17, A23 | C/D | — | not-run（屬後續階段） | — |
+| A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過 | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領 |
+| A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕 |
+| A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | not-run（審核/排程屬 Task 10／內容審核流程，本輪未做） | — |
+| A14, A17, A23 | C/D | — | not-run（屬 Task 10） | — |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -148,4 +151,30 @@ npm run contract:check                                           # 契約與型�
 cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 81 passed
 cd admin && npm run typecheck && npm run build                   # 都過
 npm run contract:check                                           # 契約與型別皆一致
+```
+
+## Task 9 小結（2026-09-21，通知 worker、家長安全管理；避開使用者正在動的 web/）
+
+依使用者要求本輪只動 `backend/`／`admin/`，不碰 `web/`（使用者當時正在做首頁優化）：
+
+- **outbox worker（真正可執行，不只是概念）**：擴充既有 `OutboxMessage` 加 `status/attempts/next_attempt_at/error_code/leased_by/leased_until`。`app/workers/lease_service.py` 用 `SELECT ... FOR UPDATE SKIP LOCKED` 認領工作（pending 或租約已過期的 leased，後者就是 worker crash 恢復機制）；失敗記 attempt 並用固定退避表計算下次重試時間，達 `MAX_ATTEMPTS=5` 才標記 `failed` 供人工重試。`python -m app.cli process-notifications` 是可以真的跑的 worker 指令（單次批次，非常駐 daemon——8GB RAM 機器上避免額外常駐程序）。
+- **Email adapter**：`LocalSinkEmailAdapter` 沒設定 `WEBSITE_NOTIFICATION_EMAIL_SINK_DIR` 時建構直接拋 `EmailNotConfigured`，CLI 如實印「尚未設定」並跳過，不假裝寄出。實測用真的本機資料夾當 sink，`process-notifications` 執行後檢查資料夾真的生出一份 JSON 信件檔。
+- **站內通知＋收件人即時計算**：`get_notification_recipients()` 每次都即時查目前啟用中的 super_admin／該校 campus_admin，不在建立通知時就把收件人清單寫死——帳號停權或改 scope 後自然收不到後續通知，已用 `test_inactive_user_excluded_from_recipients` 驗證。
+- **家長安全連結**：`ParentAccessToken` 只存 hash，原始 token 只在 admin 產生連結那一刻回傳一次。`exchange` 換發獨立的 `ParentSession`（跟員工登入 session 完全分開的 cookie），家長只能讀/取消自己的案件（用 `test_parent_session_isolated_between_families` 驗證兩個家長互相看不到對方）。改期走「先建待核准紀錄，不動時段，園方核准才真的呼叫 `workflow_service.reschedule`」——避免家長自助改期繞過容量鎖。
+- **admin UI**：新增 `NotificationsView.vue`（站內通知列表、標記已讀、待核准改期申請的核准/退回）。已用 Playwright 對真實三個服務（backend + admin + 本機 mail sink）跑過完整鏈路：送出案件 → CLI 跑 worker → 本機信件檔真的生成 → admin 通知列表看到 → 標記已讀。
+
+**11 項新增 pytest 全過**（`test_notifications.py` 6 項、`test_parent_access.py` 5 項），backend 累計 **92 項全過**。
+
+**本次刻意不做**：
+- 週期性排程觸發（cron/常駐 daemon 呼叫 `process-notifications`）——指令本身可用，但排程本身交給部署環境的 cron，不在這裡內建常駐 worker process。
+- Nuxt 端 `/visit/manage` 頁面（讀 token、`replaceState` 清除、顯示取消/改期表單）——這是 `web/` 範圍，使用者當下在做首頁優化，本輪明確避開。
+- 內容審核流程與排程發布（屬 Task 10／內容模組階段 D 範圍，非通知 worker 範圍）。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 92 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+npm run contract:check                                           # 契約與型別皆一致
+# 真實 worker 執行（本機 mail sink）：
+WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=/tmp/xxx uv run python -m app.cli process-notifications
 ```

@@ -14,7 +14,9 @@ from app.auth import models as auth_models  # noqa: F401
 from app.campuses import models as campus_models  # noqa: F401
 from app.media import models as media_models  # noqa: F401
 from app.content import models as content_models  # noqa: F401
-from app.booking import models as booking_models  # noqa: F401 (re-import after Task 7 model changes)
+from app.booking import models as booking_models  # noqa: F401
+from app.booking import access_models as booking_access_models  # noqa: F401
+from app.notifications import models as notification_models  # noqa: F401
 
 config = context.config
 

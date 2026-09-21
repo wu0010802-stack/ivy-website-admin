@@ -11,6 +11,7 @@ import BookingSettingsView from '../views/BookingSettingsView.vue'
 import VisitSlotsView from '../views/VisitSlotsView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
+import NotificationsView from '../views/NotificationsView.vue'
 
 const router = createRouter({
   history: createWebHistory('/admin/'),
@@ -29,6 +30,7 @@ const router = createRouter({
         { path: 'slots', name: 'slots', component: VisitSlotsView },
         { path: 'visit-requests', name: 'visit-requests', component: VisitRequestsView },
         { path: 'visit-requests/:id', name: 'visit-detail', component: VisitDetailView },
+        { path: 'notifications', name: 'notifications', component: NotificationsView },
       ],
     },
   ],

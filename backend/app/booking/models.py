@@ -156,10 +156,19 @@ class VisitRequestEvent(Base):
     visit_request: Mapped[VisitRequest] = relationship(back_populates="events")
 
 
+class OutboxStatus(str, enum.Enum):
+    PENDING = "pending"
+    LEASED = "leased"
+    SENT = "sent"
+    FAILED = "failed"
+
+
 class OutboxMessage(Base):
-    """交易式 outbox；本階段只寫入，實際發送 worker 屬 Task 9。
-    outbox 不得在案件交易提交前對外發送——這裡連寄送邏輯都還沒接，
-    天然滿足這個規則。"""
+    """交易式 outbox：只在案件交易提交後才會被 worker 看到（因為這一列
+    本身就是同一個交易寫入的），不會在交易提交前對外發送。Task 9 起
+    worker 用 DB lease（`leased_by`/`leased_until`）認領工作，成功才
+    ack，失敗記 attempt/next_attempt_at/error_code，達上限保留 failed
+    供人工重試——不會憑空遺失案件通知。"""
 
     __tablename__ = "outbox_messages"
 
@@ -171,5 +180,12 @@ class OutboxMessage(Base):
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=OutboxStatus.PENDING.value)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    leased_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     visit_request: Mapped[VisitRequest] = relationship(back_populates="outbox_messages")

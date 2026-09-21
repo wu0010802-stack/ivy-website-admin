@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     enable_fixture: bool = False
     indexing_enabled: bool = False
     admin_origin: str | None = None
+    notification_email_sink_dir: str | None = None
 
     @field_validator("database_url", "test_database_url")
     @classmethod

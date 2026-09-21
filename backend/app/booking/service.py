@@ -13,12 +13,12 @@ from app.booking import slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
-    OutboxMessage,
     VisitRequest,
     VisitRequestEvent,
     VisitRequestStatus,
 )
-from app.booking.workflow_service import SlotFull
+from app.booking.exceptions import SlotFull
+from app.booking.outbox import enqueue_outbox
 
 
 class ConfigVersionConflict(Exception):
@@ -223,14 +223,18 @@ async def submit_visit_request(
             created_at=datetime.now(timezone.utc),
         )
     )
-    db.add(
-        OutboxMessage(
-            id=uuid.uuid4(),
-            visit_request_id=visit_request.id,
-            kind="visit_request_created",
-            payload={"campus_key": campus_key, "receipt_id": str(visit_request.id)},
-            created_at=datetime.now(timezone.utc),
-        )
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_created",
+        {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
     )
+    if status == VisitRequestStatus.CONFIRMED.value:
+        enqueue_outbox(
+            db,
+            visit_request.id,
+            "visit_request_confirmed",
+            {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
+        )
     await db.flush()
     return visit_request, True
