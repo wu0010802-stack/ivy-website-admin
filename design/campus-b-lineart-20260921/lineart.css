@@ -1,0 +1,89 @@
+/* Three placements share the selected B layout and the same five original sketches. */
+:root{--art-edge:#d6dfd1;--art-soft:#f6f6ee;--art-note:#697b69}
+.campus-art{pointer-events:none;user-select:none;opacity:0;visibility:hidden;transition:opacity .35s;isolation:isolate}
+.scene.is-current .campus-art{opacity:1;visibility:visible}
+.campus-art img{object-fit:contain;mix-blend-mode:multiply}
+.direction-b .brandbar .preview-return{font-size:11px}
+
+/* B1: a low, broad landscape sits below the contact details. */
+.art-1 .campus-art{position:absolute;left:24px;bottom:180px;width:calc(39% - 48px);height:165px;overflow:hidden;mask-image:linear-gradient(180deg,transparent,black 18%,black 80%,transparent)}
+.art-1 .campus-art img{object-fit:cover;object-position:center 56%;opacity:.8}
+.art-1 .b-copy{top:112px;bottom:360px;justify-content:center}
+.art-1 .b-copy h2{font-size:clamp(48px,4.8vw,76px);margin-top:14px}
+.art-1 .b-copy .name-en{margin:12px 0 20px}
+.art-1 .b-copy .contact{padding-top:15px;gap:3px}
+.art-1 .b-copy .socials{margin-top:5px}
+.art-1 .b-copy .booking-status{margin-top:14px;min-height:48px}
+
+/* B2: the complete sketch becomes a small identity mark above the campus name. */
+.art-2 .b-copy{top:106px;bottom:198px;justify-content:center}
+.art-2 .campus-art{width:260px;max-width:100%;height:145px;flex-shrink:0;margin-bottom:16px}
+.art-2 .campus-art img{object-position:left center}
+.art-2 .b-copy h2{font-size:clamp(48px,4.6vw,74px);margin-top:10px}
+.art-2 .b-copy .name-en{margin:12px 0 22px}
+.art-2 .b-copy .contact{padding-top:16px;gap:3px}
+.art-2 .b-copy .socials{margin-top:5px}
+.art-2 .b-copy .booking-status{margin-top:14px;min-height:48px}
+
+/* B3: an opaque paper band gives the sketch its own place beneath the photo. */
+.art-3 .b-photo-window{bottom:185px}
+.art-3 .b-photo-caption{bottom:28px}
+.art-3 .campus-art{position:absolute;left:39%;right:0;bottom:0;height:185px;background:var(--art-soft);border-top:1px solid var(--art-edge);display:flex;align-items:center;justify-content:center;gap:38px;padding:12px 34px}
+.art-3 .campus-art img{width:min(380px,55%);height:100%;object-fit:contain;filter:grayscale(1) contrast(1.12)}
+.art-3 .campus-art figcaption{display:flex;flex-direction:column;align-items:start;gap:6px;color:var(--green);min-width:128px}
+.art-3 .campus-art figcaption>span{font-size:10px;letter-spacing:.18em;color:var(--art-note)}
+.art-3 .campus-art figcaption>strong{font-family:var(--head);font-size:25px;font-weight:700;letter-spacing:.06em}
+.art-3 .campus-art figcaption>small{font-size:9px;letter-spacing:.13em}
+
+@media(min-width:761px) and (max-height:800px){
+ .art-1 .b-copy{top:100px;bottom:290px}.art-1 .b-copy h2{font-size:56px;margin-top:10px}.art-1 .b-copy .name-en{margin:10px 0 14px}.art-1 .b-copy .contact{padding-top:10px;gap:0}.art-1 .b-copy .socials{margin-top:0}.art-1 .b-copy .booking-status{margin-top:8px;min-height:44px}.art-1 .campus-art{bottom:163px;height:118px}
+ .art-2 .b-copy{top:97px;bottom:175px}.art-2 .campus-art{height:95px;width:205px;margin-bottom:10px}.art-2 .b-copy h2{font-size:54px}.art-2 .b-copy .name-en{margin:10px 0 14px}.art-2 .b-copy .contact{padding-top:10px;gap:0}.art-2 .b-copy .socials{margin-top:0}.art-2 .b-copy .booking-status{margin-top:8px;min-height:44px}
+ .art-3 .b-photo-window{bottom:155px}.art-3 .campus-art{height:155px;gap:24px}
+}
+@media(min-width:761px) and (max-width:1100px){
+ .art-1 .campus-art{left:18px;width:calc(39% - 36px)}
+ .art-2 .campus-art{max-width:220px}
+ .art-3 .campus-art{padding-inline:18px;gap:18px}.art-3 .campus-art figcaption>strong{font-size:21px}.art-3 .campus-art figcaption>small{font-size:8px}
+}
+@media(max-width:760px){
+ .art-1 .b-photo-window,.art-2 .b-photo-window{height:28%;bottom:auto}
+ .art-1 .b-copy,.art-2 .b-copy{top:calc(28% + 90px);bottom:110px;display:block}
+ .art-1 .b-copy h2,.art-2 .b-copy h2{font-size:44px;margin-top:8px}
+ .art-1 .b-copy .name-en{position:absolute;top:47px;right:0;font-size:8px;margin:0}
+ .art-1 .b-copy .contact,.art-2 .b-copy .contact{margin-top:14px;padding-top:8px;gap:0}
+ .art-1 .b-copy .socials,.art-2 .b-copy .socials{margin-top:0}
+ .art-1 .b-copy .booking-status,.art-2 .b-copy .booking-status{margin-top:4px;min-height:44px}
+ .art-1 .campus-art{left:22px;width:calc(100% - 44px);height:86px;bottom:110px;mask-image:linear-gradient(180deg,transparent,black 14%,black 85%,transparent)}
+ .art-1 .campus-art img{object-position:center 56%;opacity:.75}
+ .art-2 .campus-art{height:76px;width:170px;margin-bottom:10px}
+ .art-2 .b-copy .name-en{position:absolute;top:132px;right:0;font-size:8px;margin:0}
+ .art-2 .b-copy .contact{margin-top:12px}
+ .art-3 .b-photo-window{height:29%;bottom:auto}
+ .art-3 .b-photo-caption{bottom:14px}
+ .art-3 .campus-art{top:calc(29% + 74px);bottom:auto;left:0;right:0;height:96px;padding:5px 22px;gap:24px;border-bottom:1px solid var(--art-edge)}
+ .art-3 .campus-art img{width:174px;max-width:55%;height:86px}
+ .art-3 .campus-art figcaption{gap:1px;min-width:108px}
+ .art-3 .campus-art figcaption>span{font-size:8px}
+ .art-3 .campus-art figcaption>strong{font-size:20px}
+ .art-3 .campus-art figcaption>small{font-size:7px}
+ .art-3 .b-copy{top:calc(29% + 184px);bottom:104px}
+ .art-3 .b-copy h2{font-size:44px;margin-top:8px}
+ .art-3 .b-copy .name-en{top:47px}
+ .art-3 .b-copy .contact{margin-top:14px;padding-top:8px}
+ .art-3 .b-copy .socials{margin-top:0}
+ .art-3 .b-copy .booking-status{margin-top:4px;min-height:44px}
+}
+@media(max-width:760px) and (max-height:780px){
+ .art-1 .campus-art{height:54px;bottom:106px}
+ .art-2 .campus-art{height:64px;width:148px;margin-bottom:8px}
+ .art-2 .b-copy .name-en{top:118px}
+ .art-2 .b-copy h2,.art-1 .b-copy h2,.art-3 .b-copy h2{font-size:40px}
+ .art-3 .campus-art{height:76px}.art-3 .campus-art img{height:68px;width:150px}
+ .art-3 .b-copy{top:calc(29% + 162px)}
+}
+@media(max-width:360px){
+ .art-1 .b-copy .name-en,.art-2 .b-copy .name-en,.art-3 .b-copy .name-en{font-size:7px}
+ .art-3 .campus-art{padding-inline:18px;gap:18px}.art-3 .campus-art figcaption{min-width:96px}
+}
+.reduced .campus-art{visibility:visible;opacity:1}
+@media(forced-colors:active){.campus-art{visibility:hidden!important}}

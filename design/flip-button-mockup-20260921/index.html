@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>翻面鈕縮小方向 A／B／C</title>
+<style>
+@font-face{font-family:'LINE Seed TW';src:url(../../web/public/assets/fonts/lineseed-bd.woff) format('woff');font-weight:700}
+:root{--green:oklch(38% .055 162);--deep:oklch(28% .04 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--yellow:oklch(87% .13 88);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--ink:17 42 33;--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'LINE Seed TW','PingFang TC',sans-serif;--print-tint:var(--yellow)}
+*{box-sizing:border-box}body{margin:0;background:oklch(60% .05 160);font:1rem/1.8 var(--font);color:var(--text);padding:40px}
+h1{color:#fff;font:700 1.1rem/1.4 var(--font-head);margin:0 0 24px}
+.grid{display:grid;grid-template-columns:repeat(3,460px);gap:40px}
+.col h2{color:#fff;font:600 .875rem/1.5 var(--font);letter-spacing:.06em;margin:0 0 6px}
+.col p{color:oklch(90% .02 150);font-size:.75rem;line-height:1.7;margin:0 0 16px;max-width:none}
+.stack{display:grid;gap:28px}
+/* 拍立得（仿主站） */
+.print-card{position:relative;width:460px;rotate:-2.2deg}
+.print-face{position:relative;background:color-mix(in oklch,var(--print-tint) 24%,oklch(99.5% .006 95));box-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3)}
+.print-front{padding:8% 8% 0}
+.print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}
+.print-figure img{display:block;width:100%;aspect-ratio:1;object-fit:cover;object-position:50% 40%}
+.print-figure figcaption{position:absolute;left:10px;top:10px;padding:3px 8px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:.5625rem;letter-spacing:.02em}
+.print-foot{padding:18px 112px 20px 4px;min-height:104px}
+.print-kicker{font-size:.625rem;letter-spacing:.08em;color:var(--muted)}
+.print-foot h3{margin:8px 0 0;font:700 1.5rem/1.45 var(--font-head);letter-spacing:.02em;color:var(--green);rotate:-.8deg}
+.print-back{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:32px 32px 60px;background:color-mix(in oklch,var(--print-tint) 15%,oklch(98.5% .012 95)) repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px)}
+.print-story{font-size:.9375rem;line-height:2.1;margin:14px 0 0}
+.print-ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:20px;padding-top:14px}
+.print-question{font-size:.8125rem;font-weight:600;line-height:1.7;color:var(--green);margin:0}
+.print-answer{font-size:.8125rem;line-height:1.95;margin:8px 0 0;color:var(--muted)}
+.icon{width:1em;height:1em;fill:currentColor}
+button{font:inherit;cursor:pointer}
+/* 共用：玻璃底 */
+.glass{background:rgb(var(--ink) / .62);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);border:1px solid rgb(255 255 255 / .32);color:var(--paper)}
+.is-flipped .glass{background:rgb(var(--ink) / .84);border-color:rgb(255 255 255 / .4)}
+/* A 迷你膠囊：去掉圓徽章，圖示直接排在字後，高 30 */
+.flip-a{position:absolute;right:14px;bottom:16px;z-index:8;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 12px;border-radius:100px;font:600 .6875rem/1 var(--font);letter-spacing:.06em;box-shadow:0 1px 2px rgb(var(--ink) / .16),0 6px 14px rgb(var(--ink) / .22)}
+.flip-a .icon{width:.9375rem;height:.9375rem}
+.is-flipped .flip-a .icon{scale:-1 1}
+/* B 圓鈕：34px 只放圖示，字收進 hover／focus 才滑出的小籤 */
+.flip-b{position:absolute;right:14px;bottom:16px;z-index:8;display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:50%;box-shadow:0 1px 2px rgb(var(--ink) / .16),0 6px 14px rgb(var(--ink) / .22)}
+.flip-b .icon{width:1.0625rem;height:1.0625rem}
+.flip-b .label{position:absolute;right:calc(100% + 8px);top:50%;translate:6px -50%;padding:4px 9px;border-radius:100px;background:rgb(var(--ink) / .84);color:var(--paper);font:600 .625rem/1 var(--font);letter-spacing:.06em;white-space:nowrap;opacity:0;transition:opacity .2s,translate .2s}
+.flip-b:hover .label,.flip-b:focus-visible .label,.flip-b.show .label{opacity:1;translate:0 -50%}
+.is-flipped .flip-b .icon{scale:-1 1}
+/* C 角落貼籤：淺色紙感玻璃、4px 圓角、微微歪一點，像貼在相紙角的標籤 */
+.flip-c{position:absolute;right:12px;bottom:14px;z-index:8;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:4px;rotate:-2deg;background:rgb(255 253 245 / .72);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);border:1px solid rgb(var(--ink) / .14);color:var(--green);font:600 .6875rem/1 var(--font);letter-spacing:.08em;box-shadow:0 1px 1px rgb(var(--ink) / .08),0 4px 10px rgb(var(--ink) / .14)}
+.flip-c .icon{width:.875rem;height:.875rem}
+.is-flipped .flip-c{background:rgb(var(--ink) / .8);border-color:rgb(255 255 255 / .3);color:var(--paper);rotate:2deg}
+.is-flipped .flip-c .icon{scale:-1 1}
+</style>
+</head>
+<body>
+<svg hidden><symbol id="i-arrow-counter-clockwise" viewBox="0 0 256 256"><path fill="currentColor" d="M224 128a96 96 0 0 1-94.71 96H128a95.38 95.38 0 0 1-65.9-26.2a8 8 0 0 1 11-11.63a80 80 0 1 0-1.67-114.78a3 3 0 0 1-.26.25L44.59 96H72a8 8 0 0 1 0 16H24a8 8 0 0 1-8-8V56a8 8 0 0 1 16 0v29.8L60.25 60A96 96 0 0 1 224 128"/></symbol></svg>
+<h1>翻面鈕縮小方向：上排正面、下排背面（現行 40px 高＋30px 徽章）</h1>
+<div class="grid" id="grid"></div>
+<template id="card">
+<div class="print-card"><div class="print-face"><div class="print-front">
+<figure class="print-figure"><img src="../../web/public/assets/day-hello.webp" alt=""><figcaption>陪伴互動・入園情境示意</figcaption></figure>
+<div class="print-foot"><span class="print-kicker">01 / 早安入園</span><h3>早安，今天的我<br>準備好了。</h3></div>
+</div></div></div>
+</template>
+<template id="back">
+<div class="print-back"><span class="print-kicker">01 / 早安入園</span><p class="print-story">和家人說聲再見，走進熟悉的校園。從整理小書包開始，一點一點，找到自己的步調。</p><div class="print-ask"><p class="print-question">孩子第一次上學，如何陪伴適應？</p><p class="print-answer">參觀時可以與園所聊聊：初次入園的陪伴方式、家長如何與老師聯繫，以及可以事先做哪些準備。</p></div></div>
+</template>
+<script>
+const I='<svg class="icon" aria-hidden="true"><use href="#i-arrow-counter-clockwise"/></svg>';
+const dirs=[
+ {k:'a',t:'A 迷你膠囊',d:'同一顆縮成 30px 高，拿掉圓形徽章，圖示直接跟在字後。最省改動、最像現在。',
+  btn:f=>`<button class="flip-a glass" type="button"><span>${f?'翻回正面':'翻到背面'}</span>${I}</button>`},
+ {k:'b',t:'B 圓形圖示鈕',d:'34px 圓鈕只留圖示；滑鼠移上或鍵盤聚焦才在左側滑出「翻到背面」小籤。整張相片本來就可點，鈕退成提示。',
+  btn:f=>`<button class="flip-b glass${f?'':' show'}" type="button" aria-label="${f?'翻回正面':'翻到背面'}">${I}<span class="label" aria-hidden="true">${f?'翻回正面':'翻到背面'}</span></button>`},
+ {k:'c',t:'C 角落貼籤',d:'28px 高、4px 圓角、微歪 2°，淺色紙感玻璃＋綠字，像貼在相紙角的標籤；翻面後轉深綠。',
+  btn:f=>`<button class="flip-c" type="button">${I}<span>${f?'翻回正面':'翻到背面'}</span></button>`},
+];
+const grid=document.getElementById('grid');
+for(const d of dirs){
+  const col=document.createElement('div');col.className='col';col.id='col-'+d.k;
+  col.innerHTML=`<h2>${d.t}</h2><p>${d.d}</p><div class="stack"></div>`;
+  const st=col.querySelector('.stack');
+  for(const f of [false,true]){
+    const c=document.getElementById('card').content.cloneNode(true);
+    const face=c.querySelector('.print-face');
+    if(f){face.classList.add('is-flipped');face.append(document.getElementById('back').content.cloneNode(true));}
+    face.insertAdjacentHTML('beforeend',d.btn(f));
+    st.append(c);
+  }
+  grid.append(col);
+}
+</script>
+</body>
+</html>

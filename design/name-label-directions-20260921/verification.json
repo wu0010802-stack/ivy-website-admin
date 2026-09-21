@@ -1,0 +1,37 @@
+{
+  "result": "PASS",
+  "viewports": [
+    "1440 × 1100",
+    "390 × 844 touch",
+    "320 × 740 touch"
+  ],
+  "sizes": [
+    {
+      "variant": "b1",
+      "width": 80,
+      "height": 48
+    },
+    {
+      "variant": "b2",
+      "width": 125,
+      "height": 50
+    },
+    {
+      "variant": "b3",
+      "width": 70,
+      "height": 56
+    }
+  ],
+  "verified": [
+    "All images loaded",
+    "No horizontal overflow",
+    "All three click and keyboard round trips",
+    "Front/back aria-hidden and inert",
+    "Focus remains on trigger",
+    "B2 action text changes",
+    "Escape dismisses tooltip",
+    "All three mobile tap flows",
+    "Reduced motion disables transition"
+  ],
+  "consoleAndNetworkErrors": []
+}

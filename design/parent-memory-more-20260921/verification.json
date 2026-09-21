@@ -1,0 +1,50 @@
+{
+  "result": "PASS",
+  "sizes": [
+    {
+      "id": "p5",
+      "width": 110,
+      "height": 82
+    },
+    {
+      "id": "p6",
+      "width": 160,
+      "height": 60
+    },
+    {
+      "id": "p7",
+      "width": 110,
+      "height": 96
+    },
+    {
+      "id": "p8",
+      "width": 140,
+      "height": 70
+    },
+    {
+      "id": "p9",
+      "width": 140,
+      "height": 84
+    },
+    {
+      "id": "p10",
+      "width": 145,
+      "height": 78
+    }
+  ],
+  "viewports": [
+    "1520px desktop",
+    "390px touch",
+    "320px touch"
+  ],
+  "verified": [
+    "Generated sticker assets and local handwriting font load",
+    "No horizontal overflow",
+    "Six click, touch and keyboard front/back flows plus gallery selection",
+    "Focus remains on button",
+    "Inactive face inert and aria-hidden",
+    "Return copy updates to 看照片",
+    "Reduced motion disables transition"
+  ],
+  "errors": []
+}

@@ -1,0 +1,85 @@
+/* The photograph and drawing share one canvas and one scrolling transform. */
+:root {
+  --blend-paper: #fcfaf3;
+  --blend-clear: transparent;
+  --blend-mask: #000;
+  --blend-paper-rgb: 252 250 243;
+  --blend-rule: #bac9bb;
+}
+.art-blend .b-photo-window { inset: 0; z-index: 0; }
+.art-blend .b-photo { background: var(--blend-paper); isolation: isolate; }
+.art-blend .b-photo img {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.016);
+  pointer-events: none;
+  user-select: none;
+}
+.art-blend .blend-sketch {
+  opacity: .9;
+  mix-blend-mode: multiply;
+  filter: grayscale(1) contrast(1.12);
+  -webkit-mask-image: linear-gradient(90deg, var(--blend-mask) 43%, var(--blend-clear) 61%);
+  mask-image: linear-gradient(90deg, var(--blend-mask) 43%, var(--blend-clear) 61%);
+}
+.art-blend .blend-photo-main {
+  -webkit-mask-image: linear-gradient(90deg, var(--blend-clear) 40%, var(--blend-mask) 65%);
+  mask-image: linear-gradient(90deg, var(--blend-clear) 40%, var(--blend-mask) 65%);
+}
+.art-blend .b-photo::after {
+  background: linear-gradient(90deg,
+    var(--blend-paper) 22%, rgb(var(--blend-paper-rgb) / .98) 29%,
+    rgb(var(--blend-paper-rgb) / .72) 36%, rgb(var(--blend-paper-rgb) / .12) 46%,
+    var(--blend-clear) 56%);
+  pointer-events: none;
+}
+.art-blend .b-copy { z-index: 5; }
+.art-blend .b-photo-caption {
+  left: auto;
+  right: var(--gutter);
+  bottom: 48px;
+  padding: 8px 16px 8px 8px;
+  background: var(--deep);
+  border-radius: 999px;
+  font-size: 11px;
+  gap: 12px;
+}
+.art-blend .b-photo-caption span { width: 30px; height: 30px; }
+.art-blend .b-copy .contact { border-color: var(--blend-rule); }
+.art-blend .journey-progress { right: 0; }
+/* Existing drawings have different margins; align their rooflines near the seam. */
+@media (min-width: 761px) {
+  #campus-chongde .blend-sketch { transform: translate(0, 7%) scale(1.016, .97); }
+  #campus-international .blend-sketch { transform: translate(2%, 9%) scale(1.016, 1.08); }
+  #campus-renwu .blend-sketch { transform: translate(0, 5.4%) scale(1.04, .96); }
+}
+@media (max-width: 760px) {
+  .art-blend .b-photo-window { inset: 74px 0 auto; height: 42%; }
+  .art-blend .b-copy { top: calc(35% + 84px); }
+  .art-blend .blend-sketch { -webkit-mask-image: none; mask-image: none; }
+  .art-blend .blend-photo-main {
+    -webkit-mask-image: linear-gradient(180deg, var(--blend-mask) 42%, var(--blend-clear) 89%);
+    mask-image: linear-gradient(180deg, var(--blend-mask) 42%, var(--blend-clear) 89%);
+  }
+  .art-blend .b-photo::after {
+    background: linear-gradient(180deg, var(--blend-clear) 58%,
+      rgb(var(--blend-paper-rgb) / .15) 70%, var(--blend-paper) 96%);
+  }
+  .art-blend .b-photo-caption { display: none; }
+}
+@supports not ((mask-image: linear-gradient(#000, transparent)) or (-webkit-mask-image: linear-gradient(#000, transparent))) {
+  .art-blend .b-photo::after {
+    background: linear-gradient(90deg, var(--blend-paper) 38%, var(--blend-clear) 68%);
+  }
+  @media (max-width: 760px) {
+    .art-blend .b-photo::after {
+      background: linear-gradient(180deg, var(--blend-clear) 30%, var(--blend-paper) 96%);
+    }
+  }
+}
+@media (forced-colors: active) {
+  .art-blend .blend-sketch { display: none; }
+  .art-blend .b-copy { background: Canvas; color: CanvasText; }
+}

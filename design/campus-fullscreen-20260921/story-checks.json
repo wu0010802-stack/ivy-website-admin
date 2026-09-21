@@ -1,0 +1,901 @@
+{
+  "checks": [
+    {
+      "size": "desktop",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 1,
+      "active": "minghua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 1,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 3,
+      "active": "international",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 3,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 4,
+      "active": "renwu",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 4,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "desktop",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 1,
+      "active": "minghua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 1,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 3,
+      "active": "international",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 3,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 4,
+      "active": "renwu",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 4,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "tablet",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 98,
+      "navBottom": 176,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 1,
+      "active": "minghua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 1,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 3,
+      "active": "international",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 3,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 4,
+      "active": "renwu",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 4,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "mobile",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 1,
+      "active": "minghua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 1,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 3,
+      "active": "international",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 3,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 4,
+      "active": "renwu",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 4,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 2,
+      "active": "chongde",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 2,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    },
+    {
+      "size": "small",
+      "index": 0,
+      "active": "yihua",
+      "overflow": false,
+      "navTop": 74,
+      "navBottom": 142,
+      "horizontal": true,
+      "touchTargets": true,
+      "navAbovePhoto": true,
+      "navAboveCopy": true,
+      "bookingOnscreen": true,
+      "visiblePhoto": true,
+      "enabledSceneCount": 1,
+      "activeNav": 0,
+      "labels": [
+        "義華校",
+        "明華校",
+        "崇德校",
+        "國際校",
+        "仁武校"
+      ],
+      "lineart": false
+    }
+  ],
+  "progressChecks": 18,
+  "errors": [],
+  "failed": [],
+  "keyboard": "pass",
+  "reducedMotion": "pass",
+  "scrollExit": "pass",
+  "otherVariants": "pass",
+  "progress": [
+    {
+      "fallback": false,
+      "p": 0,
+      "fills": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": false,
+      "p": 0.08,
+      "fills": [
+        0.412903,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": false,
+      "p": 0.18,
+      "fills": [
+        0.929032,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": false,
+      "p": 0.3,
+      "fills": [
+        1,
+        0.425,
+        0,
+        0,
+        0
+      ],
+      "active": 1
+    },
+    {
+      "fallback": false,
+      "p": 0.56,
+      "fills": [
+        1,
+        1,
+        0.465,
+        0,
+        0
+      ],
+      "active": 2
+    },
+    {
+      "fallback": false,
+      "p": 0.8,
+      "fills": [
+        1,
+        1,
+        1,
+        0.425,
+        0
+      ],
+      "active": 3
+    },
+    {
+      "fallback": false,
+      "p": 1,
+      "fills": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "active": 4
+    },
+    {
+      "fallback": false,
+      "p": 0.3,
+      "fills": [
+        1,
+        0.425,
+        0,
+        0,
+        0
+      ],
+      "active": 1
+    },
+    {
+      "fallback": false,
+      "p": 0,
+      "fills": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": true,
+      "p": 0,
+      "fills": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": true,
+      "p": 0.08,
+      "fills": [
+        0.412903,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": true,
+      "p": 0.18,
+      "fills": [
+        0.929032,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    },
+    {
+      "fallback": true,
+      "p": 0.3,
+      "fills": [
+        1,
+        0.425,
+        0,
+        0,
+        0
+      ],
+      "active": 1
+    },
+    {
+      "fallback": true,
+      "p": 0.56,
+      "fills": [
+        1,
+        1,
+        0.465,
+        0,
+        0
+      ],
+      "active": 2
+    },
+    {
+      "fallback": true,
+      "p": 0.8,
+      "fills": [
+        1,
+        1,
+        1,
+        0.425,
+        0
+      ],
+      "active": 3
+    },
+    {
+      "fallback": true,
+      "p": 1,
+      "fills": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "active": 4
+    },
+    {
+      "fallback": true,
+      "p": 0.3,
+      "fills": [
+        1,
+        0.425,
+        0,
+        0,
+        0
+      ],
+      "active": 1
+    },
+    {
+      "fallback": true,
+      "p": 0,
+      "fills": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "active": 0
+    }
+  ]
+}

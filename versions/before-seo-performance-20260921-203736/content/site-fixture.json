@@ -1,0 +1,419 @@
+{
+  "schemaVersion": "1.0.0-fixture",
+  "isDemo": true,
+  "_source": {
+    "extractedFrom": ["app.js", "index.html"],
+    "extractedAt": "2026-09-19",
+    "note": "此檔為官網 prototype（vanilla app.js / index.html）內容資料的結構化抽取，供 Nuxt 元件與 FastAPI schema 共用測試；示範內容，非正式資料。"
+  },
+
+  "home": {
+    "hero": {
+      "eyebrow": "常春藤幼兒園 · 高雄五校",
+      "titleParts": {
+        "before": "在常春藤",
+        "punctAfterBefore": "，",
+        "middle": "每一天都有",
+        "growingWord": "新發現",
+        "punctAfterGrowingWord": "。"
+      },
+      "copyLines": [
+        "一起讀故事、做作品，也到戶外探索。",
+        "在老師的陪伴下，動手試試，說出自己的想法。"
+      ],
+      "ctaLabel": "看看孩子的一天",
+      "ctaHref": "#/home/life",
+      "heroImage": "hero-campus-still",
+      "heroImageAlt": "常春藤的孩子在戶外草地上奔跑、微笑的校園影片畫面",
+      "heroVideoSrc": "assets/hero-campus.mp4",
+      "heroVideoPoster": "assets/hero-campus-still.webp",
+      "_todo": "hero 影片為園方廣告片剪出的校園片段（design/hero-video/build.sh），來源片未在本次抽取範圍"
+    },
+    "about": {
+      "anchorId": "about",
+      "sinceLabel": "SINCE 1997",
+      "title": "把每個孩子，放在心上。",
+      "watermark": { "top": "關於", "bottom": "常春藤" },
+      "bodyText": "自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。近三十年來，我們始終相信，幼兒園不只是上學的地方，更是孩子第一次離開家、認識世界的起點。因此，我們的課程從孩子的興趣與生活出發，讓他們在遊戲、繪本、藝術與戶外觀察中提問、動手嘗試，也在相處中練習合作與關懷；老師細心觀察、適時引導，尊重每個孩子不同的步調，陪伴他們學會照顧自己、理解他人。美語同樣融入每一天，從早晨問候、歌謠繪本到點心時間與遊戲對話，孩子在自然的互動裡聽、說、玩，先喜歡上這個語言，再慢慢累積開口的自信。我們希望每個孩子離開常春藤時，都帶著充滿好奇、值得珍藏的童年，以及面對世界的勇氣。",
+      "photos": [
+        { "image": "about-curious", "alt": "孩子在教室裡開心地指向自己的發現", "role": "portrait" },
+        { "image": "learning", "alt": "孩子們一起趴在地上觀察與探索", "role": "moment" }
+      ],
+      "caption": "把日常，變成值得記住的童年。"
+    },
+    "campusBoard": {
+      "sectionTitle": "分校資訊",
+      "eyebrow": "Campuses",
+      "note": "首頁為墨綠底板卡輪播（2026-09-18 定案 e3），預設顯示第一校（義華校），可左右切換五校；每校顯示校名、地區、地址、參觀專線、LINE/FB 連結、CTA。",
+      "defaultCampus": "yihua",
+      "campusOrder": ["yihua", "minghua", "chongde", "international", "renwu"]
+    }
+  },
+
+  "dayExperience": {
+    "sectionId": "life",
+    "eyebrow": "孩子的一天",
+    "eyebrowEn": "A DAY AT IVY",
+    "titleParts": { "ivy": "常春藤", "day": "的一天" },
+    "filmCaption": { "zh": "義華校 · 遊藝表演", "en": "LITTLE MOMENTS, BIG GROWTH." },
+    "filmSrc": "assets/day-film.mp4",
+    "filmSrcMobile": "assets/day-film-mobile.mp4",
+    "filmPoster": "day-poster",
+    "note": "日常情境提案，以義華校素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景取自義華遊藝表演紀錄，與相片非同一天拍攝。",
+    "sourceNote": "時刻取自官網一日流程 https://www.ivykidschool.com/一日流程；相片為義華校既有素材，與背景影片非同一天拍攝。",
+    "moments": [
+      {
+        "key": "hello", "time": "08:00", "label": "早安入園", "tint": "yellow",
+        "photo": "day-hello", "alt": "孩子在熟悉的環境裡，與身旁的人互動",
+        "caption": "陪伴互動 · 入園情境示意",
+        "title": "早安，今天的我\n準備好了。",
+        "story": "和家人說聲再見，走進熟悉的校園。從整理小書包開始，一點一點，找到自己的步調。",
+        "question": "孩子第一次上學，如何陪伴適應？",
+        "answer": "參觀時可以與園所聊聊：初次入園的陪伴方式、家長如何與老師聯繫，以及可以事先做哪些準備。"
+      },
+      {
+        "key": "discover", "time": "09:10", "label": "好奇探索", "tint": "mint",
+        "photo": "day-discover", "alt": "老師陪伴孩子操作幾何教具",
+        "caption": "教具探索 · 義華校影像",
+        "title": "我的「為什麼」，\n今天又多了一個。",
+        "story": "摸一摸、看一看，再和同伴試一次。那些讓眼睛發亮的小發現，是認識世界的開始。",
+        "question": "孩子平常會接觸哪些學習活動？",
+        "answer": "可以詢問該校如何安排探索活動、使用哪些教具與素材，以及如何依照年齡和孩子的興趣調整內容。"
+      },
+      {
+        "key": "lunch", "time": "11:40", "label": "一起用餐", "tint": "peach",
+        "photo": "day-lunch", "alt": "孩子拿取湯匙與面紙，練習準備餐具",
+        "caption": "整理餐具畫面 · 非實際進食",
+        "title": "「我自己來！」\n是今天的小進步。",
+        "story": "洗洗手、準備用餐，也練習照顧自己。每天重複的小事情，都可以成為成長的練習。",
+        "question": "餐點、飲食需求與自理練習怎麼安排？",
+        "answer": "參觀時可詢問餐點安排、食物過敏或特殊飲食需求的溝通方式，以及老師如何協助孩子練習用餐。"
+      },
+      {
+        "key": "rest", "time": "12:30", "label": "安靜片刻", "tint": "cream",
+        "photo": "classroom", "alt": "義華校明亮的教室空間，作為安靜片刻的空間參考",
+        "caption": "教室空間參考 · 午休照片待補",
+        "title": "小小的世界，\n也需要休息一下。",
+        "story": "把熱鬧的節奏放慢，留一點安靜給自己。休息之後，再帶著精神迎接下午。",
+        "question": "孩子睡不著，或有不同的休息需求呢？",
+        "answer": "可以向園所了解休息空間與安排，以及孩子尚未習慣午休時，老師會如何陪伴和與家長溝通。",
+        "_todo": "午休實拍照片待補，目前借用教室空間照片作參考"
+      },
+      {
+        "key": "outside", "time": "14:20", "label": "午後玩耍", "tint": "mint",
+        "photo": "day-outside", "alt": "孩子在戶外活動，笑著和同伴一起跑動",
+        "caption": "戶外活動 · 午後情境示意",
+        "title": "和朋友一起，\n把今天玩得好大。",
+        "story": "看看植物、動動身體，發現身邊的新鮮事。和同伴一起玩的時候，也在練習分享與表達。",
+        "question": "戶外活動與天氣變化如何安排？",
+        "answer": "參觀時可詢問戶外活動的空間、陪伴方式，以及下雨或天氣炎熱時，園所如何調整當天的安排。"
+      },
+      {
+        "key": "home", "time": "16:30", "label": "帶故事回家", "tint": "yellow",
+        "photo": "day-home", "alt": "孩子專注整理自己的物品，為一天收尾",
+        "caption": "整理物品 · 離園情境示意",
+        "title": "今天的好多事，\n想第一個告訴你。",
+        "story": "帶上書包，也帶上今天的新發現。和家人分享一件開心的小事，讓校園裡的故事繼續走進生活。",
+        "question": "接送與家長聯繫，有哪些需要先知道？",
+        "answer": "可以詢問園所的接送流程、家長與老師的聯繫方式，以及如何了解孩子在校的生活情況。"
+      }
+    ]
+  },
+
+  "campuses": [
+    {
+      "key": "yihua",
+      "name": "義華校",
+      "district": "三民區",
+      "address": "高雄市三民區義華路68號",
+      "phone": "07-392-8366",
+      "image": "yihua-exterior",
+      "photoPos": "85% center",
+      "panoramaPos": "center 12%",
+      "heroPhotoPos": "85% 8%",
+      "intro": "在義華路上，走進孩子的日常。",
+      "description": "從戶外廣場、綠色園藝到共創教室，認識孩子每天活動、探索與學習的空間。義華校重視愛與關懷、閱讀素養與生活自理，陪伴孩子練習與世界相處。",
+      "line": "https://lin.ee/gwl8fnA",
+      "facebook": "https://www.facebook.com/ivy.kids.fb/",
+      "fbNote": "義華校粉絲專頁",
+      "_todo": null,
+      "mapQueryAddress": "高雄市三民區義華路68號",
+      "tourScenes": [
+        {
+          "key": "courtyard", "name": "戶外廣場", "image": "campus",
+          "intro": "先從廣場開始，看看孩子每天活動的地方。",
+          "spots": [
+            { "name": "戶外活動空間", "x": 68, "y": 72, "text": "從照片可以看見校舍圍繞的戶外廣場。開闊的地面與周邊空間，是認識校園環境的第一個視角。", "question": "可以詢問戶外活動時段、陪伴方式，以及雨天的替代安排。" },
+            { "name": "遊戲設施", "x": 12, "y": 51, "text": "照片左側可看見溜滑梯與遊戲設施。放大照片，看看設施與周邊活動空間的配置。", "question": "參觀時可以了解設施適用年齡、使用方式與日常維護。" },
+            { "name": "校舍與走廊", "x": 66, "y": 26, "text": "廣場周圍是校舍與走廊。從這個視角，可以先認識室內外空間的關係。", "question": "教室配置、孩子移動路線與接送出入口，請向園所確認。" }
+          ]
+        },
+        {
+          "key": "garden", "name": "綠色園藝", "image": "garden",
+          "intro": "靠近一點，看看校園裡的自然細節。",
+          "spots": [
+            { "name": "觀察果實", "x": 52, "y": 62, "text": "義華校官網的園藝照片記錄了枝葉間的果實。從顏色、形狀與大小開始，看看自然裡的小細節。", "question": "可以詢問孩子接觸植物時的活動內容與陪伴方式。" },
+            { "name": "葉片與枝條", "x": 29, "y": 35, "text": "綠葉、枝條與果實相互交錯。放大照片，可以看見平常容易忽略的葉片紋理。", "question": "參觀時可以了解植物照顧、觀察或種植活動如何安排。" }
+          ]
+        },
+        {
+          "key": "classroom", "name": "共創教室", "image": "classroom",
+          "intro": "走進教室，認識孩子創作與學習的空間。",
+          "spots": [
+            { "name": "桌椅與共作空間", "x": 63, "y": 66, "text": "教室照片中可以看見成排的桌椅與活動空間。這個視角呈現室內學習環境的配置。", "question": "可以向園所了解分組方式，以及如何配合活動調整桌椅。" },
+            { "name": "材料收納", "x": 22, "y": 51, "text": "照片左側的櫃架放置了多種材料。透過收納區，可以先認識教室內的素材與空間安排。", "question": "參觀時可以詢問材料使用、收拾習慣與生活自理的練習。" },
+            { "name": "展示與教學區", "x": 45, "y": 44, "text": "教室前方可見黑板與展示區。搭配完整照片，一起看看不同區域如何分布。", "question": "各年齡層的教室與學習安排，請向園所確認。" }
+          ]
+        }
+      ],
+      "faq": {
+        "template": "generic-4-item",
+        "items": [
+          { "q": "第一次參觀，要怎麼預約？", "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。" },
+          { "q": "參觀時可以了解哪些事情？", "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。" },
+          { "q": "可以查詢招生年齡、名額與費用嗎？", "a": "招生年齡、名額與費用依校區與學年度而異。請向義華校確認；這份提案不提供即時招生名額或費用報價。" },
+          { "q": "五所校區的環境與課程都一樣嗎？", "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。" }
+        ]
+      }
+    },
+    {
+      "key": "minghua",
+      "name": "明華校",
+      "district": "左營區",
+      "address": "高雄市左營區明華一路176號",
+      "phone": "07-556-6796",
+      "image": "minghua",
+      "photoPos": null,
+      "panoramaPos": null,
+      "heroPhotoPos": null,
+      "intro": "在明華一路，認識我們的校園。",
+      "description": "明華校位於高雄市左營區明華一路。先從校園外觀與所在位置認識學校，再安排一次參觀，親自了解孩子的學習環境與接送動線。",
+      "line": null,
+      "facebook": "https://www.facebook.com/ivykid",
+      "fbNote": "常春藤機構粉絲專頁（明華校粉專待補）",
+      "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非明華校自有粉專",
+      "mapQueryAddress": "高雄市左營區明華一路176號",
+      "tourScenes": {
+        "_generated": true,
+        "note": "app.js 的 scenesFor(key) 對非義華校自動產生單一場景「校園外觀」，spot 文字為模板字串插入校名／地址，非逐校撰寫的固定資料。",
+        "template": {
+          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
+          "introTemplate": "先從外觀與位置，認識{name}。",
+          "spot": {
+            "name": "認識{name}", "x": 50, "y": 48,
+            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
+            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
+          }
+        }
+      },
+      "faq": {
+        "template": "generic-4-item",
+        "items": [
+          { "q": "第一次參觀，要怎麼預約？", "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。" },
+          { "q": "參觀時可以了解哪些事情？", "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。" },
+          { "q": "可以查詢招生年齡、名額與費用嗎？", "a": "招生年齡、名額與費用依校區與學年度而異。請向明華校確認；這份提案不提供即時招生名額或費用報價。" },
+          { "q": "五所校區的環境與課程都一樣嗎？", "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。" }
+        ]
+      }
+    },
+    {
+      "key": "chongde",
+      "name": "崇德校",
+      "district": "左營區",
+      "address": "高雄市左營區崇德路87號",
+      "phone": "07-341-6286",
+      "image": "chongde",
+      "photoPos": null,
+      "panoramaPos": null,
+      "heroPhotoPos": null,
+      "intro": "從崇德路，開始一段校園探索。",
+      "description": "崇德校位於高雄市左營區崇德路。歡迎預約到園，看看校園空間，也與園所聊聊孩子的需要、生活安排與入學準備。",
+      "line": null,
+      "facebook": "https://www.facebook.com/ivykid",
+      "fbNote": "常春藤機構粉絲專頁（崇德校粉專待補）",
+      "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非崇德校自有粉專",
+      "mapQueryAddress": "高雄市左營區崇德路87號",
+      "tourScenes": {
+        "_generated": true,
+        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
+        "template": {
+          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
+          "introTemplate": "先從外觀與位置，認識{name}。",
+          "spot": {
+            "name": "認識{name}", "x": 50, "y": 48,
+            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
+            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
+          }
+        }
+      },
+      "faq": {
+        "template": "generic-4-item",
+        "items": [
+          { "q": "第一次參觀，要怎麼預約？", "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。" },
+          { "q": "參觀時可以了解哪些事情？", "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。" },
+          { "q": "可以查詢招生年齡、名額與費用嗎？", "a": "招生年齡、名額與費用依校區與學年度而異。請向崇德校確認；這份提案不提供即時招生名額或費用報價。" },
+          { "q": "五所校區的環境與課程都一樣嗎？", "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。" }
+        ]
+      }
+    },
+    {
+      "key": "international",
+      "name": "國際校",
+      "district": "鳥松區",
+      "address": "高雄市鳥松區球場路59號",
+      "phone": "07-370-8001",
+      "image": "international",
+      "photoPos": "48% center",
+      "panoramaPos": null,
+      "heroPhotoPos": null,
+      "intro": "走進鳥松，認識國際校。",
+      "description": "國際校位於高雄市鳥松區球場路。透過實際走訪了解校園環境與接送路線，並向園所確認適合孩子的課程與入學安排。",
+      "line": null,
+      "facebook": "https://www.facebook.com/ivykid",
+      "fbNote": "常春藤機構粉絲專頁（國際校粉專待補）",
+      "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非國際校自有粉專",
+      "mapQueryAddress": "高雄市鳥松區球場路59號",
+      "tourScenes": {
+        "_generated": true,
+        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
+        "template": {
+          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
+          "introTemplate": "先從外觀與位置，認識{name}。",
+          "spot": {
+            "name": "認識{name}", "x": 50, "y": 48,
+            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
+            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
+          }
+        }
+      },
+      "faq": {
+        "template": "generic-4-item",
+        "items": [
+          { "q": "第一次參觀，要怎麼預約？", "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。" },
+          { "q": "參觀時可以了解哪些事情？", "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。" },
+          { "q": "可以查詢招生年齡、名額與費用嗎？", "a": "招生年齡、名額與費用依校區與學年度而異。請向國際校確認；這份提案不提供即時招生名額或費用報價。" },
+          { "q": "五所校區的環境與課程都一樣嗎？", "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。" }
+        ]
+      }
+    },
+    {
+      "key": "renwu",
+      "name": "仁武校",
+      "district": "仁武區",
+      "address": "高雄市仁武區京吉一路102號",
+      "phone": "07-375-7081",
+      "image": "renwu",
+      "photoPos": null,
+      "panoramaPos": null,
+      "heroPhotoPos": null,
+      "intro": "在仁武，遇見下一段成長。",
+      "description": "仁武校位於高雄市仁武區京吉一路。歡迎帶著對孩子成長的期待來認識校園，參觀時也可以與園所討論課程、生活照顧與接送安排。",
+      "line": null,
+      "facebook": "https://www.facebook.com/ivykid",
+      "fbNote": "常春藤機構粉絲專頁（仁武校粉專待補）",
+      "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非仁武校自有粉專",
+      "mapQueryAddress": "高雄市仁武區京吉一路102號",
+      "tourScenes": {
+        "_generated": true,
+        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
+        "template": {
+          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
+          "introTemplate": "先從外觀與位置，認識{name}。",
+          "spot": {
+            "name": "認識{name}", "x": 50, "y": 48,
+            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
+            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
+          }
+        }
+      },
+      "faq": {
+        "template": "generic-4-item",
+        "items": [
+          { "q": "第一次參觀，要怎麼預約？", "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。" },
+          { "q": "參觀時可以了解哪些事情？", "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。" },
+          { "q": "可以查詢招生年齡、名額與費用嗎？", "a": "招生年齡、名額與費用依校區與學年度而異。請向仁武校確認；這份提案不提供即時招生名額或費用報價。" },
+          { "q": "五所校區的環境與課程都一樣嗎？", "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。" }
+        ]
+      }
+    }
+  ],
+
+  "news": {
+    "sectionId": "latest-news",
+    "note": "A 版最新消息；文案、日期與活動均為原型示意，圖片經 photoSrc 支援單檔預覽（app.js 註解原文）。",
+    "sampleNote": "設計示意｜消息與活動日期均為範例，圖像取自既有校園素材，非上述消息實拍。",
+    "articles": [
+      { "id": "garden", "date": "2026-09-16", "campus": "義華校", "category": "校園日常", "title": "小小園丁，把好奇心種進生活裡。", "description": "從翻土、澆水到觀察新芽，陪孩子發現一片葉子裡的大世界。", "image": "garden", "alt": "既有校園果樹情境照片" },
+      { "id": "learning", "date": "2026-09-12", "campus": "義華校", "category": "學習紀錄", "title": "動手試試看，讓每個想法都有形狀。", "description": "在創作與探索之間，看見孩子專注的眼神，也聽見他們自己的答案。", "image": "learning", "alt": "既有義華校學習活動情境照片" },
+      { "id": "renwu", "date": "2026-09-10", "campus": "仁武校", "category": "分校消息", "title": "走進仁武校，認識孩子的成長空間。", "description": "透過校園圖像，先認識孩子每天生活與探索的地方。", "image": "renwu", "alt": "仁武校既有校園外觀示意圖" },
+      { "id": "minghua", "date": "2026-09-08", "campus": "明華校", "category": "分校消息", "title": "在明華，打開新學期的日常。", "description": "新學期的相遇，從認識教室、老師與身邊的朋友開始。", "image": "minghua", "alt": "明華校既有校園照片" },
+      { "id": "chongde", "date": "2026-09-05", "campus": "崇德校", "category": "分校消息", "title": "一起認識崇德校的每個小角落。", "description": "從一扇窗、一條走廊開始，慢慢熟悉每天探索的校園。", "image": "chongde", "alt": "崇德校既有校園照片" },
+      { "id": "international", "date": "2026-09-03", "campus": "國際校", "category": "分校消息", "title": "新朋友、新發現，校園生活開始了。", "description": "帶著好奇走進校園，在一起生活的過程中，找到自己的步調。", "image": "international", "alt": "國際校既有校園照片" }
+    ],
+    "events": [
+      { "id": "visit", "date": "2026-09-26", "month": "SEP", "campus": "全校", "title": "秋季校園開放日", "description": "和孩子一起，來看看未來的日常。" },
+      { "id": "family", "date": "2026-10-03", "month": "OCT", "campus": "義華校", "title": "親子共讀・故事的午後", "description": "一本繪本，開啟一段親子對話。" },
+      { "id": "outdoor", "date": "2026-10-17", "month": "OCT", "campus": "全校", "title": "一起出發！親子探索日", "description": "在戶外發現身邊的小驚喜。" }
+    ]
+  },
+
+  "booking": {
+    "isDemo": true,
+    "demoNote": "這是官網互動提案，請使用測試資料。資料不會送出或儲存，也不會建立預約。實際參觀請直接致電各校。",
+    "consentText": "我了解這是操作示範，資料不會傳送給學校，不代表預約成立。",
+    "ctaLabel": "預約參觀",
+    "ctaLabelEn": "Book a Visit",
+    "bannerTitleTemplate": "親自走一趟，感受{campusNameOrIvy}的日常。",
+    "bannerBody": "帶著孩子，也帶著你想了解的事。我們期待與你相遇。",
+    "bannerButtonLabel": "預約校園參觀",
+    "steps": [
+      { "step": 1, "id": "choose-campus", "title": "想先認識哪所校園？", "description": "依照你的生活圈與接送路線選擇。" },
+      { "step": 2, "id": "contact-step", "title": "怎麼稱呼你？" },
+      { "step": 3, "id": "booking-result", "title": "示範完成，尚未送出預約。", "description": "以下為本次填寫內容。若要實際安排參觀，請撥打所選校區的電話；離開此頁後將清除輸入資料。" }
+    ],
+    "fields": [
+      { "name": "campus", "label": "選擇想參觀的校區", "type": "radio", "required": true, "optionsFrom": "campuses" },
+      { "name": "parentName", "label": "家長稱呼", "type": "text", "required": true, "maxlength": 40, "placeholder": "例如：陳媽媽" },
+      { "name": "phone", "label": "手機號碼", "type": "tel", "required": true, "maxlength": 16, "pattern": "09[0-9]{8}", "hint": "請填寫 09 開頭的 10 碼手機號碼。", "placeholder": "09xxxxxxxx" },
+      { "name": "age", "label": "孩子年齡", "type": "select", "required": false, "options": ["尚未確定", "2 歲以下", "2–3 歲", "3–4 歲", "4–5 歲", "5–6 歲"] },
+      { "name": "time", "label": "方便聯絡的時段", "type": "select", "required": false, "options": ["時間彈性", "平日上午", "平日下午", "其他，另行確認"] },
+      { "name": "questions", "label": "有沒有想先了解的事？", "type": "textarea", "required": false, "maxlength": 500, "placeholder": "例如：課程安排、生活照顧、入學準備……" },
+      { "name": "demo-consent", "label": "consentText 同意勾選", "type": "checkbox", "required": true }
+    ]
+  },
+
+  "footer": {
+    "brandName": "常春藤幼兒園",
+    "brandNameEn": "IVY KINDERGARTEN",
+    "tagline": "陪伴每一個孩子，長成自己喜歡的樣子。",
+    "links": [
+      { "label": "認識常春藤", "href": "#/home/about" },
+      { "label": "五校介紹", "href": "#/home/campuses" },
+      { "label": "校園生活", "href": "#/home/life" },
+      { "label": "預約參觀", "href": "#/visit" },
+      { "label": "最新消息", "href": "#/home/latest-news" }
+    ],
+    "campusListLabel": "我們的大家庭",
+    "copyright": "© 2026 常春藤教育機構",
+    "bottomNote": "官網設計提案 · 預約為操作示範，不會送出資料",
+    "titleFontCredit": { "label": "標題字型 LINE Seed TW", "href": "https://seed.line.me/index_tw.html" },
+    "orgSiteLink": { "label": "機構原官網", "href": "https://www.ivykidschool.com/" }
+  },
+
+  "siteMeta": {
+    "title": "常春藤幼兒園｜每一天都有新發現",
+    "description": "走進常春藤，認識五校的環境與孩子的校園生活。官網設計互動提案。",
+    "lang": "zh-Hant-TW",
+    "themeColor": "#204d3d",
+    "brandName": "常春藤教育機構",
+    "brandNameEn": "Ivy Educational Institution",
+    "logo": "assets/logo.png",
+    "primaryNav": [
+      { "label": "關於常春藤", "labelEn": "About Ivy", "href": "#/home/about" },
+      { "label": "孩子的一天", "labelEn": "A Day at Ivy", "href": "#/home/life" },
+      { "label": "五所校園", "labelEn": "Our Campuses", "href": "#/home/campuses" },
+      { "label": "最新消息", "labelEn": "Latest News", "href": "#/home/latest-news" }
+    ],
+    "headerPhone": { "number": "07-392-8366", "note": "義華校 · 參觀專線", "_todo": "頁首選單面板固定顯示義華校電話，非全園代表號，其他四校無對應頁首快撥號" }
+  }
+}

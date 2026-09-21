@@ -1,0 +1,40 @@
+{
+  "result": "PASS",
+  "sizes": [
+    {
+      "id": "p1",
+      "width": 94,
+      "height": 94
+    },
+    {
+      "id": "p2",
+      "width": 140,
+      "height": 76
+    },
+    {
+      "id": "p3",
+      "width": 143,
+      "height": 80
+    },
+    {
+      "id": "p4",
+      "width": 143,
+      "height": 76
+    }
+  ],
+  "viewports": [
+    "1520px desktop",
+    "390px touch",
+    "320px touch"
+  ],
+  "verified": [
+    "Generated sticker assets and local handwriting font load",
+    "No horizontal overflow",
+    "Four click, touch and keyboard front/back flows",
+    "Focus remains on button",
+    "Inactive face inert and aria-hidden",
+    "Return copy updates to 看照片",
+    "Reduced motion disables transition"
+  ],
+  "errors": []
+}

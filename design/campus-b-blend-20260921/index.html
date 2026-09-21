@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>B4 建築融景｜常春藤分校提案</title>
+  <style>
+    :root{--paper:#fcfaf3;--deep:#143326;--muted:#526c5d;--rule:#bac9bb;--mint:#e0e6dc;--font:'PingFang TC','Microsoft JhengHei',sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--deep);font:15px/1.7 var(--font)}button,a{font:inherit;color:inherit}button{cursor:pointer}a{text-underline-offset:5px}button:focus-visible,a:focus-visible{outline:3px solid var(--deep);outline-offset:4px}h1,p{margin:0}.page{max-width:1680px;margin:auto;padding:40px 48px 64px}.intro{display:flex;justify-content:space-between;align-items:end;gap:48px;margin-bottom:38px}.eyebrow{font-size:11px;letter-spacing:.13em;color:var(--muted);margin-bottom:10px}h1{font-size:clamp(28px,3vw,44px);font-weight:600;line-height:1.35;letter-spacing:.035em}.intro p{max-width:465px;font-size:14px;color:var(--muted)}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 0;border-top:1px solid var(--rule)}.group{display:flex;align-items:center;gap:20px}.toggle{display:flex;gap:3px;border:1px solid var(--rule);border-radius:999px;padding:3px}.toggle button{border:0;border-radius:999px;min-height:40px;padding:8px 19px;background:none;font-size:12px}.toggle button[aria-pressed=true]{background:var(--deep);color:var(--paper)}.full-link{font-size:12px}.hint{color:var(--muted);font-size:12px;margin-bottom:12px}.preview-shell{display:flex;justify-content:center;align-items:start;background:var(--mint)}iframe{display:block;border:0;width:100%;height:840px;background:var(--paper)}.preview-shell.is-mobile{padding:24px}.preview-shell.is-mobile iframe{width:390px;height:844px;flex-shrink:0;border-radius:20px}.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin:30px 0}.notes p{font-size:13px;color:var(--muted)}.notes strong{display:block;font-weight:600;color:var(--deep);margin-bottom:6px}.back{font-size:12px;color:var(--muted)}@media(max-width:850px){.page{padding:28px 24px 48px}.intro{display:block;margin-bottom:26px}.intro p{margin-top:16px;max-width:100%}.notes{gap:20px}.toolbar{flex-wrap:wrap}.group{gap:12px}}@media(max-width:600px){.page{padding:24px 16px 40px}.toolbar{align-items:start;gap:12px}.group{width:100%;justify-content:space-between}.toggle button{padding:7px 14px}.preview-shell.is-mobile{padding:0}iframe,.preview-shell.is-mobile iframe{width:100%;height:844px;border-radius:0}.notes{grid-template-columns:1fr;gap:16px}.intro p{font-size:13px}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <div><div class="eyebrow">B4 建築融景 · 沿用 B 左右分景 / 2026.09.21</div><h1>讓建築，延伸進留白裡</h1></div>
+      <p>建築線稿從米白背景中浮現，逐漸接上右側的真實校園。照片與線稿構成同一幅景，隨捲動一起切換五校。</p>
+    </header>
+    <section aria-label="建築融景互動預覽">
+      <div class="toolbar">
+        <div class="toggle" aria-label="提案對照"><button data-version="blend" aria-pressed="true">B4 建築融景</button><button data-version="original" aria-pressed="false">原版 B</button></div>
+        <div class="group"><div class="toggle" aria-label="預覽尺寸"><button data-device="desktop" aria-pressed="true">桌機</button><button data-device="mobile" aria-pressed="false">手機</button></div><a class="full-link" href="stage.html?direction=b" target="_blank" rel="noopener">滿版試滑 ↗</a></div>
+      </div>
+      <p class="hint">在畫面內往下捲動，或點選下方校名切換。</p>
+      <div class="preview-shell"><iframe src="stage.html?direction=b" title="B4 建築融景互動預覽"></iframe></div>
+    </section>
+    <div class="notes">
+      <p><strong>線稿補足照片邊緣</strong>以相近的建築比例銜接，取消左右硬切的界線。左側從淡線條開始，向右逐漸轉為實景。</p>
+      <p><strong>資訊保留乾淨閱讀區</strong>校名與聯絡資料周圍保留米白，線稿集中在照片邊緣與下方留白，地址可直接開啟地圖。</p>
+      <p><strong>手機改成上下融合</strong>照片下緣接出建築線條，再淡入校園資訊。這版以現有素材示意，接縫可逐校再細調。</p>
+    </div>
+    <a class="back" href="../campus-b-lineart-20260921/">回看上一輪三種線稿位置 ↗</a>
+  </main>
+  <script>
+    const frame=document.querySelector('iframe');
+    const versions={blend:{url:'stage.html?direction=b',title:'B4 建築融景互動預覽'},original:{url:'../campus-fullscreen-20260921/stage.html?direction=b',title:'原版 B 左右分景互動預覽'}};
+    document.querySelectorAll('[data-version]').forEach(button=>button.addEventListener('click',()=>{
+      const selected=versions[button.dataset.version];
+      frame.src=selected.url;frame.title=selected.title;
+      document.querySelector('.full-link').href=selected.url;
+      document.querySelectorAll('[data-version]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+    }));
+    document.querySelectorAll('[data-device]').forEach(button=>button.addEventListener('click',()=>{
+      document.querySelector('.preview-shell').classList.toggle('is-mobile',button.dataset.device==='mobile');
+      document.querySelectorAll('[data-device]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+    }));
+  </script>
+</body>
+</html>
