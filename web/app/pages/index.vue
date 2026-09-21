@@ -1,9 +1,21 @@
 <script setup lang="ts">
 const { data } = await usePublishedSite()
+const config = useRuntimeConfig()
+const origin = config.public.siteOrigin.replace(/\/$/, '')
+const indexable = config.public.indexingEnabled && Boolean(config.public.siteOrigin)
+
+useSeoMeta({
+  title: () => data.value?.content.siteMeta.title,
+  description: () => data.value?.content.siteMeta.description,
+  ogTitle: () => data.value?.content.siteMeta.title,
+  ogDescription: () => data.value?.content.siteMeta.description,
+  ogUrl: () => (origin ? origin : undefined),
+  ogType: 'website',
+  robots: indexable ? 'index, follow' : 'noindex, nofollow'
+})
 
 useHead(() => ({
-  title: data.value?.content.siteMeta.title,
-  meta: [{ name: 'description', content: data.value?.content.siteMeta.description }]
+  link: indexable ? [{ rel: 'canonical', href: origin }] : []
 }))
 </script>
 

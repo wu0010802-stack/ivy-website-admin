@@ -63,14 +63,9 @@ export default defineNuxtConfig({
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',
       indexingEnabled
     }
-  },
-
-  nitro: {
-    devProxy: {
-      '/api/website/v1/': {
-        target: `${apiInternalBase}/api/website/v1/`,
-        changeOrigin: true
-      }
-    }
   }
+
+  // 同源 `/api/website/v1/**` 由 web/server/routes/api/website/v1/[...].ts
+  // 這支 nitro catch-all 路由處理，dev/build/start 都走同一套，不需要
+  // 再靠 nitro.devProxy（那個只在 `nuxt dev` 生效，正式環境不會有效果）。
 })

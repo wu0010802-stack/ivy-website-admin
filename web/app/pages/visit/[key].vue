@@ -10,7 +10,10 @@ if (!campus.value) {
   throw createError({ statusCode: 404, message: '找不到這個校區' })
 }
 
-useHead(() => ({ title: '預約校園參觀｜常春藤幼兒園' }))
+useHead(() => ({
+  title: '預約校園參觀｜常春藤幼兒園',
+  meta: [{ name: 'robots', content: 'noindex, nofollow' }]
+}))
 </script>
 
 <template>

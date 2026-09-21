@@ -1,7 +1,10 @@
 <script setup lang="ts">
 const { data } = await usePublishedSite()
 
-useHead(() => ({ title: '預約校園參觀｜常春藤幼兒園' }))
+useHead(() => ({
+  title: '預約校園參觀｜常春藤幼兒園',
+  meta: [{ name: 'robots', content: 'noindex, nofollow' }]
+}))
 </script>
 
 <template>

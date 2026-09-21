@@ -10,8 +10,23 @@ if (!campus.value) {
   throw createError({ statusCode: 404, message: '找不到這個校區' })
 }
 
+const config = useRuntimeConfig()
+const origin = config.public.siteOrigin.replace(/\/$/, '')
+const indexable = config.public.indexingEnabled && Boolean(config.public.siteOrigin)
+const canonicalPath = `/campuses/${key}`
+
+useSeoMeta({
+  title: () => (campus.value ? `${campus.value.name}｜常春藤幼兒園` : undefined),
+  description: () => campus.value?.description,
+  ogTitle: () => (campus.value ? `${campus.value.name}｜常春藤幼兒園` : undefined),
+  ogDescription: () => campus.value?.description,
+  ogUrl: () => (origin ? `${origin}${canonicalPath}` : undefined),
+  ogType: 'website',
+  robots: indexable ? 'index, follow' : 'noindex, nofollow'
+})
+
 useHead(() => ({
-  title: campus.value ? `${campus.value.name}｜常春藤幼兒園` : undefined
+  link: indexable ? [{ rel: 'canonical', href: `${origin}${canonicalPath}` }] : []
 }))
 </script>
 
@@ -30,7 +45,7 @@ useHead(() => ({
           <h1>{{ campus.name }}</h1>
           <p>{{ campus.intro }}</p>
           <div class="hero-cta">
-            <NuxtLink class="button yellow" :to="`/visit/${campus.key}`">預約參觀{{ campus.name }}</NuxtLink>
+            <BookingCta :campus-key="campus.key" :label="`預約參觀${campus.name}`" button-class="button yellow" />
           </div>
         </div>
         <div class="hero-bottom"><span class="hero-caption">{{ campus.name }} · 官方校園照片</span></div>
@@ -84,7 +99,7 @@ useHead(() => ({
             <a class="phone-link" :href="`tel:${campus.phone}`">{{ campus.phone }}</a>
             <p>{{ campus.address }}</p>
             <div>
-              <NuxtLink class="button primary" :to="`/visit/${campus.key}`">預約{{ campus.name }}</NuxtLink>
+              <BookingCta :campus-key="campus.key" :label="`預約${campus.name}`" button-class="button primary" />
             </div>
           </div>
         </div>
@@ -97,7 +112,7 @@ useHead(() => ({
             <h2 class="section-title">親自走一趟，感受{{ campus.name }}的日常。</h2>
             <p>帶著孩子，也帶著你想了解的事。我們期待與你相遇。</p>
           </div>
-          <NuxtLink class="button yellow" :to="`/visit/${campus.key}`">預約校園參觀</NuxtLink>
+          <BookingCta :campus-key="campus.key" label="預約校園參觀" button-class="button yellow" />
         </div>
       </section>
     </main>

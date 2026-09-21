@@ -1,0 +1,63 @@
+<script setup lang="ts">
+import { resolveBookingAction } from '~/utils/booking-action'
+import type { BookingActionKind } from '~/utils/booking-action'
+
+const props = defineProps<{
+  campusKey: string
+  label?: string
+  buttonClass?: string
+}>()
+
+const { data: config, pending } = useCampusBooking(computed(() => props.campusKey))
+
+const action = computed(() => resolveBookingAction(props.campusKey, config.value ?? null))
+const displayLabel = computed(() => props.label ?? action.value.label)
+
+// 點擊只回報去識別化的計數，不代表「已預約」——LINE/電話/外部網址
+// 點擊都不算成功預約，這裡也不會因為點擊就自動建案。失敗就安靜略過，
+// 不影響使用者原本要做的事（跳去 LINE／撥號／開外部網站）。
+function trackClick(kind: BookingActionKind) {
+  const eventMap: Partial<Record<BookingActionKind, string>> = {
+    line: 'cta_click_line',
+    phone: 'cta_click_phone',
+    external: 'cta_click_external'
+  }
+  const eventType = eventMap[kind]
+  if (!eventType) return
+  $fetch('/api/website/v1/public/analytics-events', {
+    method: 'POST',
+    body: { event_type: eventType, campus_key: props.campusKey }
+  }).catch(() => {})
+}
+</script>
+
+<template>
+  <NuxtLink
+    v-if="!pending && action.kind === 'form'"
+    :class="buttonClass"
+    :to="action.href!"
+  >
+    <slot>{{ displayLabel }}</slot>
+  </NuxtLink>
+  <a
+    v-else-if="!pending && (action.kind === 'line' || action.kind === 'external') && action.href"
+    :class="buttonClass"
+    :href="action.href"
+    target="_blank"
+    rel="noopener noreferrer"
+    @click="trackClick(action.kind)"
+  >
+    <slot>{{ displayLabel }}</slot>
+  </a>
+  <a
+    v-else-if="!pending && action.kind === 'phone' && action.href"
+    :class="buttonClass"
+    :href="action.href"
+    @click="trackClick(action.kind)"
+  >
+    <slot>{{ displayLabel }}</slot>
+  </a>
+  <span v-else-if="!pending" :class="buttonClass" class="is-disabled" role="note">
+    {{ action.message || displayLabel }}
+  </span>
+</template>

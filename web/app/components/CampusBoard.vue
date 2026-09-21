@@ -157,10 +157,10 @@ function select(i: number) {
             </div>
           </div>
           <div class="campus-stage-actions">
-            <NuxtLink class="button primary" :to="`/visit/${current.key}`">
+            <BookingCta :campus-key="current.key" button-class="button primary">
               預約參觀{{ current.name }}
               <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
-            </NuxtLink>
+            </BookingCta>
             <a
               class="text-link"
               :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(current.address)}`"
