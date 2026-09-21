@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const { data } = await usePublishedSite()
+const { data, error } = await usePublishedSite()
+assertPublishedSite(error)
 
 useHead(() => ({
   title: '預約校園參觀｜常春藤幼兒園',

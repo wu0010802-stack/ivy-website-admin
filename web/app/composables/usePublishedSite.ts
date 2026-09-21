@@ -23,8 +23,13 @@ interface LivePublicSite {
  *   - site_footer：頁尾標語
  *
  * 這不是 Task 8 要求的完整 CMS 接線（其餘內容仍是靜態的），Task 8 會把
- * 其餘內容逐項換成同一套機制。失敗或後端未發布任何內容時，安靜地退回
- * fixture 原文，不讓公開頁面因此壞掉。
+ * 其餘內容逐項換成同一套機制。
+ *
+ * `contentMode === 'fixture'`（本機示範／視覺驗證用）才會單純只讀
+ * fixture、完全不打後端。其他模式（正式的 `live`）視後端為唯一真相
+ * 來源：後端說「尚無可用內容」（503）或直接連不上，這裡都不吞掉改用
+ * fixture 頂替——那等於用假資料偽裝成 HTTP 200 的正常頁面。呼叫端
+ * （頁面元件）要檢查 `error.value` 並丟出對應狀態碼的 `createError`。
  *
  * 疊資料的邏輯抽在 `applyContentOverlay`（純函式，見 utils/content-
  * overlay.ts），跟 `useDraftPreview` 共用，也讓這段邏輯能離開 Nuxt
@@ -32,31 +37,29 @@ interface LivePublicSite {
  */
 export function usePublishedSite() {
   const config = useRuntimeConfig()
-  if (config.public.contentMode !== 'fixture' && import.meta.dev) {
-    console.warn(
-      '[usePublishedSite] contentMode 不是 fixture，但目前仍以 fixture 為主要資料來源（完整 API 接線屬 Task 8）'
-    )
-  }
-
   const route = useRoute()
 
   return useAsyncData<PublishedSite>(
     'published-site',
     async () => {
       const fixture = await $fetch<SiteContent>('/api/site-fixture')
-      let releaseId = 'fixture-1'
-      let content = fixture
 
-      const live = await $fetch<LivePublicSite | null>('/api/public-site').catch(() => null)
-      if (live?.content) {
-        content = applyContentOverlay(fixture, live.content)
-        releaseId = live.release_id
+      if (config.public.contentMode === 'fixture') {
+        return { schemaVersion: fixture.schemaVersion, releaseId: 'fixture-1', content: fixture }
       }
 
-      return {
-        schemaVersion: content.schemaVersion,
-        releaseId,
-        content
+      try {
+        const live = await $fetch<LivePublicSite>('/api/public-site')
+        return {
+          schemaVersion: fixture.schemaVersion,
+          releaseId: live.release_id,
+          content: applyContentOverlay(fixture, live.content)
+        }
+      } catch (err: any) {
+        const statusCode = err?.response?.status ?? err?.statusCode ?? 503
+        // 用 createError 而不是自訂 Error class：這個錯誤要跨 SSR/hydrate
+        // 邊界正確序列化，頁面才讀得到 statusCode 再丟出對應狀態碼。
+        throw createError({ statusCode, statusMessage: '網站內容服務暫時無法使用' })
       }
     },
     // 目前沒有任何快取層（第一版刻意不開 SWR/ISR，見計畫 Task 8）：同一頁
@@ -64,4 +67,19 @@ export function usePublishedSite() {
     // 的內容，所以用 route.fullPath 當觸發訊號，換頁就重新抓一次。
     { watch: [() => route.fullPath] }
   )
+}
+
+/**
+ * 頁面元件呼叫 `usePublishedSite()` 後接這支：有錯就丟出對應狀態碼的
+ * fatal error（Nuxt 顯示錯誤頁、SSR 回真的 503/其他狀態碼），不是安靜
+ * 吃掉錯誤繼續渲染一個看起來正常但內容是假的頁面。
+ */
+export function assertPublishedSite(error: Ref<unknown>): void {
+  if (!error.value) return
+  const nuxtError = error.value as { statusCode?: number; statusMessage?: string }
+  throw createError({
+    statusCode: nuxtError.statusCode ?? 503,
+    statusMessage: nuxtError.statusMessage ?? '網站內容服務暫時無法使用',
+    fatal: true
+  })
 }

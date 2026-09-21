@@ -2,7 +2,8 @@
 const route = useRoute()
 const key = route.params.key as string
 
-const { data } = await usePublishedSite()
+const { data, error } = await usePublishedSite()
+assertPublishedSite(error)
 
 const campus = computed(() => data.value?.content.campuses.find((c) => c.key === key))
 

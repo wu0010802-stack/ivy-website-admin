@@ -1,11 +1,16 @@
-// Server-only 代理：呼叫 FastAPI 的 /public/site，失敗時回 null 而不是拋錯，
-// 讓瀏覽器端可以安全地退回 fixture 內容。真正的 SSR 直讀／新鮮度／私有
-// 預覽整合屬 Task 8（階段 C），這裡先做階段 B 展示用的最小讀取路徑。
-export default defineEventHandler(async () => {
+// Server-only 代理：呼叫 FastAPI 的 /public/site。刻意不吞掉失敗——後端
+// 說「尚無可用內容」（503）或直接連不上，都要讓呼叫端（usePublishedSite）
+// 知道這是一個錯誤，不能被誤當成「還沒發布，安靜退回 fixture」而繼續用
+// HTTP 200 呈現一個看起來正常、內容卻是假的頁面。
+export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   try {
     return await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/site`)
-  } catch {
-    return null
+  } catch (err: any) {
+    const statusCode = err?.response?.status ?? err?.statusCode ?? 503
+    throw createError({
+      statusCode,
+      statusMessage: statusCode === 503 ? '網站內容服務暫時無法使用' : '讀取網站內容失敗'
+    })
   }
 })

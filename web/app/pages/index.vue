@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const { data } = await usePublishedSite()
+const { data, error } = await usePublishedSite()
+assertPublishedSite(error)
 const config = useRuntimeConfig()
 const origin = config.public.siteOrigin.replace(/\/$/, '')
 const indexable = config.public.indexingEnabled && Boolean(config.public.siteOrigin)
