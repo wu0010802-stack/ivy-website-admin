@@ -10,10 +10,10 @@
 | A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，`tests/e2e/nuxt-rendering.spec.ts` 6 項通過 |
 | A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 部分 | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**未做**系統性的 hydration mismatch 自動化檢查（僅開發/啟動 log 人工觀察未見警告） |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
-| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 首頁「關於常春藤」／Hero／頁尾標語三個 content kind 有真實 editor；其餘 8 種欄位仍是 fixture，尚無 editor（見階段 B 補缺口小結） |
+| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 9 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校），見「CMS 擴展小結」；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；**探索（tourScenes）**含地圖座標巢狀結構未做；影片/照片素材本身仍未接媒體庫 |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
 | A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
-| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，**admin 素材庫 UI 已補上**（列表/預覽/上傳/刪除）；裁切焦點欄位仍無 UI；熱點複核、既有素材 dry-run importer 未做 |
+| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；**裁切焦點編輯 UI 已補上**（點圖片指定焦點＋alt/來源標註，見 CMS 擴展小結）；熱點複核、既有素材 dry-run importer 未做 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
 | A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
 | A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 通過 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt `VisitForm.vue` 已接上真實 `POST /public/visit-requests`（含 idempotency key、slots 選位、409/429/422 錯誤處理且失敗不清空欄位），見 Task 8 小結 |
@@ -231,4 +231,30 @@ npm run contract:check                                           # 契約與型�
 # 備份還原演練：
 uv run python scripts/backup_website.py /tmp/xxx
 WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=... uv run python scripts/restore_website.py /tmp/xxx/website-db-*.sql
+```
+
+## CMS 擴展與素材裁切 UI 小結（2026-09-21，Task 11 完成後追加，補 A01/A04 缺口）
+
+使用者要求「先把剩下 8 種內容欄位搬進 CMS」＋「素材裁切 UI」。過程中再次發現使用者在 `web/` 有新的進行中工作（`CampusBoard.vue` 未提交修改＋新的 `versions/before-campus-contact-b-*` 快照），本輪維持一貫作法：只精準 `git add` 自己動的檔案，`CampusBoard.vue`／`DESIGN.md`／`README.md`／`studio.css`／`NewsDialog.vue`／`useNewsSweep.ts`／`design/`／`versions/` 全部不碰。
+
+- **素材裁切 UI**：`MediaLibraryView.vue` 新增「編輯焦點」對話框，點圖片指定 `crop_focus_x/y`（0~1 相對座標），同時可編輯 alt 文字與來源標註，走既有 `PATCH /admin/media/{id}`（欄位早就在 API/DB，只是沒有 UI）。已用 Playwright 對真實 backend+admin 驗證：上傳→點焦點 (0.2, 0.8)→儲存→API 讀回數值正確持久化。
+- **CMS 擴展**：`CONTENT_KIND_REGISTRY` 從 3 種擴充到 9 種，新增 `site_meta`／`home_campus_board`／`booking_content`／`day_experience`／`campus_profile`（分校）／`campus_faq`（分校）；`site_footer` 從只有 `tagline` 擴充成含 `copyright`/`bottom_note`/`campus_list_label`。全部走既有的 content-items/revisions/publish 通用路由與 `require_scope` 權限模型，沒有另外複製一套機制。
+- **抓到並修一個真的會弄丟資料的 bug**：`get_public_content()` 原本用扁平的 `content[kind] = payload` 存放發布內容，`campus_profile`／`campus_faq` 這種每校各一份的 kind 一旦有多校資料，後面查到的校會直接覆蓋前面的，`/public/site` 只會回其中一校的資料。已改成非共用 kind 用 `content[kind][campus_key]` 兩層結構，新增 `test_campus_scoped_content_kind_isolated_per_campus` 用兩校真實發布資料驗證不再互相覆蓋。
+- **前端疊資料**：`applyContentOverlay` 擴充涵蓋全部 9 種 kind；`day_experience` 的疊資料筆數上限是 fixture 既有照片卡數量（`photo`/`tint` 尚未接媒體庫，後台多新增的時刻卡文字不會顯示，避免破圖），畫面上也加了對應提示；`campus_profile.line` 空字串在疊資料時轉成 `null`，跟 fixture 原本 `line: string | null` 的「尚未提供」語意一致。
+- **驗證**：backend 新增 4 項 pytest 全過（越權編輯拒絕、多校資料隔離、moments 陣列邊界 1~12 筆與 key 不可重複），累計 **110 項全過**；web 新增 4 項單元測試（累計 **33 項**）；既有 **27 項 e2e 全過**；用真實 production build＋backend 對 9 個 kind 逐一跑過「編輯→發布→公開頁面顯示」全流程（首頁 hero/about/campusBoard、五校介紹、各校 FAQ、孩子的一天時刻卡、頁尾、網站標題全部驗證過真的顯示在渲染出的 HTML 裡）；測試資料驗證後已改回符合 fixture 語意的真實內容，不留「測試xxx」字樣，測試帳號已刪除。
+
+**刻意不做（誠實列出）**：
+- 消息（news）——直接跟使用者當時在 `web/` 的進行中工作重疊，本輪完全不碰（含 backend／admin／web 三層都沒動）。
+- 探索（tourScenes）——每個場景含多個帶 x/y 座標的熱點，結構遠比其他 kind複雜，需要專門的視覺化編輯器，未在本輪範圍內。
+- 影片／照片素材本身仍是路徑字串，CMS 內容 kind 尚未接媒體庫做「選圖」；`day_experience` 因此只能編輯文字，不能換照片。
+- 首頁五校排序（`campusOrder`）與預設校區（`defaultCampus`）維持程式碼設定，不當一般文字內容開放編輯（改動風險較高，容易讓 carousel 邏輯壞掉）。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 110 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+cd web && npm run typecheck && npm run test:unit                 # 過；33 passed
+npm run contract:check                                           # 契約與型別皆一致（payload 走通用 dict 路由，OpenAPI 無變化）
+npx playwright test --project=desktop-1440                       # 27 passed
+# 9 個 content kind 逐一編輯→發布→用 production build 直接 curl 驗證公開頁面內容
 ```
