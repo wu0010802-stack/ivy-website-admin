@@ -10,7 +10,7 @@
 | A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，`tests/e2e/nuxt-rendering.spec.ts` 6 項通過 |
 | A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 部分 | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**未做**系統性的 hydration mismatch 自動化檢查（僅開發/啟動 log 人工觀察未見警告） |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
-| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 9 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校），見「CMS 擴展小結」；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；**探索（tourScenes）**含地圖座標巢狀結構未做；影片/照片素材本身仍未接媒體庫 |
+| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 10 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校）／campus_tour（各校，視覺化熱點編輯器，見「校園探索視覺化編輯器小結」）；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；影片/照片素材本身仍未接媒體庫（含 campus_tour 的場景圖片，仍是代號字串） |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
 | A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
 | A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；**裁切焦點編輯 UI 已補上**（點圖片指定焦點＋alt/來源標註，見 CMS 擴展小結）；熱點複核、既有素材 dry-run importer 未做 |
@@ -257,4 +257,23 @@ cd web && npm run typecheck && npm run test:unit                 # 過；33 pass
 npm run contract:check                                           # 契約與型別皆一致（payload 走通用 dict 路由，OpenAPI 無變化）
 npx playwright test --project=desktop-1440                       # 27 passed
 # 9 個 content kind 逐一編輯→發布→用 production build 直接 curl 驗證公開頁面內容
+```
+
+## 校園探索（tourScenes）視覺化編輯器小結（2026-09-21，補 A01 最後一項缺口）
+
+新增 `campus_tour` content kind（campus_key 分校，1~6 個場景、每場景 1~8 個熱點、x/y 限制在 0~100、場景 key 不可重複），走既有 content-items 通用路由與權限模型，沒有另外複製一套機制。
+
+- **admin 視覺化編輯器**（`CampusTourView.vue`）：選校區→選/新增場景→在圖片上點擊新增熱點、拖曳圖釘調整位置、編輯熱點名稱/說明/提問。圖片預覽讀官網現有素材（尚未接媒體庫，新增 `admin/src/config.ts` 的 `WEBSITE_ASSET_BASE` 指向 Nuxt 官網的靜態資產，本機預設 `http://127.0.0.1:3000`，可用 `VITE_WEBSITE_ASSET_BASE` 覆蓋）。
+- **web 端疊資料**：`applyContentOverlay` 新增 `campus_tour`，整組取代該校 `tourScenes`——包含把目前 4 校（明華/崇德/國際/仁武）仍在用的 `GeneratedTourScenes` 通用佔位樣板換成真正逐校撰寫的內容；義華校原本的 3 場景手寫內容也可以被後台覆蓋（一次整組取代，不是逐場景合併）。
+- **驗證**：用 Playwright 對真實 backend+admin+production build 跑過完整流程：在圖片上點擊新增熱點，驗證回存座標與點擊位置吻合；拖曳圖釘重新定位，驗證座標正確更新（例如拖到畫面右上角後回存 x=80.0, y=14.8，跟拖曳終點一致）；儲存草稿→發布→公開頁面（義華校）點擊圖釘，驗證顯示的標題/說明/提問正確對應剛剛編輯的內容。backend 新增 2 項 pytest（`test_campus_tour_scene_and_spot_bounds` 涵蓋場景數量上限、重複 key、熱點數量上限、x/y 超出範圍四種情境；`test_campus_tour_isolated_per_campus` 驗證兩校資料不互相覆蓋），累計 **112 項全過**；web 新增 1 項單元測試，累計 **34 項**；既有 **27 項 e2e 全過**。測試資料驗證後已還原成義華校原本的 3 場景真實內容，測試帳號已刪除。
+
+**已知限制**：場景圖片欄位仍是素材代號字串（例如 `campus`），管理者需要知道官網目前有哪些素材代號才能正確填寫；跟其他 kind 一樣尚未接媒體庫做「選圖」。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 112 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+cd web && npm run typecheck && npm run test:unit                 # 過；34 passed
+npm run contract:check                                           # 契約與型別皆一致
+npx playwright test --project=desktop-1440                       # 27 passed
 ```
