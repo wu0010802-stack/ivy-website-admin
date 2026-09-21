@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { responsiveImage } from '~/utils/responsive-image'
+import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
 
@@ -18,6 +20,8 @@ const activeIndex = ref(-1)
 useCurtain(rootEl, trackEl, sectionEl, 'day')
 const showVideo = ref(false)
 const isPlaying = ref(false)
+// 首次播放後才淡入；暫停時仍保留影片畫面，不退回封面。
+const isVideoReady = ref(false)
 const hasFailed = ref(false)
 
 let wantsPlayback = true
@@ -46,6 +50,7 @@ function paintFade() {
     if (print.getBoundingClientRect().top <= line) active = i
   })
   activeIndex.value = active
+  applyFilm()
 }
 
 function scheduleFade() {
@@ -62,19 +67,21 @@ function scheduleFade() {
 function applyFilm() {
   const video = videoEl.value
   if (!video || hasFailed.value) return
-  if (!onScreen || !wantsPlayback || document.hidden) {
+  // 首頁簾幕的下層幾何可能已碰到 viewport，但尚未真的捲入內容。
+  if (!onScreen || !wantsPlayback || document.hidden || window.scrollY === 0) {
     video.pause()
     isPlaying.value = false
     return
   }
   if (!video.getAttribute('src')) {
     const isMobile = window.matchMedia('(max-width: 760px)').matches
-    video.src = `/${isMobile ? props.day.filmSrcMobile : props.day.filmSrc}`
+    video.src = backgroundVideoSrc(isMobile ? props.day.filmSrcMobile : props.day.filmSrc, isMobile)
   }
+  if (!video.paused) { isPlaying.value = true; return }
   video
     .play()
     .then(() => {
-      const stillWanted = wantsPlayback && onScreen && !document.hidden
+      const stillWanted = wantsPlayback && onScreen && !document.hidden && window.scrollY > 0
       if (!stillWanted) video.pause()
       isPlaying.value = stillWanted
     })
@@ -107,7 +114,8 @@ function onReduceMotionChange() {
 
 onMounted(() => {
   reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  wantsPlayback = !reduceQuery.matches
+  const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
+  wantsPlayback = mayAutoplay(reduceQuery.matches, connection)
   showVideo.value = true
 
   nextTick(() => {
@@ -117,7 +125,9 @@ onMounted(() => {
         onScreen = entries[0]?.isIntersecting ?? false
         applyFilm()
       },
-      { threshold: 0 }
+      // 簾幕會把下層內容疊在首屏底下；不要因底部露出的幾何範圍
+      // 就下載影片，等區塊進入視窗主要閱讀區域再載入。
+      { threshold: 0, rootMargin: '0px 0px -25% 0px' }
     )
     watcher.observe(sectionEl.value)
   })
@@ -150,15 +160,17 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" aria-hidden="true">
-          <img class="day-film-poster" :src="`/assets/${day.filmPoster}.webp`" alt="" decoding="async">
+          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" alt="" decoding="async">
           <video
             v-if="showVideo"
             ref="videoEl"
             class="day-film-video"
+            :class="{ 'is-ready': isVideoReady }"
             muted
             loop
             playsinline
             preload="none"
+            @playing="isVideoReady = true"
             @error="onVideoError"
           />
           <span class="day-film-shade" />

@@ -194,7 +194,7 @@ body:has(.hn-dialog[open]){overflow:hidden}
   box-shadow:20px 0 24px 4px var(--campus-surface),-20px 0 24px 4px var(--campus-surface);
 }
 @media(max-width:760px) {
-  .campuses:not(.campus-panorama) {padding-bottom:128px}
+  /* 原本為 .campus-art-building 線稿預留 128px 底部空間，Nuxt 版分校內頁沒有這個元素，留著只是空白。 */
   .campus-art-building {left:-12px;bottom:-4px;width:180px;opacity:.7}
   .campuses .contact-location {box-shadow:none}
 }
@@ -550,7 +550,8 @@ body:has(.studio-hero) .header-top,
   /* Give the mint backdrop a longer entrance before the B2 content arrives. */
   --belief-entry-space:clamp(180px,32svh,360px);
   display:grid;position:relative;z-index:1;isolation:isolate;
-  background:#c5ded0;color:var(--belief-ink);
+  --belief-bg:#c5ded0;
+  background:var(--belief-bg);color:var(--belief-ink);
   padding:0;
   scroll-margin-top:-112px;
 }
@@ -630,7 +631,7 @@ body:has(.studio-hero) .header-top,
   .belief-watermark {font-size:24vw}
 }
 @media(max-width:760px) {
-  .home-belief {--belief-header-height:78px;--belief-entry-space:clamp(160px,24svh,240px);scroll-margin-top:-96px}
+  .home-belief {--belief-header-height:78px;--belief-entry-space:clamp(64px,10svh,96px);scroll-margin-top:-96px}
   .home-belief .container {width:calc(100% - 40px)}
   .belief-layout {padding-block:40px}
   .belief-since {font-size:10px;margin-bottom:22px;gap:12px}
@@ -642,6 +643,8 @@ body:has(.studio-hero) .header-top,
   .belief-moment {border-width:5px;width:68%;bottom:23px}
   .belief-photo-pair figcaption {font-size:10px;letter-spacing:0;bottom:0}
   .belief-watermark {left:0;font-size:30vw;opacity:.37}
+  /* 手機的浮水印會落在「閱讀完整介紹」與照片後方，壓淡一點、按鈕自帶底色，字才不會被大字吃掉。 */
+  [data-seam="2"] .belief-watermark {opacity:.28}
 }
 @media(max-width:360px) {
   .home-belief .container {width:calc(100% - 32px)}
@@ -674,7 +677,7 @@ body:has(.studio-hero) .header {
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
   --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
   --pill-gutter:max(48px,calc((100% - 1280px) / 2));
-  /* 2026-09-18 晚定案毛玻璃：膠囊底色是墨綠 74% 透明＋blur(16px)；74% 是壓在首頁最淺的米白上仍讓米白字有 6.5、--mint 英文有 4.7 的下限（58% 只有 3.9／2.8）。選單卡不透明，仍用 --green，否則壓在照片上導覽字不好讀。 */
+  /* 2026-09-21：選單卡沿用膠囊的墨綠 74% 不透明度與 16px 毛玻璃；實色 token 保留作不支援濾鏡／減少透明度時的底色。 */
   --pill-bg:rgb(var(--ink) / .74);--pill-solid:var(--green);--pill-fg:var(--paper);--pill-soft:var(--mint);
   --pill-border:rgb(255 255 255 / .28);--pill-line:rgb(255 255 255 / .16);--pill-hover:rgb(255 255 255 / .12);
   --pill-ease:cubic-bezier(.22,1,.36,1);
@@ -810,6 +813,7 @@ body:has(.studio-hero) .pill-book:hover {background:var(--paper);color:var(--dee
 /* 選單卡：位置與寬度由 app.js 對齊膠囊（首屏狀態則對齊頁首容器）。 */
 body:has(.studio-hero) .menu-panel {
   position:absolute;
+  max-width:calc(100% - 32px);
   padding:10px 18px 22px;
   background:var(--pill-solid);
   color:var(--pill-fg);
@@ -819,6 +823,20 @@ body:has(.studio-hero) .menu-panel {
   opacity:0;
   transform:translateY(-8px);
   transition:opacity .22s ease,transform .32s var(--pill-ease);
+}
+@supports ((backdrop-filter:blur(16px)) or (-webkit-backdrop-filter:blur(16px))) {
+  body:has(.studio-hero) .menu-panel {
+    background:var(--pill-bg);
+    -webkit-backdrop-filter:blur(16px) saturate(1.3);
+    backdrop-filter:blur(16px) saturate(1.3);
+  }
+}
+@media(prefers-reduced-transparency:reduce) {
+  body:has(.studio-hero) .menu-panel {
+    background:var(--pill-solid);
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+  }
 }
 body:has(.studio-hero) .menu-panel.is-open {opacity:1;transform:none}
 body:has(.studio-hero) .menu-panel {padding-top:14px}
@@ -854,8 +872,8 @@ body:has(.studio-hero) #menu-campuses {display:flex;flex-wrap:wrap;gap:4px}
 body:has(.studio-hero) #menu-campuses a {
   display:inline-flex;
   align-items:center;
-  min-height:36px;
-  padding:0 10px;
+  min-height:44px;
+  padding:0 12px;
   border-radius:999px;
   font-size:.875rem;
   font-weight:500;
@@ -1077,6 +1095,12 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
 /* 黏住的最後一屏：底部留白只撐到段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。 */
 [data-seam="2"] .belief-content {padding-bottom:calc(50svh + var(--display-size) * .15)}
+/* 手機縮短接力的停留距離，沿用同一變數維持簾幕與首張照片的對位。 */
+@media(max-width:760px) {
+  [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .55)}
+  [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32svh)}
+  [data-seam="2"] .belief-content {padding-bottom:calc(30svh + var(--display-size) * .15)}
+}
 
 /* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */
 .day-ghost {display:none}

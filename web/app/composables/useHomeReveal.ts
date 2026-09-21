@@ -77,7 +77,10 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     const fits = hero.value.getBoundingClientRect().height <= height + 1
     root.value.style.setProperty('--reveal-height', `${height}px`)
     const quiet = document.documentElement.classList.contains('hero-quiet')
-    root.value.dataset.motion = reduceQuery?.matches || !fits || quiet ? 'still' : native ? 'native' : 'fallback'
+    // 與 performance.css 的首屏預留條件一致。矮手機維持完整靜態閱讀，
+    // 避免先套全屏幾何、再因文案放不下退回而推動下方內容。
+    const compactScreen = mobile && height < 760
+    root.value.dataset.motion = reduceQuery?.matches || !fits || quiet || compactScreen ? 'still' : native ? 'native' : 'fallback'
     const rect = track.value.getBoundingClientRect()
     start = rect.top + window.scrollY
     distance = Math.max(1, rect.height - height)

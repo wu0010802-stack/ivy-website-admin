@@ -9,7 +9,7 @@ const props = defineProps<{
 }>()
 
 const form = reactive({
-  campus: props.initialCampus || props.campuses[0]?.key || '',
+  campus: props.initialCampus || '',
   parentName: '',
   phone: '',
   age: '',
@@ -19,7 +19,7 @@ const form = reactive({
 })
 
 const selectedCampusKey = computed(() => form.campus)
-const { data: bookingConfig, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
+const { data: bookingConfig, pending: bookingPending, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
 const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null))
 
 const availableSlots = ref<
@@ -54,7 +54,13 @@ const idempotencyKey = ref(crypto.randomUUID())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
 
+watch(() => form.campus, () => {
+  submitError.value = null
+  selectedSlotId.value = ''
+})
+
 async function onSubmit() {
+  if (submitting.value || bookingPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
   submitError.value = null
 
   if (bookingConfig.value?.mode === 'slots' && !selectedSlotId.value) {
@@ -113,8 +119,8 @@ function reset() {
 </script>
 
 <template>
-  <section class="visit-page">
-    <div class="container">
+  <section class="visit-page" :data-campus-key="form.campus">
+    <div class="container visit-content">
       <!-- booking.demoNote 是尚未接上真實 API 前的示範提示文字
            （「不會送出/不會建立預約」），現在表單已經打真的後端，
            不能再顯示這段話誤導家長——這段內容還沒搬進 typed content
@@ -122,23 +128,38 @@ function reset() {
            蓋掉，见 docs/website-admin/acceptance.md Task 8 小結。 -->
 
       <template v-if="!submitted">
-        <div v-if="action.kind !== 'form' && action.kind !== 'choose_campus'" class="booking-alt-cta">
-          <p>{{ action.message || '這個校區目前不開放線上預約表單。' }}</p>
+        <div class="visit-heading">
+          <h1>預約校園參觀</h1>
+          <p>選擇想參觀的校區，查看目前的預約與聯絡方式。</p>
+        </div>
+        <div class="visit-campus-picker field">
+          <label for="visit-campus">想參觀的校區</label>
+          <select id="visit-campus" v-model="form.campus" name="campus" :disabled="submitting" aria-describedby="visit-campus-hint">
+            <option value="" disabled>請選擇校區</option>
+            <option v-for="c in campuses" :key="c.key" :value="c.key">{{ c.name }} · {{ c.district }}</option>
+          </select>
+          <p id="visit-campus-hint" class="visit-campus-hint">{{ selectedCampus ? selectedCampus.address : '各校的參觀方式可能不同，選校後即可查看。' }}</p>
+        </div>
+
+        <p v-if="!selectedCampus" class="visit-status" role="status">請先選擇想參觀的校區。</p>
+        <p v-else-if="bookingPending" class="visit-status" role="status">正在確認{{ selectedCampus.name }}的參觀方式…</p>
+        <div v-else-if="action.kind !== 'form'" class="booking-alt-cta">
+          <p class="visit-status" role="status">{{ action.message || (action.href ? `請使用以下方式聯絡${selectedCampus.name}，確認參觀安排。` : '目前無法使用線上預約，請直接聯絡園所。') }}</p>
+          <div class="visit-contact-actions">
           <a v-if="action.href && action.kind !== 'phone'" class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer">
             {{ action.label }}
           </a>
           <a v-else-if="action.href" class="button primary" :href="action.href">{{ action.label }}</a>
+          <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button outline" :href="`tel:${selectedCampus.phone}`">
+            <svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}
+          </a>
+          <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="text-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
+          </div>
+          <NuxtLink class="text-link visit-campus-detail" :to="`/campuses/${selectedCampus.key}`">認識{{ selectedCampus.name }}</NuxtLink>
         </div>
 
         <form v-else class="booking-form" @submit.prevent="onSubmit">
-          <fieldset class="campus-options">
-            <legend>{{ booking.fields.find((f) => f.name === 'campus')?.label }}</legend>
-            <label v-for="c in campuses" :key="c.key" class="campus-option">
-              <input type="radio" name="campus" :value="c.key" v-model="form.campus" required>
-              <span><strong>{{ c.name }}</strong><small>{{ c.address }}</small></span>
-              <span class="district">{{ c.district }}</span>
-            </label>
-          </fieldset>
+          <p class="visit-form-note">留下聯絡方式，園所會再與你確認參觀時間。</p>
 
           <p v-if="bookingConfig?.mode === 'slots'" class="section-copy">
             此校區採時段預約，請選擇一個時段：
@@ -236,3 +257,23 @@ function reset() {
     </div>
   </section>
 </template>
+
+<style scoped>
+.visit-content{max-width:760px}
+.visit-heading{margin-bottom:28px}
+.visit-heading h1{font-size:clamp(1.75rem,4vw,2.5rem);color:var(--green)}
+.visit-heading p,.visit-campus-hint,.visit-form-note{color:var(--muted);font-size:.9375rem}
+.visit-heading p{margin-top:12px}
+.visit-campus-picker{margin-bottom:24px}
+.visit-campus-picker select{width:100%;min-height:52px;font-size:1rem}
+.visit-campus-hint{margin-top:8px}
+.visit-status{line-height:1.85}
+.visit-contact-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:20px}
+.visit-campus-detail{margin-top:20px;font-size:.9375rem}
+.visit-form-note{margin-bottom:24px}
+@media(max-width:760px){
+  .visit-page{padding-block:32px 56px;min-height:calc(100svh - 138px)}
+  .visit-heading{margin-bottom:24px}
+  .visit-contact-actions .button{width:100%;min-height:48px}
+}
+</style>

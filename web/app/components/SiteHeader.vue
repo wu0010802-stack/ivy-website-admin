@@ -293,7 +293,7 @@ const headerPhone = computed(() => props.content.siteMeta.headerPhone)
         </div>
       </div>
       <div class="menu-foot">
-        <a class="menu-phone" :href="`tel:${headerPhone.number}`">
+        <a :data-campus-key="campuses.find(c => c.phone === headerPhone.number)?.key" class="menu-phone" :href="`tel:${headerPhone.number}`">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
           <span>{{ headerPhone.number }}<small>{{ headerPhone.note }}</small></span>
         </a>

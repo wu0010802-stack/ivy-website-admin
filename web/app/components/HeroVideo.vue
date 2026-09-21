@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { responsiveImage } from '~/utils/responsive-image'
+import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { HeroContent } from '~/types/site-content'
 import { useHomeReveal } from '~/composables/useHomeReveal'
 
@@ -14,6 +16,11 @@ const actionsEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
 const showVideo = ref(false)
 const isPlaying = ref(false)
+const heroImgEl = ref<HTMLImageElement | null>(null)
+const videoSrc = ref('')
+let disposed = false
+let playbackFrame = 0
+let removeImageListener: (() => void) | undefined
 
 useHomeReveal({ root: rootEl, track: trackEl, hero: sectionEl, copy: copyEl, image: imageEl, media: mediaEl, actions: actionsEl })
 
@@ -76,17 +83,29 @@ function onReduceMotionChange() {
 
 onMounted(() => {
   reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  const connection = (navigator as any).connection
-  const frugal = Boolean(connection?.saveData) || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? '')
-
-  if (reduceQuery.matches || frugal) return
-  showVideo.value = true
+  const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
+  if (!mayAutoplay(reduceQuery.matches, connection)) return
   wantsPlayback = true
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      applyPlayback()
+  const startVideo = () => {
+    if (disposed) return
+    videoSrc.value = backgroundVideoSrc(props.hero.heroVideoSrc, window.matchMedia('(max-width: 760px)').matches)
+    showVideo.value = true
+    nextTick(() => {
+      if (disposed) return
+      playbackFrame = requestAnimationFrame(applyPlayback)
     })
-  })
+  }
+  // 封面完成後再啟動影片，避免首屏圖片與 mp4 搶頻寬。
+  if (heroImgEl.value?.complete) startVideo()
+  else if (heroImgEl.value) {
+    const image = heroImgEl.value
+    image.addEventListener('load', startVideo, { once: true })
+    image.addEventListener('error', startVideo, { once: true })
+    removeImageListener = () => {
+      image.removeEventListener('load', startVideo)
+      image.removeEventListener('error', startVideo)
+    }
+  }
 
   document.addEventListener('visibilitychange', onVisibilityChange)
   reduceQuery.addEventListener('change', onReduceMotionChange)
@@ -107,6 +126,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  disposed = true
+  cancelAnimationFrame(playbackFrame)
+  removeImageListener?.()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   reduceQuery?.removeEventListener('change', onReduceMotionChange)
   watcher?.disconnect()
@@ -139,11 +161,13 @@ onUnmounted(() => {
             </p>
             <div ref="actionsEl" class="studio-actions">
               <a class="button ghost" :href="hero.ctaHref">{{ hero.ctaLabel }}</a>
+              <a class="hero-campus-link" href="#campuses">找校區<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
             </div>
           </div>
           <figure ref="imageEl" class="studio-hero-image">
             <img
-              :src="`/assets/${hero.heroImage}.webp`"
+              ref="heroImgEl"
+              v-bind="responsiveImage(hero.heroImage)"
               :alt="hero.heroImageAlt"
               loading="eager"
               fetchpriority="high"
@@ -152,7 +176,7 @@ onUnmounted(() => {
               v-if="showVideo"
               id="hero-video"
               ref="videoEl"
-              :src="`/${hero.heroVideoSrc}`"
+              :src="videoSrc"
               muted
               loop
               playsinline
@@ -176,3 +200,10 @@ onUnmounted(() => {
     <slot />
   </div>
 </template>
+
+<style scoped>
+.hero-campus-link{display:none}
+@media(max-width:760px){
+  .hero-campus-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;color:inherit;font-size:.9375rem;text-decoration:underline;text-underline-offset:5px}
+}
+</style>

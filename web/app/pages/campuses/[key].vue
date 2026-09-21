@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { responsiveImage } from '~/utils/responsive-image'
+definePageMeta({ key: route => route.path })
 const route = useRoute()
 const key = route.params.key as string
 
@@ -11,35 +13,18 @@ if (!campus.value) {
   throw createError({ statusCode: 404, message: '找不到這個校區' })
 }
 
-const config = useRuntimeConfig()
-const origin = config.public.siteOrigin.replace(/\/$/, '')
-const indexable = config.public.indexingEnabled && Boolean(config.public.siteOrigin)
-const canonicalPath = `/campuses/${key}`
-
-useSeoMeta({
-  title: () => (campus.value ? `${campus.value.name}｜常春藤幼兒園` : undefined),
-  description: () => campus.value?.description,
-  ogTitle: () => (campus.value ? `${campus.value.name}｜常春藤幼兒園` : undefined),
-  ogDescription: () => campus.value?.description,
-  ogUrl: () => (origin ? `${origin}${canonicalPath}` : undefined),
-  ogType: 'website',
-  robots: indexable ? 'index, follow' : 'noindex, nofollow'
-})
-
-useHead(() => ({
-  link: indexable ? [{ rel: 'canonical', href: `${origin}${canonicalPath}` }] : []
-}))
+usePageSeo(computed(() => data.value?.content), campus)
 </script>
 
 <template>
   <div v-if="data && campus">
     <SiteHeader :content="data.content" />
-    <main id="main" tabindex="-1">
+    <main id="main" tabindex="-1" :data-campus-key="campus.key">
       <div class="container breadcrumb">
         <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五校介紹</a> / {{ campus.name }}
       </div>
       <section class="hero campus-hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
-        <img class="hero-photo" :src="`/assets/${campus.image}.webp`" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
+        <img class="hero-photo" v-bind="responsiveImage(campus.image)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
         <div class="hero-shade" />
         <div class="container">
           <span class="eyebrow">常春藤幼兒園 · 高雄{{ campus.district }}</span>

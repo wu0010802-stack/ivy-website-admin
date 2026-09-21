@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { responsiveImage } from '~/utils/responsive-image'
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
 const props = defineProps<{ news: NewsContent }>()
@@ -81,7 +82,7 @@ function formatDate(date: string) {
           </div>
           <div class="hn-cards">
             <article v-for="item in news.articles.slice(0, 3)" :key="item.id" class="hn-card">
-              <img :src="`/assets/${item.image}.webp`" width="720" height="465" :alt="item.alt" loading="lazy">
+              <img v-bind="responsiveImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
               <div class="hn-card-copy">
                 <span class="hn-meta"><span data-sweep-ink>{{ item.campus }}</span><time :datetime="item.date" data-sweep-ink>{{ formatDate(item.date) }}</time></span>
                 <h3><button type="button" data-sweep-ink aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
@@ -113,7 +114,7 @@ function formatDate(date: string) {
           </div>
           <div v-else class="hn-list">
             <button v-for="item in news.articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
-              <img :src="`/assets/${item.image}.webp`" width="720" height="465" :alt="item.alt" loading="lazy">
+              <img v-bind="responsiveImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
               <span class="hn-list-copy">
                 <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                 <strong>{{ item.title }}</strong>
@@ -127,7 +128,7 @@ function formatDate(date: string) {
           <span class="hn-kicker">{{ view.item.campus }} · {{ (view.item as NewsArticle).category }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <span class="hn-meta"><span>{{ view.item.campus }}</span><time :datetime="view.item.date">{{ formatDate(view.item.date) }}</time></span>
-          <img :src="`/assets/${(view.item as NewsArticle).image}.webp`" width="720" height="465" :alt="(view.item as NewsArticle).alt" loading="lazy">
+          <img v-bind="responsiveImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px')" :alt="(view.item as NewsArticle).alt" loading="lazy">
           <p class="hn-detail-copy">{{ view.item.description }}</p>
           <p class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
         </template>

@@ -1,3 +1,5 @@
+import { normalizeSiteOrigin } from './app/utils/seo'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback
@@ -16,52 +18,54 @@ const indexingEnabled = parseBoolean(
 if (websiteEnv === 'production' && contentMode === 'fixture') {
   throw new Error('production 環境禁止啟用 fixture 模式（NUXT_PUBLIC_CONTENT_MODE）')
 }
-if (indexingEnabled && !process.env.NUXT_PUBLIC_SITE_ORIGIN) {
-  throw new Error('啟用正式索引時必須設定 NUXT_PUBLIC_SITE_ORIGIN')
+if (indexingEnabled && !normalizeSiteOrigin(process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '')) {
+  throw new Error('啟用正式索引時必須設定有效 HTTPS origin（NUXT_PUBLIC_SITE_ORIGIN）')
 }
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  css: ['~/assets/css/styles.css', '~/assets/css/studio.css'],
+  css: ['~/assets/css/styles.css', '~/assets/css/studio.css', '~/assets/css/performance.css'],
+
+  routeRules: {
+    '/assets/responsive/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/optimized/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
+  },
 
   app: {
     head: {
       htmlAttrs: { lang: 'zh-Hant-TW' },
+      script: [{ key: 'motion-layout', tagPriority: 'critical', innerHTML: "document.documentElement.dataset.ivyMotion='ready'" }],
       link: [
         { rel: 'stylesheet', href: '/assets/fonts/brand-fonts.css' },
         {
           rel: 'preload',
           as: 'font',
-          type: 'font/woff',
-          href: '/assets/fonts/lineseed-eb.woff',
+          type: 'font/woff2',
+          href: '/assets/fonts/lineseed-eb.woff2',
           crossorigin: 'anonymous'
         },
         {
           rel: 'preload',
           as: 'font',
-          type: 'font/woff',
-          href: '/assets/fonts/lineseed-bd.woff',
+          type: 'font/woff2',
+          href: '/assets/fonts/lineseed-bd.woff2',
           crossorigin: 'anonymous'
-        },
-        {
-          rel: 'preload',
-          as: 'image',
-          href: '/assets/hero-campus-still.webp',
-          fetchpriority: 'high'
         }
       ]
     }
   },
 
   runtimeConfig: {
+    adminDistDir: process.env.NUXT_ADMIN_DIST_DIR ?? '',
     websiteApiInternalBase: apiInternalBase,
     websiteEnv,
     public: {
       contentMode,
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',
-      indexingEnabled
+      indexingEnabled,
+      telemetryEnabled: parseBoolean(process.env.NUXT_PUBLIC_TELEMETRY_ENABLED, websiteEnv === 'production')
     }
   }
 

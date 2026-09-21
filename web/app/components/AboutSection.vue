@@ -1,8 +1,16 @@
 <script setup lang="ts">
+import { responsiveImage } from '~/utils/responsive-image'
 import type { AboutContent } from '~/types/site-content'
 import { useCurtain, useRelayProgress } from '~/composables/useCurtain'
 
-defineProps<{ about: AboutContent }>()
+const props = defineProps<{ about: AboutContent }>()
+const expanded = ref(false)
+// 摘要沿用發布內容的第一個完整句子，不另寫一份會與 CMS 漂移的文案。
+const copy = computed(() => {
+  const text = props.about.bodyText
+  const end = text.search(/[。！？]/)
+  return end < 0 ? { lead: text, rest: '' } : { lead: text.slice(0, end + 1), rest: text.slice(end + 1) }
+})
 
 const rootEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
@@ -32,14 +40,15 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
             <div class="belief-main">
               <p class="belief-since" lang="en">{{ about.sinceLabel }}</p>
               <h2 id="about-title">{{ about.title }}</h2>
-              <p class="belief-text">{{ about.bodyText }}</p>
+              <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
+              <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="expanded = !expanded">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
             </div>
             <figure class="belief-photo-pair">
               <img
                 v-for="(photo, i) in about.photos"
                 :key="photo.image"
                 :class="i === 0 ? 'belief-portrait' : 'belief-moment'"
-                :src="`/assets/${photo.image}.webp`"
+                v-bind="responsiveImage(photo.image, '(max-width: 760px) 65vw, 28vw')"
                 :alt="photo.alt"
                 loading="lazy"
                 decoding="async"
@@ -53,3 +62,12 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
     <slot />
   </div>
 </template>
+
+<style scoped>
+.belief-copy-toggle{display:none}
+@media(max-width:760px){
+  .belief-more:not(.is-expanded){display:none}
+  .belief-copy-toggle{position:relative;z-index:1;display:inline-flex;align-items:center;min-height:44px;margin-top:8px;padding:4px 0;border:0;border-bottom:1px solid currentColor;background:var(--belief-bg,transparent);color:var(--green);font-size:.9375rem}
+}
+@media print{.belief-more{display:inline!important}.belief-copy-toggle{display:none}}
+</style>
