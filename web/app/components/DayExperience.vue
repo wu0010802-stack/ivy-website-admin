@@ -8,6 +8,9 @@ const rootEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
 const sectionEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
+const introEl = ref<HTMLElement | null>(null)
+const printsEl = ref<HTMLOListElement | null>(null)
+const activeIndex = ref(-1)
 
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
@@ -21,6 +24,33 @@ let wantsPlayback = true
 let onScreen = false
 let reduceQuery: MediaQueryList | null = null
 let watcher: IntersectionObserver | null = null
+let fadeFrame = 0
+
+// 對齊 app.js 的 fadeBehindContent()＋markActive()：大標先留在畫面上，
+// 拍立得列表靠近時淡成底紋（最低留 .16），並標出讀者停在哪一段，讓那
+// 張相片的時間戳再亮一階。
+const QUIET = 0.16
+function paintFade() {
+  fadeFrame = 0
+  const intro = introEl.value
+  const list = printsEl.value
+  if (!intro || !list) return
+  const top = list.getBoundingClientRect().top
+  const from = window.innerHeight * 0.62
+  const to = window.innerHeight * 0.25
+  const progress = Math.min(1, Math.max(0, (from - top) / (from - to)))
+  intro.style.setProperty('--word-fade', (1 - progress * (1 - QUIET)).toFixed(3))
+  const line = window.innerHeight * 0.55
+  let active = -1
+  list.querySelectorAll<HTMLElement>('.day-print').forEach((print, i) => {
+    if (print.getBoundingClientRect().top <= line) active = i
+  })
+  activeIndex.value = active
+}
+
+function scheduleFade() {
+  if (!fadeFrame) fadeFrame = requestAnimationFrame(paintFade)
+}
 
 // 對齊 app.js 的 applyFilm()：進畫面才載入、播放請求送出時讀者可能已
 // 經捲離或切走頁籤，所以 play() resolve 後還要再檢查一次才決定要不要
@@ -85,9 +115,15 @@ onMounted(() => {
 
   document.addEventListener('visibilitychange', onVisibilityChange)
   reduceQuery.addEventListener('change', onReduceMotionChange)
+  window.addEventListener('scroll', scheduleFade, { passive: true })
+  window.addEventListener('resize', scheduleFade, { passive: true })
+  paintFade()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('scroll', scheduleFade)
+  window.removeEventListener('resize', scheduleFade)
+  cancelAnimationFrame(fadeFrame)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   reduceQuery?.removeEventListener('change', onReduceMotionChange)
   watcher?.disconnect()
@@ -131,14 +167,14 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="day-stage">
-          <header class="day-intro">
+          <header ref="introEl" class="day-intro">
             <span class="eyebrow">{{ day.eyebrow }}<span lang="en">{{ day.eyebrowEn }}</span></span>
             <h2 class="day-title" id="day-heading">
               <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
             </h2>
           </header>
-          <ol class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
-            <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" />
+          <ol ref="printsEl" class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
+            <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" :active="i === activeIndex" />
           </ol>
           <p class="day-note">{{ day.note }}</p>
         </div>

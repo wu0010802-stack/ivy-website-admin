@@ -275,6 +275,14 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 
 首頁連結為 `#/home/latest-news`。所有圖片仍走 `photoSrc`，維持 `preview.html` 的單檔離線預覽。整合前快照位於 `versions/before-news-a-20260916-222759/`。
 
+### Nuxt 版色塊動效（2026-09-21）
+
+首頁活動卡與「所有活動／所有最新消息」入口採無圖示設計，移除斜箭頭；清單入口保留文字細底線，活動卡保留 hover 外框及鍵盤焦點。此調整僅作用於 Nuxt 首頁區塊。
+
+在 `web/` 延續上述活動＋新聞版型，依使用者補充改為整區由上往下的捲動換色：配色定案 A「霧藍＋暖白」，由分校區往下滑入霧藍 `--hn-sweep-background:#dce7eb`，原本底色為暖白 `--hn-base-background:#faf7ef`，搭配深綠文字；活動卡與文字共用同一道水平邊界。背景掃到哪裡，卡片就換色到哪裡，不使用卡片各自左右滑動的 hover 效果。三張活動卡依序換成暖黃、嫩綠、霧青；照片維持原樣，區塊標題、消息文字及連結使用深色，維持兩種淺底上的閱讀對比。往上捲動時反向退回。
+
+CSS 註冊進度屬性由原生 view timeline（`entry 15% → cover 65%`）驅動；共用進度乘區塊高度產生邊界，ResizeObserver 與字型載入後量測各元素相對位置，讓卡片漸層、背景裁切、文字漸層對齊。瀏覽器不支援時使用相同公式的 passive scroll＋requestAnimationFrame。保留單份語意 DOM、整張 article 的點擊範圍與消息 dialog；裝飾背景不接受點擊。手機維持同樣捲動體驗；減少動態時回到靜態米白版，高對比模式使用系統文字色，路由卸載時清除 observer／listener／rAF。原型凍結後的變更只在 `web/`，不回寫 vanilla 與 `preview.html`。
+
 
 ## 首頁移除 FAQ 與預約橫幅（2026-09-16）
 
@@ -288,3 +296,7 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 - `.belief-content` 的 `--belief-entry-space` 為桌面 `clamp(180px,32svh,360px)`，平板 `clamp(180px,28svh,280px)`，手機 `clamp(160px,24svh,240px)`；這段額外背景讓圖片和文字較晚進場。調整背景上方留白只改此變數，不改原 hero 揭幕的距離或進度。
 - 內容寬度最高 1440px，桌面 1.05fr／1fr，900px 以下上下排列。主照片用 about-curious、小照片用 learning，皆透過既有 img／photoSrc 打包；手機仍保留錯落雙照片。裝飾字 aria-hidden、不接收游標事件；減少動態時背景回到普通流，forced-colors 隱藏裝飾字。
 - Chromium 桌面／平板／手機共 10 種尺寸檢查無水平溢出，固定背景與文字的實際捲動位移分別為 0／-120px；原生 reveal、JavaScript fallback、減少動態、導覽錨點及校區連結均通過。Safari／Firefox 仍待實機驗證。
+
+## 分校資訊帶 B「校名主場」（2026-09-21 定案）
+
+使用者選定 prototype/design/campus-contact-three-20260921 的 B。僅更新 Nuxt CampusBoard 資訊帶，取代 e3 底板的一列四欄：大校名＋地區／英文副標、聯絡資訊＋社群、暖黃膠囊預約與次要地圖連結。桌機三欄、平板行動移下、手機單欄。照片及切校行為不變；缺 LINE 保留待補；所有預約仍走 BookingCta。樣式限定 campus-contact-b，避免影響分校內頁及消息換色。

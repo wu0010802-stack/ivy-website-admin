@@ -1,0 +1,50 @@
+[
+  {
+    "id": "a",
+    "name": "霧藍 × 暖白",
+    "sweep": "#DCE7EB",
+    "base": "#FAF7EF",
+    "note": "最推薦。淡藍襯托深綠字與暖色照片，清爽、有校園感。",
+    "ratios": {
+      "heading": "7.75",
+      "caption": "5.66",
+      "baseCaption": "5.19"
+    }
+  },
+  {
+    "id": "b",
+    "name": "淡陶米 × 象牙白",
+    "sweep": "#EADBCB",
+    "base": "#FAF7F0",
+    "note": "延續溫暖感，降低目前的黃度與濃度，氣質更柔和。",
+    "ratios": {
+      "heading": "7.21",
+      "caption": "5.26",
+      "baseCaption": "5.19"
+    }
+  },
+  {
+    "id": "c",
+    "name": "灰紫 × 珍珠白",
+    "sweep": "#E4DFE9",
+    "base": "#FAF8F5",
+    "note": "帶一點繪本與藝術課的氣質，個性較明顯。",
+    "ratios": {
+      "heading": "7.45",
+      "caption": "5.44",
+      "baseCaption": "5.24"
+    }
+  },
+  {
+    "id": "current",
+    "name": "目前的暖沙色",
+    "sweep": "#E7CBA5",
+    "base": "#F6F4EB",
+    "note": "目前版本，供比較色彩濃度與照片的呈現。",
+    "ratios": {
+      "heading": "6.27",
+      "caption": "4.58",
+      "baseCaption": "5.04"
+    }
+  }
+]

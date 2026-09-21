@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>分校資訊 · 三種版型預覽</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="campuses.js" defer></script>
+  <script src="icons.js" defer></script>
+  <script src="mockup.js" defer></script>
+</head>
+<body>
+  <aside class="preview-tools" aria-label="版型比較工具">
+    <a href="index.html">← 三版比較</a>
+    <nav aria-label="預覽版型">
+      <a data-layout="a" href="?layout=a">A 上圖下資訊</a>
+      <a data-layout="b" href="?layout=b">B 左圖右資訊</a>
+      <a data-layout="c" href="?layout=c">C 側欄選校</a>
+    </nav>
+    <label>預約狀態 <select id="booking-state"><option value="paused">暫停預約</option><option value="open">開放預約</option></select></label>
+    <small>獨立 mock-up</small>
+  </aside>
+  <div id="app"></div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <div id="demo-note" class="demo-note" role="status" hidden></div>
+</body>
+</html>

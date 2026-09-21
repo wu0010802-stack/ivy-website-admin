@@ -30,7 +30,7 @@ function select(i: number) {
 
 <template>
   <section
-    class="section campuses campus-panorama campus-board campus-contact-b"
+    class="section campuses campus-panorama campus-board"
     id="campuses"
     aria-roledescription="輪播"
     aria-labelledby="campuses-heading"
@@ -101,14 +101,12 @@ function select(i: number) {
         <div class="board-plate">
           <div class="campus-stage-info">
             <h3 class="board-name">
+              <span class="board-name-zh">{{ current.name }}</span>
               <span class="board-name-area">高雄 · {{ current.district }}</span>
-              <span class="board-name-zh">{{ current.name }}<span class="board-name-dot" aria-hidden="true">。</span></span>
-              <span class="board-name-en" lang="en">{{ current.key === 'international' ? 'INTERNATIONAL' : current.key.toUpperCase() }} CAMPUS</span>
             </h3>
-            <div class="board-contact-group">
             <dl class="board-facts">
               <div>
-                <dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-map-pin" /></svg>校園位置</dt>
+                <dt><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-map-pin" /></svg>所在地</dt>
                 <dd>{{ current.address }}</dd>
               </div>
               <div>
@@ -129,7 +127,7 @@ function select(i: number) {
                 </span>
                 <span class="campus-link-text">
                   <span class="campus-link-title">
-                    LINE 好友
+                    加 LINE 好友
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
                   </span>
                   <small>{{ current.name }}官方帳號</small>
@@ -150,14 +148,13 @@ function select(i: number) {
                 </span>
                 <span class="campus-link-text">
                   <span class="campus-link-title">
-                    Facebook
+                    Facebook 粉絲專頁
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
                   </span>
                   <small>{{ current.fbNote }}</small>
                 </span>
               </a>
             </div>
-          </div>
           </div>
           <div class="campus-stage-actions">
             <BookingCta :campus-key="current.key" button-class="button primary">
@@ -170,7 +167,7 @@ function select(i: number) {
               target="_blank"
               rel="noopener noreferrer"
             >
-              查看位置與路線
+              在 Google 地圖開啟
               <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
             </a>
           </div>
@@ -179,42 +176,3 @@ function select(i: number) {
     </div>
   </section>
 </template>
-
-<style scoped>
-/* 2026-09-21 approved direction B: campus identity leads the contact band. */
-.campus-contact-b { --contact-muted: #b7c9bf; --contact-rule: #426253; }
-.campus-contact-b .board-plate { grid-template-columns: minmax(0,1.25fr) minmax(0,1.1fr) auto; gap: 36px; padding: 40px 24px 46px; background: var(--deep); }
-.campus-contact-b .campus-stage-info { display: contents; }
-.campus-contact-b .board-name { font-family: var(--font-head); gap: 12px; }
-.campus-contact-b .board-name-zh { font-size: clamp(40px,4.4vw,64px); letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
-.campus-contact-b .board-name-dot { color: var(--gold); }
-.campus-contact-b .board-name-area { color: var(--contact-muted); font-size: 13px; letter-spacing: .12em; }
-.campus-contact-b .board-name-en { font-family: var(--font); font-size: 10px; font-weight: 400; letter-spacing: .2em; color: var(--contact-muted); }
-.campus-contact-b .board-contact-group { border-left: 1px solid var(--contact-rule); padding-left: 32px; min-width: 0; }
-.campus-contact-b .board-facts { gap: 14px; margin: 0; }
-.campus-contact-b .board-facts div { display: block; }
-.campus-contact-b .board-facts dt { display: block; color: var(--contact-muted); font-size: 12px; margin-bottom: 4px; }
-.campus-contact-b .board-facts dt .icon { display: none; }
-.campus-contact-b .board-facts dd { font-size: 15px; }
-.campus-contact-b .board-facts dd a { font-size: 18px; display: inline-flex; align-items: center; min-height: 44px; }
-.campus-contact-b .campus-links { border: 0; padding: 0; margin: 8px 0 0; flex-direction: row; gap: 8px 20px; }
-.campus-contact-b .campus-link { min-height: 44px; }
-.campus-contact-b .campus-link-badge { display: none; }
-.campus-contact-b .campus-link-title { color: var(--contact-muted); font-size: 12px; font-weight: 400; }
-.campus-contact-b .campus-link:hover .campus-link-title { color: var(--paper); text-decoration: underline; }
-.campus-contact-b .campus-link.is-pending small { display: block; color: var(--contact-muted); font-size: 11px; }
-.campus-contact-b .campus-stage-actions { align-items: stretch; gap: 8px; }
-.campus-contact-b .campus-stage-actions :deep(.button) { border-radius: 999px; min-height: 56px; padding-inline: 24px; }
-.campus-contact-b .campus-stage-actions .text-link { color: var(--contact-muted); font-size: 12px; min-height: 44px; justify-content: center; }
-@media(max-width:1100px) {
- .campus-contact-b .board-plate { grid-template-columns: 1fr 1.2fr; gap: 24px; padding: 32px 24px; }
- .campus-contact-b .campus-stage-actions { grid-column: 1/-1; flex-direction: row; align-items: center; gap: 24px; }
-}
-@media(max-width:760px) {
- .campus-contact-b .board-plate { grid-template-columns: minmax(0,1fr); padding: 28px 20px; gap: 24px; }
- .campus-contact-b .board-name-zh { font-size: 48px; }
- .campus-contact-b .board-contact-group { border-left: 0; border-top: 1px solid var(--contact-rule); padding: 20px 0 0; }
- .campus-contact-b .campus-stage-actions { flex-direction: column; align-items: stretch; gap: 4px; }
- .campus-contact-b .campus-stage-actions :deep(.button) { width: 100%; }
-}
-</style>

@@ -1,0 +1,72 @@
+window.CAMPUSES = [
+  {
+    "key": "yihua",
+    "name": "義華校",
+    "district": "三民區",
+    "address": "高雄市三民區義華路68號",
+    "phone": "07-392-8366",
+    "image": "yihua-exterior",
+    "photoPos": "85% center",
+    "panoramaPos": "center 12%",
+    "intro": "在義華路上，走進孩子的日常。",
+    "line": "https://lin.ee/gwl8fnA",
+    "facebook": "https://www.facebook.com/ivy.kids.fb/",
+    "fbNote": "義華校粉絲專頁"
+  },
+  {
+    "key": "minghua",
+    "name": "明華校",
+    "district": "左營區",
+    "address": "高雄市左營區明華一路176號",
+    "phone": "07-556-6796",
+    "image": "minghua",
+    "photoPos": null,
+    "panoramaPos": null,
+    "intro": "在明華一路，認識我們的校園。",
+    "line": null,
+    "facebook": null,
+    "fbNote": "常春藤機構粉絲專頁（明華校粉專待補）"
+  },
+  {
+    "key": "chongde",
+    "name": "崇德校",
+    "district": "左營區",
+    "address": "高雄市左營區崇德路87號",
+    "phone": "07-341-6286",
+    "image": "chongde",
+    "photoPos": null,
+    "panoramaPos": null,
+    "intro": "從崇德路，開始一段校園探索。",
+    "line": null,
+    "facebook": null,
+    "fbNote": "常春藤機構粉絲專頁（崇德校粉專待補）"
+  },
+  {
+    "key": "international",
+    "name": "國際校",
+    "district": "鳥松區",
+    "address": "高雄市鳥松區球場路59號",
+    "phone": "07-370-8001",
+    "image": "international",
+    "photoPos": "48% center",
+    "panoramaPos": null,
+    "intro": "走進鳥松，認識國際校。",
+    "line": null,
+    "facebook": null,
+    "fbNote": "常春藤機構粉絲專頁（國際校粉專待補）"
+  },
+  {
+    "key": "renwu",
+    "name": "仁武校",
+    "district": "仁武區",
+    "address": "高雄市仁武區京吉一路102號",
+    "phone": "07-375-7081",
+    "image": "renwu",
+    "photoPos": null,
+    "panoramaPos": null,
+    "intro": "在仁武，遇見下一段成長。",
+    "line": null,
+    "facebook": null,
+    "fbNote": "常春藤機構粉絲專頁（仁武校粉專待補）"
+  }
+];

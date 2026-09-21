@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>近期活動與消息｜配色比較</title>
+<style>
+  :root{--ink:#254b3c;--muted:#59665d;--paper:#f8f7f3;--line:#d5dbd2;--white:#fff;--selection:#eef2e8}
+  *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 'PingFang TC','Microsoft JhengHei',sans-serif}
+  main{max-width:1480px;margin:auto;padding:40px 36px 64px}.eyebrow{font-size:.75rem;letter-spacing:.15em;color:var(--muted)}
+  h1{font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:.035em;line-height:1.4;margin:10px 0 12px}p{margin:0;color:var(--muted)}
+  .lead{max-width:780px}.options{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:28px 0 24px}
+  button{font:inherit;cursor:pointer;color:inherit}button:focus-visible,a:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
+  .option{position:relative;background:var(--white);border:1px solid var(--line);padding:16px;text-align:left;min-height:122px;border-radius:8px}
+  .option[aria-pressed=true]{border:2px solid var(--ink);padding:15px;background:var(--selection)}
+  .swatches{display:flex;height:22px;border:1px solid var(--line);margin-bottom:10px;border-radius:3px;overflow:hidden}
+  .swatches span{display:block;flex:1;background:var(--swatch)}.option strong{display:block;font-size:1rem}.option small{font-size:.7rem;letter-spacing:.025em;color:var(--muted)}
+  .badge{display:inline-block;margin-left:8px;font-size:.7rem;border-bottom:1px solid currentColor;font-weight:500}
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 16px}.toolbar h2{font-size:1.2rem;margin:0 0 4px}
+  .toolbar p{font-size:.875rem}.states{display:flex;gap:6px;flex-shrink:0}.states button{min-height:44px;padding:8px 16px;background:transparent;border:1px solid var(--line);border-radius:4px;font-size:.85rem}
+  .states button[aria-pressed=true]{background:var(--ink);color:var(--white);border-color:var(--ink)}
+  .preview{margin:0;background:var(--white);border:1px solid var(--line);border-radius:8px;overflow:hidden}.preview img{width:100%;height:auto;display:block}
+  figcaption{padding:12px 18px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:20px}
+  .note{margin-top:18px;font-size:.8125rem}.note a{color:inherit;text-underline-offset:4px}
+  @media(max-width:900px){main{padding:24px 20px}.options{grid-template-columns:repeat(2,1fr)}.toolbar{align-items:flex-start;flex-direction:column}.states{width:100%}.states button{flex:1;padding-inline:8px}figcaption{flex-direction:column;gap:4px}}
+  @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+<main>
+  <div class="eyebrow">常春藤官網 · 配色提案 / 2026.09.21</div>
+  <h1>把底色放輕，讓照片更清楚。</h1>
+  <p class="lead">比較「由上滑入的底色」與「原本的淺底色」。活動卡、照片與排版維持相同，直接看兩種背景如何影響整體感受。主站已套用 A「霧藍 × 暖白」，此頁保留其他方向供對照。</p>
+  <div class="options" role="group" aria-label="選擇配色">
+    <button class="option" data-palette="a" aria-pressed="true"><span class="swatches" aria-hidden="true"><span style="--swatch:#DCE7EB"></span><span style="--swatch:#FAF7EF"></span></span><strong>A · 霧藍 × 暖白<span class="badge">已採用</span></strong><small>#DCE7EB / #FAF7EF</small></button>
+    <button class="option" data-palette="b" aria-pressed="false"><span class="swatches" aria-hidden="true"><span style="--swatch:#EADBCB"></span><span style="--swatch:#FAF7F0"></span></span><strong>B · 淡陶米 × 象牙白</strong><small>#EADBCB / #FAF7F0</small></button>
+    <button class="option" data-palette="c" aria-pressed="false"><span class="swatches" aria-hidden="true"><span style="--swatch:#E4DFE9"></span><span style="--swatch:#FAF8F5"></span></span><strong>C · 灰紫 × 珍珠白</strong><small>#E4DFE9 / #FAF8F5</small></button>
+    <button class="option" data-palette="current" aria-pressed="false"><span class="swatches" aria-hidden="true"><span style="--swatch:#E7CBA5"></span><span style="--swatch:#F6F4EB"></span></span><strong>改前的暖沙色</strong><small>#E7CBA5 / #F6F4EB</small></button>
+  </div>
+  <div class="toolbar">
+    <div aria-live="polite"><h2 id="choice-title">A · 霧藍 × 暖白</h2><p id="choice-note">最推薦。淡藍襯托深綠字與暖色照片，清爽、有校園感。</p></div>
+    <div class="states" role="group" aria-label="查看動畫狀態">
+      <button data-state="before" aria-pressed="false">滑入前</button>
+      <button data-state="mid" aria-pressed="true">過渡中</button>
+      <button data-state="after" aria-pressed="false">完成後</button>
+    </div>
+  </div>
+  <figure class="preview">
+    <img id="preview" src="shots/a-mid.png" width="1440" height="722" alt="霧藍與暖白配色，背景滑入至中段的實際首頁預覽">
+    <figcaption><span>實際首頁截圖；以相同排版比較配色。</span><span id="contrast">背景上的小字對比至少 5.19:1</span></figcaption>
+  </figure>
+  <p class="note">建議選 A：大面積背景退後一點，保留深綠品牌字、暖黃活動卡與真實照片作為重點。<a id="full-image" href="shots/a-mid.png" target="_blank" rel="noopener">開啟原尺寸截圖 ↗</a></p>
+</main>
+<script>
+  const palettes = {
+    a: { name: 'A · 霧藍 × 暖白', note: '最推薦。淡藍襯托深綠字與暖色照片，清爽、有校園感。', sweep: '#DCE7EB', base: '#FAF7EF' },
+    b: { name: 'B · 淡陶米 × 象牙白', note: '延續溫暖感，降低目前的黃度與濃度，氣質更柔和。', sweep: '#EADBCB', base: '#FAF7F0' },
+    c: { name: 'C · 灰紫 × 珍珠白', note: '帶一點繪本與藝術課的氣質，個性較明顯。', sweep: '#E4DFE9', base: '#FAF8F5' },
+    current: { name: '改前的暖沙色', note: '改版前的版本，供比較色彩濃度與照片的呈現。', sweep: '#E7CBA5', base: '#F6F4EB' }
+  };
+  const states = { before: '滑入前', mid: '過渡中', after: '完成後' };
+  let palette = 'a', state = 'mid';
+  function luminance(hex) {
+    return hex.match(/[a-f\d]{2}/gi).map(v => parseInt(v,16)/255).map(v => v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+  }
+  function render() {
+    const p = palettes[palette];
+    document.querySelectorAll('[data-palette]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.palette===palette)));
+    document.querySelectorAll('[data-state]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.state===state)));
+    document.getElementById('choice-title').textContent = p.name;
+    document.getElementById('choice-note').textContent = p.note;
+    const src = `shots/${palette}-${state}.png`;
+    document.getElementById('preview').src = src;
+    document.getElementById('preview').alt = `${p.name}，${states[state]}的實際首頁預覽`;
+    document.getElementById('full-image').href = src;
+    const ratio = Math.min((luminance(p.sweep)+.05)/(luminance('#4b5c50')+.05),(luminance(p.base)+.05)/(luminance('#5d6c61')+.05));
+    document.getElementById('contrast').textContent = `背景上的小字對比至少 ${ratio.toFixed(2)}:1`;
+  }
+  document.querySelectorAll('[data-palette]').forEach(button => button.addEventListener('click', () => {palette=button.dataset.palette;render()}));
+  document.querySelectorAll('[data-state]').forEach(button => button.addEventListener('click', () => {state=button.dataset.state;render()}));
+  render();
+</script>
+</html>

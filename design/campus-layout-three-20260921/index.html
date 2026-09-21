@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>分校資訊 · 三種 layout 比較</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .gallery{max-width:1440px;margin:0 auto;padding:52px 40px 72px}
+    .gallery-header{display:flex;justify-content:space-between;gap:32px;align-items:end;padding-bottom:28px;border-bottom:1px solid var(--rule)}
+    .gallery-kicker{font-size:12px;color:var(--muted);letter-spacing:.12em;margin-bottom:8px}
+    .gallery h1{font-size:32px;font-weight:600;line-height:1.4;margin:0}
+    .gallery-header p{font-size:14px;color:var(--muted);max-width:440px}
+    .gallery-nav{display:flex;gap:10px;margin:24px 0 12px;flex-wrap:wrap}
+    .gallery-nav a{background:var(--cream);padding:10px 18px;border-radius:99px;font-size:13px;min-height:44px}
+    .direction{padding-block:42px;border-bottom:1px solid var(--rule);scroll-margin-top:24px}
+    .direction-heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:22px}
+    .direction h2{font-family:var(--font);font-size:26px;font-weight:600;line-height:1.4}
+    .direction h2 span{display:inline-block;color:var(--green);margin-right:12px;font:28px SourceSans,var(--font)}
+    .direction p{font-size:14px;color:var(--muted);margin-top:8px}
+    .open-preview{display:flex;align-items:center;justify-content:center;min-height:44px;padding:10px 22px;border-radius:99px;background:var(--green);color:var(--paper);font-size:13px;white-space:nowrap}
+    .screens{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:28px;align-items:start}
+    .screen{min-width:0}
+    .screen>span{display:block;font-size:11px;letter-spacing:.04em;color:var(--muted);margin-bottom:10px}
+    .screen>a{display:block;box-shadow:0 6px 26px var(--shadow);border-radius:12px;overflow:clip;border:1px solid var(--rule)}
+    .screen img{width:100%;height:auto}
+    .gallery-footer{padding-top:28px;font-size:12px;color:var(--muted)}
+    @media(max-width:760px){.gallery{padding:28px 20px}.gallery-header{display:block}.gallery-header p{margin-top:14px}.gallery h1{font-size:25px}.direction-heading{display:block}.direction h2{font-size:22px}.open-preview{display:inline-flex;margin-top:16px}.screens{grid-template-columns:1fr}.screen.phone{max-width:260px}.direction{padding-block:32px}}
+  </style>
+</head>
+<body>
+  <main class="gallery">
+    <header class="gallery-header">
+      <div><p class="gallery-kicker">常春藤官網 · 分校資訊 · 2026.09.21</p><h1>三種不同的版面，並排看清楚。</h1></div>
+      <p>相同照片、相同聯絡資料與預約狀態。開啟互動版後，可以切換五校及預約狀態；三版皆為獨立 mock-up。</p>
+    </header>
+    <nav class="gallery-nav" aria-label="跳至版型"><a href="#a">A 上圖下資訊</a><a href="#b">B 左圖右資訊</a><a href="#c">C 側欄選校</a></nav>
+    <section class="direction" id="a" aria-labelledby="a-title">
+      <div class="direction-heading"><div><h2 id="a-title"><span>A</span>上圖下資訊</h2><p>橫幅照片延續現有氣勢，墨綠資訊帶收攏校名、聯絡方式與下一步。</p></div><a class="open-preview" href="preview.html?layout=a">開啟 A 互動版 →</a></div>
+      <div class="screens"><div class="screen"><span>桌機 · 1440px</span><a href="preview.html?layout=a"><img src="../../output/playwright/campus-layout-three-20260921/a-desktop.png" width="1440" height="1000" alt="A 上圖下資訊桌機版"></a></div><div class="screen phone"><span>手機 · 390px</span><a href="../../output/playwright/campus-layout-three-20260921/a-mobile.png"><img src="../../output/playwright/campus-layout-three-20260921/a-mobile.png" alt="A 上圖下資訊手機版"></a></div></div>
+    </section>
+    <section class="direction" id="b" aria-labelledby="b-title">
+      <div class="direction-heading"><div><h2 id="b-title"><span>B</span>左圖右資訊</h2><p>照片與深綠資訊面板左右對開，聯絡與預約集中在同一條閱讀動線。</p></div><a class="open-preview" href="preview.html?layout=b">開啟 B 互動版 →</a></div>
+      <div class="screens"><div class="screen"><span>桌機 · 1440px</span><a href="preview.html?layout=b"><img src="../../output/playwright/campus-layout-three-20260921/b-desktop.png" width="1440" height="1000" alt="B 左圖右資訊桌機版" loading="lazy"></a></div><div class="screen phone"><span>手機 · 390px</span><a href="../../output/playwright/campus-layout-three-20260921/b-mobile.png"><img src="../../output/playwright/campus-layout-three-20260921/b-mobile.png" alt="B 左圖右資訊手機版" loading="lazy"></a></div></div>
+    </section>
+    <section class="direction" id="c" aria-labelledby="c-title">
+      <div class="direction-heading"><div><h2 id="c-title"><span>C</span>側欄選校</h2><p>五校沿左側排列，右側大照片搭配浮疊資訊卡，整體較輕盈、有層次。</p></div><a class="open-preview" href="preview.html?layout=c">開啟 C 互動版 →</a></div>
+      <div class="screens"><div class="screen"><span>桌機 · 1440px</span><a href="preview.html?layout=c"><img src="../../output/playwright/campus-layout-three-20260921/c-desktop.png" width="1440" height="1000" alt="C 側欄選校桌機版" loading="lazy"></a></div><div class="screen phone"><span>手機 · 390px</span><a href="../../output/playwright/campus-layout-three-20260921/c-mobile.png"><img src="../../output/playwright/campus-layout-three-20260921/c-mobile.png" alt="C 側欄選校手機版" loading="lazy"></a></div></div>
+    </section>
+    <p class="gallery-footer">校區內容取自專案既有資料；未確認的 LINE／Facebook 保留待補。截圖採用「暫停預約」展示狀態，不代表實際招生或後台設定。</p>
+  </main>
+</body>
+</html>

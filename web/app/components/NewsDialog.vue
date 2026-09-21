@@ -2,6 +2,8 @@
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
 const props = defineProps<{ news: NewsContent }>()
+const sectionEl = ref<HTMLElement | null>(null)
+useNewsSweep(sectionEl, () => props.news)
 
 const dialogEl = ref<HTMLDialogElement | null>(null)
 const dialogSupported = ref(false)
@@ -33,16 +35,17 @@ function close() {
 function formatDate(date: string) {
   return date.replaceAll('-', '.')
 }
+
 </script>
 
 <template>
-  <section :id="news.sectionId" class="home-news" aria-labelledby="latest-news-heading">
+  <section ref="sectionEl" :id="news.sectionId" class="home-news" aria-labelledby="latest-news-heading">
     <div class="container">
       <div class="hn-layout">
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
-            <span class="hn-kicker" lang="en">UPCOMING EVENTS</span>
-            <h2 id="upcoming-events-heading">近期活動</h2>
+            <span class="hn-kicker" lang="en" data-sweep-ink>UPCOMING EVENTS</span>
+            <h2 id="upcoming-events-heading" data-sweep-ink>近期活動</h2>
           </div>
           <div class="hn-event-stack">
             <button
@@ -60,35 +63,34 @@ function formatDate(date: string) {
                 <small>{{ item.campus }}</small>
                 <strong>{{ item.title }}</strong>
               </span>
-              <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
-          <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('events')">
-            所有活動<span class="hn-arrow" aria-hidden="true">↗</span>
+          <button type="button" class="hn-more" data-sweep-ink aria-haspopup="dialog" @click="openList('events')">
+            所有活動
           </button>
         </aside>
         <div class="hn-news">
           <div class="hn-head hn-news-head">
             <div>
-              <span class="hn-kicker" lang="en">LATEST NEWS</span>
-              <h2 id="latest-news-heading">最新消息</h2>
+              <span class="hn-kicker" lang="en" data-sweep-ink>LATEST NEWS</span>
+              <h2 id="latest-news-heading" data-sweep-ink>最新消息</h2>
             </div>
-            <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
-              所有最新消息<span class="hn-arrow" aria-hidden="true">↗</span>
+            <button type="button" class="hn-more" data-sweep-ink aria-haspopup="dialog" @click="openList('articles')">
+              所有最新消息
             </button>
           </div>
           <div class="hn-cards">
             <article v-for="item in news.articles.slice(0, 3)" :key="item.id" class="hn-card">
               <img :src="`/assets/${item.image}.webp`" width="720" height="465" :alt="item.alt" loading="lazy">
               <div class="hn-card-copy">
-                <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
-                <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
+                <span class="hn-meta"><span data-sweep-ink>{{ item.campus }}</span><time :datetime="item.date" data-sweep-ink>{{ formatDate(item.date) }}</time></span>
+                <h3><button type="button" data-sweep-ink aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
               </div>
             </article>
           </div>
         </div>
       </div>
-      <p class="hn-sample-note">{{ news.sampleNote }}</p>
+      <p class="hn-sample-note" data-sweep-ink>{{ news.sampleNote }}</p>
     </div>
   </section>
 

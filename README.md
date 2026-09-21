@@ -1,6 +1,15 @@
 # 常春藤官網互動提案
 
+2026-09-21：Nuxt 首頁（`web/`）「常春藤的一天」補回原型的捲動行為：拍立得列表靠近時大標與 kicker 淡成底紋（`--word-fade` 從 1 降到 .16，對齊 app.js 的 `fadeBehindContent()`），並標出讀者停在哪一段讓該張相片時間戳亮起（`is-active`，對齊 `markActive()`）。改在 `DayExperience.vue`／`DayMomentCard.vue`，CSS 原本就有留 `opacity:var(--word-fade,1)`。
+
+2026-09-21：Nuxt 首頁「近期活動／最新消息」移除三張活動卡及「所有活動／所有最新消息」的斜箭頭，採純文字與細底線，保留整卡點擊、鍵盤焦點及既有捲動換色。
+
 2026-09-21：官網後台（`admin/`）整體 UI/UX 改版。原本 `style.css` 仍是 Vite 範本（紫色強調、18px、`#app` 置中加邊線），頂欄塞了 11 個連結，校區／狀態／角色都顯示原始代碼。現在：淺色主題、品牌深綠當 Element Plus primary、暖黃只用在「有未儲存或未發布」狀態；左側分組側欄（總覽／參觀預約／官網內容／系統）＋頂欄，900px 以下收成抽屜；`admin/src/api/labels.ts` 集中中文標籤與台北時區時間格式；十個內容編輯頁共用 `ContentEditor` 外殼（狀態列、載入骨架、黏底動作列、「儲存並發布」、還原修改、未儲存離開攔截）；分校內容切校前先確認；案件列表／明細／時段／通知／統計／稽核／素材庫全部改中文狀態、空狀態與確認對話框；素材庫改網格＋拖曳上傳。單元測試 `admin/src/__tests__/`（vitest，7 案例），Playwright 截圖與互動驗證在 `output/playwright/admin-ux*`。改前快照 `versions/before-admin-ux-20260921-152825/`。根目錄 vanilla 站與 `preview.html` 未動。
+
+2026-09-21：首頁分校資訊帶採用使用者選定 B「校名主場」：放大 LINE Seed 校名、暖黃句點、低調地區與英文副標，聯絡資訊收成一欄，社群退為文字連結，預約按鈕採暖黃膠囊；手機改單欄。保留照片、切校與 BookingCta 設定，原型不回寫。
+
+
+2026-09-21：Nuxt 首頁（`web/`）的「分校資訊 → 近期活動／最新消息」改為捲動連動的垂直換色。配色採用使用者選定的 A「霧藍（#DCE7EB）＋暖白（#FAF7EF）」：霧藍由上往下滑入暖白底，搭配深綠文字；同一道水平邊界掃過活動卡時，卡片同步由上到下換成暖黃／嫩綠／霧青。往上捲時效果退回，取代先前每張卡依滑鼠方向滑動的方式。原生 CSS view timeline 優先，不支援時用 passive scroll＋requestAnimationFrame；手機亦可捲動操作，減少動態與高對比模式使用靜態版。保留照片、整卡點擊與消息視窗。根目錄 vanilla 與 `preview.html` 維持已凍結原型，這次預覽請啟動 `web/`。
 
 2026-09-18（晚）：頁首品牌的 30 週年版三個方向比稿在 `design/anniversary-directions/`（a 印章／b 第三行年份／c 上標小籤），1997 創校、2027 滿 30 年；都跑在主站真實頁首上，用 `index.html?anni=a|b|c#/home` 切換，膠囊與手機共用校徽右下角的金色「30」小點。「週年」兩字另切了 `assets/fonts/noto-sans-tc-600-anni.woff`。
 

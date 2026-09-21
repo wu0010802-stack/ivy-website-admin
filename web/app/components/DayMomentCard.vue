@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DayMoment } from '~/types/site-content'
 
-const props = defineProps<{ moment: DayMoment; index: number }>()
+const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
 const isFlipped = ref(false)
 const isRevealed = ref(false)
@@ -101,7 +101,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
   <li
     ref="cardEl"
     class="day-print"
-    :class="[`tint-${moment.tint}`, { 'is-revealed': isRevealed }]"
+    :class="[`tint-${moment.tint}`, { 'is-revealed': isRevealed, 'is-active': active }]"
     :id="`day-${moment.key}`"
   >
     <div class="print-card">
