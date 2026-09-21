@@ -28,17 +28,11 @@ useHead(() => ({
     <SiteHeader :content="data.content" />
     <main id="main" tabindex="-1">
       <HeroVideo :hero="data.content.home.hero">
-        <ScrollCurtain prefix="belief" relay>
-          <AboutSection :about="data.content.home.about" />
-          <template #after>
-            <ScrollCurtain prefix="day">
-              <DayExperience :day="data.content.dayExperience" />
-              <template #after>
-                <CampusBoard :board="data.content.home.campusBoard" :campuses="data.content.campuses" />
-              </template>
-            </ScrollCurtain>
-          </template>
-        </ScrollCurtain>
+        <AboutSection :about="data.content.home.about">
+          <DayExperience :day="data.content.dayExperience">
+            <CampusBoard :board="data.content.home.campusBoard" :campuses="data.content.campuses" />
+          </DayExperience>
+        </AboutSection>
       </HeroVideo>
       <NewsDialog :news="data.content.news" />
     </main>

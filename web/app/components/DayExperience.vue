@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import type { DayExperienceContent } from '~/types/site-content'
+import { useCurtain } from '~/composables/useCurtain'
 
 const props = defineProps<{ day: DayExperienceContent }>()
 
+const rootEl = ref<HTMLElement | null>(null)
+const trackEl = ref<HTMLElement | null>(null)
 const sectionEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
+
+// panel 綁在這個元件的根元素本身（.day-experience），理由跟
+// AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
+// 個元素上才會跟 vanilla 的疊層判斷一致。
+useCurtain(rootEl, trackEl, sectionEl, 'day')
 const showVideo = ref(false)
 const isPlaying = ref(false)
 const hasFailed = ref(false)
@@ -93,44 +101,49 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
-    <div class="day-film" aria-hidden="true">
-      <img class="day-film-poster" :src="`/assets/${day.filmPoster}.webp`" alt="" decoding="async">
-      <video
-        v-if="showVideo"
-        ref="videoEl"
-        class="day-film-video"
-        muted
-        loop
-        playsinline
-        preload="none"
-        @playing="isPlaying = true"
-        @pause="isPlaying = false"
-        @error="onVideoError"
-      />
-      <span class="day-film-shade" />
+  <div ref="rootEl" class="day-reveal">
+    <div ref="trackEl" class="day-reveal-track">
+      <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
+        <div class="day-film" aria-hidden="true">
+          <img class="day-film-poster" :src="`/assets/${day.filmPoster}.webp`" alt="" decoding="async">
+          <video
+            v-if="showVideo"
+            ref="videoEl"
+            class="day-film-video"
+            muted
+            loop
+            playsinline
+            preload="none"
+            @playing="isPlaying = true"
+            @pause="isPlaying = false"
+            @error="onVideoError"
+          />
+          <span class="day-film-shade" />
+        </div>
+        <div class="day-film-ui">
+          <p class="day-film-caption">
+            <span>{{ day.filmCaption.zh }}</span>
+            <span lang="en">{{ day.filmCaption.en }}</span>
+          </p>
+          <button v-if="showVideo" class="day-film-toggle" type="button" :aria-pressed="isPlaying" @click="toggleFilm">
+            <span class="day-film-mark" aria-hidden="true">{{ isPlaying ? '❙❙' : '▶' }}</span>
+            <span class="day-film-state">{{ isPlaying ? '暫停背景' : '播放背景' }}</span>
+          </button>
+        </div>
+        <div class="day-stage">
+          <header class="day-intro">
+            <span class="eyebrow">{{ day.eyebrow }}<span lang="en">{{ day.eyebrowEn }}</span></span>
+            <h2 class="day-title" id="day-heading">
+              <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
+            </h2>
+          </header>
+          <ol class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
+            <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" />
+          </ol>
+          <p class="day-note">{{ day.note }}</p>
+        </div>
+      </section>
     </div>
-    <div class="day-film-ui">
-      <p class="day-film-caption">
-        <span>{{ day.filmCaption.zh }}</span>
-        <span lang="en">{{ day.filmCaption.en }}</span>
-      </p>
-      <button v-if="showVideo" class="day-film-toggle" type="button" :aria-pressed="isPlaying" @click="toggleFilm">
-        <span class="day-film-mark" aria-hidden="true">{{ isPlaying ? '❙❙' : '▶' }}</span>
-        <span class="day-film-state">{{ isPlaying ? '暫停背景' : '播放背景' }}</span>
-      </button>
-    </div>
-    <div class="day-stage">
-      <header class="day-intro">
-        <span class="eyebrow">{{ day.eyebrow }}<span lang="en">{{ day.eyebrowEn }}</span></span>
-        <h2 class="day-title" id="day-heading">
-          <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
-        </h2>
-      </header>
-      <ol class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
-        <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" />
-      </ol>
-      <p class="day-note">{{ day.note }}</p>
-    </div>
-  </section>
+    <slot />
+  </div>
 </template>

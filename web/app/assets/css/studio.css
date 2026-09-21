@@ -1003,8 +1003,8 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28svh)}
 /* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
-/* 黏住的最後一屏只留大字：底部留白撐到「關於」上緣以上，段落與相片先捲走，簾幕才開始擦。 */
-[data-seam="2"] .belief-content {padding-bottom:calc(50svh + var(--display-size) * .9)}
+/* 黏住的最後一屏：底部留白只撐到段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。 */
+[data-seam="2"] .belief-content {padding-bottom:calc(50svh + var(--display-size) * .15)}
 
 /* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */
 .day-ghost {display:none}
