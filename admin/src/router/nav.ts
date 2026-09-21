@@ -13,6 +13,8 @@ export interface NavItem {
 export interface NavGroup {
   key: string
   label: string
+  /** 相鄰且同名的分組在側欄裡共用一個區段標題，頁首麵包屑也顯示這個 */
+  section?: string
   items: NavItem[]
 }
 
@@ -32,17 +34,35 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
     ],
   },
+  // 官網內容原本是一個 11 項的大組，「首頁五校區塊／五校介紹／校園探索」
+  // 三個名字都帶校區，攤在一起很難認。拆成三個各 3～4 項的子組，共用
+  // 「官網內容」區段標題。
   {
-    key: 'content',
-    label: '官網內容',
+    key: 'home',
+    label: '首頁',
+    section: '官網內容',
     items: [
       { name: 'home-hero', path: '/content/home-hero', title: '首頁首屏文字', icon: 'Picture' },
       { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document' },
       { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid' },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny' },
+    ],
+  },
+  {
+    key: 'campus',
+    label: '分校頁',
+    section: '官網內容',
+    items: [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School' },
       { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare' },
       { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location' },
+    ],
+  },
+  {
+    key: 'site',
+    label: '全站與素材',
+    section: '官網內容',
+    items: [
       { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen' },
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom' },
       { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone' },

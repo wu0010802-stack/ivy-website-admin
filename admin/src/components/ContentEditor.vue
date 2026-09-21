@@ -23,6 +23,7 @@ const isPublished = computed(() => props.editor.isPublished.value)
 const isDirty = computed(() => props.editor.isDirty.value)
 const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
+const busy = computed(() => saving.value || publishing.value)
 
 type Tone = 'success' | 'warning' | 'info'
 
@@ -31,7 +32,7 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
     return { tone: 'warning', label: '有未儲存的修改', detail: '儲存草稿後才會保留；發布時會自動先儲存。' }
   }
   if (!latestRevisionAt.value) {
-    return { tone: 'info', label: '尚未建立內容', detail: '填好後儲存草稿，官網目前顯示程式內建的預設文字。' }
+    return { tone: 'info', label: '尚未建立內容', detail: '填好後先儲存草稿；發布後，家長才會看到新內容。' }
   }
   if (isPublished.value) {
     return { tone: 'success', label: '官網顯示的是這一版', detail: `目前發布的版本儲存於 ${formatDateTime(latestRevisionAt.value)}。` }
@@ -86,6 +87,8 @@ defineExpose({ confirmLeave })
 
     <el-empty v-else-if="placeholder" :description="placeholder" />
 
+    <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
+
     <template v-else>
       <div class="editor__status" :data-tone="status.tone" role="status">
         <span class="editor__dot" aria-hidden="true" />
@@ -95,35 +98,36 @@ defineExpose({ confirmLeave })
         </div>
       </div>
 
-      <el-skeleton v-if="loading" :rows="6" animated class="editor__skeleton" />
-
-      <div v-else class="editor__body panel">
+      <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
         <div class="panel__body">
           <slot />
         </div>
       </div>
 
       <div class="editor__actions" :class="{ 'is-dirty': isDirty }">
+        <div class="editor__actions-state">
+          <strong>{{ busy ? '正在處理，請稍候…' : isDirty ? '修改尚未儲存' : latestRevisionAt ? '內容已儲存' : '尚未建立內容' }}</strong>
+          <span>儲存草稿不會更動官網，發布後才會公開。</span>
+        </div>
+        <div class="editor__buttons">
+        <el-button v-if="isDirty" text :disabled="busy" @click="editor.reset()">還原修改</el-button>
         <el-button
           type="primary"
           :loading="saving"
-          :disabled="loading || !isDirty"
+          :disabled="busy || !isDirty"
           @click="editor.save()"
         >
           儲存草稿
         </el-button>
         <el-button
           :loading="publishing"
-          :disabled="loading || !canPublish"
+          :disabled="busy || !canPublish"
           class="editor__publish"
           @click="editor.saveAndPublish()"
         >
           {{ isDirty ? '儲存並發布到官網' : '發布到官網' }}
         </el-button>
-        <el-button v-if="isDirty" text :disabled="saving || publishing" @click="editor.reset()">
-          還原修改
-        </el-button>
-        <span class="editor__actions-hint">{{ isDirty ? '修改尚未儲存' : '' }}</span>
+        </div>
       </div>
     </template>
   </div>
@@ -146,15 +150,19 @@ defineExpose({ confirmLeave })
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-3);
   font-size: 13px;
   line-height: 1.45;
 }
 
 .editor__status div {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .editor__status strong {
@@ -196,13 +204,14 @@ defineExpose({ confirmLeave })
   bottom: 0;
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 16px;
-  padding: 12px 0;
-  background: color-mix(in oklch, var(--surface-2), transparent 8%);
-  backdrop-filter: blur(6px);
-  border-top: 1px solid transparent;
+  padding: 16px 0 max(16px, env(safe-area-inset-bottom));
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
 }
 
 .editor__actions.is-dirty {
@@ -213,15 +222,17 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-hint {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--brand-gold-ink);
-}
+.editor__actions-state { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.editor__actions-state span { color: var(--ink-3); }
+.editor__actions.is-dirty .editor__actions-state strong { color: var(--brand-gold-ink); }
+.editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 @media (max-width: 720px) {
   .editor__actions {
     flex-wrap: wrap;
   }
+  .editor__actions-state { font-size: 14px; }
+  .editor__buttons { width: 100%; }
+  .editor__buttons .el-button { flex: 1 0 auto; }
 }
 </style>

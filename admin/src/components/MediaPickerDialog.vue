@@ -24,6 +24,7 @@ const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
 const uploading = ref(false)
 const query = ref('')
+const error = ref<string | null>(null)
 
 const visibleAssets = computed(() =>
   assets.value.filter(
@@ -37,8 +38,11 @@ const visibleAssets = computed(() =>
 
 async function load() {
   loading.value = true
+  error.value = null
   try {
     assets.value = await api.get<MediaAssetOut[]>('/admin/media')
+  } catch {
+    error.value = '無法讀取照片，請重新載入。'
   } finally {
     loading.value = false
   }
@@ -87,7 +91,7 @@ async function onUploadChange(event: Event) {
 <template>
   <el-dialog v-model="visible" title="選擇照片" width="720px">
     <div class="picker__bar">
-      <el-input v-model="query" placeholder="搜尋檔名或替代文字" clearable class="picker__search" />
+      <el-input v-model="query" aria-label="搜尋照片" placeholder="搜尋檔名或替代文字" clearable class="picker__search" />
       <label class="el-button" :class="{ 'is-disabled': uploading }">
         <input type="file" accept="image/*" class="picker__file" :disabled="uploading" @change="onUploadChange" />
         {{ uploading ? '上傳中…' : '上傳新照片' }}
@@ -97,7 +101,8 @@ async function onUploadChange(event: Event) {
       顯示跨校共用{{ campusKey ? `與${campusLabel(campusKey)}校` : '' }}的照片；這裡上傳的會自動標記為{{ campusKey ? `${campusLabel(campusKey)}校` : '共用' }}素材。
     </p>
 
-    <div v-loading="loading" class="picker__grid">
+    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
+    <div v-else v-loading="loading" class="picker__grid">
       <button v-for="asset in visibleAssets" :key="asset.id" type="button" class="picker__item" @click="choose(asset)">
         <img :src="mediaFileUrl(asset.id)" :alt="asset.alt_text ?? ''" loading="lazy" />
         <span class="picker__name">{{ asset.original_filename }}</span>
@@ -107,7 +112,7 @@ async function onUploadChange(event: Event) {
         v-if="!loading && visibleAssets.length === 0"
         :description="query ? '沒有符合的照片' : '目前沒有可用的照片，先上傳一張'"
         class="picker__empty"
-      />
+      ><el-button v-if="query" @click="query = ''">清除搜尋</el-button></el-empty>
     </div>
   </el-dialog>
 </template>
@@ -115,13 +120,15 @@ async function onUploadChange(event: Event) {
 <style scoped>
 .picker__bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 6px;
 }
 
 .picker__search {
-  flex: 1;
+  flex: 1 1 200px;
 }
+.picker__bar label:focus-within { outline: 2px solid var(--brand-green-deep); outline-offset: 2px; }
 
 .picker__file {
   position: absolute;

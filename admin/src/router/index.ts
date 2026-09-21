@@ -104,7 +104,8 @@ router.beforeEach(async (to) => {
   return true
 })
 
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
+  if (failure) return
   document.title = to.meta.title ? `${to.meta.title}｜常春藤官網後台` : '常春藤官網後台'
 })
 

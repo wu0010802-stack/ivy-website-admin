@@ -18,12 +18,13 @@
   --surface-3: oklch(0.955 0.008 120);
   --ink: oklch(0.22 0.02 150);
   --ink-2: oklch(0.42 0.02 150);
-  --ink-3: oklch(0.6 0.015 150);
+  --ink-3: oklch(0.52 0.015 150);
   --line: oklch(0.9 0.008 130);
   --line-strong: oklch(0.82 0.01 130);
 
-  --side-w: 232px;
-  --top-h: 56px;
+  --side-w: 248px;
+  --top-h: 72px;
+  --control-h: 38px;
   --radius: 8px;
   --radius-lg: 12px;
   --shadow-sm: 0 1px 2px oklch(0.2 0.02 150 / 0.06), 0 1px 1px oklch(0.2 0.02 150 / 0.04);
@@ -65,7 +66,12 @@
     -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei',
     'Segoe UI', system-ui, sans-serif;
   --el-font-size-base: 14px;
+  --el-component-size: var(--control-h);
 }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.admin-nav-drawer .el-drawer__body { padding: 0; overflow: hidden; }
 
 html,
 body {
@@ -134,6 +140,7 @@ a:hover {
 
 .page {
   max-width: 1200px;
+  width: 100%;
 }
 
 .page--narrow {
@@ -285,14 +292,14 @@ a:hover {
 }
 
 .el-form--label-top .el-form-item__label {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .field-help {
   display: block;
   margin-top: 4px;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -434,7 +441,20 @@ a.stat:hover {
 .el-dialog {
   --el-dialog-border-radius: var(--radius-lg);
   --el-dialog-padding-primary: 20px;
+  max-width: calc(100vw - 32px);
 }
+
+/* Element Plus 的 .el-message-box 是 width:100% 搭 max-width 變數，只蓋
+   max-width 會讓對話框在桌機撐成整行，所以連 width 一起收。 */
+.el-message-box { width: min(420px, calc(100vw - 32px)); max-width: none; }
+.el-input__wrapper, .el-select__wrapper { min-height: var(--control-h); }
+.el-button { min-height: var(--control-h); }
+.el-form-item { margin-bottom: 24px; }
+.el-table .el-table__cell { padding-block: 12px; }
+.el-table__empty-block { min-height: 180px; }
+.el-table__empty-text { width: 100%; padding: 24px; line-height: 1.6; }
+.el-alert--warning.is-light { color: var(--brand-gold-ink); }
+.el-alert--warning.is-light .el-alert__description { color: var(--brand-gold-ink); }
 
 .el-dialog__title {
   font-weight: 600;
@@ -446,6 +466,11 @@ a.stat:hover {
 }
 
 /* 減少動態 */
+@media (pointer: coarse) {
+  :root { --control-h: 44px; }
+  .el-button { min-width: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -456,6 +481,14 @@ a.stat:hover {
 }
 
 @media (max-width: 720px) {
+  :root { --control-h: 44px; }
+  .el-input__inner, .el-textarea__inner, .el-select__wrapper { font-size: 16px; }
+  .field-help, .hint { font-size: 14px; }
+  .el-dialog { margin-top: 8svh; }
+  .el-dialog__footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .el-dialog__footer .el-button + .el-button { margin-left: 0; }
+  .el-radio-button__inner { min-height: 44px; display: inline-flex; align-items: center; }
+  .field-row { grid-template-columns: minmax(0, 1fr); }
   .panel__body {
     padding: 16px;
   }

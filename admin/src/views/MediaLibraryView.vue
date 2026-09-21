@@ -15,6 +15,10 @@ const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
 const campusFilter = ref('')
 const kindFilter = ref<'' | 'image' | 'video'>('')
+const query = ref('')
+const loadError = ref<string | null>(null)
+const hasFilters = computed(() => Boolean(query.value.trim() || campusFilter.value || kindFilter.value))
+function clearFilters() { query.value = ''; campusFilter.value = ''; kindFilter.value = '' }
 
 const uploadDialogVisible = ref(false)
 const uploadFile = ref<File | null>(null)
@@ -30,7 +34,8 @@ const visibleAssets = computed(() =>
   assets.value.filter(
     (a) =>
       (!campusFilter.value || a.campus_key === campusFilter.value || (campusFilter.value === '__shared' && a.campus_key === null)) &&
-      (!kindFilter.value || a.kind === kindFilter.value),
+      (!kindFilter.value || a.kind === kindFilter.value) &&
+      (!query.value.trim() || `${a.original_filename} ${a.alt_text ?? ''}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())),
   ),
 )
 
@@ -41,10 +46,11 @@ function filterLabel(key: string): string {
 
 async function load() {
   loading.value = true
+  loadError.value = null
   try {
     assets.value = await api.get<MediaAssetOut[]>('/admin/media')
   } catch {
-    ElMessage.error('無法讀取素材庫')
+    loadError.value = '無法讀取素材庫，請重新載入。'
   } finally {
     loading.value = false
   }
@@ -179,20 +185,26 @@ onMounted(load)
     </PageHeader>
 
     <div class="toolbar">
+      <el-input v-model="query" aria-label="搜尋素材" placeholder="搜尋檔名或圖片說明" clearable class="media-search" />
       <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
         <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
       </el-select>
-      <el-radio-group v-model="kindFilter">
+      <el-radio-group v-model="kindFilter" aria-label="素材類型">
         <el-radio-button value="">全部</el-radio-button>
         <el-radio-button value="image">圖片</el-radio-button>
         <el-radio-button value="video">影片</el-radio-button>
       </el-radio-group>
+      <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
       <span class="toolbar__spacer" />
-      <span class="hint">{{ visibleAssets.length }} 個素材</span>
+      <span class="hint" role="status">{{ loading ? '載入中…' : `${visibleAssets.length} 個素材` }}</span>
     </div>
 
-    <div v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && visibleAssets.length === 0 }">
-      <el-empty v-if="!loading && visibleAssets.length === 0" :description="assets.length === 0 ? '素材庫還是空的，先上傳第一張照片' : '沒有符合篩選的素材'" />
+    <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
+    <div v-else v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && visibleAssets.length === 0 }" :aria-busy="loading">
+      <el-empty v-if="!loading && visibleAssets.length === 0" :description="hasFilters ? '沒有符合條件的素材' : '素材庫還是空的，先上傳第一張照片'">
+        <el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button>
+        <el-button v-else-if="canManage" type="primary" @click="openUpload">上傳素材</el-button>
+      </el-empty>
 
       <article v-for="asset in visibleAssets" :key="asset.id" class="media">
         <div class="media__thumb">
@@ -284,6 +296,7 @@ onMounted(load)
 </template>
 
 <style scoped>
+.media-search { flex: 1 1 220px; max-width: 340px; }
 .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -351,7 +364,7 @@ onMounted(load)
 }
 
 .media__name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -15,10 +15,10 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor">
-    <template #lead>首頁影片上的標語。兩行文案會各自成一行，請避免單行超過 14 個字。</template>
+    <template #lead>首頁影片上的標語。每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。</template>
 
     <el-form label-position="top" @submit.prevent>
-      <el-form-item label="小標（eyebrow）">
+      <el-form-item label="標語上方的小標">
         <el-input v-model="editor.form.value.eyebrow" placeholder="例如：高雄五校・1997 創校" />
       </el-form-item>
       <el-form-item v-for="(_, i) in editor.form.value.copy_lines" :key="i" :label="`標語第 ${i + 1} 行`">
