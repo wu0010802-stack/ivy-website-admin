@@ -173,6 +173,20 @@ def main() -> None:
             print("用法：python -m app.cli content-seed-from-fixture <fixture路徑>", file=sys.stderr)
             raise SystemExit(1)
         asyncio.run(content_seed_from_fixture(sys.argv[2]))
+    elif command == "initialize-content":
+        if len(sys.argv) != 3:
+            raise SystemExit("用法：python -m app.cli initialize-content <fixture路徑>")
+        from app.content.initialize import initialize_content
+
+        async def run_initialize() -> None:
+            data = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+            factory = await _session_factory()
+            async with factory() as db:
+                count = await initialize_content(db, data)
+                await db.commit()
+                print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
+
+        asyncio.run(run_initialize())
     elif command == "process-notifications":
         asyncio.run(process_notifications_once())
     else:
