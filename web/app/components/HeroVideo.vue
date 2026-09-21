@@ -7,23 +7,64 @@ const videoEl = ref<HTMLVideoElement | null>(null)
 const showVideo = ref(false)
 const isPlaying = ref(false)
 
+let wantsPlayback = false
+let reduceQuery: MediaQueryList | null = null
+
 function togglePlay() {
   const video = videoEl.value
   if (!video) return
-  if (video.paused) video.play().catch(() => {})
-  else video.pause()
+  if (video.paused) {
+    wantsPlayback = true
+    video.play().catch(() => {})
+  } else {
+    wantsPlayback = false
+    video.pause()
+  }
+}
+
+function onVideoError() {
+  wantsPlayback = false
+  showVideo.value = false
+}
+
+// 分頁切到背景時暫停，切回來若使用者原本要看就恢復播放——不是單純
+// pause 完就不管，避免使用者切回分頁時影片停在暫停畫面卻沒發現。
+function onVisibilityChange() {
+  const video = videoEl.value
+  if (!video) return
+  if (document.hidden) video.pause()
+  else if (wantsPlayback) video.play().catch(() => {})
+}
+
+// 使用者中途在系統設定切換「減少動態」，要立刻反映，不能只在掛載當下
+// 判斷一次就定生死。
+function onReduceMotionChange() {
+  if (!reduceQuery?.matches) return
+  wantsPlayback = false
+  videoEl.value?.pause()
 }
 
 onMounted(() => {
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
-  if (reduce.matches) return
+  reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  const connection = (navigator as any).connection
+  const frugal = Boolean(connection?.saveData) || /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? '')
+
+  if (reduceQuery.matches || frugal) return
   showVideo.value = true
-  requestAnimationFrame(() => {
-    videoEl.value?.play().catch(() => {})
+  wantsPlayback = true
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      videoEl.value?.play().catch(() => {})
+    })
   })
+
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  reduceQuery.addEventListener('change', onReduceMotionChange)
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  reduceQuery?.removeEventListener('change', onReduceMotionChange)
   const video = videoEl.value
   if (video) {
     video.pause()
@@ -72,6 +113,7 @@ onUnmounted(() => {
           aria-hidden="true"
           @playing="isPlaying = true"
           @pause="isPlaying = false"
+          @error="onVideoError"
         />
       </figure>
     </div>
