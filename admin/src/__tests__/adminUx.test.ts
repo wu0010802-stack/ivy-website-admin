@@ -131,6 +131,25 @@ describe('後台導覽與編輯操作', () => {
     expect(editor.save).toHaveBeenCalledOnce()
   })
 
+  it('搜尋停止輸入後才查詢，並把關鍵字帶進 q 參數', async () => {
+    const { global } = await setup('/visit-requests')
+    const get = vi.spyOn(api, 'get').mockResolvedValue([])
+    const wrapper = mount(VisitRequestsView, { global })
+    wrappers.push(wrapper)
+    await flushPromises()
+    get.mockClear()
+
+    await wrapper.get('input[aria-label="搜尋家長姓名或電話"]').setValue('陳')
+    await flushPromises()
+    expect(get).not.toHaveBeenCalled()
+
+    await new Promise(resolve => setTimeout(resolve, 350))
+    await flushPromises()
+    expect(get).toHaveBeenCalledOnce()
+    expect(String(get.mock.calls[0]![0])).toContain('q=%E9%99%B3')
+    expect(wrapper.text()).toContain('找不到符合「陳」的案件')
+  })
+
   it('案件快速切換篩選時，舊回應不會蓋掉較新的結果', async () => {
     const { global } = await setup('/visit-requests')
     let resolveOld!: (value: unknown[]) => void

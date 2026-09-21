@@ -102,7 +102,7 @@ onMounted(loadSettings)
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="搜尋引擎相關設定與個資保存政策，只有總管理者可以修改。" />
+    <PageHeader lead="搜尋引擎相關設定與個資保存政策，只有總管理者可以修改。這一頁不經過草稿，儲存後官網立即生效。" />
 
     <section class="panel">
       <div class="panel__head"><h2>搜尋與分享</h2></div>
@@ -116,17 +116,22 @@ onMounted(loadSettings)
           <el-form-item label="預設描述">
             <el-input v-model="settings.description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
           </el-form-item>
-          <el-form-item label="搜尋引擎">
-            <el-switch v-model="settings.noindex" active-text="不索引（上線前）" inactive-text="允許索引" />
+          <el-form-item label="搜尋引擎" class="stacked-field">
+            <el-checkbox v-model="settings.noindex">暫時不讓 Google 收錄（上線前）</el-checkbox>
             <span class="field-help">
-              {{ settings.noindex ? '目前 Google 不會收錄官網，正式上線時記得關閉。' : '官網可被搜尋引擎收錄。' }}
+              {{ settings.noindex ? '目前搜尋不到官網。正式上線時要取消勾選，家長才找得到。' : '官網可以被搜尋引擎收錄。' }}
             </span>
           </el-form-item>
           <el-form-item label="隱私政策版本">
             <el-input v-model="settings.privacy_policy_version" placeholder="例如：2026-09" />
             <span class="field-help">改版後家長送出表單時會記錄同意的是哪一版。</span>
           </el-form-item>
-          <el-button type="primary" :loading="savingSettings" :disabled="!isDirty" @click="saveSettings">儲存</el-button>
+          <div class="save-row">
+            <el-button type="primary" :loading="savingSettings" :disabled="!isDirty" @click="saveSettings">
+              儲存並套用到官網
+            </el-button>
+            <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
+          </div>
         </el-form>
       </div>
     </section>
@@ -164,6 +169,13 @@ onMounted(loadSettings)
 </template>
 
 <style scoped>
+/* 勾選框是 inline，說明會被排到同一行；其他欄位的說明都在下方，統一成直排。 */
+.stacked-field :deep(.el-form-item__content) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .retention {
   display: flex;
   flex-wrap: wrap;

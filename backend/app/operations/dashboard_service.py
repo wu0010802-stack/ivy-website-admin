@@ -22,18 +22,35 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
             return stmt.where(column.in_(campus_keys))
         return stmt
 
-    # 今日參觀：時段落在今天且狀態是 confirmed。
-    today_visits_stmt = (
-        select(func.count())
-        .select_from(VisitRequest)
+    # 今日參觀：時段落在今天且狀態是 confirmed。回清單而不是只回數字——
+    # 櫃台要的是「今天誰幾點來」，一個數字沒辦法讓人打電話或準備接待。
+    today_rows_stmt = (
+        select(
+            VisitRequest.id,
+            VisitRequest.parent_name,
+            VisitRequest.campus_key,
+            VisitSlot.start_time,
+            VisitSlot.end_time,
+        )
         .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
         .where(
             VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
             VisitSlot.slot_date == today_start.date(),
         )
+        .order_by(VisitSlot.start_time, VisitRequest.parent_name)
     )
-    today_visits_stmt = _scope(today_visits_stmt, VisitRequest.campus_key)
-    today_visits = (await db.execute(today_visits_stmt)).scalar_one()
+    today_rows_stmt = _scope(today_rows_stmt, VisitRequest.campus_key)
+    today_visit_list = [
+        {
+            "id": str(row.id),
+            "parent_name": row.parent_name,
+            "campus_key": row.campus_key,
+            "start_time": row.start_time.isoformat(),
+            "end_time": row.end_time.isoformat(),
+        }
+        for row in (await db.execute(today_rows_stmt)).all()
+    ]
+    today_visits = len(today_visit_list)
 
     pending_follow_up_stmt = select(func.count()).select_from(VisitRequest).where(
         VisitRequest.follow_up_at.is_not(None),
@@ -55,6 +72,19 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
             (ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None))
         )
     pending_publish = (await db.execute(unpublished_stmt)).scalar_one()
+
+    # 同時回是哪幾種內容：總覽要能直接連到該編輯頁，而不是丟一個
+    # 數字讓人自己在十個內容項裡找。分校型內容多校都有草稿時只算一種。
+    unpublished_kinds_stmt = (
+        select(ContentItem.kind)
+        .where(ContentItem.current_published_revision_id.is_(None), ContentItem.latest_version > 0)
+        .distinct()
+    )
+    if campus_keys is not None:
+        unpublished_kinds_stmt = unpublished_kinds_stmt.where(
+            (ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None))
+        )
+    pending_publish_kinds = sorted(row[0] for row in (await db.execute(unpublished_kinds_stmt)).all())
 
     campuses_stmt = select(Campus.key)
     if campus_keys is not None:
@@ -78,8 +108,10 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
 
     return {
         "today_visits": today_visits,
+        "today_visit_list": today_visit_list,
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
+        "pending_publish_kinds": pending_publish_kinds,
         "campuses_without_active_booking": missing_config,
         "failed_notifications": failed_notifications,
     }

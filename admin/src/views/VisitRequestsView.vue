@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download } from '@element-plus/icons-vue'
+import { Download, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatSlotWhen, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -22,10 +22,12 @@ const requests = ref<VisitRequestDetailOut[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 let loadVersion = 0
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value))
+const search = ref('')
+const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim()))
 function clearFilters() {
   campusFilter.value = ''
   statusFilter.value = ''
+  search.value = ''
 }
 
 const hasNext = computed(() => requests.value.length === pageSize)
@@ -38,6 +40,7 @@ async function load() {
     const params = new URLSearchParams({ page: String(page.value), page_size: String(pageSize) })
     if (campusFilter.value) params.set('campus_key', campusFilter.value)
     if (statusFilter.value) params.set('status', statusFilter.value)
+    if (search.value.trim()) params.set('q', search.value.trim())
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version === loadVersion) requests.value = result
   } catch {
@@ -53,6 +56,15 @@ async function load() {
 watch([campusFilter, statusFilter], () => {
   page.value = 1
   load()
+})
+// 邊打字邊查會連發請求，停下來再送；過時的回應由 loadVersion 擋掉。
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(search, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    load()
+  }, 300)
 })
 watch(page, load)
 watch(() => route.query.status, status => {
@@ -70,6 +82,7 @@ function openDetail(row: VisitRequestDetailOut) {
 }
 
 const emptyText = computed(() => {
+  if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
   if (statusFilter.value) return `沒有「${VISIT_STATUS[statusFilter.value]?.label ?? statusFilter.value}」的案件`
   return '還沒有任何參觀需求'
 })
@@ -86,6 +99,9 @@ onMounted(load)
     </PageHeader>
 
     <div class="toolbar">
+      <div class="filter-field filter-field--search"><span>搜尋</span>
+      <el-input v-model="search" placeholder="家長姓名或電話" clearable :prefix-icon="Search" aria-label="搜尋家長姓名或電話" />
+      </div>
       <div class="filter-field"><span>校區</span>
       <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" />
       </div>
@@ -120,13 +136,19 @@ onMounted(load)
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ campusLabel(row.campus_key) }}</template>
         </el-table-column>
         <el-table-column label="家長" min-width="120"><template #default="{ row }: { row: VisitRequestDetailOut }"><router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link></template></el-table-column>
+        <el-table-column label="參觀時間" width="260">
+          <template #default="{ row }: { row: VisitRequestDetailOut }">
+            <span v-if="row.slot" class="num">{{ formatSlotWhen(row.slot) }}</span>
+            <span v-else class="muted">尚未排定</span>
+          </template>
+        </el-table-column>
         <el-table-column label="電話" width="140">
           <template #default="{ row }: { row: VisitRequestDetailOut }"><span class="num">{{ row.phone }}</span></template>
         </el-table-column>
         <el-table-column label="孩子年齡" width="90">
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.age ?? '—' }}</template>
         </el-table-column>
-        <el-table-column label="方便時段" min-width="140" show-overflow-tooltip>
+        <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
         </el-table-column>
         <el-table-column label="送出時間" width="150">
@@ -141,6 +163,7 @@ onMounted(load)
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
+            <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
             <p>{{ campusLabel(request.campus_key) }}校 · 孩子 {{ request.age ?? '年齡未填' }}<template v-if="request.age != null"> 歲</template></p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
             <p>方便時段：{{ request.preferred_time || '未填寫' }}</p>
@@ -172,6 +195,8 @@ onMounted(load)
 .request-list__head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 4px; }
 .request-list__head a { display: inline-flex; align-items: center; min-height: 44px; font-size: 17px; font-weight: 600; }
 .request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
+.request-list__when { color: var(--brand-green-deep); font-weight: 500; }
+.filter-field--search { flex: 1 1 240px; max-width: 320px; }
 .request-list__phone { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; font-variant-numeric: tabular-nums; }
 .pager {
   display: flex;
@@ -185,5 +210,7 @@ onMounted(load)
   .requests-table { display: none; }
   .requests-mobile { display: block; }
   .filter-field { flex: 1 1 130px; min-width: 0; font-size: 14px; }
+  /* 搜尋是手機上最常用的入口，給整行才放得下提示文字 */
+  .filter-field--search { flex: 1 1 100%; max-width: none; }
 }
 </style>

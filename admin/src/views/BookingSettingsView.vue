@@ -130,7 +130,12 @@ async function save() {
           </el-form-item>
 
           <div class="form-actions">
-            <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing" @click="save">儲存並套用到官網</el-button>
+            <div class="save-row">
+              <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing" @click="save">
+                儲存並套用到官網
+              </el-button>
+              <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
+            </div>
             <span v-if="requiredMissing" class="hint" style="color: var(--el-color-danger)">請填寫這個方式需要的連結或電話</span>
           </div>
         </el-form>

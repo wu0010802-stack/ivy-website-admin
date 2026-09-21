@@ -48,6 +48,26 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
 
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
+// 發布是對外動作：按下去官網立刻換掉，後台沒有回到上一版的介面。
+// 先講清楚「現在官網是哪一版」和「按下去會立刻生效」再問。
+async function publishWithConfirm() {
+  const current = isPublished.value
+    ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
+    : neverPublished.value
+      ? '官網目前顯示的是預設文字。'
+      : '官網目前顯示的是上一版。'
+  try {
+    await ElMessageBox.confirm(`${current}發布後家長立刻看到這一版。`, '發布到官網？', {
+      confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
+      cancelButtonText: '先不要',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  await props.editor.saveAndPublish()
+}
+
 async function confirmLeave(): Promise<boolean> {
   if (!isDirty.value) return true
   try {
@@ -123,7 +143,7 @@ defineExpose({ confirmLeave })
           :loading="publishing"
           :disabled="busy || !canPublish"
           class="editor__publish"
-          @click="editor.saveAndPublish()"
+          @click="publishWithConfirm()"
         >
           {{ isDirty ? '儲存並發布到官網' : '發布到官網' }}
         </el-button>

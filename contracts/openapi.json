@@ -1321,6 +1321,16 @@
             ],
             "title": "Questions"
           },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "slot_id": {
             "anyOf": [
               {
@@ -1394,6 +1404,39 @@
           "new_slot_id"
         ],
         "title": "VisitRequestRescheduleRequest",
+        "type": "object"
+      },
+      "VisitSlotBriefOut": {
+        "description": "案件上要顯示的「參觀時間」。容量與已預約數是時段管理頁的事，\n這裡只回日期與起訖；後台明細與列表都直接顯示這一份，不必再打一次\n/admin/slots 去換算家長約在哪一天。",
+        "properties": {
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "slot_date": {
+            "format": "date",
+            "title": "Slot Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slot_date",
+          "start_time",
+          "end_time"
+        ],
+        "title": "VisitSlotBriefOut",
         "type": "object"
       },
       "VisitSlotCreateRequest": {
@@ -4232,6 +4275,25 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "description": "家長姓名或電話片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "家長姓名或電話片段",
+              "title": "Q"
             }
           },
           {

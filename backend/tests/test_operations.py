@@ -213,3 +213,59 @@ async def test_site_settings_requires_super_admin(minghua_client):
         },
     )
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client):
+    """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
+    數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""
+    from datetime import date
+
+    receipt_id = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", idempotency_key="ops-dash-today-01"
+    )
+    slot = await admin_client.post(
+        "/api/website/v1/admin/slots?campus_key=yihua",
+        json={
+            "slot_date": date.today().isoformat(),
+            "start_time": "10:00:00",
+            "end_time": "11:00:00",
+            "capacity": 2,
+        },
+    )
+    assert slot.status_code == 201, slot.text
+    confirm = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm",
+        json={"slot_id": slot.json()["id"]},
+    )
+    assert confirm.status_code == 200, confirm.text
+
+    draft = await admin_client.post(
+        "/api/website/v1/admin/content-items/home_about/revisions",
+        json={
+            "expected_version": 0,
+            "payload": {
+                "title": "標題",
+                "since_label": "SINCE 1997",
+                "body_text": "內文",
+                "caption": "說明",
+            },
+        },
+    )
+    assert draft.status_code == 201, draft.text
+
+    dashboard = await admin_client.get("/api/website/v1/admin/dashboard")
+    assert dashboard.status_code == 200, dashboard.text
+    body = dashboard.json()
+
+    assert body["today_visits"] == 1
+    today_rows = body["today_visit_list"]
+    assert [r["id"] for r in today_rows] == [receipt_id]
+    assert today_rows[0]["parent_name"]
+    assert today_rows[0]["campus_key"] == "yihua"
+    assert today_rows[0]["start_time"] == "10:00:00"
+    assert today_rows[0]["end_time"] == "11:00:00"
+
+    # 草稿要指名是哪一項內容，前端才能直接連過去。
+    assert body["pending_publish"] >= 1
+    assert "home_about" in body["pending_publish_kinds"]

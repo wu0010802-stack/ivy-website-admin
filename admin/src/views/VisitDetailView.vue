@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
-import { campusLabel, formatDate, formatDateTime, formatTime, formatWeekday, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatSlotWhen, visitStatus } from '../api/labels'
 import StatusTag from '../components/StatusTag.vue'
 
 const route = useRoute()
@@ -54,7 +54,7 @@ const openSlots = computed(() => availableSlots.value.filter((s) => !s.closed &&
 
 function slotLabel(slot: VisitSlotOut): string {
   const left = slot.capacity - slot.booked_count
-  return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${formatTime(slot.start_time)}–${formatTime(slot.end_time)}，剩 ${left} 位`
+  return `${formatSlotWhen(slot)}，剩 ${left} 位`
 }
 
 async function confirm() {
@@ -62,10 +62,25 @@ async function confirm() {
     ElMessage.warning('請先選擇一個時段')
     return
   }
+  const slot = openSlots.value.find((s) => s.id === selectedSlotId.value)
+  if (!slot) {
+    ElMessage.warning('這個時段已經不能選了，請重新選擇')
+    return
+  }
+  try {
+    // 這一按就寄通知給家長、名額也會被占用，所以把「誰、哪一天、會寄信」講完再問。
+    await ElMessageBox.confirm(
+      `將把 ${detail.value?.parent_name} 排入 ${formatSlotWhen(slot)}，並寄出確認通知給家長。`,
+      '確認這筆預約？',
+      { confirmButtonText: '確認並寄出通知', cancelButtonText: '先不要', type: 'info' },
+    )
+  } catch {
+    return
+  }
   busy.value = true
   try {
     await api.post(`/admin/visit-requests/${id}/confirm`, { slot_id: selectedSlotId.value })
-    ElMessage.success('已確認，預約成立')
+    ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}`)
     await load()
   } catch (err) {
     reportError(err, '確認失敗')
@@ -152,6 +167,7 @@ onMounted(load)
         <div>
           <h1 class="detail__title">{{ detail.parent_name }}</h1>
           <p class="hint">{{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }} 送出</p>
+          <p v-if="detail.slot" class="detail__when">參觀時間 {{ formatSlotWhen(detail.slot) }}</p>
         </div>
         <StatusTag :meta="visitStatus(detail.status)" size="large" />
       </div>
@@ -255,6 +271,13 @@ onMounted(load)
 
 .detail__title {
   font-size: 22px;
+}
+
+.detail__when {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--brand-green-deep);
 }
 
 .detail__grid {

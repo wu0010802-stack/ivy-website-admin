@@ -122,6 +122,19 @@ class VisitSlotUpdateRequest(BaseModel):
     closed: bool | None = None
 
 
+class VisitSlotBriefOut(BaseModel):
+    """案件上要顯示的「參觀時間」。容量與已預約數是時段管理頁的事，
+    這裡只回日期與起訖；後台明細與列表都直接顯示這一份，不必再打一次
+    /admin/slots 去換算家長約在哪一天。"""
+
+    id: uuid.UUID
+    slot_date: date
+    start_time: time
+    end_time: time
+
+    model_config = {"from_attributes": True}
+
+
 class VisitRequestDetailOut(BaseModel):
     id: uuid.UUID
     campus_key: str
@@ -132,6 +145,10 @@ class VisitRequestDetailOut(BaseModel):
     preferred_time: str | None
     questions: str | None
     slot_id: uuid.UUID | None
+    # 未排時段（inquiry 待處理）時為 None。序列化會讀 VisitRequest.slot
+    # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
+    # 下會踩到 lazy load。
+    slot: VisitSlotBriefOut | None = None
     assigned_staff_id: uuid.UUID | None
     confirmed_at: datetime | None
     cancelled_at: datetime | None

@@ -262,6 +262,8 @@ async def test_reschedule_success_moves_slot(admin_client, public_client):
     )
     assert reschedule.status_code == 200
     assert reschedule.json()["slot_id"] == slot_b["id"]
+    # 改期後回應帶的參觀時間也要換成新時段，前端直接顯示這一份。
+    assert reschedule.json()["slot"]["slot_date"] == slot_b["slot_date"]
 
     # 原本的 slot_a 名額已釋放
     retry = await public_client.post(
@@ -352,3 +354,134 @@ async def test_csv_export_escapes_formula_injection(admin_client, public_client)
     assert "\n=cmd" not in resp.text
     assert ",=cmd" not in resp.text
     assert "'=cmd|' /C calc'!A0" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_confirmed_request_exposes_slot_time(admin_client, public_client):
+    """已確認的案件要看得到「約在哪一天幾點」。櫃台接到家長來電時，
+    明細、列表、確認當下的回應三處都要有，不能只給一個 slot_id。"""
+    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
+    await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": current.json()["version"], "mode": "inquiry"},
+    )
+    config = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
+    created = await public_client.post(
+        "/api/website/v1/public/visit-requests",
+        json={
+            "campus_key": "yihua",
+            "config_version": config.json()["version"],
+            "parent_name": "林爸爸",
+            "phone": "0912345678",
+            "age": "3-4",
+            "preferred_time": "平日下午",
+            "questions": None,
+            "consent_given": True,
+        },
+        headers={"Idempotency-Key": "slot-expose-01"},
+    )
+    receipt_id = created.json()["receipt_id"]
+
+    # 還沒排時段前是「已收到需求」，沒有參觀時間可顯示。
+    before = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
+    assert before.status_code == 200, before.text
+    assert before.json()["slot"] is None
+
+    slot = await _create_slot(admin_client)
+    confirm = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
+    )
+    assert confirm.status_code == 200, confirm.text
+    assert confirm.json()["slot"]["id"] == slot["id"]
+    assert confirm.json()["slot"]["slot_date"] == slot["slot_date"]
+    assert confirm.json()["slot"]["start_time"] == slot["start_time"]
+    assert confirm.json()["slot"]["end_time"] == slot["end_time"]
+
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
+    assert detail.json()["slot"]["slot_date"] == slot["slot_date"]
+    assert detail.json()["slot"]["start_time"] == slot["start_time"]
+
+    listed = await admin_client.get("/api/website/v1/admin/visit-requests?campus_key=yihua")
+    assert listed.status_code == 200, listed.text
+    row = next(r for r in listed.json() if r["id"] == receipt_id)
+    assert row["slot"]["slot_date"] == slot["slot_date"]
+    assert row["slot"]["end_time"] == slot["end_time"]
+
+
+async def _submit_inquiry(admin_client, public_client, *, campus_key, parent_name, phone, key):
+    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
+    await admin_client.patch(
+        f"/api/website/v1/admin/booking-config/{campus_key}",
+        json={"expected_version": current.json()["version"], "mode": "inquiry"},
+    )
+    config = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
+    created = await public_client.post(
+        "/api/website/v1/public/visit-requests",
+        json={
+            "campus_key": campus_key,
+            "config_version": config.json()["version"],
+            "parent_name": parent_name,
+            "phone": phone,
+            "age": "3-4",
+            "preferred_time": None,
+            "questions": None,
+            "consent_given": True,
+        },
+        headers={"Idempotency-Key": key},
+    )
+    assert created.status_code == 201, created.text
+    return created.json()["receipt_id"]
+
+
+@pytest.mark.asyncio
+async def test_visit_request_search_by_name_and_phone(admin_client, public_client):
+    """櫃台接到電話時是拿姓名或號碼找人，不是一頁一頁翻。"""
+    chen = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="陳小姐", phone="0933111222", key="search-01"
+    )
+    lin = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="林爸爸", phone="0987654321", key="search-02"
+    )
+
+    by_name = await admin_client.get("/api/website/v1/admin/visit-requests?q=陳")
+    assert by_name.status_code == 200, by_name.text
+    assert [r["id"] for r in by_name.json()] == [chen]
+
+    by_phone = await admin_client.get("/api/website/v1/admin/visit-requests?q=8765")
+    assert [r["id"] for r in by_phone.json()] == [lin]
+
+    # 前後空白不影響
+    padded = await admin_client.get("/api/website/v1/admin/visit-requests?q=%20%E9%99%B3%20")
+    assert [r["id"] for r in padded.json()] == [chen]
+
+    nothing = await admin_client.get("/api/website/v1/admin/visit-requests?q=沒有這個人")
+    assert nothing.json() == []
+
+
+@pytest.mark.asyncio
+async def test_visit_request_search_treats_wildcards_as_text(admin_client, public_client):
+    """`%` 和 `_` 是使用者打的字，不是萬用字元，不能因此撈出全部案件。"""
+    await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="王媽媽", phone="0912345678", key="search-wild-01"
+    )
+
+    percent = await admin_client.get("/api/website/v1/admin/visit-requests?q=%25")
+    assert percent.status_code == 200, percent.text
+    assert percent.json() == []
+
+    underscore = await admin_client.get("/api/website/v1/admin/visit-requests?q=_")
+    assert underscore.json() == []
+
+
+@pytest.mark.asyncio
+async def test_visit_request_search_stays_inside_campus_scope(
+    admin_client, minghua_client, public_client
+):
+    """搜尋不能變成跨校查人的後門。"""
+    await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="義華的家長", phone="0911222333", key="search-scope-01"
+    )
+
+    leaked = await minghua_client.get("/api/website/v1/admin/visit-requests?q=義華的家長")
+    assert leaked.status_code == 200, leaked.text
+    assert leaked.json() == []

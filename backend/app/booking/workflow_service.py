@@ -42,7 +42,9 @@ async def confirm_with_slot(
     if booked >= slot.capacity:
         raise SlotFull()
 
-    visit_request.slot_id = slot.id
+    # 指派 relationship 而不是只寫 FK：回應要立刻序列化出參觀時間，
+    # 已載入的物件才不會在 async 下觸發 lazy load。
+    visit_request.slot = slot
     visit_request.status = VisitRequestStatus.CONFIRMED.value
     visit_request.assigned_staff_id = staff_id
     visit_request.confirmed_at = datetime.now(timezone.utc)
@@ -131,7 +133,7 @@ async def reschedule(
     if booked >= new_slot.capacity:
         raise SlotFull()
 
-    visit_request.slot_id = new_slot.id
+    visit_request.slot = new_slot
     _add_event(db, visit_request.id, "rescheduled")
     enqueue_outbox(
         db,

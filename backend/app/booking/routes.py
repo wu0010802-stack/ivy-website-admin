@@ -6,8 +6,9 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
@@ -297,7 +298,11 @@ async def list_public_slots(
 
 
 async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_id: uuid.UUID) -> VisitRequest:
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == visit_request_id)
+    )
     visit_request = result.scalar_one_or_none()
     if visit_request is None:
         raise ScopeDenied()
@@ -309,13 +314,14 @@ async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_i
 async def list_visit_requests(
     campus_key: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
+    q: str | None = Query(default=None, max_length=100, description="家長姓名或電話片段"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitRequestDetailOut]:
     require_scope(current_user, "booking.read")
-    stmt = select(VisitRequest)
+    stmt = select(VisitRequest).options(selectinload(VisitRequest.slot))
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         stmt = stmt.where(VisitRequest.campus_key == campus_key)
@@ -324,6 +330,17 @@ async def list_visit_requests(
         stmt = stmt.where(VisitRequest.campus_key.in_(owned))
     if status_filter:
         stmt = stmt.where(VisitRequest.status == status_filter)
+    if q and q.strip():
+        # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
+        # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
+        needle = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{needle}%"
+        stmt = stmt.where(
+            or_(
+                VisitRequest.parent_name.ilike(pattern, escape="\\"),
+                VisitRequest.phone.like(pattern, escape="\\"),
+            )
+        )
     stmt = stmt.order_by(VisitRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]

@@ -1324,6 +1324,7 @@ export interface components {
             preferred_time: string | null;
             /** Questions */
             questions: string | null;
+            slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Slot Id */
             slot_id: string | null;
             /** Status */
@@ -1351,6 +1352,34 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+        };
+        /**
+         * VisitSlotBriefOut
+         * @description 案件上要顯示的「參觀時間」。容量與已預約數是時段管理頁的事，
+         *     這裡只回日期與起訖；後台明細與列表都直接顯示這一份，不必再打一次
+         *     /admin/slots 去換算家長約在哪一天。
+         */
+        VisitSlotBriefOut: {
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Slot Date
+             * Format: date
+             */
+            slot_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
         };
         /** VisitSlotCreateRequest */
         VisitSlotCreateRequest: {
@@ -2672,6 +2701,8 @@ export interface operations {
             query?: {
                 campus_key?: string | null;
                 status?: string | null;
+                /** @description 家長姓名或電話片段 */
+                q?: string | null;
                 page?: number;
                 page_size?: number;
             };

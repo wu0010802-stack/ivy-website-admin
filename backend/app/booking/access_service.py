@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
@@ -51,7 +52,11 @@ async def exchange_token(db: AsyncSession, raw_token: str) -> tuple[str, VisitRe
     if token is None or token.revoked_at is not None or token.expires_at < now:
         raise TokenInvalid()
 
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == token.visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == token.visit_request_id)
+    )
     visit_request = result.scalar_one_or_none()
     if visit_request is None:
         raise TokenInvalid()
@@ -77,7 +82,11 @@ async def get_visit_request_for_session(db: AsyncSession, raw_session_token: str
     now = datetime.now(timezone.utc)
     if session is None or session.revoked_at is not None or session.expires_at < now:
         return None
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == session.visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == session.visit_request_id)
+    )
     return result.scalar_one_or_none()
 
 

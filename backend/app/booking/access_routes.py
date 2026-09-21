@@ -7,6 +7,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
@@ -128,7 +129,11 @@ async def create_parent_access_link(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == visit_request_id)
+    )
     visit_request = result.scalar_one_or_none()
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
@@ -174,7 +179,11 @@ async def approve_reschedule_request(
     if record is None or record.status != "pending":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
 
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == record.visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == record.visit_request_id)
+    )
     visit_request = result.scalar_one()
     require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
 
@@ -206,7 +215,11 @@ async def reject_reschedule_request(
     if record is None or record.status != "pending":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
 
-    result = await db.execute(select(VisitRequest).where(VisitRequest.id == record.visit_request_id))
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == record.visit_request_id)
+    )
     visit_request = result.scalar_one()
     require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
 

@@ -5,6 +5,7 @@ import {
   formatDate,
   formatDateTime,
   formatFileSize,
+  formatSlotWhen,
   formatTime,
   roleLabel,
   visitStatus,
@@ -30,6 +31,14 @@ describe('labels', () => {
     expect(formatDateTime('not-a-date')).toBe('not-a-date')
     expect(formatDate('2026-09-21')).toBe('2026/09/21')
     expect(formatTime('10:30:00')).toBe('10:30')
+  })
+
+  it('參觀時間合成日期、星期與起訖，沒有時段回破折號', () => {
+    expect(formatSlotWhen({ slot_date: '2026-09-26', start_time: '10:00:00', end_time: '11:00:00' })).toBe(
+      '2026/09/26（週六）10:00–11:00',
+    )
+    expect(formatSlotWhen(null)).toBe('—')
+    expect(formatSlotWhen(undefined)).toBe('—')
   })
 
   it('檔案大小換算', () => {

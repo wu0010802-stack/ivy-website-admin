@@ -180,15 +180,36 @@ onMounted(loadUsers)
                 <el-button v-if="row.role === 'campus_admin'" size="small" text @click="openScopeDialog(row)">
                   校區範圍
                 </el-button>
+                <el-popconfirm
+                  v-if="row.is_active"
+                  :title="`停用後 ${row.email} 就無法登入後台，已建立的內容不受影響。`"
+                  confirm-button-text="停用"
+                  cancel-button-text="先不要"
+                  confirm-button-type="danger"
+                  :width="280"
+                  @confirm="toggleActive(row)"
+                >
+                  <template #reference>
+                    <el-button
+                      size="small"
+                      text
+                      type="danger"
+                      :disabled="isSelf(row)"
+                      :loading="togglingId === row.id"
+                    >
+                      停用
+                    </el-button>
+                  </template>
+                </el-popconfirm>
                 <el-button
+                  v-else
                   size="small"
                   text
-                  :type="row.is_active ? 'danger' : 'primary'"
-                  :disabled="isSelf(row)"
+                  type="primary"
                   :loading="togglingId === row.id"
                   @click="toggleActive(row)"
                 >
-                  {{ row.is_active ? '停用' : '恢復' }}
+                  恢復
                 </el-button>
               </span>
             </template>

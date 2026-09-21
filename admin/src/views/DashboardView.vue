@@ -1,15 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { campusLabels } from '../api/labels'
+import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
+
+interface TodayVisit {
+  id: string
+  parent_name: string
+  campus_key: string
+  start_time: string
+  end_time: string
+}
 
 interface DashboardSummary {
   today_visits: number
+  today_visit_list?: TodayVisit[]
   pending_follow_up: number
   pending_publish: number
+  pending_publish_kinds?: string[]
   campuses_without_active_booking: string[]
   failed_notifications: number
+}
+
+// 內容 kind 與編輯頁路由同形，只差底線與連字號（home_hero → /content/home-hero）。
+function kindPath(kind: string): string {
+  return `/content/${kind.replace(/_/g, '-')}`
 }
 
 const authStore = useAuthStore()
@@ -67,6 +82,19 @@ onMounted(load)
         <div><dt>未發布的草稿</dt><dd>{{ summary.pending_publish }}<span>篇</span></dd><span class="hint">儲存過但從未發布</span></div>
         <div><dt>通知寄送失敗</dt><dd>{{ summary.failed_notifications }}<span>則</span></dd><router-link to="/notifications">查看通知紀錄</router-link></div>
       </dl>
+      <section v-if="summary.today_visit_list?.length" class="dash__today" aria-labelledby="today-title">
+        <div class="section__title"><h2 id="today-title">今天的參觀</h2><span class="hint">點一筆查看聯絡紀錄與電話</span></div>
+        <ol class="panel today">
+          <li v-for="visit in summary.today_visit_list" :key="visit.id">
+            <router-link :to="`/visit-requests/${visit.id}`">
+              <time class="today__time num">{{ formatTime(visit.start_time) }}–{{ formatTime(visit.end_time) }}</time>
+              <strong class="today__name">{{ visit.parent_name }}</strong>
+              <span class="today__campus">{{ campusLabel(visit.campus_key) }}</span>
+              <span class="today__go" aria-hidden="true">→</span>
+            </router-link>
+          </li>
+        </ol>
+      </section>
       <div class="dash__workspace">
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title"><h2 id="tasks-title">待辦與提醒</h2><span class="hint">依目前資料顯示</span></div>
@@ -85,7 +113,15 @@ onMounted(load)
             </router-link>
             <div v-if="summary.pending_publish > 0" class="task">
               <span class="task__number">{{ summary.pending_publish }}</span>
-              <div><h3>草稿尚未公開</h3><p>從左側「官網內容」選擇編輯項目，檢查內容後再發布。</p></div>
+              <div>
+                <h3>草稿尚未公開</h3>
+                <p>這些內容存過草稿，官網顯示的還是舊版。檢查後再發布。</p>
+                <span class="task__kinds">
+                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="kindPath(kind)">
+                    {{ CONTENT_KIND_LABELS[kind] ?? kind }} →
+                  </router-link>
+                </span>
+              </div>
             </div>
             <div v-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>可以查看參觀安排，或利用下方入口整理官網內容。</p></div>
           </div>
@@ -119,6 +155,17 @@ onMounted(load)
 .dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: 30px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .dash__summary dd span { font-size: 13px; font-weight: 400; color: var(--ink-3); }
 .dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
+.dash__today { margin-bottom: 32px; }
+.today { list-style: none; margin: 0; padding: 0; }
+.today li + li { border-top: 1px solid var(--line); }
+.today a { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; padding: 14px 20px; color: var(--ink); }
+.today a:hover { text-decoration: none; background: var(--surface-2); }
+.today__time { font-size: 14px; font-weight: 500; color: var(--brand-green-deep); }
+.today__name { font-size: 15px; font-weight: 500; }
+.today__campus { color: var(--ink-3); font-size: 13px; }
+.today__go { color: var(--ink-3); }
+.task__kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
+.task__kinds a { color: var(--brand-green-deep); font-weight: 500; font-size: 14px; }
 .dash__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 32px; align-items: start; }
 .section__title h2 { font-size: 17px; }
 .task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }
@@ -147,5 +194,10 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .dash__summary a { min-height: 44px; }
   .dash__summary a, .dash__links small, .dash__date { font-size: 14px; }
   .task { padding: 20px 16px; gap: 12px; }
+  .today a { grid-template-columns: auto 1fr auto; gap: 4px 12px; padding: 14px 16px; }
+  .today__time { grid-column: 1; grid-row: 1; }
+  .today__name { grid-column: 2; grid-row: 1; }
+  .today__campus { grid-column: 1 / 3; grid-row: 2; }
+  .today__go { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 }
 </style>

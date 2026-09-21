@@ -303,6 +303,33 @@ a:hover {
   line-height: 1.45;
 }
 
+/* 不經草稿、儲存就上線的設定頁（各校預約方式、全站設定）用這一組：
+   把「沒有草稿階段」講在儲存鈕旁邊，也就是真正要做決定的地方。綠點沿用
+   ContentEditor 狀態列「官網現在就是這一版」的意思。 */
+.save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.live-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.live-note::before {
+  content: '';
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-green);
+}
+
 .field-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
