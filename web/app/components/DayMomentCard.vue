@@ -9,6 +9,7 @@ const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }
 const isFlipped = ref(false)
 const isRevealed = ref(false)
 const isTilting = ref(false)
+const isPeeking = ref(false)
 const webglReady = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
 const wrapEl = ref<HTMLDivElement | null>(null)
@@ -19,6 +20,81 @@ let paper: PaperHandle | null = null
 let paperPending = false
 let tiltFrame = 0
 let pointerPosition: { x: number; y: number } | null = null
+let cueTimer = 0
+let earFrame = 0
+let peekTimer = 0
+
+// 折角與偷看：顯影完成後折角自己掀一次（30→52→44），首張再向左微翻 12° 回正；
+// 減少動態不做、翻開中不做、每次工作階段只偷看一次。DOM 的 --ear 與 WebGL 貼圖缺口用同一個時鐘。
+const EAR_REST = 44
+const EAR_PEEL_MS = 1100
+const PEEK_KEY = 'ivy-day-peek'
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+function setEar(px: number) {
+  wrapEl.value?.style.setProperty('--ear', `${px.toFixed(1)}px`)
+  paper?.setEar(px)
+}
+
+function runPeel(done: () => void) {
+  const start = performance.now()
+  const step = () => {
+    earFrame = 0
+    if (!wrapEl.value?.isConnected) return
+    const t = Math.min(1, (performance.now() - start) / EAR_PEEL_MS)
+    // 30 → 52 → 44：先掀大再放回
+    const px = t < 0.55 ? 30 + (52 - 30) * easeInOut(t / 0.55) : 52 - (52 - EAR_REST) * easeInOut((t - 0.55) / 0.45)
+    setEar(px)
+    if (t < 1) earFrame = requestAnimationFrame(step)
+    else {
+      setEar(EAR_REST)
+      done()
+    }
+  }
+  earFrame = requestAnimationFrame(step)
+}
+
+function peekedThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(PEEK_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function markPeeked() {
+  try {
+    sessionStorage.setItem(PEEK_KEY, '1')
+  } catch {
+    /* 無 sessionStorage 就每次都偷看一次 */
+  }
+}
+
+function runPeek() {
+  if (isFlipped.value || !wrapEl.value?.isConnected || peekedThisSession()) return
+  markPeeked()
+  if (paper) {
+    paper.peek()
+    return
+  }
+  isPeeking.value = true
+  peekTimer = window.setTimeout(() => {
+    isPeeking.value = false
+  }, 1000)
+}
+
+function scheduleCues() {
+  const mobile = window.matchMedia('(max-width: 760px)').matches
+  // 顯影：桌機 3.2 秒、手機 0.9 秒（paperPrints.ts／styles.css 同參數），完成後再掀角
+  const delay = mobile ? 1100 : 3400
+  cueTimer = window.setTimeout(() => {
+    cueTimer = 0
+    runPeel(() => {
+      if (props.index !== 0) return
+      peekTimer = window.setTimeout(runPeek, 300)
+    })
+  }, delay)
+}
 
 function applyTilt() {
   tiltFrame = 0
@@ -91,6 +167,8 @@ async function attachPaper() {
   paper = handle
   webglReady.value = true
   onPointerLeave()
+  const currentEar = Number.parseFloat(wrapEl.value.style.getPropertyValue('--ear'))
+  if (Number.isFinite(currentEar)) paper.setEar(currentEar)
   paper.setFlipped(isFlipped.value)
   paper.setActive(Boolean(props.active))
   if (isRevealed.value) paper.setRevealed()
@@ -111,6 +189,8 @@ onMounted(() => {
     isRevealed.value = true
     return
   }
+  // 掀角從 30 開始，等顯影完成才放到 44
+  setEar(30)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   if (mayAutoplay(prefersReducedMotion, connection)) nearObserver = new IntersectionObserver(
     (entries) => {
@@ -129,6 +209,7 @@ onMounted(() => {
         if (entry.isIntersecting) {
           isRevealed.value = true
           observer?.disconnect()
+          scheduleCues()
         }
       }
     },
@@ -143,6 +224,9 @@ onUnmounted(() => {
   nearObserver?.disconnect()
   nearObserver = null
   cancelAnimationFrame(tiltFrame)
+  cancelAnimationFrame(earFrame)
+  window.clearTimeout(cueTimer)
+  window.clearTimeout(peekTimer)
   paper?.dispose()
   paper = null
   webglReady.value = false
@@ -168,7 +252,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
       <div
         ref="wrapEl"
         class="print-wrap"
-        :class="{ 'is-flipped': isFlipped, 'is-tilting': isTilting, 'webgl-ready': webglReady }"
+        :class="{ 'is-flipped': isFlipped, 'is-tilting': isTilting, 'is-peeking': isPeeking, 'webgl-ready': webglReady }"
         @pointermove="onPointerMove"
         @pointerleave="onPointerLeave"
       >
@@ -202,11 +286,11 @@ const titleLines = computed(() => props.moment.title.split('\n'))
           @click="toggleFlip"
         >
           <span class="print-turn-hint" aria-hidden="true">
-            {{ isFlipped ? '再點一下，回到照片' : '點照片，看看背面' }}
-            <svg class="icon" focusable="false"><use href="#i-arrow-counter-clockwise" /></svg>
+            <span>{{ isFlipped ? '再點一下，回到照片' : '點照片，看看背面' }}</span>
+            <svg class="icon" focusable="false"><use :href="isFlipped ? '#i-arrow-u-up-left' : '#i-arrows-left-right'" /></svg>
           </span>
-          <span class="print-turn-corner" aria-hidden="true" />
         </button>
+        <span class="print-ear" aria-hidden="true" />
       </div>
     </div>
   </li>

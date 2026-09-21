@@ -100,7 +100,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
       <div class="campus-story-photos" @pointerenter="hover($event, true)" @pointerleave="hover($event, false)">
         <figure v-for="(campus, i) in orderedCampuses" :key="campus.key" class="campus-story-photo" :class="{ 'is-current': i === index }" :aria-hidden="i !== index" :inert="i !== index">
           <NuxtLink class="campus-story-photo-link" :to="`/campuses/${campus.key}`" :aria-label="`認識${campus.name}，查看校園介紹`">
-          <img v-bind="responsiveImage(campus.image, '(max-width: 900px) 100vw, (max-width: 1100px) 52vw, 60vw')" :fetchpriority="i === index ? 'auto' : 'low'" :alt="i === index ? `${campus.name}校園外觀` : ''" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" loading="lazy" decoding="async">
+          <img v-bind="responsiveImage(campus.image, '(max-width: 900px) 100vw, (max-width: 1100px) 52vw, (max-width: 1600px) 60vw, calc(100vw - 640px)')" :fetchpriority="i === index ? 'auto' : 'low'" :alt="i === index ? `${campus.name}校園外觀` : ''" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" loading="lazy" decoding="async">
           </NuxtLink>
           <figcaption><span>{{ String(i + 1).padStart(2, '0') }}</span>{{ campus.name }} · 校園一隅</figcaption>
         </figure>
@@ -141,9 +141,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   --campus-rule:#d3dbcf;
   --campus-muted:#5d7465;
   --campus-control:#eeede8;
+  --campus-caption-bg:rgb(var(--ink) / .8);
   --campus-selected:color-mix(in oklch,var(--green) 7%,var(--campus-paper));
   --campus-gutter:clamp(24px,4.5vw,88px);
-  --campus-info-width:40%;
+  --campus-info-width:min(40%,640px);
   position:relative;
   isolation:isolate;
   background:var(--campus-paper);
@@ -173,8 +174,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-story-identity h3 a{display:inline-block}
 .campus-story-identity h3 a:hover{text-decoration:underline;text-underline-offset:8px;text-decoration-thickness:2px}
 .campus-story-photo img{display:block;width:100%;height:100%;object-fit:cover}
-.campus-story-photo::after{content:'';position:absolute;inset:75% 0 0;background:linear-gradient(transparent,rgb(var(--ink) / .58));pointer-events:none}
-.campus-story-photo figcaption{position:absolute;z-index:1;left:32px;bottom:32px;display:flex;align-items:center;gap:12px;color:var(--paper);font-size:.8125rem;letter-spacing:.06em;pointer-events:none}
+.campus-story-photo figcaption{position:absolute;z-index:1;left:32px;bottom:32px;display:flex;align-items:center;gap:12px;padding:6px 16px 6px 6px;border-radius:999px;background:var(--campus-caption-bg);color:var(--paper);font-size:.8125rem;letter-spacing:.06em;pointer-events:none}
 .campus-story-photo figcaption span{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--mint);border-radius:50%;font-variant-numeric:tabular-nums}
 .campus-story-copy{grid-area:copy;display:flex;flex-direction:column;align-items:start;justify-content:center;min-width:0;padding:48px var(--campus-gutter) 28px}
 .campus-story-identity{width:100%}
@@ -243,7 +243,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .campus-story-label{letter-spacing:0}
   .campus-story-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:clamp(200px,26svh,300px) 1fr auto;grid-template-areas:'photos' 'copy' 'controls'}
   .campus-story-photos{min-height:0}
-  .campus-story-photo figcaption{left:24px;bottom:20px;font-size:.75rem;gap:10px}
+  .campus-story-photo figcaption{left:24px;bottom:20px;padding:6px 12px 6px 6px;font-size:.75rem;gap:10px}
   .campus-story-photo figcaption span{width:28px;height:28px}
   .campus-story-copy{padding:28px var(--campus-gutter) 24px;justify-content:start}
   .campus-story-identity{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:16px}

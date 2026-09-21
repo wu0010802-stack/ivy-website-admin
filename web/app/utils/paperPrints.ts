@@ -32,11 +32,19 @@ export interface PaperHandle {
   setActive(active: boolean): void
   pointerMove(clientX: number, clientY: number): void
   pointerLeave(): void
+  /** 右下折角的邊長（px），跟 DOM 的 `--ear` 同步；貼圖在該處挖空露出後方地板。 */
+  setEar(px: number): void
+  /** 首張進場「偷看」：向左微翻再回正，一次。 */
+  peek(): void
   dispose(): void
 }
 
 const MARGIN = 70 // 四周留給彎曲與抬升
 const FLIP_MS = 1100
+const EAR_DEFAULT = 44
+// 首張偷看：與 styles.css 的 card-peek 同參數（12°、1 秒）
+const PEEK_MS = 1000
+const PEEK_TURN = 12 / 180
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
@@ -184,6 +192,7 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
   let flipped = false
   let revealed = false
   let active = false
+  let earPx = EAR_DEFAULT
   let disposed = false
 
   // 每次尺寸變動就整組重建（貼圖尺寸與幾何都綁著像素寬）
@@ -275,6 +284,26 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
     const fctx = frontCanvas.getContext('2d')!
     const bctx = backCanvas.getContext('2d')!
 
+    // 折角缺口：正面挖右下、背面挖左下（背面幾何繞 Y 轉 180°，左下才會落在觀者右下）
+    function cutEar(ctx: CanvasRenderingContext2D, side: 'right' | 'left') {
+      if (earPx <= 0) return
+      ctx.save()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.beginPath()
+      if (side === 'right') {
+        ctx.moveTo(W, H - earPx)
+        ctx.lineTo(W, H)
+        ctx.lineTo(W - earPx, H)
+      } else {
+        ctx.moveTo(0, H - earPx)
+        ctx.lineTo(earPx, H)
+        ctx.lineTo(0, H)
+      }
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+    }
+
     function drawFront(develop: number, isActive: boolean) {
       const ctx = fctx
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
@@ -365,6 +394,7 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         }
         ctx.restore()
       }
+      cutEar(ctx, 'right')
     }
 
     function drawBack() {
@@ -429,6 +459,7 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
           y += style.answerLine
         }
       }
+      cutEar(ctx, 'left')
     }
 
     let develop = revealed ? 1 : 0
@@ -447,8 +478,9 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
 
     const geoF = new three.PlaneGeometry(W, H, SEGMENTS, SEGMENTS)
     const geoB = new three.PlaneGeometry(W, H, SEGMENTS, SEGMENTS)
-    const matF = new three.MeshStandardMaterial({ map: frontTex, roughness: 0.62, metalness: 0 })
-    const matB = new three.MeshStandardMaterial({ map: backTex, roughness: 0.8, metalness: 0 })
+    // alphaTest 讓折角缺口硬邊透空，不走透明排序
+    const matF = new three.MeshStandardMaterial({ map: frontTex, roughness: 0.62, metalness: 0, alphaTest: 0.5 })
+    const matB = new three.MeshStandardMaterial({ map: backTex, roughness: 0.8, metalness: 0, alphaTest: 0.5 })
     const meshF = new three.Mesh(geoF, matF)
     const meshB = new three.Mesh(geoB, matB)
     meshB.rotation.y = Math.PI
@@ -508,7 +540,9 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
     let liftAim = 0
     let frame = 0
     let developStart = 0
+    let peekStart = 0
     let dirtyFront = false
+    let dirtyBack = false
 
     function render() {
       frame = 0
@@ -528,12 +562,24 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         }
         busy = true
       }
+      let peek = 0
+      if (peekStart) {
+        const t = Math.min(1, (now - peekStart) / PEEK_MS)
+        const s = Math.sin(t * Math.PI)
+        peek = -s * PEEK_TURN
+        lift = Math.max(lift, s * 14)
+        if (t >= 1) {
+          peekStart = 0
+          peek = 0
+          if (flip === flipTarget) lift = 0
+        } else busy = true
+      }
       tiltX += (aimX - tiltX) * 0.18
       tiltY += (aimY - tiltY) * 0.18
       if (Math.abs(aimX - tiltX) > 0.0005 || Math.abs(aimY - tiltY) > 0.0005) busy = true
       glare.intensity += (glareAim - glare.intensity) * 0.15
       if (Math.abs(glareAim - glare.intensity) > 0.01) busy = true
-      paper.rotation.set(tiltX, tiltY + flip * Math.PI, 0)
+      paper.rotation.set(tiltX, tiltY + (flip + peek) * Math.PI, 0)
       paper.position.z = lift + liftAim
       if (developStart) {
         const d = Math.min(1, (now - developStart) / developMs())
@@ -546,6 +592,11 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         drawFront(develop, active)
         frontTex.needsUpdate = true
         dirtyFront = false
+      }
+      if (dirtyBack) {
+        drawBack()
+        backTex.needsUpdate = true
+        dirtyBack = false
       }
       renderer.setSize(VW, VH, false)
       renderer.render(sceneObj, camera)
@@ -576,6 +627,16 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
       },
       redrawFront() {
         dirtyFront = true
+        kick()
+      },
+      redrawBoth() {
+        dirtyFront = true
+        dirtyBack = true
+        kick()
+      },
+      peek() {
+        if (peekStart || flip !== flipTarget) return
+        peekStart = performance.now()
         kick()
       },
       aim(x: number, y: number) {
@@ -656,6 +717,15 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
     },
     pointerLeave() {
       scene?.rest()
+    },
+    setEar(px) {
+      const next = Math.max(0, Math.round(px))
+      if (next === earPx) return
+      earPx = next
+      scene?.redrawBoth()
+    },
+    peek() {
+      scene?.peek()
     },
     dispose() {
       if (disposed) return
