@@ -5,10 +5,10 @@
 | ID | 階段 | 驗收情境 | 狀態 | 證據 |
 |---|---|---|---|---|
 | A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 見下方階段 A 小結 | `artifacts/website-baseline/*.png`；Playwright 視覺回歸待補 |
-| A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 部分 | `artifacts/prototype-baseline/preview.html`（+ sha256）已備妥；Nuxt localhost 預覽見階段 A 小結 |
+| A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 通過 | `artifacts/prototype-baseline/preview.html`（+ sha256）已備妥；Nuxt localhost 預覽見階段 A 小結；`/preview` 私有草稿殼（見 Task 8 小結）已用 Playwright 驗證未登入拒絕、登入後見草稿、公開站不洩漏 |
 | A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 見下方階段 A 小結 | Nuxt route 測試 |
 | A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 見下方階段 A 小結 | raw HTML 檢查 |
-| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | not-run | 待 Playwright E2E |
+| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 部分 | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**未做**系統性的 hydration mismatch 自動化檢查（僅開發/啟動 log 人工觀察未見警告） |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
 | A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 首頁「關於常春藤」／Hero／頁尾標語三個 content kind 有真實 editor；其餘 8 種欄位仍是 fixture，尚無 editor（見階段 B 補缺口小結） |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
@@ -16,18 +16,18 @@
 | A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，**admin 素材庫 UI 已補上**（列表/預覽/上傳/刪除）；裁切焦點欄位仍無 UI；熱點複核、既有素材 dry-run importer 未做 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
 | A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
-| A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 部分 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt 端表單尚未接上真實 API（見下方 Task 6 小結，Nuxt CTA 接線屬 Task 8） |
+| A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 通過 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt `VisitForm.vue` 已接上真實 `POST /public/visit-requests`（含 idempotency key、slots 選位、409/429/422 錯誤處理且失敗不清空欄位），見 Task 8 小結 |
 | A08 | C | 舊 config version 被拒；成功後重播仍回原結果 | 通過 | `test_stale_config_version_rejected_then_switch_to_line`、`test_request_retry_is_same_case` |
 | A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | 部分 | 最後名額真實 PostgreSQL 併發（`test_one_slot_cannot_accept_two_families`）、取消釋放、改期回滾皆已測；「逾期釋放」（占位到期自動作業）屬 Task 9 排程工作，未做 |
 | A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 部分 | 手動建立單次時段＋容量保護、滿額拒絕已測；週期規則產生器、例外日、提前時間/開放天數驗證屬 Task 9 範圍，未做 |
 | A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 部分 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）皆已測並有 admin UI；日曆視覺化用簡化的清單+日期區間取代，未做真正的月曆元件 |
-| A06, A16 | C | CTA 一致／SEO | not-run | 屬 Task 8 |
+| A06, A16 | C | CTA 一致／SEO | 通過 | 各校 CTA（`BookingCta`／`useCampusBooking`）即時讀 booking-config，paused/line/phone/external/inquiry 五種模式皆用 e2e 驗證；SEO（canonical／OG／robots meta）依 `indexingEnabled`／`siteOrigin` 動態產生，`/visit`／`/preview` 一律 noindex，`robots.txt`／`sitemap.xml` 依索引開關切換，見 Task 8 小結 |
 | A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過 | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領 |
 | A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕 |
 | A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | not-run（審核/排程屬 Task 10／內容審核流程，本輪未做） | — |
 | A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過 | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資 |
 | A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過 | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練（見 Task 10 小結） |
-| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | not-run（Nuxt SSR 新鮮度測試屬 Task 8） | — |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分 | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容（過程中抓到並修掉 `usePublishedSite` 固定 key 換頁不重抓的快取缺口）；範圍限於目前僅有的 3 個 CMS content kind（home_about/home_hero/site_footer），其餘內容仍是 fixture 靜態資料，無跨 request 私密資料一項未特別測（`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，已用 e2e 驗證） |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -153,6 +153,32 @@ npm run contract:check                                           # 契約與型�
 cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 81 passed
 cd admin && npm run typecheck && npm run build                   # 都過
 npm run contract:check                                           # 契約與型別皆一致
+```
+
+## Task 8 小結（2026-09-21，Nuxt CMS 接線、SSR 更新與私有預覽；接在 Task 9/10 之後補做）
+
+依計畫 Task 8，範圍受限於目前後端 `CONTENT_KIND_REGISTRY` 只有 `home_about`/`home_hero`/`site_footer` 三種 kind 真的接了 CMS（其餘內容仍是 fixture，如實反映在下列各項）：
+
+- **同源 proxy 從 dev-only 改成正式路由**：原本靠 `nitro.devProxy` 轉發 `/api/website/v1/**`，但那個設定只在 `nuxt dev` 生效，正式 `build`/`start` 完全不會用到，等於上線後所有站內 API 呼叫都會 404。已改成 `web/server/routes/api/website/v1/[...].ts`（`proxyRequest()` catch-all），並用真的 production build 在 8000/8010/3010/3011 等埠實測驗證 dev/build 兩種模式行為一致。
+- **CTA 真實接線**：`BookingCta.vue`／`useCampusBooking.ts` 讓各校 CTA 即時讀後端 `booking-config`（`useAsyncData` 依 key 切換自動取消切校時的舊請求），涵蓋 inquiry/line/phone/external/paused 五種模式；LINE/電話/外部連結點擊會回報 `cta_click_*` 分析事件（失敗安靜忽略，不擋原本要做的事）。`VisitForm.vue` 全面重寫成真的 `POST /public/visit-requests`（含 idempotency key、slots 模式選位、`BOOKING_CONFIG_CHANGED`/`SLOT_FULL`/429/422 錯誤處理，失敗不清空已填欄位）。**抓到並修一個會誤導家長的舊文案**：表單原本沿用階段 A 的示範文字（「不會送出/不會建立預約」「示範完成，尚未送出預約」），現在表單已經打真的後端，這段話會讓家長誤以為沒真的預約成功——已移除，改成依模式（inquiry/slots）動態顯示「已收到需求」／「預約成立」。
+- **SEO／sitemap／robots**：首頁與分校頁加 `useSeoMeta`（canonical／OG／robots meta），依 `NUXT_PUBLIC_INDEXING_ENABLED`＋`NUXT_PUBLIC_SITE_ORIGIN` 動態開關；新增 `server/routes/{robots.txt,sitemap.xml}.get.ts`，索引未啟用時全站 `Disallow: /`、sitemap 回 404，啟用時才列出五校網址；`/visit`、`/preview` 一律 noindex 跟索引開關無關。**抓到一個會洩漏索引的舊檔**：`web/public/robots.txt` 是一個內容為「全站放行」的靜態檔，會蓋掉上述動態路由（Nitro 靜態檔優先）——已刪除。
+- **`/preview` 私有草稿殼**：client-only、先打 `/auth/me` 確認管理 session（401 視為未授權，不嘗試繞過），再讀 `/admin/content-items/{kind}` 的最新（可能未發布）revision，疊在 fixture 上顯示；回應帶 `Cache-Control: private, no-store`＋`X-Robots-Tag: noindex, nofollow`。疊資料邏輯抽成純函式 `applyContentOverlay`（`web/app/utils/content-overlay.ts`），`usePublishedSite`／`useDraftPreview` 共用，也讓它能脫離 Nuxt runtime直接單元測試。
+- **503／無假資料 fallback**：原本 `usePublishedSite`／`server/api/public-site.get.ts` 把後端錯誤（尚無可用內容的 503、或後端直接連不上）吞掉改回傳 `null`，公開頁面因此安靜退回 fixture、用 HTTP 200 假裝正常——**這是一個真的違反計畫「無假資料 fallback」規則的問題，已修**：`contentMode=fixture`（本機示範）才單純讀 fixture 不打後端，其他模式後端出錯就丟出對應狀態碼，頁面用新的 `assertPublishedSite()` 轉成 fatal error，SSR 真的回 503。401 這條原本就有做（`/preview` 的 `auth/me` 檢查），不需額外補。
+- **SSR 發布新鮮度**：`tests/e2e/release-freshness.spec.ts` 真的發布一版新 `home_hero` revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容。**過程中抓到一個真的快取缺口**：`usePublishedSite` 的 `useAsyncData` 用固定字串當 key，站內換頁不會重新抓資料，會卡在舊內容——已補上 `watch: [route.fullPath]` 讓每次換頁都重新抓。
+
+**新增測試**：`web/tests/content.spec.ts`（`applyContentOverlay` 純函式，6 案例）；`tests/e2e/{public-site,release-freshness,private-preview,service-unavailable}.spec.ts`（共 15 案例，含用獨立 Nuxt instance 指向不存在後端驗證 503、不影響其他平行測試共用的 8000/3000 埠）。三支需要登入的 e2e 都用 CLI 互動式 `bootstrap-admin`（走 stdin，不繞過密碼不接命令列參數的安全設計）建測試帳號，afterAll 復原內容版本並刪除測試帳號。
+
+**本次刻意不做（誠實列出）**：
+- 後端 `CONTENT_KIND_REGISTRY` 仍只有 3 種 kind，五校介紹／FAQ／孩子的一天等內容尚未搬進 CMS，`/preview` 與新鮮度驗證的範圍因此也只涵蓋這 3 項——這是後端目前的真實能力邊界，不是本輪漏做。
+- hydration mismatch 沒有自動化檢查（僅人工看 log）。
+- 沒有像素級視覺回歸測試（`toHaveScreenshot`），沿用既有的人工截圖比對慣例。
+
+**本機驗證（實際跑過）**：
+```bash
+cd web && npm run typecheck && npm run test:unit    # 過；29 passed
+cd web && npm run build                             # production build 成功
+# 手動起 backend(8000/8010) + Nuxt production build(3000/3010/3011) 反覆驗證
+npx playwright test --project=desktop-1440          # 27 passed（含既有 12 項）
 ```
 
 ## Task 9 小結（2026-09-21，通知 worker、家長安全管理；避開使用者正在動的 web/）
