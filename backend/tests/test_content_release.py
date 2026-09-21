@@ -164,7 +164,15 @@ async def test_home_hero_rejects_too_many_copy_lines(admin_client):
 async def test_site_footer_kind_roundtrip(admin_client, public_client):
     draft = await admin_client.post(
         "/api/website/v1/admin/content-items/site_footer/revisions",
-        json={"expected_version": 0, "payload": {"tagline": "測試標語"}},
+        json={
+            "expected_version": 0,
+            "payload": {
+                "tagline": "測試標語",
+                "copyright": "測試版權",
+                "bottom_note": "測試備註",
+                "campus_list_label": "測試校區清單",
+            },
+        },
     )
     assert draft.status_code == 201
     revision_id = draft.json()["latest_revision"]["id"]
@@ -173,6 +181,122 @@ async def test_site_footer_kind_roundtrip(admin_client, public_client):
     )
     site = await public_client.get("/api/website/v1/public/site")
     assert site.json()["content"]["site_footer"]["tagline"] == "測試標語"
+
+
+def _campus_profile_payload(name: str) -> dict:
+    return {
+        "name": name,
+        "district": "測試區",
+        "address": "測試地址",
+        "phone": "07-000-0000",
+        "intro": "測試簡介",
+        "description": "測試描述",
+        "facebook": "https://facebook.com/test",
+        "fb_note": "測試粉專",
+        "line": "",
+    }
+
+
+@pytest.mark.asyncio
+async def test_campus_scoped_content_kind_isolated_per_campus(admin_client, public_client):
+    """campus_profile 是非共用 kind，每校各一份；/public/site 要用
+    campus_key 分層，不能讓其中一校的資料蓋掉另一校（get_public_content
+    的真正 bug：曾經直接用 kind 當 key，多校會互相覆蓋）。"""
+    for key, name in (("yihua", "義華測試"), ("minghua", "明華測試")):
+        draft = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_profile/revisions?campus_key={key}",
+            json={"expected_version": 0, "payload": _campus_profile_payload(name)},
+        )
+        assert draft.status_code == 201, draft.text
+        revision_id = draft.json()["latest_revision"]["id"]
+        publish = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_profile/publish?campus_key={key}",
+            json={"revision_id": revision_id},
+        )
+        assert publish.status_code == 200, publish.text
+
+    site = await public_client.get("/api/website/v1/public/site")
+    profiles = site.json()["content"]["campus_profile"]
+    assert profiles["yihua"]["name"] == "義華測試"
+    assert profiles["minghua"]["name"] == "明華測試"
+
+
+@pytest.mark.asyncio
+async def test_campus_admin_cannot_edit_other_campus_profile(minghua_client):
+    response = await minghua_client.post(
+        "/api/website/v1/admin/content-items/campus_profile/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": _campus_profile_payload("越權測試")},
+    )
+    assert response.status_code in (403, 404)
+
+
+@pytest.mark.asyncio
+async def test_campus_admin_can_edit_own_campus_profile(minghua_client):
+    response = await minghua_client.post(
+        "/api/website/v1/admin/content-items/campus_profile/revisions?campus_key=minghua",
+        json={"expected_version": 0, "payload": _campus_profile_payload("明華自編")},
+    )
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.asyncio
+async def test_day_experience_moments_bounds_and_duplicate_key_rejected(admin_client):
+    def moment(key: str) -> dict:
+        return {
+            "key": key,
+            "time": "08:00",
+            "label": "早晨",
+            "caption": "caption",
+            "title": "title",
+            "story": "story",
+            "question": "question",
+            "answer": "answer",
+        }
+
+    too_few = await admin_client.post(
+        "/api/website/v1/admin/content-items/day_experience/revisions",
+        json={
+            "expected_version": 0,
+            "payload": {
+                "eyebrow": "e",
+                "eyebrow_en": "e",
+                "note": "n",
+                "source_note": "s",
+                "moments": [],
+            },
+        },
+    )
+    assert too_few.status_code == 422
+
+    duplicate_key = await admin_client.post(
+        "/api/website/v1/admin/content-items/day_experience/revisions",
+        json={
+            "expected_version": 0,
+            "payload": {
+                "eyebrow": "e",
+                "eyebrow_en": "e",
+                "note": "n",
+                "source_note": "s",
+                "moments": [moment("morning"), moment("morning")],
+            },
+        },
+    )
+    assert duplicate_key.status_code == 422
+
+    ok = await admin_client.post(
+        "/api/website/v1/admin/content-items/day_experience/revisions",
+        json={
+            "expected_version": 0,
+            "payload": {
+                "eyebrow": "e",
+                "eyebrow_en": "e",
+                "note": "n",
+                "source_note": "s",
+                "moments": [moment("morning"), moment("noon")],
+            },
+        },
+    )
+    assert ok.status_code == 201, ok.text
 
 
 @pytest.mark.asyncio

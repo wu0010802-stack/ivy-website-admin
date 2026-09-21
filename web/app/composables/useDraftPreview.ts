@@ -16,7 +16,7 @@ interface ContentRevisionOut {
 
 interface ContentItemOut {
   id: string
-  kind: keyof ContentOverlay
+  kind: string
   campus_key: string | null
   latest_version: number
   current_published_revision_id: string | null
@@ -28,6 +28,19 @@ export interface DraftPreviewResult {
   content: SiteContent | null
 }
 
+type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience'
+const SHARED_KINDS: SharedKind[] = [
+  'home_about',
+  'home_hero',
+  'site_footer',
+  'site_meta',
+  'home_campus_board',
+  'booking_content',
+  'day_experience'
+]
+type CampusKind = 'campus_profile' | 'campus_faq'
+const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq']
+
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
  * 帶的是不是有效的管理員 session（打 `/auth/me`，401 就視為未授權，
@@ -37,9 +50,9 @@ export interface DraftPreviewResult {
  * 疊資料用跟 `usePublishedSite` 同一支 `applyContentOverlay`：那邊疊的
  * 是「已發布」內容，這裡疊的是「最新未發布」內容，形狀完全一樣。
  *
- * 目前 CONTENT_KIND_REGISTRY 只有 home_about/home_hero/site_footer 三種
- * kind 真的接了後端（其餘內容仍是 fixture），所以這裡也只疊這三項——
- * 這是後端目前的真實能力範圍，不是刻意漏掉。
+ * `campus_profile`／`campus_faq` 是每校各一份，`/admin/content-items`
+ * 沒有一次拿全部校區的端點，所以逐校打（校區清單直接讀 fixture 現有的
+ * `campuses`，不在這裡另外寫死一份清單，避免兩份清單以後漂移）。
  */
 export async function useDraftPreview(): Promise<DraftPreviewResult> {
   const content = await $fetch<SiteContent>('/api/site-fixture')
@@ -54,21 +67,36 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     return { authorized: false, content: null }
   }
 
-  const kinds: Array<keyof ContentOverlay> = ['home_about', 'home_hero', 'site_footer']
+  const overlay: ContentOverlay = {}
 
-  const items = await Promise.all(
-    kinds.map((kind) =>
+  const sharedItems = await Promise.all(
+    SHARED_KINDS.map((kind) =>
       $fetch<ContentItemOut>(`/api/website/v1/admin/content-items/${kind}`).catch(() => null)
     )
   )
-
-  const overlay: ContentOverlay = {}
-  for (const item of items) {
+  for (const item of sharedItems) {
     const draft = item?.latest_revision?.payload
     if (!draft || !item) continue
-    if (item.kind === 'home_about') overlay.home_about = draft as unknown as ContentOverlay['home_about']
-    else if (item.kind === 'home_hero') overlay.home_hero = draft as unknown as ContentOverlay['home_hero']
-    else if (item.kind === 'site_footer') overlay.site_footer = draft as unknown as ContentOverlay['site_footer']
+    overlay[item.kind as SharedKind] = draft as never
+  }
+
+  const campusKeys = content.campuses.map((c) => c.key)
+  for (const kind of CAMPUS_KINDS) {
+    const perCampus = await Promise.all(
+      campusKeys.map(async (campusKey) => {
+        const campusItem = await $fetch<ContentItemOut>(
+          `/api/website/v1/admin/content-items/${kind}?campus_key=${encodeURIComponent(campusKey)}`
+        ).catch(() => null)
+        return [campusKey, campusItem?.latest_revision?.payload ?? null] as const
+      })
+    )
+    const map: Record<string, unknown> = {}
+    for (const [campusKey, payload] of perCampus) {
+      if (payload) map[campusKey] = payload
+    }
+    if (Object.keys(map).length > 0) {
+      overlay[kind] = map as never
+    }
   }
 
   return { authorized: true, content: applyContentOverlay(content, overlay) }

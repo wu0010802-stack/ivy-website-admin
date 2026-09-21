@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
@@ -26,9 +27,24 @@ async function handleLogout() {
         <nav style="display: flex; gap: 1rem; flex-wrap: wrap; max-width: 900px">
           <router-link to="/">總覽</router-link>
           <router-link to="/users">使用者管理</router-link>
-          <router-link to="/content/home-about">關於常春藤</router-link>
-          <router-link to="/content/home-hero">首頁 Hero</router-link>
-          <router-link to="/content/site-footer">頁尾標語</router-link>
+          <el-dropdown>
+            <span class="el-dropdown-link" style="cursor: pointer; color: var(--el-color-primary)">
+              內容管理 <el-icon><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item><router-link to="/content/home-about">關於常春藤</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/home-hero">首頁 Hero</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/home-campus-board">首頁五校區塊</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/day-experience">孩子的一天</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/campus-profile">五校介紹</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/campus-faq">各校 FAQ</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/booking-content">預約文案</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/site-footer">頁尾文字</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/site-meta">網站標題／電話</router-link></el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <router-link to="/media">素材庫</router-link>
           <router-link to="/booking">預約設定</router-link>
           <router-link to="/slots">時段管理</router-link>

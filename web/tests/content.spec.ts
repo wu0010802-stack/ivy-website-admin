@@ -40,7 +40,39 @@ function makeFixture(): SiteContent {
         campusOrder: ['yihua']
       }
     },
-    footer: { tagline: 'fixture tagline' } as SiteContent['footer']
+    footer: {
+      tagline: 'fixture tagline',
+      copyright: 'fixture copyright',
+      bottomNote: 'fixture bottom note',
+      campusListLabel: 'fixture campus list label'
+    } as SiteContent['footer'],
+    siteMeta: {
+      title: 'fixture site title',
+      description: 'fixture site description',
+      headerPhone: { number: 'fixture-phone', note: 'fixture-note' }
+    } as SiteContent['siteMeta'],
+    booking: {
+      ctaLabel: 'fixture cta label',
+      ctaLabelEn: 'fixture cta label en',
+      consentText: 'fixture consent',
+      bannerTitleTemplate: 'fixture banner title',
+      bannerBody: 'fixture banner body',
+      bannerButtonLabel: 'fixture banner button'
+    } as SiteContent['booking'],
+    dayExperience: {
+      eyebrow: 'fixture day eyebrow',
+      eyebrowEn: 'fixture day eyebrow en',
+      note: 'fixture day note',
+      sourceNote: 'fixture day source note',
+      moments: [
+        { key: 'm1', time: '', label: '', tint: '', photo: 'fixture-photo-1', alt: '', caption: '', title: '', story: '', question: '', answer: '' },
+        { key: 'm2', time: '', label: '', tint: '', photo: 'fixture-photo-2', alt: '', caption: '', title: '', story: '', question: '', answer: '' }
+      ]
+    } as SiteContent['dayExperience'],
+    campuses: [
+      { key: 'yihua', name: 'fixture 義華', faq: { items: [{ q: 'fixture q', a: 'fixture a' }] } } as SiteContent['campuses'][number],
+      { key: 'minghua', name: 'fixture 明華', faq: { items: [] } } as SiteContent['campuses'][number]
+    ]
   } as unknown as SiteContent
 }
 
@@ -80,7 +112,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
         caption: 'D'
       },
       home_hero: { eyebrow: 'E', copy_lines: ['F', 'G'], cta_label: 'H' },
-      site_footer: { tagline: 'I' }
+      site_footer: { tagline: 'I', copyright: 'J', bottom_note: 'K', campus_list_label: 'L' }
     })
     expect(result.home.about.title).toBe('A')
     expect(result.home.hero.eyebrow).toBe('E')
@@ -112,5 +144,103 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
       home_hero: { eyebrow: 'X', copy_lines: ['Y'], cta_label: 'Z' }
     })
     expect(result.home.about).toEqual(fixture.home.about)
+  })
+
+  it('site_meta／home_campus_board／booking_content 都能個別套用', () => {
+    const fixture = makeFixture()
+    const result = applyContentOverlay(fixture, {
+      site_meta: {
+        title: '新標題',
+        description: '新描述',
+        header_phone_number: '07-123-4567',
+        header_phone_note: '新備註'
+      },
+      home_campus_board: { section_title: '新區塊標題', eyebrow: '新 eyebrow', note: '新說明' },
+      booking_content: {
+        cta_label: '新按鈕',
+        cta_label_en: 'New CTA',
+        consent_text: '新同意文字',
+        banner_title_template: '新橫幅標題',
+        banner_body: '新橫幅內文',
+        banner_button_label: '新橫幅按鈕'
+      }
+    })
+    expect(result.siteMeta.title).toBe('新標題')
+    expect(result.siteMeta.headerPhone.number).toBe('07-123-4567')
+    expect(result.home.campusBoard.sectionTitle).toBe('新區塊標題')
+    expect(result.booking.ctaLabel).toBe('新按鈕')
+  })
+
+  it('day_experience 只覆蓋既有照片卡筆數內的文字，多出來的筆數不套用', () => {
+    const fixture = makeFixture()
+    const result = applyContentOverlay(fixture, {
+      day_experience: {
+        eyebrow: '新 eyebrow',
+        eyebrow_en: 'new eyebrow',
+        note: '新說明',
+        source_note: '新來源',
+        moments: [
+          { key: 'm1-new', time: '07:00', label: '新早晨', caption: 'c1', title: 't1', story: 's1', question: 'q1', answer: 'a1' },
+          { key: 'm2-new', time: '12:00', label: '新中午', caption: 'c2', title: 't2', story: 's2', question: 'q2', answer: 'a2' },
+          { key: 'm3-new', time: '18:00', label: '新傍晚', caption: 'c3', title: 't3', story: 's3', question: 'q3', answer: 'a3' }
+        ]
+      }
+    })
+    expect(result.dayExperience.eyebrow).toBe('新 eyebrow')
+    expect(result.dayExperience.moments).toHaveLength(2)
+    expect(result.dayExperience.moments[0]?.title).toBe('t1')
+    // 照片欄位（fixture 專屬、還沒接媒體庫）維持原樣，不會被覆蓋成 undefined
+    expect(result.dayExperience.moments[0]?.photo).toBe('fixture-photo-1')
+    expect(result.dayExperience.moments[1]?.title).toBe('t2')
+  })
+
+  it('campus_profile／campus_faq 依 campus_key 分別套用到對應校區，不影響其他校', () => {
+    const fixture = makeFixture()
+    const result = applyContentOverlay(fixture, {
+      campus_profile: {
+        yihua: {
+          name: '義華新名稱',
+          district: 'd',
+          address: 'a',
+          phone: 'p',
+          intro: 'i',
+          description: 'desc',
+          facebook: 'fb',
+          fb_note: 'fbn',
+          line: 'https://line.me/test'
+        }
+      },
+      campus_faq: {
+        yihua: { items: [{ q: '新問題', a: '新回答' }] }
+      }
+    })
+    const yihua = result.campuses.find((c) => c.key === 'yihua')!
+    const minghua = result.campuses.find((c) => c.key === 'minghua')!
+    expect(yihua.name).toBe('義華新名稱')
+    expect(yihua.line).toBe('https://line.me/test')
+    expect(yihua.faq.items).toEqual([{ q: '新問題', a: '新回答' }])
+    // 沒給 minghua 的 overlay，維持 fixture 原文
+    expect(minghua.name).toBe('fixture 明華')
+  })
+
+  it('campus_profile 的 line 為空字串時轉成 null（跟 fixture 的「尚未提供」語意一致）', () => {
+    const fixture = makeFixture()
+    const result = applyContentOverlay(fixture, {
+      campus_profile: {
+        yihua: {
+          name: 'n',
+          district: 'd',
+          address: 'a',
+          phone: 'p',
+          intro: 'i',
+          description: 'desc',
+          facebook: 'fb',
+          fb_note: 'fbn',
+          line: ''
+        }
+      }
+    })
+    const yihua = result.campuses.find((c) => c.key === 'yihua')!
+    expect(yihua.line).toBeNull()
   })
 })

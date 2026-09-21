@@ -25,6 +25,71 @@ export interface HomeHeroPayload {
 
 export interface SiteFooterPayload {
   tagline: string
+  copyright: string
+  bottom_note: string
+  campus_list_label: string
+}
+
+export interface SiteMetaPayload {
+  title: string
+  description: string
+  header_phone_number: string
+  header_phone_note: string
+}
+
+export interface HomeCampusBoardPayload {
+  section_title: string
+  eyebrow: string
+  note: string
+}
+
+export interface BookingContentPayload {
+  cta_label: string
+  cta_label_en: string
+  consent_text: string
+  banner_title_template: string
+  banner_body: string
+  banner_button_label: string
+}
+
+export interface DayMomentPayload {
+  key: string
+  time: string
+  label: string
+  caption: string
+  title: string
+  story: string
+  question: string
+  answer: string
+}
+
+export interface DayExperiencePayload {
+  eyebrow: string
+  eyebrow_en: string
+  note: string
+  source_note: string
+  moments: DayMomentPayload[]
+}
+
+export interface CampusProfilePayload {
+  name: string
+  district: string
+  address: string
+  phone: string
+  intro: string
+  description: string
+  facebook: string
+  fb_note: string
+  line: string
+}
+
+export interface CampusFaqItemPayload {
+  q: string
+  a: string
+}
+
+export interface CampusFaqPayload {
+  items: CampusFaqItemPayload[]
 }
 
 export type MediaKind = 'image' | 'video'

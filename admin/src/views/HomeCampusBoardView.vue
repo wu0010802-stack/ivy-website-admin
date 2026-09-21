@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
-import type { SiteFooterPayload } from '../api/types'
+import type { HomeCampusBoardPayload } from '../api/types'
 
 const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<SiteFooterPayload>('site_footer', {
-    tagline: '',
-    copyright: '',
-    bottom_note: '',
-    campus_list_label: '',
+  useContentItem<HomeCampusBoardPayload>('home_campus_board', {
+    section_title: '',
+    eyebrow: '',
+    note: '',
   })
 
 onMounted(load)
@@ -16,22 +15,22 @@ onMounted(load)
 
 <template>
   <div style="max-width: 640px">
-    <h2>頁尾文字</h2>
+    <h2>首頁五校區塊文字</h2>
     <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
     <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
+    <p style="color: var(--el-text-color-secondary)">
+      這裡只改標題文字；校區排序與預設校區仍由官網程式碼決定，不在此編輯。
+    </p>
 
     <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
-      <el-form-item label="標語">
-        <el-input v-model="form.tagline" />
+      <el-form-item label="Eyebrow（小標）">
+        <el-input v-model="form.eyebrow" />
       </el-form-item>
-      <el-form-item label="校區清單標題">
-        <el-input v-model="form.campus_list_label" />
+      <el-form-item label="區塊標題">
+        <el-input v-model="form.section_title" />
       </el-form-item>
-      <el-form-item label="版權文字">
-        <el-input v-model="form.copyright" />
-      </el-form-item>
-      <el-form-item label="底部備註">
-        <el-input v-model="form.bottom_note" />
+      <el-form-item label="說明文字">
+        <el-input v-model="form.note" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>

@@ -52,11 +52,139 @@ class HomeHeroPayload(BaseModel):
 
 class SiteFooterPayload(BaseModel):
     tagline: str
+    copyright: str
+    bottom_note: str
+    campus_list_label: str
 
-    @field_validator("tagline")
+    @field_validator("tagline", "copyright", "bottom_note", "campus_list_label")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+
+class SiteMetaPayload(BaseModel):
+    title: str
+    description: str
+    header_phone_number: str
+    header_phone_note: str
+
+    @field_validator("title", "description", "header_phone_number", "header_phone_note")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class HomeCampusBoardPayload(BaseModel):
+    section_title: str
+    eyebrow: str
+    note: str
+
+    @field_validator("section_title", "eyebrow", "note")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class BookingContentPayload(BaseModel):
+    cta_label: str
+    cta_label_en: str
+    consent_text: str
+    banner_title_template: str
+    banner_body: str
+    banner_button_label: str
+
+    @field_validator(
+        "cta_label",
+        "cta_label_en",
+        "consent_text",
+        "banner_title_template",
+        "banner_body",
+        "banner_button_label",
+    )
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class DayMomentPayload(BaseModel):
+    key: str
+    time: str
+    label: str
+    caption: str
+    title: str
+    story: str
+    question: str
+    answer: str
+
+    @field_validator("time", "label", "caption", "title", "story", "question", "answer")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class DayExperiencePayload(BaseModel):
+    eyebrow: str
+    eyebrow_en: str
+    note: str
+    source_note: str
+    moments: list[DayMomentPayload]
+
+    @field_validator("eyebrow", "eyebrow_en", "note", "source_note")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("moments")
+    @classmethod
+    def _moments_bounded(cls, value: list[DayMomentPayload]) -> list[DayMomentPayload]:
+        if not (1 <= len(value) <= 12):
+            raise ValueError("moments 需為 1 到 12 筆")
+        keys = [m.key for m in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("moments 的 key 不可重複")
+        return value
+
+
+class CampusProfilePayload(BaseModel):
+    name: str
+    district: str
+    address: str
+    phone: str
+    intro: str
+    description: str
+    facebook: str
+    fb_note: str
+    # 空字串代表這間校區尚未提供 LINE 官方帳號，跟前端 fixture 的
+    # `line: string | null` 語意相同（web 端疊資料時把空字串轉回 null）。
+    line: str
+
+    @field_validator(
+        "name", "district", "address", "phone", "intro", "description", "facebook", "fb_note", "line"
+    )
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class CampusFaqItemPayload(BaseModel):
+    q: str
+    a: str
+
+    @field_validator("q", "a")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class CampusFaqPayload(BaseModel):
+    items: list[CampusFaqItemPayload]
+
+    @field_validator("items")
+    @classmethod
+    def _items_bounded(cls, value: list[CampusFaqItemPayload]) -> list[CampusFaqItemPayload]:
+        if not (1 <= len(value) <= 20):
+            raise ValueError("items 需為 1 到 20 筆")
+        return value
 
 
 class ContentRevisionCreateRequest(BaseModel):

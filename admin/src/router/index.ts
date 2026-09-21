@@ -6,6 +6,12 @@ import UsersView from '../views/UsersView.vue'
 import HomeAboutView from '../views/HomeAboutView.vue'
 import HomeHeroView from '../views/HomeHeroView.vue'
 import SiteFooterView from '../views/SiteFooterView.vue'
+import SiteMetaView from '../views/SiteMetaView.vue'
+import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
+import BookingContentView from '../views/BookingContentView.vue'
+import DayExperienceView from '../views/DayExperienceView.vue'
+import CampusProfileView from '../views/CampusProfileView.vue'
+import CampusFaqView from '../views/CampusFaqView.vue'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import BookingSettingsView from '../views/BookingSettingsView.vue'
 import VisitSlotsView from '../views/VisitSlotsView.vue'
@@ -30,6 +36,12 @@ const router = createRouter({
         { path: 'content/home-about', name: 'home-about', component: HomeAboutView },
         { path: 'content/home-hero', name: 'home-hero', component: HomeHeroView },
         { path: 'content/site-footer', name: 'site-footer', component: SiteFooterView },
+        { path: 'content/site-meta', name: 'site-meta', component: SiteMetaView },
+        { path: 'content/home-campus-board', name: 'home-campus-board', component: HomeCampusBoardView },
+        { path: 'content/booking-content', name: 'booking-content', component: BookingContentView },
+        { path: 'content/day-experience', name: 'day-experience', component: DayExperienceView },
+        { path: 'content/campus-profile', name: 'campus-profile', component: CampusProfileView },
+        { path: 'content/campus-faq', name: 'campus-faq', component: CampusFaqView },
         { path: 'media', name: 'media', component: MediaLibraryView },
         { path: 'booking', name: 'booking', component: BookingSettingsView },
         { path: 'slots', name: 'slots', component: VisitSlotsView },
