@@ -131,6 +131,7 @@ onUnmounted(() => {
             >
             <video
               v-if="showVideo"
+              id="hero-video"
               ref="videoEl"
               :src="`/${hero.heroVideoSrc}`"
               muted
@@ -148,6 +149,7 @@ onUnmounted(() => {
         <div ref="mediaEl" class="container studio-media">
           <div id="video-controls" :hidden="!showVideo">
             <button type="button" id="video-play" aria-controls="hero-video" @click="togglePlay">
+              <svg class="icon" aria-hidden="true"><use :href="isPlaying ? '#i-pause' : '#i-play'" /></svg>
               <span class="sr-only">{{ isPlaying ? '暫停影片' : '播放影片' }}</span>
             </button>
           </div>
