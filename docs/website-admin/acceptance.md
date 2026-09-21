@@ -4,10 +4,10 @@
 
 | ID | 階段 | 驗收情境 | 狀態 | 證據 |
 |---|---|---|---|---|
-| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 見下方階段 A 小結 | `artifacts/website-baseline/*.png`；Playwright 視覺回歸待補 |
+| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 部分 | 48 項 Playwright e2e（4 視口 × SSR 內容/舊路由）全過；`artifacts/website-baseline/*.png` 人工截圖比對；**未建立**像素級 `toHaveScreenshot` 視覺回歸測試 |
 | A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 通過 | `artifacts/prototype-baseline/preview.html`（+ sha256）已備妥；Nuxt localhost 預覽見階段 A 小結；`/preview` 私有草稿殼（見 Task 8 小結）已用 Playwright 驗證未登入拒絕、登入後見草稿、公開站不洩漏 |
-| A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 見下方階段 A 小結 | Nuxt route 測試 |
-| A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 見下方階段 A 小結 | raw HTML 檢查 |
+| A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 通過 | `tests/e2e/nuxt-rendering.spec.ts`（五校＋首頁 SSR）、`tests/e2e/legacy-routes.spec.ts`（5 項舊 hash 轉址）皆過；未知校區與未知 visit key 均 404 |
+| A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，`tests/e2e/nuxt-rendering.spec.ts` 6 項通過 |
 | A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 部分 | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**未做**系統性的 hydration mismatch 自動化檢查（僅開發/啟動 log 人工觀察未見警告） |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
 | A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 首頁「關於常春藤」／Hero／頁尾標語三個 content kind 有真實 editor；其餘 8 種欄位仍是 fixture，尚無 editor（見階段 B 補缺口小結） |
