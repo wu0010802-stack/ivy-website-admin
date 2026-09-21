@@ -18,9 +18,11 @@
 | A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
 | A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 部分 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt 端表單尚未接上真實 API（見下方 Task 6 小結，Nuxt CTA 接線屬 Task 8） |
 | A08 | C | 舊 config version 被拒；成功後重播仍回原結果 | 通過 | `test_stale_config_version_rejected_then_switch_to_line`、`test_request_retry_is_same_case` |
-| A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | not-run（slots／Task 7 範圍） | — |
+| A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | 部分 | 最後名額真實 PostgreSQL 併發（`test_one_slot_cannot_accept_two_families`）、取消釋放、改期回滾皆已測；「逾期釋放」（占位到期自動作業）屬 Task 9 排程工作，未做 |
+| A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 部分 | 手動建立單次時段＋容量保護、滿額拒絕已測；週期規則產生器、例外日、提前時間/開放天數驗證屬 Task 9 範圍，未做 |
+| A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 部分 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）皆已測並有 admin UI；日曆視覺化用簡化的清單+日期區間取代，未做真正的月曆元件 |
 | A06, A16 | C | CTA 一致／SEO | not-run | 屬 Task 8 |
-| A10–A15, A17, A23 | C/D | — | not-run（屬後續階段） | — |
+| A12–A15, A17, A23 | C/D | — | not-run（屬後續階段） | — |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -117,6 +119,33 @@ npm run contract:check                                           # 契約與型�
 ```bash
 cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 66 passed
 cd web && npm run typecheck && npm run test:unit                 # 過；23 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+npm run contract:check                                           # 契約與型別皆一致
+```
+
+## Task 7 小結（2026-09-21，容量、時段、狀態機與接待工作台；使用者確認要啟用 slots）
+
+範圍依計畫 Task 7，但排除自動排程（週期規則產生器、占位到期釋放——屬 Task 9 worker）：
+
+- `backend/app/booking`：新增 `VisitSlot`（單次時段，分校管理者手動建立）、`VisitContactNote`（每次聯絡獨立一筆，不覆寫歷史）；`VisitRequest` 增加 `slot_id`／`assigned_staff_id`／`confirmed_at`／`cancelled_at`／`follow_up_at`。名額用「即時 COUNT 目前 confirmed 案件數」而非可變計數器計算，取消重試天然不會重複釋放名額。
+- `slot_service.py`：建立時段、依日期區間查詢（限制最多 62 天，過寬回 `QUERY_RANGE_TOO_WIDE`）、降低容量時若已低於目前確認數則拒絕（`CAPACITY_BELOW_BOOKED`，不自動取消任何案件）。
+- `workflow_service.py`：`confirm_with_slot`（inquiry 人工確認進時段，confirmed 必須有 slot）、`cancel`（冪等，重複呼叫安全）、`mark_no_show`／`mark_completed`（狀態機檢查，非法轉換回 `INVALID_TRANSITION`）、`reschedule`（固定用 UUID 字串排序鎖新舊時段避免 deadlock，新時段滿額則整筆回滾、原時段完全不受影響）。
+- `submit_visit_request` 擴充：`mode=slots` 時公開提交直接帶 `slot_id`，同一支交易鎖住時段列、即時計算已確認數、滿額回 `SLOT_FULL`，不足才建立為 `confirmed` 狀態案件——跟 `mode=inquiry` 共用同一套 idempotency／config_version 重驗邏輯，沒有另外複製一份判斷。
+- **真實 PostgreSQL 併發驗證（計畫明確要求）**：`test_one_slot_cannot_accept_two_families` 用兩個獨立連線同時對容量為 1 的時段送出不同 idempotency key 的請求，斷言只有一個 201、一個 409 `SLOT_FULL`，且資料庫查詢確認只有一筆真的佔用；另外 Task 6 遺留的併發安全網（IntegrityError 恢復）在此情境下不會被觸發，因為時段列的 `FOR UPDATE` 鎖本身就正確序列化了兩個請求的容量檢查。
+- CSV 匯出：`_safe_cell()` 對開頭是 `= + - @` 的欄位加前導單引號，防公式注入；權限與校區 filter 沿用既有 `require_scope`。
+- admin UI 三個新畫面：`VisitSlotsView`（時段建立／容量調整／關閉重開，用日期區間查詢取代真正的月曆元件）、`VisitRequestsView`（列表、校區/狀態篩選、分頁、匯出按鈕）、`VisitDetailView`（詳情、選時段確認、取消、標記未到場、聯絡紀錄）。已用 Playwright 對真實三個服務跑過：建立時段 → API 送出 inquiry → 列表看到案件 → 詳情頁選時段確認 → 狀態變成 confirmed。
+
+**15 項新增 pytest 全過**（`test_visit_workflow.py` 14 項 + `test_booking_concurrency.py` 新增 1 項最後名額併發測試），backend 累計 **81 項全過**。
+
+**本次刻意不做（屬 Task 8／Task 9 範圍）**：
+- 週期規則自動產生時段、例外日（國定假日等）、占位到期自動釋放——這些是 Task 9 排程 worker 的工作，計畫明講「各自使用相同 service,不複製業務判斷」，屬於在既有 `slot_service`/`workflow_service` 之上加排程觸發，暫不提前做。
+- 真正的月曆視覺化元件（目前是清單 + 日期區間篩選）。
+- Nuxt 端仍未接上 slots 模式的公開預約 UI（選時段、送出）——屬 Task 8。
+- 通知（確認/取消/改期發信或站內通知）：outbox 機制已就緒但實際寄送屬 Task 9。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 81 passed
 cd admin && npm run typecheck && npm run build                   # 都過
 npm run contract:check                                           # 契約與型別皆一致
 ```

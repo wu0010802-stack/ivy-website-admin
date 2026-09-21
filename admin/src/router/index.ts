@@ -8,6 +8,9 @@ import HomeHeroView from '../views/HomeHeroView.vue'
 import SiteFooterView from '../views/SiteFooterView.vue'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import BookingSettingsView from '../views/BookingSettingsView.vue'
+import VisitSlotsView from '../views/VisitSlotsView.vue'
+import VisitRequestsView from '../views/VisitRequestsView.vue'
+import VisitDetailView from '../views/VisitDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory('/admin/'),
@@ -23,6 +26,9 @@ const router = createRouter({
         { path: 'content/site-footer', name: 'site-footer', component: SiteFooterView },
         { path: 'media', name: 'media', component: MediaLibraryView },
         { path: 'booking', name: 'booking', component: BookingSettingsView },
+        { path: 'slots', name: 'slots', component: VisitSlotsView },
+        { path: 'visit-requests', name: 'visit-requests', component: VisitRequestsView },
+        { path: 'visit-requests/:id', name: 'visit-detail', component: VisitDetailView },
       ],
     },
   ],

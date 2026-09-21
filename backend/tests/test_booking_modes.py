@@ -35,13 +35,14 @@ async def test_default_mode_is_paused(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_slots_mode_cannot_be_enabled(admin_client):
+async def test_slots_mode_can_be_enabled(admin_client):
+    # Task 7 起 slots 已開放；不需要額外欄位即可啟用。
     response = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
         json={"expected_version": 0, "mode": "slots"},
     )
-    assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "BOOKING_MODE_FIELD_MISSING"
+    assert response.status_code == 200
+    assert response.json()["mode"] == "slots"
 
 
 @pytest.mark.asyncio

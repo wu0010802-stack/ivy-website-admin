@@ -30,6 +30,8 @@ async function handleLogout() {
           <router-link to="/content/site-footer">頁尾標語</router-link>
           <router-link to="/media">素材庫</router-link>
           <router-link to="/booking">預約設定</router-link>
+          <router-link to="/slots">時段管理</router-link>
+          <router-link to="/visit-requests">參觀案件</router-link>
         </nav>
       </div>
       <div style="display: flex; align-items: center; gap: 1rem">

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date, timedelta
 
 import pytest
 
@@ -82,3 +83,60 @@ async def test_many_concurrent_identical_submissions_still_one_request(app, admi
     receipt_ids = {r.json()["receipt_id"] for r in results}
     assert len(receipt_ids) == 1, f"應該只有一個 receipt_id，實際：{receipt_ids}"
     assert sum(1 for r in results if r.status_code == 201) == 1, "只能有一個請求真的建立新案件"
+
+
+@pytest.mark.asyncio
+async def test_one_slot_cannot_accept_two_families(
+    public_client, second_public_client, admin_client
+):
+    """計畫 Task 7 明確要求的真實 PostgreSQL 併發驗證：同一個時段的
+    最後一個名額，兩個不同 idempotency key 的並發請求只能一個成功。"""
+    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
+    await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": current.json()["version"], "mode": "slots"},
+    )
+    me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
+    version = me.json()["version"]
+
+    slot_date = (date.today() + timedelta(days=5)).isoformat()
+    slot_resp = await admin_client.post(
+        "/api/website/v1/admin/slots?campus_key=yihua",
+        json={
+            "slot_date": slot_date,
+            "start_time": "10:00:00",
+            "end_time": "11:00:00",
+            "capacity": 1,
+        },
+    )
+    slot_id = slot_resp.json()["id"]
+
+    def _payload(name: str) -> dict:
+        return {
+            "campus_key": "yihua",
+            "config_version": version,
+            "parent_name": name,
+            "phone": "0912345678",
+            "age": "3-4",
+            "preferred_time": None,
+            "questions": None,
+            "consent_given": True,
+            "slot_id": slot_id,
+        }
+
+    path = "/api/website/v1/public/visit-requests"
+    a, b = await asyncio.gather(
+        public_client.post(path, json=_payload("陳媽媽"), headers={"Idempotency-Key": "capacity-a"}),
+        second_public_client.post(
+            path, json=_payload("林媽媽"), headers={"Idempotency-Key": "capacity-b"}
+        ),
+    )
+    assert sorted([a.status_code, b.status_code]) == [201, 409]
+    rejected = a if a.status_code == 409 else b
+    assert rejected.json()["detail"]["code"] == "SLOT_FULL"
+
+    # 資料庫層確認只有一筆真的佔用這個時段。
+    check = await admin_client.get(
+        f"/api/website/v1/admin/slots?campus_key=yihua&date_from={slot_date}&date_to={slot_date}"
+    )
+    assert check.json()[0]["booked_count"] == 1

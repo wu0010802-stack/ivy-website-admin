@@ -1,20 +1,34 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+import csv
+import io
+import uuid
+from datetime import date
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import require_scope
-from app.booking import service
-from app.booking.models import BookingConfig
+from app.auth.permissions import ScopeDenied, require_scope
+from app.booking import service, slot_service, workflow_service
+from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitSlot
 from app.booking.schemas import (
     BookingConfigOut,
     BookingConfigUpdateRequest,
     PublicBookingConfigOut,
+    PublicVisitSlotOut,
+    VisitContactNoteCreateRequest,
+    VisitContactNoteOut,
+    VisitRequestConfirmRequest,
     VisitRequestCreate,
+    VisitRequestDetailOut,
     VisitRequestOut,
+    VisitRequestRescheduleRequest,
+    VisitSlotCreateRequest,
+    VisitSlotOut,
+    VisitSlotUpdateRequest,
 )
 from app.campuses.models import Campus
 
@@ -99,7 +113,7 @@ async def create_visit_request(
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
-    body = payload.model_dump(exclude={"campus_key", "config_version"})
+    body = payload.model_dump(mode="json", exclude={"campus_key", "config_version"})
 
     try:
         visit_request, is_new = await service.submit_visit_request(
@@ -127,9 +141,365 @@ async def create_visit_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
         ) from exc
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "SLOT_FULL", "message": "這個時段名額已滿，請選擇其他時段"},
+        ) from exc
 
     await db.commit()
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return VisitRequestOut(
         receipt_id=visit_request.id, status=visit_request.status, created_at=visit_request.created_at
     )
+
+
+# ---------------------------------------------------------------------------
+# Slots
+# ---------------------------------------------------------------------------
+
+
+def _slot_out(slot: VisitSlot, booked: int) -> VisitSlotOut:
+    return VisitSlotOut(
+        id=slot.id,
+        campus_key=slot.campus_key,
+        slot_date=slot.slot_date,
+        start_time=slot.start_time,
+        end_time=slot.end_time,
+        capacity=slot.capacity,
+        closed=slot.closed,
+        booked_count=booked,
+    )
+
+
+@router.get("/admin/slots", response_model=list[VisitSlotOut])
+async def list_admin_slots(
+    campus_key: str,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[VisitSlotOut]:
+    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    try:
+        slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
+    except slot_service.SlotQueryRangeTooWide as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
+        ) from exc
+    result = []
+    for slot in slots:
+        booked = await slot_service.count_booked(db, slot.id)
+        result.append(_slot_out(slot, booked))
+    return result
+
+
+@router.post("/admin/slots", response_model=VisitSlotOut, status_code=status.HTTP_201_CREATED)
+async def create_admin_slot(
+    campus_key: str,
+    payload: VisitSlotCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitSlotOut:
+    require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+    slot = await slot_service.create_slot(
+        db,
+        campus_key=campus_key,
+        slot_date=payload.slot_date,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        capacity=payload.capacity,
+        created_by=current_user.id,
+    )
+    await db.commit()
+    return _slot_out(slot, 0)
+
+
+@router.patch("/admin/slots/{slot_id}", response_model=VisitSlotOut)
+async def update_admin_slot(
+    slot_id: uuid.UUID,
+    payload: VisitSlotUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitSlotOut:
+    slot = await slot_service.get_slot_for_update(db, slot_id)
+    if slot is None:
+        raise ScopeDenied()
+    require_scope(current_user, "booking.manage", campus_keys=[slot.campus_key])
+    try:
+        slot = await slot_service.update_slot(
+            db, slot, capacity=payload.capacity, closed=payload.closed
+        )
+    except slot_service.SlotCapacityBelowBooked as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "CAPACITY_BELOW_BOOKED",
+                "message": exc.args[0],
+                "booked_count": exc.booked_count,
+            },
+        ) from exc
+    await db.commit()
+    booked = await slot_service.count_booked(db, slot.id)
+    return _slot_out(slot, booked)
+
+
+@router.get("/public/slots", response_model=list[PublicVisitSlotOut])
+async def list_public_slots(
+    campus_key: str,
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[PublicVisitSlotOut]:
+    try:
+        slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
+    except slot_service.SlotQueryRangeTooWide as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
+        ) from exc
+    result = []
+    for slot in slots:
+        if slot.closed:
+            continue
+        booked = await slot_service.count_booked(db, slot.id)
+        remaining = max(slot.capacity - booked, 0)
+        if remaining <= 0:
+            continue
+        result.append(
+            PublicVisitSlotOut(
+                id=slot.id,
+                slot_date=slot.slot_date,
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+                remaining=remaining,
+            )
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Visit request workflow / reception workbench
+# ---------------------------------------------------------------------------
+
+
+async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_id: uuid.UUID) -> VisitRequest:
+    result = await db.execute(select(VisitRequest).where(VisitRequest.id == visit_request_id))
+    visit_request = result.scalar_one_or_none()
+    if visit_request is None:
+        raise ScopeDenied()
+    require_scope(user, "booking.read", campus_keys=[visit_request.campus_key])
+    return visit_request
+
+
+@router.get("/admin/visit-requests", response_model=list[VisitRequestDetailOut])
+async def list_visit_requests(
+    campus_key: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[VisitRequestDetailOut]:
+    require_scope(current_user, "booking.read")
+    stmt = select(VisitRequest)
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        stmt = stmt.where(VisitRequest.campus_key == campus_key)
+    elif current_user.role.value != "super_admin":
+        owned = [s.campus_key for s in current_user.campus_scopes]
+        stmt = stmt.where(VisitRequest.campus_key.in_(owned))
+    if status_filter:
+        stmt = stmt.where(VisitRequest.status == status_filter)
+    stmt = stmt.order_by(VisitRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(stmt)
+    return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
+
+
+@router.get("/admin/visit-requests/export")
+async def export_visit_requests(
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    require_scope(current_user, "booking.read")
+    stmt = select(VisitRequest)
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        stmt = stmt.where(VisitRequest.campus_key == campus_key)
+    elif current_user.role.value != "super_admin":
+        owned = [s.campus_key for s in current_user.campus_scopes]
+        stmt = stmt.where(VisitRequest.campus_key.in_(owned))
+    stmt = stmt.order_by(VisitRequest.created_at.desc())
+    result = await db.execute(stmt)
+
+    def _safe_cell(value: str | None) -> str:
+        """CSV 公式注入防護：儲存格開頭若是 = + - @ 這些會被試算表當成
+        公式執行的字元，前面補一個單引號讓它變成純文字。"""
+        text = "" if value is None else str(value)
+        if text and text[0] in ("=", "+", "-", "@"):
+            return "'" + text
+        return text
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["campus_key", "status", "parent_name", "phone", "created_at"])
+    for r in result.scalars():
+        writer.writerow(
+            [
+                _safe_cell(r.campus_key),
+                _safe_cell(r.status),
+                _safe_cell(r.parent_name),
+                _safe_cell(r.phone),
+                r.created_at.isoformat(),
+            ]
+        )
+    return Response(content=buffer.getvalue(), media_type="text/csv")
+
+
+@router.get("/admin/visit-requests/{visit_request_id}", response_model=VisitRequestDetailOut)
+async def get_visit_request(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.get("/admin/visit-requests/{visit_request_id}/contact-notes", response_model=list[VisitContactNoteOut])
+async def list_contact_notes(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[VisitContactNoteOut]:
+    await _get_owned_visit_request(db, current_user, visit_request_id)
+    result = await db.execute(
+        select(VisitContactNote)
+        .where(VisitContactNote.visit_request_id == visit_request_id)
+        .order_by(VisitContactNote.created_at.desc())
+    )
+    return [VisitContactNoteOut.model_validate(n) for n in result.scalars()]
+
+
+@router.post(
+    "/admin/visit-requests/{visit_request_id}/contact-notes",
+    response_model=VisitContactNoteOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_contact_note(
+    visit_request_id: uuid.UUID,
+    payload: VisitContactNoteCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitContactNoteOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    note = await workflow_service.add_contact_note(
+        db,
+        visit_request,
+        note=payload.note,
+        follow_up_at=payload.follow_up_at,
+        created_by=current_user.id,
+    )
+    await db.commit()
+    return VisitContactNoteOut.model_validate(note)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/confirm", response_model=VisitRequestDetailOut)
+async def confirm_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestConfirmRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.confirm_with_slot(
+            db, visit_request, payload.slot_id, current_user.id
+        )
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "SLOT_FULL", "message": "這個時段名額已滿"},
+        ) from exc
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/cancel", response_model=VisitRequestDetailOut)
+async def cancel_visit_request(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.cancel(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/no-show", response_model=VisitRequestDetailOut)
+async def mark_no_show(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.mark_no_show(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/reschedule", response_model=VisitRequestDetailOut)
+async def reschedule_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestRescheduleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.reschedule(db, visit_request, payload.new_slot_id)
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "SLOT_FULL", "message": "新時段名額已滿，原時段維持不變"},
+        ) from exc
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)

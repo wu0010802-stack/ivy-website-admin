@@ -9,13 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.booking import slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
     OutboxMessage,
     VisitRequest,
     VisitRequestEvent,
+    VisitRequestStatus,
 )
+from app.booking.workflow_service import SlotFull
 
 
 class ConfigVersionConflict(Exception):
@@ -73,9 +76,6 @@ async def get_or_create_config(db: AsyncSession, campus_key: str) -> BookingConf
 def _validate_mode_fields(
     mode: BookingMode, line_url: str | None, phone: str | None, external_url: str | None
 ) -> None:
-    if mode == BookingMode.SLOTS:
-        # 階段 C 保留 enum 但不可被設成啟用中的模式。
-        raise ModeFieldMissing("slots 模式尚未開放，這個階段不能啟用")
     required_field = _MODE_REQUIRED_FIELD.get(mode)
     if required_field is None:
         return
@@ -155,8 +155,26 @@ async def submit_visit_request(
     if config.version != config_version:
         raise BookingConfigVersionChanged()
 
-    if config.mode != BookingMode.INQUIRY:
+    if config.mode not in (BookingMode.INQUIRY, BookingMode.SLOTS):
         raise BookingUnavailable()
+
+    slot_id = payload.get("slot_id")
+    status = VisitRequestStatus.NEW.value
+    confirmed_at = None
+
+    if config.mode == BookingMode.SLOTS:
+        if not slot_id:
+            raise BookingUnavailable()
+        slot = await slot_service.get_slot_for_update(db, uuid.UUID(slot_id))
+        if slot is None or slot.campus_key != campus_key or slot.closed:
+            raise SlotFull()
+        booked = await slot_service.count_booked(db, slot.id)
+        if booked >= slot.capacity:
+            raise SlotFull()
+        status = VisitRequestStatus.CONFIRMED.value
+        confirmed_at = datetime.now(timezone.utc)
+    else:
+        slot_id = None
 
     visit_request = VisitRequest(
         id=uuid.uuid4(),
@@ -170,7 +188,9 @@ async def submit_visit_request(
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
         consent_given=payload["consent_given"],
-        status="new",
+        status=status,
+        slot_id=uuid.UUID(slot_id) if slot_id else None,
+        confirmed_at=confirmed_at,
         created_at=datetime.now(timezone.utc),
     )
     db.add(visit_request)

@@ -55,7 +55,8 @@ async def _clean_tables(app):
                 "media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
-                "outbox_messages, visit_request_events, visit_requests, "
+                "outbox_messages, visit_request_events, visit_contact_notes, "
+                "visit_requests, visit_slots, "
                 "booking_configs RESTART IDENTITY CASCADE"
             )
         )

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import date as date_, datetime, time as time_
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -12,11 +12,19 @@ from app.db import Base
 
 class BookingMode(str, enum.Enum):
     INQUIRY = "inquiry"
-    SLOTS = "slots"  # 保留給階段 D；階段 C 不可被設定為啟用中的模式
+    SLOTS = "slots"
     LINE = "line"
     PHONE = "phone"
     EXTERNAL = "external"
     PAUSED = "paused"
+
+
+class VisitRequestStatus(str, enum.Enum):
+    NEW = "new"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    NO_SHOW = "no_show"
+    COMPLETED = "completed"
 
 
 class BookingConfig(Base):
@@ -68,12 +76,69 @@ class VisitRequest(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
+    slot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("visit_slots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    assigned_staff_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     events: Mapped[list["VisitRequestEvent"]] = relationship(
         back_populates="visit_request", cascade="all, delete-orphan"
     )
     outbox_messages: Mapped[list["OutboxMessage"]] = relationship(
         back_populates="visit_request", cascade="all, delete-orphan"
     )
+    contact_notes: Mapped[list["VisitContactNote"]] = relationship(
+        back_populates="visit_request", cascade="all, delete-orphan"
+    )
+    slot: Mapped["VisitSlot | None"] = relationship(back_populates="visit_requests")
+
+
+class VisitSlot(Base):
+    """單次時段。階段 D 第一版由分校管理者手動建立，不含週期規則
+    自動產生（那是 Task 9 的排程工作範圍）。容量以「目前非取消/未到場
+    的 confirmed 案件數」即時計算，不用可變計數器，天然避免取消重試
+    重複釋放名額的問題。"""
+
+    __tablename__ = "visit_slots"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campus_key: Mapped[str] = mapped_column(
+        ForeignKey("campuses.key", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    slot_date: Mapped[date_] = mapped_column(Date, nullable=False)
+    start_time: Mapped[time_] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time_] = mapped_column(Time, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    visit_requests: Mapped[list[VisitRequest]] = relationship(back_populates="slot")
+
+
+class VisitContactNote(Base):
+    """接待聯絡紀錄；每筆是一次聯絡歷程，不覆寫舊紀錄。"""
+
+    __tablename__ = "visit_contact_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    visit_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("visit_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    note: Mapped[str] = mapped_column(String(1000), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    visit_request: Mapped[VisitRequest] = relationship(back_populates="contact_notes")
 
 
 class VisitRequestEvent(Base):

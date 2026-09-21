@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -54,6 +54,7 @@ class VisitRequestCreate(BaseModel):
     preferred_time: str | None = None
     questions: str | None = Field(default=None, max_length=1000)
     consent_given: bool
+    slot_id: uuid.UUID | None = None  # mode=slots 時必填
 
     @field_validator("phone")
     @classmethod
@@ -76,3 +77,86 @@ class VisitRequestOut(BaseModel):
     receipt_id: uuid.UUID
     status: str
     created_at: datetime
+
+
+class VisitSlotOut(BaseModel):
+    id: uuid.UUID
+    campus_key: str
+    slot_date: date
+    start_time: time
+    end_time: time
+    capacity: int
+    closed: bool
+    booked_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class PublicVisitSlotOut(BaseModel):
+    """公開端點只回可用性，不回誰訂走了名額。"""
+
+    id: uuid.UUID
+    slot_date: date
+    start_time: time
+    end_time: time
+    remaining: int
+
+
+class VisitSlotCreateRequest(BaseModel):
+    slot_date: date
+    start_time: time
+    end_time: time
+    capacity: int = Field(gt=0, le=200)
+
+    @field_validator("end_time")
+    @classmethod
+    def _end_after_start(cls, value: time, info) -> time:
+        start = info.data.get("start_time")
+        if start is not None and value <= start:
+            raise ValueError("結束時間必須晚於開始時間")
+        return value
+
+
+class VisitSlotUpdateRequest(BaseModel):
+    capacity: int | None = Field(default=None, ge=0, le=200)
+    closed: bool | None = None
+
+
+class VisitRequestDetailOut(BaseModel):
+    id: uuid.UUID
+    campus_key: str
+    status: str
+    parent_name: str
+    phone: str
+    age: str | None
+    preferred_time: str | None
+    questions: str | None
+    slot_id: uuid.UUID | None
+    assigned_staff_id: uuid.UUID | None
+    confirmed_at: datetime | None
+    cancelled_at: datetime | None
+    follow_up_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class VisitContactNoteOut(BaseModel):
+    id: uuid.UUID
+    note: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class VisitRequestConfirmRequest(BaseModel):
+    slot_id: uuid.UUID
+
+
+class VisitRequestRescheduleRequest(BaseModel):
+    new_slot_id: uuid.UUID
+
+
+class VisitContactNoteCreateRequest(BaseModel):
+    note: str = Field(min_length=1, max_length=1000)
+    follow_up_at: datetime | None = None

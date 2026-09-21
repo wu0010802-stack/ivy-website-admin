@@ -1,4 +1,4 @@
-const BASE_URL = '/api/website/v1'
+export const BASE_URL = '/api/website/v1'
 
 let csrfToken: string | null = null
 
