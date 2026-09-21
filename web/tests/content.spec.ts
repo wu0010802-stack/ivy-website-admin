@@ -70,7 +70,12 @@ function makeFixture(): SiteContent {
       ]
     } as SiteContent['dayExperience'],
     campuses: [
-      { key: 'yihua', name: 'fixture 義華', faq: { items: [{ q: 'fixture q', a: 'fixture a' }] } } as SiteContent['campuses'][number],
+      {
+        key: 'yihua',
+        name: 'fixture 義華',
+        faq: { items: [{ q: 'fixture q', a: 'fixture a' }] },
+        tourScenes: { _generated: true, note: 'fixture generated placeholder' }
+      } as SiteContent['campuses'][number],
       { key: 'minghua', name: 'fixture 明華', faq: { items: [] } } as SiteContent['campuses'][number]
     ]
   } as unknown as SiteContent
@@ -242,5 +247,37 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     })
     const yihua = result.campuses.find((c) => c.key === 'yihua')!
     expect(yihua.line).toBeNull()
+  })
+
+  it('campus_tour 整組取代 tourScenes，含把 GeneratedTourScenes 佔位樣板換成真正場景', () => {
+    const fixture = makeFixture()
+    const result = applyContentOverlay(fixture, {
+      campus_tour: {
+        yihua: {
+          scenes: [
+            {
+              key: 's1',
+              name: '新場景',
+              image: 'campus',
+              intro: 'intro',
+              spots: [{ name: '熱點', x: 30, y: 40, text: 't', question: 'q' }]
+            }
+          ]
+        }
+      }
+    })
+    const yihua = result.campuses.find((c) => c.key === 'yihua')!
+    const minghua = result.campuses.find((c) => c.key === 'minghua')!
+    expect(yihua.tourScenes).toEqual([
+      {
+        key: 's1',
+        name: '新場景',
+        image: 'campus',
+        intro: 'intro',
+        spots: [{ name: '熱點', x: 30, y: 40, text: 't', question: 'q' }]
+      }
+    ])
+    // 沒給 minghua 的 overlay，維持 fixture 原文（undefined，因為測試 fixture 本來就沒設）
+    expect(minghua.tourScenes).toBeUndefined()
   })
 })

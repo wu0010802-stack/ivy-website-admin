@@ -39,6 +39,7 @@ async function handleLogout() {
                 <el-dropdown-item><router-link to="/content/day-experience">孩子的一天</router-link></el-dropdown-item>
                 <el-dropdown-item><router-link to="/content/campus-profile">五校介紹</router-link></el-dropdown-item>
                 <el-dropdown-item><router-link to="/content/campus-faq">各校 FAQ</router-link></el-dropdown-item>
+                <el-dropdown-item><router-link to="/content/campus-tour">校園探索</router-link></el-dropdown-item>
                 <el-dropdown-item><router-link to="/content/booking-content">預約文案</router-link></el-dropdown-item>
                 <el-dropdown-item><router-link to="/content/site-footer">頁尾文字</router-link></el-dropdown-item>
                 <el-dropdown-item><router-link to="/content/site-meta">網站標題／電話</router-link></el-dropdown-item>

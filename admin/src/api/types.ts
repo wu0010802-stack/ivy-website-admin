@@ -92,6 +92,26 @@ export interface CampusFaqPayload {
   items: CampusFaqItemPayload[]
 }
 
+export interface TourSpotPayload {
+  name: string
+  x: number
+  y: number
+  text: string
+  question: string
+}
+
+export interface TourScenePayload {
+  key: string
+  name: string
+  image: string
+  intro: string
+  spots: TourSpotPayload[]
+}
+
+export interface CampusTourPayload {
+  scenes: TourScenePayload[]
+}
+
 export type MediaKind = 'image' | 'video'
 export type MediaStatus = 'processing' | 'ready' | 'failed'
 export type VariantKind = 'thumbnail' | 'poster'

@@ -8,6 +8,7 @@ from app.content.schemas import (
     BookingContentPayload,
     CampusFaqPayload,
     CampusProfilePayload,
+    CampusTourPayload,
     DayExperiencePayload,
     HomeAboutPayload,
     HomeCampusBoardPayload,
@@ -36,4 +37,5 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     # 以下兩種需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
     "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False),
+    "campus_tour": ContentKindConfig(CampusTourPayload, shared_only=False),
 }

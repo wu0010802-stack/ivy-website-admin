@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -184,6 +184,53 @@ class CampusFaqPayload(BaseModel):
     def _items_bounded(cls, value: list[CampusFaqItemPayload]) -> list[CampusFaqItemPayload]:
         if not (1 <= len(value) <= 20):
             raise ValueError("items 需為 1 到 20 筆")
+        return value
+
+
+class TourSpotPayload(BaseModel):
+    name: str
+    x: float = Field(ge=0, le=100)
+    y: float = Field(ge=0, le=100)
+    text: str
+    question: str
+
+    @field_validator("name", "text", "question")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class TourScenePayload(BaseModel):
+    key: str
+    name: str
+    image: str
+    intro: str
+    spots: list[TourSpotPayload]
+
+    @field_validator("key", "name", "image", "intro")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("spots")
+    @classmethod
+    def _spots_bounded(cls, value: list[TourSpotPayload]) -> list[TourSpotPayload]:
+        if not (1 <= len(value) <= 8):
+            raise ValueError("每個場景的熱點需為 1 到 8 個")
+        return value
+
+
+class CampusTourPayload(BaseModel):
+    scenes: list[TourScenePayload]
+
+    @field_validator("scenes")
+    @classmethod
+    def _scenes_bounded(cls, value: list[TourScenePayload]) -> list[TourScenePayload]:
+        if not (1 <= len(value) <= 6):
+            raise ValueError("場景需為 1 到 6 個")
+        keys = [s.key for s in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("場景的 key 不可重複")
         return value
 
 

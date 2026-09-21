@@ -77,6 +77,26 @@ export interface LiveCampusFaq {
   items: { q: string; a: string }[]
 }
 
+export interface LiveTourSpot {
+  name: string
+  x: number
+  y: number
+  text: string
+  question: string
+}
+
+export interface LiveTourScene {
+  key: string
+  name: string
+  image: string
+  intro: string
+  spots: LiveTourSpot[]
+}
+
+export interface LiveCampusTour {
+  scenes: LiveTourScene[]
+}
+
 export interface ContentOverlay {
   home_about?: LiveHomeAbout | null
   home_hero?: LiveHomeHero | null
@@ -89,6 +109,7 @@ export interface ContentOverlay {
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
   campus_faq?: Record<string, LiveCampusFaq> | null
+  campus_tour?: Record<string, LiveCampusTour> | null
 }
 
 /**
@@ -238,6 +259,18 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       const faq = faqs[c.key]
       if (!faq) return c
       return { ...c, faq: { ...c.faq, items: faq.items } }
+    })
+  }
+
+  if (overlay.campus_tour) {
+    const tours = overlay.campus_tour
+    // 整組取代（不是逐場景/逐熱點合併）：後台編輯器一次送出完整
+    // scenes 陣列，這裡直接換掉 tourScenes，含把原本的
+    // GeneratedTourScenes 佔位樣板換成真正逐校撰寫的內容。
+    next.campuses = next.campuses.map((c) => {
+      const tour = tours[c.key]
+      if (!tour) return c
+      return { ...c, tourScenes: tour.scenes }
     })
   }
 

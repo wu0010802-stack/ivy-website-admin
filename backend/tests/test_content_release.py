@@ -299,6 +299,96 @@ async def test_day_experience_moments_bounds_and_duplicate_key_rejected(admin_cl
     assert ok.status_code == 201, ok.text
 
 
+def _tour_spot(name: str, x: float = 50, y: float = 50) -> dict:
+    return {"name": name, "x": x, "y": y, "text": "text", "question": "question"}
+
+
+def _tour_scene(key: str) -> dict:
+    return {
+        "key": key,
+        "name": "場景",
+        "image": "campus",
+        "intro": "intro",
+        "spots": [_tour_spot("熱點 1")],
+    }
+
+
+@pytest.mark.asyncio
+async def test_campus_tour_scene_and_spot_bounds(admin_client):
+    too_many_scenes = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={
+            "expected_version": 0,
+            "payload": {"scenes": [_tour_scene(f"s{i}") for i in range(7)]},
+        },
+    )
+    assert too_many_scenes.status_code == 422
+
+    duplicate_scene_key = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={
+            "expected_version": 0,
+            "payload": {"scenes": [_tour_scene("dup"), _tour_scene("dup")]},
+        },
+    )
+    assert duplicate_scene_key.status_code == 422
+
+    too_many_spots = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={
+            "expected_version": 0,
+            "payload": {
+                "scenes": [
+                    {
+                        "key": "s1",
+                        "name": "場景",
+                        "image": "campus",
+                        "intro": "intro",
+                        "spots": [_tour_spot(f"熱點{i}") for i in range(9)],
+                    }
+                ]
+            },
+        },
+    )
+    assert too_many_spots.status_code == 422
+
+    x_out_of_range = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={
+            "expected_version": 0,
+            "payload": {"scenes": [{**_tour_scene("s1"), "spots": [_tour_spot("h", x=150, y=50)]}]},
+        },
+    )
+    assert x_out_of_range.status_code == 422
+
+    ok = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": {"scenes": [_tour_scene("s1"), _tour_scene("s2")]}},
+    )
+    assert ok.status_code == 201, ok.text
+
+
+@pytest.mark.asyncio
+async def test_campus_tour_isolated_per_campus(admin_client, public_client):
+    for key in ("yihua", "minghua"):
+        draft = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_tour/revisions?campus_key={key}",
+            json={"expected_version": 0, "payload": {"scenes": [_tour_scene(f"{key}-scene")]}},
+        )
+        assert draft.status_code == 201, draft.text
+        revision_id = draft.json()["latest_revision"]["id"]
+        publish = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_tour/publish?campus_key={key}",
+            json={"revision_id": revision_id},
+        )
+        assert publish.status_code == 200, publish.text
+
+    site = await public_client.get("/api/website/v1/public/site")
+    tours = site.json()["content"]["campus_tour"]
+    assert tours["yihua"]["scenes"][0]["key"] == "yihua-scene"
+    assert tours["minghua"]["scenes"][0]["key"] == "minghua-scene"
+
+
 @pytest.mark.asyncio
 async def test_public_site_read_requires_no_auth(public_client, admin_client):
     draft = await admin_client.post(

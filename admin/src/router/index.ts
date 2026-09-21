@@ -12,6 +12,7 @@ import BookingContentView from '../views/BookingContentView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import CampusFaqView from '../views/CampusFaqView.vue'
+import CampusTourView from '../views/CampusTourView.vue'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import BookingSettingsView from '../views/BookingSettingsView.vue'
 import VisitSlotsView from '../views/VisitSlotsView.vue'
@@ -42,6 +43,7 @@ const router = createRouter({
         { path: 'content/day-experience', name: 'day-experience', component: DayExperienceView },
         { path: 'content/campus-profile', name: 'campus-profile', component: CampusProfileView },
         { path: 'content/campus-faq', name: 'campus-faq', component: CampusFaqView },
+        { path: 'content/campus-tour', name: 'campus-tour', component: CampusTourView },
         { path: 'media', name: 'media', component: MediaLibraryView },
         { path: 'booking', name: 'booking', component: BookingSettingsView },
         { path: 'slots', name: 'slots', component: VisitSlotsView },

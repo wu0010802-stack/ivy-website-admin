@@ -38,8 +38,8 @@ const SHARED_KINDS: SharedKind[] = [
   'booking_content',
   'day_experience'
 ]
-type CampusKind = 'campus_profile' | 'campus_faq'
-const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq']
+type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour'
+const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour']
 
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
