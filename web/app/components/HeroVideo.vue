@@ -22,11 +22,30 @@ let onScreen = true
 let reduceQuery: MediaQueryList | null = null
 let watcher: IntersectionObserver | null = null
 
+// isPlaying 直接由這裡的決策設定，不能只靠 video 的 @playing／@pause
+// 事件同步——IntersectionObserver 在快速捲動時會連續觸發
+// applyPlayback()，多個 play()/pause() 疊在一起時，事件觸發的先後順
+// 序不保證跟真正的播放狀態一致（DayExperience.vue 的背景影片實測過
+// 「畫面顯示暫停鍵、但影片其實已經真的停格」的假活著狀態，這裡是同一
+// 個播放/暫停按鈕，用同一套防呆）。
 function applyPlayback() {
   const video = videoEl.value
   if (!video) return
-  if (document.hidden || !onScreen || !wantsPlayback) video.pause()
-  else video.play().catch(() => {})
+  if (document.hidden || !onScreen || !wantsPlayback) {
+    video.pause()
+    isPlaying.value = false
+    return
+  }
+  video
+    .play()
+    .then(() => {
+      const stillWanted = wantsPlayback && onScreen && !document.hidden
+      if (!stillWanted) video.pause()
+      isPlaying.value = stillWanted
+    })
+    .catch(() => {
+      isPlaying.value = false
+    })
 }
 
 function togglePlay() {
@@ -65,7 +84,7 @@ onMounted(() => {
   wantsPlayback = true
   nextTick(() => {
     requestAnimationFrame(() => {
-      videoEl.value?.play().catch(() => {})
+      applyPlayback()
     })
   })
 
@@ -140,8 +159,6 @@ onUnmounted(() => {
               preload="none"
               :poster="`/${hero.heroVideoPoster}`"
               aria-hidden="true"
-              @playing="isPlaying = true"
-              @pause="isPlaying = false"
               @error="onVideoError"
             />
           </figure>

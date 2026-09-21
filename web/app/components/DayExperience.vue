@@ -54,12 +54,17 @@ function scheduleFade() {
 
 // 對齊 app.js 的 applyFilm()：進畫面才載入、播放請求送出時讀者可能已
 // 經捲離或切走頁籤，所以 play() resolve 後還要再檢查一次才決定要不要
-// 立刻 pause 回去。
+// 立刻 pause 回去。isPlaying 直接由這裡的決策設定，不能只靠 video 的
+// @playing／@pause 事件同步——IntersectionObserver 在快速捲動時會連續
+// 觸發 applyFilm()，多個 play()/pause() 疊在一起時，事件觸發的先後順
+// 序不保證跟真正的播放狀態一致，曾經實測出「畫面顯示暫停鍵、但影片其
+// 實已經真的停格」的假活著狀態。
 function applyFilm() {
   const video = videoEl.value
   if (!video || hasFailed.value) return
   if (!onScreen || !wantsPlayback || document.hidden) {
     video.pause()
+    isPlaying.value = false
     return
   }
   if (!video.getAttribute('src')) {
@@ -69,9 +74,13 @@ function applyFilm() {
   video
     .play()
     .then(() => {
-      if (!wantsPlayback || !onScreen || document.hidden) video.pause()
+      const stillWanted = wantsPlayback && onScreen && !document.hidden
+      if (!stillWanted) video.pause()
+      isPlaying.value = stillWanted
     })
-    .catch(() => {})
+    .catch(() => {
+      isPlaying.value = false
+    })
 }
 
 function toggleFilm() {
@@ -150,8 +159,6 @@ onUnmounted(() => {
             loop
             playsinline
             preload="none"
-            @playing="isPlaying = true"
-            @pause="isPlaying = false"
             @error="onVideoError"
           />
           <span class="day-film-shade" />
