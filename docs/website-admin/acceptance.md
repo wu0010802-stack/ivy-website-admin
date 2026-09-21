@@ -13,7 +13,7 @@
 | A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 10 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校）／campus_tour（各校，視覺化熱點編輯器，見「校園探索視覺化編輯器小結」）；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；影片/照片素材本身仍未接媒體庫（含 campus_tour 的場景圖片，仍是代號字串） |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
 | A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
-| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；**裁切焦點編輯 UI 已補上**（點圖片指定焦點＋alt/來源標註，見 CMS 擴展小結）；熱點複核、既有素材 dry-run importer 未做 |
+| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；裁切焦點編輯 UI；**素材庫已真的接上 CMS 內容**（campus_tour 場景圖片，見「素材庫接上媒體選圖小結」），含公開唯讀讀取路由與引用保護真的串接；熱點複核、既有素材 dry-run importer 未做 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
 | A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
 | A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 通過 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt `VisitForm.vue` 已接上真實 `POST /public/visit-requests`（含 idempotency key、slots 選位、409/429/422 錯誤處理且失敗不清空欄位），見 Task 8 小結 |
@@ -274,6 +274,28 @@ npx playwright test --project=desktop-1440                       # 27 passed
 cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 112 passed
 cd admin && npm run typecheck && npm run build                   # 都過
 cd web && npm run typecheck && npm run test:unit                 # 過；34 passed
+npm run contract:check                                           # 契約與型別皆一致
+npx playwright test --project=desktop-1440                       # 27 passed
+```
+
+## 素材庫接上媒體選圖小結（2026-09-21，取代 campus_tour 的路徑字串）
+
+`campus_tour` 場景圖片原本只能手動輸入官網現有素材代號字串（例如 `campus`），素材庫上傳的圖片完全接不進來——這輪把它真的接上，過程中發現並補上兩塊原本缺的基礎設施：
+
+- **公開唯讀媒體路由**：新增 `GET /api/website/v1/public/media/{id}/file`（無需登入，只服務 `status=ready` 的素材，帶長效 `Cache-Control`）。**這是先前一直沒補的缺口**：既有的 `/admin/media/{id}/file` 要求管理員登入，CMS 內容引用的圖片完全沒有辦法給匿名訪客的瀏覽器載入——不是這輪才產生的問題，而是素材庫模組從階段 B 完成以來就一直缺這塊，只是先前的 content kind 都沒有圖片欄位，沒有暴露出來。
+- **引用保護真的串接**：`MediaUsage`／`add_usage()` 這套資料模型與函式從階段 B 就存在，但從來沒有被 content 模組實際呼叫過（只有測試手動呼叫驗證機制本身正確）。新增 `sync_content_item_usages()`，在每次儲存新版 revision 時依 kind 設定的 `extract_media_ids` 重新同步引用，讓「這張圖還被草稿或已發布內容引用中，不能刪除」對 campus_tour 真的生效，不再是備而不用的機制。
+- **相容既有內容**：`image` 欄位同時接受媒體庫 UUID 與舊的 fixture 素材代號字串，透過是否符合 UUID 格式判斷來源；已發布內容（例如義華校原本的 3 場景）完全不受影響，不需要遷移。
+- **admin**：新增 `MediaPickerDialog.vue`（瀏覽/上傳/選取），`CampusTourView.vue` 的圖片欄位改成縮圖預覽＋「選擇圖片」按鈕，保留手動輸入代號的欄位相容既有內容。**web**：新增 `resolveTourImageSrc()` 依字串判斷來源，媒體庫圖片複用既有的 Nitro catch-all proxy（沒有新增 web 端路由）。
+
+**驗證**：用 Playwright 對真實 backend+admin+production build 跑過完整流程——上傳圖片→選取→加熱點→儲存→發布→公開頁面透過同源代理真的載入素材庫圖片且不需登入；刪除仍被引用的素材回 `409 MEDIA_IN_USE`，移除引用（換回舊代號字串）後可正常刪除。backend 新增 3 項 pytest，累計 **115 項全過**；web 新增 4 項單元測試，累計 **38 項**；既有 **27 項 e2e 全過**。測試素材、內容、帳號皆已清除還原（含直接刪除測試建立的 `content_items`/`media_usages` 資料庫列，讓明華校恢復成從未客製化過的狀態，重新退回原本的 `GeneratedTourScenes` 通用樣板）。
+
+**已知限制**：只有 `campus_tour` 的場景圖片接上媒體庫；其餘尚未有圖片欄位的 content kind（`campus_profile` 的校園照片、`day_experience` 的時刻卡照片等仍是 fixture 靜態資料）未受影響，也不在本輪範圍內——這些欄位目前根本不在 CMS payload 裡（刻意排除，見前面的 CMS 擴展小結），不是漏接媒體庫。
+
+**本機驗證（實際跑過）**：
+```bash
+cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 115 passed
+cd admin && npm run typecheck && npm run build                   # 都過
+cd web && npm run typecheck && npm run test:unit                 # 過；38 passed
 npm run contract:check                                           # 契約與型別皆一致
 npx playwright test --project=desktop-1440                       # 27 passed
 ```
