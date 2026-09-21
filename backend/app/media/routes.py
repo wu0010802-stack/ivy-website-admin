@@ -12,11 +12,19 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, require_scope
 from app.media import service
-from app.media.models import MediaAsset, MediaKind
+from app.media.models import MediaAsset, MediaKind, MediaStatus
 from app.media.schemas import MediaAssetOut, MediaUpdateRequest
 from app.media.validation import MediaValidationError
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
+
+# 給公開官網用的唯讀路由：CMS 內容（目前是 campus_tour 的場景圖片）一旦
+# 引用某個素材，訪客看頁面時要能直接載入圖片，不能要求先登入 admin。
+# 依 UUID 直接讀取（不驗證是否真的被已發布內容引用）——這跟大多數 CMS
+# 素材庫的作法一致（上傳後即可用穩定網址讀取，方便草稿預覽），UUID 不可
+# 猜測，且只服務 status=ready 的素材，不外洩 processing/failed 的內部
+# 狀態或任何其他欄位。
+public_router = APIRouter(prefix="/api/website/v1/public/media", tags=["media-public"])
 
 
 def _visible_campus_keys(user: User) -> list[str] | None:
@@ -217,3 +225,22 @@ async def get_media_file(
     storage = service.get_storage(request.app.state.settings)
     data = storage.read_bytes(asset.storage_key)
     return Response(content=data, media_type=asset.content_type)
+
+
+@public_router.get("/{media_id}/file")
+async def get_public_media_file(
+    media_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    result = await db.execute(select(MediaAsset).where(MediaAsset.id == media_id))
+    asset = result.scalar_one_or_none()
+    if asset is None or asset.status != MediaStatus.READY:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+    storage = service.get_storage(request.app.state.settings)
+    data = storage.read_bytes(asset.storage_key)
+    return Response(
+        content=data,
+        media_type=asset.content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )

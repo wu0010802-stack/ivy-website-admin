@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -162,4 +163,34 @@ async def add_usage(
             created_at=datetime.now(timezone.utc),
         )
     )
+    await db.flush()
+
+
+async def sync_content_item_usages(
+    db: AsyncSession,
+    content_item_id: str,
+    field_name: str,
+    campus_key: str | None,
+    media_ids: list[uuid.UUID],
+) -> None:
+    """把某個 content item 目前這個欄位引用的媒體，同步成 media_ids 這份
+    清單——整批刪掉舊的、換成新的一批，不逐一比對差異。呼叫時機是每次
+    儲存新版 revision（草稿也算「正在使用」，避免使用者能刪掉自己正在
+    編輯中、還沒發布的圖片）。"""
+    await db.execute(
+        delete(MediaUsage).where(
+            MediaUsage.content_item_id == content_item_id, MediaUsage.field_name == field_name
+        )
+    )
+    for media_id in media_ids:
+        db.add(
+            MediaUsage(
+                id=uuid.uuid4(),
+                media_id=media_id,
+                campus_key=campus_key,
+                content_item_id=content_item_id,
+                field_name=field_name,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
     await db.flush()

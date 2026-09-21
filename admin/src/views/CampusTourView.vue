@@ -2,9 +2,25 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { CAMPUS_KEYS } from '../api/types'
-import type { CampusTourPayload, TourScenePayload } from '../api/types'
+import type { CampusTourPayload, MediaAssetOut, TourScenePayload } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { websiteAssetUrl } from '../config'
+import { mediaFileUrl } from '../api/client'
+import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// `image` 同時相容兩種值：素材庫上傳的媒體 UUID（新的、推薦用這個），
+// 跟舊 fixture 素材代號字串（例如 "campus"，還沒被取代的既有內容繼續
+// 用這個顯示，見 backend CampusTourPayload 與 web content-overlay 的
+// 對應相容邏輯）。
+function isMediaId(image: string): boolean {
+  return UUID_PATTERN.test(image)
+}
+
+function previewUrl(image: string): string {
+  return isMediaId(image) ? mediaFileUrl(image) : websiteAssetUrl(image)
+}
 
 const authStore = useAuthStore()
 
@@ -54,6 +70,11 @@ function selectScene(i: number) {
 }
 
 const stageRef = ref<HTMLDivElement | null>(null)
+const pickerVisible = ref(false)
+
+function onPickMedia(asset: MediaAssetOut) {
+  if (currentScene.value) currentScene.value.image = asset.id
+}
 
 function relativePosition(event: MouseEvent): { x: number; y: number } | null {
   const stage = stageRef.value
@@ -137,8 +158,8 @@ onMounted(() => {
       <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
       <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
       <p style="color: var(--el-text-color-secondary)">
-        圖片欄位填的是官網現有素材代號（例如 <code>campus</code>、<code>garden</code>），對應
-        <code>/assets/&lt;代號&gt;.webp</code>；素材庫上傳的圖片尚未接進來，換照片仍需請工程協助。
+        點「選擇圖片」從素材庫選一張，或上傳新的；既有場景若還是顯示官網原本的素材代號（例如
+        <code>campus</code>），維持原樣即可，不用換成素材庫圖片。
         在照片上點一下新增熱點，拖曳圖釘可以調整位置。發布後會**整組取代**該校原本的探索內容（含目前只有單一場景的通用模板）。
       </p>
 
@@ -161,8 +182,21 @@ onMounted(() => {
             <el-form-item label="場景名稱" style="flex: 1">
               <el-input v-model="currentScene.name" />
             </el-form-item>
-            <el-form-item label="圖片代號" style="flex: 1">
-              <el-input v-model="currentScene.image" placeholder="例如：campus" />
+            <el-form-item label="圖片" style="flex: 1">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <img
+                  v-if="currentScene.image"
+                  :src="previewUrl(currentScene.image)"
+                  style="width: 48px; height: 36px; object-fit: cover; border: 1px solid var(--el-border-color)"
+                />
+                <el-button size="small" @click="pickerVisible = true">選擇圖片</el-button>
+              </div>
+              <el-input
+                v-model="currentScene.image"
+                size="small"
+                placeholder="或手動輸入素材代號（相容既有內容，例如 campus）"
+                style="margin-top: 6px"
+              />
             </el-form-item>
           </div>
           <el-form-item label="場景說明">
@@ -179,7 +213,7 @@ onMounted(() => {
             >
               <img
                 v-if="currentScene.image"
-                :src="websiteAssetUrl(currentScene.image)"
+                :src="previewUrl(currentScene.image)"
                 style="width: 100%; height: 100%; object-fit: cover; pointer-events: none"
                 @error="($event.target as HTMLImageElement).style.visibility = 'hidden'"
               />
@@ -255,5 +289,7 @@ onMounted(() => {
         </el-button>
       </div>
     </template>
+
+    <MediaPickerDialog v-model="pickerVisible" :campus-key="selectedCampus" @select="onPickMedia" />
   </div>
 </template>

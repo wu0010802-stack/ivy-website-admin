@@ -14,6 +14,7 @@ from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.content import service
 from app.content.models import ContentItem, ContentRevision
 from app.content.registry import CONTENT_KIND_REGISTRY
+from app.media import service as media_service
 from app.operations import audit_service
 from app.content.schemas import (
     ContentItemOut,
@@ -128,9 +129,10 @@ async def create_content_revision(
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
 
+    dumped_payload = typed_payload.model_dump()
     try:
         await service.create_revision(
-            db, item, typed_payload.model_dump(), payload.expected_version, current_user.id
+            db, item, dumped_payload, payload.expected_version, current_user.id
         )
     except service.VersionConflict as exc:
         await db.rollback()
@@ -138,6 +140,9 @@ async def create_content_revision(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "CONTENT_VERSION_CONFLICT", "message": "內容已被其他人更新，請重新載入"},
         ) from exc
+
+    media_ids = config.extract_media_ids(dumped_payload)
+    await media_service.sync_content_item_usages(db, str(item.id), kind, campus_key, media_ids)
 
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)

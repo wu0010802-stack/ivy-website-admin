@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Campus } from '~/types/site-content'
 import { isGeneratedTourScenes } from '~/types/site-content'
+import { resolveTourImageSrc } from '~/utils/tour-image'
 
 const props = defineProps<{ campus: Campus }>()
 
@@ -52,7 +53,7 @@ function selectSpot(i: number) {
           <div class="tour-visual">
             <div class="tour-photo-area">
               <div class="tour-canvas">
-                <img class="tour-image" :src="`/assets/${currentScene?.image}.webp`" :alt="`${campus.name} · ${currentScene?.name}`">
+                <img class="tour-image" :src="resolveTourImageSrc(currentScene?.image ?? '')" :alt="`${campus.name} · ${currentScene?.name}`">
                 <button
                   v-for="(spot, i) in currentScene?.spots"
                   :key="spot.name"
@@ -79,7 +80,7 @@ function selectSpot(i: number) {
                 :tabindex="i === sceneIndex ? 0 : -1"
                 @click="selectScene(i)"
               >
-                <img :src="`/assets/${scene.image}.webp`" alt="">
+                <img :src="resolveTourImageSrc(scene.image)" alt="">
                 <span>{{ scene.name }}</span>
               </button>
             </div>

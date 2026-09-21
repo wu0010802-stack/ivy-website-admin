@@ -160,3 +160,77 @@ async def test_replace_creates_new_asset_and_keeps_old_untouched(admin_client, d
     old_still_there = await admin_client.get(f"/api/website/v1/admin/media/{old_id}")
     assert old_still_there.status_code == 200
     assert old_still_there.json()["content_type"] == "image/jpeg"
+
+
+@pytest.mark.asyncio
+async def test_public_media_file_served_without_auth(admin_client, public_client):
+    upload = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "image"},
+        files={"file": ("test.jpg", _read("test.jpg"), "image/jpeg")},
+    )
+    media_id = upload.json()["id"]
+
+    response = await public_client.get(f"/api/website/v1/public/media/{media_id}/file")
+    assert response.status_code == 200
+    assert response.content == _read("test.jpg")
+
+
+@pytest.mark.asyncio
+async def test_public_media_file_404_for_unknown_id(public_client):
+    import uuid
+
+    response = await public_client.get(f"/api/website/v1/public/media/{uuid.uuid4()}/file")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_campus_tour_referencing_media_blocks_delete_until_reference_removed(
+    admin_client, public_client
+):
+    upload = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("test.jpg", _read("test.jpg"), "image/jpeg")},
+    )
+    media_id = upload.json()["id"]
+
+    def scene(image: str) -> dict:
+        return {
+            "key": "s1",
+            "name": "場景",
+            "image": image,
+            "intro": "intro",
+            "spots": [{"name": "熱點", "x": 50, "y": 50, "text": "t", "question": "q"}],
+        }
+
+    draft = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": {"scenes": [scene(media_id)]}},
+    )
+    assert draft.status_code == 201, draft.text
+
+    # 圖片被目前草稿引用中，不能刪除。
+    delete_blocked = await admin_client.delete(f"/api/website/v1/admin/media/{media_id}")
+    assert delete_blocked.status_code == 409
+    assert delete_blocked.json()["detail"]["code"] == "MEDIA_IN_USE"
+
+    # 官網也真的讀得到這張圖（不用登入）。
+    public_file = await public_client.get(f"/api/website/v1/public/media/{media_id}/file")
+    assert public_file.status_code == 200
+
+    # 存新版把圖片換成舊的 fixture 代號字串，不再引用素材庫這張圖。
+    item = await admin_client.get(
+        "/api/website/v1/admin/content-items/campus_tour?campus_key=yihua"
+    )
+    await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={
+            "expected_version": item.json()["latest_version"],
+            "payload": {"scenes": [scene("campus")]},
+        },
+    )
+
+    # 引用已經釋放，現在可以刪除了。
+    delete_ok = await admin_client.delete(f"/api/website/v1/admin/media/{media_id}")
+    assert delete_ok.status_code == 204
