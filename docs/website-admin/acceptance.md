@@ -299,3 +299,11 @@ cd web && npm run typecheck && npm run test:unit                 # 過；38 pass
 npm run contract:check                                           # 契約與型別皆一致
 npx playwright test --project=desktop-1440                       # 27 passed
 ```
+
+## 後台 UI/UX 改版小結（2026-09-21）
+
+**做了什麼**：`admin/` 全部 21 個頁面與版型重做，不動 API 與資料模型。新增 `src/api/labels.ts`（校區／狀態／角色／通知／稽核中文，`formatDateTime` 走 Asia/Taipei）、`src/router/nav.ts`（側欄結構＝路由 meta，含角色限制，`users`／`policies` 只有 super_admin 看得到，其他人進入會轉回總覽）、`src/composables/useCampusScope.ts`（取代九個頁面各自複製的可見校區邏輯）、`useCampusContent.ts`（分校內容切校前確認未儲存修改）、`useContentItem` 補 `isDirty`／`latestRevisionAt`／`neverPublished`／`saveAndPublish`／`reset`／`loadError`，以及 `ContentEditor`／`PageHeader`／`CampusSelect`／`StatusTag` 四個共用元件。登入頁支援 `?redirect=`。
+
+**實際驗證**：`npm run typecheck`、`npm run build`、`npm run test:unit`（7 passed）；Playwright 對真實後端（本機 8000）以臨時 super_admin 與 campus_admin（仁武）帳號登入，1440×900 與 390×844 各截 19 頁、無水平溢出、無 JS 錯誤（只有校園探索頁向未啟動的 Nuxt 3000 埠要內建圖片的連線失敗），並實測：編輯欄位→狀態列變「有未儲存的修改」、「儲存草稿」啟用、發布鈕改成「儲存並發布」；點側欄離開跳出攔截並可留在本頁；「還原修改」回到載入值；校區帳號在只有一校時校區選單退成唯讀標籤、進 `/users` 被導回總覽；手機時段表格可橫向捲動、案件明細的「處理」面板排最前。示範資料（3 筆需求、3 個時段、1 張素材）與臨時帳號已刪除，義華預約模式已改回 paused（版本 2→4）；`audit_log_entries` 留下 2 筆 actor 為 null 的預約設定更新紀錄。
+
+**未做**：dashboard 的「未發布草稿」連到首頁首屏文字而非清單（API 沒有列出哪些 kind 未發布）；素材庫沒有分頁；通知「全部標記已讀」是逐筆呼叫；未做 e2e 測試。

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError, mediaFileUrl } from '../api/client'
 import type { MediaAssetOut } from '../api/types'
+import { campusLabel } from '../api/labels'
 
 const props = defineProps<{
   modelValue: boolean
@@ -16,20 +17,22 @@ const emit = defineEmits<{
 
 const visible = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
+  set: (value) => emit('update:modelValue', value),
 })
 
 const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
 const uploading = ref(false)
+const query = ref('')
 
 const visibleAssets = computed(() =>
   assets.value.filter(
     (a) =>
       a.kind === 'image' &&
       a.status === 'ready' &&
-      (a.campus_key === null || a.campus_key === props.campusKey)
-  )
+      (a.campus_key === null || a.campus_key === props.campusKey) &&
+      (!query.value || a.original_filename.toLowerCase().includes(query.value.toLowerCase()) || (a.alt_text ?? '').includes(query.value)),
+  ),
 )
 
 async function load() {
@@ -42,7 +45,10 @@ async function load() {
 }
 
 watch(visible, (v) => {
-  if (v) load()
+  if (v) {
+    query.value = ''
+    load()
+  }
 })
 
 function choose(asset: MediaAssetOut) {
@@ -62,7 +68,7 @@ async function onUploadChange(event: Event) {
   uploading.value = true
   try {
     const asset = await api.upload<MediaAssetOut>('/admin/media', formData)
-    ElMessage.success('已上傳')
+    ElMessage.success('已上傳並選用')
     choose(asset)
   } catch (err) {
     if (err instanceof ApiError) {
@@ -79,33 +85,108 @@ async function onUploadChange(event: Event) {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="選擇圖片" width="640px">
-    <div style="margin-bottom: 1rem">
-      <label class="el-button" style="cursor: pointer">
-        <input type="file" accept="image/*" style="display: none" :disabled="uploading" @change="onUploadChange" />
-        {{ uploading ? '上傳中…' : '上傳新圖片並使用' }}
+  <el-dialog v-model="visible" title="選擇照片" width="720px">
+    <div class="picker__bar">
+      <el-input v-model="query" placeholder="搜尋檔名或替代文字" clearable class="picker__search" />
+      <label class="el-button" :class="{ 'is-disabled': uploading }">
+        <input type="file" accept="image/*" class="picker__file" :disabled="uploading" @change="onUploadChange" />
+        {{ uploading ? '上傳中…' : '上傳新照片' }}
       </label>
-      <span style="margin-left: 8px; color: var(--el-text-color-secondary); font-size: 0.85rem">
-        （校區留空即共用素材，此處會自動帶入目前選擇的校區）
-      </span>
     </div>
+    <p class="hint picker__hint">
+      顯示跨校共用{{ campusKey ? `與${campusLabel(campusKey)}校` : '' }}的照片；這裡上傳的會自動標記為{{ campusKey ? `${campusLabel(campusKey)}校` : '共用' }}素材。
+    </p>
 
-    <div v-loading="loading" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; min-height: 120px">
-      <button
-        v-for="asset in visibleAssets"
-        :key="asset.id"
-        type="button"
-        style="border: 1px solid var(--el-border-color); border-radius: 4px; padding: 4px; cursor: pointer; background: none"
-        @click="choose(asset)"
-      >
-        <img :src="mediaFileUrl(asset.id)" style="width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block" />
-        <small style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-          {{ asset.original_filename }}
-        </small>
+    <div v-loading="loading" class="picker__grid">
+      <button v-for="asset in visibleAssets" :key="asset.id" type="button" class="picker__item" @click="choose(asset)">
+        <img :src="mediaFileUrl(asset.id)" :alt="asset.alt_text ?? ''" loading="lazy" />
+        <span class="picker__name">{{ asset.original_filename }}</span>
+        <span class="picker__campus">{{ asset.campus_key ? campusLabel(asset.campus_key) : '共用' }}</span>
       </button>
-      <p v-if="!loading && visibleAssets.length === 0" style="grid-column: 1 / -1; color: var(--el-text-color-secondary)">
-        目前沒有可用的圖片，先上傳一張。
-      </p>
+      <el-empty
+        v-if="!loading && visibleAssets.length === 0"
+        :description="query ? '沒有符合的照片' : '目前沒有可用的照片，先上傳一張'"
+        class="picker__empty"
+      />
     </div>
   </el-dialog>
 </template>
+
+<style scoped>
+.picker__bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.picker__search {
+  flex: 1;
+}
+
+.picker__file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.picker__hint {
+  margin-bottom: 12px;
+}
+
+.picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  min-height: 160px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.picker__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+
+.picker__item:hover,
+.picker__item:focus-visible {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+}
+
+.picker__item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.picker__name {
+  padding: 0 8px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.picker__campus {
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.picker__empty {
+  grid-column: 1 / -1;
+}
+</style>

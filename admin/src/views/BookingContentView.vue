@@ -2,59 +2,67 @@
 import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { BookingContentPayload } from '../api/types'
+import ContentEditor from '../components/ContentEditor.vue'
 
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<BookingContentPayload>('booking_content', {
-    cta_label: '',
-    cta_label_en: '',
-    consent_text: '',
-    banner_title_template: '',
-    banner_body: '',
-    banner_button_label: '',
-  })
+const editor = useContentItem<BookingContentPayload>('booking_content', {
+  cta_label: '',
+  cta_label_en: '',
+  consent_text: '',
+  banner_title_template: '',
+  banner_body: '',
+  banner_button_label: '',
+})
 
-onMounted(load)
+onMounted(editor.load)
 </script>
 
 <template>
-  <div style="max-width: 640px">
-    <h2>預約相關文案</h2>
-    <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-    <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
-    <p style="color: var(--el-text-color-secondary)">
-      這裡只改按鈕與說明文字；表單欄位定義與各校啟用哪種預約模式，改在「預約設定」頁。
-    </p>
+  <ContentEditor :editor="editor">
+    <template #lead>
+      預約按鈕與頁尾橫幅的文字。各校採用哪種預約方式（表單、LINE、電話）在
+      <router-link to="/booking">各校預約方式</router-link> 設定。
+    </template>
 
-    <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
-      <el-form-item label="預約按鈕文字（中文）">
-        <el-input v-model="form.cta_label" />
-      </el-form-item>
-      <el-form-item label="預約按鈕文字（英文）">
-        <el-input v-model="form.cta_label_en" />
-      </el-form-item>
+    <el-form label-position="top" @submit.prevent>
+      <h3 class="form-section">預約按鈕</h3>
+      <div class="field-row">
+        <el-form-item label="中文">
+          <el-input v-model="editor.form.value.cta_label" placeholder="預約參觀" />
+        </el-form-item>
+        <el-form-item label="英文副標">
+          <el-input v-model="editor.form.value.cta_label_en" placeholder="Book a visit" />
+        </el-form-item>
+      </div>
       <el-form-item label="同意條款文字">
-        <el-input v-model="form.consent_text" type="textarea" :rows="2" />
+        <el-input v-model="editor.form.value.consent_text" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" />
+        <span class="field-help">顯示在表單送出鈕上方，家長勾選後才能送出。</span>
       </el-form-item>
-      <el-form-item label="頁尾預約橫幅標題樣板">
-        <el-input v-model="form.banner_title_template" />
+
+      <h3 class="form-section">頁尾預約橫幅</h3>
+      <el-form-item label="標題樣板">
+        <el-input v-model="editor.form.value.banner_title_template" />
+        <span class="field-help">可用 <code>{campus}</code> 代表目前校名，例如「歡迎預約參觀{campus}」。</span>
       </el-form-item>
-      <el-form-item label="頁尾預約橫幅內文">
-        <el-input v-model="form.banner_body" />
+      <el-form-item label="內文">
+        <el-input v-model="editor.form.value.banner_body" />
       </el-form-item>
-      <el-form-item label="頁尾預約橫幅按鈕文字">
-        <el-input v-model="form.banner_button_label" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-        <el-button
-          type="success"
-          :loading="publishing"
-          :disabled="!item?.latest_revision"
-          @click="publish"
-        >
-          發布到官網
-        </el-button>
+      <el-form-item label="按鈕文字">
+        <el-input v-model="editor.form.value.banner_button_label" />
       </el-form-item>
     </el-form>
-  </div>
+  </ContentEditor>
 </template>
+
+<style scoped>
+.form-section {
+  margin: 4px 0 12px;
+  color: var(--ink-2);
+}
+
+.el-form-item + .form-section,
+.field-row + .form-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+</style>

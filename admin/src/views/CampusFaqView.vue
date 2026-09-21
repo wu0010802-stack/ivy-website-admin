@@ -1,87 +1,78 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { ref, useTemplateRef } from 'vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
-import { CAMPUS_KEYS } from '../api/types'
+import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusFaqPayload } from '../api/types'
-import { useAuthStore } from '../stores/auth'
+import ContentEditor from '../components/ContentEditor.vue'
+import CampusSelect from '../components/CampusSelect.vue'
 
-const authStore = useAuthStore()
+const MAX_ITEMS = 20
 
-const visibleCampusKeys = computed(() => {
-  if (authStore.user?.role === 'super_admin') return [...CAMPUS_KEYS]
-  return authStore.user?.campus_keys ?? []
-})
-
-const selectedCampus = ref<string>('')
-
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<CampusFaqPayload>('campus_faq', { items: [{ q: '', a: '' }] }, selectedCampus)
+const campus = ref('')
+const editor = useContentItem<CampusFaqPayload>('campus_faq', { items: [{ q: '', a: '' }] }, campus)
+const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
+const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
 
 function addItem() {
-  form.value.items.push({ q: '', a: '' })
+  editor.form.value.items.push({ q: '', a: '' })
 }
 
 function removeItem(index: number) {
-  form.value.items.splice(index, 1)
+  editor.form.value.items.splice(index, 1)
 }
 
-watch(
-  selectedCampus,
-  (key) => {
-    if (key) load()
-  },
-  { immediate: false },
-)
-
-onMounted(() => {
-  if (visibleCampusKeys.value.length > 0) {
-    selectedCampus.value = visibleCampusKeys.value[0]
-    load()
-  }
-})
+function move(index: number, delta: number) {
+  const items = editor.form.value.items
+  const target = index + delta
+  if (target < 0 || target >= items.length) return
+  const [it] = items.splice(index, 1)
+  items.splice(target, 0, it!)
+}
 </script>
 
 <template>
-  <div style="max-width: 640px">
-    <h2>各校 FAQ</h2>
-    <el-form-item label="選擇校區">
-      <el-select v-model="selectedCampus" style="width: 200px">
-        <el-option v-for="key in visibleCampusKeys" :key="key" :label="key" :value="key" />
-      </el-select>
-    </el-form-item>
-
-    <template v-if="selectedCampus">
-      <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-      <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
-
-      <div v-for="(qa, index) in form.items" :key="index" style="margin: 1rem 0">
-        <el-form label-position="top">
-          <el-form-item :label="`問題 #${index + 1}`">
-            <el-input v-model="qa.q" />
-          </el-form-item>
-          <el-form-item label="回答">
-            <el-input v-model="qa.a" type="textarea" :rows="2" />
-          </el-form-item>
-          <el-button size="small" type="danger" :disabled="form.items.length <= 1" @click="removeItem(index)">
-            移除這一題
-          </el-button>
-        </el-form>
-        <el-divider />
-      </div>
-
-      <el-button :disabled="form.items.length >= 20" @click="addItem">新增一題</el-button>
-
-      <div style="margin-top: 1.5rem">
-        <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-        <el-button
-          type="success"
-          :loading="publishing"
-          :disabled="!item?.latest_revision"
-          @click="publish"
-        >
-          發布到官網
-        </el-button>
-      </div>
+  <ContentEditor
+    ref="shell"
+    :editor="editor"
+    :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
+  >
+    <template #lead>分校頁「常見問題」的問答，依這裡的順序顯示，最多 {{ MAX_ITEMS }} 題。</template>
+    <template #toolbar>
+      <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
-  </div>
+
+    <el-form label-position="top" @submit.prevent>
+      <div v-for="(qa, index) in editor.form.value.items" :key="index" class="repeat-item">
+        <div class="repeat-item__head">
+          <span class="repeat-item__index"><b>{{ index + 1 }}</b>第 {{ index + 1 }} 題</span>
+          <span class="cell-actions">
+            <el-button text size="small" :disabled="index === 0" @click="move(index, -1)">上移</el-button>
+            <el-button text size="small" :disabled="index === editor.form.value.items.length - 1" @click="move(index, 1)">下移</el-button>
+            <el-button
+              text
+              size="small"
+              type="danger"
+              :icon="Delete"
+              :disabled="editor.form.value.items.length <= 1"
+              @click="removeItem(index)"
+            >
+              移除
+            </el-button>
+          </span>
+        </div>
+        <el-form-item label="問題">
+          <el-input v-model="qa.q" placeholder="例如：幾歲可以入園？" />
+        </el-form-item>
+        <el-form-item label="回答">
+          <el-input v-model="qa.a" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
+        </el-form-item>
+      </div>
+
+      <el-button :icon="Plus" :disabled="editor.form.value.items.length >= MAX_ITEMS" @click="addItem">
+        新增一題
+      </el-button>
+      <span v-if="editor.form.value.items.length >= MAX_ITEMS" class="hint" style="margin-left: 8px">已達上限</span>
+    </el-form>
+  </ContentEditor>
 </template>

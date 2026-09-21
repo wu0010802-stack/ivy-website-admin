@@ -1,105 +1,84 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { ref, useTemplateRef } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
-import { CAMPUS_KEYS } from '../api/types'
+import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusProfilePayload } from '../api/types'
-import { useAuthStore } from '../stores/auth'
+import ContentEditor from '../components/ContentEditor.vue'
+import CampusSelect from '../components/CampusSelect.vue'
 
-const authStore = useAuthStore()
-
-const visibleCampusKeys = computed(() => {
-  if (authStore.user?.role === 'super_admin') return [...CAMPUS_KEYS]
-  return authStore.user?.campus_keys ?? []
-})
-
-const selectedCampus = ref<string>('')
-
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<CampusProfilePayload>(
-    'campus_profile',
-    {
-      name: '',
-      district: '',
-      address: '',
-      phone: '',
-      intro: '',
-      description: '',
-      facebook: '',
-      fb_note: '',
-      line: '',
-    },
-    selectedCampus,
-  )
-
-watch(
-  selectedCampus,
-  (key) => {
-    if (key) load()
+const campus = ref('')
+const editor = useContentItem<CampusProfilePayload>(
+  'campus_profile',
+  {
+    name: '',
+    district: '',
+    address: '',
+    phone: '',
+    intro: '',
+    description: '',
+    facebook: '',
+    fb_note: '',
+    line: '',
   },
-  { immediate: false },
+  campus,
 )
-
-onMounted(() => {
-  if (visibleCampusKeys.value.length > 0) {
-    selectedCampus.value = visibleCampusKeys.value[0]
-    load()
-  }
-})
+const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
+const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
 </script>
 
 <template>
-  <div style="max-width: 640px">
-    <h2>五校介紹內容</h2>
-    <el-form-item label="選擇校區">
-      <el-select v-model="selectedCampus" style="width: 200px">
-        <el-option v-for="key in visibleCampusKeys" :key="key" :label="key" :value="key" />
-      </el-select>
-    </el-form-item>
+  <ContentEditor
+    ref="shell"
+    :editor="editor"
+    :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
+  >
+    <template #lead>各校在首頁五校區塊、分校頁與頁尾顯示的基本資料。留空的社群連結官網會顯示「待補」。</template>
+    <template #toolbar>
+      <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+    </template>
 
-    <template v-if="selectedCampus">
-      <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-      <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
-
-      <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
+    <el-form label-position="top" @submit.prevent>
+      <div class="field-row">
         <el-form-item label="校名">
-          <el-input v-model="form.name" />
+          <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
         </el-form-item>
         <el-form-item label="行政區">
-          <el-input v-model="form.district" />
+          <el-input v-model="editor.form.value.district" placeholder="例如：鳳山區" />
         </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="form.address" />
-        </el-form-item>
-        <el-form-item label="電話">
-          <el-input v-model="form.phone" />
-        </el-form-item>
-        <el-form-item label="簡介（一句話）">
-          <el-input v-model="form.intro" />
-        </el-form-item>
-        <el-form-item label="詳細描述">
-          <el-input v-model="form.description" type="textarea" :rows="4" />
-        </el-form-item>
-        <el-form-item label="Facebook 網址">
-          <el-input v-model="form.facebook" />
-        </el-form-item>
-        <el-form-item label="Facebook 說明">
-          <el-input v-model="form.fb_note" />
-        </el-form-item>
-        <el-form-item label="LINE 官方帳號網址（留空代表尚未提供）">
-          <el-input v-model="form.line" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-          <el-button
-            type="success"
-            :loading="publishing"
-            :disabled="!item?.latest_revision"
-            @click="publish"
-          >
-            發布到官網
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </template>
-  </div>
+      </div>
+      <el-form-item label="地址">
+        <el-input v-model="editor.form.value.address" />
+      </el-form-item>
+      <el-form-item label="參觀專線">
+        <el-input v-model="editor.form.value.phone" placeholder="07-000-0000" />
+      </el-form-item>
+      <el-form-item label="一句話簡介">
+        <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />
+      </el-form-item>
+      <el-form-item label="詳細介紹">
+        <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
+      </el-form-item>
+
+      <h3 class="form-section">社群</h3>
+      <el-form-item label="Facebook 粉絲專頁網址">
+        <el-input v-model="editor.form.value.facebook" placeholder="https://www.facebook.com/…" />
+      </el-form-item>
+      <el-form-item label="Facebook 備註">
+        <el-input v-model="editor.form.value.fb_note" placeholder="例如：活動照片與公告" />
+      </el-form-item>
+      <el-form-item label="LINE 官方帳號網址">
+        <el-input v-model="editor.form.value.line" placeholder="https://lin.ee/…" />
+        <span class="field-help">留空代表這一校尚未提供，官網會顯示待補，不會帶入其他校的帳號。</span>
+      </el-form-item>
+    </el-form>
+  </ContentEditor>
 </template>
+
+<style scoped>
+.form-section {
+  margin: 16px 0 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+}
+</style>

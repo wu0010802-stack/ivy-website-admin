@@ -1,51 +1,148 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { CAMPUS_KEYS } from '../api/types'
-import { useAuthStore } from '../stores/auth'
+import { useCampusScope } from '../composables/useCampusScope'
+import PageHeader from '../components/PageHeader.vue'
+import CampusSelect from '../components/CampusSelect.vue'
 
-const authStore = useAuthStore()
-const visibleCampusKeys = computed(() => {
-  if (authStore.user?.role === 'super_admin') return [...CAMPUS_KEYS]
-  return authStore.user?.campus_keys ?? []
-})
-
-const campusKey = ref('')
+const { visibleCampusKeys, selected: campusKey } = useCampusScope()
 const funnel = ref<Record<string, number> | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
 
 async function load() {
   if (!campusKey.value) return
-  funnel.value = await api.get<Record<string, number>>(
-    `/admin/analytics/funnel?campus_key=${campusKey.value}`
-  )
+  loading.value = true
+  error.value = null
+  try {
+    funnel.value = await api.get<Record<string, number>>(`/admin/analytics/funnel?campus_key=${campusKey.value}`)
+  } catch {
+    error.value = '無法讀取統計'
+  } finally {
+    loading.value = false
+  }
 }
 
-watch(campusKey, load)
+watch(campusKey, load, { immediate: true })
 
-onMounted(() => {
-  if (visibleCampusKeys.value.length > 0) {
-    campusKey.value = visibleCampusKeys.value[0]
-  }
+const clicks = computed(() => [
+  { label: 'LINE', value: funnel.value?.cta_click_line ?? 0 },
+  { label: '電話', value: funnel.value?.cta_click_phone ?? 0 },
+  { label: '外部網站', value: funnel.value?.cta_click_external ?? 0 },
+])
+
+const stages = computed(() => {
+  const created = funnel.value?.request_created ?? 0
+  const confirmed = funnel.value?.visit_confirmed ?? 0
+  const completed = funnel.value?.visit_completed ?? 0
+  const max = Math.max(created, confirmed, completed, 1)
+  return [
+    { label: '已送出需求', value: created, ratio: created / max, note: '家長在官網填表' },
+    { label: '已確認預約', value: confirmed, ratio: confirmed / max, note: created ? `${Math.round((confirmed / created) * 100)}% 的需求` : '' },
+    { label: '已完成參觀', value: completed, ratio: completed / max, note: confirmed ? `${Math.round((completed / confirmed) * 100)}% 的確認` : '' },
+  ]
 })
 </script>
 
 <template>
-  <div>
-    <h2>成效統計</h2>
-    <p style="color: var(--el-text-color-secondary)">
-      去識別化事件計數；點擊類事件由訪客端回報，「已建立需求／已確認／已完成」只由伺服器內部流程產生，不接受偽造。
-    </p>
-    <el-select v-model="campusKey" style="margin-bottom: 1rem">
-      <el-option v-for="key in visibleCampusKeys" :key="key" :label="key" :value="key" />
-    </el-select>
+  <div class="page page--narrow">
+    <PageHeader lead="官網預約行為的去識別化計數。點擊由訪客端回報，「已送出／已確認／已完成」只由伺服器流程產生，不會被偽造。" />
 
-    <el-descriptions v-if="funnel" :column="1" border>
-      <el-descriptions-item label="LINE 點擊">{{ funnel.cta_click_line }}</el-descriptions-item>
-      <el-descriptions-item label="電話點擊">{{ funnel.cta_click_phone }}</el-descriptions-item>
-      <el-descriptions-item label="外部網站點擊">{{ funnel.cta_click_external }}</el-descriptions-item>
-      <el-descriptions-item label="已建立需求">{{ funnel.request_created }}</el-descriptions-item>
-      <el-descriptions-item label="已確認預約">{{ funnel.visit_confirmed }}</el-descriptions-item>
-      <el-descriptions-item label="已完成參觀">{{ funnel.visit_completed }}</el-descriptions-item>
-    </el-descriptions>
+    <div class="toolbar">
+      <CampusSelect v-model="campusKey" :keys="visibleCampusKeys" />
+    </div>
+
+    <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
+    <el-skeleton v-else-if="loading && !funnel" animated :rows="5" />
+
+    <template v-else-if="funnel">
+      <section class="panel">
+        <div class="panel__head"><h2>預約流程</h2></div>
+        <ol class="funnel">
+          <li v-for="s in stages" :key="s.label" class="funnel__row">
+            <span class="funnel__label">{{ s.label }}</span>
+            <span class="funnel__track" aria-hidden="true"><span class="funnel__bar" :style="{ width: `${Math.max(2, s.ratio * 100)}%` }" /></span>
+            <span class="funnel__value num">{{ s.value }}</span>
+            <span class="funnel__note">{{ s.note }}</span>
+          </li>
+        </ol>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head"><h2>預約鈕點擊</h2></div>
+        <div class="panel__body stat-list">
+          <div v-for="c in clicks" :key="c.label" class="click">
+            <span class="stat__label">{{ c.label }}</span>
+            <span class="stat__value">{{ c.value }}</span>
+          </div>
+        </div>
+      </section>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.funnel {
+  list-style: none;
+  margin: 0;
+  padding: 8px 24px 16px;
+}
+
+.funnel__row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.funnel__row + .funnel__row {
+  border-top: 1px solid var(--line);
+}
+
+.funnel__label {
+  color: var(--ink-2);
+}
+
+.funnel__track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.funnel__bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--el-color-primary);
+  transition: width 300ms var(--ease-out);
+}
+
+.funnel__value {
+  text-align: right;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.funnel__note {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.click {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .funnel__row {
+    grid-template-columns: 90px minmax(0, 1fr) 48px;
+  }
+
+  .funnel__note {
+    grid-column: 2 / -1;
+  }
+}
+</style>

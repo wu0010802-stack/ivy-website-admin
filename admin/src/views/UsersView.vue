@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
 import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
+import { campusLabel, campusLabels, roleLabel } from '../api/labels'
+import PageHeader from '../components/PageHeader.vue'
 
 const authStore = useAuthStore()
+const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 
 const users = ref<UserOut[]>([])
 const loading = ref(false)
@@ -14,8 +18,7 @@ const creating = ref(false)
 const scopeDialogVisible = ref(false)
 const scopeTarget = ref<UserOut | null>(null)
 const scopeSelection = ref<string[]>([])
-
-const campusKeys = CAMPUS_KEYS
+const togglingId = ref<string | null>(null)
 
 const form = reactive({
   email: '',
@@ -24,12 +27,23 @@ const form = reactive({
   campus_keys: [] as string[],
 })
 
-function isSuperAdmin(): boolean {
-  return authStore.user?.role === 'super_admin'
-}
+const formValid = computed(
+  () =>
+    form.email.includes('@') &&
+    form.password.length >= 12 &&
+    (form.role !== 'campus_admin' || form.campus_keys.length > 0),
+)
+
+const sortedUsers = computed(() =>
+  [...users.value].sort((a, b) => {
+    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1
+    if (a.role !== b.role) return a.role === 'super_admin' ? -1 : 1
+    return a.email.localeCompare(b.email)
+  }),
+)
 
 async function loadUsers() {
-  if (!isSuperAdmin()) return
+  if (!isSuperAdmin.value) return
   loading.value = true
   try {
     users.value = await api.get<UserOut[]>('/admin/users')
@@ -61,17 +75,18 @@ function openCreateDialog() {
 }
 
 async function submitCreate() {
+  if (!formValid.value) return
   creating.value = true
   try {
     const created = await api.post<UserOut>('/admin/users', {
-      email: form.email,
+      email: form.email.trim(),
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'campus_admin' ? form.campus_keys : [],
     })
     users.value.push(created)
     dialogVisible.value = false
-    ElMessage.success('已新增使用者')
+    ElMessage.success(`已新增 ${created.email}`)
   } catch (err) {
     ElMessage.error(errorText(err, '新增使用者失敗'))
   } finally {
@@ -80,14 +95,18 @@ async function submitCreate() {
 }
 
 async function toggleActive(target: UserOut) {
+  togglingId.value = target.id
   try {
     const updated = await api.patch<UserOut>(`/admin/users/${target.id}/active`, {
       is_active: !target.is_active,
     })
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
+    ElMessage.success(updated.is_active ? `已恢復 ${updated.email} 的登入` : `已停用 ${updated.email}`)
   } catch (err) {
     ElMessage.error(errorText(err, '更新啟用狀態失敗'))
+  } finally {
+    togglingId.value = null
   }
 }
 
@@ -112,74 +131,125 @@ async function submitScope() {
   }
 }
 
+function isSelf(u: UserOut): boolean {
+  return u.id === authStore.user?.id
+}
+
 onMounted(loadUsers)
 </script>
 
 <template>
-  <div v-if="!isSuperAdmin()">
-    <el-alert title="沒有權限" type="warning" :closable="false" />
-  </div>
-  <div v-else>
-    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem">
-      <h2>使用者管理</h2>
-      <el-button type="primary" @click="openCreateDialog">新增使用者</el-button>
-    </div>
+  <div class="page">
+    <el-alert v-if="!isSuperAdmin" title="只有總管理者可以管理使用者" type="warning" :closable="false" show-icon />
 
-    <el-table :data="users" v-loading="loading" style="width: 100%">
-      <el-table-column prop="email" label="Email" />
-      <el-table-column prop="role" label="角色" />
-      <el-table-column label="狀態">
-        <template #default="{ row }">{{ row.is_active ? '啟用中' : '已停權' }}</template>
-      </el-table-column>
-      <el-table-column label="校區範圍">
-        <template #default="{ row }">{{ row.campus_keys.join('、') || '—' }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="240">
-        <template #default="{ row }">
-          <el-button size="small" @click="toggleActive(row)">
-            {{ row.is_active ? '停權' : '復權' }}
-          </el-button>
-          <el-button v-if="row.role === 'campus_admin'" size="small" @click="openScopeDialog(row)">
-            編輯校區範圍
-          </el-button>
+    <template v-else>
+      <PageHeader lead="總管理者可以管理全部五校；校區管理者只能看到並修改自己校區的內容與案件。">
+        <template #actions>
+          <el-button type="primary" :icon="Plus" @click="openCreateDialog">新增使用者</el-button>
         </template>
-      </el-table-column>
-    </el-table>
+      </PageHeader>
 
-    <el-dialog v-model="dialogVisible" title="新增使用者">
-      <el-form label-position="top" @submit.prevent="submitCreate">
-        <el-form-item label="Email">
-          <el-input v-model="form.email" type="email" />
-        </el-form-item>
-        <el-form-item label="密碼（至少 12 字元）">
-          <el-input v-model="form.password" type="password" show-password />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="form.role" style="width: 100%">
-            <el-option label="總管理者" value="super_admin" />
-            <el-option label="校區管理者" value="campus_admin" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="form.role === 'campus_admin'" label="校區範圍">
-          <el-checkbox-group v-model="form.campus_keys">
-            <el-checkbox v-for="key in campusKeys" :key="key" :value="key" :label="key" />
-          </el-checkbox-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="submitCreate">送出</el-button>
-      </template>
-    </el-dialog>
+      <div class="panel">
+        <el-table :data="sortedUsers" v-loading="loading" empty-text="尚未建立任何使用者">
+          <el-table-column label="Email" min-width="220">
+            <template #default="{ row }: { row: UserOut }">
+              <span :class="{ muted: !row.is_active }">{{ row.email }}</span>
+              <el-tag v-if="isSelf(row)" size="small" type="info" round class="self-tag">你</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="角色" width="130">
+            <template #default="{ row }: { row: UserOut }">{{ roleLabel(row.role) }}</template>
+          </el-table-column>
+          <el-table-column label="校區範圍" min-width="180">
+            <template #default="{ row }: { row: UserOut }">
+              <span v-if="row.role === 'super_admin'" class="muted">全部校區</span>
+              <span v-else-if="row.campus_keys.length === 0" class="muted">尚未指定</span>
+              <span v-else>{{ campusLabels(row.campus_keys) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="狀態" width="100">
+            <template #default="{ row }: { row: UserOut }">
+              <el-tag :type="row.is_active ? 'success' : 'info'" size="small" round>
+                {{ row.is_active ? '啟用中' : '已停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="200" align="right">
+            <template #default="{ row }: { row: UserOut }">
+              <span class="cell-actions">
+                <el-button v-if="row.role === 'campus_admin'" size="small" text @click="openScopeDialog(row)">
+                  校區範圍
+                </el-button>
+                <el-button
+                  size="small"
+                  text
+                  :type="row.is_active ? 'danger' : 'primary'"
+                  :disabled="isSelf(row)"
+                  :loading="togglingId === row.id"
+                  @click="toggleActive(row)"
+                >
+                  {{ row.is_active ? '停用' : '恢復' }}
+                </el-button>
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
-    <el-dialog v-model="scopeDialogVisible" title="編輯校區範圍">
-      <el-checkbox-group v-model="scopeSelection">
-        <el-checkbox v-for="key in campusKeys" :key="key" :value="key" :label="key" />
-      </el-checkbox-group>
-      <template #footer>
-        <el-button @click="scopeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitScope">儲存</el-button>
-      </template>
-    </el-dialog>
+      <el-dialog v-model="dialogVisible" title="新增使用者" width="440px">
+        <el-form label-position="top" @submit.prevent="submitCreate">
+          <el-form-item label="Email">
+            <el-input v-model="form.email" type="email" autocomplete="off" />
+          </el-form-item>
+          <el-form-item label="密碼">
+            <el-input v-model="form.password" type="password" show-password autocomplete="new-password" />
+            <span class="field-help" :class="{ 'is-ok': form.password.length >= 12 }">
+              至少 12 字元（目前 {{ form.password.length }} 字）。建議建立後請對方自行更換。
+            </span>
+          </el-form-item>
+          <el-form-item label="角色">
+            <el-radio-group v-model="form.role">
+              <el-radio value="campus_admin">校區管理者</el-radio>
+              <el-radio value="super_admin">總管理者</el-radio>
+            </el-radio-group>
+            <span class="field-help">
+              {{ form.role === 'super_admin' ? '可以管理全部校區、使用者與全站設定。' : '只能處理指定校區的內容與參觀案件。' }}
+            </span>
+          </el-form-item>
+          <el-form-item v-if="form.role === 'campus_admin'" label="負責校區">
+            <el-checkbox-group v-model="form.campus_keys">
+              <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
+            </el-checkbox-group>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="creating" :disabled="!formValid" @click="submitCreate">建立帳號</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的校區範圍`" width="440px">
+        <el-checkbox-group v-model="scopeSelection">
+          <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
+        </el-checkbox-group>
+        <p class="hint" style="margin-top: 12px">
+          {{ scopeSelection.length === 0 ? '沒有勾選任何校區時，這位使用者登入後看不到任何內容。' : '' }}
+        </p>
+        <template #footer>
+          <el-button @click="scopeDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitScope">儲存</el-button>
+        </template>
+      </el-dialog>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.self-tag {
+  margin-left: 8px;
+}
+
+.field-help.is-ok {
+  color: var(--el-color-success);
+}
+</style>

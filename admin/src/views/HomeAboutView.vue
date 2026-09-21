@@ -2,48 +2,36 @@
 import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { HomeAboutPayload } from '../api/types'
+import ContentEditor from '../components/ContentEditor.vue'
 
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<HomeAboutPayload>('home_about', {
-    title: '',
-    since_label: '',
-    body_text: '',
-    caption: '',
-  })
+const editor = useContentItem<HomeAboutPayload>('home_about', {
+  title: '',
+  since_label: '',
+  body_text: '',
+  caption: '',
+})
 
-onMounted(load)
+onMounted(editor.load)
 </script>
 
 <template>
-  <div style="max-width: 640px">
-    <h2>首頁「關於常春藤」文字</h2>
-    <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-    <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
+  <ContentEditor :editor="editor">
+    <template #lead>首頁第二屏的理念介紹。標題會用大字顯示，內文分段請用空一行。</template>
 
-    <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
+    <el-form label-position="top" @submit.prevent>
       <el-form-item label="標題">
-        <el-input v-model="form.title" />
+        <el-input v-model="editor.form.value.title" />
       </el-form-item>
-      <el-form-item label="Since 標籤">
-        <el-input v-model="form.since_label" />
+      <el-form-item label="創校標籤">
+        <el-input v-model="editor.form.value.since_label" placeholder="例如：Since 1997" />
       </el-form-item>
       <el-form-item label="內文">
-        <el-input v-model="form.body_text" type="textarea" :rows="8" />
+        <el-input v-model="editor.form.value.body_text" type="textarea" :autosize="{ minRows: 6, maxRows: 16 }" />
       </el-form-item>
-      <el-form-item label="說明文字">
-        <el-input v-model="form.caption" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-        <el-button
-          type="success"
-          :loading="publishing"
-          :disabled="!item?.latest_revision"
-          @click="publish"
-        >
-          發布到官網
-        </el-button>
+      <el-form-item label="照片說明">
+        <el-input v-model="editor.form.value.caption" />
+        <span class="field-help">顯示在孩子照片下方的一句話。</span>
       </el-form-item>
     </el-form>
-  </div>
+  </ContentEditor>
 </template>

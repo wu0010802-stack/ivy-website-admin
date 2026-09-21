@@ -1,39 +1,80 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFileUrl } from '../api/client'
 import { CAMPUS_KEYS } from '../api/types'
 import type { MediaAssetOut } from '../api/types'
+import { campusLabel, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/PageHeader.vue'
+import StatusTag from '../components/StatusTag.vue'
 
 const authStore = useAuthStore()
 const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
+const campusFilter = ref('')
+const kindFilter = ref<'' | 'image' | 'video'>('')
 
 const uploadDialogVisible = ref(false)
 const uploadFile = ref<File | null>(null)
 const uploadKind = ref<'image' | 'video'>('image')
-const uploadCampusKey = ref<string | ''>('')
+const uploadCampusKey = ref('')
 const uploadAlt = ref('')
 const uploading = ref(false)
+const dragOver = ref(false)
+
+const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+
+const visibleAssets = computed(() =>
+  assets.value.filter(
+    (a) =>
+      (!campusFilter.value || a.campus_key === campusFilter.value || (campusFilter.value === '__shared' && a.campus_key === null)) &&
+      (!kindFilter.value || a.kind === kindFilter.value),
+  ),
+)
+
+const filterKeys = computed(() => ['__shared', ...CAMPUS_KEYS])
+function filterLabel(key: string): string {
+  return key === '__shared' ? '跨校共用' : campusLabel(key)
+}
 
 async function load() {
   loading.value = true
   try {
     assets.value = await api.get<MediaAssetOut[]>('/admin/media')
+  } catch {
+    ElMessage.error('無法讀取素材庫')
   } finally {
     loading.value = false
   }
 }
 
+function acceptFile(file: File | null) {
+  uploadFile.value = file
+  if (file) uploadKind.value = file.type.startsWith('video/') ? 'video' : 'image'
+}
+
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
-  uploadFile.value = input.files?.[0] ?? null
+  acceptFile(input.files?.[0] ?? null)
+}
+
+function onDrop(event: DragEvent) {
+  dragOver.value = false
+  acceptFile(event.dataTransfer?.files?.[0] ?? null)
+}
+
+function openUpload() {
+  uploadFile.value = null
+  uploadAlt.value = ''
+  uploadCampusKey.value = campusFilter.value && campusFilter.value !== '__shared' ? campusFilter.value : ''
+  uploadDialogVisible.value = true
 }
 
 async function submitUpload() {
   if (!uploadFile.value) {
-    ElMessage.error('請先選擇檔案')
+    ElMessage.warning('請先選擇檔案')
     return
   }
   const formData = new FormData()
@@ -47,15 +88,11 @@ async function submitUpload() {
     await api.upload<MediaAssetOut>('/admin/media', formData)
     ElMessage.success('已上傳')
     uploadDialogVisible.value = false
-    uploadFile.value = null
-    uploadAlt.value = ''
-    uploadCampusKey.value = ''
     await load()
   } catch (err) {
     if (err instanceof ApiError) {
       const detail = err.detail as { message?: string } | string
-      const message = typeof detail === 'object' ? detail.message : detail
-      ElMessage.error(message ?? '上傳失敗')
+      ElMessage.error((typeof detail === 'object' ? detail.message : detail) ?? '上傳失敗')
     } else {
       ElMessage.error('上傳失敗')
     }
@@ -86,10 +123,8 @@ function pickFocusFromClick(event: MouseEvent) {
   const stage = focusStageRef.value
   if (!stage) return
   const rect = stage.getBoundingClientRect()
-  const x = (event.clientX - rect.left) / rect.width
-  const y = (event.clientY - rect.top) / rect.height
-  editCropFocusX.value = Math.min(1, Math.max(0, x))
-  editCropFocusY.value = Math.min(1, Math.max(0, y))
+  editCropFocusX.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+  editCropFocusY.value = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
 }
 
 async function submitEdit() {
@@ -100,7 +135,7 @@ async function submitEdit() {
       alt_text: editAltText.value || null,
       source_attribution: editSourceAttribution.value || null,
       crop_focus_x: editCropFocusX.value,
-      crop_focus_y: editCropFocusY.value
+      crop_focus_y: editCropFocusY.value,
     })
     ElMessage.success('已儲存')
     editDialogVisible.value = false
@@ -114,8 +149,11 @@ async function submitEdit() {
 
 async function removeAsset(asset: MediaAssetOut) {
   try {
-    await ElMessageBox.confirm(`確定要刪除「${asset.original_filename}」嗎？`, '刪除素材', {
+    await ElMessageBox.confirm(`刪除後無法復原。`, `刪除「${asset.original_filename}」？`, {
+      confirmButtonText: '刪除',
+      cancelButtonText: '取消',
       type: 'warning',
+      confirmButtonClass: 'el-button--danger',
     })
   } catch {
     return
@@ -125,151 +163,116 @@ async function removeAsset(asset: MediaAssetOut) {
     ElMessage.success('已刪除')
     await load()
   } catch (err) {
-    if (err instanceof ApiError && err.status === 409) {
-      ElMessage.error('此素材仍被引用，無法刪除')
-    } else {
-      ElMessage.error('刪除失敗')
-    }
+    ElMessage.error(err instanceof ApiError && err.status === 409 ? '這個素材仍在官網使用中，先在內容頁換掉才能刪除' : '刪除失敗')
   }
 }
-
-const canManage = computed(
-  () => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin'
-)
 
 onMounted(load)
 </script>
 
 <template>
-  <div>
-    <div style="display: flex; justify-content: space-between; align-items: center">
-      <h2>素材庫</h2>
-      <el-button v-if="canManage" type="primary" @click="uploadDialogVisible = true">
-        上傳素材
-      </el-button>
+  <div class="page">
+    <PageHeader lead="官網用的照片與影片。標記了校區的素材只有該校內容能選，跨校共用的每一校都能用；被引用中的素材無法刪除。">
+      <template #actions>
+        <el-button v-if="canManage" type="primary" :icon="Upload" @click="openUpload">上傳素材</el-button>
+      </template>
+    </PageHeader>
+
+    <div class="toolbar">
+      <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
+        <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
+      </el-select>
+      <el-radio-group v-model="kindFilter">
+        <el-radio-button value="">全部</el-radio-button>
+        <el-radio-button value="image">圖片</el-radio-button>
+        <el-radio-button value="video">影片</el-radio-button>
+      </el-radio-group>
+      <span class="toolbar__spacer" />
+      <span class="hint">{{ visibleAssets.length }} 個素材</span>
     </div>
 
-    <el-table :data="assets" v-loading="loading" style="margin-top: 1rem">
-      <el-table-column label="預覽" width="100">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          <img
-            v-if="row.kind === 'image' && row.status === 'ready'"
-            :src="mediaFileUrl(row.id)"
-            style="width: 64px; height: 64px; object-fit: cover"
-          />
-          <el-tag v-else-if="row.kind === 'video'" size="small">影片</el-tag>
-          <el-tag v-else type="info" size="small">{{ row.status }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="original_filename" label="檔名" />
-      <el-table-column label="校區">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          {{ row.campus_key ?? '共用' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="狀態">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          <el-tag :type="row.status === 'ready' ? 'success' : row.status === 'failed' ? 'danger' : 'info'">
-            {{ row.status }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="引用數">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          <el-tag v-if="row.usage_count > 0" type="warning">{{ row.usage_count }}</el-tag>
-          <span v-else>0</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="大小">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          {{ Math.round(row.size_bytes / 1024) }} KB
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="160">
-        <template #default="{ row }: { row: MediaAssetOut }">
-          <el-button
-            v-if="canManage && row.kind === 'image' && row.status === 'ready'"
-            size="small"
-            @click="openEditDialog(row)"
-          >
-            編輯焦點
-          </el-button>
-          <el-button
-            v-if="canManage"
-            size="small"
-            type="danger"
-            :disabled="row.usage_count > 0"
-            @click="removeAsset(row)"
-          >
-            刪除
-          </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && visibleAssets.length === 0 }">
+      <el-empty v-if="!loading && visibleAssets.length === 0" :description="assets.length === 0 ? '素材庫還是空的，先上傳第一張照片' : '沒有符合篩選的素材'" />
 
-    <el-dialog v-model="uploadDialogVisible" title="上傳素材">
-      <el-form label-position="top">
+      <article v-for="asset in visibleAssets" :key="asset.id" class="media">
+        <div class="media__thumb">
+          <img v-if="asset.kind === 'image' && asset.status === 'ready'" :src="mediaFileUrl(asset.id)" :alt="asset.alt_text ?? ''" loading="lazy" />
+          <div v-else class="media__placeholder">
+            <span>{{ asset.kind === 'video' ? '影片' : mediaStatus(asset.status).label }}</span>
+          </div>
+          <StatusTag v-if="asset.status !== 'ready'" :meta="mediaStatus(asset.status)" size="small" class="media__status" />
+          <span v-if="asset.usage_count > 0" class="media__usage" :title="`被 ${asset.usage_count} 處內容引用`">使用中 {{ asset.usage_count }}</span>
+        </div>
+        <div class="media__meta">
+          <strong class="media__name" :title="asset.original_filename">{{ asset.original_filename }}</strong>
+          <span class="media__sub">
+            {{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}・{{ formatFileSize(asset.size_bytes) }}<template v-if="asset.width && asset.height">・{{ asset.width }}×{{ asset.height }}</template>
+          </span>
+          <span v-if="!asset.alt_text && asset.kind === 'image'" class="media__warn">未填替代文字</span>
+        </div>
+        <div v-if="canManage" class="media__actions">
+          <el-button v-if="asset.kind === 'image' && asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
+          <el-tooltip :content="asset.usage_count > 0 ? '仍在使用中，無法刪除' : '刪除'" placement="top">
+            <span>
+              <el-button size="small" text type="danger" :disabled="asset.usage_count > 0" @click="removeAsset(asset)">刪除</el-button>
+            </span>
+          </el-tooltip>
+        </div>
+      </article>
+    </div>
+
+    <el-dialog v-model="uploadDialogVisible" title="上傳素材" width="480px">
+      <el-form label-position="top" @submit.prevent="submitUpload">
         <el-form-item label="檔案">
-          <input type="file" accept="image/*,video/mp4" @change="onFileChange" />
+          <label
+            class="drop"
+            :class="{ 'is-over': dragOver, 'has-file': uploadFile }"
+            @dragover.prevent="dragOver = true"
+            @dragleave="dragOver = false"
+            @drop.prevent="onDrop"
+          >
+            <input type="file" accept="image/*,video/mp4" class="drop__input" @change="onFileChange" />
+            <template v-if="uploadFile">
+              <strong>{{ uploadFile.name }}</strong>
+              <span class="hint">{{ formatFileSize(uploadFile.size) }}・點擊可更換</span>
+            </template>
+            <template v-else>
+              <strong>拖曳檔案到這裡，或點擊選擇</strong>
+              <span class="hint">JPG、PNG、WebP 或 MP4</span>
+            </template>
+          </label>
         </el-form-item>
-        <el-form-item label="種類">
-          <el-select v-model="uploadKind">
-            <el-option label="圖片" value="image" />
-            <el-option label="影片" value="video" />
+        <el-form-item label="校區">
+          <el-select v-model="uploadCampusKey" placeholder="跨校共用" clearable style="width: 100%">
+            <el-option v-for="key in CAMPUS_KEYS" :key="key" :label="campusLabel(key)" :value="key" />
           </el-select>
+          <span class="field-help">留空代表每一校的內容都能選用。</span>
         </el-form-item>
-        <el-form-item label="校區（留空代表跨校共用）">
-          <el-select v-model="uploadCampusKey" clearable>
-            <el-option v-for="key in CAMPUS_KEYS" :key="key" :label="key" :value="key" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Alt 文字">
-          <el-input v-model="uploadAlt" />
+        <el-form-item v-if="uploadKind === 'image'" label="替代文字">
+          <el-input v-model="uploadAlt" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
+          <span class="field-help">給看不見圖片的家長與搜尋引擎用，建議填寫。</span>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="uploadDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="submitUpload">上傳</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="!uploadFile" @click="submitUpload">上傳</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="editDialogVisible" title="編輯素材" width="480px">
+    <el-dialog v-model="editDialogVisible" title="編輯素材" width="520px">
       <el-form v-if="editingAsset" label-position="top">
-        <el-form-item label="裁切焦點（點圖片指定畫面該保留的重點；影響裁切時的置中位置）">
-          <div
-            ref="focusStageRef"
-            style="position: relative; width: 100%; aspect-ratio: 4 / 3; cursor: crosshair; overflow: hidden; border: 1px solid var(--el-border-color)"
-            @click="pickFocusFromClick"
-          >
-            <img
-              :src="mediaFileUrl(editingAsset.id)"
-              style="width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none"
-            />
-            <div
-              :style="{
-                position: 'absolute',
-                left: `${editCropFocusX * 100}%`,
-                top: `${editCropFocusY * 100}%`,
-                transform: 'translate(-50%, -50%)',
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                border: '2px solid #fff',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.6)',
-                background: 'rgba(255, 61, 61, 0.85)',
-                pointerEvents: 'none'
-              }"
-            />
+        <el-form-item label="裁切焦點">
+          <div ref="focusStageRef" class="focus" @click="pickFocusFromClick">
+            <img :src="mediaFileUrl(editingAsset.id)" alt="" />
+            <span class="focus__pin" :style="{ left: `${editCropFocusX * 100}%`, top: `${editCropFocusY * 100}%` }" />
           </div>
-          <small style="color: var(--el-text-color-secondary)">
-            目前焦點：x={{ editCropFocusX.toFixed(2) }}，y={{ editCropFocusY.toFixed(2) }}（0～1，左上為原點）
-          </small>
+          <span class="field-help">點照片上最重要的位置。官網把照片裁成不同比例時，會盡量保留這一點。</span>
         </el-form-item>
-        <el-form-item label="Alt 文字">
+        <el-form-item label="替代文字">
           <el-input v-model="editAltText" />
         </el-form-item>
         <el-form-item label="來源標註">
-          <el-input v-model="editSourceAttribution" />
+          <el-input v-model="editSourceAttribution" placeholder="例如：義華校 2026 春季攝影" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -279,3 +282,156 @@ onMounted(load)
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  min-height: 160px;
+}
+
+.media-grid.is-empty {
+  display: block;
+}
+
+.media {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.media__thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--surface-3);
+}
+
+.media__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media__placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.media__status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+.media__usage {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: oklch(0.2 0.02 150 / 0.7);
+  color: oklch(0.98 0 0);
+  font-size: 11px;
+}
+
+.media__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 6px;
+  min-width: 0;
+}
+
+.media__name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media__sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.media__warn {
+  font-size: 12px;
+  color: var(--brand-gold-ink);
+}
+
+.media__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 8px 8px;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 24px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+
+.drop.is-over,
+.drop:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.drop.has-file {
+  border-style: solid;
+}
+
+.drop__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.focus {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius);
+  cursor: crosshair;
+}
+
+.focus img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.focus__pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border: 2px solid oklch(1 0 0);
+  border-radius: 50%;
+  background: var(--brand-gold);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.5), 0 0 6px oklch(0 0 0 / 0.5);
+  pointer-events: none;
+}
+</style>

@@ -2,48 +2,39 @@
 import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { SiteMetaPayload } from '../api/types'
+import ContentEditor from '../components/ContentEditor.vue'
 
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<SiteMetaPayload>('site_meta', {
-    title: '',
-    description: '',
-    header_phone_number: '',
-    header_phone_note: '',
-  })
+const editor = useContentItem<SiteMetaPayload>('site_meta', {
+  title: '',
+  description: '',
+  header_phone_number: '',
+  header_phone_note: '',
+})
 
-onMounted(load)
+onMounted(editor.load)
 </script>
 
 <template>
-  <div style="max-width: 640px">
-    <h2>網站標題與聯絡電話</h2>
-    <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-    <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
+  <ContentEditor :editor="editor">
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱，以及頁首右上角的聯絡電話。</template>
 
-    <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
-      <el-form-item label="網站標題（瀏覽器分頁、SEO title）">
-        <el-input v-model="form.title" />
+    <el-form label-position="top" @submit.prevent>
+      <el-form-item label="網站標題">
+        <el-input v-model="editor.form.value.title" maxlength="40" show-word-limit />
+        <span class="field-help">會出現在瀏覽器分頁與 Google 搜尋結果標題。</span>
       </el-form-item>
-      <el-form-item label="網站描述（SEO description）">
-        <el-input v-model="form.description" type="textarea" :rows="3" />
+      <el-form-item label="網站描述">
+        <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="160" show-word-limit />
+        <span class="field-help">搜尋結果標題下方那段摘要，建議 60 到 120 字。</span>
       </el-form-item>
-      <el-form-item label="頁首電話號碼">
-        <el-input v-model="form.header_phone_number" />
-      </el-form-item>
-      <el-form-item label="頁首電話備註（例如：服務時間）">
-        <el-input v-model="form.header_phone_note" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-        <el-button
-          type="success"
-          :loading="publishing"
-          :disabled="!item?.latest_revision"
-          @click="publish"
-        >
-          發布到官網
-        </el-button>
-      </el-form-item>
+      <div class="field-row">
+        <el-form-item label="頁首電話">
+          <el-input v-model="editor.form.value.header_phone_number" placeholder="07-000-0000" />
+        </el-form-item>
+        <el-form-item label="電話備註">
+          <el-input v-model="editor.form.value.header_phone_note" placeholder="例如：週一至週五 9:00–17:00" />
+        </el-form-item>
+      </div>
     </el-form>
-  </div>
+  </ContentEditor>
 </template>

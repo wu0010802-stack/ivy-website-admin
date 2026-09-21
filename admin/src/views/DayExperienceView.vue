@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { DayExperiencePayload } from '../api/types'
+import ContentEditor from '../components/ContentEditor.vue'
+
+const MAX_MOMENTS = 12
 
 function newMoment() {
   return {
@@ -16,106 +20,102 @@ function newMoment() {
   }
 }
 
-const { item, form, saving, publishing, isPublished, load, save, publish } =
-  useContentItem<DayExperiencePayload>('day_experience', {
-    eyebrow: '',
-    eyebrow_en: '',
-    note: '',
-    source_note: '',
-    moments: [newMoment()],
-  })
+const editor = useContentItem<DayExperiencePayload>('day_experience', {
+  eyebrow: '',
+  eyebrow_en: '',
+  note: '',
+  source_note: '',
+  moments: [newMoment()],
+})
 
 function addMoment() {
-  form.value.moments.push(newMoment())
+  editor.form.value.moments.push(newMoment())
 }
 
 function removeMoment(index: number) {
-  form.value.moments.splice(index, 1)
+  editor.form.value.moments.splice(index, 1)
 }
 
-onMounted(load)
+onMounted(editor.load)
 </script>
 
 <template>
-  <div style="max-width: 720px">
-    <h2>孩子的一天：文字內容</h2>
-    <el-tag v-if="isPublished" type="success">目前草稿已發布</el-tag>
-    <el-tag v-else type="warning">尚有未發布的草稿</el-tag>
-    <p style="color: var(--el-text-color-secondary)">
-      這裡只改文字（1～12 筆時刻卡）；影片與照片素材仍在官網程式碼中設定，尚未接上素材庫。
-      <strong>新增超過官網目前既有照片卡數量的筆數，官網不會顯示</strong>（沒有對應照片，避免出現破圖），
-      建議先確認官網目前有幾張照片卡再決定要不要新增。
-    </p>
+  <ContentEditor :editor="editor">
+    <template #lead>
+      首頁「孩子的一天」的文字。照片與背景影片仍由官網程式提供、尚未接素材庫，所以
+      <strong>時刻卡的數量要對得上官網現有的照片張數</strong>，多出來的卡片官網不會顯示。
+    </template>
 
-    <el-form label-position="top" style="margin-top: 1rem" @submit.prevent>
-      <el-form-item label="Eyebrow（中文）">
-        <el-input v-model="form.eyebrow" />
-      </el-form-item>
-      <el-form-item label="Eyebrow（英文）">
-        <el-input v-model="form.eyebrow_en" />
-      </el-form-item>
+    <el-form label-position="top" @submit.prevent>
+      <div class="field-row">
+        <el-form-item label="小標（中文）">
+          <el-input v-model="editor.form.value.eyebrow" placeholder="例如：孩子的一天" />
+        </el-form-item>
+        <el-form-item label="小標（英文）">
+          <el-input v-model="editor.form.value.eyebrow_en" placeholder="A DAY AT IVY" />
+        </el-form-item>
+      </div>
       <el-form-item label="說明文字">
-        <el-input v-model="form.note" />
+        <el-input v-model="editor.form.value.note" />
       </el-form-item>
       <el-form-item label="影片來源標註">
-        <el-input v-model="form.source_note" />
+        <el-input v-model="editor.form.value.source_note" placeholder="例如：影片攝於義華校，2026 春" />
       </el-form-item>
 
-      <h3>時刻卡（{{ form.moments.length }} 筆）</h3>
-      <el-card
-        v-for="(moment, index) in form.moments"
-        :key="moment.key"
-        style="margin-bottom: 1rem"
-      >
-        <template #header>
-          <div style="display: flex; justify-content: space-between; align-items: center">
-            <span>#{{ index + 1 }}（key：{{ moment.key }}）</span>
-            <el-button
-              size="small"
-              type="danger"
-              :disabled="form.moments.length <= 1"
-              @click="removeMoment(index)"
-            >
-              移除
-            </el-button>
-          </div>
-        </template>
-        <el-form-item label="時間">
-          <el-input v-model="moment.time" placeholder="例如：08:00" />
-        </el-form-item>
-        <el-form-item label="標籤">
-          <el-input v-model="moment.label" placeholder="例如：早晨" />
-        </el-form-item>
-        <el-form-item label="拍立得標題">
-          <el-input v-model="moment.title" />
-        </el-form-item>
-        <el-form-item label="拍立得說明">
-          <el-input v-model="moment.caption" />
-        </el-form-item>
-        <el-form-item label="故事文字">
-          <el-input v-model="moment.story" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="提問">
-          <el-input v-model="moment.question" />
-        </el-form-item>
-        <el-form-item label="回答">
-          <el-input v-model="moment.answer" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-card>
+      <div class="section__title" style="margin-top: 20px">
+        <h2>時刻卡</h2>
+        <span class="hint">{{ editor.form.value.moments.length }} / {{ MAX_MOMENTS }} 張</span>
+      </div>
 
-      <el-button :disabled="form.moments.length >= 12" @click="addMoment">新增一筆時刻卡</el-button>
+      <div v-for="(moment, index) in editor.form.value.moments" :key="moment.key" class="repeat-item">
+        <div class="repeat-item__head">
+          <span class="repeat-item__index">
+            <b>{{ index + 1 }}</b>
+            {{ moment.time || '時間未填' }}{{ moment.label ? `・${moment.label}` : '' }}
+          </span>
+          <el-button
+            text
+            size="small"
+            type="danger"
+            :icon="Delete"
+            :disabled="editor.form.value.moments.length <= 1"
+            @click="removeMoment(index)"
+          >
+            移除
+          </el-button>
+        </div>
+        <div class="field-row">
+          <el-form-item label="時間">
+            <el-input v-model="moment.time" placeholder="08:00" />
+          </el-form-item>
+          <el-form-item label="時段名稱">
+            <el-input v-model="moment.label" placeholder="例如：早晨" />
+          </el-form-item>
+        </div>
+        <div class="field-row">
+          <el-form-item label="拍立得標題">
+            <el-input v-model="moment.title" />
+          </el-form-item>
+          <el-form-item label="拍立得說明">
+            <el-input v-model="moment.caption" />
+          </el-form-item>
+        </div>
+        <el-form-item label="翻面後的故事">
+          <el-input v-model="moment.story" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+        </el-form-item>
+        <div class="field-row">
+          <el-form-item label="家長常問">
+            <el-input v-model="moment.question" />
+          </el-form-item>
+          <el-form-item label="我們的回答">
+            <el-input v-model="moment.answer" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
+          </el-form-item>
+        </div>
+      </div>
 
-      <el-form-item style="margin-top: 1.5rem">
-        <el-button type="primary" :loading="saving" @click="save">儲存草稿</el-button>
-        <el-button
-          type="success"
-          :loading="publishing"
-          :disabled="!item?.latest_revision"
-          @click="publish"
-        >
-          發布到官網
-        </el-button>
-      </el-form-item>
+      <el-button :icon="Plus" :disabled="editor.form.value.moments.length >= MAX_MOMENTS" @click="addMoment">
+        新增一張時刻卡
+      </el-button>
     </el-form>
-  </div>
+  </ContentEditor>
 </template>
