@@ -1,13 +1,16 @@
 import type { Campus, SiteContent } from '~/types/site-content'
 import { normalizeSiteOrigin, pageSeo, serializeJsonLd } from '~/utils/seo'
-import { responsiveImage } from '~/utils/responsive-image'
+import { HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
 
 export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>) {
   const config = useRuntimeConfig()
   const origin = normalizeSiteOrigin(config.public.siteOrigin)
   const indexable = config.public.indexingEnabled && Boolean(origin)
   const seo = computed(() => site.value ? pageSeo(site.value, origin, campus?.value) : undefined)
-  const hero = computed(() => site.value ? responsiveImage(campus?.value?.image ?? site.value.home.hero.heroImage) : undefined)
+  // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue／分校頁 hero-photo）。
+  const hero = computed(() => site.value
+    ? (campus?.value ? responsiveImage(campus.value.image) : responsiveImage(site.value.home.hero.heroImage, HOME_HERO_SIZES))
+    : undefined)
   useSeoMeta({
     title: () => seo.value?.title,
     description: () => seo.value?.description,

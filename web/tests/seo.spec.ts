@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
-import { normalizeSiteOrigin, pageSeo, serializeJsonLd, sitemapXml } from '../app/utils/seo'
+import { normalizeSiteOrigin, ogImagePath, pageSeo, serializeJsonLd, sitemapXml } from '../app/utils/seo'
 import { publishedContent } from '../app/utils/published-content'
 
 const site = fixture as unknown as SiteContent
@@ -24,6 +25,22 @@ describe('公開搜尋資料', () => {
     expect(school).not.toHaveProperty('openingHours')
     expect(school).not.toHaveProperty('aggregateRating')
     expect(result.graph.find((item) => item['@type'] === 'BreadcrumbList')).toBeTruthy()
+  })
+  it('首頁 JSON-LD 為每一所已發布校區列出 Preschool，地址電話取自內容、分享圖為 1200×630 JPG 且檔案存在', () => {
+    const result = pageSeo(site, 'https://ivy.example')
+    const schools = result.graph.filter((item) => item['@type'] === 'Preschool')
+    expect(schools).toHaveLength(site.campuses.length)
+    for (const campus of site.campuses) {
+      const school = schools.find((item) => item['@id'] === `https://ivy.example/campuses/${campus.key}#school`)!
+      expect(school.address).toMatchObject({ streetAddress: campus.address })
+      expect(school.telephone).toBe(campus.phone)
+      expect(school.image).toBe(`https://ivy.example${ogImagePath(campus.image)}`)
+      expect(existsSync(new URL(`../public${ogImagePath(campus.image)}`, import.meta.url))).toBe(true)
+    }
+    expect(result.image).toMatch(/\/assets\/og\/[\w-]+\.jpg$/)
+    expect(existsSync(new URL(`../public${ogImagePath(site.home.hero.heroImage)}`, import.meta.url))).toBe(true)
+    // 分校頁只列該校，不重複整份清單。
+    expect(pageSeo(site, 'https://ivy.example', site.campuses[0]!).graph.filter((item) => item['@type'] === 'Preschool')).toHaveLength(1)
   })
   it('CMS 文字不能關閉 JSON-LD script；解析後保留原文', () => {
     const value = { name: '</script><script>alert(1)</script>&' }

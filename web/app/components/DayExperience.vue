@@ -184,7 +184,7 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" aria-hidden="true">
-          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" alt="" decoding="async">
+          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" fetchpriority="low" alt="" decoding="async">
           <video
             v-if="showVideo"
             ref="videoEl"

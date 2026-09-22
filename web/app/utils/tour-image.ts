@@ -1,3 +1,5 @@
+import { responsiveImage } from './responsive-image'
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
@@ -14,4 +16,14 @@ export function resolveTourImageSrc(image: string): string {
     return `/api/website/v1/public/media/${image}/file`
   }
   return `/assets/${image}.webp`
+}
+
+/**
+ * 給 `<img v-bind>` 用：fixture 代號有響應式衍生檔就帶 srcset／sizes／
+ * width／height（導覽主圖與縮圖原本一律載 960px 母檔，Lighthouse 估
+ * 分校頁可省約 250 KB）；媒體庫 UUID 只有單一原檔，維持 src。
+ */
+export function resolveTourImage(image: string, sizes: string): Record<string, string | number | undefined> {
+  if (UUID_PATTERN.test(image)) return { src: resolveTourImageSrc(image) }
+  return responsiveImage(image, sizes)
 }

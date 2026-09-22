@@ -2,6 +2,15 @@ import manifest from '../generated/image-manifest.json'
 
 interface ImageInfo { width: number; height: number; candidates: { src: string; width: number }[] }
 
+/**
+ * 首頁 hero 圖：首屏明亮版（DESIGN.md 2026-09-16）在所有斷點都是滿版
+ * 照片（`.studio-hero-image{position:absolute;inset:0}`），Playwright 實測
+ * 390 與 1440 的 img 都等於視窗寬，所以 sizes 就是 100vw。
+ * `<img sizes>` 與 usePageSeo 的 `<link rel=preload imagesizes>` 必須用
+ * 同一份，否則預載與實際選到的候選檔會不同、多下載一張。
+ */
+export const HOME_HERO_SIZES = '100vw'
+
 export function responsiveImage(name: string, sizes = '100vw') {
   const info = (manifest as Record<string, ImageInfo>)[name]
   return {

@@ -50,22 +50,38 @@ const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
 const developMs = () => (window.matchMedia('(max-width: 760px)').matches ? DEVELOP_MS_MOBILE : DEVELOP_MS)
 const SEGMENTS = 28
+// 顯影改成「預先畫好幾個中間格、每幀只做兩格的 alpha 交叉淡化」：原本每幀用
+// ctx.filter（sepia/contrast/blur）重畫整張照片，手機 4x 節流下一幀就要 100 ms 以上。
+// 六格（0、.2、…、1）在 3.2 秒的淡入裡肉眼看不出與逐幀濾鏡的差別；格子用到才畫。
+const DEVELOP_STAGES = 6
+// 觸控裝置貼圖與畫布上限 1.5x：卡片寬 330px 時貼圖從 990px 降到 495px，
+// 貼圖繪製與 drawImage 複製都省一半以上；桌機維持 2x。
+const coarsePointer = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches
+const pixelRatio = () => Math.min(window.devicePixelRatio || 1, coarsePointer() ? 1.5 : 2)
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
 let threePromise: Promise<Three | null> | null = null
-let shared: { renderer: ThreeNS.WebGLRenderer; three: Three; users: number } | null = null
+let shared: { renderer: ThreeNS.WebGLRenderer; three: Three; users: number; warm: { scene: ThreeNS.Scene; camera: ThreeNS.PerspectiveCamera } } | null = null
 
+// 探測結果整頁只算一次：每次 getContext('webgl') 都是真的建一個 GL context（低階裝置
+// 上百毫秒，而且要等 GC 才釋放），六張卡各探一次太浪費。
+let webglProbe: boolean | undefined
 function canUseWebGL(): boolean {
   if (typeof window === 'undefined') return false
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false
-  if (!('WebGLRenderingContext' in window)) return false
+  if (webglProbe !== undefined) return webglProbe
+  if (!('WebGLRenderingContext' in window)) return (webglProbe = false)
   try {
     const probe = document.createElement('canvas')
-    return Boolean(probe.getContext('webgl2') || probe.getContext('webgl'))
+    const gl = probe.getContext('webgl2') || probe.getContext('webgl')
+    webglProbe = Boolean(gl)
+    gl?.getExtension('WEBGL_lose_context')?.loseContext()
   } catch {
-    return false
+    webglProbe = false
   }
+  return webglProbe
 }
 
 function loadThree(): Promise<Three | null> {
@@ -81,19 +97,57 @@ function loadThree(): Promise<Three | null> {
 function acquireRenderer(three: Three) {
   if (!shared) {
     const renderer = new three.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.setPixelRatio(pixelRatio())
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = three.PCFShadowMap
-    shared = { renderer, three, users: 0 }
+    shared = { renderer, three, users: 0, warm: buildWarmScene(three) }
+    // 先把紙與地板用到的 shader program 編好並一直持有：three 會在同 program 的
+    // 材質全部 dispose 時釋放 program，觸控裝置的掛載名額（paper-budget）卸掉卡片後，
+    // 下一張重掛就得重新編譯（4x 節流實測單幀 1 s 以上）。這個暖身場景的材質永不
+    // dispose，program 就一直留在快取裡。燈光組合與材質參數必須跟 buildScene 一致。
+    void renderer.compileAsync(shared.warm.scene, shared.warm.camera).catch(() => {})
   }
   shared.users += 1
   return shared.renderer
+}
+
+function buildWarmScene(three: Three) {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 2
+  const tex = new three.CanvasTexture(canvas)
+  tex.colorSpace = three.SRGBColorSpace
+  const scene = new three.Scene()
+  const paper = new three.Mesh(new three.PlaneGeometry(1, 1, 1, 1), new three.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0, alphaTest: 0.5 }))
+  paper.castShadow = true
+  scene.add(paper)
+  const floor = new three.Mesh(new three.PlaneGeometry(2, 2), new three.ShadowMaterial({ opacity: 0.28 }))
+  floor.receiveShadow = true
+  scene.add(floor)
+  scene.add(new three.AmbientLight(0xffffff, 1.35))
+  const key = new three.DirectionalLight(0xfff4e0, 1.6)
+  key.castShadow = true
+  key.shadow.mapSize.set(512, 512)
+  scene.add(key)
+  scene.add(new three.PointLight(0xffffff, 0, 10, 1.4))
+  const camera = new three.PerspectiveCamera(24, 1, 10, 100)
+  return { scene, camera }
 }
 
 function releaseRenderer() {
   if (!shared) return
   shared.users -= 1
   if (shared.users <= 0) {
+    shared.warm.scene.traverse((obj) => {
+      const mesh = obj as ThreeNS.Mesh
+      if (mesh.isMesh) {
+        mesh.geometry.dispose()
+        const material = mesh.material as ThreeNS.MeshStandardMaterial
+        material.map?.dispose()
+        material.dispose()
+      }
+      const light = obj as ThreeNS.DirectionalLight
+      if (light.isDirectionalLight) light.shadow.dispose()
+    })
     shared.renderer.dispose()
     shared = null
   }
@@ -211,7 +265,7 @@ export async function mountPaper(
   // import／圖片／字型等待期間可能又開始滑動或離頁，避免此時建立場景。
   if (!wrap.isConnected || (initial.canMount && !initial.canMount())) return null
 
-  const DPR = Math.min(window.devicePixelRatio || 1, 2)
+  const DPR = pixelRatio()
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
   const renderer = acquireRenderer(three)
 
@@ -223,7 +277,7 @@ export async function mountPaper(
   let disposed = false
 
   // 每次尺寸變動就整組重建（貼圖尺寸與幾何都綁著像素寬）
-  let scene: ReturnType<typeof buildScene> | null = null
+  let scene: Awaited<ReturnType<typeof buildScene>> | null = null
   let resizeFrame = 0
   let lastWidth = 0
 
@@ -238,7 +292,10 @@ export async function mountPaper(
     return null
   }
 
-  function buildScene() {
+  // 分三段各讓出主執行緒一次：量版位＋畫貼圖 → 建 three 場景 → 非同步編譯 shader
+  // （compileAsync 用 KHR_parallel_shader_compile 輪詢，不在第一幀 render 時同步等 link）。
+  // 4x CPU 節流實測第一張卡原本單一 LoAF 1.6 s。
+  async function buildScene() {
     const { W, H, style, box } = measureFlatPrint(wrap, () => {
       const frontRect = front!.getBoundingClientRect()
       const W = Math.round(frontRect.width)
@@ -302,13 +359,16 @@ export async function mountPaper(
     if (!W || !H) return null
     const VW = W + MARGIN * 2
     const VH = H + MARGIN * 2
-
-    view.width = VW * DPR
-    view.height = VH * DPR
-    view.style.width = `${VW}px`
-    view.style.height = `${VH}px`
-    view.style.left = `${-MARGIN}px`
-    view.style.top = `${-MARGIN}px`
+    // 顯示畫布的尺寸留到場景建好（最後一個 await 之後）才改：rebuild 期間舊場景還在畫，
+    // 這裡先重設 width/height 會把畫布清空或拉伸，轉向／拉視窗時卡片會閃一下。
+    const sizeView = () => {
+      view.width = VW * DPR
+      view.height = VH * DPR
+      view.style.width = `${VW}px`
+      view.style.height = `${VH}px`
+      view.style.left = `${-MARGIN}px`
+      view.style.top = `${-MARGIN}px`
+    }
 
     const frontCanvas = document.createElement('canvas')
     const backCanvas = document.createElement('canvas')
@@ -402,6 +462,47 @@ export async function mountPaper(
       }
     }
 
+    const cover = Math.max(box.figure.w / img!.naturalWidth, box.figure.h / img!.naturalHeight)
+    const photoW = img!.naturalWidth * cover
+    const photoH = img!.naturalHeight * cover
+    // 相紙底＋照片（依顯影程度加濾鏡與透明度）＋乳白覆蓋層，畫在 (ox, oy) 起的相片區。
+    function drawDeveloping(ctx: CanvasRenderingContext2D, d: number, ox = box.figure.x, oy = box.figure.y) {
+      const f = box.figure
+      setFill(ctx, style.figureBg, '#e8e2d2')
+      ctx.fillRect(ox, oy, f.w, f.h)
+      ctx.filter =
+        d >= 1
+          ? 'none'
+          : `sepia(${(1 - d) * 0.55}) contrast(${0.28 + 0.72 * d}) brightness(${1.55 - 0.55 * d}) saturate(${0.35 + 0.65 * d}) blur(${(1 - d) * 2.5}px)`
+      ctx.globalAlpha = 0.28 + 0.72 * d
+      ctx.drawImage(img!, ox + (f.w - photoW) / 2, oy + (f.h - photoH) * 0.4, photoW, photoH)
+      ctx.filter = 'none'
+      ctx.globalAlpha = 1
+      if (d < 1) {
+        ctx.fillStyle = `rgba(226,233,231,${(1 - d) * 0.8})`
+        ctx.fillRect(ox, oy, f.w, f.h)
+      }
+    }
+    // 顯影中間格（用到才畫，一格一次濾鏡；顯影完成後釋放）
+    const stages: (HTMLCanvasElement | null)[] = Array.from({ length: DEVELOP_STAGES }, () => null)
+    function developStage(i: number): HTMLCanvasElement {
+      let stage = stages[i]
+      if (!stage) {
+        const f = box.figure
+        stage = document.createElement('canvas')
+        stage.width = Math.max(1, Math.ceil(f.w * DPR))
+        stage.height = Math.max(1, Math.ceil(f.h * DPR))
+        const sctx = stage.getContext('2d')!
+        sctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+        sctx.beginPath()
+        sctx.rect(0, 0, f.w, f.h)
+        sctx.clip()
+        drawDeveloping(sctx, i / (DEVELOP_STAGES - 1), 0, 0)
+        stages[i] = stage
+      }
+      return stage
+    }
+
     // 紙底與標題不隨顯影改變，只在建場／寬度改變時繪製一次。
     // 每幀只更新照片框，保留原本的濾鏡、說明籤與時間戳顯影。
     function drawPhoto(develop: number, isActive: boolean) {
@@ -419,25 +520,25 @@ export async function mountPaper(
       setFill(ctx, style.figureBg, '#e8e2d2')
       ctx.fillRect(f.x, f.y, f.w, f.h)
       // 照片顯影：從糊、淡、偏黃慢慢到清楚（跟 .print-photo 的 CSS 同參數）
-      const cover = Math.max(f.w / img!.naturalWidth, f.h / img!.naturalHeight)
-      const dw = img!.naturalWidth * cover
-      const dh = img!.naturalHeight * cover
       ctx.save()
       ctx.beginPath()
       ctx.rect(f.x, f.y, f.w, f.h)
       ctx.clip()
       const d = develop
-      ctx.filter =
-        d >= 1
-          ? 'none'
-          : `sepia(${(1 - d) * 0.55}) contrast(${0.28 + 0.72 * d}) brightness(${1.55 - 0.55 * d}) saturate(${0.35 + 0.65 * d}) blur(${(1 - d) * 2.5}px)`
-      ctx.globalAlpha = 0.28 + 0.72 * d
-      ctx.drawImage(img!, f.x + (f.w - dw) / 2, f.y + (f.h - dh) * 0.4, dw, dh)
-      ctx.filter = 'none'
-      ctx.globalAlpha = 1
-      if (d < 1) {
-        ctx.fillStyle = `rgba(226,233,231,${(1 - d) * 0.8})`
-        ctx.fillRect(f.x, f.y, f.w, f.h)
+      if (d >= 1) {
+        drawDeveloping(ctx, 1)
+        stages.fill(null)
+      } else {
+        // 兩個相鄰中間格交叉淡化（格子含不透明相紙底，alpha 疊加就是線性插值）
+        const pos = d * (DEVELOP_STAGES - 1)
+        const lo = Math.floor(pos)
+        const hi = Math.min(DEVELOP_STAGES - 1, lo + 1)
+        ctx.drawImage(developStage(lo), f.x, f.y, f.w, f.h)
+        if (hi !== lo && pos - lo > 0.001) {
+          ctx.globalAlpha = pos - lo
+          ctx.drawImage(developStage(hi), f.x, f.y, f.w, f.h)
+          ctx.globalAlpha = 1
+        }
       }
       const gloss = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.6, f.y + f.h)
       gloss.addColorStop(0, 'rgba(255,255,255,.18)')
@@ -589,6 +690,8 @@ export async function mountPaper(
     drawPhoto(develop, active)
     drawBack()
     updateTextures()
+    await nextFrame()
+    if (disposed) return null
     const frontTex = new three.CanvasTexture(frontCanvas)
     const backTex = new three.CanvasTexture(backCanvas)
     frontTex.colorSpace = backTex.colorSpace = three.SRGBColorSpace
@@ -621,7 +724,8 @@ export async function mountPaper(
     const key = new three.DirectionalLight(0xfff4e0, 1.6)
     key.position.set(W * 0.6, H * 0.9, dist * 0.7)
     key.castShadow = true
-    key.shadow.mapSize.set(1024, 1024)
+    // 影子只是紙後方一片柔邊（radius 6），512 與 1024 肉眼無差，記憶體與每幀 shadow pass 少四分之三。
+    key.shadow.mapSize.set(512, 512)
     key.shadow.camera.left = -VW
     key.shadow.camera.right = VW
     key.shadow.camera.top = VH
@@ -734,7 +838,7 @@ export async function mountPaper(
       if (!frame && !disposed) frame = requestAnimationFrame(render)
     }
 
-    return {
+    const built = {
       W,
       kick,
       setFlipped(next: boolean) {
@@ -792,17 +896,40 @@ export async function mountPaper(
         backTex.dispose()
         floor.geometry.dispose()
         ;(floor.material as ThreeNS.Material).dispose()
+        // shadow map 是 renderer 持有的 render target，不隨 light 被 GC；觸控名額反覆卸掛時每次都會配一張 512²。
+        key.shadow.dispose()
       }
     }
+    try {
+      await renderer.compileAsync(sceneObj, camera)
+    } catch {
+      /* 沒有 compileAsync 或編譯失敗：第一幀 render 會照常同步編譯 */
+    }
+    if (disposed) {
+      built.dispose()
+      return null
+    }
+    // 改完尺寸馬上同步畫第一幀：改 width/height 會清空畫布，若等下一個 rAF 才畫，中間會有一格空白。
+    sizeView()
+    render()
+    return built
   }
 
-  function rebuild() {
+  // 重建期間舊場景繼續畫，新場景好了才換；token 擋掉重建途中又來一次的情況。
+  let buildToken = 0
+  async function rebuild() {
     resizeFrame = 0
     if (disposed) return
     const width = front!.getBoundingClientRect().width
     if (scene && Math.abs(width - lastWidth) < 1) return
+    const token = ++buildToken
+    const next = await buildScene()
+    if (disposed || token !== buildToken) {
+      next?.dispose()
+      return
+    }
     scene?.dispose()
-    scene = buildScene()
+    scene = next
     lastWidth = width
     if (scene) {
       if (revealed) scene.startDevelop()
@@ -810,7 +937,7 @@ export async function mountPaper(
     }
   }
 
-  scene = buildScene()
+  scene = await buildScene()
   if (!scene) {
     view.remove()
     releaseRenderer()
@@ -818,7 +945,7 @@ export async function mountPaper(
   }
   lastWidth = scene.W
   const resizer = new ResizeObserver(() => {
-    if (!resizeFrame && !disposed) resizeFrame = requestAnimationFrame(rebuild)
+    if (!resizeFrame && !disposed) resizeFrame = requestAnimationFrame(() => void rebuild())
   })
   resizer.observe(front)
   scene.kick()

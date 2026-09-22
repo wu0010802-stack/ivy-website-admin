@@ -4,6 +4,7 @@ import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
+import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -28,6 +29,15 @@ let deferPaper = false
 let isNear = false
 let cancelPaper: (() => void) | null = null
 let lastFlipAt = Number.NEGATIVE_INFINITY
+// 觸控裝置的掛載名額（paper-budget.ts）：超額時離視窗最遠的卡會被 detachPaper 卸回 CSS 版。
+let mountedEntry: MountedPaper | null = null
+function detachPaper() {
+  if (mountedEntry) unregisterMountedPaper(mountedEntry)
+  mountedEntry = null
+  paper?.dispose()
+  paper = null
+  webglReady.value = false
+}
 
 // A 版淡折角：顯影後只輕掀一次（26→38→32），首張再向左微翻 12° 回正；
 // 減少動態不做、翻開中不做、每次工作階段只偷看一次。DOM 的 --ear 與 WebGL 貼圖缺口用同一個時鐘。
@@ -191,8 +201,11 @@ async function attachPaper() {
     return
   }
   paper = handle
-  nearObserver?.disconnect()
-  nearObserver = null
+  // 觸控裝置保留 nearObserver：被名額擠掉（detachPaper）後捲回來還要能重排。
+  if (!deferPaper) {
+    nearObserver?.disconnect()
+    nearObserver = null
+  }
   webglReady.value = true
   onPointerLeave()
   const currentEar = Number.parseFloat(wrapEl.value.style.getPropertyValue('--ear'))
@@ -200,6 +213,17 @@ async function attachPaper() {
   paper.setFlipped(isFlipped.value)
   paper.setActive(Boolean(props.active))
   if (isRevealed.value) paper.setRevealed()
+  if (deferPaper) {
+    mountedEntry = {
+      near: () => isNear,
+      distance: () => {
+        const rect = cardEl.value?.getBoundingClientRect()
+        return rect ? Math.abs(rect.top + rect.height / 2 - window.innerHeight / 2) : Number.POSITIVE_INFINITY
+      },
+      detach: detachPaper
+    }
+    registerMountedPaper(mountedEntry)
+  }
 }
 
 watch(isFlipped, (value) => paper?.setFlipped(value))
@@ -265,9 +289,7 @@ onUnmounted(() => {
   cancelAnimationFrame(earFrame)
   window.clearTimeout(cueTimer)
   window.clearTimeout(peekTimer)
-  paper?.dispose()
-  paper = null
-  webglReady.value = false
+  detachPaper()
 })
 
 function toggleFlip() {
@@ -306,7 +328,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
         <div ref="printEl" class="print">
           <div class="print-face print-front" :inert="isFlipped">
             <figure class="print-figure">
-              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 85vw, 420px')" :alt="moment.alt" loading="lazy" decoding="async">
+              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 85vw, 420px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
               <figcaption>{{ moment.caption }}</figcaption>
               <time class="print-stamp" :datetime="moment.time">{{ moment.time }}</time>
             </figure>

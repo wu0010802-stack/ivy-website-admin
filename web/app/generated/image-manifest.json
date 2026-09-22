@@ -30,7 +30,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art-chongde.webp",
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-1536.webp",
         "width": 1536
       }
     ]
@@ -52,7 +52,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art-international.webp",
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-1536.webp",
         "width": 1536
       }
     ]
@@ -74,7 +74,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art-minghua.webp",
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-1536.webp",
         "width": 1536
       }
     ]
@@ -96,7 +96,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art-renwu.webp",
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-1536.webp",
         "width": 1536
       }
     ]
@@ -118,7 +118,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art-yihua.webp",
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-1536.webp",
         "width": 1536
       }
     ]
@@ -140,7 +140,7 @@
         "width": 1200
       },
       {
-        "src": "/assets/campus-line-art.webp",
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-1938.webp",
         "width": 1938
       }
     ]
@@ -186,15 +186,15 @@
     "height": 600,
     "candidates": [
       {
-        "src": "/assets/responsive/classroom-85bf7353d158-480.webp",
+        "src": "/assets/responsive/classroom-3c728c9505bc-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/classroom-85bf7353d158-800.webp",
+        "src": "/assets/responsive/classroom-3c728c9505bc-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/classroom.webp",
+        "src": "/assets/responsive/classroom-3c728c9505bc-960.webp",
         "width": 960
       }
     ]
@@ -294,19 +294,19 @@
     "height": 810,
     "candidates": [
       {
-        "src": "/assets/responsive/day-poster-8409cf407d42-480.webp",
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-poster-8409cf407d42-800.webp",
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-poster-8409cf407d42-1200.webp",
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/day-poster.webp",
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1440.webp",
         "width": 1440
       }
     ]
@@ -352,11 +352,15 @@
     "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/hero-campus-still-8e4064af6a42-480.webp",
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/hero-campus-still-8e4064af6a42-800.webp",
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-640.webp",
+        "width": 640
+      },
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-800.webp",
         "width": 800
       },
       {
@@ -410,15 +414,15 @@
     "height": 402,
     "candidates": [
       {
-        "src": "/assets/responsive/learning-253305c9887f-480.webp",
+        "src": "/assets/responsive/learning-dfc84ab533b4-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/learning-253305c9887f-800.webp",
+        "src": "/assets/responsive/learning-dfc84ab533b4-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/learning.webp",
+        "src": "/assets/responsive/learning-dfc84ab533b4-1000.webp",
         "width": 1000
       }
     ]
@@ -486,7 +490,7 @@
         "width": 480
       },
       {
-        "src": "/assets/yihua-exterior.webp",
+        "src": "/assets/responsive/yihua-exterior-87edb1595b78-590.webp",
         "width": 590
       }
     ]

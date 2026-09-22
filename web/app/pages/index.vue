@@ -27,19 +27,17 @@ useHomeFooterFade(root, footer)
 </template>
 
 <style>
+/* 頁尾進場進度：只有 JS 備援（data-footer-motion="fallback"）會寫這個變數；
+   原生 view timeline 時不再對整頁的 inherited 自訂屬性做動畫（每幀整頁 style recalc），
+   而是由 HomeNewsTransition.vue 直接對消息紙的陰影與底色做 --home-footer 時間軸動畫，
+   這裡只宣告 timeline-scope 與時間軸。變數用全域名稱，scoped 會加 hash。 */
 @property --home-footer-progress { syntax: '<number>'; inherits: true; initial-value: 0; }
-@keyframes home-footer-entry { from { --home-footer-progress: 0; } to { --home-footer-progress: 1; } }
 </style>
 
 <style scoped>
 .home-page { --home-footer-progress: 0; }
 @supports (animation-timeline: view()) and (animation-range: entry 0% entry 100%) and (timeline-scope: --home-footer) {
-  .home-page[data-footer-motion="native"] {
-    timeline-scope: --home-footer;
-    animation: home-footer-entry 1s linear both;
-    animation-timeline: --home-footer;
-    animation-range: entry 0% entry 100%;
-  }
+  .home-page[data-footer-motion="native"] { timeline-scope: --home-footer; }
   .home-page[data-footer-motion="native"] .home-footer {
     view-timeline: --home-footer block;
     view-timeline-inset: 0px calc(100% - var(--home-footer-screen, 100svh));

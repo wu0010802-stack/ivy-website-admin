@@ -195,9 +195,10 @@ const headerPhone = computed(() => props.content.siteMeta.headerPhone)
     :data-menu="isMenuOpen ? 'open' : 'closed'"
   >
     <div ref="headerTopRef" class="container header-top">
-      <NuxtLink class="brand" to="/" aria-label="常春藤教育機構 Ivy Educational Institution，回首頁">
+      <!-- 可及名稱直接用可見文字＋隱藏字尾，不另寫 aria-label，避免與可見文字不一致（label-content-name-mismatch）。 -->
+      <NuxtLink class="brand" to="/">
         <svg class="brand-crest" viewBox="30 26 124 132" width="48" height="51" aria-hidden="true" focusable="false">
-          <image href="/assets/logo.png" width="552" height="192" filter="url(#logo-colour-cutout)" />
+          <image href="/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" />
         </svg>
         <span class="brand-copy">
           <span class="brand-name">{{ content.siteMeta.brandName }}</span>
@@ -205,6 +206,7 @@ const headerPhone = computed(() => props.content.siteMeta.headerPhone)
             <span>Ivy</span> <span>Educational</span> <span>Institution</span>
           </span>
         </span>
+        <span class="sr-only">，回首頁</span>
       </NuxtLink>
       <nav id="navigation" class="navigation" :class="{ open: isMenuOpen && !usePanel }" aria-label="主要導覽">
         <div class="nav-inner">
@@ -237,13 +239,15 @@ const headerPhone = computed(() => props.content.siteMeta.headerPhone)
       </div>
     </div>
     <div ref="pillRef" class="header-pill">
-      <NuxtLink class="pill-brand" to="/" aria-label="常春藤教育機構，回首頁">
+      <NuxtLink class="pill-brand" to="/">
         <span class="pill-crest">
           <svg class="brand-crest" viewBox="30 26 124 132" width="34" height="36" aria-hidden="true" focusable="false">
-            <image href="/assets/logo.png" width="552" height="192" filter="url(#logo-colour-cutout)" />
+            <image href="/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" />
           </svg>
         </span>
-        <span class="pill-name">{{ content.siteMeta.brandName }}<small lang="en">Ivy Educational Institution</small></span>
+        <!-- 膠囊在手機只露校徽、桌機才顯示品牌名；可及名稱固定由隱藏文字提供，可見文字設 aria-hidden 避免重複朗讀。 -->
+        <span class="pill-name" aria-hidden="true">{{ content.siteMeta.brandName }}<small lang="en">Ivy Educational Institution</small></span>
+        <span class="sr-only">{{ content.siteMeta.brandName }}，回首頁</span>
       </NuxtLink>
       <div class="pill-actions">
         <span class="pill-divider" aria-hidden="true" />
