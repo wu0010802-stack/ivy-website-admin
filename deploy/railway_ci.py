@@ -172,8 +172,8 @@ def main() -> None:
     if args.action == "prepare":
         prepare(Path(__file__).resolve().parents[1], args.ref, args.destination)
     else:
-        if os.environ.get("GITHUB_REF") != "refs/heads/production" or not os.environ.get("RAILWAY_TOKEN"):
-            parser.error("deploy 只允許 production branch，且必須設定 RAILWAY_TOKEN")
+        if os.environ.get("GITHUB_REF") != "refs/heads/main" or not os.environ.get("RAILWAY_TOKEN"):
+            parser.error("deploy 只允許 main branch，且必須設定 RAILWAY_TOKEN")
         release = json.loads((args.snapshot / RELEASE_PATH).read_text())
         if release["base_commit"] != os.environ.get("GITHUB_SHA") or release["snapshot"] != snapshot_hash(args.snapshot):
             parser.error("快照 commit 或 hash 與這次 GitHub Actions 不符")

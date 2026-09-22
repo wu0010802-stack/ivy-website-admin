@@ -1,6 +1,6 @@
 ## 2026-09-22 部署分支改為 main
 
-Railway 正式部署的觸發分支由 `production` 改為 `main`：`.github/workflows/website.yml` 的 deploy job 條件與 concurrency 取消規則改為 `refs/heads/main`，`deploy/CICD.md` 的分支表、首次啟用步驟與日常操作同步更新。GitHub environment `production` 已建立並將 Deployment branches 限制為 `main`。
+Railway 正式部署的觸發分支由 `production` 改為 `main`：`.github/workflows/website.yml` 的 deploy job 條件與 concurrency 取消規則、以及 `deploy/railway_ci.py` 內建的分支自檢都改為 `refs/heads/main`（三道守門要一起改，只改 workflow 會在 deploy job 被腳本擋下），`deploy/CICD.md` 的分支表、首次啟用步驟與日常操作同步更新。GitHub environment `production` 已建立並將 Deployment branches 限制為 `main`。
 
 啟用後每次成功推上 `main` 都會在 CI 全綠後部署正式站，沒有額外閘門；不想立即上線的工作留在 `feature/**`。尚未設定 `RAILWAY_TOKEN`（production environment secret），在設定前 deploy job 會失敗、不會實際部署。線上目前包含未提交快照，首次真正部署前需先核對 `main` 與線上的差異。
 
