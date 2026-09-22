@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
+from app.common.timezones import today_local
 from app.content.models import ContentItem
 
 
@@ -14,8 +15,9 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
     """campus_keys 為 None 代表 super_admin（不限校區）；否則只統計
     這個使用者有權限的校區，天然不會洩漏其他校的數字。"""
     now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
+    # 「今天」要用園方所在時區算。原本用 UTC 的日界線，台北時間
+    # 00:00–08:00 之間整個儀表板都會顯示成前一天的名單。
+    today = today_local(now)
 
     def _scope(stmt, column):
         if campus_keys is not None:
@@ -35,7 +37,8 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
         .where(
             VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
-            VisitSlot.slot_date == today_start.date(),
+            # slot_date 是 naive 的日期欄位，直接跟營運時區的今天比對。
+            VisitSlot.slot_date == today,
         )
         .order_by(VisitSlot.start_time, VisitRequest.parent_name)
     )

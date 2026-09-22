@@ -21,6 +21,9 @@ class BookingMode(str, enum.Enum):
 
 class VisitRequestStatus(str, enum.Enum):
     NEW = "new"
+    # 規格 221：slots 模式的人工待確認狀態。占名額（避免超收），但還不是
+    # 「預約成立」，家長頁與通知文案都必須講「待園方確認」。
+    PENDING_CONFIRMATION = "pending_confirmation"
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
     NO_SHOW = "no_show"
@@ -44,6 +47,10 @@ class BookingConfig(Base):
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 規格 197：slots 模式預設人工確認；園方要「送出即成立」才打開。
+    slots_auto_confirm: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -84,6 +91,11 @@ class VisitRequest(Base):
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 規格 222：人工待確認的 slot 案件占位期限。到期轉 cancelled、記
+    # hold_expired、釋放名額。只有 pending_confirmation 會有值。
+    hold_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

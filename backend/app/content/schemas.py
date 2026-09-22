@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import re
+
 from pydantic import BaseModel, Field, field_validator
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
@@ -11,13 +13,45 @@ from pydantic import BaseModel, Field, field_validator
 # docs/website-admin/acceptance.md 的階段 B 小結。
 
 _BLOCKED_URL_SCHEMES = ("javascript:", "data:", "vbscript:")
+_ALLOWED_URL_SCHEMES = ("https://", "http://", "mailto:", "tel:")
+
+# 瀏覽器在解析 href 的 scheme 時會忽略內嵌的 TAB／換行／NUL 等控制字元，
+# 所以 `java<TAB>script:alert(1)` 放進 <a href> 一樣會執行。只做 strip()
+# 的前綴比對擋不住這種寫法，比對前必須先把所有不可見字元清掉。
+_INVISIBLE_RE = re.compile(r"[\x00-\x20\x7f\u00ad\u200b-\u200f\u2028\u2029\ufeff]")
+
+
+def _strip_invisible(value: str) -> str:
+    return _INVISIBLE_RE.sub("", value)
 
 
 def _reject_unsafe_scheme(value: str) -> str:
-    lowered = value.strip().lower()
+    """純文字欄位用：文案可以是任何內容，只擋會變成可執行連結的 scheme。"""
+    lowered = _strip_invisible(value).lower()
     if any(lowered.startswith(scheme) for scheme in _BLOCKED_URL_SCHEMES):
         raise ValueError("不允許的網址格式")
     return value
+
+
+def _require_safe_url(value: str) -> str:
+    """真的會被綁進 href 的欄位用：改成允許清單。黑名單永遠會漏（不同
+    編碼、新 scheme），這些欄位只可能是連結，直接限定合法開頭最穩。"""
+    candidate = _strip_invisible(value)
+    if candidate == "":
+        return value
+    if not candidate.lower().startswith(_ALLOWED_URL_SCHEMES):
+        raise ValueError("網址必須以 https://、http://、mailto: 或 tel: 開頭")
+    return value
+
+
+def _require_safe_media_ref(value: str) -> str:
+    """場景圖片欄位同時相容素材庫 UUID、舊 fixture 代號與外部網址
+    （見 content/registry.py 的說明）。沒有 scheme 的純代號原樣放行，
+    看起來像網址的才套允許清單。"""
+    candidate = _strip_invisible(value)
+    if ":" not in candidate:
+        return value
+    return _require_safe_url(value)
 
 
 class HomeAboutPayload(BaseModel):
@@ -158,12 +192,17 @@ class CampusProfilePayload(BaseModel):
     # `line: string | null` 語意相同（web 端疊資料時把空字串轉回 null）。
     line: str
 
-    @field_validator(
-        "name", "district", "address", "phone", "intro", "description", "facebook", "fb_note", "line"
-    )
+    @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("facebook", "line")
+    @classmethod
+    def _social_links_safe(cls, value: str) -> str:
+        # 這兩個欄位在 web/app/components/CampusBoard.vue 直接綁 :href，
+        # 是 CMS 內容通到公開站 href 的唯一路徑，必須用允許清單。
+        return _require_safe_url(value)
 
 
 class CampusFaqItemPayload(BaseModel):
@@ -207,10 +246,15 @@ class TourScenePayload(BaseModel):
     intro: str
     spots: list[TourSpotPayload]
 
-    @field_validator("key", "name", "image", "intro")
+    @field_validator("key", "name", "intro")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("image")
+    @classmethod
+    def _image_ref_safe(cls, value: str) -> str:
+        return _require_safe_media_ref(value)
 
     @field_validator("spots")
     @classmethod

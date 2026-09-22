@@ -13,6 +13,7 @@ from app.auth.models import Role, User
 from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.content import service
 from app.content.models import ContentItem, ContentRevision
+from app.media.models import MediaAsset
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media import service as media_service
 from app.operations import audit_service
@@ -39,6 +40,16 @@ def _get_kind_config(kind: str):
     return config
 
 
+def _require_read_scope(user: User, campus_key: str | None) -> None:
+    """讀取閘門。共用內容（campus_key is None）所有登入角色都看得到；
+    校區內容一定要有該校 scope，否則分校管理者可以讀別校的內容與尚未
+    發布的草稿。不沿用 `_require_shared_or_scope`——那支要求 manage 權限，
+    套在 GET 會誤擋 readonly／reception。"""
+    require_scope(user, "content.read")
+    if campus_key is not None:
+        require_scope(user, "content.read", campus_keys=[campus_key])
+
+
 def _require_shared_or_scope(user: User, item: ContentItem) -> None:
     """共用內容（campus_key is None）只有 super_admin 能編，
     分校不能改共用內容；校區自有內容才走一般 campus scope 檢查。"""
@@ -47,6 +58,32 @@ def _require_shared_or_scope(user: User, item: ContentItem) -> None:
             raise CapabilityDenied()
         return
     require_scope(user, "content.manage", campus_keys=[item.campus_key])
+
+
+async def _validate_media_references(
+    db: AsyncSession, media_ids: list[uuid.UUID], campus_key: str | None
+) -> None:
+    """引用的素材必須存在、而且屬於同一校或共用。不驗的話：引用不存在的
+    UUID 會在寫 media_usages 時撞 FK 變成 500；引用別校的素材則會替對方
+    建立一筆引用，讓那張圖再也刪不掉。"""
+    if not media_ids:
+        return
+    result = await db.execute(
+        select(MediaAsset.id, MediaAsset.campus_key).where(MediaAsset.id.in_(set(media_ids)))
+    )
+    found = {row.id: row.campus_key for row in result.all()}
+    for media_id in media_ids:
+        if media_id not in found:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "MEDIA_NOT_FOUND", "message": f"找不到素材 {media_id}"},
+            )
+        owner = found[media_id]
+        if owner is not None and owner != campus_key:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "MEDIA_CROSS_CAMPUS", "message": "不能引用其他校區的素材"},
+            )
 
 
 async def _get_item_with_latest_revision(
@@ -92,8 +129,10 @@ async def get_content_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
-    require_scope(current_user, "content.read")
-    _get_kind_config(kind)
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
@@ -130,6 +169,8 @@ async def create_content_revision(
     _require_shared_or_scope(current_user, item)
 
     dumped_payload = typed_payload.model_dump()
+    media_ids = config.extract_media_ids(dumped_payload)
+    await _validate_media_references(db, media_ids, item.campus_key)
     try:
         await service.create_revision(
             db, item, dumped_payload, payload.expected_version, current_user.id
@@ -141,7 +182,6 @@ async def create_content_revision(
             detail={"code": "CONTENT_VERSION_CONFLICT", "message": "內容已被其他人更新，請重新載入"},
         ) from exc
 
-    media_ids = config.extract_media_ids(dumped_payload)
     await media_service.sync_content_item_usages(db, str(item.id), kind, campus_key, media_ids)
 
     await db.commit()

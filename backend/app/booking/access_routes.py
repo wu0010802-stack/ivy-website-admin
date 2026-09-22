@@ -13,9 +13,10 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import require_scope
 from app.booking import access_service, workflow_service
+from app.operations import audit_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitRequest
-from app.booking.schemas import VisitRequestDetailOut
+from app.booking.schemas import ParentVisitRequestOut, VisitRequestDetailOut
 
 router = APIRouter(prefix="/api/website/v1", tags=["parent-access"])
 
@@ -42,12 +43,12 @@ async def _require_parent_session(
     return visit_request
 
 
-@router.post("/public/visit-manage/exchange", response_model=VisitRequestDetailOut)
+@router.post("/public/visit-manage/exchange", response_model=ParentVisitRequestOut)
 async def exchange_parent_token(
     payload: TokenExchangeRequest,
     response: Response,
     db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
+) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     try:
         raw_session_token, visit_request = await access_service.exchange_token(db, payload.token)
@@ -67,26 +68,26 @@ async def exchange_parent_token(
         max_age=int(access_service.SESSION_TTL.total_seconds()),
         path="/",
     )
-    return VisitRequestDetailOut.model_validate(visit_request)
+    return ParentVisitRequestOut.from_visit_request(visit_request)
 
 
-@router.get("/public/visit-manage/me", response_model=VisitRequestDetailOut)
+@router.get("/public/visit-manage/me", response_model=ParentVisitRequestOut)
 async def get_own_visit_request(
     response: Response,
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
     db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
+) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
-    return VisitRequestDetailOut.model_validate(visit_request)
+    return ParentVisitRequestOut.from_visit_request(visit_request)
 
 
-@router.post("/public/visit-manage/cancel", response_model=VisitRequestDetailOut)
+@router.post("/public/visit-manage/cancel", response_model=ParentVisitRequestOut)
 async def parent_cancel(
     response: Response,
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
     db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
+) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     try:
@@ -98,7 +99,7 @@ async def parent_cancel(
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
     await db.commit()
-    return VisitRequestDetailOut.model_validate(visit_request)
+    return ParentVisitRequestOut.from_visit_request(visit_request)
 
 
 @router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED)
@@ -111,9 +112,16 @@ async def parent_request_reschedule(
     """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
-    record = await access_service.create_reschedule_request(
-        db, visit_request.id, payload.new_slot_id
-    )
+    try:
+        record = await access_service.create_reschedule_request(
+            db, visit_request, payload.new_slot_id
+        )
+    except access_service.RescheduleNotAllowed as exc:
+        await db.rollback()
+        code = status.HTTP_404_NOT_FOUND if exc.code == "SLOT_NOT_FOUND" else status.HTTP_409_CONFLICT
+        raise HTTPException(
+            status_code=code, detail={"code": exc.code, "message": exc.message}
+        ) from exc
     await db.commit()
     return {"id": str(record.id), "status": record.status}
 
@@ -143,6 +151,32 @@ async def create_parent_access_link(
     await db.commit()
     # 原始 token 只在這裡回傳一次；資料庫只存 hash。
     return {"manage_url_fragment": f"/visit/manage#token={raw_token}"}
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/revoke-access", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_parent_access_link(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """規格 6.4 要求 token「可撤銷」。家長回報連結外流時，園方要有辦法
+    讓它立刻失效——在此之前 repo 裡沒有任何撤銷路徑。"""
+    result = await db.execute(select(VisitRequest).where(VisitRequest.id == visit_request_id))
+    visit_request = result.scalar_one_or_none()
+    if visit_request is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+
+    await access_service.revoke_access_for_visit_request(db, visit_request_id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.revoke_access",
+        target_type="visit_request",
+        target_id=str(visit_request_id),
+        campus_key=visit_request.campus_key,
+    )
+    await db.commit()
 
 
 @router.get("/admin/reschedule-requests", response_model=list[dict])
@@ -195,7 +229,14 @@ async def approve_reschedule_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "SLOT_FULL", "message": "新時段名額已滿"},
         ) from exc
-
+    except workflow_service.InvalidTransition as exc:
+        # 家長送出申請之後案件才被取消／標記完成，核准時就會走到這裡。
+        # 沒接的話整支端點回 500。
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
 
     record.status = "approved"
     record.resolved_at = datetime.now(timezone.utc)

@@ -144,6 +144,10 @@
             ],
             "title": "Phone"
           },
+          "slots_auto_confirm": {
+            "title": "Slots Auto Confirm",
+            "type": "boolean"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -156,7 +160,8 @@
           "line_url",
           "phone",
           "external_url",
-          "message"
+          "message",
+          "slots_auto_confirm"
         ],
         "title": "BookingConfigOut",
         "type": "object"
@@ -170,6 +175,7 @@
           "external_url": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -181,6 +187,7 @@
           "line_url": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -192,6 +199,7 @@
           "message": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -206,6 +214,7 @@
           "phone": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "type": "string"
               },
               {
@@ -213,6 +222,11 @@
               }
             ],
             "title": "Phone"
+          },
+          "slots_auto_confirm": {
+            "default": false,
+            "title": "Slots Auto Confirm",
+            "type": "boolean"
           }
         },
         "required": [
@@ -693,6 +707,91 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "ParentVisitRequestOut": {
+        "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hold_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone_masked": {
+            "title": "Phone Masked",
+            "type": "string"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "status",
+          "phone_masked",
+          "confirmed_at",
+          "cancelled_at",
+          "hold_expires_at",
+          "created_at"
+        ],
+        "title": "ParentVisitRequestOut",
+        "type": "object"
+      },
       "PublicBookingConfigOut": {
         "description": "公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。",
         "properties": {
@@ -747,6 +846,10 @@
             ],
             "title": "Phone"
           },
+          "slots_auto_confirm": {
+            "title": "Slots Auto Confirm",
+            "type": "boolean"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -759,7 +862,8 @@
           "line_url",
           "phone",
           "external_url",
-          "message"
+          "message",
+          "slots_auto_confirm"
         ],
         "title": "PublicBookingConfigOut",
         "type": "object"
@@ -1140,6 +1244,7 @@
           "age": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "type": "string"
               },
               {
@@ -1173,6 +1278,7 @@
           "preferred_time": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "type": "string"
               },
               {
@@ -1285,6 +1391,18 @@
               }
             ],
             "title": "Follow Up At"
+          },
+          "hold_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Expires At"
           },
           "id": {
             "format": "uuid",
@@ -5097,6 +5215,75 @@
         ]
       }
     },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/revoke-access": {
+      "post": {
+        "description": "規格 6.4 要求 token「可撤銷」。家長回報連結外流時，園方要有辦法\n讓它立刻失效——在此之前 repo 裡沒有任何撤銷路徑。",
+        "operationId": "revoke_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__revoke_access_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Parent Access Link",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
     "/api/website/v1/auth/login": {
       "post": {
         "operationId": "login_api_website_v1_auth_login_post",
@@ -5495,7 +5682,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
                 }
               }
             },
@@ -5536,7 +5723,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
                 }
               }
             },
@@ -5585,7 +5772,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
                 }
               }
             },
@@ -5679,6 +5866,8 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "maxLength": 128,
+              "minLength": 1,
               "title": "Idempotency-Key",
               "type": "string"
             }

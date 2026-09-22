@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -14,7 +14,24 @@ class ContentItem(Base):
     跨校共用內容（首頁），非 null 代表僅該校可編輯——分校不能改共用內容。"""
 
     __tablename__ = "content_items"
-    __table_args__ = (UniqueConstraint("kind", "campus_key", name="uq_content_item_kind_campus"),)
+    # Postgres 的 UNIQUE 把每個 NULL 視為互異值，所以 (kind, NULL) 這種
+    # 共用內容其實完全不受原本那個唯一約束保護，併發下會產生重複列。
+    # 拆成兩個 partial unique index：共用內容只比 kind，校區內容比兩欄。
+    __table_args__ = (
+        Index(
+            "uq_content_item_kind_shared",
+            "kind",
+            unique=True,
+            postgresql_where=text("campus_key IS NULL"),
+        ),
+        Index(
+            "uq_content_item_kind_campus",
+            "kind",
+            "campus_key",
+            unique=True,
+            postgresql_where=text("campus_key IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     kind: Mapped[str] = mapped_column(String(64), nullable=False)

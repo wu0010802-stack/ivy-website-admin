@@ -23,12 +23,20 @@ async def process_outbox_batch(
         try:
             await notification_service.dispatch_outbox_message(
                 db,
+                outbox_message_id=message.id,
                 campus_key=message.payload.get("campus_key", ""),
                 kind=message.kind,
                 payload=message.payload,
                 adapter=adapter,
             )
         except Exception as exc:  # noqa: BLE001 - 任何寄送/處理失敗都走重試路徑
+            # 先丟掉這一輪還沒提交的工作，再記錄失敗。少了這個 rollback，
+            # dispatch 半途寫進去的站內通知會跟著 fail() 一起被 commit，
+            # 每重試一次就多一筆重複通知。
+            await db.rollback()
+            # rollback 會把 message 實例 expire 掉，async 下直接碰屬性會
+            # 觸發 lazy load（MissingGreenlet），所以先明確重新載入。
+            await db.refresh(message)
             await lease_service.fail(db, message, error_code=type(exc).__name__)
             await db.commit()
             failed += 1

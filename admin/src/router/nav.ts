@@ -34,6 +34,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
     ],
   },
+  // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
+  // （app/content/routes.py 的 _require_shared_or_scope），所以這七項
+  // 一律標 roles: ['super_admin']——否則分校管理者看得到、改得動，
+  // 但按儲存永遠是 403。分校自有內容（五校介紹／常見問題／校園探索）
+  // 不限制。
   // 官網內容原本是一個 11 項的大組，「首頁五校區塊／五校介紹／校園探索」
   // 三個名字都帶校區，攤在一起很難認。拆成三個各 3～4 項的子組，共用
   // 「官網內容」區段標題。
@@ -42,10 +47,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '首頁',
     section: '官網內容',
     items: [
-      { name: 'home-hero', path: '/content/home-hero', title: '首頁首屏文字', icon: 'Picture' },
-      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document' },
-      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid' },
-      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny' },
+      { name: 'home-hero', path: '/content/home-hero', title: '首頁首屏文字', icon: 'Picture', roles: ['super_admin'] },
+      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'] },
+      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'] },
+      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'] },
     ],
   },
   {
@@ -63,9 +68,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '全站與素材',
     section: '官網內容',
     items: [
-      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen' },
-      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom' },
-      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone' },
+      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'] },
+      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'] },
+      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'] },
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files' },
     ],
   },

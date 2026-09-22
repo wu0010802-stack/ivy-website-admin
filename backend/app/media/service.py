@@ -3,10 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
+from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, SiteState
+from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
 from app.media.processing import ProcessingError, extract_video_poster_webp, make_image_thumbnail_webp
 from app.media.storage import LocalMediaStorage
@@ -52,7 +54,8 @@ async def create_media_asset(
     extension = _EXTENSION_BY_CONTENT_TYPE[content_type]
     storage_key = storage.generate_key(extension)
     storage.write_bytes(storage_key, data)
-
+    # 從這裡開始磁碟上已經有檔案了；後面任何一步失敗都必須把它刪掉，
+    # 否則 media_root 會累積永遠沒有 DB 記錄指向的孤兒檔。
     asset = MediaAsset(
         id=uuid.uuid4(),
         campus_key=campus_key,
@@ -70,7 +73,11 @@ async def create_media_asset(
         created_at=datetime.now(timezone.utc),
     )
     db.add(asset)
-    await db.flush()
+    try:
+        await db.flush()
+    except Exception:
+        storage.delete(storage_key)
+        raise
 
     try:
         if declared_kind == MediaKind.IMAGE:
@@ -112,14 +119,58 @@ async def create_media_asset(
     return asset
 
 
-async def delete_media_asset(db: AsyncSession, storage: LocalMediaStorage, asset: MediaAsset) -> None:
-    if len(asset.usages) > 0:
+async def is_referenced_by_current_release(db: AsyncSession, media_id: uuid.UUID) -> bool:
+    """這個素材是否被「目前線上生效的 release」引用。
+
+    MediaUsage 只反映**最新草稿**的引用（sync_content_item_usages 每次存檔
+    都整批重建），所以只看 usages 會讓「線上版還在用、草稿已經換掉」的圖
+    可以被刪掉，公開官網當場破圖。發布過的 revision payload 才是線上事實
+    來源，這裡直接對 current release 的 manifest 重新解析一次。"""
+    result = await db.execute(
+        select(ContentRevision.payload, ContentItem.kind)
+        .select_from(SiteState)
+        .join(SiteReleaseEntry, SiteReleaseEntry.release_id == SiteState.current_release_id)
+        .join(ContentRevision, ContentRevision.id == SiteReleaseEntry.revision_id)
+        .join(ContentItem, ContentItem.id == SiteReleaseEntry.content_item_id)
+        .where(SiteState.id == 1)
+    )
+    for payload, kind in result.all():
+        config = CONTENT_KIND_REGISTRY.get(kind)
+        if config is None or not isinstance(payload, dict):
+            continue
+        if media_id in config.extract_media_ids(payload):
+            return True
+    return False
+
+
+async def delete_media_asset(
+    db: AsyncSession, storage: LocalMediaStorage, asset: MediaAsset
+) -> list[str]:
+    """刪除 DB 記錄並回傳需要刪除的 storage key；**檔案由呼叫端在 commit
+    成功之後才刪**。先 unlink 再刪 DB 的順序會在交易回滾時留下「DB 有記錄、
+    磁碟沒檔案」的破圖狀態，比留下孤兒檔更難修。"""
+    # 重新以 FOR UPDATE 鎖住這一列，並用即時查詢算引用數，不用 eager load
+    # 的快照——否則「A 正在刪、B 同時把這張圖加進內容」會兩邊都成功，
+    # 接著 cascade 把 B 剛建立的引用一起刪掉。
+    locked = await db.execute(
+        select(MediaAsset.id).where(MediaAsset.id == asset.id).with_for_update()
+    )
+    if locked.scalar_one_or_none() is None:
         raise MediaInUse()
-    for variant in asset.variants:
-        storage.delete(variant.storage_key)
-    storage.delete(asset.storage_key)
+
+    usage_count = await db.execute(
+        select(func.count()).select_from(MediaUsage).where(MediaUsage.media_id == asset.id)
+    )
+    if usage_count.scalar_one() > 0:
+        raise MediaInUse()
+    if await is_referenced_by_current_release(db, asset.id):
+        raise MediaInUse()
+
+    storage_keys = [variant.storage_key for variant in asset.variants]
+    storage_keys.append(asset.storage_key)
     await db.delete(asset)
     await db.flush()
+    return storage_keys
 
 
 async def replace_media_asset(

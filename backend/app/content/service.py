@@ -42,6 +42,17 @@ async def create_revision(
     expected_version: int,
     created_by: uuid.UUID,
 ) -> ContentRevision:
+    # 樂觀鎖要有效，版本比對與寫入必須在同一把列鎖內。只比 Python 物件上
+    # 的 latest_version 的話，兩個管理者同時存檔會各自通過檢查、產生同一個
+    # version 的兩筆 revision，後送出的那筆靜默覆蓋前一筆。
+    locked = await db.execute(
+        select(ContentItem).where(ContentItem.id == content_item.id).with_for_update()
+    )
+    locked_item = locked.scalar_one_or_none()
+    if locked_item is None:
+        raise VersionConflict()
+    await db.refresh(content_item, attribute_names=["latest_version"])
+
     if content_item.latest_version != expected_version:
         raise VersionConflict()
     new_version = content_item.latest_version + 1

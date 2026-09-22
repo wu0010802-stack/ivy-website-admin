@@ -628,6 +628,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/revoke-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Parent Access Link
+         * @description 規格 6.4 要求 token「可撤銷」。家長回報連結外流時，園方要有辦法
+         *     讓它立刻失效——在此之前 repo 裡沒有任何撤銷路徑。
+         */
+        post: operations["revoke_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__revoke_access_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/auth/login": {
         parameters: {
             query?: never;
@@ -911,6 +932,8 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Phone */
             phone: string | null;
+            /** Slots Auto Confirm */
+            slots_auto_confirm: boolean;
             /** Version */
             version: number;
         };
@@ -927,6 +950,11 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Phone */
             phone?: string | null;
+            /**
+             * Slots Auto Confirm
+             * @default false
+             */
+            slots_auto_confirm: boolean;
         };
         /**
          * BookingMode
@@ -1087,6 +1115,37 @@ export interface components {
             width: number | null;
         };
         /**
+         * ParentVisitRequestOut
+         * @description 家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
+         *     那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
+         *     欄位，連結一旦外流就等於把整份個資交出去。
+         */
+        ParentVisitRequestOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Phone Masked */
+            phone_masked: string;
+            slot?: components["schemas"]["VisitSlotBriefOut"] | null;
+            /** Status */
+            status: string;
+        };
+        /**
          * PublicBookingConfigOut
          * @description 公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。
          */
@@ -1102,6 +1161,8 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Phone */
             phone: string | null;
+            /** Slots Auto Confirm */
+            slots_auto_confirm: boolean;
             /** Version */
             version: number;
         };
@@ -1311,6 +1372,8 @@ export interface components {
             created_at: string;
             /** Follow Up At */
             follow_up_at: string | null;
+            /** Hold Expires At */
+            hold_expires_at?: string | null;
             /**
              * Id
              * Format: uuid
@@ -3065,6 +3128,39 @@ export interface operations {
             };
         };
     };
+    revoke_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__revoke_access_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_api_website_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -3345,7 +3441,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
                 };
             };
             /** @description Validation Error */
@@ -3378,7 +3474,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
                 };
             };
             /** @description Validation Error */
@@ -3409,7 +3505,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
                 };
             };
             /** @description Validation Error */

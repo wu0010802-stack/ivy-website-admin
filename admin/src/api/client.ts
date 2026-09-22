@@ -6,6 +6,22 @@ export function setCsrfToken(token: string | null): void {
   csrfToken = token
 }
 
+// 401 的集中處理。client.ts 不直接 import stores/auth 與 router（會造成
+// 循環相依），改成讓 main.ts 註冊一個回呼。原本完全沒有這一層：session
+// 過期或帳號被停權之後，SPA 會卡在各頁自己的錯誤訊息，永遠不會回登入頁。
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
+function handleUnauthorized(path: string): void {
+  // 登入端點自己回 401 是「帳號密碼錯誤」，不是 session 過期，
+  // 不能把使用者從登入頁再導回登入頁並清掉輸入。
+  if (path.startsWith('/auth/login')) return
+  unauthorizedHandler?.()
+}
+
 export class ApiError extends Error {
   status: number
   detail: unknown
@@ -46,6 +62,7 @@ async function request<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized(path)
     const detail =
       payload && typeof payload === 'object' && 'detail' in payload
         ? (payload as { detail: unknown }).detail
@@ -78,6 +95,7 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
   }
 
   if (!response.ok) {
+    if (response.status === 401) handleUnauthorized(path)
     const detail =
       payload && typeof payload === 'object' && 'detail' in payload
         ? (payload as { detail: unknown }).detail

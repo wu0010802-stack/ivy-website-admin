@@ -94,7 +94,11 @@ async def test_one_slot_cannot_accept_two_families(
     current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
     await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "slots"},
+        json={
+            "expected_version": current.json()["version"],
+            "mode": "slots",
+            "slots_auto_confirm": True,
+        },
     )
     me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
     version = me.json()["version"]

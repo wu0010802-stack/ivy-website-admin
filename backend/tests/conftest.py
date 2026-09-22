@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
 
@@ -17,6 +20,48 @@ from app.auth.models import Role, User
 from app.campuses.models import Campus
 from app.config import Settings
 from app.main import create_app
+
+
+MEDIA_FIXTURE_DIR = Path("/tmp/media-fixtures")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_media_fixtures() -> Path:
+    """產生 test_media.py 需要的素材樣本。
+
+    這些檔案原本是假設「已經存在於 /tmp/media-fixtures」，但 repo 裡沒有
+    任何產生它們的腳本，所以在乾淨機器上（或 /tmp 被清過之後）整個 media
+    測試檔會有 12 項直接失敗。改成測試自己產生，套件才是自給自足的。"""
+    MEDIA_FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+
+    jpg = MEDIA_FIXTURE_DIR / "test.jpg"
+    png = MEDIA_FIXTURE_DIR / "test.png"
+    fake = MEDIA_FIXTURE_DIR / "fake.jpg"
+    mp4 = MEDIA_FIXTURE_DIR / "test.mp4"
+
+    if not jpg.exists() or not png.exists():
+        from PIL import Image
+
+        # 測試會斷言 width/height 為 100x80，尺寸不能改。
+        Image.new("RGB", (100, 80), (78, 184, 122)).save(jpg, "JPEG")
+        Image.new("RGB", (100, 80), (45, 143, 90)).save(png, "PNG")
+
+    if not fake.exists():
+        # 副檔名是 .jpg 但內容是純文字，用來驗證「只信任實際解碼結果」。
+        fake.write_bytes(b"this is not an image, just text pretending to be a jpeg\n" * 3)
+
+    if not mp4.exists() and shutil.which("ffmpeg"):
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-f", "lavfi", "-i", "color=c=green:s=160x120:d=2",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4),
+            ],
+            check=False,
+            capture_output=True,
+            timeout=60,
+        )
+    return MEDIA_FIXTURE_DIR
 
 
 @pytest.fixture
@@ -57,13 +102,29 @@ async def _clean_tables(app):
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
                 "audit_log_entries, analytics_events, site_settings, "
-                "notification_inbox_items, "
+                "notification_deliveries, notification_inbox_items, "
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, "
                 "booking_configs RESTART IDENTITY CASCADE"
             )
         )
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """限流器是 process 記憶體內的滑動窗口，會跨測試累積。測試共用同一個
+    來源 IP 與少數幾個手機號碼，不重置的話後面的測試會被前面的測試擋掉。
+    限流本身的行為由 test_rate_limits.py 明確驗證。"""
+    from app.auth import service as auth_service
+    from app.booking import routes as booking_routes
+    from app.operations import analytics_service
+
+    auth_service.reset_login_rate_limits()
+    booking_routes._SUBMIT_LIMITER_BY_PHONE.clear()
+    booking_routes._SUBMIT_LIMITER_BY_CLIENT.clear()
+    analytics_service._CLICK_ATTEMPTS.clear()
     yield
 
 

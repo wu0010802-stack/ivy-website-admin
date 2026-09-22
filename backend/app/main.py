@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
@@ -17,6 +20,35 @@ from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
 from app.db import create_engine, create_session_factory
 
+logger = logging.getLogger("app")
+
+_INTERNAL_ERROR_BODY = {
+    "detail": {"code": "INTERNAL_ERROR", "message": "系統發生未預期的錯誤，請稍後再試"}
+}
+
+
+def _register_exception_handlers(app: FastAPI) -> None:
+    """未預期的例外一律回統一格式，不把 traceback 或 SQL 吐給呼叫端。
+
+    SQLAlchemyError 註冊在 ExceptionMiddleware（會回應、不再往外拋），
+    所以像 IntegrityError／MultipleResultsFound 這類資料層例外不會變成
+    裸 500；Exception 這一支註冊在 ServerErrorMiddleware，回應後仍會
+    重新拋出，讓 uvicorn 記錄完整堆疊、測試也能看到真正的錯。"""
+
+    @app.exception_handler(SQLAlchemyError)
+    async def _handle_db_error(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+        logger.exception("資料層未預期例外：%s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=_INTERNAL_ERROR_BODY
+        )
+
+    @app.exception_handler(Exception)
+    async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("未預期例外：%s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=_INTERNAL_ERROR_BODY
+        )
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Application factory；可注入隔離測試設定，import 本模組不連真實 DB。"""
@@ -28,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory: async_sessionmaker = create_session_factory(
         app.state.engine
     )
+    _register_exception_handlers(app)
 
     @app.get("/api/website/v1/health")
     async def health() -> dict:

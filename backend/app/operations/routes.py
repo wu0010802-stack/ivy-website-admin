@@ -11,6 +11,7 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import Role, User
 from app.auth.permissions import require_scope
 from app.campuses.models import Campus
+from app.common import ratelimit
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service
 from app.operations.models import SiteSettings
 
@@ -33,7 +34,10 @@ async def create_analytics_event(
         if result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
-    client_key = request.client.host if request.client else "unknown"
+    # 公開 API 一律經 Nuxt server route 代理進來，request.client.host 恆為
+    # 代理的內網位址——用它當限流 key 等於全站訪客共用一個 20 次/分鐘的桶，
+    # 正常流量就會把彼此的 CTA 點擊互相擠掉。改採代理帶進來的訪客 IP。
+    client_key = ratelimit.client_key(request)
     try:
         await analytics_service.record_public_click(
             db, event_type=payload.event_type, campus_key=payload.campus_key, client_key=client_key

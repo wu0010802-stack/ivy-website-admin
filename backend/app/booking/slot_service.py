@@ -1,22 +1,55 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.common.timezones import now_utc, slot_start_utc, today_local
 
 MAX_QUERY_RANGE_DAYS = 62
 
-# 占用名額的狀態：只有 confirmed 算「還坐著這個位子」。取消/未到場/完成
-# 都不再佔用（completed 代表已經參觀完，時段本身已經過去，不需要再占）。
-_OCCUPYING_STATUSES = (VisitRequestStatus.CONFIRMED.value,)
+# 規格 225-226 的時間窗初始規則：最短提前 24 小時、最遠開放 60 天。
+MIN_LEAD_TIME = timedelta(hours=24)
+MAX_ADVANCE_DAYS = 60
+
+# 占用名額的狀態。規格 221：new/contacting 不占名額；
+# pending_confirmation／confirmed 占名額——人工待確認期間必須先卡住位子，
+# 否則同一個名額會被賣給多個家長，等園方逐一確認時才發現超收。
+_OCCUPYING_STATUSES = (
+    VisitRequestStatus.PENDING_CONFIRMATION.value,
+    VisitRequestStatus.CONFIRMED.value,
+)
 
 
 class SlotQueryRangeTooWide(Exception):
     pass
+
+
+class SlotNotBookable(Exception):
+    """時段存在但目前不可被公開預約：已過去、未達最短提前時間、
+    或超過最遠開放天數。"""
+
+    def __init__(self, message: str = "這個時段目前無法預約") -> None:
+        self.message = message
+        super().__init__(message)
+
+
+def is_publicly_bookable(slot: VisitSlot, now: datetime | None = None) -> bool:
+    """公開查詢與公開送單共用同一份判斷（規格 404：server 是唯一判斷
+    來源）。原本兩邊都沒有檢查日期，導致已經過去的時段仍然可以被查到、
+    被預約，名額從此永久被佔住、也永遠不會有人來。"""
+    if slot.closed:
+        return False
+    current = now or now_utc()
+    starts_at = slot_start_utc(slot.slot_date, slot.start_time)
+    if starts_at - current < MIN_LEAD_TIME:
+        return False
+    if (slot.slot_date - today_local(current)).days > MAX_ADVANCE_DAYS:
+        return False
+    return True
 
 
 class SlotCapacityBelowBooked(Exception):

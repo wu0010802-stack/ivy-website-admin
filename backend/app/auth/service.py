@@ -18,9 +18,20 @@ _TOKEN_BYTES = 32
 
 # 簡易登入限流：同一 process 記憶體內滑動窗口。單一 process 有效；
 # 若日後水平擴充需搬到 Redis/DB 共享儲存，此處先標記限制。
+#
+# 刻意分成兩個桶，因為它們防的是不同的攻擊：
+# - 來源桶（IP）在驗證「之前」檢查，擋的是拿 bcrypt 當 CPU 消耗武器。
+# - 帳號桶只在「密碼錯誤」之後累計，且正確密碼一律放行並清零——否則
+#   任何未認證的人都能連續打錯密碼，把指定管理者永久鎖在門外。
 _LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+_LOGIN_SOURCE_ATTEMPTS: dict[str, list[float]] = {}
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_MAX_ATTEMPTS = 10
+LOGIN_SOURCE_WINDOW_SECONDS = 300
+# 放寬到 100：後台登入一律經代理進來，沒設定 trusted_client_ip_header 時
+# 全體員工會共用同一個桶。這個數字對十來個園方帳號綽綽有餘，但仍然會
+# 掐掉自動化的密碼嘗試迴圈。
+LOGIN_SOURCE_MAX_ATTEMPTS = 100
 
 
 class LoginRateLimited(Exception):
@@ -51,13 +62,24 @@ def _rate_limit_key(email: str) -> str:
     return email.strip().lower()
 
 
-def check_login_rate_limit(email: str) -> None:
-    key = _rate_limit_key(email)
+def _window(bucket: dict[str, list[float]], key: str, window_seconds: int) -> list[float]:
     now = time.monotonic()
-    attempts = [t for t in _LOGIN_ATTEMPTS.get(key, []) if now - t < LOGIN_WINDOW_SECONDS]
-    _LOGIN_ATTEMPTS[key] = attempts
+    attempts = [t for t in bucket.get(key, []) if now - t < window_seconds]
+    bucket[key] = attempts
+    return attempts
+
+
+def check_login_rate_limit(email: str) -> None:
+    attempts = _window(_LOGIN_ATTEMPTS, _rate_limit_key(email), LOGIN_WINDOW_SECONDS)
     if len(attempts) >= LOGIN_MAX_ATTEMPTS:
         raise LoginRateLimited()
+
+
+def check_login_source_rate_limit(client_key: str) -> None:
+    attempts = _window(_LOGIN_SOURCE_ATTEMPTS, client_key, LOGIN_SOURCE_WINDOW_SECONDS)
+    if len(attempts) >= LOGIN_SOURCE_MAX_ATTEMPTS:
+        raise LoginRateLimited()
+    attempts.append(time.monotonic())
 
 
 def record_login_attempt(email: str) -> None:
@@ -69,18 +91,50 @@ def clear_login_attempts(email: str) -> None:
     _LOGIN_ATTEMPTS.pop(_rate_limit_key(email), None)
 
 
-async def authenticate(db: AsyncSession, email: str, password: str) -> User:
-    check_login_rate_limit(email)
-    result = await db.execute(select(User).where(func.lower(User.email) == email.strip().lower()))
-    user = result.scalar_one_or_none()
-    if user is None or not verify_password(password, user.password_hash):
-        record_login_attempt(email)
-        raise InvalidCredentials()
-    if not user.is_active:
-        record_login_attempt(email)
-        raise AccountInactive()
-    clear_login_attempts(email)
-    return user
+def reset_login_rate_limits() -> None:
+    """測試用：清掉兩個記憶體桶，避免測試之間互相污染。"""
+    _LOGIN_ATTEMPTS.clear()
+    _LOGIN_SOURCE_ATTEMPTS.clear()
+
+
+# 帳號不存在時也要付出一次 bcrypt 的成本，否則「查無此人」會在毫秒級
+# 回來、而密碼錯誤要等兩百多毫秒，光看回應時間就能枚舉出哪些 email 是
+# 真的管理者帳號。只在 import 時算一次。
+_DUMMY_PASSWORD_HASH = _pwd_context.hash(secrets.token_urlsafe(32))
+
+
+async def authenticate(
+    db: AsyncSession, email: str, password: str, *, client_key: str | None = None
+) -> User:
+    if client_key:
+        check_login_source_rate_limit(client_key)
+
+    normalized = email.strip().lower()
+    # 用 limit(1) 而不是 scalar_one_or_none()：萬一資料庫裡已經存在大小寫
+    # 不同的重複 email（舊資料），也只會登入失敗，不會整支端點 500。
+    result = await db.execute(
+        select(User)
+        .where(func.lower(User.email) == normalized)
+        .order_by(User.created_at.asc(), User.id.asc())
+        .limit(1)
+    )
+    user = result.scalars().first()
+
+    password_ok = verify_password(
+        password, user.password_hash if user is not None else _DUMMY_PASSWORD_HASH
+    )
+
+    if user is not None and password_ok:
+        if not user.is_active:
+            record_login_attempt(normalized)
+            raise AccountInactive()
+        # 密碼正確就放行並清零：帳號桶不能變成別人可以遠端觸發的鎖。
+        clear_login_attempts(normalized)
+        return user
+
+    record_login_attempt(normalized)
+    check_login_rate_limit(normalized)
+    raise InvalidCredentials()
 
 
 def _hash_token(token: str) -> str:

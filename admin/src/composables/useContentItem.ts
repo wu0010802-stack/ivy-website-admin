@@ -2,6 +2,7 @@ import { computed, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { ContentItemOut } from '../api/types'
+import { useRequestSequence } from './useRequestSequence'
 
 // ContentEditor 外殼需要的狀態與動作；useContentItem 的回傳值結構上符合，
 // 頁面把整個 handle 傳給 <ContentEditor :editor> 即可。
@@ -34,6 +35,7 @@ export function useContentItem<TPayload extends object>(
   const isPublished = ref(false)
   // 最近一次從伺服器載入或儲存成功後的表單快照，用來判斷有沒有未儲存的修改。
   const snapshot = ref('')
+  const requests = useRequestSequence()
 
   function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T
@@ -62,10 +64,13 @@ export function useContentItem<TPayload extends object>(
   )
 
   async function load() {
+    const request = requests.begin()
     loading.value = true
     loadError.value = null
     try {
-      item.value = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
+      const result = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
+      if (!requests.isCurrent(request)) return
+      item.value = result
       form.value = item.value.latest_revision
         ? clone(item.value.latest_revision.payload as TPayload)
         : clone(emptyPayload)
@@ -75,9 +80,9 @@ export function useContentItem<TPayload extends object>(
       )
       takeSnapshot()
     } catch (err) {
-      loadError.value = errorMessage(err, '讀取內容失敗')
+      if (requests.isCurrent(request)) loadError.value = errorMessage(err, '讀取內容失敗')
     } finally {
-      loading.value = false
+      if (requests.isCurrent(request)) loading.value = false
     }
   }
 
@@ -88,6 +93,17 @@ export function useContentItem<TPayload extends object>(
     if (err instanceof ApiError) {
       const d = err.detail
       if (typeof d === 'string') return d
+      // FastAPI 的 422 驗證錯誤是一個陣列（每筆有 loc/msg/type），原本只
+      // 處理字串與 {message}，所有欄位驗證失敗都會退回「儲存失敗」，
+      // 使用者完全看不到是哪個欄位、為什麼不行。
+      if (Array.isArray(d)) {
+        const messages = d
+          .map((e) => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
+          .filter(Boolean)
+          // pydantic 會在訊息前面加 "Value error, "，對使用者沒有意義。
+          .map((msg) => msg.replace(/^Value error,\s*/, ''))
+        if (messages.length) return messages.join('；')
+      }
       if (d && typeof d === 'object' && 'message' in d) return String((d as { message: unknown }).message)
       return fallback
     }

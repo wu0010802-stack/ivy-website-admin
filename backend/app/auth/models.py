@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -26,6 +26,13 @@ V1_CREATABLE_ROLES = (Role.SUPER_ADMIN, Role.CAMPUS_ADMIN)
 
 class User(Base):
     __tablename__ = "users"
+    # email 的唯一性必須不分大小寫：建立帳號與登入查詢若一邊大小寫敏感、
+    # 一邊 lower() 比對，就會出現兩筆同名帳號，登入端點直接壞掉。應用層
+    # 已統一正規化成小寫，這個 functional index 是 DB 端的兜底（也擋住
+    # 兩個併發請求同時通過應用層檢查的情況）。
+    __table_args__ = (
+        Index("uq_users_email_lower", text("lower(email)"), unique=True),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)

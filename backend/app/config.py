@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     admin_origin: str | None = None
     notification_email_sink_dir: str | None = None
     retention_allow_real_run: bool = False
+    # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
+    # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
+    trusted_client_ip_header: str | None = "x-website-client-ip"
 
     @field_validator("database_url", "test_database_url")
     @classmethod

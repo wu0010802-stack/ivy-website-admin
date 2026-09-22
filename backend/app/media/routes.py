@@ -9,12 +9,51 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import User
-from app.auth.permissions import ScopeDenied, require_scope
+from app.auth.models import Role, User
+from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
 from app.media.schemas import MediaAssetOut, MediaUpdateRequest
-from app.media.validation import MediaValidationError
+from app.media.validation import MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MediaValidationError
+
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
+_MAX_BYTES_BY_KIND = {MediaKind.IMAGE: MAX_IMAGE_BYTES, MediaKind.VIDEO: MAX_VIDEO_BYTES}
+
+
+def _require_media_manage(user: User, campus_key: str | None) -> None:
+    """共用素材（campus_key 為 NULL）五校共同使用，任何一校的管理者都能
+    改寫或刪除等於跨校破壞——manage 一律限 super_admin，跟 content 模組的
+    `_require_shared_or_scope` 同一套裁定。read 維持開放（大家都要看得到）。"""
+    if campus_key is None:
+        require_scope(user, "media.manage")
+        if user.role != Role.SUPER_ADMIN:
+            raise CapabilityDenied()
+        return
+    require_scope(user, "media.manage", campus_keys=[campus_key])
+
+
+async def _read_upload_within_limit(file: UploadFile, kind: MediaKind) -> bytes:
+    """分塊讀取並在超過上限時**立刻中止**。原本是先 `await file.read()` 把
+    整個 multipart 收進記憶體、再比對 len()，等於上限完全沒有防護作用：
+    任何人都能用一個超大檔把 API 的記憶體吃光。"""
+    max_bytes = _MAX_BYTES_BY_KIND[kind]
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail={
+                    "code": "MEDIA_TOO_LARGE",
+                    "message": f"檔案超過大小限制（{max_bytes // (1024 * 1024)} MB）",
+                },
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
 
@@ -98,13 +137,13 @@ async def upload_media(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaAssetOut:
-    require_scope(current_user, "media.manage", campus_keys=[campus_key] if campus_key else None)
+    _require_media_manage(current_user, campus_key)
     try:
         declared_kind = MediaKind(kind)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kind 必須是 image 或 video") from exc
 
-    data = await file.read()
+    data = await _read_upload_within_limit(file, declared_kind)
     storage = service.get_storage(request.app.state.settings)
     try:
         asset = await service.create_media_asset(
@@ -148,9 +187,7 @@ async def update_media(
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaAssetOut:
     asset = await _get_owned_asset(db, current_user, media_id)
-    require_scope(
-        current_user, "media.manage", campus_keys=[asset.campus_key] if asset.campus_key else None
-    )
+    _require_media_manage(current_user, asset.campus_key)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(asset, field, value)
     await db.commit()
@@ -166,18 +203,21 @@ async def delete_media(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     asset = await _get_owned_asset(db, current_user, media_id)
-    require_scope(
-        current_user, "media.manage", campus_keys=[asset.campus_key] if asset.campus_key else None
-    )
+    _require_media_manage(current_user, asset.campus_key)
     storage = service.get_storage(request.app.state.settings)
     try:
-        await service.delete_media_asset(db, storage, asset)
+        storage_keys = await service.delete_media_asset(db, storage, asset)
     except service.MediaInUse as exc:
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "MEDIA_IN_USE", "message": "此素材仍被引用，無法刪除"},
         ) from exc
     await db.commit()
+    # 交易提交成功之後才真的動磁碟；提交失敗時檔案還在，只會留下孤兒檔，
+    # 不會出現「DB 說有、磁碟沒有」的破圖。
+    for key in storage_keys:
+        storage.delete(key)
 
 
 @router.post("/{media_id}/replace", response_model=MediaAssetOut, status_code=status.HTTP_201_CREATED)
@@ -189,10 +229,8 @@ async def replace_media(
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaAssetOut:
     old_asset = await _get_owned_asset(db, current_user, media_id)
-    require_scope(
-        current_user, "media.manage", campus_keys=[old_asset.campus_key] if old_asset.campus_key else None
-    )
-    data = await file.read()
+    _require_media_manage(current_user, old_asset.campus_key)
+    data = await _read_upload_within_limit(file, old_asset.kind)
     storage = service.get_storage(request.app.state.settings)
     try:
         new_asset = await service.replace_media_asset(
@@ -224,7 +262,11 @@ async def get_media_file(
     asset = await _get_owned_asset(db, current_user, media_id)
     storage = service.get_storage(request.app.state.settings)
     data = storage.read_bytes(asset.storage_key)
-    return Response(content=data, media_type=asset.content_type)
+    return Response(
+        content=data,
+        media_type=asset.content_type,
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @public_router.get("/{media_id}/file")
@@ -242,5 +284,10 @@ async def get_public_media_file(
     return Response(
         content=data,
         media_type=asset.content_type,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            # content_type 來自實際解碼結果（只可能是 jpeg/png/webp/gif/mp4），
+            # 但仍明確關掉瀏覽器的 MIME 嗅探，避免任何殘留的誤判空間。
+            "X-Content-Type-Options": "nosniff",
+        },
     )

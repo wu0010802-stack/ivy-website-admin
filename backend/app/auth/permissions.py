@@ -30,6 +30,10 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "content.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
+    # 批次匯出家長姓名與手機是另一個層級的事，不該跟「看得到案件」綁在
+    # 一起——否則階段 D 一上 readonly／reception 角色，他們就自動能把整份
+    # 個資下載回家。刻意獨立成一個 capability。
+    "booking.export": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
 }
 
 

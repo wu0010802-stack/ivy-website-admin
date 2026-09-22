@@ -23,6 +23,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 清掉本地登入狀態（不打 API）。401 的集中處理會用到。 */
+  function clearSession(): void {
+    user.value = null
+    csrfToken.value = null
+    setCsrfToken(null)
+  }
+
   async function logout(): Promise<void> {
     try {
       await api.post('/auth/logout')
@@ -49,5 +56,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, csrfToken, isLoading, login, logout, restoreSession }
+  return { user, csrfToken, isLoading, login, logout, restoreSession, clearSession }
 })

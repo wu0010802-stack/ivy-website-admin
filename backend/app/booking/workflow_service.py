@@ -5,10 +5,13 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import slot_service
+from sqlalchemy import select
+
+from app.booking import access_service, slot_service
 from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.booking.outbox import enqueue_outbox
+from app.common.timezones import now_utc
 from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
 
@@ -32,7 +35,10 @@ async def confirm_with_slot(
     """人工把一筆 inquiry 案件確認進某個時段；confirmed 必須有 slot，
     這裡是唯一能把狀態變成 confirmed 的路徑（slots 模式直接送出時，
     submit_visit_request 走的是同一份容量檢查邏輯）。"""
-    if visit_request.status not in (VisitRequestStatus.NEW.value,):
+    if visit_request.status not in (
+        VisitRequestStatus.NEW.value,
+        VisitRequestStatus.PENDING_CONFIRMATION.value,
+    ):
         raise InvalidTransition(f"狀態 {visit_request.status} 不能確認")
 
     slot = await slot_service.get_slot_for_update(db, slot_id)
@@ -48,6 +54,9 @@ async def confirm_with_slot(
     visit_request.status = VisitRequestStatus.CONFIRMED.value
     visit_request.assigned_staff_id = staff_id
     visit_request.confirmed_at = datetime.now(timezone.utc)
+    # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
+    # 一筆已確認的案件當成過期占位取消掉。
+    visit_request.hold_expires_at = None
     _add_event(db, visit_request.id, "confirmed")
     enqueue_outbox(
         db,
@@ -73,6 +82,8 @@ async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
 
     visit_request.status = VisitRequestStatus.CANCELLED.value
     visit_request.cancelled_at = datetime.now(timezone.utc)
+    visit_request.hold_expires_at = None
+    await access_service.revoke_access_for_visit_request(db, visit_request.id)
     _add_event(db, visit_request.id, "cancelled")
     enqueue_outbox(
         db,
@@ -88,6 +99,7 @@ async def mark_no_show(db: AsyncSession, visit_request: VisitRequest) -> VisitRe
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記未到場")
     visit_request.status = VisitRequestStatus.NO_SHOW.value
+    await access_service.revoke_access_for_visit_request(db, visit_request.id)
     _add_event(db, visit_request.id, "no_show")
     await db.flush()
     return visit_request
@@ -97,6 +109,7 @@ async def mark_completed(db: AsyncSession, visit_request: VisitRequest) -> Visit
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記完成")
     visit_request.status = VisitRequestStatus.COMPLETED.value
+    await access_service.revoke_access_for_visit_request(db, visit_request.id)
     _add_event(db, visit_request.id, "completed")
     await analytics_service.record_internal_event(
         db, event_type=AnalyticsEventType.VISIT_COMPLETED, campus_key=visit_request.campus_key
@@ -143,6 +156,43 @@ async def reschedule(
     )
     await db.flush()
     return visit_request
+
+
+async def expire_holds(db: AsyncSession, *, limit: int = 100) -> int:
+    """規格 222：人工待確認的占位到期後轉 cancelled、記 hold_expired、
+    釋放名額並通知園方。回傳實際處理的筆數。
+
+    冪等：以 `status = pending_confirmation AND hold_expires_at <= now`
+    為條件並鎖住列，已經被別的 worker 處理過的不會再被選到，所以重跑
+    不會重複釋放名額或重複發通知。名額本來就是依狀態即時算出來的，
+    轉成 cancelled 就等於釋放，不需要額外扣減。"""
+    now = now_utc()
+    result = await db.execute(
+        select(VisitRequest)
+        .where(
+            VisitRequest.status == VisitRequestStatus.PENDING_CONFIRMATION.value,
+            VisitRequest.hold_expires_at.is_not(None),
+            VisitRequest.hold_expires_at <= now,
+        )
+        .order_by(VisitRequest.hold_expires_at)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    expired = list(result.scalars())
+    for visit_request in expired:
+        visit_request.status = VisitRequestStatus.CANCELLED.value
+        visit_request.cancelled_at = now
+        visit_request.hold_expires_at = None
+        await access_service.revoke_access_for_visit_request(db, visit_request.id)
+        _add_event(db, visit_request.id, "hold_expired")
+        enqueue_outbox(
+            db,
+            visit_request.id,
+            "visit_request_hold_expired",
+            {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
+        )
+    await db.flush()
+    return len(expired)
 
 
 async def add_contact_note(

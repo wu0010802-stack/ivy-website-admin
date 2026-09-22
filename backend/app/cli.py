@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.auth import service
 from app.auth.models import Role, User
@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.content import service as content_service
 from app.db import create_engine, create_session_factory
 from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
+from app.booking.workflow_service import expire_holds
 from app.workers.runner import process_outbox_batch
 
 CAMPUSES = [
@@ -60,15 +61,17 @@ async def seed(dry_run: bool) -> None:
 
 async def bootstrap_admin() -> None:
     """互動式建立第一位總管理者；密碼不接受 command line 參數、不寫入 log。"""
-    email = input("總管理者 email：").strip()
+    # 與 UserCreateRequest 共用同一個正規化規則：一律小寫存、小寫比對，
+    # 否則 Wang@ 與 wang@ 會變成兩個帳號，之後誰都登不進去。
+    email = input("總管理者 email：").strip().lower()
     if not email:
         print("email 不可為空", file=sys.stderr)
         raise SystemExit(1)
 
     factory = await _session_factory()
     async with factory() as db:
-        existing = await db.execute(select(User).where(User.email == email))
-        if existing.scalar_one_or_none() is not None:
+        existing = await db.execute(select(User).where(func.lower(User.email) == email))
+        if existing.scalars().first() is not None:
             print(f"{email} 已存在，取消建立。", file=sys.stderr)
             raise SystemExit(1)
 
@@ -153,13 +156,25 @@ async def process_notifications_once() -> None:
 
     factory = await _session_factory()
     async with factory() as db:
+        # 先處理過期占位：規格 222 要求逾期的 pending_confirmation 轉
+        # cancelled、釋放名額並通知園方。它會寫進 outbox，所以要排在
+        # 處理 outbox 之前，這一輪就能把通知一起送出去。
+        expired = await expire_holds(db)
+        await db.commit()
+        if expired:
+            print(f"已釋放 {expired} 筆逾期的時段占位。")
+
         result = await process_outbox_batch(db, adapter, worker_id="cli-worker")
         print(f"已處理：成功 {result['sent']} 筆、失敗 {result['failed']} 筆")
 
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin>", file=sys.stderr)
+        print(
+            "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
+            "content-seed-from-fixture|initialize-content|process-notifications>",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     command = sys.argv[1]

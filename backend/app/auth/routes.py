@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -27,6 +28,7 @@ from app.auth.schemas import (
     UserUpdateActiveRequest,
     UserUpdateScopeRequest,
 )
+from app.common import ratelimit
 from app.config import Settings
 from app.operations import audit_service
 
@@ -64,7 +66,9 @@ async def login(
 ) -> LoginResponse:
     settings: Settings = request.app.state.settings
     try:
-        user = await service.authenticate(db, payload.email, payload.password)
+        user = await service.authenticate(
+            db, payload.email, payload.password, client_key=ratelimit.client_key(request)
+        )
     except service.LoginRateLimited as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="登入嘗試次數過多，請稍後再試"
@@ -127,8 +131,10 @@ async def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="階段 B 第一版只能建立 super_admin 或 campus_admin",
         )
-    existing = await db.execute(select(User).where(User.email == payload.email))
-    if existing.scalar_one_or_none() is not None:
+    # UserCreateRequest 已把 email 正規化成小寫，這裡仍用 lower() 比對，
+    # 讓既有的大小寫混雜資料也能被擋下（DB 端另有 lower(email) 唯一索引兜底）。
+    existing = await db.execute(select(User).where(func.lower(User.email) == payload.email))
+    if existing.scalars().first() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email 已被使用")
 
     user = User(
@@ -143,7 +149,21 @@ async def create_user(
     await db.flush()
     if payload.role == Role.CAMPUS_ADMIN:
         await service.set_campus_scopes(db, user, payload.campus_keys)
-    await db.commit()
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="user.create",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"role": payload.role.value, "campus_keys": sorted(payload.campus_keys)},
+    )
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # lower(email) 唯一索引擋下的併發重複建立：兩個請求都通過了上面的
+        # SELECT 檢查，DB 才是最後一道防線。
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email 已被使用") from exc
 
     result = await db.execute(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user.id)
@@ -202,6 +222,14 @@ async def update_user_scope(
             status_code=status.HTTP_400_BAD_REQUEST, detail="只有 campus_admin 需要設定校區範圍"
         )
     await service.set_campus_scopes(db, user, payload.campus_keys)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="user.set_scope",
+        target_type="user",
+        target_id=str(user_id),
+        metadata={"campus_keys": sorted(payload.campus_keys)},
+    )
     await db.commit()
     result = await db.execute(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)

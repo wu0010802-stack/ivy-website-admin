@@ -7,6 +7,8 @@ import { BOOKING_MODE_LABELS, campusLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { useRequestSequence } from '../composables/useRequestSequence'
 
 const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
 
@@ -14,9 +16,25 @@ type Mode = BookingConfigOut['mode']
 
 const config = ref<BookingConfigOut | null>(null)
 const loading = ref(false)
-const form = ref({ mode: 'paused' as Mode, line_url: '', phone: '', external_url: '', message: '' })
+const form = ref({
+  mode: 'paused' as Mode,
+  line_url: '',
+  phone: '',
+  external_url: '',
+  message: '',
+  // slots 模式的確認策略（規格 197：預設人工確認）。slots 本身還在
+  // 階段 D 閘門後、選項是 disabled 的，但這個值一定要原樣讀回再送回去
+  // ——PATCH 的 schema 預設是 false，漏掉這個欄位會讓「儲存任何其他設定」
+  // 靜默把自動確認關掉。
+  slots_auto_confirm: false,
+})
 const snapshot = ref('')
 const saving = ref(false)
+const confirmingSwitch = ref(false)
+const loadError = ref<string | null>(null)
+const saveError = ref<string | null>(null)
+const conflict = ref(false)
+const requests = useRequestSequence()
 
 const MODES: { value: Mode; label: string; help: string; disabled?: boolean }[] = [
   { value: 'inquiry', label: BOOKING_MODE_LABELS.inquiry!, help: '家長填表後由園方致電確認，案件會出現在「參觀案件」。' },
@@ -27,7 +45,20 @@ const MODES: { value: Mode; label: string; help: string; disabled?: boolean }[] 
   { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長自選時段，功能尚未開放。', disabled: true },
 ]
 
-const isDirty = computed(() => JSON.stringify(form.value) !== snapshot.value)
+const isDirty = computed(() => Boolean(config.value && snapshot.value) && JSON.stringify(form.value) !== snapshot.value)
+const { confirmLeave } = useUnsavedChanges(isDirty, saving)
+
+async function switchCampus(next: string) {
+  if (next === selectedCampus.value || saving.value || confirmingSwitch.value) return
+  confirmingSwitch.value = true
+  try {
+    if (await confirmLeave()) selectedCampus.value = next
+  } finally { confirmingSwitch.value = false }
+}
+
+async function reloadLatest() {
+  if (await confirmLeave()) await load(selectedCampus.value)
+}
 
 const requiredMissing = computed(() => {
   if (form.value.mode === 'line') return !form.value.line_url.trim()
@@ -37,54 +68,65 @@ const requiredMissing = computed(() => {
 })
 
 async function load(campusKey: string) {
+  const request = requests.begin()
   if (!campusKey) return
   loading.value = true
+  loadError.value = null
+  saveError.value = null
+  conflict.value = false
+  config.value = null
   try {
-    config.value = await api.get<BookingConfigOut>(`/admin/booking-config/${campusKey}`)
+    const result = await api.get<BookingConfigOut>(`/admin/booking-config/${campusKey}`)
+    if (!requests.isCurrent(request)) return
+    config.value = result
     form.value = {
       mode: config.value.mode,
       line_url: config.value.line_url ?? '',
       phone: config.value.phone ?? '',
       external_url: config.value.external_url ?? '',
       message: config.value.message ?? '',
+      slots_auto_confirm: config.value.slots_auto_confirm ?? false,
     }
     snapshot.value = JSON.stringify(form.value)
   } catch {
-    ElMessage.error('無法讀取預約設定')
+    if (requests.isCurrent(request)) loadError.value = '無法讀取預約設定，請重新載入。'
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 
 watch(selectedCampus, (key) => load(key), { immediate: true })
 
 async function save() {
-  if (!config.value || requiredMissing.value) return
+  if (!config.value || requiredMissing.value || saving.value || loading.value || conflict.value || !isDirty.value) return
+  const campusKey = selectedCampus.value
   saving.value = true
+  saveError.value = null
   try {
-    config.value = await api.patch<BookingConfigOut>(`/admin/booking-config/${selectedCampus.value}`, {
+    config.value = await api.patch<BookingConfigOut>(`/admin/booking-config/${campusKey}`, {
       expected_version: config.value.version,
       mode: form.value.mode,
       line_url: form.value.line_url || null,
       phone: form.value.phone || null,
       external_url: form.value.external_url || null,
       message: form.value.message || null,
+      slots_auto_confirm: form.value.slots_auto_confirm,
     })
     snapshot.value = JSON.stringify(form.value)
-    ElMessage.success(`已更新${campusLabel(selectedCampus.value)}校的預約方式，官網立即生效`)
+    ElMessage.success(`已更新${campusLabel(campusKey)}校的預約方式，官網立即生效`)
   } catch (err) {
     if (err instanceof ApiError) {
       const detail = err.detail as { code?: string; message?: string } | string
-      if (typeof detail === 'object' && detail.code === 'BOOKING_CONFIG_VERSION_CONFLICT') {
-        ElMessage.error('設定已被其他人更新，已重新載入最新版本')
-        await load(selectedCampus.value)
-      } else if (typeof detail === 'object' && detail.message) {
-        ElMessage.error(detail.message)
+      if (detail !== null && typeof detail === 'object' && detail.code === 'BOOKING_CONFIG_VERSION_CONFLICT') {
+        conflict.value = true
+        saveError.value = '設定已被其他人更新，你的修改仍保留在此頁。請先查看並載入最新設定，再重新編輯。'
+      } else if (detail !== null && typeof detail === 'object' && detail.message) {
+        saveError.value = detail.message
       } else {
-        ElMessage.error(typeof detail === 'string' ? detail : '更新失敗')
+        saveError.value = typeof detail === 'string' ? detail : '更新失敗，修改仍保留，請再試一次。'
       }
     } else {
-      ElMessage.error('更新失敗')
+      saveError.value = '更新失敗，修改仍保留，請再試一次。'
     }
   } finally {
     saving.value = false
@@ -96,17 +138,20 @@ async function save() {
   <div class="page page--narrow">
     <PageHeader lead="每一校在官網上「預約參觀」按下去會發生什麼事。這裡的設定不經過草稿，儲存後官網立即生效。" />
 
-    <div class="toolbar">
-      <CampusSelect v-model="selectedCampus" :keys="visibleCampusKeys" />
+    <div class="toolbar filter-bar">
+      <label class="filter-field"><span>編輯校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="saving || confirmingSwitch" @update:model-value="switchCampus" /></label>
       <span v-if="config" class="hint">目前為第 {{ config.version }} 版</span>
+      <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
-    <el-skeleton v-else-if="loading && !config" animated :rows="5" />
+    <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>
+    <el-skeleton v-else-if="loading" animated :rows="5" />
 
     <div v-else-if="config" class="panel">
       <div class="panel__body">
-        <el-form label-position="top" @submit.prevent="save">
+        <el-alert v-if="saveError" class="inline-error" type="error" :closable="false" show-icon :title="saveError"><el-button v-if="conflict" @click="reloadLatest">載入最新設定</el-button></el-alert>
+        <el-form label-position="top" :disabled="saving" :aria-busy="saving" @submit.prevent="save">
           <el-form-item label="預約方式">
             <el-radio-group v-model="form.mode" class="modes">
               <el-radio v-for="m in MODES" :key="m.value" :value="m.value" :disabled="m.disabled" class="modes__item">
@@ -131,7 +176,7 @@ async function save() {
 
           <div class="form-actions">
             <div class="save-row">
-              <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing" @click="save">
+              <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing || conflict" @click="save">
                 儲存並套用到官網
               </el-button>
               <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
@@ -187,8 +232,13 @@ async function save() {
 
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-top: 8px;
+}
+@media(max-width:720px) {
+  .modes__item { min-height:60px; padding:12px; }
+  .modes__help { font-size:14px; line-height:1.6; }
 }
 </style>

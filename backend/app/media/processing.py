@@ -34,23 +34,36 @@ def extract_video_poster_webp(video_bytes: bytes, at_seconds: float = 0.5) -> by
         frame_path = Path(tmp) / "frame.png"
         video_path.write_bytes(video_bytes)
 
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-ss",
-                str(at_seconds),
-                "-i",
-                str(video_path),
-                "-frames:v",
-                "1",
-                str(frame_path),
-            ],
-            capture_output=True,
-            timeout=30,
-        )
+        # ffmpeg 不存在、逾時、被 kill 都要收斂成 ProcessingError，呼叫端
+        # 才能照既有路徑把 asset 標成 failed；否則這些 infra 失敗會直接變成
+        # 未捕捉例外（500），而且剛寫進 media_root 的原始檔會變成孤兒。
+        try:
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    str(at_seconds),
+                    "-i",
+                    str(video_path),
+                    "-frames:v",
+                    "1",
+                    str(frame_path),
+                ],
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ProcessingError("ffmpeg 抽幀逾時（30 秒）") from exc
+        except OSError as exc:
+            raise ProcessingError(f"無法執行 ffmpeg：{exc}") from exc
+
         if result.returncode != 0 or not frame_path.exists():
             raise ProcessingError(
                 f"ffmpeg 抽幀失敗：{result.stderr.decode('utf-8', errors='replace')[:500]}"
             )
-        return make_image_thumbnail_webp(frame_path.read_bytes())
+        try:
+            return make_image_thumbnail_webp(frame_path.read_bytes())
+        except Exception as exc:  # Pillow 對壞影格可能丟各種例外
+            raise ProcessingError(f"影片 poster 轉檔失敗：{exc}") from exc

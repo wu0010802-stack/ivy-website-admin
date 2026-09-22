@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,13 @@ import pytest
 from app.media import service
 from app.media.models import MediaKind
 
+# 實際檔案由 conftest 的 _ensure_media_fixtures 產生（session 範圍、
+# autouse），不再假設它們已經躺在 /tmp 裡。
 FIXTURES = Path("/tmp/media-fixtures")
+
+requires_ffmpeg = pytest.mark.skipif(
+    shutil.which("ffmpeg") is None, reason="影片 poster 抽幀需要 ffmpeg"
+)
 
 
 def _read(name: str) -> bytes:
@@ -30,6 +37,7 @@ async def test_upload_real_image_succeeds(admin_client):
     assert body["variants"][0]["kind"] == "thumbnail"
 
 
+@requires_ffmpeg
 @pytest.mark.asyncio
 async def test_upload_real_video_succeeds_with_poster(admin_client):
     response = await admin_client.post(

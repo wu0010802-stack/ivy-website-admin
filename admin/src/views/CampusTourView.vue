@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
@@ -27,7 +27,16 @@ function previewUrl(image: string): string {
 }
 
 function newScene(): TourScenePayload {
-  return { key: `scene-${Date.now()}`, name: '新場景', image: '', intro: '', spots: [] }
+  // 後端要求每個場景 1～8 個熱點（content/schemas.py 的 _spots_bounded），
+  // 空陣列會讓儲存永遠 422。新場景直接給一個置中的熱點，使用者拖到對的
+  // 位置就好，不會先撞一次看不懂的錯誤。
+  return {
+    key: `scene-${Date.now()}`,
+    name: '新場景',
+    image: '',
+    intro: '',
+    spots: [{ name: '地點 1', x: 50, y: 50, text: '', question: '' }],
+  }
 }
 
 const campus = ref('')
@@ -79,6 +88,7 @@ function relativePosition(event: MouseEvent): { x: number; y: number } | null {
   const stage = stageRef.value
   if (!stage) return null
   const rect = stage.getBoundingClientRect()
+  if (!rect.width || !rect.height) return null
   const x = ((event.clientX - rect.left) / rect.width) * 100
   const y = ((event.clientY - rect.top) / rect.height) * 100
   return { x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) }
@@ -100,38 +110,47 @@ function onStageClick(event: MouseEvent) {
 }
 
 function removeSpot(i: number) {
-  currentScene.value?.spots.splice(i, 1)
+  // 至少要留一個：後端下界是 1，刪光之後這個場景就再也存不起來。
+  if (!currentScene.value || currentScene.value.spots.length <= 1) return
+  currentScene.value.spots.splice(i, 1)
   spotIndex.value = null
 }
 
-let draggingIndex: number | null = null
-let dragMoved = false
+let dragging: { pointerId: number; target: HTMLElement; spot: TourScenePayload['spots'][number] } | null = null
 
-function startDrag(i: number, event: MouseEvent) {
+function startDrag(i: number, event: PointerEvent) {
+  if (!event.isPrimary || event.button !== 0 || (editor.saving.value || editor.publishing.value)) return
+  const spot = currentScene.value?.spots[i]
+  if (!spot) return
+  stopDrag()
   event.stopPropagation()
-  draggingIndex = i
-  dragMoved = false
+  const target = event.currentTarget as HTMLElement
+  dragging = { pointerId: event.pointerId, target, spot }
+  target.setPointerCapture(event.pointerId)
   spotIndex.value = i
-  window.addEventListener('mousemove', onDragMove)
-  window.addEventListener('mouseup', stopDrag)
+  window.addEventListener('pointermove', onDragMove)
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
 }
 
-function onDragMove(event: MouseEvent) {
-  if (draggingIndex === null || !currentScene.value) return
+function onDragMove(event: PointerEvent) {
+  if (!dragging || event.pointerId !== dragging.pointerId) return
   const pos = relativePosition(event)
   if (!pos) return
-  const spot = currentScene.value.spots[draggingIndex]
-  if (!spot) return
-  dragMoved = true
-  spot.x = Math.round(pos.x * 10) / 10
-  spot.y = Math.round(pos.y * 10) / 10
+  dragging.spot.x = Math.round(pos.x * 10) / 10
+  dragging.spot.y = Math.round(pos.y * 10) / 10
 }
 
 function stopDrag() {
-  draggingIndex = null
-  window.removeEventListener('mousemove', onDragMove)
-  window.removeEventListener('mouseup', stopDrag)
+  if (dragging?.target.hasPointerCapture(dragging.pointerId)) dragging.target.releasePointerCapture(dragging.pointerId)
+  dragging = null
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
 }
+
+watch(currentScene, stopDrag)
+onBeforeUnmount(stopDrag)
 
 // 鍵盤微調：焦點在圖釘上時用方向鍵移動 1%，Shift 為 5%
 function nudge(i: number, event: KeyboardEvent) {
@@ -223,8 +242,9 @@ function nudge(i: number, event: KeyboardEvent) {
                 :style="{ left: `${spot.x}%`, top: `${spot.y}%` }"
                 :aria-label="`熱點 ${i + 1}：${spot.name || '未命名'}，方向鍵可微調位置`"
                 :aria-pressed="i === spotIndex"
-                @mousedown="startDrag(i, $event)"
-                @click.stop="!dragMoved && (spotIndex = i)"
+                @pointerdown="startDrag(i, $event)"
+                @lostpointercapture="stopDrag"
+                @click.stop="spotIndex = i"
                 @keydown="nudge(i, $event)"
               >
                 {{ i + 1 }}
@@ -388,6 +408,7 @@ function nudge(i: number, event: KeyboardEvent) {
 }
 
 .tour__pin {
+  touch-action: none;
   position: absolute;
   width: 28px;
   height: 28px;
@@ -459,5 +480,8 @@ function nudge(i: number, event: KeyboardEvent) {
   .tour__grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (pointer: coarse) {
+  .tour__pin { width:44px; height:44px; font-size:14px; }
 }
 </style>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -8,14 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, User
 from app.notifications.email_adapter import EmailAdapter
-from app.notifications.models import NotificationInboxItem
+from app.notifications.models import NotificationDelivery, NotificationInboxItem
 
 _KIND_LABELS = {
     "visit_request_created": "新的參觀需求",
+    # 規格 197：人工確認模式下「待園方確認」不是「已確認」，文案必須分開，
+    # 否則園方收到的信會誤以為這筆預約已經成立。
+    "visit_request_pending_confirmation": "新的時段申請（待園方確認）",
     "visit_request_confirmed": "參觀預約已確認",
     "visit_request_cancelled": "參觀預約已取消",
     "visit_request_rescheduled": "參觀預約已改期",
+    "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
 }
+
+_HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
+
+
+def _header_safe(value: str) -> str:
+    """收件者與主旨進 SMTP header 之前先把換行拿掉——含換行的值可以在
+    header 區段插入額外欄位（header injection）。目前的 sink adapter 不會
+    真的組 header，但這個函式是給之後接真實 SMTP 用的防線。"""
+    return _HEADER_UNSAFE_RE.sub(" ", value)
 
 
 async def get_notification_recipients(db: AsyncSession, campus_key: str) -> list[User]:
@@ -34,27 +48,77 @@ async def get_notification_recipients(db: AsyncSession, campus_key: str) -> list
     return recipients
 
 
-async def dispatch_outbox_message(
-    db: AsyncSession, *, campus_key: str, kind: str, payload: dict, adapter: EmailAdapter
+async def _already_delivered(
+    db: AsyncSession, outbox_message_id: uuid.UUID, channel: str, recipient_key: str
+) -> bool:
+    result = await db.execute(
+        select(NotificationDelivery.id).where(
+            NotificationDelivery.outbox_message_id == outbox_message_id,
+            NotificationDelivery.channel == channel,
+            NotificationDelivery.recipient_key == recipient_key,
+        )
+    )
+    return result.scalars().first() is not None
+
+
+def _record_delivery(
+    db: AsyncSession, outbox_message_id: uuid.UUID, channel: str, recipient_key: str
 ) -> None:
-    """處理一筆 outbox 訊息：寫站內通知＋寄信。任何一個收件人寄信失敗
-    （含未配置）都讓整筆工作視為失敗，交給 worker 的重試機制處理，
-    不會靜默丟失、也不假裝已寄出。"""
-    label = _KIND_LABELS.get(kind, kind)
     db.add(
-        NotificationInboxItem(
+        NotificationDelivery(
             id=uuid.uuid4(),
-            campus_key=campus_key,
-            kind=kind,
-            payload=payload,
+            outbox_message_id=outbox_message_id,
+            channel=channel,
+            recipient_key=recipient_key,
             created_at=datetime.now(timezone.utc),
         )
     )
 
+
+async def dispatch_outbox_message(
+    db: AsyncSession,
+    *,
+    outbox_message_id: uuid.UUID,
+    campus_key: str,
+    kind: str,
+    payload: dict,
+    adapter: EmailAdapter,
+) -> None:
+    """處理一筆 outbox 訊息：寫站內通知＋寄信。任何一個收件人寄信失敗
+    （含未配置）都讓整筆工作視為失敗，交給 worker 的重試機制處理，
+    不會靜默丟失、也不假裝已寄出。
+
+    重試時以 notification_deliveries 逐一去重：已經成功寄出的收件人不會
+    再收到第二封，站內通知也只會寫一筆——原本整筆重試會讓每一輪都多一
+    則站內通知、且已收到信的人重複收信。"""
+    label = _KIND_LABELS.get(kind, kind)
+
+    if not await _already_delivered(db, outbox_message_id, "inbox", campus_key):
+        db.add(
+            NotificationInboxItem(
+                id=uuid.uuid4(),
+                campus_key=campus_key,
+                kind=kind,
+                payload=payload,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        _record_delivery(db, outbox_message_id, "inbox", campus_key)
+        # 立刻 commit：這是「已經發生的事實」。如果留到整筆結束才提交，
+        # 後面任一收件人寄失敗導致 rollback，這則站內通知就會在下一輪
+        # 重試時再寫一次。
+        await db.commit()
+
     recipients = await get_notification_recipients(db, campus_key)
     for user in recipients:
+        if await _already_delivered(db, outbox_message_id, "email", user.email):
+            continue
         adapter.send(
-            to=user.email,
-            subject=f"[常春藤官網] {label}",
+            to=_header_safe(user.email),
+            subject=_header_safe(f"[常春藤官網] {label}"),
             body=f"校區：{campus_key}\n案件：{payload.get('receipt_id')}\n類型：{label}",
         )
+        # 寄成功才記，而且立刻 commit——信已經寄出去了，這個事實不能被
+        # 後面其他收件人的失敗回滾掉，否則這個人下一輪會再收一封。
+        _record_delivery(db, outbox_message_id, "email", user.email)
+        await db.commit()
