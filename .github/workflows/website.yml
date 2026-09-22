@@ -67,10 +67,6 @@ jobs:
     env:
       PGUSER: postgres
       PGPASSWORD: ci-only-password
-      WEBSITE_ENVIRONMENT: test
-      WEBSITE_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_dev
-      WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
-      WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -93,11 +89,22 @@ jobs:
       - name: Migrate disposable CI database
         run: uv run --frozen alembic upgrade head
         working-directory: backend
+        env:
+          WEBSITE_ENVIRONMENT: test
+          WEBSITE_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_dev
+          WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
+          WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
+      # 測試自己建立 Settings，不能注入 WEBSITE_* 來掩蓋缺少設定的情境。
       - run: uv run --frozen pytest -q
         working-directory: backend
       - name: Check production schema guard against migrated CI database
         run: uv run --frozen python ../deploy/check_schema.py
         working-directory: backend
+        env:
+          WEBSITE_ENVIRONMENT: test
+          WEBSITE_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_dev
+          WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
+          WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
       - run: npm ci
       - run: npm run contract:check
       - name: Test deployment failure handling and snapshot boundaries
