@@ -1,7 +1,13 @@
 """從現有 Bold 子集切出首屏字形，保留其餘全部字形與原始字寬。
 
-執行：python3 scripts/subset-critical-fonts.py（需 fontTools、Brotli）
+執行：python3 scripts/subset-critical-fonts.py（需 fontTools、Brotli；本機 /opt/homebrew 的 python3.11 有）
 首屏文案改動可重跑；未列入首屏的字仍由 remaining 字型提供。
+
+critical 字集 = fixture 的 hero 標語＋五校名（保底）∪ `web/app/generated/first-screen-chars.json`
+（由 scripts/first-screen-chars.cjs 對實際 SSR 頁面在手機／桌機／平板視窗量到的首屏 LINE Seed Bold
+用字：含分校頁 h1 標語、桌機首屏露出的下一段標題）。改首屏文案後先重跑那支 cjs 再跑這裡。
+產出的 font-subsets.css 是 LINE Seed Bold **唯一**的 @font-face 宣告；styles.css 不能再另宣告整包
+lineseed-bd（兩份都留會同時下載 154 KB 整包與 150 KB remaining，2026-09-22 線上實測過）。
 """
 from pathlib import Path
 from hashlib import sha256
@@ -16,9 +22,13 @@ OUTPUT = ROOT / 'web/public/assets/fonts/subsets'
 OUTPUT.mkdir(exist_ok=True)
 site = json.loads((ROOT / 'web/server/data/site-fixture.json').read_text())
 text = ''.join(site['home']['hero']['titleParts'].values()) + ''.join(c['name'] for c in site['campuses'])
+measured_path = ROOT / 'web/app/generated/first-screen-chars.json'
+measured = json.loads(measured_path.read_text())['union'] if measured_path.exists() else ''
 original = TTFont(SOURCE, recalcTimestamp=False)
 cmap = original.getBestCmap()
-critical = {ord(char) for char in text} & cmap.keys()
+critical = {ord(char) for char in text + measured if not char.isspace()} & cmap.keys()
+missing = sorted({char for char in text + measured if not char.isspace() and ord(char) not in cmap})
+assert not missing, f'首屏用字不在 lineseed-bd 子集裡（原始 OTF 不在本機無法補字）：{"".join(missing)}'
 groups = {'critical': critical, 'remaining': cmap.keys() - critical}
 manifest = {}
 rules = []
@@ -46,6 +56,13 @@ for name, codepoints in groups.items():
         target.write_bytes(data)
     url = f'/assets/fonts/subsets/{filename}'
     ranges = ','.join(f'U+{cp:X}' for cp in sorted(codepoints))
+    # critical 的 unicode-range 一定要含 U+0020：CSS 的「first available font」（決定行框高度的字型）是
+    # 家族裡 unicode-range 涵蓋空白字元的第一個 face。原本整包宣告沒有 unicode-range（預設全域）所以
+    # 行框以 LINE Seed 的 ascent/descent（1.61em）計算；拆成兩段後若都不含 U+20，行框會改用 PingFang
+    # 的度量（1.40em），標題文字往上跑 2–4px（2026-09-22 截圖比對抓到）。子集本身沒有空白字形
+    # （原字型 cmap 從 U+21 起），空白由後備字型畫，只是要讓 face 對 U+20「可用」。
+    if name == 'critical' and 0x20 not in codepoints:
+        ranges = 'U+20,' + ranges
     rules.append(f"@font-face{{font-family:'LINE Seed TW';font-weight:700;font-display:swap;src:url({url}) format('woff2'),url(/assets/fonts/lineseed-bd.woff) format('woff');unicode-range:{ranges}}}")
     manifest[name] = {'src': url, 'bytes': len(data), 'characters': len(actual)}
 assert coverage == set(cmap), '切片聯集與原字型不一致'
