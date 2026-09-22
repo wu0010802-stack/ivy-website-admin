@@ -11,6 +11,8 @@ const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.k
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
 const photoViewport = ref<HTMLElement | null>(null)
+const playbackControls = ref<HTMLElement | null>(null)
+const controlsReveal = ref<'static' | 'pending' | 'entering' | 'shown'>('static')
 const progress = ref(0)
 const visible = ref(false)
 const hidden = ref(true)
@@ -65,6 +67,12 @@ function focusChanged(target: EventTarget | null) {
   focused.value = target instanceof Element && Boolean(root.value?.contains(target))
     && target.matches(':focus-visible') && !target.closest('.campus-playback')
 }
+function finishControlsReveal() {
+  controlsReveal.value = 'shown'
+}
+function onControlsAnimationEnd(event: AnimationEvent) {
+  if (event.target === playbackControls.value && event.pseudoElement === '::before') finishControlsReveal()
+}
 
 let pointerStart: { id: number; x: number; y: number } | null = null
 let suppressPhotoClick = false
@@ -96,7 +104,12 @@ watch(orderedCampuses, (list, previous) => {
 let dispose = () => {}
 onMounted(() => {
   const media = matchMedia('(prefers-reduced-motion: reduce)')
-  const motionChanged = () => { reducedMotion.value = media.matches; optedIn.value = false }
+  const forcedColors = matchMedia('(forced-colors: active)')
+  const motionChanged = () => {
+    reducedMotion.value = media.matches
+    optedIn.value = false
+    if (media.matches || forcedColors.matches) finishControlsReveal()
+  }
   const visibilityChanged = () => { hidden.value = document.hidden }
   motionChanged()
   visibilityChanged()
@@ -109,12 +122,39 @@ onMounted(() => {
     visible.value = false
     if (element) observer.observe(element)
   }, { immediate: true, flush: 'post' })
+  // Observe the stationary controls so their own entrance cannot retrigger it.
+  const controlsObserver = new IntersectionObserver(entries => {
+    if (controlsReveal.value !== 'pending') return
+    if (!entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .8)) return
+    const controls = playbackControls.value
+    if (!controls) return
+    for (const [selector, property] of [['.pagination', '--reveal-pill-x'], ['.campus-playback', '--reveal-play-x']] as const) {
+      const element = controls.querySelector<HTMLElement>(selector)
+      if (element) controls.style.setProperty(property, `${controls.clientWidth / 2 - element.offsetLeft - element.offsetWidth / 2}px`)
+    }
+    controlsReveal.value = 'entering'
+    controlsObserver.disconnect()
+  }, { threshold: .8 })
+  const stopControlsObserving = watch(playbackControls, (element, previous) => {
+    if (previous) controlsObserver.unobserve(previous)
+    if (!element || controlsReveal.value === 'shown') return
+    if (media.matches || forcedColors.matches) { finishControlsReveal(); return }
+    controlsReveal.value = 'pending'
+    controlsObserver.observe(element)
+  }, { immediate: true, flush: 'post' })
+  const finishOnResize = () => { if (controlsReveal.value === 'entering') finishControlsReveal() }
   media.addEventListener('change', motionChanged)
+  forcedColors.addEventListener('change', motionChanged)
+  window.addEventListener('resize', finishOnResize, { passive: true })
   document.addEventListener('visibilitychange', visibilityChanged)
   dispose = () => {
     stopObserving()
+    stopControlsObserving()
     observer.disconnect()
+    controlsObserver.disconnect()
     media.removeEventListener('change', motionChanged)
+    forcedColors.removeEventListener('change', motionChanged)
+    window.removeEventListener('resize', finishOnResize)
     document.removeEventListener('visibilitychange', visibilityChanged)
   }
 })
@@ -164,7 +204,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
         </div>
       </div>
       <div v-if="orderedCampuses.length > 1" class="gallery-toolbar content-width">
-        <div class="playback-controls">
+        <div
+          ref="playbackControls" class="playback-controls" :data-reveal="controlsReveal"
+          @focusin="finishControlsReveal" @animationend="onControlsAnimationEnd"
+        >
           <div class="pagination" role="group" aria-label="分校輪播進度">
             <button
               v-for="(campus, i) in orderedCampuses" :key="campus.key"
@@ -240,7 +283,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .photo-card:focus-visible{outline-offset:-7px}
 .photo-card.is-repositioning{transition:none}
 .gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:94px}
-.playback-controls{grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
+.playback-controls{position:relative;grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
 .pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}
 .page-dot{display:grid;place-items:center;min-width:44px;height:44px;border:0;padding:0;background:none;border-radius:999px}
 .page-dot[aria-pressed=true]{width:62px}
@@ -250,6 +293,53 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .round-button{display:grid;place-items:center;width:48px;height:48px;flex:none;padding:0;border:1px solid var(--control-border);border-radius:50%;background:var(--control);transition:background .2s}
 .round-button:hover,.page-dot:hover{background:var(--control-hover)}
 .icon{width:20px;height:20px;display:block;fill:currentColor;flex:none}
+
+/* One small drop rises, settles, then separates into the two controls. */
+.playback-controls[data-reveal=pending]{opacity:0;pointer-events:none}
+.playback-controls[data-reveal=entering]::before{content:'';position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:999px;background:var(--control);pointer-events:none;animation:campus-control-droplet 1.2s both}
+.playback-controls[data-reveal=entering] .pagination{position:relative;isolation:isolate;background:transparent;border-color:transparent;animation:campus-control-pill-travel 1.2s both}
+.playback-controls[data-reveal=entering] .pagination::before{content:'';position:absolute;z-index:-1;left:50%;top:50%;box-sizing:border-box;width:100%;height:100%;border:1px solid var(--control-border);border-radius:999px;background:var(--control);transform:translate(-50%,-50%);pointer-events:none;animation:campus-control-pill-shape 1.2s both}
+.playback-controls[data-reveal=entering] .page-dot{animation:campus-control-dots 1.2s both}
+.playback-controls[data-reveal=entering] .campus-playback{animation:campus-control-split 1.2s both}
+.playback-controls[data-reveal=entering] .campus-playback .icon{animation:campus-control-icon 1.2s both}
+@keyframes campus-control-droplet{
+  0%{opacity:0;transform:translate(-50%,calc(-50% + 72px)) scale(.48,1.18);animation-timing-function:cubic-bezier(.16,1,.3,1)}
+  18%{opacity:1;transform:translate(-50%,calc(-50% - 9px)) scale(.72,1.16);animation-timing-function:ease-in-out}
+  32%{opacity:1;transform:translate(-50%,calc(-50% + 3px)) scale(1.14,.78);animation-timing-function:ease-out}
+  44%{opacity:1;transform:translate(-50%,-50%) scale(1);animation-timing-function:ease-out}
+  54%,100%{opacity:0;transform:translate(-50%,-50%) scale(.8)}
+}
+@keyframes campus-control-pill-travel{
+  0%,38%{transform:translateX(var(--reveal-pill-x));animation-timing-function:cubic-bezier(.22,1,.36,1)}
+  78%{transform:translateX(-2px);animation-timing-function:ease-in-out}
+  100%{transform:translateX(0)}
+}
+@keyframes campus-control-pill-shape{
+  0%,30%{opacity:0;width:48px;height:36px}
+  38%{opacity:1;width:48px;height:36px;animation-timing-function:cubic-bezier(.22,1,.36,1)}
+  78%{opacity:1;width:calc(100% + 6px);height:calc(100% - 2px);animation-timing-function:ease-in-out}
+  100%{opacity:1;width:100%;height:100%}
+}
+@keyframes campus-control-split{
+  0%,40%{opacity:0;transform:translateX(var(--reveal-play-x)) scale(.45,.72)}
+  47%{opacity:1;transform:translateX(var(--reveal-play-x)) scale(.76,.9);animation-timing-function:cubic-bezier(.22,1,.36,1)}
+  80%{opacity:1;transform:translateX(3px) scale(1.04,.96);animation-timing-function:ease-in-out}
+  100%{opacity:1;transform:translateX(0) scale(1)}
+}
+@keyframes campus-control-dots{
+  0%,58%{opacity:0;transform:translateX(12px) scale(.82);animation-timing-function:ease-out}
+  86%,100%{opacity:1;transform:translateX(0) scale(1)}
+}
+@keyframes campus-control-icon{
+  0%,72%{opacity:0;transform:scale(.65);animation-timing-function:ease-out}
+  94%,100%{opacity:1;transform:scale(1)}
+}
+@media(prefers-reduced-motion:reduce),(forced-colors:active){
+  .playback-controls[data-reveal]{opacity:1;pointer-events:auto}
+  .playback-controls[data-reveal=entering]::before,.playback-controls[data-reveal=entering] .pagination::before{display:none}
+  .playback-controls[data-reveal=entering] :is(.pagination,.campus-playback,.page-dot,.icon){animation:none!important;transform:none;opacity:1}
+  .playback-controls[data-reveal=entering] .pagination{background:var(--control);border-color:var(--control-border)}
+}
 
 .campus-details{display:grid;grid-template-columns:minmax(170px,.8fr) minmax(300px,1.6fr) auto;align-items:start;column-gap:clamp(32px,4vw,72px);padding-top:18px;scroll-margin-top:80px}
 .campus-district{display:block;font-size:13px;letter-spacing:.1em;color:var(--muted)}
