@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { Campus } from '~/types/site-content'
 import { isGeneratedTourScenes } from '~/types/site-content'
-import { resolveTourImage } from '~/utils/tour-image'
+import { responsiveTourImage } from '~/utils/tour-image'
+import { noscriptImage } from '~/utils/noscript-image'
 
 const props = defineProps<{ campus: Campus }>()
 
@@ -238,7 +239,8 @@ watch(
                   @keydown="onAreaKeydown"
                 >
                   <div class="tour-canvas" :style="canvasStyle">
-                    <img class="tour-image" v-bind="resolveTourImage(currentScene?.image ?? '', '(max-width: 760px) 100vw, 60vw')" :alt="`${campus.name} · ${currentScene?.name}`" draggable="false" decoding="async">
+                    <img class="tour-image tour-image-deferred" v-bind="mainImage" :src="imageReady ? mainImage.src : undefined" :srcset="imageReady ? mainImage.srcset : undefined" :alt="`${campus.name} · ${currentScene?.name}`" loading="lazy" decoding="async" draggable="false">
+                    <noscript v-html="noscriptImage(mainImage, 'tour-image', `${campus.name} · ${currentScene?.name}`)" />
                     <button
                       v-for="(spot, i) in currentScene?.spots"
                       :key="spot.name"
@@ -285,7 +287,7 @@ watch(
                     @click="selectScene(i)"
                     @keydown="onTabKeydown($event, i)"
                   >
-                    <img v-bind="resolveTourImage(scene.image, '(max-width: 760px) 30vw, 200px')" alt="" loading="lazy" decoding="async">
+                    <img v-bind="responsiveTourImage(scene.image, thumbnailSizes)" :src="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).src : undefined" :srcset="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).srcset : undefined" alt="" loading="lazy" decoding="async">
                     <span>{{ scene.name }}</span>
                   </button>
                 </div>

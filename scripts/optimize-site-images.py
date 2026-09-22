@@ -36,7 +36,7 @@ OVERRIDES = {
 }
 FULL_REENCODE_MIN_SAVING = 0.2
 # 分享圖：首頁 hero 與五校封面（campus.image 不開放 CMS 修改，清單固定）。
-OG_IMAGES = ['hero-campus-still', 'yihua-exterior', 'minghua', 'chongde', 'international', 'renwu']
+OG_IMAGES = ['hero-campus-restored-v1-still', 'yihua-exterior-enhanced-v1', 'minghua-enhanced-v1', 'chongde-enhanced-v1', 'international-enhanced-v1', 'renwu-enhanced-v1']
 OG_SIZE = (1200, 630)
 
 
