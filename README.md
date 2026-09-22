@@ -1,3 +1,9 @@
+## 2026-09-22 頁首膠囊內距調為 8px
+
+依使用者截圖，Nuxt 首頁深綠膠囊四邊內距由 4px 改為 8px，保留校徽、選單與預約按鈕尺寸。Chrome 1440／900／390／320px 實測 padding 均為 8px，膠囊高度桌機 58px、手機 62px，無水平溢出或 runtime error。截圖與量測在 `output/playwright/header-padding/`；本機預覽 `http://127.0.0.1:3010/`，向下捲動即可看到。
+
+原型 `node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異；未部署。
+
 ## 2026-09-21 拍立得翻面提示第二輪：折角做真＋首張偷看
 
 依 `design/flip-cue-directions-20260921/` 五欄對照（現行／折角做真／文字圖示加重／合併／偷看）使用者選定第 3 欄：相紙右下角真的切掉並掀起一片背面橫線紙（CSS 版 `clip-path`、WebGL 版貼圖挖空＋`alphaTest`），顯影完成後折角自己掀一次；提示字 13px／500 加虛線底，圖示改為左右翻／U 型回頭；首張拍立得掀角後向左微翻 12° 回正一次（每次工作階段一次，減少動態不做）。相紙陰影改由 `.print::after` 承接。規則見 `DESIGN.md`「拍立得顯影」的翻面一節。

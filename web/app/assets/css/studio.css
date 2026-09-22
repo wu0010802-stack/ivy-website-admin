@@ -673,7 +673,7 @@ body:has(.studio-hero) .header-top,
    膠囊底色用 --green，因為首頁捲過首屏後的五段背景都是淺色，米白膠囊與它們的邊界對比只有 1.0–1.4。 */
 .header-pill {display:none}
 body:has(.studio-hero) .header {
-  --pill-top:12px;--pill-pad:4px;--pill-ctrl:40px;--pill-crest:28px;
+  --pill-top:12px;--pill-pad:8px;--pill-ctrl:40px;--pill-crest:28px;
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
   --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
   --pill-gutter:max(48px,calc((100% - 1280px) / 2));
