@@ -119,57 +119,37 @@ const userLine = computed(() => {
 </template>
 
 <style scoped>
-.sidebar {
-  /* 只覆寫側欄內的 Element Plus 控制項；drawer 外的表單仍使用淺色主題。 */
-  --el-text-color-primary: var(--sidebar-ink);
-  --el-text-color-regular: var(--sidebar-ink);
-  --el-text-color-secondary: var(--sidebar-muted);
-  --el-text-color-placeholder: var(--sidebar-muted);
-  --el-color-primary: var(--sidebar-active-ink);
-  --el-color-primary-light-3: var(--sidebar-active-ink);
-  --el-border-color: var(--sidebar-line);
-  --el-border-color-hover: var(--sidebar-muted);
-  --el-fill-color-blank: var(--sidebar-hover);
-  --el-fill-color-light: var(--sidebar-active-bg);
-  color-scheme: dark;
-  display: flex; flex-direction: column; height: 100%; min-height: 0;
-  background: var(--sidebar-bg); color: var(--sidebar-ink);
-}
-.sidebar :focus-visible { outline-color: var(--sidebar-active-ink); }
+.sidebar { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface-3); }
 .sidebar__brand { display: flex; flex-shrink: 0; align-items: center; gap: 12px; min-height: var(--top-h); padding: 0 20px; }
 .sidebar__brand div { display: grid; gap: 2px; }
-.sidebar__brand strong { font-size: 15px; font-weight: 600; }
-.sidebar__brand span { font-size: 12px; color: var(--sidebar-muted); }
-.sidebar__brand img { border-radius: var(--radius); flex-shrink: 0; }
-.sidebar__search { padding: 12px 16px 16px; }
+.sidebar__brand strong { font-size: 15px; }
+.sidebar__brand span { font-size: 12px; color: var(--ink-3); }
+.sidebar__brand img { border-radius: var(--radius); }
+.sidebar__search { padding: 4px 16px 12px; }
 .sidebar__nav { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 20px; overscroll-behavior: contain; }
 .sidebar__group + .sidebar__group { margin-top: 12px; }
-.sidebar__section { margin: 20px 0 4px; padding: 12px 12px 0; border-top: 1px solid var(--sidebar-line); color: var(--sidebar-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.sidebar__section { margin: 20px 0 2px; padding: 0 12px; color: var(--ink-3); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
 .sidebar__section + .sidebar__group { margin-top: 0; }
 .sidebar__group.is-nested { margin-top: 0; }
 .sidebar__group.is-nested .sidebar__group-toggle { padding-left: 20px; }
 .sidebar__group.is-nested .sidebar__link { margin-left: 8px; }
-.sidebar__group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 10px 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-muted); font: inherit; font-size: 13px; cursor: pointer; }
-.sidebar__group-toggle:hover:not(:disabled) { background: var(--sidebar-hover); color: var(--sidebar-ink); }
+.sidebar__group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--ink-2); font: inherit; font-size: 12px; cursor: pointer; }
+.sidebar__group-toggle:hover:not(:disabled) { background: var(--line); }
 .sidebar__group-toggle:disabled { cursor: default; }
 .sidebar__chevron { font-size: 12px; transform: rotate(-90deg); }
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__nav ul { list-style: none; margin: 0; padding: 0; }
-.sidebar__link { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
-.sidebar__link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); text-decoration: none; }
-.sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
+.sidebar__link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: var(--radius); color: var(--ink-2); font-size: 14px; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+.sidebar__link:hover { background: var(--surface); color: var(--ink); text-decoration: none; }
+.sidebar__link.is-active { background: var(--el-color-primary-light-9); color: var(--brand-green-deep); font-weight: 600; }
 .sidebar__link .el-icon { font-size: 17px; }
-.sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
-.sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
-.sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }
+.sidebar__empty { padding: 20px 8px; color: var(--ink-3); }
+.sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px; border-top: 1px solid var(--line); }
+.sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--brand-green-deep); font-weight: 600; }
 .sidebar__user-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
-.sidebar__user-text span { font-size: 12px; color: var(--sidebar-muted); }
-.sidebar__close { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-ink); cursor: pointer; }
-.sidebar__close:hover { background: var(--sidebar-hover); }
-@media (forced-colors: active) {
-  .sidebar__link.is-active { outline: 2px solid Highlight; outline-offset: -2px; }
-}
+.sidebar__user-text span { font-size: 12px; color: var(--ink-3); }
+.sidebar__close { display: grid; place-items: center; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--ink); cursor: pointer; }
 @media (max-width: 900px) {
   .sidebar__link, .sidebar__group-toggle { min-height: 44px; }
   .sidebar__group-toggle, .sidebar__brand span, .sidebar__user-text span { font-size: 14px; }

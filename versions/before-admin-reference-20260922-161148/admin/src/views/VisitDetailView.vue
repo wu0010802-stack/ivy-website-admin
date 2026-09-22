@@ -287,7 +287,7 @@ onMounted(load)
   margin-top: 6px;
   font-size: 15px;
   font-weight: 500;
-  color: var(--el-color-primary);
+  color: var(--brand-green-deep);
 }
 
 .detail__grid {

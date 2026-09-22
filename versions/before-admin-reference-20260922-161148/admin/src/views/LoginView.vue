@@ -95,7 +95,9 @@ async function handleSubmit() {
   place-items: center;
   min-height: 100svh;
   padding: 24px 16px;
-  background: var(--sidebar-bg);
+  background:
+    radial-gradient(60% 50% at 20% 0%, color-mix(in oklch, var(--brand-green), transparent 88%), transparent),
+    var(--surface-2);
 }
 
 .login__card {
@@ -103,7 +105,7 @@ async function handleSubmit() {
   padding: 32px 32px 24px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
   box-shadow: var(--shadow-md);
 }
 

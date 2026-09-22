@@ -1,33 +1,3 @@
-## 2026-09-22 部署分支改為 main
-
-Railway 正式部署的觸發分支由 `production` 改為 `main`：`.github/workflows/website.yml` 的 deploy job 條件與 concurrency 取消規則、以及 `deploy/railway_ci.py` 內建的分支自檢都改為 `refs/heads/main`（三道守門要一起改，只改 workflow 會在 deploy job 被腳本擋下），`deploy/CICD.md` 的分支表、首次啟用步驟與日常操作同步更新。GitHub environment `production` 已建立並將 Deployment branches 限制為 `main`。
-
-GitHub default branch 同日一併改為 `main`（PR 預設開向 `main`，`feature/website-admin` 保留未刪除）。啟用後每次成功推上 `main` 都會在 CI 全綠後部署正式站，沒有額外閘門；不想立即上線的工作留在 `feature/**`。尚未設定 `RAILWAY_TOKEN`（production environment secret），在設定前 deploy job 會失敗、不會實際部署。線上目前包含未提交快照，首次真正部署前需先核對 `main` 與線上的差異。
-
-## 2026-09-22 首頁 Lighthouse 效能／SEO 修復（移植到 21d99e3）
-
-把 `perf/lighthouse-mobile-fixes` 上驗證過的效能修改移植到含分校控制器水滴進場的正式原始碼（先在 `9a0150e` 完成並驗證，同日以 3-way 合併把 base 移到 `21d99e3`：`studio.css` 上游新增的活動卡片蜜糖日光 hover 與本輪的 hero 底線改動位於不同區塊、自動合併無衝突；README／DESIGN 兩邊新增段落並列；其餘 54 個上游檔案（backend／admin／contracts／docs／`server/routes/api/website/v1/[...].ts`）直接取上游版本），還原版元件一律不保留、只以正式元件為準重新套用同樣的意圖。內容：取消 157 KB LINE Seed Bold 的 preload、品牌字 `@font-face` 併進 `styles.css` 不再載阻塞的 `brand-fonts.css`（只預載 h1 的 EB 與兩個品牌字子集）；SSR HTML 由 `server/plugins/compress-html.ts` 送 brotli、靜態檔 `nitro.compressPublicAssets` 預產 br／gz、`features.inlineStyles:false` 去掉 scoped 樣式 inline 又 link 的重複（首頁 HTML 99.8 KB → 79.2 KB，brotli 後 19.7 KB）；三道簾幕在 hydration 前於 `performance.css` 預留幾何；hero 影片重壓（手機 1.17 → 0.57 MB、桌機 2.32 → 1.18 MB）、手機延到 `load` 後 idle 才啟動、拿掉重複下載的 `poster`；`day-poster`／`classroom`／`learning` 提高壓縮率、hero 補 640w、母檔另產原尺寸重編碼候選、logo 改無損 WebP、below-fold 圖 `fetchpriority=low`、分校導覽圖改響應式；`/assets/**` 與字型補 Cache-Control、`/visit` 改 `no-cache` 讓 bfcache 可用；hero 底線改雙層 transform 擦出；五校→消息換頁（`HomeNewsTransition.vue`）與頁尾進場（`pages/index.vue`）的 view-timeline 動畫改直接掛在 underlay／sheet／`::before`／`::after` 上，wrapper 只留 `timeline-scope`，`--news-paper-progress`／`--home-footer-progress` 只給 JS 備援；五校卡片只有當前與左右鄰卡綁 `src`；拍立得 WebGL（`paperPrints.ts`）：觸控 DPR 上限 1.5、shadow map 512、顯影改六格預繪交叉淡化、建場景分段讓出主執行緒＋`compileAsync`、WebGL 探測整頁一次、暖身場景保住 shader program、觸控同時最多 2 張（`paper-budget.ts`）。SEO：首頁 JSON-LD 列五校 `Preschool`、`og:image` 改 1200×630 JPG（`web/public/assets/og/`）、品牌連結可及名稱與可見文字一致。水滴進場、輪播時鐘與 `motionViewport`／`scrollIdle` 等正式元件功能未動。
-
-驗證（本機 fixture build、同機同條件，基準為未修改的 `9a0150e`）：mobile devtools 節流 ×3 median Perf 66 → 98、FCP 3.78 → 1.70 s、LCP 3.78 → 2.00 s、TBT 110 → 73 ms、CLS 0.255 → 0.002、傳輸 1036 → 579 KB；mobile simulate ×3 median 57 → 83（LCP 6.0 → 4.06 s、TBT 14 → 0 ms、2243 → 1169 KB）；desktop 97 → 99（LCP 1.13 → 0.81 s）。layout-shift 診斷（412×823、4x CPU、慢網路）：基準 0.2657（`.day-reveal` 量測後上移），移植版 0.0019（僅字型換入的 4px 文字位移）。拍立得 4x CPU 節流逐張停留（SwiftShader）：第 2–6 張單次最大 LoAF 111–275 ms（基準 119–505 ms）、總阻塞 1433 ms（基準 2762 ms）、同時掛載的 canvas 最多 3（基準累積到 6）；第 1 張含 three 載入與首次 shader 編譯仍約 1.0 s（基準 1.09 s）。`npm run build`／`typecheck`／`test:unit`（12 檔 73 項，含 scroll-idle／motion-viewport／carousel-clock）通過。基準 vs 移植截圖比對（`scratchpad/port-verify/capture-local.cjs`，輪播先按暫停，390／1440 各 33 張）：整頁高度一致，66 張裡 64 張 0.00%，桌機 3.4 視窗位置 0.01%（第二張拍立得 WebGL 紙緣一線），桌機 campuses+0.3 的 3.94% 是兩邊剛好差 2px 捲動位置的時序假差異，固定同一 scrollY 重比為 0.000%。未 commit。
-
-base 移到 `21d99e3` 後重驗（基準＝未修改的 `21d99e3`）：`build`／`typecheck`／`test:unit`（73）通過；mobile devtools ×3 median Perf 68 → 98、FCP 3811 → 1702 ms、LCP 3811 → 2147 ms、TBT 109 → 73 ms、CLS 0.228 → 0.002、1037 → 579 KB（simulate 57 → 83、desktop 97 → 99 同前）；截圖比對 390／1440 各 33 張：桌機 33 張皆 ≤0.02%（3.4／4.8 位置的 0.02%／0.01% 是拍立得 WebGL 紙緣一線），手機第一輪 1.8／2.3／4 三格 3–6% 為視窗下緣那張拍立得顯影時序（一邊已顯影一邊未），settle 拉到 3 秒重跑 33 張全部 0.00%，整頁高度兩邊一致。
-
-審查後補修（同日）：字型檔名沒有雜湊但 `/assets/fonts/**` 快取 30 天，`styles.css` 的 `@font-face` 與 `nuxt.config.ts` 的 preload URL 一律加 `?v=<sha256 前 8 碼>`（重切子集時兩邊同步改；build 後 5 個字型 200、瀏覽器只各請求一次、無重複下載）；`paperPrints.ts` 的場景 `dispose()` 補 `key.shadow.dispose()`（暖身場景亦同），觸控名額反覆卸掛不再累積 512² shadow map；`buildScene` 的顯示畫布尺寸改到最後一個 await 之後才設、並同步畫第一幀（Playwright 逐幀取樣：桌機 1440→1100→1440 與手機 390×844↔844×390 轉向，畫布尺寸切換 9 次、空白幀 0；修正前手機轉向有 5 格空白幀）。
-
-未處理：Lighthouse SEO 66 是本機沒設 `NUXT_PUBLIC_SITE_ORIGIN`／indexing 關閉造成（noindex、無 canonical、無 og:image），與程式無關；`og:image` 由 `scripts/optimize-site-images.py` 依固定圖名（`OG_IMAGES`）預產、檔名不帶雜湊，CMS 一旦開放分校封面改成媒體庫 UUID 圖片，`ogImagePath()` 會指向不存在的 `/assets/og/<uuid>.jpg`，換圖後社群平台的分享快取也不會更新，屆時要改成由後端產圖並帶版本；perf-fixer 在還原版 `CampusBoard.vue` 上依線上 CSS 重寫的分校樣式（Noto Serif 校名、底線式 tabs、`noto-serif-tc-500-campus.woff`）**沒有**移植，因為正式原始碼的分校樣式與線上 build 不同，是否要對齊線上待設計側裁定；hero h1 實際字重 700 蓋過 800 的問題同前未改；Safari／iOS 實機未驗證。
-
-## 2026-09-22 後台深色側欄與青藍風格已部署
-
-[正式後台](https://web-production-04caa.up.railway.app/admin/) 已套用參考 `ivy-frontend` 的深藍灰側欄、青藍操作色與淺灰工作區。以目前線上快照為基底，只替換 9 個後台樣式檔，保留官網、API、資料庫與既有操作流程。
-
-web deployment `ac70c670-ff0f-45b7-8764-81cb67e1e34b` 為 SUCCESS，release `fc5638c3…` 及後台 JS／CSS 逐檔雜湊已在線上核對。固定快照通過 web 88／admin 30 tests、typecheck 與前後台正式建置；39 項公開 GET 與 Chrome 1440／390／320px 共 14 組檢查通過。登入頁為實際匿名流程，內頁使用正式程式搭配合成 API，未登入真實帳號或讀寫私人案件。證據在 `output/railway-admin-style-20260922/`；Safari／iOS 實機未驗證。未 commit／push。
-
-## 2026-09-22 官網後台套用園務後台風格
-
-依使用者指定參考 `ivy-frontend`，`admin/` 改為深藍灰側欄、青藍操作色、淺灰工作區與白底面板。統一總覽、列表、表單、素材選取及登入畫面；保留兩層分組、權限、搜尋、手機抽屜與未儲存保護。
-
-Node 22 typecheck、42 項後台單元測試與 production build 通過；Chrome 8 頁 × 5 尺寸（320–1440px）、導覽／按鈕對比及主要互動共 76 筆檢查通過，另 11 筆按鈕 hover、焦點、高對比與減少動態檢查通過。實際畫面使用合成 API 資料，未寫入正式資料；JS 語法與原型重打包通過，`preview.html` 無差異。建置保留既有大型 bundle 警告。證據在 `output/playwright/admin-reference-20260922/`，Safari／iOS 實機未驗證。僅本機整合，尚未部署或提交。
-
 ## 2026-09-22 預約 A 與孩子／聯絡資料已部署
 
 [正式預約入口](https://web-production-04caa.up.railway.app/visit) 已更新為 A 兩步驟選校與參觀資料，支援日期／場次、孩子姓名／生日、Email 與得知管道；後台同步詳情、搜尋、CSV 及人工確認。分校直達頁的場次載入已修正 SSR hydration 不一致。五校預約模式維持 `paused`，園方開啟適當模式並設定場次後才接受表單。
