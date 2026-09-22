@@ -1,0 +1,113 @@
+ M DESIGN.md
+ M README.md
+ M admin/README.md
+ M admin/src/api/labels.ts
+ M admin/src/components/CampusSelect.vue
+ M admin/src/components/ContentEditor.vue
+ M admin/src/components/PageHeader.vue
+ M admin/src/style.css
+ M admin/src/views/AnalyticsView.vue
+ M admin/src/views/AuditView.vue
+ M admin/src/views/BookingSettingsView.vue
+ M admin/src/views/NotificationsView.vue
+ M admin/src/views/PoliciesView.vue
+ M admin/src/views/UsersView.vue
+ M admin/src/views/VisitDetailView.vue
+ M admin/src/views/VisitRequestsView.vue
+ M admin/src/views/VisitSlotsView.vue
+ M backend/app/booking/models.py
+ M backend/app/booking/routes.py
+ M backend/app/booking/schemas.py
+ M backend/app/booking/service.py
+ M backend/app/operations/audit_service.py
+ M backend/app/operations/retention_service.py
+ M deploy/README.md
+ M scripts/optimize-site-videos.py
+ M web/app/assets/css/performance.css
+ M web/app/assets/css/studio.css
+ M web/app/components/CampusBoard.vue
+ M web/app/components/IconSprite.vue
+ M web/app/components/SiteFooter.vue
+ M web/app/components/SiteHeader.vue
+ M web/app/components/VisitForm.vue
+ M web/app/composables/useHomeReveal.ts
+ M web/app/generated/image-manifest.json
+ M web/app/generated/video-manifest.json
+ M web/app/pages/campuses/[key].vue
+ M web/app/types/site-content.ts
+ M web/app/utils/booking-action.ts
+ M web/nuxt.config.ts
+ M web/public/assets/fonts/README.md
+ M web/public/assets/hero-campus-source.txt
+ M web/public/assets/hero-campus.mp4
+ M web/server/data/site-fixture.json
+ M web/tests/booking-action.spec.ts
+?? admin/src/__tests__/notificationsUx.test.ts
+?? admin/src/__tests__/policiesUx.test.ts
+?? admin/src/__tests__/settingsUx.test.ts
+?? admin/src/__tests__/usersUx.test.ts
+?? admin/src/components/UserActions.vue
+?? admin/src/composables/useRequestSequence.ts
+?? admin/src/composables/useUnsavedChanges.ts
+?? backend/migrations/versions/8cf3e2b5a641_add_visit_child_contact_details.py
+?? design/about-frame-shapes-20260922/
+?? design/about-photo-three-20260922/
+?? design/campus-continuity-mockup-20260922/
+?? design/campus-heading-20260922/
+?? design/campus-lineart-placement-20260922/
+?? design/campus-photo-enhancement-20260922/
+?? design/campus-tab-framing-20260922/
+?? design/footer-colour-directions-20260922/
+?? design/hero-video-restoration-20260922/
+?? design/menu-uiux-20260922/
+?? design/typography-roles-20260922/
+?? design/visit-booking-mockups-20260922/
+?? versions/before-admin-uiux-20260922/
+?? versions/before-backend-bugfix-20260922-133652/
+?? versions/before-campus-a-outline-20260922/
+?? versions/before-campus-heading-b-20260922-114141/
+?? versions/before-campus-lineart-a-20260922/
+?? versions/before-footer-colour-a-20260922-144730/
+?? versions/before-frontend-bugfix-20260922-140536/
+?? versions/before-hero-restoration-20260922/
+?? versions/before-menu-campus-socials-20260922-143229/
+?? versions/before-menu-directory-b-20260922-141856/
+?? versions/before-menu-polish-20260922-144800/
+?? versions/before-performance-batch1-20260922-144854/
+?? versions/before-typography-roles-20260922-140604/
+?? versions/before-visit-a-20260922-141058/
+?? versions/before-visit-details-20260922-143833/
+?? web/app/assets/css/typography.css
+?? web/app/assets/css/visit-booking.css
+?? web/app/utils/campus-socials.ts
+?? web/app/utils/visit-form.ts
+?? web/public/assets/chongde-enhanced-v1.webp
+?? web/public/assets/fonts/noto-serif-tc-500-campus-OFL.txt
+?? web/public/assets/fonts/noto-serif-tc-500-campus.json
+?? web/public/assets/fonts/noto-serif-tc-500-campus.woff
+?? web/public/assets/hero-campus-restored-v1-still.webp
+?? web/public/assets/international-enhanced-v1.webp
+?? web/public/assets/minghua-enhanced-v1.webp
+?? web/public/assets/optimized/hero-desktop-50d303e02719.mp4
+?? web/public/assets/optimized/hero-mobile-0a809123a7aa.mp4
+?? web/public/assets/renwu-enhanced-v1.webp
+?? web/public/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1200.webp
+?? web/public/assets/responsive/chongde-enhanced-v1-b8937e01bc97-480.webp
+?? web/public/assets/responsive/chongde-enhanced-v1-b8937e01bc97-800.webp
+?? web/public/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-480.webp
+?? web/public/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-800.webp
+?? web/public/assets/responsive/international-enhanced-v1-4eafe568bda4-1200.webp
+?? web/public/assets/responsive/international-enhanced-v1-4eafe568bda4-480.webp
+?? web/public/assets/responsive/international-enhanced-v1-4eafe568bda4-800.webp
+?? web/public/assets/responsive/minghua-enhanced-v1-128d9be277d0-1200.webp
+?? web/public/assets/responsive/minghua-enhanced-v1-128d9be277d0-480.webp
+?? web/public/assets/responsive/minghua-enhanced-v1-128d9be277d0-800.webp
+?? web/public/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1200.webp
+?? web/public/assets/responsive/renwu-enhanced-v1-2d9696b163d3-480.webp
+?? web/public/assets/responsive/renwu-enhanced-v1-2d9696b163d3-800.webp
+?? web/public/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1200.webp
+?? web/public/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-480.webp
+?? web/public/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-800.webp
+?? web/public/assets/yihua-exterior-enhanced-v1.webp
+?? web/tests/campus-socials.spec.ts
+?? web/tests/visit-form.spec.ts

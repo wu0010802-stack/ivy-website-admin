@@ -1,0 +1,16 @@
+/* 桌機在首次繪製前預留與既有首屏轉場相同的幾何。
+   手機加高影片後自然捲動；沒有 JS 或減少動態時也維持靜態閱讀。 */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1001px) {
+  [data-ivy-motion] .home-reveal:not([data-motion]) .home-reveal-track {
+    height: calc(var(--reveal-height) + var(--reveal-distance));
+  }
+  [data-ivy-motion] .home-reveal:not([data-motion]) .studio-hero {
+    position: sticky;
+    top: 0;
+    height: var(--reveal-height);
+    min-height: 0;
+  }
+  [data-ivy-motion] .home-reveal:not([data-motion]) .belief-reveal {
+    margin-top: calc(-1 * var(--reveal-height));
+  }
+}

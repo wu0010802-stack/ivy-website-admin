@@ -1,0 +1,42 @@
+[
+  {
+    "key": "yihua-exterior",
+    "width": 1546,
+    "height": 1017,
+    "bytes": 462858,
+    "originalWidth": 590,
+    "originalHeight": 388
+  },
+  {
+    "key": "minghua",
+    "width": 1737,
+    "height": 906,
+    "bytes": 582262,
+    "originalWidth": 1000,
+    "originalHeight": 522
+  },
+  {
+    "key": "chongde",
+    "width": 1736,
+    "height": 906,
+    "bytes": 489942,
+    "originalWidth": 1000,
+    "originalHeight": 522
+  },
+  {
+    "key": "international",
+    "width": 1736,
+    "height": 906,
+    "bytes": 521896,
+    "originalWidth": 1000,
+    "originalHeight": 522
+  },
+  {
+    "key": "renwu",
+    "width": 1737,
+    "height": 906,
+    "bytes": 426454,
+    "originalWidth": 1000,
+    "originalHeight": 522
+  }
+]

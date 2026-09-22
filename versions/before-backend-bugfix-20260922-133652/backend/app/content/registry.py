@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from typing import Callable
+
+from pydantic import BaseModel
+
+from app.content.schemas import (
+    BookingContentPayload,
+    CampusFaqPayload,
+    CampusProfilePayload,
+    CampusTourPayload,
+    DayExperiencePayload,
+    HomeAboutPayload,
+    HomeCampusBoardPayload,
+    HomeHeroPayload,
+    SiteFooterPayload,
+    SiteMetaPayload,
+)
+
+
+def _extract_campus_tour_media_ids(payload: dict) -> list[uuid.UUID]:
+    """`image` 欄位同時相容兩種值：舊的 fixture 素材代號字串（例如
+    "campus"，不是有效 UUID，直接略過）與素材庫的媒體 UUID。只有後者
+    需要建立 MediaUsage 引用保護。"""
+    ids: list[uuid.UUID] = []
+    for scene in payload.get("scenes", []):
+        image = scene.get("image", "")
+        try:
+            ids.append(uuid.UUID(str(image)))
+        except (ValueError, AttributeError):
+            continue
+    return ids
+
+
+@dataclass(frozen=True)
+class ContentKindConfig:
+    payload_model: type[BaseModel]
+    # True：跨校共用內容，只有 super_admin 能編，分校不能改共用內容。
+    # False：該 kind 需要搭配 campus_key，一般 campus scope 規則套用。
+    shared_only: bool
+    # 從已驗證過的 payload dict 抓出目前引用了哪些素材庫媒體 UUID，供
+    # content/service.py 同步 MediaUsage（沒有引用媒體庫的 kind 用預設
+    # 的「永遠沒有引用」，不必特別處理）。
+    extract_media_ids: Callable[[dict], list[uuid.UUID]] = field(default=lambda payload: [])
+
+
+CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
+    "home_about": ContentKindConfig(HomeAboutPayload, shared_only=True),
+    "home_hero": ContentKindConfig(HomeHeroPayload, shared_only=True),
+    "site_footer": ContentKindConfig(SiteFooterPayload, shared_only=True),
+    "site_meta": ContentKindConfig(SiteMetaPayload, shared_only=True),
+    "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
+    "booking_content": ContentKindConfig(BookingContentPayload, shared_only=True),
+    "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
+    # 以下三種需要搭配 campus_key，每校各自一份，不是共用內容。
+    "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
+    "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False),
+    "campus_tour": ContentKindConfig(
+        CampusTourPayload, shared_only=False, extract_media_ids=_extract_campus_tour_media_ids
+    ),
+}

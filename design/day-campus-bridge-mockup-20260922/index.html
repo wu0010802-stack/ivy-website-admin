@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>孩子的一天 → 五所校園｜承接 mock</title>
+  <link rel="icon" href="../../web/public/favicon-48.png">
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="title"><strong>孩子的一天 → 五所校園</strong><span>承接 mock · 獨立預覽</span></div>
+    <div class="choices" role="group" aria-label="承接版本">
+      <button type="button" data-variant="a" aria-pressed="true">A 留白一句話</button>
+      <button type="button" data-variant="b" aria-pressed="false">B 故事留在畫面裡</button>
+      <button type="button" data-variant="c" aria-pressed="false">C 輕輕接進分校</button>
+    </div>
+    <div class="tools"><button type="button" id="device" aria-pressed="false">手機尺寸</button><button type="button" id="replay">從最後一張開始</button><a href="preview.html?v=a" id="standalone" target="_blank" rel="noopener">單獨開啟 ↗</a></div>
+  </header>
+  <div class="description" id="description">A · 拍立得收尾後，在米白留白裡讀一句話，再進入五所校園。</div>
+  <main class="frame-area" id="frame-area"><iframe title="承接段落互動預覽" src="preview.html?v=a&start=seam" id="preview"></iframe></main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    let variant = ['a', 'b', 'c'].includes(params.get('v')) ? params.get('v') : 'a';
+    const frame = document.getElementById('preview');
+    const descriptions = {a:'A · 拍立得收尾後，在米白留白裡讀一句話，再進入五所校園。',b:'B · 讓承接文字和最後一張拍立得同框，故事的情緒留在影片裡。',c:'C · 將一句話放在分校標題上方，以最短的距離接進選校。'};
+    function update() {
+      frame.src = 'preview.html?v=' + variant + '&start=seam';
+      document.getElementById('standalone').href = 'preview.html?v=' + variant;
+      document.getElementById('description').textContent = descriptions[variant];
+      document.querySelectorAll('[data-variant]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.variant === variant)));
+      history.replaceState(null, '', '?v=' + variant);
+    }
+    document.querySelectorAll('[data-variant]').forEach(b => b.addEventListener('click', () => {variant = b.dataset.variant; update();}));
+    document.getElementById('device').addEventListener('click', e => {
+      const mobile = document.getElementById('frame-area').classList.toggle('mobile');
+      e.currentTarget.setAttribute('aria-pressed', String(mobile));
+      e.currentTarget.textContent = mobile ? '回到桌機' : '手機尺寸';
+    });
+    document.getElementById('replay').addEventListener('click', () => frame.contentWindow.postMessage({type:'bridge-replay'}, location.origin));
+    update();
+  </script>
+</body>
+</html>

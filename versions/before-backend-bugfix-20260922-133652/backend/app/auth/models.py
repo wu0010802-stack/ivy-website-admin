@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db import Base
+
+
+class Role(str, enum.Enum):
+    """完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，
+    其餘（editor/reception/readonly）留給階段 D，不在此階段的建立/修改路由開放。"""
+
+    SUPER_ADMIN = "super_admin"
+    CAMPUS_ADMIN = "campus_admin"
+    EDITOR = "editor"
+    RECEPTION = "reception"
+    READONLY = "readonly"
+
+
+V1_CREATABLE_ROLES = (Role.SUPER_ADMIN, Role.CAMPUS_ADMIN)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    campus_scopes: Mapped[list["UserCampusScope"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    sessions: Mapped[list["Session"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserCampusScope(Base):
+    """campus_admin 的管理範圍；super_admin 不需要列（視為涵蓋全部）。"""
+
+    __tablename__ = "user_campus_scopes"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    campus_key: Mapped[str] = mapped_column(
+        ForeignKey("campuses.key", ondelete="CASCADE"), primary_key=True
+    )
+
+    user: Mapped[User] = relationship(back_populates="campus_scopes")
+
+
+class Session(Base):
+    """id 存 session token 的 SHA-256 hash，cookie 帶原始 token，
+    資料庫外洩也讀不出可用的 session。"""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    csrf_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="sessions")

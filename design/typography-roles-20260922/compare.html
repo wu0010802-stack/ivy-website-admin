@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>字體角色 · 並排比較</title>
+  <link rel="icon" href="../../web/public/favicon-48.png">
+  <style>
+    :root{font:16px/1.75 system-ui,'PingFang TC',sans-serif;color:#253d33;background:#f6f5ee}*{box-sizing:border-box}body{margin:0;padding:38px 40px 56px}header{display:flex;align-items:center;justify-content:space-between;gap:24px;border-bottom:1px solid #ced4c8;padding-bottom:24px}h1{font-size:28px;font-weight:600;margin:0 0 5px}p{margin:0;color:#637060;font-size:14px}.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}button,a{font:inherit;color:inherit}button{min-height:44px;border:1px solid #bac6b7;background:transparent;border-radius:7px;padding:7px 16px;cursor:pointer}button[aria-pressed=true]{background:#294638;color:#fffdf5;border-color:#294638}a{padding:8px 12px;text-underline-offset:5px}button:focus-visible,a:focus-visible{outline:3px solid #8d622d;outline-offset:3px}.section{padding-top:25px}.intro{margin-bottom:18px}h2{font-size:18px;font-weight:600;margin:0 0 2px}.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}figure{margin:0;min-width:0;background:white}figcaption{padding:10px 16px;font-size:13px;border-bottom:1px solid #dbe0d5;background:#e9ede5}figure:last-child figcaption{background:#294638;color:#fffdf5}img{display:block;width:100%;height:auto}body[data-device=mobile] .pair{max-width:824px;margin-inline:auto}.note{font-size:12px;margin-top:28px} @media(max-width:700px){body{padding:24px 16px}header{display:block}h1{font-size:24px}.tools{margin-top:14px}.pair{grid-template-columns:1fr;gap:16px}.section{padding-top:28px}.intro p{font-size:13px}}
+  </style>
+</head>
+<body data-device="desktop">
+  <header><div><h1>字體角色，分工更清楚。</h1><p>品牌有個性，校名有氣質，資訊更好讀。</p></div><div class="tools"><button data-size="desktop" aria-pressed="true">桌機</button><button data-size="mobile" aria-pressed="false">手機</button><a href="index.html">互動切換 ↗</a></div></header>
+  <main>
+    <section class="section"><div class="intro"><h2>01　理念與內文</h2><p>保留 LINE Seed 的親切感，收斂標語字級、放大內文。</p></div><div class="pair"><figure><figcaption>目前字體 · 大標約 66px／內文 17px</figcaption><img data-variant="current" data-section="about" src="current-about-desktop.png" alt="目前字體的理念區"></figure><figure><figcaption>分工提案 · 大標約 48px／內文 18px</figcaption><img data-variant="proposal" data-section="about" src="proposal-about-desktop.png" alt="分工提案的理念區"></figure></div></section>
+    <section class="section"><div class="intro"><h2>02　活動與消息</h2><p>資訊標題使用黑體 600，日期用較輕的數字，內容層次更明確。</p></div><div class="pair"><figure><figcaption>目前字體 · 品牌與資訊共用 LINE Seed</figcaption><img data-variant="current" data-section="news" src="current-news-desktop.png" alt="目前字體的活動與消息區"></figure><figure><figcaption>分工提案 · 資訊黑體 600／日期 Source Sans 3</figcaption><img data-variant="proposal" data-section="news" src="proposal-news-desktop.png" alt="分工提案的活動與消息區"></figure></div></section>
+  </main>
+  <p class="note">相同內容、配色、照片與節錄版型的字體比較。首頁主標與分校明體校名保留；獨立 mock-up，尚未套用至正式官網。</p>
+  <script>
+    document.querySelectorAll('[data-size]').forEach(function(button){button.addEventListener('click',function(){var size=button.dataset.size;document.body.dataset.device=size;document.querySelectorAll('[data-size]').forEach(function(b){b.setAttribute('aria-pressed',String(b===button))});document.querySelectorAll('img[data-variant]').forEach(function(img){img.src=img.dataset.variant+'-'+img.dataset.section+'-'+size+'.png'});var captions=document.querySelector('.pair').querySelectorAll('figcaption');captions[0].textContent=size==='desktop'?'目前字體 · 大標約 66px／內文 17px':'目前字體 · 大標約 38px／內文 16px';captions[1].textContent=size==='desktop'?'分工提案 · 大標約 48px／內文 18px':'分工提案 · 大標 32px／內文 16px';})});
+  </script>
+</body>
+</html>

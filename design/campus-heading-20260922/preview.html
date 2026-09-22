@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant-TW" data-layout="a">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>分校資訊・三款置中設計</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="layouts.css">
+  <script>
+    const options = new URLSearchParams(location.search);
+    document.documentElement.dataset.layout = ['a','b','c'].includes(options.get('layout')) ? options.get('layout') : 'a';
+    document.documentElement.dataset.capture = options.has('capture');
+  </script>
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <nav class="preview-note" aria-label="切換設計提案">
+    <a href="index.html">三款設計總覽</a>
+    <div class="layout-switch"><a href="?layout=a">A 經典留白</a><a href="?layout=b">B 雅緻編排</a><a href="?layout=c">C 綠金迎賓</a></div>
+    <span>獨立 mock-up · 點校名可切換</span>
+  </nav>
+  <main>
+    <section id="campuses" class="campus-gallery" aria-labelledby="campuses-heading" aria-roledescription="輪播">
+      <header class="gallery-heading content-width">
+        <div class="section-heading"><h1 id="campuses-heading">分校資訊</h1><span lang="en">Campuses</span></div>
+        <div class="campus-tabs" role="tablist" aria-label="選擇分校"></div>
+      </header>
+      <div class="gallery-media">
+        <div class="gallery-viewport" aria-label="校園照片，可左右滑動"><div class="gallery-track"></div></div>
+        <div class="gallery-toolbar content-width"><div class="playback-controls">
+          <div class="pagination" role="group" aria-label="分校輪播進度"></div>
+          <button class="playback round-button" type="button" aria-label="開始自動播放" aria-controls="campus-details"></button>
+        </div></div>
+      </div>
+      <div id="campus-details" class="campus-details content-width" role="tabpanel" tabindex="0"></div>
+      <p class="sr-only" id="campus-live" role="status" aria-live="polite"></p>
+    </section>
+    <footer class="preview-footer content-width">本頁為標題與選校列設計比稿，尚未套用官網。預設停在仁武校，按播放鍵可預覽輪播；校區與預約連結需開啟本機 Nuxt 3010 服務。</footer>
+  </main>
+</body>
+</html>

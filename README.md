@@ -1,8 +1,256 @@
+## 2026-09-22 官網 CI/CD 設定（待發布啟用）
+
+新增 GitHub Actions：PR／開發分支執行前後台、真 PostgreSQL 與 API 契約檢查；`production` 通過後依序部署 Railway API／web，核對 deployment ID 與公開 release。API 啟動先以唯讀交易核對 schema，migration 維持另行核准。啟用需發布 workflow、設定 production 的 Railway secret，以及整理已核准的正式版 commit；現有線上快照含未提交設計，不能直接用舊 HEAD 覆蓋。詳見 [CI/CD 說明](deploy/CICD.md)。
+
+## 2026-09-22 前台載入效能第一批（驗收待續）
+
+加入校園探索圖片按需載入／responsive 縮圖、首頁 hydration 幾何預留、日常封面延後載入，以及首屏字型分包。保留既有設計、原圖放大、CMS 媒體來源、字形與字寬；凍結原型不更動。
+
+本機固定慢速手機條件各三次：首頁 LCP 中位數 2.128 → 1.856 秒，義華 4.800 → 3.188 秒；初始圖片流量分別減少約 39%／61%。91 tests 通過，五尺寸 hydration 幾何不再跳動。最後 noscript 修正前 build／typecheck 通過；修正後重建因磁碟 ENOSPC 中斷，完整互動、無 JS、暖快取與其餘四校限速驗收待完成，尚未部署。詳見 [量測與待辦](docs/analysis/2026-09-22-frontend-performance-batch1.md)。
+
+## 2026-09-22 分校社群移除外連箭頭
+
+依使用者指定，移除選單分校社群列 FB／LINE 名稱旁的箭頭，保留原圖示、名稱、連結與讀屏的新視窗提示；Nuxt 和 B 互動稿同步。電話、主導覽與機構社群不在本次修改範圍。JS 語法與原型打包通過，尚未部署。
+
+## 2026-09-22 選單改為一般淺色毛玻璃
+
+依使用者修正，移除墨綠染色，改用中性乳白半透明底、深灰文字、24px 背景模糊及淡亮邊框；標題、五校與聯絡區同樣使用中性色。保留 B 排版、上一輪字級、分校及機構社群順序。[最新 B 預覽](http://127.0.0.1:8786/design/menu-uiux-20260922/preview.html?v=b)，[實站截圖](output/playwright/menu-neutral-glass-20260922/menu-desktop.png)。
+
+Chromium 六尺寸、操作尺寸、鍵盤、既有連結、200% 文字放大與三種透明度／色彩備援通過，無 runtime error；深色文字以純黑最暗背景合成驗證，正常與 hover 對比皆超過 4.5:1。JS 語法、原型打包與 diff 檢查通過，`preview.html` 無差異。證據在 `output/playwright/menu-neutral-glass-20260922/`。已套用本機官網與互動稿，尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 頁尾 A「深森林綠」已部署
+
+[查看正式官網頁尾](https://web-production-04caa.up.railway.app/#footer-campuses)。共用頁尾採深森林綠、米白文字與暖金點綴，呈現已確認的精簡底列；首頁消息區維持暖白銜接。web deployment `2b928a25-1865-47ee-90a1-dfbee3b9dc53` 為 SUCCESS，線上 release hash `87efef1ebe8118ace30cc39a54fac7907b65a815bfee91f3af357106129d7c3f` 已核對。
+
+以當時線上的活動卡／Hero 快照為基底，產品檔案只更新 `SiteFooter.vue`，保留其他已上線內容。Node 22 typecheck、web 72／admin 27 項測試與正式建置通過；正式站 39 項公開 HTTP 檢查及 9 組 320–1920px 瀏覽器檢查通過，CSS hash／色碼、暖白轉場、焦點與高對比備援正常，零 runtime／console error。證據在 `output/railway-footer-a-20260922-150539/`；Safari／iOS 實機未驗證。
+
+自動核准審查拒絕正式帳密使用與私有管理資料讀取，因此本次採公開 GET-only smoke，未執行後台登入／私有資料驗證。API／Postgres 未部署，未執行 migration、CMS 發布、素材或帳號異動、commit／push。
+
+## 2026-09-22 選單 B 改為墨綠毛玻璃
+
+依使用者要求，B 選單整體改為墨綠毛玻璃：80% 透底色、24px 背景模糊、淡亮邊框、米白／淡綠文字與淡金電話圖示。五校底列與分校聯絡區同步透光，保留上一輪排版、字級與社群資訊順序。[B 互動預覽](http://127.0.0.1:8786/design/menu-uiux-20260922/preview.html?v=b)，[實站選單截圖](output/playwright/menu-glass-20260922/menu-desktop.png)。
+
+Chromium 六尺寸、點擊尺寸、鍵盤操作、連結目的地與 200% 選單文字放大通過；以純白作最亮底色合成驗證文字及 hover 對比皆超過 4.5:1。減少透明度、模擬不支援 blur、強制色彩備援均通過，無 runtime error。JS 語法、原型重打包及 diff 檢查通過，`preview.html` 無差異。證據在 `output/playwright/menu-glass-20260922/`；僅本機整合，尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 預約 A 補齊參觀／孩子／聯絡資料
+
+依使用者提供的表單截圖，A 版第二步新增：可預約日期與場次、孩子姓名與出生年月日、Email、得知管道多選（Facebook／Google 評論／媽媽社團／親友介紹／其他）。保留家長稱呼、手機、同意事項與選填提問；孩子姓名／生日必填，Email／得知管道選填。桌機長表單使用可跟隨捲動的迎賓照片區，手機按資料分組順讀。[本機完整表單預覽](http://127.0.0.1:3021/visit/yihua)使用合成場次與送出回應，不建立真實案件。
+
+新增資料以獨立欄位儲存，後台明細、孩子姓名／Email 搜尋與 CSV 同步；生日按台北日期檢查、Email 格式檢核、得知來源使用穩定值。舊客戶端可省略新增欄位，保留舊請求冪等重播；匿名化清除新個資，公開家長回應及通知 payload 不增加兒童資料。
+
+日期與場次使用既有 VisitSlot，僅在園方將該校設為 slots 並建立開放時段時呈現，inquiry 仍由園所安排。後台可選 slots 並設定人工／自動確認，預設人工確認；新增待確認標籤、篩選與確認已選場次的操作。修正最後一組 pending 確認時重算自身占位的問題，過期占位不得確認復活。未自動更改任何校區的實際設定。
+
+驗證：web 86 tests、admin 42 tests（含修正選擇器後的指定重跑）、backend 指定預約／通知／保存政策 89 tests 通過；web／admin typecheck、OpenAPI／TypeScript 契約檢查通過。新 migration `8cf3e2b5a641` 已在專用 PostgreSQL `ivy_website_visit_details_test` upgrade，`alembic check` 無 drift；未動開發或正式 DB。五尺寸完整表單、選校／場次、額滿重選、日期／Email 驗證、空場次／讀取失敗重試與 200% 文字放大驗證在 `output/playwright/visit-details-20260922/`；快照 `versions/before-visit-details-20260922-143833/`。正式啟用需部署配套 API／前後台、套用 migration 並由園方設定場次；本輪未部署、未發送真實通知。Safari／iOS 實機未驗證。
+
+## 2026-09-22 常春藤的一天移除照片補充字已部署
+
+六張拍立得照片左上角的補充字及底標已移除，DOM、WebGL 貼圖及專用 CSS 同步清除。照片、時間戳、下方標題、背面故事、翻面與區塊來源說明保留。[查看正式官網](https://web-production-04caa.up.railway.app/#life)。僅部署三個檔案差異，保留線上既有頁尾、Hero、校園圖片與後台；未更動 CMS 資料及凍結原型。
+
+web deployment `7817ce31-4423-43df-9163-d6aca236645f` 為 SUCCESS，線上快照 `52c0092371b0902c9838a4859fa5d48f8ef9f518814ef0f378efee97a12dd5e8` 已核對。隔離版本 typecheck、web 72／admin 27 項測試及正式建置通過；正式站 41 項公開 HTTP 檢查、桌機／390／320px 照片與翻面檢查完成。證據在 `output/railway-day-caption-20260922-151539/`，API／Postgres 沿用原部署；未 commit／push。
+
+Node 22 typecheck、JS 語法與原型重打包通過；Chrome 1440／390px WebGL、320px 減少動態確認六張皆無圖說，時間戳／標題／故事保留、鍵盤翻面正常，無 runtime error。證據在 `output/playwright/day-captions-removed-20260922/`；Safari／iOS 實機未驗證。
+
+## 2026-09-22 選單 B 色彩與文字比例精修
+
+依使用者截圖優化選單：暖白底與墨綠導覽、深綠標題帶；分校聯絡區改為內縮淺鼠尾草綠與淡金電話圖示。主導覽桌機 20px／手機 18px、電話 22px、校名 14px、輔助字 12px；五校整併單列淡色底，社群移除厚框與重複的「前往」。分校在上、機構在下，以及 IG／YouTube「待提供」的資訊規則保留。
+
+[本機 B 預覽](http://127.0.0.1:8786/design/menu-uiux-20260922/preview.html?v=b)與 Nuxt 官網同步。[實際選單截圖](output/playwright/menu-polish-20260922/menu-desktop.png)。Node 22 typecheck、JS 語法、原型重新打包及 diff 檢查通過，`preview.html` 無差異。Chromium 實站六尺寸／互動稿五尺寸、有效連結至少 44×44px、鍵盤與外連目的地檢查通過，無 runtime error；文字對比最低 5.55:1，390px 的選單文字放大 200% 無水平溢出。證據在 `output/playwright/menu-polish-20260922/`；尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 頁尾 A「深森林綠」已整合
+
+依使用者「走 A」定案，Nuxt 共用頁尾改為深森林綠底、米白文字及暖金點綴，沿用現有排版、文案與五校導覽。首頁消息區維持暖白漸退，再接深綠頁尾；色票限定在 `SiteFooter.vue`，不更動全域品牌色與凍結原型。三案比較留存於 `design/footer-colour-directions-20260922/`，已於同日部署，詳見本頁部署紀錄。
+
+[本機預覽](http://127.0.0.1:3016/#footer-campuses)。Node 22 typecheck、JS 語法檢查與原型重打包通過，`preview.html` 無 Git 差異；首頁／分校／預約頁三路由 HTTP 200 並載入已編譯的 scoped 色票。Chromium 九組路由／尺寸檢查（320–1920px）確認 A 色碼、全域暖白不變、頁尾無橫向溢出、10 個連結保留 44px 高度；暖金鍵盤焦點、hover 底線、強制色彩與減少動態檢查通過，無 runtime error 或 console warning。證據在 `output/playwright/footer-colour-directions-20260922/integration-results.json`；Safari／iOS 實機未驗證。
+
+## 2026-09-22 選單分校資訊移到機構社群上方
+
+依使用者修正，B 選單先顯示分校電話與 IG／FB／YouTube／LINE，最下方才是機構社群。分校社群依頁首電話對應的已發布校區取得；目前義華 Facebook、LINE 可開啟，IG 與 YouTube 顯示「待提供」且不產生連結。未能對應校區時不猜填；舊資料借用的機構帳號不重列成分校帳號。
+
+[更新 B 預覽](http://127.0.0.1:8786/design/menu-uiux-20260922/preview.html?v=b)，[本機官網](http://127.0.0.1:3016/)。3 項社群歸屬 Vitest、Node 22 typecheck、Chrome 六尺寸（含順序、四平台圖示、電話至社群的鍵盤順序、分校與機構連結目的地）通過，無水平溢出或 runtime error。外站回應由本機替代，未撥號或傳訊；JS 語法與原型重打包通過，`preview.html` 無差異。證據在 `output/playwright/menu-campus-socials-20260922/`。尚未部署；Safari／iOS 實機未驗證。
+
+## 2026-09-22 Hero 清晰修復影片已部署
+
+首頁已採用 11.7 秒 Hero 修復片段與新版封面，桌機／手機分別載入確認的最佳化影片；保留自然膚色、慢速循環與播放控制，改善細節及快速動作重影。[查看正式官網](https://web-production-04caa.up.railway.app/)。Hero deployment `1812fc8a-c8f4-4a3e-aed6-15ecfa08f14c` 為 SUCCESS；後續活動卡 deployment 已逐檔確認保留全部 Hero 更新。
+
+以最新線上字體版本加入 10 個 Hero 檔案差異，固定快照 SHA-256 `f3a85bc5e8f7324835f08544bde09bb421d1f2d291cd7c78c00b31bd1e19f542`。Node 22 typecheck、web 72／admin 27 項測試與正式建置通過；線上 56 項 HTTP 檢查及 15 組桌機／手機播放、控制與封面備援驗證通過，0 runtime error。證據在 `output/railway-hero-restored-20260922-142744/`，部署細節見 `deploy/README.md`。本輪未 commit／push、migration 或 CMS 發布；Safari／iOS 實機未驗證。
+
+## 2026-09-22 活動卡片 A「蜜糖日光」已部署
+
+commit `8adf2a1` 的三色向下填入動畫已上線：[正式官網近期活動](https://web-production-04caa.up.railway.app/#latest-news)。以最新 Hero 修復影片快照為基底，只加入活動卡片 CSS，保留已上線的字體、校園照片與後台。web deployment `cd51dbeb-4f59-4e76-91bc-5d5a392fb7c9` 為 SUCCESS，線上 `/release.json` 對上 `0d8237902391866c562747b53bda8e6833cc73e816d54959f4f871a1d826f162`。
+
+Node 22 型別檢查、web 72 項／admin 27 項測試及前後台正式建置通過；正式站 48 項 HTTP 與 8 組桌機／手機互動檢查通過，逐卡截圖像素確認 A 色碼及向下填色，0 runtime error。證據在 `output/railway-event-hover-a-20260922-143225/`，部署細節見 `deploy/README.md`。API／Postgres 維持原部署，未執行 migration、CMS 發布或 Git push；Safari／iOS 實機未驗證。
+
+## 2026-09-22 預約參觀 A 已整合並優化
+
+依使用者「走 A」定案，正式 Nuxt `VisitForm.vue` 採墨綠迎賓／校園影像與兩步流程：五校照片選擇 → 聯絡與安排。通用入口不預選；分校入口直接帶入第二步。手機第二步收短介紹，選填資料預設收合；返回換校保留所有填寫資料，欄位錯誤就地顯示並移動焦點，支援手機號碼貼上空格／連字號。送出中鎖定輸入與切校，成功後以 server 狀態呈現「已收到需求／待園方確認／預約成立」，補充或更正改引導直接聯絡原校。
+
+[本機 A 版預覽](http://127.0.0.1:3021/visit)；[桌機選校截圖](output/playwright/visit-a-20260922/desktop-select.png)、[手機表單截圖](output/playwright/visit-a-20260922/mobile-form.png)。新增樣式限於 VisitForm scoped，沿用各校即時預約設定、API 與 idempotency；LINE／電話僅使用該校既有資料，slots 模式沿用尚未開放政策。
+
+驗證：web 單元測試 **80 passed**、隔離副本 Nuxt typecheck 通過；Chromium 1440／1024／768／390／320px、五校、鍵盤、手機觸控、200% 表單文字放大、保留輸入、錯誤重試、防重複送出、設定變更、各聯絡模式與三種成功狀態，共 19 組檢查通過。預約 POST 全部攔截為合成回應，未建立真實案件。原型 `node --check app.js`／重新打包通過，`preview.html` 無差異。快照在 `versions/before-visit-a-20260922-141058/`；驗證腳本、結果與截圖在 `output/playwright/visit-a-20260922/`。尚未部署或提交；Safari／iOS 實機未驗證。
+
+## 2026-09-22 選單採用 B 米白目錄與機構社群
+
+依使用者選定 B，Nuxt 選單改為米白直式目錄，頂部採深綠「探索常春藤＋細線」，底部保留明標義華校的參觀專線。「機構社群」先加入專案既有的 Facebook `facebook.com/ivykid`；其他平台待提供。分校捷徑保留行政區；矮螢幕可捲動選單。同步修正面板繼承 `pointer-events:none` 的點擊穿透，以及四項舊 hash 導覽，保留膠囊本體。
+
+[本機首頁](http://127.0.0.1:3016/)捲動後展開右上選單；[B 互動稿](http://127.0.0.1:8786/design/menu-uiux-20260922/preview.html?v=b)。Chrome 六尺寸、手機首屏／收合選單、鍵盤焦點、四項錨點實際點擊與 Facebook 新分頁（外站回應由本機替代）通過，無水平溢出或 runtime error；Node 22 typecheck、JS 語法與原型重打包通過，`preview.html` 無差異。證據在 `output/playwright/menu-directory-b-20260922/`。尚未部署；Safari／iOS 實機未驗證。
+
+## 2026-09-22 首頁字體分工已上線
+
+確認的字體調整已部署至[正式官網](https://web-production-04caa.up.railway.app/#latest-news)。web deployment `8eb936b3-343a-4e0e-9d00-886ddd0fa607` 為 SUCCESS；以當時線上版本加入字體樣式與 CSS 註冊兩檔差異，快照 SHA-256 `ebad700792a6e5c5aac90ba3500d8b6a8ec923af8ee2b05fa9aa737b727868d9`。
+
+Node 22 型別檢查、web 72／admin 27 項測試及正式建置通過。線上 47 項 HTTP 檢查（含 CSS 雜湊）與 Chrome 六尺寸／消息互動 10 組驗證通過，無水平溢出或 runtime error；Safari／iOS 實機未驗證。部署證據在 `output/railway-typography-20260922-141925/`，細節見 `deploy/README.md`。未 commit／push、migration 或 CMS 發布。
+
+## 2026-09-22 首頁字體分工已整合
+
+依已確認 mock-up，正式 Nuxt 首頁及消息／活動視窗採用字體分工：品牌主標與分校明體保留，理念標題收斂，資訊標題使用系統黑體600、正文400、操作500，日期與英文小標沿用 Source Sans 3 400。字體變更集中在 `web/app/assets/css/typography.css`，由 `web/nuxt.config.ts` 註冊；沿用原內容、照片與互動。
+
+[本機預覽](http://127.0.0.1:3016/#latest-news)。Chromium 320／390／768／1024／1440／1920px 字級與版面檢查通過；桌機／手機消息清單、詳情、Escape、焦點返回與正常捲動模式通過。品牌／校名／孩子的一天字級對照一致。Nuxt typecheck、原型語法與重打包通過，根目錄 `preview.html` 無差異。截圖與計算字型紀錄在 `output/playwright/typography-roles/`，快照在 `versions/before-typography-roles-20260922-140604/`。尚未部署或提交。
+
+文字放大200%：本次理念、消息與詳情無文字裁切，活動日期欄已修正重疊；320px時的既有頁首仍有水平溢出，停用本次樣式後同樣存在，未擴大修改頁首。Safari／iOS 實機未驗證。
+
+## 2026-09-22 Hero 影片清晰修復片段（未替換）
+
+從園方提供的廣告原檔重製既有七個 Hero 鏡頭，維持 11.7 秒、1080×800、半速無聲循環；輕度去噪／細節銳化並避免多次壓縮。揮手與跳躍兩鏡改保留原始影格，改善光流補幀重影。交付高畫質短片、桌機／手機網頁版及封面，素材與重製腳本在 `design/hero-video-restoration-20260922/`。
+
+[新舊版預覽](http://127.0.0.1:8794/design/hero-video-restoration-20260922/)。三版完整解碼、351 幀／30fps／無音軌／faststart 檢查通過；Chrome 三尺寸預覽與三版完整循環共 6 組檢查通過，無溢出或 runtime error。原型語法／重打包通過，`preview.html` 無差異；尚未替換正式 Nuxt 或部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 後台缺陷修復（backend／admin／web 契約）
+
+針對後台（`backend/` + `admin/`）做了一輪多維度稽核，修掉 20 項實際重現過的缺陷。最嚴重的七項都有 repro 測試佐證：
+
+- **帳號 email 大小寫**：建立時大小寫敏感、登入查詢不分大小寫，只要存在 `admin@` 與 `ADMIN@` 兩筆就整支登入端點拋 `MultipleResultsFound`（500），而且 API 沒有任何端點能救回來。改成 schema 統一正規化＋DB 端 `lower(email)` 唯一索引兜底，登入查詢改 `limit(1)` 不再炸。
+- **共用素材跨校破壞**：`campus_key` 為 NULL 時權限檢查直接放行，任何分校管理者都能改寫、取代、刪除五校共用素材。manage 一律限總管理者。
+- **已發布素材可被刪**：引用計數只看最新草稿，把圖從草稿移除後就能刪掉線上還在用的素材（官網當場破圖）。刪除前改成一併檢查目前生效 release 的 manifest。
+- **家長管理連結可無限重放**：docstring 宣稱一次性但程式從未寫過 `revoked_at`，連結外流後 14 天內任何人都能看個資、取消預約。改成終態自動撤銷＋新增管理端撤銷端點；家長端回應同時改成遮罩手機的專用 schema（規格 6.4）。
+- **公開送單零限流**：規格第 199 行要求 429，實際完全沒有。補上「校區＋手機」與來源兩層滑動窗口，冪等重播不計入。
+- **家長改期申請不驗證**：亂填 slot UUID 撞 FK 變 500，別校時段會卡成永遠 pending。補上存在性、同校、可預約與重複申請檢查。
+- **過去時段可被預約**：公開查詢與送單都不檢查日期，名額永久被佔住。依規格 225–226 補上最短提前 24 小時、最遠 60 天的時間窗，查詢與送單共用同一份判斷。
+
+其餘：上傳大小限制改成串流中止（原本先把整個檔案讀進記憶體才比對）、Pillow 壓縮炸彈、URL scheme 驗證改允許清單（`java<TAB>script:` 原本可繞過並經 `CampusBoard.vue` 的 `:href` 變成公開站 stored XSS）、內容跨校讀取、素材引用驗證、內容樂觀鎖補列鎖、預約設定存檔補列鎖、CSV 匯出獨立權限＋稽核、帳號建立／授權補稽核、通知重試去重、worker 失敗補 rollback、儀表板改用台北時區、analytics 限流鍵改用訪客 IP、三支 migration 壞掉的 `downgrade()`。
+
+**行為變更**：依規格第 197／221／222 行，`slots` 模式送出後預設是「待園方確認」（`pending_confirmation`，占名額、24 小時占位到期自動釋放），不再一律直接寫成 `confirmed`。園方要「送出即成立」需在預約設定打開 `slots_auto_confirm`。`web/` 的成功畫面改成依 server 回傳的實際狀態顯示文案，不再從 mode 推斷成「預約成立」。
+
+**尚未處理（需另行決定）**：規格第 190 行的 `age`／`contact_time` 固定 enum 仍未強制——公開表單目前送的是 CMS 的中文標籤，收緊成 Literal 會讓現行表單全部送不出去，需要 `web/` 與 CMS 選項一起改。
+
+同時補上 `web/server/routes/api/website/v1/[...].ts` 的訪客 IP header（並顯式覆寫，避免被偽造），公開端點限流才真的以訪客為單位——實測同一訪客連打 22 次 analytics 在第 21 次開始 429，另一個訪客仍是 204。
+
+驗證：`backend` pytest 150 passed、`admin` vitest 39 passed、`web` vitest 72 passed、`admin` vue-tsc 乾淨、`alembic check` 無 drift、`export_openapi.py --check` 契約一致。新 migration head 為 `a1c4f7e92b30`。
+
+## 2026-09-22 導覽選單三款 mock-up
+
+新增獨立 `design/menu-uiux-20260922/`：A「墨綠精簡」整理雙欄導覽、分校捷徑與義華專線；B「米白目錄」以單欄順讀呈現；C「校園優先」提供五校照片、電話與參觀路徑同步切換。[三款互動比較](http://127.0.0.1:8786/design/menu-uiux-20260922/)可切換桌機／手機，保留原截圖與完整比較圖。推薦 A 延續現有選單風格；尚未定案、整合 Nuxt 或部署。
+
+Chrome 三款 × 五尺寸共 15 組版面、C 五校資料／目的地、鍵盤與選單開關、比較頁裁切檢查通過，無水平溢出、缺圖或 runtime error；操作目標至少 44 × 44px。JS 語法、校名字型 cmap 與原型重打包通過，`preview.html` 無差異。驗證紀錄在 `output/playwright/menu-uiux-20260922/`；Safari／iOS 實機未驗證。
+
+## 2026-09-22 預約校園參觀三案 mock-up
+
+新增獨立 `design/visit-booking-mockups-20260922/`：[互動比較](http://127.0.0.1:8786/design/visit-booking-mockups-20260922/)與[三案並排](http://127.0.0.1:8786/design/visit-booking-mockups-20260922/compare.html)。A 為照片選校＋兩步短表單、B 為五校並列＋單頁表單、C 為校園大圖＋側邊／手機底部表單；參考 EtonHouse、MindChamps、BrightPath 的選校與參觀流程。保留校區帶入、切校後輸入、inquiry 語意及各校聯絡方式。
+
+Chromium 三案 × 五尺寸（1440／1024／768／390／320px）互動驗證通過，無水平溢出、圖片失敗、runtime error 或網路 mutation；深連結、暫停情境、鍵盤、錯誤與返回修改通過。JS 語法與原型重打包通過，`preview.html` 無差異。本輪不傳送預約資料、不整合 Nuxt、不部署；Safari／iOS 實機未驗證。
+
+## 2026-09-22 字體角色分工 mock-up
+
+新增獨立 `design/typography-roles-20260922/`，以相同節錄內容、版型與照片比較目前字體與提案：品牌標語保留 LINE Seed、五校名稱保留明體，資訊標題改用系統黑體 600，內文 400，日期沿用較輕的 Source Sans 3。理念大標收斂，桌機正文與手機消息入口提高字級。[互動比較](http://127.0.0.1:8782/design/typography-roles-20260922/)與[並排截圖](http://127.0.0.1:8782/design/typography-roles-20260922/compare.html)均提供桌機／手機；尚未整合正式 Nuxt。
+
+Chromium 六尺寸 × 兩版無水平溢出、缺圖；200% 文字縮放、比較切換、詳情與焦點返回通過。保留品牌／校名字型 cmap 覆蓋、JS 語法、原型重打包通過，`preview.html` 無差異。Safari／iOS 實機未驗證。
+
+## 2026-09-22 五校校園修復圖已部署
+
+已將確認的五校修復版圖片套用至[正式官網](https://web-production-04caa.up.railway.app/#campuses)的首頁輪播、分校封面與分享圖。web deployment `2f074707-e2a7-47c2-99fc-005d1bc47c52` 為 SUCCESS；以線上基底加入 23 檔圖片與設定差異，快照 SHA-256 為 `45467a20ebd86b008aebbd4cc2e2e36ac315795cedc1f678e64ffb0fc2e3095c`。
+
+Node 22 型別、web 72 項／admin 27 項測試與正式建置通過。線上 HTTP 64 項（含 20 張圖片逐檔雜湊）及 Chrome 30 組桌機／手機圖片與版面檢查通過，無水平溢出或 runtime error。部署證據在 `output/railway-campus-photos-20260922-134539/`，細節見 `deploy/README.md`；API／資料庫沿用原部署，未 commit／push、migration 或 CMS 發布。Safari／iOS 實機未驗證。
+
+## 2026-09-22 後台 UI／UX 已部署
+
+後台手機清單、篩選／重試、未儲存保護、版本衝突保留輸入與觸控圖釘已上線：[正式後台](https://web-production-04caa.up.railway.app/admin/)。web deployment `1e3b1147-edc6-487c-a144-6b3a6bdb9515` 為 SUCCESS；採既有線上官網快照加 `admin/` 22 檔差異，官網及 API／資料庫沿用原版本。
+
+快照 web 72 項／admin 27 項測試、型別與正式建置通過；線上 HTTP 39 項、Chrome 32 項檢查通過（1440／390／320px），JS／CSS 與本機正式建置雜湊一致。0 runtime error，未儲存測試未送出資料。部署證據在 `output/railway-admin-uiux-20260922-133447/`，細節見 `deploy/README.md`。未 commit／push、未執行 migration 或 CMS 發布；Safari／iOS 實機未驗證。
+
+## 2026-09-22 首頁與分校內頁銜接 mock-up
+
+新增獨立提案 `design/campus-continuity-mockup-20260922/`，延續首頁已定案的明體校名、暖白底、明亮圓角校園照片與香檳金入口；內容包含五校首屏、介紹、照片切換、FAQ 與聯絡區。提供[目前版／提案比較頁](http://127.0.0.1:8782/design/campus-continuity-mockup-20260922/)，可切換五校與桌機／手機，附完整截圖。僅為 mock-up，尚未整合 Nuxt 或部署。
+
+本機 Chromium 六尺寸 × 五校 30 組版面無水平溢出、主圖與明體正確載入、無 runtime error；照片選擇、FAQ、手機選單及比較工具操作通過。標題字型 cmap、JS 語法與原型重打包通過，`preview.html` 無差異。Safari／iOS 實機未驗證。
+
+## 2026-09-22 五校校園圖採用修復版
+
+依使用者確認，Nuxt 首頁分校輪播、五校內頁封面及分享圖改用已選定的質感修復素材。義華為 1546×1017，其餘約 1737×906；使用新版檔名並產生 480／800／1200px 響應式 WebP，原圖、PNG 母檔與比較頁均保留。內頁圖說改為「校園圖像」。
+
+[本機預覽](http://127.0.0.1:3010/#campuses)。Chrome 320／390／1440／1920px 首頁與桌機／手機五校內頁共 30 組檢查通過，確認新版圖片、響應式選圖、裁切、切校鍵盤操作與連結，無水平溢出或 runtime error。五張素材雜湊吻合確認版、20 個圖片尺寸檢查、Nuxt typecheck、原型語法／重打包與 diff 檢查通過；`preview.html` 無差異。證據在 `output/playwright/campus-photo-replacement-20260922/`。未部署；Safari／iOS 實機未驗證。
+
+## 2026-09-22 後台手機清單與編輯保護
+
+`admin/` 沿用淺色、深綠操作的既有風格，將時段、通知、使用者與操作紀錄改為桌機表格／手機直向清單。統一有標籤的篩選、筆數、載入與錯誤重試；新增使用者與操作紀錄搜尋。預約方式與全站設定加入未儲存離頁保護，版本衝突保留輸入；批次已讀、帳號操作與時段調整防止重複送出。校園探索支援觸控拖曳、44px 圖釘與鍵盤微調。
+
+驗證：27 項 Vitest 全數通過；`npm --prefix admin run build`（含 TypeScript）通過，仍有既有主 bundle 大於 500KB 提示。Chrome 10 頁 × 1440／390／320px 共 30 組版面檢查，無水平溢出或 runtime error；另通過設定取消／放棄、7 頁錯誤重試、名額編輯、通知批次、使用者範圍與觸控／鍵盤操作。截圖及合成 API 測試腳本在 `output/playwright/admin-uiux-20260922/`。瀏覽器驗證不連真實後端，未寫入正式資料；未部署，Safari／iOS 實機未驗。
+
+## 2026-09-22 分校線稿採用 A「留白短線」
+
+依使用者選定 A，正式 Nuxt `CampusBoard.vue` 的五校選單加入各校建築線稿，校名下方以桌機 25px／手機 20px 短底線呈現選取。取消整列上下框線及矩形 hover 底色，保留明體標題與既有照片、聯絡資訊、輪播控制。沿用響應式線稿與 lazy loading，decorative 圖片不重複朗讀校名。
+
+[本機預覽](http://127.0.0.1:3010/#campuses)。Chrome 六尺寸 × 五校及鍵盤／連結共 32 筆驗證、桌機／手機輪播 10 項互動檢查、Nuxt typecheck 通過；無水平溢出、缺圖或 runtime error。原型語法與重打包通過，`preview.html` 無差異。截圖與檢查在 `output/playwright/campus-lineart-a/`，改前快照在 `versions/before-campus-lineart-a-20260922/`。尚未部署；Safari／iOS 實機未驗證。
+
+## 2026-09-22 分校按鈕三個新方向（mock-up）
+
+使用者否決建築輪廓描邊後，新增 `design/campus-tab-framing-20260922/`：A 留白短線、B 校名膠囊、C 輕框卡片。三款皆沿用原有五校線稿，提供桌機／手機同頁對照與完整互動預覽，尚未選定或整合 Nuxt。
+
+[三款比較頁](http://127.0.0.1:8772/design/campus-tab-framing-20260922/)。Chrome 三款 × 四尺寸 × 五校共 60 個版面與鍵盤檢查通過，無水平溢出、缺圖或 runtime error。原型語法與重打包通過，`preview.html` 無差異。
+
+## 2026-09-22 五校校園圖質感修復提案（未整合）
+
+新增五校 AI 修復圖片與[原圖／新版互動比較頁](http://127.0.0.1:8772/design/campus-photo-enhancement-20260922/)。義華由 590×388 提升為 1546×1017，其餘由 1000×522 提升為約 1737×906；保留 PNG 母檔、WebP 與完整提示詞。改善材質清晰度與色偏，但窗格、招牌、人物、植栽等有生成差異，因此仍為提案，未替換 Nuxt 的官方素材。
+
+素材與使用界線見 `design/campus-photo-enhancement-20260922/README.md`。Chrome 三尺寸 × 五校 15 組顯示與互動檢查通過，無水平溢出或 runtime error；原型語法與重打包通過，`preview.html` 無差異。未部署。
+
+## 2026-09-22 A 版線稿按鈕改為建築輪廓框（mock-up）
+
+依使用者截圖，A 版五校按鈕的框線改沿各校建築外緣描繪，保留雙塔、尖屋頂與仁武圓頂的差異。移除矩形 hover 底色、橫跨選校列的直線及選取底線；移入時輪廓淡顯、選取時加深，校名維持下方。只修改獨立 mock-up，B 版與正式 Nuxt 未改。
+
+[更新版 A](http://127.0.0.1:8772/design/campus-lineart-placement-20260922/preview.html?layout=a)。Chrome 四尺寸／五校版面及鍵盤檢查通過；另確認五種輪廓、透明 hover、手機截圖與強制色彩焦點。原型語法與重打包通過，`preview.html` 無差異；框線截圖在 `design/campus-lineart-placement-20260922/screenshots/a-building-outline.png`。
+
+## 2026-09-22 分校建築線稿兩款位置 mock-up（未整合）
+
+新增獨立比較頁 `design/campus-lineart-placement-20260922/`，沿用目前明體標題、細線選校列、圓角輪播及五校原有線稿。A 將小線稿放在各校名稱上方；B 在區塊右上角顯示目前校區建築，與照片同步切換，手機移至標題右側。預設明華校，提供桌機／手機截圖與五校互動預覽。
+
+[本機比較頁](http://127.0.0.1:8772/design/campus-lineart-placement-20260922/)。Chrome 兩款 × 四尺寸 × 五校共 40 個狀態與鍵盤循環通過，無水平溢出或 runtime error；原型語法檢查與重打包通過，`preview.html` 無差異。正式 Nuxt 元件未改，未部署；原始線稿未修改。驗證紀錄在 `output/playwright/campus-lineart-placement/`。
+
+## 2026-09-22 分校控制器延後至照片下方區塊首次進場
+
+依使用者截圖調整 Nuxt `CampusBoard.vue`：膠囊與播放鍵在首次滑到照片下方控制區、該區塊至少 80% 可見時才播放水滴進場。改以控制區原始位置的定位元素觸發，避免 sticky 提前拉入畫面就播放；保留一次性進場、回捲時的吸附位置與播放操作。
+
+本機預覽：[首頁](http://127.0.0.1:3010/)，重新整理後向下捲至分校照片下緣。Chrome 1440／390／320px 確認提前顯示問題修復，首次進場、回捲、暫停／繼續、切校、無溢出及減少動態／高對比／鍵盤共 6 組檢查通過，無 runtime error。Node 22 Nuxt typecheck、`node --check app.js`、`python3 package_preview.py` 通過，`preview.html` 無差異；紀錄在 `output/playwright/campus-control-trigger/`。已部署正式 web（`eec927c9-839d-48cd-b703-7151db30485f`，SUCCESS），線上版本、31 項服務檢查與 6 組瀏覽器功能驗證通過；部署證據見 `deploy/README.md`。Safari／iOS 實機未驗證。
+
+## 2026-09-22 手機 Hero 影片放大
+
+依使用者要求讓影片佔更多版面，Nuxt 1000px 以下影片由約 43% 視窗高度提高為 60%（320–620px），影片下方留白縮為 24px。390×844 手機的影片由約 363px 增至 506px，554×620 視窗由 280px 增至 372px。保留米白文字區、完整文案與無框漢堡。
+
+手機 Hero 採自然捲動，文字與按鈕不在閱讀途中淡出；同步取消手機首次繪製的 sticky 空間預留。桌機仍維持原有揭幕轉場。[本機預覽](http://127.0.0.1:3010/)，截圖與驗證紀錄位於 `output/playwright/hero-video-larger-20260922/`；尚未部署。
+
+Chrome 320–1440px、橫向、減少動態與無 JavaScript 共 10 組版面檢查通過，無水平溢出、內容裁切或 runtime error；選單、影片播放／暫停、孩子的一天入口通過。Node 22 Nuxt typecheck、原型語法／重打包及 diff 檢查通過，`preview.html` 無差異；Safari／iOS 實機未驗證。
+
 ## 2026-09-22 活動卡片採用 A「蜜糖日光」
 
 依使用者選定 A，Nuxt 首頁三張活動卡 hover 色改為金黃 `#F6CD68`、蜂蜜 `#EABC74`、燕麥 `#F5DDA3`，保留 560ms 向下填色、移開還原與原有靜止底色。六組比較頁保留提案紀錄，正式配色規則同步至 DESIGN.md。
 
 本機預覽：[近期活動](http://127.0.0.1:3010/#latest-news)。Chrome 桌機 1440px／手機 390、320px 共 8 組互動檢查通過，三張截圖像素均對上 A 色碼及由上往下填色，無 runtime error；鍵盤、減少動態、高對比及活動視窗維持正常。`node --check app.js`、`python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異；紀錄在 `output/playwright/event-hover-a/`。尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 手機 Hero 米白底與無框漢堡選單
+
+Nuxt 手機／平板 Hero 保留上方影片，下方深綠面板改為米白底、深色文字，移除文字陰影，並同步原生／fallback 捲動動畫的字色與深色按鈕框。首頁上方漢堡移除外框、兩條線雙向置中，保留 44×44px 點擊範圍與鍵盤焦點。
+
+Chrome 320–1440px、減少動態與 fallback 共 12 組版面驗證通過，無水平溢出或 runtime error；手機文字對比 12.72:1，漢堡置中偏差 0px。選單點擊／Enter／Escape、收合膠囊與影片播放切換通過。Node 22 Nuxt typecheck、`node --check app.js`、`python3 package_preview.py` 及 `git diff --check` 通過，凍結原型 `preview.html` 無差異。證據在 `output/playwright/hero-mobile-20260922/`；[本機預覽](http://127.0.0.1:3010/)。未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 移除頁尾開發輔助連結
+
+Nuxt 共用 `SiteFooter.vue` 移除「標題字型 LINE Seed TW」與「機構原官網」兩項連結及箭頭。版權與頁尾備註依內容顯示；兩者皆空時不保留空白底列，適用首頁、分校及預約頁。
+
+Chrome 桌機 1440px／手機 390px × 三頁共 6 項檢查通過，無水平溢出或 runtime error，首頁頁尾漸退仍完整。Nuxt typecheck、`node --check app.js`、`python3 package_preview.py` 通過，`preview.html` 無差異。截圖與紀錄在 `output/playwright/footer-helper-removal/`；尚未部署。
+
+## 2026-09-22 分校 B 標題與大校名明體整合
+
+依使用者選定 B 並追加的截圖調整，Nuxt `CampusBoard.vue` 改為置中雙語標題與細線五校選單，無校區編號。「分校資訊」與校名採自託管 Noto Serif TC 500，校名放大為桌機 50–66px、手機 50px；資訊帶以細分隔線、垂直對齊的三欄整理校名／聯絡／預約，平板與手機分別重排。
+
+字型涵蓋全部目前用字並附來源／授權；六尺寸 × 五校版面、鍵盤及連結共 32 筆檢查、10 項桌機／手機自動輪播檢查、Nuxt typecheck 通過，無 runtime error。原型語法與重打包通過，`preview.html` 無差異。畫面及驗證在 `output/playwright/campus-heading-b/`。已於同日部署正式 web，部署 ID `80d4dfd3-3944-434e-beda-c89cf65cd3ac`；線上 31 項 HTTP 與 32 筆瀏覽器檢查通過，紀錄見 `deploy/README.md`。Safari／iOS 實機未驗證。
 
 ## 2026-09-22 活動卡片六組暖色探索（未整合）
 
@@ -15,6 +263,12 @@ Chrome 六款 × 1440／768／390／320px 共 24 個版面及 6 組互動檢查�
 Nuxt 首頁三張活動卡新增 560ms hover 動畫：蜜桃橘 `#F2B592`、杏桃金 `#F0C56F`、玫瑰奶茶 `#E8B1A4` 從上往下覆蓋原色，滑鼠移開後收回。保留深綠文字與原有尺寸；鍵盤聚焦同步換色，減少動態直接呈現結果，手機不殘留 hover，高對比沿用系統色。
 
 本機預覽：[近期活動](http://127.0.0.1:3010/#latest-news)。Chrome 桌機 1440px／手機 390、320px 共 8 組互動檢查通過，涵蓋三色方向、快速反向、活動視窗、Escape／焦點還原、鍵盤、減少動態及高對比，零 runtime error；逐卡截圖另確認上半已換色、下半仍為原色。Node 22 Nuxt typecheck、`node --check app.js`、`python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異。證據在 `output/playwright/event-hover/`；未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 分校標題與選校列三款置中提案
+
+新增獨立比較頁 `design/campus-heading-20260922/`：A 墨綠古銅、上下置中；B 石墨藍灰、雙語橫式標題與細線選單；C 深松綠香檳金、整合式標頭。三款沿用現行圓角輪播照片與資訊，提供五校互動和桌機／手機截圖，尚未整合至官網。
+
+Chrome 三款 × 1440／768／390／320px 共 12 個版面、60 次切校、鍵盤循環通過；標題與選校列置中、按鈕至少 44px、無水平溢出與 runtime error。檢查與截圖在 `output/playwright/campus-heading-20260922/`，Safari／iOS 實機未驗證。原型語法與重打包通過，`preview.html` 無差異。
 
 ## 2026-09-22 分校控制器水滴進場
 

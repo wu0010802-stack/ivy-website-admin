@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-Hant-TW" data-layout="a">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>分校建築線稿・兩款位置比較</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="placement.css">
+  <script>
+    const options = new URLSearchParams(location.search);
+    document.documentElement.dataset.layout = ['a','b'].includes(options.get('layout')) ? options.get('layout') : 'a';
+    document.documentElement.dataset.capture = options.has('capture');
+  </script>
+  <script src="preview.js" type="module"></script>
+</head>
+<body>
+  <nav class="preview-note" aria-label="切換設計提案">
+    <a href="index.html">兩款位置比較</a>
+    <div class="layout-switch"><a href="?layout=a">A 校名小線稿</a><a href="?layout=b">B 右上角線稿</a></div>
+    <span>獨立 mock-up · 點校名可切換</span>
+  </nav>
+  <main>
+    <section id="campuses" class="campus-panorama campus-gallery" aria-labelledby="campuses-heading" aria-roledescription="輪播">
+      <header class="gallery-heading content-width">
+        <div class="gallery-title"><h2 id="campuses-heading">分校資訊</h2><span lang="en">Campuses</span></div>
+        <img class="corner-art" width="240" height="160" src="../../web/public/assets/campus-line-art-minghua.webp" alt="" aria-hidden="true">
+        <div class="campus-tabs" role="tablist" aria-label="選擇分校"></div>
+      </header>
+      <div class="gallery-media">
+        <div class="gallery-viewport" aria-label="校園照片，可左右滑動"><div class="gallery-track"></div></div>
+        <div class="gallery-toolbar content-width"><div class="playback-controls">
+          <div class="pagination" role="group" aria-label="分校輪播進度"></div>
+          <button class="playback round-button" type="button" aria-label="開始自動播放" aria-controls="campus-details"></button>
+        </div></div>
+      </div>
+      <div id="campus-details" class="campus-details content-width" role="tabpanel" tabindex="0"></div>
+      <p class="campus-live" id="campus-live" role="status" aria-live="polite"></p>
+    </section>
+    <footer class="preview-footer content-width">沿用五校原有建築線稿與目前版面，僅比較線稿位置。預設明華校，可點校名或播放切校；此頁為獨立 mock-up，尚未套用官網。</footer>
+  </main>
+</body>
+</html>

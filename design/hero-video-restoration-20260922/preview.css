@@ -1,0 +1,40 @@
+:root {
+  color-scheme: light;
+  --ink: #253e34;
+  --muted: #617267;
+  --paper: #fffdf5;
+  --line: #d9dfd3;
+  --white: #fff;
+  --green: #2d6e4e;
+  --focus: #be7532;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1520px; margin: auto; padding: 60px 48px; }
+header { margin-bottom: 40px; max-width: 760px; }
+.eyebrow { font-size: 12px; letter-spacing: .16em; color: var(--muted); }
+h1 { font-size: clamp(28px, 3vw, 44px); font-weight: 600; line-height: 1.4; margin: 18px 0 14px; }
+.intro { font-size: 17px; line-height: 1.9; margin: 0; }
+.films { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.caption { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+h2 { margin: 0; font-size: 21px; font-weight: 600; }
+.caption span, .description, .note { color: var(--muted); font-size: 14px; line-height: 1.8; }
+video { display: block; width: 100%; height: auto; aspect-ratio: 27 / 20; border-radius: 16px; background: var(--ink); }
+.description { margin: 12px 0 0; }
+.downloads { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.downloads a { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 10px 24px; color: var(--ink); background: var(--white); border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-size: 15px; }
+.downloads a.primary { background: var(--green); border-color: var(--green); color: var(--white); }
+a:hover { text-decoration: underline; text-underline-offset: 4px; }
+a:focus-visible, video:focus-visible { outline: 3px solid var(--focus); outline-offset: 5px; }
+.note { margin: 22px 0 0; }
+@media (max-width: 760px) {
+  main { padding: 32px 20px 40px; }
+  header { margin-bottom: 28px; }
+  .films { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .intro { font-size: 16px; }
+  .downloads { gap: 10px; }
+  .downloads a { padding-inline: 20px; }
+}

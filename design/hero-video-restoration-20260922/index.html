@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero 影片・清晰修復版</title>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow" lang="en">IVY · EVERY LITTLE MOMENT</p>
+      <h1>把笑容，留得更清楚。</h1>
+      <p class="intro">沿用首頁的七個鏡頭，從原始影片重新製作。保留自然膚色、輕度去噪與細節銳化。</p>
+    </header>
+    <div class="films">
+      <section aria-labelledby="restored-title">
+        <div class="caption"><h2 id="restored-title">清晰修復版</h2><span>約 12 秒 · 無聲</span></div>
+        <video id="restored" controls loop muted playsinline preload="metadata" poster="hero-restored-still.webp" width="1080" height="800" aria-label="Hero 清晰修復版，無聲">
+          <source src="hero-restored-master.mp4" type="video/mp4">
+          <a href="hero-restored-master.mp4">下載清晰修復版</a>
+        </video>
+        <p class="description">減少壓縮造成的模糊，保留頭髮、衣服與戶外畫面的紋理。</p>
+      </section>
+      <section aria-labelledby="before-title">
+        <div class="caption"><h2 id="before-title">目前網站版本</h2><span>原有畫質</span></div>
+        <video id="before" controls loop muted playsinline preload="metadata" poster="hero-before-still.webp" width="1080" height="800" aria-label="目前網站的 Hero 影片，無聲">
+          <source src="hero-before.mp4" type="video/mp4">
+          <a href="hero-before.mp4">下載目前版本</a>
+        </video>
+        <p class="description">可分別播放、暫停或放大畫面，對照人物與材質細節。</p>
+      </section>
+    </div>
+    <nav class="downloads" aria-label="下載修復影片">
+      <a class="primary" href="hero-restored-master.mp4" download>下載高畫質短片</a>
+      <a href="hero-restored-desktop.mp4" download>桌機網頁版</a>
+      <a href="hero-restored-mobile.mp4" download>手機網頁版</a>
+    </nav>
+    <p class="note">維持原有慢速節奏與裁切。修復版已採用，並於 2026-09-22 部署至正式官網。</p>
+  </main>
+</body>
+</html>

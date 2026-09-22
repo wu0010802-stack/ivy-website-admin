@@ -1,0 +1,42 @@
+.overview { max-width: 1880px; }
+.comparison { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; }
+.proposal-heading { gap: 12px; }
+.proposal-frame { height: 540px; }
+.proposal-caption { display: block; }
+.proposal-caption a { margin-top: 4px; }
+.review-footnote a { text-decoration: underline; text-underline-offset: 4px; min-height: 44px; display: inline-flex; align-items: center; }
+.photo-layout { padding-top: 6px; padding-bottom: 5px; }
+.photo { overflow: hidden; background: var(--paper); }
+.portrait { width: 91%; margin-left: 9%; aspect-ratio: 1.14; border: 7px solid var(--paper); border-radius: var(--portrait-radius); box-shadow: var(--shadow-soft); }
+.moment { position: relative; width: 56%; aspect-ratio: 2.05; margin-top: -9%; border: 6px solid var(--paper); border-radius: var(--moment-radius); box-shadow: var(--shadow-near); }
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+.portrait img { object-position: 53% center; }
+.moment img { object-position: center; }
+.photo-caption { position: absolute; right: 0; bottom: 18px; width: 38%; }
+.shape-a { --portrait-radius: 8%; --moment-radius: 11% / 23%; }
+.shape-b { --portrait-radius: 50% 50% 6% 6% / 47% 47% 6% 6%; --moment-radius: 999px; }
+.shape-c { --portrait-radius: 6% 30% 6% 30%; --moment-radius: 24% 5% 24% 5% / 44% 9% 44% 9%; }
+.shape-d { --portrait-radius: 43% 57% 44% 56% / 32% 40% 60% 68%; --moment-radius: 35% 48% 39% 44% / 41% 36% 54% 47%; }
+.embed .belief-layout { width: calc(100% - 36px); }
+.embed .photo-caption { bottom: 5px; }
+@container (max-width: 450px) {
+  .portrait { border-width: 5px; }
+  .moment { border-width: 4px; }
+  .photo-caption { bottom: 7px; font-size: 11px; letter-spacing: 0; }
+}
+@media (min-width: 1650px) {
+  .proposal-frame { height: 585px; }
+}
+@media (max-width: 1200px) {
+  .comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 24px; }
+  .proposal-frame { height: 540px; }
+  .proposal-caption { display: flex; }
+}
+@media (max-width: 700px) {
+  .direction-nav { grid-template-columns: 1.65fr repeat(4, 1fr); gap: 4px; }
+  .direction-nav a { min-width: 44px; padding-inline: 6px; }
+  .comparison { grid-template-columns: 1fr; gap: 30px; }
+  .proposal-frame { height: 450px; }
+  .proposal-caption { gap: 8px; }
+  .embed .belief-layout { width: calc(100% - 32px); }
+}

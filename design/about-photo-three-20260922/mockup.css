@@ -1,0 +1,158 @@
+@font-face {
+  font-family: 'LINE Seed TW';
+  src: url('../../web/public/assets/fonts/lineseed-bd.woff2') format('woff2'), url('../../web/public/assets/fonts/lineseed-bd.woff') format('woff');
+  font-weight: 700;
+  font-display: swap;
+}
+:root {
+  --mint: #c5ded0;
+  --paper: #fffdf5;
+  --review-paper: #f6f5ee;
+  --ink: #203f32;
+  --muted: #466451;
+  --line: #bcc9bd;
+  --watermark: #e6f1e7;
+  --shadow-soft: 0 14px 30px #274b3812;
+  --shadow-near: 0 10px 22px #274b381a;
+  --font: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --head: 'LINE Seed TW', 'PingFang TC', sans-serif;
+}
+* { box-sizing: border-box; }
+html { color: var(--ink); background: var(--review-paper); }
+body { margin: 0; font: 16px/1.7 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+a:focus-visible, summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+img { display: block; max-width: 100%; width: 100%; height: auto; }
+figure, h1, h2, p { margin: 0; }
+[hidden] { display: none !important; }
+.review-bar { display: flex; justify-content: space-between; align-items: center; gap: 24px; min-height: 88px; padding: 12px 40px; border-bottom: 1px solid var(--line); background: var(--review-paper); }
+.review-home { font-size: 15px; font-weight: 600; line-height: 1.45; min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+.review-home span { font-weight: 400; color: var(--muted); font-size: 11px; margin-top: 2px; letter-spacing: .1em; }
+.direction-nav { display: flex; align-items: center; gap: 6px; }
+.direction-nav a { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; min-height: 44px; padding: 8px 15px; border-radius: 3px; font-size: 13px; white-space: nowrap; }
+.direction-nav a:hover { background: var(--mint); }
+.direction-nav a[aria-current='page'] { background: var(--ink); color: var(--paper); }
+.overview { padding: 44px 40px 30px; max-width: 1720px; margin-inline: auto; }
+.overview-intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.overview h1 { font-size: 28px; font-weight: 500; letter-spacing: .025em; }
+.overview-intro p { color: var(--muted); font-size: 13px; }
+.comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.proposal { min-width: 0; }
+.proposal-heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+.proposal-letter { font: 34px/1 Georgia, serif; }
+.proposal h2 { font-size: 20px; font-weight: 500; }
+.proposal-frame { display: block; border: 0; width: 100%; height: 550px; background: var(--mint); }
+.proposal-caption { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 14px; }
+.proposal-caption p { color: var(--muted); font-size: 13px; }
+.proposal-caption a { flex-shrink: 0; display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; border-bottom: 1px solid var(--ink); }
+.review-footnote { margin-top: 26px; color: var(--muted); font-size: 12px; }
+.direction-info { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 40px; background: var(--review-paper); }
+.direction-info h1 { font-size: 17px; font-weight: 500; }
+.direction-info p { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.view-nav { display: flex; gap: 18px; flex-shrink: 0; }
+.view-nav a { min-height: 44px; display: inline-flex; align-items: center; font-size: 13px; border-bottom: 1px solid transparent; }
+.view-nav a[aria-current='page'] { border-color: var(--ink); }
+.belief { background: var(--mint); position: relative; isolation: isolate; overflow: clip; }
+.belief-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: start; gap: clamp(48px, 5.5vw, 90px); width: min(1344px, calc(100% - 112px)); margin-inline: auto; padding-block: 78px 88px; min-height: 770px; }
+.watermark { position: absolute; left: max(40px, calc((100% - 1370px) / 2)); top: 165px; z-index: -1; font: 700 clamp(135px, 14vw, 210px)/1.04 var(--head); letter-spacing: -.075em; color: var(--watermark); opacity: .36; pointer-events: none; user-select: none; }
+.since { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; font-size: 11px; letter-spacing: .2em; }
+.since::before { content: ''; width: 34px; height: 1px; background: var(--muted); }
+.belief-copy h2 { font: 700 clamp(44px, 4.6vw, 68px)/1.35 var(--head); letter-spacing: .015em; margin-bottom: 28px; }
+.belief-copy h2 span { display: block; }
+.body-copy { font-size: 16px; line-height: 2; max-width: 34em; text-wrap: pretty; }
+.mobile-copy { display: none; }
+.composition { container-type: inline-size; min-width: 0; width: 100%; align-self: start; }
+.photo-layout { position: relative; width: 100%; }
+.photo { margin: 0; }
+.photo img { object-fit: cover; }
+.photo-caption { color: var(--muted); font-size: 12px; line-height: 1.85; letter-spacing: .04em; }
+.photo-caption span { display: block; }
+/* A: keep the familiar overlapping photos, with a gentler hierarchy. */
+.variant-a .photo-layout { padding-top: 7px; padding-bottom: 4px; }
+.variant-a .portrait { width: 91%; margin-left: 9%; padding: 6px; background: var(--paper); box-shadow: var(--shadow-soft); }
+.variant-a .portrait img { aspect-ratio: 4 / 3; object-position: center; }
+.variant-a .moment { position: relative; width: 54%; margin-top: -8%; padding: 7px; background: var(--paper); box-shadow: var(--shadow-near); }
+.variant-a .moment img { aspect-ratio: 2.1; object-position: center; }
+.variant-a .photo-caption { position: absolute; right: 0; bottom: 19px; width: 39%; }
+/* B: two independently placed images; a clear mint gap replaces the overlap. */
+.variant-b .photo-layout { padding-block: 0 7px; }
+.variant-b .portrait { width: 79%; margin-left: auto; }
+.variant-b .portrait img { aspect-ratio: 1.22; object-position: 54% center; }
+.variant-b .moment { width: 67%; margin-top: 24px; }
+.variant-b .moment img { aspect-ratio: 2.35; object-position: center; }
+.variant-b .photo-caption { position: absolute; right: 0; bottom: 21px; width: 27%; }
+/* C: a single album page, with the smaller scene and caption together below. */
+.variant-c .photo-layout { background: var(--paper); padding: 18px; box-shadow: var(--shadow-soft); }
+.variant-c .portrait img { aspect-ratio: 4 / 3; object-position: center; }
+.variant-c .photo-bottom { display: grid; grid-template-columns: 1.35fr 1fr; align-items: center; gap: 22px; margin-top: 18px; }
+.variant-c .moment img { aspect-ratio: 2.25; object-position: center; }
+.variant-c .photo-caption { font-size: 12px; letter-spacing: .02em; }
+.view-photo .belief-layout { display: block; min-height: 0; width: min(760px, calc(100% - 112px)); padding-block: 64px 80px; }
+.view-photo .belief-copy, .view-photo .watermark { display: none; }
+.embed .review-bar, .embed .direction-info { display: none; }
+.embed, .embed body, .embed #content { background: var(--mint); min-height: 100%; }
+.embed .belief { min-height: 100vh; display: grid; align-items: center; }
+.embed .belief-layout { width: calc(100% - 48px); padding-block: 44px; min-height: 0; }
+@container (max-width: 450px) {
+  .photo-caption { font-size: 11px; letter-spacing: 0; }
+  .variant-a .portrait { padding: 5px; }
+  .variant-a .moment { padding: 5px; }
+  .variant-a .photo-caption { bottom: 8px; }
+  .variant-b .moment { margin-top: 18px; }
+  .variant-b .photo-caption { position: static; width: auto; margin-top: 16px; text-align: right; }
+  .variant-b .photo-caption span { display: inline; }
+  .variant-c .photo-layout { padding: 12px; }
+  .variant-c .photo-bottom { gap: 14px; margin-top: 12px; }
+  .variant-c .photo-caption { font-size: 11px; }
+}
+@media (min-width: 1500px) {
+  .proposal-frame { height: 600px; }
+}
+@media (max-width: 1000px) {
+  .review-bar { padding-inline: 24px; }
+  .direction-nav a { padding-inline: 10px; }
+  .belief-layout { grid-template-columns: 1fr; width: min(650px, calc(100% - 64px)); gap: 40px; padding-block: 56px 72px; }
+  .belief-copy h2 { font-size: 52px; }
+  .composition { max-width: 590px; margin-inline: auto; }
+  .watermark { top: 170px; left: 24px; font-size: 25vw; }
+  .overview { padding-inline: 24px; }
+  .overview-intro { display: block; }
+  .overview-intro p { margin-top: 12px; }
+  .comparison { gap: 18px; }
+  .proposal-heading { gap: 8px; }
+  .proposal h2 { font-size: 17px; }
+  .proposal-frame { height: 380px; }
+  .proposal-caption { display: block; }
+  .proposal-caption a { margin-top: 4px; }
+}
+@media (max-width: 700px) {
+  .review-bar { flex-wrap: wrap; gap: 12px; padding: 12px 20px; }
+  .review-home { min-height: 44px; }
+  .direction-nav { width: 100%; display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 5px; }
+  .direction-nav a { padding-inline: 9px; }
+  .direction-nav a span { display: none; }
+  .direction-info { display: block; padding: 18px 20px 12px; }
+  .direction-info p { max-width: 32em; }
+  .view-nav { gap: 22px; margin-top: 6px; }
+  .overview { padding: 28px 20px; }
+  .overview h1 { font-size: 24px; }
+  .comparison { grid-template-columns: 1fr; gap: 34px; }
+  .proposal-frame { height: 480px; }
+  .proposal-heading { gap: 12px; }
+  .proposal h2 { font-size: 20px; }
+  .proposal-caption { display: flex; }
+  .belief-layout { width: calc(100% - 40px); padding-block: 40px 52px; gap: 34px; }
+  .belief-copy h2 { font-size: clamp(32px, 9.7vw, 46px); margin-bottom: 22px; }
+  .since { font-size: 10px; margin-bottom: 20px; }
+  .body-copy { font-size: 16px; line-height: 1.95; }
+  .desktop-copy { display: none; }
+  .mobile-copy { display: block; }
+  .mobile-copy details { margin-top: 10px; }
+  .mobile-copy summary { display: inline-flex; align-items: center; list-style: none; min-height: 44px; border-bottom: 1px solid var(--muted); font-size: 14px; cursor: pointer; }
+  .mobile-copy summary::-webkit-details-marker { display: none; }
+  .mobile-copy details p { margin-top: 16px; }
+  .watermark { left: 18px; top: 148px; font-size: 30vw; opacity: .28; }
+  .view-photo .belief-layout { width: calc(100% - 40px); padding-block: 50px 64px; }
+  .embed .belief-layout { width: calc(100% - 42px); padding-block: 34px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }

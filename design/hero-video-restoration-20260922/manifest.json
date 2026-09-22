@@ -1,0 +1,102 @@
+{
+  "source_filename": "常春藤廣告+配音 (1).mp4",
+  "source_sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b",
+  "crop": "1080:800:0:0",
+  "speed": 0.5,
+  "denoise": "hqdn3d=0.6:0.45:0.9:0.7",
+  "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+  "detail": "cas=strength=0.18:planes=1",
+  "shots": [
+    {
+      "shot": 1,
+      "source_start": 29.9,
+      "source_end": 30.64,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.433000"
+    },
+    {
+      "shot": 2,
+      "source_start": 30.7,
+      "source_end": 31.55,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.633000"
+    },
+    {
+      "shot": 3,
+      "source_start": 0.15,
+      "source_end": 1.0,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.566000"
+    },
+    {
+      "shot": 4,
+      "source_start": 1.0,
+      "source_end": 1.7,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.300000"
+    },
+    {
+      "shot": 5,
+      "source_start": 2.333,
+      "source_end": 3.6,
+      "motion": "fps=30,trim=end_frame=73",
+      "duration": "2.433000"
+    },
+    {
+      "shot": 6,
+      "source_start": 4.833,
+      "source_end": 5.767,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.833000"
+    },
+    {
+      "shot": 7,
+      "source_start": 5.767,
+      "source_end": 6.567,
+      "motion": "fps=30,trim=end_frame=45",
+      "duration": "1.500000"
+    }
+  ],
+  "variants": [
+    {
+      "file": "hero-restored-master.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "351",
+      "duration": "11.700000",
+      "bytes": 5948239,
+      "crf": 18,
+      "sha256": "ac052e01475833398719a5d0da3e5090a41b176b24b3fe97a0aaa271f2466ded"
+    },
+    {
+      "file": "hero-restored-desktop.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "351",
+      "duration": "11.700000",
+      "bytes": 4167704,
+      "crf": 21,
+      "sha256": "50d303e027199701899d27d543ef5f2ec5ae500ee2fecea7e0aae075bf0c5162"
+    },
+    {
+      "file": "hero-restored-mobile.mp4",
+      "width": 720,
+      "height": 534,
+      "fps": "30/1",
+      "frames": "351",
+      "duration": "11.700000",
+      "bytes": 2054696,
+      "crf": 22,
+      "sha256": "0a809123a7aa602c30d6ca651eb620a0e6e6a7fc36d768057eb410fe75894a66"
+    }
+  ],
+  "status": "deployed",
+  "deployment": {
+    "date": "2026-09-22",
+    "web_deployment": "1812fc8a-c8f4-4a3e-aed6-15ecfa08f14c",
+    "snapshot": "f3a85bc5e8f7324835f08544bde09bb421d1f2d291cd7c78c00b31bd1e19f542",
+    "site": "https://web-production-04caa.up.railway.app/"
+  }
+}

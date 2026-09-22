@@ -1,0 +1,52 @@
+/* 2026-09-22 B 精修：暖紙、墨綠標題、鼠尾草綠聯絡區。 */
+[data-direction=b]{
+  --paper:oklch(98% .009 90);--ink:oklch(35% .035 159);--muted:oklch(48% .025 145);
+  --forest:oklch(39% .035 160);--soft:oklch(95% .015 108);--line:oklch(87% .016 135);
+  --light-line:oklch(65% .025 152);--light-muted:oklch(93% .014 100);--focus:oklch(43% .055 155);
+  --contact:oklch(95% .02 136);--social-hover:oklch(91% .025 140);--phone-badge:oklch(90% .045 90);
+  --menu-gutter:24px;
+}
+[data-direction=b] .menu-panel{padding:0;background:var(--paper);color:var(--ink);border:1px solid var(--line);overflow:hidden}
+[data-direction=b] .panel-intro{margin:0;padding:16px var(--menu-gutter);gap:22px;border-radius:0;background:var(--forest);color:var(--light-muted)}
+[data-direction=b] .panel-intro h1{font:500 13px/1.8 var(--font);letter-spacing:.11em}
+[data-direction=b] .primary-nav{padding:4px var(--menu-gutter) 0}
+[data-direction=b] .nav-item{min-height:67px;padding:10px 0;gap:16px}
+[data-direction=b] .nav-copy strong{font-size:20px;font-weight:500;line-height:1.4;letter-spacing:0}
+[data-direction=b] .nav-copy small{font-size:12px;line-height:1.4;margin-top:3px}
+[data-direction=b] .nav-number{font-size:12px;min-width:16px;width:auto}
+[data-direction=b] .nav-item>.icon{width:19px;height:19px;flex-basis:19px;color:var(--muted)}
+[data-direction=b] .campus-section{padding-inline:var(--menu-gutter);margin-top:18px}
+[data-direction=b] .section-head{margin:0 0 10px}
+[data-direction=b] .section-head h2{font-size:12px;font-weight:500;letter-spacing:.05em;color:var(--muted);line-height:1.8}
+[data-direction=b] .campus-links{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--soft);border-radius:12px}
+[data-direction=b] .campus-link{min-height:48px;padding:5px 2px;background:none;border:0;border-radius:8px;gap:3px;line-height:1.4}
+[data-direction=b] .campus-link strong{font-size:14px;font-weight:500;white-space:nowrap}
+[data-direction=b] .campus-link small{font-size:12px;margin:0}
+[data-direction=b] .campus-link:hover{background:var(--social-hover)}
+[data-direction=b] .branch-contact{margin:18px var(--menu-gutter) 0;border-radius:14px;background:var(--contact);color:var(--ink)}
+[data-direction=b] .branch-contact .phone-block{min-height:76px;margin:0;padding:14px 16px;gap:12px;background:none;border-radius:14px;color:var(--ink)}
+[data-direction=b] .phone-block .phone-icon{width:36px;height:36px;border:0;background:var(--phone-badge);color:var(--ink);flex-shrink:0}
+[data-direction=b] .phone-icon .icon{width:18px;height:18px}
+[data-direction=b] .phone-block small{font-size:12px;color:var(--muted);line-height:1.8}
+[data-direction=b] .phone-block strong{font-size:22px;letter-spacing:.015em;line-height:1.35;margin-top:2px}
+[data-direction=b] .phone-block>.icon{width:17px;height:17px;flex-basis:17px;color:var(--muted)}
+[data-direction=b] .branch-socials{margin:0 12px;padding:8px 0 10px;gap:3px;border-top:1px solid var(--line)}
+[data-direction=b] .branch-social{display:grid;grid-template-rows:20px 17px 16px;place-items:center;gap:1px;min-height:63px;padding:4px 1px;border:0;background:none;color:var(--ink);font-size:12px;border-radius:8px}
+[data-direction=b] .branch-social .icon{width:20px;height:20px}
+[data-direction=b] .branch-social small{font-size:12px;color:var(--muted)}
+[data-direction=b] .branch-social.is-pending{color:var(--muted)}
+[data-direction=b] a.branch-social:hover{background:var(--social-hover)}
+[data-direction=b] .branch-social:focus-visible{outline-color:var(--focus);outline-offset:1px}
+[data-direction=b] .institution-socials{justify-content:space-between;margin:0;padding:8px var(--menu-gutter) 14px;gap:0 12px}
+[data-direction=b] .institution-socials>span{font-size:12px}
+[data-direction=b] .institution-socials a{font-size:13px}
+[data-direction=b] .institution-socials .icon{width:18px;height:18px;flex-basis:18px}
+[data-direction=b] .institution-socials .icon:last-child{width:14px;height:14px;flex-basis:14px}
+@media(max-width:600px){
+  [data-direction=b]{--menu-gutter:18px}
+  [data-direction=b] .nav-item{min-height:64px;gap:14px}
+  [data-direction=b] .nav-copy strong{font-size:18px}
+  [data-direction=b] .branch-contact .phone-block{padding:12px;gap:10px}
+  [data-direction=b] .branch-socials{margin-inline:8px;gap:0}
+}
+@media(forced-colors:active){[data-direction=b] .menu-panel,[data-direction=b] .branch-contact{border:1px solid CanvasText}[data-direction=b] .branch-social.is-pending{border-bottom:1px dashed GrayText}}

@@ -1,0 +1,57 @@
+:root{--preview-paper:#f9f8f4;--preview-ink:#3d5057;--preview-muted:#786c5c;--preview-rule:#cdd3d0;--preview-surface:#ebefec}
+body{background:var(--preview-paper)}
+.preview-note{background:var(--preview-surface);color:var(--preview-ink);gap:20px}
+.preview-note a{min-height:44px}
+.layout-switch{display:flex;gap:24px}
+.preview-footer{max-width:1152px;width:calc(100% - 48px);margin-inline:auto;border-top:1px solid var(--preview-rule);padding-block:24px 40px;font-size:.75rem;color:var(--preview-muted)}
+[data-capture=true] :is(.preview-note,.preview-footer){display:none}
+.corner-art{display:none}
+.campus-gallery{--frame-stroke:#cbd2cd;--frame-hover:#e4eae5;--frame-current:#eef1ed;--frame-current-stroke:#7d8d85}
+.campus-gallery .campus-tabs{width:min(100%,820px);border:0;gap:12px}
+.campus-gallery .campus-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:139px;padding:12px 10px 15px;border:1px solid transparent;background:transparent;transition:background .2s,border-color .2s}
+.campus-gallery .campus-tabs button:hover:not([aria-selected=true]){background:transparent}
+.campus-gallery .campus-tabs button[aria-selected=true]::after{display:none}
+.tab-art{display:block;width:120px;max-width:100%;height:80px;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s}
+.campus-tabs button:is([aria-selected=true],:hover) .tab-art{opacity:1}
+.tab-label{display:inline-flex;position:relative;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
+.progress-track i{display:block;width:100%;height:100%;transform-origin:left;background:var(--deep);border-radius:inherit}
+
+/* A: A short baseline belongs to the label; the architecture stays unframed. */
+[data-frame=a] .tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
+[data-frame=a] .campus-tabs button:hover .tab-label::after{background:var(--frame-stroke)}
+[data-frame=a] .campus-tabs button[aria-selected=true] .tab-label::after{background:var(--heading-ink)}
+
+/* B: Only the school name becomes a pill. */
+[data-frame=b] .tab-label{border:1px solid transparent;border-radius:999px;transition:border-color .2s,background .2s}
+[data-frame=b] .campus-tabs button:hover .tab-label{border-color:var(--frame-stroke);background:var(--frame-current)}
+[data-frame=b] .campus-tabs button[aria-selected=true] .tab-label{border-color:var(--frame-current-stroke);background:var(--frame-current)}
+
+/* C: A quiet, fine border groups the image and label into one target. */
+[data-frame=c] .campus-gallery .campus-tabs button{border-color:var(--frame-stroke);border-radius:14px}
+[data-frame=c] .campus-gallery .campus-tabs button:hover{border-color:var(--frame-current-stroke);background:var(--frame-current)}
+[data-frame=c] .campus-gallery .campus-tabs button[aria-selected=true]{border-color:var(--frame-current-stroke);background:var(--frame-current)}
+
+@media(max-width:700px){
+  .preview-note{padding:6px 18px;flex-wrap:wrap;justify-content:center;gap:0 20px;font-size:.75rem}
+  .preview-note>span{display:none}
+  .layout-switch{gap:14px}
+  .campus-gallery .campus-tabs{gap:5px}
+  .campus-gallery .campus-tabs button{min-height:92px;padding:6px 2px 9px;gap:2px;font-size:.75rem}
+  .tab-art{width:60px;height:40px}
+  .tab-label{min-height:28px;padding-inline:5px}
+  [data-frame=a] .tab-label::after{inset-block-end:-4px;width:20px}
+  [data-frame=c] .campus-gallery .campus-tabs button{border-radius:10px}
+  .preview-footer{line-height:1.8}
+}
+@media(max-width:360px){
+  .campus-gallery .campus-tabs{gap:4px}
+  .campus-gallery .campus-tabs button{padding-inline:1px;font-size:.6875rem}
+  .tab-art{width:48px;height:34px}
+  .tab-label{padding-inline:3px}
+}
+@media(forced-colors:active){
+  .tab-art{visibility:hidden}
+  [data-frame=a] .campus-tabs button[aria-selected=true] .tab-label::after{background:Highlight}
+  [data-frame=b] .campus-tabs button[aria-selected=true] .tab-label{border-color:Highlight}
+  [data-frame=c] .campus-gallery .campus-tabs button[aria-selected=true]{border-color:Highlight}
+}
