@@ -12,7 +12,7 @@ permissions:
 # 正式部署不可中途被下一次 push 取消；PR/開發分支可取消過時檢查。
 concurrency:
   group: website-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/production' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   UV_VERSION: '0.8.22'
@@ -115,7 +115,7 @@ jobs:
     needs: [frontend, backend]
     if: >-
       github.repository == 'wu0010802-stack/ivy-website-admin' &&
-      github.ref == 'refs/heads/production' &&
+      github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
