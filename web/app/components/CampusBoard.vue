@@ -315,15 +315,17 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   100%{transform:translateX(0)}
 }
 @keyframes campus-control-pill-shape{
-  0%,30%{opacity:0;width:48px;height:36px}
+  0%,30%{opacity:0;width:48px;height:36px;border-color:transparent}
   38%{opacity:1;width:48px;height:36px;animation-timing-function:cubic-bezier(.22,1,.36,1)}
-  78%{opacity:1;width:calc(100% + 6px);height:calc(100% - 2px);animation-timing-function:ease-in-out}
+  70%{border-color:transparent}
+  78%{opacity:1;width:calc(100% + 6px);height:calc(100% - 2px);border-color:var(--control-border);animation-timing-function:ease-in-out}
   100%{opacity:1;width:100%;height:100%}
 }
 @keyframes campus-control-split{
-  0%,40%{opacity:0;transform:translateX(var(--reveal-play-x)) scale(.45,.72)}
+  0%,40%{opacity:0;transform:translateX(var(--reveal-play-x)) scale(.45,.72);border-color:transparent}
   47%{opacity:1;transform:translateX(var(--reveal-play-x)) scale(.76,.9);animation-timing-function:cubic-bezier(.22,1,.36,1)}
-  80%{opacity:1;transform:translateX(3px) scale(1.04,.96);animation-timing-function:ease-in-out}
+  70%{border-color:transparent}
+  80%{opacity:1;transform:translateX(3px) scale(1.04,.96);border-color:var(--control-border);animation-timing-function:ease-in-out}
   100%{opacity:1;transform:translateX(0) scale(1)}
 }
 @keyframes campus-control-dots{
