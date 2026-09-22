@@ -13,7 +13,7 @@
 
 Workflow：`.github/workflows/website.yml`。**部署分支為 `main`（2026-09-22 起，原為 `production`）**：每次成功推上 `main` 都會在 CI 全綠後部署正式站，`main` 不再是單純的整合分支。不想立即上線的工作留在 `feature/**`，確認要發布時才併進 `main`。
 
-目前 GitHub default branch 仍為 `feature/website-admin`；workflow 要先存在於該分支，Actions 才會顯示手動執行入口。
+GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `main`，Actions 的手動執行入口也以 `main` 上的 workflow 為準。`feature/website-admin` 保留為開發分支，未刪除。
 
 ## 第一次啟用
 
