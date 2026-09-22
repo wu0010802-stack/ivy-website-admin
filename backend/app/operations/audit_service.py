@@ -10,7 +10,10 @@ from app.operations.models import AuditLogEntry
 
 # 這些欄位絕不能出現在 metadata_json 裡（就算呼叫端不小心傳進來也擋掉），
 # 避免稽核紀錄變成另一份個資外洩管道。
-_FORBIDDEN_METADATA_KEYS = {"phone", "parent_name", "password", "email", "questions"}
+_FORBIDDEN_METADATA_KEYS = {
+    "phone", "parent_name", "password", "email", "questions",
+    "child_name", "child_birthdate", "referral_sources",
+}
 
 
 def _mask_metadata(metadata: dict) -> dict:

@@ -76,6 +76,12 @@ class VisitRequest(Base):
     config_version: Mapped[int] = mapped_column(Integer, nullable=False)
     parent_name: Mapped[str] = mapped_column(String(64), nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    child_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    child_birthdate: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    referral_sources: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
     age: Mapped[str | None] = mapped_column(String(32), nullable=True)
     preferred_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
     questions: Mapped[str | None] = mapped_column(String(1000), nullable=True)

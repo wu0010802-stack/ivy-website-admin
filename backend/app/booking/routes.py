@@ -362,7 +362,7 @@ async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_i
 async def list_visit_requests(
     campus_key: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
-    q: str | None = Query(default=None, max_length=100, description="家長姓名或電話片段"),
+    q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -386,6 +386,8 @@ async def list_visit_requests(
         stmt = stmt.where(
             or_(
                 VisitRequest.parent_name.ilike(pattern, escape="\\"),
+                VisitRequest.child_name.ilike(pattern, escape="\\"),
+                VisitRequest.email.ilike(pattern, escape="\\"),
                 VisitRequest.phone.like(pattern, escape="\\"),
             )
         )
@@ -401,7 +403,7 @@ async def export_visit_requests(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     require_scope(current_user, "booking.export")
-    stmt = select(VisitRequest)
+    stmt = select(VisitRequest).options(selectinload(VisitRequest.slot))
     if campus_key:
         require_scope(current_user, "booking.export", campus_keys=[campus_key])
         stmt = stmt.where(VisitRequest.campus_key == campus_key)
@@ -421,7 +423,11 @@ async def export_visit_requests(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(["campus_key", "status", "parent_name", "phone", "created_at"])
+    writer.writerow([
+        "campus_key", "status", "parent_name", "phone", "created_at",
+        "child_name", "child_birthdate", "email", "referral_sources",
+        "slot_date", "start_time", "end_time",
+    ])
     exported = 0
     for r in result.scalars():
         writer.writerow(
@@ -431,6 +437,13 @@ async def export_visit_requests(
                 _safe_cell(r.parent_name),
                 _safe_cell(r.phone),
                 r.created_at.isoformat(),
+                _safe_cell(r.child_name),
+                r.child_birthdate.isoformat() if r.child_birthdate else "",
+                _safe_cell(r.email),
+                _safe_cell(";".join(r.referral_sources)),
+                r.slot.slot_date.isoformat() if r.slot else "",
+                r.slot.start_time.isoformat() if r.slot else "",
+                r.slot.end_time.isoformat() if r.slot else "",
             ]
         )
         exported += 1

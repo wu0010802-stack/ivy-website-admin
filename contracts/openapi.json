@@ -1257,6 +1257,31 @@
             "title": "Campus Key",
             "type": "string"
           },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
           "config_version": {
             "title": "Config Version",
             "type": "integer"
@@ -1264,6 +1289,19 @@
           "consent_given": {
             "title": "Consent Given",
             "type": "boolean"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "parent_name": {
             "maxLength": 64,
@@ -1298,6 +1336,21 @@
               }
             ],
             "title": "Questions"
+          },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "facebook",
+                "google_reviews",
+                "parent_community",
+                "friends_family",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Referral Sources",
+            "type": "array"
           },
           "slot_id": {
             "anyOf": [
@@ -1363,6 +1416,29 @@
             ],
             "title": "Cancelled At"
           },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
           "confirmed_at": {
             "anyOf": [
               {
@@ -1379,6 +1455,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "follow_up_at": {
             "anyOf": [
@@ -1438,6 +1525,20 @@
               }
             ],
             "title": "Questions"
+          },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "facebook",
+                "google_reviews",
+                "parent_community",
+                "friends_family",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Referral Sources",
+            "type": "array"
           },
           "slot": {
             "anyOf": [
@@ -4396,7 +4497,7 @@
             }
           },
           {
-            "description": "家長姓名或電話片段",
+            "description": "家長或寶貝姓名、電話或 Email 片段",
             "in": "query",
             "name": "q",
             "required": false,
@@ -4410,7 +4511,7 @@
                   "type": "null"
                 }
               ],
-              "description": "家長姓名或電話片段",
+              "description": "家長或寶貝姓名、電話或 Email 片段",
               "title": "Q"
             }
           },

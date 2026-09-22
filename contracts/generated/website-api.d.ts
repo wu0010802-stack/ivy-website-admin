@@ -1338,10 +1338,16 @@ export interface components {
             age?: string | null;
             /** Campus Key */
             campus_key: string;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
             /** Config Version */
             config_version: number;
             /** Consent Given */
             consent_given: boolean;
+            /** Email */
+            email?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Phone */
@@ -1350,6 +1356,8 @@ export interface components {
             preferred_time?: string | null;
             /** Questions */
             questions?: string | null;
+            /** Referral Sources */
+            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
             /** Slot Id */
             slot_id?: string | null;
         };
@@ -1363,6 +1371,10 @@ export interface components {
             campus_key: string;
             /** Cancelled At */
             cancelled_at: string | null;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
             /**
@@ -1370,6 +1382,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Email */
+            email?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** Hold Expires At */
@@ -1387,6 +1401,8 @@ export interface components {
             preferred_time: string | null;
             /** Questions */
             questions: string | null;
+            /** Referral Sources */
+            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Slot Id */
             slot_id: string | null;
@@ -2764,7 +2780,7 @@ export interface operations {
             query?: {
                 campus_key?: string | null;
                 status?: string | null;
-                /** @description 家長姓名或電話片段 */
+                /** @description 家長或寶貝姓名、電話或 Email 片段 */
                 q?: string | null;
                 page?: number;
                 page_size?: number;

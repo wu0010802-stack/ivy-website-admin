@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -140,7 +140,13 @@ async def update_config(
 
 
 def _hash_payload(payload: dict) -> str:
-    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=True)
+    # 新 schema 的選填預設值不能改變舊 payload 的 hash。只排除這次新增的
+    # 空欄位，保留既有 age/preferred_time/questions/slot_id 的序列化規則。
+    canonical_payload = payload.copy()
+    for field in ("child_name", "child_birthdate", "email", "referral_sources"):
+        if canonical_payload.get(field) in (None, []):
+            canonical_payload.pop(field, None)
+    canonical = json.dumps(canonical_payload, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -225,6 +231,14 @@ async def submit_visit_request(
         config_version=config_version,
         parent_name=payload["parent_name"],
         phone=payload["phone"],
+        child_name=payload.get("child_name"),
+        child_birthdate=(
+            date.fromisoformat(payload["child_birthdate"])
+            if payload.get("child_birthdate")
+            else None
+        ),
+        email=payload.get("email"),
+        referral_sources=payload.get("referral_sources", []),
         age=payload.get("age"),
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),

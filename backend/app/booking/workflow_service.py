@@ -35,6 +35,13 @@ async def confirm_with_slot(
     """人工把一筆 inquiry 案件確認進某個時段；confirmed 必須有 slot，
     這裡是唯一能把狀態變成 confirmed 的路徑（slots 模式直接送出時，
     submit_visit_request 走的是同一份容量檢查邏輯）。"""
+    # 與 expire_holds 鎖同一列後重讀：不能用請求最初讀到的 pending
+    # 狀態，覆蓋等待期間已被 worker 取消的案件。
+    await db.refresh(
+        visit_request,
+        attribute_names=["status", "slot_id", "hold_expires_at"],
+        with_for_update=True,
+    )
     if visit_request.status not in (
         VisitRequestStatus.NEW.value,
         VisitRequestStatus.PENDING_CONFIRMATION.value,
@@ -44,7 +51,17 @@ async def confirm_with_slot(
     slot = await slot_service.get_slot_for_update(db, slot_id)
     if slot is None or slot.campus_key != visit_request.campus_key or slot.closed:
         raise SlotFull()
+    now = now_utc()
+    is_pending = visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value
+    if is_pending and visit_request.hold_expires_at is not None and visit_request.hold_expires_at <= now:
+        # 排程清理尚未執行也不能把到期占位確認成立；在取得時段鎖後判斷，
+        # 避免等待鎖的時間跨過到期點。
+        raise InvalidTransition("此時段保留已到期，請重新安排參觀")
     booked = await slot_service.count_booked(db, slot.id)
+    if is_pending and visit_request.slot_id == slot.id:
+        # pending 原本已占用自己的名額，轉 confirmed 不會多占一位；
+        # 改到另一個時段則仍須按該時段完整的 booked 數檢查容量。
+        booked -= 1
     if booked >= slot.capacity:
         raise SlotFull()
 
@@ -53,7 +70,7 @@ async def confirm_with_slot(
     visit_request.slot = slot
     visit_request.status = VisitRequestStatus.CONFIRMED.value
     visit_request.assigned_staff_id = staff_id
-    visit_request.confirmed_at = datetime.now(timezone.utc)
+    visit_request.confirmed_at = now
     # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
     # 一筆已確認的案件當成過期占位取消掉。
     visit_request.hold_expires_at = None

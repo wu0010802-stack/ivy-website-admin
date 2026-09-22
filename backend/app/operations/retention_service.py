@@ -40,6 +40,10 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
     保留案件本身與統計用的 event/analytics 紀錄完整。"""
     visit_request.parent_name = "（已依保存政策匿名化）"
     visit_request.phone = "0000000000"
+    visit_request.child_name = None
+    visit_request.child_birthdate = None
+    visit_request.email = None
+    visit_request.referral_sources = []
     visit_request.questions = None
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
