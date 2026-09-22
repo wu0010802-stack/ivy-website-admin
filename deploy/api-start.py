@@ -2,6 +2,8 @@
 import os
 import pwd
 import secrets
+import subprocess
+import sys
 from pathlib import Path
 
 mount = Path("/data")
@@ -25,4 +27,5 @@ try:
         raise SystemExit("Media volume read/write check failed.")
 finally:
     probe.unlink(missing_ok=True)
+subprocess.run([sys.executable, "/app/check-schema.py"], check=True, timeout=40)
 os.execvp("uvicorn", ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000")])

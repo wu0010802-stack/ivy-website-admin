@@ -12,6 +12,7 @@ COPY backend ./
 RUN uv sync --frozen --no-dev
 COPY content /app/content
 COPY deploy/api-start.py /app/api-start.py
+COPY deploy/check_schema.py /app/check-schema.py
 ENV PATH=/app/backend/.venv/bin:$PATH PORT=8000 WEBSITE_MEDIA_ROOT=/data/media
 EXPOSE 8000
 CMD ["python", "/app/api-start.py"]

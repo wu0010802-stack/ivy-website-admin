@@ -1,0 +1,134 @@
+name: Website CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [production, 'feature/**', main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 正式部署不可中途被下一次 push 取消；PR/開發分支可取消過時檢查。
+concurrency:
+  group: website-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/production' }}
+
+env:
+  UV_VERSION: '0.8.22'
+  RAILWAY_CLI_VERSION: '5.45.10'
+
+jobs:
+  frontend:
+    name: Frontend (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, admin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit -- --maxWorkers=2 --minWorkers=1
+      - run: npm run build
+        env:
+          NUXT_WEBSITE_ENV: production
+          NUXT_PUBLIC_CONTENT_MODE: live
+          NUXT_PUBLIC_INDEXING_ENABLED: 'false'
+          VITE_WEBSITE_ASSET_BASE: ''
+
+  backend:
+    name: Backend / PostgreSQL / contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: ivy_website_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ivy_website_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGUSER: postgres
+      PGPASSWORD: ci-only-password
+      WEBSITE_ENVIRONMENT: test
+      WEBSITE_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_dev
+      WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
+      WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install uv and media test dependency
+        run: |
+          python -m pip install "uv==$UV_VERSION"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: uv sync --frozen
+        working-directory: backend
+      - name: Migrate disposable CI database
+        run: uv run --frozen alembic upgrade head
+        working-directory: backend
+      - run: uv run --frozen pytest -q
+        working-directory: backend
+      - name: Check production schema guard against migrated CI database
+        run: uv run --frozen python ../deploy/check_schema.py
+        working-directory: backend
+      - run: npm ci
+      - run: npm run contract:check
+      - name: Test deployment failure handling and snapshot boundaries
+        run: python -m unittest discover -s deploy/tests -v
+
+  deploy:
+    name: Deploy Railway production
+    needs: [frontend, backend]
+    if: >-
+      github.repository == 'wu0010802-stack/ivy-website-admin' &&
+      github.ref == 'refs/heads/production' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://web-production-04caa.up.railway.app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --global "@railway/cli@$RAILWAY_CLI_VERSION"
+      - name: Prepare committed release snapshot
+        run: python deploy/railway_ci.py prepare "$RUNNER_TEMP/website-release" --ref "$GITHUB_SHA"
+      - name: Deploy API then web, verify release
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: python deploy/railway_ci.py deploy "$RUNNER_TEMP/website-release"
