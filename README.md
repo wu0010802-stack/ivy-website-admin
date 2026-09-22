@@ -1,3 +1,21 @@
+## 2026-09-22 活動卡片採用 A「蜜糖日光」
+
+依使用者選定 A，Nuxt 首頁三張活動卡 hover 色改為金黃 `#F6CD68`、蜂蜜 `#EABC74`、燕麥 `#F5DDA3`，保留 560ms 向下填色、移開還原與原有靜止底色。六組比較頁保留提案紀錄，正式配色規則同步至 DESIGN.md。
+
+本機預覽：[近期活動](http://127.0.0.1:3010/#latest-news)。Chrome 桌機 1440px／手機 390、320px 共 8 組互動檢查通過，三張截圖像素均對上 A 色碼及由上往下填色，無 runtime error；鍵盤、減少動態、高對比及活動視窗維持正常。`node --check app.js`、`python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異；紀錄在 `output/playwright/event-hover-a/`。尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 活動卡片六組暖色探索（未整合）
+
+新增獨立比較頁 `design/event-warm-palettes-20260922/`：A 蜜糖日光、B 杏桃果茶、C 珊瑚花園、D 玫瑰奶茶、E 陶土午後、F 奶油烘焙，共 18 種暖色。與目前三色並排，保留霧藍背景及由上往下填色，支援個別 hover／手機點擊、全部換色、播放一輪與直接連結。預覽：[B 杏桃果茶](http://127.0.0.1:8769/design/event-warm-palettes-20260922/?palette=b)。尚未套用至 Nuxt 首頁。
+
+Chrome 六款 × 1440／768／390／320px 共 24 個版面及 6 組互動檢查通過，無水平溢出或 runtime error；18 色對深綠文字最低對比為 5.48:1。JavaScript 語法檢查、`node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異。截圖與紀錄在 `output/playwright/event-warm-palettes/`；Safari／iOS 實機未驗證，未部署。
+
+## 2026-09-22 活動卡片暖色向下填入
+
+Nuxt 首頁三張活動卡新增 560ms hover 動畫：蜜桃橘 `#F2B592`、杏桃金 `#F0C56F`、玫瑰奶茶 `#E8B1A4` 從上往下覆蓋原色，滑鼠移開後收回。保留深綠文字與原有尺寸；鍵盤聚焦同步換色，減少動態直接呈現結果，手機不殘留 hover，高對比沿用系統色。
+
+本機預覽：[近期活動](http://127.0.0.1:3010/#latest-news)。Chrome 桌機 1440px／手機 390、320px 共 8 組互動檢查通過，涵蓋三色方向、快速反向、活動視窗、Escape／焦點還原、鍵盤、減少動態及高對比，零 runtime error；逐卡截圖另確認上半已換色、下半仍為原色。Node 22 Nuxt typecheck、`node --check app.js`、`python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異。證據在 `output/playwright/event-hover/`；未部署，Safari／iOS 實機未驗證。
+
 ## 2026-09-22 分校控制器水滴進場
 
 參考 [Apple iPhone 官網](https://www.apple.com/iphone/) 控制器的進場順序，Nuxt 分校輪播加入 1.2 秒水滴動畫：縱向小水滴上浮、輕壓回彈，延展成進度膠囊並分離出播放鍵，最後顯示圓點與圖示。首次控制列至少 80% 可見時播放一次，回捲不重播；保留現有配色、尺寸、sticky 位置與四秒自動輪播。形變只作用於控制器及裝飾底板，不推動照片或聯絡資訊。

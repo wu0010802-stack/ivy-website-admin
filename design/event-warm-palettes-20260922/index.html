@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>活動卡片｜暖色配色探索</title>
+  <link rel="stylesheet" href="./palette.css">
+</head>
+<body>
+  <main class="study">
+    <header class="intro">
+      <div><p class="eyebrow" lang="en">IVY · COLOUR STUDY</p><h1>讓暖色，慢慢落下。</h1></div>
+      <p class="intro-copy">六組暖色，搭配同一片霧藍。<br>選一組，再把滑鼠移到活動卡片上。</p>
+    </header>
+
+    <nav class="palette-picker" aria-label="選擇暖色配色"></nav>
+
+    <div class="workspace-bar">
+      <p id="direction-note" aria-live="polite"></p>
+      <div class="tools">
+        <button type="button" id="replay">看一輪動畫</button>
+        <button type="button" id="show-all" aria-pressed="false">全部顯示換色</button>
+      </div>
+    </div>
+
+    <div class="comparison">
+      <section class="sample-panel" aria-labelledby="current-heading">
+        <div class="panel-title"><h2 id="current-heading">目前版本</h2><span>蜜桃橘 · 杏桃金 · 玫瑰奶茶</span></div>
+        <div class="sample-paper" id="current"><div class="event-stack"></div><div class="color-values" aria-label="目前換色的色碼"></div></div>
+      </section>
+      <section class="sample-panel" aria-labelledby="candidate-heading">
+        <div class="panel-title"><h2 id="candidate-heading"></h2><span id="candidate-caption"></span></div>
+        <div class="sample-paper" id="candidate"><div class="event-stack"></div><div class="color-values" aria-label="候選換色的色碼"></div></div>
+      </section>
+    </div>
+    <footer class="study-note"><p>卡片由上往下填色，移開後收回。手機可點卡片保持換色，再點一次還原。</p><p>獨立配色提案 · 尚未套用至首頁</p></footer>
+    <noscript>請啟用 JavaScript 以切換配色與播放動畫。</noscript>
+  </main>
+  <script src="./palette.js"></script>
+</body>
+</html>

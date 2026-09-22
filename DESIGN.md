@@ -345,6 +345,12 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 
 `HomeNewsTransition.vue` 放在 DayExperience 的 slot，包住單份 CampusBoard 與 NewsDialog；承接原本 day→campus 的負邊距，分校維持 sticky，消息走正常文件流，不增加空白捲動軌道。CSS 註冊 `--news-paper-progress` 由紙頁的原生 view timeline（`entry 0% → entry 100%`）驅動；未支援則採相同公式的 passive scroll＋rAF 備援。沿用共用 `motionViewport`，手機同寬高度變化維持閱讀高度。前段完全被蓋住時設 inert 並裁掉隱藏層；反向捲動解除。手機消息頂部保留 88px，避開膠囊導覽。減少動態／高對比回到正常排列，暖白靜態背景；dialog、整張文章點擊範圍、Escape 與焦點還原保留，卸載清除 observer／listener／rAF。原型維持凍結。
 
+### 首頁活動卡暖色 hover（2026-09-22）
+
+依使用者截圖，首頁活動卡在滑鼠移入時，由上往下填入暖色；移開後向上收回。同日使用者從六組配色中選定 A「蜜糖日光」，三卡依序採金黃 `--hn-hover-gold:#f6cd68`、蜂蜜 `--hn-hover-honey:#eabc74`、燕麥 `--hn-hover-oat:#f5dda3`，取代初版蜜桃橘／杏桃金／玫瑰奶茶。靜止底色沿用暖黃／嫩綠／霧青，深綠文字、尺寸與圓角不變。
+
+填色為獨立 pseudo-element，以 560ms 的 transform transition 推進，不縮放文字、不推動版面；只在支援 hover 的精準游標裝置播放，鍵盤 focus-visible 也可觸發。減少動態直接換色，高對比隱藏裝飾填色層。樣式限於 `.home-news .hn-event`，活動 dialog 與紙頁捲動轉場沿用既有行為；實作參考 [web.dev CSS transitions](https://web.dev/learn/css/transitions)。
+
 
 ## 首頁移除 FAQ 與預約橫幅（2026-09-16）
 

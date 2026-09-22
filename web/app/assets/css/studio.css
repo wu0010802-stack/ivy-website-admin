@@ -96,12 +96,46 @@ body:has(.hn-dialog[open]){overflow:hidden}
   --hn-swept-gold:#f3d581;
   --hn-swept-sage:#d3e5b5;
   --hn-swept-mist:#bfdedb;
+  --hn-hover-gold:#f6cd68;
+  --hn-hover-honey:#eabc74;
+  --hn-hover-oat:#f5dda3;
+  --hn-hover-duration:560ms;
+  --hn-hover-ease:cubic-bezier(.22,.61,.36,1);
   position:relative;
   isolation:isolate;
 }
 .home-news .hn-event {--hn-swept-card:var(--hn-swept-gold)}
 .home-news .hn-event:nth-child(2) {--hn-swept-card:var(--hn-swept-sage)}
 .home-news .hn-event:nth-child(3) {--hn-swept-card:var(--hn-swept-mist)}
+/* A separate fill layer keeps the date and title still during the downward sweep. */
+.home-news .hn-event {
+  --hn-hover-fill:var(--hn-hover-gold);
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+}
+.home-news .hn-event:nth-child(3n + 2) {--hn-hover-fill:var(--hn-hover-honey)}
+.home-news .hn-event:nth-child(3n) {--hn-hover-fill:var(--hn-hover-oat)}
+.home-news .hn-event::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:var(--hn-hover-fill);
+  transform:scaleY(0);
+  transform-origin:50% 0;
+  pointer-events:none;
+}
+.home-news .hn-event:focus-visible::before {transform:scaleY(1)}
+@media(hover:hover) and (pointer:fine) {
+  .home-news .hn-event:hover::before {transform:scaleY(1)}
+}
+@media(prefers-reduced-motion:no-preference) {
+  .home-news .hn-event::before {transition:transform var(--hn-hover-duration) var(--hn-hover-ease)}
+}
+@media(forced-colors:active) {
+  .home-news .hn-event::before {display:none}
+}
 .home-news :is(.hn-event:focus-visible,.hn-card:focus-within,.hn-more:focus-visible) {
   outline:2px solid var(--hn-green);
   outline-offset:3px;
