@@ -128,7 +128,7 @@ async function onUploadChange(event: Event) {
 .picker__search {
   flex: 1 1 200px;
 }
-.picker__bar label:focus-within { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.picker__bar label:focus-within { outline: 2px solid var(--brand-green-deep); outline-offset: 2px; }
 
 .picker__file {
   position: absolute;

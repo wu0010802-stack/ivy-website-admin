@@ -196,7 +196,7 @@ onMounted(load)
 .request-list__head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 4px; }
 .request-list__head a { display: inline-flex; align-items: center; min-height: 44px; font-size: 17px; font-weight: 600; }
 .request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
-.request-list__when { color: var(--el-color-primary); font-weight: 500; }
+.request-list__when { color: var(--brand-green-deep); font-weight: 500; }
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
 .request-list__phone { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; font-variant-numeric: tabular-nums; }
 .pager {

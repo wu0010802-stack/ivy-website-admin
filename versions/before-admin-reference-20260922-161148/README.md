@@ -1,15 +1,3 @@
-## 2026-09-22 後台深色側欄與青藍風格已部署
-
-[正式後台](https://web-production-04caa.up.railway.app/admin/) 已套用參考 `ivy-frontend` 的深藍灰側欄、青藍操作色與淺灰工作區。以目前線上快照為基底，只替換 9 個後台樣式檔，保留官網、API、資料庫與既有操作流程。
-
-web deployment `ac70c670-ff0f-45b7-8764-81cb67e1e34b` 為 SUCCESS，release `fc5638c3…` 及後台 JS／CSS 逐檔雜湊已在線上核對。固定快照通過 web 88／admin 30 tests、typecheck 與前後台正式建置；39 項公開 GET 與 Chrome 1440／390／320px 共 14 組檢查通過。登入頁為實際匿名流程，內頁使用正式程式搭配合成 API，未登入真實帳號或讀寫私人案件。證據在 `output/railway-admin-style-20260922/`；Safari／iOS 實機未驗證。未 commit／push。
-
-## 2026-09-22 官網後台套用園務後台風格
-
-依使用者指定參考 `ivy-frontend`，`admin/` 改為深藍灰側欄、青藍操作色、淺灰工作區與白底面板。統一總覽、列表、表單、素材選取及登入畫面；保留兩層分組、權限、搜尋、手機抽屜與未儲存保護。
-
-Node 22 typecheck、42 項後台單元測試與 production build 通過；Chrome 8 頁 × 5 尺寸（320–1440px）、導覽／按鈕對比及主要互動共 76 筆檢查通過，另 11 筆按鈕 hover、焦點、高對比與減少動態檢查通過。實際畫面使用合成 API 資料，未寫入正式資料；JS 語法與原型重打包通過，`preview.html` 無差異。建置保留既有大型 bundle 警告。證據在 `output/playwright/admin-reference-20260922/`，Safari／iOS 實機未驗證。僅本機整合，尚未部署或提交。
-
 ## 2026-09-22 預約 A 與孩子／聯絡資料已部署
 
 [正式預約入口](https://web-production-04caa.up.railway.app/visit) 已更新為 A 兩步驟選校與參觀資料，支援日期／場次、孩子姓名／生日、Email 與得知管道；後台同步詳情、搜尋、CSV 及人工確認。分校直達頁的場次載入已修正 SSR hydration 不一致。五校預約模式維持 `paused`，園方開啟適當模式並設定場次後才接受表單。

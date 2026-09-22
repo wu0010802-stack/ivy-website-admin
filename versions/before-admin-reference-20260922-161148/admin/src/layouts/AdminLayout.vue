@@ -66,16 +66,16 @@ async function handleLogout() {
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100svh; }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px; border-radius: var(--radius); background: var(--ink); color: var(--surface); }
 .skip-link:focus { top: 12px; }
-.side { position: sticky; top: 0; height: 100svh; background: var(--sidebar-bg); }
+.side { position: sticky; top: 0; height: 100svh; border-right: 1px solid var(--line); }
 .main-col { display: flex; flex-direction: column; min-width: 0; }
-.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; min-height: var(--top-h); padding: 8px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; min-height: var(--top-h); padding: 0 32px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .top__heading { min-width: 0; display: grid; gap: 3px; }
-.top__heading h1 { font-size: 18px; }
+.top__heading h1 { font-size: 20px; }
 .top__group { font-size: 12px; color: var(--ink-3); }
-.top__site { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--ink-2); }
+.top__site { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--ink-2); }
 .top__site:hover { background: var(--surface-2); text-decoration: none; }
 .top__menu { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius); cursor: pointer; font-size: 20px; }
-.main { flex: 1; min-width: 0; padding: 28px 28px 48px; scroll-margin-top: var(--top-h); outline: none; }
+.main { flex: 1; padding: 28px 32px 48px; scroll-margin-top: var(--top-h); outline: none; }
 @media (max-width: 900px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .top { padding: 0 16px; }

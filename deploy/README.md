@@ -68,9 +68,9 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 ```sh
 railway ssh --service api --environment production -- python -m alembic upgrade head
-# 2026-09-22 起 head 為 a1c4f7e92b30（email 不分大小寫唯一索引、共用內容
-# partial unique、slots 人工確認占位欄位、通知去重表）。這支 migration 會
-# 把既有大小寫重複的 email 帳號停權並改名封存，執行前先確認影響範圍。
+# 2026-09-22 正式 head 為 8cf3e2b5a641，新增孩子／聯絡資料欄位。
+# 前置 a1c4f7e92b30 含唯一索引、占位及通知去重；會封存重複 Email 帳號，
+# 執行前先確認影響範圍。本次正式 runner 額外檢查零重複，否則停止。
 railway ssh --service api --environment production -- python -m app.cli seed --dry-run
 railway ssh --service api --environment production -- python -m app.cli initialize-content /app/content/site-fixture.json
 railway ssh --service api --environment production -- python -m app.cli bootstrap-admin
@@ -255,3 +255,39 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - Chrome 1440px 桌機完成照片／翻面檢查並保存截圖；390px WebGL 與 320px 減少動態確認六張圖說皆為零，六組時間戳／標題／故事保留、鍵盤翻面與 inert 正常、無水平溢出或 runtime error。首次手機截圖寫入因 ENOSPC 中斷，只刪除本輪 build 中 43,649,892 bytes 的重複靜態資產輸出（原始快照保留），改 JPEG 補跑手機成功。已檢視線上桌機／手機截圖，Safari／Firefox／iOS 實機未驗證。
 - 證據：`output/railway-day-caption-20260922-151539/` 的 manifest、approved.patch、build-results／logs、upload、source-verification、services-status、smoke-public.json、final-verification.json 與 browser/。準備腳本 `output/prepare-day-caption-deploy.py`；快照／建置來源用 APFS clone，node_modules 只連入建置副本。
 - 未執行 migration、CMS 初始化／發布、素材庫或帳號異動、commit 或 push；五校預約 paused、索引及寄信設定維持。
+
+
+## 2026-09-22 前台效能第一批部署
+
+- 僅更新 web，deployment `d07e2cc6-4805-44d5-94b7-26efe45b3bde`，SUCCESS。API `f8b105cf-2431-4041-8f00-90c70e15613f` 與 Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` deployment 維持原版，已即時核對。
+- 基底為線上 day-caption 快照 `52c0092371b0902c9838a4859fa5d48f8ef9f518814ef0f378efee97a12dd5e8`；只套 17 個 web 效能檔案差異：巡覽／日常圖片按需載入、responsive 縮圖、理念與日常簾幕 hydration 幾何預留、首屏字型分包及安全 noscript fallback。保留已部署的 Hero、活動、頁尾、照片文字與後台版本；工作區其他設計／預約／API／CI 修改未納入。
+- 固定快照 `/private/tmp/ivy-website-performance-20260922-153019`，392 檔／45,892,723 bytes，不含後寫入的 release；SHA-256 `794731a2ae254d422ee2ba2a9c8051ea16d225e71b8f08918a7f5f09d1428646`。逐檔核對基底、建置來源與上傳前後內容，線上 `/release.json` 已驗證。
+- APFS clone 製作快照／建置副本，僅清除本輪建置產生的重複 assets 輸出並連回固定快照。Node 22.23.2：web typecheck、77 項 web tests、27 項 admin tests、admin／production-live web build 通過；既有 Hero calc/clamp 與延後 Three chunk 警告保留。backend 無差異，未重跑 backend tests。
+- 線上 51 項公開 GET-only 檢查及 18 組 Chrome 情境通過；涵蓋 release、五校 SSR／素材 hash、production API／CMS、robots／404、paused、admin 公開路由與匿名 401、字型預載／immutable 快取、圖片延後載入、五尺寸巡覽／zoom／熱點／dialog、首頁影片與靜態封面、無 JS、減少動態、暖快取。零 runtime error／hydration warning。隔離建置五尺寸 hydration 位置一致，正式桌機／手機畫面已檢視。
+- 首頁與五校各三次限速冷載入共 18 次：首頁 LCP 中位數 2.332 秒、CLS 全為 0；五校 LCP 中位數 2.876–3.404 秒，最大 CLS 0.000302。實驗室資料不等於真實訪客 p75，分校仍未達 2.5 秒目標。Safari／iOS 實機、正式登入後台及影片 Range 第二批尚未驗證／實作。
+- 證據：`output/railway-performance-20260922-153019/`（manifest、approved.patch、build-results、preflight、upload、source-verification、smoke-public、acceptance、geometry、performance-summary、JPEG）。準備腳本：`output/prepare-performance-deploy.py`。
+- 本輪未執行 migration、CMS 發布／初始化、正式帳密登入、資料寫入、commit 或 push；五校預約 paused、索引設定維持。
+
+## 2026-09-22 預約 A 與孩子／聯絡欄位部署
+
+- 使用者明確確認先備份、更新正式資料庫再部署。API deployment `69880c2d-77d0-457d-a051-90f80464b7c4`、web deployment `c801bed3-689e-416d-b057-6ad75d8ed891` 均 SUCCESS；Postgres deployment `be22e502-02ad-41b3-8559-0ce90ae03043` 未更換。
+- 固定快照 `/private/tmp/ivy-website-visit-20260922-151800`，403 檔／46,062,672 bytes，不含後寫入的 release；SHA-256 `da604b8c36bd8d8fd7646d34780cd3e26fa5503ac57e4616d1b48fb72bdb7d61`。基底為已上線效能版 `794731a2…`，保留 Hero、字體、照片、活動、頁尾及圖片／字型效能調整；API 使用 commit `21d99e3` 的相依修正加本輪預約資料，未帶入後續 CI/CD 與其他未部署設計。
+- 部署 A 選校／資料兩步驟、依各校模式載入真實場次、孩子姓名／生日、Email、得知管道，以及後台詳情／搜尋／CSV／人工確認。正式建置驗收發現分校直達頁 SSR 先顯示空場次、hydration 先顯示載入中；改為掛載後讀場次並共用首次載入狀態，三尺寸完整流程重驗通過。
+- 備份位於官網 Postgres volume：`/var/lib/postgresql/data/ivy-website-backups/pre-visit-20260922-151800.dump`，custom-format，已用 `pg_restore --list` 核對，SHA-256 `863dff233061603f3aa7ee14452ddac6da1f3d84c5247577b98dc6bb0ae22a8c`。備份保留在服務內，未下載個資；本次沒有執行還原演練。
+- 正式 schema 從 `ce3082c9bf69` 經 `a1c4f7e92b30` 更新至 `8cf3e2b5a641`。使用已核對的 Alembic 離線 SQL，在同一交易設定 lock／statement timeout，鎖住帳號與內容並先確認零重複。若出現重複會停止；本次重複帳號／共用內容皆 0，沒有改名或停權帳號。新欄位及索引／通知去重表已唯讀核對。
+- Node 22.23.2 隔離驗證：web typecheck、88 web tests、30 admin tests、前後台正式 build；專用本機 PostgreSQL 完整 API 171 tests 通過。磁碟 ENOSPC 中斷及重跑有保留紀錄，只清理核對過且未使用的舊暫存建置產物，原始快照／manifest／logs／使用者程式碼保留。
+- 線上 39 項公開 GET 驗證通過：release、production/live health、CMS、五校 SSR／照片、robots／404、預約模式、後台公開路由與資產、匿名 401 及既有設計 CSS hash。另核對後台 JS／CSS 兩檔與正式建置一致；API 容器 97 個來源檔 hash、migration、新欄位、UID 10001 與 `/data/media` volume／owner／750 權限通過。
+- Chrome 1440／390／320px 共 6 組正式選校／paused／分校直達驗證通過，無水平溢出、runtime 或 hydration error；已檢視桌機／手機截圖。所有 API 寫入由測試攔截，沒有登入後台、讀取私人案件或建立正式預約。完整場次送出與新欄位 payload 在同份本機正式建置及合成 API 驗證；Safari／iOS 實機未驗證。
+- 證據：`output/railway-visit-20260922-151800/` 的 manifest、build-results、backend-results、backup-record、migration-result、upload-api／web、api-verified、smoke-public、admin-assets-verified、browser-online-results、最終驗收及截圖。部署 runner 為同目錄 `rollout.py`，每階段檢查 snapshot／前置狀態與線上基底。
+- 五校預約維持 `paused`，未建立場次、啟用寄信／索引、CMS 初始化／發布、commit 或 push。新 schema 保留相容空值；回復程式應先回退 API／web 並保留新欄位，不盲目 downgrade 刪除已收集資料。
+
+## 2026-09-22 後台深色側欄與青藍風格部署
+
+- 僅更新 web，deployment `ac70c670-ff0f-45b7-8764-81cb67e1e34b`，SUCCESS。API `69880c2d-77d0-457d-a051-90f80464b7c4`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。
+- 基底為最新線上預約版 `da604b8c…`，403 檔逐一核對後，只覆蓋本輪 9 個 `admin/src` 樣式檔。這九檔的修改前快照與線上基底完全一致，Vue script／template 無差異；公開 `web/`、backend、contracts、content 與部署設定均保留。
+- 固定快照 `/private/tmp/ivy-website-admin-style-20260922-162716`；403 個來源檔、46,064,996 bytes，不含後寫入的 release。SHA-256 `fc5638c3c41c460936a7599bc939481bfcb1ee967c2670f2c897fc06811f82fb`，雜湊算法沿用排序的 `sha256  ./path` 清單再取 SHA-256。上傳前後與部署後來源 hash 一致，線上 `/release.json` 已核對。
+- Node 22.23.2 隔離建置：web typecheck、88 web tests、30 admin tests、admin 與 production/live web build 全數通過；套件及 lockfile 與依賴來源一致，正式 Railway build 依 lockfile 執行 npm ci。沿用既有大型 chunk／Hero CSS 建置提醒；backend 無差異，未重跑 backend tests。
+- 線上 39 項公開 GET 通過，含 production API、CMS、五校 SSR／照片、paused、robots、404、後台公開路由與匿名 401、既有首頁字體／活動／頁尾 CSS。後台 JS／CSS 兩檔與固定快照成品 SHA-256 相符。
+- Chrome 1440／390／320px 共 14 組線上檢查通過，包含匿名登入頁、新配色、總覽、案件、編輯頁及手機功能搜尋／Escape／焦點返回；無整頁水平溢出或 runtime error。後台內頁用正式資產搭配合成 API，沒有登入真實帳號、讀取私人案件或 API 寫入。已檢視正式登入頁及合成資料總覽截圖；Safari／iOS 實機未驗證。
+- 證據：`output/railway-admin-style-20260922/` 的 manifest、summary、build-results／logs、upload、final-status、smoke-public、admin-assets-verified、browser-online-results、acceptance 與截圖。
+- 未執行 migration、CMS 發布／初始化、通知／索引啟用、commit／push。回復時可重部署前一個 web deployment，API 與 schema 無須調整。

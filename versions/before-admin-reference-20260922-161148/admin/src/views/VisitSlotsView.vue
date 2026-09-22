@@ -242,7 +242,7 @@ function openCreate() {
 </template>
 
 <style scoped>
-.slot-time { margin-top:8px; font-size:16px; color:var(--el-color-primary); }
+.slot-time { margin-top:8px; font-size:16px; color:var(--brand-green-deep); }
 .record-meta dd .record-caption { display:block; }
 .record-actions .el-button { margin-left:auto; }
 .cap {
