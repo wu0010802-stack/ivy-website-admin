@@ -38,6 +38,9 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'zh-Hant-TW' },
       script: [{ key: 'motion-layout', tagPriority: 'critical', innerHTML: "document.documentElement.dataset.ivyMotion='ready'" }],
       link: [
+        { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico?v=ivy-20260922' },
+        { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48.png?v=ivy-20260922' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png?v=ivy-20260922' },
         { rel: 'stylesheet', href: '/assets/fonts/brand-fonts.css' },
         {
           rel: 'preload',

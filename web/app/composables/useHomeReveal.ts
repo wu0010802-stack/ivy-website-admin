@@ -8,6 +8,8 @@
  * hero(.studio-hero)/copy(.studio-hero-copy)/image(.studio-hero-image)/
  * media(.studio-media)/actions(.studio-actions)。
  */
+import { readMotionViewport, type MotionViewport } from '../utils/motionViewport'
+
 export interface HomeRevealRefs {
   root: Ref<HTMLElement | null>
   track: Ref<HTMLElement | null>
@@ -29,6 +31,8 @@ export function useHomeReveal(refs: HomeRevealRefs) {
   let mobileQuery: MediaQueryList | null = null
   let copyObserver: ResizeObserver | null = null
   let native = false
+  let viewport: MotionViewport | undefined
+  let lastProgress = Number.NaN
 
   const clamp = (n: number) => Math.max(0, Math.min(1, n))
 
@@ -40,6 +44,8 @@ export function useHomeReveal(refs: HomeRevealRefs) {
 
     const animated = root.value.dataset.motion !== 'still'
     const progress = animated ? clamp((window.scrollY - start) / distance) : 0
+    if (progress === lastProgress) return
+    lastProgress = progress
     root.value.classList.toggle('is-revealing', animated && progress > 0.08)
     hero.value.inert = animated && progress >= 0.995
     actions.value.inert = animated && progress >= 0.15
@@ -70,12 +76,12 @@ export function useHomeReveal(refs: HomeRevealRefs) {
 
     root.value.dataset.motion = 'still'
     ;[hero.value, copy.value, image.value, media.value].forEach((el) => el.removeAttribute('style'))
-    const height = document.documentElement.clientHeight
+    viewport = readMotionViewport(root.value)
+    const height = viewport.height
     const mobile = mobileQuery?.matches ?? false
     copyRise = mobile ? height * 0.2 : 0
     // 只有內容真的超出可視高度才需要退回 fallback。
     const fits = hero.value.getBoundingClientRect().height <= height + 1
-    root.value.style.setProperty('--reveal-height', `${height}px`)
     const quiet = document.documentElement.classList.contains('hero-quiet')
     // 與 performance.css 的首屏預留條件一致。矮手機維持完整靜態閱讀，
     // 避免先套全屏幾何、再因文案放不下退回而推動下方內容。
@@ -84,7 +90,12 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     const rect = track.value.getBoundingClientRect()
     start = rect.top + window.scrollY
     distance = Math.max(1, rect.height - height)
+    lastProgress = Number.NaN
     update()
+  }
+
+  function onResize() {
+    if (refs.root.value && readMotionViewport(refs.root.value) !== viewport) scheduleMeasure()
   }
 
   function scheduleMeasure() {
@@ -100,7 +111,7 @@ export function useHomeReveal(refs: HomeRevealRefs) {
       CSS.supports('animation-range: contain 0% contain 100%')
 
     window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', scheduleMeasure, { passive: true })
+    window.addEventListener('resize', onResize, { passive: true })
     reduceQuery.addEventListener('change', measure)
     mobileQuery.addEventListener('change', measure)
     if (refs.copy.value) {
@@ -119,7 +130,7 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     cancelAnimationFrame(measureFrame)
     copyObserver?.disconnect()
     window.removeEventListener('scroll', schedule)
-    window.removeEventListener('resize', scheduleMeasure)
+    window.removeEventListener('resize', onResize)
     reduceQuery?.removeEventListener('change', measure)
     mobileQuery?.removeEventListener('change', measure)
   })

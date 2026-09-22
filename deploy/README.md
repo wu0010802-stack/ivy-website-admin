@@ -69,6 +69,29 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 官網桌機及 390px 手機、後台登入及內容編輯頁經 Chrome 驗證，未發現 JavaScript runtime error，手機無水平溢出。
 - 部署過程有其他工作修改本機來源；較晚的變更未併入本次固定快照，差異清單在 `output/railway-worktree-drift.txt`。未 commit、未 push。
 
+## 2026-09-21 第二次部署紀錄
+
+- web deployment：`02bd8339-d5ae-4c26-87c6-8ddfa6d15f5a`，SUCCESS。
+- API deployment：`f8b105cf-2431-4041-8f00-90c70e15613f`，SUCCESS。
+- 基底 commit：`dc87b16747bb971beb3ece3fc9b14f509fd92f96`。工作目錄乾淨，快照以 `git archive HEAD` 取 `web/ admin/ backend/ content/ contracts/ deploy/ .dockerignore` 產生，沒有未提交差異。
+- 快照 SHA-256：`cd3630f6b6b22142a26fbcbbab1b1985a98dd1e6627f5e51f39c926262681e95`，web 與 api 上傳同一份，可由 `/release.json` 核對。雜湊算法為快照內所有檔案（不含後寫入的 `web/public/release.json`）依路徑排序後的 `shasum -a 256` 清單再取一次 SHA-256。
+- Migration head 仍為 `ce3082c9bf69`，本次未跑 alembic、未執行 `initialize-content` 或 `bootstrap-admin`。
+- 本機檢查：Node 22.23.2 下 web typecheck／57 tests／build、admin 16 tests／build 通過；backend `.venv`（Python 3.12）122 tests 通過。
+- 線上 33 項檢查沿用首次部署清單，全數通過：`output/railway-smoke.json`（首次部署結果備份為 `output/railway-smoke-20260921-first.json`）。
+- 瀏覽器驗證：桌機 1440 與手機 390px 首頁 200、無水平溢出，後台登入與內容編輯頁正常，0 個 runtime error，截圖 `output/playwright/railway2-*.png`。
+- 未 commit、未 push；預約仍 paused，索引與寄信未啟用。
+
+## 2026-09-22 第三次部署紀錄
+
+- 僅更新 web：`deb1076d-e531-45bc-924a-928601a815d8`，SUCCESS。API 仍為 `f8b105cf-2431-4041-8f00-90c70e15613f`，Postgres 仍為 `be22e502-02ad-41b3-8559-0ce90ae03043`。
+- 基底 commit：`dc87b16747bb971beb3ece3fc9b14f509fd92f96`，包含已驗證的未提交前台修改。部署圓角輪播、四秒切校／社群 icon、手機動效效能、A 拍立得折角、E 消息紙頁、A 頁尾霧藍漸退與校徽 favicon。backend／admin／content／contracts 相較 HEAD 無變更。
+- 固定快照：`/private/tmp/ivy-website-release-20260922-100936`。從 `git ls-files --cached --others --exclude-standard` 取允許範圍內仍存在的檔案，排除 `.env*`、依賴、快取、`var`、日誌與舊 release；347 個檔案，共 31,968,069 bytes，不含後寫入的 release。建置及上傳前後比對來源，無程式差異。
+- 快照 SHA-256：`1c000aaf0b655cc233100688f642312f1c44295537fe6af5dcabf0a5568ebaad`，`/release.json` 已線上核對。雜湊算法沿用第二次：排序路徑的 `sha256  ./path` 清單再取 SHA-256。逐檔清單、建置紀錄及結果在 `output/railway-deploy-20260922/`。
+- 本機檢查：Node 22.23.2 下 web typecheck／72 tests／production-live build、admin 16 tests／build 通過。既有 Hero CSS 巢狀 calc／clamp 與大型 chunk 警告仍在；backend 無變更，未重跑 backend tests。
+- 線上 33 項 smoke 通過：版本、production API、CMS release、五校 SSR、404、robots、五校 paused、admin 深層路由／assets、登入／Secure HttpOnly cookie、內容讀取、測試素材上傳／讀取／刪除、登出失效。`output/railway-deploy-20260922/smoke.py` 使用本次 hash，結果為同目錄 `smoke.json`；舊 smoke 腳本與結果保留。
+- Chrome 1440／390px 共 40 筆瀏覽器檢查通過：兩種尺寸五校圓角／社群 icon／預約入口、原生正反向轉場、JS 備援、手機觸控／高度穩定、減少動態／強制色彩、拍立得翻面、頁面往返、三個圖示逐檔 hash、後台登入／編輯頁／登出；零 runtime error、無水平溢出。紀錄與截圖在 `output/playwright/railway-20260922/`。Safari／Firefox／iOS 實機未驗證。
+- 未執行 migration、CMS 發布／初始化或管理員初始化；未 commit／push。首頁 CTA 常駐，實際預約維持 paused，索引與寄信未啟用。驗證用 64×64 圖片已刪除、驗證 session 已登出。
+
 ## 2026-09-22 頁首膠囊 8px 部署
 
 - 程式 commit：`bb20ce11638de172444c5787440bc381ff076450`，僅提交內距 4px→8px 與相關 README／DESIGN 段落，保留其他未提交設計工作。

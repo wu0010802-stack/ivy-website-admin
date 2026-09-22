@@ -41,7 +41,7 @@ export interface PaperHandle {
 
 const MARGIN = 70 // 四周留給彎曲與抬升
 const FLIP_MS = 1100
-const EAR_DEFAULT = 44
+const EAR_DEFAULT = 32
 // 首張偷看：與 styles.css 的 card-peek 同參數（12°、1 秒）
 const PEEK_MS = 1000
 const PEEK_TURN = 12 / 180
@@ -154,6 +154,26 @@ function boxIn(el: Element | null, origin: DOMRect): Box | null {
   return { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height }
 }
 
+// 可能在 CSS 已翻到背面後才初始化。量測紙面局部位置時先排除翻轉，
+// 否則正面的標籤與時間戳會左右鏡像；同一個同步工作內還原，不改可見狀態。
+function measureFlatPrint<T>(wrap: HTMLElement, read: () => T): T {
+  const elements = [wrap.querySelector<HTMLElement>('.print'), wrap.querySelector<HTMLElement>('.print-back')]
+  const saved = elements.flatMap((element) => element ? [{ element, style: element.getAttribute('style') }] : [])
+  try {
+    for (const { element } of saved) {
+      element.style.setProperty('transition', 'none', 'important')
+      element.style.setProperty('animation', 'none', 'important')
+      element.style.setProperty('transform', 'none', 'important')
+    }
+    return read()
+  } finally {
+    for (const { element, style } of saved) {
+      if (style === null) element.removeAttribute('style')
+      else element.setAttribute('style', style)
+    }
+  }
+}
+
 async function waitImage(img: HTMLImageElement): Promise<HTMLImageElement> {
   if (img.complete && img.naturalWidth) return img
   await new Promise<void>((resolve) => {
@@ -165,7 +185,12 @@ async function waitImage(img: HTMLImageElement): Promise<HTMLImageElement> {
 
 // ---- 主入口 ----
 
-export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<PaperHandle | null> {
+export async function mountPaper(
+  wrap: HTMLElement,
+  copy: PaperCopy,
+  initial: { developed?: boolean; flipped?: boolean; canMount?: () => boolean } = {}
+): Promise<PaperHandle | null> {
+  if (initial.canMount && !initial.canMount()) return null
   if (!canUseWebGL()) return null
   const loadedThree = await loadThree()
   if (!loadedThree) return null
@@ -183,16 +208,18 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
   } catch {
     /* 沒有 FontFaceSet 也照畫 */
   }
+  // import／圖片／字型等待期間可能又開始滑動或離頁，避免此時建立場景。
+  if (!wrap.isConnected || (initial.canMount && !initial.canMount())) return null
 
   const DPR = Math.min(window.devicePixelRatio || 1, 2)
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
   const renderer = acquireRenderer(three)
 
   // 元件狀態（由 DayMomentCard 透過 handle 餵進來）
-  let flipped = false
-  let revealed = false
+  let flipped = initial.flipped ?? false
+  let revealed = initial.developed ?? false
   let active = false
-  let earPx = EAR_DEFAULT
+  let earPx = Number.parseFloat(getComputedStyle(wrap).getPropertyValue('--ear')) || EAR_DEFAULT
   let disposed = false
 
   // 每次尺寸變動就整組重建（貼圖尺寸與幾何都綁著像素寬）
@@ -212,9 +239,66 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
   }
 
   function buildScene() {
-    const frontRect = front!.getBoundingClientRect()
-    const W = Math.round(frontRect.width)
-    const H = Math.round(frontRect.height)
+    const { W, H, style, box } = measureFlatPrint(wrap, () => {
+      const frontRect = front!.getBoundingClientRect()
+      const W = Math.round(frontRect.width)
+      const H = Math.round(frontRect.height)
+      // 版位與樣式全部從 DOM 取
+      const figure = front!.querySelector('.print-figure')
+      const figcaption = front!.querySelector('figcaption')
+      const stamp = front!.querySelector('.print-stamp')
+      const kickerEl = front!.querySelector('.print-kicker')
+      const titleEl = front!.querySelector('h3')
+      const backKicker = back!.querySelector('.print-kicker')
+      const storyEl = back!.querySelector('.print-story')
+      const askEl = back!.querySelector('.print-ask')
+      const questionEl = back!.querySelector('.print-question')
+      const answerEl = back!.querySelector('.print-answer')
+      const earEl = front!.querySelector<HTMLElement>('.print-ear')
+      const backRect = back!.getBoundingClientRect()
+
+      const style = {
+        frontBg: colorOf(front, 'backgroundColor', '#fffdf7'),
+        backBg: colorOf(back, 'backgroundColor', '#fff6df'),
+        figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
+        lineColor: 'rgb(32 64 47 / .07)',
+        earLineColor: earEl ? getComputedStyle(earEl).color : getComputedStyle(front!).color,
+        earShadow: getComputedStyle(wrap).getPropertyValue('--print-ear-shadow').trim(),
+        capFont: fontOf(figcaption, "400 9px 'PingFang TC', sans-serif"),
+        capColor: colorOf(figcaption, 'color', '#fff'),
+        capBg: colorOf(figcaption, 'backgroundColor', 'rgb(32 64 47 / .72)'),
+        stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
+        stampColor: colorOf(stamp, 'color', '#ffb347'),
+        kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
+        kickerColor: colorOf(kickerEl, 'color', '#7a8570'),
+        titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
+        titleColor: colorOf(titleEl, 'color', '#203f32'),
+        titleLine: pxOf(titleEl, 'lineHeight', 32),
+        storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
+        storyColor: colorOf(storyEl, 'color', '#3f5045'),
+        storyLine: pxOf(storyEl, 'lineHeight', 31),
+        questionFont: fontOf(questionEl, "600 13px 'PingFang TC', sans-serif"),
+        questionColor: colorOf(questionEl, 'color', '#203f32'),
+        questionLine: pxOf(questionEl, 'lineHeight', 22),
+        answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
+        answerColor: colorOf(answerEl, 'color', '#6e7c5b'),
+        answerLine: pxOf(answerEl, 'lineHeight', 25)
+      }
+      const box = {
+        figure: boxIn(figure, frontRect) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
+        figcaption: boxIn(figcaption, frontRect),
+        stamp: boxIn(stamp, frontRect),
+        kicker: boxIn(kickerEl, frontRect),
+        title: boxIn(titleEl, frontRect),
+        backKicker: boxIn(backKicker, backRect),
+        story: boxIn(storyEl, backRect),
+        ask: boxIn(askEl, backRect),
+        question: boxIn(questionEl, backRect),
+        answer: boxIn(answerEl, backRect)
+      }
+
+      return { W, H, style, box }
+    })
     if (!W || !H) return null
     const VW = W + MARGIN * 2
     const VH = H + MARGIN * 2
@@ -225,57 +309,6 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
     view.style.height = `${VH}px`
     view.style.left = `${-MARGIN}px`
     view.style.top = `${-MARGIN}px`
-
-    // 版位與樣式全部從 DOM 取
-    const figure = front!.querySelector('.print-figure')
-    const figcaption = front!.querySelector('figcaption')
-    const stamp = front!.querySelector('.print-stamp')
-    const kickerEl = front!.querySelector('.print-kicker')
-    const titleEl = front!.querySelector('h3')
-    const backKicker = back!.querySelector('.print-kicker')
-    const storyEl = back!.querySelector('.print-story')
-    const askEl = back!.querySelector('.print-ask')
-    const questionEl = back!.querySelector('.print-question')
-    const answerEl = back!.querySelector('.print-answer')
-    const backRect = back!.getBoundingClientRect()
-
-    const style = {
-      frontBg: colorOf(front, 'backgroundColor', '#fffdf7'),
-      backBg: colorOf(back, 'backgroundColor', '#fff6df'),
-      figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
-      lineColor: 'rgb(32 64 47 / .07)',
-      capFont: fontOf(figcaption, "400 9px 'PingFang TC', sans-serif"),
-      capColor: colorOf(figcaption, 'color', '#fff'),
-      capBg: colorOf(figcaption, 'backgroundColor', 'rgb(32 64 47 / .72)'),
-      stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
-      stampColor: colorOf(stamp, 'color', '#ffb347'),
-      kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
-      kickerColor: colorOf(kickerEl, 'color', '#7a8570'),
-      titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
-      titleColor: colorOf(titleEl, 'color', '#203f32'),
-      titleLine: pxOf(titleEl, 'lineHeight', 32),
-      storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
-      storyColor: colorOf(storyEl, 'color', '#3f5045'),
-      storyLine: pxOf(storyEl, 'lineHeight', 31),
-      questionFont: fontOf(questionEl, "600 13px 'PingFang TC', sans-serif"),
-      questionColor: colorOf(questionEl, 'color', '#203f32'),
-      questionLine: pxOf(questionEl, 'lineHeight', 22),
-      answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
-      answerColor: colorOf(answerEl, 'color', '#6e7c5b'),
-      answerLine: pxOf(answerEl, 'lineHeight', 25)
-    }
-    const box = {
-      figure: boxIn(figure, frontRect) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
-      figcaption: boxIn(figcaption, frontRect),
-      stamp: boxIn(stamp, frontRect),
-      kicker: boxIn(kickerEl, frontRect),
-      title: boxIn(titleEl, frontRect),
-      backKicker: boxIn(backKicker, backRect),
-      story: boxIn(storyEl, backRect),
-      ask: boxIn(askEl, backRect),
-      question: boxIn(questionEl, backRect),
-      answer: boxIn(answerEl, backRect)
-    }
 
     const frontCanvas = document.createElement('canvas')
     const backCanvas = document.createElement('canvas')
@@ -304,13 +337,85 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
       ctx.restore()
     }
 
-    function drawFront(develop: number, isActive: boolean) {
+    // 折角直接畫在紙面貼圖上，隨同一張 mesh 彎曲、旋轉，不留固定 DOM 浮層。
+    function drawEar(ctx: CanvasRenderingContext2D, side: 'right' | 'left') {
+      if (earPx <= 0) return
+      const e = earPx
+      ctx.save()
+      ctx.translate(side === 'right' ? W - e : e, H - e)
+      if (side === 'left') ctx.scale(-1, 1)
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.quadraticCurveTo(e * 0.48, e * 0.07, e, 0)
+      ctx.lineTo(0, e)
+      ctx.quadraticCurveTo(e * 0.07, e * 0.48, 0, 0)
+      ctx.closePath()
+      ctx.shadowColor = style.earShadow
+      ctx.shadowBlur = 2
+      ctx.shadowOffsetX = -1
+      ctx.shadowOffsetY = -1
+      setFill(ctx, side === 'right' ? style.backBg : style.frontBg, style.frontBg)
+      ctx.fill()
+      ctx.shadowColor = 'transparent'
+      if (side === 'right') {
+        ctx.clip()
+        ctx.strokeStyle = style.earLineColor
+        ctx.lineWidth = 0.65
+        for (let y = e * 0.21; y < e; y += e * 0.21) {
+          ctx.beginPath()
+          ctx.moveTo(0, y)
+          ctx.lineTo(e - y, y)
+          ctx.stroke()
+        }
+      }
+      ctx.restore()
+    }
+
+    function drawFrontBase() {
       const ctx = fctx
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
       ctx.clearRect(0, 0, W, H)
       setFill(ctx, style.frontBg, '#fffdf7')
       ctx.fillRect(0, 0, W, H)
+      // 編號小標與手寫標題
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      const k = box.kicker
+      if (k) {
+        setFill(ctx, style.kickerColor, '#7a8570')
+        ctx.font = style.kickerFont
+        ctx.fillText(copy.kicker, k.x, k.y + k.h * 0.78)
+      }
+      const t = box.title
+      if (t) {
+        ctx.save()
+        ctx.translate(t.x, t.y)
+        ctx.rotate(-0.014)
+        setFill(ctx, style.titleColor, '#203f32')
+        ctx.font = style.titleFont
+        let y = style.titleLine * 0.76
+        for (const line of copy.titleLines) {
+          ctx.fillText(line, 0, y)
+          y += style.titleLine
+        }
+        ctx.restore()
+      }
+    }
+
+    // 紙底與標題不隨顯影改變，只在建場／寬度改變時繪製一次。
+    // 每幀只更新照片框，保留原本的濾鏡、說明籤與時間戳顯影。
+    function drawPhoto(develop: number, isActive: boolean) {
+      const ctx = fctx
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
       const f = box.figure
+      // 清除對齊實體像素的照片範圍，避免小數邊界疊畫後殘留上一幀。
+      const x = Math.floor(f.x * DPR) / DPR
+      const y = Math.floor(f.y * DPR) / DPR
+      const w = Math.ceil((f.x + f.w) * DPR) / DPR - x
+      const h = Math.ceil((f.y + f.h) * DPR) / DPR - y
+      ctx.clearRect(x, y, w, h)
+      setFill(ctx, style.frontBg, '#fffdf7')
+      ctx.fillRect(x, y, w, h)
       setFill(ctx, style.figureBg, '#e8e2d2')
       ctx.fillRect(f.x, f.y, f.w, f.h)
       // 照片顯影：從糊、淡、偏黃慢慢到清楚（跟 .print-photo 的 CSS 同參數）
@@ -371,30 +476,6 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
       ctx.strokeStyle = 'rgba(0,0,0,.08)'
       ctx.lineWidth = 1
       ctx.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1)
-      // 編號小標與手寫標題
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'alphabetic'
-      const k = box.kicker
-      if (k) {
-        setFill(ctx, style.kickerColor, '#7a8570')
-        ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, k.x, k.y + k.h * 0.78)
-      }
-      const t = box.title
-      if (t) {
-        ctx.save()
-        ctx.translate(t.x, t.y)
-        ctx.rotate(-0.014)
-        setFill(ctx, style.titleColor, '#203f32')
-        ctx.font = style.titleFont
-        let y = style.titleLine * 0.76
-        for (const line of copy.titleLines) {
-          ctx.fillText(line, 0, y)
-          y += style.titleLine
-        }
-        ctx.restore()
-      }
-      cutEar(ctx, 'right')
     }
 
     function drawBack() {
@@ -459,12 +540,55 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
           y += style.answerLine
         }
       }
-      cutEar(ctx, 'left')
+    }
+
+    // 掀角只改缺口：快取未裁切的小塊底角，不重畫照片、故事與換行量測。
+    // 連同折角陰影保留一圈底色，縮小時不留下上一幀的痕跡。
+    const frontCorner = document.createElement('canvas')
+    const backCorner = document.createElement('canvas')
+    const frontCornerCtx = frontCorner.getContext('2d')!
+    const backCornerCtx = backCorner.getContext('2d')!
+    let cornerPixels = 0
+
+    function restoreCorner(ctx: CanvasRenderingContext2D, corner: HTMLCanvasElement, side: 'right' | 'left') {
+      if (!cornerPixels) return
+      const x = side === 'right' ? ctx.canvas.width - cornerPixels : 0
+      const y = ctx.canvas.height - cornerPixels
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(x, y, cornerPixels, cornerPixels)
+      ctx.drawImage(corner, x, y)
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+    }
+
+    function updateTextures(photoChanged = false) {
+      restoreCorner(fctx, frontCorner, 'right')
+      restoreCorner(bctx, backCorner, 'left')
+      if (photoChanged) drawPhoto(develop, active)
+      const nextPixels = Math.min(frontCanvas.width, frontCanvas.height, Math.ceil((Math.max(earPx, EAR_DEFAULT) + 6) * DPR))
+      const grew = nextPixels > cornerPixels
+      if (grew) {
+        cornerPixels = nextPixels
+        frontCorner.width = frontCorner.height = backCorner.width = backCorner.height = cornerPixels
+      }
+      if (grew || photoChanged) {
+        frontCornerCtx.clearRect(0, 0, cornerPixels, cornerPixels)
+        frontCornerCtx.drawImage(frontCanvas, frontCanvas.width - cornerPixels, frontCanvas.height - cornerPixels, cornerPixels, cornerPixels, 0, 0, cornerPixels, cornerPixels)
+      }
+      if (grew) {
+        backCornerCtx.clearRect(0, 0, cornerPixels, cornerPixels)
+        backCornerCtx.drawImage(backCanvas, 0, backCanvas.height - cornerPixels, cornerPixels, cornerPixels, 0, 0, cornerPixels, cornerPixels)
+      }
+      cutEar(fctx, 'right')
+      cutEar(bctx, 'left')
+      drawEar(fctx, 'right')
+      drawEar(bctx, 'left')
     }
 
     let develop = revealed ? 1 : 0
-    drawFront(develop, active)
+    drawFrontBase()
+    drawPhoto(develop, active)
     drawBack()
+    updateTextures()
     const frontTex = new three.CanvasTexture(frontCanvas)
     const backTex = new three.CanvasTexture(backCanvas)
     frontTex.colorSpace = backTex.colorSpace = three.SRGBColorSpace
@@ -542,7 +666,8 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
     let developStart = 0
     let peekStart = 0
     let dirtyFront = false
-    let dirtyBack = false
+    let dirtyEar = false
+    const rendererSize = new three.Vector2()
 
     function render() {
       frame = 0
@@ -553,8 +678,9 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         const t = Math.min(1, (now - flipStart) / FLIP_MS)
         const e = ease(t)
         flip = flipFrom + (flipTarget - flipFrom) * e
-        bend(Math.sin(t * Math.PI) * 0.6)
-        lift = Math.sin(t * Math.PI) * 34
+        // 用目前角度決定彎曲，連點反向也沿用當下紙形，不會突然攤平。
+        bend(Math.sin(flip * Math.PI) * 0.6)
+        lift = Math.sin(flip * Math.PI) * 34
         if (t >= 1) {
           flip = flipTarget
           bend(0)
@@ -588,17 +714,16 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         if (d >= 1) developStart = 0
         else busy = true
       }
-      if (dirtyFront) {
-        drawFront(develop, active)
+      if (dirtyFront || dirtyEar) {
+        updateTextures(dirtyFront)
         frontTex.needsUpdate = true
-        dirtyFront = false
+        if (dirtyEar) backTex.needsUpdate = true
+        dirtyFront = dirtyEar = false
       }
-      if (dirtyBack) {
-        drawBack()
-        backTex.needsUpdate = true
-        dirtyBack = false
-      }
-      renderer.setSize(VW, VH, false)
+      // 共用 renderer 切到不同尺寸的卡片時才重設 backing buffer。
+      // three 的 setSize 即使尺寸相同也會寫入 canvas.width／height。
+      renderer.getSize(rendererSize)
+      if (rendererSize.x !== VW || rendererSize.y !== VH) renderer.setSize(VW, VH, false)
       renderer.render(sceneObj, camera)
       viewCtx!.setTransform(1, 0, 0, 1, 0, 0)
       viewCtx!.clearRect(0, 0, view.width, view.height)
@@ -618,6 +743,8 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         flipFrom = flip
         flipTarget = target
         flipStart = performance.now()
+        peekStart = 0
+        aimX = aimY = glareAim = liftAim = 0
         kick()
       },
       startDevelop() {
@@ -629,17 +756,17 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
         dirtyFront = true
         kick()
       },
-      redrawBoth() {
-        dirtyFront = true
-        dirtyBack = true
+      redrawEar() {
+        dirtyEar = true
         kick()
       },
       peek() {
-        if (peekStart || flip !== flipTarget) return
+        if (peekStart || flipped || flip !== flipTarget) return
         peekStart = performance.now()
         kick()
       },
       aim(x: number, y: number) {
+        if (flip !== flipTarget) return
         aimY = x * 0.28
         aimX = -y * 0.2
         glareAim = 3.2
@@ -722,7 +849,7 @@ export async function mountPaper(wrap: HTMLElement, copy: PaperCopy): Promise<Pa
       const next = Math.max(0, Math.round(px))
       if (next === earPx) return
       earPx = next
-      scene?.redrawBoth()
+      scene?.redrawEar()
     },
     peek() {
       scene?.peek()

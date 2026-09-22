@@ -91,76 +91,21 @@ body:has(.hn-dialog[open]){overflow:hidden}
 @media(prefers-reduced-motion:no-preference){.home-news button{transition:background-color .18s,color .18s}.hn-dialog[open]{animation:hn-open .16s ease-out}@keyframes hn-open{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
 @media(forced-colors:active){.hn-event,.hn-card{border:1px solid ButtonText}.hn-dialog::backdrop{background:Canvas;opacity:.8}}
 
-/* Approved palette A: mist blue sweeps over warm white through every card. */
-@property --hn-sweep-progress {syntax:"<number>";inherits:true;initial-value:0}
+/* News palette retained for the approved E paper transition. */
 .home-news {
-  --hn-sweep-y:calc(var(--hn-sweep-progress) * var(--hn-section-height,0px));
-  --hn-sweep-background:#dce7eb;
-  --hn-on-sweep:var(--hn-green);
-  --hn-muted-on-sweep:#4b5c50;
   --hn-swept-gold:#f3d581;
   --hn-swept-sage:#d3e5b5;
   --hn-swept-mist:#bfdedb;
-  --hn-ink:#253d33;
   position:relative;
   isolation:isolate;
-}
-.home-news.hn-sweep-ready::before {
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:-1;
-  background:var(--hn-sweep-background);
-  clip-path:inset(0 0 max(0px,calc(100% - var(--hn-sweep-y))) 0);
-  pointer-events:none;
-}
-.home-news :is([data-sweep-ink],.hn-event) {
-  --hn-local-cut:clamp(0px,calc(var(--hn-sweep-y) - var(--hn-offset-y,0px)),100%);
 }
 .home-news .hn-event {--hn-swept-card:var(--hn-swept-gold)}
 .home-news .hn-event:nth-child(2) {--hn-swept-card:var(--hn-swept-sage)}
 .home-news .hn-event:nth-child(3) {--hn-swept-card:var(--hn-swept-mist)}
-.home-news.hn-sweep-ready .hn-event {
-  background-image:linear-gradient(to bottom,var(--hn-swept-card) 0 var(--hn-local-cut),transparent var(--hn-local-cut));
-}
-.home-news :is(.hn-kicker,.hn-sample-note,.hn-meta time) {--hn-ink:var(--hn-muted);--hn-on-sweep:var(--hn-muted-on-sweep)}
-.home-news .hn-meta>span {--hn-ink:var(--hn-green)}
-.home-news.hn-sweep-ready [data-sweep-ink] {
-  background-image:linear-gradient(to bottom,var(--hn-on-sweep) 0 var(--hn-local-cut),var(--hn-ink) var(--hn-local-cut));
-  background-clip:text;
-  -webkit-background-clip:text;
-  color:transparent;
-}
-.home-news.hn-sweep-ready .hn-more {position:relative;border-bottom-color:transparent}
-.home-news.hn-sweep-ready .hn-more::before {
-  content:"";
-  position:absolute;
-  inset:auto 0 0;
-  height:1px;
-  background:linear-gradient(to bottom,var(--hn-on-sweep) 0 calc(var(--hn-sweep-y) - var(--hn-offset-y) - var(--hn-ink-height) + 1px),var(--hn-ink) 0);
-}
 .home-news :is(.hn-event:focus-visible,.hn-card:focus-within,.hn-more:focus-visible) {
   outline:2px solid var(--hn-green);
   outline-offset:3px;
   box-shadow:0 0 0 6px var(--paper);
-}
-@supports (animation-timeline:view()) and (animation-range:0% 100%) {
-  .home-news.hn-sweep-ready[data-sweep-motion="native"] {
-    view-timeline:--news-sweep block;
-    view-timeline-inset:0;
-    animation:hn-colour-sweep 1s linear both;
-    animation-timeline:--news-sweep;
-    animation-range:entry 15% cover 65%;
-  }
-}
-@keyframes hn-colour-sweep {from{--hn-sweep-progress:0}to{--hn-sweep-progress:1}}
-@media(prefers-reduced-motion:reduce) {
-  .home-news.hn-sweep-ready {animation:none!important;--hn-sweep-progress:0!important}
-}
-@media(forced-colors:active) {
-  .home-news.hn-sweep-ready {animation:none!important;--hn-sweep-progress:0!important}
-  .home-news.hn-sweep-ready [data-sweep-ink] {background:none;color:CanvasText}
-  .home-news.hn-sweep-ready .hn-more {border-bottom-color:CanvasText}
 }
 
 /* Campus B: retain each school's outline, remove the shared garden illustration. */
@@ -336,7 +281,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
   display:flex;
   flex-direction:column;
   min-height:100vh;
-  min-height:100svh;
+  min-height:calc(100 * var(--motion-vh,1svh));
   padding-top:92px;
   background:var(--deep);
   color:var(--white);
@@ -353,7 +298,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
     linear-gradient(180deg,rgb(18 29 24 / .64) 0 96px,rgb(18 29 24 / 0)) top / 100% 190px no-repeat,
     linear-gradient(90deg,rgb(18 29 24 / .76),rgb(18 29 24 / .72) 34%,rgb(18 29 24 / .58) 42%,rgb(18 29 24 / .12) 55%,rgb(18 29 24 / 0) 62%);
 }
-.studio-hero-grid {display:flex;flex:1;align-items:center;padding-block:clamp(28px,5vh,56px);padding-bottom:calc(clamp(28px,5vh,56px) + 64px)}
+.studio-hero-grid {display:flex;flex:1;align-items:center;padding-block:clamp(28px,calc(5 * var(--motion-vh,1vh)),56px);padding-bottom:calc(clamp(28px,calc(5 * var(--motion-vh,1vh)),56px) + 64px)}
 @media(min-width:1001px) and (max-height:740px) {
   .studio-hero-grid {padding-top:28px;padding-bottom:56px}
 }
@@ -417,7 +362,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
   body:has(.studio-hero) .navigation :focus-visible {outline-color:var(--leaf)}
 }
 @media(max-width:1000px) {
-  .studio-hero {--hero-photo-height:clamp(280px,43svh,420px);padding-top:0;min-height:0}
+  .studio-hero {--hero-photo-height:clamp(280px,calc(43 * var(--motion-vh,1svh)),420px);padding-top:0;min-height:0}
   .studio-hero-copy {width:100%}
   /* Narrow screens give the moving image its own space above the copy. */
   .studio-hero-image {inset:0 0 auto;height:var(--hero-photo-height)}
@@ -463,7 +408,7 @@ body:has(.studio-hero) .header-top,
 .hero-quiet #video-play {font-size:0;width:44px;height:44px;min-height:0;padding:0;gap:0;border-radius:50%}
 .hero-quiet #video-play .icon {width:18px;height:18px}
 @media(max-width:1000px) {
-  .hero-quiet .studio-hero {min-height:100svh}
+  .hero-quiet .studio-hero {min-height:calc(100 * var(--motion-vh,1svh))}
   .hero-quiet .studio-hero-grid {padding-block:0}
   .hero-quiet .studio-hero-image {inset:0;height:100%}
   .hero-quiet .studio-media {inset:auto 0 24px}
@@ -510,8 +455,9 @@ body:has(.studio-hero) .header-top,
 .day-reveal[data-motion="on"] .campus-panorama {position:relative;z-index:1;margin-top:calc(-1 * var(--reveal-height,100svh))}
 .home-reveal[data-motion="native"] .home-reveal-track {
   view-timeline:--home-reveal block;
-  /* Do not inherit the navigation's scroll-padding into the timeline. */
-  view-timeline-inset:0;
+  /* 有效 scrollport 高度固定為閱讀基準，網址列收合不改變原生動畫進度。
+     % 依 timeline 自己的 scrollport 計算，也不繼承導覽的 scroll-padding。 */
+  view-timeline-inset:0 calc(100% - var(--reveal-height));
 }
 @supports (animation-timeline:view()) and (animation-range:contain 0% contain 100%) {
   .home-reveal[data-motion="native"] .studio-hero {
@@ -548,7 +494,7 @@ body:has(.studio-hero) .header-top,
 .home-belief {
   --belief-header-height:92px;
   /* Give the mint backdrop a longer entrance before the B2 content arrives. */
-  --belief-entry-space:clamp(180px,32svh,360px);
+  --belief-entry-space:clamp(180px,calc(32 * var(--motion-vh,1svh)),360px);
   display:grid;position:relative;z-index:1;isolation:isolate;
   --belief-bg:#c5ded0;
   background:var(--belief-bg);color:var(--belief-ink);
@@ -558,7 +504,7 @@ body:has(.studio-hero) .header-top,
 .home-belief .container {width:min(1440px,calc(100% - 112px))}
 .belief-backdrop {
   grid-area:1/1;position:sticky;top:var(--belief-header-height);align-self:start;
-  height:calc(100svh - var(--belief-header-height));overflow:clip;
+  height:calc(100 * var(--motion-vh,1svh) - var(--belief-header-height));overflow:clip;
   background:#c5ded0;pointer-events:none;user-select:none;
 }
 .belief-backdrop-inner {position:relative;height:100%}
@@ -575,8 +521,8 @@ body:has(.studio-hero) .header-top,
 }
 .belief-layout {
   display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
-  min-height:calc(100svh - var(--belief-header-height));
-  padding-block:clamp(48px,7svh,78px);align-content:center;align-items:start;
+  min-height:calc(100 * var(--motion-vh,1svh) - var(--belief-header-height));
+  padding-block:clamp(48px,calc(7 * var(--motion-vh,1svh)),78px);align-content:center;align-items:start;
   column-gap:clamp(48px,6vw,96px);row-gap:40px;
 }
 .belief-main {min-width:0}
@@ -621,7 +567,7 @@ body:has(.studio-hero) .header-top,
   }
 }
 @media(max-width:900px) {
-  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(260px,28svh,280px)}
+  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(260px,calc(28 * var(--motion-vh,1svh)),280px)}
   .home-belief .container {width:calc(100% - 64px)}
   .belief-layout {grid-template-columns:1fr;gap:32px;width:min(650px,100%);margin-inline:auto;padding-block:48px}
   .belief-main h2 {font-size:52px}
@@ -631,7 +577,7 @@ body:has(.studio-hero) .header-top,
   .belief-watermark {font-size:24vw}
 }
 @media(max-width:760px) {
-  .home-belief {--belief-header-height:78px;--belief-entry-space:clamp(64px,10svh,96px);scroll-margin-top:-96px}
+  .home-belief {--belief-header-height:78px;--belief-entry-space:clamp(64px,calc(10 * var(--motion-vh,1svh)),96px);scroll-margin-top:-96px}
   .home-belief .container {width:calc(100% - 40px)}
   .belief-layout {padding-block:40px}
   .belief-since {font-size:10px;margin-bottom:22px;gap:12px}
@@ -1072,7 +1018,7 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 /* 試作：?seam=2 —— 保留簾幕，但浮水印的「常春藤」對準大標「常春藤的一天」裡的「常春藤」，
    關於區塊黏住被擦掉時，同一個位置的字從薄荷綠變成白色。eyebrow 移到大標下方。 */
 /* 字級同時看寬與高：兩行浮水印要塞進 header 到視窗中線之間，矮視窗就跟著縮。 */
-[data-seam="2"] {--display-size:clamp(56px,min(13vw,19svh),200px)}
+[data-seam="2"],[data-seam="2"] .home-reveal {--display-size:clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px)}
 [data-seam="2"] .belief-watermark {
   inset:0;transform:none;
   font-size:var(--display-size);letter-spacing:0;line-height:1;opacity:.5;
@@ -1080,8 +1026,8 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 [data-seam="2"] .belief-watermark br {display:none}
 [data-seam="2"] .belief-watermark span {position:absolute;white-space:nowrap;transform:translateY(-50%)}
 /* 大標置中在 100svh 的正中央；浮水印所在的 backdrop 從 header 高度開始，所以要扣掉。 */
-[data-seam="2"] .wm-b {left:calc(50% - 3em);top:calc(50svh - var(--belief-header-height))}
-[data-seam="2"] .wm-a {left:-.05em;top:calc(50svh - var(--belief-header-height) - 1.02em)}
+[data-seam="2"] .wm-b {left:calc(50% - 3em);top:calc(50 * var(--motion-vh,1svh) - var(--belief-header-height))}
+[data-seam="2"] .wm-a {left:-.05em;top:calc(50 * var(--motion-vh,1svh) - var(--belief-header-height) - 1.02em)}
 [data-seam="2"] .day-intro {padding-inline:0}
 [data-seam="2"] .day-title {font-size:var(--display-size);letter-spacing:0;line-height:1}
 [data-seam="2"] .day-intro .eyebrow {
@@ -1090,16 +1036,16 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 }
 /* 簾幕開始擦之前，日常區塊就要釘在視窗頂（多往上拉一個簾幕距離），大標才會停在浮水印的位置；卡片相對延後同樣距離。 */
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-reveal {margin-top:calc(-1 * (var(--reveal-height,100svh) + var(--belief-distance)))}
-[data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28svh)}
+[data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28 * var(--motion-vh,1svh))}
 /* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
 /* 黏住的最後一屏：底部留白只撐到段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。 */
-[data-seam="2"] .belief-content {padding-bottom:calc(50svh + var(--display-size) * .15)}
+[data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 /* 手機縮短接力的停留距離，沿用同一變數維持簾幕與首張照片的對位。 */
 @media(max-width:760px) {
   [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .55)}
-  [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32svh)}
-  [data-seam="2"] .belief-content {padding-bottom:calc(30svh + var(--display-size) * .15)}
+  [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32 * var(--motion-vh,1svh))}
+  [data-seam="2"] .belief-content {padding-bottom:calc(30 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 }
 
 /* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */

@@ -3,6 +3,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
+import { readMotionViewport } from '~/utils/motionViewport'
 
 const props = defineProps<{ day: DayExperienceContent }>()
 
@@ -29,6 +30,10 @@ let onScreen = false
 let reduceQuery: MediaQueryList | null = null
 let watcher: IntersectionObserver | null = null
 let fadeFrame = 0
+let printsObserver: ResizeObserver | null = null
+let printOffsets: number[] = []
+let readingHeight = 1
+let hasScrolled = false
 
 // 對齊 app.js 的 fadeBehindContent()＋markActive()：大標先留在畫面上，
 // 拍立得列表靠近時淡成底紋（最低留 .16），並標出讀者停在哪一段，讓那
@@ -38,23 +43,36 @@ function paintFade() {
   fadeFrame = 0
   const intro = introEl.value
   const list = printsEl.value
-  if (!intro || !list) return
+  if (!intro || !list || !onScreen) return
   const top = list.getBoundingClientRect().top
-  const from = window.innerHeight * 0.62
-  const to = window.innerHeight * 0.25
+  const from = readingHeight * 0.62
+  const to = readingHeight * 0.25
   const progress = Math.min(1, Math.max(0, (from - top) / (from - to)))
-  intro.style.setProperty('--word-fade', (1 - progress * (1 - QUIET)).toFixed(3))
-  const line = window.innerHeight * 0.55
+  const line = readingHeight * 0.55 - top
   let active = -1
-  list.querySelectorAll<HTMLElement>('.day-print').forEach((print, i) => {
-    if (print.getBoundingClientRect().top <= line) active = i
+  printOffsets.forEach((offset, i) => {
+    if (offset <= line) active = i
   })
+  const fade = (1 - progress * (1 - QUIET)).toFixed(3)
+  if (intro.style.getPropertyValue('--word-fade') !== fade) intro.style.setProperty('--word-fade', fade)
   activeIndex.value = active
-  applyFilm()
 }
 
 function scheduleFade() {
-  if (!fadeFrame) fadeFrame = requestAnimationFrame(paintFade)
+  const scrolled = window.scrollY > 0
+  if (scrolled !== hasScrolled) {
+    hasScrolled = scrolled
+    applyFilm()
+  }
+  if (onScreen && !fadeFrame) fadeFrame = requestAnimationFrame(paintFade)
+}
+
+function measurePrints() {
+  if (!sectionEl.value || !printsEl.value) return
+  readingHeight = readMotionViewport(sectionEl.value).height
+  // 相片在列表內的相對位置只在版面改變時量測；捲動每幀只讀一次列表。
+  printOffsets = Array.from(printsEl.value.querySelectorAll<HTMLElement>('.day-print'), print => print.offsetTop)
+  scheduleFade()
 }
 
 // 對齊 app.js 的 applyFilm()：進畫面才載入、播放請求送出時讀者可能已
@@ -122,8 +140,9 @@ onMounted(() => {
     if (!sectionEl.value) return
     watcher = new IntersectionObserver(
       (entries) => {
-        onScreen = entries[0]?.isIntersecting ?? false
+        onScreen = entries.at(-1)?.isIntersecting ?? false
         applyFilm()
+        scheduleFade()
       },
       // 簾幕會把下層內容疊在首屏底下；不要因底部露出的幾何範圍
       // 就下載影片，等區塊進入視窗主要閱讀區域再載入。
@@ -135,13 +154,18 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange)
   reduceQuery.addEventListener('change', onReduceMotionChange)
   window.addEventListener('scroll', scheduleFade, { passive: true })
-  window.addEventListener('resize', scheduleFade, { passive: true })
-  paintFade()
+  window.addEventListener('resize', measurePrints, { passive: true })
+  if (printsEl.value) {
+    printsObserver = new ResizeObserver(measurePrints)
+    printsObserver.observe(printsEl.value)
+  }
+  measurePrints()
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', scheduleFade)
-  window.removeEventListener('resize', scheduleFade)
+  window.removeEventListener('resize', measurePrints)
+  printsObserver?.disconnect()
   cancelAnimationFrame(fadeFrame)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   reduceQuery?.removeEventListener('change', onReduceMotionChange)

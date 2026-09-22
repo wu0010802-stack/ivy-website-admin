@@ -1,8 +1,104 @@
+## 2026-09-22 分校輪播自動播放不受滑鼠位置影響
+
+Nuxt `CampusBoard.vue` 移除滑鼠停留造成的暫停：照片進入畫面後每 4 秒自動切校，滑鼠放在照片、校名或控制膠囊上都持續播放。保留播放／暫停按鈕、鍵盤焦點暫停、離屏／分頁隱藏暫停與減少動態設定。
+
+Chrome 桌機 1440px／手機 390px 的 10 項互動檢查通過，無 runtime error；先重現修改前照片 hover 會停止，再確認修改後持續自動切校。Node 22 Nuxt typecheck、4 項輪播計時測試、`node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異。證據在 `output/playwright/campus-autoplay-pointer/`。尚未部署；Safari／iOS 實機未驗證。
+
 ## 2026-09-22 頁首膠囊內距調為 8px
 
 依使用者截圖，Nuxt 首頁深綠膠囊四邊內距由 4px 改為 8px，保留校徽、選單與預約按鈕尺寸。Chrome 1440／900／390／320px 實測 padding 均為 8px，膠囊高度桌機 58px、手機 62px，無水平溢出或 runtime error。截圖與量測在 `output/playwright/header-padding/`；本機預覽 `http://127.0.0.1:3010/`，向下捲動即可看到。
 
 原型 `node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異。已以 `bb20ce1` 的內距修改部署正式 web（`d899f96e-d7a3-49e6-ac57-77f32de61932`，SUCCESS）；線上 33 項檢查與四尺寸 8px／選單操作驗證通過，紀錄在 `output/railway-header-padding-20260922/`。
+
+## 2026-09-22 第三次 Railway 部署：官網輪播與轉場上線
+
+將目前確認的分校圓角輪播、四秒切校與社群 icon、手機閱讀高度／拍立得效能、A 無文字淡折角、E 消息紙頁覆疊、A 頁尾霧藍漸退及校徽 favicon 部署到 [正式官網](https://web-production-04caa.up.railway.app/)。web deployment `deb1076d-e531-45bc-924a-928601a815d8` 為 SUCCESS；`/release.json` 對上固定工作目錄快照 `1c000aaf0b655cc233100688f642312f1c44295537fe6af5dcabf0a5568ebaad`。
+
+Node 22.23.2 下前台 typecheck／72 項單元測試／正式建置、後台 16 項單元測試／建置通過；保留既有 Hero calc／clamp 與大型 chunk 建置警告。線上 33 項檢查通過，包括版本、production/live API、CMS、五校 SSR、後台登入與素材上傳／讀取／刪除。Chrome 1440px 桌機、390px 手機模擬的輪播、正反向轉場、JS 備援、觸控、減少動態、拍立得、三個校徽圖檔與後台操作共 40 筆檢查通過，無水平溢出或 runtime error。紀錄：`output/railway-deploy-20260922/`、`output/playwright/railway-20260922/`；Safari／Firefox／iOS 實機未驗證。
+
+本次僅更新 web 服務；API／Postgres 沿用原 deployment，未執行 migration、CMS 發布或初始化。首頁預約入口常駐，五校實際預約設定仍為 paused，搜尋索引與寄信未啟用。快照包含已驗證的未提交前台修改；未 commit、未 push，原型與其他使用者工作保留。
+
+## 2026-09-22 頁尾採用 A「霧藍漸退」
+
+依使用者選定 A，將消息到頁尾的轉場整合至 Nuxt 首頁：頁尾進入畫面時，消息霧藍漸退為頁尾的暖白，紙頁陰影同步消失；往上捲會還原。沿用原有內容排列，使用原生 view timeline 與 JS 備援，手機共用首頁閱讀高度；減少動態直接呈現暖白。
+
+本機預覽：`http://127.0.0.1:3010/#latest-news`，往下捲至頁尾。Node 22 Nuxt typecheck、六項閱讀高度單元測試通過；Chrome 六尺寸 320–1920px、正反向捲動、JS 備援、手機觸控／高度變動、頁面往返與減少動態／強制色彩共 48 筆檢查通過，原有紙頁轉場另 47 筆回歸檢查通過，零 runtime error。證據在 `output/playwright/footer-fade-a/`。Safari／Firefox／iOS 實機尚未驗證，未部署。
+
+改前快照：`versions/before-footer-fade-a-20260922-095616/`；獨立比較頁保留於 `design/footer-transition-20260922/`。原型語法檢查與重打包通過，`preview.html` 無差異；保留其他 session 的設計變更與凍結原型。
+
+## 2026-09-22 官網分頁圖示改為常春藤校徽
+
+Nuxt 官網以現有彩色校徽取代預設 Nuxt favicon，沿用 `SiteHeader.vue` 的 logo 裁切範圍與透明處理，原始 `assets/logo.png` 不變。提供 16／32／48px 多尺寸 `web/public/favicon.ico`、48px PNG 與 180px Apple touch icon；`web/nuxt.config.ts` 統一宣告版本化圖示網址，讓瀏覽器重新載入新圖示。設定依 [Nuxt head 文件](https://nuxt.com/docs/4.x/getting-started/seo-meta)。
+
+驗證：Node 22 Nuxt typecheck、原型語法與重打包通過，`preview.html` 無差異。Chrome 確認首頁／義華分校頁 SSR 與 hydration 後均保留三個圖示宣告，各圖檔回傳 200、可解碼且與本機檔案一致，無 runtime error；圖檔匯出、驗證腳本與報告在 `output/playwright/favicon/`。尚未部署，Safari／iOS 實機未驗證。
+
+## 2026-09-22 拍立得採用 A「無文字淡折角」
+
+依使用者選定 A，移除六張拍立得的正反面翻面提示文字；折角改為常態 32px、淡橫線與輕陰影，首次輕掀 26→38→32。CSS 折角移入正反紙面，WebGL 折角畫入相同貼圖，翻轉途中不再有固定在右下的浮層。點擊會中止掀角／偷看，連點反向延續當下彎曲，CSS 改成 1.1 秒平順緩動；保留整卡觸控、鍵盤、accessible name 與減少動態。
+
+本機預覽：`http://127.0.0.1:3010/#day-hello`；獨立 A 預覽同步更新於 `http://127.0.0.1:8768/design/flip-without-copy-20260922/?view=a`。Node 22 Nuxt typecheck、72 項單元測試、原型語法與重打包通過，`preview.html` 無差異。Chrome 桌機 WebGL、無 WebGL CSS 備援、390px 手機觸控、減少動態、鍵盤返回與快速反向皆通過；翻頁中原角落的 canvas alpha 為 0，沒有殘留。腳本與截圖在 `output/playwright/flip-a-subtle/`。Safari／iOS 實機未驗證，未部署。
+
+改前快照：`versions/before-flip-a-subtle-20260922-0952/`。保留其他 session 的設計變更，vanilla 原型維持凍結。
+
+## 2026-09-22 消息到頁尾三版轉場探索（未整合）
+
+依使用者截圖，新增 `design/footer-transition-20260922/`：A 霧藍漸退（優先推薦）、B 頁尾揭幕、C 圓弧收邊，另附現況對照。沿用 Nuxt 實際渲染的消息、照片與頁尾內容，提供桌機／手機、播放、手動捲動、進度拉桿與全螢幕入口；只做獨立提案。B 參考 Olivier Larose 的 Sticky Footer／Framer 官方示範，C 參考形狀交接思路再延伸，來源與轉化界線記在該目錄 README；A 為現有配色延伸。預覽：`http://127.0.0.1:8765/design/footer-transition-20260922/`。
+
+驗證：Chrome 五尺寸 320–2048px × 四版 × 四進度共 80 狀態，以及 JS 備援、減少動態、播放／手動中止、鍵盤進入頁尾、比較頁切換，共 103 筆檢查通過，無水平溢出、圖片失敗或 runtime error。證據在 `output/playwright/footer-transition/`；原型語法與重打包通過，`preview.html` 無差異。未整合 Nuxt、未改 CMS、未部署；Safari／Firefox／iOS 實機未驗證。
+
+## 2026-09-22 首頁採用 E「紙頁覆疊」轉場
+
+依使用者選定 E，新增 `HomeNewsTransition.vue`／`useNewsTransition.ts`，將現行圓角分校輪播與 News 組成連續轉場：消息紙頁從下方覆入、圓角逐漸展平，分校微微後退，暖白整面轉霧藍；往上捲反向還原。沿用正常文件流、原生 view timeline 與 JS 備援，移除舊 News 水平掃色的 composable／CSS／量測標記。保留活動、照片及 dialog，手機上方留白避開膠囊導覽，被完全蓋住的分校輪播會暫停。
+
+預覽：`http://127.0.0.1:3010/#campuses`。Node 22 型別檢查、72 項單元測試與正式建置通過；建置仍提示既有 Hero CSS 的巢狀 calc／clamp 處理警告與大型 chunk。Chrome 六尺寸 320–1920px 共 36 個原生捲動狀態、六個備援狀態，以及觸控、手機高度變動、dialog／Escape／焦點還原、頁尾與頁面往返、減少動態／高對比、隱藏輪播暫停共 47 筆檢查通過，零 runtime error；證據在 `output/playwright/news-paper-e/`。Safari／Firefox／iOS 實機尚未驗證。
+
+改前快照：`versions/before-news-paper-e-20260922-093121/`。本輪保留其他 session 的分校與手機動效變更，原型維持凍結；未 commit、push、部署或修改 CMS。
+
+## 2026-09-22 分校資訊圓角輪播已整合首頁
+
+依使用者確認的 `design/campus-rounded-20260922/`，更新 Nuxt `CampusBoard.vue`：中央大幅圓角照片與兩側預告、精簡五校選單、照片區內隨捲動停靠的進度膠囊與播放鍵，聯絡資訊排列在下方。中文採 PingFang TC 500，英文／電話採 Source Sans 3 400，搭配暖瓷白、墨綠與香檳金。移除照片解說、張數、前後圓鈕及獨立「認識○○校」；LINE／Facebook 加品牌圖示、移除外連箭頭，缺少 LINE 仍顯示待補。
+
+每 4 秒自動切校，支援暫停、鍵盤、圓點與手機橫滑。首頁常駐「預約參觀○○校」，導向 `/visit/:key` 並預選校區；實際預約頁沿用 CMS 模式，**正式預約開放狀態未變更**。本機預覽：`http://127.0.0.1:3010/#campuses`。
+
+驗證：Node 22 Nuxt typecheck、輪播／預約動作 15 項單元測試通過；Chrome 六尺寸 320–1920px × 五校共 30 個版面狀態無水平溢出，照片與預約頁連結、四秒首尾循環、閱讀／鍵盤／離屏暫停、減少動態、手機原生觸控、零／一／二校與恢復五校通過。照片控制列停靠／離開聯絡資訊／與同時更新的消息紙頁轉場銜接通過，0 個 JavaScript runtime error。截圖與紀錄在 `output/playwright/campus-rounded-site/`；Safari／iOS 實機尚未驗證。
+
+修改前快照：`versions/before-campus-rounded-integration-20260922-092539/`。原型語法檢查與重打包通過，`preview.html` 無差異；未 commit、push 或部署。
+
+## 2026-09-22 手機捲動抖動與拍立得效能修正
+
+公開首頁 `web/` 的 Hero、關於及「常春藤的一天」統一閱讀高度，觸控裝置同寬高度變動不再切換動畫模式；保留向上揭幕與浮水印接力，減少捲動中的重複量測與透明度拖尾。手機先顯示可翻面的 CSS 拍立得，停止滑動後才逐張初始化可見卡片的 WebGL，保留紙張彎曲、折角及六張內容。同步快取紙底／文字，修正先翻背面再載入時的標籤鏡像與狀態接手。
+
+驗證：高度 780↔720px 的卡片位移由原版約 396／422px 降為 0px；同機正式 build、手機模擬、CPU 4 倍降速的兩輪連續捲動，最長幀間隔由 150–233ms 降至 33–50ms。這是受控量測，初始化成本移到停止閱讀後，並非全面關閉 WebGL。72 項單元測試、typecheck、正式建置、五種瀏覽器模式與六張卡片翻面驗收通過；原型語法檢查與重打包通過，`preview.html` 無差異。
+
+本機預覽：`http://127.0.0.1:3311`。詳見 [診斷與修正紀錄](docs/analysis/2026-09-22-mobile-motion-audit.md)，原始量測與截圖在 `output/playwright/mobile-motion-audit/`。尚未驗證 iPhone Safari 實機，未 commit、push 或部署；保留其他進行中的設計提案與部署文件修改。
+
+## 2026-09-22 更多網站轉場探索（未整合）
+
+新增獨立研究與互動頁 `design/news-transition-explore-20260922/`，整理 Motto、TrueKind、Guggenheim、Join Talent 的實站截圖與原作者資料，另附 Sweet Home Sweet、Moooi Paper Play 案例。延伸 D 留白展幅、E 紙頁覆疊、F 照片取色、G 照片接棒四款示意，可切桌機／手機、實際捲動或播放。原站觀察、歷史案例與本次轉化分別標示；沒有變更第一輪 A／B／C 或 Nuxt 主站。預覽：`http://127.0.0.1:8765/design/news-transition-explore-20260922/`。
+
+驗證：獨立 headless Chrome 四尺寸 320–1440px × 四版 × 四進度共 64 狀態、JS 備援 12 狀態、比較頁 16 狀態與四版減少動態通過，無水平溢出／runtime error。D 的照片淡出後才顯示消息文字。證據位於 `output/playwright/news-transition-explore/`；尚未驗證 Safari／Firefox／iOS 實機。
+
+## 2026-09-22 近期活動／消息交界三版轉場（未整合）
+
+依截圖的深綠交界與 Wellington College 的捲動揭幕，新增獨立互動提案 `design/news-transition-20260922/`：A 直線揭幕／霧藍、B 圓弧展開／暖米、C 整面漸染／鼠尾草綠。比較頁提供桌機／手機、全螢幕、重播與進度拉桿；內容、照片沿用現行 News，深綠前段僅作截圖情境。未改 Nuxt、CMS 或五校版型。預覽：`http://127.0.0.1:8765/design/news-transition-20260922/`。
+
+驗證：Chrome 五尺寸 320–2048px × 三版 × 四進度共 60 狀態通過，無水平溢出／runtime error；另確認 JS 備援九狀態、反向捲動、播放與手動中止、鍵盤拉桿、dialog／Esc／焦點還原、減少動態與高對比。比較頁四尺寸 × 三版 12 狀態通過。截圖與檢查摘要在 `output/playwright/news-transition/`。原型語法檢查與重打包通過，`preview.html` 無差異。未驗證 Safari／Firefox／iOS 實機，尚未整合主站捲動。
+
+## 2026-09-22 分校資訊圓角影像輪播提案（未整合）
+
+字體與捲動細修：中文標題／校名改為 PingFang TC 500，英文與電話沿用 Source Sans 3 400；暖瓷白、低飽和墨綠與香檳金取代較重的標題與鮮黃。照片區內的控制列改為原生 sticky 靠下，滑到聯絡資訊後隨照片離開。 捲動五種狀態與手機停靠通過；文字對比最低 5.89:1，證據在 `output/playwright/campus-rounded/scroll-style-checks.json`。
+
+同日微調：移除「校園一隅」與照片張數、移除「認識○○校」及暫停預約訊息，改為常態顯示帶入所選校區的「預約參觀○○校」入口，輪播從 6 秒縮短為 4 秒。本輪僅更動獨立提案，正式 CMS 預約狀態未更動。 再依截圖移除左右切校圓鈕，LINE／Facebook 加入既有品牌圖示並移除社群外連箭頭。
+
+依 Apple 產品重點輪播參考，製作獨立互動預覽 `design/campus-rounded-20260922/`：中央大幅圓角照片、兩側相鄰校園預告、上方精簡校名切換、置中膠囊進度與播放鍵，聯絡資訊移到照片下方。延續現有米白／深綠／暖黃與真實五校素材，手機採較直照片比例及左右滑動；尚未更動 Nuxt 的 `CampusBoard.vue`、CMS 或部署。預覽：`http://127.0.0.1:8765/design/campus-rounded-20260922/`，頁面提供現行版對照入口。
+
+驗證：Chrome 六尺寸（320–1920px）× 五校共 30 個版面狀態無水平溢出；鍵盤／圓點／首尾循環、四秒播放與暫停、減少動態、手機原生觸控滑動通過；預約連結帶入所選校區、圖片說明移除後控制列仍置中，零 runtime error。截圖與結果在 `output/playwright/campus-rounded/`。原型語法檢查與重打包通過，`preview.html` 無差異。未驗證 Safari／iOS 實機及 Nuxt 首頁捲動整合。
+
+## 2026-09-21 第二次 Railway 部署：後台改版與官網第二輪設計上線
+
+把 `dc87b16` 的乾淨工作目錄快照部署到 Railway 專案 `ivy-website-admin`（api `f8b105cf`、web `02bd8339`，皆 SUCCESS）。相對於首次部署的基底 `5bc67b1`，本次補上後台導覽與操作體驗改版、UX 審查 P0～P3 缺口、預約與營運相關 backend 調整、手機版適配兩輪、分校資訊版面重構、拍立得折角提示第二輪及 SEO／效能整合。Migration head 仍為 `ce3082c9bf69`，未跑 alembic、未改 CMS 發布資料；五校預約維持 `paused`，搜尋索引與實際寄信未啟用。
+
+驗證：Node 22.23.2 下 `web` typecheck／57 項單元測試／正式建置、`admin` 16 項單元測試／建置、`backend` 122 項測試通過。線上 33 項檢查全通過（`/release.json` 對上快照 `cd3630f6…`、production/live health、CMS release、五校 SSR、未知校區 404、索引關閉、五校 paused、後台直接路由與 assets、登入與 Secure HttpOnly cookie、素材上傳／讀取／刪除、登出失效），紀錄在 `output/railway-smoke.json`；桌機 1440 與手機 390px 瀏覽器檢查首頁 200、無水平溢出、後台登入與內容編輯頁正常、0 個 JavaScript runtime error，截圖在 `output/playwright/railway2-*.png`。未 commit、未 push，vanilla 原型與 `preview.html` 未動。
 
 ## 2026-09-21 拍立得翻面提示第二輪：折角做真＋首張偷看
 

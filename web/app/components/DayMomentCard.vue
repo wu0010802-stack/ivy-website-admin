@@ -3,6 +3,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -23,10 +24,14 @@ let pointerPosition: { x: number; y: number } | null = null
 let cueTimer = 0
 let earFrame = 0
 let peekTimer = 0
+let deferPaper = false
+let isNear = false
+let cancelPaper: (() => void) | null = null
+let lastFlipAt = Number.NEGATIVE_INFINITY
 
-// 折角與偷看：顯影完成後折角自己掀一次（30→52→44），首張再向左微翻 12° 回正；
+// A 版淡折角：顯影後只輕掀一次（26→38→32），首張再向左微翻 12° 回正；
 // 減少動態不做、翻開中不做、每次工作階段只偷看一次。DOM 的 --ear 與 WebGL 貼圖缺口用同一個時鐘。
-const EAR_REST = 44
+const EAR_REST = 32
 const EAR_PEEL_MS = 1100
 const PEEK_KEY = 'ivy-day-peek'
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -42,8 +47,7 @@ function runPeel(done: () => void) {
     earFrame = 0
     if (!wrapEl.value?.isConnected) return
     const t = Math.min(1, (performance.now() - start) / EAR_PEEL_MS)
-    // 30 → 52 → 44：先掀大再放回
-    const px = t < 0.55 ? 30 + (52 - 30) * easeInOut(t / 0.55) : 52 - (52 - EAR_REST) * easeInOut((t - 0.55) / 0.45)
+    const px = t < 0.55 ? 26 + (38 - 26) * easeInOut(t / 0.55) : 38 - (38 - EAR_REST) * easeInOut((t - 0.55) / 0.45)
     setEar(px)
     if (t < 1) earFrame = requestAnimationFrame(step)
     else {
@@ -112,6 +116,7 @@ function applyTilt() {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (performance.now() - lastFlipAt < 1100) return
   if (paper) {
     paper.pointerMove(event.clientX, event.clientY)
     return
@@ -143,8 +148,21 @@ function onPointerLeave() {
 
 // WebGL 紙張版（比稿 R）：快接近視窗才載 three，成功就把 DOM 卡片的
 // 翻面／傾斜／顯影交給它；失敗或減少動態就維持 CSS 3D 版。
+function readyForPaper() {
+  return !deferPaper || (isNear && isScrollIdle() && !cueTimer && !earFrame && !isPeeking.value && performance.now() - lastFlipAt >= 1100)
+}
+
+function queuePaper() {
+  if (!isNear || !wrapEl.value?.isConnected || paper || cancelPaper) return
+  cancelPaper = scheduleScrollIdle(async () => {
+    cancelPaper = null
+    await attachPaper()
+  })
+}
+
 async function attachPaper() {
   if (paper || paperPending || !wrapEl.value) return
+  if (!readyForPaper()) { queuePaper(); return }
   paperPending = true
   const module = await import('~/utils/paperPrints').catch(() => null)
   if (!module || !wrapEl.value?.isConnected) { paperPending = false; return }
@@ -157,14 +175,24 @@ async function attachPaper() {
     story: props.moment.story,
     question: props.moment.question,
     answer: props.moment.answer
+  }, {
+    // 手機先由 CSS 顯影，停下後接手已完成的正反面，不再重播顯影或翻面。
+    get developed() { return deferPaper && isRevealed.value },
+    get flipped() { return isFlipped.value },
+    canMount: readyForPaper
   })
   paperPending = false
-  if (!handle) return
+  if (!handle) {
+    if (!readyForPaper()) queuePaper()
+    return
+  }
   if (!wrapEl.value?.isConnected) {
     handle.dispose()
     return
   }
   paper = handle
+  nearObserver?.disconnect()
+  nearObserver = null
   webglReady.value = true
   onPointerLeave()
   const currentEar = Number.parseFloat(wrapEl.value.style.getPropertyValue('--ear'))
@@ -185,22 +213,30 @@ watch(
 
 onMounted(() => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  deferPaper = window.matchMedia('(hover: none) and (pointer: coarse)').matches
   if (prefersReducedMotion || typeof IntersectionObserver === 'undefined' || !cardEl.value) {
     isRevealed.value = true
     return
   }
-  // 掀角從 30 開始，等顯影完成才放到 44
-  setEar(30)
+  setEar(26)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   if (mayAutoplay(prefersReducedMotion, connection)) nearObserver = new IntersectionObserver(
     (entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
+      isNear = entries.at(-1)?.isIntersecting ?? false
+      if (!isNear) {
+        cancelPaper?.()
+        cancelPaper = null
+      } else if (deferPaper) {
+        // 原生捲動優先；逐張在停止滑動後初始化，離開附近範圍就取消。
+        queuePaper()
+      } else {
         nearObserver?.disconnect()
         nearObserver = null
         void attachPaper()
       }
     },
-    { rootMargin: '60% 0px' }
+    // 手機只初始化真的進入畫面的卡片，避免停在下一區塊仍替離屏照片建場。
+    { rootMargin: deferPaper ? '0px' : '60% 0px' }
   )
   nearObserver?.observe(cardEl.value)
   observer = new IntersectionObserver(
@@ -223,6 +259,8 @@ onUnmounted(() => {
   observer = null
   nearObserver?.disconnect()
   nearObserver = null
+  cancelPaper?.()
+  cancelPaper = null
   cancelAnimationFrame(tiltFrame)
   cancelAnimationFrame(earFrame)
   window.clearTimeout(cueTimer)
@@ -233,6 +271,15 @@ onUnmounted(() => {
 })
 
 function toggleFlip() {
+  // 點擊接管提示動畫，避免掀角／偷看在翻頁途中繼續拉動紙張。
+  cancelAnimationFrame(earFrame)
+  window.clearTimeout(cueTimer)
+  window.clearTimeout(peekTimer)
+  earFrame = cueTimer = peekTimer = 0
+  isPeeking.value = false
+  setEar(EAR_REST)
+  onPointerLeave()
+  lastFlipAt = performance.now()
   isFlipped.value = !isFlipped.value
 }
 
@@ -267,6 +314,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
               <p class="print-kicker">{{ kicker }}</p>
               <h3><template v-for="(line, i) in titleLines" :key="i">{{ line }}<br v-if="i < titleLines.length - 1"></template></h3>
             </div>
+            <span class="print-ear" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path class="print-ear-paper" d="M0 0Q48 7 100 0L0 100Q7 48 0 0Z"/><path class="print-ear-lines" d="M2 21H79M3 42H58M3 63H37M2 84H16"/></svg></span>
           </div>
           <div class="print-face print-back" :id="`day-story-${moment.key}`" :inert="!isFlipped">
             <p class="print-kicker">{{ kicker }}</p>
@@ -275,6 +323,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
               <p class="print-question">{{ moment.question }}</p>
               <p class="print-answer">{{ moment.answer }}</p>
             </div>
+            <span class="print-ear" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path class="print-ear-paper" d="M0 0Q48 7 100 0L0 100Q7 48 0 0Z"/></svg></span>
           </div>
         </div>
         <button
@@ -284,13 +333,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
           :aria-expanded="isFlipped"
           :aria-controls="`day-story-${moment.key}`"
           @click="toggleFlip"
-        >
-          <span class="print-turn-hint" aria-hidden="true">
-            <span>{{ isFlipped ? '再點一下，回到照片' : '點照片，看看背面' }}</span>
-            <svg class="icon" focusable="false"><use :href="isFlipped ? '#i-arrow-u-up-left' : '#i-arrows-left-right'" /></svg>
-          </span>
-        </button>
-        <span class="print-ear" aria-hidden="true" />
+        />
       </div>
     </div>
   </li>

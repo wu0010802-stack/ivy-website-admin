@@ -1,40 +1,49 @@
 <script setup lang="ts">
 import { responsiveImage } from '~/utils/responsive-image'
-import type { Campus, CampusBoardContent } from '~/types/site-content'
 import { createCarouselClock } from '~/utils/carouselClock'
+import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
-  .map(key => props.campuses.find(c => c.key === key))
-  .filter((c): c is Campus => Boolean(c)))
-const index = ref(Math.max(0, orderedCampuses.value.findIndex(c => c.key === props.board.defaultCampus)))
+  .map(key => props.campuses.find(campus => campus.key === key))
+  .filter((campus): campus is Campus => Boolean(campus)))
+const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === props.board.defaultCampus)))
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
+const photoViewport = ref<HTMLElement | null>(null)
 const progress = ref(0)
 const visible = ref(false)
 const hidden = ref(true)
-const reading = ref(false)
 const focused = ref(false)
 const paused = ref(false)
 const reducedMotion = ref(false)
 const optedIn = ref(false)
+const repositioning = shallowRef(new Set<number>())
+const announcement = ref('')
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !reading.value && !focused.value && orderedCampuses.value.length > 1)
-const playbackMessage = computed(() => !canAuto.value
-  ? '已暫停，可點選校名切換'
-  : reading.value || focused.value
-    ? '閱讀中，暫停播放'
-    : '每 6 秒，走訪一所校園')
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value)
 const clock = createCarouselClock({
-  duration: 6000,
-  onAdvance: () => select((index.value + 1) % orderedCampuses.value.length),
+  duration: 4000,
+  onAdvance: () => select(index.value + 1, true),
   onProgress: value => { progress.value = value }
 })
 
-function select(next: number) {
-  if (!orderedCampuses.value[next]) return
-  index.value = next
+function offset(photo: number, selected = index.value) {
+  const total = orderedCampuses.value.length
+  if (!total) return 0
+  const value = (photo - selected + total) % total
+  return value > Math.floor(total / 2) ? value - total : value
+}
+function select(next: number, automatic = false) {
+  const total = orderedCampuses.value.length
+  if (!total) { index.value = 0; clock.reset(); return }
+  const selected = (next + total) % total
+  // Wrapped, offscreen cards teleport behind the viewport rather than crossing it.
+  repositioning.value = new Set(orderedCampuses.value.flatMap((_, i) =>
+    i !== selected && i !== index.value && Math.abs(offset(i, selected) - offset(i)) > total / 2 ? [i] : []))
+  index.value = selected
   clock.reset()
+  if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
 function onKey(event: KeyboardEvent, from: number) {
   const total = orderedCampuses.value.length
@@ -53,14 +62,36 @@ function togglePlayback() {
   } else paused.value = !paused.value
 }
 function focusChanged(target: EventTarget | null) {
-  // Keep keyboard reading still; a mouse/touch selection starts a fresh countdown.
-  focused.value = target instanceof Element && Boolean(root.value?.contains(target)) && target.matches(':focus-visible') && !target.closest('.campus-playback')
+  focused.value = target instanceof Element && Boolean(root.value?.contains(target))
+    && target.matches(':focus-visible') && !target.closest('.campus-playback')
 }
-function hover(event: PointerEvent, value: boolean) {
-  if (event.pointerType === 'mouse') reading.value = value
+
+let pointerStart: { id: number; x: number; y: number } | null = null
+let suppressPhotoClick = false
+function onPointerDown(event: PointerEvent) {
+  if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
+  pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY }
+  suppressPhotoClick = false
+}
+function onPointerUp(event: PointerEvent) {
+  if (!pointerStart || pointerStart.id !== event.pointerId) return
+  const dx = event.clientX - pointerStart.x
+  const dy = event.clientY - pointerStart.y
+  pointerStart = null
+  if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {
+    suppressPhotoClick = true
+    select(index.value + (dx < 0 ? 1 : -1))
+  }
+}
+function onPhotoClick(event: MouseEvent, photo: number) {
+  if (suppressPhotoClick) { event.preventDefault(); suppressPhotoClick = false; return }
+  if (photo !== index.value) { event.preventDefault(); select(photo) }
 }
 watch(playing, active => active ? clock.start() : clock.pause())
-watch(orderedCampuses, list => { if (index.value >= list.length) select(0) })
+watch(orderedCampuses, (list, previous) => {
+  const key = previous[index.value]?.key
+  select(Math.max(0, list.findIndex(campus => campus.key === key)))
+})
 
 let dispose = () => {}
 onMounted(() => {
@@ -69,15 +100,19 @@ onMounted(() => {
   const visibilityChanged = () => { hidden.value = document.hidden }
   motionChanged()
   visibilityChanged()
-  const observer = new IntersectionObserver((entries) => {
-    // Rapid scroll/resize can batch an older hidden entry with a newer visible one.
+  const observer = new IntersectionObserver(entries => {
     const entry = entries[entries.length - 1]
     visible.value = Boolean(entry && entry.isIntersecting && entry.intersectionRatio >= .35)
   }, { threshold: [0, .35, .6] })
-  if (root.value) observer.observe(root.value)
+  const stopObserving = watch(photoViewport, (element, previous) => {
+    if (previous) observer.unobserve(previous)
+    visible.value = false
+    if (element) observer.observe(element)
+  }, { immediate: true, flush: 'post' })
   media.addEventListener('change', motionChanged)
   document.addEventListener('visibilitychange', visibilityChanged)
   dispose = () => {
+    stopObserving()
     observer.disconnect()
     media.removeEventListener('change', motionChanged)
     document.removeEventListener('visibilitychange', visibilityChanged)
@@ -87,216 +122,158 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 </script>
 
 <template>
-  <section v-if="current" id="campuses" ref="root" class="campus-panorama campus-stories" aria-roledescription="輪播" aria-labelledby="campuses-heading" :style="{ '--campus-count': orderedCampuses.length }" :data-campus="current.key" :data-campus-key="current.key" :data-playing="playing" @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)">
-    <header class="campus-story-header">
-      <div class="campus-section-title"><h2 id="campuses-heading">{{ board.sectionTitle }}</h2><span lang="en">{{ board.eyebrow }}</span></div>
+  <section
+    v-if="current" id="campuses" ref="root" class="campus-panorama campus-gallery"
+    aria-roledescription="輪播" aria-labelledby="campuses-heading"
+    :data-campus="current.key" :data-campus-key="current.key" :data-playing="playing"
+    @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"
+  >
+    <header class="gallery-heading content-width">
+      <div class="gallery-title"><h2 id="campuses-heading">{{ board.sectionTitle }}</h2><span lang="en">{{ board.eyebrow }}</span></div>
+      <div class="campus-tabs" role="tablist" aria-label="選擇分校">
+        <button
+          v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
+          type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
+          :tabindex="i === index ? 0 : -1" aria-controls="campus-stage"
+          @click="select(i)" @keydown="onKey($event, i)"
+        >{{ campus.name }}</button>
+      </div>
     </header>
-    <div class="campus-story-tabs" role="tablist" aria-label="選擇分校" @pointerenter="hover($event, true)" @pointerleave="hover($event, false)">
-      <button v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key" :data-campus-tab="i" class="campus-story-tab" type="button" role="tab" :aria-selected="i === index" :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" @click="select(i)" @keydown="onKey($event, i)">
-        <span class="campus-story-label">{{ campus.name }}</span>
-      </button>
-    </div>
-    <div id="campus-stage" class="campus-story-stage" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" :aria-live="playing ? 'off' : 'polite'">
-      <div class="campus-story-photos" @pointerenter="hover($event, true)" @pointerleave="hover($event, false)">
-        <figure v-for="(campus, i) in orderedCampuses" :key="campus.key" class="campus-story-photo" :class="{ 'is-current': i === index }" :aria-hidden="i !== index" :inert="i !== index">
-          <NuxtLink class="campus-story-photo-link" :to="`/campuses/${campus.key}`" :aria-label="`認識${campus.name}，查看校園介紹`">
-          <img v-bind="responsiveImage(campus.image, '(max-width: 900px) 100vw, (max-width: 1100px) 52vw, (max-width: 1600px) 60vw, calc(100vw - 640px)')" :fetchpriority="i === index ? 'auto' : 'low'" :alt="i === index ? `${campus.name}校園外觀` : ''" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" loading="lazy" decoding="async">
+    <div class="gallery-media">
+      <div
+        ref="photoViewport" class="gallery-viewport" aria-label="校園照片，可左右滑動"
+        @pointerdown="onPointerDown" @pointerup="onPointerUp" @pointercancel="pointerStart = null"
+        @pointerleave="pointerStart = null" @dragstart.prevent
+      >
+        <div class="gallery-track">
+          <NuxtLink
+            v-for="(campus, i) in orderedCampuses" :key="campus.key"
+            class="photo-card" :class="{ 'is-current': i === index, 'is-neighbor': Math.abs(offset(i)) === 1, 'is-repositioning': repositioning.has(i) }"
+            :style="{ '--offset': offset(i) }" :to="`/campuses/${campus.key}`"
+            :tabindex="i === index ? 0 : -1" :aria-hidden="i !== index" :inert="Math.abs(offset(i)) > 1"
+            :aria-label="i === index ? `認識${campus.name}，查看校園介紹` : `選擇${campus.name}`"
+            draggable="false" @click.capture="onPhotoClick($event, i)"
+          >
+            <img
+              v-bind="responsiveImage(campus.image, '(max-width: 700px) calc(100vw - 48px), (max-width: 1100px) 84vw, (min-width: 1846px) 1440px, (min-width: 1600px) 78vw, (min-width: 1500px) 1200px, 80vw')"
+              :alt="i === index ? `${campus.name}校園外觀` : ''"
+              :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"
+              :fetchpriority="i === index ? 'auto' : 'low'" loading="lazy" decoding="async" draggable="false"
+            >
           </NuxtLink>
-          <figcaption><span>{{ String(i + 1).padStart(2, '0') }}</span>{{ campus.name }} · 校園一隅</figcaption>
-        </figure>
-      </div>
-      <div class="campus-story-copy" @pointerenter="hover($event, true)" @pointerleave="hover($event, false)">
-        <div class="campus-story-identity"><span class="campus-story-district">高雄 · {{ current.district }}</span><h3><NuxtLink :to="`/campuses/${current.key}`">{{ current.name }}</NuxtLink></h3><span class="campus-story-english" lang="en">{{ current.key.toUpperCase() }} CAMPUS</span></div>
-        <dl class="campus-story-facts">
-          <div><dt><svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>校園位置</dt><dd><a class="campus-story-address" :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(current.address)}`" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer"><span>{{ current.address }}</span><svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right" /></svg></a></dd></div>
-          <div><dt><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>參觀專線</dt><dd><a class="campus-story-phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></dd></div>
-        </dl>
-        <div class="campus-story-socials">
-          <a v-if="current.line" :href="current.line" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE 好友</a>
-          <span v-else><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE <small>待補</small></span>
-          <a v-if="current.facebook" :href="current.facebook" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
         </div>
-        <div class="campus-story-booking"><NuxtLink class="campus-discover" :to="`/campuses/${current.key}`"><span>認識{{ current.name }}</span><svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink><BookingCta :campus-key="current.key" button-class="button primary">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></BookingCta></div>
       </div>
-      <div v-if="orderedCampuses.length > 1" class="campus-story-foot">
-        <div class="campus-story-controls">
-          <div class="campus-pagination" role="group" aria-label="分校輪播進度">
-            <button v-for="(campus, i) in orderedCampuses" :key="campus.key" class="campus-page" :class="{ 'is-current': i === index }" type="button" :aria-label="`切換至${campus.name}`" :aria-pressed="i === index" aria-controls="campus-stage" @click="select(i)">
-              <span class="campus-progress-track" aria-hidden="true"><span :style="{ transform: `scaleX(${i === index ? progress : 0})` }" /></span>
+      <div v-if="orderedCampuses.length > 1" class="gallery-toolbar content-width">
+        <div class="playback-controls">
+          <div class="pagination" role="group" aria-label="分校輪播進度">
+            <button
+              v-for="(campus, i) in orderedCampuses" :key="campus.key"
+              class="page-dot" type="button" :aria-label="`切換至${campus.name}`"
+              :aria-pressed="i === index" aria-controls="campus-stage" @click="select(i)"
+            >
+              <span class="progress-track" aria-hidden="true"><span :style="{ transform: `scaleX(${i === index ? (canAuto ? progress : 1) : 0})` }" /></span>
             </button>
           </div>
-          <button class="campus-playback" type="button" :aria-label="canAuto ? '暫停分校自動播放' : '開始分校自動播放'" :title="canAuto ? '暫停自動播放' : '開始自動播放'" aria-controls="campus-stage" @click="togglePlayback">
-            <svg class="icon" aria-hidden="true"><use :href="canAuto ? '#i-pause' : '#i-play'" /></svg>
-          </button>
+          <button
+            class="campus-playback round-button" type="button"
+            :aria-label="canAuto ? '暫停分校自動播放' : '開始分校自動播放'"
+            :title="canAuto ? '暫停自動播放' : '開始自動播放'" aria-controls="campus-stage" @click="togglePlayback"
+          ><svg class="icon" aria-hidden="true"><use :href="canAuto ? '#i-pause' : '#i-play'" /></svg></button>
         </div>
-        <div class="campus-story-meta" aria-hidden="true"><span>{{ playbackMessage }}</span><span class="campus-story-count"><strong>{{ String(index + 1).padStart(2, '0') }}</strong> / {{ String(orderedCampuses.length).padStart(2, '0') }}</span></div>
       </div>
     </div>
+    <div id="campus-stage" class="campus-details content-width" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" tabindex="0">
+      <div class="campus-identity">
+        <span class="campus-district">高雄 · {{ current.district }}</span>
+        <h3><NuxtLink :to="`/campuses/${current.key}`">{{ current.name }}</NuxtLink></h3>
+        <span lang="en">{{ current.key.toUpperCase() }} CAMPUS</span>
+      </div>
+      <div class="campus-contact">
+        <div class="contact-row">
+          <svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>
+          <a :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(current.address)}`" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
+        </div>
+        <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
+        <div class="social-row">
+          <a v-if="current.line" :href="current.line" aria-label="LINE 好友（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE 好友</a>
+          <span v-else><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE · 待園方提供</span>
+          <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
+        </div>
+      </div>
+      <div class="campus-actions">
+        <NuxtLink class="booking-link" :to="`/visit/${current.key}`">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
+      </div>
+    </div>
+    <p class="campus-live" role="status" aria-live="polite">{{ announcement }}</p>
   </section>
 </template>
 
 <style scoped>
-.campus-stories {
-  --campus-paper:#fcfaf3;
-  --campus-rule:#d3dbcf;
-  --campus-muted:#5d7465;
-  --campus-control:#eeede8;
-  --campus-caption-bg:rgb(var(--ink) / .8);
-  --campus-selected:color-mix(in oklch,var(--green) 7%,var(--campus-paper));
-  --campus-gutter:clamp(24px,4.5vw,88px);
-  --campus-info-width:min(40%,640px);
-  position:relative;
-  isolation:isolate;
-  background:var(--campus-paper);
-  color:var(--deep);
-  padding:0;
-  min-height:max(760px,100svh);
-  display:grid;
-  grid-template-rows:88px 72px minmax(600px,1fr);
-  scroll-margin-top:0;
-}
-.campus-story-header{display:flex;align-items:center;padding:0 var(--campus-gutter)}
-.campus-section-title{display:flex;align-items:baseline;gap:16px}
-.campus-section-title h2{margin:0;font-family:var(--font-head);font-size:1.75rem;font-weight:700;letter-spacing:.04em}
-.campus-section-title>span{font-size:.6875rem;letter-spacing:.12em;color:var(--campus-muted)}
-.campus-story-tabs{display:grid;grid-template-columns:repeat(var(--campus-count,5),minmax(0,1fr));gap:clamp(8px,1.5vw,24px);padding:0 var(--campus-gutter) 16px}
-.campus-story-tab{display:flex;align-items:center;justify-content:center;position:relative;min-width:0;min-height:48px;padding:8px 12px;border:0;border-bottom:1px solid var(--campus-rule);border-radius:8px 8px 0 0;background:none;font:1rem var(--font);color:var(--campus-muted);cursor:pointer;transition:background .2s ease,color .2s ease}
-.campus-story-label{line-height:1.5;letter-spacing:.08em}
-.campus-story-tab[aria-selected=true]{background:var(--campus-selected);color:var(--deep);font-weight:700;border-bottom:2px solid var(--green)}
-.campus-story-tab:hover{background:var(--campus-selected);color:var(--deep)}
-/* Controls take their own row, so longer contact and booking copy can grow safely. */
-.campus-story-stage{display:grid;grid-template-columns:var(--campus-info-width) minmax(0,1fr);grid-template-rows:1fr auto;grid-template-areas:'copy photos' 'controls photos';min-height:0}
-.campus-story-photos{position:relative;grid-area:photos;overflow:hidden;background:var(--deep);min-height:600px}
-.campus-story-photo{position:absolute;inset:0;margin:0;opacity:0;pointer-events:none;transition:opacity .4s ease}
-.campus-story-photo.is-current{opacity:1;pointer-events:auto}
-.campus-story-photo-link{display:block;width:100%;height:100%}
-.campus-stories .campus-story-photo-link:focus-visible{outline-color:var(--gold);outline-offset:-6px}
-.campus-story-identity h3 a{display:inline-block}
-.campus-story-identity h3 a:hover{text-decoration:underline;text-underline-offset:8px;text-decoration-thickness:2px}
-.campus-story-photo img{display:block;width:100%;height:100%;object-fit:cover}
-.campus-story-photo figcaption{position:absolute;z-index:1;left:32px;bottom:32px;display:flex;align-items:center;gap:12px;padding:6px 16px 6px 6px;border-radius:999px;background:var(--campus-caption-bg);color:var(--paper);font-size:.8125rem;letter-spacing:.06em;pointer-events:none}
-.campus-story-photo figcaption span{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--mint);border-radius:50%;font-variant-numeric:tabular-nums}
-.campus-story-copy{grid-area:copy;display:flex;flex-direction:column;align-items:start;justify-content:center;min-width:0;padding:48px var(--campus-gutter) 28px}
-.campus-story-identity{width:100%}
-.campus-story-district{font-size:.8125rem;letter-spacing:.12em;color:var(--green)}
-.campus-story-identity h3{font-family:var(--font-head);font-size:clamp(3rem,4.6vw,4.5rem);font-weight:700;letter-spacing:.025em;line-height:1.16;margin:16px 0 12px;overflow-wrap:anywhere}
-.campus-story-english{display:block;font-size:.6875rem;letter-spacing:.14em;color:var(--campus-muted)}
-.campus-story-facts{border-top:1px solid var(--campus-rule);width:100%;display:grid;gap:12px;margin:28px 0 0;padding-top:20px}
-.campus-story-facts>div{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:12px}
-.campus-story-facts dt{display:flex;align-items:center;gap:8px;color:var(--green);font-size:.8125rem;line-height:1.6}
-.campus-story-facts dt .icon{height:18px;width:18px;flex-shrink:0}
-.campus-story-facts dd{margin:0;min-width:0}
-.campus-story-facts a{min-height:44px;display:inline-flex;align-items:center;gap:8px;max-width:100%}
-.campus-story-address{font-size:1rem;line-height:1.7;overflow-wrap:anywhere}
-.campus-story-address span{text-decoration:underline;text-underline-offset:5px;text-decoration-color:var(--campus-rule)}
-.campus-story-address .icon{width:16px;height:16px;flex-shrink:0}
-.campus-story-phone{font-size:1.5rem;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}
-.campus-story-socials{display:flex;flex-wrap:wrap;gap:24px;margin-top:12px}
-.campus-story-socials>*{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:.875rem;color:var(--green)}
-.campus-story-socials>span{color:var(--campus-muted)}
-.campus-story-socials .icon{width:20px;height:20px}
-.campus-story-socials small{font-size:.75rem}
-.campus-story-socials a:hover,.campus-story-facts a:hover{text-decoration:underline;text-underline-offset:5px;text-decoration-color:currentColor}
-.campus-story-booking{display:flex;flex-direction:column;align-items:start;gap:12px;margin-top:24px;width:100%}
-.campus-discover{display:inline-flex;align-items:center;justify-content:space-between;gap:24px;min-height:52px;width:min(100%,320px);padding:12px 22px;border:1px solid var(--green);border-radius:999px;color:var(--deep);font-size:.9375rem;font-weight:600;line-height:1.5;transition:background .2s ease,color .2s ease}
-.campus-discover .icon{height:20px;width:20px;flex-shrink:0;transition:transform .2s ease}
-.campus-discover:hover{background:var(--green);color:var(--paper)}
-.campus-discover:hover .icon{transform:translateX(3px)}
-.campus-story-booking :deep(.booking-status){margin:0;max-width:32em;padding:0;color:var(--campus-muted);font-size:.8125rem;line-height:1.8;text-wrap:pretty}
-.campus-story-booking :deep(.button){width:min(100%,320px);min-height:52px;padding:12px 20px;border:0;border-radius:999px;background:var(--gold);color:var(--deep);text-align:center;font-size:.9375rem;line-height:1.65;white-space:normal}
-.campus-story-booking :deep(a.button:hover){background:var(--green);color:var(--paper)}
-.campus-story-foot{grid-area:controls;min-width:0;margin:0 var(--campus-gutter);padding:20px 0 28px;border-top:1px solid var(--campus-rule);display:grid;gap:12px}
-.campus-story-controls{display:flex;align-items:center;gap:12px}
-.campus-pagination{display:flex;align-items:center;min-height:52px;padding:4px 6px;border-radius:999px;background:var(--campus-control)}
-.campus-page{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;border-radius:999px;background:none;cursor:pointer}
-.campus-page.is-current{width:64px}
-.campus-progress-track{display:block;position:relative;width:7px;height:7px;overflow:hidden;border-radius:999px;background:var(--campus-muted)}
-.campus-page.is-current .campus-progress-track{width:48px;height:8px}
-.campus-progress-track>span{display:block;width:100%;height:100%;border-radius:inherit;background:var(--deep);transform-origin:left}
-.campus-playback{display:grid;place-items:center;flex:none;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:var(--campus-control);color:var(--deep);cursor:pointer}
-.campus-playback .icon{width:22px;height:22px}
-.campus-playback:hover,.campus-page:hover{background:var(--campus-rule)}
-.campus-story-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--campus-muted);font-size:.75rem;line-height:1.6;font-variant-numeric:tabular-nums}
-.campus-story-count{flex-shrink:0;letter-spacing:.06em}
-.campus-story-count strong{color:var(--deep);font-weight:600}
-.campus-stories :is(a,button):focus-visible{outline:3px solid var(--green);outline-offset:4px}
-@media(min-width:901px) and (max-width:1100px){
-  .campus-stories{--campus-gutter:32px;--campus-info-width:48%}
-  .campus-story-copy{padding-block:36px 28px}
-  .campus-story-facts>div{grid-template-columns:84px minmax(0,1fr);gap:8px}
-  .campus-story-facts dt{font-size:.75rem;gap:6px}
-  .campus-story-address{font-size:.9375rem}
-  .campus-story-phone{font-size:1.375rem}
-  .campus-story-controls{gap:8px}
-  .campus-page.is-current{width:44px}
-  .campus-page.is-current .campus-progress-track{width:32px}
-  .campus-playback{width:48px;height:48px}
-}
-@media(max-width:900px){
-  .campus-stories{--campus-gutter:24px;min-height:100svh;grid-template-rows:112px 60px 1fr}
-  .campus-story-header{align-items:end;padding-bottom:16px}
-  .campus-section-title{gap:12px}
-  .campus-section-title h2{font-size:1.375rem}
-  .campus-section-title>span{font-size:.625rem}
-  .campus-story-tabs{gap:6px;padding-bottom:12px}
-  .campus-story-tab{font-size:.875rem;min-height:48px;padding:8px 0}
-  .campus-story-label{letter-spacing:0}
-  .campus-story-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:clamp(200px,26svh,300px) 1fr auto;grid-template-areas:'photos' 'copy' 'controls'}
-  .campus-story-photos{min-height:0}
-  .campus-story-photo figcaption{left:24px;bottom:20px;padding:6px 12px 6px 6px;font-size:.75rem;gap:10px}
-  .campus-story-photo figcaption span{width:28px;height:28px}
-  .campus-story-copy{padding:28px var(--campus-gutter) 24px;justify-content:start}
-  .campus-story-identity{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:16px}
-  .campus-story-district{grid-column:1/-1;font-size:.75rem}
-  .campus-story-identity h3{font-size:2.625rem;margin:8px 0 0;min-width:0}
-  .campus-story-english{align-self:end;padding-bottom:4px;font-size:.625rem;letter-spacing:.08em;text-align:right;overflow-wrap:anywhere}
-  .campus-story-facts{margin-top:20px;padding-top:12px;gap:4px}
-  .campus-story-facts>div{grid-template-columns:84px minmax(0,1fr);gap:8px}
-  .campus-story-facts dt{font-size:.75rem;gap:6px}
-  .campus-story-facts dt .icon{width:16px;height:16px}
-  .campus-story-address{font-size:.875rem;gap:6px}
-  .campus-story-address .icon{width:14px;height:14px}
-  .campus-story-phone{font-size:1.375rem}
-  .campus-story-socials{margin-top:8px;gap:24px}
-  .campus-story-socials>*{font-size:.875rem}
-  .campus-story-booking{margin-top:16px;gap:12px}
-  .campus-discover,.campus-story-booking :deep(.button){width:100%;min-height:48px;font-size:.875rem;padding:12px 20px}
-  .campus-story-booking :deep(.booking-status){font-size:.75rem}
-  .campus-story-foot{padding:20px 0 24px;gap:12px}
-  .campus-story-controls{justify-content:center}
-  .campus-pagination{min-height:48px;padding-block:2px}
-  .campus-playback{width:48px;height:48px}
-}
-@media(min-width:761px) and (max-width:900px){
-  .campus-stories{--campus-gutter:32px}
-  .campus-story-stage{grid-template-rows:clamp(260px,32svh,360px) 1fr auto}
-  .campus-story-tab{font-size:1rem}
-  .campus-story-copy{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto;column-gap:40px;row-gap:24px;align-content:center;padding-block:32px}
-  .campus-story-identity{display:block;grid-column:1;grid-row:1}
-  .campus-story-identity h3{font-size:3rem;margin:12px 0}
-  .campus-story-english{text-align:left;padding:0}
-  .campus-story-facts{grid-column:2;grid-row:1;margin:0;padding:0;border:0;gap:8px}
-  .campus-story-facts>div{grid-template-columns:1fr;gap:0}
-  .campus-story-facts dt{font-size:.8125rem}
-  .campus-story-address{font-size:.9375rem}
-  .campus-story-booking{grid-column:1;grid-row:2;margin:0}
-  .campus-story-socials{grid-column:2;grid-row:2;margin:0}
-  .campus-story-foot{display:flex;align-items:center;justify-content:space-between;gap:24px}
-  .campus-story-meta{flex:1;max-width:320px}
-}
-@media(max-width:360px){
-  .campus-stories{--campus-gutter:18px}
-  .campus-story-tabs{gap:4px}
-  .campus-story-tab{font-size:.8125rem}
-  .campus-story-identity{column-gap:12px}
-  .campus-story-identity h3{font-size:2.5rem}
-  .campus-story-english{max-width:12ch;justify-self:end}
-  .campus-story-facts>div{grid-template-columns:80px minmax(0,1fr);gap:6px}
-  .campus-story-controls{gap:8px}
-  .campus-page.is-current{width:44px}
-  .campus-page.is-current .campus-progress-track{width:32px}
-  .campus-playback{width:44px;height:44px}
-}
-@media(prefers-reduced-motion:reduce){.campus-story-photo,.campus-story-tab,.campus-discover,.campus-discover .icon{transition:none}}
-@media(forced-colors:active){.campus-pagination,.campus-playback,.campus-progress-track{border:1px solid CanvasText}.campus-progress-track>span{background:CanvasText}.campus-story-tab[aria-selected=true],.campus-page.is-current{outline:2px solid Highlight;outline-offset:-3px}}
+.campus-panorama.campus-gallery{--green:oklch(37% .035 160);--deep:oklch(29% .022 160);--paper:oklch(99% .006 95);--gold:oklch(82% .065 85);--mint:oklch(88% .022 150);--muted:oklch(49% .018 150);--line:oklch(86% .012 95);--control:oklch(93% .009 95);--control-border:oklch(86% .01 95);--control-dot:oklch(53% .018 155);--control-hover:oklch(88% .013 95);--background:oklch(98% .006 95);--selected:color-mix(in oklch,var(--green) 7%,var(--background));--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-latin:'Source Sans 3','Helvetica Neue',Arial,sans-serif;--card-width:min(80vw,1200px);--card-gap:20px;--radius:28px;--ease:cubic-bezier(.22,1,.36,1)}
+.campus-gallery,.campus-gallery *{box-sizing:border-box}
+.campus-panorama.campus-gallery{position:relative;isolation:isolate;min-height:0;color:var(--deep);background:var(--background);font:16px/1.7 var(--font);-webkit-font-smoothing:antialiased}
+.campus-gallery :is(button,a){-webkit-tap-highlight-color:transparent}
+.campus-gallery button{font:inherit;cursor:pointer;color:inherit}
+.campus-gallery a{color:inherit;text-decoration:none}
+.campus-gallery :is(button,a,[tabindex]):focus-visible{outline:3px solid var(--green);outline-offset:5px}
+.campus-gallery button:hover{color:var(--green)}
+
+
+.content-width{width:var(--card-width);margin-inline:auto}
+.campus-panorama.campus-gallery{padding:64px 0 60px}
+.gallery-heading{display:flex;justify-content:space-between;align-items:center;gap:32px;margin-bottom:36px}
+.gallery-title{display:flex;align-items:baseline;gap:18px}
+.gallery-title h2{margin:0;font:500 clamp(28px,2.65vw,40px)/1.3 var(--font-head);letter-spacing:.035em;white-space:nowrap}
+.gallery-title>span{color:var(--muted);font-family:var(--font-latin);font-size:14px;letter-spacing:.045em}
+.campus-tabs{display:flex;gap:4px}
+.campus-tabs button{min-height:44px;min-width:72px;padding:8px 15px;border:0;border-radius:999px;background:transparent;font-size:14px;white-space:nowrap;color:var(--muted);transition:background .2s,color .2s}
+.campus-tabs button[aria-selected=true]{background:var(--green);color:var(--paper);font-weight:500}
+.campus-tabs button:hover:not([aria-selected=true]){background:var(--selected);color:var(--deep)}
+.gallery-media{position:relative}
+.gallery-viewport{overflow:hidden;padding-block:4px;touch-action:pan-y;cursor:grab}
+.gallery-viewport:active{cursor:grabbing}
+.gallery-track{position:relative;width:100%;height:clamp(350px,37.5vw,540px)}
+.photo-card{position:absolute;left:calc((100% - var(--card-width))/2);top:0;width:var(--card-width);height:100%;margin:0;border:0;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--selected);transform:translateX(calc(var(--offset)*(100% + var(--card-gap))));transition:transform .8s var(--ease);will-change:transform;cursor:pointer;pointer-events:none}
+.photo-card img{max-width:none;width:100%;height:100%;display:block;object-fit:cover;user-select:none;pointer-events:none}
+.photo-card:not(.is-current)::after{content:'';position:absolute;inset:0;background:var(--background);opacity:.18;pointer-events:none}
+.photo-card.is-current,.photo-card.is-neighbor{pointer-events:auto}
+.photo-card:focus-visible{outline-offset:-7px}
+.photo-card.is-repositioning{transition:none}
+.gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:94px}
+.playback-controls{grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
+.pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}
+.page-dot{display:grid;place-items:center;min-width:44px;height:44px;border:0;padding:0;background:none;border-radius:999px}
+.page-dot[aria-pressed=true]{width:62px}
+.progress-track{display:block;width:6px;height:6px;border-radius:999px;overflow:hidden;background:var(--control-dot)}
+.page-dot[aria-pressed=true] .progress-track{width:44px;height:7px;background:var(--line)}
+.progress-track>span{display:block;width:100%;height:100%;transform:scaleX(0);transform-origin:left;background:var(--deep);border-radius:inherit}
+.round-button{display:grid;place-items:center;width:48px;height:48px;flex:none;padding:0;border:1px solid var(--control-border);border-radius:50%;background:var(--control);transition:background .2s}
+.round-button:hover,.page-dot:hover{background:var(--control-hover)}
+.icon{width:20px;height:20px;display:block;fill:currentColor;flex:none}
+
+.campus-details{display:grid;grid-template-columns:minmax(170px,.8fr) minmax(300px,1.6fr) auto;align-items:start;column-gap:clamp(32px,4vw,72px);padding-top:18px;scroll-margin-top:80px}
+.campus-district{display:block;font-size:13px;letter-spacing:.1em;color:var(--muted)}
+.campus-identity h3{margin:5px 0 2px;font:500 38px/1.35 var(--font-head);letter-spacing:.035em}
+.campus-identity h3 a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:6px}
+.campus-identity [lang=en]{font-family:var(--font-latin);font-size:11px;letter-spacing:.09em;color:var(--muted)}
+.campus-contact{padding-top:2px}
+.contact-row{display:flex;align-items:center;gap:14px;min-height:44px;font-size:15px}
+.contact-row .icon{width:18px;height:18px;color:var(--muted)}
+.contact-row a:hover{text-decoration:underline;text-underline-offset:5px}
+.phone{font-family:var(--font-latin);font-size:25px;font-weight:400;letter-spacing:.005em;font-variant-numeric:tabular-nums}
+.social-row{display:flex;align-items:center;gap:18px;color:var(--muted);font-size:13px;margin-top:4px;flex-wrap:wrap}
+.social-row a,.social-row span{display:inline-flex;align-items:center;min-height:36px;gap:8px}
+.social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
+.campus-actions{display:flex;align-items:flex-end;flex-direction:column;gap:12px;padding-top:5px}
+.booking-link{display:inline-flex;align-items:center;justify-content:space-between;gap:32px;min-height:52px;padding:12px 24px;border-radius:999px;background:var(--gold);color:var(--deep);font-size:14px;font-weight:500;letter-spacing:.035em;transition:background .2s,color .2s;white-space:nowrap}
+.booking-link:hover{background:var(--green);color:var(--paper)}
+
+.campus-live{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:1600px){.campus-panorama.campus-gallery{--card-width:min(78vw,1440px)}.gallery-track{height:620px}.campus-panorama.campus-gallery{padding-top:76px}}
+@media(max-width:1100px){.campus-panorama.campus-gallery{--card-width:84vw}.gallery-heading{gap:20px}.gallery-title{display:block}.gallery-title>span{display:block;margin-top:6px}.campus-tabs button{padding-inline:12px;min-width:64px}.campus-details{grid-template-columns:1fr 1.5fr;gap:24px 36px}.campus-actions{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;padding-top:0}.gallery-track{height:clamp(340px,46vw,480px)}}
+@media(max-width:700px){.campus-panorama.campus-gallery{--card-width:calc(100vw - 48px);--card-gap:12px;--radius:24px}.campus-panorama.campus-gallery{padding:34px 0 36px}.gallery-heading{display:block;margin-bottom:22px}.gallery-title{display:flex;gap:12px;align-items:baseline}.gallery-title h2{font-size:28px}.gallery-title>span{margin:0;font-size:11px}.campus-tabs{margin-top:22px;justify-content:space-between;gap:1px}.campus-tabs button{font-size:13px;min-width:0;flex:1;padding:8px 6px}.gallery-track{height:clamp(300px,92vw,470px)}.gallery-toolbar{grid-template-columns:1fr;gap:12px;min-height:84px}.playback-controls{grid-column:1;gap:8px;justify-self:center}.round-button{width:44px;height:44px}.pagination{min-height:48px;padding-inline:1px}.page-dot{min-width:44px}.page-dot[aria-pressed=true]{width:60px}.page-dot[aria-pressed=true] .progress-track{width:34px}.campus-details{grid-template-columns:1fr;gap:18px;padding-top:12px}.campus-identity{display:grid;grid-template-columns:1fr auto;align-items:end}.campus-district{grid-column:1/-1;font-size:12px}.campus-identity h3{font-size:34px}.campus-identity [lang=en]{font-size:10px;max-width:16ch;text-align:right;padding-bottom:8px}.campus-contact{padding:12px 0 0;border-top:1px solid var(--line)}.contact-row{font-size:14px;gap:10px}.phone{font-size:22px}.social-row{font-size:13px;gap:16px}.campus-actions{grid-column:auto;align-items:stretch;flex-direction:column;gap:10px}.booking-link{justify-content:space-between;min-height:48px;font-size:14px}}
+@media(max-width:360px){.gallery-toolbar{grid-template-columns:1fr}.playback-controls{justify-self:center;gap:4px}.page-dot{min-width:44px}.page-dot[aria-pressed=true]{width:44px}.gallery-title>span{font-size:10px}.campus-tabs button{font-size:12px}.contact-row{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.campus-gallery *,.campus-gallery *::before,.campus-gallery *::after{transition:none!important;animation:none!important}}
+@media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
+
 </style>
