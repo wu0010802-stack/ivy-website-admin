@@ -19,7 +19,6 @@ export interface BookingAction {
 }
 
 const DEFAULT_PAUSED_MESSAGE = '目前暫停參觀預約，請關注最新消息。'
-const SLOTS_NOT_READY_MESSAGE = '此校區尚未開放線上預約，請改用其他聯絡方式。'
 
 /**
  * 純函式：依校區與其目前預約設定，決定預約 CTA 該長什麼樣子。
@@ -44,12 +43,12 @@ export function resolveBookingAction(
       }
 
     case 'slots':
-      // 階段 C 尚未開放；不產生可送出表單連結。
+      // 2026-09-22 園方要求日期／場次：只有校方已設定 slots 才開放選時段。
       return {
-        kind: 'paused',
-        href: null,
-        label: '尚未開放線上預約',
-        message: config.message ?? SLOTS_NOT_READY_MESSAGE
+        kind: 'form',
+        href: `/visit/${campusKey}`,
+        label: '選擇參觀日期與場次',
+        message: config.message ?? null
       }
 
     case 'line':

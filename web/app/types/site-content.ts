@@ -120,6 +120,8 @@ export interface Campus {
   heroPhotoPos: string | null
   intro: string
   description: string
+  instagram?: string | null
+  youtube?: string | null
   line: string | null
   facebook: string
   fbNote: string
@@ -205,6 +207,7 @@ export interface SiteMetaContent {
   logo: string
   primaryNav: { label: string; labelEn: string; href: string }[]
   headerPhone: { number: string; note: string; _todo?: string }
+  socialLinks?: { platform: 'facebook' | 'line'; label: string; url: string }[]
 }
 
 export interface SiteContent {

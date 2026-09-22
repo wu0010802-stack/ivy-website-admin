@@ -5,20 +5,26 @@
 from pathlib import Path
 from hashlib import sha256
 import json
+import argparse
 from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / 'web/public/assets'
 OUTPUT = ASSETS / 'responsive'
 OUTPUT.mkdir(exist_ok=True)
-manifest = {}
-for source in sorted(ASSETS.glob('*.webp')):
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--only', nargs='+', help='只更新指定素材代號，保留 manifest 其他項目')
+args = parser.parse_args()
+manifest_path = ROOT / 'web/app/generated/image-manifest.json'
+manifest = json.loads(manifest_path.read_text()) if args.only and manifest_path.exists() else {}
+sources = [ASSETS / f'{name}.webp' for name in args.only] if args.only else sorted(ASSETS.glob('*.webp'))
+for source in sources:
     with Image.open(source) as original:
         image = ImageOps.exif_transpose(original)
         width, height = image.size
         candidates = []
         digest = sha256(source.read_bytes() + b'webp-q84-method6-v1').hexdigest()[:12]
-        for size in [480, 800, 1200]:
+        for size in [160, 480, 800, 1200]:
             if size >= width:
                 continue
             target = OUTPUT / f'{source.stem}-{digest}-{size}.webp'

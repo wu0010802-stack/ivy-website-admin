@@ -1,4 +1,5 @@
 import { normalizeSiteOrigin } from './app/utils/seo'
+import fontManifest from './app/generated/font-manifest.json'
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -26,11 +27,12 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  css: ['~/assets/css/styles.css', '~/assets/css/studio.css', '~/assets/css/performance.css'],
+  css: ['~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 
   routeRules: {
     '/assets/responsive/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
-    '/assets/optimized/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
+    '/assets/optimized/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/fonts/subsets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
   },
 
   app: {
@@ -46,14 +48,7 @@ export default defineNuxtConfig({
           rel: 'preload',
           as: 'font',
           type: 'font/woff2',
-          href: '/assets/fonts/lineseed-eb.woff2',
-          crossorigin: 'anonymous'
-        },
-        {
-          rel: 'preload',
-          as: 'font',
-          type: 'font/woff2',
-          href: '/assets/fonts/lineseed-bd.woff2',
+          href: fontManifest.critical.src,
           crossorigin: 'anonymous'
         }
       ]

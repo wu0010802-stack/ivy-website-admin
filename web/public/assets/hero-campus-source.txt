@@ -1,4 +1,7 @@
-Hero background clip cut from the school's own advert (2026-09-15).
-Source: ~/Downloads/常春藤廣告+配音.mp4 (1080×1080, 30fps, 55s, with burned-in subtitles + logo watermark).
-Build: design/hero-video/build.sh (delogo top-right, crop out subtitle band → 1080×800, 0.5× slow motion with frame interpolation, 7 shots, seamless loop anchored on one shot split in half).
-hero-campus-still.webp = first frame of the clip, used as <img> and poster.
+Hero background clip restored from the school's own advert (2026-09-22).
+Source: ~/Downloads/常春藤廣告+配音 (1).mp4 (1080×1080, 30fps, 55s, with burned-in subtitles + logo watermark).
+Source SHA-256: 99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b.
+Build: design/hero-video-restoration-20260922/build.py (light denoise, luma sharpening, delogo top-right, crop subtitles → 1080×800, 0.5× speed, 7 shots, 11.7 seconds, no audio).
+Shots 5 and 7 use original frames repeated at half speed to prevent motion-interpolation ghosts; other shots use motion interpolation. Final shot differs from opening shot for a normal cut at the loop boundary.
+hero-campus.mp4 is the CRF 18 master. Approved desktop CRF 21 and mobile CRF 22 outputs are copied without re-encoding by scripts/optimize-site-videos.py; video-manifest.json selects their content-hashed URLs.
+hero-campus-restored-v1-still.webp is the first frame, used as the responsive image and video poster. Original hero-campus-still.webp is retained for older references.

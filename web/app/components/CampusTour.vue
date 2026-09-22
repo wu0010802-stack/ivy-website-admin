@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { Campus } from '~/types/site-content'
 import { isGeneratedTourScenes } from '~/types/site-content'
-import { resolveTourImageSrc } from '~/utils/tour-image'
+import { responsiveTourImage } from '~/utils/tour-image'
+import { noscriptImage } from '~/utils/noscript-image'
 
 const props = defineProps<{ campus: Campus }>()
 
@@ -15,9 +16,16 @@ const panX = ref(0)
 const panY = ref(0)
 const isDragging = ref(false)
 const isExpanded = ref(false)
+const imageReady = ref(false)
 
 const currentScene = computed(() => scenes.value[sceneIndex.value])
 const currentSpot = computed(() => currentScene.value?.spots[spotIndex.value])
+const mainImage = computed(() => responsiveTourImage(
+  currentScene.value?.image ?? '',
+  '(max-width: 760px) calc(100vw - 40px), (max-width: 1100px) 55vw, 860px',
+  isExpanded.value || zoom.value > 1
+))
+const thumbnailSizes = '(max-width: 760px) 28vw, (max-width: 1100px) 16vw, 260px'
 
 const areaEl = ref<HTMLDivElement | null>(null)
 const dialogEl = ref<HTMLDialogElement | null>(null)
@@ -130,6 +138,7 @@ function onAreaKeydown(event: KeyboardEvent) {
 }
 
 function openExpanded() {
+  imageReady.value = true
   isExpanded.value = true
   nextTick(() => {
     zoom.value = 1
@@ -150,13 +159,25 @@ function toggleExpanded() {
 }
 
 let resizeObserver: ResizeObserver | null = null
+let imageObserver: IntersectionObserver | null = null
 onMounted(() => {
+  if (areaEl.value && typeof IntersectionObserver !== 'undefined') {
+    imageObserver = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return
+      imageReady.value = true
+      imageObserver?.disconnect()
+    }, { rootMargin: '200px' })
+    imageObserver.observe(areaEl.value)
+  } else imageReady.value = true
   if (areaEl.value) {
     resizeObserver = new ResizeObserver(clampPan)
     resizeObserver.observe(areaEl.value)
   }
 })
-onUnmounted(() => resizeObserver?.disconnect())
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  imageObserver?.disconnect()
+})
 
 watch(
   () => props.campus.key,
@@ -218,7 +239,8 @@ watch(
                   @keydown="onAreaKeydown"
                 >
                   <div class="tour-canvas" :style="canvasStyle">
-                    <img class="tour-image" :src="resolveTourImageSrc(currentScene?.image ?? '')" :alt="`${campus.name} · ${currentScene?.name}`" draggable="false">
+                    <img class="tour-image tour-image-deferred" v-bind="mainImage" :src="imageReady ? mainImage.src : undefined" :srcset="imageReady ? mainImage.srcset : undefined" :alt="`${campus.name} · ${currentScene?.name}`" loading="lazy" decoding="async" draggable="false">
+                    <noscript v-html="noscriptImage(mainImage, 'tour-image', `${campus.name} · ${currentScene?.name}`)" />
                     <button
                       v-for="(spot, i) in currentScene?.spots"
                       :key="spot.name"
@@ -265,7 +287,7 @@ watch(
                     @click="selectScene(i)"
                     @keydown="onTabKeydown($event, i)"
                   >
-                    <img :src="resolveTourImageSrc(scene.image)" alt="">
+                    <img v-bind="responsiveTourImage(scene.image, thumbnailSizes)" :src="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).src : undefined" :srcset="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).srcset : undefined" alt="" loading="lazy" decoding="async">
                     <span>{{ scene.name }}</span>
                   </button>
                 </div>

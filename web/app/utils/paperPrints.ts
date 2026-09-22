@@ -19,7 +19,6 @@ type Three = typeof ThreeNS
 export interface PaperCopy {
   kicker: string
   titleLines: string[]
-  caption: string
   time: string
   story: string
   question: string
@@ -245,7 +244,6 @@ export async function mountPaper(
       const H = Math.round(frontRect.height)
       // 版位與樣式全部從 DOM 取
       const figure = front!.querySelector('.print-figure')
-      const figcaption = front!.querySelector('figcaption')
       const stamp = front!.querySelector('.print-stamp')
       const kickerEl = front!.querySelector('.print-kicker')
       const titleEl = front!.querySelector('h3')
@@ -264,9 +262,6 @@ export async function mountPaper(
         lineColor: 'rgb(32 64 47 / .07)',
         earLineColor: earEl ? getComputedStyle(earEl).color : getComputedStyle(front!).color,
         earShadow: getComputedStyle(wrap).getPropertyValue('--print-ear-shadow').trim(),
-        capFont: fontOf(figcaption, "400 9px 'PingFang TC', sans-serif"),
-        capColor: colorOf(figcaption, 'color', '#fff'),
-        capBg: colorOf(figcaption, 'backgroundColor', 'rgb(32 64 47 / .72)'),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
         stampColor: colorOf(stamp, 'color', '#ffb347'),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
@@ -286,7 +281,6 @@ export async function mountPaper(
       }
       const box = {
         figure: boxIn(figure, frontRect) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
-        figcaption: boxIn(figcaption, frontRect),
         stamp: boxIn(stamp, frontRect),
         kicker: boxIn(kickerEl, frontRect),
         title: boxIn(titleEl, frontRect),
@@ -444,17 +438,6 @@ export async function mountPaper(
       gloss.addColorStop(0.4, 'rgba(255,255,255,0)')
       ctx.fillStyle = gloss
       ctx.fillRect(f.x, f.y, f.w, f.h)
-      // 左上角的說明籤
-      const cap = box.figcaption
-      if (cap && copy.caption) {
-        setFill(ctx, style.capBg, 'rgba(32,64,47,.72)')
-        ctx.fillRect(cap.x, cap.y, cap.w, cap.h)
-        setFill(ctx, style.capColor, '#fff')
-        ctx.font = style.capFont
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(copy.caption, cap.x + 8, cap.y + cap.h / 2 + 0.5)
-      }
       // 橘色時間戳：顯影到六成後浮現，停在該段時再亮一階
       const stampAlpha = Math.max(0, (d - 0.6) / 0.4) * (isActive ? 1 : 0.85)
       const st = box.stamp

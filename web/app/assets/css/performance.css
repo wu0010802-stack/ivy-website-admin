@@ -1,7 +1,11 @@
-/* JS 可用時，在首次繪製前預留與既有首屏轉場相同的幾何。
-   沒有 JS 或減少動態時維持靜態閱讀；mounted 後仍由原動效接手。 */
-@media (prefers-reduced-motion: no-preference) and (min-height: 760px),
-       (prefers-reduced-motion: no-preference) and (min-width: 1001px) {
+.tour-image-deferred, .day-poster-deferred { display: none; }
+[data-ivy-motion] .tour-image-deferred, [data-ivy-motion] .day-poster-deferred { display: block; }
+.tour-image-deferred:not([src]), .day-poster-deferred:not([src]), .tour-scene img:not([src]) { visibility: hidden; }
+.tour-scene img { height: auto; }
+
+/* 桌機在首次繪製前預留與既有首屏轉場相同的幾何。
+   手機加高影片後自然捲動；沒有 JS 或減少動態時也維持靜態閱讀。 */
+@media (prefers-reduced-motion: no-preference) and (min-width: 1001px) {
   [data-ivy-motion] .home-reveal:not([data-motion]) .home-reveal-track {
     height: calc(var(--reveal-height) + var(--reveal-distance));
   }
@@ -13,5 +17,32 @@
   }
   [data-ivy-motion] .home-reveal:not([data-motion]) .belief-reveal {
     margin-top: calc(-1 * var(--reveal-height));
+  }
+}
+
+/* 先以內容自然高度加上簾幕距離，等 JS 量測後再交給既有固定軌道。
+   否則 mounted 才套負 margin，日常區塊會瞬間上移整個 viewport。
+   這裡也預留拍立得的接力間距，避免量測前後 panel 自身高度不同。 */
+@media (prefers-reduced-motion: no-preference) {
+  [data-ivy-motion] .belief-reveal:not([data-motion]) > .belief-reveal-track {
+    padding-bottom: var(--belief-distance);
+  }
+  [data-ivy-motion] .day-reveal:not([data-motion]) > .day-reveal-track {
+    padding-bottom: var(--day-distance);
+  }
+  [data-ivy-motion] .belief-reveal:not([data-motion]) > .day-reveal,
+  [data-ivy-motion] .day-reveal:not([data-motion]) > .news-transition {
+    margin-top: calc(-1 * var(--reveal-height, 100svh));
+  }
+  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) > .day-reveal {
+    margin-top: calc(-1 * (var(--reveal-height, 100svh) + var(--belief-distance)));
+  }
+  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) .day-prints {
+    margin-top: calc(var(--belief-distance) - 28 * var(--motion-vh, 1svh));
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 760px) {
+  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) .day-prints {
+    margin-top: calc(var(--belief-distance) - 32 * var(--motion-vh, 1svh));
   }
 }

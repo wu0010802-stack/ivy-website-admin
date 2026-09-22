@@ -34,7 +34,7 @@ usePageSeo(computed(() => data.value?.content), campus)
             <BookingCta :campus-key="campus.key" :label="`預約參觀${campus.name}`" button-class="button yellow" />
           </div>
         </div>
-        <div class="hero-bottom"><span class="hero-caption">{{ campus.name }} · 官方校園照片</span></div>
+        <div class="hero-bottom"><span class="hero-caption">{{ campus.name }} · 校園圖像</span></div>
       </section>
 
       <section class="section" id="about">

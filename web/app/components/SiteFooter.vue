@@ -24,20 +24,44 @@ const campuses = computed(() => props.content.campuses)
         </div>
       </div>
     </div>
-    <div class="container footer-bottom">
-      <span>{{ content.footer.copyright }}</span>
-      <span>{{ content.footer.bottomNote }}</span>
-      <span>
-        標題字型
-        <a :href="content.footer.titleFontCredit.href" target="_blank" rel="noopener noreferrer">
-          {{ content.footer.titleFontCredit.label }}
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
-        </a>
-      </span>
-      <a :href="content.footer.orgSiteLink.href" target="_blank" rel="noopener noreferrer">
-        {{ content.footer.orgSiteLink.label }}
-        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
-      </a>
+    <div v-if="content.footer.copyright || content.footer.bottomNote" class="container footer-bottom">
+      <span v-if="content.footer.copyright">{{ content.footer.copyright }}</span>
+      <span v-if="content.footer.bottomNote">{{ content.footer.bottomNote }}</span>
     </div>
   </footer>
 </template>
+
+<style scoped>
+/* 2026-09-22：頁尾配色 A「深森林綠」。色票限定於共用頁尾。 */
+.footer {
+  --footer-bg: #24483f;
+  --footer-text: #f5f2e7;
+  --footer-muted: #c2d0c5;
+  --footer-brand: #fff9e9;
+  --footer-accent: #e3c77b;
+  --footer-line: #526d61;
+  --footer-focus: var(--footer-accent);
+  background: var(--footer-bg);
+  color: var(--footer-text);
+}
+.footer-name { color: var(--footer-brand); }
+.footer-name span { color: var(--footer-accent); }
+.footer-main p,
+.footer-bottom { color: var(--footer-muted); }
+.footer-main .footer-label { color: var(--footer-accent); }
+.footer-bottom { border-color: var(--footer-line); }
+.footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
+.footer a:focus-visible { outline-color: var(--footer-focus); }
+
+@media (forced-colors: active) {
+  .footer {
+    --footer-bg: Canvas;
+    --footer-text: CanvasText;
+    --footer-muted: CanvasText;
+    --footer-brand: CanvasText;
+    --footer-accent: LinkText;
+    --footer-line: CanvasText;
+    --footer-focus: Highlight;
+  }
+}
+</style>

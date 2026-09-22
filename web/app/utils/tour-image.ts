@@ -1,3 +1,5 @@
+import { responsiveImage } from './responsive-image'
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
@@ -14,4 +16,13 @@ export function resolveTourImageSrc(image: string): string {
     return `/api/website/v1/public/media/${image}/file`
   }
   return `/assets/${image}.webp`
+}
+
+/** 媒體庫保持原 API；靜態場景使用尺寸候選，放大時回到原圖。 */
+export function responsiveTourImage(image: string, sizes: string, fullSize = false): ReturnType<typeof responsiveImage> {
+  if (UUID_PATTERN.test(image)) {
+    return { src: resolveTourImageSrc(image), width: undefined, height: undefined, srcset: undefined, sizes: undefined }
+  }
+  const attrs = responsiveImage(image, sizes)
+  return fullSize ? { ...attrs, srcset: undefined, sizes: undefined } : attrs
 }

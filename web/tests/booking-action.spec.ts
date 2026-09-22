@@ -32,10 +32,10 @@ describe('分校預約入口', () => {
     expect(action.message).toBeTruthy()
   })
 
-  it('slots 尚未開放，視同不可預約，不產生表單連結', () => {
+  it('園方啟用 slots 後可選擇日期與場次', () => {
     const action = resolveBookingAction('yihua', { mode: 'slots', version: 1 })
-    expect(action.kind).toBe('paused')
-    expect(action.href).toBeNull()
+    expect(action.kind).toBe('form')
+    expect(action.href).toBe('/visit/yihua')
   })
 
   it('line 模式用傳入的 line_url，不內建任何預設連結', () => {

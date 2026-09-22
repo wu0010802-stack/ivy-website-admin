@@ -2,6 +2,7 @@
 from pathlib import Path
 from hashlib import sha256
 import json
+import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,9 @@ ASSETS = ROOT / 'web/public/assets'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
+restoration = ROOT / 'design/hero-video-restoration-20260922'
+restored = json.loads((restoration / 'manifest.json').read_text())
+approved = {item['file']: item for item in restored['variants']}
 for name, source, width, crf in [
     ('hero-mobile', 'hero-campus.mp4', 720, 27),
     ('hero-desktop', 'hero-campus.mp4', 1280, 26),
@@ -16,6 +20,17 @@ for name, source, width, crf in [
     ('day-mobile', 'day-film-mobile.mp4', 480, 27),
 ]:
     original = ASSETS / source
+    # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
+    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-restored-master.mp4']['sha256']:
+        prepared = restoration / f"hero-restored-{name.removeprefix('hero-')}.mp4"
+        digest = sha256(prepared.read_bytes()).hexdigest()
+        if digest != approved[prepared.name]['sha256']:
+            raise ValueError(f'修復影片與確認版雜湊不一致：{prepared.name}')
+        target = OUT / f'{name}-{digest[:12]}.mp4'
+        shutil.copyfile(prepared, target)
+        manifest[name] = f'/assets/optimized/{target.name}'
+        print(f'{name}: 採用已確認的修復版 {target.stat().st_size:,} bytes', flush=True)
+        continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'
     if not target.exists():

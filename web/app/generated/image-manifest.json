@@ -150,6 +150,10 @@
     "height": 600,
     "candidates": [
       {
+        "src": "/assets/responsive/campus-815b7df1f159-160.webp",
+        "width": 160
+      },
+      {
         "src": "/assets/responsive/campus-815b7df1f159-480.webp",
         "width": 480
       },
@@ -160,6 +164,28 @@
       {
         "src": "/assets/campus.webp",
         "width": 960
+      }
+    ]
+  },
+  "chongde-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/chongde-enhanced-v1.webp",
+        "width": 1736
       }
     ]
   },
@@ -185,6 +211,10 @@
     "width": 960,
     "height": 600,
     "candidates": [
+      {
+        "src": "/assets/responsive/classroom-85bf7353d158-160.webp",
+        "width": 160
+      },
       {
         "src": "/assets/responsive/classroom-85bf7353d158-480.webp",
         "width": 480
@@ -316,6 +346,10 @@
     "height": 600,
     "candidates": [
       {
+        "src": "/assets/responsive/garden-42efe2cb2b79-160.webp",
+        "width": 160
+      },
+      {
         "src": "/assets/responsive/garden-42efe2cb2b79-480.webp",
         "width": 480
       },
@@ -387,6 +421,28 @@
       }
     ]
   },
+  "international-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/international-enhanced-v1.webp",
+        "width": 1736
+      }
+    ]
+  },
   "international": {
     "width": 1000,
     "height": 522,
@@ -423,6 +479,28 @@
       }
     ]
   },
+  "minghua-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/minghua-enhanced-v1.webp",
+        "width": 1737
+      }
+    ]
+  },
   "minghua": {
     "width": 1000,
     "height": 522,
@@ -438,6 +516,28 @@
       {
         "src": "/assets/minghua.webp",
         "width": 1000
+      }
+    ]
+  },
+  "renwu-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/renwu-enhanced-v1.webp",
+        "width": 1737
       }
     ]
   },
@@ -477,6 +577,28 @@
       }
     ]
   },
+  "yihua-exterior-enhanced-v1": {
+    "width": 1546,
+    "height": 1017,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/yihua-exterior-enhanced-v1.webp",
+        "width": 1546
+      }
+    ]
+  },
   "yihua-exterior": {
     "width": 590,
     "height": 388,
@@ -488,6 +610,24 @@
       {
         "src": "/assets/yihua-exterior.webp",
         "width": 590
+      }
+    ]
+  },
+  "hero-campus-restored-v1-still": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/hero-campus-restored-v1-still.webp",
+        "width": 1080
       }
     ]
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { responsiveImage } from '~/utils/responsive-image'
+import { noscriptImage } from '~/utils/noscript-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
@@ -14,6 +15,8 @@ const videoEl = ref<HTMLVideoElement | null>(null)
 const introEl = ref<HTMLElement | null>(null)
 const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
+const posterReady = ref(false)
+const posterImage = computed(() => responsiveImage(props.day.filmPoster))
 
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
@@ -83,6 +86,9 @@ function measurePrints() {
 // 序不保證跟真正的播放狀態一致，曾經實測出「畫面顯示暫停鍵、但影片其
 // 實已經真的停格」的假活著狀態。
 function applyFilm() {
+  // 簾幕下層在初始幾何已接近首屏；封面也要等讀者捲到內容才下載。
+  // 與自動播放偏好分開，減少動態或影片失敗時仍能看到靜態封面。
+  if (onScreen && window.scrollY > 0) posterReady.value = true
   const video = videoEl.value
   if (!video || hasFailed.value) return
   // 首頁簾幕的下層幾何可能已碰到 viewport，但尚未真的捲入內容。
@@ -184,7 +190,14 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" aria-hidden="true">
-          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" alt="" decoding="async">
+          <img
+            class="day-film-poster day-poster-deferred"
+            v-bind="posterImage"
+            :src="posterReady ? posterImage.src : undefined"
+            :srcset="posterReady ? posterImage.srcset : undefined"
+            loading="lazy" alt="" decoding="async"
+          >
+          <noscript v-html="noscriptImage(posterImage, 'day-film-poster', '')" />
           <video
             v-if="showVideo"
             ref="videoEl"

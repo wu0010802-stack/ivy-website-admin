@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
+import { getCampusSocials } from '~/utils/campus-socials'
 
 const props = defineProps<{ content: SiteContent }>()
 
@@ -51,6 +52,7 @@ function positionPanel() {
   panel.style.top = `${rect.bottom - base.top + 8}px`
   panel.style.left = `${left}px`
   panel.style.width = `${width}px`
+  panel.style.setProperty('--menu-available-height', `${Math.max(120, window.innerHeight - rect.bottom - 24)}px`)
 }
 
 function labelToggles(open: boolean) {
@@ -184,6 +186,9 @@ onUnmounted(() => {
 
 const campuses = computed(() => props.content.campuses)
 const headerPhone = computed(() => props.content.siteMeta.headerPhone)
+const institutionSocials = computed(() => props.content.siteMeta.socialLinks ?? [])
+const contactCampus = computed(() => campuses.value.find(campus => campus.phone === headerPhone.value.number))
+const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
 </script>
 
 <template>
@@ -274,29 +279,63 @@ const headerPhone = computed(() => props.content.siteMeta.headerPhone)
       :hidden="!isPanelVisible"
       @click="onPanelClick"
     >
+      <div class="menu-heading">
+        <p>探索常春藤</p>
+        <span aria-hidden="true" />
+      </div>
       <nav class="menu-links" aria-label="導覽選單">
         <a
-          v-for="item in content.siteMeta.primaryNav"
+          v-for="(item, index) in content.siteMeta.primaryNav"
           :key="item.href"
           :href="item.href"
         >
-          <span>{{ item.label }}</span>
-          <small lang="en">{{ item.labelEn }}</small>
+          <span class="menu-link-number" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span class="menu-link-copy">
+            <span>{{ item.label }}</span>
+            <small lang="en">{{ item.labelEn }}</small>
+          </span>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
         </a>
       </nav>
       <div class="menu-campuses">
-        <p>五所校園</p>
+        <p>找到你的校園</p>
         <div id="menu-campuses">
           <NuxtLink v-for="c in campuses" :key="c.key" :to="`/campuses/${c.key}`">
-            {{ c.name }}
+            <span>{{ c.name }}</span>
+            <small>{{ c.district }}</small>
           </NuxtLink>
         </div>
       </div>
       <div class="menu-foot">
-        <a :data-campus-key="campuses.find(c => c.phone === headerPhone.number)?.key" class="menu-phone" :href="`tel:${headerPhone.number}`">
+        <a :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${headerPhone.number}`">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
-          <span>{{ headerPhone.number }}<small>{{ headerPhone.note }}</small></span>
+          <span><small>{{ headerPhone.note }}</small><strong>{{ headerPhone.number }}</strong></span>
+          <svg class="icon menu-phone-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
         </a>
+        <nav v-if="contactCampus" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
+          <template v-for="social in campusSocials" :key="social.platform">
+            <a v-if="social.url" class="menu-campus-social" :href="social.url" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
+              <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
+              <span>{{ social.label }}</span>
+            </a>
+            <span v-else class="menu-campus-social is-pending" :data-platform="social.platform">
+              <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
+              <span>{{ social.label }}</span>
+              <small>待提供</small>
+            </span>
+          </template>
+        </nav>
+      </div>
+      <div v-if="institutionSocials.length" class="menu-socials">
+        <p id="menu-socials-label">機構社群</p>
+        <nav aria-labelledby="menu-socials-label">
+          <a v-for="social in institutionSocials" :key="social.url" :href="social.url" target="_blank" rel="noopener noreferrer">
+            <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
+            <span>{{ social.label }}</span>
+            <svg class="icon menu-social-external" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
+            <span class="sr-only">（另開新視窗）</span>
+          </a>
+        </nav>
       </div>
     </div>
   </header>

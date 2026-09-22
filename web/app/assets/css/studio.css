@@ -214,7 +214,13 @@ body:has(.studio-hero) .header.is-scrolled {
 }
 body:has(.studio-hero) .header-top {border-bottom:1px solid var(--hero-line)}
 body:has(.studio-hero) .nav-inner a:hover {color:inherit}
-body:has(.studio-hero) .menu-toggle {border:1px solid var(--hero-line);border-radius:2px}
+body:has(.studio-hero) .header-top .menu-toggle {
+  align-items:center;
+  flex-shrink:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+}
 body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;width:22px}
 /* 預約鈕：金色滿高色塊，貼齊視窗右緣、左下一道 44px 的弧收回內容
    （2026-09-18 定案，比稿與其他形狀見 design/book-cta-directions/）。全站共用——
@@ -396,12 +402,12 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
   body:has(.studio-hero) .navigation :focus-visible {outline-color:var(--leaf)}
 }
 @media(max-width:1000px) {
-  .studio-hero {--hero-photo-height:clamp(280px,calc(43 * var(--motion-vh,1svh)),420px);padding-top:0;min-height:0}
+  .studio-hero {--hero-photo-height:clamp(320px,calc(60 * var(--motion-vh,1svh)),620px);padding-top:0;min-height:0}
   .studio-hero-copy {width:100%}
   /* Narrow screens give the moving image its own space above the copy. */
   .studio-hero-image {inset:0 0 auto;height:var(--hero-photo-height)}
   .studio-hero-image>:is(img,video) {object-position:50% 40%}
-  .studio-hero-grid {padding-top:calc(var(--hero-photo-height) + 28px);padding-bottom:44px}
+  .studio-hero-grid {padding-top:calc(var(--hero-photo-height) + 24px);padding-bottom:36px}
   .studio-hero::before {
     background:
       linear-gradient(180deg,rgb(18 29 24 / .64) 0 96px,rgb(18 29 24 / 0)) top / 100% 190px no-repeat;
@@ -595,9 +601,21 @@ body:has(.studio-hero) .header-top,
 }
 @media(max-width:1000px) {
   .home-reveal {--reveal-distance:calc(var(--reveal-height) * .38)}
+  /* Mobile copy sits on paper; keep the video and its controls in their own band. */
+  .home-reveal .studio-hero {
+    --hero-line:var(--green);
+    --hero-veil:var(--cream);
+    background:var(--paper);
+  }
+  .home-reveal .studio-hero::after {background:var(--paper)}
+  .home-reveal .studio-hero-copy {color:var(--text)}
+  .home-reveal .studio-hero-copy,
+  .home-reveal .studio-hero h1 {text-shadow:none}
+  .home-reveal .studio-hero-copy :focus-visible {outline-color:var(--green)}
+  .home-reveal .studio-hero .studio-actions .ghost:hover {border-color:var(--green)}
   @keyframes home-reveal-copy {
-    0%{opacity:1;transform:translateY(0) scale(1);color:#fffdf5}
-    48%,100%{opacity:.28;transform:translateY(calc(var(--reveal-height) * -.2)) scale(.96);color:#203f32}
+    0%{opacity:1;transform:translateY(0) scale(1);color:var(--text)}
+    48%,100%{opacity:.28;transform:translateY(calc(var(--reveal-height) * -.2)) scale(.96);color:var(--text)}
   }
 }
 @media(max-width:900px) {
@@ -657,7 +675,7 @@ body:has(.studio-hero) .header {
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
   --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
   --pill-gutter:max(48px,calc((100% - 1280px) / 2));
-  /* 2026-09-21：選單卡沿用膠囊的墨綠 74% 不透明度與 16px 毛玻璃；實色 token 保留作不支援濾鏡／減少透明度時的底色。 */
+  /* 膠囊保留墨綠毛玻璃；展開卡片採 2026-09-22 確認的米白目錄。 */
   --pill-bg:rgb(var(--ink) / .74);--pill-solid:var(--green);--pill-fg:var(--paper);--pill-soft:var(--mint);
   --pill-border:rgb(255 255 255 / .28);--pill-line:rgb(255 255 255 / .16);--pill-hover:rgb(255 255 255 / .12);
   --pill-ease:cubic-bezier(.22,1,.36,1);
@@ -790,84 +808,120 @@ body:has(.studio-hero) .pill-book {
   transition:background-color .2s ease,color .2s ease;
 }
 body:has(.studio-hero) .pill-book:hover {background:var(--paper);color:var(--deep)}
-/* 選單卡：位置與寬度由 app.js 對齊膠囊（首屏狀態則對齊頁首容器）。 */
+/* 2026-09-22：B 目錄沿用比例，採中性淺色毛玻璃；實色為不支援與減少透明度備援。 */
 body:has(.studio-hero) .menu-panel {
+  --menu-solid:oklch(97% .002 95);--menu-glass:oklch(98% .002 95 / .72);
+  --menu-ink:oklch(26% .005 260);--menu-muted:oklch(38% .003 260);
+  --menu-heading-surface:oklch(98% .002 95 / .1);--menu-soft:oklch(98% .002 95 / .12);--menu-line:oklch(26% .005 260 / .12);
+  --menu-light-line:oklch(26% .005 260 / .2);--menu-light-text:var(--menu-ink);--menu-focus:var(--menu-ink);
+  --menu-contact:oklch(98% .002 95 / .18);--menu-social-hover:oklch(26% .005 260 / .035);
+  --menu-phone-badge:oklch(26% .005 260 / .06);--menu-phone-icon:var(--menu-muted);
+  --menu-edge:oklch(98% .002 95 / .6);--menu-shadow:oklch(15% .002 260 / .18);
+  --menu-glint:oklch(98% .002 95 / .48);--menu-backdrop:blur(24px) saturate(1.1);
+  --menu-gutter:24px;
   position:absolute;
+  pointer-events:auto;
   max-width:calc(100% - 32px);
-  padding:10px 18px 22px;
-  background:var(--pill-solid);
-  color:var(--pill-fg);
-  border:1px solid var(--pill-border);
+  max-height:var(--menu-available-height,calc(100dvh - 100px));
+  overflow:auto;
+  overscroll-behavior:contain;
+  padding:0;
+  background:var(--menu-solid);
+  color:var(--menu-ink);
+  border:1px solid var(--menu-edge);
   border-radius:24px;
-  box-shadow:0 28px 56px -22px rgb(var(--ink) / .5);
+  box-shadow:0 28px 56px -22px var(--menu-shadow),inset 0 1px 0 var(--menu-glint);
   opacity:0;
   transform:translateY(-8px);
   transition:opacity .22s ease,transform .32s var(--pill-ease);
 }
-@supports ((backdrop-filter:blur(16px)) or (-webkit-backdrop-filter:blur(16px))) {
-  body:has(.studio-hero) .menu-panel {
-    background:var(--pill-bg);
-    -webkit-backdrop-filter:blur(16px) saturate(1.3);
-    backdrop-filter:blur(16px) saturate(1.3);
-  }
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+  body:has(.studio-hero) .menu-panel {background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-backdrop);backdrop-filter:var(--menu-backdrop)}
 }
 @media(prefers-reduced-transparency:reduce) {
-  body:has(.studio-hero) .menu-panel {
-    background:var(--pill-solid);
-    -webkit-backdrop-filter:none;
-    backdrop-filter:none;
-  }
+  body:has(.studio-hero) .menu-panel {background:var(--menu-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+@media(forced-colors:active) {
+  body:has(.studio-hero) .menu-panel {background:Canvas;color:CanvasText;border-color:CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 body:has(.studio-hero) .menu-panel.is-open {opacity:1;transform:none}
-body:has(.studio-hero) .menu-panel {padding-top:14px}
+body:has(.studio-hero) .menu-heading {display:flex;align-items:center;gap:22px;padding:16px var(--menu-gutter);background:var(--menu-heading-surface);color:var(--menu-light-text)}
+body:has(.studio-hero) .menu-heading p {margin:0;font-size:.8125rem;font-weight:500;letter-spacing:.11em;white-space:nowrap}
+body:has(.studio-hero) .menu-heading>span {display:block;width:auto;height:1px;background:var(--menu-light-line);flex:1}
 body:has(.studio-hero) .menu-links {
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:4px;
+  grid-template-columns:1fr;
+  gap:0;
+  padding:4px var(--menu-gutter) 0;
 }
 body:has(.studio-hero) .menu-links a {
-  display:grid;
-  gap:2px;
-  min-height:64px;
-  padding:12px 14px;
-  border-radius:14px;
-  font-size:1.0625rem;
-  font-weight:600;
-  line-height:1.35;
-  transition:background-color .15s ease;
-}
-body:has(.studio-hero) .menu-links a small {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--pill-soft)}
-body:has(.studio-hero) .menu-links a:hover {background:var(--pill-hover)}
-body:has(.studio-hero) .menu-campuses {
   display:flex;
   align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-  margin-top:12px;
-  padding:14px 14px 0;
-  border-top:1px solid var(--pill-line);
+  gap:16px;
+  min-height:67px;
+  padding:10px 0;
+  border-bottom:1px solid var(--menu-line);
+  border-radius:0;
+  font-family:var(--font);
+  font-size:1.25rem;
+  font-weight:500;
+  line-height:1.4;
+  text-shadow:none;
 }
-body:has(.studio-hero) .menu-campuses p {font-size:.8125rem;color:var(--pill-soft)}
-body:has(.studio-hero) #menu-campuses {display:flex;flex-wrap:wrap;gap:4px}
+body:has(.studio-hero) .menu-link-number {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--menu-muted);min-width:16px}
+body:has(.studio-hero) .menu-link-copy {flex:1;min-width:0}
+body:has(.studio-hero) .menu-link-copy>span {display:block}
+body:has(.studio-hero) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+body:has(.studio-hero) .menu-campuses {
+  margin-top:18px;
+  padding:0 var(--menu-gutter);
+}
+body:has(.studio-hero) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
+body:has(.studio-hero) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
 body:has(.studio-hero) #menu-campuses a {
-  display:inline-flex;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
   align-items:center;
-  min-height:44px;
-  padding:0 12px;
-  border-radius:999px;
+  gap:3px;
+  min-height:48px;
+  padding:5px 2px;
+  border-radius:8px;
   font-size:.875rem;
   font-weight:500;
-  transition:background-color .15s ease;
+  line-height:1.4;
 }
-body:has(.studio-hero) #menu-campuses a:hover {background:var(--pill-hover)}
-body:has(.studio-hero) .menu-foot {display:flex;justify-content:flex-end;padding:10px 14px 0}
-body:has(.studio-hero) .menu-phone {display:inline-flex;align-items:center;gap:10px;min-height:44px;font-weight:600;font-variant-numeric:tabular-nums}
-body:has(.studio-hero) .menu-phone small {display:block;font-size:.6875rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
+body:has(.studio-hero) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body:has(.studio-hero) #menu-campuses a:hover {background:var(--menu-social-hover)}
+body:has(.studio-hero) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
+body:has(.studio-hero) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
+body:has(.studio-hero) .menu-socials a {display:flex;align-items:center;gap:8px;min-height:44px;font-size:.8125rem;font-weight:500}
+body:has(.studio-hero) .menu-socials .icon {width:18px;height:18px;flex:0 0 18px}
+body:has(.studio-hero) .menu-socials .menu-social-external {width:14px;height:14px;flex-basis:14px}
+body:has(.studio-hero) .menu-socials a:hover>span {text-decoration:underline;text-underline-offset:4px}
+body:has(.studio-hero) .menu-foot {margin:18px var(--menu-gutter) 0;background:var(--menu-contact);color:var(--menu-ink);border-radius:14px}
+body:has(.studio-hero) .menu-phone {display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 16px;font-weight:400;font-variant-numeric:tabular-nums}
+body:has(.studio-hero) .menu-phone>.icon:first-child {width:36px;height:36px;padding:9px;border:0;border-radius:50%;background:var(--menu-phone-badge);color:var(--menu-phone-icon);flex:0 0 36px}
+body:has(.studio-hero) .menu-phone small {display:block;font-size:.75rem;font-weight:400;letter-spacing:.02em;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-phone strong {display:block;margin-top:2px;font-family:var(--font-en);font-size:1.375rem;font-weight:400;line-height:1.35;letter-spacing:.015em}
+body:has(.studio-hero) .menu-phone-arrow {margin-left:auto;width:17px;height:17px;flex:0 0 17px;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-phone:hover strong {text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+body:has(.studio-hero) .menu-campus-socials {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 12px;padding:8px 0 10px;border-top:1px solid var(--menu-line)}
+body:has(.studio-hero) .menu-campus-social {display:grid;grid-template-rows:1.25rem auto minmax(1rem,auto);place-items:center;gap:1px;min-width:0;min-height:3.9375rem;padding:4px 1px;border:0;border-radius:8px;color:var(--menu-ink);font-size:.75rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
+body:has(.studio-hero) .menu-campus-social .icon {width:20px;height:20px}
+body:has(.studio-hero) .menu-campus-social small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body:has(.studio-hero) .menu-campus-social.is-pending {color:var(--menu-muted)}
+body:has(.studio-hero) a.menu-campus-social:hover {background:var(--menu-social-hover)}
 body:has(.studio-hero) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
 body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
 body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
-body:has(.studio-hero) .header-pill :focus-visible,
-body:has(.studio-hero) .menu-panel :focus-visible {outline-color:var(--paper)}
+body:has(.studio-hero) .header-pill :focus-visible {outline-color:var(--paper)}
+body:has(.studio-hero) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
+body:has(.studio-hero) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
+body:has(.studio-hero) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}
 
 /* 向下捲收起、向上捲出現（預覽 index.html?autohide=1#/home）。只在收合狀態有作用，
    選單開著、焦點在膠囊裡、回到首屏、減少動態時一律維持顯示。 */
@@ -981,8 +1035,11 @@ body:has(.studio-hero) .pill-divider {display:none}
   body:has(.studio-hero) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
   body:has(.studio-hero) .header-pill .menu-word {display:none}
   body:has(.studio-hero) .pill-book {padding:0 16px;font-size:.875rem}
-  body:has(.studio-hero) .menu-links {grid-template-columns:1fr}
-  body:has(.studio-hero) .menu-links a {min-height:56px;padding:10px 14px}
+  body:has(.studio-hero) .menu-panel {--menu-gutter:18px}
+  body:has(.studio-hero) .menu-links a {min-height:64px;font-size:1.125rem;gap:14px}
+  body:has(.studio-hero) .menu-phone {padding:12px;gap:10px}
+  body:has(.studio-hero) .menu-phone strong {font-size:1.375rem}
+  body:has(.studio-hero) .menu-campus-socials {margin-inline:8px;gap:0}
 }
 @media(max-width:360px) {
   body:has(.studio-hero) .pill-name {display:none}

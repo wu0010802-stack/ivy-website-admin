@@ -59,7 +59,7 @@ export function useHomeReveal(refs: HomeRevealRefs) {
       image.value.style.opacity = String(1 - fade)
       copy.value.style.opacity = String(1 - (mobile ? 0.72 : 0.75) * fade)
       copy.value.style.transform = `translateY(${-copyRise * fade}px) scale(${1 - (mobile ? 0.04 : 0.1) * fade})`
-      copy.value.style.color = `rgb(${255 - 223 * fade} ${253 - 190 * fade} ${245 - 195 * fade})`
+      copy.value.style.color = mobile ? 'var(--text)' : `rgb(${255 - 223 * fade} ${253 - 190 * fade} ${245 - 195 * fade})`
       media.value.style.opacity = String(1 - clamp(progress / 0.2))
     }
   }
@@ -83,10 +83,9 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     // 只有內容真的超出可視高度才需要退回 fallback。
     const fits = hero.value.getBoundingClientRect().height <= height + 1
     const quiet = document.documentElement.classList.contains('hero-quiet')
-    // 與 performance.css 的首屏預留條件一致。矮手機維持完整靜態閱讀，
-    // 避免先套全屏幾何、再因文案放不下退回而推動下方內容。
-    const compactScreen = mobile && height < 760
-    root.value.dataset.motion = reduceQuery?.matches || !fits || quiet || compactScreen ? 'still' : native ? 'native' : 'fallback'
+    // 與 performance.css 的首屏預留條件一致。手機加高影片後自然捲動，
+    // 讓影片下方的完整文案與按鈕都能讀到，不在閱讀中啟動揭幕淡出。
+    root.value.dataset.motion = reduceQuery?.matches || !fits || quiet || mobile ? 'still' : native ? 'native' : 'fallback'
     const rect = track.value.getBoundingClientRect()
     start = rect.top + window.scrollY
     distance = Math.max(1, rect.height - height)
