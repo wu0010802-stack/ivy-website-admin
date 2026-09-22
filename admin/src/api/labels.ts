@@ -41,6 +41,7 @@ export interface StatusMeta {
 // 參觀案件狀態。語意沿用規格：inquiry 只是「已收到需求」，只有 confirmed
 // 才叫「預約成立」，文字不能把 new 寫成「已預約」。
 export const VISIT_STATUS: Record<string, StatusMeta> = {
+  pending_confirmation: { label: '待園方確認', tone: 'warning' },
   new: { label: '待處理', tone: 'warning' },
   confirmed: { label: '已確認', tone: 'success' },
   completed: { label: '已完成', tone: 'info' },
@@ -48,7 +49,7 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
   no_show: { label: '未到場', tone: 'danger' },
 }
 
-export const VISIT_STATUS_ORDER = ['new', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
+export const VISIT_STATUS_ORDER = ['new', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
@@ -186,4 +187,10 @@ export function formatSlotWhen(
 ): string {
   if (!slot) return '—'
   return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${formatTime(slot.start_time)}–${formatTime(slot.end_time)}`
+}
+
+
+export function referralSourceLabels(sources: string[] | null | undefined): string {
+  const labels: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }
+  return sources?.length ? sources.map(source => labels[source] || source).join('、') : '未填寫'
 }

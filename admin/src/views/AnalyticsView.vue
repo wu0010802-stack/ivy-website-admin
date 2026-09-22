@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { useCampusScope } from '../composables/useCampusScope'
+import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
@@ -9,17 +10,21 @@ const { visibleCampusKeys, selected: campusKey } = useCampusScope()
 const funnel = ref<Record<string, number> | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const requests = useRequestSequence()
 
 async function load() {
-  if (!campusKey.value) return
+  const request = requests.begin()
+  funnel.value = null
+  if (!campusKey.value) { loading.value = false; return }
   loading.value = true
   error.value = null
   try {
-    funnel.value = await api.get<Record<string, number>>(`/admin/analytics/funnel?campus_key=${campusKey.value}`)
+    const result = await api.get<Record<string, number>>(`/admin/analytics/funnel?campus_key=${campusKey.value}`)
+    if (requests.isCurrent(request)) funnel.value = result
   } catch {
-    error.value = '無法讀取統計'
+    if (requests.isCurrent(request)) error.value = '無法讀取統計，請重新載入。'
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 
@@ -46,14 +51,16 @@ const stages = computed(() => {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="官網預約行為的去識別化計數。點擊由訪客端回報，「已送出／已確認／已完成」只由伺服器流程產生，不會被偽造。" />
+    <PageHeader lead="各校參觀需求、預約確認與完成參觀的累計紀錄，協助掌握家長從詢問到到訪的情況。" />
 
-    <div class="toolbar">
-      <CampusSelect v-model="campusKey" :keys="visibleCampusKeys" />
+    <div class="filter-bar">
+      <label class="filter-field"><span>查看校區</span><CampusSelect v-model="campusKey" :keys="visibleCampusKeys" /></label>
+      <el-button :loading="loading" :disabled="!campusKey" @click="load">重新整理</el-button>
     </div>
 
-    <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
-    <el-skeleton v-else-if="loading && !funnel" animated :rows="5" />
+    <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
+    <el-alert v-else-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
+    <el-skeleton v-else-if="loading" animated :rows="5" aria-label="正在讀取統計" />
 
     <template v-else-if="funnel">
       <section class="panel">
@@ -61,7 +68,7 @@ const stages = computed(() => {
         <ol class="funnel">
           <li v-for="s in stages" :key="s.label" class="funnel__row">
             <span class="funnel__label">{{ s.label }}</span>
-            <span class="funnel__track" aria-hidden="true"><span class="funnel__bar" :style="{ width: `${Math.max(2, s.ratio * 100)}%` }" /></span>
+            <span class="funnel__track" aria-hidden="true"><span class="funnel__bar" :style="{ width: `${s.ratio * 100}%` }" /></span>
             <span class="funnel__value num">{{ s.value }}</span>
             <span class="funnel__note">{{ s.note }}</span>
           </li>

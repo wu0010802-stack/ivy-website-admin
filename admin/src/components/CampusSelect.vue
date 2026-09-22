@@ -9,6 +9,7 @@ const props = defineProps<{
   keys: readonly string[]
   allLabel?: string
   size?: 'small' | 'default' | 'large'
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -32,6 +33,7 @@ const single = computed(() => props.keys.length === 1 && !props.allLabel)
     :placeholder="allLabel ?? '選擇校區'"
     :clearable="Boolean(allLabel)"
     :size="size"
+    :disabled="disabled"
     aria-label="校區"
   >
     <el-option v-for="key in keys" :key="key" :label="campusLabel(key)" :value="key" />

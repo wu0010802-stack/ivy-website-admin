@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import PageHeader from '../components/PageHeader.vue'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
 interface SiteSettingsOut {
   title: string
@@ -27,26 +28,31 @@ const settings = ref<SiteSettingsOut>({
 const snapshot = ref('')
 const loading = ref(true)
 const savingSettings = ref(false)
-const isDirty = computed(() => JSON.stringify(settings.value) !== snapshot.value)
+const loadError = ref<string | null>(null)
+const isDirty = computed(() => Boolean(snapshot.value) && JSON.stringify(settings.value) !== snapshot.value)
+useUnsavedChanges(isDirty, computed(() => savingSettings.value || runningRetention.value))
 
 const retentionDays = ref(365)
 const retentionReport = ref<RetentionReport | null>(null)
 const checkedDays = ref<number | null>(null)
 const runningRetention = ref(false)
+watch(retentionDays, () => { retentionReport.value = null; checkedDays.value = null })
 
 async function loadSettings() {
   loading.value = true
+  loadError.value = null
   try {
     settings.value = await api.get<SiteSettingsOut>('/admin/site-settings')
     snapshot.value = JSON.stringify(settings.value)
   } catch {
-    ElMessage.error('無法讀取全站設定')
+    loadError.value = '無法讀取全站設定，請重新載入。'
   } finally {
     loading.value = false
   }
 }
 
 async function saveSettings() {
+  if (loading.value || loadError.value || savingSettings.value || !isDirty.value) return
   savingSettings.value = true
   try {
     settings.value = await api.patch<SiteSettingsOut>('/admin/site-settings', settings.value)
@@ -60,10 +66,14 @@ async function saveSettings() {
 }
 
 async function dryRunRetention() {
+  if (runningRetention.value) return
+  const days = retentionDays.value
+  retentionReport.value = null
+  checkedDays.value = null
   runningRetention.value = true
   try {
-    retentionReport.value = await api.post<RetentionReport>(`/admin/retention/dry-run?older_than_days=${retentionDays.value}`)
-    checkedDays.value = retentionDays.value
+    retentionReport.value = await api.post<RetentionReport>(`/admin/retention/dry-run?older_than_days=${days}`)
+    checkedDays.value = days
   } catch {
     ElMessage.error('查詢失敗')
   } finally {
@@ -72,7 +82,9 @@ async function dryRunRetention() {
 }
 
 async function runRetention() {
-  if (!retentionReport.value) return
+  if (!retentionReport.value || runningRetention.value || checkedDays.value !== retentionDays.value) return
+  const days = checkedDays.value
+  runningRetention.value = true
   try {
     await ElMessageBox.confirm(
       `將把 ${retentionReport.value.candidate_count} 筆超過 ${checkedDays.value} 天的已取消／未到場案件的姓名、電話、問題改成匿名文字，無法復原。`,
@@ -80,19 +92,23 @@ async function runRetention() {
       { confirmButtonText: '執行清理', cancelButtonText: '取消', type: 'warning', confirmButtonClass: 'el-button--danger' },
     )
   } catch {
+    runningRetention.value = false
     return
   }
-  runningRetention.value = true
   try {
-    await api.post(`/admin/retention/run?older_than_days=${checkedDays.value}`)
+    await api.post(`/admin/retention/run?older_than_days=${days}`)
     ElMessage.success('已執行清理')
     retentionReport.value = null
   } catch (err) {
     if (err instanceof ApiError) {
       const detail = err.detail as { message?: string } | string
-      ElMessage.warning(typeof detail === 'object' ? (detail.message ?? '此環境未開放真正清理') : detail)
+      ElMessage.warning(detail !== null && typeof detail === 'object' ? (detail.message ?? '無法確認清理結果，請重新檢查數量。') : typeof detail === 'string' ? detail : '無法確認清理結果，請重新檢查數量。')
+    } else {
+      ElMessage.error('無法確認清理結果，請重新檢查數量後再操作。')
     }
   } finally {
+    retentionReport.value = null
+    checkedDays.value = null
     runningRetention.value = false
   }
 }
@@ -107,8 +123,9 @@ onMounted(loadSettings)
     <section class="panel">
       <div class="panel__head"><h2>搜尋與分享</h2></div>
       <div class="panel__body">
-        <el-skeleton v-if="loading" animated :rows="4" />
-        <el-form v-else label-position="top" @submit.prevent="saveSettings">
+        <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="loadSettings">重新載入</el-button></el-alert>
+        <el-skeleton v-else-if="loading" animated :rows="4" />
+        <el-form v-else label-position="top" :disabled="savingSettings" :aria-busy="savingSettings" @submit.prevent="saveSettings">
           <el-form-item label="站名（後台識別用）">
             <el-input v-model="settings.title" />
             <span class="field-help">官網分頁標題在 <router-link to="/content/site-meta">網站標題與電話</router-link> 修改。</span>
@@ -131,6 +148,7 @@ onMounted(loadSettings)
               儲存並套用到官網
             </el-button>
             <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
+            <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
           </div>
         </el-form>
       </div>
@@ -144,7 +162,7 @@ onMounted(loadSettings)
         </p>
         <div class="retention">
           <span>清理</span>
-          <el-input-number v-model="retentionDays" :min="30" :max="3650" :step="30" aria-label="天數" />
+          <el-input-number v-model="retentionDays" :disabled="runningRetention" :min="30" :max="3650" :step="30" aria-label="天數" />
           <span>天前結案的案件</span>
           <el-button :loading="runningRetention" @click="dryRunRetention">檢查數量</el-button>
         </div>

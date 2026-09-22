@@ -7,18 +7,31 @@ import { api, ApiError } from '../api/client'
 import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
 import { campusLabel, campusLabels, roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
+import UserActions from '../components/UserActions.vue'
+import { useRequestSequence } from '../composables/useRequestSequence'
 
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 
 const users = ref<UserOut[]>([])
 const loading = ref(false)
+const loadError = ref('')
+const search = ref('')
+const status = ref('')
+const savingScope = ref(false)
+const requests = useRequestSequence()
 const dialogVisible = ref(false)
 const creating = ref(false)
 const scopeDialogVisible = ref(false)
 const scopeTarget = ref<UserOut | null>(null)
 const scopeSelection = ref<string[]>([])
 const togglingId = ref<string | null>(null)
+
+const operationBusy = computed(() => creating.value || savingScope.value || Boolean(togglingId.value))
+const visibleUsers = computed(() => sortedUsers.value.filter(user => {
+  const text = [user.email, roleLabel(user.role), user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys)].join(' ').toLocaleLowerCase()
+  return text.includes(search.value.trim().toLocaleLowerCase()) && (!status.value || (status.value === 'active') === user.is_active)
+}))
 
 const form = reactive({
   email: '',
@@ -43,14 +56,17 @@ const sortedUsers = computed(() =>
 )
 
 async function loadUsers() {
-  if (!isSuperAdmin.value) return
+  if (!isSuperAdmin.value || operationBusy.value) return
+  const request = requests.begin()
   loading.value = true
+  loadError.value = ''
   try {
-    users.value = await api.get<UserOut[]>('/admin/users')
+    const result = await api.get<UserOut[]>('/admin/users')
+    if (requests.isCurrent(request)) users.value = result
   } catch (err) {
-    ElMessage.error(errorText(err, '無法載入使用者列表'))
+    if (requests.isCurrent(request)) loadError.value = '無法讀取使用者清單，請重新載入。'
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 
@@ -67,6 +83,7 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 function openCreateDialog() {
+  if (operationBusy.value || loading.value) return
   form.email = ''
   form.password = ''
   form.role = 'campus_admin'
@@ -75,7 +92,7 @@ function openCreateDialog() {
 }
 
 async function submitCreate() {
-  if (!formValid.value) return
+  if (!formValid.value || operationBusy.value || loading.value) return
   creating.value = true
   try {
     const created = await api.post<UserOut>('/admin/users', {
@@ -95,6 +112,7 @@ async function submitCreate() {
 }
 
 async function toggleActive(target: UserOut) {
+  if (operationBusy.value || isSelf(target)) return
   togglingId.value = target.id
   try {
     const updated = await api.patch<UserOut>(`/admin/users/${target.id}/active`, {
@@ -111,13 +129,15 @@ async function toggleActive(target: UserOut) {
 }
 
 function openScopeDialog(target: UserOut) {
+  if (operationBusy.value) return
   scopeTarget.value = target
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
 }
 
 async function submitScope() {
-  if (!scopeTarget.value) return
+  if (!scopeTarget.value || operationBusy.value) return
+  savingScope.value = true
   try {
     const updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/scope`, {
       campus_keys: scopeSelection.value,
@@ -128,6 +148,8 @@ async function submitScope() {
     ElMessage.success('已更新校區範圍')
   } catch (err) {
     ElMessage.error(errorText(err, '更新校區範圍失敗'))
+  } finally {
+    savingScope.value = false
   }
 }
 
@@ -145,12 +167,21 @@ onMounted(loadUsers)
     <template v-else>
       <PageHeader lead="總管理者可以管理全部五校；校區管理者只能看到並修改自己校區的內容與案件。">
         <template #actions>
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog">新增使用者</el-button>
+          <el-button type="primary" :icon="Plus" :disabled="operationBusy || loading" @click="openCreateDialog">新增使用者</el-button>
         </template>
       </PageHeader>
 
-      <div class="panel">
-        <el-table :data="sortedUsers" v-loading="loading" empty-text="尚未建立任何使用者">
+      <div class="filter-bar">
+        <label class="filter-field filter-search"><span>搜尋使用者</span><el-input v-model="search" placeholder="Email、角色或校區" clearable /></label>
+        <label class="filter-field"><span>帳號狀態</span><el-select v-model="status" placeholder="全部狀態"><el-option label="全部狀態" value="" /><el-option label="啟用中" value="active" /><el-option label="已停用" value="inactive" /></el-select></label>
+      </div>
+      <div class="list-summary" role="status"><span>{{ loading ? '正在讀取使用者…' : loadError ? '使用者尚未載入' : `顯示 ${visibleUsers.length} / ${users.length} 位使用者` }}</span><el-button :loading="loading" :disabled="operationBusy" @click="loadUsers">重新整理</el-button></div>
+      <el-alert v-if="loadError" class="inline-error" type="error" :title="loadError" :closable="false" show-icon><el-button @click="loadUsers">重新載入</el-button></el-alert>
+      <div v-else-if="loading" class="panel list-skeleton"><el-skeleton animated :rows="5" /></div>
+      <div v-else class="panel">
+        <el-empty v-if="!visibleUsers.length" :description="search || status ? '找不到符合條件的使用者' : '尚未建立任何使用者'"><el-button v-if="search || status" @click="search = ''; status = ''">清除篩選</el-button></el-empty>
+        <template v-else>
+        <el-table class="data-table" :data="visibleUsers">
           <el-table-column label="Email" min-width="220">
             <template #default="{ row }: { row: UserOut }">
               <span :class="{ muted: !row.is_active }">{{ row.email }}</span>
@@ -176,49 +207,22 @@ onMounted(loadUsers)
           </el-table-column>
           <el-table-column label="操作" width="200" align="right">
             <template #default="{ row }: { row: UserOut }">
-              <span class="cell-actions">
-                <el-button v-if="row.role === 'campus_admin'" size="small" text @click="openScopeDialog(row)">
-                  校區範圍
-                </el-button>
-                <el-popconfirm
-                  v-if="row.is_active"
-                  :title="`停用後 ${row.email} 就無法登入後台，已建立的內容不受影響。`"
-                  confirm-button-text="停用"
-                  cancel-button-text="先不要"
-                  confirm-button-type="danger"
-                  :width="280"
-                  @confirm="toggleActive(row)"
-                >
-                  <template #reference>
-                    <el-button
-                      size="small"
-                      text
-                      type="danger"
-                      :disabled="isSelf(row)"
-                      :loading="togglingId === row.id"
-                    >
-                      停用
-                    </el-button>
-                  </template>
-                </el-popconfirm>
-                <el-button
-                  v-else
-                  size="small"
-                  text
-                  type="primary"
-                  :loading="togglingId === row.id"
-                  @click="toggleActive(row)"
-                >
-                  恢復
-                </el-button>
-              </span>
+              <UserActions :user="row" :self="isSelf(row)" :busy="operationBusy" :pending="togglingId === row.id" @scope="openScopeDialog" @toggle="toggleActive" />
             </template>
           </el-table-column>
         </el-table>
+        <ul class="mobile-records" aria-label="使用者清單">
+          <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
+            <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
+            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd></dl>
+            <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" /></div>
+          </li>
+        </ul>
+        </template>
       </div>
 
-      <el-dialog v-model="dialogVisible" title="新增使用者" width="440px">
-        <el-form label-position="top" @submit.prevent="submitCreate">
+      <el-dialog v-model="dialogVisible" title="新增使用者" width="440px" :show-close="!creating" :close-on-click-modal="!creating" :close-on-press-escape="!creating">
+        <el-form label-position="top" :disabled="creating" @submit.prevent="submitCreate">
           <el-form-item label="Email">
             <el-input v-model="form.email" type="email" autocomplete="off" />
           </el-form-item>
@@ -244,21 +248,21 @@ onMounted(loadUsers)
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button :disabled="creating" @click="dialogVisible = false">取消</el-button>
           <el-button type="primary" :loading="creating" :disabled="!formValid" @click="submitCreate">建立帳號</el-button>
         </template>
       </el-dialog>
 
-      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的校區範圍`" width="440px">
-        <el-checkbox-group v-model="scopeSelection">
+      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的校區範圍`" width="440px" :show-close="!savingScope" :close-on-click-modal="!savingScope" :close-on-press-escape="!savingScope">
+        <el-checkbox-group v-model="scopeSelection" :disabled="savingScope">
           <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
         </el-checkbox-group>
         <p class="hint" style="margin-top: 12px">
           {{ scopeSelection.length === 0 ? '沒有勾選任何校區時，這位使用者登入後看不到任何內容。' : '' }}
         </p>
         <template #footer>
-          <el-button @click="scopeDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitScope">儲存</el-button>
+          <el-button :disabled="savingScope" @click="scopeDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="savingScope" @click="submitScope">儲存</el-button>
         </template>
       </el-dialog>
     </template>

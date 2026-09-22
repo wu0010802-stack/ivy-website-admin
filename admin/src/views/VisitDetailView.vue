@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
-import { campusLabel, formatDateTime, formatSlotWhen, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatSlotWhen, visitStatus, referralSourceLabels } from '../api/labels'
 import StatusTag from '../components/StatusTag.vue'
 
 const route = useRoute()
@@ -58,28 +58,28 @@ function slotLabel(slot: VisitSlotOut): string {
 }
 
 async function confirm() {
-  if (!selectedSlotId.value) {
+  if (!selectedSlotId.value && detail.value?.status !== 'pending_confirmation') {
     ElMessage.warning('請先選擇一個時段')
     return
   }
-  const slot = openSlots.value.find((s) => s.id === selectedSlotId.value)
+  const slot = detail.value?.status === 'pending_confirmation' ? detail.value.slot : openSlots.value.find((s) => s.id === selectedSlotId.value)
   if (!slot) {
     ElMessage.warning('這個時段已經不能選了，請重新選擇')
     return
   }
   try {
-    // 這一按就寄通知給家長、名額也會被占用，所以把「誰、哪一天、會寄信」講完再問。
+    // 家長 Email 目前僅供聯絡；不把案件狀態更新誤稱為已寄信給家長。
     await ElMessageBox.confirm(
-      `將把 ${detail.value?.parent_name} 排入 ${formatSlotWhen(slot)}，並寄出確認通知給家長。`,
+      `將把 ${detail.value?.parent_name} 排入 ${formatSlotWhen(slot)}，案件更新為已確認。請另行聯絡家長告知參觀安排。`,
       '確認這筆預約？',
-      { confirmButtonText: '確認並寄出通知', cancelButtonText: '先不要', type: 'info' },
+      { confirmButtonText: '確認預約', cancelButtonText: '先不要', type: 'info' },
     )
   } catch {
     return
   }
   busy.value = true
   try {
-    await api.post(`/admin/visit-requests/${id}/confirm`, { slot_id: selectedSlotId.value })
+    await api.post(`/admin/visit-requests/${id}/confirm`, { slot_id: slot.id })
     ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}`)
     await load()
   } catch (err) {
@@ -180,8 +180,12 @@ onMounted(load)
               <el-descriptions-item label="電話">
                 <a :href="`tel:${detail.phone}`" class="num">{{ detail.phone }}</a>
               </el-descriptions-item>
-              <el-descriptions-item label="孩子年齡">{{ detail.age ?? '—' }}</el-descriptions-item>
-              <el-descriptions-item label="方便時段">{{ detail.preferred_time || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
+              <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
+              <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
+              <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
+              <el-descriptions-item v-if="detail.age" label="原填年齡">{{ detail.age ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item label="接電話時段">{{ detail.preferred_time || '—' }}</el-descriptions-item>
               <el-descriptions-item label="想了解的事">
                 <span class="detail__pre">{{ detail.questions || '—' }}</span>
               </el-descriptions-item>
@@ -230,6 +234,12 @@ onMounted(load)
                 </el-button>
               </template>
 
+              <template v-else-if="detail.status === 'pending_confirmation'">
+                <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
+                <p v-if="detail.hold_expires_at" class="hint">請於 {{ formatDateTime(detail.hold_expires_at) }} 前確認。</p>
+                <el-button type="primary" :loading="busy" :disabled="!detail.slot" style="width: 100%" @click="confirm">確認已選場次</el-button>
+              </template>
+
               <template v-else-if="detail.status === 'confirmed'">
                 <p class="hint">參觀日過後，若家長沒有出現請標記未到場。</p>
                 <el-button :loading="busy" style="width: 100%" @click="markNoShow">標記未到場</el-button>
@@ -238,7 +248,7 @@ onMounted(load)
               <p v-else class="hint">這筆案件已結案，沒有可執行的動作。</p>
 
               <el-button
-                v-if="detail.status === 'new' || detail.status === 'confirmed'"
+                v-if="detail.status === 'new' || detail.status === 'pending_confirmation' || detail.status === 'confirmed'"
                 text
                 type="danger"
                 :loading="busy"

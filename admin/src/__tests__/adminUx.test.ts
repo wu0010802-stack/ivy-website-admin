@@ -139,7 +139,7 @@ describe('後台導覽與編輯操作', () => {
     await flushPromises()
     get.mockClear()
 
-    await wrapper.get('input[aria-label="搜尋家長姓名或電話"]').setValue('陳')
+    await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('陳')
     await flushPromises()
     expect(get).not.toHaveBeenCalled()
 

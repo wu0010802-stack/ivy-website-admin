@@ -190,6 +190,29 @@ a:hover {
   flex: 1;
 }
 
+/* 清單頁共用篩選與手機紀錄：資訊、狀態和動作放在同一筆內。 */
+.filter-bar { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; margin-bottom:16px; padding:16px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+.filter-field { display:grid; gap:6px; min-width:0; font-size:13px; color:var(--ink-2); }
+.filter-field > span:first-child { font-weight:500; }
+.filter-field .el-select { width:160px; }
+.filter-search { flex:1; min-width:200px; }
+.list-summary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin-bottom:12px; color:var(--ink-2); }
+.inline-error { margin-bottom:16px; }
+.dirty-note { color:var(--brand-gold-ink); font-weight:500; }
+.mobile-records { display:none; list-style:none; margin:0; padding:0; }
+.mobile-record { min-width:0; padding:16px; }
+.mobile-record + .mobile-record { border-top:1px solid var(--line); }
+.record-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.record-heading strong, .record-heading h2 { font-size:15px; overflow-wrap:anywhere; }
+.record-meta { display:grid; grid-template-columns:72px minmax(0,1fr); gap:8px 12px; margin:14px 0; }
+.record-meta dt { color:var(--ink-3); }
+.record-meta dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+.record-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; border-top:1px solid var(--line); padding-top:12px; }
+.record-actions .el-button + .el-button { margin-left:0; }
+.record-actions a { display:inline-flex; align-items:center; min-height:44px; }
+.record-caption { margin-top:6px; color:var(--ink-3); font-size:13px; overflow-wrap:anywhere; }
+.list-skeleton { padding:24px; }
+
 .toolbar .el-select {
   width: 160px;
 }
@@ -484,6 +507,7 @@ a.stat:hover {
 .el-alert--warning.is-light .el-alert__description { color: var(--brand-gold-ink); }
 
 .el-dialog__title {
+  overflow-wrap:anywhere;
   font-weight: 600;
 }
 
@@ -508,6 +532,14 @@ a.stat:hover {
 }
 
 @media (max-width: 720px) {
+  .data-table { display:none; }
+  .mobile-records { display:block; }
+  .filter-bar { padding:12px; gap:12px; }
+  .filter-field { width:100%; font-size:14px; }
+  .filter-field .el-select { width:100%; }
+  .record-caption { font-size:14px; }
+  .filter-search { min-width:0; }
+  .list-summary { font-size:14px; }
   :root { --control-h: 44px; }
   .el-input__inner, .el-textarea__inner, .el-select__wrapper { font-size: 16px; }
   .field-help, .hint { font-size: 14px; }

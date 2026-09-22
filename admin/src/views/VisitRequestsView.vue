@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Download, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
@@ -59,6 +59,7 @@ watch([campusFilter, statusFilter], () => {
 })
 // 邊打字邊查會連發請求，停下來再送；過時的回應由 loadVersion 擋掉。
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => { clearTimeout(searchTimer); loadVersion++ })
 watch(search, () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
@@ -100,7 +101,7 @@ onMounted(load)
 
     <div class="toolbar">
       <div class="filter-field filter-field--search"><span>搜尋</span>
-      <el-input v-model="search" placeholder="家長姓名或電話" clearable :prefix-icon="Search" aria-label="搜尋家長姓名或電話" />
+      <el-input v-model="search" placeholder="家長／孩子姓名、電話或 Email" clearable :prefix-icon="Search" aria-label="搜尋家長／孩子姓名、電話或 Email" />
       </div>
       <div class="filter-field"><span>校區</span>
       <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" />
@@ -145,8 +146,8 @@ onMounted(load)
         <el-table-column label="電話" width="140">
           <template #default="{ row }: { row: VisitRequestDetailOut }"><span class="num">{{ row.phone }}</span></template>
         </el-table-column>
-        <el-table-column label="孩子年齡" width="90">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.age ?? '—' }}</template>
+        <el-table-column label="孩子姓名" width="110">
+          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.child_name || '未填寫' }}</template>
         </el-table-column>
         <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
@@ -164,7 +165,7 @@ onMounted(load)
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
-            <p>{{ campusLabel(request.campus_key) }}校 · 孩子 {{ request.age ?? '年齡未填' }}<template v-if="request.age != null"> 歲</template></p>
+            <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
             <p>方便時段：{{ request.preferred_time || '未填寫' }}</p>
             <span class="hint">{{ formatDateTime(request.created_at) }} 送出</span>

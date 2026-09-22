@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { computed } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -68,29 +68,7 @@ async function publishWithConfirm() {
   await props.editor.saveAndPublish()
 }
 
-async function confirmLeave(): Promise<boolean> {
-  if (!isDirty.value) return true
-  try {
-    await ElMessageBox.confirm('這一頁有尚未儲存的修改，離開後會遺失。', '放棄修改？', {
-      confirmButtonText: '放棄修改',
-      cancelButtonText: '留在這頁',
-      type: 'warning',
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-onBeforeRouteLeave(async () => confirmLeave())
-
-function onBeforeUnload(event: BeforeUnloadEvent) {
-  if (!isDirty.value) return
-  event.preventDefault()
-}
-
-onMounted(() => window.addEventListener('beforeunload', onBeforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
+const { confirmLeave } = useUnsavedChanges(computed(() => !loading.value && !loadError.value && isDirty.value), busy)
 
 defineExpose({ confirmLeave })
 </script>

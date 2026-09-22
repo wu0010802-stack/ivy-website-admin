@@ -22,10 +22,7 @@ const form = ref({
   phone: '',
   external_url: '',
   message: '',
-  // slots 模式的確認策略（規格 197：預設人工確認）。slots 本身還在
-  // 階段 D 閘門後、選項是 disabled 的，但這個值一定要原樣讀回再送回去
-  // ——PATCH 的 schema 預設是 false，漏掉這個欄位會讓「儲存任何其他設定」
-  // 靜默把自動確認關掉。
+  // 預設由園方確認；明確開啟後才允許送出即成立。
   slots_auto_confirm: false,
 })
 const snapshot = ref('')
@@ -42,7 +39,7 @@ const MODES: { value: Mode; label: string; help: string; disabled?: boolean }[] 
   { value: 'phone', label: BOOKING_MODE_LABELS.phone!, help: '官網只顯示電話，不提供表單。' },
   { value: 'external', label: BOOKING_MODE_LABELS.external!, help: '預約鈕連到外部系統，例如 Google 表單。' },
   { value: 'paused', label: BOOKING_MODE_LABELS.paused!, help: '官網顯示暫停說明，家長無法送出需求。' },
-  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長自選時段，功能尚未開放。', disabled: true },
+  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長選擇此校已開放的日期與場次，需先在「時段與容量」新增時段。' },
 ]
 
 const isDirty = computed(() => Boolean(config.value && snapshot.value) && JSON.stringify(form.value) !== snapshot.value)
@@ -169,6 +166,10 @@ async function save() {
           </el-form-item>
           <el-form-item v-if="form.mode === 'external'" label="外部預約網址" required>
             <el-input v-model="form.external_url" placeholder="https://…" />
+          </el-form-item>
+          <el-form-item v-if="form.mode === 'slots'" label="場次確認方式">
+            <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" />
+            <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link to="/slots">管理此校日期與場次</router-link></p>
           </el-form-item>
           <el-form-item label="顯示給家長的說明（選填）">
             <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />

@@ -45,6 +45,7 @@ defineProps<{
 
 .page-header__actions {
   display: flex;
+  flex-wrap: wrap;
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
@@ -54,5 +55,7 @@ defineProps<{
   .page-header {
     flex-direction: column;
   }
+  .page-header__actions { width:100%; }
+  .page-header__actions :deep(.el-button) { flex:1; margin-left:0; }
 }
 </style>
