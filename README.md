@@ -2,7 +2,7 @@
 
 依使用者截圖，Nuxt 首頁深綠膠囊四邊內距由 4px 改為 8px，保留校徽、選單與預約按鈕尺寸。Chrome 1440／900／390／320px 實測 padding 均為 8px，膠囊高度桌機 58px、手機 62px，無水平溢出或 runtime error。截圖與量測在 `output/playwright/header-padding/`；本機預覽 `http://127.0.0.1:3010/`，向下捲動即可看到。
 
-原型 `node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異；未部署。
+原型 `node --check app.js` 與 `python3 package_preview.py` 通過，`preview.html` 無差異。已以 `bb20ce1` 的內距修改部署正式 web（`d899f96e-d7a3-49e6-ac57-77f32de61932`，SUCCESS）；線上 33 項檢查與四尺寸 8px／選單操作驗證通過，紀錄在 `output/railway-header-padding-20260922/`。
 
 ## 2026-09-21 拍立得翻面提示第二輪：折角做真＋首張偷看
 
