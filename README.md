@@ -1,3 +1,9 @@
+## 2026-09-22 main 對齊已部署照片修補與手機構圖
+
+將正式快照 `a2a3230720fa0c4ed3e8d21719b649176d819fc04f7c8c358fb8672837188107` 的五個產品差異同步到 main：移除合併時帶回的拍立得 figcaption，修正照片框多出 29px 的裁切問題；保留已上線的手機消息／活動橫滑與大圖、84% 拍立得與正背面共用高度、五校線稿放大及手機分校照片 3:2。其他效能、字型、延後載圖、API、後台與內容來源維持正式版本。
+
+main 的 CI 會重新部署完整快照，因此這五檔必須一起對齊，避免只提交照片一行修補時回退另外四檔已上線設計。同步時逐一核對 436 個部署來源檔，與上述正式快照完全一致。該快照通過 Node 22 web typecheck、92 項 web／42 項 admin tests、前後台 build、46 項公開檢查，以及 Chrome 桌機／手機 WebGL、320px 減少動態、CSS 備援的六張照片比例與翻面驗證；Safari／iOS 實機未驗證。
+
 ## 2026-09-22 部署分支改為 main
 
 Railway 正式部署的觸發分支由 `production` 改為 `main`：`.github/workflows/website.yml` 的 deploy job 條件與 concurrency 取消規則、以及 `deploy/railway_ci.py` 內建的分支自檢都改為 `refs/heads/main`（三道守門要一起改，只改 workflow 會在 deploy job 被腳本擋下），`deploy/CICD.md` 的分支表、首次啟用步驟與日常操作同步更新。GitHub environment `production` 已建立並將 Deployment branches 限制為 `main`。

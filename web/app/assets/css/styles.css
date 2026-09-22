@@ -113,8 +113,11 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .day-title{font-size:clamp(2.5rem,13.5vw,4.4rem)}
  .day-prints{display:block;width:calc(100% - 40px);margin-top:calc(-32 * var(--motion-vh,1svh));padding-bottom:64px}
  .day-print,.day-print+.day-print{display:block;margin:0 0 32px}
- .day-print:nth-child(n) .print-card{width:92%;margin:0;rotate:-1.5deg}
+ .day-print:nth-child(n) .print-card{width:84%;margin:0;rotate:-1.5deg}
  .day-print:nth-child(even) .print-card{margin-left:auto;rotate:1.6deg}
+ /* 兩面共用內容高度，縮窄與放大文字時，背面故事仍完整留在紙面內。 */
+ .print{display:grid}
+ .print-face{grid-area:1/1;min-width:0}
  .print-tape{width:84px;height:22px;top:-10px;left:calc(50% - 42px)}
  .print-front{padding:7% 7% 0}
  .print-stamp{font-size:1.125rem;right:8px;bottom:7px;transition:opacity .8s ease .5s}
@@ -123,7 +126,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-figure::after{transition:opacity .9s ease .1s}
  .print-kicker{font-size:.75rem}
  .print-foot{padding:14px 2px 44px;min-height:118px}
- .print-back{padding:24px 22px 56px}
+ .print-back{position:relative;inset:auto;padding:24px 22px 56px}
  .print-story{font-size:.875rem;line-height:1.95;margin-top:10px}
  .print-ask{margin-top:16px;padding-top:12px}
  .print-answer{font-size:.75rem;line-height:1.85}
