@@ -20,29 +20,46 @@
   }
 }
 
-/* 先以內容自然高度加上簾幕距離，等 JS 量測後再交給既有固定軌道。
-   否則 mounted 才套負 margin，日常區塊會瞬間上移整個 viewport。
-   這裡也預留拍立得的接力間距，避免量測前後 panel 自身高度不同。 */
+/* 第二、三道簾幕（useCurtain）在 hydration 後才量出 --belief-own／--day-own，
+   量測前 .day-reveal／.campus-panorama 會先排在自然位置，量完再上移一個
+   視窗高度，Lighthouse 量到 CLS 0.226。這裡在量測前先用 padding-bottom
+   補出同樣的捲動距離、把下一段疊到同一位置，總高度與 JS 結果一致，
+   量測完成只是換成 sticky，不再位移。減少動態時 JS 會停在 still，不預留。 */
 @media (prefers-reduced-motion: no-preference) {
-  [data-ivy-motion] .belief-reveal:not([data-motion]) > .belief-reveal-track {
+  [data-ivy-motion] .belief-reveal:not([data-motion]) .belief-reveal-track {
     padding-bottom: var(--belief-distance);
   }
-  [data-ivy-motion] .day-reveal:not([data-motion]) > .day-reveal-track {
-    padding-bottom: var(--day-distance);
+  [data-ivy-motion] .belief-reveal:not([data-motion]) .home-belief {
+    position: relative;
+    z-index: 2;
   }
-  [data-ivy-motion] .belief-reveal:not([data-motion]) > .day-reveal,
-  [data-ivy-motion] .day-reveal:not([data-motion]) > .news-transition {
+  [data-ivy-motion] .belief-reveal:not([data-motion]) .day-reveal {
     margin-top: calc(-1 * var(--reveal-height, 100svh));
   }
-  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) > .day-reveal {
+  [data-ivy-motion] .day-reveal:not([data-motion]) .day-reveal-track {
+    padding-bottom: var(--day-distance);
+  }
+  [data-ivy-motion] .day-reveal:not([data-motion]) .day-experience {
+    position: relative;
+    z-index: 2;
+  }
+  /* 日常簾幕的下一段是五校→消息換頁層（HomeNewsTransition.vue 的
+     `.day-reveal[data-motion="on"] .news-transition`），量測前先疊到同一位置。 */
+  [data-ivy-motion] .day-reveal:not([data-motion]) .news-transition {
+    margin-top: calc(-1 * var(--reveal-height, 100svh));
+  }
+  /* ?seam=2 接力版（現行預設）：日常區塊多往上拉一個簾幕距離、卡片相對延後，
+     對應 studio.css 的 [data-seam="2"] .belief-reveal[data-motion="on"] 規則
+     （視窗高度與那裡一樣走 --motion-vh，由 reveal-screen.ts 寫入）。 */
+  [data-seam="2"][data-ivy-motion] .belief-reveal:not([data-motion]) .day-reveal {
     margin-top: calc(-1 * (var(--reveal-height, 100svh) + var(--belief-distance)));
   }
-  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) .day-prints {
-    margin-top: calc(var(--belief-distance) - 28 * var(--motion-vh, 1svh));
+  [data-seam="2"][data-ivy-motion] .belief-reveal:not([data-motion]) .day-prints {
+    margin-top: calc(var(--belief-distance) - var(--motion-vh, 1svh) * 28);
   }
-}
-@media (prefers-reduced-motion: no-preference) and (max-width: 760px) {
-  [data-ivy-motion][data-seam="2"] .belief-reveal:not([data-motion]) .day-prints {
-    margin-top: calc(var(--belief-distance) - 32 * var(--motion-vh, 1svh));
+  @media (max-width: 760px) {
+    [data-seam="2"][data-ivy-motion] .belief-reveal:not([data-motion]) .day-prints {
+      margin-top: calc(var(--belief-distance) - var(--motion-vh, 1svh) * 32);
+    }
   }
 }

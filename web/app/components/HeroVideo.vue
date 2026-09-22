@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { responsiveImage } from '~/utils/responsive-image'
+import { HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { HeroContent } from '~/types/site-content'
 import { useHomeReveal } from '~/composables/useHomeReveal'
@@ -95,15 +95,28 @@ onMounted(() => {
       playbackFrame = requestAnimationFrame(applyPlayback)
     })
   }
-  // 封面完成後再啟動影片，避免首屏圖片與 mp4 搶頻寬。
-  if (heroImgEl.value?.complete) startVideo()
+  // 封面完成後再啟動影片，避免首屏圖片與 mp4 搶頻寬。手機再多等整頁
+  // load 與一段閒置：4G 實測 mp4 會在 LCP 前就開始下載，跟 hydration
+  // chunk 與下方 lazy 圖搶頻寬（見 perf-auditor 2026-09-22 盤點）。
+  const beginVideo = () => {
+    if (disposed) return
+    if (!window.matchMedia('(max-width: 760px)').matches) return startVideo()
+    const idle = () => {
+      if (disposed) return
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startVideo, { timeout: 2500 })
+      else window.setTimeout(startVideo, 1200)
+    }
+    if (document.readyState === 'complete') idle()
+    else window.addEventListener('load', idle, { once: true })
+  }
+  if (heroImgEl.value?.complete) beginVideo()
   else if (heroImgEl.value) {
     const image = heroImgEl.value
-    image.addEventListener('load', startVideo, { once: true })
-    image.addEventListener('error', startVideo, { once: true })
+    image.addEventListener('load', beginVideo, { once: true })
+    image.addEventListener('error', beginVideo, { once: true })
     removeImageListener = () => {
-      image.removeEventListener('load', startVideo)
-      image.removeEventListener('error', startVideo)
+      image.removeEventListener('load', beginVideo)
+      image.removeEventListener('error', beginVideo)
     }
   }
 
@@ -152,7 +165,7 @@ onUnmounted(() => {
               {{ hero.titleParts.before }}<span class="punct">{{ hero.titleParts.punctAfterBefore }}</span><br>
               {{ hero.titleParts.middle }}<span class="hero-title-ending">
                 <span class="growing-word">{{ hero.titleParts.growingWord }}
-                  <svg aria-hidden="true" viewBox="0 0 180 14"><path pathLength="1" d="M3 9Q48 2 92 7T177 6" /></svg>
+                  <span class="hero-underline" aria-hidden="true"><svg viewBox="0 0 180 14"><path d="M3 9Q48 2 92 7T177 6" /></svg></span>
                 </span><span class="punct">{{ hero.titleParts.punctAfterGrowingWord }}</span>
               </span>
             </h1>
@@ -167,7 +180,7 @@ onUnmounted(() => {
           <figure ref="imageEl" class="studio-hero-image">
             <img
               ref="heroImgEl"
-              v-bind="responsiveImage(hero.heroImage)"
+              v-bind="responsiveImage(hero.heroImage, HOME_HERO_SIZES)"
               :alt="hero.heroImageAlt"
               loading="eager"
               fetchpriority="high"
@@ -181,7 +194,6 @@ onUnmounted(() => {
               loop
               playsinline
               preload="none"
-              :poster="`/${hero.heroVideoPoster}`"
               aria-hidden="true"
               @error="onVideoError"
             />

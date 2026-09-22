@@ -1,5 +1,18 @@
 # Design
 
+## 效能修復與動效實作規則（2026-09-22，Lighthouse 手機／SEO 修復）
+
+視覺以正式原始碼為準，以下是為了效能改掉「怎麼做」而不改「長什麼樣」時定下的規則：
+
+- **首屏 hero 底線**：不再用 `stroke-dashoffset` 沿路徑描畫（非合成屬性、每幀重繪 SVG），改成 `.hero-underline` 遮罩框向右滑＋內層 SVG 反向滑的雙層 transform 擦出；節奏、延遲、曲線與原本相同，減少動態直接顯示完成狀態。
+- **簾幕幾何在 hydration 前就要預留**（`web/app/assets/css/performance.css`）：`useCurtain` 量出 `--belief-own`／`--day-own` 之前，track 用 `padding-bottom` 補捲動距離、下一段用負邊距先疊到同一位置（含 seam=2 與 760px 以下的變體），量完只是換成 sticky，不再位移。改簾幕的 `[data-motion="on"]` 規則時，performance.css 的 `:not([data-motion])` 版本要同步。
+- **捲動驅動動畫只掛在真正會動的元素上**：五校→消息換頁與頁尾進場原本對整段 wrapper 的 inherited 自訂屬性（`--news-paper-progress`、`--home-footer-progress`）做 view-timeline 動畫，每幀整棵子樹 style recalc；原生路徑改成直接對 underlay／sheet／`::before`／`::after` 做 transform、opacity、border-radius、box-shadow 動畫（wrapper 只留 `timeline-scope`），變數只保留給 JS 備援（`useNewsTransition`／`useHomeFooterFade` 的 fallback）。首屏 `home-reveal-curtain`（clip-path）與 `home-reveal-copy`（color）維持原樣：改成 transform 會壓扁內容、改雙層交叉淡化中段色會與設計不同。
+- **拍立得 WebGL（保留，不回 CSS 3D）**：觸控裝置貼圖 DPR 上限 1.5、shadow map 512、顯影改六格預繪交叉淡化（不逐幀 `ctx.filter`）、建場景分三段讓出主執行緒並用 `compileAsync`、WebGL 探測整頁一次、觸控裝置同時最多保留 2 張（`paper-budget.ts`，離視窗最遠的卸回 CSS 版、捲回再掛）；桌機維持「接近視窗立即掛載」時序；共用 renderer 持有一個暖身場景讓 shader program 不被釋放。
+- **分校卡片**：只有當前與左右鄰卡綁 `src`／`srcset`（`loading=lazy` 擋不住橫向排在視窗外但在預載邊距內的卡），沒綁的卡保留 width／height 佔位；水滴進場與輪播時鐘不受影響。
+- **字型與資源載入**：不預載 157 KB 的 LINE Seed Bold（讓 CSS 自己發現）、只預載 h1 的 EB 與兩個品牌字子集；品牌字 `@font-face` 併進 `styles.css`，不再載 `brand-fonts.css`；`nitro.compressPublicAssets` 預產 br／gz、SSR HTML 由 `server/plugins/compress-html.ts` 壓 brotli；`features.inlineStyles:false` 避免 scoped 樣式 inline 又 link 各一份。
+- **分享圖**：`og:image` 用 `web/public/assets/og/<name>.jpg`（1200×630，`scripts/optimize-site-images.py` 的 `OG_IMAGES`），不用 WebP；首頁 JSON-LD 列五校 `Preschool`（地址、電話取自發布內容）。
+- 已知但未改：hero h1 實際字重是 700（`h1,h2,h3{font-weight:700}` 蓋過 `.studio-hero h1{font-weight:800}`），與 2026-09-15「ExtraBold 800」不符且 EB 子集因此沒被用到；正式原始碼的分校區塊樣式（校名 38px、膠囊 tabs）與線上 build（Noto Serif 校名、底線式 tabs）不同，未在本輪對齊，待設計側裁定。
+
 ## Nuxt 載入效能第一批（2026-09-22）
 
 - 巡覽照片接近視窗才載入；縮圖依顯示尺寸使用 responsive 候選，放大與展開檢視使用原圖。保留 CMS 媒體 UUID 路徑、既有照片與熱點，不改成不同裁切。

@@ -190,14 +190,7 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" aria-hidden="true">
-          <img
-            class="day-film-poster day-poster-deferred"
-            v-bind="posterImage"
-            :src="posterReady ? posterImage.src : undefined"
-            :srcset="posterReady ? posterImage.srcset : undefined"
-            loading="lazy" alt="" decoding="async"
-          >
-          <noscript v-html="noscriptImage(posterImage, 'day-film-poster', '')" />
+          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" fetchpriority="low" alt="" decoding="async">
           <video
             v-if="showVideo"
             ref="videoEl"

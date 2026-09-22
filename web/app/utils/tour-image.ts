@@ -18,11 +18,12 @@ export function resolveTourImageSrc(image: string): string {
   return `/assets/${image}.webp`
 }
 
-/** 媒體庫保持原 API；靜態場景使用尺寸候選，放大時回到原圖。 */
-export function responsiveTourImage(image: string, sizes: string, fullSize = false): ReturnType<typeof responsiveImage> {
-  if (UUID_PATTERN.test(image)) {
-    return { src: resolveTourImageSrc(image), width: undefined, height: undefined, srcset: undefined, sizes: undefined }
-  }
-  const attrs = responsiveImage(image, sizes)
-  return fullSize ? { ...attrs, srcset: undefined, sizes: undefined } : attrs
+/**
+ * 給 `<img v-bind>` 用：fixture 代號有響應式衍生檔就帶 srcset／sizes／
+ * width／height（導覽主圖與縮圖原本一律載 960px 母檔，Lighthouse 估
+ * 分校頁可省約 250 KB）；媒體庫 UUID 只有單一原檔，維持 src。
+ */
+export function resolveTourImage(image: string, sizes: string): Record<string, string | number | undefined> {
+  if (UUID_PATTERN.test(image)) return { src: resolveTourImageSrc(image) }
+  return responsiveImage(image, sizes)
 }

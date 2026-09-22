@@ -10,12 +10,12 @@ ASSETS = ROOT / 'web/public/assets'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
-restoration = ROOT / 'design/hero-video-restoration-20260922'
-restored = json.loads((restoration / 'manifest.json').read_text())
-approved = {item['file']: item for item in restored['variants']}
+# hero 影片 2026-09-22 提高壓縮率：手機 1.17 MB → 約 0.57 MB、桌機 2.32 MB → 約 1.18 MB。
+# 母帶本身就是社群版放大後的軟畫面，crf 33–34 在同一幀對照下肉眼看不出差異
+# （scratchpad frame-compare）。day 影片維持原參數（進入視窗才載入）。
 for name, source, width, crf in [
-    ('hero-mobile', 'hero-campus.mp4', 720, 27),
-    ('hero-desktop', 'hero-campus.mp4', 1280, 26),
+    ('hero-mobile', 'hero-campus.mp4', 720, 34),
+    ('hero-desktop', 'hero-campus.mp4', 1280, 33),
     ('day-desktop', 'day-film.mp4', 1280, 27),
     ('day-mobile', 'day-film-mobile.mp4', 480, 27),
 ]:

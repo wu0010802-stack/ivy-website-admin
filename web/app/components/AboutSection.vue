@@ -51,6 +51,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
                 v-bind="responsiveImage(photo.image, '(max-width: 760px) 65vw, 28vw')"
                 :alt="photo.alt"
                 loading="lazy"
+                fetchpriority="low"
                 decoding="async"
               >
               <figcaption>{{ about.caption }}</figcaption>

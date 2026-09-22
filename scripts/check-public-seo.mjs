@@ -12,7 +12,7 @@ for (const path of paths) {
   const html = await response.text()
   assert.match(html, /<h1[\s>]/, `${path}: SSR h1`)
   assert.ok(html.includes(`rel="canonical" href="${origin}${path}"`), `${path}: canonical`)
-  assert.match(html, /property="og:image" content="https:\/\//, `${path}: absolute OG image`)
+  assert.match(html, /property="og:image" content="https:\/\/[^"]+\.jpg"/, `${path}: absolute OG image (1200×630 JPG)`)
   assert.match(html, indexable ? /name="robots" content="index, follow/ : /name="robots" content="noindex/, `${path}: robots`)
   assert.match(response.headers.get('cache-control') ?? '', /no-cache/, `${path}: release freshness`)
   const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]

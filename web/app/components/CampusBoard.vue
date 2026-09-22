@@ -37,6 +37,13 @@ function offset(photo: number, selected = index.value) {
   const value = (photo - selected + total) % total
   return value > Math.floor(total / 2) ? value - total : value
 }
+const CARD_SIZES = '(max-width: 700px) calc(100vw - 48px), (max-width: 1100px) 84vw, (min-width: 1846px) 1440px, (min-width: 1600px) 78vw, (min-width: 1500px) 1200px, 80vw'
+// 只有當前與左右鄰卡綁 src／srcset：再遠的卡雖然在視窗外，仍落在 loading=lazy 的預載邊距內，
+// 否則五張會一起下載（手機約 500 KB）。沒綁 src 的卡仍保留 width／height 佔位。
+function cardImage(campus: Campus, photo: number) {
+  const image = responsiveImage(campus.image, CARD_SIZES)
+  return Math.abs(offset(photo)) <= 1 ? image : { width: image.width, height: image.height }
+}
 function select(next: number, automatic = false) {
   const total = orderedCampuses.value.length
   if (!total) { index.value = 0; clock.reset(); return }
@@ -204,7 +211,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
             draggable="false" @click.capture="onPhotoClick($event, i)"
           >
             <img
-              v-bind="responsiveImage(campus.image, '(max-width: 700px) calc(100vw - 48px), (max-width: 1100px) 84vw, (min-width: 1846px) 1440px, (min-width: 1600px) 78vw, (min-width: 1500px) 1200px, 80vw')"
+              v-bind="cardImage(campus, i)"
               :alt="i === index ? `${campus.name}校園外觀` : ''"
               :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"
               :fetchpriority="i === index ? 'auto' : 'low'" loading="lazy" decoding="async" draggable="false"
