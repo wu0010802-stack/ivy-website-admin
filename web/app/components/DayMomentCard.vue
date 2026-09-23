@@ -6,7 +6,8 @@ import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
 import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
-import { GUST_REST, subscribeEarGust, type GustState } from '~/utils/earGust'
+import { CORNER_REST, PUFF_MS, cornerPose, fadePose, leadPose, puffPose, strongest, subscribeCornerWind, type CornerPose, type WindState } from '~/utils/cornerWind'
+import { curlAngle } from '~/utils/cornerCurl'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -18,9 +19,12 @@ const isRevealed = ref(false)
 const isTilting = ref(false)
 const isPeeking = ref(false)
 const webglReady = ref(false)
+const isCornering = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
 const wrapEl = ref<HTMLDivElement | null>(null)
 const printEl = ref<HTMLDivElement | null>(null)
+const frontCornerEl = ref<HTMLSpanElement | null>(null)
+const backCornerEl = ref<HTMLSpanElement | null>(null)
 let observer: IntersectionObserver | null = null
 let nearObserver: IntersectionObserver | null = null
 let paper: PaperHandle | null = null
@@ -28,7 +32,7 @@ let paperPending = false
 let tiltFrame = 0
 let pointerPosition: { x: number; y: number } | null = null
 let cueTimer = 0
-let earFrame = 0
+let cornerFrame = 0
 let peekTimer = 0
 let deferPaper = false
 let isNear = false
@@ -45,66 +49,112 @@ function detachPaper() {
 }
 let turnFrom = 0
 let turningTimer = 0
-let gustObserver: IntersectionObserver | null = null
-let stopGust: (() => void) | null = null
+let windObserver: IntersectionObserver | null = null
+let stopWind: (() => void) | null = null
 // 翻面後這段時間暫停游標傾斜與 WebGL 初始化（WebGL 版另有約 0.2 秒紙張回彈）
 const FLIP_SETTLE_MS = FLIP_MS + 150
 
-// A 版淡折角：顯影後只輕掀一次（26→38→32），首張再向左微翻 12° 回正；
-// 減少動態不做、翻開中不做、每次工作階段只偷看一次。DOM 的 --ear 與 WebGL 貼圖缺口用同一個時鐘。
-const EAR_REST = 32
-const EAR_PEEL_MS = 1100
+// 翻面暗示 A 角落捲起（utils/cornerWind.ts）：沒有折角，觀者看到的右下角被掀起。三個來源取最大的那個：
+// 捲動的風（共用時鐘）、點下去時翻面起手（角先捲，翻面本身不變）、顯影完成後輕掀一次。
+// WebGL 版把角度餵給 paperPrints.ts 彎網格；CSS 版用兩片 3D 三角紙近似（styles.css 的 .print-corner）。
+// 首張另在輕掀後向左微翻 12° 回正；減少動態不做、每次工作階段只偷看一次。
 const PEEK_KEY = 'ivy-day-peek'
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+const seed = props.index * 7.31 + 3.7
+let windCorner: CornerPose = CORNER_REST
+let leadAt = 0
+let puffAt = 0
+// 翻面起手捲的是點下去那一刻朝向觀者的那一面
+let leadSide: 'front' | 'back' = 'front'
 
-// B 捲動飄角：折角 = 基準（進場掀角／靜止）＋捲動疊加（utils/earGust.ts），兩個來源寫同一個數字。
-let earBase = EAR_REST
-let earGust = 0
-
-function renderEar() {
-  const px = earBase + earGust
-  wrapEl.value?.style.setProperty('--ear', `${px.toFixed(1)}px`)
-  paper?.setEar(px)
+function cornerNow(now: number): { pose: CornerPose; side: 'front' | 'back' } {
+  const sinceFlip = now - lastFlipAt
+  const flying = sinceFlip < FLIP_MS
+  // 翻面途中，風的捲曲在前 30% 淡出，讓給起手捲曲
+  let pose = fadePose(windCorner, flying ? 1 - sinceFlip / (FLIP_MS * 0.3) : 1)
+  if (leadAt) pose = strongest(pose, leadPose(now - leadAt))
+  if (puffAt) pose = strongest(pose, puffPose(now - puffAt))
+  return { pose, side: flying ? leadSide : isFlipped.value ? 'back' : 'front' }
 }
 
-function setEar(px: number) {
-  earBase = px
-  renderEar()
+// CSS 版受光：光從左上前方來，角落往觀者掀起時先迎光、過 90° 換另一面
+const LIGHT = [-0.35, -0.45, 1]
+const LIGHT_LEN = Math.hypot(LIGHT[0]!, LIGHT[1]!, LIGHT[2]!)
+function faceShade(angle: number): [number, number] {
+  const tilt = Math.sin(angle) / Math.SQRT2
+  const lit = (-tilt * LIGHT[0]! - tilt * LIGHT[1]! + Math.cos(angle) * LIGHT[2]!) / LIGHT_LEN
+  const rest = LIGHT[2]! / LIGHT_LEN
+  const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+  return [clamp01(1 - lit / rest) * 0.45, clamp01(1 + lit / rest) * 0.45]
 }
 
-function applyGust(gust: Readonly<GustState>) {
-  earGust = gust.ear
-  renderEar()
-  cardEl.value?.style.setProperty('--sway', `${gust.sway.toFixed(3)}deg`)
-}
+const CORNER_VARS = ['--corner-a', '--corner-t', '--corner-lift', '--corner-shade-a', '--corner-shade-b', '--corner-tip-shade-a', '--corner-tip-shade-b']
 
-// 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫折角。
-function listenGust(on: boolean) {
-  if (on === Boolean(stopGust)) return
-  if (on) {
-    stopGust = subscribeEarGust(applyGust)
+function writeCssCorner(pose: CornerPose, side: 'front' | 'back') {
+  const on = pose.hinge > 0.002
+  // 已經收平就不再每幀清變數（風收尾那幾秒）
+  if (!on && !isCornering.value) return
+  if (isCornering.value !== on) isCornering.value = on
+  const active = side === 'front' ? frontCornerEl.value : backCornerEl.value
+  const idle = side === 'front' ? backCornerEl.value : frontCornerEl.value
+  for (const name of CORNER_VARS) idle?.style.removeProperty(name)
+  if (!active) return
+  if (!on) {
+    for (const name of CORNER_VARS) active.style.removeProperty(name)
     return
   }
-  stopGust?.()
-  stopGust = null
-  applyGust(GUST_REST)
+  // 兩片三角紙近似同一條彎曲：靠折線那片取 u=0.25 的角度，角尖那片再多轉到 u=0.75
+  const base = curlAngle(pose.hinge, pose.tip, 0.25)
+  const tip = curlAngle(pose.hinge, pose.tip, 0.75)
+  const [a, b] = faceShade(base)
+  const [ta, tb] = faceShade(tip)
+  const style = active.style
+  style.setProperty('--corner-a', `${((base * 180) / Math.PI).toFixed(2)}deg`)
+  style.setProperty('--corner-t', `${(((tip - base) * 180) / Math.PI).toFixed(2)}deg`)
+  style.setProperty('--corner-lift', Math.sin(Math.min(tip, Math.PI / 2)).toFixed(3))
+  style.setProperty('--corner-shade-a', a.toFixed(3))
+  style.setProperty('--corner-shade-b', b.toFixed(3))
+  style.setProperty('--corner-tip-shade-a', ta.toFixed(3))
+  style.setProperty('--corner-tip-shade-b', tb.toFixed(3))
 }
 
-function runPeel(done: () => void) {
-  const start = performance.now()
-  const step = () => {
-    earFrame = 0
-    if (!wrapEl.value?.isConnected) return
-    const t = Math.min(1, (performance.now() - start) / EAR_PEEL_MS)
-    const px = t < 0.55 ? 26 + (38 - 26) * easeInOut(t / 0.55) : 38 - (38 - EAR_REST) * easeInOut((t - 0.55) / 0.45)
-    setEar(px)
-    if (t < 1) earFrame = requestAnimationFrame(step)
-    else {
-      setEar(EAR_REST)
-      done()
-    }
+function renderCorner(now = performance.now()) {
+  const { pose, side } = cornerNow(now)
+  if (paper) paper.setCorner(pose)
+  else writeCssCorner(pose, side)
+}
+
+function applyWind(wind: Readonly<WindState>, t: number) {
+  windCorner = cornerPose(wind, t, seed)
+  renderCorner()
+  cardEl.value?.style.setProperty('--sway', `${wind.sway.toFixed(3)}deg`)
+}
+
+// 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫。
+function listenWind(on: boolean) {
+  if (on === Boolean(stopWind)) return
+  if (on) {
+    stopWind = subscribeCornerWind(applyWind)
+    return
   }
-  earFrame = requestAnimationFrame(step)
+  stopWind?.()
+  stopWind = null
+  windCorner = CORNER_REST
+  renderCorner()
+  cardEl.value?.style.setProperty('--sway', '0deg')
+}
+
+// 翻面起手與進場輕掀的時鐘：跑完就收掉
+function runCorner() {
+  if (cornerFrame) return
+  const step = (now: number) => {
+    cornerFrame = 0
+    if (!wrapEl.value?.isConnected) return
+    if (leadAt && now - leadAt >= FLIP_MS) leadAt = 0
+    if (puffAt && now - puffAt >= PUFF_MS) puffAt = 0
+    renderCorner(now)
+    if (leadAt || puffAt) cornerFrame = requestAnimationFrame(step)
+  }
+  cornerFrame = requestAnimationFrame(step)
 }
 
 function peekedThisSession(): boolean {
@@ -138,14 +188,14 @@ function runPeek() {
 
 function scheduleCues() {
   const mobile = window.matchMedia('(max-width: 760px)').matches
-  // 顯影：桌機 3.2 秒、手機 0.9 秒（paperPrints.ts／styles.css 同參數），完成後再掀角
+  // 顯影：桌機 3.2 秒、手機 0.9 秒（paperPrints.ts／styles.css 同參數），完成後角落輕掀一次
   const delay = mobile ? 1100 : 3400
   cueTimer = window.setTimeout(() => {
     cueTimer = 0
-    runPeel(() => {
-      if (props.index !== 0) return
-      peekTimer = window.setTimeout(runPeek, 300)
-    })
+    if (isFlipped.value) return
+    puffAt = performance.now()
+    runCorner()
+    if (props.index === 0) peekTimer = window.setTimeout(runPeek, PUFF_MS + 300)
   }, delay)
 }
 
@@ -198,7 +248,7 @@ function onPointerLeave() {
 // WebGL 紙張版（比稿 R）：快接近視窗才載 three，成功就把 DOM 卡片的
 // 翻面／傾斜／顯影交給它；失敗或減少動態就維持 CSS 3D 版。
 function readyForPaper() {
-  return !deferPaper || (isNear && isScrollIdle() && !cueTimer && !earFrame && !isPeeking.value && performance.now() - lastFlipAt >= FLIP_SETTLE_MS)
+  return !deferPaper || (isNear && isScrollIdle() && !cueTimer && !cornerFrame && !isPeeking.value && performance.now() - lastFlipAt >= FLIP_SETTLE_MS)
 }
 
 function queuePaper() {
@@ -246,8 +296,8 @@ async function attachPaper() {
   }
   webglReady.value = true
   onPointerLeave()
-  const currentEar = Number.parseFloat(wrapEl.value.style.getPropertyValue('--ear'))
-  if (Number.isFinite(currentEar)) paper.setEar(currentEar)
+  isCornering.value = false
+  renderCorner()
   paper.setFlipped(isFlipped.value)
   paper.setActive(Boolean(props.active))
   if (isRevealed.value) paper.setRevealed()
@@ -280,9 +330,8 @@ onMounted(() => {
     isRevealed.value = true
     return
   }
-  setEar(26)
-  gustObserver = new IntersectionObserver((entries) => listenGust(entries.at(-1)?.isIntersecting ?? false), { rootMargin: '10% 0px' })
-  gustObserver.observe(cardEl.value)
+  windObserver = new IntersectionObserver((entries) => listenWind(entries.at(-1)?.isIntersecting ?? false), { rootMargin: '10% 0px' })
+  windObserver.observe(cardEl.value)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   if (mayAutoplay(prefersReducedMotion, connection)) nearObserver = new IntersectionObserver(
     (entries) => {
@@ -323,14 +372,14 @@ onUnmounted(() => {
   observer = null
   nearObserver?.disconnect()
   nearObserver = null
-  gustObserver?.disconnect()
-  gustObserver = null
-  stopGust?.()
-  stopGust = null
+  windObserver?.disconnect()
+  windObserver = null
+  stopWind?.()
+  stopWind = null
   cancelPaper?.()
   cancelPaper = null
   cancelAnimationFrame(tiltFrame)
-  cancelAnimationFrame(earFrame)
+  cancelAnimationFrame(cornerFrame)
   window.clearTimeout(cueTimer)
   window.clearTimeout(peekTimer)
   window.clearTimeout(turningTimer)
@@ -341,18 +390,25 @@ function toggleFlip(event: MouseEvent) {
   // 滑鼠／觸控點完就放掉焦點：否則之後按方向鍵或空白鍵捲頁，Chrome 會把這顆按鈕判成
   // :focus-visible，冒出不跟紙傾斜的平面綠框，空白鍵還會再翻一次。鍵盤 Enter／Space 的 click detail 為 0，保留焦點框。
   if (event.detail > 0) (event.currentTarget as HTMLButtonElement | null)?.blur()
-  // 點擊接管提示動畫，避免掀角／偷看在翻頁途中繼續拉動紙張。
-  cancelAnimationFrame(earFrame)
+  // 點擊接管提示動畫：進場輕掀／偷看不在翻頁途中繼續拉動紙張。
   window.clearTimeout(cueTimer)
   window.clearTimeout(peekTimer)
-  earFrame = cueTimer = peekTimer = 0
+  cueTimer = peekTimer = 0
+  puffAt = 0
   isPeeking.value = false
-  setEar(EAR_REST)
   onPointerLeave()
   const now = performance.now()
   // 靜止時往左翻一格；翻到一半再點就原路翻回（CSS 版讀不到連續角度，用「是否仍在翻」判斷）
   const inFlight = now - lastFlipAt < FLIP_MS
-  if (!inFlight) turnFrom = turn.value
+  if (!inFlight) {
+    turnFrom = turn.value
+    // 翻面起手：觀者看到的右下角先捲起；翻到一半再點是原路翻回，不再起手
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      leadAt = now
+      leadSide = isFlipped.value ? 'back' : 'front'
+      runCorner()
+    }
+  }
   lastFlipAt = now
   isFlipped.value = !isFlipped.value
   turn.value = turnTarget(inFlight ? (turn.value + turnFrom) / 2 : turn.value, isFlipped.value)
@@ -396,7 +452,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
       <div
         ref="wrapEl"
         class="print-wrap"
-        :class="{ 'is-flipped': isFlipped, 'is-turning': isTurning, 'is-tilting': isTilting, 'is-peeking': isPeeking, 'webgl-ready': webglReady }"
+        :class="{ 'is-flipped': isFlipped, 'is-turning': isTurning, 'is-tilting': isTilting, 'is-peeking': isPeeking, 'is-cornering': isCornering, 'webgl-ready': webglReady }"
         :style="{ '--flip': `${turn * 180}deg` }"
         @pointermove="onPointerMove"
         @pointerleave="onPointerLeave"
@@ -413,7 +469,6 @@ const titleLines = computed(() => props.moment.title.split('\n'))
               <p class="print-kicker">{{ kicker }}</p>
               <h3><template v-for="(line, i) in titleLines" :key="i">{{ line }}<br v-if="i < titleLines.length - 1"></template></h3>
             </div>
-            <span class="print-ear" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path class="print-ear-paper" d="M0 0Q48 7 100 0L0 100Q7 48 0 0Z"/><path class="print-ear-lines" d="M2 21H79M3 42H58M3 63H37M2 84H16"/></svg></span>
           </div>
           <div class="print-face print-back" :id="`day-story-${moment.key}`" :inert="!isFlipped">
             <p class="print-kicker">{{ kicker }}</p>
@@ -422,8 +477,16 @@ const titleLines = computed(() => props.moment.title.split('\n'))
               <p class="print-question">{{ moment.question }}</p>
               <p class="print-answer">{{ moment.answer }}</p>
             </div>
-            <span class="print-ear" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path class="print-ear-paper" d="M0 0Q48 7 100 0L0 100Q7 48 0 0Z"/></svg></span>
           </div>
+          <!-- A 角落捲起的 CSS 版：正反面各一片，貼在各自朝向觀者時的右下角；起風或翻面起手時才切開紙角換上它（.is-cornering）。WebGL 版不用。 -->
+          <span ref="frontCornerEl" class="print-corner is-front" aria-hidden="true">
+            <span class="print-corner-shadow" />
+            <span class="print-corner-flap"><i class="print-corner-a" /><i class="print-corner-b" /><span class="print-corner-tip"><i class="print-corner-a" /><i class="print-corner-b" /></span></span>
+          </span>
+          <span ref="backCornerEl" class="print-corner is-back" aria-hidden="true">
+            <span class="print-corner-shadow" />
+            <span class="print-corner-flap"><i class="print-corner-a" /><i class="print-corner-b" /><span class="print-corner-tip"><i class="print-corner-a" /><i class="print-corner-b" /></span></span>
+          </span>
         </div>
         <button
           class="print-turn"

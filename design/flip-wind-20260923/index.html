@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>翻面暗示｜風掀三版</title>
+  <link rel="stylesheet" href="mockup.css">
+  <script type="importmap">{"imports":{"three":"../../web/node_modules/three/build/three.module.js"}}</script>
+  <script type="module" src="mockup.js"></script>
+</head>
+<body data-view="all">
+  <header class="masthead">
+    <div class="identity"><img src="../../web/public/assets/logo.png" alt="常春藤幼兒園"><span>常春藤 · 孩子的一天</span></div>
+    <span class="edition">翻面暗示・風掀 <span lang="en">/ 2026.09.23</span></span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">拍立得翻面・拿掉折角</p><h1>平常是一張完整的相片，<br class="mobile-break">風來了才掀起背面。</h1></div>
+      <div class="intro-aside"><p>三版都沒有折角。捲動時被風從牆上掀起來，<br>掀過頭就露出背面的橫線紙，風停就平貼回去。</p><nav aria-label="提案預覽"><a href="?view=all" data-view="all">三版比較</a><a href="?view=a" data-view="a">A</a><a href="?view=b" data-view="b">B</a><a href="?view=c" data-view="c">C</a></nav></div>
+    </section>
+    <section class="board" aria-label="風掀翻面暗示 mock-up">
+      <div class="board-top"><span>同兩張相片，三個被風掀起的部位 · <b>請上下捲動，或按「吹一陣風」</b></span><div class="controls"><button type="button" class="breeze" aria-pressed="false">靜止時微風</button><button type="button" class="gust">吹一陣風 <span aria-hidden="true">≋</span></button></div></div>
+      <div class="directions"></div>
+      <div class="board-bottom"><span>相片與故事取自官網 fixture</span><span>整張可點 · 觸控與鍵盤可翻面 · 減少動態不播動畫</span></div>
+    </section>
+    <footer class="notes"><p>「靜止時微風」是另一個獨立決定：開了之後，停止捲動 2 秒，每 5–9 秒有一陣微風從右往左掃過畫面裡的相片（會自己動，但不翻面）。預設關，只回應捲動。</p><p>本頁用 three.js 紙張網格示意，貼圖畫法同官網 paperPrints.ts；手機捲動中官網是 CSS 版，選定後另做 CSS 近似。</p></footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>翻面動畫｜角落起翻三版</title>
+  <link rel="stylesheet" href="mockup.css">
+  <script type="importmap">{"imports":{"three":"../../web/node_modules/three/build/three.module.js"}}</script>
+  <script type="module" src="mockup.js"></script>
+</head>
+<body data-view="all">
+  <header class="masthead">
+    <div class="identity"><img src="../../web/public/assets/logo.png" alt="常春藤幼兒園"><span>常春藤 · 孩子的一天</span></div>
+    <span class="edition">翻面動畫・角落起翻 <span lang="en">/ 2026.09.23</span></span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">提示選 A 角落捲起・翻面跟著改</p><h1>風掀起的那個角，<br class="mobile-break">就是翻面的起點。</h1></div>
+      <div class="intro-aside"><p>三版都是：捲動時右下角被風掀起（A），點下去時也從右下角先捲，<br>再照現行方向「右緣掀起往左翻」整張翻過去。差在整張怎麼跟上。</p><nav aria-label="提案預覽"><a href="?view=all" data-view="all">三版比較</a><a href="?view=a" data-view="a">A1</a><a href="?view=b" data-view="b">A2</a><a href="?view=c" data-view="c">A3</a></nav></div>
+    </section>
+    <section class="board" aria-label="角落起翻三版 mock-up">
+      <div class="board-top"><span>點相片翻面，再點翻回 · <b>「全部翻一次」並排比較，「慢動作」看細節</b></span><div class="controls"><button type="button" class="slow" aria-pressed="false">慢動作</button><button type="button" class="gust">吹一陣風 <span aria-hidden="true">≋</span></button><button type="button" class="flip-all">全部翻一次 <span aria-hidden="true">↺</span></button></div></div>
+      <div class="directions"></div>
+      <div class="board-bottom"><span>相片與故事取自官網 fixture</span><span>整張可點 · 觸控與鍵盤可翻面 · 減少動態不播動畫</span></div>
+    </section>
+    <footer class="notes"><p>三版的翻面方向都跟官網一致（每次都是觀者看到的右下角先起、往左翻），翻到一半再點會原路翻回。紙膠帶跟著紙一起翻，沒有停在原地的元素。</p><p>本頁用 three.js 紙張網格示意（同上一輪風掀 mock 的做法）；「靜止時微風」仍待決定，這頁不放。</p></footer>
+  </main>
+</body>
+</html>

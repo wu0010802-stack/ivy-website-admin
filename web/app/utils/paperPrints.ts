@@ -13,9 +13,13 @@
  * - 減少動態、無 WebGL、three 載入失敗：回傳 null，元件維持 CSS 3D 版。
  * - 翻面（2026-09-23）：永遠右緣掀起往左翻（printFlip.ts），紙張依轉速做單側懸臂彎曲、
  *   停下時遠端輕輕回彈；紙膠帶畫進貼圖，跟著紙一起翻，不再停在原位。
+ * - 翻面暗示 A 角落捲起（2026-09-23 晚）：沒有折角，觀者看到的右下角被風掀起（網格沿對角折線彎曲，
+ *   cornerCurl.ts），角度由 DayMomentCard 取風、翻面起手、進場輕掀最大值後經 setCorner 餵進來。
  */
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
+import { createCurl, curlPoint, setCurl } from './cornerCurl'
+import { CORNER_REST, REACH_REFERENCE_WIDTH, WIND_REACH, type CornerPose } from './cornerWind'
 
 type Three = typeof ThreeNS
 
@@ -34,15 +38,14 @@ export interface PaperHandle {
   setActive(active: boolean): void
   pointerMove(clientX: number, clientY: number): void
   pointerLeave(): void
-  /** 右下折角的邊長（px），跟 DOM 的 `--ear` 同步；貼圖在該處挖空露出後方地板。 */
-  setEar(px: number): void
+  /** 觀者看到的右下角被掀起的程度（風、翻面起手、進場輕掀取最大值）；翻面途中固定掀起點那一面。 */
+  setCorner(pose: CornerPose): void
   /** 首張進場「偷看」：向左微翻再回正，一次。 */
   peek(): void
   dispose(): void
 }
 
 const MARGIN = 70 // 四周留給彎曲與抬升
-const EAR_DEFAULT = 32
 // 翻面手感：立起時抬升、下緣（折角那側）先起來一點；抬得越高影子越淡越散。
 const LIFT = 36
 const FLIP_TILT = 0.08
@@ -57,7 +60,9 @@ const PEEK_TURN = 12 / 180
 const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
 const developMs = () => (window.matchMedia('(max-width: 760px)').matches ? DEVELOP_MS_MOBILE : DEVELOP_MS)
-const SEGMENTS = 28
+// 角落捲曲的範圍只有 50–130px，網格要夠細才彎得圓（每格約 10px）
+const SEGMENTS_X = 44
+const SEGMENTS_Y = 56
 // 顯影改成「預先畫好幾個中間格、每幀只做兩格的 alpha 交叉淡化」：原本每幀用
 // ctx.filter（sepia/contrast/blur）重畫整張照片，手機 4x 節流下一幀就要 100 ms 以上。
 // 六格（0、.2、…、1）在 3.2 秒的淡入裡肉眼看不出與逐幀濾鏡的差別；格子用到才畫。
@@ -357,7 +362,7 @@ export async function mountPaper(
   let flipped = initial.flipped ?? false
   let revealed = initial.developed ?? false
   let active = false
-  let earPx = Number.parseFloat(getComputedStyle(wrap).getPropertyValue('--ear')) || EAR_DEFAULT
+  let corner: CornerPose = CORNER_REST
   let disposed = false
 
   // 每次尺寸變動就整組重建（貼圖尺寸與幾何都綁著像素寬）
@@ -400,7 +405,6 @@ export async function mountPaper(
       const askEl = back!.querySelector('.print-ask')
       const questionEl = back!.querySelector('.print-question')
       const answerEl = back!.querySelector('.print-answer')
-      const earEl = front!.querySelector<HTMLElement>('.print-ear')
       const backRect = back!.getBoundingClientRect()
 
       const style = {
@@ -408,8 +412,6 @@ export async function mountPaper(
         backBg: colorOf(back, 'backgroundColor', '#fff6df'),
         figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
         lineColor: 'rgb(32 64 47 / .07)',
-        earLineColor: earEl ? getComputedStyle(earEl).color : getComputedStyle(front!).color,
-        earShadow: getComputedStyle(wrap).getPropertyValue('--print-ear-shadow').trim(),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
         stampColor: colorOf(stamp, 'color', '#ffb347'),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
@@ -489,60 +491,6 @@ export async function mountPaper(
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
       paperSpace(ctx)
-    }
-
-    // 折角缺口：正面挖右下、背面挖左下（背面幾何繞 Y 轉 180°，左下才會落在觀者右下）
-    function cutEar(ctx: CanvasRenderingContext2D, side: 'right' | 'left') {
-      if (earPx <= 0) return
-      ctx.save()
-      ctx.globalCompositeOperation = 'destination-out'
-      ctx.beginPath()
-      if (side === 'right') {
-        ctx.moveTo(W, H - earPx)
-        ctx.lineTo(W, H)
-        ctx.lineTo(W - earPx, H)
-      } else {
-        ctx.moveTo(0, H - earPx)
-        ctx.lineTo(earPx, H)
-        ctx.lineTo(0, H)
-      }
-      ctx.closePath()
-      ctx.fill()
-      ctx.restore()
-    }
-
-    // 折角直接畫在紙面貼圖上，隨同一張 mesh 彎曲、旋轉，不留固定 DOM 浮層。
-    function drawEar(ctx: CanvasRenderingContext2D, side: 'right' | 'left') {
-      if (earPx <= 0) return
-      const e = earPx
-      ctx.save()
-      ctx.translate(side === 'right' ? W - e : e, H - e)
-      if (side === 'left') ctx.scale(-1, 1)
-      ctx.beginPath()
-      ctx.moveTo(0, 0)
-      ctx.quadraticCurveTo(e * 0.48, e * 0.07, e, 0)
-      ctx.lineTo(0, e)
-      ctx.quadraticCurveTo(e * 0.07, e * 0.48, 0, 0)
-      ctx.closePath()
-      ctx.shadowColor = style.earShadow
-      ctx.shadowBlur = 2
-      ctx.shadowOffsetX = -1
-      ctx.shadowOffsetY = -1
-      setFill(ctx, side === 'right' ? style.backBg : style.frontBg, style.frontBg)
-      ctx.fill()
-      ctx.shadowColor = 'transparent'
-      if (side === 'right') {
-        ctx.clip()
-        ctx.strokeStyle = style.earLineColor
-        ctx.lineWidth = 0.65
-        for (let y = e * 0.21; y < e; y += e * 0.21) {
-          ctx.beginPath()
-          ctx.moveTo(0, y)
-          ctx.lineTo(e - y, y)
-          ctx.stroke()
-        }
-      }
-      ctx.restore()
     }
 
     function drawFrontBase() {
@@ -788,53 +736,10 @@ export async function mountPaper(
       drawTape(ctx, 'back')
     }
 
-    // 掀角只改缺口：快取未裁切的小塊底角，不重畫照片、故事與換行量測。
-    // 連同折角陰影保留一圈底色，縮小時不留下上一幀的痕跡。
-    const frontCorner = document.createElement('canvas')
-    const backCorner = document.createElement('canvas')
-    const frontCornerCtx = frontCorner.getContext('2d')!
-    const backCornerCtx = backCorner.getContext('2d')!
-    let cornerPixels = 0
-
-    function restoreCorner(ctx: CanvasRenderingContext2D, corner: HTMLCanvasElement, side: 'right' | 'left') {
-      if (!cornerPixels) return
-      const x = side === 'right' ? ctx.canvas.width - cornerPixels : 0
-      const y = ctx.canvas.height - cornerPixels
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.clearRect(x, y, cornerPixels, cornerPixels)
-      ctx.drawImage(corner, x, y)
-      paperSpace(ctx)
-    }
-
-    function updateTextures(photoChanged = false) {
-      restoreCorner(fctx, frontCorner, 'right')
-      restoreCorner(bctx, backCorner, 'left')
-      if (photoChanged) drawPhoto(develop, active)
-      const nextPixels = Math.min(frontCanvas.width, frontCanvas.height, Math.ceil((Math.max(earPx, EAR_DEFAULT) + 6) * DPR))
-      const grew = nextPixels > cornerPixels
-      if (grew) {
-        cornerPixels = nextPixels
-        frontCorner.width = frontCorner.height = backCorner.width = backCorner.height = cornerPixels
-      }
-      if (grew || photoChanged) {
-        frontCornerCtx.clearRect(0, 0, cornerPixels, cornerPixels)
-        frontCornerCtx.drawImage(frontCanvas, frontCanvas.width - cornerPixels, frontCanvas.height - cornerPixels, cornerPixels, cornerPixels, 0, 0, cornerPixels, cornerPixels)
-      }
-      if (grew) {
-        backCornerCtx.clearRect(0, 0, cornerPixels, cornerPixels)
-        backCornerCtx.drawImage(backCanvas, 0, backCanvas.height - cornerPixels, cornerPixels, cornerPixels, 0, 0, cornerPixels, cornerPixels)
-      }
-      cutEar(fctx, 'right')
-      cutEar(bctx, 'left')
-      drawEar(fctx, 'right')
-      drawEar(bctx, 'left')
-    }
-
     let develop = revealed ? 1 : 0
     drawFrontBase()
     drawPhoto(develop, active)
     drawBack()
-    updateTextures()
     await nextFrame()
     if (disposed) return null
     const frontTex = new three.CanvasTexture(frontCanvas)
@@ -849,11 +754,11 @@ export async function mountPaper(
     camera.position.z = dist
 
     // 網格往上多一條膠帶帶（TOP），再平移讓紙的中心留在原點，翻轉軸不變
-    const geoF = new three.PlaneGeometry(W, H + TOP, SEGMENTS, SEGMENTS)
-    const geoB = new three.PlaneGeometry(W, H + TOP, SEGMENTS, SEGMENTS)
+    const geoF = new three.PlaneGeometry(W, H + TOP, SEGMENTS_X, SEGMENTS_Y)
+    const geoB = new three.PlaneGeometry(W, H + TOP, SEGMENTS_X, SEGMENTS_Y)
     geoF.translate(0, TOP / 2, 0)
     geoB.translate(0, TOP / 2, 0)
-    // alphaTest 讓折角缺口與膠帶外緣硬邊透空，不走透明排序
+    // alphaTest 讓膠帶外緣硬邊透空，不走透明排序
     const matF = new three.MeshStandardMaterial({ map: frontTex, roughness: 0.62, metalness: 0, alphaTest: 0.5 })
     const matB = new three.MeshStandardMaterial({ map: backTex, roughness: 0.8, metalness: 0, alphaTest: 0.5 })
     const meshF = new three.Mesh(geoF, matF)
@@ -896,6 +801,7 @@ export async function mountPaper(
     sceneObj.add(glare)
 
     const base = Float32Array.from(geoF.attributes.position!.array as ArrayLike<number>)
+    const baseB = Float32Array.from(geoB.attributes.position!.array as ArrayLike<number>)
     const halfW = W / 2
     // 翻面位置以半圈為單位（printFlip.ts）：0 正面、-1 背面；負值＝右緣掀起往左翻。
     let turn = flipped ? -1 : 0
@@ -911,18 +817,54 @@ export async function mountPaper(
     let lastNow = 0
     let peekNow = 0
 
-    // 單側懸臂：手捏的那一側平直，遠端因慣性落後、往起翻時朝向觀者的那一面彎。
-    // 背面幾何繞 Y 轉了 180°：它的 x 對到紙的 -x、z 對到 -z。
-    function bend(amount: number) {
+    const cols = SEGMENTS_X + 1
+    const curl = createCurl()
+    const point = { x: 0, y: 0, z: 0 }
+    let shaped = false
+    const isBackTurn = (value: number) => Math.abs(Math.round(value)) % 2 === 1
+
+    // 紙張變形＝右下角捲曲（風／翻面起手／進場輕掀）＋翻面時的單側懸臂彎曲。
+    // 角落在「觀者看到的那一面」的座標裡算：翻到背面時 x、z 反過來，永遠是觀者右下角被掀起；
+    // 翻面途中固定是起點那一面，才不會翻到一半換到另一個角。
+    // 懸臂：手捏的那一側平直，遠端因慣性落後、往起翻時朝向觀者的那一面彎。
+    // 背面幾何繞 Y 轉了 180°：同一列左右對調、x 與 z 取負，逐點由正面結果鏡射過去。
+    function deform(time: number) {
       const pf = geoF.attributes.position!
       const pb = geoB.attributes.position!
       const af = pf.array as Float32Array
       const ab = pb.array as Float32Array
-      const depth = grip * amount * W
-      for (let i = 0; i < pf.count; i++) {
-        const x = base[i * 3]!
-        af[i * 3 + 2] = depth * cantilever(x, halfW, grip)
-        ab[i * 3 + 2] = -depth * cantilever(-x, halfW, grip)
+      const depth = grip * bent * W
+      const facing = isBackTurn(turn === turnGoal ? turn : turnFrom) ? -1 : 1
+      const scale = W / REACH_REFERENCE_WIDTH
+      const reach = (WIND_REACH[0] + WIND_REACH[1] * corner.reach) * scale
+      const angle = -Math.PI / 4 + corner.tilt
+      const nx = Math.cos(angle)
+      const ny = Math.sin(angle)
+      setCurl(curl, { hinge: corner.hinge, tip: corner.tip, nx, ny, ox: halfW - nx * reach, oy: -H / 2 - ny * reach, reach, ripple: 0.12, rippleK: 0.045 / scale, rippleW: 9 })
+      if (!curl.active && !depth) {
+        if (!shaped) return
+        af.set(base)
+        ab.set(baseB)
+        shaped = false
+      } else {
+        for (let i = 0; i < pf.count; i++) {
+          const bx = base[i * 3]!
+          point.x = bx * facing
+          point.y = base[i * 3 + 1]!
+          point.z = 0
+          curlPoint(point, curl, time)
+          const x = point.x * facing
+          const z = point.z * facing + depth * cantilever(bx, halfW, grip)
+          af[i * 3] = x
+          af[i * 3 + 1] = point.y
+          af[i * 3 + 2] = z
+          const row = Math.floor(i / cols)
+          const j = row * cols + (cols - 1 - (i - row * cols))
+          ab[j * 3] = -x
+          ab[j * 3 + 1] = point.y
+          ab[j * 3 + 2] = -z
+        }
+        shaped = true
       }
       pf.needsUpdate = pb.needsUpdate = true
       geoF.computeVertexNormals()
@@ -940,7 +882,7 @@ export async function mountPaper(
     let developStart = 0
     let peekStart = 0
     let dirtyFront = false
-    let dirtyEar = false
+    let dirtyCorner = corner.hinge > 0
     const rendererSize = new three.Vector2()
 
     function render() {
@@ -974,9 +916,10 @@ export async function mountPaper(
       flex = stepFlex(flex, flexAim, dt)
       if (Math.abs(flex.value) > 2e-4 || Math.abs(flex.velocity) > 2e-3 || flexAim !== 0) busy = true
       else flex = { value: 0, velocity: 0 }
-      if (flex.value !== bent) {
+      if (flex.value !== bent || dirtyCorner) {
         bent = flex.value
-        bend(bent)
+        dirtyCorner = false
+        deform(now / 1000)
       }
       // 游標微傾與懸停抬升：依實際經過時間平滑，高更新率螢幕不會變快
       const follow = 1 - Math.pow(0.82, dt * 60)
@@ -1005,11 +948,10 @@ export async function mountPaper(
         if (d >= 1) developStart = 0
         else busy = true
       }
-      if (dirtyFront || dirtyEar) {
-        updateTextures(dirtyFront)
+      if (dirtyFront) {
+        drawPhoto(develop, active)
         frontTex.needsUpdate = true
-        if (dirtyEar) backTex.needsUpdate = true
-        dirtyFront = dirtyEar = false
+        dirtyFront = false
       }
       // 共用 renderer 切到不同尺寸的卡片時才重設 backing buffer。
       // three 的 setSize 即使尺寸相同也會寫入 canvas.width／height。
@@ -1054,8 +996,8 @@ export async function mountPaper(
         dirtyFront = true
         kick()
       },
-      redrawEar() {
-        dirtyEar = true
+      redrawCorner() {
+        dirtyCorner = true
         kick()
       },
       peek() {
@@ -1167,11 +1109,13 @@ export async function mountPaper(
     pointerLeave() {
       scene?.rest()
     },
-    setEar(px) {
-      const next = Math.max(0, Math.round(px))
-      if (next === earPx) return
-      earPx = next
-      scene?.redrawEar()
+    setCorner(pose) {
+      // 前後都是平的就不必重畫（風收尾那幾秒，角度已經小到看不出來）
+      const flat = (p: CornerPose) => p.hinge < 1e-3 && Math.abs(p.tip) < 1e-3
+      const skip = pose === corner || (flat(pose) && flat(corner))
+      corner = pose
+      if (skip) return
+      scene?.redrawCorner()
     },
     peek() {
       scene?.peek()

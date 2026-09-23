@@ -1,3 +1,14 @@
+## 2026-09-23 拍立得翻面暗示改 A「角落捲起」：拿掉折角、風把右下角掀起來
+
+使用者要翻面提示有風吹的感覺，比稿 `design/flip-wind-20260923/`（無折角三版）與 `design/flip-corner-turn-20260923/`（依 A 做的翻面三版）後裁定：**A 角落捲起，點下去也從右下角先捲，翻面效果維持不變**。已接進 Nuxt `web/`：
+
+- 拿掉右下折角（`.print-ear`、`--ear`、貼圖挖角、進場掀角），平常是完整平貼的相紙。
+- 捲動時觀者看到的右下角被風掀起（捲得越快越大，強風翻過 90° 露出背面橫線紙，停下落回牆面輕彈一下，整張微擺 ≤0.4°）；只回應捲動，減少動態不做。
+- 點下去 0.1 秒內角先捲起、0.45 秒內收掉，之後照原本的翻面（時長、曲線、懸臂彎、抬升都沒動）；顯影完成後角落輕掀一次取代舊掀角，首張偷看維持。
+- 新增 `web/app/utils/cornerWind.ts`（風、起手、輕掀，取代 `earGust.ts`）與 `cornerCurl.ts`（紙張彎曲數學）；`paperPrints.ts` 網格 28×28→44×56 改彎角落、移除貼圖挖角；CSS 版（手機捲動中、無 WebGL）用兩片 3D 三角紙近似，只在起風／起手時才切開紙角。
+
+驗證：Node 22 vitest 24 檔 180 項通過（新增 `corner-wind`、`corner-curl` 兩支，移除 `ear-gust`）；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Chrome（M2 Metal）桌機 WebGL：靜止無折角、捲動時右下角捲起、點擊後 120ms 角先捲再照原樣翻過去與翻回；強制關 WebGL 的 CSS 版起風三角紙掀到 52°、起手在約 100ms 到 43° 並於 430ms 收平（真實時間逐幀取樣）；手機 390 捲動當下走 CSS 版、停下後接 WebGL、無水平溢出；減少動態不掀、不載 WebGL；幀時間 p50／p95 16.7／16.8ms 與沒有拍立得的區段相同。證據 `output/playwright/flip-wind-corner-20260923/`，快照 `versions/before-flip-wind-corner-20260923-210501/`。驗證用的是另一個 session 開著的 dev server（3161），當時頁面有別處改到一半的 `visit-looks.css` 404／Vite 錯誤遮罩，與拍立得無關。未提交、未部署；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 手機體驗：內頁頁首收成膠囊、選單鎖捲動、小字放大
 
 接續手機盤點的第 3–6 項（預約表單「下一步」與表單提示字級、新聞卡點擊區，因另有 session 正在改版預約頁與新聞輪播，本次未動）。
@@ -25,13 +36,27 @@
 
 使用者從桌機輪播三版選 C，接進 `web/`：`NewsDialog.vue` 的三張消息卡改由 `composables/useNewsRotation.ts` 輪播（每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換；fixture 6 則兩組交替），標題列加被動倒數「01 / 02」。分組邏輯 `utils/newsRotation.ts`（超過三則才輪播、最後一組從頭補滿），計時沿用分校的 `createCarouselClock`。滑鼠停在卡上、鍵盤焦點、對話框開著、離屏、分頁在背景都暫停；減少動態與 640px 以下（原生橫向捲動）不輪播。卡片圖改包 `.hn-media`（桌機 1.55、手機 3:2 比例不變）。取代 09-16「不使用自動輪播」，已記入 DESIGN.md。修改前快照 `versions/before-news-carousel-c-20260923-205644/`。
 
-驗證：Node 22 `vitest run` 23 檔 169 項通過（新增 `tests/news-rotation.spec.ts` 3 項）、`nuxt typecheck` 0 個 `error TS`；`node --check app.js` → `python3 package_preview.py`，`preview.html` 無差異。本機 :3161 Playwright：1440／1024 從第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題（不掉到 body），Esc 關閉的鍵盤焦點維持暫停；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、無 hydration 警告。console 唯一錯誤是另一項未提交工作的 `visit-looks.css` 404，與本項無關。截圖 `output/news-carousel-c-site/`。未決：WCAG 2.2.2 常駐暫停方式（使用者要求不要按鈕）。Safari／iOS 未驗證。未提交、未部署。
+驗證：Node 22 `vitest run` 23 檔 169 項通過（新增 `tests/news-rotation.spec.ts` 3 項）、`nuxt typecheck` 0 個 `error TS`；`node --check app.js` → `python3 package_preview.py`，`preview.html` 無差異。本機 :3161 Playwright：1440／1024 從第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題（不掉到 body），Esc 關閉的鍵盤焦點維持暫停；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、無 hydration 警告。console 唯一錯誤是另一項未提交工作的 `visit-looks.css` 404，與本項無關。截圖 `output/news-carousel-c-site/`。未決：WCAG 2.2.2 常駐暫停方式（使用者要求不要按鈕）。Safari／iOS 未驗證。已提交 `8c834ee`，以 `c461429` 上 main 經 CI 部署，正式站驗證通過（見 deploy/README.md）。
 
 ## 2026-09-23 最新消息桌機輪播比稿（`design/news-carousel-20260923/`，已選 C）
 
 使用者附首頁「近期活動／最新消息」截圖，要最新消息有輪播效果、不要按鈕，先看三版電腦版 mock（`web/` 未改）。6 則消息輪流出現，近期活動 3 則不動：A 緩慢漂移（整排約 32px／秒往左流，軌道延伸到視窗右緣露出下一張，可拖曳／觸控板左右滑）、B 逐張推進（每 4.5 秒推一張，最左那張淡出，標題旁「02 / 06」倒數細線，可拖曳）、C 原地換片（位置不動，每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換）。三版都在滑鼠停留、鍵盤聚焦、離屏、分頁在背景時暫停，減少動態不播。**不要按鈕＝自動播放，三版都牴觸 09-16「消息不使用自動輪播」的裁定，選定要重新拍板；WCAG 2.2.2 的暫停機制也要一起決定。**
 
 驗證：`node design/news-carousel-20260923/shot.cjs`（Playwright＋Chrome）1440／1024 × 三版：有移動、hover 後停住、倒數凍結、換到下一則／下一組、無水平溢出、無 console error；B、C 轉場逐格見 `shots/b-strip.jpg`、`c-strip.jpg`。滑鼠拖曳：A 拖 250px 放手連慣性移 462px、B 換到下一張，放手不誤觸點擊、之後單點仍點得到。Safari、觸控板實際手感未驗證。未提交。
+
+## 2026-09-23 最新消息手機輪播比稿（`design/news-carousel-mobile-20260923/`，待拍板）
+
+**同晚第二輪 D（比稿頁預設）：**使用者指定近期活動改成「學校活動影片」區塊，用參考圖的白色圓點＋B 中央聚焦；最新消息改上下排列。影片區鼠尾草綠底 `#acbe9b`、當前影片置中自動靜音循環、兩側露出海報、點圓點或兩側影片可換、無限循環、有暫停鍵，只有當前那支載入；影片暫用 `hero-campus.mp4`＋`day-film-mobile.mp4` 舞台表演剪段，標題為範例（已確認在 LINE Seed 子集內）。消息預設縮圖列表，可切大圖直排；影片比例可切 16:9／4:3／4:5。Playwright 390×844 功能與四種組合無溢出、無 console error 通過；Safari／iOS 實機未驗證。未改 `web/`、未提交。
+
+**21:45 修訂：**圓點下方的類別與標題拿掉；影片格改成可混放「檔案」（靜音自動預覽）與「YouTube 連結」（縮圖＋播放鍵，點了才就地載入 `youtube-nocookie` 播放器有聲播放，滑走即卸掉），比稿頁可貼連結實測；比例預設改 16:9。Playwright 390×844 YouTube 載入／卸除、圓點、循環、減少動態通過，無 console error。
+
+使用者要首頁「近期活動／最新消息」在手機版改成輪播，先看三種 mock（桌機不動、`web/` 未改）：A 單張翻頁（滿版一次一則，分校輪播同款膠囊圓點＋暫停鍵，5 秒自動換，兩個輪播錯開 2.5 秒）、B 中央聚焦（當前置中、左右露出前後一則只留色塊或照片，無限循環，標題列 ← 1/3 →）、C 疊卡（底下兩張露色條，甩開最上面那張塞回最底下）。**A 牴觸 09-16「消息不使用自動輪播」的裁定，選 A 要重新拍板。**三版區塊都比現況高 130–180px。內容取自 fixture。驗證：Playwright 1480 比較頁與 390×844 實寬無 console error、無水平溢出；A 自動換頁／暫停、減少動態不播，B 循環與上一則，C 下一張／← 退回、拖曳後不誤開對話框都通過。Safari／iOS 實機未驗證。未提交。
+
+## 2026-09-23 頁尾加入畢業版校徽
+
+使用者確認畢業版雙童 Logo，放到 `SiteFooter.vue` 中英文品牌名稱左側，排列比照頁首。新增透明素材 `web/public/assets/ivy-graduation-crest.png`（384×384，約 217 KB），由內建 imagegen 去背後等比例縮小；保留原文案、字型與深森林綠配色。桌機校徽 72px、手機 60px，平板與手機讓品牌區跨整列，避免文字受擠壓。素材母檔與製作紀錄保留於 `output/imagegen/footer-graduation-20260923/`。
+
+驗證：Node 22 `npm --prefix web run typecheck` 通過、無 `error TS`；`node --check app.js` → `python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異。本機 :3161 Chrome 1440／820／390／320px 校徽載入正常、圖文左右排列、無水平溢出，桌機與 390px 已目視確認。Safari／iOS 實機未驗證。未提交、未部署。
 
 ## 2026-09-23 預約頁改成首頁風格（定案：C 的第一步＋A 的第二步）
 
@@ -50,6 +75,12 @@
 ## 2026-09-23 拍立得：滑鼠點完不再留綠色焦點框
 
 使用者截圖問「翻頁效果好像沒在線上」與「綠框能不能移除」。查證：翻面改自然（`5a6128e`）自 09-23 12:05 的 main 部署起就在線上，捲動飄角（`acde729`）隨 16:21 部署（`3b496ff`）上線；Playwright（Metal）開正式站確認 WebGL 紙為右緣掀起往左翻。綠框是 `.print-turn:focus-visible`：滑鼠點卡片後焦點留在透明按鈕上，之後按方向鍵／空白鍵捲頁，Chrome 就把它判成 `:focus-visible`，畫出不跟紙傾斜、也不切折角的平面矩形；空白鍵還會把卡片再翻一次、頁面不捲動（正式站實測）。`web/app/components/DayMomentCard.vue` 的 `toggleFlip` 在 `event.detail > 0`（滑鼠／觸控）時 `blur()`，鍵盤 Enter／Space（detail 0）保留焦點框。本機 :3161 驗證：點擊後 ArrowDown 不再出框、Space 正常捲頁不翻面、鍵盤聚焦＋Enter 仍有框並翻面；Node 22 `nuxt typecheck` 無錯誤輸出，`vitest run` 22 檔 153 項通過。證據 `output/playwright/flip-live-20260923/`。單獨 cherry-pick 上 main 部署。
+
+## 2026-09-23 桌機關於：大字要完整露在段落下方
+
+使用者截圖：桌機「關於常春藤」黏住、準備接孩子的一天時，段落最後幾行壓在浮水印「關於」上。原因不是上午的手機修正（c7b9c47 只動 ≤900px），而是下午改成單張 3:2 照片（a50a569）：舊的雙照片疊放比內文高，段落剛好停在大字上方；換成較矮的單張照片後，內文變成最低的元素，layout 的滿屏置中又在段落下多墊約 98px，段落停的位置就往下掉。對照 09:34 舊 build（:3125）與現行 dev（:3161），1440×900 段落末行 y 183→263，「關於」上緣都是 190。
+
+`web/app/assets/css/studio.css`：動態版尾留白（半屏＋1.52 倍大字，對齊「關於」上緣）從 ≤900px 擴大到所有寬度，桌機另拿掉 `.belief-layout` 的滿屏 min-height，最後一行到大字的間隔固定為 layout 下內距。1280×720／1440×900／1512×982／1920×1080／1024×768 段落與照片最低點都在「關於」上緣之上 55–76px；390px 手機數值不變（96px）；接力時「常春藤」與日常大標仍對齊（1440：207,365），無 page error。減少動態／無 JS 維持原本較短的尾留白。證據 `output/playwright/about-desktop-tail-20260923/`，快照 `versions/before-about-desktop-tail-20260923-163406/`。未部署、未提交。
 
 ## 2026-09-23 「略過動畫」提早退場
 

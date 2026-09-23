@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { FLIP_BEZIER, FLIP_MS, cantilever, cubicBezier, flipEase, restTurn, stepFlex, turnTarget } from '../app/utils/printFlip'
 
 describe('拍立得翻面方向', () => {
-  it('靜止時一律往左翻（右緣掀起，和折角、首張偷看同方向）', () => {
+  it('靜止時一律往左翻（右緣掀起，和角落捲起、首張偷看同方向）', () => {
     expect(turnTarget(0, true)).toBe(-1)
     expect(turnTarget(-1, false)).toBe(-2)
     expect(turnTarget(-2, true)).toBe(-3)
