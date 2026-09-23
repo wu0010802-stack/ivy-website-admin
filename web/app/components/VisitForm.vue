@@ -123,7 +123,8 @@ const submitError = ref<string | null>(null)
 const idempotencyKey = ref(crypto.randomUUID())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
-const storyCampus = computed(() => selectedCampus.value || props.campuses[0])
+// 第一步是薄荷色帶的迎賓區＋照片卡選校；第二步與送出後收成一行頁名，左側改放所選校園。
+const isPicking = computed(() => step.value === 1 && !submitted.value)
 const timeOptions = computed(() => props.booking.fields.find((field) => field.name === 'time')?.options ?? [])
 const nextLabel = computed(() => bookingPending.value ? '正在確認參觀方式…' : action.value.kind === 'form' || !selectedCampus.value ? '下一步：填寫資料' : '下一步：查看參觀方式')
 
@@ -273,23 +274,37 @@ async function onSubmit() {
 </script>
 
 <template>
-  <section class="visit-page visit-a" :data-campus-key="form.campus" :data-step="submitted ? 'result' : step">
+  <section class="visit-page" :data-campus-key="form.campus" :data-step="submitted ? 'result' : step">
+    <div v-if="isPicking" class="visit-ghost" aria-hidden="true"><span>預約</span><span>參觀</span></div>
+    <header class="visit-welcome">
+      <div class="container visit-welcome-inner">
+        <div class="visit-welcome-copy">
+          <p v-if="isPicking" class="visit-eyebrow" lang="en">VISIT IVY</p>
+          <h1 id="visit-title"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
+          <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
+        </div>
+        <figure v-if="isPicking" class="visit-welcome-photo">
+          <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
+          <figcaption>在常春藤，遇見成長的下一站。</figcaption>
+        </figure>
+      </div>
+    </header>
     <div class="container visit-content">
       <div class="visit-shell">
-        <aside class="visit-story" aria-labelledby="visit-title">
-          <div class="visit-story-copy">
-            <span class="visit-kicker">預約校園參觀 <span lang="en">VISIT IVY</span></span>
-            <h1 id="visit-title"><span class="visit-invitation">帶著好奇，<br>來校園<em>走走。</em></span><span class="visit-compact-title">預約校園參觀</span></h1>
-            <p>看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
-            <ol class="visit-expectations" aria-label="參觀安排流程">
-              <li><span aria-hidden="true">01</span> 選擇想認識的校園</li>
-              <li><span aria-hidden="true">02</span> 由園所聯繫，一起確認時間</li>
-            </ol>
+        <aside v-if="!isPicking && selectedCampus" class="visit-campus-aside" aria-label="所選校園">
+          <div class="visit-aside-card">
+            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="responsiveImage(selectedCampus.image, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
+            <span class="visit-aside-caption">
+              <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
+              <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
+              <span class="visit-aside-en" lang="en">{{ selectedCampus.key.toUpperCase() }} CAMPUS</span>
+            </span>
           </div>
-          <figure v-if="storyCampus" class="visit-story-photo">
-            <img v-bind="responsiveImage(storyCampus.image, '(max-width: 760px) 1px, (max-width: 1100px) 40vw, 500px')" :alt="`${storyCampus.name}校園圖像`" :style="{ objectPosition: storyCampus.panoramaPos || 'center 55%' }" decoding="async">
-            <figcaption><span>在常春藤，遇見成長的下一站。</span><span>{{ storyCampus.name }}</span></figcaption>
-          </figure>
+          <div class="visit-aside-info">
+            <p><svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>{{ selectedCampus.address }}</p>
+            <a v-if="selectedCampus.phone" class="visit-aside-phone" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ selectedCampus.phone }}</a>
+            <button v-if="!submitted" class="visit-change" type="button" :disabled="submitting" @click="changeCampus">更換校區</button>
+          </div>
         </aside>
 
         <div ref="stageRef" class="visit-stage" tabindex="-1">
@@ -309,9 +324,9 @@ async function onSubmit() {
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="`${campus.name} · ${campus.district}`">
                   <span class="visit-campus-card">
-                    <img v-bind="responsiveImage(campus.image, '(max-width: 760px) 72px, 88px')" alt="" decoding="async">
-                    <span class="visit-campus-copy"><span class="visit-campus-heading"><strong>{{ campus.name }}</strong><small>{{ campus.district }}</small></span><span class="visit-campus-address">{{ campus.address.replace(/^高雄市/, '') }}</span></span>
-                    <span class="visit-choice-mark" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
+                    <span class="visit-campus-photo"><img v-bind="responsiveImage(campus.image, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ campus.district }}</small></span>
+                    <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
                 </label>
               </fieldset>
@@ -324,12 +339,6 @@ async function onSubmit() {
             </section>
 
             <template v-else>
-              <div v-if="selectedCampus" class="visit-selected-campus">
-                <img v-bind="responsiveImage(selectedCampus.image, '80px')" alt="" decoding="async">
-                <div><strong>{{ selectedCampus.name }}</strong><p>{{ selectedCampus.address }}</p></div>
-                <button class="visit-change" type="button" :disabled="submitting" @click="changeCampus">更換校區</button>
-              </div>
-
               <p v-if="submitError" ref="errorRef" class="visit-submit-error" role="alert" tabindex="-1">{{ submitError }}</p>
               <p v-if="bookingPending" class="visit-status visit-loading" role="status">正在確認{{ selectedCampus?.name }}的參觀方式…</p>
               <div v-else-if="!selectedCampus" class="visit-status"><p>請先選擇想參觀的校區。</p><button class="button outline" type="button" @click="changeCampus">選擇校區</button></div>
@@ -403,6 +412,7 @@ async function onSubmit() {
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
+            <img v-if="selectedCampus" class="visit-result-art" v-bind="responsiveImage(`campus-line-art-${selectedCampus.key}`, '240px')" alt="" decoding="async">
             <span class="visit-result-status"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>

@@ -1,3 +1,9 @@
+## 2026-09-23 預約頁改成首頁風格（定案：C 的第一步＋A 的第二步）
+
+使用者想把 `/visit` 改成首頁風格。先做三案以 `?visit=` 比稿（A 分校線稿、B 拍立得、C 首頁節奏），使用者選 **C 的第一步＋A 的第二步**，已取代 09-22 的墨綠迎賓區＋框內表單並移除比稿參數與 B。第一步沿用「關於常春藤」：薄荷色帶、「預約／參觀」巨大淡字、左文右圖（`about-curious`），選校改成五張圓角照片卡（手機為一列一張的橫條）。第二步與送出後沿用「分校資訊」：左側跟隨捲動的圓角實景＋明體校名與地址電話，右側不包框的開放式表單（短線小標分段、圓角欄位、膠囊得知管道）、金色膠囊送出鈕；送出結果頂端放該校線稿。兩步用 `data-step` 切換色票。改的是 `web/app/components/VisitForm.vue`（新增 `isPicking`，移除舊迎賓側欄與列表選校）與整份重寫的 `web/app/assets/css/visit-booking.css`；欄位、驗證、idempotency、三種成功語意、booking-config 分支不動。styles.css 仍有舊的全域 `.visit-intro`（sticky），所以迎賓區命名為 `.visit-welcome`。改版前快照 `versions/before-visit-looks-20260923-200708/`。
+
+驗證：scratchpad 獨立 Nuxt build（fixture，:3176，不動共用 `.nuxt`）＋ Playwright 以 `page.route` 攔截預約 API，1440／390 走完選校→填資料→送出，無 console error、無水平溢出；Tab＋方向鍵可選校、焦點框 3px；仁武 inquiry 模式與 `/visit/minghua` 直接進第二步正常。`vue-tsc` 0 錯、預約相關 vitest 4 檔 42 項通過。截圖 `output/visit-redesign/final/`，三案比稿圖 `output/visit-redesign/looks/`。未驗證：Safari／iOS 實機、200% 放大；`/visit/manage` 尚未跟著改。另：同 checkout 的 :3161 dev server 因模組快取仍會引用已刪的 `visit-looks.css`（404），重啟即可。
+
 ## 2026-09-23 開場布幕：首屏遮罩換成新版布幕海報
 
 使用者反映線上首頁開場「好像先留著舊設計的布幕，才出現新的」。查證（Playwright 開正式站逐格截圖）：從首屏到 WebGL 就緒約 0.4～3.0 秒，畫面是 `entrance-policy.ts` 的首屏遮罩與 `EntranceCurtain.vue` 等待期底色，兩者都還是第一版（`a74c1a6`）的扁平紫紅條紋；A/19 改成深紅光澤＋帷幔後沒跟著改，WebGL 就緒後才硬切成新版布幕。
