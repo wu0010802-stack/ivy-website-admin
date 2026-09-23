@@ -6,6 +6,11 @@ import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('render:response', (response, { event }) => {
     if (typeof response.body !== 'string' || response.body.length < 1024) return
+    // 錯誤頁不壓：Nuxt 的錯誤處理器是用內部 fetch 打 /__nuxt_error 拿到這裡的
+    // 回應，再以 .text() 讀 body 後照抄 headers 送出。壓過的 Buffer 被當 UTF-8
+    // 轉成字串，gzip 開頭的 0x8b 變成 U+FFFD，瀏覽器解不開（2026-09-23 正式站
+    // 的 /campuses/不存在校區 就是這樣壞掉的）。
+    if (event.path.startsWith('/__nuxt_error') || event.node.res.statusCode >= 400) return
     const headers = (response.headers ??= {})
     if (headers['content-encoding']) return
     const accept = getRequestHeader(event, 'accept-encoding') ?? ''
