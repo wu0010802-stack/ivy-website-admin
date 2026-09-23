@@ -4,6 +4,14 @@
 
 驗證：Node 22 `nuxt typecheck` 無錯誤；`vitest run` 25 檔 186 項通過（新增 `tests/film-carousel.spec.ts`）。本機 dev（:3161）Playwright 390×844：近期活動隱藏、綠色帶、消息三列、無水平溢出；只有當前影片下載並播放，點右側露出的影片換到第 2 支並開始播、第 1 支暫停；圓點、最後一支往後滑回第 1 支、暫停鍵、減少動態不播都通過；1440 桌機近期活動與三欄卡不變、不下載海報與影片。Safari／iOS 實機未驗證。快照 `versions/before-home-films-20260923-220111/`；證據 `output/playwright/home-films-20260923/`。
 
+## 2026-09-23 五校線稿 hover 變彩色
+
+使用者要首頁五校線稿在 hover 時變成彩色。原線稿是 image_gen 產的純線條、沒有彩色版，所以用各校實景修復照（`*-enhanced-v1`）的顏色做一層淡彩：手動取 11–14 個對位點，以 TPS 變形把照片對到線稿，中值濾波＋模糊做出水彩感。只在線稿有筆觸的地方上色，天空只留很淡一層；照片裡的校名、招牌字、紅綠燈、路牌補成周圍顏色，柏油地面逐列取中位數抹掉行人。產生腳本與五校對照圖在 `design/campus-tab-colour-20260923/`。
+
+淡彩層只有顏色、不含線條（`web/public/assets/campus-line-art-<校區>-colour.webp`，各約 16KB），在 `CampusBoard.vue` 以 multiply 疊在原線稿上，hover 時 0.35 秒淡入，所以線條濃淡和原本的 hover 一樣。只在 `@media(hover:hover)` 顯示；觸控裝置為 `display:none`，搭配 `loading="lazy"` 不會下載。線稿尺寸規則從 `img` 移到外層 `.campus-tab-figure`，靜止、選中、強制色彩模式的樣子都不變。響應式圖用 `optimize-site-images.py --only` 產生，manifest 只新增 5 筆。
+
+驗證：Playwright 對 `:3161` 桌機 1440（DPR 2）hover 明華、崇德、義華、仁武，只有被 hover 的那一校淡彩 opacity 為 1，線稿濾鏡與框線大小（160×106.7）不變，無 page error。手機 390／320 淡彩層是 `display:none`，沒有發出淡彩圖請求，框線大小與原本一致。截圖在 `output/playwright/campus-tab-colour/`。`:3161` 的 `visit-looks.css` Vite 遮罩仍在，與本次無關。Nuxt typecheck 與正式建置沒有實跑。未 commit。
+
 ## 2026-09-23 預約頁選校：其他校不再變暗
 
 使用者不要選一間學校後其他學校變暗。拿掉 `web/app/assets/css/visit-booking.css` 對未選卡片照片的 `filter:saturate(.55) brightness(.96)`，連帶移除 `img` 上只為它存在的 `filter` 過場。選中的卡仍是雙層外環＋右上打勾，五張照片一律原色。DESIGN.md「預約頁首頁風格」同步改寫。

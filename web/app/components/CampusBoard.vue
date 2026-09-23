@@ -179,11 +179,18 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage"
           @click="select(i)" @keydown="onKey($event, i)"
         >
-          <img
-            class="campus-tab-art"
-            v-bind="responsiveImage(`campus-line-art-${campus.key}`, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
-            alt="" aria-hidden="true" loading="lazy" decoding="async"
-          >
+          <span class="campus-tab-figure" aria-hidden="true">
+            <img
+              class="campus-tab-art"
+              v-bind="responsiveImage(`campus-line-art-${campus.key}`, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
+              alt="" aria-hidden="true" loading="lazy" decoding="async"
+            >
+            <img
+              class="campus-tab-colour"
+              v-bind="responsiveImage(`campus-line-art-${campus.key}-colour`, '160px')"
+              alt="" aria-hidden="true" loading="lazy" decoding="async"
+            >
+          </span>
           <span class="campus-tab-label">{{ campus.name }}</span>
         </button>
       </div>
@@ -283,9 +290,13 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
 .campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}
-.campus-tab-art{display:block;width:160px;max-width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s,filter .2s}
+.campus-tab-figure{position:relative;display:block;width:160px;max-width:100%;aspect-ratio:3/2}
+.campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s,filter .2s}
 .campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{opacity:1}
 .campus-tabs button:hover .campus-tab-art{filter:grayscale(1) brightness(.68) contrast(3.2)}
+/* 淡彩層只有顏色、不含線條，multiply 疊在線稿上，淡入時線條濃淡不變；觸控裝置不載入 */
+.campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:0;transition:opacity .35s ease}
+@media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:hover .campus-tab-colour{opacity:1}}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
 .campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}
@@ -400,7 +411,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .gallery-title>span{font-size:var(--fs-lg)}
   .campus-tabs{gap:5px}
   .campus-tabs button{font-size:var(--fs-xs);min-height:92px;padding:6px 2px 9px;gap:2px;letter-spacing:.015em}
-  .campus-tab-art{width:60px;height:40px}
+  .campus-tab-figure{width:60px;height:40px}
   .campus-tab-label{min-height:28px;padding-inline:5px}
   .campus-tab-label::after{inset-block-end:-4px;width:20px}
   .gallery-track{height:calc(var(--card-width) / 1.5)}
@@ -429,12 +440,12 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .page-dot[aria-pressed=true]{width:44px}
   .campus-tabs{gap:4px}
   .campus-tabs button{font-size:var(--fs-xs);padding-inline:1px}
-  .campus-tab-art{width:48px;height:34px}
+  .campus-tab-figure{width:48px;height:34px}
   .campus-tab-label{padding-inline:3px}
   .contact-row{font-size:var(--fs-sm)}
 }
 @media(prefers-reduced-motion:reduce){.campus-gallery *,.campus-gallery *::before,.campus-gallery *::after{transition:none!important;animation:none!important}}
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
-@media(forced-colors:active){.campus-tab-art{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
+@media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
 
 </style>
