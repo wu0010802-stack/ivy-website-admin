@@ -1,3 +1,15 @@
+## 2026-09-23 最新消息改成 C「原地換片」自動輪播
+
+使用者從桌機輪播三版選 C，接進 `web/`：`NewsDialog.vue` 的三張消息卡改由 `composables/useNewsRotation.ts` 輪播（每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換；fixture 6 則兩組交替），標題列加被動倒數「01 / 02」。分組邏輯 `utils/newsRotation.ts`（超過三則才輪播、最後一組從頭補滿），計時沿用分校的 `createCarouselClock`。滑鼠停在卡上、鍵盤焦點、對話框開著、離屏、分頁在背景都暫停；減少動態與 640px 以下（原生橫向捲動）不輪播。卡片圖改包 `.hn-media`（桌機 1.55、手機 3:2 比例不變）。取代 09-16「不使用自動輪播」，已記入 DESIGN.md。修改前快照 `versions/before-news-carousel-c-20260923-205644/`。
+
+驗證：Node 22 `vitest run` 23 檔 169 項通過（新增 `tests/news-rotation.spec.ts` 3 項）、`nuxt typecheck` 0 個 `error TS`；`node --check app.js` → `python3 package_preview.py`，`preview.html` 無差異。本機 :3161 Playwright：1440／1024 從第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題（不掉到 body），Esc 關閉的鍵盤焦點維持暫停；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、無 hydration 警告。console 唯一錯誤是另一項未提交工作的 `visit-looks.css` 404，與本項無關。截圖 `output/news-carousel-c-site/`。未決：WCAG 2.2.2 常駐暫停方式（使用者要求不要按鈕）。Safari／iOS 未驗證。未提交、未部署。
+
+## 2026-09-23 最新消息桌機輪播比稿（`design/news-carousel-20260923/`，已選 C）
+
+使用者附首頁「近期活動／最新消息」截圖，要最新消息有輪播效果、不要按鈕，先看三版電腦版 mock（`web/` 未改）。6 則消息輪流出現，近期活動 3 則不動：A 緩慢漂移（整排約 32px／秒往左流，軌道延伸到視窗右緣露出下一張，可拖曳／觸控板左右滑）、B 逐張推進（每 4.5 秒推一張，最左那張淡出，標題旁「02 / 06」倒數細線，可拖曳）、C 原地換片（位置不動，每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換）。三版都在滑鼠停留、鍵盤聚焦、離屏、分頁在背景時暫停，減少動態不播。**不要按鈕＝自動播放，三版都牴觸 09-16「消息不使用自動輪播」的裁定，選定要重新拍板；WCAG 2.2.2 的暫停機制也要一起決定。**
+
+驗證：`node design/news-carousel-20260923/shot.cjs`（Playwright＋Chrome）1440／1024 × 三版：有移動、hover 後停住、倒數凍結、換到下一則／下一組、無水平溢出、無 console error；B、C 轉場逐格見 `shots/b-strip.jpg`、`c-strip.jpg`。滑鼠拖曳：A 拖 250px 放手連慣性移 462px、B 換到下一張，放手不誤觸點擊、之後單點仍點得到。Safari、觸控板實際手感未驗證。未提交。
+
 ## 2026-09-23 預約頁改成首頁風格（定案：C 的第一步＋A 的第二步）
 
 使用者想把 `/visit` 改成首頁風格。先做三案以 `?visit=` 比稿（A 分校線稿、B 拍立得、C 首頁節奏），使用者選 **C 的第一步＋A 的第二步**，已取代 09-22 的墨綠迎賓區＋框內表單並移除比稿參數與 B。第一步沿用「關於常春藤」：薄荷色帶、「預約／參觀」巨大淡字、左文右圖（`about-curious`），選校改成五張圓角照片卡（手機為一列一張的橫條）。第二步與送出後沿用「分校資訊」：左側跟隨捲動的圓角實景＋明體校名與地址電話，右側不包框的開放式表單（短線小標分段、圓角欄位、膠囊得知管道）、金色膠囊送出鈕；送出結果頂端放該校線稿。兩步用 `data-step` 切換色票。改的是 `web/app/components/VisitForm.vue`（新增 `isPicking`，移除舊迎賓側欄與列表選校）與整份重寫的 `web/app/assets/css/visit-booking.css`；欄位、驗證、idempotency、三種成功語意、booking-config 分支不動。styles.css 仍有舊的全域 `.visit-intro`（sticky），所以迎賓區命名為 `.visit-welcome`。改版前快照 `versions/before-visit-looks-20260923-200708/`。

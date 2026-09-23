@@ -2,38 +2,29 @@
 import { responsiveImage } from '~/utils/responsive-image'
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
-const props = defineProps<{ news: NewsContent }>()
+defineProps<{ news: NewsContent }>()
 
 const dialogEl = ref<HTMLDialogElement | null>(null)
 const dialogSupported = ref(false)
-const dialogOpen = ref(false)
-const cardsEl = ref<HTMLElement | null>(null)
-const { slots, page, pages, progress, enabled, playing } = useNewsRotation(() => props.news.articles, cardsEl, dialogOpen)
-const pad = (value: number) => String(value).padStart(2, '0')
 const view = ref<{ kind: 'articles' | 'events'; item: NewsArticle | NewsEvent } | { kind: 'list'; list: 'articles' | 'events' } | null>(null)
 
 onMounted(() => {
   dialogSupported.value = typeof HTMLDialogElement !== 'undefined'
 })
 
-function showDialog() {
-  if (!dialogEl.value?.open) dialogEl.value?.showModal()
-  dialogOpen.value = Boolean(dialogEl.value?.open)
-}
-
 function openList(list: 'articles' | 'events') {
   view.value = { kind: 'list', list }
-  showDialog()
+  dialogEl.value?.showModal()
 }
 
 function openArticle(item: NewsArticle) {
   view.value = { kind: 'articles', item }
-  showDialog()
+  dialogEl.value?.showModal()
 }
 
 function openEvent(item: NewsEvent) {
   view.value = { kind: 'events', item }
-  showDialog()
+  dialogEl.value?.showModal()
 }
 
 function close() {
@@ -83,34 +74,16 @@ function formatDate(date: string) {
               <span class="hn-kicker" lang="en">LATEST NEWS</span>
               <h2 id="latest-news-heading">最新消息</h2>
             </div>
-            <div class="hn-head-end">
-              <!-- 被動倒數，不是控制項；只在會輪播時顯示。 -->
-              <span
-                v-if="pages > 1" class="hn-progress" aria-hidden="true"
-                :data-active="enabled || undefined" :data-paused="!playing || undefined" :style="{ '--hn-progress': progress }"
-              >
-                <span>{{ pad(page + 1) }} / {{ pad(pages) }}</span><i><b /></i>
-              </span>
-              <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
-                所有最新消息
-              </button>
-            </div>
+            <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
+              所有最新消息
+            </button>
           </div>
-          <div ref="cardsEl" class="hn-cards">
-            <!-- 換組時每格暫時有新舊兩層（見 useNewsRotation），平常只有一層。 -->
-            <article v-for="(layers, slot) in slots" :key="slot" class="hn-card">
-              <div class="hn-media">
-                <img
-                  v-for="(item, layer) in layers" :key="item.id"
-                  v-bind="responsiveImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')"
-                  :alt="item.alt" :loading="layer ? 'eager' : 'lazy'" :class="{ 'is-incoming': layer > 0 }"
-                >
-              </div>
-              <div class="hn-copy-stack">
-                <div v-for="(item, layer) in layers" :key="item.id" class="hn-card-copy" :inert="(layers.length > 1 && layer === 0) || undefined">
-                  <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
-                  <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
-                </div>
+          <div class="hn-cards">
+            <article v-for="item in news.articles.slice(0, 3)" :key="item.id" class="hn-card">
+              <img v-bind="responsiveImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')" :alt="item.alt" loading="lazy">
+              <div class="hn-card-copy">
+                <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
+                <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
               </div>
             </article>
           </div>
@@ -121,7 +94,7 @@ function formatDate(date: string) {
   </section>
 
   <ClientOnly>
-    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title" @close="dialogOpen = false">
+    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title">
       <div class="hn-dialog-top">
         <span>常春藤 · 校園消息</span>
         <button type="button" aria-label="關閉消息" @click="close">關閉 ×</button>
