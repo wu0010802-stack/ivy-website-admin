@@ -124,6 +124,7 @@
 - 英文小標及日期沿用 Source Sans 3 400，活動日期36px；日期欄隨 rem 伸展，避免文字放大後重疊。中文分類小標維持系統字。metadata13px、手機消息入口14px／500。
 - 首屏 eyebrow／操作按鈕改為系統字500；主標字形、字級與版面保留。樣式集中 `web/app/assets/css/typography.css`，載入在既有樣式之後，不改全域 `--font-head`，不新增字型資產。
 - 未整合「首頁與分校內頁銜接」mock-up。本次只採用字體方向，凍結原型仍維持原版本。
+- **2026-09-23 補**：消息卡標題 `text-wrap:balance`＋`word-break:keep-all`（`overflow-wrap:anywhere` 兜底），只在標點後換行、不留兩字孤行；不要改回 `pretty`，因為它不會把兩個中文字當孤字處理。英文小字一律走 `--font-en`（＝`--font-date`，Source Sans 3），不要再寫沒定義的字型變數，因為 `var()` 失效時不會報錯，只會退回父層字型。
 
 
 ## 五校校園圖採用質感修復版（2026-09-22 定案）

@@ -4,6 +4,9 @@
   --font-date:'Source Sans 3',Arial,var(--font);
   --weight-information:600;
   --weight-action:500;
+  /* studio.css 的選單／膠囊英文與開場「略過動畫」引用這兩個名稱，原本沒有定義，會默默退回 PingFang／通用 sans-serif。 */
+  --font-en:var(--font-date);
+  --font-body:var(--font);
 }
 
 .studio-hero-copy .eyebrow {

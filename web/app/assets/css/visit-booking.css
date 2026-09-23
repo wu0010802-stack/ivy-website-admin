@@ -24,7 +24,7 @@
 .visit-expectations span{font:400 .8125rem/1.5 var(--font-date,var(--font));color:var(--yellow);letter-spacing:.06em}
 .visit-story-photo{margin:auto 0 0}
 .visit-story-photo img{width:100%;height:260px;object-fit:cover}
-.visit-story-photo figcaption{display:flex;justify-content:space-between;gap:14px;padding:13px 21px;color:var(--paper);font-size:.6875rem;line-height:1.8}
+.visit-story-photo figcaption{display:flex;justify-content:space-between;gap:14px;padding:13px 21px;color:var(--paper);font-size:.75rem;line-height:1.8}
 .visit-story-photo figcaption>span:last-child{white-space:nowrap}
 .visit-stage{padding:32px 36px;min-width:0;scroll-margin-top:116px}
 .visit-stage:focus,.visit-result:focus{outline:none}

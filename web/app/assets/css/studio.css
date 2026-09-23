@@ -46,6 +46,8 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-head{min-height:78px;margin-bottom:30px}
 .hn-kicker{display:block;color:var(--hn-muted,#5d6c61);font-size:11px;letter-spacing:.18em;font-weight:700;margin-bottom:8px}
 .hn-news-head{display:flex;justify-content:space-between;align-items:end;gap:20px}
+/* 兩欄標題都貼齊 78px 標題區底部，「近期活動」才不會比「最新消息」高 9px。 */
+.hn-events>.hn-head{display:flex;flex-direction:column;justify-content:flex-end}
 .home-news .hn-more,.hn-dialog .hn-more{display:inline-flex;align-items:center;gap:20px;min-height:44px;font-size:14px;font-weight:600;border-bottom:1px solid currentColor;white-space:nowrap}
 .hn-arrow{font-size:22px;line-height:1;flex-shrink:0}
 .hn-event-stack{display:grid;gap:18px;margin-bottom:18px}
@@ -62,7 +64,7 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-card>img{width:100%;height:auto;aspect-ratio:1.55;object-fit:cover;border-radius:12px}
 .hn-card-copy{padding-top:20px}.hn-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 12px;color:var(--hn-muted,#5d6c61);font-size:12px;letter-spacing:.025em;margin-bottom:10px}
 .hn-meta>span{color:var(--hn-green,#254b3c);font-weight:600}
-.hn-card h3{font-size:21px;line-height:1.6;text-wrap:pretty;letter-spacing:.015em}
+.hn-card h3{font-size:21px;line-height:1.6;text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere;letter-spacing:.015em}
 .hn-card h3 button{font:inherit;min-height:44px}
 .hn-card h3 button::after{content:"";position:absolute;inset:0;border-radius:12px}
 .hn-card:hover h3,.hn-list-row:hover strong{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
@@ -627,7 +629,7 @@ body:has(.studio-hero) .header-top,
 }
 .belief-photo-pair figcaption {
   position:absolute;right:0;bottom:5px;
-  font-size:11px;color:#42644e;letter-spacing:.06em;
+  font-size:12px;color:#42644e;letter-spacing:.06em;
 }
 @media(min-width:901px) and (max-width:1100px) {
   .home-belief .container {width:calc(100% - 64px)}
@@ -678,7 +680,7 @@ body:has(.studio-hero) .header-top,
   .belief-photo-pair {padding:0 0 84px 20px}
   .belief-portrait {border-width:6px;aspect-ratio:1.08}
   .belief-moment {border-width:5px;width:68%;bottom:23px}
-  .belief-photo-pair figcaption {font-size:10px;letter-spacing:0;bottom:0}
+  .belief-photo-pair figcaption {font-size:12px;letter-spacing:0;bottom:0}
   .belief-watermark {left:0;font-size:30vw;opacity:.37}
 }
 @media(max-width:360px) {
