@@ -1,3 +1,7 @@
+## 2026-09-23 拍立得：滑鼠點完不再留綠色焦點框
+
+使用者截圖問「翻頁效果好像沒在線上」與「綠框能不能移除」。查證：翻面改自然（`5a6128e`）自 09-23 12:05 的 main 部署起就在線上，捲動飄角（`acde729`）隨 16:21 部署（`3b496ff`）上線；Playwright（Metal）開正式站確認 WebGL 紙為右緣掀起往左翻。綠框是 `.print-turn:focus-visible`：滑鼠點卡片後焦點留在透明按鈕上，之後按方向鍵／空白鍵捲頁，Chrome 就把它判成 `:focus-visible`，畫出不跟紙傾斜、也不切折角的平面矩形；空白鍵還會把卡片再翻一次、頁面不捲動（正式站實測）。`web/app/components/DayMomentCard.vue` 的 `toggleFlip` 在 `event.detail > 0`（滑鼠／觸控）時 `blur()`，鍵盤 Enter／Space（detail 0）保留焦點框。本機 :3161 驗證：點擊後 ArrowDown 不再出框、Space 正常捲頁不翻面、鍵盤聚焦＋Enter 仍有框並翻面；Node 22 `nuxt typecheck` 無錯誤輸出，`vitest run` 22 檔 153 項通過。證據 `output/playwright/flip-live-20260923/`。單獨 cherry-pick 上 main 部署。
+
 ## 2026-09-23 「略過動畫」提早退場
 
 使用者說略過鈕太晚消失。`web/app/components/EntranceCurtain.vue`：原本整段 7.9 秒都在，拉幕後疊在頁首「預約參觀」上；改為布幕開始拉開（`opening > 0`，與片頭燈熄同時）就淡出 240ms，之後不可點、不可聚焦，Escape 仍可略過。實際首頁（:3161）1440／390px：倒數中可見可點、點了會略過；拉幕後 hidden 且點不到；Esc 25–34ms 內關閉並還原捲動；完整開場、清理、不重播無錯誤；Node 22 `nuxt typecheck` 0 錯誤。快照 `versions/before-skip-early-20260923-155515/`。未部署、未提交。

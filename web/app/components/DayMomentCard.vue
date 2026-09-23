@@ -337,7 +337,10 @@ onUnmounted(() => {
   detachPaper()
 })
 
-function toggleFlip() {
+function toggleFlip(event: MouseEvent) {
+  // 滑鼠／觸控點完就放掉焦點：否則之後按方向鍵或空白鍵捲頁，Chrome 會把這顆按鈕判成
+  // :focus-visible，冒出不跟紙傾斜的平面綠框，空白鍵還會再翻一次。鍵盤 Enter／Space 的 click detail 為 0，保留焦點框。
+  if (event.detail > 0) (event.currentTarget as HTMLButtonElement | null)?.blur()
   // 點擊接管提示動畫，避免掀角／偷看在翻頁途中繼續拉動紙張。
   cancelAnimationFrame(earFrame)
   window.clearTimeout(cueTimer)
