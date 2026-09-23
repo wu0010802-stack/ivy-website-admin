@@ -668,31 +668,5 @@
         "width": 1204
       }
     ]
-  },
-  "about-together": {
-    "width": 1204,
-    "height": 803,
-    "candidates": [
-      {
-        "src": "/assets/responsive/about-together-22ab26ab9c00-160.webp",
-        "width": 160
-      },
-      {
-        "src": "/assets/responsive/about-together-22ab26ab9c00-480.webp",
-        "width": 480
-      },
-      {
-        "src": "/assets/responsive/about-together-22ab26ab9c00-800.webp",
-        "width": 800
-      },
-      {
-        "src": "/assets/responsive/about-together-22ab26ab9c00-1200.webp",
-        "width": 1200
-      },
-      {
-        "src": "/assets/about-together.webp",
-        "width": 1204
-      }
-    ]
   }
 }
