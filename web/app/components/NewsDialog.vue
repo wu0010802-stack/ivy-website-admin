@@ -50,6 +50,8 @@ function formatDate(date: string) {
   <section :id="news.sectionId" class="home-news" aria-labelledby="latest-news-heading">
     <div class="container">
       <div class="hn-layout">
+        <!-- 640px 以下以活動影片取代近期活動（2026-09-23 D），桌機隱藏。 -->
+        <HomeFilms class="hn-films" />
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
             <span class="hn-kicker" lang="en">UPCOMING EVENTS</span>
