@@ -1,0 +1,97 @@
+/* 2026-09-22：已確認的字體分工。品牌主標、分校明體與其他頁面沿用原設定。 */
+:root {
+  --font-information:var(--font);
+  --font-date:'Source Sans 3',Arial,var(--font);
+  --weight-information:600;
+  --weight-action:500;
+  /* studio.css 的選單／膠囊英文與開場「略過動畫」引用這兩個名稱，原本沒有定義，會默默退回 PingFang／通用 sans-serif。 */
+  --font-en:var(--font-date);
+  --font-body:var(--font);
+}
+
+.studio-hero-copy .eyebrow {
+  font-family:var(--font-information);
+  font-weight:var(--weight-action);
+  letter-spacing:.1em;
+}
+.studio-hero .studio-actions .button {
+  font-family:var(--font-information);
+  font-weight:var(--weight-action);
+}
+
+.belief-main h2 {
+  font-size:clamp(2.25rem,3.35vw,3.25rem);
+  line-height:1.5;
+}
+.belief-text {
+  max-width:32em;
+  font-size:1.125rem;
+  font-weight:400;
+  line-height:1.95;
+}
+.belief-since,
+.hn-kicker[lang="en"] {
+  font-family:var(--font-date);
+  font-size:.75rem;
+  font-weight:400;
+  line-height:1.5;
+  letter-spacing:.14em;
+}
+.home-belief .belief-copy-toggle {font-weight:var(--weight-action)}
+
+.home-news h2,
+.hn-card h3,
+.hn-event-copy strong,
+.hn-list-copy>strong,
+.hn-dialog h2 {
+  font-family:var(--font-information);
+  font-weight:var(--weight-information);
+}
+.home-news h2 {font-size:2rem}
+.hn-card h3 {font-size:1.25rem}
+.hn-event-copy strong {font-size:1rem}
+.hn-event-copy small {font-size:.75rem;font-weight:400}
+.hn-date {width:auto;min-width:2.375rem}
+.hn-date b {
+  font-family:var(--font-date);
+  font-size:2.25rem;
+  font-weight:400;
+  font-variant-numeric:tabular-nums;
+}
+.hn-date>span {font:400 .75rem/1.4 var(--font-date);letter-spacing:.08em}
+.home-news .hn-meta,
+.hn-dialog .hn-meta {font-size:.8125rem}
+.hn-meta time,
+.hn-detail-date {
+  font-family:var(--font-date);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.03em;
+}
+.home-news .hn-more,
+.hn-dialog .hn-more {font-size:.9375rem;font-weight:var(--weight-action)}
+.hn-news-head .hn-more {font-size:.875rem}
+.hn-sample-note {font-size:.75rem;line-height:1.8}
+
+.hn-dialog {font:400 1rem/1.9 var(--font-information)}
+.hn-dialog h2 {font-size:1.75rem;line-height:1.6}
+.hn-list-copy>strong {font-size:1.125rem;line-height:1.7}
+.hn-detail-date {font-size:.875rem}
+.hn-kicker:not([lang="en"]) {font-family:var(--font-information);font-size:.75rem;font-weight:500}
+.hn-dialog-top {font-size:.8125rem}
+.hn-category {font-size:.75rem}
+
+@media(max-width:1100px) {
+  .belief-main h2 {font-size:2.625rem}
+  .home-news h2 {font-size:1.875rem}
+  .hn-card h3 {font-size:1.125rem}
+  .hn-event-copy strong {font-size:.875rem}
+}
+@media(max-width:760px) {
+  .belief-main h2 {font-size:2rem}
+  .belief-text {font-size:1rem}
+  .home-news h2 {font-size:1.75rem}
+  .hn-card h3 {font-size:1.125rem;line-height:1.65}
+  .hn-event-copy strong {font-size:1rem}
+  .home-news .hn-more,
+  .hn-dialog .hn-more {font-size:.875rem}
+}

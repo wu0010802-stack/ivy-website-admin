@@ -1,0 +1,57 @@
+export interface VisitContact {
+  parentName: string
+  phone: string
+  consent: boolean
+  childName?: string
+  childBirthdate?: string
+  email?: string
+}
+
+export type VisitField = keyof VisitContact | 'visitDate' | 'slotId'
+export type VisitErrors = Partial<Record<VisitField, string>>
+
+export const REFERRAL_OPTIONS = [
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'google_reviews', label: 'Google 評論' },
+  { value: 'parent_community', label: '媽媽社團' },
+  { value: 'friends_family', label: '親友介紹' },
+  { value: 'other', label: '其他' }
+] as const
+
+export function taipeiDate(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+}
+
+export function visitDateLabel(value: string) {
+  return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${value}T12:00:00+08:00`))
+}
+
+export function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
+/** 接受手機自動填入、複製貼上的空格與連字號，API 仍收到 09 開頭的十碼。 */
+export function normalizeVisitPhone(phone: string) {
+  return phone.replace(/[\s-]/g, '')
+}
+
+export function validateVisitContact(contact: VisitContact, today = taipeiDate()): VisitErrors {
+  const errors: VisitErrors = {}
+  if (!contact.parentName.trim()) errors.parentName = '請填寫家長稱呼，讓我們知道怎麼稱呼你。'
+  else if (contact.parentName.trim().length > 40) errors.parentName = '家長稱呼請在 40 字以內。'
+  if (!/^09[0-9]{8}$/.test(normalizeVisitPhone(contact.phone))) errors.phone = '請填寫 09 開頭的 10 碼手機號碼。'
+  if (!contact.consent) errors.consent = '請勾選同意，讓園所能聯繫本次參觀需求。'
+  // 舊呼叫端不帶兒童欄位；新版表單帶空字串時才套用必填驗證。
+  if (contact.childName !== undefined) {
+    if (!contact.childName.trim()) errors.childName = '請填寫孩子姓名。'
+    else if (contact.childName.trim().length > 64) errors.childName = '孩子姓名請在 64 字以內。'
+  }
+  if (contact.childBirthdate !== undefined) {
+    if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
+    else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
+  }
+  if (contact.email?.trim() && (contact.email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))) errors.email = '請填寫有效的 Email，例如 name@example.com。'
+  return errors
+}
