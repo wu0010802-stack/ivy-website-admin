@@ -1,6 +1,50 @@
+## 2026-09-23 「略過動畫」提早退場
+
+使用者說略過鈕太晚消失。`web/app/components/EntranceCurtain.vue`：原本整段 7.9 秒都在，拉幕後疊在頁首「預約參觀」上；改為布幕開始拉開（`opening > 0`，與片頭燈熄同時）就淡出 240ms，之後不可點、不可聚焦，Escape 仍可略過。實際首頁（:3161）1440／390px：倒數中可見可點、點了會略過；拉幕後 hidden 且點不到；Esc 25–34ms 內關閉並還原捲動；完整開場、清理、不重播無錯誤；Node 22 `nuxt typecheck` 0 錯誤。快照 `versions/before-skip-early-20260923-155515/`。未部署、未提交。
+
+## 2026-09-23 開場布幕流蘇改金色絲線（A/20）
+
+使用者嫌帷幔流蘇像「金屬吊飾」。`web/app/utils/entranceCurtain.ts` 的流蘇由「有凹槽的實心錐＋金屬度」改為絲線：金屬度 0＋sheen、每根線各自深淺與長短、下緣參差透出絨布、頭部圓球水平繞線；尺寸 1.35→1.1 倍。帷幔飛出距離 0.4→0.5（`VALANCE_FLY`，三處共用），減速尾巴移到畫面外，流蘇不再拖過頁首文字。預覽 `velvet.js` 已用 `build-preview.mjs` 重新產生。Node 22 `nuxt typecheck` 0 錯誤；實際首頁（:3161）1440／390px 完整開場、清理、不重播，無 shader error。細節見 `design/entrance-curtain-a-velvet-20260922/README.md` A/20。未部署、未提交。
+
 ## 2026-09-23 五校線稿 hover 輪廓微加深
 
 `web/app/components/CampusBoard.vue` 的 hover 線稿亮度由 `.72` 微調為 `.68`，增加 `.2s` 濾鏡過渡；一般與僅選中狀態沿用原色調。Chrome 1440px 前後對照、移出還原、390／320px 五校排列與無水平溢出均確認，無 page error；證據 `output/playwright/campus-hover-20260923/`。`node --check app.js`、`python3 package_preview.py` 通過，原型 `preview.html` 無差異。未部署；Safari／iOS 實機未驗證。
+
+## 2026-09-23 首屏文字往上拉＋標語比稿 `?copy=a|b|c|d`
+
+依使用者要求把桌機首屏文字往上拉：拿掉下午的 `margin-top:92px`，改為 `.studio-hero-copy{margin-bottom:48px}`（≥1001px），讓文字塊中心落在視窗中心上方約 10px。1440×900 眉標 y 356→286（比有按鈕時的 264 低 22px）、文字塊中心 440（視窗中心 450）；1280×800 眉標 306→236、1920×1080 446→376，三個尺寸都是中心高於視窗中心 10px。≤1000px 文字在照片下方，不變。
+
+同時在 `HeroVideo.vue` 加 `?copy=` 預覽參數比較首屏標語與副文案（CMS 內容不動，不帶參數維持現行「在常春藤，每一天都有新發現。」）：a「每一個為什麼，都值得好好回答。」好奇心；b「在常春藤，每天都想來上學。」喜歡上學；c「第一次離開家，有我們好好陪著。」安心交託；d「世界那麼大，先從這裡玩起。」探索世界。標語用字已對 `lineseed-bd` 子集 cmap，全數在內；副文案只取自關於常春藤既有敘述。本機 Nuxt dev（:3161）1440／1280／1920／390px 截圖，SSR 也輸出對應文案。快照 `versions/before-hero-copy-up-20260923-153500/`；證據 `output/hero-copy-20260923/`。定案後移除 `copyDrafts`。未部署、未提交。
+
+小標後半段比稿（`?eyebrow=a|b|c|d|e`：1997 年創立於高雄／陪高雄孩子近三十年／三民、左營、鳥松、仁武／五所校園，同一份用心／專業保育，溫暖陪伴）後使用者選 **b**：小標改為「常春藤幼兒園 · 陪高雄孩子近三十年」，`web/server/data/site-fixture.json` 與後端初始化用的 `content/site-fixture.json` 同步，比稿碼已移除。1440／390／320px 都是一行、無水平溢出；對照圖 `output/hero-copy-20260923/eyebrow-sheet-*.png`。**正式站小標由後台 CMS 決定，要到後台「首頁主視覺」改成同一句再發布才會生效。**
+
+## 2026-09-23 開場布幕：深紅光澤、白光片頭定案（A/19）
+
+使用者選定深紅光澤與白色片頭燈都採用，改為預設：絨布與帷幔的光澤改為深紅（sheen `#a83a48`、rim `#cf4a58`），倒數片框的燈色改為接近白的鎢絲燈（`#fff3e4`）。`?sheen=`／`?lamp=` 比稿參數與引擎選項 `sheenTone`／`leaderLamp` 已移除；校徽投影與金色緞帶仍用暖金燈色。 [預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28)；本機 Nuxt <http://127.0.0.1:3141/>。Node 22 `nuxt typecheck` 無錯誤輸出；`vitest run` 21 檔 152 項通過；獨立 Nuxt build 通過。實際首頁 1440／390px 完整開場、字型載入、清理、不重播，無 runtime／shader error。`preview.html` 雜湊不變。 快照 `versions/before-crimson-white-20260923-152826/`。未部署、未提交。
+
+## 2026-09-23 開場布幕：拉幕時下襬不再上揚（A/18）
+
+拿掉拉幕時把下襬前緣往上提的變形項（`pull*u*pow(1−v,2)*0.12`，最多約 6% 畫面高度，屬於提拉式布幕的動作）。改為軌道式對開：兩片布只左右平移，下襬一直貼著底邊，不會再露出底下的首頁。先前加的下襬擺盪只影響水平方向，保留。 [預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.75)；本機 Nuxt <http://127.0.0.1:3141/>。獨立 Nuxt build 與實際首頁 1440／390px 開場驗證通過。對照圖 `output/playwright/level-hem-20260923/hem-cmp.png`；快照 `versions/before-level-hem-20260923-152142/`。未部署、未提交。
+
+## 2026-09-23 開場布幕：倒數圓圈改正圓（A/17）
+
+依使用者要求把倒數的圓修得更正。片頭改由「長焦距放映機」投射：只有倒數的投影距離拉長為原本的 3.75 倍（`12/(12−z)`），圓圈在褶子上幾乎是正圓，錯位從最多約 4px 降到約 1px；褶子的明暗與受光照舊，所以仍讀得出是投在絨布上。校徽投影不變。 [預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28)；本機 Nuxt <http://127.0.0.1:3141/>。獨立 Nuxt build 與實際首頁 1440／390px 開場驗證通過，無 shader error。對照圖 `output/playwright/round-leader-20260923/round-cmp.png`；快照 `versions/before-round-leader-20260923-151732/`。未部署、未提交。
+
+## 2026-09-23 關於常春藤照片對齊標題、兩欄收成一塊
+
+使用者先要求照片往下對齊文字（先對內文第一行，照片反而比內文長出一截、標題右側空一塊），再請我直接調到最協調：桌機（≥901px）照片頂緣改對**標題字面頂**，SINCE 小標獨立在上當引子。左欄以 CSS subgrid 拆成 SINCE／標題／內文三列，照片跨標題＋內文兩列靠上，再下移標題半行距；標題字級抽成 `--belief-title-size`（`typography.css`）供兩邊共用，數值不變（`studio.css`）。
+
+實測（照片／內文末行／圖說底）：1512×982 照片 334–760、末行底 782、圖說底 795；1440×900 照片 302–706、末行底 739、圖說底 742；1920×1080 照片 377–814、末行底 832。照片頂與標題字面頂放大檢查同高。1280、1024 內文較長，照片靠上、文字續排；390px 單欄不變。本機 Nuxt dev（:3161）截圖、無水平溢出、無 page error。快照 `versions/before-about-photo-align-20260923-152027/`（最初）與 `versions/before-about-photo-balance-20260923-152642/`（對內文版）；證據 `output/playwright/about-photo-align-20260923/`（`balance-*`）。未部署、未提交。
+
+## 2026-09-23 首屏拿掉「看看孩子的一天」按鈕
+
+依使用者要求，`web/app/components/HeroVideo.vue` 首屏拿掉白框按鈕，桌機文字整段往下移 92px（按鈕原本佔的高度），文字底緣落在原按鈕底緣：1440×900 眉標由 y 264→356、底緣維持 664。窄螢幕（≤1000px）文字在照片下方不下移；手機只剩「找校區 →」連結，改靠左。刪除 hero 按鈕的死碼樣式（`studio.css`、`typography.css`）與已無引用的 `--hero-veil`。本機 Nuxt dev（:3161）1440／1280／1024／390px 截圖、無水平溢出、無 page error；桌機捲動揭幕仍為 native 並正常淡出。CMS 首屏「按鈕文字」欄位目前在前台不再顯示（資料流未動）。快照 `versions/before-hero-no-cta-20260923-151530/`；證據 `output/playwright/hero-no-cta-20260923/`。未部署、未提交。
+
+## 2026-09-23 開場布幕：質感精修與兩組比稿（A/16）
+
+評析 A/15 後八項全做。修了三個遠看就看得到的瑕疵：帷幔下方的「管風琴」陰影、編繩上的暗紅小點、片頭圓圈上下的接縫斷口。絨布加上細纖維與壓絨色斑，下襬金邊改成麻花。帷幔加深垂花皺褶並掛上金色流蘇。開幕時下襬會擺盪，收攏時褶子加深。片頭加上柔邊片框、暗角、較明顯的顆粒與閃爍、毛髮與刮痕。
+
+口味題做成比稿參數，預設不變：`?sheen=crimson`（深紅光澤）、`?lamp=white`（片頭白燈）。[預設](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28)、[深紅光澤](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28&sheen=crimson)、[白色燈光](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28&lamp=white)、[兩者](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.28&sheen=crimson&lamp=white)。Node 22 `nuxt typecheck` 無錯誤輸出；`vitest run` 21 檔 152 項通過；獨立 Nuxt build 通過。實際首頁 1440×900（2×）與 390×844（3×）：倒數字型 `loaded`，校徽→321→開幕、清理、無水平溢出、重新整理不重播，均無 runtime／shader error。預覽 1440／390／320px 與四種比稿組合無錯誤。`node --check app.js`、`package_preview.py` 通過，`preview.html` 雜湊不變。Safari／iOS 實機未驗證。 快照 `versions/before-velvet-polish-20260923-150632/`；證據 `output/playwright/velvet-polish-20260923/`。未部署、未提交。
 
 ## 2026-09-23 分校資訊標題改上下排列
 
@@ -8,11 +52,19 @@
 
 使用者再要求往下靠、拉大中英比例：中文 48→56px（桌機 `clamp(40px,3.9vw,56px)`、手機 32→40px），英文 28→24px（桌機 `clamp(fs-lg,1.7vw,fs-2xl)`、手機 20→18px），比例約 1.7→2.3；標題加 `margin-top`（桌機 24px／手機 14px）並把標題到分校插圖的間距收小（28→16px／23→12px），整塊往下、貼近插圖。移除 ≤360px 為並排留下的縮字與 `gap:12px`。本機 Nuxt dev（:3161）1440／390／320px 截圖確認、無水平溢出。
 
+已部署：只把這個 commit cherry-pick 到 `main`（`1f805e2`，不含 feature 上尚未上 main 的拍立得飄角、關於照片），CI run 35831335751 四個 job 全綠，線上 `/release.json` base_commit `1f805e2`、snapshot `e969e461…`；正式站 1440／390／320px 量到的字級與位置和本機相同、無水平溢出。
+
 ## 2026-09-23 官網報名修復已部署
 
 報名設定失敗重試、全形連字號手機，以及家長管理頁已部署至[正式官網](https://web-production-04caa.up.railway.app/)。API 與 web 均 SUCCESS；版本 `20800ce32b86`。以最新正式 `f023bd0` 為基底，只套入本次修復，保留已部署設計與錯誤頁修正。
 
 隔離快照 180 backend／140 web／48 admin 測試、型別、契約與正式建置通過；線上 36 項公開檢查與 Chrome 15 項 1440／390／320px 操作檢查通過，無 runtime／hydration error 或水平溢出。未建立正式測試報名、未 migration／CMS 發布／commit／push。詳見 `deploy/README.md` 與 `output/railway-visit-repair-20260923-145157/`。
+
+## 2026-09-23 拍立得翻面暗示：B「捲動飄角」
+
+使用者從 `design/flip-hint-subtle-20260923/` 三版（A 對光透字／B 捲動飄角／C 包邊貼紙）選 B，已接進 Nuxt `web/`。紙膠帶只黏上緣，捲動時右下折角隨速度掀起（32→最多 52px）、整張微擺 ≤0.7°，停下回彈一次收回；只回應使用者的捲動，不自動播放，減少動態不做。新增 `web/app/utils/earGust.ts`（共用一個 scroll 監聽與 rAF 時鐘）與 11 項單元測試；`DayMomentCard.vue` 折角改為「基準＋捲動疊加」單一出口，`.print-card` 傾角改走 `--card-tilt`。
+
+驗證：web 21 檔 152 項單元測試、Node 22 `nuxt typecheck` 0 錯誤（以故意錯誤檔確認有抓錯）；Chrome（M2 Metal）桌機 WebGL 折角掀到 47.6px、停下回 32px／擺動歸零，畫面外卡片不動，p95 幀時間 16.8ms 與無拍立得區段相同；手機 390px 掀到 55px 後收回、無水平溢出；減少動態不動；無 console 錯誤。證據 `output/playwright/ear-gust-20260923/`，快照 `versions/before-ear-gust-20260923-143901/`（本機）。未部署；Safari／iOS 實機未驗證。
 
 ## 2026-09-23 官網報名手測修復與家長管理頁
 
@@ -22,19 +74,19 @@
 
 驗證：backend 真 PostgreSQL 180 項、web 141 項單元測試、Node 22 型別與契約檢查通過；Chrome 實際表單送出／管理連結／改期／取消／錯誤重試／截止時間與 1440／390／320px 驗證通過，無 page error 或水平溢出。證據 `output/playwright/visit-repair-20260923/REPORT.md`；臨時 API 與專用手測 DB 已清理，未發通知。`node --check app.js`、原型重新打包通過，`preview.html` 無差異。未部署、未提交；Safari／iOS 實機未驗證。
 
-## 2026-09-23 拍立得翻面暗示：B「捲動飄角」
+## 2026-09-23 開場布幕：經典片頭倒數、帷幔定案（A/15）
 
-使用者從 `design/flip-hint-subtle-20260923/` 三版（A 對光透字／B 捲動飄角／C 包邊貼紙）選 B，已接進 Nuxt `web/`。紙膠帶只黏上緣，捲動時右下折角隨速度掀起（32→最多 52px）、整張微擺 ≤0.7°，停下回彈一次收回；只回應使用者的捲動，不自動播放，減少動態不做。新增 `web/app/utils/earGust.ts`（共用一個 scroll 監聽與 rAF 時鐘）與 11 項單元測試；`DayMomentCard.vue` 折角改為「基準＋捲動疊加」單一出口，`.print-card` 傾角改走 `--card-tilt`。
+使用者確認帷幔與金底深字都採用，並要求倒數改成經典電影片頭。倒數現在是投影在絨布上的 Academy 式片頭：圓形片框照亮布面，雙圈、十字線、順時針掃過的明暗和 Oswald 粗黑體數字都是擋光的底片，加上片門晃動、閃爍、灰塵與刮痕。片框會在校徽光圈收起的地方重新打開。帷幔改為預設出現，移除 `?valance=1`。
 
-驗證：web 21 檔 152 項單元測試、Node 22 `nuxt typecheck` 0 錯誤（以故意錯誤檔確認有抓錯）；Chrome（M2 Metal）桌機 WebGL 折角掀到 47.6px、停下回 32px／擺動歸零，畫面外卡片不動，p95 幀時間 16.8ms 與無拍立得區段相同；手機 390px 掀到 55px 後收回、無水平溢出；減少動態不動；無 console 錯誤。證據 `output/playwright/ear-gust-20260923/`，快照 `versions/before-ear-gust-20260923-143901/`（本機）。未部署；Safari／iOS 實機未驗證。
+[查看 A/15](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1&v=15)；本機 Nuxt <http://127.0.0.1:3141/>。Node 22 型別檢查無錯、131 項單元測試與獨立 Nuxt build 通過；實際首頁 1440／390px 完整開場、字型載入、清理、無溢出、不重播，無 runtime／shader error；`preview.html` 雜湊不變。新增字型 `web/public/assets/fonts/oswald-700-leader.woff2`（OFL）。快照 `versions/before-film-leader-20260923-140842/`；證據 `output/playwright/film-leader-20260923/`。Safari／iOS 實機未驗證。未部署、未提交。
 
-## 2026-09-23 關於常春藤改為單張圓角照片
+## 2026-09-23 彩色校徽置中與布幕倒數正式部署
 
-依使用者截圖，Nuxt 首頁「關於常春藤」原本的主照＋小照疊放改為單張照片，框型比照參考圖：3:2、16px 圓角、無米白框也無陰影（與 `.studio-intro-photo` 同規格）。圖說移到照片下方靠右。`sizes` 改為 `(max-width: 900px) 90vw, 42vw`。凍結原型 `app.js` 未動。
+已將本對話定案的 A/13 部署至[正式官網](https://web-production-04caa.up.railway.app/)：彩色人物校徽置中、暖金 30th Anniversary 緞帶、圓框 321 投影與紅絨布幕開啟。另修正首次載入時先編譯空白幀、太晚下載 Logo 的順序；畫面與倒數時序保持原樣。
 
-同日依使用者提供的新照片（2000×803 寬幅，長輩被孩子們圍住大笑）換掉 `about-curious`：從 x=30 裁成 3:2 母檔 `web/public/assets/about-together.webp`（1204×803，WebP q90），左側大笑的男孩完整入鏡，長輩視線朝向右側孩子；以 `scripts/optimize-site-images.py --only about-together` 產生 160／480／800／1200 衍生檔與 manifest。fixture 只留這一張（後台不編輯照片；`about-curious`、`learning` 素材保留，`learning` 仍用於消息卡）。alt 只描述畫面，不寫人物身分。
+最終 web deployment `367a3133-0ab1-43fa-9c2a-dfaee064d8a5`，snapshot `f17220a71ac74d29c60c62de39a3e00e161b84c867a0484d4d1f92b2dd0b6bbe`。隔離建置、120 web／42 admin tests、本機 9 組瀏覽器流程、正式 Chrome 1440／390px 完整播放與 51 項公開唯讀檢查通過。動畫同一工作階段播放一次，可用全新無痕視窗重看；Safari／iOS 實機未驗證。
 
-1440／1024／390 截圖與量測：照片 1 張、圓角 16px、無邊框與陰影、1440 與 390 載入 800w、無水平溢出、無 runtime error；手機照片先離開，才接「關於／常春藤」大字。`vitest run` 18 檔 120 項通過，`nuxt typecheck`（Node 22）無錯誤。快照 `versions/before-about-single-photo-20260923-135156/`，證據 `output/playwright/about-single-photo-20260923/`。部署紀錄見 `deploy/README.md`。
+本次由即時正式基底建立限定快照，保留其他已上線內容，未納入工作區並行的新布幕設計／後台 UX／字型變更。API／資料庫部署維持不變，未 commit 或 push。詳細紀錄見 `deploy/README.md`，證據 `output/railway-entrance-load-20260923-135034/`。
 
 ## 2026-09-23 官網後台第四輪 UX：追蹤到期有入口、案件一筆接一筆、發布前看差異
 
@@ -46,6 +98,68 @@
 - **文案**：「時段預約（尚未開放）」改「家長自選場次」（09-22 已改為校方可設定）；「首頁首屏文字」改「首頁大圖標語」並提示字型子集；「替代文字」統一為「圖片說明」；取消鈕統一「先不要」；「原填年齡」「小標（eyebrow）」「標題樣板」「目前為第 N 版」清掉；改期核准／退回加確認框；新增使用者加「產生密碼」；登入頁忘記密碼說法對齊實際流程。
 
 驗證：`admin` typecheck 無錯、vitest 48 項（新增 `followUpUx.test.ts` 6 項）；backend pytest 172 項（新增到期篩選與排序測試）；契約 `contracts/` 已重生。真後端（8010）＋Vite（5175）以臨時帳號與示範案件跑 Playwright 1440／390px，截圖 `output/playwright/admin-ux-round4/`，無 console error、無溢出，示範資料已清。快照 `versions/before-admin-ux-round4-20260923-134519/`。未部署、未提交。
+
+## 2026-09-23 開場布幕：絨布打光、光圈校徽、對焦倒數（A/14）
+
+依評析把布幕質感、倒數、Logo 一起改。絨布改為「正面暗、摺肩亮」的打光：上方隱入暗處、下緣暖色腳燈，褶子是圓鼓布面加窄深褶溝，下襬金邊加寬成斜紋編繩。Logo 改成追蹤光圈投影，墨線擋光、彩色保留，緞帶為金底深字。倒數桌機、手機統一單圈，字型換成 LINE Seed TW，拿掉掃針與光暈，每個數字落下時短暫對焦。帷幔另做比稿參數 `?valance=1`，首頁預設不開。
+
+順帶修正一個既有陰影 bug：VSM 把沒有變形深度材質的下襬金邊畫成 z=0 的隱形平面，造成褶溝假陰影與上緣鋸齒尖刺。
+
+[查看 A/14](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1&v=14)；[加帷幔](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1&v=14&valance=1)；本機 Nuxt <http://127.0.0.1:3141/>。Node 22 型別檢查無錯、120 項單元測試與獨立 Nuxt build 通過；實際首頁 1440／390px 完整開場、字型載入、清理、無溢出、不重播，無 runtime／shader error；`preview.html` 雜湊不變。快照 `versions/before-velvet-light-20260923-132931/`；證據 `output/playwright/velvet-light-20260923/`。Safari／iOS 實機未驗證。未部署、未提交。
+
+## 2026-09-23 關於常春藤改為單張圓角照片
+
+依使用者截圖，Nuxt 首頁「關於常春藤」原本的主照＋小照疊放改為單張照片，框型比照參考圖：3:2、16px 圓角、無米白框也無陰影（與 `.studio-intro-photo` 同規格）。圖說移到照片下方靠右。`sizes` 改為 `(max-width: 900px) 90vw, 42vw`。凍結原型 `app.js` 未動。
+
+同日依使用者提供的新照片（2000×803 寬幅，長輩被孩子們圍住大笑）換掉 `about-curious`：從 x=30 裁成 3:2 母檔 `web/public/assets/about-together.webp`（1204×803，WebP q90），左側大笑的男孩完整入鏡，長輩視線朝向右側孩子；以 `scripts/optimize-site-images.py --only about-together` 產生 160／480／800／1200 衍生檔與 manifest。fixture 只留這一張（後台不編輯照片；`about-curious`、`learning` 素材保留，`learning` 仍用於消息卡）。alt 只描述畫面，不寫人物身分。
+
+1440／1024／390 截圖與量測：照片 1 張、圓角 16px、無邊框與陰影、1440 與 390 載入 800w、無水平溢出、無 runtime error；手機照片先離開，才接「關於／常春藤」大字。`vitest run` 18 檔 120 項通過，`nuxt typecheck`（Node 22）無錯誤。快照 `versions/before-about-single-photo-20260923-135156/`，證據 `output/playwright/about-single-photo-20260923/`。部署紀錄見 `deploy/README.md`。
+
+## 2026-09-23 iPhone 背景播放鈕捲動相容性
+
+使用者回報 iPhone Chrome 上下捲動時只有「暫停背景」按鈕跳動。本輪只在觸控裝置替 `.day-film-ui` 加上 `translateZ(0)`，讓 sticky 控制層獨立合成；外觀、位置、影片與拍立得功能保持原樣。這是針對繪製不同步的相容性措施：本機原先沒有重現實機抖動，仍須以使用者的 iPhone Chrome 確認是否改善。已部署正式 web，deployment `6ca094b6-1fdf-40a4-a9de-c7cad13c62f7`，release `cd2d806f…`；34 項公開 GET 與五組 Chrome／WebKit 線上檢查通過。未提交。
+
+本機 Chrome 320／390px 觸控及 1440px 桌機、WebKit 390px 一般／減少動態模式均通過版位前後比較、上下捲動、播放／暫停、區塊交界點擊及無溢出檢查，無 runtime error；Chrome 觸控模式確認控制層使用 `StickyPosition` 合成。`node --check app.js`、`python3 package_preview.py` 通過，凍結的 `preview.html` 無差異。證據與驗證腳本位於 `output/playwright/day-scroll-jitter-20260923/`。
+
+## 2026-09-23 人物校徽置中基準修正
+
+使用者回報 Logo 仍未置中。本輪改以截圖中的「皇冠／人物／月桂／IVY KIDS」可見範圍置中，下方 30th Anniversary 緞帶接在校徽下方；先前是包含緞帶的整組外框置中，人物區域因此偏上。倒數圓框仍以畫面中心呈現，人物彩色、金色緞帶、大小及時序不變。
+
+[查看 A/13 新版](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1&v=13)；[本機首頁](http://127.0.0.1:3136/)。原圖上方校徽範圍 y=114–876、中心 y=495；投影依此修正取樣中心。快照 `versions/before-crest-centering-20260923-122208/`；證據 `output/playwright/crest-centering-20260923/`。本機預覽，未部署、未提交。
+
+Node 22 typecheck 與獨立 Nuxt build 通過。Chrome 桌機 1440px／2× 與手機 390px／3× 實際首頁完整播放、清理、無溢出及重新整理不重播均通過，無 runtime／shader error。1440／390／320px 的人物校徽外框中心偏差至多 3px；此輪量測以皇冠到 IVY KIDS 為範圍，週年緞帶不納入。原圖與凍結 preview.html 雜湊不變，原型語法／重打包及 diff 檢查通過。保留既有 CSS calc/clamp 與 chunk 大小建置警告；Safari／iOS 實機未驗證。
+
+## 2026-09-23 人物投影細修與置中
+
+依使用者截圖，人物校徽改為縮圖前清除米白紙底，避免淡色殘邊混入輪廓；保留原始人物與品牌色，下方週年緞帶維持既定暖金。投影依布褶深淺調整焦外柔光與明暗，讓布料質感透出。校徽與 321 共同改為畫面正中央，比例與時序保留。
+
+高密度顯示最高 2×，並限制繪圖像素總量為 450 萬；原圖不改寫、不另外下載素材。快照 `versions/before-refined-projection-20260923-120523/`；證據 `output/playwright/refined-projection-20260923/`。[細修預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1)；[本機首頁](http://127.0.0.1:3136/)。未部署、未提交。
+
+Node 22 型別檢查、119 項單元測試與獨立 Nuxt build 通過。Chrome 實際首頁 1440／901px（2× DPR）及 390px（3× DPR）完整開場、無溢出、工作階段一次與倒數中略過／WebGL context loss／減少動態均通過，無 runtime／shader error。另確認 1440／390／320px 高密度預覽與繪圖像素上限；校徽及圓框的可見外框中心與畫面中心偏差至多 2px。原始 PNG 與凍結 preview.html 雜湊不變，原型語法／重打包／diff 檢查通過。建置仍有既有 CSS calc/clamp 與 chunk 大小警告；Safari／iOS 實機未驗證。
+
+## 2026-09-23 週年緞帶恢復金色投影
+
+依使用者要求，只有下方「30th Anniversary」緞帶恢復上一版的暖金投影，沿用該版遮光密度、柔光與亮度參數。人物、月桂、皇冠及 IVY KIDS 保留原彩色；兩區分界位於原圖緞帶間的留白，原始 PNG、位置、倒數與拉幕時序均不變。
+
+[查看／重播](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/?p=0.1)；[本機首頁](http://127.0.0.1:3136/)。證據 `output/playwright/gold-anniversary-20260923/`；快照 `versions/before-gold-anniversary-20260923-115542/`。本機修改，未部署、未提交。
+
+Node 22 typecheck 與獨立 Nuxt build 通過。Chrome 1440／390px 實際首頁完整播放、清理、無溢出與重新整理不重播均通過，無 runtime／shader error；上方彩色區域與前版像素一致，下方緞帶內部與先前金色版一致。321／拉幕八張比較中只有兩張各一像素差 1/255。原始 PNG、凍結 preview.html 雜湊不變，原型語法／重打包及 diff 檢查通過。保留既有 CSS calc/clamp 與 chunk 建置警告；Safari／iOS 實機未驗證。
+
+## 2026-09-23 選單五校 hover 切換
+
+五校校名滑鼠移入或鍵盤聚焦時，選單下方的參觀專線、電話連結與分校社群同步切換；移開後保留目前校區及底色。校名點擊與手機觸控仍進入原分校頁，缺少聯絡資料維持待提供。只更新 Nuxt 選單互動，沿用乳白毛玻璃外觀。已部署正式 web，deployment `e5ea1c35-ce8f-4b2b-9705-317294f76830`，release `01bdec18…`；API／資料庫版本維持。
+
+驗證：Node 22 Nuxt typecheck、119 項既有單元測試、Chromium 桌機五校 hover／鍵盤與 390px 觸控導頁通過，無 runtime error。證據在 `output/playwright/menu-hover-20260923/`；[本機預覽](http://127.0.0.1:3162/)。原型語法與重打包通過，凍結 `preview.html` 無差異；Safari／iOS 實機未驗證。
+
+部署以正式照片畫質版為基底，僅套入 `SiteHeader.vue` 與 `studio.css` 的 hover 差異。隔離建置的 102 web／42 admin tests、型別與 build、39 項正式公開檢查及線上桌機／手機互動均通過；證據 `output/railway-menu-hover-20260923-115855/`。未納入並行開場設計，未 commit／push。
+
+## 2026-09-23 彩色校徽與圓框電影投影
+
+依使用者最新要求，人物校徽恢復原圖彩色：藍衣、粉紅裙、綠色月桂與金色緞帶保留；shader 只去除接近米白的紙底，清理邊緣並讓色光隨布褶明暗變化，原始 PNG 不變。電腦 3、2、1 加回單一暖金細圓框，搭配低對比旋轉掃針、細顆粒與柔和光暈；圈內仍看得到酒紅絨布。
+
+校徽與倒數共用位置和高度，維持 1.5 秒校徽、3 秒倒數、3.4 秒拉幕。手機校徽同步彩色，倒數維持既有圓環樣式。[重播預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[本機首頁](http://127.0.0.1:3136/)。證據 `output/playwright/cinema-projection-20260923/`；快照 `versions/before-cinema-projection-20260923-114356/`、`versions/before-colour-logo-20260923-114736/`。本機修改，未部署、未提交。
+
+Node 22 型別檢查、119 項單元測試與獨立 Nuxt build 通過。Chrome 實際首頁 1440／901／390px 的彩色校徽→321→拉幕、清理、無溢出、同工作階段不重播，以及倒數中略過／WebGL context loss／減少動態均通過，無 runtime／shader error。手機倒數與拉幕四格比對，只有一格的一個像素差 1/255，維持原視覺；校徽依要求同步彩色。原始 PNG 與 preview.html 雜湊不變，原型語法／重打包／diff 檢查通過。建置保留既有 CSS calc/clamp 與共用 chunk 大小警告；Safari／iOS 實機未驗證。
 
 ## 2026-09-23 字體審查 B 批：明體統一、標點、字級尺度
 
@@ -73,11 +187,21 @@
 
 驗證在這個 worktree 起 Nuxt dev（fixture 模式）：首頁、義華分校頁、預約頁在 1440／390px 下都沒有小於 12px 的中文字。CDP 查到選單英文、編號與電話實際使用 Source Sans 3；兩欄標題 1440／1024px 的 top 值相同；拍立得 WebGL 紙面桌機與手機截圖正常。`tests/print-flip.spec.ts` 10 項通過。Safari／iOS／Windows 實機未驗證。
 
+## 2026-09-23 純數字倒數預覽
+
+依使用者要求查看簡化畫面，電腦版移除膠卷底、圓圈、十字線、掃針與齒孔，只保留紅布幕中央的暖金 3、2、1。延續數字比例與光學置中，改由 Three.js 布幕材質投射，讓數字光影隨布褶起伏。校徽先行與 7.9 秒完整流程不變，手機維持既有圓環投影。
+
+[查看純數字預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[本機首頁](http://127.0.0.1:3136/)。舊膠卷版留於 `versions/before-number-only-20260923-112736/`，本輪證據 `output/playwright/number-only-20260923/`。先供本機視覺比較，未部署、未提交。
+
+Node 22 型別檢查、119 項單元測試與獨立 Nuxt build 通過。Chrome 實際首頁 1440／390px 的校徽→321→拉幕、清理、無溢出及重新整理不重播通過，無 runtime／shader error。手機五個影格比對差異最多為每格單一像素、單色階 1/255，維持原視覺。原型語法、重打包及 diff 檢查通過，preview.html 雜湊不變；保留既有 CSS calc/clamp 與 chunk 大小建置警告，Safari／iOS 實機未驗證。
+
 ## 2026-09-23 膠卷縮成中央橫框，321 光學置中
 
 依要求取消電腦版滿版膠卷，改為中央 16:9 橫框，四周露出紅布幕，最大寬度 880px 且依容器尺寸縮放。校徽與倒數圓圈仍共用中心與高度。框內移除向上偏移；3、2、1 的橫向依實際墨色重心校正、垂直依可見字形置中，修正「1」直筆偏右的視覺感。手機版與完整 7.9 秒流程維持原樣。
 
 [重播預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[本機首頁](http://127.0.0.1:3136/)。快照 `versions/before-film-panel-20260923-111907/`，證據 `output/playwright/film-panel-20260923/`。未部署、未提交。
+
+Node 22 型別檢查、119 項單元測試與獨立 Nuxt build 通過。Chrome 1440／901／390px 完整開場、工作階段一次、略過與備援均通過，無 runtime／shader error；桌機兩尺寸確認四邊均露出紅布幕。1328×600 預覽的 3／2／1 水平墨色重心及垂直字形中心距框中心均小於 1px；390px 五個關鍵影格與前版 RGB 像素完全一致。原型語法／重打包／diff 檢查通過，preview.html 雜湊不變。建置保留既有 CSS calc/clamp 與 chunk 大小警告；Safari／iOS 實機未驗證。
 
 ## 2026-09-23 首屏按鈕 ?cta= 比稿（否決，已移除）
 

@@ -359,6 +359,42 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 證據：`output/railway-day-photo-quality-20260923-094939/` 的 summary、manifest、approved.patch、build-results／logs、browser-local、preflight／pre-upload、upload、uploaded、initialization-diagnostic、final-status 與 validation-notes。重建腳本 `output/prepare-day-photo-quality-deploy.py`；後續線上檢查指令在 validation-notes。
 - 保留此筆等待中的部署，未重複上傳。未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、通知／索引啟用、commit 或 push；只停止本次隔離預覽 3157／3158，未停止使用者開發服務。
 
+## 2026-09-23 選單五校 hover 切換部署
+
+- 僅更新 web，deployment `e5ea1c35-ce8f-4b2b-9705-317294f76830`，SUCCESS。API `0b2c7267-b160-4b2d-b434-2e58b63c919f`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。
+- 開工時確認上節照片畫質部署 `28ce210a…` 已 SUCCESS，正式 release 為 `6b82fc18…`。依其 459 檔 manifest 逐一驗證後，只套入 `SiteHeader.vue` 的滑鼠／焦點切校及電話社群同步、`studio.css` 的選中底色；其他正式來源逐位元組保留，未納入並行開場及其他本機改動。
+- 固定快照 `/private/tmp/ivy-website-menu-hover-20260923-115855`，459 檔／49,129,759 bytes，不含 release。SHA-256 `01bdec18c3e5fea982c98ca329d9ff299465b2b67b06fea6a4abd61ea9d3f392`；上傳前核對線上基底、上傳後來源 hash 與正式 `/release.json` 一致。回復參考為前版 web deployment `28ce210a-4ad8-4be1-92ea-689da4348224`。
+- Node 22.23.2 隔離建置通過 web typecheck、102 web tests、42 admin tests、admin build 與 production/live web build。既有 Hero CSS calc/clamp 與 chunk 提醒保留；backend 無差異，未重跑其測試。
+- 39 項公開唯讀檢查通過，包括 release、production/live API、CMS、五校／預約／後台 SSR、公開預約設定、robots、404／匿名 401、產品 CSS 與 admin assets SHA-256，以及快照來源未漂移。初次 health GET 逾時後自動重試成功；沿用腳本的一項舊 about-mobile 公式假設與正式基底不符，確認基底本就無該公式、CSS 只增加本次 selector 後移除該過時斷言，未改產品或重部署。
+- 同份建置及正式站均通過 1440px 五校 hover／電話／四平台社群、移出保留選擇、不搶焦點、Tab／Escape／校名導頁及 390px 手機點選；無 runtime error，手機無水平溢出。已檢視正式桌機選單截圖；Safari／iOS 實機未驗證。
+- 證據 `output/railway-menu-hover-20260923-115855/`：summary、manifest、approved.patch、build-results／logs、pre-upload、upload、railway-success、smoke-public、validation-notes、browser-local／browser-online。準備程式 `output/prepare-menu-hover-deploy.py`。
+- 未執行 migration、CMS 發布、登入／業務資料寫入、通知或索引啟用、commit／push；驗證瀏覽器阻擋業務 API 寫入，只停止本輪隔離預覽 3163。
+
+## 2026-09-23 彩色校徽置中／321 圓框布幕部署
+
+- 最終 web deployment `367a3133-0ab1-43fa-9c2a-dfaee064d8a5`，SUCCESS。正式 `/release.json` snapshot `f17220a71ac74d29c60c62de39a3e00e161b84c867a0484d4d1f92b2dd0b6bbe`；API `b3361602-92f0-4945-8c9e-3658b9d8e0ba`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 均維持原部署，已即時核對。
+- 開工時正式站已由 GitHub Actions 更新至 commit `9d838f0bb61d3cfbea7997f317ffd6a95ab7bb24`、snapshot `6f792cc0c0c699e017607e15ce3e79da533d955b03db00cb99625e7d4467e36a`，並非前節選單部署快照。以 git archive 精確重建且 hash 符合的正式來源，只更新 `entranceCurtain.ts` 並移除舊 `entrance-film.ts`。既有 entrance integration／timeline／asset／dependencies 沿用正式版。
+- 彩色人物、暖金週年緞帶與 A/13 人物校徽置中；桌機投影圓框倒數，手機延用暖金圓盤樣式。此輪未納入工作區並行的 iris／flash／flare、新材質、字型或後台修改。
+- 首次部署 `85734ccf-f924-4f0c-9bc5-e2ef21c539c1` 已 SUCCESS，但正式冷載入曾因先編譯空白幀、Logo 過晚下載而觸發 2800ms 初始化略過。已補上素材就緒前不繪製空白幀，並提早啟動圖片請求。800ms 圖片延遲對照確認修正後請求先於 shader 編譯發出；保留原有所有逾時與偏好保護，未延長倒數。
+- 最終快照 `/private/tmp/ivy-website-entrance-load-20260923-135034`，470 檔／70,119,022 bytes（不含 release）；上傳前核對正式基底與三服務部署未變，上傳後來源 hash 保持一致。初次核准布幕快照為 `63a6463d4d4d3722a6a1c2937e08342724c4689dc39495baed17e27131f2814b`，最終在其上只套用首幀載入修正。
+- Node 22.23.2 隔離 web typecheck、120 web tests、42 admin tests、admin build、production/live web build 通過。最後只改 renderer 的階段，重跑 web 三項；admin 來源／lockfile 未變，沿用同份成功結果。原型語法與重打包通過，preview.html 雜湊不變。既有 CSS calc 與 bundle 大小警告保留。
+- 本機 9 組流程涵蓋 1440／390px 全程播放、一次播放、清理、無溢出、skip／Escape／context loss／中途減少動態與強制色彩／錨點略過。正式 Chrome 1440×900 DPR2、390×844 DPR3 完整播放、清理、無溢出與重新整理不重播均通過，無 runtime／shader／hydration error；實測每段倒數 998.7–1006.2ms。線上計時移除倒數中的高解析截圖干擾，保留原始至少 850ms 斷言。Safari／Firefox／iOS 實機未驗證。
+- 51 項公開唯讀檢查通過：release、production/live API、CMS、五校／visit／admin SSR、預約契約、robots、404／匿名 401、產品 CSS／admin asset hash、Logo 原圖 hash、正式 renderer 的五段 GLSL 精確比對與無 SSR prefetch。一次公開 GET 連線逾時後重試成功。Docker／本機 import 排序導致 minifier 識別符與 JS chunk hash 不同，未宣稱整份 JS hash 相同，詳見 renderer-comparison.json。
+- 證據 `output/railway-entrance-20260923-133533/` 與最終 `output/railway-entrance-load-20260923-135034/`，包含 summary／manifest／approved.patch／build-results／browser-local／browser-online／load-order／pre-upload／upload／railway-success／smoke-public／validation-notes。未執行 migration、CMS 發布、帳號登入、業務寫入、通知、索引啟用、commit 或 push。
+
+
+## 2026-09-23 iPhone 背景控制鈕捲動相容性部署
+
+- 僅更新 web，deployment `6ca094b6-1fdf-40a4-a9de-c7cad13c62f7`，SUCCESS。API `b3361602-92f0-4945-8c9e-3658b9d8e0ba` 與 Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 保持原部署，已即時核對。
+- 以正式開場載入修正版 `f17220a71ac74d29c60c62de39a3e00e161b84c867a0484d4d1f92b2dd0b6bbe` 為基底，只在 `web/app/assets/css/styles.css` 加入觸控裝置 `.day-film-ui` 的 `translateZ(0)` 與註解。470 檔逐一核對，唯一產品差異為此兩行 CSS，保留已上線開場、照片、字型及後台版本。
+- 固定快照 `/private/tmp/ivy-website-day-button-20260923-140119`，470 檔／70,119,202 bytes，不含後寫入的 release；SHA-256 `cd2d806f10eea31f3204d04055184b0a32162ae7c21f522798a9b72025376972`。上傳前後來源一致，線上 `/release.json` 已核對。回復參考為 web deployment `367a3133-0ab1-43fa-9c2a-dfaee064d8a5`。
+- 首次候選 `135644` 在上傳前偵測到正式基底由 `63a6463d…` 更新為 `f17220a7…`，自動停止且沒有上傳；重新以最新正式快照疊入同一修正。保留重建與中止證據，沒有回退並行的開場更新。
+- Node 22.23.2：web typecheck、120 web tests、production/live build 通過。42 admin tests 與 admin build 在本輪初次候選通過；重建基底時逐檔確認 admin／contracts 完全一致，沿用其結果與成品並記錄來源。backend 無變更，未重跑其測試。既有 CSS calc/clamp 與 chunk 建置提醒保留。
+- 34 項公開 GET 檢查通過：版本、production/live API、已發布 CMS、五校／預約／後台 SSR、所有 SSR inline CSS 及外連產品 CSS、admin JS／CSS hash、booking-config、robots／404／匿名 401、來源 hash 與按鈕 CSS。
+- 同份建置與正式站各通過五組瀏覽器檢查：Chrome 390／320px 觸控、1440px 桌機，WebKit 390px 一般／減少動態。版位不變、上下捲動位置穩定、播放／暫停、純高度改變及離開區塊後不攔截點擊均通過，零 runtime error、無水平溢出。iPhone Chrome 實機是否消除抖動仍待使用者確認，不以桌機 WebKit 代替實機證據。
+- 證據：`output/railway-day-button-20260923-140119/` 的 summary、manifest、approved.patch、build-results／logs、pre-upload、upload、railway-success、smoke-public、browser-local／browser-online、rebase-notes。準備程式 `output/prepare-day-button-deploy.py`。
+- 未執行 migration、CMS 發布、正式帳號登入、預約或通知寫入、commit／push。瀏覽器阻擋所有非 GET／HEAD／OPTIONS 請求；僅停止本輪隔離預覽程序。
+
 ## 2026-09-23 關於常春藤單張圓角照片部署
 
 - 使用者要求換成新照片並部署。僅更新 web，deployment `061fd0b4-7198-458e-bc8b-812c6ab0ed6b`，SUCCESS。API `b3361602-92f0-4945-8c9e-3658b9d8e0ba`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。回復參考為前版 web deployment `6ca094b6-1fdf-40a4-a9de-c7cad13c62f7`。
@@ -367,6 +403,21 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - Node 22.23.2 隔離建置：web typecheck、120 web tests、42 admin tests、admin build、production web build 通過（已 grep 輸出，不只看 exit code）。同份建置與正式站各以 1440／1024／390 驗證：照片 1 張、圓角 16px、無邊框陰影、載入 about-together 480w／800w、無水平溢出與 runtime error；已檢視正式 1440px 畫面。Safari／iOS 實機未驗證。
 - 證據 `output/railway-about-photo-20260923-140608/`（summary、manifest、approved.patch、build-results／logs、browser-local／browser-online、pre-upload、upload），截圖在 `output/playwright/about-single-photo-20260923/`（before／after／photo／build／online）。準備程式 `output/prepare-about-photo-deploy.py`（自動以線上 release 為基底），上傳程式 `output/upload-about-photo.py`。
 - 未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、commit／push；只停止本輪隔離預覽 3171。
+
+## 2026-09-23 後台第四輪 UX 經 main CI 部署（含手動快照併回 git）
+
+- 正式站原為 main `9d838f0` ＋四次手動快照（校徽置中投影、日常影片控制列合成、關於單張圓角照片），最後一次 release `a6bb8f44…`（快照 `/private/tmp/ivy-website-about-photo-20260923-140608`）。推 main 前先以該快照逐檔比對 `9d838f0`，把 6 個變更檔、5 個新 webp 與刪除的 `entrance-film.ts` 併成 commit `16ade52`（工作樹與快照逐位元組一致，僅 `release.json` 不同），再合併 `feature/website-admin`（`863e5ed` 後台第四輪 UX、字級 token 批次）為 `dacbdbe`。衝突只在 `styles.css`／`studio.css`（線上單張照片結構＋feature 的 `--fs-*` token 都保留）與 DESIGN.md。
+- 合併後於 Node 22.23.2 乾淨工作樹通過 web typecheck、120 web tests、admin typecheck、48 admin tests、Nuxt production build（既有 clamp postcss 警告不變）。
+- GitHub Actions run `35826104444`（main push）四個 job 全綠，Deploy Railway production 成功；正式 `/release.json` `base_commit` 為 `dacbdbe…`、snapshot `49d1ce08…`、`source: GitHub Actions: committed production snapshot`、web+api 同批。
+- 線上核對：`/`、`/campuses/yihua`、`/visit/yihua`、`/admin/`、`/api/website/v1/health` 200；`/admin/visit-requests?follow_up_due=true` 匿名 401（新參數已上線）。未執行 migration（本輪無 schema 變更，正式 head 仍 8cf3e2b5a641）、未寫入業務資料。
+- 之後任何手動快照部署必須以 `dacbdbe` 為基底；再推 main 前照本節做法先把線上快照差異併回 git。
+
+## 2026-09-23 修正錯誤頁 gzip 損毀（第二次 main CI 部署）
+
+- 上一節部署後用 httpx／Chrome 驗證發現：`/campuses/不存在校區` 的 404 HTML 頁自 09-22 `41468b3` 起就壞（`web/server/plugins/compress-html.ts` 在 `render:response` 壓縮，Nuxt 錯誤處理器內部 fetch `/__nuxt_error` 後以 `.text()` 讀 Buffer，gzip 的 `0x8b` 變 U+FFFD），Chrome 直接 `ERR_HTTP_RESPONSE_CODE_FAILURE`。curl UA 會拿到 JSON 404，所以先前所有 smoke 都看不到。以本機正式 build 確認 `9d838f0` 與 `dacbdbe` 皆重現，非本輪引入。
+- 修正 `f023bd0`：`/__nuxt_error` 或 status ≥ 400 不壓縮，其餘頁面照舊 gzip／br。GitHub Actions run `35827967602` 四個 job 全綠；正式 `/release.json` `base_commit` `f023bd0`、snapshot `4e5b46e5…`。
+- 線上驗證：Chrome 開 `/campuses/not-a-campus` 回 404 並正常顯示錯誤頁（目前是 Nuxt 預設樣式，尚無自訂 `error.vue`）；`output/railway-smoke-20260923-admin-r4.py` 33 項全通過（原腳本「五校皆 paused」的斷言已過時，正式站現為 yihua inquiry、minghua slots、chongde inquiry、international／renwu paused，改為只驗設定可讀）。
+- 未執行 migration、未變更 CMS 或預約設定。`fix/error-page-compression` 只在 main；`feature/website-admin` 下次合併 main 時會帶到。
 
 ## 2026-09-23 官網報名修復與家長管理頁部署
 
