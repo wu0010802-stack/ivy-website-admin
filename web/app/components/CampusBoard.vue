@@ -181,7 +181,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
         >
           <img
             class="campus-tab-art"
-            v-bind="responsiveImage(`campus-line-art-${campus.key}`, '(max-width: 360px) 48px, (max-width: 700px) 60px, 120px')"
+            v-bind="responsiveImage(`campus-line-art-${campus.key}`, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
             alt="" aria-hidden="true" loading="lazy" decoding="async"
           >
           <span class="campus-tab-label">{{ campus.name }}</span>
@@ -280,11 +280,11 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .gallery-title{display:flex;justify-content:center;align-items:baseline;gap:24px;text-align:center}
 .gallery-title h2{margin:0;color:var(--heading-ink);font:500 clamp(32px,3.3vw,48px)/1.5 var(--font-head);letter-spacing:.1em;padding-inline-start:.1em;white-space:nowrap}
 .gallery-title>span{color:var(--heading-accent);font:italic 28px/1.3 Georgia,'Times New Roman',serif;letter-spacing:.015em}
-.campus-tabs{--tab-hover-line:#cbd2cd;display:flex;justify-content:center;width:min(100%,820px);gap:12px}
-.campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:139px;gap:5px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:15px;letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
+.campus-tabs{--tab-hover-line:#cbd2cd;display:flex;justify-content:center;width:min(100%,1040px);gap:12px}
+.campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:1.0625rem;letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
 .campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}
-.campus-tab-art{display:block;width:120px;max-width:100%;height:80px;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s}
+.campus-tab-art{display:block;width:160px;max-width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s}
 .campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{opacity:1}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
@@ -403,7 +403,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .campus-tab-art{width:60px;height:40px}
   .campus-tab-label{min-height:28px;padding-inline:5px}
   .campus-tab-label::after{inset-block-end:-4px;width:20px}
-  .gallery-track{height:clamp(300px,92vw,470px)}
+  .gallery-track{height:calc(var(--card-width) / 1.5)}
   .gallery-media{--toolbar-height:84px}
   .gallery-toolbar{grid-template-columns:1fr;gap:12px}
   .playback-controls{grid-column:1;gap:8px;justify-self:center}

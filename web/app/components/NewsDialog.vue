@@ -80,7 +80,7 @@ function formatDate(date: string) {
           </div>
           <div class="hn-cards">
             <article v-for="item in news.articles.slice(0, 3)" :key="item.id" class="hn-card">
-              <img v-bind="responsiveImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
+              <img v-bind="responsiveImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')" :alt="item.alt" loading="lazy">
               <div class="hn-card-copy">
                 <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                 <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
