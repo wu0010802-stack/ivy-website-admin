@@ -908,7 +908,8 @@ body:has(.studio-hero) #menu-campuses a {
   line-height:1.4;
 }
 body:has(.studio-hero) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(.studio-hero) #menu-campuses a:hover {background:var(--menu-social-hover)}
+body:has(.studio-hero) #menu-campuses a:hover,
+body:has(.studio-hero) #menu-campuses a.is-active {background:var(--menu-social-hover)}
 body:has(.studio-hero) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
 body:has(.studio-hero) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
 body:has(.studio-hero) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
