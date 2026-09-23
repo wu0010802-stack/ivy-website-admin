@@ -415,6 +415,18 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 - 其他：懸停抬升原本是瞬間跳 10px，改為平滑；微傾與光點依實際經過時間平滑（高更新率螢幕不會變快）；鍵盤焦點框是平的矩形，翻面途中淡掉、停穩再出現；CSS 3D 版翻面時整張微放大 3.5% 再放下。減少動態仍是直接切換。
 - 驗證與前後逐格對照在 `output/playwright/flip-natural-20260923/`；改版前快照 `versions/before-flip-natural-20260923-082344/`。凍結的 vanilla 原型不回寫。
 
+### B「捲動飄角」定案（2026-09-23，疊加在 A 淡折角上）
+
+使用者要更不明顯或更有創意的翻面暗示，`design/flip-hint-subtle-20260923/` 三版（A 對光透字、B 捲動飄角、C 包邊貼紙）中選定 B。紙膠帶只黏上緣，所以捲動時下緣的折角被風掀起：
+
+- 捲動速度（px/s，和上一筆各半平滑）→ 折角疊加 0～20px（32→52，約 2200 px/s 掀滿），整張順著方向微擺 ≤0.7°；停止捲動 60ms 後速度每秒剩 2%，彈簧略欠阻尼（折角 ζ≈0.47、擺動 ζ≈0.41），停下回彈一次、約 1 秒收回，回彈最低到 26px。常數與純函式在 `web/app/utils/earGust.ts`（`tests/ear-gust.spec.ts`）。
+- **不自動播放、只回應使用者的捲動**；手機滑動一樣有效；減少動態不訂閱。沒有 hover 效果（09-22 已否決 hover 放大折角）。
+- 六張感受到的速度相同，只算一組彈簧：一個 scroll 監聽＋一個 rAF 時鐘，畫面附近（上下 10%）的卡片才訂閱，離開即收回。
+- 折角 = 基準（進場掀角 `runPeel()`／靜止）＋捲動疊加，由 `DayMomentCard.vue` 的 `renderEar()` 同時寫 DOM `--ear` 與 WebGL `paper.setEar()`，兩個來源不搶同一個值。
+- 微擺寫在 `li.day-print` 的 `--sway`，`.print-card` 的傾角改走 `--card-tilt`、`rotate:calc(var(--card-tilt) + var(--sway))`；`paperPrints.ts` 量紙時本來就把 `.print-card` 的 rotate 拿掉，擺動中接手 WebGL 也不會量歪。之後改卡片傾角請改 `--card-tilt`，不要直接寫 `rotate`。
+- 效能：WebGL 每次折角變動會整張重傳正反面貼圖（與顯影期同級成本）。M2 GPU 實測兩張 WebGL 卡在畫面內、折角掀到 47.6px 時 p95 16.8ms，與沒有拍立得的區段相同；手機捲動中本來就是 CSS 版。SwiftShader 量不出效能，驗證腳本預設用 Metal。
+- 驗證 `output/playwright/ear-gust-20260923/`（`check.cjs` 功能、`perf.cjs` 幀時間）；改版前快照 `versions/before-ear-gust-20260923-143901/`。A／C 未採用，留作比稿。凍結的 vanilla 原型不回寫。
+
 ### 日常照片畫質（2026-09-23，僅 Nuxt）
 
 - 五張影片截圖使用已確認原片的原生 1080×800，取樣點保持 35.9／37.9／16.9／30.3／19.4 秒；保留人物、鏡頭、上方裁切與原色。母圖 WebP quality 94，衍生圖 quality 92，不從舊縮圖放大。原生尺寸以版本化檔名直接複製、不重壓縮。

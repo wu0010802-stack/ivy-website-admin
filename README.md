@@ -1,3 +1,9 @@
+## 2026-09-23 拍立得翻面暗示：B「捲動飄角」
+
+使用者從 `design/flip-hint-subtle-20260923/` 三版（A 對光透字／B 捲動飄角／C 包邊貼紙）選 B，已接進 Nuxt `web/`。紙膠帶只黏上緣，捲動時右下折角隨速度掀起（32→最多 52px）、整張微擺 ≤0.7°，停下回彈一次收回；只回應使用者的捲動，不自動播放，減少動態不做。新增 `web/app/utils/earGust.ts`（共用一個 scroll 監聽與 rAF 時鐘）與 11 項單元測試；`DayMomentCard.vue` 折角改為「基準＋捲動疊加」單一出口，`.print-card` 傾角改走 `--card-tilt`。
+
+驗證：web 21 檔 152 項單元測試、Node 22 `nuxt typecheck` 0 錯誤（以故意錯誤檔確認有抓錯）；Chrome（M2 Metal）桌機 WebGL 折角掀到 47.6px、停下回 32px／擺動歸零，畫面外卡片不動，p95 幀時間 16.8ms 與無拍立得區段相同；手機 390px 掀到 55px 後收回、無水平溢出；減少動態不動；無 console 錯誤。證據 `output/playwright/ear-gust-20260923/`，快照 `versions/before-ear-gust-20260923-143901/`（本機）。未部署；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 關於常春藤改為單張圓角照片
 
 依使用者截圖，Nuxt 首頁「關於常春藤」原本的主照＋小照疊放改為單張照片，框型比照參考圖：3:2、16px 圓角、無米白框也無陰影（與 `.studio-intro-photo` 同規格）。圖說移到照片下方靠右。`sizes` 改為 `(max-width: 900px) 90vw, 42vw`。凍結原型 `app.js` 未動。

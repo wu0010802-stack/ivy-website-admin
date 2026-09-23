@@ -42,10 +42,11 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print.tint-mint{--print-tint:var(--mint)}
 .day-print.tint-peach{--print-tint:oklch(80% .1 52)}
 .day-print.tint-cream{--print-tint:var(--cream)}
-.print-card{position:relative;width:min(460px,100%);rotate:-2.2deg}
+/* 卡片傾角走 --card-tilt；--sway 是捲動飄角的微擺（utils/earGust.ts，≤0.7°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
+.print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
 .day-print:nth-child(odd) .print-card{grid-column:1;justify-self:start;margin-left:6%}
-.day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;rotate:2.4deg}
-.day-print:nth-child(3n) .print-card{rotate:-.8deg}
+.day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}
+.day-print:nth-child(3n) .print-card{--card-tilt:-.8deg}
 /* 紙膠帶在 .print 裡、略浮於正面（translateZ），跟著紙翻；翻到背面時被紙擋住，只露出超出上緣的一截。WebGL 版由 paperPrints.ts 讀 --tape-a／--tape-b 畫進貼圖。 */
 .print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,white);--tape-b:color-mix(in oklch,var(--print-tint) 32%,white);position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
 .day-print:nth-child(even) .print-tape{rotate:5deg;left:auto;right:26px}
@@ -108,8 +109,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .day-title{font-size:clamp(2.5rem,13.5vw,4.4rem)}
  .day-prints{display:block;width:calc(100% - 40px);margin-top:calc(-32 * var(--motion-vh,1svh));padding-bottom:64px}
  .day-print,.day-print+.day-print{display:block;margin:0 0 32px}
- .day-print:nth-child(n) .print-card{width:84%;margin:0;rotate:-1.5deg}
- .day-print:nth-child(even) .print-card{margin-left:auto;rotate:1.6deg}
+ .day-print:nth-child(n) .print-card{width:84%;margin:0;--card-tilt:-1.5deg}
+ .day-print:nth-child(even) .print-card{margin-left:auto;--card-tilt:1.6deg}
  /* 兩面共用內容高度，縮窄與放大文字時，背面故事仍完整留在紙面內。 */
  .print{display:grid}
  .print-face{grid-area:1/1;min-width:0}
