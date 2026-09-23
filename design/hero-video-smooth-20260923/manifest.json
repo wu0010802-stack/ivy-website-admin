@@ -84,6 +84,17 @@
       "bytes": 3975560,
       "crf": 21,
       "sha256": "ae544f17cb20edad4462aa6b6a52b143cdc74c05249199449bd4188c95d7eead"
+    },
+    {
+      "file": "hero-smooth-mobile-crf26.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 2255989,
+      "crf": 26,
+      "sha256": "ba791e4aa97c7be8f266afad760e9276db4a0f673ec09d3153f40dd266f99b96"
     }
   ],
   "status": "local-only"

@@ -14,6 +14,16 @@ export const ENTRANCE_POSTERS: ReadonlyArray<readonly [media: string, src: strin
   ['all', '/assets/entrance-poster-desktop.webp?v=35a6d775']
 ]
 
+// The renderer's own assets. The projection is the original PNG losslessly
+// re-encoded, with every pixel the paper key makes fully transparent flattened
+// to white (keyed output is byte-identical; 1.41 MB → 462 KB). Rebuild with
+// scripts/optimize-entrance-projection.py --write and update the version.
+export const ENTRANCE_PROJECTION = '/assets/ivy-30th-anniversary-projection.webp?v=bd2d47dc'
+export const ENTRANCE_DIGIT_FONT = '/assets/fonts/oswald-700-leader.woff2'
+// Both loaders fetch in CORS mode (three's ImageLoader and FontFace), so the
+// preloads must too or the browser downloads each file twice.
+const ENTRANCE_ASSETS = [[ENTRANCE_PROJECTION, 'image'], [ENTRANCE_DIGIT_FONT, 'font', 'font/woff2']]
+
 // Runs before the first homepage paint. Failure is deliberately fail-open:
 // without this marker neither the temporary cover nor the WebGL layer appears.
 export const entranceBootstrap = `(()=>{
@@ -31,6 +41,20 @@ export const entranceBootstrap = `(()=>{
     const l=document.createElement('link');
     l.rel='preload';l.as='image';l.href=p[1];l.fetchPriority='high';
     document.head.append(l);
+    // Left to the renderer, these start only after hydration and the three.js
+    // chunk: about 2.9 s on a 9 Mbps phone, past the 2.8 s load limit. Waiting
+    // for DOMContentLoaded keeps them off the hydration scripts' bandwidth. A
+    // late one means a slow link: EntranceCurtain gives up on mounts after
+    // 1.8 s, so the download would only be wasted.
+    const s=Date.now();
+    document.addEventListener('DOMContentLoaded',()=>{
+      if(Date.now()-s>1500)return;
+      for(const [h,a,t] of ${JSON.stringify(ENTRANCE_ASSETS)}){
+        const e=document.createElement('link');
+        e.rel='preload';e.as=a;e.href=h;e.crossOrigin='anonymous';if(t)e.type=t;
+        document.head.append(e);
+      }
+    },{once:true});
   }catch{}
 })()`
 

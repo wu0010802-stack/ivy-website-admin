@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { entranceTimeline, ENTRANCE_DURATION } from './entrance-timeline'
+import { ENTRANCE_DIGIT_FONT, ENTRANCE_PROJECTION } from './entrance-policy'
 
 // Crimson velvet highlights and a near-white leader lamp (both chosen 2026-09-23).
 // Changing how the resting curtain looks? Re-render the first-paint posters in
@@ -623,8 +624,8 @@ function drawDigits(atlas: HTMLCanvasElement) {
   })
 }
 
-export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLElement, logoUrl = '/assets/ivy-30th-anniversary-projection.png', options: EntranceCurtainOptions = {}) {
-  const { digitFontUrl = '/assets/fonts/oswald-700-leader.woff2' } = options
+export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLElement, logoUrl = ENTRANCE_PROJECTION, options: EntranceCurtainOptions = {}) {
+  const { digitFontUrl = ENTRANCE_DIGIT_FONT } = options
   const mobile = host.clientWidth < 700
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' })
   renderer.setClearColor(0x000000, 0)

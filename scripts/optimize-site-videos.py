@@ -15,8 +15,9 @@ restored = json.loads((restoration / 'manifest.json').read_text())
 approved = {item['file']: item for item in restored['variants']}
 hero_deliveries = {
     # 滿版桌機保留母帶細節；高密度手機裁切後也需要完整 1080px。
+    # 手機改用 CRF 26（2026-09-23 晚）：手機模型 VMAF 99.88，3.79 MB → 2.15 MB。
     'hero-desktop': 'hero-smooth-master.mp4',
-    'hero-mobile': 'hero-smooth-mobile.mp4',
+    'hero-mobile': 'hero-smooth-mobile-crf26.mp4',
 }
 for name, source, width, crf in [
     ('hero-mobile', 'hero-campus.mp4', 720, 27),

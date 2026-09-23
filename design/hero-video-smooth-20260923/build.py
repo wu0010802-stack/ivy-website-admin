@@ -49,7 +49,8 @@ def main():
     playlist = temp / 'concat.txt'
     playlist.write_text(''.join(f"file '{clip.name}'\n" for clip in clips))
     variants = []
-    for name, crf in [('hero-smooth-master', 18), ('hero-smooth-mobile', 21)]:
+    # CRF 26 手機版（2026-09-23 晚）：手機模型 VMAF 99.88、檔案少 43%，上線用；CRF 21 保留作對照。
+    for name, crf in [('hero-smooth-master', 18), ('hero-smooth-mobile', 21), ('hero-smooth-mobile-crf26', 26)]:
         target = HERE / f'{name}.mp4'
         print(f'輸出 {name}，1080×800／CRF {crf}', flush=True)
         restoration.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-threads', '2',

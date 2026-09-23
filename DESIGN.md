@@ -1,5 +1,13 @@
 # Design
 
+## 手機首訪載入：布幕資源先到、首屏影片讓路（2026-09-23 晚）
+
+- 開場布幕的投影貼圖與倒數字型由 `entranceBootstrap` 在 `DOMContentLoaded` 預載，`crossOrigin=anonymous` 要與 three `ImageLoader`／`FontFace` 一致；DCL 晚於 1.5 秒就不預載（布幕 1.8 秒後才掛載會直接放棄）。不要改回「等引擎建好才抓」，一般 4G 會永遠趕不上 2.8 秒上限。
+- 投影貼圖只能用**無損**格式；有損 WebP 會讓白紙區出現去背斑點。瘦身靠把去背後全透明的白紙像素壓成純白（輸出逐位元不變），換圖時用 `scripts/optimize-entrance-projection.py` 驗證後再寫檔。
+- 布幕還在 pending 時首屏影片不載；布幕開演或放棄後才開始。
+- 手機首屏影片用 CRF 26（VMAF 手機模型 99.88）；桌機母帶維持 CRF 18。
+- 首頁仍 prefetch three.js 的 vendor chunk：`nuxt.config.ts` 的排除規則只比到 `entranceCurtain.ts` 本身，three 被拆成另一支 chunk。這支 prefetch 讓布幕就緒更早，**不要當成 bug 修掉**。
+
 ## 最新消息：C「原地換片」自動輪播（2026-09-23 定案）
 
 使用者要最新消息有輪播、不要按鈕，從 `design/news-carousel-20260923/` 三版（A 緩慢漂移、B 逐張推進、C 原地換片）選 **C**，取代 09-16「不使用自動輪播」。只改 `web/`（`NewsDialog.vue`、`composables/useNewsRotation.ts`、`utils/newsRotation.ts`、`studio.css`），凍結原型不回寫。A、B 落選。
