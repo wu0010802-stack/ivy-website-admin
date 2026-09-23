@@ -1,3 +1,11 @@
+## 2026-09-23 關於常春藤改為單張圓角照片
+
+依使用者截圖，Nuxt 首頁「關於常春藤」原本的主照＋小照疊放改為單張照片，框型比照參考圖：3:2、16px 圓角、無米白框也無陰影（與 `.studio-intro-photo` 同規格）。圖說移到照片下方靠右。`sizes` 改為 `(max-width: 900px) 90vw, 42vw`。凍結原型 `app.js` 未動。
+
+同日依使用者提供的新照片（2000×803 寬幅，長輩被孩子們圍住大笑）換掉 `about-curious`：從 x=30 裁成 3:2 母檔 `web/public/assets/about-together.webp`（1204×803，WebP q90），左側大笑的男孩完整入鏡，長輩視線朝向右側孩子；以 `scripts/optimize-site-images.py --only about-together` 產生 160／480／800／1200 衍生檔與 manifest。fixture 只留這一張（後台不編輯照片；`about-curious`、`learning` 素材保留，`learning` 仍用於消息卡）。alt 只描述畫面，不寫人物身分。
+
+1440／1024／390 截圖與量測：照片 1 張、圓角 16px、無邊框與陰影、1440 與 390 載入 800w、無水平溢出、無 runtime error；手機照片先離開，才接「關於／常春藤」大字。`vitest run` 18 檔 120 項通過，`nuxt typecheck`（Node 22）無錯誤。快照 `versions/before-about-single-photo-20260923-135156/`，證據 `output/playwright/about-single-photo-20260923/`。部署紀錄見 `deploy/README.md`。
+
 ## 2026-09-23 官網後台第四輪 UX：追蹤到期有入口、案件一筆接一筆、發布前看差異
 
 對 `admin/` 做 impeccable critique（LLM 審查＋自動偵測，25/40，不是 AI slop），依業主選「預約流程優先、全部處理、回上一版先做前端差異預覽」實作：

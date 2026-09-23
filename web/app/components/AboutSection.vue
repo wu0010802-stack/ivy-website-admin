@@ -11,6 +11,8 @@ const copy = computed(() => {
   const end = text.search(/[。！？]/)
   return end < 0 ? { lead: text, rest: '' } : { lead: text.slice(0, end + 1), rest: text.slice(end + 1) }
 })
+// 2026-09-23 起只放一張圓角照片（原本主照＋小照疊放）；資料仍是陣列，取第一張。
+const photo = computed(() => props.about.photos[0])
 
 const rootEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
@@ -43,12 +45,9 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
               <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
               <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="expanded = !expanded">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
             </div>
-            <figure class="belief-photo-pair">
+            <figure v-if="photo" class="belief-photo">
               <img
-                v-for="(photo, i) in about.photos"
-                :key="photo.image"
-                :class="i === 0 ? 'belief-portrait' : 'belief-moment'"
-                v-bind="responsiveImage(photo.image, '(max-width: 760px) 65vw, 28vw')"
+                v-bind="responsiveImage(photo.image, '(max-width: 900px) 90vw, 42vw')"
                 :alt="photo.alt"
                 loading="lazy"
                 decoding="async"

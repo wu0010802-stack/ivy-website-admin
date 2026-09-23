@@ -358,3 +358,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 隔離 Node 22 typecheck、102 web tests、42 admin tests、admin build 與 production/live web build 通過；同份建置本機 24 組 Chrome 驗證通過，含桌機／手機各六張 WebGL 與兩組六張 CSS 備援。核對新版本化網址、來源尺寸、Canvas 像素密度、翻面與無水平溢出，無 runtime error；Safari／iOS 實機未驗證。
 - 證據：`output/railway-day-photo-quality-20260923-094939/` 的 summary、manifest、approved.patch、build-results／logs、browser-local、preflight／pre-upload、upload、uploaded、initialization-diagnostic、final-status 與 validation-notes。重建腳本 `output/prepare-day-photo-quality-deploy.py`；後續線上檢查指令在 validation-notes。
 - 保留此筆等待中的部署，未重複上傳。未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、通知／索引啟用、commit 或 push；只停止本次隔離預覽 3157／3158，未停止使用者開發服務。
+
+## 2026-09-23 關於常春藤單張圓角照片部署
+
+- 使用者要求換成新照片並部署。僅更新 web，deployment `061fd0b4-7198-458e-bc8b-812c6ab0ed6b`，SUCCESS。API `b3361602-92f0-4945-8c9e-3658b9d8e0ba`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。回復參考為前版 web deployment `6ca094b6-1fdf-40a4-a9de-c7cad13c62f7`。
+- 等 iPhone 背景控制鈕部署（day-button）上線後才準備，以當下正式 release `cd2d806f…`（快照 `/private/tmp/ivy-website-day-button-20260923-140119`）為基底，manifest digest 重算相符。只精準替換 4 個檔：`AboutSection.vue` 單張照片（保留正式版 `fetchpriority="low"`）、`studio.css` 照片框 3:2／16px 圓角／無白邊陰影（圖說沿用正式 11px／10px）、`site-fixture.json` 換成 `about-together`、`image-manifest.json` 追加一筆；新增 `about-together` 母檔與 4 個響應式檔。其他 470 個正式來源逐位元組保留，未納入本機未部署的字級 token 等修改。
+- 固定快照 `/private/tmp/ivy-website-about-photo-20260923-140608`，475 檔／70,424,111 bytes，SHA-256 `a6bb8f44bb91fcec51bc8b7b60f12c0528a2e94003d8e13e13032c5717070b87`；上傳前核對線上基底與三服務最新部署未變，上傳後來源 hash 不變，正式 `/release.json` 已核對。
+- Node 22.23.2 隔離建置：web typecheck、120 web tests、42 admin tests、admin build、production web build 通過（已 grep 輸出，不只看 exit code）。同份建置與正式站各以 1440／1024／390 驗證：照片 1 張、圓角 16px、無邊框陰影、載入 about-together 480w／800w、無水平溢出與 runtime error；已檢視正式 1440px 畫面。Safari／iOS 實機未驗證。
+- 證據 `output/railway-about-photo-20260923-140608/`（summary、manifest、approved.patch、build-results／logs、browser-local／browser-online、pre-upload、upload），截圖在 `output/playwright/about-single-photo-20260923/`（before／after／photo／build／online）。準備程式 `output/prepare-about-photo-deploy.py`（自動以線上 release 為基底），上傳程式 `output/upload-about-photo.py`。
+- 未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、commit／push；只停止本輪隔離預覽 3171。
