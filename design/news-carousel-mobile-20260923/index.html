@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>消息輪播｜手機三版</title>
+  <link rel="stylesheet" href="mockup.css">
+  <script type="module" src="mockup.js"></script>
+</head>
+<body data-view="all">
+  <header class="masthead">
+    <div class="identity"><img src="../../web/public/assets/logo.png" alt="常春藤幼兒園"><span>常春藤 · 近期活動與最新消息</span></div>
+    <span class="edition">手機輪播比稿 <span lang="en">/ 2026.09.23</span></span>
+  </header>
+  <main>
+    <section class="intro">
+      <div>
+        <p class="eyebrow">只做手機版 · 390 × 844</p>
+        <h1>近期活動換成活動影片，<br class="mobile-break">最新消息改上下排列。</h1>
+      </div>
+      <div class="intro-aside">
+        <p>第二輪 D：影片用 B 中央聚焦＋參考圖的白色圓點；消息不再輪播。<br>第一輪 A／B／C 三種換頁方式保留在「第一輪比較」。</p>
+        <nav aria-label="提案預覽">
+          <a href="?view=d" data-view="d">D 影片＋直列</a><a href="?view=now" data-view="now">現況</a><a href="?view=all" data-view="all">第一輪比較</a><a href="?view=a" data-view="a">A</a><a href="?view=b" data-view="b">B</a><a href="?view=c" data-view="c">C</a>
+        </nav>
+      </div>
+    </section>
+    <section class="board" aria-label="手機輪播 mock-up">
+      <div class="board-top"><span>每支手機可以直接用滑鼠拖曳、點按鈕，或聚焦後按 ← →</span><span>手機框內可上下捲動</span></div>
+      <div class="directions"></div>
+    </section>
+    <footer class="notes">
+      <p>活動、消息、照片取自 <code>web/server/data/site-fixture.json</code>（首頁同樣只取前 3 則消息）。點卡片只跳出示意提示，正式版沿用現有對話框。</p>
+      <p>底色用紙頁捲入後的霧藍 <code>#dce7eb</code>；D 的影片區用參考圖的鼠尾草綠。減少動態時：影片不自動播放（按播放鍵才播）、A 不自動換頁、換頁都改成直接切換。</p>
+    </footer>
+  </main>
+  <div class="sr-only" aria-live="polite" id="live"></div>
+</body>
+</html>
