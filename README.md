@@ -1,3 +1,9 @@
+## 2026-09-23 預約頁選校：其他校不再變暗
+
+使用者不要選一間學校後其他學校變暗。拿掉 `web/app/assets/css/visit-booking.css` 對未選卡片照片的 `filter:saturate(.55) brightness(.96)`，連帶移除 `img` 上只為它存在的 `filter` 過場。選中的卡仍是雙層外環＋右上打勾，五張照片一律原色。DESIGN.md「預約頁首頁風格」同步改寫。
+
+驗證：Playwright 對 `:3161/visit` 桌機 1440、手機 390 各點選崇德，五張照片的 computed `filter` 皆為 `none`、只有崇德 `checked`、無 page error。截圖在 scratchpad，未存進 `output/`。`:3161` 仍有別的 session 殘留的 `visit-looks.css` Vite 錯誤遮罩，與本次無關，驗證時先移除遮罩再點。
+
 ## 2026-09-23 開場布幕：校徽停留時間拉長
 
 使用者要進站布幕的 logo 出現久一點。`web/app/utils/entrance-timeline.ts` 的 `LOGO_DURATION` 從 1500 改成 2500ms，校徽全亮的時間從約 0.7 秒變成約 1.7 秒。光圈開合速度、3-2-1 倒數與拉幕都沒動，整段開場從 7.9 秒變成 8.9 秒。`entrance-timeline.spec.ts` 新增一項，確認 480～2100ms 之間校徽都是全亮。設計預覽的 `velvet.js` 已用 `build-preview.mjs` 重產；首屏海報是第 0 幀，不受影響。

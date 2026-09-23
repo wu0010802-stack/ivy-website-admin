@@ -100,7 +100,7 @@
 .visit-campus-list:disabled .visit-campus-choice {cursor:default}
 .visit-campus-card {position:relative;display:block;aspect-ratio:3/4;border-radius:20px;overflow:hidden;isolation:isolate;background:var(--visit-band)}
 .visit-campus-photo {position:absolute;inset:0;display:block}
-.visit-campus-photo img {width:100%;height:100%;object-fit:cover;transition:scale .7s var(--visit-ease),filter .4s}
+.visit-campus-photo img {width:100%;height:100%;object-fit:cover;transition:scale .7s var(--visit-ease)}
 .visit-campus-copy {position:absolute;inset:auto 0 0;z-index:1;display:flex;flex-direction:column;gap:2px;padding:72px 18px 18px;background:linear-gradient(to top,rgb(var(--ink) / .8),rgb(var(--ink) / 0));color:var(--paper)}
 .visit-campus-copy strong {font:700 var(--fs-xl)/1.4 var(--font-head);letter-spacing:.04em}
 .visit-campus-copy small {font-size:var(--fs-xs);letter-spacing:.1em}
@@ -109,7 +109,6 @@
 .visit-campus-choice input:checked+.visit-campus-card {box-shadow:0 0 0 4px var(--visit-bg),0 0 0 7px var(--visit-ink)}
 .visit-campus-choice input:checked+.visit-campus-card .visit-campus-check {opacity:1;scale:1}
 .visit-campus-choice input:focus-visible+.visit-campus-card {outline:3px solid var(--leaf);outline-offset:10px}
-.visit-campus-list:has(input:checked) .visit-campus-choice:not(:has(input:checked)) .visit-campus-photo img {filter:saturate(.55) brightness(.96)}
 
 /* 第二步：所選校園側欄。 */
 .visit-campus-aside {min-width:0}
