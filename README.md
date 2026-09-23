@@ -1,3 +1,14 @@
+## 2026-09-23 手機首訪：開場布幕在 4G 播得出來、首屏影片瘦身
+
+手機版體驗盤點（正式站 390×844 模擬）發現：一般 4G（9 Mbps）首訪時，開場布幕只顯示約 3 秒靜態紅幕就切掉，從沒播過；同時已下載 6.2 MB。時間軸顯示兩個原因：首屏手機影片 3.9 MB 從 1.5 秒開始在布幕底下下載、搶頻寬；1.4 MB 的投影貼圖 PNG 要等 three.js 載完才開始抓（2.9 秒），5.5 秒才到，超過 2.8 秒載入上限。
+
+- `web/public/assets/ivy-30th-anniversary-projection.webp`：原 PNG 把「去背後必為全透明」的白紙像素壓成純白再轉無損 WebP，1,408 KB → 462 KB。有損 WebP（q90 97 KB）會在白紙區冒出約 1 萬個去背斑點，不能用。重產：`python3 scripts/optimize-entrance-projection.py --write`。
+- `web/app/utils/entrance-policy.ts`：新增 `ENTRANCE_PROJECTION`／`ENTRANCE_DIGIT_FONT`（引擎預設值改用同一組常數）；bootstrap 在 `DOMContentLoaded` 以 `crossOrigin=anonymous` 預載兩者（對齊 three `ImageLoader` 與 `FontFace` 的 CORS 模式，否則會重複下載）。DCL 晚於 1.5 秒就跳過——布幕元件晚於 1.8 秒掛載本來就放棄，慢速網路不再白載 462 KB。
+- `web/app/components/HeroVideo.vue`：`data-ivy-entrance="pending"` 時先不載首屏影片，布幕開演（playing）或放棄（屬性移除）才放行，5.5 秒保底（與 CSS 首屏遮罩撤除同時）。改在 `startVideo` 內，main 的手機 load＋idle 延後版本可直接套用。
+- 手機首屏影片改用 CRF 26：`design/hero-video-smooth-20260923/hero-smooth-mobile-crf26.mp4`（CRF 21 保留作對照），`scripts/optimize-site-videos.py` 改指向它，`hero-mobile-ba791e4aa97c.mp4` 3,886 KB → 2,203 KB。VMAF 手機模型 99.88、一般模型 93.15。
+
+驗證：從 `git archive HEAD` 匯出兩棵隔離樹（HEAD／HEAD＋本次改動）各自 `nuxt build`（fixture），3171／3172 交替量測。一般 4G、不節流 CPU 各 3 次：投影貼圖 2.4–2.6 秒才開始、5.0 秒到 → 0.7–0.9 秒開始、1.9–2.1 秒到；布幕 0/3 → 3/3 開演（2.33–2.50 秒就緒）；首屏影片 0.9 秒開始載 → 布幕開演後 2.4 秒。慢速 4G 兩版都沒下載貼圖、遮罩撤除時間相同。設計預覽 `?p=0.12`／`0.17` 以 route 把 PNG 換成 WebP，真實引擎輸出逐像素相同（差異 0）。隔離樹 `nuxt typecheck` 0 個 `error TS`（放刻意錯誤確認有效）、vitest 21 檔 165 項通過。本機 JS 未壓縮（three 720 KB，正式站 147 KB），實際開演應更早；量測期間機器 load 10–28，CPU 節流的端到端數字不採用。紀錄在 `output/mobile-perf-20260923/`。未提交、未部署；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 最新消息改成 C「原地換片」自動輪播
 
 使用者從桌機輪播三版選 C，接進 `web/`：`NewsDialog.vue` 的三張消息卡改由 `composables/useNewsRotation.ts` 輪播（每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換；fixture 6 則兩組交替），標題列加被動倒數「01 / 02」。分組邏輯 `utils/newsRotation.ts`（超過三則才輪播、最後一組從頭補滿），計時沿用分校的 `createCarouselClock`。滑鼠停在卡上、鍵盤焦點、對話框開著、離屏、分頁在背景都暫停；減少動態與 640px 以下（原生橫向捲動）不輪播。卡片圖改包 `.hn-media`（桌機 1.55、手機 3:2 比例不變）。取代 09-16「不使用自動輪播」，已記入 DESIGN.md。修改前快照 `versions/before-news-carousel-c-20260923-205644/`。

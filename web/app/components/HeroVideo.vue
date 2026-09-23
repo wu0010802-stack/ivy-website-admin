@@ -21,6 +21,27 @@ const videoSrc = ref('')
 let disposed = false
 let playbackFrame = 0
 let removeImageListener: (() => void) | undefined
+let entranceWatch: MutationObserver | undefined
+let entranceTimer: ReturnType<typeof setTimeout> | undefined
+let entranceWaited = false
+
+// 開場布幕還在等資源（pending）時，影片被布幕蓋住卻跟它搶頻寬：一般 4G
+// 實測 3.9 MB 從 1.5 秒載到 6.5 秒，布幕因此趕不上 2.8 秒的載入上限。
+// 布幕開演（playing）或放棄（屬性移除）就放行；首屏遮罩 5.5 秒會自己撤，
+// 這裡用同一個時間保底，避免布幕元件沒掛上時影片永遠不載。
+function waitForEntrance(run: () => void) {
+  entranceWaited = true
+  const release = () => {
+    entranceWatch?.disconnect()
+    clearTimeout(entranceTimer)
+    run()
+  }
+  entranceWatch = new MutationObserver(() => {
+    if (document.documentElement.dataset.ivyEntrance !== 'pending') release()
+  })
+  entranceWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-ivy-entrance'] })
+  entranceTimer = setTimeout(release, 5500)
+}
 
 useHomeReveal({ root: rootEl, track: trackEl, hero: sectionEl, copy: copyEl, image: imageEl, media: mediaEl, actions: actionsEl })
 
@@ -111,6 +132,7 @@ onMounted(() => {
   wantsPlayback = true
   const startVideo = () => {
     if (disposed) return
+    if (!entranceWaited && document.documentElement.dataset.ivyEntrance === 'pending') return waitForEntrance(startVideo)
     videoSrc.value = backgroundVideoSrc(props.hero.heroVideoSrc, window.matchMedia('(max-width: 760px)').matches)
     showVideo.value = true
     nextTick(() => {
@@ -165,6 +187,8 @@ onUnmounted(() => {
   disposed = true
   cancelAnimationFrame(playbackFrame)
   removeImageListener?.()
+  entranceWatch?.disconnect()
+  clearTimeout(entranceTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   reduceQuery?.removeEventListener('change', onReduceMotionChange)
   watcher?.disconnect()
