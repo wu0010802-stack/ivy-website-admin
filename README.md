@@ -1,3 +1,11 @@
+## 2026-09-23 開場布幕：首屏遮罩換成新版布幕海報
+
+使用者反映線上首頁開場「好像先留著舊設計的布幕，才出現新的」。查證（Playwright 開正式站逐格截圖）：從首屏到 WebGL 就緒約 0.4～3.0 秒，畫面是 `entrance-policy.ts` 的首屏遮罩與 `EntranceCurtain.vue` 等待期底色，兩者都還是第一版（`a74c1a6`）的扁平紫紅條紋；A/19 改成深紅光澤＋帷幔後沒跟著改，WebGL 就緒後才硬切成新版布幕。
+
+改法：用實際引擎渲染 progress 0 的第一幀，存成五張 WebP 海報（`web/public/assets/entrance-poster-{phone,portrait,landscape,desktop,wide}.webp`，21～45 KB）。依視窗比例分五檔，對應引擎帷幔垂花數 `max(2, floor(aspect×2.4+0.5))`；褶子與綁點都是視窗比例的分數，所以海報以 100%×100% 拉伸在同一檔內帷幔、流蘇、下襬都對得上。`ENTRANCE_POSTERS` 是單一來源：同時產生 CSS media 規則（最後符合者勝，所以反序輸出）與 bootstrap 的 `<link rel=preload fetchpriority=high>`（只在要播開場時才下載，只抓一張）。對話框等待期用同一張海報；WebGL 就緒後畫布 320ms 淡入蓋過海報，海報留到布幕開始拉開（`.is-opening`）才撤。海報下載前的後備條紋改用絨布實際取樣色。重產工具 `design/entrance-curtain-a-velvet-20260922/render-posters.cjs`（Metal 渲染、印出 `?v=` 雜湊）；測試會比對 `?v=` 與檔案內容雜湊，重產後忘了改版號會失敗。
+
+驗證：Node 22 `vitest run` 22 檔 163 項通過（新增 aspect 選圖、CSS 與 JS 順序一致、內容雜湊版號）；`nuxt typecheck` 0 個 `error TS`；scratchpad 獨立 Nuxt build（fixture）用 Playwright（Metal）逐格看 1440×900、1366×768、1024×768、820×1180、390×844：封面即新版布幕，與實際第一幀的帷幔帶／兩側平均像素差 1～9／255，淡入後無跳動，拉幕時首頁正常露出。另發現既有問題（未改）：開場有 2.8 秒載入上限，正式站桌機寬頻實測約 2.7 秒才就緒，節流到 16 Mbps 時兩個版本都會放棄動畫只留封面。快照 `versions/before-entrance-poster-20260923-163548/`。Safari／iOS 實機未驗證。未部署、未提交。
+
 ## 2026-09-23 拍立得：滑鼠點完不再留綠色焦點框
 
 使用者截圖問「翻頁效果好像沒在線上」與「綠框能不能移除」。查證：翻面改自然（`5a6128e`）自 09-23 12:05 的 main 部署起就在線上，捲動飄角（`acde729`）隨 16:21 部署（`3b496ff`）上線；Playwright（Metal）開正式站確認 WebGL 紙為右緣掀起往左翻。綠框是 `.print-turn:focus-visible`：滑鼠點卡片後焦點留在透明按鈕上，之後按方向鍵／空白鍵捲頁，Chrome 就把它判成 `:focus-visible`，畫出不跟紙傾斜、也不切折角的平面矩形；空白鍵還會把卡片再翻一次、頁面不捲動（正式站實測）。`web/app/components/DayMomentCard.vue` 的 `toggleFlip` 在 `event.detail > 0`（滑鼠／觸控）時 `blur()`，鍵盤 Enter／Space（detail 0）保留焦點框。本機 :3161 驗證：點擊後 ArrowDown 不再出框、Space 正常捲頁不翻面、鍵盤聚焦＋Enter 仍有框並翻面；Node 22 `nuxt typecheck` 無錯誤輸出，`vitest run` 22 檔 153 項通過。證據 `output/playwright/flip-live-20260923/`。單獨 cherry-pick 上 main 部署。
