@@ -1,0 +1,102 @@
+/* 首頁 News 區塊的桌機重現（數值取自 web/app/assets/css/studio.css、typography.css 的最終生效值），加上三版輪播。 */
+:root {
+  --paper:oklch(99% .006 100);
+  --leaf:oklch(52% .09 158);
+  --ink-text:#253d33;
+  --font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+  --font-date:'Source Sans 3',Arial,var(--font);
+  --fs-xs:.75rem;--fs-sm:.875rem;--fs-md:1rem;--fs-lg:1.125rem;--fs-xl:1.25rem;--fs-4xl:2rem;
+  /* 容器外的右側留白：A、B 的軌道延伸到視窗右緣，露出下一張的邊。 */
+  --bleed:max(calc((100vw - 1280px) / 2), 48px);
+}
+*{box-sizing:border-box}
+html,body{overflow-x:clip}
+body{margin:0;background:var(--paper);color:var(--ink-text);font:var(--fs-md)/1.8 var(--font);-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+h1,h2,h3,p{margin:0}
+.container{width:min(1280px,calc(100% - 96px));margin-inline:auto}
+@media(max-width:1100px){:root{--bleed:32px}.container{width:calc(100% - 64px)}}
+
+/* ── mock-up 外框（不屬於設計） ── */
+.mk-intro{padding:56px 0 40px;background:var(--paper)}
+.mk-kicker{font:400 var(--fs-xs)/1.5 var(--font-date);letter-spacing:.14em;color:#5d6c61;margin-bottom:10px}
+.mk-intro h1{font-size:var(--fs-4xl);font-weight:600;line-height:1.4;margin-bottom:12px}
+.mk-intro p{max-width:62ch;color:#4b5a50}
+.mk-jump{display:flex;gap:28px;margin-top:20px}
+.mk-jump a{color:inherit;font-size:var(--fs-sm);font-weight:500;text-decoration:none;border-bottom:1px solid currentColor;padding-block:6px}
+.mk-label{background:#253d33;color:#f4f1e6;padding-block:18px}
+.mk-label .container{display:flex;gap:28px;align-items:baseline}
+.mk-label strong{flex-shrink:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:.04em}
+.mk-label p{font-size:var(--fs-sm);line-height:1.8;color:#cfd8cf;max-width:none}
+body.is-single .mk-intro,body.is-single .mk-label{display:none}
+
+/* ── 現行區塊 ── */
+.home-news{--hn-green:#254b3c;--hn-muted:#5d6c61;--gap:26px;background:#dce7eb;color:#253d33;padding-block:76px;position:relative;isolation:isolate}
+@media(min-width:1500px){.home-news{padding-block:92px}}
+.home-news button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0;text-align:start}
+.home-news h2{font-size:var(--fs-4xl);font-weight:600;line-height:1.35;letter-spacing:.015em}
+.hn-layout{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(0,3fr);gap:36px}
+.hn-head{min-height:78px;margin-bottom:30px}
+.hn-kicker{display:block;color:var(--hn-muted);font:400 var(--fs-xs)/1.5 var(--font-date);letter-spacing:.14em;margin-bottom:8px}
+.hn-news-head{display:flex;justify-content:space-between;align-items:end;gap:20px}
+.hn-events>.hn-head{display:flex;flex-direction:column;justify-content:flex-end}
+.home-news .hn-more{display:inline-flex;align-items:center;min-height:44px;font-size:var(--fs-md);font-weight:500;border-bottom:1px solid currentColor;white-space:nowrap}
+.hn-news-head .hn-more{font-size:var(--fs-sm)}
+.hn-event-stack{display:grid;gap:18px;margin-bottom:18px}
+.home-news .hn-event{--hn-card:#f3d581;--hn-fill:#f6cd68;position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;gap:16px;width:100%;min-height:104px;padding:18px;background:var(--hn-card);border-radius:12px}
+.home-news .hn-event:nth-child(2){--hn-card:#d3e5b5;--hn-fill:#eabc74}
+.home-news .hn-event:nth-child(3){--hn-card:#bfdedb;--hn-fill:#f5dda3}
+.home-news .hn-event::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--hn-fill);transform:scaleY(0);transform-origin:50% 0;transition:transform 560ms cubic-bezier(.22,.61,.36,1)}
+.home-news .hn-event:hover::before{transform:scaleY(1)}
+.hn-date{flex-shrink:0;text-align:center;line-height:1.2;min-width:2.375rem}
+.hn-date b{display:block;font:400 2.25rem/1.2 var(--font-date);font-variant-numeric:tabular-nums}
+.hn-date>span{font:400 var(--fs-xs)/1.4 var(--font-date);letter-spacing:.08em}
+.hn-event-copy{flex:1;min-width:0}
+.hn-event-copy small{display:block;font-size:var(--fs-xs);margin-bottom:4px}
+.hn-event-copy strong{display:block;font-size:var(--fs-md);font-weight:600;line-height:1.5}
+.hn-card{position:relative;min-width:0;border-radius:12px}
+.hn-media{position:relative;aspect-ratio:1.55;border-radius:12px;overflow:hidden;background:#c9d6d9}
+.hn-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;user-select:none;-webkit-user-drag:none}
+.hn-card-copy{padding-top:20px}
+.hn-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 12px;color:var(--hn-muted);font-size:var(--fs-sm);letter-spacing:.025em;margin-bottom:10px}
+.hn-meta>span{color:var(--hn-green);font-weight:600}
+.hn-meta time{font-family:var(--font-date);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.hn-card h3{font-size:var(--fs-xl);font-weight:600;line-height:1.6;text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere;letter-spacing:.015em}
+.hn-card h3 button{min-height:44px}
+.hn-card h3 button::after{content:"";position:absolute;inset:0;border-radius:12px}
+.hn-card:hover h3{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.home-news :is(.hn-event:focus-visible,.hn-card:focus-within,.hn-more:focus-visible){outline:2px solid var(--hn-green);outline-offset:3px}
+.hn-card button:focus-visible{outline:0}
+.hn-sample-note{font-size:var(--fs-xs);line-height:1.8;color:var(--hn-muted);margin-top:32px}
+@media(max-width:1100px){.home-news{--gap:18px}.hn-layout{grid-template-columns:210px minmax(0,1fr);gap:28px}.home-news .hn-event{gap:12px;padding:14px}}
+
+/* ── 共用：被動倒數（不是按鈕） ── */
+.hn-head-end{display:flex;align-items:center;gap:28px}
+.hn-progress{display:flex;align-items:center;gap:12px;color:var(--hn-muted);font:400 var(--fs-xs)/1 var(--font-date);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.hn-progress i{position:relative;display:block;width:72px;height:2px;background:rgb(37 75 60 / .16);overflow:hidden}
+.hn-progress b{position:absolute;inset:0;background:var(--hn-green);transform-origin:0 50%;transform:scaleX(0)}
+.hn-progress[data-paused] b{background:var(--hn-muted)}
+
+/* ── A 緩慢漂移、B 逐張推進：軌道延伸到視窗右緣 ── */
+.hn-news{container-type:inline-size}
+.hn-viewport{position:relative;margin-right:calc(-1 * var(--bleed));overflow-x:clip;overflow-y:visible;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.hn-track{display:flex;gap:var(--gap);align-items:start;will-change:transform}
+.hn-track>.hn-card{flex:0 0 calc((100cqi - 2 * var(--gap)) / 3)}
+.hn-viewport.is-dragging{cursor:grabbing}
+.hn-viewport.is-dragging *{cursor:grabbing}
+[data-variant="a"] .hn-viewport{cursor:grab}
+[data-variant="b"] .hn-track{transition:transform 1000ms cubic-bezier(.65,0,.35,1)}
+[data-variant="b"] .hn-track.is-instant,[data-variant="b"] .hn-track.is-instant>.hn-card{transition:none}
+[data-variant="b"] .hn-track>.hn-card{transition:opacity 700ms cubic-bezier(.4,0,.2,1),transform 1000ms cubic-bezier(.65,0,.35,1)}
+[data-variant="b"] .hn-track>.hn-card.is-past{opacity:0;transform:scale(.96);transform-origin:100% 40%}
+
+/* ── C 原地換片：位置不動，照片由上往下刷、文字上浮 ── */
+.hn-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap);align-items:start}
+.hn-copy-stack{display:grid}
+.hn-copy-stack>.hn-card-copy{grid-area:1/1}
+.hn-media img.is-incoming{z-index:1;clip-path:inset(0 0 100% 0)}
+
+@media(prefers-reduced-motion:reduce){
+  [data-variant="a"] .hn-viewport{overflow-x:auto;scrollbar-width:thin}
+  [data-variant="b"] .hn-track,[data-variant="b"] .hn-track>.hn-card{transition:none}
+}
