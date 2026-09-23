@@ -9,7 +9,7 @@ export interface BookingConfig {
   external_url?: string | null
 }
 
-export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused'
+export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'
 
 export interface BookingAction {
   kind: BookingActionKind
@@ -27,8 +27,12 @@ const DEFAULT_PAUSED_MESSAGE = '目前暫停參觀預約，請關注最新消息
  */
 export function resolveBookingAction(
   campusKey: string | null,
-  config: BookingConfig | null
+  config: BookingConfig | null,
+  loadFailed = false
 ): BookingAction {
+  if (campusKey && loadFailed) {
+    return { kind: 'unavailable', href: null, label: '重新確認參觀方式', message: '暫時無法載入參觀方式，請重試，或直接聯絡園所。' }
+  }
   if (!campusKey || !config) {
     return { kind: 'choose_campus', href: `/visit`, label: '請先選擇校區', message: null }
   }

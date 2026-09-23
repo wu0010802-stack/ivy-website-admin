@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,11 +16,32 @@ from app.booking import access_service, workflow_service
 from app.operations import audit_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitRequest
+from app.booking.parent_policy import parent_change_open
+from app.common import ratelimit
 from app.booking.schemas import ParentVisitRequestOut, VisitRequestDetailOut
 
 router = APIRouter(prefix="/api/website/v1", tags=["parent-access"])
 
 PARENT_SESSION_COOKIE = "ivy_parent_session"
+_PARENT_REQUEST_LIMITER = ratelimit.SlidingWindowLimiter(window_seconds=60, max_per_window=30)
+
+
+def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
+    # 非 simple request header：跨來源網頁無法以表單偽造，也不能在沒有
+    # CORS 授權下通過 preflight。此 API 不開放跨來源 CORS。
+    origin = request.headers.get("origin")
+    allowed_origin = request.app.state.settings.admin_origin
+    if parent_header != "1" or request.headers.get("sec-fetch-site") == "cross-site" or (allowed_origin and origin and origin != allowed_origin):
+        raise HTTPException(status_code=403, detail={"code": "PARENT_REQUEST_FORBIDDEN", "message": "請從官網管理頁操作"})
+    try:
+        _PARENT_REQUEST_LIMITER.check(ratelimit.client_key(request))
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(status_code=429, detail={"code": "RATE_LIMITED", "message": "操作太頻繁，請稍後再試"}, headers={"Retry-After": str(exc.retry_after_seconds)}) from exc
+
+
+def require_change_window(visit_request: VisitRequest) -> None:
+    if not parent_change_open(visit_request):
+        raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
 
 
 class TokenExchangeRequest(BaseModel):
@@ -43,10 +64,22 @@ async def _require_parent_session(
     return visit_request
 
 
-@router.post("/public/visit-manage/exchange", response_model=ParentVisitRequestOut)
+async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> ParentVisitRequestOut:
+    output = ParentVisitRequestOut.from_visit_request(visit_request)
+    if visit_request.status == "confirmed":
+        pending_id = await db.scalar(select(RescheduleRequest.id).where(
+            RescheduleRequest.visit_request_id == visit_request.id,
+            RescheduleRequest.status == "pending",
+        ).limit(1))
+        output.reschedule_pending = pending_id is not None
+    return output
+
+
+@router.post("/public/visit-manage/exchange", response_model=ParentVisitRequestOut, dependencies=[Depends(require_parent_request)])
 async def exchange_parent_token(
     payload: TokenExchangeRequest,
     response: Response,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
@@ -54,21 +87,28 @@ async def exchange_parent_token(
         raw_session_token, visit_request = await access_service.exchange_token(db, payload.token)
     except access_service.TokenInvalid as exc:
         await db.rollback()
+        # 開啟另一條失效連結時，也清除這個瀏覽器上一筆案件的 cookie，
+        # 避免重新整理後意外顯示上一筆預約。
+        response.delete_cookie(
+            PARENT_SESSION_COOKIE, path="/", httponly=True,
+            secure=request.app.state.settings.environment == "production", samesite="lax",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "TOKEN_INVALID", "message": "連結已失效或過期"},
+            headers={"Set-Cookie": response.headers["set-cookie"]},
         ) from exc
     await db.commit()
     response.set_cookie(
         key=PARENT_SESSION_COOKIE,
         value=raw_session_token,
         httponly=True,
-        secure=False,
+        secure=request.app.state.settings.environment == "production",
         samesite="lax",
         max_age=int(access_service.SESSION_TTL.total_seconds()),
         path="/",
     )
-    return ParentVisitRequestOut.from_visit_request(visit_request)
+    return await _parent_output(db, visit_request)
 
 
 @router.get("/public/visit-manage/me", response_model=ParentVisitRequestOut)
@@ -79,10 +119,10 @@ async def get_own_visit_request(
 ) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
-    return ParentVisitRequestOut.from_visit_request(visit_request)
+    return await _parent_output(db, visit_request)
 
 
-@router.post("/public/visit-manage/cancel", response_model=ParentVisitRequestOut)
+@router.post("/public/visit-manage/cancel", response_model=ParentVisitRequestOut, dependencies=[Depends(require_parent_request)])
 async def parent_cancel(
     response: Response,
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
@@ -90,6 +130,7 @@ async def parent_cancel(
 ) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
+    require_change_window(visit_request)
     try:
         await workflow_service.cancel(db, visit_request)
     except workflow_service.InvalidTransition as exc:
@@ -102,7 +143,7 @@ async def parent_cancel(
     return ParentVisitRequestOut.from_visit_request(visit_request)
 
 
-@router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED)
+@router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_parent_request)])
 async def parent_request_reschedule(
     payload: RescheduleRequestCreate,
     response: Response,
@@ -112,6 +153,7 @@ async def parent_request_reschedule(
     """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
+    require_change_window(visit_request)
     try:
         record = await access_service.create_reschedule_request(
             db, visit_request, payload.new_slot_id

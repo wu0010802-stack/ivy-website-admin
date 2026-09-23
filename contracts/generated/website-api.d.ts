@@ -1123,8 +1123,14 @@ export interface components {
         ParentVisitRequestOut: {
             /** Campus Key */
             campus_key: string;
+            /** Can Cancel */
+            can_cancel: boolean;
+            /** Can Reschedule */
+            can_reschedule: boolean;
             /** Cancelled At */
             cancelled_at: string | null;
+            /** Change Deadline */
+            change_deadline: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
             /**
@@ -1141,6 +1147,11 @@ export interface components {
             id: string;
             /** Phone Masked */
             phone_masked: string;
+            /**
+             * Reschedule Pending
+             * @default false
+             */
+            reschedule_pending: boolean;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Status */
             status: string;
@@ -3447,7 +3458,9 @@ export interface operations {
     parent_cancel_api_website_v1_public_visit_manage_cancel_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
             path?: never;
             cookie?: {
                 ivy_parent_session?: string | null;
@@ -3478,7 +3491,9 @@ export interface operations {
     exchange_parent_token_api_website_v1_public_visit_manage_exchange_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3542,7 +3557,9 @@ export interface operations {
     parent_request_reschedule_api_website_v1_public_visit_manage_reschedule_request_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
             path?: never;
             cookie?: {
                 ivy_parent_session?: string | null;

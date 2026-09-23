@@ -34,7 +34,7 @@ export function isValidDate(value: string) {
 
 /** 接受手機自動填入、複製貼上的空格與連字號，API 仍收到 09 開頭的十碼。 */
 export function normalizeVisitPhone(phone: string) {
-  return phone.replace(/[\s-]/g, '')
+  return phone.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
 }
 
 export function validateVisitContact(contact: VisitContact, today = taipeiDate()): VisitErrors {

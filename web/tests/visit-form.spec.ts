@@ -7,6 +7,12 @@ describe('visit contact input', () => {
     expect(validateVisitContact({ parentName: '陳媽媽', phone: '0912 345 678', consent: true })).toEqual({})
   })
 
+  it.each(['－', '‐', '‑', '‒', '–', '—', '―', '−'])('accepts pasted phone separator %s supported by the API', separator => {
+    const phone = `0999${separator}000${separator}001`
+    expect(normalizeVisitPhone(phone)).toBe('0999000001')
+    expect(validateVisitContact({ parentName: '測試家長', phone, consent: true })).toEqual({})
+  })
+
   it('rejects an empty or whitespace-only name, malformed phone, and missing consent together', () => {
     expect(Object.keys(validateVisitContact({ parentName: '　 ', phone: '12345678', consent: false }))).toEqual(['parentName', 'phone', 'consent'])
   })

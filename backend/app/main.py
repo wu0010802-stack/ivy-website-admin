@@ -62,6 +62,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     _register_exception_handlers(app)
 
+    @app.middleware("http")
+    async def parent_access_privacy_headers(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/website/v1/public/visit-manage/"):
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
+
     @app.get("/api/website/v1/health")
     async def health() -> dict:
         return {

@@ -119,11 +119,13 @@ def _reset_rate_limiters():
     限流本身的行為由 test_rate_limits.py 明確驗證。"""
     from app.auth import service as auth_service
     from app.booking import routes as booking_routes
+    from app.booking import access_routes
     from app.operations import analytics_service
 
     auth_service.reset_login_rate_limits()
     booking_routes._SUBMIT_LIMITER_BY_PHONE.clear()
     booking_routes._SUBMIT_LIMITER_BY_CLIENT.clear()
+    access_routes._PARENT_REQUEST_LIMITER.clear()
     analytics_service._CLICK_ATTEMPTS.clear()
     yield
 
@@ -168,14 +170,14 @@ async def _logged_in_client(app, email: str, password: str) -> httpx.AsyncClient
 @pytest_asyncio.fixture
 async def public_client(app):
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
         yield client
 
 
 @pytest_asyncio.fixture
 async def second_public_client(app):
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
         yield client
 
 

@@ -358,3 +358,14 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 隔離 Node 22 typecheck、102 web tests、42 admin tests、admin build 與 production/live web build 通過；同份建置本機 24 組 Chrome 驗證通過，含桌機／手機各六張 WebGL 與兩組六張 CSS 備援。核對新版本化網址、來源尺寸、Canvas 像素密度、翻面與無水平溢出，無 runtime error；Safari／iOS 實機未驗證。
 - 證據：`output/railway-day-photo-quality-20260923-094939/` 的 summary、manifest、approved.patch、build-results／logs、browser-local、preflight／pre-upload、upload、uploaded、initialization-diagnostic、final-status 與 validation-notes。重建腳本 `output/prepare-day-photo-quality-deploy.py`；後續線上檢查指令在 validation-notes。
 - 保留此筆等待中的部署，未重複上傳。未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、通知／索引啟用、commit 或 push；只停止本次隔離預覽 3157／3158，未停止使用者開發服務。
+
+## 2026-09-23 官網報名修復與家長管理頁部署
+
+- 使用者明確要求部署本輪修復。API `756fb199-0f0b-4b57-952a-b4c71ca79116` 與 web `89f666de-fdf2-46c1-b929-6d690dfdf748` 皆 SUCCESS；正式 `/release.json` snapshot `20800ce32b86ee63a8a0d8551b0fe7cc2266c60241dced6afd6007315154841f`，服務 `web+api`。只部署程式，未執行 migration、CMS 發布／初始化、正式帳號登入、正式報名／通知寫入、commit 或 push。
+- 最初以 CI `dacbdbe`／snapshot `49d1ce08…` 建好候選快照；API 上傳前偵測其他 CI 已更新，前置檢查自動停止，未上傳舊候選。最新基底改為 `f023bd0e7290c55d10353f1579e17fe931e166ee`／snapshot `4e5b46e5…`，保留其錯誤頁 gzip 修正，再疊入這次 20 個報名相關檔案。未納入並行布幕、翻角及其他設計。
+- 固定快照 `/private/tmp/ivy-website-visit-repair-20260923-145157`，483 檔／70,502,268 bytes（不含後寫 release）。原有一般 `/visit` 的 no-cache 返回行為保留；只對 `/visit/manage` 加 no-store／noindex／no-referrer。前台、API、契約一同上線；管理頁支援狀態與遮罩手機、申請改期、確認取消、24 小時截止、失效連結及同頁切換。載入失敗可重試，全形連字號手機可正規化。
+- Node 22.23.2 隔離驗證：180 backend 真 PostgreSQL tests、140 web tests、48 admin tests、web typecheck、API 契約、admin build、production/live Nuxt build 通過。重建候選只多正式 gzip 修正一檔；逐檔 hash 確認 backend/admin/contracts 不變，沿用本輪已通過的後端與後台結果，重跑 web 型別／測試／build。
+- 線上 36 項公開檢查通過：release、production/live API、已發布 CMS、首頁／五校／報名／管理／後台入口、後台 assets SHA-256、五校預約設定、robots、404、匿名 401 與隱私標頭。透過 SSH 唯讀核對 API 四個修復檔 SHA-256，與快照一致；`/data/media` owner/group/mode 為 `10001:10001:750`。
+- Chrome 15 項線上檢查通過：1440／390／320px 管理頁、失效連結、無水平溢出、電話正規化；同分頁連結交換 401 與 Secure/HttpOnly 清除 cookie；瀏覽器注入 502 後顯示重試並恢復。0 runtime／hydration error，已檢視正式手機截圖。除不存在的測試 token 交換外，瀏覽器阻擋 API POST，沒有建立正式報名。完整送單／改期／取消先前已在獨立本機 PostgreSQL 驗證；Safari／iOS 實機未驗證。
+- 證據 `output/railway-visit-repair-20260923-145157/`：summary、manifest、approved.patch、build-results/logs、rebase-notes、pre-upload-api/web、upload-api/web、api/web-success、api-source-verification、smoke-public、browser-online、final-verification。
+- 後續手動部署須以本次線上快照為基底；推 main 前須先併回本次 20 檔差異，避免 CI 覆蓋尚未提交的報名修復。回復參考：API `1c85e5ae-73aa-423d-a26f-7c251ad9e390`、web `2b48f1e1-2488-42c1-85ae-437be348b504`。

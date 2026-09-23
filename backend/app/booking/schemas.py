@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.booking.models import BookingMode
+from app.booking.parent_policy import parent_change_deadline, parent_change_open
 from app.common.timezones import today_local
 
 ReferralSource = Literal["facebook", "google_reviews", "parent_community", "friends_family", "other"]
@@ -261,6 +262,10 @@ class ParentVisitRequestOut(BaseModel):
     cancelled_at: datetime | None
     hold_expires_at: datetime | None
     created_at: datetime
+    change_deadline: datetime | None
+    can_cancel: bool
+    can_reschedule: bool
+    reschedule_pending: bool = False
 
     @classmethod
     def from_visit_request(cls, visit_request) -> "ParentVisitRequestOut":
@@ -278,6 +283,9 @@ class ParentVisitRequestOut(BaseModel):
             cancelled_at=visit_request.cancelled_at,
             hold_expires_at=visit_request.hold_expires_at,
             created_at=visit_request.created_at,
+            change_deadline=parent_change_deadline(visit_request),
+            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and parent_change_open(visit_request),
+            can_reschedule=visit_request.status == "confirmed" and parent_change_open(visit_request),
         )
 
 

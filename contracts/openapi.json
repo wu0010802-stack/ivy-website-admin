@@ -714,6 +714,14 @@
             "title": "Campus Key",
             "type": "string"
           },
+          "can_cancel": {
+            "title": "Can Cancel",
+            "type": "boolean"
+          },
+          "can_reschedule": {
+            "title": "Can Reschedule",
+            "type": "boolean"
+          },
           "cancelled_at": {
             "anyOf": [
               {
@@ -725,6 +733,18 @@
               }
             ],
             "title": "Cancelled At"
+          },
+          "change_deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Deadline"
           },
           "confirmed_at": {
             "anyOf": [
@@ -764,6 +784,11 @@
             "title": "Phone Masked",
             "type": "string"
           },
+          "reschedule_pending": {
+            "default": false,
+            "title": "Reschedule Pending",
+            "type": "boolean"
+          },
           "slot": {
             "anyOf": [
               {
@@ -787,7 +812,10 @@
           "confirmed_at",
           "cancelled_at",
           "hold_expires_at",
-          "created_at"
+          "created_at",
+          "change_deadline",
+          "can_cancel",
+          "can_reschedule"
         ],
         "title": "ParentVisitRequestOut",
         "type": "object"
@@ -5787,6 +5815,22 @@
         "operationId": "parent_cancel_api_website_v1_public_visit_manage_cancel_post",
         "parameters": [
           {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
             "in": "cookie",
             "name": "ivy_parent_session",
             "required": false,
@@ -5834,6 +5878,24 @@
     "/api/website/v1/public/visit-manage/exchange": {
       "post": {
         "operationId": "exchange_parent_token_api_website_v1_public_visit_manage_exchange_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5926,6 +5988,22 @@
         "description": "只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。",
         "operationId": "parent_request_reschedule_api_website_v1_public_visit_manage_reschedule_request_post",
         "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
           {
             "in": "cookie",
             "name": "ivy_parent_session",

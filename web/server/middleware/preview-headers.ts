@@ -1,6 +1,10 @@
 export default defineEventHandler((event) => {
   const path = event.path.split('?')[0] ?? '/'
-  if (/^\/(preview|admin)(\/|$)/.test(path)) {
+  if (path === '/visit/manage' || path === '/visit/manage/') {
+    setResponseHeader(event, 'Cache-Control', 'private, no-store')
+    setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
+    setResponseHeader(event, 'Referrer-Policy', 'no-referrer')
+  } else if (/^\/(preview|admin)(\/|$)/.test(path)) {
     setResponseHeader(event, 'Cache-Control', 'private, no-store')
     setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
   } else if (/^\/visit(\/|$)/.test(path)) {

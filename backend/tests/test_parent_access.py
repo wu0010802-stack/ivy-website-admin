@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+import uuid
 
 import httpx
 import pytest
@@ -60,6 +61,10 @@ async def test_parent_can_exchange_token_and_read_own_request(admin_client, publ
     )
     assert exchange.status_code == 200
     assert exchange.json()["id"] == receipt_id
+    assert exchange.headers["cache-control"] == "private, no-store"
+    assert exchange.headers["referrer-policy"] == "no-referrer"
+    assert exchange.headers["x-robots-tag"] == "noindex, nofollow"
+    assert exchange.json()["reschedule_pending"] is False
 
     me = await public_client.get("/api/website/v1/public/visit-manage/me")
     assert me.status_code == 200
@@ -73,6 +78,31 @@ async def test_invalid_token_rejected(public_client):
     )
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "TOKEN_INVALID"
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+
+
+@pytest.mark.asyncio
+async def test_invalid_new_link_clears_previous_browser_session(admin_client, public_client):
+    receipt_id, _, _ = await _enable_slots_and_book(admin_client, public_client)
+    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link")
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+    await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
+    invalid = await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": "invalid"})
+    assert invalid.status_code == 401
+    assert (await public_client.get("/api/website/v1/public/visit-manage/me")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_production_parent_cookie_is_secure(app, admin_client, public_client):
+    receipt_id, _, _ = await _enable_slots_and_book(admin_client, public_client)
+    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link")
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+    app.state.settings.environment = "production"
+    exchange = await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
+    assert exchange.status_code == 200
+    assert "Secure" in exchange.headers["set-cookie"]
+    assert "HttpOnly" in exchange.headers["set-cookie"]
 
 
 @pytest.mark.asyncio
@@ -111,13 +141,13 @@ async def test_parent_session_isolated_between_families(app, admin_client, publi
     token_b = link_b.json()["manage_url_fragment"].split("token=")[1]
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client_a:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client_a:
         await client_a.post("/api/website/v1/public/visit-manage/exchange", json={"token": token_a})
         me_a = await client_a.get("/api/website/v1/public/visit-manage/me")
         assert me_a.json()["id"] == receipt_id
         assert me_a.json()["id"] != other_receipt_id
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client_b:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client_b:
         await client_b.post("/api/website/v1/public/visit-manage/exchange", json={"token": token_b})
         me_b = await client_b.get("/api/website/v1/public/visit-manage/me")
         assert me_b.json()["id"] == other_receipt_id
@@ -130,7 +160,7 @@ async def test_parent_can_cancel_own_request(app, admin_client, public_client):
     token = link.json()["manage_url_fragment"].split("token=")[1]
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
         await client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
         cancel = await client.post("/api/website/v1/public/visit-manage/cancel")
         assert cancel.status_code == 200
@@ -152,11 +182,13 @@ async def test_parent_reschedule_request_does_not_move_slot_until_approved(
     token = link.json()["manage_url_fragment"].split("token=")[1]
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
         await client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
         req = await client.post(
             "/api/website/v1/public/visit-manage/reschedule-request", json={"new_slot_id": slot_b_id}
         )
+        latest = await client.get("/api/website/v1/public/visit-manage/me")
+        assert latest.json()["reschedule_pending"] is True
         assert req.status_code == 201
 
     # 原時段完全不變，直到園方核准。
@@ -170,3 +202,54 @@ async def test_parent_reschedule_request_does_not_move_slot_until_approved(
     approve = await admin_client.post(f"/api/website/v1/admin/reschedule-requests/{request_id}/approve")
     assert approve.status_code == 200
     assert approve.json()["slot_id"] == slot_b_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', ['exchange', 'cancel', 'reschedule-request'])
+async def test_parent_mutations_require_non_simple_request_header(public_client, path):
+    public_client.headers.pop('X-Ivy-Parent')
+    response = await public_client.post(f'/api/website/v1/public/visit-manage/{path}', json={
+        'token': 'invalid-test-token', 'new_slot_id': str(uuid.uuid4())
+    })
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_parent_exchange_rejects_cross_site_and_wrong_configured_origin(app, public_client):
+    path = '/api/website/v1/public/visit-manage/exchange'
+    response = await public_client.post(path, json={'token': 'invalid'}, headers={'Sec-Fetch-Site': 'cross-site'})
+    assert response.status_code == 403
+    app.state.settings.admin_origin = 'https://website.example'
+    response = await public_client.post(path, json={'token': 'invalid'}, headers={'Origin': 'https://other.example'})
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_parent_change_deadline_is_enforced_by_api(admin_client, public_client, db_session):
+    from app.booking.models import VisitSlot
+    from app.common.timezones import OPERATING_TZ
+    receipt, slot_id, _ = await _enable_slots_and_book(admin_client, public_client)
+    link = await admin_client.post(f'/api/website/v1/admin/visit-requests/{receipt}/access-link')
+    token = link.json()['manage_url_fragment'].split('token=')[1]
+    exchange = await public_client.post('/api/website/v1/public/visit-manage/exchange', json={'token': token})
+    assert exchange.json().get('can_cancel') is True
+    assert exchange.json().get('can_reschedule') is True
+    slot = await db_session.get(VisitSlot, uuid.UUID(slot_id))
+    starts = (datetime.now(timezone.utc) + timedelta(hours=12)).astimezone(OPERATING_TZ)
+    slot.slot_date = starts.date()
+    slot.start_time = starts.time().replace(tzinfo=None)
+    await db_session.commit()
+    me = await public_client.get('/api/website/v1/public/visit-manage/me')
+    assert me.json()['can_cancel'] is False
+    assert me.json()['can_reschedule'] is False
+    for path, body in [('cancel', {}), ('reschedule-request', {'new_slot_id': str(uuid.uuid4())})]:
+        result = await public_client.post(f'/api/website/v1/public/visit-manage/{path}', json=body)
+        assert result.status_code == 409
+        assert result.json()['detail']['code'] == 'CHANGE_DEADLINE_PASSED'
+
+
+@pytest.mark.asyncio
+async def test_parent_token_exchange_has_rate_limit(public_client):
+    results = [await public_client.post('/api/website/v1/public/visit-manage/exchange', json={'token': 'invalid'}) for _ in range(31)]
+    assert results[-1].status_code == 429
+    assert 'retry-after' in results[-1].headers

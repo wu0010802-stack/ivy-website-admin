@@ -1,3 +1,17 @@
+## 2026-09-23 官網報名修復已部署
+
+報名設定失敗重試、全形連字號手機，以及家長管理頁已部署至[正式官網](https://web-production-04caa.up.railway.app/)。API 與 web 均 SUCCESS；版本 `20800ce32b86`。以最新正式 `f023bd0` 為基底，只套入本次修復，保留已部署設計與錯誤頁修正。
+
+隔離快照 180 backend／140 web／48 admin 測試、型別、契約與正式建置通過；線上 36 項公開檢查與 Chrome 15 項 1440／390／320px 操作檢查通過，無 runtime／hydration error 或水平溢出。未建立正式測試報名、未 migration／CMS 發布／commit／push。詳見 `deploy/README.md` 與 `output/railway-visit-repair-20260923-145157/`。
+
+## 2026-09-23 官網報名手測修復與家長管理頁
+
+修正預約設定 API 失敗被顯示為「暫停預約」：改為錯誤提示、重新載入與聯絡園所入口；手機正規化支援全形／Unicode 連字號。新增 `/visit/manage`，提供遮罩手機與狀態查詢、改期申請、二次確認取消、失效連結處理。改期待核准時原時段保留，重新整理仍顯示待確認；同頁切換連結會清掉舊畫面與請求，失效連結不沿用上一筆 session。
+
+管理頁使用 fragment 交換 HttpOnly cookie，移除網址 token，不把個案資料放進 SSR payload；補上 no-store／noindex／no-referrer、正式環境 Secure cookie、來源檢查與限流。預設參觀前 24 小時截止由 API 執行，並回傳可操作狀態；OpenAPI／前端型別同步，無 migration。
+
+驗證：backend 真 PostgreSQL 180 項、web 141 項單元測試、Node 22 型別與契約檢查通過；Chrome 實際表單送出／管理連結／改期／取消／錯誤重試／截止時間與 1440／390／320px 驗證通過，無 page error 或水平溢出。證據 `output/playwright/visit-repair-20260923/REPORT.md`；臨時 API 與專用手測 DB 已清理，未發通知。`node --check app.js`、原型重新打包通過，`preview.html` 無差異。未部署、未提交；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 官網後台第四輪 UX：追蹤到期有入口、案件一筆接一筆、發布前看差異
 
 對 `admin/` 做 impeccable critique（LLM 審查＋自動偵測，25/40，不是 AI slop），依業主選「預約流程優先、全部處理、回上一版先做前端差異預覽」實作：
