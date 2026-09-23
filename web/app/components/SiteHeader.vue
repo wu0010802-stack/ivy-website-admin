@@ -6,10 +6,13 @@ const props = defineProps<{ content: SiteContent }>()
 
 const route = useRoute()
 
-// 只有首頁在捲過 COMPACT_AT 後會收成右上角的浮動膠囊（見 app.js
-// `setupHeaderMode`：`usePanel = page==='home'`）；分校頁與預約頁維持
-// 展開列頭首，選單走原本 `.navigation` 下拉，不走膠囊選單卡。
-const usePanel = computed(() => route.path === '/')
+// 首頁任何寬度捲過 COMPACT_AT 都收成浮動膠囊；分校頁與預約頁只在 900px
+// 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：手機內頁頁首原本
+// 一直佔 78px）。桌機內頁維持展開頁首與 `.navigation`。
+const isNarrow = ref(false)
+const usePanel = computed(() => route.path === '/' || isNarrow.value)
+// 預約頁本身不再放「預約參觀」鈕（查詢／取消頁 /visit/manage 仍保留）。
+const isBookingPage = computed(() => route.path === '/visit' || (route.path.startsWith('/visit/') && route.path !== '/visit/manage'))
 const COMPACT_AT = 40
 
 const isScrolled = ref(false)
@@ -153,7 +156,15 @@ function onPointerdown(event: PointerEvent) {
 let desktopQuery: MediaQueryList | null = null
 function onDesktopChange() {
   closeMenu()
+  isNarrow.value = !desktopQuery?.matches
+  headerState.value = 'hero'
+  nextTick(updateHeaderState)
 }
+
+// 手機選單（膠囊選單卡或展開列下拉）開著時鎖住背景捲動；桌機的選單卡不鎖。
+watch([isMenuOpen, isNarrow], ([open, narrow]) => {
+  document.documentElement.classList.toggle('menu-locked', open && narrow)
+})
 
 watch(
   () => route.path,
@@ -165,13 +176,14 @@ watch(
 )
 
 onMounted(() => {
+  desktopQuery = window.matchMedia('(min-width: 901px)')
+  desktopQuery.addEventListener('change', onDesktopChange)
+  isNarrow.value = !desktopQuery.matches
   updateHeaderState()
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('resize', onResize, { passive: true })
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('pointerdown', onPointerdown)
-  desktopQuery = window.matchMedia('(min-width: 901px)')
-  desktopQuery.addEventListener('change', onDesktopChange)
 })
 
 onUnmounted(() => {
@@ -182,6 +194,7 @@ onUnmounted(() => {
   desktopQuery?.removeEventListener('change', onDesktopChange)
   clearTimeout(panelHideTimer)
   clearTimeout(panelFocusTimer)
+  document.documentElement.classList.remove('menu-locked')
 })
 
 const campuses = computed(() => props.content.campuses)
@@ -207,7 +220,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
   <header
     ref="headerRef"
     class="header"
-    :class="{ 'is-scrolled': isScrolled }"
+    :class="{ 'is-scrolled': isScrolled, 'is-pill-nav': usePanel, 'is-booking': isBookingPage }"
     :data-state="usePanel ? headerState : undefined"
     :data-menu="isMenuOpen ? 'open' : 'closed'"
   >

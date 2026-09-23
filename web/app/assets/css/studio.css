@@ -713,9 +713,10 @@ body:has(.studio-hero) .header-top,
 }
 
 /* 離開首屏：整條頁首讓位，置頂居中的深綠膠囊接手（提案 design/header-collapse-directions，2026-09-18）。
+   2026-09-23 起分校頁與預約頁 900px 以下也用（SiteHeader 加 .is-pill-nav）；用 :is() 包單一 class，特異度與首頁原本相同。
    膠囊底色用 --green，因為首頁捲過首屏後的五段背景都是淺色，米白膠囊與它們的邊界對比只有 1.0–1.4。 */
 .header-pill {display:none}
-body:has(.studio-hero) .header {
+body:has(:is(.studio-hero,.is-pill-nav)) .header {
   --pill-top:12px;--pill-pad:8px;--pill-ctrl:40px;--pill-crest:28px;
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
   --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
@@ -725,20 +726,20 @@ body:has(.studio-hero) .header {
   --pill-border:rgb(255 255 255 / .28);--pill-line:rgb(255 255 255 / .16);--pill-hover:rgb(255 255 255 / .12);
   --pill-ease:cubic-bezier(.22,1,.36,1);
 }
-body:has(.studio-hero) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
-body:has(.studio-hero) .header[data-state="compact"],
-body:has(.studio-hero) .header.is-scrolled[data-state="compact"] {
+body:has(:is(.studio-hero,.is-pill-nav)) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"],
+body:has(:is(.studio-hero,.is-pill-nav)) .header.is-scrolled[data-state="compact"] {
   background:transparent;
   box-shadow:none;
   pointer-events:none;
 }
-body:has(.studio-hero) .header[data-state="compact"] .header-top {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-top {
   --vis-delay:.22s;
   opacity:0;
   visibility:hidden;
   pointer-events:none;
 }
-body:has(.studio-hero) .header-pill {
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
   --vis-delay:.42s;
   position:absolute;
   top:var(--pill-top);
@@ -761,7 +762,7 @@ body:has(.studio-hero) .header-pill {
   transform:translate(var(--pill-x),var(--pill-y)) scale(var(--pill-scale));
   transition:transform .42s var(--pill-ease),opacity .25s ease,border-radius .3s ease,box-shadow .3s ease,visibility 0s linear var(--vis-delay);
 }
-body:has(.studio-hero) .header[data-state="compact"] .header-pill {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
   --vis-delay:0s;
   opacity:1;
   visibility:visible;
@@ -770,8 +771,8 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
   --pill-scale:1;
   transition-delay:.1s;
 }
-body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {transition-delay:0s}
-body:has(.studio-hero) .pill-brand {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {transition-delay:0s}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {
   display:flex;
   align-items:center;
   gap:10px;
@@ -784,7 +785,7 @@ body:has(.studio-hero) .pill-brand {
   white-space:nowrap;
   color:var(--pill-fg);
 }
-body:has(.studio-hero) .pill-crest {
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {
   display:grid;
   place-items:center;
   flex-shrink:0;
@@ -793,12 +794,12 @@ body:has(.studio-hero) .pill-crest {
   border-radius:50%;
   background:var(--white);
 }
-body:has(.studio-hero) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
 /* 2026-09-18：膠囊只留圓形校徽，校名與英文字收掉（校名仍在 .pill-brand 的 aria-label）。
    要退回顯示校名，把這兩行刪掉即可。 */
-body:has(.studio-hero) .pill-name {display:none}
-body:has(.studio-hero) .pill-brand {padding-right:4px}
-body:has(.studio-hero) .pill-name small {
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-name {display:none}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding-right:4px}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {
   display:block;
   font-family:var(--font-en);
   font-size:.6875rem;
@@ -806,9 +807,9 @@ body:has(.studio-hero) .pill-name small {
   letter-spacing:.02em;
   color:var(--pill-soft);
 }
-body:has(.studio-hero) .pill-actions {display:flex;align-items:center;gap:6px}
-body:has(.studio-hero) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:rgb(255 255 255 / .22)}
-body:has(.studio-hero) .header-pill .menu-toggle {
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {display:flex;align-items:center;gap:6px}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:rgb(255 255 255 / .22)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -822,23 +823,23 @@ body:has(.studio-hero) .header-pill .menu-toggle {
   color:inherit;
   transition:background-color .2s ease;
 }
-body:has(.studio-hero) .header-pill .menu-toggle:hover,
-body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover,
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
 /* 900px 以下站內的 .menu-toggle span 會把這個容器本身壓成 1px 高，要擋回來。 */
-body:has(.studio-hero) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
-body:has(.studio-hero) .header-pill .menu-lines span {
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines span {
   display:block;
   width:20px;
   height:2px;
   border-radius:1px;
   background:currentColor;
   transition:transform .3s var(--pill-ease)}
-body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:first-child {transform:translateY(4px) rotate(45deg)}
-body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:last-child {transform:translateY(-4px) rotate(-45deg)}
-/* 站內 body:has(.studio-hero) .menu-toggle span 會把這個 span 壓成 22x2 的白條，要明確擋回來。 */
-body:has(.studio-hero) .header-pill .menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
-body:has(.studio-hero) .header-pill .menu-word small {display:block;font-family:var(--font-en);font-size:.625rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
-body:has(.studio-hero) .pill-book {
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:first-child {transform:translateY(4px) rotate(45deg)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:last-child {transform:translateY(-4px) rotate(-45deg)}
+/* 站內 body:has(:is(.studio-hero,.is-pill-nav)) .menu-toggle span 會把這個 span 壓成 22x2 的白條，要明確擋回來。 */
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word small {display:block;font-family:var(--font-en);font-size:.625rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
   display:inline-flex;
   align-items:center;
   gap:8px;
@@ -852,9 +853,9 @@ body:has(.studio-hero) .pill-book {
   white-space:nowrap;
   transition:background-color .2s ease,color .2s ease;
 }
-body:has(.studio-hero) .pill-book:hover {background:var(--paper);color:var(--deep)}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--paper);color:var(--deep)}
 /* 2026-09-22：B 目錄沿用比例，採中性淺色毛玻璃；實色為不支援與減少透明度備援。 */
-body:has(.studio-hero) .menu-panel {
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {
   --menu-solid:oklch(97% .002 95);--menu-glass:oklch(98% .002 95 / .72);
   --menu-ink:oklch(26% .005 260);--menu-muted:oklch(38% .003 260);
   --menu-heading-surface:oklch(98% .002 95 / .1);--menu-soft:oklch(98% .002 95 / .12);--menu-line:oklch(26% .005 260 / .12);
@@ -881,25 +882,25 @@ body:has(.studio-hero) .menu-panel {
   transition:opacity .22s ease,transform .32s var(--pill-ease);
 }
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
-  body:has(.studio-hero) .menu-panel {background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-backdrop);backdrop-filter:var(--menu-backdrop)}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-backdrop);backdrop-filter:var(--menu-backdrop)}
 }
 @media(prefers-reduced-transparency:reduce) {
-  body:has(.studio-hero) .menu-panel {background:var(--menu-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:var(--menu-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 @media(forced-colors:active) {
-  body:has(.studio-hero) .menu-panel {background:Canvas;color:CanvasText;border-color:CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:Canvas;color:CanvasText;border-color:CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none}
 }
-body:has(.studio-hero) .menu-panel.is-open {opacity:1;transform:none}
-body:has(.studio-hero) .menu-heading {display:flex;align-items:center;gap:22px;padding:16px var(--menu-gutter);background:var(--menu-heading-surface);color:var(--menu-light-text)}
-body:has(.studio-hero) .menu-heading p {margin:0;font-size:.8125rem;font-weight:500;letter-spacing:.11em;white-space:nowrap}
-body:has(.studio-hero) .menu-heading>span {display:block;width:auto;height:1px;background:var(--menu-light-line);flex:1}
-body:has(.studio-hero) .menu-links {
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.is-open {opacity:1;transform:none}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading {display:flex;align-items:center;gap:22px;padding:16px var(--menu-gutter);background:var(--menu-heading-surface);color:var(--menu-light-text)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading p {margin:0;font-size:.8125rem;font-weight:500;letter-spacing:.11em;white-space:nowrap}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading>span {display:block;width:auto;height:1px;background:var(--menu-light-line);flex:1}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links {
   display:grid;
   grid-template-columns:1fr;
   gap:0;
   padding:4px var(--menu-gutter) 0;
 }
-body:has(.studio-hero) .menu-links a {
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a {
   display:flex;
   align-items:center;
   gap:16px;
@@ -913,19 +914,19 @@ body:has(.studio-hero) .menu-links a {
   line-height:1.4;
   text-shadow:none;
 }
-body:has(.studio-hero) .menu-link-number {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--menu-muted);min-width:16px}
-body:has(.studio-hero) .menu-link-copy {flex:1;min-width:0}
-body:has(.studio-hero) .menu-link-copy>span {display:block}
-body:has(.studio-hero) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
-body:has(.studio-hero) .menu-campuses {
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-number {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--menu-muted);min-width:16px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-copy {flex:1;min-width:0}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-copy>span {display:block}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses {
   margin-top:18px;
   padding:0 var(--menu-gutter);
 }
-body:has(.studio-hero) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
-body:has(.studio-hero) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
-body:has(.studio-hero) #menu-campuses a {
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
   display:flex;
   flex-direction:column;
   justify-content:center;
@@ -938,51 +939,51 @@ body:has(.studio-hero) #menu-campuses a {
   font-weight:500;
   line-height:1.4;
 }
-body:has(.studio-hero) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(.studio-hero) #menu-campuses a:hover,
-body:has(.studio-hero) #menu-campuses a.is-active {background:var(--menu-social-hover)}
-body:has(.studio-hero) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
-body:has(.studio-hero) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
-body:has(.studio-hero) .menu-socials a {display:flex;align-items:center;gap:8px;min-height:44px;font-size:.8125rem;font-weight:500}
-body:has(.studio-hero) .menu-socials .icon {width:18px;height:18px;flex:0 0 18px}
-body:has(.studio-hero) .menu-socials .menu-social-external {width:14px;height:14px;flex-basis:14px}
-body:has(.studio-hero) .menu-socials a:hover>span {text-decoration:underline;text-underline-offset:4px}
-body:has(.studio-hero) .menu-foot {margin:18px var(--menu-gutter) 0;background:var(--menu-contact);color:var(--menu-ink);border-radius:14px}
-body:has(.studio-hero) .menu-phone {display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 16px;font-weight:400;font-variant-numeric:tabular-nums}
-body:has(.studio-hero) .menu-phone>.icon:first-child {width:36px;height:36px;padding:9px;border:0;border-radius:50%;background:var(--menu-phone-badge);color:var(--menu-phone-icon);flex:0 0 36px}
-body:has(.studio-hero) .menu-phone small {display:block;font-size:.75rem;font-weight:400;letter-spacing:.02em;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-phone strong {display:block;margin-top:2px;font-family:var(--font-en);font-size:1.375rem;font-weight:400;line-height:1.35;letter-spacing:.015em}
-body:has(.studio-hero) .menu-phone-arrow {margin-left:auto;width:17px;height:17px;flex:0 0 17px;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-phone:hover strong {text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
-body:has(.studio-hero) .menu-campus-socials {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 12px;padding:8px 0 10px;border-top:1px solid var(--menu-line)}
-body:has(.studio-hero) .menu-campus-social {display:grid;grid-template-rows:1.25rem auto minmax(1rem,auto);place-items:center;gap:1px;min-width:0;min-height:3.9375rem;padding:4px 1px;border:0;border-radius:8px;color:var(--menu-ink);font-size:.75rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
-body:has(.studio-hero) .menu-campus-social .icon {width:20px;height:20px}
-body:has(.studio-hero) .menu-campus-social small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(.studio-hero) .menu-campus-social.is-pending {color:var(--menu-muted)}
-body:has(.studio-hero) a.menu-campus-social:hover {background:var(--menu-social-hover)}
-body:has(.studio-hero) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
-body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
-body:has(.studio-hero) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
-body:has(.studio-hero) .header-pill :focus-visible {outline-color:var(--paper)}
-body:has(.studio-hero) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
-body:has(.studio-hero) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
-body:has(.studio-hero) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a:hover,
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a.is-active {background:var(--menu-social-hover)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials a {display:flex;align-items:center;gap:8px;min-height:44px;font-size:.8125rem;font-weight:500}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials .icon {width:18px;height:18px;flex:0 0 18px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials .menu-social-external {width:14px;height:14px;flex-basis:14px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials a:hover>span {text-decoration:underline;text-underline-offset:4px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-foot {margin:18px var(--menu-gutter) 0;background:var(--menu-contact);color:var(--menu-ink);border-radius:14px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone {display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 16px;font-weight:400;font-variant-numeric:tabular-nums}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone>.icon:first-child {width:36px;height:36px;padding:9px;border:0;border-radius:50%;background:var(--menu-phone-badge);color:var(--menu-phone-icon);flex:0 0 36px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone small {display:block;font-size:.75rem;font-weight:400;letter-spacing:.02em;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone strong {display:block;margin-top:2px;font-family:var(--font-en);font-size:1.375rem;font-weight:400;line-height:1.35;letter-spacing:.015em}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone-arrow {margin-left:auto;width:17px;height:17px;flex:0 0 17px;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone:hover strong {text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-socials {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 12px;padding:8px 0 10px;border-top:1px solid var(--menu-line)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social {display:grid;grid-template-rows:1.25rem auto minmax(1rem,auto);place-items:center;gap:1px;min-width:0;min-height:3.9375rem;padding:4px 1px;border:0;border-radius:8px;color:var(--menu-ink);font-size:.75rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social .icon {width:20px;height:20px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social.is-pending {color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) a.menu-campus-social:hover {background:var(--menu-social-hover)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill :focus-visible {outline-color:var(--paper)}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}
 
 /* 向下捲收起、向上捲出現（預覽 index.html?autohide=1#/home）。只在收合狀態有作用，
    選單開著、焦點在膠囊裡、回到首屏、減少動態時一律維持顯示。 */
-body:has(.studio-hero) .header[data-state="compact"][data-peek="out"] .header-pill {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-peek="out"] .header-pill {
   --pill-y:calc(-100% - var(--pill-top) - 10px);
   opacity:0;
   pointer-events:none;
   transition:transform .32s cubic-bezier(.4,0,.6,1),opacity .2s ease;
 }
-body:has(.studio-hero) .header[data-state="compact"][data-peek="in"] .header-pill {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-peek="in"] .header-pill {
   transition:transform .34s var(--pill-ease),opacity .2s ease,border-radius .3s ease,box-shadow .3s ease;
   transition-delay:0s;
 }
 @media(prefers-reduced-motion:reduce) {
-  body:has(.studio-hero) .header[data-state="compact"][data-peek="out"] .header-pill {--pill-y:0px;opacity:1;pointer-events:auto}
+  body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-peek="out"] .header-pill {--pill-y:0px;opacity:1;pointer-events:auto}
 }
 
 /* 膠囊放哪：預設靠右，右緣貼內容欄右緣，和原本頁首的預約鈕同一條線。
@@ -990,13 +991,13 @@ body:has(.studio-hero) .header[data-state="compact"][data-peek="in"] .header-pil
    比較頁在 design/header-collapse-directions/placement.html。900px 以下全部是滿版膠囊。 */
 /* 容器在 1100 以下改成 calc(100% - 64px)（studio.css 第 16 行），gutter 跟著走。 */
 @media(min-width:901px) and (max-width:1100px) {
-  body:has(.studio-hero) .header {--pill-gutter:32px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-gutter:32px}
 }
 @media(min-width:901px) {
-  [data-pill="center"] body:has(.studio-hero) .header {--pill-x:-50%}
-  [data-pill="center"] body:has(.studio-hero) .header-pill {left:50%;right:auto}
-  [data-pill="left"] body:has(.studio-hero) .header-pill {left:var(--pill-gutter);right:auto}
-  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header-pill {
+  [data-pill="center"] body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-x:-50%}
+  [data-pill="center"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {left:50%;right:auto}
+  [data-pill="left"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {left:var(--pill-gutter);right:auto}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
     left:var(--pill-gutter);
     right:var(--pill-gutter);
     justify-content:space-between;
@@ -1006,20 +1007,20 @@ body:has(.studio-hero) .header[data-state="compact"][data-peek="in"] .header-pil
     border-color:transparent;
     box-shadow:none;
   }
-  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) :is(.pill-brand,.pill-actions) {
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-actions) {
     padding:var(--pill-pad);
     background:var(--pill-bg);
     border:1px solid var(--pill-border);
     border-radius:999px;
     box-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
   }
-  [data-pill="split"] body:has(.studio-hero) .pill-brand {padding-right:22px}
+  [data-pill="split"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding-right:22px}
   /* split-mini：左邊只留圓形校徽，深綠的量最少。 */
-  [data-pill="split"] body:has(.studio-hero) .pill-name {display:block}
-  [data-pill="split-mini"] body:has(.studio-hero) .pill-brand {padding-right:var(--pill-pad)}
-  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .pill-divider {display:none}
-  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
-  :is([data-pill="split"],[data-pill="split-mini"]) body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .pill-actions {
+  [data-pill="split"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-name {display:block}
+  [data-pill="split-mini"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding-right:var(--pill-pad)}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
+  :is([data-pill="split"],[data-pill="split-mini"]) body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .pill-actions {
     border-radius:24px 24px 0 0;
     box-shadow:0 1px 2px rgb(var(--ink) / .06);
   }
@@ -1027,68 +1028,68 @@ body:has(.studio-hero) .header[data-state="compact"][data-peek="in"] .header-pil
 /* side：側邊直欄（預覽 index.html?pill=side#/home）。校徽、選單、預約由上而下疊成一條，
    靠右貼內容欄右緣；預約鈕文字直排；選單卡開在直欄左側、頂端齊平。 */
 @media(min-width:901px) {
-  [data-pill="side"] body:has(.studio-hero) .header-pill {flex-direction:column;align-items:center;gap:8px}
-  [data-pill="side"] body:has(.studio-hero) .pill-brand {padding:0;min-height:0}
-  [data-pill="side"] body:has(.studio-hero) .pill-actions {flex-direction:column;gap:8px}
-  [data-pill="side"] body:has(.studio-hero) .pill-divider {width:calc(var(--pill-ctrl) * .58);height:1px}
-  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-toggle {flex-direction:column;gap:8px;width:var(--pill-ctrl);height:auto;min-height:0;padding:12px 0 10px}
-  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-toggle {padding:0;height:var(--pill-ctrl)}
-  [data-pill="side"] body:has(.studio-hero) .header-pill .menu-word small {font-size:.625rem}
-  [data-pill="side"] body:has(.studio-hero) .pill-book {
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {flex-direction:column;align-items:center;gap:8px}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding:0;min-height:0}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {flex-direction:column;gap:8px}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {width:calc(var(--pill-ctrl) * .58);height:1px}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {flex-direction:column;gap:8px;width:var(--pill-ctrl);height:auto;min-height:0;padding:12px 0 10px}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {padding:0;height:var(--pill-ctrl)}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word small {font-size:.625rem}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
     writing-mode:vertical-rl;text-orientation:upright;
     width:var(--pill-ctrl);height:auto;padding:18px 0 20px;gap:10px;
     font-size:.875rem;letter-spacing:.12em;
   }
-  [data-pill="side"] body:has(.studio-hero) .pill-book .icon {width:20px;height:20px}
-  [data-pill="side"] body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:var(--pill-shadow)}
-  body:has(.studio-hero) .menu-panel.beside {border-top:1px solid var(--pill-border);border-radius:24px;padding-top:14px;transform:translateX(8px)}
-  body:has(.studio-hero) .menu-panel.beside.is-open {transform:none}
-  body:has(.studio-hero) .menu-panel.beside .menu-links {padding-top:0;border-top:0}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-book .icon {width:20px;height:20px}
+  [data-pill="side"] body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:var(--pill-shadow)}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.beside {border-top:1px solid var(--pill-border);border-radius:24px;padding-top:14px;transform:translateX(8px)}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.beside.is-open {transform:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.beside .menu-links {padding-top:0;border-top:0}
 }
 /* 2026-09-18 晚探索：三顆都留、但更不擋內容的四個方向（預覽 index.html?pill=glass|edge|dock|bare#/home）。 */
 @media(min-width:901px) {
   /* edge：貼視窗右緣的書籤片，左半圓右直邊；離開內容欄，只壓到頁面留白。 */
-  [data-pill="edge"] body:has(.studio-hero) .header-pill {right:0;border-right:0;border-radius:999px 0 0 999px;padding-right:10px}
+  [data-pill="edge"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {right:0;border-right:0;border-radius:999px 0 0 999px;padding-right:10px}
   /* dock：停在視窗右下角，像手機 app 的拇指區；上方閱讀區完全不擋。 */
-  [data-pill="dock"] body:has(.studio-hero) .header-pill {position:fixed;top:auto;bottom:20px;--pill-y:14px}
-  [data-pill="dock"] body:has(.studio-hero) .header[data-state="compact"] .header-pill {--pill-y:0px}
-  [data-pill="dock"] body:has(.studio-hero) .menu-panel {position:fixed}
-  body:has(.studio-hero) .menu-panel.above {transform:translateY(8px)}
-  body:has(.studio-hero) .menu-panel.above.is-open {transform:none}
-  body:has(.studio-hero) .menu-panel.above .menu-links {padding-top:0;border-top:0}
+  [data-pill="dock"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {position:fixed;top:auto;bottom:20px;--pill-y:14px}
+  [data-pill="dock"] body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {--pill-y:0px}
+  [data-pill="dock"] body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {position:fixed}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.above {transform:translateY(8px)}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.above.is-open {transform:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.above .menu-links {padding-top:0;border-top:0}
   /* bare：不要外殼，三顆各自成圓，中間透空；深綠面積最少。 */
-  [data-pill="bare"] body:has(.studio-hero) .header-pill {gap:8px;padding:0;background:none;border-color:transparent;box-shadow:none}
-  [data-pill="bare"] body:has(.studio-hero) .pill-divider {display:none}
-  [data-pill="bare"] body:has(.studio-hero) .pill-brand {padding:0}
-  [data-pill="bare"] body:has(.studio-hero) .pill-crest {width:var(--pill-ctrl);height:var(--pill-ctrl);box-shadow:var(--pill-shadow)}
-  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle {background:var(--pill-bg);border:1px solid var(--pill-border);box-shadow:var(--pill-shadow)}
-  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle:hover,
-  [data-pill="bare"] body:has(.studio-hero) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--deep)}
-  [data-pill="bare"] body:has(.studio-hero) .pill-book {box-shadow:var(--pill-shadow)}
-  [data-pill="bare"] body:has(.studio-hero) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {gap:8px;padding:0;background:none;border-color:transparent;box-shadow:none}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding:0}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {width:var(--pill-ctrl);height:var(--pill-ctrl);box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {background:var(--pill-bg);border:1px solid var(--pill-border);box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover,
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--deep)}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {box-shadow:var(--pill-shadow)}
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
 }
 @media(max-width:900px) {
-  body:has(.studio-hero) .header {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
-  body:has(.studio-hero) .header-pill {
+  body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
+  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
     left:16px;
     right:16px;
     justify-content:space-between;
   }
-  body:has(.studio-hero) .pill-brand {font-size:.9375rem;padding-right:8px}
-  body:has(.studio-hero) .pill-name small {display:none}
-  body:has(.studio-hero) .pill-actions {display:flex;align-items:center;gap:6px}
-body:has(.studio-hero) .pill-divider {display:none}
-  body:has(.studio-hero) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
-  body:has(.studio-hero) .header-pill .menu-word {display:none}
-  body:has(.studio-hero) .pill-book {padding:0 16px;font-size:.875rem}
-  body:has(.studio-hero) .menu-panel {--menu-gutter:18px}
-  body:has(.studio-hero) .menu-links a {min-height:64px;font-size:1.125rem;gap:14px}
-  body:has(.studio-hero) .menu-phone {padding:12px;gap:10px}
-  body:has(.studio-hero) .menu-phone strong {font-size:1.375rem}
-  body:has(.studio-hero) .menu-campus-socials {margin-inline:8px;gap:0}
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {font-size:.9375rem;padding-right:8px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {display:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {display:flex;align-items:center;gap:6px}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word {display:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {padding:0 16px;font-size:.875rem}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {--menu-gutter:18px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a {min-height:64px;font-size:1.125rem;gap:14px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone {padding:12px;gap:10px}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone strong {font-size:1.375rem}
+  body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-socials {margin-inline:8px;gap:0}
 }
 @media(max-width:360px) {
-  body:has(.studio-hero) .pill-name {display:none}
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-name {display:none}
   .pill-brand {padding-right:0}
 }
 /* 收合後頁首的白字已經不在照片上，首屏頂部那條為導覽而設的遮罩帶就收掉：照片更完整，
@@ -1097,7 +1098,7 @@ body:has(.studio-hero) .pill-divider {display:none}
 .header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto}
 /* 壓在首屏照片上時，膠囊的外框與陰影給重一點，讓形狀在任何一張照片上都站得住。
    只改變數，不直接寫 box-shadow，免得蓋掉左右分離版「膠囊本身不投影」的設定。 */
-body:has(.studio-hero) .header[data-state="compact"] .header-pill {
+body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
   --pill-border:rgb(255 255 255 / .28);
   --pill-shadow:0 18px 40px -14px rgb(var(--ink) / .7),0 2px 8px -2px rgb(var(--ink) / .4);
 }
@@ -1105,10 +1106,18 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
   .studio-hero::before {transition:none}
 }
 @media(prefers-reduced-motion:reduce) {
-  body:has(.studio-hero) :is(.header-top,.header-pill,.menu-panel,.menu-lines span) {
+  body:has(:is(.studio-hero,.is-pill-nav)) :is(.header-top,.header-pill,.menu-panel,.menu-lines span) {
     transition-duration:.01ms!important;
     transition-delay:0s!important;
   }
+}
+/* 內頁收合：實底頁首退成透明、拿掉底線，只留膠囊浮在內容上（背景與指標穿透沿用上面 compact 規則）。 */
+.header.is-pill-nav[data-state="compact"] {border-bottom-color:transparent}
+/* 手機選單開著時背景不捲（SiteHeader 只在 900px 以下加 menu-locked）。 */
+html.menu-locked {overflow:hidden}
+/* 預約頁本身不放「預約參觀」，手機寬度讓給品牌與選單。 */
+@media(max-width:760px) {
+  .header.is-booking :is(.header-book,.pill-book) {display:none}
 }
 
 /* 試作：?seam=1 —— 兩個大字接成同一欄。
