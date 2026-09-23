@@ -52,6 +52,12 @@
 
 使用者要首頁「近期活動／最新消息」在手機版改成輪播，先看三種 mock（桌機不動、`web/` 未改）：A 單張翻頁（滿版一次一則，分校輪播同款膠囊圓點＋暫停鍵，5 秒自動換，兩個輪播錯開 2.5 秒）、B 中央聚焦（當前置中、左右露出前後一則只留色塊或照片，無限循環，標題列 ← 1/3 →）、C 疊卡（底下兩張露色條，甩開最上面那張塞回最底下）。**A 牴觸 09-16「消息不使用自動輪播」的裁定，選 A 要重新拍板。**三版區塊都比現況高 130–180px。內容取自 fixture。驗證：Playwright 1480 比較頁與 390×844 實寬無 console error、無水平溢出；A 自動換頁／暫停、減少動態不播，B 循環與上一則，C 下一張／← 退回、拖曳後不誤開對話框都通過。Safari／iOS 實機未驗證。未提交。
 
+## 2026-09-23 頁尾加入畢業版校徽
+
+使用者確認畢業版雙童 Logo，放到 `SiteFooter.vue` 中英文品牌名稱左側，排列比照頁首。新增透明素材 `web/public/assets/ivy-graduation-crest.png`（384×384，約 217 KB），由內建 imagegen 去背後等比例縮小；保留原文案、字型與深森林綠配色。桌機校徽 72px、手機 60px，平板與手機讓品牌區跨整列，避免文字受擠壓。素材母檔與製作紀錄保留於 `output/imagegen/footer-graduation-20260923/`。
+
+驗證：Node 22 `npm --prefix web run typecheck` 通過、無 `error TS`；`node --check app.js` → `python3 package_preview.py` 通過，凍結原型 `preview.html` 無差異。本機 :3161 Chrome 1440／820／390／320px 校徽載入正常、圖文左右排列、無水平溢出，桌機與 390px 已目視確認。Safari／iOS 實機未驗證。未提交、未部署。
+
 ## 2026-09-23 預約頁改成首頁風格（定案：C 的第一步＋A 的第二步）
 
 使用者想把 `/visit` 改成首頁風格。先做三案以 `?visit=` 比稿（A 分校線稿、B 拍立得、C 首頁節奏），使用者選 **C 的第一步＋A 的第二步**，已取代 09-22 的墨綠迎賓區＋框內表單並移除比稿參數與 B。第一步沿用「關於常春藤」：薄荷色帶、「預約／參觀」巨大淡字、左文右圖（`about-curious`），選校改成五張圓角照片卡（手機為一列一張的橫條）。第二步與送出後沿用「分校資訊」：左側跟隨捲動的圓角實景＋明體校名與地址電話，右側不包框的開放式表單（短線小標分段、圓角欄位、膠囊得知管道）、金色膠囊送出鈕；送出結果頂端放該校線稿。兩步用 `data-step` 切換色票。改的是 `web/app/components/VisitForm.vue`（新增 `isPicking`，移除舊迎賓側欄與列表選校）與整份重寫的 `web/app/assets/css/visit-booking.css`；欄位、驗證、idempotency、三種成功語意、booking-config 分支不動。styles.css 仍有舊的全域 `.visit-intro`（sticky），所以迎賓區命名為 `.visit-welcome`。改版前快照 `versions/before-visit-looks-20260923-200708/`。

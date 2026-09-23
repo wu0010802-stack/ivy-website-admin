@@ -8,9 +8,20 @@ const campuses = computed(() => props.content.campuses)
 <template>
   <footer class="footer">
     <div class="container footer-main">
-      <div>
+      <div class="footer-brand">
         <NuxtLink to="/" class="footer-name">
-          {{ content.footer.brandName }}<span>{{ content.footer.brandNameEn }}</span>
+          <img
+            class="footer-crest"
+            src="/assets/ivy-graduation-crest.png"
+            alt=""
+            width="384"
+            height="384"
+            loading="lazy"
+            decoding="async"
+          >
+          <div class="footer-name-copy">
+            {{ content.footer.brandName }}<span lang="en">{{ content.footer.brandNameEn }}</span>
+          </div>
         </NuxtLink>
         <p>{{ content.footer.tagline }}</p>
       </div>
@@ -44,7 +55,21 @@ const campuses = computed(() => props.content.campuses)
   background: var(--footer-bg);
   color: var(--footer-text);
 }
-.footer-name { color: var(--footer-brand); }
+.footer-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-inline-size: 100%;
+  color: var(--footer-brand);
+}
+.footer-crest {
+  display: block;
+  flex: none;
+  inline-size: 72px;
+  block-size: auto;
+  aspect-ratio: 1;
+}
+.footer-name-copy { min-inline-size: 0; }
 .footer-name span { color: var(--footer-accent); }
 .footer-main p,
 .footer-bottom { color: var(--footer-muted); }
@@ -52,6 +77,17 @@ const campuses = computed(() => props.content.campuses)
 .footer-bottom { border-color: var(--footer-line); }
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
 .footer a:focus-visible { outline-color: var(--footer-focus); }
+
+@media (max-width: 1000px) {
+  .footer-main { grid-template-columns: 1fr 1fr; }
+  .footer-brand { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+  .footer-name { gap: 12px; }
+  .footer-crest { inline-size: 60px; }
+  .footer-links { grid-column: 1 / -1; }
+}
 
 @media (forced-colors: active) {
   .footer {

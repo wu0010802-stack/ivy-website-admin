@@ -7,14 +7,6 @@
 - 預約頁本身（`/visit`、`/visit/<校>`）手機不放「預約參觀」鈕；查詢／取消頁保留。
 - 要閱讀的中文內文在手機至少 14px（`--fs-sm`）；10–12px 只留給英文小標、圖說、版權列等短字。
 
-## 手機首訪載入：布幕資源先到、首屏影片讓路（2026-09-23 晚）
-
-- 開場布幕的投影貼圖與倒數字型由 `entranceBootstrap` 在 `DOMContentLoaded` 預載，`crossOrigin=anonymous` 要與 three `ImageLoader`／`FontFace` 一致；DCL 晚於 1.5 秒就不預載（布幕 1.8 秒後才掛載會直接放棄）。不要改回「等引擎建好才抓」，一般 4G 會永遠趕不上 2.8 秒上限。
-- 投影貼圖只能用**無損**格式；有損 WebP 會讓白紙區出現去背斑點。瘦身靠把去背後全透明的白紙像素壓成純白（輸出逐位元不變），換圖時用 `scripts/optimize-entrance-projection.py` 驗證後再寫檔。
-- 布幕還在 pending 時首屏影片不載；布幕開演或放棄後才開始。
-- 手機首屏影片用 CRF 26（VMAF 手機模型 99.88）；桌機母帶維持 CRF 18。
-- 首頁仍 prefetch three.js 的 vendor chunk：`nuxt.config.ts` 的排除規則只比到 `entranceCurtain.ts` 本身，three 被拆成另一支 chunk。這支 prefetch 讓布幕就緒更早，**不要當成 bug 修掉**。
-
 ## 最新消息：C「原地換片」自動輪播（2026-09-23 定案）
 
 使用者要最新消息有輪播、不要按鈕，從 `design/news-carousel-20260923/` 三版（A 緩慢漂移、B 逐張推進、C 原地換片）選 **C**，取代 09-16「不使用自動輪播」。只改 `web/`（`NewsDialog.vue`、`composables/useNewsRotation.ts`、`utils/newsRotation.ts`、`studio.css`），凍結原型不回寫。A、B 落選。
@@ -26,6 +18,14 @@
 - 焦點：滑鼠關掉對話框後焦點回到舊標題，舊層一設 `inert` Chrome 就把焦點丟到 body，所以**推入新層前先記下焦點、新層出現就交給新標題**（不能等動畫結束）。
 - 未定：WCAG 2.2.2 要求的常駐暫停方式。使用者要求不要按鈕，目前只有上述暫停條件。
 - 修改前快照：`versions/before-news-carousel-c-20260923-205644/`。
+
+## 手機首訪載入：布幕資源先到、首屏影片讓路（2026-09-23 晚）
+
+- 開場布幕的投影貼圖與倒數字型由 `entranceBootstrap` 在 `DOMContentLoaded` 預載，`crossOrigin=anonymous` 要與 three `ImageLoader`／`FontFace` 一致；DCL 晚於 1.5 秒就不預載（布幕 1.8 秒後才掛載會直接放棄）。不要改回「等引擎建好才抓」，一般 4G 會永遠趕不上 2.8 秒上限。
+- 投影貼圖只能用**無損**格式；有損 WebP 會讓白紙區出現去背斑點。瘦身靠把去背後全透明的白紙像素壓成純白（輸出逐位元不變），換圖時用 `scripts/optimize-entrance-projection.py` 驗證後再寫檔。
+- 布幕還在 pending 時首屏影片不載；布幕開演或放棄後才開始。
+- 手機首屏影片用 CRF 26（VMAF 手機模型 99.88）；桌機母帶維持 CRF 18。
+- 首頁仍 prefetch three.js 的 vendor chunk：`nuxt.config.ts` 的排除規則只比到 `entranceCurtain.ts` 本身，three 被拆成另一支 chunk。這支 prefetch 讓布幕就緒更早，**不要當成 bug 修掉**。
 
 ## 開場布幕質感精修（2026-09-23 A/16）
 
@@ -248,6 +248,12 @@
 - 首頁消息區延續原有漸退至暖白的動畫，再接深綠頁尾；此節取代較早「消息結尾與頁尾同為暖白」的配色要求。消息內容與動畫進度不變，不把消息字改成白字。
 - 鍵盤焦點採暖金，滑鼠停留加底線；強制色彩模式使用系統色。凍結原型不回寫，三案比較頁保留為提案紀錄。
 - 修改前快照：`versions/before-footer-colour-a-20260922-144730/`。
+
+### 頁尾畢業版校徽（2026-09-23 定案）
+
+- 使用者確認畢業版雙童校徽後，放在頁尾中英文品牌名稱左側，沿用頁首「圖左字右」的排列。保留原有頁尾文案、字型、深森林綠色票、標語與連結。
+- 校徽保留原本淺色頭髮、較含蓄的笑容、短身形、藍／紫畢業袍與兩卷畢業證書；使用獨立透明 PNG `web/public/assets/ivy-graduation-crest.png`，不套用頁首的 SVG 濾鏡。
+- 桌機校徽 72px、圖文間距 14px；手機 60px、間距 12px。1000px 以下品牌區跨整列，760px 以下導覽也跨整列，避免新增校徽後擠壓文字。頁首校徽與凍結原型保留原樣。
 
 ## 字體審查 B 批：明體統一、標點、字級尺度（2026-09-23 定案）
 
