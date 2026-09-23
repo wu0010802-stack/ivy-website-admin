@@ -10,9 +10,16 @@ ASSETS = ROOT / 'web/public/assets'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
-# hero 影片 2026-09-22 提高壓縮率：手機 1.17 MB → 約 0.57 MB、桌機 2.32 MB → 約 1.18 MB。
-# 母帶本身就是社群版放大後的軟畫面，crf 33–34 在同一幀對照下肉眼看不出差異
-# （scratchpad frame-compare）。day 影片維持原參數（進入視窗才載入）。
+restoration = ROOT / 'design/hero-video-smooth-20260923'
+restored = json.loads((restoration / 'manifest.json').read_text())
+approved = {item['file']: item for item in restored['variants']}
+hero_deliveries = {
+    # 滿版桌機保留母帶細節；高密度手機裁切後也需要完整 1080px。
+    'hero-desktop': 'hero-smooth-master.mp4',
+    'hero-mobile': 'hero-smooth-mobile.mp4',
+}
+# 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
+# 手機約 0.57 MB、桌機約 1.18 MB。day 影片維持原參數（進入視窗才載入）。
 for name, source, width, crf in [
     ('hero-mobile', 'hero-campus.mp4', 720, 34),
     ('hero-desktop', 'hero-campus.mp4', 1280, 33),
@@ -21,8 +28,8 @@ for name, source, width, crf in [
 ]:
     original = ASSETS / source
     # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
-    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-restored-master.mp4']['sha256']:
-        prepared = restoration / f"hero-restored-{name.removeprefix('hero-')}.mp4"
+    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-smooth-master.mp4']['sha256']:
+        prepared = restoration / hero_deliveries[name]
         digest = sha256(prepared.read_bytes()).hexdigest()
         if digest != approved[prepared.name]['sha256']:
             raise ValueError(f'修復影片與確認版雜湊不一致：{prepared.name}')

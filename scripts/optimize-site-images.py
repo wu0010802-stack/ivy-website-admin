@@ -1,6 +1,7 @@
 """產生 Nuxt 官網響應式 WebP 與社群分享 JPG；保留母檔，內容雜湊避免長效快取過期。
 
-執行：python3 scripts/optimize-site-images.py（需 Pillow）
+執行：python3 scripts/optimize-site-images.py（需 Pillow）；
+只更新部分素材：加 `--only day-hello day-discover …`，保留 manifest 其他項目。
 
 - 預設 q84／[480, 800, 1200]；`OVERRIDES` 針對 Lighthouse 判定壓縮不足的照片
   個別降品質或加尺寸，參數進雜湊，改參數就換檔名。
@@ -9,6 +10,8 @@
   否則仍指向母檔。
 - `OG_IMAGES` 產 1200×630 JPG（居中裁切）供 og:image／twitter:image；
   社群平台對 WebP 支援不一致。檔名固定不帶雜湊，分享快取靠 URL 穩定。
+- `DAY_PHOTOS`（常春藤的一天五張照片）保留影片原生解析度：衍生小圖 q92 並多一個
+  160w，原生尺寸直接複製母檔到版本化網址，不再重新壓縮。
 """
 from pathlib import Path
 from hashlib import sha256
@@ -35,6 +38,10 @@ OVERRIDES = {
     'hero-campus-still': {'widths': [480, 640, 800]},
 }
 FULL_REENCODE_MIN_SAVING = 0.2
+# 日常照片保留影片原生解析度，衍生小圖也降低再壓縮的細節損失。
+DAY_PHOTOS = {f'day-{name}' for name in ['hello', 'discover', 'lunch', 'outside', 'home']}
+DAY_QUALITY = 92
+DAY_WIDTHS = [160, 480, 800, 1200]
 # 分享圖：首頁 hero 與五校封面（campus.image 不開放 CMS 修改，清單固定）。
 OG_IMAGES = ['hero-campus-restored-v1-still', 'yihua-exterior-enhanced-v1', 'minghua-enhanced-v1', 'chongde-enhanced-v1', 'international-enhanced-v1', 'renwu-enhanced-v1']
 OG_SIZE = (1200, 630)
@@ -47,15 +54,24 @@ def encode(image: Image.Image, target: Path, quality: int) -> None:
 # 非照片：logo.webp 是頁首校徽的無損版（PNG 轉檔、供 SVG 濾鏡去背），不做響應式衍生。
 SKIP = {'logo'}
 
-manifest = {}
-for source in sorted(ASSETS.glob('*.webp')):
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--only', nargs='+', help='只更新指定素材代號，保留 manifest 其他項目')
+args = parser.parse_args()
+manifest_path = ROOT / 'web/app/generated/image-manifest.json'
+manifest = json.loads(manifest_path.read_text()) if args.only and manifest_path.exists() else {}
+sources = [ASSETS / f'{name}.webp' for name in args.only] if args.only else sorted(ASSETS.glob('*.webp'))
+for source in sources:
     if source.stem in SKIP:
         continue
+    day = source.stem in DAY_PHOTOS
     override = OVERRIDES.get(source.stem, {})
-    quality = override.get('quality', DEFAULT_QUALITY)
-    widths = override.get('widths', DEFAULT_WIDTHS)
-    salt = (b'webp-q84-method6-v1' if not override
-            else f'webp-q{quality}-method6-v2-{"-".join(map(str, widths))}'.encode())
+    quality = DAY_QUALITY if day else override.get('quality', DEFAULT_QUALITY)
+    widths = DAY_WIDTHS if day else override.get('widths', DEFAULT_WIDTHS)
+    if day:
+        salt = f'webp-q{quality}-method6-v1'.encode()
+    else:
+        salt = (b'webp-q84-method6-v1' if not override
+                else f'webp-q{quality}-method6-v2-{"-".join(map(str, widths))}'.encode())
     with Image.open(source) as original:
         image = ImageOps.exif_transpose(original)
         width, height = image.size
@@ -69,6 +85,12 @@ for source in sorted(ASSETS.glob('*.webp')):
                 encode(image.resize((size, round(height * size / width)), Image.Resampling.LANCZOS), target, quality)
             candidates.append({'src': f'/assets/responsive/{target.name}', 'width': size})
         full = OUTPUT / f'{source.stem}-{digest}-{width}.webp'
+        if day:
+            # 正式站的原檔網址有一天快取；原生尺寸也用版本化網址，直接複製以免再次壓縮。
+            full.write_bytes(source.read_bytes())
+            candidates.append({'src': f'/assets/responsive/{full.name}', 'width': width})
+            manifest[source.stem] = {'width': width, 'height': height, 'candidates': candidates}
+            continue
         if not full.exists():
             encode(image, full, quality)
         if full.stat().st_size <= source.stat().st_size * (1 - FULL_REENCODE_MIN_SAVING):

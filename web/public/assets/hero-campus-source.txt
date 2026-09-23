@@ -1,7 +1,7 @@
 Hero background clip restored from the school's own advert (2026-09-22).
 Source: ~/Downloads/常春藤廣告+配音 (1).mp4 (1080×1080, 30fps, 55s, with burned-in subtitles + logo watermark).
 Source SHA-256: 99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b.
-Build: design/hero-video-restoration-20260922/build.py (light denoise, luma sharpening, delogo top-right, crop subtitles → 1080×800, 0.5× speed, 7 shots, 11.7 seconds, no audio).
-Shots 5 and 7 use original frames repeated at half speed to prevent motion-interpolation ghosts; other shots use motion interpolation. Final shot differs from opening shot for a normal cut at the loop boundary.
-hero-campus.mp4 is the CRF 18 master. Approved desktop CRF 21 and mobile CRF 22 outputs are copied without re-encoding by scripts/optimize-site-videos.py; video-manifest.json selects their content-hashed URLs.
+Build: design/hero-video-smooth-20260923/build.py (reuses the original restoration's light denoise, luma sharpening, delogo top-right and crop → 1080×800; 7 shots, 9.833333 seconds, 295 frames, no audio).
+Shots 5 and 7 now use real source frames at native 1× speed and 30fps. The previous half-speed frame repetition made these shots effectively 15fps and visibly juddery. The other five shots retain 0.5× speed with motion interpolation. Final shot differs from opening shot for a normal cut at the loop boundary.
+hero-campus.mp4 is the CRF 18 smooth master (SHA-256 7dd03551eb53b97fc6f18389e014ff1e44a6ead043cb318ffd1cf6d20691ee4f). Desktop delivery uses this 1080×800 master (5.67 MB); mobile uses a separate 1080×800 CRF 21 encode (3.98 MB). Both are encoded directly from FFV1 intermediates, then scripts/optimize-site-videos.py copies them without re-encoding. video-manifest.json selects content-hashed URLs. Previous variants remain available for historical comparisons. Reduced-motion, data-saving and slow-connection settings still prevent autoplay and video downloads.
 hero-campus-restored-v1-still.webp is the first frame, used as the responsive image and video poster. Original hero-campus-still.webp is retained for older references.

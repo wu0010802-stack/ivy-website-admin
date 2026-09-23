@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import { entranceBootstrap, entranceCoverStyles } from '~/utils/entrance-policy'
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 usePageSeo(computed(() => data.value?.content))
-useHead({ htmlAttrs: { 'data-seam': '2', class: 'relay-day' } })
+useHead({
+  htmlAttrs: { 'data-seam': '2', class: 'relay-day' },
+  script: [{ key: 'entrance-curtain', tagPriority: 'critical', innerHTML: entranceBootstrap }],
+  style: [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }]
+})
 const root = ref<HTMLElement | null>(null)
 const footer = ref<HTMLElement | null>(null)
 useHomeFooterFade(root, footer)
@@ -23,6 +28,7 @@ useHomeFooterFade(root, footer)
       </HeroVideo>
     </main>
     <div ref="footer" class="home-footer"><SiteFooter :content="data.content" /></div>
+    <EntranceCurtain />
   </div>
 </template>
 

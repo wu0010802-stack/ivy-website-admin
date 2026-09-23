@@ -222,92 +222,112 @@
     ]
   },
   "day-discover": {
-    "width": 810,
-    "height": 600,
+    "width": 1080,
+    "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/day-discover-56e1b589ac2b-480.webp",
+        "src": "/assets/responsive/day-discover-264f4e0a782e-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-discover-56e1b589ac2b-800.webp",
+        "src": "/assets/responsive/day-discover-264f4e0a782e-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/day-discover.webp",
-        "width": 810
+        "src": "/assets/responsive/day-discover-264f4e0a782e-1080.webp",
+        "width": 1080
       }
     ]
   },
   "day-hello": {
-    "width": 810,
-    "height": 600,
+    "width": 1080,
+    "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/day-hello-0cd6e559a21a-480.webp",
+        "src": "/assets/responsive/day-hello-4129657284a6-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-hello-0cd6e559a21a-800.webp",
+        "src": "/assets/responsive/day-hello-4129657284a6-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/day-hello.webp",
-        "width": 810
+        "src": "/assets/responsive/day-hello-4129657284a6-1080.webp",
+        "width": 1080
       }
     ]
   },
   "day-home": {
-    "width": 810,
-    "height": 600,
+    "width": 1080,
+    "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/day-home-592cf758ce2e-480.webp",
+        "src": "/assets/responsive/day-home-aaf1109a3715-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-home-592cf758ce2e-800.webp",
+        "src": "/assets/responsive/day-home-aaf1109a3715-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/day-home.webp",
-        "width": 810
+        "src": "/assets/responsive/day-home-aaf1109a3715-1080.webp",
+        "width": 1080
       }
     ]
   },
   "day-lunch": {
-    "width": 810,
-    "height": 600,
+    "width": 1080,
+    "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/day-lunch-7592d872272d-480.webp",
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-lunch-7592d872272d-800.webp",
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/day-lunch.webp",
-        "width": 810
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-1080.webp",
+        "width": 1080
       }
     ]
   },
   "day-outside": {
-    "width": 810,
-    "height": 600,
+    "width": 1080,
+    "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/day-outside-9d2ec1770931-480.webp",
+        "src": "/assets/responsive/day-outside-c351b5489fda-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-outside-9d2ec1770931-800.webp",
+        "src": "/assets/responsive/day-outside-c351b5489fda-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/day-outside.webp",
-        "width": 810
+        "src": "/assets/responsive/day-outside-c351b5489fda-1080.webp",
+        "width": 1080
       }
     ]
   },

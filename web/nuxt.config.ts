@@ -39,9 +39,12 @@ export default defineNuxtConfig({
   hooks: {
     // 錯誤頁（error-404／error-500）的 chunk 與 CSS 不要在首頁就 prefetch：inlineStyles:false 時
     // 會以 <link rel=prefetch as=style> 載進首頁，Lighthouse 直接算進傳輸量；錯誤頁用到時再載即可。
+    // 首次進站布幕依工作階段與偏好決定是否播放，引擎（entranceCurtain.ts）也不進 SSR prefetch，
+    // 符合條件的用戶端才明確 import。
     'build:manifest': (manifest) => {
       for (const [key, entry] of Object.entries(manifest)) {
         if (/error-(404|500)/.test(key) || /error-(404|500)/.test(entry.file ?? '')) entry.prefetch = false
+        if (/(?:^|\/)entranceCurtain\.ts(?:\?.*)?$/.test(entry.src ?? key)) entry.prefetch = false
       }
     }
   },

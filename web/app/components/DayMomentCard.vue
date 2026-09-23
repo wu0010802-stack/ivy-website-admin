@@ -366,7 +366,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
           <span class="print-tape" aria-hidden="true" />
           <div class="print-face print-front" :inert="isFlipped">
             <figure class="print-figure">
-              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 85vw, 420px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
+              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 100vw, 540px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
               <time class="print-stamp" :datetime="moment.time">{{ moment.time }}</time>
             </figure>
             <div class="print-foot">

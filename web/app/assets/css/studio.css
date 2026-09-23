@@ -688,8 +688,6 @@ body:has(.studio-hero) .header-top,
   .belief-moment {border-width:5px;width:68%;bottom:23px}
   .belief-photo-pair figcaption {font-size:10px;letter-spacing:0;bottom:0}
   .belief-watermark {left:0;font-size:30vw;opacity:.37}
-  /* 手機的浮水印會落在「閱讀完整介紹」與照片後方，壓淡一點、按鈕自帶底色，字才不會被大字吃掉。 */
-  [data-seam="2"] .belief-watermark {opacity:.28}
 }
 @media(max-width:360px) {
   .home-belief .container {width:calc(100% - 32px)}
@@ -1179,11 +1177,19 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
 /* 黏住的最後一屏：底部留白只撐到段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。 */
 [data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * .15)}
-/* 手機縮短接力的停留距離，沿用同一變數維持簾幕與首張照片的對位。 */
+/* 手機保留較短的擦除距離，單欄照片後方需留出完整兩行浮水印。
+   「關於」上緣在半屏上方 1.52em（1.02em 行距 + 半個字高）；
+   尾空間使用同一幾何，讓照片先離開大字，再開始接力。 */
 @media(max-width:760px) {
+  [data-seam="2"],[data-seam="2"] .home-reveal {--display-size:min(clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px),calc((100vw - 40px) / 6))}
+  [data-seam="2"] .belief-watermark {opacity:.28}
+  [data-seam="2"] .day-intro .eyebrow {width:max-content;max-width:calc(100% - 40px);flex-wrap:wrap;justify-content:center;white-space:nowrap}
   [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .55)}
   [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32 * var(--motion-vh,1svh))}
   [data-seam="2"] .belief-content {padding-bottom:calc(30 * var(--motion-vh,1svh) + var(--display-size) * .15)}
+}
+@media(max-width:900px) and (prefers-reduced-motion:no-preference) {
+  [data-ivy-motion][data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * 1.52)}
 }
 
 /* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */

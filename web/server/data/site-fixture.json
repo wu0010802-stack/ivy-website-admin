@@ -9,7 +9,7 @@
 
   "home": {
     "hero": {
-      "eyebrow": "常春藤幼兒園 · 高雄五校",
+      "eyebrow": "常春藤幼兒園",
       "titleParts": {
         "before": "在常春藤",
         "punctAfterBefore": "，",
@@ -22,7 +22,7 @@
         "在老師的陪伴下，動手試試，說出自己的想法。"
       ],
       "ctaLabel": "看看孩子的一天",
-      "ctaHref": "#/home/life",
+      "ctaHref": "/#life",
       "heroImage": "hero-campus-restored-v1-still",
       "heroImageAlt": "常春藤的孩子在戶外草地上奔跑、微笑的校園影片畫面",
       "heroVideoSrc": "assets/hero-campus.mp4",
@@ -397,11 +397,11 @@
     "brandNameEn": "IVY KINDERGARTEN",
     "tagline": "陪伴每一個孩子，長成自己喜歡的樣子。",
     "links": [
-      { "label": "認識常春藤", "href": "#/home/about" },
-      { "label": "五校介紹", "href": "#/home/campuses" },
-      { "label": "校園生活", "href": "#/home/life" },
-      { "label": "預約參觀", "href": "#/visit" },
-      { "label": "最新消息", "href": "#/home/latest-news" }
+      { "label": "認識常春藤", "href": "/#about" },
+      { "label": "五校介紹", "href": "/#campuses" },
+      { "label": "校園生活", "href": "/#life" },
+      { "label": "預約參觀", "href": "/visit" },
+      { "label": "最新消息", "href": "/#latest-news" }
     ],
     "campusListLabel": "我們的大家庭",
     "copyright": "© 2026 常春藤教育機構",

@@ -62,10 +62,9 @@ const SEGMENTS = 28
 // ctx.filter（sepia/contrast/blur）重畫整張照片，手機 4x 節流下一幀就要 100 ms 以上。
 // 六格（0、.2、…、1）在 3.2 秒的淡入裡肉眼看不出與逐幀濾鏡的差別；格子用到才畫。
 const DEVELOP_STAGES = 6
-// 觸控裝置貼圖與畫布上限 1.5x：卡片寬 330px 時貼圖從 990px 降到 495px，
-// 貼圖繪製與 drawImage 複製都省一半以上；桌機維持 2x。
+// 紙面貼圖、共用 renderer 與顯示畫布同步支援最高 3× 像素密度。
 const coarsePointer = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches
-const pixelRatio = () => Math.min(window.devicePixelRatio || 1, coarsePointer() ? 1.5 : 2)
+const pixelRatio = () => Math.min(window.devicePixelRatio || 1, 3)
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -455,6 +454,8 @@ export async function mountPaper(
     frontCanvas.height = backCanvas.height = Math.round((H + TOP) * DPR)
     const fctx = frontCanvas.getContext('2d')!
     const bctx = backCanvas.getContext('2d')!
+    // 支援時使用高品質照片縮圖，其他瀏覽器沿用原生平滑取樣。
+    if ('imageSmoothingQuality' in fctx) fctx.imageSmoothingQuality = 'high'
     // 紙面座標：原點在紙的左上角，上方留給膠帶的透明帶
     const paperSpace = (ctx: CanvasRenderingContext2D) => ctx.setTransform(DPR, 0, 0, DPR, 0, TOP * DPR)
     const clearAll = (ctx: CanvasRenderingContext2D) => {
