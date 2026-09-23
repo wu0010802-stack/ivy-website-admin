@@ -1,3 +1,40 @@
+## 2026-09-23 官網後台第四輪 UX：追蹤到期有入口、案件一筆接一筆、發布前看差異
+
+對 `admin/` 做 impeccable critique（LLM 審查＋自動偵測，25/40，不是 AI slop），依業主選「預約流程優先、全部處理、回上一版先做前端差異預覽」實作：
+
+- **到期待追蹤**：總覽數字原本連到未篩選列表，且沒有任何地方能設定「預定聯絡時間」。後端 `GET /admin/visit-requests` 新增 `follow_up_due=true`（與總覽同定義）與 `order=newest|oldest`；案件詳情的聯絡紀錄旁加「下次聯絡」日期一起送出；列表加「只看到期待追蹤」與排序，頁首與列表用金色標出已到期。
+- **櫃台動線**：詳情頁加「下一筆待處理（還有 N 件）」；確認預約後把「已致電家長，告知參觀時間 …」預填進紀錄框並聚焦；桌機列表電話改可撥；孩子姓名併入家長欄減成 7 欄；「取消預約」移到面板底部分隔。
+- **發布安全網**：發布確認框列出「欄位：之前 → 之後」（`ContentEditor` 用 `useContentItem` 的 `changes`），成功 toast 附「查看官網」連結（依 kind／校區導到對應頁）；底部動作列不再複述狀態。回到上一版仍需後端保留已發布版本內容，未做。
+- **文案**：「時段預約（尚未開放）」改「家長自選場次」（09-22 已改為校方可設定）；「首頁首屏文字」改「首頁大圖標語」並提示字型子集；「替代文字」統一為「圖片說明」；取消鈕統一「先不要」；「原填年齡」「小標（eyebrow）」「標題樣板」「目前為第 N 版」清掉；改期核准／退回加確認框；新增使用者加「產生密碼」；登入頁忘記密碼說法對齊實際流程。
+
+驗證：`admin` typecheck 無錯、vitest 48 項（新增 `followUpUx.test.ts` 6 項）；backend pytest 172 項（新增到期篩選與排序測試）；契約 `contracts/` 已重生。真後端（8010）＋Vite（5175）以臨時帳號與示範案件跑 Playwright 1440／390px，截圖 `output/playwright/admin-ux-round4/`，無 console error、無溢出，示範資料已清。快照 `versions/before-admin-ux-round4-20260923-134519/`。未部署、未提交。
+
+## 2026-09-23 字體審查 B 批：明體統一、標點、字級尺度
+
+使用者看過對照頁 `design/typography-b-20260923/index.html` 後決定四項都做（細項照對照頁建議）。只改 `web/`，凍結原型不回寫；規則寫進 DESIGN.md「字體審查 B 批」。
+
+- **B-1 預約頁大標**：改用自託管思源宋體，新增 9 字子集 `noto-serif-tc-500-visit.woff`（3.9 KB）。`Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `typography.css` 全站宣告，Windows 不再落到新細明體。
+- **B-2 分校頁校名**：由 LINE Seed 800 改為明體 500，和首頁分校資訊共用 `--fs-campus-name`（63.36／54／50px），刪掉 `styles.css` 裡已失效的 `.hero h1`／`.campus-hero h1` 字級規則；分校頁校名不再用到 ExtraBold。
+- **B-3 標點與斷行**：標題 `text-spacing-trim:trim-start` 收行首開括號（逗號句號維持全形），WebGL 拍立得照字型 halt 數值同步；分校頁區塊標題只在標點後換行；拍立得背面 canvas 換行補上禁則，修掉「。」「？」單獨一行。
+- **B-4 字級 token**：`typography.css` 定義 `--fs-xs`～`--fs-8xl` 12 階，約 320 處字面值改用 token；頁首／選單／品牌（園方規格）、活動日期、校名、流體字級、英文裝飾小字保留原值。表單「必填／選填」、預約頁地區／地址等 10–11px 中文一併拉到 12px。
+
+快照 `versions/before-typography-b-20260923-122514/`，證據 `output/playwright/typography-b-20260923/`。未部署。
+
+驗證（Nuxt dev fixture 模式，另以 Playwright 攔截預約設定 API 顯示表單）：首頁、消息列表對話框、分校頁、預約頁暫停／選校／表單六種狀態 × 1440／1024／768／390／320px，改前改後逐元素比對，沒有新的溢出或橫向捲動；多換一行的 14 處都是段落自然重排。拍立得四種寬度翻面，背面文字都在紙面內；WebGL 與 DOM 的行首括號像素位置一致。CDP 確認三處明體實際使用自託管字型。Node 22 `vitest` 119 項通過、`nuxt typecheck` 無錯誤。Safari／iOS／Windows 實機未驗證。
+
+## 2026-09-23 字體審查 A 批：字型變數與 12px 小字底線
+
+依字體審查結果，修正不改設計決策的部分（只動 `web/`，凍結原型不回寫）：
+
+- `studio.css` 引用了沒定義的 `var(--font-en)`，選單／膠囊的英文、編號和電話都退回 PingFang；開場「略過動畫」引用的 `var(--font-body)` 也不存在，退回通用 sans-serif。已在 `typography.css` 的 `:root` 補上兩個 token，前者指向 Source Sans 3，後者指向系統黑體。
+- 低於 12px 的中文字一律提高到 12px（DESIGN.md 2026-09-10 可讀性底線）：拍立得「01 / 早安入園」（桌機原 10px）、理念照片說明（桌機 11px／手機 10px）、影片說明與「播放背景」、手機日常提案註記、分校頁「到園時，還可以聊聊」「這張照片裡」、預約頁照片說明。9px 的英文裝飾標語不變。
+- 消息卡標題改為 `balance`＋`keep-all`，只在「，」後換行（原本會剩下「形狀。」「空間。」兩字一行），太長時由 `overflow-wrap:anywhere` 兜底。
+- 「近期活動」原本比「最新消息」高 9px，兩欄標題現在都貼齊標題區底部。
+
+快照 `versions/before-typography-a-20260923-114102/`，證據 `output/playwright/typography-a-20260923/`。未部署。
+
+驗證在這個 worktree 起 Nuxt dev（fixture 模式）：首頁、義華分校頁、預約頁在 1440／390px 下都沒有小於 12px 的中文字。CDP 查到選單英文、編號與電話實際使用 Source Sans 3；兩欄標題 1440／1024px 的 top 值相同；拍立得 WebGL 紙面桌機與手機截圖正常。`tests/print-flip.spec.ts` 10 項通過。Safari／iOS／Windows 實機未驗證。
+
 ## 2026-09-23 膠卷縮成中央橫框，321 光學置中
 
 依要求取消電腦版滿版膠卷，改為中央 16:9 橫框，四周露出紅布幕，最大寬度 880px 且依容器尺寸縮放。校徽與倒數圓圈仍共用中心與高度。框內移除向上偏移；3、2、1 的橫向依實際墨色重心校正、垂直依可見字形置中，修正「1」直筆偏右的視覺感。手機版與完整 7.9 秒流程維持原樣。

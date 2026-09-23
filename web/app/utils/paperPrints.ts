@@ -186,14 +186,41 @@ function setFill(ctx: CanvasRenderingContext2D, value: string, fallback: string)
   ctx.fillStyle = value
 }
 
+// 對應 CSS 標題的 text-spacing-trim:trim-start：行首開括號照 LINE Seed TW 的 halt 數值收，
+// 字形左移（「 0.32em、（ 0.283em），後面的字少半格。換標題字型時要重查 GPOS halt。
+// 相鄰標點（」，）canvas 跟 DOM 一樣會自動收，不用另外處理。
+const HALT_OPEN: Record<string, number> = { '「': 0.32, '（': 0.283 }
+
+function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number) {
+  const first = line[0] ?? ''
+  const shift = HALT_OPEN[first]
+  if (shift === undefined) {
+    ctx.fillText(line, 0, y)
+    return
+  }
+  const em = ctx.measureText(first).width // 全形括號寬 1em
+  ctx.fillText(first, -shift * em, y)
+  ctx.fillText(line.slice(1), em * 0.5, y)
+}
+
+// 中文禁則：這些標點不放行首、開括號不留在行尾。跟瀏覽器一樣把前一個字一起帶到下一行，
+// 否則「。」「？」會自己掉到新的一行（DOM 版由瀏覽器處理，canvas 要自己來）。
+const NO_LINE_START = /[，。、；：！？」』）…,.;:!?)]/
+const NO_LINE_END = /[「『（(]/
+
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
   const out: string[] = []
   for (const raw of text.split('\n')) {
     let line = ''
     for (const ch of raw) {
       if (line && ctx.measureText(line + ch).width > max) {
-        out.push(line)
-        line = ch
+        const chars = Array.from(line)
+        let carry = ch
+        while (chars.length > 1 && (NO_LINE_START.test(carry[0]!) || NO_LINE_END.test(chars[chars.length - 1]!))) {
+          carry = chars.pop()! + carry
+        }
+        out.push(chars.join(''))
+        line = carry
       } else {
         line += ch
       }
@@ -543,7 +570,7 @@ export async function mountPaper(
         ctx.font = style.titleFont
         let y = style.titleLine * 0.76
         for (const line of copy.titleLines) {
-          ctx.fillText(line, 0, y)
+          fillTitleLine(ctx, line, y)
           y += style.titleLine
         }
         ctx.restore()

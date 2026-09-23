@@ -22,9 +22,20 @@ pyftsubset LINESeedTW_OTF_Bd.otf --text-file=chars-bd.txt --flavor=woff --no-hin
 
 Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold。其他字仍可能因頁面下方標題而下載，因此這是減少搶先下載量，不代表全頁只需 6.7 KB 字型。新檔使用一年 immutable 快取；更新文案時可重跑，不必改名稱。CMS 若出現未列入首屏但原本已有的字，會由 remaining 包顯示；原本就缺的字維持系統字 fallback。原始 WOFF、ExtraBold、品牌字型與 OFL 授權保留，凍結原型不受影響。
 
+## 明體改為全站共用（2026-09-23）
+
+- `Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `web/app/assets/css/typography.css`，改成全站宣告；首頁分校資訊、分校頁校名、預約頁大標共用 `--font-serif`。
+- 新增 `noto-serif-tc-500-visit.woff`（3.9 KB，9 字：帶著好奇來園走，。），來源同樣是 Google Fonts CSS API 的 `text=`，紀錄在 `noto-serif-tc-500-visit.json`，授權同 `noto-serif-tc-500-campus-OFL.txt`。兩個子集用互斥的 `unicode-range` 分流，不動既有 campus 子集。
+- 預約頁大標原本吃系統字 `Songti TC → Noto Serif TC → PMingLiU`，Windows 會落到新細明體；改用自託管子集後各平台一致。改預約頁大標文案時要同步擴充此子集並驗證 cmap。
+
+## LINE Seed TW 原始檔與標點（2026-09-23 查證）
+
+- 原始檔可從 `https://seed.line.me/src/images/fonts/LINE_Seed_TW.zip` 下載（ver02，OFL 1.1，含 OTF／TTF／WOFF2）；與本目錄 725 字子集逐字比對字寬 0 差異，可直接拿來補字重切。
+- 原始字型的 `halt` 只涵蓋「」『』（），「，」「。」是置中字形（墨色約 0.40–0.59em），換原始檔也無法靠字型收逗號句號。括號的 halt 值：「 XPlacement −320／XAdvance −500、（ −283／−500；`web/app/utils/paperPrints.ts` 的 canvas 標題照這組數值收行首括號，換標題字型時要重查。
+
 ## 分校區塊明體（2026-09-22）
 
-- `noto-serif-tc-500-campus.woff`：Noto Serif TC 500，僅 `CampusBoard.vue` 的中文區塊標題和校名使用；CSS 名稱為 `Ivy Campus Serif`，其他區塊不變。
+- `noto-serif-tc-500-campus.woff`：Noto Serif TC 500，CSS 名稱為 `Ivy Campus Serif`；原本只給 `CampusBoard.vue` 的中文區塊標題和校名，2026-09-23 起分校頁校名也共用（見上節）。
 - 透過 Google Fonts CSS API 的 `text=` 取得目前所需字元，轉為 5,252-byte WOFF 自行託管；使用者瀏覽時不連第三方字型服務。來源 URL、字元與 unicode range 記在 `noto-serif-tc-500-campus.json`，OFL 1.1 授權附於 `noto-serif-tc-500-campus-OFL.txt`。
 - fontTools cmap 已驗證「分校資訊／義華校／明華校／崇德校／國際校／仁武校」全部涵蓋。新增校名或修改區塊標題時，需同步擴充此子集並驗證 cmap；目前 fallback 為 Noto Serif TC／Songti TC／PMingLiU／serif。
 - 只使用於 Nuxt `web/`；不加入已凍結根目錄原型或其打包器。

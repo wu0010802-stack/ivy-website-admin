@@ -157,7 +157,7 @@ async function removeAsset(asset: MediaAssetOut) {
   try {
     await ElMessageBox.confirm(`刪除後無法復原。`, `刪除「${asset.original_filename}」？`, {
       confirmButtonText: '刪除',
-      cancelButtonText: '取消',
+      cancelButtonText: '先不要',
       type: 'warning',
       confirmButtonClass: 'el-button--danger',
     })
@@ -255,12 +255,12 @@ onMounted(load)
           </label>
         </el-form-item>
         <el-form-item label="校區">
-          <el-select v-model="uploadCampusKey" placeholder="跨校共用" clearable style="width: 100%">
+          <el-select v-model="uploadCampusKey" placeholder="不指定（每一校都能用）" clearable style="width: 100%">
             <el-option v-for="key in CAMPUS_KEYS" :key="key" :label="campusLabel(key)" :value="key" />
           </el-select>
           <span class="field-help">留空代表每一校的內容都能選用。</span>
         </el-form-item>
-        <el-form-item v-if="uploadKind === 'image'" label="替代文字">
+        <el-form-item v-if="uploadKind === 'image'" label="圖片說明">
           <el-input v-model="uploadAlt" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
           <span class="field-help">給看不見圖片的家長與搜尋引擎用，建議填寫。</span>
         </el-form-item>
@@ -280,8 +280,9 @@ onMounted(load)
           </div>
           <span class="field-help">點照片上最重要的位置。官網把照片裁成不同比例時，會盡量保留這一點。</span>
         </el-form-item>
-        <el-form-item label="替代文字">
-          <el-input v-model="editAltText" />
+        <el-form-item label="圖片說明">
+          <el-input v-model="editAltText" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
+          <span class="field-help">給看不見圖片的家長與搜尋引擎用，也是素材庫搜尋的依據。</span>
         </el-form-item>
         <el-form-item label="來源標註">
           <el-input v-model="editSourceAttribution" placeholder="例如：義華校 2026 春季攝影" />

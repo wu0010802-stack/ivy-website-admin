@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/client'
 import { campusLabel, formatDateTime, notificationKindLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -132,6 +132,19 @@ async function markAllRead() {
 
 async function decideReschedule(id: string, action: 'approve' | 'reject') {
   if (operationBusy.value || loading.value) return
+  // 核准會直接換掉家長的參觀時間、退回會讓家長維持原時段，兩者都是對外
+  // 且不能反悔的動作，比照確認預約先問一次並講清楚後果。
+  try {
+    await ElMessageBox.confirm(
+      action === 'approve'
+        ? '核准後案件會改到家長申請的新時段，原時段名額釋出。請另行告知家長已改期。'
+        : '退回後家長的參觀時間維持原時段，申請不會再出現在這裡。請另行告知家長。',
+      action === 'approve' ? '核准這筆改期？' : '退回這筆改期申請？',
+      { confirmButtonText: action === 'approve' ? '核准改期' : '退回申請', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
   busyId.value = id
   const campus = campusFilter.value
   try {

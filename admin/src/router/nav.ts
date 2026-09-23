@@ -47,7 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '首頁',
     section: '官網內容',
     items: [
-      { name: 'home-hero', path: '/content/home-hero', title: '首頁首屏文字', icon: 'Picture', roles: ['super_admin'] },
+      { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', roles: ['super_admin'] },
       { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'] },
       { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'] },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'] },

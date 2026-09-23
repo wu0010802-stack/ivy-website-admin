@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, h } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
@@ -24,6 +24,7 @@ const isDirty = computed(() => props.editor.isDirty.value)
 const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const busy = computed(() => saving.value || publishing.value)
+const changes = computed(() => props.editor.changes?.value ?? [])
 
 type Tone = 'success' | 'warning' | 'info'
 
@@ -49,18 +50,34 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
 // 發布是對外動作：按下去官網立刻換掉，後台沒有回到上一版的介面。
-// 先講清楚「現在官網是哪一版」和「按下去會立刻生效」再問。
+// 時間戳沒人記得住，改成列出「哪些欄位會變、變成什麼」再問；沒有未儲存
+// 修改時（發布已存的草稿）至少講清楚官網現在是哪一版。
 async function publishWithConfirm() {
   const current = isPublished.value
     ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
     : neverPublished.value
       ? '官網目前顯示的是預設文字。'
       : '官網目前顯示的是上一版。'
+  const list = changes.value
+  const message = list.length
+    ? h('div', { class: 'publish-diff' }, [
+        h('p', null, `這次會更新 ${list.length} 個欄位，發布後家長立刻看到：`),
+        h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
+          h('strong', null, c.label),
+          h('span', { class: 'publish-diff__before' }, c.before),
+          h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
+          h('span', { class: 'publish-diff__after' }, c.after),
+        ]))),
+        list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
+        h('p', { class: 'hint' }, '發布後若要改回，需要重新輸入舊內容再發布一次。'),
+      ])
+    : `${current}發布後家長立刻看到這一版。發布後若要改回，需要重新輸入舊內容再發布一次。`
   try {
-    await ElMessageBox.confirm(`${current}發布後家長立刻看到這一版。`, '發布到官網？', {
+    await ElMessageBox.confirm(message, '發布到官網？', {
       confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
       cancelButtonText: '先不要',
       type: 'warning',
+      customClass: list.length ? 'publish-confirm' : undefined,
     })
   } catch {
     return
@@ -103,9 +120,10 @@ defineExpose({ confirmLeave })
       </div>
 
       <div class="editor__actions" :class="{ 'is-dirty': isDirty }">
-        <div class="editor__actions-state">
-          <strong>{{ busy ? '正在處理，請稍候…' : isDirty ? '修改尚未儲存' : latestRevisionAt ? '內容已儲存' : '尚未建立內容' }}</strong>
-          <span>儲存草稿不會更動官網，發布後才會公開。</span>
+        <div class="editor__actions-state" role="status">
+          <span v-if="busy">正在處理，請稍候…</span>
+          <span v-else-if="isDirty">{{ changes.length ? `改了 ${changes.length} 個欄位，` : '' }}儲存草稿不會更動官網，發布後才會公開。</span>
+          <span v-else>儲存草稿不會更動官網，發布後才會公開。</span>
         </div>
         <div class="editor__buttons">
         <el-button v-if="isDirty" text :disabled="busy" @click="editor.reset()">還原修改</el-button>
@@ -220,9 +238,8 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-state { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
-.editor__actions-state span { color: var(--ink-3); }
-.editor__actions.is-dirty .editor__actions-state strong { color: var(--brand-gold-ink); }
+.editor__actions-state { font-size: 13px; color: var(--ink-3); }
+.editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
 .editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 @media (max-width: 720px) {

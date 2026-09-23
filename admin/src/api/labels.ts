@@ -67,7 +67,7 @@ export function mediaStatus(status: string): StatusMeta {
 
 export const BOOKING_MODE_LABELS: Record<string, string> = {
   inquiry: '線上表單（收到需求後由園方聯絡）',
-  slots: '時段預約（尚未開放）',
+  slots: '時段預約（家長自選場次）',
   line: 'LINE 官方帳號',
   phone: '電話洽詢',
   external: '外部預約網站',
@@ -109,9 +109,61 @@ export function auditTargetLabel(target: string): string {
   return AUDIT_TARGET_LABELS[target] ?? target
 }
 
+// 發布確認框列「哪些欄位會變」時用的欄位中文名；各 kind 的欄位名互不衝突，
+// 所以用一張表就夠。沒列到的欄位退回原始鍵名，不會漏列。
+export const CONTENT_FIELD_LABELS: Record<string, string> = {
+  eyebrow: '小標',
+  eyebrow_en: '英文小標',
+  copy_lines: '標語',
+  cta_label: '按鈕文字',
+  cta_label_en: '英文按鈕文字',
+  title: '標題',
+  since_label: '創校標籤',
+  body_text: '內文',
+  caption: '照片說明',
+  section_title: '區塊標題',
+  note: '說明文字',
+  campus_list_label: '校區清單標題',
+  intro: '前言',
+  description: '說明',
+  source_note: '來源說明',
+  bottom_note: '底部備註',
+  moments: '時刻',
+  scenes: '場景',
+  items: '項目',
+  name: '校名',
+  tagline: '一句話介紹',
+  district: '所在地區',
+  address: '地址',
+  phone: '電話',
+  line: 'LINE',
+  facebook: 'Facebook',
+  fb_note: 'Facebook 備註',
+  consent_text: '同意條款文字',
+  banner_title_template: '橫幅標題',
+  banner_body: '橫幅內文',
+  banner_button_label: '橫幅按鈕文字',
+  copyright: '版權文字',
+  header_phone_number: '頁首電話',
+  header_phone_note: '頁首電話備註',
+}
+
+export function contentFieldLabel(key: string): string {
+  return CONTENT_FIELD_LABELS[key] ?? key
+}
+
+// 發布成功後「查看官網」要開到那段內容所在的頁面，不是一律開首頁。
+export function contentPublicPath(kind: string, campusKey?: string | null): string {
+  if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
+    return campusKey ? `/campuses/${campusKey}` : '/'
+  }
+  if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
+  return '/'
+}
+
 // 內容 kind 的中文名，給編輯頁標題與總覽「待發布」清單用。
 export const CONTENT_KIND_LABELS: Record<string, string> = {
-  home_hero: '首頁首屏文字',
+  home_hero: '首頁大圖標語',
   home_about: '首頁「關於常春藤」',
   home_campus_board: '首頁五校區塊',
   day_experience: '孩子的一天',

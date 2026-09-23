@@ -15,7 +15,7 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor">
-    <template #lead>首頁影片上的標語。每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。</template>
+    <template #lead>首頁大圖（影片）上的標語。每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀；標題字型只收錄常用字，生僻字會以備用字型顯示。</template>
 
     <el-form label-position="top" @submit.prevent>
       <el-form-item label="標語上方的小標">

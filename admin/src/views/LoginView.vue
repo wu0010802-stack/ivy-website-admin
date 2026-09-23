@@ -84,7 +84,7 @@ async function handleSubmit() {
         登入
       </el-button>
 
-      <p class="login__foot">忘記密碼請聯絡總管理者重設。</p>
+      <p class="login__foot">忘記密碼請聯絡總管理者，由總管理者替你建立新帳號密碼。</p>
     </form>
   </div>
 </template>

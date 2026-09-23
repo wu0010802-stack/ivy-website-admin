@@ -4516,6 +4516,31 @@
             }
           },
           {
+            "description": "只列已到預定聯絡時間、尚未結案的案件",
+            "in": "query",
+            "name": "follow_up_due",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列已到預定聯絡時間、尚未結案的案件",
+              "title": "Follow Up Due",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "送出時間排序",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "送出時間排序",
+              "pattern": "^(newest|oldest)$",
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "page",
             "required": false,

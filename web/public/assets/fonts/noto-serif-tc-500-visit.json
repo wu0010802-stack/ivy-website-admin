@@ -1,0 +1,10 @@
+{
+  "family": "Noto Serif TC",
+  "weight": 500,
+  "characters": "。來園奇好帶著走，",
+  "usedBy": "web/app/components/VisitForm.vue 預約頁大標「帶著好奇，來校園走走。」（「校」在 noto-serif-tc-500-campus.woff）",
+  "cssSource": "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500&text=%E5%B8%B6%E8%91%97%E5%A5%BD%E5%A5%87%E4%BE%86%E5%9C%92%E8%B5%B0%EF%BC%8C%E3%80%82&display=swap",
+  "licenseSource": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoseriftc/OFL.txt",
+  "license": "同目錄 noto-serif-tc-500-campus-OFL.txt（同一字型家族）",
+  "unicodeRange": "U+3002,U+4F86,U+5712,U+5947,U+597D,U+5E36,U+8457,U+8D70,U+FF0C"
+}

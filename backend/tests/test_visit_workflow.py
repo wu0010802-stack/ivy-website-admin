@@ -492,3 +492,39 @@ async def test_visit_request_search_stays_inside_campus_scope(
     leaked = await minghua_client.get("/api/website/v1/admin/visit-requests?q=義華的家長")
     assert leaked.status_code == 200, leaked.text
     assert leaked.json() == []
+
+
+@pytest.mark.asyncio
+async def test_visit_request_follow_up_due_filter_and_order(admin_client, public_client):
+    """總覽的「到期待追蹤」點進列表要看到同一批案件；櫃台要能改成最舊的先處理。"""
+    older = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="到期家長", phone="0911000111", key="due-01"
+    )
+    newer = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="未到期家長", phone="0911000222", key="due-02"
+    )
+    past = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{older}/contact-notes",
+        json={"note": "家長說下週再聯絡", "follow_up_at": "2020-01-01T09:00:00Z"},
+    )
+    assert past.status_code == 201, past.text
+    future = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{newer}/contact-notes",
+        json={"note": "先不用追", "follow_up_at": "2999-01-01T09:00:00Z"},
+    )
+    assert future.status_code == 201, future.text
+
+    due = await admin_client.get("/api/website/v1/admin/visit-requests?follow_up_due=true")
+    assert due.status_code == 200, due.text
+    assert [r["id"] for r in due.json()] == [older]
+
+    dashboard = await admin_client.get("/api/website/v1/admin/dashboard")
+    assert dashboard.json()["pending_follow_up"] == len(due.json())
+
+    newest = await admin_client.get("/api/website/v1/admin/visit-requests?q=家長")
+    assert [r["id"] for r in newest.json()] == [newer, older]
+    oldest = await admin_client.get("/api/website/v1/admin/visit-requests?q=家長&order=oldest")
+    assert [r["id"] for r in oldest.json()] == [older, newer]
+
+    bad = await admin_client.get("/api/website/v1/admin/visit-requests?order=random")
+    assert bad.status_code == 422
