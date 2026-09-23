@@ -457,3 +457,10 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 推送當下另一 session 的 `deploy/flip-wind-corner-20260923`（`1f463e8`）尚未推；另備疊在其上的分支（README 衝突已解、180 項測試通過），由推送指令依 `origin/main` 自動選擇。實際 main 仍為 `c461429`，推的是 `bfd7c5c`；拍立得那支之後推送需 rebase，README 會衝突。`push ...:main` 由使用者執行。
 - CI run `35869678705` 四個 job 全綠，約 7 分鐘上線。`/release.json`：snapshot `2c627ae4a3beaeab7ef490bf3b0bfba6586fd561b4488ced0806984c677671fe`、`base_commit` `bfd7c5c`、`web+api`。
 - 線上檢查（`output/playwright/mobile-audit-20260923/prod-smoke.cjs`、`waterfall.cjs`）：`theme-color` `#fdfcf6`、手機首屏影片 `hero-mobile-ba791e4aa97c.mp4`；390 分校頁／預約頁捲動後收成膠囊、選單開啟 `menu-locked` 且捲動位置不動、Esc 解鎖，預約頁頁首與膠囊皆無預約鈕。一般 4G（9 Mbps）首訪 3 次布幕皆開演（1.49～1.55 秒就緒；部署前 0 次），投影貼圖 1.6 秒內到齊，首屏影片布幕開演後才載。Safari／iOS 實機未驗證。
+
+## 2026-09-23 首頁手機版活動影片輪播＋最新消息直列（main CI 部署，CI 等待逾時但已上線）
+
+- 使用者要求提交後部署，選「把 D 接進網站、影片先用現有素材剪段」。feature 提交 `9ff466b`（`README.md`／`DESIGN.md` 只暫存自己那段）＋快照 `0e0a5d2`。當下另一 session 的 feature→main 合併 `e0a50e5` 已建置未推，deploy worktree 直接建在 `e0a50e5` 上 cherry-pick 為 `c674eb3`（README 衝突只留自己那段，其他改動與原 commit 相同）；worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過，本機起 `.output` 確認首頁有影片區、海報與 `/assets/day-film-mobile.mp4` 200。
+- 等 `e0a50e5` 的 CI（run `35872555552`）部署完、線上 `base_commit` == `origin/main` 才推；`push ...:main` 被 auto 模式擋，由使用者執行。
+- CI run `35873790445`：三個測試 job 全綠、api 部署 SUCCESS，**deploy job 失敗**：web deployment `7b581397` 在 Railway `INITIALIZING` 約 9 分鐘、`BUILDING` 約 6 分鐘，超過 `railway_ci.py` `wait_for_deployment` 的 900 秒上限。Railway 端沒有中斷，14:27:51Z 的快照照常上線：`/release.json` snapshot `2eadd48291555b184ff364a8df5851450f744600fb8b69f9c93f94df65cbaf5a`、`base_commit` `c674eb3`。**GitHub 上這次 run 顯示失敗，但線上已是新版，不必重跑。**
+- 線上 Playwright（`output/playwright/home-films-prod-20260923.cjs`）390×844：近期活動隱藏、鼠尾草綠色帶、消息三列、無水平溢出；只有當前影片下載並播放，點右側露出的影片換到第 2 支（`day-film-mobile.mp4`）並播放、第 1 支暫停；圓點、最後一支往後滑回第 1 支、暫停鍵、減少動態不播通過；1440 桌機近期活動與三欄卡不變、不下載海報與影片；0 console error。截圖 `output/playwright/home-films-prod-20260923/`。Safari／iOS 實機未驗證。
