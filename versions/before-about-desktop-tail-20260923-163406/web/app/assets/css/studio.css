@@ -1145,9 +1145,11 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28 * var(--motion-vh,1svh))}
 /* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
-/* 減少動態／無 JS 的尾留白：段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。動態版見下方 1.52em。 */
+/* 黏住的最後一屏：底部留白只撐到段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。 */
 [data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * .15)}
-/* 手機保留較短的擦除距離，單欄照片後方需留出完整兩行浮水印。 */
+/* 手機保留較短的擦除距離，單欄照片後方需留出完整兩行浮水印。
+   「關於」上緣在半屏上方 1.52em（1.02em 行距 + 半個字高）；
+   尾空間使用同一幾何，讓照片先離開大字，再開始接力。 */
 @media(max-width:760px) {
   [data-seam="2"],[data-seam="2"] .home-reveal {--display-size:min(clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px),calc((100vw - 40px) / 6))}
   [data-seam="2"] .belief-watermark {opacity:.28}
@@ -1156,14 +1158,8 @@ body:has(.studio-hero) .header[data-state="compact"] .header-pill {
   [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32 * var(--motion-vh,1svh))}
   [data-seam="2"] .belief-content {padding-bottom:calc(30 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 }
-/* 動態版黏住的最後一屏：內文與照片整段離開兩行大字，才開始接力（≤900px 2026-09-23 上午、桌機同日下午跟上）。
-   「關於」上緣在半屏上方 1.52em（1.02em 行距 + 半個字高），layout 自己的下內距就是最後一行到大字的間隔。
-   桌機拿掉滿屏 min-height：單張 3:2 照片比內文矮，置中會在段落下多墊一截，段落停的位置就隨內容長短漂移。 */
-@media(prefers-reduced-motion:no-preference) {
+@media(max-width:900px) and (prefers-reduced-motion:no-preference) {
   [data-ivy-motion][data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * 1.52)}
-}
-@media(min-width:901px) and (prefers-reduced-motion:no-preference) {
-  [data-ivy-motion][data-seam="2"] .belief-layout {min-height:0}
 }
 
 /* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */
