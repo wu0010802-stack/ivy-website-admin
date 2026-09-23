@@ -1,8 +1,10 @@
 :root{--green:oklch(38% .055 162);--deep:oklch(28% .04 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--yellow:oklch(87% .13 88);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--white:oklch(99.7% .003 100);--ink:17 42 33;--mint:oklch(88% .022 150);--gold:oklch(82% .14 84);--error:oklch(47% .14 30);--trail:oklch(64% .055 155);--trail-visited:oklch(47% .055 155);--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'LINE Seed TW','PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
 /* 字型檔名沒有內容雜湊、但 /assets/fonts/** 快取 30 天（nuxt.config.ts routeRules）：URL 帶 ?v=<sha256 前 8 碼>，
    重切子集（補字）後要同步更新這裡與 nuxt.config.ts 的 preload href（兩邊必須完全相同，否則預載會多下載一份）。
-   算法：shasum -a 256 web/public/assets/fonts/<檔名> | cut -c1-8 */
-@font-face{font-family:'LINE Seed TW';font-weight:700;font-display:swap;src:url(/assets/fonts/lineseed-bd.woff2?v=1e820d7c) format('woff2'),url(/assets/fonts/lineseed-bd.woff?v=c5deb2a8) format('woff')}
+   算法：shasum -a 256 web/public/assets/fonts/<檔名> | cut -c1-8
+   LINE Seed TW 700（Bold）不在這裡宣告：它由 scripts/subset-critical-fonts.py 產生的 font-subsets.css
+   以 critical／remaining 兩段 unicode-range 宣告（檔名帶內容雜湊）。這裡若再宣告整包 lineseed-bd，
+   瀏覽器會把 154 KB 整包和 150 KB remaining 都抓下來（2026-09-22 線上實測），兩者只能擇一。 */
 @font-face{font-family:'LINE Seed TW';font-weight:800;font-display:swap;src:url(/assets/fonts/lineseed-eb.woff2?v=50d2dfc8) format('woff2'),url(/assets/fonts/lineseed-eb.woff?v=2c41f23b) format('woff')}
 /* 頁首品牌字子集（原 brand-fonts.css 的 data URI 版）；來源與授權見 /assets/fonts/README.md */
 @font-face{font-family:'Noto Sans TC';font-style:normal;font-weight:600;font-display:swap;src:url(/assets/fonts/noto-sans-tc-600-brand.woff?v=d220f83c) format('woff')}

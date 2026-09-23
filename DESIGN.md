@@ -16,7 +16,8 @@
 - **捲動驅動動畫只掛在真正會動的元素上**：五校→消息換頁與頁尾進場原本對整段 wrapper 的 inherited 自訂屬性（`--news-paper-progress`、`--home-footer-progress`）做 view-timeline 動畫，每幀整棵子樹 style recalc；原生路徑改成直接對 underlay／sheet／`::before`／`::after` 做 transform、opacity、border-radius、box-shadow 動畫（wrapper 只留 `timeline-scope`），變數只保留給 JS 備援（`useNewsTransition`／`useHomeFooterFade` 的 fallback）。首屏 `home-reveal-curtain`（clip-path）與 `home-reveal-copy`（color）維持原樣：改成 transform 會壓扁內容、改雙層交叉淡化中段色會與設計不同。
 - **拍立得 WebGL（保留，不回 CSS 3D）**：觸控裝置貼圖 DPR 上限 1.5、shadow map 512、顯影改六格預繪交叉淡化（不逐幀 `ctx.filter`）、建場景分三段讓出主執行緒並用 `compileAsync`、WebGL 探測整頁一次、觸控裝置同時最多保留 2 張（`paper-budget.ts`，離視窗最遠的卸回 CSS 版、捲回再掛）；桌機維持「接近視窗立即掛載」時序；共用 renderer 持有一個暖身場景讓 shader program 不被釋放。
 - **分校卡片**：只有當前與左右鄰卡綁 `src`／`srcset`（`loading=lazy` 擋不住橫向排在視窗外但在預載邊距內的卡），沒綁的卡保留 width／height 佔位；水滴進場與輪播時鐘不受影響。
-- **字型與資源載入**：不預載 157 KB 的 LINE Seed Bold（讓 CSS 自己發現）、只預載 h1 的 EB 與兩個品牌字子集；品牌字 `@font-face` 併進 `styles.css`，不再載 `brand-fonts.css`；`nitro.compressPublicAssets` 預產 br／gz、SSR HTML 由 `server/plugins/compress-html.ts` 壓 brotli；`features.inlineStyles:false` 避免 scoped 樣式 inline 又 link 各一份。
+- **字型與資源載入**：LINE Seed Bold 只有 `font-subsets.css` 這一份 `@font-face`（`scripts/subset-critical-fonts.py` 切成 critical／remaining 兩段 `unicode-range`，檔名帶內容雜湊），`styles.css` 不得再宣告整包 `lineseed-bd`——兩份都留時瀏覽器會同時下載 154 KB 整包與 150 KB remaining（2026-09-22 線上實測，首屏字型 171 → 343 KB、FCP 1.6 → 3.3 s）。critical 字集從實際 SSR 首屏文字推導（`scripts/first-screen-chars.cjs` 在 320–1440 六種視窗量首頁、五個分校頁、visit 的首屏 LINE Seed Bold 用字，2026-09-22 為 53 字／13.8 KB），只 preload critical；remaining 交給 CSS 自己發現。critical 的 `unicode-range` 必須含 `U+20`：CSS 行框高度取家族裡涵蓋空白字元的第一個 face 的度量，兩段都不含 U+20 時行框會改用 PingFang（1.40em vs LINE Seed 1.61em），所有標題往上跑 2–4px（截圖比對抓到）。h1 的 EB 與兩個品牌字子集照舊 preload；品牌字 `@font-face` 併進 `styles.css`，不再載 `brand-fonts.css`；`nitro.compressPublicAssets` 預產 br／gz、SSR HTML 由 `server/plugins/compress-html.ts` 壓 brotli。
+- **`features.inlineStyles` 維持預設 true**：曾改 false 去掉 scoped 樣式 inline 又 link 的重複，線上 simulate 反而變差（阻塞渲染的 CSS 從 2 支變 4 支，Lighthouse 估多等 1.5 s）。字型修好後同機 A/B（各 3 次 median）分數打平（simulate 82 vs 83、LCP 都 4.05 s；devtools LCP 2.02 vs 2.27 s），inline 只多 28 KB（brotli）HTML、少兩個阻塞往返；線上是高延遲手機網路、往返比位元組貴，且線上早上 89–90 分的版本就是預設值，因此保留 true。錯誤頁（error-404／500）的 chunk 與 CSS 以 `build:manifest` hook 關掉 prefetch，不再跟著首頁載入。
 - **分享圖**：`og:image` 用 `web/public/assets/og/<name>.jpg`（1200×630，`scripts/optimize-site-images.py` 的 `OG_IMAGES`），不用 WebP；首頁 JSON-LD 列五校 `Preschool`（地址、電話取自發布內容）。
 - 已知但未改：hero h1 實際字重是 700（`h1,h2,h3{font-weight:700}` 蓋過 `.studio-hero h1{font-weight:800}`），與 2026-09-15「ExtraBold 800」不符且 EB 子集因此沒被用到；正式原始碼的分校區塊樣式（校名 38px、膠囊 tabs）與線上 build（Noto Serif 校名、底線式 tabs）不同，未在本輪對齊，待設計側裁定。
 
@@ -34,7 +35,7 @@
 
 - 巡覽照片接近視窗才載入；縮圖依顯示尺寸使用 responsive 候選，放大與展開檢視使用原圖。保留 CMS 媒體 UUID 路徑、既有照片與熱點，不改成不同裁切。
 - 首頁理念與日常簾幕在 hydration 前預留與動效相同的軌道與重疊距離；沒有 JS 或減少動態時保留靜態閱讀。日常封面跟隨閱讀位置載入，自動播放偏好與封面載入分開。
-- 字型外觀與字重不變。Nuxt 的 LINE Seed 700 以互斥 unicode-range 切分首屏／其餘字形，只預載 6,680-byte 首屏包；字形聯集和字寬與原始子集一致。此規則取代下方歷史紀錄的「全站預載兩個完整字型」；凍結原型不回寫。
+- 字型外觀與字重不變。Nuxt 的 LINE Seed 700 以互斥 unicode-range 切分首屏／其餘字形，只預載首屏包；字形聯集和字寬與原始子集一致。此規則取代下方歷史紀錄的「全站預載兩個完整字型」；凍結原型不回寫。（2026-09-22 稍後：首屏包改由實際 SSR 首屏文字推導為 53 字／13.8 KB、critical 的 unicode-range 補 U+20、`styles.css` 整包宣告移除，見上方「效能修復與動效實作規則」的字型一節。）
 - 量測以本機 production build、fixture 與固定限速條件為實驗室證據；不等同正式站或真實使用者的 Core Web Vitals。影片 Range 與進一步壓縮列入第二批。
 
 ## 常春藤的一天移除照片補充字（2026-09-22 定案）

@@ -4,6 +4,17 @@
 
 main 的 CI 會重新部署完整快照，因此這五檔必須一起對齊，避免只提交照片一行修補時回退另外四檔已上線設計。同步時逐一核對 436 個部署來源檔，與上述正式快照完全一致。該快照通過 Node 22 web typecheck、92 項 web／42 項 admin tests、前後台 build、46 項公開檢查，以及 Chrome 桌機／手機 WebGL、320px 減少動態、CSS 備援的六張照片比例與翻面驗證；Safari／iOS 實機未驗證。
 
+
+## 2026-09-22 線上 v2 合併版的三項效能回歸修正
+
+線上部署「v2 ＋ 載入效能第一批」合併版後 mobile simulate 從早上的 89–90 掉到 76–80、FCP 1.6 → 3.3 s，本機重現後修三件事：
+
+1. **字型重複載入**：`styles.css` 的整包 `lineseed-bd.woff2?v=`（154 KB）與 `font-subsets.css` 的 critical＋remaining（7＋150 KB）同時被抓（本機 Lighthouse 也重現，字型 7 支）。移除 `styles.css` 的 LINE Seed 700 宣告，LINE Seed Bold 只剩 `font-subsets.css` 這一份；critical 字集改由 `scripts/first-screen-chars.cjs` 對實際 SSR 首頁、五個分校頁與 /visit 在 320–1440 六種視窗量到的首屏 LINE Seed Bold 用字推導（`web/app/generated/first-screen-chars.json`，53 字，含分校頁 h1 標語與桌機首屏露出的下一段標題；原本 24 字只涵蓋 hero 標語＋校名，分校頁首屏要等 150 KB remaining 才換字），`scripts/subset-critical-fonts.py` 取聯集重切（13,788 B／146,676 B，cmap 聯集＝原 725 字、字形輪廓與字寬逐字比對相同），`nuxt.config.ts` preload critical（URL 取自 `font-manifest.json`）。截圖比對抓到拆分後所有標題往上跑 2–4px：CSS 行框高度取家族裡 `unicode-range` 涵蓋 U+20 的第一個 face 的度量，兩段都不含 U+20 時退到 PingFang（1.40em vs 1.61em），腳本改為 critical 一律補 `U+20`，h1 幾何與線上版逐 px 相同。**合併規則寫進 `web/public/assets/fonts/README.md`：`font-subsets.css` 與整包宣告只能擇一。**
+2. **錯誤頁 CSS 載進首頁**：純 v2 build 重現，是 `features.inlineStyles:false` 讓 Nuxt 對 error-404／error-500 的 CSS 發 `<link rel=prefetch as=style>`；加 `build:manifest` hook 對這兩個 chunk 關 prefetch（改回 inline 後 CSS 本就不會出現，hook 保險）。
+3. **`inlineStyles` 取捨**：同機同碼 A/B（字型修好後，各 3 次 median）——false：devtools 98／LCP 2021 ms、simulate 82／LCP 4054、desktop 99／765；true：devtools 97／LCP 2279、simulate 83／LCP 4054、desktop 99／783。分數打平；true 少兩支阻塞渲染的 CSS（Lighthouse 對 false 估 0.7–1.05 s 可省、對 true 估 0–0.15 s），代價是每頁多 28 KB（brotli）inline CSS。線上是高延遲手機網路、往返比位元組貴，且早上 89–90 分的版本就是預設值，改回 `true`。
+
+修正後本機（fixture、同機同條件）：mobile devtools ×3 median Perf 97、FCP 1712 ms、LCP 2279、TBT 82、CLS 0、556 KB（修正前 4466afa：97／1783／2293／81／0／708 KB）；mobile simulate ×3 median 82–83、FCP 2852、LCP 4127、1167 KB（修正前 73／3755／4956／1319 KB）；desktop 99／LCP 822。字型請求 6 支、無重複；`npm run build`／`typecheck`／`test:unit`（15 檔 92 項）通過；截圖比對（基準＝未修改的 `4466afa`，390／1440 各 33 張）全部 0.00%、整頁高度一致。未 commit。
+
 ## 2026-09-22 部署分支改為 main
 
 Railway 正式部署的觸發分支由 `production` 改為 `main`：`.github/workflows/website.yml` 的 deploy job 條件與 concurrency 取消規則、以及 `deploy/railway_ci.py` 內建的分支自檢都改為 `refs/heads/main`（三道守門要一起改，只改 workflow 會在 deploy job 被腳本擋下），`deploy/CICD.md` 的分支表、首次啟用步驟與日常操作同步更新。GitHub environment `production` 已建立並將 Deployment branches 限制為 `main`。

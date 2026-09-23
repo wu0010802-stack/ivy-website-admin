@@ -16,7 +16,9 @@ pyftsubset LINESeedTW_OTF_Bd.otf --text-file=chars-bd.txt --flavor=woff --no-hin
 
 ## Nuxt 首屏字型分包（2026-09-22）
 
-`python3 scripts/subset-critical-fonts.py`（需 fontTools 與 Brotli）從現有 `lineseed-bd.woff` 產生帶內容 hash 的兩個 WOFF2、`app/generated/font-manifest.json` 及 `app/assets/css/font-subsets.css`。首屏包依 fixture 的首頁主標與五校名稱取字，目前 24 字／6,680 bytes；其餘 701 字／152,960 bytes 由互斥的 `unicode-range` 按需載入。程式會核對字形聯集與每字字寬，保留原字型全部 725 字；不擴充原本未涵蓋的字形。
+`python3 scripts/subset-critical-fonts.py`（需 fontTools 與 Brotli；本機用 `/opt/homebrew/opt/python@3.11/bin/python3.11`）從現有 `lineseed-bd.woff` 產生帶內容 hash 的兩個 WOFF2、`app/generated/font-manifest.json` 及 `app/assets/css/font-subsets.css`。首屏包＝fixture 的首頁主標與五校名稱（保底）∪ `app/generated/first-screen-chars.json`（`node scripts/first-screen-chars.cjs <本機 server>` 對實際 SSR 首頁／五個分校頁／visit 在 320–1440 六種視窗量到的首屏 LINE Seed Bold 用字，含分校頁 h1 標語與桌機首屏露出的下一段標題），2026-09-22 為 53 字／13,788 bytes；其餘 672 字／146,676 bytes 由互斥的 `unicode-range` 按需載入。程式會核對字形聯集與每字字寬，保留原字型全部 725 字；不擴充原本未涵蓋的字形（首屏文案若用到子集外的字會 assert 失敗，原始 OTF 不在本機無法補）。重切後舊 hash 的檔案要手動刪掉。
+
+**LINE Seed Bold 的 `@font-face` 只能有這一份**：`font-subsets.css` 與 `styles.css` 裡整包 `lineseed-bd.woff2` 的宣告合併時必須擇一，兩份都留瀏覽器會同時下載 154 KB 整包與 150 KB remaining（2026-09-22 線上實測，首屏字型總量 171 → 343 KB）。`nuxt.config.ts` 只 preload critical（URL 取自 `font-manifest.json`），remaining 不預載。
 
 Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold。其他字仍可能因頁面下方標題而下載，因此這是減少搶先下載量，不代表全頁只需 6.7 KB 字型。新檔使用一年 immutable 快取；更新文案時可重跑，不必改名稱。CMS 若出現未列入首屏但原本已有的字，會由 remaining 包顯示；原本就缺的字維持系統字 fallback。原始 WOFF、ExtraBold、品牌字型與 OFL 授權保留，凍結原型不受影響。
 
