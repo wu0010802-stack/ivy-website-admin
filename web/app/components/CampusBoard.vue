@@ -178,7 +178,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
     @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"
   >
     <header class="gallery-heading content-width">
-      <div class="gallery-title"><h2 id="campuses-heading">{{ board.sectionTitle }}</h2><span lang="en">{{ board.eyebrow }}</span></div>
+      <div class="gallery-title"><span lang="en">{{ board.eyebrow }}</span><h2 id="campuses-heading">{{ board.sectionTitle }}</h2></div>
       <div class="campus-tabs" role="tablist" aria-label="選擇分校">
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
@@ -282,10 +282,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 
 .content-width{width:var(--card-width);margin-inline:auto}
 .campus-panorama.campus-gallery{padding:64px 0 60px}
-.gallery-heading{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:28px;margin-bottom:36px}
-.gallery-title{display:flex;justify-content:center;align-items:baseline;gap:24px;text-align:center}
-.gallery-title h2{margin:0;color:var(--heading-ink);font:500 clamp(32px,3.3vw,48px)/1.5 var(--font-head);letter-spacing:.1em;padding-inline-start:.1em;white-space:nowrap}
-.gallery-title>span{color:var(--heading-accent);font:italic var(--fs-3xl)/1.3 Georgia,'Times New Roman',serif;letter-spacing:.015em}
+.gallery-heading{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;margin-bottom:36px}
+.gallery-title{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:24px;text-align:center}
+.gallery-title h2{margin:0;color:var(--heading-ink);font:500 clamp(40px,3.9vw,56px)/1.4 var(--font-head);letter-spacing:.1em;padding-inline-start:.1em;white-space:nowrap}
+.gallery-title>span{color:var(--heading-accent);font:italic clamp(var(--fs-lg),1.7vw,var(--fs-2xl))/1.3 Georgia,'Times New Roman',serif;letter-spacing:.015em}
 .campus-tabs{--tab-hover-line:#cbd2cd;display:flex;justify-content:center;width:min(100%,1040px);gap:12px}
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
@@ -400,10 +400,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 }
 @media(max-width:700px){
   .campus-panorama.campus-gallery{--card-width:calc(100vw - 48px);--card-gap:12px;--radius:24px;padding:38px 0 40px}
-  .gallery-heading{gap:23px;margin-bottom:24px}
-  .gallery-title{gap:14px}
-  .gallery-title h2{font-size:var(--fs-4xl);letter-spacing:.06em}
-  .gallery-title>span{font-size:var(--fs-xl)}
+  .gallery-heading{gap:12px;margin-bottom:24px}
+  .gallery-title{gap:2px;margin-top:14px}
+  .gallery-title h2{font-size:var(--fs-5xl);letter-spacing:.06em}
+  .gallery-title>span{font-size:var(--fs-lg)}
   .campus-tabs{gap:5px}
   .campus-tabs button{font-size:var(--fs-xs);min-height:92px;padding:6px 2px 9px;gap:2px;letter-spacing:.015em}
   .campus-tab-art{width:60px;height:40px}
@@ -433,9 +433,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 @media(max-width:360px){
   .playback-controls{gap:4px}
   .page-dot[aria-pressed=true]{width:44px}
-  .gallery-title{gap:12px}
-  .gallery-title h2{font-size:var(--fs-3xl)}
-  .gallery-title>span{font-size:var(--fs-xl)}
   .campus-tabs{gap:4px}
   .campus-tabs button{font-size:var(--fs-xs);padding-inline:1px}
   .campus-tab-art{width:48px;height:34px}
