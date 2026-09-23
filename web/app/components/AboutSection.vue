@@ -67,7 +67,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
 .belief-copy-toggle{display:none}
 @media(max-width:760px){
   .belief-more:not(.is-expanded){display:none}
-  .belief-copy-toggle{position:relative;z-index:1;display:inline-flex;align-items:center;min-height:44px;margin-top:8px;padding:4px 0;border:0;border-bottom:1px solid currentColor;background:var(--belief-bg,transparent);color:var(--green);font-size:.9375rem}
+  .belief-copy-toggle{position:relative;z-index:1;display:inline-flex;align-items:center;min-height:44px;margin-top:8px;padding:4px 0;border:0;border-bottom:1px solid currentColor;background:var(--belief-bg,transparent);color:var(--green);font-size:var(--fs-md)}
 }
 @media print{.belief-more{display:inline!important}.belief-copy-toggle{display:none}}
 </style>

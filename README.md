@@ -1,3 +1,16 @@
+## 2026-09-23 字體審查 B 批：明體統一、標點、字級尺度
+
+使用者看過對照頁 `design/typography-b-20260923/index.html` 後決定四項都做（細項照對照頁建議）。只改 `web/`，凍結原型不回寫；規則寫進 DESIGN.md「字體審查 B 批」。
+
+- **B-1 預約頁大標**：改用自託管思源宋體，新增 9 字子集 `noto-serif-tc-500-visit.woff`（3.9 KB）。`Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `typography.css` 全站宣告，Windows 不再落到新細明體。
+- **B-2 分校頁校名**：由 LINE Seed 800 改為明體 500，和首頁分校資訊共用 `--fs-campus-name`（63.36／54／50px），刪掉 `styles.css` 裡已失效的 `.hero h1`／`.campus-hero h1` 字級規則；分校頁不再下載 ExtraBold。
+- **B-3 標點與斷行**：標題 `text-spacing-trim:trim-start` 收行首開括號（逗號句號維持全形），WebGL 拍立得照字型 halt 數值同步；分校頁區塊標題只在標點後換行；拍立得背面 canvas 換行補上禁則，修掉「。」「？」單獨一行。
+- **B-4 字級 token**：`typography.css` 定義 `--fs-xs`～`--fs-8xl` 12 階，約 320 處字面值改用 token；頁首／選單／品牌（園方規格）、活動日期、校名、流體字級、英文裝飾小字保留原值。表單「必填／選填」、預約頁地區／地址等 10–11px 中文一併拉到 12px。
+
+快照 `versions/before-typography-b-20260923-122514/`，證據 `output/playwright/typography-b-20260923/`。未部署。
+
+驗證（Nuxt dev fixture 模式，另以 Playwright 攔截預約設定 API 顯示表單）：首頁、消息列表對話框、分校頁、預約頁暫停／選校／表單六種狀態 × 1440／1024／768／390／320px，改前改後逐元素比對，沒有新的溢出或橫向捲動；多換一行的 14 處都是段落自然重排。拍立得四種寬度翻面，背面文字都在紙面內；WebGL 與 DOM 的行首括號像素位置一致。CDP 確認三處明體實際使用自託管字型。Node 22 `vitest` 119 項通過、`nuxt typecheck` 無錯誤。Safari／iOS／Windows 實機未驗證。
+
 ## 2026-09-23 字體審查 A 批：字型變數與 12px 小字底線
 
 依字體審查結果，修正不改設計決策的部分（只動 `web/`，凍結原型不回寫）：

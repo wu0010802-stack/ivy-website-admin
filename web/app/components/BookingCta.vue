@@ -71,5 +71,5 @@ function trackClick(kind: BookingActionKind) {
 </template>
 
 <style scoped>
-.booking-status{display:block;max-width:36em;font-size:.9375rem;line-height:1.8;color:inherit;font-weight:400;text-wrap:pretty}
+.booking-status{display:block;max-width:36em;font-size:var(--fs-md);line-height:1.8;color:inherit;font-weight:400;text-wrap:pretty}
 </style>

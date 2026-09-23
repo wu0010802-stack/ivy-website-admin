@@ -204,6 +204,6 @@ onUnmounted(() => {
 <style scoped>
 .hero-campus-link{display:none}
 @media(max-width:760px){
-  .hero-campus-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;color:inherit;font-size:.9375rem;text-decoration:underline;text-underline-offset:5px}
+  .hero-campus-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:5px}
 }
 </style>

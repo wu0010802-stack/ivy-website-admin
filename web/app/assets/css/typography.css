@@ -7,6 +7,20 @@
   /* studio.css 的選單／膠囊英文與開場「略過動畫」引用這兩個名稱，原本沒有定義，會默默退回 PingFang／通用 sans-serif。 */
   --font-en:var(--font-date);
   --font-body:var(--font);
+  /* 2026-09-23 字級尺度：全站固定字級只用這 12 階。例外保留原值：頁首／導覽／選單／品牌（園方規格）、
+     活動日期、校名（--fs-campus-name）、clamp()／vw 流體字級、11px 以下的英文裝飾字。 */
+  --fs-xs:.75rem;   /* 12 說明、metadata */
+  --fs-sm:.875rem;  /* 14 次要文字 */
+  --fs-md:1rem;     /* 16 內文、表單 */
+  --fs-lg:1.125rem; /* 18 導言 */
+  --fs-xl:1.25rem;  /* 20 卡片標題 */
+  --fs-2xl:1.5rem;  /* 24 小標 */
+  --fs-3xl:1.75rem;
+  --fs-4xl:2rem;
+  --fs-5xl:2.5rem;
+  --fs-6xl:3rem;
+  --fs-7xl:3.75rem;
+  --fs-8xl:4rem;
 }
 
 .studio-hero-copy .eyebrow {
@@ -25,14 +39,14 @@
 }
 .belief-text {
   max-width:32em;
-  font-size:1.125rem;
+  font-size:var(--fs-lg);
   font-weight:400;
   line-height:1.95;
 }
 .belief-since,
 .hn-kicker[lang="en"] {
   font-family:var(--font-date);
-  font-size:.75rem;
+  font-size:var(--fs-xs);
   font-weight:400;
   line-height:1.5;
   letter-spacing:.14em;
@@ -47,10 +61,10 @@
   font-family:var(--font-information);
   font-weight:var(--weight-information);
 }
-.home-news h2 {font-size:2rem}
-.hn-card h3 {font-size:1.25rem}
-.hn-event-copy strong {font-size:1rem}
-.hn-event-copy small {font-size:.75rem;font-weight:400}
+.home-news h2 {font-size:var(--fs-4xl)}
+.hn-card h3 {font-size:var(--fs-xl)}
+.hn-event-copy strong {font-size:var(--fs-md)}
+.hn-event-copy small {font-size:var(--fs-xs);font-weight:400}
 .hn-date {width:auto;min-width:2.375rem}
 .hn-date b {
   font-family:var(--font-date);
@@ -58,9 +72,9 @@
   font-weight:400;
   font-variant-numeric:tabular-nums;
 }
-.hn-date>span {font:400 .75rem/1.4 var(--font-date);letter-spacing:.08em}
+.hn-date>span {font:400 var(--fs-xs)/1.4 var(--font-date);letter-spacing:.08em}
 .home-news .hn-meta,
-.hn-dialog .hn-meta {font-size:.8125rem}
+.hn-dialog .hn-meta {font-size:var(--fs-sm)}
 .hn-meta time,
 .hn-detail-date {
   font-family:var(--font-date);
@@ -68,30 +82,57 @@
   letter-spacing:.03em;
 }
 .home-news .hn-more,
-.hn-dialog .hn-more {font-size:.9375rem;font-weight:var(--weight-action)}
-.hn-news-head .hn-more {font-size:.875rem}
-.hn-sample-note {font-size:.75rem;line-height:1.8}
+.hn-dialog .hn-more {font-size:var(--fs-md);font-weight:var(--weight-action)}
+.hn-news-head .hn-more {font-size:var(--fs-sm)}
+.hn-sample-note {font-size:var(--fs-xs);line-height:1.8}
 
-.hn-dialog {font:400 1rem/1.9 var(--font-information)}
-.hn-dialog h2 {font-size:1.75rem;line-height:1.6}
-.hn-list-copy>strong {font-size:1.125rem;line-height:1.7}
-.hn-detail-date {font-size:.875rem}
-.hn-kicker:not([lang="en"]) {font-family:var(--font-information);font-size:.75rem;font-weight:500}
-.hn-dialog-top {font-size:.8125rem}
-.hn-category {font-size:.75rem}
+.hn-dialog {font:400 var(--fs-md)/1.9 var(--font-information)}
+.hn-dialog h2 {font-size:var(--fs-3xl);line-height:1.6}
+.hn-list-copy>strong {font-size:var(--fs-lg);line-height:1.7}
+.hn-detail-date {font-size:var(--fs-sm)}
+.hn-kicker:not([lang="en"]) {font-family:var(--font-information);font-size:var(--fs-xs);font-weight:500}
+.hn-dialog-top {font-size:var(--fs-sm)}
+.hn-category {font-size:var(--fs-xs)}
 
 @media(max-width:1100px) {
-  .belief-main h2 {font-size:2.625rem}
-  .home-news h2 {font-size:1.875rem}
-  .hn-card h3 {font-size:1.125rem}
-  .hn-event-copy strong {font-size:.875rem}
+  .belief-main h2 {font-size:var(--fs-5xl)}
+  .home-news h2 {font-size:var(--fs-4xl)}
+  .hn-card h3 {font-size:var(--fs-lg)}
+  .hn-event-copy strong {font-size:var(--fs-sm)}
 }
 @media(max-width:760px) {
-  .belief-main h2 {font-size:2rem}
-  .belief-text {font-size:1rem}
-  .home-news h2 {font-size:1.75rem}
-  .hn-card h3 {font-size:1.125rem;line-height:1.65}
-  .hn-event-copy strong {font-size:1rem}
+  .belief-main h2 {font-size:var(--fs-4xl)}
+  .belief-text {font-size:var(--fs-md)}
+  .home-news h2 {font-size:var(--fs-3xl)}
+  .hn-card h3 {font-size:var(--fs-lg);line-height:1.65}
+  .hn-event-copy strong {font-size:var(--fs-md)}
   .home-news .hn-more,
-  .hn-dialog .hn-more {font-size:.875rem}
+  .hn-dialog .hn-more {font-size:var(--fs-sm)}
 }
+
+/* 2026-09-23 B 批 ------------------------------------------------------------ */
+/* 明體改為全站宣告：首頁分校資訊、分校頁校名、預約頁大標共用；兩個子集用 unicode-range 分流，缺字時退回系統明體。 */
+@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-campus.woff) format('woff');unicode-range:U+4EC1,U+5206,U+570B,U+5D07,U+5FB7,U+660E,U+6821,U+6B66,U+7FA9,U+83EF,U+8A0A,U+8CC7,U+969B}
+@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-visit.woff) format('woff');unicode-range:U+3002,U+4F86,U+5712,U+5947,U+597D,U+5E36,U+8457,U+8D70,U+FF0C}
+:root {
+  --font-serif:'Ivy Campus Serif','Noto Serif TC','Songti TC','PMingLiU',serif;
+  /* 校名是 2026-09-22 定案規格（桌機 50–66px、平板 54px、手機 50px），首頁分校資訊與分校頁共用。 */
+  --fs-campus-name:clamp(3.125rem,4.4vw,4.125rem);
+}
+@media(max-width:1100px){:root{--fs-campus-name:3.375rem}}
+@media(max-width:700px){:root{--fs-campus-name:3.125rem}}
+
+/* 分校頁校名與首頁分校資訊同一套明體與尺寸。 */
+.hero.campus-hero h1 {
+  font-family:var(--font-serif);
+  font-size:var(--fs-campus-name);
+  font-weight:500;
+  line-height:1.25;
+  letter-spacing:.065em;
+}
+
+/* 標題標點：行首開括號收半格。靠字型 halt，LINE Seed TW 的 halt 只含「」『』（），置中的「，。」無法自動收。 */
+h1,h2,h3 {text-spacing-trim:trim-start}
+
+/* 分校頁區塊標題只在標點後換行，不把「走進」拆成兩行；太長時仍可強制斷行。 */
+.section-title {word-break:keep-all;overflow-wrap:anywhere;text-wrap:balance}

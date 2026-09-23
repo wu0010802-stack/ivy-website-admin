@@ -49,7 +49,7 @@ onMounted(async () => {
 .preview-notice {
   padding: 80px 24px;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
 }
 .preview-banner {
   position: sticky;
@@ -59,6 +59,6 @@ onMounted(async () => {
   color: #ffd75e;
   text-align: center;
   padding: 8px 16px;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
 </style>
