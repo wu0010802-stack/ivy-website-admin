@@ -429,3 +429,31 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - Chrome 15 項線上檢查通過：1440／390／320px 管理頁、失效連結、無水平溢出、電話正規化；同分頁連結交換 401 與 Secure/HttpOnly 清除 cookie；瀏覽器注入 502 後顯示重試並恢復。0 runtime／hydration error，已檢視正式手機截圖。除不存在的測試 token 交換外，瀏覽器阻擋 API POST，沒有建立正式報名。完整送單／改期／取消先前已在獨立本機 PostgreSQL 驗證；Safari／iOS 實機未驗證。
 - 證據 `output/railway-visit-repair-20260923-145157/`：summary、manifest、approved.patch、build-results/logs、rebase-notes、pre-upload-api/web、upload-api/web、api/web-success、api-source-verification、smoke-public、browser-online、final-verification。
 - 後續手動部署須以本次線上快照為基底；推 main 前須先併回本次 20 檔差異，避免 CI 覆蓋尚未提交的報名修復。回復參考：API `1c85e5ae-73aa-423d-a26f-7c251ad9e390`、web `2b48f1e1-2488-42c1-85ae-437be348b504`。
+
+## 2026-09-23 首屏拿掉按鈕、文字上移、小標 fixture（main CI 部署）
+
+- 使用者要求部署。推前確認線上 `base_commit` == `origin/main`（`1f805e2`，無未併回手動快照）。feature 上只暫存首屏相關段落提交 `8adebfb`（同檔其他 session 的改動與 `?copy=` 預覽不帶），在 `origin/main` worktree cherry-pick 為 `5d41836`；`studio.css` 衝突保留 main 的底線擦出動畫、不帶回 `hero-draw`。`push ...:main` 被 auto 模式擋下，由使用者執行。
+- CI run `35834805983` 四個 job 全綠（7m8s）。`/release.json`：snapshot `e5bac3d922249fd1240b468f68ebbc3947b2fb423c6ae69bf4d3120bce3ef5ea`、`base_commit` `5d41836`、`web+api`。
+- 線上 Chrome 檢查（`output/hero-copy-20260923/verify-prod.cjs`）：1440×900 首屏 0 顆按鈕、眉標 y 286、文字塊中心 440；390px「找校區」顯示；無水平溢出、無 page error。截圖 `prod-d1440.png`／`prod-m390.png`。
+- 正式站小標仍是「常春藤幼兒園 · 高雄五校」：取自已發布的 CMS，需到後台「首頁主視覺」改為「常春藤幼兒園 · 陪高雄孩子近三十年」再發布；本次只改 fixture，未動 CMS。
+
+## 2026-09-23 開場首屏遮罩改用新版布幕海報（main CI 部署）
+
+- 使用者要求提交並推 main。feature 提交 `35e3dcf`（README 只暫存自己那段；另一 session 的 Google OAuth 段落未帶），在 `origin/main`（`f454f39`，當時線上同 sha）worktree cherry-pick 為 `059363b`，無衝突、改動與原 commit 一致；worktree 內 Node 22 `vitest` 21 檔 163 項、`nuxt typecheck` 0 錯誤。`push ...:main` 被 auto 模式擋，由使用者執行。
+- CI run `35839445777` 四個 job 全綠。`/release.json`：snapshot `997432e772890f0ace58d225601977807aa0117b5f43d14ca09038e7f01906cc`、`base_commit` `059363b`、`web+api`。五張 `entrance-poster-*.webp` 皆 200 `image/webp`。
+- 線上檢查（`output/entrance-poster-20260923/`）：1440×900 首屏 0.4 秒即新版深紅帷幔海報（`before-prod-1440.png` 為修正前的舊條紋），接校徽、倒數正常；計時腳本 `timing.cjs` 手機 390×844×3 與桌機各數次皆進入播放（0.85～1.9 秒），擋掉海報與否無差異。手機逐格截圖在本機會拖慢主執行緒導致開場被放棄，屬量測誤差。
+- 推送當下另有 Google OAuth 手動快照部署在準備（`output/railway-google-oauth-20260923-164133/`，基底 `3b496ff`），其 rollout 會比對線上 release 後中止，需以 `059363b` 為基底重建；OAuth 改動尚未進 git，之後推 main 會蓋掉。
+
+## 2026-09-23 首頁最新消息 C「原地換片」自動輪播（main CI 部署）
+
+- 使用者要求提交後部署。feature 提交 `8c834ee`（`README.md`／`DESIGN.md`／`studio.css` 只暫存自己那幾段，其他 session 的頁首膠囊、手機首訪等未提交改動未帶），在 `origin/main`（`a273915`）worktree cherry-pick 為 `c461429`，無衝突、改動與原 commit 一致；worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 22 檔 166 項、`nuxt build` 成功。
+- 推前等另一 session 的預約頁 CI（run `35864979739`）部署完，確認線上 `base_commit` == `origin/main` == `a273915`、無新的手動快照上傳。`push ...:main` 被 auto 模式擋，由使用者執行。
+- CI run `35867868942` 四個 job 全綠（10 分鐘）。`/release.json`：snapshot `d8dbdc7d7ee434dcb65146d38655099b65a47393e13626563b8f3f39193748fc`、`base_commit` `c461429`。正式 CMS 已發布 6 則消息，輪播有啟動。
+- 線上 Playwright（`output/news-carousel-c-site/verify-prod.cjs`、`verify-prod-focus.cjs`）：1440／1024 由第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、0 console error。截圖 `output/news-carousel-c-site/prod/`。Safari／iOS 實機未驗證。
+
+## 2026-09-23 手機首訪布幕與影片、手機內頁膠囊頁首（main CI 部署）
+
+- 使用者要求提交、推 feature 後部署。feature 提交 `d2fda6e`（布幕資源預載、無損 WebP 投影貼圖、首屏影片讓路、手機影片 CRF 26）與 `a9aff42`（手機內頁膠囊頁首、選單鎖捲動、預約頁藏預約鈕、小字 14px、theme-color）；`README.md`／`DESIGN.md`／`styles.css` 只暫存自己那幾段。在 `origin/main`（`c461429`，線上同 sha）worktree cherry-pick 為 `892d091`、`bfd7c5c`，無衝突、變更行與原 commit 完全相同；worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 22 檔 169 項、`nuxt build` 通過。
+- 推送當下另一 session 的 `deploy/flip-wind-corner-20260923`（`1f463e8`）尚未推；另備疊在其上的分支（README 衝突已解、180 項測試通過），由推送指令依 `origin/main` 自動選擇。實際 main 仍為 `c461429`，推的是 `bfd7c5c`；拍立得那支之後推送需 rebase，README 會衝突。`push ...:main` 由使用者執行。
+- CI run `35869678705` 四個 job 全綠，約 7 分鐘上線。`/release.json`：snapshot `2c627ae4a3beaeab7ef490bf3b0bfba6586fd561b4488ced0806984c677671fe`、`base_commit` `bfd7c5c`、`web+api`。
+- 線上檢查（`output/playwright/mobile-audit-20260923/prod-smoke.cjs`、`waterfall.cjs`）：`theme-color` `#fdfcf6`、手機首屏影片 `hero-mobile-ba791e4aa97c.mp4`；390 分校頁／預約頁捲動後收成膠囊、選單開啟 `menu-locked` 且捲動位置不動、Esc 解鎖，預約頁頁首與膠囊皆無預約鈕。一般 4G（9 Mbps）首訪 3 次布幕皆開演（1.49～1.55 秒就緒；部署前 0 次），投影貼圖 1.6 秒內到齊，首屏影片布幕開演後才載。Safari／iOS 實機未驗證。

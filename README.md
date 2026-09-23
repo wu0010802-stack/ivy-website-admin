@@ -36,7 +36,7 @@
 
 使用者從桌機輪播三版選 C，接進 `web/`：`NewsDialog.vue` 的三張消息卡改由 `composables/useNewsRotation.ts` 輪播（每 6 秒三格由左到右依序由上往下刷出下一組照片、文字上浮替換；fixture 6 則兩組交替），標題列加被動倒數「01 / 02」。分組邏輯 `utils/newsRotation.ts`（超過三則才輪播、最後一組從頭補滿），計時沿用分校的 `createCarouselClock`。滑鼠停在卡上、鍵盤焦點、對話框開著、離屏、分頁在背景都暫停；減少動態與 640px 以下（原生橫向捲動）不輪播。卡片圖改包 `.hn-media`（桌機 1.55、手機 3:2 比例不變）。取代 09-16「不使用自動輪播」，已記入 DESIGN.md。修改前快照 `versions/before-news-carousel-c-20260923-205644/`。
 
-驗證：Node 22 `vitest run` 23 檔 169 項通過（新增 `tests/news-rotation.spec.ts` 3 項）、`nuxt typecheck` 0 個 `error TS`；`node --check app.js` → `python3 package_preview.py`，`preview.html` 無差異。本機 :3161 Playwright：1440／1024 從第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題（不掉到 body），Esc 關閉的鍵盤焦點維持暫停；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、無 hydration 警告。console 唯一錯誤是另一項未提交工作的 `visit-looks.css` 404，與本項無關。截圖 `output/news-carousel-c-site/`。未決：WCAG 2.2.2 常駐暫停方式（使用者要求不要按鈕）。Safari／iOS 未驗證。未提交、未部署。
+驗證：Node 22 `vitest run` 23 檔 169 項通過（新增 `tests/news-rotation.spec.ts` 3 項）、`nuxt typecheck` 0 個 `error TS`；`node --check app.js` → `python3 package_preview.py`，`preview.html` 無差異。本機 :3161 Playwright：1440／1024 從第一組換到第二組、倒數 01→02；滑鼠停 8 秒不換、對話框開著暫停；滑鼠關對話框後換組焦點交給新標題（不掉到 body），Esc 關閉的鍵盤焦點維持暫停；390px 與減少動態 8.5 秒不換、倒數不顯示；無水平溢出、無 hydration 警告。console 唯一錯誤是另一項未提交工作的 `visit-looks.css` 404，與本項無關。截圖 `output/news-carousel-c-site/`。未決：WCAG 2.2.2 常駐暫停方式（使用者要求不要按鈕）。Safari／iOS 未驗證。已提交 `8c834ee`，以 `c461429` 上 main 經 CI 部署，正式站驗證通過（見 deploy/README.md）。
 
 ## 2026-09-23 最新消息桌機輪播比稿（`design/news-carousel-20260923/`，已選 C）
 
