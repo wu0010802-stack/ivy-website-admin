@@ -27,6 +27,18 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  hooks: {
+    'build:manifest'(manifest) {
+      // The entrance is session/preference gated. Keep its optional renderer
+      // out of SSR prefetch hints; the eligible client imports it explicitly.
+      for (const [key, chunk] of Object.entries(manifest)) {
+        if (/(?:^|\/)entranceCurtain\.ts(?:\?.*)?$/.test(chunk.src ?? key)) {
+          chunk.prefetch = false
+        }
+      }
+    }
+  },
+
   css: ['~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 
   routeRules: {
