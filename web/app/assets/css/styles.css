@@ -26,6 +26,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film-video.is-ready{opacity:1}
 .day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
+/* iPhone 慣性捲動：控制層獨立合成，避免按鈕與已加速的影片分開重繪。 */
+@media(hover:none) and (pointer:coarse){.day-film-ui{transform:translateZ(0)}}
 .day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(255 255 255 / .86)}
 .day-film-caption span[lang]{font-size:.5625rem;letter-spacing:.14em}
 .day-film-toggle{position:absolute;right:32px;bottom:22px;pointer-events:auto;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:8px 18px;border:1px solid rgb(255 255 255 / .4);border-radius:100px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:var(--fs-xs);letter-spacing:.06em}
