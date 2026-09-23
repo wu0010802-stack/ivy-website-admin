@@ -111,9 +111,10 @@
 }
 
 /* 2026-09-23 B 批 ------------------------------------------------------------ */
-/* 明體改為全站宣告：首頁分校資訊、分校頁校名、預約頁大標共用；兩個子集用 unicode-range 分流，缺字時退回系統明體。 */
-@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-campus.woff) format('woff');unicode-range:U+4EC1,U+5206,U+570B,U+5D07,U+5FB7,U+660E,U+6821,U+6B66,U+7FA9,U+83EF,U+8A0A,U+8CC7,U+969B}
-@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-visit.woff) format('woff');unicode-range:U+3002,U+4F86,U+5712,U+5947,U+597D,U+5E36,U+8457,U+8D70,U+FF0C}
+/* 明體改為全站宣告：首頁分校資訊、分校頁校名、預約頁大標共用；兩個子集用 unicode-range 分流，缺字時退回系統明體。
+   /assets/fonts/** 快取 30 天，網址帶 ?v=<sha256 前 8 碼>；重切子集後要同步更新（shasum -a 256 <檔名> | cut -c1-8）。 */
+@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-campus.woff?v=8996503c) format('woff');unicode-range:U+4EC1,U+5206,U+570B,U+5D07,U+5FB7,U+660E,U+6821,U+6B66,U+7FA9,U+83EF,U+8A0A,U+8CC7,U+969B}
+@font-face{font-family:'Ivy Campus Serif';font-style:normal;font-weight:500;font-display:swap;src:url(/assets/fonts/noto-serif-tc-500-visit.woff?v=da62b24d) format('woff');unicode-range:U+3002,U+4F86,U+5712,U+5947,U+597D,U+5E36,U+8457,U+8D70,U+FF0C}
 :root {
   --font-serif:'Ivy Campus Serif','Noto Serif TC','Songti TC','PMingLiU',serif;
   /* 校名是 2026-09-22 定案規格（桌機 50–66px、平板 54px、手機 50px），首頁分校資訊與分校頁共用。 */

@@ -119,7 +119,7 @@
 使用者看過 `design/typography-b-20260923/` 對照頁後決定四項都做，細項照對照頁的建議。只改 `web/`，凍結原型不回寫。
 
 - **明體統一**：`Ivy Campus Serif`（自託管 Noto Serif TC 500）改為全站宣告，`--font-serif` 供首頁分校資訊、分校頁校名、預約頁大標共用。預約頁大標另切 9 字子集，不再落到 Windows 的新細明體。
-- **分校頁校名**：由 LINE Seed 800 改為明體 500，尺寸與首頁分校資訊共用 `--fs-campus-name`（沿用 09-22 定案：桌機 50–66px 流體、1100px 以下 54px、700px 以下 50px），字距 .065em、行高 1.25。分校頁因此不再下載 LINE Seed ExtraBold。
+- **分校頁校名**：由 LINE Seed 800 改為明體 500，尺寸與首頁分校資訊共用 `--fs-campus-name`（沿用 09-22 定案：桌機 50–66px 流體、1100px 以下 54px、700px 以下 50px），字距 .065em、行高 1.25。分校頁校名因此不再用到 LINE Seed ExtraBold（字檔仍供開場倒數使用）。
 - **標點**：h1–h3 用 `text-spacing-trim:trim-start`，行首開括號收半格；Chrome 預設已收相鄰標點（」，）。**「，」「。」不收**：LINE Seed TW 原始字型的 halt 只含括號，逗號句號置中佔滿一格，維持台灣全形排法。WebGL 拍立得標題照字型 halt 數值（「 左移 .32em、字寬收 .5em）在 canvas 同步處理。
 - **斷行**：分校頁 `.section-title` 與消息卡標題一樣 `keep-all`＋`balance`，只在標點後換行；太長時 `overflow-wrap:anywhere` 兜底。拍立得背面的 canvas 換行補上禁則（標點不放行首、開括號不留行尾），以前會出現「。」「？」單獨一行。
 - **字級尺度**：固定字級只用 `typography.css` 的 12 階 token：`--fs-xs` 12、`sm` 14、`md` 16、`lg` 18、`xl` 20、`2xl` 24、`3xl` 28、`4xl` 32、`5xl` 40、`6xl` 48、`7xl` 60、`8xl` 64。新寫的 CSS 不要再寫 px／rem 字面值。
