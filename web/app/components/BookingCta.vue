@@ -10,9 +10,9 @@ const props = defineProps<{
   buttonClass?: string
 }>()
 
-const { data: config, pending } = useCampusBooking(computed(() => props.campusKey))
+const { data: config, pending, error } = useCampusBooking(computed(() => props.campusKey))
 
-const action = computed(() => resolveBookingAction(props.campusKey, config.value ?? null))
+const action = computed(() => resolveBookingAction(props.campusKey, config.value ?? null, Boolean(error.value)))
 const displayLabel = computed(() => props.label ?? action.value.label)
 
 // 點擊只回報去識別化的計數，不代表「已預約」——LINE/電話/外部網址
@@ -39,7 +39,14 @@ function trackClick(kind: BookingActionKind) {
 
 <template>
   <NuxtLink
-    v-if="!pending && action.kind === 'form'"
+    v-if="!pending && action.kind === 'unavailable'"
+    :class="buttonClass"
+    :to="`/visit/${campusKey}`"
+  >
+    {{ action.label }}
+  </NuxtLink>
+  <NuxtLink
+    v-else-if="!pending && action.kind === 'form'"
     :class="buttonClass"
     :to="action.href!"
   >

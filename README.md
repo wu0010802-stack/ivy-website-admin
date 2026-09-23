@@ -1,3 +1,17 @@
+## 2026-09-23 官網報名修復已部署
+
+報名設定失敗重試、全形連字號手機，以及家長管理頁已部署至[正式官網](https://web-production-04caa.up.railway.app/)。API 與 web 均 SUCCESS；版本 `20800ce32b86`。以最新正式 `f023bd0` 為基底，只套入本次修復，保留已部署設計與錯誤頁修正。
+
+隔離快照 180 backend／140 web／48 admin 測試、型別、契約與正式建置通過；線上 36 項公開檢查與 Chrome 15 項 1440／390／320px 操作檢查通過，無 runtime／hydration error 或水平溢出。未建立正式測試報名、未 migration／CMS 發布／commit／push。詳見 `deploy/README.md` 與 `output/railway-visit-repair-20260923-145157/`。
+
+## 2026-09-23 官網報名手測修復與家長管理頁
+
+修正預約設定 API 失敗被顯示為「暫停預約」：改為錯誤提示、重新載入與聯絡園所入口；手機正規化支援全形／Unicode 連字號。新增 `/visit/manage`，提供遮罩手機與狀態查詢、改期申請、二次確認取消、失效連結處理。改期待核准時原時段保留，重新整理仍顯示待確認；同頁切換連結會清掉舊畫面與請求，失效連結不沿用上一筆 session。
+
+管理頁使用 fragment 交換 HttpOnly cookie，移除網址 token，不把個案資料放進 SSR payload；補上 no-store／noindex／no-referrer、正式環境 Secure cookie、來源檢查與限流。預設參觀前 24 小時截止由 API 執行，並回傳可操作狀態；OpenAPI／前端型別同步，無 migration。
+
+驗證：backend 真 PostgreSQL 180 項、web 141 項單元測試、Node 22 型別與契約檢查通過；Chrome 實際表單送出／管理連結／改期／取消／錯誤重試／截止時間與 1440／390／320px 驗證通過，無 page error 或水平溢出。證據 `output/playwright/visit-repair-20260923/REPORT.md`；臨時 API 與專用手測 DB 已清理，未發通知。`node --check app.js`、原型重新打包通過，`preview.html` 無差異。未部署、未提交；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 拍立得翻面暗示：B「捲動飄角」
 
 使用者從 `design/flip-hint-subtle-20260923/` 三版（A 對光透字／B 捲動飄角／C 包邊貼紙）選 B，已接進 Nuxt `web/`。紙膠帶只黏上緣，捲動時右下折角隨速度掀起（32→最多 52px）、整張微擺 ≤0.7°，停下回彈一次收回；只回應使用者的捲動，不自動播放，減少動態不做。新增 `web/app/utils/earGust.ts`（共用一個 scroll 監聽與 rAF 時鐘）與 11 項單元測試；`DayMomentCard.vue` 折角改為「基準＋捲動疊加」單一出口，`.print-card` 傾角改走 `--card-tilt`。

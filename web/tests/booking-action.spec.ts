@@ -10,6 +10,14 @@ describe('分校預約入口', () => {
     expect(resolveBookingAction('renwu', null).kind).toBe('choose_campus')
   })
 
+  it('設定載入失敗不可當成園所暫停，也不可沿用舊設定開放送單', () => {
+    for (const config of [null, { mode: 'inquiry' as const, version: 1 }]) {
+      const action = resolveBookingAction('yihua', config, true)
+      expect(action.kind).toBe('unavailable')
+      expect(action.href).toBeNull()
+    }
+  })
+
   it('inquiry 模式導向站內表單頁，使用正式路徑', () => {
     const action = resolveBookingAction('yihua', { mode: 'inquiry', version: 3 })
     expect(action.kind).toBe('form')

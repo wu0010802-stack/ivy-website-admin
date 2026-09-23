@@ -22,22 +22,18 @@ export function useCampusBooking(campusKey: Ref<string | null> | string | null) 
     () => `booking-config-${key.value ?? 'none'}`,
     async () => {
       if (!key.value) return null
-      try {
-        const response = await $fetch<PublicBookingConfigResponse>(
-          `/api/website/v1/public/booking-config/${key.value}`
-        )
-        return {
-          mode: response.mode,
-          version: response.version,
-          message: response.message,
-          line_url: response.line_url,
-          phone: response.phone,
-          external_url: response.external_url
-        }
-      } catch {
-        // 校區不存在或後端暫時不可用：安全地當成「暫停」，不假造成
-        // 可預約的樣子，也不讓整頁因此壞掉。
-        return { mode: 'paused', version: 0, message: null }
+      // 交給 useAsyncData 的 error 保存失敗狀態；不能把連線失敗偽裝成
+      // 園方設定的 paused。呼叫端可提供 refresh，也不沿用失效設定送單。
+      const response = await $fetch<PublicBookingConfigResponse>(
+        `/api/website/v1/public/booking-config/${key.value}`
+      )
+      return {
+        mode: response.mode,
+        version: response.version,
+        message: response.message,
+        line_url: response.line_url,
+        phone: response.phone,
+        external_url: response.external_url
       }
     },
     { watch: [key] }

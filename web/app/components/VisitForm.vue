@@ -34,8 +34,8 @@ const fieldErrors = ref<VisitErrors>({})
 const optionalOpen = ref(false)
 
 const selectedCampusKey = computed(() => form.campus)
-const { data: bookingConfig, pending: bookingPending, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
-const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null))
+const { data: bookingConfig, pending: bookingPending, error: bookingError, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
+const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null, Boolean(bookingError.value)))
 
 interface PublicVisitSlot { id: string; slot_date: string; start_time: string; end_time: string; remaining: number }
 const availableSlots = ref<PublicVisitSlot[]>([])
@@ -131,6 +131,12 @@ async function focusStage() {
   await nextTick()
   stageRef.value?.focus({ preventScroll: true })
   stageRef.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
+}
+
+async function retryBookingConfig() {
+  await refreshBookingConfig()
+  await loadSlots()
+  await focusStage()
 }
 
 async function goNext() {
@@ -329,9 +335,10 @@ async function onSubmit() {
               <div v-else-if="!selectedCampus" class="visit-status"><p>請先選擇想參觀的校區。</p><button class="button outline" type="button" @click="changeCampus">選擇校區</button></div>
               <section v-else-if="action.kind !== 'form'" class="booking-alt-cta visit-contact-step" aria-labelledby="visit-contact-title">
                 <span class="visit-contact-kicker">參觀方式</span>
-                <h2 id="visit-contact-title">歡迎與{{ selectedCampus.name }}聯絡</h2>
+                <h2 id="visit-contact-title">{{ action.kind === 'unavailable' ? '參觀方式暫時無法載入' : `歡迎與${selectedCampus.name}聯絡` }}</h2>
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
+                  <button v-if="action.kind === 'unavailable'" type="button" class="button primary" @click="retryBookingConfig">重新載入參觀方式</button>
                   <a v-if="action.href && action.kind !== 'phone'" class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer">{{ action.label }} <span aria-hidden="true">↗</span></a>
                   <a v-else-if="action.href" class="button primary" :href="action.href"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
                   <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span>{{ selectedCampus.phone }}</span></a>
