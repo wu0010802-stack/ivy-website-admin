@@ -238,7 +238,6 @@ body:has(.hn-dialog[open]){overflow:hidden}
 /* Homepage: one continuous photograph. The scrim protects the text, not the whole frame. */
 body:has(.studio-hero) {
   --hero-line:rgb(255 255 255 / .6);
-  --hero-veil:rgb(255 255 255 / .14);
 }
 body:has(.studio-hero) .header {
   position:fixed;
@@ -414,26 +413,12 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 .studio-hero-copy>:nth-child(4) {animation-delay:.4s}
 @keyframes hero-rise {from{opacity:0;transform:translateY(18px)}}
 @keyframes hero-draw {from{stroke-dashoffset:1}}
-.studio-hero .studio-actions {gap:14px;margin-top:36px}
-.studio-hero .studio-actions .button {
-  min-height:56px;
-  padding:0 26px;
-  gap:10px;
-  font-family:var(--font-head);
-  font-weight:700;
-  font-size:var(--fs-md);
-  letter-spacing:.04em;
-  transition:background-color .25s,color .25s,border-color .25s,transform .45s cubic-bezier(.22,1,.36,1),box-shadow .45s cubic-bezier(.22,1,.36,1);
+/* 2026-09-23 首屏拿掉按鈕後文字曾下移 92px，同日改回往上拉：grid 上方多了頁首 92px、
+   下方多了 64px，單純置中會比整個視窗中心低；底部補 48px 讓文字塊中心落在視窗中心上方
+   約 10px（光學中心）。只在桌機疊字版面；窄螢幕文字在照片下方。 */
+@media(min-width:1001px) {
+  .studio-hero-copy {margin-bottom:48px}
 }
-.studio-hero .studio-actions .button .icon {width:1.2em;height:1.2em}
-.studio-hero .studio-actions .primary {background:var(--yellow);border-color:transparent;color:var(--deep);text-shadow:none}
-.studio-hero .studio-actions .ghost {background:transparent;border-color:var(--hero-line);color:inherit}
-@media (hover:hover) {
-  .studio-hero .studio-actions .button:hover {transform:translateY(-2px)}
-  .studio-hero .studio-actions .primary:hover {background:var(--paper);color:var(--green);box-shadow:0 16px 32px -16px rgb(var(--ink) / .85)}
-  .studio-hero .studio-actions .ghost:hover {background:var(--hero-veil);border-color:var(--white)}
-}
-.studio-hero .studio-actions .button:active {transform:translateY(0);transition-duration:.1s}
 .studio-hero-image {position:absolute;inset:0;z-index:-2;width:100%;margin:0;padding:0}
 .studio-hero-image>img {width:100%;height:100%;aspect-ratio:auto;border-radius:0;object-position:50% 35%}
 .studio-hero-foot {margin-top:0;border-top:1px solid var(--hero-line);border-bottom:0;color:inherit}
@@ -475,8 +460,7 @@ body:has(.studio-hero) .header-top,
  .studio-hero-copy>p {font-size:var(--fs-md);margin-top:22px}
  .studio-hero h1 {font-size:clamp(1.875rem,9vw,2.125rem)}
  .studio-hero-copy .eyebrow {font-size:var(--fs-xs);margin-bottom:20px}
- .studio-hero .studio-actions {flex-direction:column;align-items:stretch;gap:10px;margin-top:28px}
- .studio-hero .studio-actions .button {width:100%;min-height:54px}
+ .studio-hero .studio-actions {margin-top:28px}
 }
 @media(max-width:360px) {
  body:has(.studio-hero) .header-book {white-space:nowrap;padding-inline:8px}
@@ -635,7 +619,6 @@ body:has(.studio-hero) .header-top,
   /* Mobile copy sits on paper; keep the video and its controls in their own band. */
   .home-reveal .studio-hero {
     --hero-line:var(--green);
-    --hero-veil:var(--cream);
     background:var(--paper);
   }
   .home-reveal .studio-hero::after {background:var(--paper)}
@@ -643,7 +626,6 @@ body:has(.studio-hero) .header-top,
   .home-reveal .studio-hero-copy,
   .home-reveal .studio-hero h1 {text-shadow:none}
   .home-reveal .studio-hero-copy :focus-visible {outline-color:var(--green)}
-  .home-reveal .studio-hero .studio-actions .ghost:hover {border-color:var(--green)}
   @keyframes home-reveal-copy {
     0%{opacity:1;transform:translateY(0) scale(1);color:var(--text)}
     48%,100%{opacity:.28;transform:translateY(calc(var(--reveal-height) * -.2)) scale(.96);color:var(--text)}
