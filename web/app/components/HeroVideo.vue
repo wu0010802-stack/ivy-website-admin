@@ -24,6 +24,29 @@ let removeImageListener: (() => void) | undefined
 
 useHomeReveal({ root: rootEl, track: trackEl, hero: sectionEl, copy: copyEl, image: imageEl, media: mediaEl, actions: actionsEl })
 
+// 預覽用（2026-09-23 比稿）：?copy=a|b|c|d 換首屏標語與副文案，定案後移除。
+// 標語用字已對過 lineseed-bd 子集，全數在內。
+type HeroText = Pick<HeroContent, 'titleParts' | 'copyLines'>
+const copyDrafts: Record<string, HeroText> = {
+  a: {
+    titleParts: { before: '每一個為什麼', punctAfterBefore: '，', middle: '都值得', growingWord: '好好回答', punctAfterGrowingWord: '。' },
+    copyLines: ['在遊戲、繪本與戶外觀察裡，孩子不停發問；', '老師細心聽、適時引導，陪他們動手找答案。']
+  },
+  b: {
+    titleParts: { before: '在常春藤', punctAfterBefore: '，', middle: '每天都', growingWord: '想來上學', punctAfterGrowingWord: '。' },
+    copyLines: ['早晨問候、繪本歌謠、點心和遊戲時間，', '在熟悉的節奏裡，孩子慢慢喜歡上這裡。']
+  },
+  c: {
+    titleParts: { before: '第一次離開家', punctAfterBefore: '，', middle: '有我們', growingWord: '好好陪著', punctAfterGrowingWord: '。' },
+    copyLines: ['老師細心觀察，尊重每個孩子不同的步調，', '陪他們學會照顧自己，也懂得關心別人。']
+  },
+  d: {
+    titleParts: { before: '世界那麼大', punctAfterBefore: '，', middle: '先從', growingWord: '這裡玩起', punctAfterGrowingWord: '。' },
+    copyLines: ['讀繪本、做藝術、到戶外觀察，', '孩子用自己的方式，一點一點認識世界。']
+  }
+}
+const route = useRoute()
+const heroText = computed<HeroText>(() => copyDrafts[String(route.query.copy)] ?? props.hero)
 let wantsPlayback = false
 let onScreen = true
 let reduceQuery: MediaQueryList | null = null
@@ -149,15 +172,15 @@ onUnmounted(() => {
           <div ref="copyEl" class="studio-hero-copy">
             <span class="eyebrow">{{ hero.eyebrow }}</span>
             <h1 id="home-title">
-              {{ hero.titleParts.before }}<span class="punct">{{ hero.titleParts.punctAfterBefore }}</span><br>
-              {{ hero.titleParts.middle }}<span class="hero-title-ending">
-                <span class="growing-word">{{ hero.titleParts.growingWord }}
+              {{ heroText.titleParts.before }}<span class="punct">{{ heroText.titleParts.punctAfterBefore }}</span><br>
+              {{ heroText.titleParts.middle }}<span class="hero-title-ending">
+                <span class="growing-word">{{ heroText.titleParts.growingWord }}
                   <svg aria-hidden="true" viewBox="0 0 180 14"><path pathLength="1" d="M3 9Q48 2 92 7T177 6" /></svg>
-                </span><span class="punct">{{ hero.titleParts.punctAfterGrowingWord }}</span>
+                </span><span class="punct">{{ heroText.titleParts.punctAfterGrowingWord }}</span>
               </span>
             </h1>
             <p>
-              <span v-for="line in hero.copyLines" :key="line" class="hero-copy-line">{{ line }}</span>
+              <span v-for="line in heroText.copyLines" :key="line" class="hero-copy-line">{{ line }}</span>
             </p>
             <div ref="actionsEl" class="studio-actions">
               <a class="hero-campus-link" href="#campuses">找校區<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
