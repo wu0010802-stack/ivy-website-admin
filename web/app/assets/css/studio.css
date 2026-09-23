@@ -608,6 +608,15 @@ body:has(.studio-hero) .header-top,
   margin-top:14px;text-align:right;
   font-size:var(--fs-xs);color:#42644e;letter-spacing:.06em;
 }
+/* 2026-09-23 照片頂緣對齊標題字面頂。左欄以 subgrid 拆成 SINCE／標題／內文三列，照片跨標題＋內文
+   兩列、靠上，再下移標題的半行距（line-height 1.5 → (1.5 - 1) / 2 × 標題字級），對齊字面頂而不是
+   行框頂。常用寬度 1440–1920 下照片底緣約落在內文末行、圖說收在內文結尾。同日稍早對齊內文第一行
+   會讓照片比內文多出一截、標題右側空一塊，已改掉。 */
+@media(min-width:901px) {
+  .belief-layout {grid-template-rows:repeat(3,auto);row-gap:0}
+  .belief-main {grid-column:1;grid-row:1/-1;display:grid;grid-template-rows:subgrid}
+  .belief-photo {grid-column:2;grid-row:2/4;margin-top:calc(var(--belief-title-size) * .25)}
+}
 @media(min-width:901px) and (max-width:1100px) {
   .home-belief .container {width:calc(100% - 64px)}
   .belief-layout {column-gap:36px}

@@ -29,8 +29,10 @@
   letter-spacing:.1em;
 }
 
+/* 標題字級同時給照片算對齊（studio.css 的 .belief-photo），改字級只改這個變數。 */
+.home-belief {--belief-title-size:clamp(2.25rem,3.35vw,3.25rem)}
 .belief-main h2 {
-  font-size:clamp(2.25rem,3.35vw,3.25rem);
+  font-size:var(--belief-title-size);
   line-height:1.5;
 }
 .belief-text {
@@ -91,13 +93,13 @@
 .hn-category {font-size:var(--fs-xs)}
 
 @media(max-width:1100px) {
-  .belief-main h2 {font-size:var(--fs-5xl)}
+  .home-belief {--belief-title-size:var(--fs-5xl)}
   .home-news h2 {font-size:var(--fs-4xl)}
   .hn-card h3 {font-size:var(--fs-lg)}
   .hn-event-copy strong {font-size:var(--fs-sm)}
 }
 @media(max-width:760px) {
-  .belief-main h2 {font-size:var(--fs-4xl)}
+  .home-belief {--belief-title-size:var(--fs-4xl)}
   .belief-text {font-size:var(--fs-md)}
   .home-news h2 {font-size:var(--fs-3xl)}
   .hn-card h3 {font-size:var(--fs-lg);line-height:1.65}
