@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { createDesktopFilmLeader } from './entrance-film'
 import { entranceTimeline, ENTRANCE_DURATION } from './entrance-timeline'
 
 const velvetPalette = {
@@ -59,7 +58,10 @@ type ClothUniforms = {
 
 type ProjectionUniforms = {
   logoMap: { value: THREE.Texture }
+  colourLogoMap: { value: THREE.Texture }
   digitMap: { value: THREE.Texture }
+  digitOffsets: { value: THREE.Vector3 }
+  cinemaProjection: { value: number }
   logoSize: { value: THREE.Vector2 }
   projectionColor: { value: THREE.Color }
   projectionStrength: { value: number }
@@ -67,6 +69,7 @@ type ProjectionUniforms = {
   logoOpacity: { value: number }
   countdownSweep: { value: number }
   filmFrame: { value: number }
+  projectorTime: { value: number }
   countdownOpacity: { value: number }
 }
 
@@ -76,7 +79,10 @@ const projectionShader = /* glsl */`
 varying vec2 clothUv;
 varying vec3 clothPosition;
 uniform sampler2D logoMap;
+uniform sampler2D colourLogoMap;
 uniform sampler2D digitMap;
+uniform vec3 digitOffsets;
+uniform float cinemaProjection;
 uniform vec2 logoSize;
 uniform vec3 projectionColor;
 uniform float projectionStrength;
@@ -84,16 +90,29 @@ uniform float countdownDigit;
 uniform float logoOpacity;
 uniform float countdownSweep;
 uniform float filmFrame;
+uniform float projectorTime;
 uniform float countdownOpacity;
 float insideProjection(vec2 uv) {
   return step(0.0, uv.x)*step(uv.x,1.0)*step(0.0,uv.y)*step(uv.y,1.0);
 }
-float logoTransmission(vec2 uv) {
+float digitTransmission(vec2 uv) {
+  vec2 atlasUv = vec2((uv.x+3.0-max(1.0,countdownDigit))/3.0,uv.y);
+  return texture2D(digitMap,atlasUv).a*insideProjection(uv);
+}
+vec3 logoSource(vec2 uv) {
   // Crop only the sampling window; the supplied 1254px PNG stays unmodified.
   vec2 sourceUv = vec2(229.0, 176.0)/1254.0 + uv*vec2(795.0,964.0)/1254.0;
-  vec3 ink = texture2D(logoMap, sourceUv).rgb;
-  float density = 1.0 - dot(ink,vec3(0.2126,0.7152,0.0722));
+  return texture2D(logoMap, sourceUv).rgb;
+}
+float goldLogoTransmission(vec2 uv) {
+  // Reuse the earlier warm-gold projection for the anniversary ribbon only.
+  float density = 1.0-dot(logoSource(uv),vec3(0.2126,0.7152,0.0722));
   return pow(smoothstep(0.065,0.88,density),0.72)*insideProjection(uv);
+}
+vec4 logoTransmission(vec2 uv) {
+  vec2 sourceUv = vec2(229.0,176.0)/1254.0 + uv*vec2(795.0,964.0)/1254.0;
+  // Premultiplied linear colour: transparent paper never enters the mipmaps.
+  return texture2D(colourLogoMap,sourceUv)*insideProjection(uv);
 }
 `
 
@@ -122,15 +141,32 @@ function deformMaterial(material: THREE.Material, uniforms: ClothUniforms, proje
         #include <lights_fragment_end>
         float perspective = 3.2 / (3.2-clothPosition.z);
         vec2 projected = clothPosition.xy * perspective;
-        // One stationary square aperture: the emblem height and leader diameter
-        // are identical. Both stay centred as the projection follows the folds.
-        vec2 center = vec2(0.0,0.04);
-        vec2 logoUv = (projected-center)/logoSize + 0.5;
-        float logoLight = logoTransmission(logoUv);
-        float halo = (logoTransmission(logoUv+vec2(0.0025,0.0))
-                    + logoTransmission(logoUv-vec2(0.0025,0.0))
-                    + logoTransmission(logoUv+vec2(0.0,0.0025))
-                    + logoTransmission(logoUv-vec2(0.0,0.0025)))*0.25;
+        // Centre the visible crest (crown through IVY KIDS, source y=114..876).
+        // The anniversary ribbon hangs below it instead of pulling the crest up.
+        // UVs run upwards: (1254 - 495 - 176) / 964 is the crest's source centre.
+        vec2 center = vec2(0.0);
+        vec2 logoUv = (projected-center)/logoSize + vec2(0.5,583.0/964.0);
+        vec4 logoLight = logoTransmission(logoUv);
+        float logoFocus = 0.0016+abs(clothPosition.z)*0.018;
+        vec4 tapLeft = logoTransmission(logoUv-vec2(logoFocus,0.0));
+        vec4 tapRight = logoTransmission(logoUv+vec2(logoFocus,0.0));
+        vec4 tapTop = logoTransmission(logoUv+vec2(0.0,logoFocus));
+        vec4 tapBottom = logoTransmission(logoUv-vec2(0.0,logoFocus));
+        vec4 halo = (tapLeft+tapRight+tapTop+tapBottom)*0.25;
+        // The original artwork has a clear gap at rows 876–878 between IVY
+        // KIDS and the lower anniversary ribbon; blend within that empty gap.
+        float goldRibbon = 1.0-smoothstep(200.0/964.0,202.0/964.0,logoUv.y);
+        float ribbonLight = 0.0;
+        if (goldRibbon > 0.0 && logoOpacity > 0.0 && logoUv.y > -0.01 && logoUv.x > -0.01 && logoUv.x < 1.01) {
+          float gold = goldLogoTransmission(logoUv);
+          float goldHalo = (goldLogoTransmission(logoUv+vec2(0.0025,0.0))
+                         + goldLogoTransmission(logoUv-vec2(0.0025,0.0))
+                         + goldLogoTransmission(logoUv+vec2(0.0,0.0025))
+                         + goldLogoTransmission(logoUv-vec2(0.0,0.0025)))*0.25;
+          ribbonLight = (gold*0.80+goldHalo*0.20)*1.35*goldRibbon*logoOpacity;
+        }
+        logoLight *= 1.0-goldRibbon;
+        halo *= 1.0-goldRibbon;
         vec2 leader = (projected-center)/logoSize.y;
         float radius = length(leader);
         float aa = max(fwidth(radius),0.001);
@@ -145,28 +181,130 @@ function deformMaterial(material: THREE.Material, uniforms: ClothUniforms, proje
         float rayDistance = abs(atan(sin(angle-sweepAngle),cos(angle-sweepAngle)))*radius;
         float ray = (1.0-smoothstep(0.001,0.001+aa,rayDistance))*disc;
         vec2 digitUv = leader/0.80 + 0.5;
-        vec2 atlasUv = vec2((digitUv.x+3.0-max(1.0,countdownDigit))/3.0,digitUv.y);
-        float digit = texture2D(digitMap,atlasUv).a*insideProjection(digitUv);
+        // Keep the desktop numerals optically centred without the film frame.
+        float offsetX = countdownDigit > 2.5 ? digitOffsets.x : countdownDigit > 1.5 ? digitOffsets.y : digitOffsets.z;
+        digitUv.x += offsetX*cinemaProjection;
+        float digit = digitTransmission(digitUv);
         // Low-contrast 12 fps grain, never a whole-frame brightness flash.
         vec2 grainCell = floor((leader+0.5)*520.0);
         float grain = fract(sin(dot(grainCell+filmFrame,vec2(12.9898,78.233)))*43758.5453);
         float filmLight = (disc*(0.34+sector*0.18)+rings*0.75+crosshair*0.095+ray*0.17);
         filmLight *= 0.975+grain*0.05;
         filmLight *= 1.0-digit*0.97;
+        float cinemaLight = 0.0;
+        if (cinemaProjection > 0.5 && radius < 0.72) {
+          // A lens falls slightly out of focus on the deeper folds. Preserve a
+          // readable core, with a small optical penumbra instead of a neon rim.
+          float focus = 0.002 + abs(clothPosition.z)*0.027;
+          float softDigit = (digitTransmission(digitUv+vec2(focus,0.0))
+                           + digitTransmission(digitUv-vec2(focus,0.0))
+                           + digitTransmission(digitUv+vec2(0.0,focus))
+                           + digitTransmission(digitUv-vec2(0.0,focus)))*0.25;
+          float ringDistance = abs(radius-0.49);
+          float ringCore = 1.0-smoothstep(0.003,0.003+aa+focus*0.35,ringDistance);
+          float ringGlow = exp(-pow(ringDistance/0.018,2.0));
+          // The red velvet remains visible inside the ring; only a faint
+          // rotating light spill and sweep hand suggest a film leader.
+          float pool = exp(-pow(radius/0.50,4.0));
+          float sweepLight = sector*0.025 + ray*0.070;
+          float glyphLight = digit*0.88 + softDigit*0.25;
+          cinemaLight = glyphLight + ringCore*0.53 + ringGlow*0.085;
+          cinemaLight += pool*0.018 + sweepLight*(1.0-digit)*0.75;
+          float foldReception = 0.84+0.16*smoothstep(-0.085,0.065,clothPosition.z);
+          float filmGrain = 0.985+grain*0.03;
+          // Subtle lamp breathing affects the projection only, never the whole
+          // viewport. Nothing jitters away from the established centre.
+          float lamp = 1.0+0.006*sin(projectorTime*23.0)+0.004*sin(projectorTime*41.0);
+          cinemaLight *= foldReception*filmGrain*lamp;
+        }
         vec3 lightDirection = normalize(vec3(center,3.2)-clothPosition);
         float incidence = pow(max(0.0,dot(normal,lightDirection)),0.85);
-        vec2 spotPosition = (projected-vec2(0.0,0.04))/vec2(logoSize.x*1.2,1.05);
+        vec2 spotPosition = (projected-center)/vec2(logoSize.x*1.2,1.05);
         float spot = exp(-1.65*dot(spotPosition,spotPosition));
         // Softer side lighting gives the crest priority without a DOM overlay.
         float stageFalloff = 0.72 + 0.28*spot;
         reflectedLight.directDiffuse *= stageFalloff;
         reflectedLight.indirectDiffuse *= stageFalloff;
-        float light = (logoLight*0.80+halo*0.20)*1.35*logoOpacity + filmLight*countdownOpacity;
-        reflectedLight.directDiffuse += projectionColor * (light + spot*0.075) * incidence * projectionStrength;
+        // Locally soften the red spill so blue, pink, green and navy stay
+        // recognisable. Incidence and the coloured penumbra still follow cloth.
+        float crestCoverage = logoLight.a*logoOpacity*projectionStrength;
+        float clothUnderLogo = 1.0-crestCoverage*0.82;
+        reflectedLight.directDiffuse *= clothUnderLogo;
+        reflectedLight.indirectDiffuse *= clothUnderLogo;
+        float crestFold = 0.74+0.26*smoothstep(-0.085,0.065,clothPosition.z);
+        float crestGrain = 0.99+grain*0.02;
+        vec3 crestLight = (logoLight.rgb*0.84+halo.rgb*0.16)*logoOpacity*crestFold*crestGrain;
+        float light = ribbonLight + mix(filmLight,cinemaLight,cinemaProjection)*countdownOpacity;
+        reflectedLight.directDiffuse += (crestLight*0.95 + projectionColor*(light + spot*0.075*(1.0-crestCoverage))) * incidence * projectionStrength;
       `)
     }
   }
-  material.customProgramCacheKey = () => `ivy-velvet-a-${projection ? 'projection' : 'trim'}-5`
+  material.customProgramCacheKey = () => `ivy-velvet-a-${projection ? 'projection' : 'trim'}-12`
+}
+
+function colourProjectionTexture(source: HTMLImageElement) {
+  // Key the original paper BEFORE filtering. Keying an already-downsampled
+  // opaque image turns its white background into a bright fringe around ink.
+  const canvas = document.createElement('canvas')
+  const width = canvas.width = source.naturalWidth
+  const height = canvas.height = source.naturalHeight
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  context.drawImage(source,0,0)
+  const { data } = context.getImageData(0,0,width,height)
+  const alpha = new Float32Array(width*height)
+  const bytes = new Uint8Array(data.length)
+  const linear = Float32Array.from({ length: 256 },(_,i) => {
+    const c = i/255
+    return c <= 0.04045 ? c/12.92 : ((c+0.055)/1.055)**2.4
+  })
+  for (let p=0;p<alpha.length;p++) {
+    const i = p*4
+    const pigment = 1-Math.min(data[i]!,data[i+1]!,data[i+2]!)/255
+    const t = Math.min(1,Math.max(0,(pigment-0.045)/0.060))
+    alpha[p] = t*t*(3-2*t)*data[i+3]!/255
+  }
+  for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+    const p = y*width+x
+    let coverage = alpha[p]!
+    if (!coverage) continue
+    const i = p*4
+    // Only the outer edge needs unmatting. Cream faces fully inside the ink
+    // silhouette keep their original colours rather than becoming transparent.
+    const edge = coverage < 0.99 || (x>0 && alpha[p-1]!<0.05) || (x<width-1 && alpha[p+1]!<0.05)
+      || (y>0 && alpha[p-width]!<0.05) || (y<height-1 && alpha[p+width]!<0.05)
+    if (edge) {
+      let reference = i
+      let contrast = 0
+      for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++) {
+        if (x+dx<0 || x+dx>=width || y+dy<0 || y+dy>=height) continue
+        const n = ((y+dy)*width+x+dx)*4
+        const difference = (255-data[n]!)**2+(255-data[n+1]!)**2+(255-data[n+2]!)**2
+        if (alpha[n/4]!>0.99 && difference>contrast) { contrast=difference; reference=n }
+      }
+      if (contrast) {
+        const dot = (255-data[i]!)*(255-data[reference]!)
+          +(255-data[i+1]!)*(255-data[reference+1]!)+(255-data[i+2]!)*(255-data[reference+2]!)
+        coverage = Math.min(coverage,Math.max(0,dot/contrast))
+      }
+    }
+    if (coverage<0.001) continue
+    // Reverse rows to match TextureLoader's UV orientation. Encode premultiplied
+    // linear RGB as sRGB bytes; SRGB8_ALPHA8 decodes before GPU interpolation.
+    const target = ((height-1-y)*width+x)*4
+    for (let channel=0;channel<3;channel++) {
+      const ink = Math.round(Math.min(255,Math.max(0,(data[i+channel]!-(1-coverage)*255)/coverage)))
+      const light = linear[ink]!*coverage
+      bytes[target+channel] = Math.round(255*(light<=0.0031308 ? light*12.92 : 1.055*light**(1/2.4)-0.055))
+    }
+    bytes[target+3] = Math.round(coverage*255)
+  }
+  const texture = new THREE.DataTexture(bytes,width,height)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
+  texture.needsUpdate = true
+  return texture
 }
 
 function countdownTexture() {
@@ -218,7 +356,6 @@ function fiberTexture() {
 export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLElement, logoUrl = '/assets/ivy-30th-anniversary-projection.png') {
   const mobile = host.clientWidth < 700
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.35 : 1.65))
   renderer.setClearColor(0x000000, 0)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -248,17 +385,32 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
   const texture = fiberTexture()
   const placeholder = new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1)
   placeholder.needsUpdate = true
+  const colourPlaceholder = new THREE.DataTexture(new Uint8Array([0,0,0,0]),1,1)
+  colourPlaceholder.needsUpdate = true
   const digits = countdownTexture()
-  const film = createDesktopFilmLeader(digits)
-  scene.add(film.mesh)
-  let desktopFilm = false
+  const digitAtlas = digits.image as HTMLCanvasElement
+  const digitContext = digitAtlas.getContext('2d')!
+  const cellWidth = digitAtlas.width/3
+  const digitOffsets = [0,1,2].map(index => {
+    const { data } = digitContext.getImageData(index*cellWidth,0,cellWidth,digitAtlas.height)
+    let mass = 0
+    let weightedX = 0
+    for (let pixel=0;pixel<data.length/4;pixel++) {
+      const alpha = data[pixel*4+3]!
+      mass += alpha
+      weightedX += ((pixel%cellWidth)+0.5)*alpha
+    }
+    return mass ? weightedX/mass/cellWidth-0.5 : 0
+  })
   let logo: THREE.Texture | undefined
+  let colourLogo: THREE.Texture | undefined
   const projection: ProjectionUniforms = {
-    logoMap: { value: placeholder }, digitMap: { value: digits },
+    logoMap: { value: placeholder }, colourLogoMap: { value: colourPlaceholder }, digitMap: { value: digits },
+    digitOffsets: { value: new THREE.Vector3(...digitOffsets) }, cinemaProjection: { value: 0 },
     logoSize: { value: new THREE.Vector2(0.86,1.04) },
     projectionColor: { value: new THREE.Color(velvetPalette.projection) },
     projectionStrength: { value: 0 }, countdownDigit: { value: 3 }, logoOpacity: { value: 0 },
-    countdownSweep: { value: 0 }, filmFrame: { value: 0 }, countdownOpacity: { value: 0 }
+    countdownSweep: { value: 0 }, filmFrame: { value: 0 }, projectorTime: { value: 0 }, countdownOpacity: { value: 0 }
   }
   texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy())
   const geometry = new THREE.PlaneGeometry(2, 2, mobile ? 144 : 216, mobile ? 64 : 96)
@@ -330,8 +482,8 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     projection.logoOpacity.value = state.logoOpacity
     projection.countdownSweep.value = state.sweep
     projection.filmFrame.value = state.filmFrame
-    projection.countdownOpacity.value = desktopFilm ? 0 : state.leaderOpacity
-    film.draw(state)
+    projection.projectorTime.value = current*ENTRANCE_DURATION/1000
+    projection.countdownOpacity.value = state.leaderOpacity
     // Release the backdrop shadow before disposing the overlay, so the page
     // does not jump from a darkened frame to full brightness at the very end.
     shadowMaterial.opacity = state.shadowOpacity
@@ -353,34 +505,43 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     camera.left = -aspect
     camera.right = aspect
     camera.updateProjectionMatrix()
+    // Resolve the emblem's fine navy strokes on high-density displays, while
+    // bounding the framebuffer on large screens instead of rendering at 3x.
+    const pixelRatio = Math.min(window.devicePixelRatio || 1,2,Math.sqrt(4_500_000/Math.max(1,width*height)))
+    if (renderer.getPixelRatio() !== pixelRatio) renderer.setPixelRatio(pixelRatio)
     renderer.setSize(width, height, false)
-    desktopFilm = width > 900
-    // A contained 16:9 panel; keep red velvet visible on all four sides.
-    const filmWidth = Math.min(width*0.64,880,height*1.2)
-    const filmHeight = filmWidth*9/16
-    const aperture = desktopFilm ? filmHeight*0.76*2/height : Math.min(1.04,aspect*1.5)
+    const desktop = width > 900
+    projection.cinemaProjection.value = desktop ? 1 : 0
+    // Preserve the accepted desktop emblem/number scale after removing the panel.
+    const compositionWidth = Math.min(width*0.64,880,height*1.2)
+    const compositionHeight = compositionWidth*9/16
+    const aperture = desktop ? compositionHeight*0.76*2/height : Math.min(1.04,aspect*1.5)
     projection.logoSize.value.set(aperture*795/964,aperture)
-    film.resize(filmWidth*2/height,filmHeight*2/height,aperture,desktopFilm)
     clothUniforms.forEach(uniforms => { uniforms.curtainAspect.value = aspect })
     shadow.scale.x = aspect
     const extent = Math.max(2, aspect * 1.6)
     Object.assign(key.shadow.camera, { left: -extent, right: extent, top: 2.5, bottom: -2.5 })
     key.shadow.camera.updateProjectionMatrix()
     renderer.shadowMap.needsUpdate = true
-    draw(current)
+    // Compile the first frame after artwork arrives, rather than a blank frame.
+    if (colourLogo) draw(current)
   }
   const observer = new ResizeObserver(resize)
   observer.observe(host)
-  resize()
   const ready = new THREE.TextureLoader().loadAsync(logoUrl).then(loaded => {
     if (disposed) { loaded.dispose(); return }
     logo = loaded
-    // The image is a transmission mask, not a base-colour map.
+    // Keep source sRGB bytes for the paper key; the shader decodes colour once.
     logo.colorSpace = THREE.NoColorSpace
     logo.anisotropy = Math.min(4,renderer.capabilities.getMaxAnisotropy())
     projection.logoMap.value = logo
+    colourLogo = colourProjectionTexture(loaded.image as HTMLImageElement)
+    colourLogo.anisotropy = logo.anisotropy
+    projection.colourLogoMap.value = colourLogo
     draw(current)
   })
+  // Start the image request before the first synchronous shader compilation.
+  resize()
   return {
     draw, ready,
     dispose() {
@@ -395,9 +556,10 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
       shadowMaterial.dispose()
       texture.dispose()
       placeholder.dispose()
+      colourPlaceholder.dispose()
       digits.dispose()
-      film.dispose()
       logo?.dispose()
+      colourLogo?.dispose()
       materials.forEach(material => material.dispose())
       key.shadow.dispose()
       scene.clear()

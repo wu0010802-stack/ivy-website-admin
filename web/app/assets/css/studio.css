@@ -623,18 +623,11 @@ body:has(.studio-hero) .header-top,
   margin:0 0 30px;text-wrap:balance;
 }
 .belief-text {margin:0;max-width:34em;font-size:17px;line-height:2;text-wrap:pretty}
-.belief-photo-pair {position:relative;margin:0;min-width:0;padding:0 0 110px 34px;align-self:start}
-.belief-photo-pair img {height:auto;object-fit:cover;border-radius:0}
-.belief-portrait {
-  width:100%;aspect-ratio:1.05;object-position:58% center;
-  border:9px solid var(--paper);box-shadow:0 14px 32px #274b3812;
-}
-.belief-moment {
-  position:absolute;left:0;bottom:25px;width:65%;aspect-ratio:1.65;
-  border:8px solid var(--paper);box-shadow:0 12px 24px #274b381c;
-}
-.belief-photo-pair figcaption {
-  position:absolute;right:0;bottom:5px;
+/* 單張圓角照片，框型同 .studio-intro-photo（3:2、16px 圓角、無白邊）；2026-09-23 取代主照＋小照疊放。 */
+.belief-photo {margin:0;min-width:0;align-self:start}
+.belief-photo img {width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:16px}
+.belief-photo figcaption {
+  margin-top:14px;text-align:right;
   font-size:11px;color:#42644e;letter-spacing:.06em;
 }
 @media(min-width:901px) and (max-width:1100px) {
@@ -642,9 +635,6 @@ body:has(.studio-hero) .header-top,
   .belief-layout {column-gap:36px}
   .belief-main h2 {font-size:48px}
   .belief-text {font-size:16px}
-  .belief-photo-pair {padding-left:20px;padding-bottom:95px}
-  .belief-portrait {border-width:7px}
-  .belief-moment {border-width:6px}
 }
 @media(max-width:1000px) {
   .home-reveal {--reveal-distance:calc(var(--reveal-height) * .38)}
@@ -671,8 +661,7 @@ body:has(.studio-hero) .header-top,
   .belief-layout {grid-template-columns:1fr;gap:32px;width:min(650px,100%);margin-inline:auto;padding-block:48px}
   .belief-main h2 {font-size:52px}
   .belief-text {max-width:none;line-height:1.95}
-  .belief-photo-pair {width:100%;max-width:570px;justify-self:center;padding-bottom:112px}
-  .belief-portrait {aspect-ratio:1.35}
+  .belief-photo {width:100%;max-width:570px;justify-self:center}
   .belief-watermark {font-size:24vw}
 }
 @media(max-width:760px) {
@@ -683,17 +672,13 @@ body:has(.studio-hero) .header-top,
   .belief-since::before {width:28px}
   .belief-main h2 {font-size:clamp(34px,9.8vw,48px);line-height:1.38;margin-bottom:24px}
   .belief-text {font-size:16px;line-height:1.95}
-  .belief-photo-pair {padding:0 0 84px 20px}
-  .belief-portrait {border-width:6px;aspect-ratio:1.08}
-  .belief-moment {border-width:5px;width:68%;bottom:23px}
-  .belief-photo-pair figcaption {font-size:10px;letter-spacing:0;bottom:0}
+  .belief-photo figcaption {margin-top:12px;font-size:10px;letter-spacing:0}
   .belief-watermark {left:0;font-size:30vw;opacity:.37}
 }
 @media(max-width:360px) {
   .home-belief .container {width:calc(100% - 32px)}
   .belief-main h2 {font-size:32px}
   .belief-text {font-size:15px}
-  .belief-photo-pair {padding-left:16px;padding-bottom:76px}
 }
 @media(prefers-reduced-motion:reduce) {
   .home-reveal .home-reveal-track {height:auto!important}
@@ -708,7 +693,6 @@ body:has(.studio-hero) .header-top,
 }
 @media(forced-colors:active) {
   .belief-watermark {display:none}
-  .belief-photo-pair img {border-color:CanvasText}
   .belief-since::before {background:CanvasText}
 }
 
