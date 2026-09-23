@@ -44,7 +44,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print.tint-mint{--print-tint:var(--mint)}
 .day-print.tint-peach{--print-tint:oklch(80% .1 52)}
 .day-print.tint-cream{--print-tint:var(--cream)}
-/* 卡片傾角走 --card-tilt；--sway 是捲動飄角的微擺（utils/earGust.ts，≤0.7°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
+/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
 .print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
 .day-print:nth-child(odd) .print-card{grid-column:1;justify-self:start;margin-left:6%}
 .day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}
@@ -52,10 +52,10 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 紙膠帶在 .print 裡、略浮於正面（translateZ），跟著紙翻；翻到背面時被紙擋住，只露出超出上緣的一截。WebGL 版由 paperPrints.ts 讀 --tape-a／--tape-b 畫進貼圖。 */
 .print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,white);--tape-b:color-mix(in oklch,var(--print-tint) 32%,white);position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
 .day-print:nth-child(even) .print-tape{rotate:5deg;left:auto;right:26px}
-.print-wrap{--ear:32px;--print-ear-shadow:rgb(var(--ink) / .12);position:relative;perspective:1400px;cursor:pointer}
+.print-wrap{--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,oklch(99.5% .006 95));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,oklch(98.5% .012 95));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
 /* --flip 由 DayMomentCard 依翻面位置給（0、-180deg、-360deg…）：永遠右緣掀起往左翻。時長與曲線同 utils/printFlip.ts。 */
 .print{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .95s cubic-bezier(.28,.1,.38,1)}
-/* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切折角時會把自己的 box-shadow 一起裁掉。 */
+/* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。 */
 .print::after{content:'';position:absolute;inset:0;z-index:-1;transform:translateZ(-1px);box-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3);transition:box-shadow .5s}
 .print-wrap:hover .print::after{box-shadow:0 2px 0 rgb(var(--ink) / .05),12px 32px 60px rgb(var(--ink) / .38)}
 .print-wrap.is-peeking:not(.webgl-ready) .print{animation:card-peek 1s cubic-bezier(.3,.9,.3,1)}
@@ -69,10 +69,28 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-wrap.webgl-ready .print-face::before{display:none}
 .paper-view{position:absolute;z-index:4;display:block;pointer-events:none}
 .print-wrap.webgl-ready .print-turn{z-index:8}
-.print-face{position:relative;background:color-mix(in oklch,var(--print-tint) 24%,oklch(99.5% .006 95));color:var(--text);backface-visibility:hidden;-webkit-backface-visibility:hidden}
-/* 右下折角：正面切右下、背面（rotateY 180°）切自己的左下，翻過來才落在同一角。WebGL 版在 paperPrints.ts 的貼圖挖同一塊。 */
-.print-front{clip-path:polygon(0 0,100% 0,100% calc(100% - var(--ear)),calc(100% - var(--ear)) 100%,0 100%)}
-.print-back{clip-path:polygon(0 0,100% 0,100% 100%,var(--ear) 100%,0 calc(100% - var(--ear)))}
+.print-face{position:relative;background:var(--print-face-bg);color:var(--text);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+/* 翻面暗示 A 角落捲起的 CSS 版（WebGL 版由 paperPrints.ts 彎網格）：起風、翻面起手或進場輕掀時（.is-cornering）才把兩面各自的右下角
+   沿對角線切掉，換成 .print-corner 那片會掀起的紙；平常紙面完整、不多開圖層。邊長 20cqw＝紙寬兩成；角度與受光由 DayMomentCard 每幀寫入。 */
+.print-wrap.is-cornering:not(.webgl-ready) .print-face{clip-path:polygon(0 0,100% 0,100% calc(100% - 20cqw),calc(100% - 20cqw) 100%,0 100%)}
+.print-corner{position:absolute;bottom:0;z-index:7;display:none;width:20cqw;height:20cqw;pointer-events:none;transform-style:preserve-3d}
+.print-wrap.is-cornering:not(.webgl-ready) .print-corner{display:block}
+.print-corner.is-front{right:0;transform:translateZ(.5px)}
+.print-corner.is-back{left:0;transform:rotateY(180deg) translateZ(.5px)}
+/* 掀起後露出的牆面陰影，不跟著掀；被自己那面擋住，只在切開的缺口看得到 */
+.print-corner-shadow{position:absolute;inset:0;background:linear-gradient(to bottom right,transparent 45%,rgb(var(--ink) / .4) 85%);opacity:calc(var(--corner-lift,0) * .8);transform:translateZ(-2px);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+/* 兩片三角紙近似一條彎曲：靠折線那片繞對角線轉 --corner-a，角尖那片再多轉 --corner-t；各片兩面，外側多切 1.5px 蓋住接縫 */
+.print-corner-flap{position:absolute;inset:0;transform-style:preserve-3d;transform:rotate3d(1,-1,0,var(--corner-a,0deg))}
+.print-corner-tip{position:absolute;right:0;bottom:0;width:50%;height:50%;transform-style:preserve-3d;transform:rotate3d(1,-1,0,var(--corner-t,0deg))}
+.print-corner i{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:linear-gradient(rgb(var(--ink) / var(--shade,0)),rgb(var(--ink) / var(--shade,0))),var(--corner-paper)}
+.print-corner .print-corner-b{transform:rotateY(180deg)}
+/* 正面那片朝外是相紙正面、翻過 90° 露出背面橫線紙；背面那片相反 */
+.print-corner.is-front .print-corner-a,.print-corner.is-back .print-corner-b{--corner-paper:var(--print-face-bg)}
+.print-corner.is-front .print-corner-b,.print-corner.is-back .print-corner-a{--corner-paper:repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px),var(--print-back-bg)}
+.print-corner-flap>.print-corner-a{--shade:var(--corner-shade-a);clip-path:polygon(100% -1.5px,100% 50%,50% 100%,-1.5px 100%)}
+.print-corner-flap>.print-corner-b{--shade:var(--corner-shade-b);clip-path:polygon(0 -1.5px,0 50%,50% 100%,calc(100% + 1.5px) 100%)}
+.print-corner-tip>.print-corner-a{--shade:var(--corner-tip-shade-a);clip-path:polygon(100% -1.5px,100% 100%,-1.5px 100%)}
+.print-corner-tip>.print-corner-b{--shade:var(--corner-tip-shade-b);clip-path:polygon(0 -1.5px,0 100%,calc(100% + 1.5px) 100%)}
 .print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(255 255 255 / .34) 0,rgb(255 255 255 / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
 .print-front{padding:8% 8% 0}
 .print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}
@@ -86,24 +104,18 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-foot{padding:18px 4px 46px;min-height:130px}
 .print-kicker{font-size:var(--fs-xs);letter-spacing:.08em;color:var(--muted)}
 .print-foot h3{margin-top:8px;font-size:clamp(1.25rem,1.6vw,1.5rem);line-height:1.45;letter-spacing:.02em;color:var(--green);rotate:-.8deg}
-.print-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:32px 32px 60px;background:color-mix(in oklch,var(--print-tint) 15%,oklch(98.5% .012 95)) repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px)}
+.print-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:32px 32px 60px;background:var(--print-back-bg) repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px)}
 .print-story{font-size:var(--fs-md);line-height:2.1;margin-top:14px;color:var(--text)}
 .print-ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:20px;padding-top:14px}
 .print-question{font-size:var(--fs-sm);font-weight:600;line-height:1.7;color:var(--green)}
 .print-answer{font-size:var(--fs-sm);line-height:1.95;margin-top:8px;color:var(--muted)}
-/* A 版無文字提示：折角屬於正反紙面，與紙張一起翻轉。 */
+/* 無文字提示：整卡可點，翻面暗示是右下角被風掀起（.print-corner／WebGL），跟著紙一起翻。 */
 .print-turn{position:absolute;inset:0;z-index:5;display:block;width:100%;height:100%;padding:0;border:0;border-radius:0;background:transparent;color:var(--green);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .print-turn:focus-visible{outline:3px solid var(--green);outline-offset:6px;transition:outline-color .25s}
 /* 焦點框是平的矩形，不會跟著紙翻轉與抬升：翻面途中先淡掉，停穩再出現 */
 .print-wrap.is-turning .print-turn:focus-visible{outline-color:transparent;transition-duration:.12s}
-.print-ear{position:absolute;right:0;bottom:0;z-index:7;width:var(--ear);height:var(--ear);pointer-events:none;color:rgb(var(--ink) / .09);filter:drop-shadow(-1px -1px 1px var(--print-ear-shadow))}
-.print-ear svg{display:block;width:100%;height:100%;overflow:visible}
-.print-ear-paper{fill:color-mix(in oklch,var(--print-tint) 15%,oklch(98.5% .012 95))}
-.print-ear-lines{fill:none;stroke:currentColor;stroke-width:1.7}
-.print-back .print-ear{right:auto;left:0;transform:scaleX(-1)}
-.print-back .print-ear-paper{fill:color-mix(in oklch,var(--print-tint) 24%,oklch(99.5% .006 95))}
-/* WebGL 已把折角與紙膠帶畫入貼圖，DOM 只留下語意與版面。 */
-.print-wrap.webgl-ready .print-ear,.print-wrap.webgl-ready .print-tape{visibility:hidden}
+/* WebGL 已把紙膠帶畫入貼圖、角落捲起改彎網格，DOM 只留下語意與版面。 */
+.print-wrap.webgl-ready .print-tape{visibility:hidden}
 .day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto;padding-bottom:96px;color:rgb(255 255 255 / .74);font-size:var(--fs-xs);line-height:1.9}
 @media(max-width:1100px){.day-prints{width:calc(100% - 64px);grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.day-print:nth-child(n) .print-card{width:100%;margin-inline:0}.day-note{width:calc(100% - 64px)}}
 @media(max-width:760px){
@@ -137,12 +149,12 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-figure::after{opacity:0;transition:none}
  .print-stamp{opacity:.85;transition:none}
  .print{transform:rotateY(var(--flip,0deg));transition:none}
- .print-face,.print-face::before,.print-ear,.day-intro>*,.day-film-video{transition:none}
+ .print-face,.print-face::before,.day-intro>*,.day-film-video{transition:none}
  .print::after{transition:none}
 }
 @media(forced-colors:active){
  .print-face,.day-film-toggle{border:1px solid CanvasText}
- .print-turn{color:ButtonText}.print-turn:focus-visible,.print-wrap.is-turning .print-turn:focus-visible{outline-color:Highlight}.print-ear{color:CanvasText;filter:none}.print-ear-paper{fill:Canvas;stroke:CanvasText;stroke-width:2}
+ .print-turn{color:ButtonText}.print-turn:focus-visible,.print-wrap.is-turning .print-turn:focus-visible{outline-color:Highlight}.print-wrap.is-cornering .print-face{clip-path:none}.print-corner{display:none}
  .day-film-shade{background:Canvas}
  .day-intro .eyebrow{color:CanvasText;text-shadow:none}
  .day-film-poster,.day-film-video{display:none}

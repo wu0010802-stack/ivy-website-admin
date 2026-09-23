@@ -1,0 +1,52 @@
+@font-face{font-family:'LINE Seed TW';src:url('../../web/public/assets/fonts/lineseed-bd.woff2') format('woff2'),url('../../web/public/assets/fonts/lineseed-bd.woff') format('woff');font-weight:700;font-display:swap}
+/* token 取自 web/app/assets/css/styles.css 第 1 行 */
+:root{--deep:oklch(28% .04 162);--green:oklch(38% .055 162);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--yellow:oklch(87% .13 88);--mint:oklch(88% .022 150);--peach:oklch(80% .1 52);--gold:oklch(82% .14 84);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--white:oklch(99.7% .003 100);--ink:17 42 33;--stamp:oklch(80% .14 62);--stamp-glow:oklch(70% .19 52 / .75);--face-base:oklch(99.5% .006 95);--back-base:oklch(98.5% .012 95);--canvas:oklch(97% .012 95);--scene-text:oklch(90% .012 150);--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'LINE Seed TW','PingFang TC','Microsoft JhengHei',sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--text);font:1rem/1.65 var(--font)}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:pointer}a{color:inherit}button:focus-visible,a:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}
+
+/* ── 頁面外框（沿用 flip-hint-subtle-20260923） ── */
+.masthead{display:flex;align-items:center;justify-content:space-between;padding:20px 5%;border-bottom:1px solid var(--line);font-size:.75rem;letter-spacing:.12em}.identity{display:flex;align-items:center;gap:12px;font-weight:600}.identity img{width:110px;height:36px;object-fit:contain}.identity span{border-left:1px solid var(--line);padding-left:12px}.edition{color:var(--muted)}
+.intro{padding:34px 5% 36px;display:flex;justify-content:space-between;align-items:flex-end;gap:28px}.eyebrow{margin:0 0 9px;font-size:.75rem;letter-spacing:.18em;color:var(--muted)}h1{font-size:clamp(1.9rem,3vw,2.7rem);line-height:1.35;letter-spacing:.03em;font-weight:600;margin:0;color:var(--deep)}.mobile-break{display:none}.intro-aside p{font-size:.8125rem;color:var(--muted);margin:0 0 14px}.intro-aside nav{display:flex;gap:7px}.intro-aside a{display:grid;place-items:center;min-width:44px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:22px;text-decoration:none;font-size:.75rem}.intro-aside a:first-child{padding:0 18px}.intro-aside a[aria-current="page"]{background:var(--deep);border-color:var(--deep);color:var(--white)}
+.board{position:relative;isolation:isolate;background:var(--deep);color:var(--white);padding:0 5%}.board::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(rgb(var(--ink) / .9),rgb(var(--ink) / .8)),url('../../web/public/assets/day-poster.webp') center/cover}
+.board-top,.board-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--scene-text);font-size:.6875rem;letter-spacing:.07em}.board-top{padding:14px 0;border-bottom:1px solid color-mix(in oklch,var(--white) 20%,transparent)}.board-top b{color:var(--yellow);font-weight:500}.board-bottom{padding:22px 0;border-top:1px solid color-mix(in oklch,var(--white) 20%,transparent)}
+.controls{display:flex;gap:6px}.controls button{min-height:40px;padding:0 16px;border:1px solid color-mix(in oklch,var(--white) 30%,transparent);border-radius:20px;background:none;color:inherit;font-size:.75rem}.gust span{font-size:1rem;margin-left:6px}.controls button:disabled{opacity:.45;cursor:default}
+.breeze::before{content:'';display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%;border:1.5px solid currentColor;vertical-align:1px}.breeze[aria-pressed="true"]::before{background:var(--yellow);border-color:var(--yellow)}
+
+.directions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4.5%;padding:28px 0 40px;max-width:1450px;margin:auto}.direction{min-width:0;display:flex;flex-direction:column}.direction[hidden]{display:none}
+.direction-head{display:flex;gap:13px;align-items:center;margin:0 0 26px}.letter{font-family:Georgia,serif;font-size:2.6rem;line-height:1;color:var(--yellow);font-style:italic}.direction-head h2{font-size:1.05rem;font-weight:500;margin:0;letter-spacing:.1em}.direction-head p{font-size:.6875rem;color:var(--scene-text);letter-spacing:.06em;margin:2px 0 0}
+.stack{display:flex;flex-direction:column;gap:34px;padding:14px 4px 10px}
+.description{margin-top:auto;padding-top:26px;font-size:.75rem;line-height:1.9;color:var(--scene-text)}.description p{margin:0}.description strong{color:var(--white);font-weight:500}
+.meta{margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.6875rem;line-height:1.6;border-top:1px solid color-mix(in oklch,var(--white) 16%,transparent);padding-top:12px}.meta dt{color:color-mix(in oklch,var(--scene-text) 70%,transparent);letter-spacing:.08em}.meta dd{margin:0;color:var(--scene-text)}
+.dots{display:inline-flex;gap:4px;vertical-align:-1px}.dots i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--yellow)}.dots i.on{background:var(--yellow)}
+.notes{display:flex;justify-content:space-between;gap:32px;padding:22px 5%;font-size:.6875rem;color:var(--muted)}.notes p{margin:0;max-width:62ch}
+
+/* ── 拍立得：與官網 .print 同構（web/app/assets/css/styles.css 第 47–104 行），沒有折角 ──
+   DOM 負責版面、點擊、aria；WebGL 就緒後 .print 透明、由 canvas 畫一張會被風掀起的紙。 */
+.card{--print-tint:var(--yellow);--flip:0deg;--tape-a:color-mix(in oklch,var(--print-tint) 76%,white);--tape-b:color-mix(in oklch,var(--print-tint) 32%,white);position:relative;width:min(400px,90%);perspective:1400px}
+.card.tint-mint{--print-tint:var(--mint)}.card.tint-peach{--print-tint:var(--peach)}
+.stack .card:nth-child(odd){rotate:-2.2deg;margin-right:auto}.stack .card:nth-child(even){rotate:2.4deg;margin-left:auto}
+.print{position:relative;transform-style:preserve-3d;transform:rotateY(var(--flip));transition:transform .95s cubic-bezier(.28,.1,.38,1)}
+.print::after{content:'';position:absolute;inset:0;z-index:-1;transform:translateZ(-1px);box-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3)}
+.tape{position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
+.stack .card:nth-child(even) .tape{rotate:5deg;left:auto;right:26px}
+.face{background:color-mix(in oklch,var(--print-tint) 24%,var(--face-base));color:var(--text);backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:clip}
+.front{position:relative;padding:8% 8% 0}
+.back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:28px 28px 56px;background:repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px),color-mix(in oklch,var(--print-tint) 15%,var(--back-base))}
+.photo{position:relative;z-index:1;margin:0;overflow:hidden;background:var(--line)}.photo img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover;object-position:50% 40%}
+.stamp{position:absolute;right:12px;bottom:10px;font-family:'Avenir Next','Helvetica Neue',var(--font);font-size:1.45rem;font-weight:500;line-height:1;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:var(--stamp);text-shadow:0 0 6px var(--stamp-glow);transform:skewX(-6deg)}
+.foot{position:relative;z-index:5;padding:16px 4px 40px;min-height:118px}
+.kicker{margin:0;font-size:.75rem;letter-spacing:.08em;color:var(--muted)}
+.card h3{margin:8px 0 0;font-family:var(--font-head);font-weight:700;font-size:clamp(1.12rem,1.45vw,1.4rem);line-height:1.45;letter-spacing:.02em;color:var(--green);rotate:-.8deg;text-spacing-trim:trim-start}
+.story{margin:12px 0 0;font-size:.875rem;line-height:2.1}
+.ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:16px;padding-top:12px}.question{margin:0;font-size:.8125rem;font-weight:600;line-height:1.7;color:var(--green)}.answer{margin:6px 0 0;font-size:.8125rem;line-height:1.95;color:var(--muted)}
+.turn{position:absolute;inset:0;z-index:10;width:100%;height:100%;padding:0;border:0;border-radius:0;background:transparent;cursor:pointer}.turn:focus-visible{outline:3px solid var(--yellow);outline-offset:6px}
+.paper{position:absolute;z-index:8;pointer-events:none;display:none}
+.card.webgl .paper{display:block}.card.webgl .print{opacity:0;transition:none}
+
+/* ── 單版預覽：兩張並排放大 ── */
+body:not([data-view="all"]) .directions{grid-template-columns:minmax(0,960px);justify-content:center}
+body:not([data-view="all"]) .stack{flex-direction:row;align-items:flex-start;gap:6%;padding-top:20px}
+body:not([data-view="all"]) .stack .card{width:min(440px,47%);margin:0}body:not([data-view="all"]) .stack .card:nth-child(even){margin-top:60px}
+
+@media(max-width:1100px) and (min-width:701px){.directions{gap:3.5%}.card{width:94%}.back{padding:20px 20px 46px}.story{font-size:.75rem;line-height:1.95}.question,.answer{font-size:.6875rem}.foot{min-height:100px}.card h3{font-size:1rem}.kicker{font-size:.625rem}}
+@media(max-width:700px){.masthead{padding:15px 22px}.identity{font-size:.6875rem;gap:8px}.identity img{width:83px;height:30px}.identity span{font-size:.6rem;padding-left:8px}.edition{display:none}.intro{display:block;padding:26px 24px}.intro h1{font-size:1.8rem}.mobile-break{display:block}.intro-aside{margin-top:18px}.intro-aside p{font-size:.75rem}.intro-aside a{height:44px;min-width:48px}.board{padding:0 22px}.board-top{flex-wrap:wrap;font-size:.625rem}.board-bottom{flex-direction:column;align-items:flex-start;gap:6px;font-size:.5625rem}.directions,body:not([data-view="all"]) .directions{grid-template-columns:minmax(0,1fr);gap:52px;padding:26px 0 34px}body:not([data-view="all"]) .stack{flex-direction:column;gap:34px}.card,body:not([data-view="all"]) .stack .card{width:86%}.stack .card:nth-child(odd),body:not([data-view="all"]) .stack .card:nth-child(odd){margin-right:auto}.stack .card:nth-child(even),body:not([data-view="all"]) .stack .card:nth-child(even){margin:0 0 0 auto}.back{padding:22px 22px 50px}.story{font-size:.8125rem;line-height:2}.question,.answer{font-size:.75rem}.card h3{font-size:1.15rem}.notes{display:block;padding:20px 24px}.notes p+p{margin-top:8px}}
+@media(prefers-reduced-motion:reduce){.print{transition:none}}
