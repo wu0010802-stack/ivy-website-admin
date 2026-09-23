@@ -1,3 +1,7 @@
+## 2026-09-23 五校線稿 hover 輪廓微加深
+
+`web/app/components/CampusBoard.vue` 的 hover 線稿亮度由 `.72` 微調為 `.68`，增加 `.2s` 濾鏡過渡；一般與僅選中狀態沿用原色調。Chrome 1440px 前後對照、移出還原、390／320px 五校排列與無水平溢出均確認，無 page error；證據 `output/playwright/campus-hover-20260923/`。`node --check app.js`、`python3 package_preview.py` 通過，原型 `preview.html` 無差異。未部署；Safari／iOS 實機未驗證。
+
 ## 2026-09-23 分校資訊標題改上下排列
 
 `web/app/components/CampusBoard.vue` 標題由「分校資訊　Campuses」左右並排，改為英文斜體 Campuses 在上、中文「分校資訊」在下，置中。DOM 順序同步改成英文在前（與原型 `app.js` 的 eyebrow 在 h2 之前一致）。
