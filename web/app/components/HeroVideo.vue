@@ -173,7 +173,6 @@ onUnmounted(() => {
               <span v-for="line in hero.copyLines" :key="line" class="hero-copy-line">{{ line }}</span>
             </p>
             <div ref="actionsEl" class="studio-actions">
-              <a class="button ghost" :href="hero.ctaHref">{{ hero.ctaLabel }}</a>
               <a class="hero-campus-link" href="#campuses">找校區<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
             </div>
           </div>
@@ -214,8 +213,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.hero-campus-link{display:none}
+/* 2026-09-23 拿掉「看看孩子的一天」按鈕後，這一列只剩手機版的「找校區」。 */
+.studio-actions{display:none}
 @media(max-width:760px){
-  .hero-campus-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:5px}
+  .studio-actions{display:flex}
+  .hero-campus-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:5px}
 }
 </style>

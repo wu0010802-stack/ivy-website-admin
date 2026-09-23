@@ -28,10 +28,6 @@
   font-weight:var(--weight-action);
   letter-spacing:.1em;
 }
-.studio-hero .studio-actions .button {
-  font-family:var(--font-information);
-  font-weight:var(--weight-action);
-}
 
 .belief-main h2 {
   font-size:clamp(2.25rem,3.35vw,3.25rem);
