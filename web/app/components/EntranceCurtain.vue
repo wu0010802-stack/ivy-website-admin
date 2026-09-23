@@ -119,7 +119,9 @@ onUnmounted(() => {
     >
       <canvas ref="canvas" aria-hidden="true" @webglcontextlost="onContextLost" />
       <p class="entrance-status" role="status" aria-live="polite" aria-atomic="true">{{ ready ? (phase === 'logo' ? '常春藤 30 週年' : countdown ? `30 週年開幕倒數 ${countdown}` : '布幕開啟中') : '正在準備開幕' }}</p>
-      <button type="button" class="entrance-skip" autofocus @click="finish(true)">略過動畫</button>
+      <!-- Leaves with the projector lamp as the curtain starts to part, before it
+           can sit over the header's own buttons; Esc still skips after that. -->
+      <button type="button" class="entrance-skip" :class="{ 'is-gone': opening > 0 }" autofocus @click="finish(true)">略過動畫</button>
     </dialog>
   </Teleport>
 </template>
@@ -140,6 +142,7 @@ onUnmounted(() => {
 .entrance-curtain canvas { display: block; width: 100%; height: 100%; }
 .entrance-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .entrance-skip { position: absolute; right: max(24px, env(safe-area-inset-right)); top: max(22px, env(safe-area-inset-top)); min-height: 44px; padding: 0 18px; border-radius: 28px; border: 1px solid var(--entrance-border); background: var(--entrance-button); color: var(--entrance-gold); font: 500 13px/1.2 var(--font-body, sans-serif); cursor: pointer; transition: border-color 180ms ease-out, color 180ms ease-out; }
+.entrance-skip.is-gone { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 240ms ease-out, visibility 0s linear 240ms; }
 .entrance-skip:hover { border-color: var(--entrance-gold); color: var(--entrance-focus); }
 .entrance-skip:focus-visible { outline: 2px solid var(--entrance-focus); outline-offset: 4px; }
 @media (max-width: 640px) { .entrance-skip { right: 16px; top: max(16px, env(safe-area-inset-top)); font-size: 12px; } }

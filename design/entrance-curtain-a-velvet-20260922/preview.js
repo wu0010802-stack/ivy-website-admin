@@ -37,10 +37,11 @@ try{
  const {createEntranceCurtain, entranceTimeline, ENTRANCE_DURATION}=await import('./velvet.js');
  if(failed)throw new Error('Preview loading timed out');
  timeline=entranceTimeline;duration=ENTRANCE_DURATION;
- engine=createEntranceCurtain($('#curtain'),$('#stage'),'../../web/public/assets/ivy-30th-anniversary-projection.png');
+ const params=new URLSearchParams(location.search);
+ engine=createEntranceCurtain($('#curtain'),$('#stage'),'../../web/public/assets/ivy-30th-anniversary-projection.png',{digitFontUrl:'../../web/public/assets/fonts/oswald-700-leader.woff2'});
  await engine.ready;
  if(failed){engine?.dispose();throw new Error('Preview loading timed out');}
  clearTimeout(timer);$('#stage').dataset.renderer='three';
- const p=new URLSearchParams(location.search).get('p');
+ const p=params.get('p');
  if(p!==null&&Number.isFinite(Number(p))){progress=Math.max(0,Math.min(1,Number(p)));draw();$('#status').textContent='靜態比較';}else play(true);
 }catch(error){clearTimeout(timer);console.warn(error);fail();}
