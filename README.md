@@ -1,3 +1,11 @@
+## 2026-09-23 五校線稿 hover 變彩色
+
+使用者要首頁五校線稿在 hover 時變成彩色。原線稿是 image_gen 產的純線條、沒有彩色版，所以用各校實景修復照（`*-enhanced-v1`）的顏色做一層淡彩：手動取 11–14 個對位點，以 TPS 變形把照片對到線稿，中值濾波＋模糊做出水彩感。只在線稿有筆觸的地方上色，天空只留很淡一層；照片裡的校名、招牌字、紅綠燈、路牌補成周圍顏色，柏油地面逐列取中位數抹掉行人。產生腳本與五校對照圖在 `design/campus-tab-colour-20260923/`。
+
+淡彩層只有顏色、不含線條（`web/public/assets/campus-line-art-<校區>-colour.webp`，各約 16KB），在 `CampusBoard.vue` 以 multiply 疊在原線稿上，hover 時 0.35 秒淡入，所以線條濃淡和原本的 hover 一樣。只在 `@media(hover:hover)` 顯示；觸控裝置為 `display:none`，搭配 `loading="lazy"` 不會下載。線稿尺寸規則從 `img` 移到外層 `.campus-tab-figure`，靜止、選中、強制色彩模式的樣子都不變。響應式圖用 `optimize-site-images.py --only` 產生，manifest 只新增 5 筆。
+
+驗證：Playwright 對 `:3161` 桌機 1440（DPR 2）hover 明華、崇德、義華、仁武，只有被 hover 的那一校淡彩 opacity 為 1，線稿濾鏡與框線大小（160×106.7）不變，無 page error。手機 390／320 淡彩層是 `display:none`，沒有發出淡彩圖請求，框線大小與原本一致。截圖在 `output/playwright/campus-tab-colour/`。`:3161` 的 `visit-looks.css` Vite 遮罩仍在，與本次無關。Nuxt typecheck 與正式建置沒有實跑。未 commit。
+
 ## 2026-09-23 拍立得翻面暗示改 A「角落捲起」：拿掉折角、風把右下角掀起來
 
 使用者要翻面提示有風吹的感覺，比稿 `design/flip-wind-20260923/`（無折角三版）與 `design/flip-corner-turn-20260923/`（依 A 做的翻面三版）後裁定：**A 角落捲起，點下去也從右下角先捲，翻面效果維持不變**。已接進 Nuxt `web/`：
