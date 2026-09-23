@@ -291,3 +291,70 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - Chrome 1440／390／320px 共 14 組線上檢查通過，包含匿名登入頁、新配色、總覽、案件、編輯頁及手機功能搜尋／Escape／焦點返回；無整頁水平溢出或 runtime error。後台內頁用正式資產搭配合成 API，沒有登入真實帳號、讀取私人案件或 API 寫入。已檢視正式登入頁及合成資料總覽截圖；Safari／iOS 實機未驗證。
 - 證據：`output/railway-admin-style-20260922/` 的 manifest、summary、build-results／logs、upload、final-status、smoke-public、admin-assets-verified、browser-online-results、acceptance 與截圖。
 - 未執行 migration、CMS 發布／初始化、通知／索引啟用、commit／push。回復時可重部署前一個 web deployment，API 與 schema 無須調整。
+
+
+## 2026-09-22 首頁五校線稿切換列放大部署
+
+- 僅更新 web，deployment `47f3ca84-a257-441a-8723-54ebff31bff3`，SUCCESS。API `c3f5a19f-ff76-4638-9a16-78bef516c124` 與 Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 部署未變，已即時核對。
+- 最新線上基底是 GitHub Actions 的 commit `4466afa9fed642138f29aafea11b6733c8e9ba5a`，不是較早的 admin-style 快照。依 `railway_ci.py` 重建 436 檔，SHA-256 精確吻合 `f368174585024cbca40780a57e71d5b92c6a3f3b15c9fd3358154b3f32fb3fc9`。只套用 `CampusBoard.vue` 四行尺寸差異：圖片 sizes、選校列寬、按鈕／字級、線稿尺寸。保留正式 `cardImage()` 延後載圖與手機照片原高度；並行中的手機構圖、消息與樣式修改未納入。
+- 固定快照 `/private/tmp/ivy-website-campus-size-20260922-174531`，436 檔、47,936,334 bytes，不含 release；SHA-256 `4045a4b4d20036103799f2225e5a257701bf07622bfbf549e184a2eb5248651b`。上傳前後來源一致、線上 release 已核對。回復參考為前版 web deployment `988bbd93-c8d7-4d63-89cb-bb0ab23bf4b6`；API 與 schema 無須調整。
+- Node 22.23.2 隔離建置通過 web typecheck、92 項 web tests、42 項 admin tests、admin build 與 production/live web build。沿用既有 Hero CSS calc/clamp 與 chunk 警告；backend 未更動，未重跑其測試。
+- 線上 43 項公開檢查通過：release、production/live API、CMS、五校 SSR、插畫 sizes、產品 CSS 與 admin JS／CSS hash、預約公開設定、robots、404、匿名 401、來源 hash 及服務 deployment。Nuxt 內建 404／500 CSS 因本機 node_modules 連結與 Docker 路徑不同而 scope ID 不同，已核对除 scope ID 外內容逐位元組一致；產品 CSS 仍嚴格核對原始 SHA-256。初次核對紀錄保留。
+- Chrome 1440／768／390／320px 實際五校點選、左右方向鍵循環與圖片載入通過，0 runtime error、無水平溢出。桌機實測列寬 1040px、線稿 160px、校名 17px。已檢視正式桌機與手機截圖；Safari／iOS 實機未驗證。
+- 正式預約已不是五校全部 paused；本次唯讀觀察義華／崇德為 inquiry、明華為 slots、國際／仁武為 paused。本輪沒有更改預約設定、CMS、資料庫或寄信／索引；初版 smoke 沿用舊 paused 假設，改為按現行 API 契約驗證並記錄實際模式。
+- 證據：`output/railway-campus-size-20260922-174531/` 的 summary、manifest、approved.patch、build-results／logs、preflight、upload、smoke-public、browser-results、scope-comparison 與 online 截圖。未執行 migration、帳密登入、私人資料讀寫、commit 或 push。
+
+## 2026-09-22 手機版保留桌機構圖部署
+
+- 僅更新 web，deployment `81f2ce4e-0722-4fbe-bc5d-125196351034`，SUCCESS。API `c3f5a19f-ff76-4638-9a16-78bef516c124` 與 Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 部署未變，已即時核對。
+- 以最新正式校區線稿快照 `4045a4b4d20036103799f2225e5a257701bf07622bfbf549e184a2eb5248651b` 為基底，逐檔驗證後只套入 `studio.css`、`styles.css`、`CampusBoard.vue`、`NewsDialog.vue` 的手機構圖差異。由修改前備份產生精準 patch，避免用本機整檔覆蓋正式版的 Hero reveal、版本化字型、圖片延後載入及桌機線稿放大；獨立唯讀審查通過。
+- 固定快照 `/private/tmp/ivy-website-mobile-composition-20260922-175717`，436 檔、47,937,226 bytes，不含 release；SHA-256 `050b9d12a8dada89c13c8e97261503cbe713a35544f07fc0061a390b580c0852`。上傳前確認線上基底與服務部署未變，上傳後來源 hash 及線上 release 一致。回復參考為前版 web deployment `47f3ca84-a257-441a-8723-54ebff31bff3`，API 與 schema 無須調整。
+- Node 22.23.2 隔離建置通過 web typecheck、92 項 web tests、42 項 admin tests、admin build 與 production/live web build。沿用既有 Hero CSS calc/clamp 與 chunk 警告；backend 未更動，未重跑其測試。
+- 線上 45 項公開 GET 檢查通過：release、production/live API、CMS、五校與預約 SSR、手機橫滑／拍立得及桌機尺寸 CSS、產品樣式與 admin assets SHA-256、預約公開設定、robots、404、匿名 401、來源 hash 及服務 deployment。Nuxt 內建 404／500 CSS 延續前次核對方式，確認除了依建置路徑產生的 scope ID 外內容完全一致；產品 CSS 嚴格核對原始 SHA-256。
+- 同一正式建置以本機 fixture 驗證，正式站再使用已發布 CMS 內容驗證：Chrome 320／390／430／640／768／1024／1440px、鍵盤與對話框焦點返回、觸控橫滑、六張 WebGL 翻卡、CSS 備援、減少動態、200% 拍立得文字放大、橫直轉向與五校圖片載入／置中全部通過。各自保存 10 組驗證結果，無整頁水平溢出、runtime error 或 hydration warning；已檢視正式手機消息、翻面與校區截圖。Safari／iOS 實機未驗證。
+- 本機儲存正式站截圖一度因 ENOSPC 中斷；清除已核對無程序使用的舊建置產物，並將本輪重複輸出素材改連回原始快照後，接續未完成的互動檢查成功。所有來源快照、manifest、logs 保留；沒有因本機磁碟問題重部署正式站。
+- 五校預約唯讀觀察為義華／崇德 inquiry、明華 slots、國際／仁武 paused。瀏覽器攔截 API 寫入，未登入正式帳號或建立預約；未執行 migration、CMS 發布、通知／索引啟用、commit 或 push。
+- 證據：`output/railway-mobile-composition-20260922-175717/` 的 summary、manifest、approved.patch、independent-review、build-results／logs、preflight／pre-upload、upload、services-status、smoke-public、scope-comparison、browser-local／browser-online 與 final-verification。準備程式為 `output/prepare-mobile-composition-deploy.py`。
+
+## 2026-09-22 修復一天照片裁切回歸部署
+
+- 僅更新 web，deployment `3a94c291-e100-435b-ad34-8531a5370b9b`，SUCCESS。API `c3f5a19f-ff76-4638-9a16-78bef516c124`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。
+- 以正式手機構圖快照 `050b9d12a8dada89c13c8e97261503cbe713a35544f07fc0061a390b580c0852` 為基底，逐檔驗證後只刪除 `web/app/components/DayMomentCard.vue` 的 figcaption 一行。效能分支合併 `c0b949d` 帶回標籤，但 CSS／WebGL caption 支援已刪，造成 figure 比 img 多 29px，WebGL 依 figure 高度裁切時照片被放大；本輪恢復已定案的無補充字版本。
+- 固定快照 `/private/tmp/ivy-website-day-photo-fix-20260922-204153`，436 個來源檔、47,937,166 bytes，不含後寫入的 release；SHA-256 `a2a3230720fa0c4ed3e8d21719b649176d819fc04f7c8c358fb8672837188107`。上傳前後來源 hash 一致，線上 release 已核對。回復參考為前版 web deployment `81f2ce4e-0722-4fbe-bc5d-125196351034`。
+- Node 22.23.2 隔離建置通過 web typecheck、92 web tests、42 admin tests、admin build、production/live web build；既有 Hero 巢狀 calc/clamp 與大型 chunk 警告保留。`node --check app.js` 與原型打包通過，preview.html 無差異。backend 無差異，未重跑其測試。
+- 46 項公開 GET 檢查通過，包括版本、production/live API、CMS、五校與預約／後台 SSR、照片說明未回歸、正式 CSS／admin 資產 hash、預約設定、robots、404、匿名 401、來源 hash 與三服務 deployment。Nuxt 內建錯誤頁 CSS 延續既有 scope ID 正規化比對；產品 CSS 維持逐位元組 hash 核對。
+- 部署前正式站確認六張 figure 為 386×415、img 386×386。修補建置及線上均通過四種情境：1440px 桌機 WebGL、390px 手機 WebGL、320px 減少動態、390px CSS 備援。每組六張皆成功載圖、正方形比例、可翻面及正確 inert/aria-expanded，無整頁溢出、runtime／hydration error。實測照片尺寸分別為 386×386、253×253、214×214。已檢視本機及線上截圖；Safari／iOS 實機未驗證。
+- 初次線上驗收第一張 WebGL 初始化等待 25 秒逾時；獨立診斷確認圖片與動態模組正常、WebGL 已啟動，只有測試刻意阻擋的 telemetry 請求失敗。未再修改產品來源或重部署，增加診斷紀錄後重新完整四組通過。首次逾時原因未確定，保留原結果，未宣稱已定位或修復另一項初始化問題。
+- 證據：`output/railway-day-photo-fix-20260922-204153/` 的 summary、manifest、approved.patch、build-results／logs、preflight／pre-upload、upload、smoke-public、online-diagnostic、browser-online-first-attempt、final-verification；截圖與回歸结果在 `output/playwright/day-photo-fix-20260922-204153-{baseline,local,online-recheck}/`。準備程式為 `output/prepare-day-photo-fix-deploy.py`。
+- 本機 checkout 的 DayMomentCard 原本已無該標籤，故未用本機整檔覆蓋正式效能版本。此輪手動部署未 commit／push，main 後續同步見下節。未執行 migration、CMS 發布、正式帳號登入、案件寫入或通知／索引啟用。本輪本機預覽服務已停止。
+
+## 2026-09-22 main 同步正式快照與 CI 部署
+
+- 使用者要求同步 main；在隔離 checkout 從最新 `origin/main`（`4466afa`）建立 commit `89235d2796c017f619d4146ee7fdbbfcfb101e20`，已正常 fast-forward 推送遠端 main，未 force push。同步五個產品檔：`DayMomentCard.vue`、`studio.css`、`styles.css`、`CampusBoard.vue`、`NewsDialog.vue`，另更新根目錄 README／DESIGN。
+- main push 會重新部署完整來源，因此保留先前已上線的手機消息／活動橫滑、84% 拍立得與雙面高度、五校線稿大小及手機照片 3:2。逐檔核對 436 個部署來源，CI 重建快照 SHA-256 與手動正式版完全相同：`a2a3230720fa0c4ed3e8d21719b649176d819fc04f7c8c358fb8672837188107`；根目錄說明文件不在部署範圍。
+- 本機 Node 22 typecheck、92 web tests、`node --check app.js`、原型打包與 diff 檢查通過，preview.html 無差異。GitHub Actions [35740635299](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/35740635299) 的 web、admin、Backend／PostgreSQL／contracts 及 Deploy Railway production 四項 job 全部成功。
+- CI web deployment `a56f09f9-a491-498c-b5e7-2c5bfda0f9ef`、API deployment `fc224986-4a89-46c9-8baf-920b921c3d16`。正式 `/release.json` 已核對 base_commit `89235d2…`、snapshot `a2a32307…`；CI 公開 smoke 通過。API 來源與前版相同，Postgres deployment 維持 `be22e502-02ad-41b3-8559-0ce90ae03043`。
+- 本機 `/Users/yilunwu/Desktop/ivy-website-prototype` 的 main 已安全快轉至同一提交；先确认同步檔案與使用者未提交路徑不重疊，再比對 9 個檔案 hash 與 git status，均完全保留。`ivy-website-admin` 仍在原 feature 分支，未合併或整理其未提交修改。
+- 證據：`output/main-sync-20260922/` 的 CI watch log、verification.json、local-main-verification.json；隔離 checkout `/private/tmp/ivy-website-main-sync-20260922-photos`、提交快照 `/private/tmp/ivy-website-main-sync-20260922-committed`。未執行正式資料 migration、CMS 發布或業務資料寫入。
+
+## 2026-09-23 手機關於背景與大字接力部署
+
+- 僅更新 web，deployment `2bb67300-f755-4ef7-8787-ac02a14ef4a4`，SUCCESS。API `9d04a2b6-9f0e-4f5e-ab23-7e9d49c525f4`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 維持原部署，已即時核對。
+- 最新正式基底為 CI commit `9813f34b66143297aff9835ad91d17b3322ffa7f`，重建 437 檔 snapshot 與線上 `14952c0eda3dd103dcd3f322cbd9b76afbeb30a472cc7f2a1fb8fd68946f4f39` 完全一致。只套入本輪 `web/app/assets/css/studio.css` 兩段差異：單欄介紹尾背景、手機大字寬度／透明度及副標排版；保留已發布字型、效能與其他設計。
+- 固定快照 `/private/tmp/ivy-website-about-mobile-20260923-093354`，437 檔、47,943,677 bytes；SHA-256 `8a3dd98d82f1b03ab7392fa7d92190db057c3c3b98757b8d4a399da9f803b858`。上傳前核對線上 release 與三服務狀態，上傳後來源逐檔 hash 不變，線上 `/release.json` 已核對。回復參考為前版 web deployment `73741e40-e9fe-4cfc-8c3d-c4e5590936bc`。
+- Node 22.23.2 隔離建置：web typecheck、92 web tests、42 admin tests、admin build、production/live web build 通過。既有 Hero calc/clamp 與 chunk 建置提醒保留；backend 無差異，未重跑其測試。
+- 正式 42 項公開 GET 檢查通過，涵蓋 release、production/live API、CMS、五校／預約／後台入口、booking-config 契約、robots、404、匿名 401 及服務版本。13 段 SSR 內嵌產品 CSS、外連樣式及 admin assets 均與隔離建置 SHA-256 相符。舊 smoke 僅收集外連 CSS 的不足已補正，詳見 validation-notes。
+- 同份建置及正式站各通過 24 組 Chrome 驗證，涵蓋八尺寸 320–1440px、照片與浮水印間距、文字對位、介紹展開／收合、正反捲動、橫直旋轉、網址列高度、200% 文字、減少動態及無 JS。零水平溢出、runtime／hydration error；已檢視正式 390px 畫面。Safari／iOS 實機未驗證。
+- 證據：`output/railway-about-mobile-20260923-093354/` 的 summary、manifest、approved.patch、build-results／logs、preflight／pre-upload、upload、railway-success、smoke-public、browser-local／browser-online 與 final-verification。準備程式 `output/prepare-about-mobile-deploy.py`。
+- 瀏覽器阻擋 API 寫入；未執行 migration、CMS 發布／初始化、正式帳號登入、案件寫入、通知／索引啟用、commit 或 push。其他進行中的未提交設計不納入本次快照。
+
+
+## 2026-09-23 常春藤的一天照片畫質部署（等待 Railway 初始化）
+
+- 使用者已授權部署，僅上傳 web；deployment `28ce210a-4ad8-4be1-92ea-689da4348224` 於 09:55:28（台灣）建立。截至 10:11:36，仍為 `INITIALIZING`，15 分鐘等待逾時；`snapshotId`、`diagnosis`、`statusUpdatedAt` 均為 null，CLI 建置紀錄回報尚無 associated build。**尚未上線，未完成正式照片驗收。**
+- 正式站仍為 commit `75058da726f03845b54f645164daf41a6549da63`、snapshot `00d0bdab005db252d7c79611ab56cc904e62a164ecce9142337fc959c7c30346`，API production/live health 為 ok。API `0b2c7267-b160-4b2d-b434-2e58b63c919f`、Postgres `be22e502-02ad-41b3-8559-0ce90ae03043` 均維持原部署且 SUCCESS。
+- 最終待上線快照 `/private/tmp/ivy-website-day-photo-quality-20260923-094939`，459 檔／49,128,762 bytes，SHA-256 `6b82fc18babbcfc54e157b0cba3188ea6f5ddfafed413e3e6c9c5d25f252af15`。精確重建當前正式基底，再只修改 3 個 web 程式／manifest 檔與 25 個照片素材；保留正式 renderer 的顯影快取、延後載入及其他已部署改動。上傳前後 hash 一致，沒有攜帶其他未提交設計。
+- 五張照片原生 1080×800、WebP quality 94，響應式小圖 quality 92；原生尺寸另以內容雜湊網址直接複製，避免正式原圖網址一天快取。桌機／手機選圖納入橫圖裁成正方形的像素需求，renderer／貼圖／顯示 Canvas 同步支援最高 3× DPR。教室圖保留現行正式素材。
+- 隔離 Node 22 typecheck、102 web tests、42 admin tests、admin build 與 production/live web build 通過；同份建置本機 24 組 Chrome 驗證通過，含桌機／手機各六張 WebGL 與兩組六張 CSS 備援。核對新版本化網址、來源尺寸、Canvas 像素密度、翻面與無水平溢出，無 runtime error；Safari／iOS 實機未驗證。
+- 證據：`output/railway-day-photo-quality-20260923-094939/` 的 summary、manifest、approved.patch、build-results／logs、browser-local、preflight／pre-upload、upload、uploaded、initialization-diagnostic、final-status 與 validation-notes。重建腳本 `output/prepare-day-photo-quality-deploy.py`；後續線上檢查指令在 validation-notes。
+- 保留此筆等待中的部署，未重複上傳。未執行 migration、CMS 發布、正式帳號登入、業務資料寫入、通知／索引啟用、commit 或 push；只停止本次隔離預覽 3157／3158，未停止使用者開發服務。

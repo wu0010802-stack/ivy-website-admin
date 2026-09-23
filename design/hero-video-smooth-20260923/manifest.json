@@ -1,0 +1,90 @@
+{
+  "source_filename": "常春藤廣告+配音 (1).mp4",
+  "source_sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b",
+  "crop": "1080:800:0:0",
+  "denoise": "hqdn3d=0.6:0.45:0.9:0.7",
+  "detail": "cas=strength=0.18:planes=1",
+  "shots": [
+    {
+      "shot": 1,
+      "source_start": 29.9,
+      "source_end": 30.64,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.433000"
+    },
+    {
+      "shot": 2,
+      "source_start": 30.7,
+      "source_end": 31.55,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.633000"
+    },
+    {
+      "shot": 3,
+      "source_start": 0.15,
+      "source_end": 1.0,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.566000"
+    },
+    {
+      "shot": 4,
+      "source_start": 1.0,
+      "source_end": 1.7,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.300000"
+    },
+    {
+      "shot": 5,
+      "source_start": 2.333,
+      "source_end": 3.6,
+      "speed": 1,
+      "motion": "fps=30",
+      "duration": "1.266000"
+    },
+    {
+      "shot": 6,
+      "source_start": 4.833,
+      "source_end": 5.767,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.833000"
+    },
+    {
+      "shot": 7,
+      "source_start": 5.767,
+      "source_end": 6.567,
+      "speed": 1,
+      "motion": "fps=30",
+      "duration": "0.800000"
+    }
+  ],
+  "variants": [
+    {
+      "file": "hero-smooth-master.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 5672935,
+      "crf": 18,
+      "sha256": "7dd03551eb53b97fc6f18389e014ff1e44a6ead043cb318ffd1cf6d20691ee4f"
+    },
+    {
+      "file": "hero-smooth-mobile.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 3975560,
+      "crf": 21,
+      "sha256": "ae544f17cb20edad4462aa6b6a52b143cdc74c05249199449bd4188c95d7eead"
+    }
+  ],
+  "status": "local-only"
+}

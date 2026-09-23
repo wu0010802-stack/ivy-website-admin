@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>紅幕，為美好揭幕｜常春藤開場動效提案</title>
+  <link rel="icon" href="../../web/public/favicon.ico">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="workbench">
+    <header class="heading">
+      <div><p class="eyebrow">常春藤教育機構 <span>／ 開場動效提案</span></p><h1>紅幕，為美好揭幕<span>。</span></h1></div>
+      <p class="intro">一個開場，三種期待。<br>讓孩子的每一天，從這裡展開。</p>
+    </header>
+    <nav class="directions" aria-label="選擇布幕方案">
+      <button class="direction" data-view="a" aria-pressed="true"><span class="letter">A</span><span><strong>經典對開</strong><small>厚絨紅幕・左右緩緩拉開</small></span><span class="direction-arrow" aria-hidden="true">↔</span></button>
+      <button class="direction" data-view="b" aria-pressed="false"><span class="letter">B</span><span><strong>劇院升幕</strong><small>波浪下襬・整片向上揭起</small></span><span class="direction-arrow" aria-hidden="true">↑</span></button>
+      <button class="direction" data-view="c" aria-pressed="false"><span class="letter">C</span><span><strong>柔弧攬幕</strong><small>輕柔紅緞・向兩角收攏</small></span><span class="direction-arrow" aria-hidden="true">⤴</span></button>
+    </nav>
+    <section class="stage-wrap" aria-label="布幕動畫預覽">
+      <div class="stage" id="stage">
+        <picture class="backdrop"><source media="(max-width: 640px)" srcset="./homepage-mobile.png"><img src="./homepage-desktop.png" alt="現有常春藤官網首頁畫面，布幕打開後顯現。"></picture>
+        <div class="scrim" aria-hidden="true"></div>
+        <canvas id="curtain" aria-hidden="true"></canvas>
+        <div class="opening-copy" aria-hidden="true"><span class="opening-line"></span><p lang="en">IVY EDUCATIONAL INSTITUTION</p><div>每一天，都是精彩的開始。</div><span class="opening-line"></span></div>
+        <button id="skip" class="skip">略過動畫</button>
+        <button id="exit" class="exit" hidden>返回三案比較</button>
+        <div class="corner-note" aria-hidden="true"><span id="corner-letter">A</span> <span id="corner-name">經典對開</span></div>
+      </div>
+      <div class="transport">
+        <button class="replay" id="replay">重新開幕</button>
+        <button class="pause" id="pause">暫停</button>
+        <div class="timeline"><label for="progress">動畫進度</label><input id="progress" type="range" min="0" max="1000" value="0"><output id="time" for="progress">0.0 / 3.2 秒</output></div>
+        <button class="full" id="full">全螢幕體驗 <span aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+    <section class="caption" aria-live="polite">
+      <div class="caption-title"><span class="caption-number" id="number">01 / 03</span><h2 id="title">經典對開</h2><p id="mood">隆重、溫暖，帶一點典禮的期待。</p></div>
+      <p id="description">厚實的酒紅絨幕由中央向左右打開，摺痕隨拉力逐漸收密，讓首頁從中間慢慢出現。</p>
+      <div class="spec"><span id="duration">3.2 秒</span><small id="material">酒紅絨布</small></div>
+    </section>
+    <footer class="footnote"><span>Three.js 立體布幕 · 獨立 mock-up · 背景為現有首頁靜態截圖</span><span id="status" role="status">正在準備布幕…</span></footer>
+    <noscript><p>此預覽需要 JavaScript；首頁背景仍可檢視。</p></noscript>
+  </main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

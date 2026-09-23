@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>布幕協調性精修｜前後比較</title>
+  <style>
+    :root { --paper:#f6f3ec; --ink:#293d34; --muted:#69736c; --line:#d6d6c9; --accent:#783441; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:"PingFang TC","Microsoft JhengHei",sans-serif; }
+    main { width:min(1360px,calc(100% - 48px)); margin:48px auto; }
+    header { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:40px; }
+    h1 { font-size:clamp(24px,3vw,38px); font-weight:500; margin:10px 0 14px; }
+    .eyebrow { font-size:12px; letter-spacing:.14em; color:var(--accent); }
+    p { line-height:1.8; margin:0; max-width:48em; color:var(--muted); }
+    .back { color:var(--ink); padding:12px 0; white-space:nowrap; text-underline-offset:5px; }
+    .pair { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    figure { margin:0; }
+    figcaption { display:flex; gap:12px; align-items:baseline; padding:14px 0; border-top:1px solid var(--line); }
+    figcaption strong { font-size:17px; font-weight:600; }
+    figcaption span { font-size:13px; color:var(--muted); }
+    img { display:block; width:100%; height:auto; }
+    .mobile { max-width:720px; margin:52px auto; }
+    .note { font-size:13px; margin-top:28px; }
+    a:focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
+    @media(max-width:640px) { main { width:calc(100% - 32px); margin-top:28px; } header { display:block; } .back { display:inline-block; margin-top:12px; } .pair { gap:12px; } .desktop { grid-template-columns:1fr; gap:28px; } figcaption { display:block; } figcaption span { display:block; margin-top:5px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="eyebrow">A 經典對開・協調性精修</span>
+        <h1>讓金光與紅絨，各自有位置。</h1>
+        <p>收斂紅色亮度、拉近校徽與倒數、統一圓潤字形。保留原來的校徽與完整 3、2、1 開幕。</p>
+      </div>
+      <a class="back" href="../">播放精修版動畫 →</a>
+    </header>
+    <section class="pair desktop" aria-label="桌機前後比較">
+      <figure><figcaption><strong>調整前</strong><span>鮮紅、較大的校徽、較遠的倒數</span></figcaption><a href="desktop-before.jpg"><img src="desktop-before.jpg" alt="前版桌機：較亮的紅布幕、大校徽及襯線數字 3" width="1440" height="900"></a></figure>
+      <figure><figcaption><strong>精修後</strong><span>酒紅、集中構圖、柔和金光</span></figcaption><a href="desktop-after.jpg"><img src="desktop-after.jpg" alt="新版桌機：酒紅布幕、收小置中的校徽及靠近的圓潤數字 3" width="1440" height="900"></a></figure>
+    </section>
+    <section class="pair mobile" aria-label="手機前後比較">
+      <figure><figcaption><strong>手機・調整前</strong></figcaption><a href="mobile-before.jpg"><img src="mobile-before.jpg" alt="前版手機的校徽與倒數比例" width="390" height="844" loading="lazy"></a></figure>
+      <figure><figcaption><strong>手機・精修後</strong></figcaption><a href="mobile-after.jpg"><img src="mobile-after.jpg" alt="新版手機的校徽與倒數集中呈現，四周保留更多空間" width="390" height="844" loading="lazy"></a></figure>
+    </section>
+    <p class="note">以上為本機 Nuxt 首頁的實際瀏覽器截圖，可點開看原尺寸；動態請按「播放精修版動畫」。</p>
+  </main>
+</body>
+</html>

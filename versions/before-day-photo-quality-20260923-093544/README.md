@@ -1,64 +1,8 @@
-## 2026-09-23 膠卷縮成中央橫框，321 光學置中
-
-依要求取消電腦版滿版膠卷，改為中央 16:9 橫框，四周露出紅布幕，最大寬度 880px 且依容器尺寸縮放。校徽與倒數圓圈仍共用中心與高度。框內移除向上偏移；3、2、1 的橫向依實際墨色重心校正、垂直依可見字形置中，修正「1」直筆偏右的視覺感。手機版與完整 7.9 秒流程維持原樣。
-
-[重播預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[本機首頁](http://127.0.0.1:3136/)。快照 `versions/before-film-panel-20260923-111907/`，證據 `output/playwright/film-panel-20260923/`。未部署、未提交。
-
-## 2026-09-23 首屏按鈕 ?cta= 比稿（否決，已移除）
-
-「看看孩子的一天」白框幽靈鈕試了三個 `?cta=` 方向：a 霧面深綠膠囊、b 米白實心＋黃色圓形箭頭、c 圓形箭頭加底線文字。使用者看過後決定都不用，維持現行白框按鈕；`web/app/components/HeroVideo.vue` 已還原為提交版本（`git diff` 無差異），否決紀錄寫進 DESIGN.md。截圖保留在 `output/hero-cta-20260923/` 供追溯。
-
-## 2026-09-23 電腦版改為參考圖的復古膠卷
-
-電腦版（>900px）倒數依使用者截圖改成米褐色底、深褐大數字與單圈粗圓框，加上兩側齒孔、十字線、旋轉掃針與細緻底片磨損。先校徽、再完整 321、最後紅布幕拉開的 7.9 秒流程不變；900px 以下保留上一版的暖金布面投影。
-
-[可重播預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[實際 Nuxt 首頁](http://127.0.0.1:3136/)。新膠卷用 Three.js 平面呈現並隨開幕退場；修正獨立預覽打包器只替換第一個 Three.js import 的問題。快照 `versions/before-desktop-film-20260923-094848/`，證據 `output/playwright/desktop-film-20260923/`。本機修改，未部署、未提交。
-
-## 2026-09-23 Hero 活動鏡頭卡頓修正
-
-[修正版獨立預覽](http://127.0.0.1:3147/)：Chrome 1440／390／320px 各連播 14 秒，皆為 0 掉幀、無超過 90ms 的影格呈現間隔，循環與暫停／恢復正常，無 runtime error。這是本機 Chrome 與手機模擬量測；Safari／iOS 實機未驗證。
-
-第 5 鏡戶外遊戲與第 7 鏡跳躍原本用重複影格維持半速，封裝雖為 30fps，動作實際只有 15fps。這兩段改回原片自然速度、真實 30fps，其餘五段維持既有平順半速；七段鏡頭與 1080×800 畫質保留，總長由 11.7 秒縮短至 9.833333 秒。從園方原片重新產製，各自由無損中間檔壓縮一次，桌機 CRF 18／5.67 MB、手機 CRF 21／3.98 MB。
-
-逐鏡相鄰影格檢查中，第 5／7 鏡的 36／22 組近重複影格皆消除；兩份新影片七鏡均為零近重複影格（108×80 灰階 MAE ≤0.35 門檻）。Typecheck、119 項單元測試、原型語法／重打包通過，`preview.html` hash 不變。產製方式見 `design/hero-video-smooth-20260923/README.md`，量測證據在 `output/hero-smooth-20260923/`；修改前快照 `versions/before-hero-smooth-20260923-094446/`。本機修改，未部署、未提交。
-
-## 2026-09-23 Hero 小標拿掉「高雄五校」，修正首頁按鈕與頁尾連結無效
-
-Nuxt 首頁 hero 小標改為「常春藤幼兒園」，`web/server/data/site-fixture.json` 與後端初始化用的 `content/site-fixture.json` 同步修改；vanilla 原型已凍結，未更動。正式站小標由後台 CMS 決定，需要到後台「首頁主視覺」修改後再發布。
-
-另修正沿用原型 hash 路由的連結：「看看孩子的一天」原本是 `#/home/life`，頁尾五個連結也是 `#/home/*`、`#/visit`。`legacy-hash` 外掛只在載入時轉址，點擊後網址會改變但頁面不捲動；從分校頁點擊也不會回到首頁。現在改為 `/#life`、`/#about`、`/#campuses`、`/#latest-news`、`/visit`。這些連結不經 CMS，部署後正式站就會生效。
-
-Chrome 1440×900 與 390×844 實測：hero 按鈕會落在「孩子的一天」區塊；從 `/campuses/yihua` 點頁尾四個連結都能到達目標區塊或頁面。Node 22 下 content／public-copy／legacy-hash／seo 四檔共 30 項測試通過。本機修改，未部署、未提交。
-
-Node 22 型別檢查、119 項單元測試與獨立 Nuxt build 通過。實際首頁 1440／901／390px 的校徽→321→拉幕、工作階段一次、無水平溢出與倒數中略過／WebGL context loss／減少動態驗證通過，無 runtime／shader error。320／390／900px 各五個關鍵影格與前版像素完全一致；1440→390→1440 切換正確，尾段透明及資源釋放正常。原型語法、重打包與 diff 檢查通過，preview.html 雜湊不變。建置保留既有 CSS calc/clamp 與 chunk 大小警告；Safari／iOS 實機未驗證。
-
-## 2026-09-23 校徽先行，接同位置的復古電影倒數
-
-依最新要求，先投影校徽 1.5 秒，再由相同中心與高度的電影倒數圓盤接替，3、2、1 各一秒，最後 3.4 秒拉幕。倒數採暖金雙圓環、順時針掃針、深酒紅大數字與細緻底片顆粒；原始校徽、酒紅絨布及布面投影保留。總長 7.9 秒，取代先前校徽與小倒數同時出現的版本。
-
-[可重播預覽](http://127.0.0.1:8842/design/entrance-curtain-a-velvet-20260922/)；[本輪實際 Nuxt 首頁](http://127.0.0.1:3136/)。獨立建置位於 `output/film-build/`，避免覆蓋其他 session 的 `.output` 服務。修改前快照 `versions/before-film-countdown-20260923-094014/`，瀏覽器證據 `output/playwright/film-countdown-20260923/`。本機修改，未部署、未提交。
-
-Node 22 型別檢查、119 項單元測試及獨立 Nuxt build 通過。Chrome／Apple M2 的 1440×900、768×1024、390×844、320×568 共 30 組播放／備援檢查通過，無 runtime／hydration／shader error；包含校徽先行、逐秒倒數、完整拉幕、各階段略過、同工作階段不重播，以及載入失敗放行。實際布面投影外框高度差低於 1%，圓盤與校徽共用投影中心（不同輪廓受布褶扭曲後，像素外框中心差 0.5–4.5px）。原始 PNG 雜湊相同，原型語法／重打包／diff 檢查通過，preview.html 雜湊不變。建置仍有既有 CSS calc/clamp 解析及 chunk 大小警告；Safari／iOS 實機未驗證。
-
-## 2026-09-23 常春藤的一天照片畫質提升
-
-Nuxt 五張影片截圖重新取自園方原始影片的同一秒數，從 810×600 回復為原生 1080×800，保留相同鏡頭、裁切與色彩；WebP 母圖 quality 94、響應式衍生圖 quality 92。完整尺寸也使用內容雜湊網址，避免回訪者沿用舊照片快取。五張完整圖片合計約 453 KiB（原本 161 KiB），沿用 lazy loading。`sizes` 納入橫圖裁成方形時的像素需求；WebGL 紙面、顯示 Canvas 與共用 renderer 支援至 3× DPR，照片縮圖在支援的瀏覽器使用高品質平滑取樣。
-
-第六張教室照片保留既有 960×600；來源網站回傳 HTTP 500，尚無可確認的更大原圖。原片本身的失焦與運動模糊仍受來源限制，未重繪人物或場景。
-
-重製：`python3 scripts/restore-day-photos.py '/path/to/常春藤廣告+配音.mp4'`，接著 `python3 scripts/optimize-site-images.py --only day-hello day-discover day-lunch day-outside day-home`。腳本核對來源 SHA-256，僅更新 Nuxt 素材。前後瀏覽器證據：`output/playwright/day-photo-quality-20260923/`；快照：`versions/before-day-photo-quality-20260923-093544/`。本次僅本機修改，未部署、未提交。
-
-Node 22 typecheck、18 檔共 119 項單元測試通過。Chrome 桌機 1440px／2× 與手機 390px／3× 的 12 組 WebGL 照片載入、像素密度、翻面往返通過；320px 無 WebGL 與 390px 減少動態的 12 組 CSS 備援通過，無水平溢出或 runtime error。五張新圖均更接近原始影格（PSNR 43.2–44.4 dB，舊圖放大後為 38.0–39.8 dB；僅為來源保存比較）。原型語法、重打包與 diff 檢查通過，`preview.html` 無差異；Safari／iOS 實機尚未驗證。
-
-已依使用者要求送出正式 web 部署，但截至 2026-09-23 10:11（台灣），Railway `28ce210a-4ad8-4be1-92ea-689da4348224` 仍停在 `INITIALIZING` 超過 15 分鐘；**照片清晰版尚未上線**。最終快照 `6b82fc18…` 的 102 項 web／42 項 admin 測試、前後台建置及本機 24 組瀏覽器檢查通過。正式站仍提供原版本，API／Postgres 正常；詳見[部署等待紀錄](deploy/README.md)。
-
 ## 2026-09-23 Hero 播放畫質提升
 
 Nuxt 首頁桌機改用現有 1080×800、CRF 18 修復母帶（4.17 → 5.95 MB）；手機從 720×534、CRF 22 提升為 1080×800、CRF 21（2.05 → 4.17 MB），改善高密度螢幕裁切放大後的細節。素材直接複製、更新雜湊網址，避免再次轉碼；鏡頭、色調、速度、封面與版面維持原樣，減少動態／省流量／慢速連線仍不下載影片。原片失焦與運動模糊仍受來源限制。
 
 修復前後的瀏覽器證據放在 `output/hero-quality-20260923/`。本次僅本機修改，未部署、未提交。
-
-Node 22 typecheck 與 117 項單元測試通過；Chrome 1440／390／320px 確認實際載入新影片、暫停／恢復與完整循環正常，無水平溢出或 runtime error。減少動態／省流量／3G 三種情境皆不請求 Hero MP4。兩份輸出與來源逐位元相同，1080×800、351 幀、11.7 秒、faststart 與完整解碼通過。`node --check app.js`、原型重打包及 diff 檢查通過，`preview.html` hash 不變；Safari／iOS 實機未驗證。
 
 ## 2026-09-23 開場動態與陰影渲染優化
 
@@ -72,9 +16,7 @@ Node 22 typecheck 與 117 項單元測試通過；Chrome 1440／390／320px 確�
 
 加長 Nuxt 首頁手機介紹照片後方的綠色背景，讓「關於／常春藤」大字完整露出後再接到日常影片；390×844 下增加約 246px，轉場前照片與大字保留約 40px 空間。沿用原先較短的擦除距離與雙照片構圖，修正 320px 大字裁切、水平對位及副標斷行；手機浮水印恢復既定 .28 透明度。減少動態／無 JS 不增加轉場留白。
 
-前後截圖與驗證記錄：`output/playwright/about-mobile-20260923/`；快照：`versions/before-about-mobile-20260923-092601/`。本次只修改 Nuxt CSS 與紀錄，未提交。
-
-已部署至[正式官網](https://web-production-04caa.up.railway.app/)：web deployment `2bb67300-f755-4ef7-8787-ac02a14ef4a4` SUCCESS，release `8a3dd98d…`。以最新正式 `9813f34`／`14952c0e…` 為基底，只套入本輪 CSS；API／Postgres 部署維持原版。隔離建置通過 typecheck、92 web／42 admin tests 及前後台 build；正式站 42 項公開檢查、八尺寸 24 組版面／互動檢查通過，13 段內嵌 CSS 與建置 hash 相符。證據：`output/railway-about-mobile-20260923-093354/`，詳見[部署紀錄](deploy/README.md)。
+前後截圖與驗證記錄：`output/playwright/about-mobile-20260923/`；快照：`versions/before-about-mobile-20260923-092601/`。本次只修改 Nuxt CSS 與紀錄，未部署、未提交。
 
 Node 22 `npm run typecheck`、116 項單元測試、原型語法／重打包及 diff 檢查通過；`preview.html` SHA-256 不變。Chrome 八尺寸、24 組檢查涵蓋介紹展開收合、轉場正反向捲動、200% 文字放大、手機橫直旋轉、網址列高度變動、減少動態與無 JS；無水平溢出，動態頁面無 runtime error。900px 以下單欄照片與大字至少保留約 40px 間距，1440px 幾何與修改前相同。Safari／iOS 實機尚未驗證。
 
@@ -83,8 +25,6 @@ Node 22 `npm run typecheck`、116 項單元測試、原型語法／重打包及 
 依使用者要求讓翻面更自然（僅 Nuxt `web/`，凍結原型不動）。翻面改為永遠右緣掀起往左翻，與右下折角、首張偷看同方向，翻到一半再點原路翻回；節奏改為 0.95 秒、點下即起步的曲線；紙改成單側懸臂微彎、停下輕輕回彈，抬升時下緣先起、影子變淡變散；紙膠帶畫進紙面跟著翻，不再停在原地。同時修掉兩個舊 bug：WebGL 紙量到旋轉後外框而大約 5% 且偏右下、翻到一半穿過接影子地板而出現假摺痕。鍵盤焦點框翻面途中先淡掉。規則見 DESIGN.md「翻面手感改得更自然」。
 
 Node 22 typecheck 0 錯誤、單元測試 115 項通過（新增 `web/tests/print-flip.spec.ts`）；Chrome＋SwiftShader 以假時鐘逐格驗證桌機／390px 手機的 WebGL 版與停用 WebGL 的 CSS 版：翻過去、翻回、途中反轉、偷看中點擊、鍵盤焦點框、懸停，靜止後 WebGL 紙與 DOM 差異只剩 1px 邊緣。前後對照在 `output/playwright/flip-natural-20260923/`。未跑 `nuxt build`（另一個 session 的 server 正在使用 `web/.output`）；實機 GPU、Safari／iOS 未驗證。
-
-Node 22 typecheck、117 項單元測試與最終 Nuxt build 通過。29 組進站／備援檢查通過；尾段陰影修正後，另以 1440×900、390×844、320×568 實際首頁逐秒倒數、完整開幕、重新整理不重播，以及預覽尾段透明度／重播重新確認，均無 runtime／hydration／shader error。中央 canvas alpha 實測由原先固定 46/255，改為 23→1→0；原型語法與重打包通過，preview.html hash 不變。既有拍立得變更及執行中並行修改的 studio.css 保留。Safari／iOS 實機未驗證。
 
 ## 2026-09-23 布幕協調性精修
 
