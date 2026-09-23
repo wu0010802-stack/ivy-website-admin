@@ -78,7 +78,7 @@ onMounted(load)
     <template v-else-if="summary">
       <dl class="dash__summary" aria-label="營運摘要">
         <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><router-link to="/visit-requests?status=confirmed">查看已確認案件</router-link></div>
-        <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><span class="hint">已到預定聯絡時間</span></div>
+        <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><router-link to="/visit-requests?due=1">查看到期案件</router-link></div>
         <div><dt>未發布的草稿</dt><dd>{{ summary.pending_publish }}<span>篇</span></dd><span class="hint">儲存過但從未發布</span></div>
         <div><dt>通知寄送失敗</dt><dd>{{ summary.failed_notifications }}<span>則</span></dd><router-link to="/notifications">查看通知紀錄</router-link></div>
       </dl>
@@ -99,9 +99,9 @@ onMounted(load)
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title"><h2 id="tasks-title">待辦與提醒</h2><span class="hint">依目前資料顯示</span></div>
           <div class="panel dash__task-list">
-            <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests">
+            <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1">
               <span class="task__number">{{ summary.pending_follow_up }}</span>
-              <div><h3>案件已到追蹤時間</h3><p>查看預定聯絡時間，完成追蹤後更新案件。</p><span class="task__action">查看全部案件 →</span></div>
+              <div><h3>案件已到追蹤時間</h3><p>之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span class="task__action">查看到期案件 →</span></div>
             </router-link>
             <router-link v-if="summary.campuses_without_active_booking.length" class="task" to="/booking">
               <span class="task__number">{{ summary.campuses_without_active_booking.length }}</span>

@@ -82,12 +82,24 @@ function errorText(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback
 }
 
+// 讓總管理者自己想 12 字密碼，實務上會出現「Ivy12345678」。給一顆產生鈕，
+// 用瀏覽器亂數挑不易混淆的字元；產生後直接顯示明文讓人抄給對方。
+const PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const passwordVisible = ref(false)
+function generatePassword() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  form.password = Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join('')
+  passwordVisible.value = true
+}
+
 function openCreateDialog() {
   if (operationBusy.value || loading.value) return
   form.email = ''
   form.password = ''
   form.role = 'campus_admin'
   form.campus_keys = []
+  passwordVisible.value = false
   dialogVisible.value = true
 }
 
@@ -227,9 +239,12 @@ onMounted(loadUsers)
             <el-input v-model="form.email" type="email" autocomplete="off" />
           </el-form-item>
           <el-form-item label="密碼">
-            <el-input v-model="form.password" type="password" show-password autocomplete="new-password" />
+            <div class="password-row">
+              <el-input v-model="form.password" :type="passwordVisible ? 'text' : 'password'" :show-password="!passwordVisible" autocomplete="new-password" />
+              <el-button @click="generatePassword">產生密碼</el-button>
+            </div>
             <span class="field-help" :class="{ 'is-ok': form.password.length >= 12 }">
-              至少 12 字元（目前 {{ form.password.length }} 字）。建議建立後請對方自行更換。
+              至少 12 字元（目前 {{ form.password.length }} 字）。建立後請把密碼抄給對方，這裡不會再顯示。
             </span>
           </el-form-item>
           <el-form-item label="角色">
@@ -270,6 +285,9 @@ onMounted(loadUsers)
 </template>
 
 <style scoped>
+.password-row { display: flex; gap: 8px; width: 100%; }
+.password-row .el-input { flex: 1; }
+
 .self-tag {
   margin-left: 8px;
 }

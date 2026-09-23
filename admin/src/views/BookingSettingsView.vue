@@ -137,7 +137,6 @@ async function save() {
 
     <div class="toolbar filter-bar">
       <label class="filter-field"><span>編輯校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="saving || confirmingSwitch" @update:model-value="switchCampus" /></label>
-      <span v-if="config" class="hint">目前為第 {{ config.version }} 版</span>
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 

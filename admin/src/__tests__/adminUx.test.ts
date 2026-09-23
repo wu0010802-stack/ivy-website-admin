@@ -73,7 +73,7 @@ describe('後台導覽與編輯操作', () => {
     await flushPromises()
     expect(wrapper.get('input').element.value).toBe('')
     expect(wrapper.get('#nav-home').isVisible()).toBe(true)
-    expect(wrapper.get('[aria-current="page"]').text()).toBe('首頁首屏文字')
+    expect(wrapper.get('[aria-current="page"]').text()).toBe('首頁大圖標語')
   })
 
   it('官網內容分成三個子組共用一個區段標題，收合狀態記在瀏覽器', async () => {

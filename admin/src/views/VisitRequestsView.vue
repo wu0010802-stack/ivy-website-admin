@@ -16,6 +16,10 @@ const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 
 const campusFilter = ref('')
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
+// 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
+const dueOnly = ref(route.query.due === '1')
+// 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。
+const order = ref<'newest' | 'oldest'>('newest')
 const page = ref(1)
 const pageSize = 20
 const requests = ref<VisitRequestDetailOut[]>([])
@@ -23,11 +27,12 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 let loadVersion = 0
 const search = ref('')
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim()))
+const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value))
 function clearFilters() {
   campusFilter.value = ''
   statusFilter.value = ''
   search.value = ''
+  dueOnly.value = false
 }
 
 const hasNext = computed(() => requests.value.length === pageSize)
@@ -41,6 +46,8 @@ async function load() {
     if (campusFilter.value) params.set('campus_key', campusFilter.value)
     if (statusFilter.value) params.set('status', statusFilter.value)
     if (search.value.trim()) params.set('q', search.value.trim())
+    if (dueOnly.value) params.set('follow_up_due', 'true')
+    if (order.value !== 'newest') params.set('order', order.value)
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version === loadVersion) requests.value = result
   } catch {
@@ -53,7 +60,7 @@ async function load() {
   }
 }
 
-watch([campusFilter, statusFilter], () => {
+watch([campusFilter, statusFilter, dueOnly, order], () => {
   page.value = 1
   load()
 })
@@ -71,6 +78,15 @@ watch(page, load)
 watch(() => route.query.status, status => {
   statusFilter.value = typeof status === 'string' ? status : ''
 })
+watch(() => route.query.due, due => {
+  dueOnly.value = due === '1'
+})
+
+function followUpDue(row: VisitRequestDetailOut): boolean {
+  if (!row.follow_up_at) return false
+  if (row.status === 'cancelled' || row.status === 'completed') return false
+  return new Date(row.follow_up_at).getTime() <= Date.now()
+}
 
 function exportCsv() {
   const params = new URLSearchParams()
@@ -84,6 +100,7 @@ function openDetail(row: VisitRequestDetailOut) {
 
 const emptyText = computed(() => {
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
+  if (dueOnly.value) return '沒有到期待追蹤的案件'
   if (statusFilter.value) return `沒有「${VISIT_STATUS[statusFilter.value]?.label ?? statusFilter.value}」的案件`
   return '還沒有任何參觀需求'
 })
@@ -111,6 +128,13 @@ onMounted(load)
         <el-option v-for="s in VISIT_STATUS_ORDER" :key="s" :label="VISIT_STATUS[s]!.label" :value="s" />
       </el-select>
       </div>
+      <div class="filter-field"><span>排序</span>
+      <el-select v-model="order" aria-label="排序" style="width: 150px">
+        <el-option label="最新送出在前" value="newest" />
+        <el-option label="最早送出在前" value="oldest" />
+      </el-select>
+      </div>
+      <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
 
@@ -136,7 +160,15 @@ onMounted(load)
         <el-table-column label="校區" width="90">
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ campusLabel(row.campus_key) }}</template>
         </el-table-column>
-        <el-table-column label="家長" min-width="120"><template #default="{ row }: { row: VisitRequestDetailOut }"><router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link></template></el-table-column>
+        <el-table-column label="家長／孩子" min-width="150">
+          <template #default="{ row }: { row: VisitRequestDetailOut }">
+            <router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link>
+            <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}</span>
+            <span v-if="row.follow_up_at" class="cell-sub num" :class="{ 'is-due': followUpDue(row) }">
+              {{ followUpDue(row) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(row.follow_up_at) }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="參觀時間" width="260">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span v-if="row.slot" class="num">{{ formatSlotWhen(row.slot) }}</span>
@@ -144,10 +176,7 @@ onMounted(load)
           </template>
         </el-table-column>
         <el-table-column label="電話" width="140">
-          <template #default="{ row }: { row: VisitRequestDetailOut }"><span class="num">{{ row.phone }}</span></template>
-        </el-table-column>
-        <el-table-column label="孩子姓名" width="110">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.child_name || '未填寫' }}</template>
+          <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
         </el-table-column>
         <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
@@ -165,6 +194,7 @@ onMounted(load)
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
+            <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(request.follow_up_at) }}</p>
             <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
             <p>方便時段：{{ request.preferred_time || '未填寫' }}</p>
@@ -186,6 +216,10 @@ onMounted(load)
 <style scoped>
 .toolbar { align-items: flex-end; }
 .filter-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.filter-due { align-self: center; padding-bottom: 6px; }
+.cell-sub { display: block; font-size: 12px; line-height: 1.4; }
+.cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
+.request-list__follow { font-size: 13px; }
 .requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
 .requests-empty strong { font-size: 16px; color: var(--ink); }
 .requests-empty p { margin: 8px auto 16px; max-width: 50ch; }

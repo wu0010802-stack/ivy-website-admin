@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import or_, select
@@ -16,7 +16,7 @@ from app.auth.permissions import ScopeDenied, require_scope
 from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
 from app.operations import audit_service
-from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitSlot
+from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.schemas import (
     BookingConfigOut,
     BookingConfigUpdateRequest,
@@ -363,6 +363,8 @@ async def list_visit_requests(
     campus_key: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
     q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
+    follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
+    order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -370,6 +372,14 @@ async def list_visit_requests(
 ) -> list[VisitRequestDetailOut]:
     require_scope(current_user, "booking.read")
     stmt = select(VisitRequest).options(selectinload(VisitRequest.slot))
+    if follow_up_due:
+        # 與 dashboard_service 的「到期待追蹤」同一個定義，總覽的數字點進來
+        # 才會是同一批案件。
+        stmt = stmt.where(
+            VisitRequest.follow_up_at.is_not(None),
+            VisitRequest.follow_up_at <= datetime.now(timezone.utc),
+            VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
+        )
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         stmt = stmt.where(VisitRequest.campus_key == campus_key)
@@ -391,7 +401,8 @@ async def list_visit_requests(
                 VisitRequest.phone.like(pattern, escape="\\"),
             )
         )
-    stmt = stmt.order_by(VisitRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    ordering = VisitRequest.created_at.asc() if order == "oldest" else VisitRequest.created_at.desc()
+    stmt = stmt.order_by(ordering).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
 

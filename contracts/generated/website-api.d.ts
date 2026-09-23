@@ -2782,6 +2782,10 @@ export interface operations {
                 status?: string | null;
                 /** @description 家長或寶貝姓名、電話或 Email 片段 */
                 q?: string | null;
+                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
+                follow_up_due?: boolean;
+                /** @description 送出時間排序 */
+                order?: string;
                 page?: number;
                 page_size?: number;
             };

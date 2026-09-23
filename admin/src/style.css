@@ -597,3 +597,18 @@ a.stat:hover {
     flex: 1;
   }
 }
+
+/* 發布確認框：列出會變動的欄位，寬一點才擺得下「之前 → 之後」。 */
+.el-message-box.publish-confirm { width: min(560px, calc(100vw - 32px)); }
+.publish-diff p { margin: 0 0 8px; }
+.publish-diff ul { list-style: none; margin: 0 0 10px; padding: 0; }
+.publish-diff li { display: grid; grid-template-columns: 6em minmax(0, 1fr) auto minmax(0, 1fr); gap: 0 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.publish-diff li:first-child { border-top: 0; }
+.publish-diff strong { color: var(--ink); font-weight: 600; }
+.publish-diff__before { color: var(--ink-3); text-decoration: line-through; overflow-wrap: anywhere; }
+.publish-diff__arrow { color: var(--ink-3); }
+.publish-diff__after { color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .publish-diff li { grid-template-columns: 1fr; }
+  .publish-diff__arrow { display: none; }
+}

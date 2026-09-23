@@ -39,7 +39,7 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="form-section">頁尾預約橫幅</h3>
-      <el-form-item label="標題樣板">
+      <el-form-item label="橫幅標題">
         <el-input v-model="editor.form.value.banner_title_template" />
         <span class="field-help">可用 <code>{campus}</code> 代表目前校名，例如「歡迎預約參觀{campus}」。</span>
       </el-form-item>

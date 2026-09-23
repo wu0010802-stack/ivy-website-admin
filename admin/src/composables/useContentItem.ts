@@ -1,8 +1,38 @@
-import { computed, ref, unref, type ComputedRef, type Ref } from 'vue'
+import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { ContentItemOut } from '../api/types'
+import { contentFieldLabel, contentPublicPath } from '../api/labels'
+import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
+
+/** 發布確認框列出的一筆差異：欄位中文名、上次儲存的值、現在的值 */
+export interface FieldChange {
+  key: string
+  label: string
+  before: string
+  after: string
+}
+
+// 把欄位值壓成一行給確認框看；陣列與物件不逐項比，只講「N 項」。
+export function summarizeValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '（空白）'
+  if (Array.isArray(value)) {
+    const strings = value.filter((v) => typeof v === 'string') as string[]
+    if (strings.length === value.length) return strings.map((v) => v || '（空白）').join('／')
+    return `${value.length} 項`
+  }
+  if (typeof value === 'object') return '（已修改）'
+  const text = String(value)
+  return text.length > 60 ? `${text.slice(0, 60)}…` : text
+}
+
+export function diffPayload(before: Record<string, unknown>, after: Record<string, unknown>): FieldChange[] {
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+  return keys
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .map((key) => ({ key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }))
+}
 
 // ContentEditor 外殼需要的狀態與動作；useContentItem 的回傳值結構上符合，
 // 頁面把整個 handle 傳給 <ContentEditor :editor> 即可。
@@ -15,6 +45,10 @@ export interface ContentEditorState {
   isDirty: ComputedRef<boolean>
   neverPublished: ComputedRef<boolean>
   latestRevisionAt: ComputedRef<string | null>
+  /** 未儲存的修改與上次儲存相比動了哪些欄位；ContentEditor 用來在發布前列給人看 */
+  changes?: ComputedRef<FieldChange[]>
+  /** 發布後「查看官網」要開的完整網址 */
+  publicUrl?: ComputedRef<string>
   load: () => Promise<void>
   save: () => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -54,6 +88,13 @@ export function useContentItem<TPayload extends object>(
   }
 
   const isDirty = computed(() => JSON.stringify(form.value) !== snapshot.value)
+
+  const changes = computed<FieldChange[]>(() => {
+    if (!snapshot.value) return []
+    return diffPayload(JSON.parse(snapshot.value) as Record<string, unknown>, form.value as Record<string, unknown>)
+  })
+
+  const publicUrl = computed(() => `${WEBSITE_ASSET_BASE}${contentPublicPath(kind, unref(campusKey))}`)
 
   /** 最新草稿的建立時間（ISO），沒有任何版本時為 null */
   const latestRevisionAt = computed(() => item.value?.latest_revision?.created_at ?? null)
@@ -138,7 +179,16 @@ export function useContentItem<TPayload extends object>(
         revision_id: item.value.latest_revision.id,
       })
       isPublished.value = true
-      ElMessage.success('已發布到官網')
+      // 發布是唯一會被家長看到的動作，成功後直接給連結，不用自己去找官網。
+      ElMessage({
+        type: 'success',
+        duration: 8000,
+        showClose: true,
+        message: h('span', null, [
+          '已發布到官網。',
+          h('a', { href: publicUrl.value, target: '_blank', rel: 'noopener', style: 'margin-left:8px;text-decoration:underline;color:inherit' }, '查看官網 ↗'),
+        ]),
+      })
       return true
     } catch (err) {
       ElMessage.error(errorMessage(err, '發布失敗'))
@@ -171,6 +221,8 @@ export function useContentItem<TPayload extends object>(
     publishing,
     isPublished,
     isDirty,
+    changes,
+    publicUrl,
     latestRevisionAt,
     neverPublished,
     load,

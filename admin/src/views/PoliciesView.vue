@@ -89,7 +89,7 @@ async function runRetention() {
     await ElMessageBox.confirm(
       `將把 ${retentionReport.value.candidate_count} 筆超過 ${checkedDays.value} 天的已取消／未到場案件的姓名、電話、問題改成匿名文字，無法復原。`,
       '確定執行清理？',
-      { confirmButtonText: '執行清理', cancelButtonText: '取消', type: 'warning', confirmButtonClass: 'el-button--danger' },
+      { confirmButtonText: '執行清理', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger' },
     )
   } catch {
     runningRetention.value = false

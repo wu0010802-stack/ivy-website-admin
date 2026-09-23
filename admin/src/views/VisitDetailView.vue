@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
 import { campusLabel, formatDateTime, formatSlotWhen, visitStatus, referralSourceLabels } from '../api/labels'
@@ -10,13 +10,19 @@ import StatusTag from '../components/StatusTag.vue'
 
 const route = useRoute()
 const router = useRouter()
-const id = route.params.id as string
+const id = computed(() => route.params.id as string)
 
 const detail = ref<VisitRequestDetailOut | null>(null)
 const notes = ref<VisitContactNoteOut[]>([])
 const availableSlots = ref<VisitSlotOut[]>([])
 const selectedSlotId = ref('')
 const newNote = ref('')
+// 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
+// 總覽的「到期待追蹤」也才會有來源。
+const followUpAt = ref<string | null>(null)
+const noteInput = ref<{ focus: () => void } | null>(null)
+// 同校還在「待處理」的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
+const nextPending = ref<{ id: string; count: number } | null>(null)
 const busy = ref(false)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -25,8 +31,9 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    detail.value = await api.get<VisitRequestDetailOut>(`/admin/visit-requests/${id}`)
-    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id}/contact-notes`)
+    detail.value = await api.get<VisitRequestDetailOut>(`/admin/visit-requests/${id.value}`)
+    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id.value}/contact-notes`)
+    void loadNextPending(detail.value.campus_key)
     if (detail.value.status === 'new') {
       const today = new Date().toISOString().slice(0, 10)
       const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -38,6 +45,17 @@ async function load() {
     error.value = err instanceof ApiError && err.status === 404 ? '找不到這筆案件，可能已被移除或不在你的校區範圍。' : '無法讀取案件'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadNextPending(campusKey: string) {
+  try {
+    const params = new URLSearchParams({ status: 'new', campus_key: campusKey, order: 'oldest', page_size: '50' })
+    const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
+    const others = Array.isArray(list) ? list.filter((r) => r.id !== id.value) : []
+    nextPending.value = others.length ? { id: others[0]!.id, count: others.length } : null
+  } catch {
+    nextPending.value = null
   }
 }
 
@@ -79,9 +97,14 @@ async function confirm() {
   }
   busy.value = true
   try {
-    await api.post(`/admin/visit-requests/${id}/confirm`, { slot_id: slot.id })
-    ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}`)
+    await api.post(`/admin/visit-requests/${id.value}/confirm`, { slot_id: slot.id })
+    ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}。記得告知家長。`)
     await load()
+    // 確認完的下一步幾乎都是打電話告知家長：把紀錄框先填好、游標放進去，
+    // 講完電話按 Enter 就記下，不用再想要寫什麼。
+    if (!newNote.value.trim()) newNote.value = `已致電家長，告知參觀時間 ${formatSlotWhen(slot)}。`
+    await nextTick()
+    noteInput.value?.focus()
   } catch (err) {
     reportError(err, '確認失敗')
   } finally {
@@ -101,7 +124,7 @@ async function cancel() {
   }
   busy.value = true
   try {
-    await api.post(`/admin/visit-requests/${id}/cancel`)
+    await api.post(`/admin/visit-requests/${id.value}/cancel`)
     ElMessage.success('已取消')
     await load()
   } catch (err) {
@@ -123,7 +146,7 @@ async function markNoShow() {
   }
   busy.value = true
   try {
-    await api.post(`/admin/visit-requests/${id}/no-show`)
+    await api.post(`/admin/visit-requests/${id.value}/no-show`)
     ElMessage.success('已標記未到場')
     await load()
   } catch (err) {
@@ -137,9 +160,19 @@ async function addNote() {
   if (!newNote.value.trim()) return
   busy.value = true
   try {
-    await api.post(`/admin/visit-requests/${id}/contact-notes`, { note: newNote.value.trim() })
+    const hadFollowUp = Boolean(followUpAt.value)
+    await api.post(`/admin/visit-requests/${id.value}/contact-notes`, {
+      note: newNote.value.trim(),
+      follow_up_at: followUpAt.value || null,
+    })
     newNote.value = ''
-    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id}/contact-notes`)
+    followUpAt.value = null
+    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id.value}/contact-notes`)
+    if (hadFollowUp) {
+      // 追蹤時間存在案件上，不在紀錄裡；重讀一次頁首才會顯示新的日期。
+      detail.value = await api.get<VisitRequestDetailOut>(`/admin/visit-requests/${id.value}`)
+      ElMessage.success('已記下，到時會出現在總覽的「到期待追蹤」')
+    }
   } catch (err) {
     reportError(err, '新增紀錄失敗')
   } finally {
@@ -152,12 +185,43 @@ function goBack() {
   else router.push('/visit-requests')
 }
 
+function goNext() {
+  if (nextPending.value) router.push(`/visit-requests/${nextPending.value.id}`)
+}
+
+// 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
+const followUpDue = computed(() => {
+  const at = detail.value?.follow_up_at
+  if (!at) return false
+  const open = detail.value?.status !== 'cancelled' && detail.value?.status !== 'completed'
+  return open && new Date(at).getTime() <= Date.now()
+})
+
+// 日期選擇器不給過去的時間：「下次聯絡」記在昨天沒有意義。
+function disablePast(date: Date): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date.getTime() < today.getTime()
+}
+
 onMounted(load)
+// 「下一筆待處理」是同一個元件換 id，router 不會重新掛載。
+watch(id, () => {
+  newNote.value = ''
+  followUpAt.value = null
+  selectedSlotId.value = ''
+  load()
+})
 </script>
 
 <template>
   <div class="page detail">
-    <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">參觀案件</el-button>
+    <div class="detail__nav">
+      <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">參觀案件</el-button>
+      <el-button v-if="nextPending" text class="detail__next" @click="goNext">
+        下一筆待處理（還有 {{ nextPending.count }} 件）<el-icon><ArrowRight /></el-icon>
+      </el-button>
+    </div>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
     <el-skeleton v-else-if="loading" animated :rows="6" />
@@ -168,6 +232,9 @@ onMounted(load)
           <h1 class="detail__title">{{ detail.parent_name }}</h1>
           <p class="hint">{{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }} 送出</p>
           <p v-if="detail.slot" class="detail__when">參觀時間 {{ formatSlotWhen(detail.slot) }}</p>
+          <p v-if="detail.follow_up_at" class="detail__follow" :class="{ 'is-due': followUpDue }">
+            {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
+          </p>
         </div>
         <StatusTag :meta="visitStatus(detail.status)" size="large" />
       </div>
@@ -184,7 +251,7 @@ onMounted(load)
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
               <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
-              <el-descriptions-item v-if="detail.age" label="原填年齡">{{ detail.age ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ detail.age }}</el-descriptions-item>
               <el-descriptions-item label="接電話時段">{{ detail.preferred_time || '—' }}</el-descriptions-item>
               <el-descriptions-item label="想了解的事">
                 <span class="detail__pre">{{ detail.questions || '—' }}</span>
@@ -205,14 +272,33 @@ onMounted(load)
             <p v-else class="hint">還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。</p>
             <div class="notes__form">
               <el-input
+                ref="noteInput"
                 v-model="newNote"
                 type="textarea"
                 :autosize="{ minRows: 2, maxRows: 6 }"
                 placeholder="例如：已致電，家長希望週六上午，下週回覆"
+                aria-label="新增聯絡紀錄"
                 @keydown.meta.enter="addNote"
                 @keydown.ctrl.enter="addNote"
               />
-              <el-button :loading="busy" :disabled="!newNote.trim()" @click="addNote">新增紀錄</el-button>
+              <div class="notes__row">
+                <label class="notes__follow">
+                  <span>下次聯絡</span>
+                  <el-date-picker
+                    v-model="followUpAt"
+                    type="datetime"
+                    value-format="YYYY-MM-DDTHH:mm:ss+08:00"
+                    format="MM/DD HH:mm"
+                    placeholder="不用再追"
+                    :disabled-date="disablePast"
+                    :default-time="new Date(2000, 0, 1, 10, 0, 0)"
+                    clearable
+                    style="width: 160px"
+                  />
+                </label>
+                <el-button :loading="busy" :disabled="!newNote.trim()" @click="addNote">新增紀錄</el-button>
+                <span class="hint notes__hint">按 ⌘／Ctrl＋Enter 也能送出</span>
+              </div>
             </div>
           </section>
         </div>
@@ -246,17 +332,13 @@ onMounted(load)
               </template>
 
               <p v-else class="hint">這筆案件已結案，沒有可執行的動作。</p>
-
-              <el-button
-                v-if="detail.status === 'new' || detail.status === 'pending_confirmation' || detail.status === 'confirmed'"
-                text
-                type="danger"
-                :loading="busy"
-                class="detail__cancel"
-                @click="cancel"
-              >
-                取消預約
-              </el-button>
+            </div>
+            <div
+              v-if="detail.status === 'new' || detail.status === 'pending_confirmation' || detail.status === 'confirmed'"
+              class="detail__danger"
+            >
+              <span class="hint">家長不來了？</span>
+              <el-button text type="danger" :loading="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
             </div>
           </div>
         </aside>
@@ -266,9 +348,61 @@ onMounted(load)
 </template>
 
 <style scoped>
+.detail__nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .detail__back {
   margin-left: -8px;
-  margin-bottom: 8px;
+}
+
+.detail__next {
+  margin-right: -8px;
+}
+
+.detail__follow {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.detail__follow.is-due {
+  color: var(--brand-gold-ink);
+  font-weight: 600;
+}
+
+.notes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.notes__follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.notes__hint {
+  font-size: 12px;
+}
+
+/* 取消預約與主動作隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
+.detail__danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 16px 6px;
+  border-top: 1px solid var(--line);
 }
 
 .detail__head {
@@ -343,8 +477,7 @@ onMounted(load)
 }
 
 .detail__cancel {
-  align-self: flex-start;
-  margin-top: 4px;
+  margin-right: -8px;
 }
 
 @media (max-width: 900px) {

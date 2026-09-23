@@ -55,7 +55,7 @@ async function handleLogout() {
         <button v-if="isMobile" ref="menuButton" class="top__menu" type="button" aria-label="開啟選單"
           :aria-expanded="drawerOpen" aria-haspopup="dialog" @click="drawerOpen = true"><el-icon><Menu /></el-icon></button>
         <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
-        <a class="top__site" :href="WEBSITE_ASSET_BASE" target="_blank" rel="noopener">查看官網 <el-icon><TopRight /></el-icon></a>
+        <a class="top__site" :href="WEBSITE_ASSET_BASE" target="_blank" rel="noopener" title="開的是家長現在看到的版本；還沒發布的草稿不會出現在這裡">查看官網 <el-icon><TopRight /></el-icon></a>
       </header>
       <main id="main" ref="main" class="main" tabindex="-1"><router-view /></main>
     </div>

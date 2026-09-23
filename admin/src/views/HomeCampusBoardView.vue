@@ -18,7 +18,7 @@ onMounted(editor.load)
     <template #lead>首頁五校區塊的標題文字。各校的名稱、地址與電話在「五校介紹」修改；校區順序由官網程式決定。</template>
 
     <el-form label-position="top" @submit.prevent>
-      <el-form-item label="小標（eyebrow）">
+      <el-form-item label="小標">
         <el-input v-model="editor.form.value.eyebrow" placeholder="例如：CAMPUSES" />
       </el-form-item>
       <el-form-item label="區塊標題">
