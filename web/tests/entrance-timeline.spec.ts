@@ -14,12 +14,31 @@ describe('anniversary entrance timeline', () => {
       expect(entranceTimeline(LOGO_DURATION + elapsed!)).toMatchObject({ countdown: number, opening: 0, logoOpacity: 0, complete: false })
     }
   })
-  it('restarts the film-leader sweep once per number', () => {
+  it('opens the follow-spot iris on the emblem and closes it before the leader', () => {
+    expect(entranceTimeline(0).iris).toBe(0)
+    expect(entranceTimeline(700).iris).toBe(1)
+    expect(entranceTimeline(LOGO_DURATION - 170).iris).toBeCloseTo(0.5)
+    expect(entranceTimeline(LOGO_DURATION).iris).toBe(0)
+  })
+  it('irises the leader open and restarts the clockwise wipe once per number', () => {
+    expect(entranceTimeline(LOGO_DURATION - 1)).toMatchObject({ leaderIris: 0, sweep: 0 })
+    expect(entranceTimeline(LOGO_DURATION + 130).leaderIris).toBeGreaterThan(0.8)
+    expect(entranceTimeline(LOGO_DURATION + 260).leaderIris).toBe(1)
     for (const second of [0, 1, 2]) {
       expect(entranceTimeline(LOGO_DURATION + second * 1000).sweep).toBe(0)
       expect(entranceTimeline(LOGO_DURATION + second * 1000 + 500).sweep).toBe(0.5)
       expect(entranceTimeline(LOGO_DURATION + second * 1000 + 999).sweep).toBeCloseTo(0.999)
     }
+    expect(entranceTimeline(OPENING_START).sweep).toBe(1)
+  })
+  it('lands every number with one short projector beat', () => {
+    for (const second of [0, 1, 2]) {
+      expect(entranceTimeline(LOGO_DURATION + second * 1000).flash).toBe(1)
+      expect(entranceTimeline(LOGO_DURATION + second * 1000 + 200).flash).toBeLessThan(0.15)
+      expect(entranceTimeline(LOGO_DURATION + second * 1000 + 600).flash).toBeLessThan(0.01)
+    }
+    expect(entranceTimeline(LOGO_DURATION - 1).flash).toBe(0)
+    expect(entranceTimeline(OPENING_START).flash).toBe(0)
   })
   it('opens only after the countdown, then completes and extinguishes the projection', () => {
     expect(entranceTimeline(OPENING_START)).toMatchObject({ phase: 'opening', countdown: 0, opening: 0, complete: false })
@@ -33,9 +52,10 @@ describe('anniversary entrance timeline', () => {
   })
   it('keeps the final number for its whole second, then dissolves the leader before the cloth moves', () => {
     expect(entranceTimeline(OPENING_START - 1)).toMatchObject({ countdown: 1, leaderOpacity: 1, opening: 0 })
-    expect(entranceTimeline(OPENING_START)).toMatchObject({ countdown: 0, leaderOpacity: 1, sweep: 1 })
+    expect(entranceTimeline(OPENING_START - 500).flare).toBe(0)
+    expect(entranceTimeline(OPENING_START)).toMatchObject({ countdown: 0, leaderOpacity: 1, flare: 1 })
     expect(entranceTimeline(OPENING_START + 90).leaderOpacity).toBeCloseTo(0.5)
-    expect(entranceTimeline(OPENING_START + 180).leaderOpacity).toBe(0)
+    expect(entranceTimeline(OPENING_START + 180)).toMatchObject({ leaderOpacity: 0, flare: 0 })
     expect(entranceTimeline(OPENING_START + 180).opening).toBeLessThan(0.08)
   })
   it('releases the backdrop shadow before the overlay is removed', () => {

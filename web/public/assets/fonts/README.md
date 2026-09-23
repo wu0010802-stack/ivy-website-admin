@@ -40,6 +40,12 @@ Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold�
 - fontTools cmap 已驗證「分校資訊／義華校／明華校／崇德校／國際校／仁武校」全部涵蓋。新增校名或修改區塊標題時，需同步擴充此子集並驗證 cmap；目前 fallback 為 Noto Serif TC／Songti TC／PMingLiU／serif。
 - 只使用於 Nuxt `web/`；不加入已凍結根目錄原型或其打包器。
 
+## 開場片頭倒數數字（2026-09-23）
+
+- `oswald-700-leader.woff2`：Oswald 700，只含 0–9（1,560 bytes），CSS 名稱 `Ivy Leader`。字形接近 Academy leader 的粗黑體，只給 `web/app/utils/entranceCurtain.ts` 用 `FontFace` 畫進倒數字表；載入失敗會退回 Helvetica Neue／Arial。
+- 來源：Google Fonts CSS API `family=Oswald:wght@700&text=0123456789` 的 woff2 子集，自行託管，瀏覽時不連第三方。OFL 1.1 授權附於 `oswald-700-leader-OFL.txt`（[原始出處](https://github.com/google/fonts/tree/main/ofl/oswald)）。
+- 只用於 Nuxt `web/`，不加入凍結的根目錄原型與打包器。
+
 ## 頁首品牌字型（2026-09-16）
 
 - 中文「常春藤教育機構」使用 Noto Sans TC 600，檔案 `noto-sans-tc-600-brand.woff`。

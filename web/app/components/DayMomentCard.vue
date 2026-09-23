@@ -6,6 +6,7 @@ import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
 import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
+import { GUST_REST, subscribeEarGust, type GustState } from '~/utils/earGust'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -44,6 +45,8 @@ function detachPaper() {
 }
 let turnFrom = 0
 let turningTimer = 0
+let gustObserver: IntersectionObserver | null = null
+let stopGust: (() => void) | null = null
 // 翻面後這段時間暫停游標傾斜與 WebGL 初始化（WebGL 版另有約 0.2 秒紙張回彈）
 const FLIP_SETTLE_MS = FLIP_MS + 150
 
@@ -54,9 +57,37 @@ const EAR_PEEL_MS = 1100
 const PEEK_KEY = 'ivy-day-peek'
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
-function setEar(px: number) {
+// B 捲動飄角：折角 = 基準（進場掀角／靜止）＋捲動疊加（utils/earGust.ts），兩個來源寫同一個數字。
+let earBase = EAR_REST
+let earGust = 0
+
+function renderEar() {
+  const px = earBase + earGust
   wrapEl.value?.style.setProperty('--ear', `${px.toFixed(1)}px`)
   paper?.setEar(px)
+}
+
+function setEar(px: number) {
+  earBase = px
+  renderEar()
+}
+
+function applyGust(gust: Readonly<GustState>) {
+  earGust = gust.ear
+  renderEar()
+  cardEl.value?.style.setProperty('--sway', `${gust.sway.toFixed(3)}deg`)
+}
+
+// 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫折角。
+function listenGust(on: boolean) {
+  if (on === Boolean(stopGust)) return
+  if (on) {
+    stopGust = subscribeEarGust(applyGust)
+    return
+  }
+  stopGust?.()
+  stopGust = null
+  applyGust(GUST_REST)
 }
 
 function runPeel(done: () => void) {
@@ -250,6 +281,8 @@ onMounted(() => {
     return
   }
   setEar(26)
+  gustObserver = new IntersectionObserver((entries) => listenGust(entries.at(-1)?.isIntersecting ?? false), { rootMargin: '10% 0px' })
+  gustObserver.observe(cardEl.value)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   if (mayAutoplay(prefersReducedMotion, connection)) nearObserver = new IntersectionObserver(
     (entries) => {
@@ -290,6 +323,10 @@ onUnmounted(() => {
   observer = null
   nearObserver?.disconnect()
   nearObserver = null
+  gustObserver?.disconnect()
+  gustObserver = null
+  stopGust?.()
+  stopGust = null
   cancelPaper?.()
   cancelPaper = null
   cancelAnimationFrame(tiltFrame)

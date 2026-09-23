@@ -290,8 +290,9 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
 .campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}
-.campus-tab-art{display:block;width:160px;max-width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s}
+.campus-tab-art{display:block;width:160px;max-width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s,filter .2s}
 .campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{opacity:1}
+.campus-tabs button:hover .campus-tab-art{filter:grayscale(1) brightness(.68) contrast(3.2)}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
 .campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}

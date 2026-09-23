@@ -187,8 +187,20 @@ onUnmounted(() => {
 const campuses = computed(() => props.content.campuses)
 const headerPhone = computed(() => props.content.siteMeta.headerPhone)
 const institutionSocials = computed(() => props.content.siteMeta.socialLinks ?? [])
-const contactCampus = computed(() => campuses.value.find(campus => campus.phone === headerPhone.value.number))
+const menuCampusKey = ref<string | null>(null)
+const contactCampus = computed(() =>
+  campuses.value.find(campus => campus.key === menuCampusKey.value)
+  ?? campuses.value.find(campus => campus.phone === headerPhone.value.number)
+)
+const menuPhone = computed(() => contactCampus.value
+  ? { number: contactCampus.value.phone.trim(), note: `${contactCampus.value.name}參觀專線` }
+  : headerPhone.value
+)
 const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
+
+function onCampusPointerEnter(event: PointerEvent, key: string) {
+  if (event.pointerType === 'mouse') menuCampusKey.value = key
+}
 </script>
 
 <template>
@@ -304,18 +316,29 @@ const campusSocials = computed(() => getCampusSocials(contactCampus.value, insti
       <div class="menu-campuses">
         <p>找到你的校園</p>
         <div id="menu-campuses">
-          <NuxtLink v-for="c in campuses" :key="c.key" :to="`/campuses/${c.key}`">
+          <NuxtLink
+            v-for="c in campuses"
+            :key="c.key"
+            :to="`/campuses/${c.key}`"
+            :class="{ 'is-active': contactCampus?.key === c.key }"
+            @pointerenter="onCampusPointerEnter($event, c.key)"
+            @focus="menuCampusKey = c.key"
+          >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>
           </NuxtLink>
         </div>
       </div>
       <div class="menu-foot">
-        <a :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${headerPhone.number}`">
+        <a v-if="menuPhone.number" :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${menuPhone.number}`">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
-          <span><small>{{ headerPhone.note }}</small><strong>{{ headerPhone.number }}</strong></span>
+          <span><small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong></span>
           <svg class="icon menu-phone-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
         </a>
+        <div v-else :data-campus-key="contactCampus?.key" class="menu-phone">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
+          <span><small>{{ menuPhone.note }}</small><strong>待園方提供</strong></span>
+        </div>
         <nav v-if="contactCampus" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
           <template v-for="social in campusSocials" :key="social.platform">
             <a v-if="social.url" class="menu-campus-social" :href="social.url" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
