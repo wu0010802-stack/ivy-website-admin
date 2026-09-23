@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { entranceTimeline, ENTRANCE_DURATION } from './entrance-timeline'
 
 // Crimson velvet highlights and a near-white leader lamp (both chosen 2026-09-23).
+// Changing how the resting curtain looks? Re-render the first-paint posters in
+// entrance-policy.ts (ENTRANCE_POSTERS), or the pre-WebGL cover shows the old one.
 const velvetPalette = {
   fabric: '#561326', sheen: '#a83a48', rim: '#cf4a58', trim: '#bf9a52', tasselThread: '#e0ac50', tasselSheen: '#ffe2a8',
   sky: '#f4d8ca', ground: '#1e0a14', key: '#fff0dd', fill: '#eab6bc',

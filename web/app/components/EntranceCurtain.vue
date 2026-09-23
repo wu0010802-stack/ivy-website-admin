@@ -112,7 +112,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <dialog
-      v-if="active" ref="dialog" class="entrance-curtain" :class="{ 'is-ready': ready }"
+      v-if="active" ref="dialog" class="entrance-curtain" :class="{ 'is-ready': ready, 'is-opening': opening > 0 }"
       aria-label="常春藤 30 週年開場動畫" :data-progress="progress.toFixed(3)"
       :data-phase="phase" :data-countdown="countdown" :data-opening="opening.toFixed(3)"
       @cancel.prevent="finish(true)"
@@ -135,11 +135,15 @@ onUnmounted(() => {
   position: fixed; inset: 0; margin: 0; padding: 0; border: 0;
   width: 100%; height: 100dvh; max-width: none; max-height: none;
   overflow: hidden; color: var(--entrance-gold);
-  background: repeating-linear-gradient(90deg,var(--entrance-shade) 0,var(--entrance-red) 2.2%,var(--entrance-highlight) 3.5%,var(--entrance-red) 5.3%,var(--entrance-shade) 7%);
+  /* The same first-frame poster as the pre-hydration cover (entrance-policy.ts). */
+  background: var(--entrance-cover, #2c0006);
 }
 .entrance-curtain::backdrop { background: transparent; }
-.entrance-curtain.is-ready { background: transparent; }
-.entrance-curtain canvas { display: block; width: 100%; height: 100%; }
+/* The poster stays under the opaque cloth until it parts, so the live canvas can
+   dissolve in over it rather than cutting from a still to the render. */
+.entrance-curtain.is-opening { background: transparent; }
+.entrance-curtain canvas { display: block; width: 100%; height: 100%; opacity: 0; }
+.entrance-curtain.is-ready canvas { opacity: 1; transition: opacity 320ms ease-out; }
 .entrance-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .entrance-skip { position: absolute; right: max(24px, env(safe-area-inset-right)); top: max(22px, env(safe-area-inset-top)); min-height: 44px; padding: 0 18px; border-radius: 28px; border: 1px solid var(--entrance-border); background: var(--entrance-button); color: var(--entrance-gold); font: 500 13px/1.2 var(--font-body, sans-serif); cursor: pointer; transition: border-color 180ms ease-out, color 180ms ease-out; }
 .entrance-skip.is-gone { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 240ms ease-out, visibility 0s linear 240ms; }

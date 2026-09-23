@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>開場布幕海報</title>
+<!-- Renders the engine's first frame (progress 0) for render-posters.cjs. -->
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#host{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}</style>
+<div id="host"><canvas id="c"></canvas></div>
+<script type="module">
+import { createEntranceCurtain } from './velvet.js'
+const host = document.getElementById('host')
+const engine = createEntranceCurtain(document.getElementById('c'), host, '/web/public/assets/ivy-30th-anniversary-projection.png', { digitFontUrl: '/web/public/assets/fonts/oswald-700-leader.woff2' })
+await engine.ready
+// A few frames so the shadow map and pile are settled before capture.
+let frames = 3
+const step = () => { engine.draw(0); if (--frames) requestAnimationFrame(step); else document.body.dataset.done = '1' }
+requestAnimationFrame(step)
+</script>

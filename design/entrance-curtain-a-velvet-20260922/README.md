@@ -8,6 +8,17 @@
 
 預覽頁的背景為 2026-09-23 本輪實際首頁靜態截圖；本機 Nuxt 首頁則是實際頁面與影片。未部署、未提交。
 
+## 2026-09-23 首屏遮罩改用第一幀海報
+
+WebGL 就緒前（正式站約 2.6 秒）顯示的首屏遮罩原本還是第一版的扁平紫紅條紋，使用者看起來像「先出現舊布幕」。現在改用引擎 progress 0 的第一幀海報，五檔視窗比例對應帷幔垂花數，就緒後畫布淡入接手。**改了布幕靜止時的外觀（布色、帷幔、流蘇、下襬、打光）之後要重產海報**：
+
+```sh
+node design/entrance-curtain-a-velvet-20260922/build-preview.mjs
+node design/entrance-curtain-a-velvet-20260922/render-posters.cjs   # 需 PLAYWRIGHT_CORE 或 npx 快取
+```
+
+再把印出的 `?v=` 貼回 `web/app/utils/entrance-policy.ts` 的 `ENTRANCE_POSTERS`（`web/tests/entrance-policy.spec.ts` 會比對雜湊）。`poster.html` 是渲染用頁面。
+
 ## 2026-09-23 「略過動畫」在拉幕時退場（A/20 補充）
 
 實際首頁（`EntranceCurtain.vue`）的略過鈕改在布幕開始拉開時淡出，不再留到結束、疊在頁首「預約參觀」上；Escape 仍可略過。預覽頁的 `#skip` 是預覽自己的控制，未改。
