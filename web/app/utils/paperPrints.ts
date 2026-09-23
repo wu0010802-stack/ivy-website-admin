@@ -11,8 +11,11 @@
  * - 貼圖的字型、顏色、字級、版位都從 DOM 的 computed style 與 rect 取，
  *   不寫死 hex；DOM 卡片雖然 opacity:0 但仍有版面，所以位置是真的。
  * - 減少動態、無 WebGL、three 載入失敗：回傳 null，元件維持 CSS 3D 版。
+ * - 翻面（2026-09-23）：永遠右緣掀起往左翻（printFlip.ts），紙張依轉速做單側懸臂彎曲、
+ *   停下時遠端輕輕回彈；紙膠帶畫進貼圖，跟著紙一起翻，不再停在原位。
  */
 import type * as ThreeNS from 'three'
+import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
 
 type Three = typeof ThreeNS
 
@@ -39,8 +42,14 @@ export interface PaperHandle {
 }
 
 const MARGIN = 70 // 四周留給彎曲與抬升
-const FLIP_MS = 1100
 const EAR_DEFAULT = 32
+// 翻面手感：立起時抬升、下緣（折角那側）先起來一點；抬得越高影子越淡越散。
+const LIFT = 36
+const FLIP_TILT = 0.08
+const FLEX_GAIN = 0.024 // 每秒半圈的轉速 → 遠端落後紙寬的比例
+const FLEX_MAX = 0.09
+const SHADOW_OPACITY = 0.28
+const SHADOW_RADIUS = 6
 // 首張偷看：與 styles.css 的 card-peek 同參數（12°、1 秒）
 const PEEK_MS = 1000
 const PEEK_TURN = 12 / 180
@@ -119,6 +128,7 @@ function buildWarmScene(three: Three) {
   const paper = new three.Mesh(new three.PlaneGeometry(1, 1, 1, 1), new three.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0, alphaTest: 0.5 }))
   paper.castShadow = true
   scene.add(paper)
+  // buildScene 的地板另設 CustomBlending、不比深度：那些是 GL 狀態，program 的 opaque 旗標兩邊都是 false，快取照樣命中。
   const floor = new three.Mesh(new three.PlaneGeometry(2, 2), new three.ShadowMaterial({ opacity: 0.28 }))
   floor.receiveShadow = true
   scene.add(floor)
@@ -201,22 +211,71 @@ interface Box {
   h: number
 }
 
-function boxIn(el: Element | null, origin: DOMRect): Box | null {
+// scale：版面寬／外框寬，抵銷祖先元素的縮放，讓位置跟 offsetWidth 同一套單位。
+function boxIn(el: Element | null, origin: DOMRect, scale = 1): Box | null {
   if (!el) return null
   const r = el.getBoundingClientRect()
-  return { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height }
+  return { x: (r.left - origin.left) * scale, y: (r.top - origin.top) * scale, w: r.width * scale, h: r.height * scale }
 }
 
-// 可能在 CSS 已翻到背面後才初始化。量測紙面局部位置時先排除翻轉，
-// 否則正面的標籤與時間戳會左右鏡像；同一個同步工作內還原，不改可見狀態。
+// CSS 的 rotate 屬性（例如 "-4deg"）轉成弧度；沒有旋轉回 0。
+function angleOf(el: Element | null): number {
+  if (!el) return 0
+  const value = getComputedStyle(el).rotate.trim().split(/\s+/).at(-1) ?? ''
+  const n = Number.parseFloat(value)
+  if (!Number.isFinite(n)) return 0
+  if (value.endsWith('rad')) return n
+  if (value.endsWith('turn')) return n * Math.PI * 2
+  if (value.endsWith('grad')) return (n * Math.PI) / 200
+  return (n * Math.PI) / 180
+}
+
+// clip-path: polygon(…) 轉成元素局部座標；讀不到就用整個矩形。
+function polygonOf(el: Element, w: number, h: number): Array<[number, number]> {
+  const rect: Array<[number, number]> = [[0, 0], [w, 0], [w, h], [0, h]]
+  const match = /^polygon\((.*)\)$/.exec(getComputedStyle(el).clipPath.trim())
+  if (!match) return rect
+  const points = match[1]!
+    .split(',')
+    .map((pair) => pair.trim().split(/\s+/))
+    .filter((pair) => pair.length === 2)
+    .map((pair) => pair.map((v, i) => (v.endsWith('%') ? (Number.parseFloat(v) / 100) * (i ? h : w) : Number.parseFloat(v))) as [number, number])
+  return points.length >= 3 && points.every((p) => p.every(Number.isFinite)) ? points : rect
+}
+
+// 把 CSS 自訂屬性（可能是 color-mix）解析成 canvas 認得的顏色。
+function resolveColor(host: Element, value: string, fallback: string): string {
+  const probe = document.createElement('span')
+  probe.style.color = value
+  host.append(probe)
+  const color = getComputedStyle(probe).color
+  probe.remove()
+  return color || fallback
+}
+
+// 第一個 box-shadow 的顏色。
+function shadowColorOf(el: Element, fallback: string): string {
+  const match = /(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-f]{3,8}\b/i.exec(getComputedStyle(el).boxShadow)
+  return match?.[0] ?? fallback
+}
+
+// 可能在 CSS 已翻到背面後才初始化。量測紙面局部位置時先排除所有旋轉：紙張的翻轉
+// （否則正面的標籤與時間戳會左右鏡像）、整張卡片與紙膠帶的 rotate、手寫標題的微斜
+// （否則量到旋轉後的外框，卡片 -2.2° 會讓紙大約 5% 並往右下偏）。同一個同步工作內還原。
 function measureFlatPrint<T>(wrap: HTMLElement, read: () => T): T {
-  const elements = [wrap.querySelector<HTMLElement>('.print'), wrap.querySelector<HTMLElement>('.print-back')]
-  const saved = elements.flatMap((element) => element ? [{ element, style: element.getAttribute('style') }] : [])
+  const unturn = { transition: 'none', animation: 'none', transform: 'none' }
+  const unrotate = { rotate: 'none' }
+  const targets: Array<[HTMLElement | null, Record<string, string>]> = [
+    [wrap.querySelector<HTMLElement>('.print'), unturn],
+    [wrap.querySelector<HTMLElement>('.print-back'), unturn],
+    [wrap.closest<HTMLElement>('.print-card'), unrotate],
+    [wrap.querySelector<HTMLElement>('.print-tape'), unrotate],
+    [wrap.querySelector<HTMLElement>('.print-foot h3'), unrotate]
+  ]
+  const saved = targets.flatMap(([element, props]) => element ? [{ element, props, style: element.getAttribute('style') }] : [])
   try {
-    for (const { element } of saved) {
-      element.style.setProperty('transition', 'none', 'important')
-      element.style.setProperty('animation', 'none', 'important')
-      element.style.setProperty('transform', 'none', 'important')
+    for (const { element, props } of saved) {
+      for (const [prop, value] of Object.entries(props)) element.style.setProperty(prop, value, 'important')
     }
     return read()
   } finally {
@@ -295,10 +354,16 @@ export async function mountPaper(
   // （compileAsync 用 KHR_parallel_shader_compile 輪詢，不在第一幀 render 時同步等 link）。
   // 4x CPU 節流實測第一張卡原本單一 LoAF 1.6 s。
   async function buildScene() {
+    const tapeEl = wrap.querySelector<HTMLElement>('.print-tape')
+    // 旋轉角要在 measureFlatPrint 拿掉 rotate 之前讀
+    const tapeAngle = angleOf(tapeEl)
+    const titleAngle = angleOf(front!.querySelector('.print-foot h3'))
     const { W, H, style, box } = measureFlatPrint(wrap, () => {
       const frontRect = front!.getBoundingClientRect()
-      const W = Math.round(frontRect.width)
-      const H = Math.round(frontRect.height)
+      // 用版面尺寸，不用外框：外框會吃進祖先的 rotate／scale
+      const W = front!.offsetWidth
+      const H = front!.offsetHeight
+      const k = frontRect.width ? W / frontRect.width : 1
       // 版位與樣式全部從 DOM 取
       const figure = front!.querySelector('.print-figure')
       const stamp = front!.querySelector('.print-stamp')
@@ -334,23 +399,43 @@ export async function mountPaper(
         questionLine: pxOf(questionEl, 'lineHeight', 22),
         answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
         answerColor: colorOf(answerEl, 'color', '#6e7c5b'),
-        answerLine: pxOf(answerEl, 'lineHeight', 25)
+        answerLine: pxOf(answerEl, 'lineHeight', 25),
+        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)', '#f6e7ae') : '',
+        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)', '#fbf3d6') : '',
+        tapeShadow: tapeEl ? shadowColorOf(tapeEl, 'rgba(32,64,47,.15)') : ''
       }
+      const tapeBox = boxIn(tapeEl, frontRect, k)
       const box = {
-        figure: boxIn(figure, frontRect) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
-        stamp: boxIn(stamp, frontRect),
-        kicker: boxIn(kickerEl, frontRect),
-        title: boxIn(titleEl, frontRect),
-        backKicker: boxIn(backKicker, backRect),
-        story: boxIn(storyEl, backRect),
-        ask: boxIn(askEl, backRect),
-        question: boxIn(questionEl, backRect),
-        answer: boxIn(answerEl, backRect)
+        figure: boxIn(figure, frontRect, k) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
+        stamp: boxIn(stamp, frontRect, k),
+        kicker: boxIn(kickerEl, frontRect, k),
+        title: boxIn(titleEl, frontRect, k),
+        backKicker: boxIn(backKicker, backRect, k),
+        story: boxIn(storyEl, backRect, k),
+        ask: boxIn(askEl, backRect, k),
+        question: boxIn(questionEl, backRect, k),
+        answer: boxIn(answerEl, backRect, k),
+        tape: tapeBox && tapeEl ? { ...tapeBox, poly: polygonOf(tapeEl, tapeBox.w, tapeBox.h) } : null
       }
 
       return { W, H, style, box }
     })
     if (!W || !H) return null
+    // 紙膠帶有一截超出紙的上緣：網格與貼圖往上多留一條透明帶（TOP），
+    // 讓膠帶畫在同一張紙上一起翻。取整到實體像素，照片的像素對齊清除才不會錯半格。
+    const tape = box.tape
+    let tapeTop = 0
+    if (tape) {
+      const cx = tape.x + tape.w / 2
+      const cy = tape.y + tape.h / 2
+      const sin = Math.sin(tapeAngle)
+      const cos = Math.cos(tapeAngle)
+      for (const [px, py] of tape.poly) {
+        const y = cy + (px - tape.w / 2) * sin + (py - tape.h / 2) * cos
+        tapeTop = Math.max(tapeTop, -y)
+      }
+    }
+    const TOP = tapeTop > 0 ? Math.ceil((tapeTop + 4) * DPR) / DPR : 0
     const VW = W + MARGIN * 2
     const VH = H + MARGIN * 2
     // 顯示畫布的尺寸留到場景建好（最後一個 await 之後）才改：rebuild 期間舊場景還在畫，
@@ -366,10 +451,17 @@ export async function mountPaper(
 
     const frontCanvas = document.createElement('canvas')
     const backCanvas = document.createElement('canvas')
-    frontCanvas.width = backCanvas.width = W * DPR
-    frontCanvas.height = backCanvas.height = H * DPR
+    frontCanvas.width = backCanvas.width = Math.round(W * DPR)
+    frontCanvas.height = backCanvas.height = Math.round((H + TOP) * DPR)
     const fctx = frontCanvas.getContext('2d')!
     const bctx = backCanvas.getContext('2d')!
+    // 紙面座標：原點在紙的左上角，上方留給膠帶的透明帶
+    const paperSpace = (ctx: CanvasRenderingContext2D) => ctx.setTransform(DPR, 0, 0, DPR, 0, TOP * DPR)
+    const clearAll = (ctx: CanvasRenderingContext2D) => {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+      paperSpace(ctx)
+    }
 
     // 折角缺口：正面挖右下、背面挖左下（背面幾何繞 Y 轉 180°，左下才會落在觀者右下）
     function cutEar(ctx: CanvasRenderingContext2D, side: 'right' | 'left') {
@@ -427,8 +519,7 @@ export async function mountPaper(
 
     function drawFrontBase() {
       const ctx = fctx
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
-      ctx.clearRect(0, 0, W, H)
+      clearAll(ctx)
       setFill(ctx, style.frontBg, '#fffdf7')
       ctx.fillRect(0, 0, W, H)
       // 編號小標與手寫標題
@@ -442,9 +533,11 @@ export async function mountPaper(
       }
       const t = box.title
       if (t) {
+        // 跟 CSS 一樣繞標題中心轉（t 是拿掉 rotate 後量的框）
         ctx.save()
-        ctx.translate(t.x, t.y)
-        ctx.rotate(-0.014)
+        ctx.translate(t.x + t.w / 2, t.y + t.h / 2)
+        ctx.rotate(titleAngle)
+        ctx.translate(-t.w / 2, -t.h / 2)
         setFill(ctx, style.titleColor, '#203f32')
         ctx.font = style.titleFont
         let y = style.titleLine * 0.76
@@ -454,6 +547,47 @@ export async function mountPaper(
         }
         ctx.restore()
       }
+      drawTape(ctx, 'front')
+    }
+
+    // 紙膠帶：照 CSS 的 rotate、clip-path 與 repeating-linear-gradient(45deg, a 0 6px, b 6px 12px) 重畫。
+    // 背面只看得到超出紙緣的那一截（黏在正面的部分被紙擋住），左右相反、蒙一層紙色當作膠面。
+    function drawTape(ctx: CanvasRenderingContext2D, side: 'front' | 'back') {
+      if (!tape || !TOP) return
+      ctx.save()
+      if (side === 'back') {
+        ctx.beginPath()
+        ctx.rect(0, -TOP, W, TOP)
+        ctx.clip()
+        ctx.translate(W, 0)
+        ctx.scale(-1, 1)
+      }
+      ctx.translate(tape.x + tape.w / 2, tape.y + tape.h / 2)
+      ctx.rotate(tapeAngle)
+      ctx.translate(-tape.w / 2, -tape.h / 2)
+      ctx.beginPath()
+      tape.poly.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)))
+      ctx.closePath()
+      if (side === 'front') {
+        ctx.shadowColor = style.tapeShadow
+        ctx.shadowBlur = 2 * DPR
+        ctx.shadowOffsetY = DPR
+      }
+      setFill(ctx, style.tapeA, '#f6e7ae')
+      ctx.fill()
+      ctx.shadowColor = 'transparent'
+      ctx.clip()
+      const length = (tape.w + tape.h) * Math.SQRT1_2
+      ctx.translate(tape.w / 2, tape.h / 2)
+      ctx.rotate(-Math.PI / 4)
+      setFill(ctx, style.tapeB, '#fbf3d6')
+      for (let s = -length / 2 + 6; s < length / 2; s += 12) ctx.fillRect(s, -length, 6, length * 2)
+      if (side === 'back') {
+        ctx.globalAlpha = 0.22
+        setFill(ctx, style.backBg, '#fff6df')
+        ctx.fillRect(-length, -length, length * 2, length * 2)
+      }
+      ctx.restore()
     }
 
     const cover = Math.max(box.figure.w / img!.naturalWidth, box.figure.h / img!.naturalHeight)
@@ -501,7 +635,7 @@ export async function mountPaper(
     // 每幀只更新照片框，保留原本的濾鏡、說明籤與時間戳顯影。
     function drawPhoto(develop: number, isActive: boolean) {
       const ctx = fctx
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+      paperSpace(ctx)
       const f = box.figure
       // 清除對齊實體像素的照片範圍，避免小數邊界疊畫後殘留上一幀。
       const x = Math.floor(f.x * DPR) / DPR
@@ -564,8 +698,7 @@ export async function mountPaper(
 
     function drawBack() {
       const ctx = bctx
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
-      ctx.clearRect(0, 0, W, H)
+      clearAll(ctx)
       setFill(ctx, style.backBg, '#fff6df')
       ctx.fillRect(0, 0, W, H)
       ctx.strokeStyle = style.lineColor
@@ -624,6 +757,7 @@ export async function mountPaper(
           y += style.answerLine
         }
       }
+      drawTape(ctx, 'back')
     }
 
     // 掀角只改缺口：快取未裁切的小塊底角，不重畫照片、故事與換行量測。
@@ -641,7 +775,7 @@ export async function mountPaper(
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(x, y, cornerPixels, cornerPixels)
       ctx.drawImage(corner, x, y)
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+      paperSpace(ctx)
     }
 
     function updateTextures(photoChanged = false) {
@@ -686,9 +820,12 @@ export async function mountPaper(
     const camera = new three.PerspectiveCamera(fov, VW / VH, 10, dist * 3)
     camera.position.z = dist
 
-    const geoF = new three.PlaneGeometry(W, H, SEGMENTS, SEGMENTS)
-    const geoB = new three.PlaneGeometry(W, H, SEGMENTS, SEGMENTS)
-    // alphaTest 讓折角缺口硬邊透空，不走透明排序
+    // 網格往上多一條膠帶帶（TOP），再平移讓紙的中心留在原點，翻轉軸不變
+    const geoF = new three.PlaneGeometry(W, H + TOP, SEGMENTS, SEGMENTS)
+    const geoB = new three.PlaneGeometry(W, H + TOP, SEGMENTS, SEGMENTS)
+    geoF.translate(0, TOP / 2, 0)
+    geoB.translate(0, TOP / 2, 0)
+    // alphaTest 讓折角缺口與膠帶外緣硬邊透空，不走透明排序
     const matF = new three.MeshStandardMaterial({ map: frontTex, roughness: 0.62, metalness: 0, alphaTest: 0.5 })
     const matB = new three.MeshStandardMaterial({ map: backTex, roughness: 0.8, metalness: 0, alphaTest: 0.5 })
     const meshF = new three.Mesh(geoF, matF)
@@ -698,9 +835,19 @@ export async function mountPaper(
     const paper = new three.Group()
     paper.add(meshF, meshB)
     sceneObj.add(paper)
-    // 後面一片地板接影子，抬起時影子變大，才讀得出高度
-    const floor = new three.Mesh(new three.PlaneGeometry(VW * 2, VH * 2), new three.ShadowMaterial({ opacity: 0.28 }))
+    // 後面一片地板接影子，抬起時影子位移、變淡、變散，才讀得出高度。
+    // 紙翻到一半時有半邊會穿到 z=-26 後面；地板若照深度蓋上去，被蓋住的半邊疊上自己的影子，
+    // 看起來像多一道摺痕。所以地板排進不透明佇列最先畫、不寫也不比深度，紙永遠畫在它上面。
+    const shadowMat = new three.ShadowMaterial({ opacity: SHADOW_OPACITY, depthWrite: false, depthTest: false })
+    shadowMat.transparent = false
+    shadowMat.blending = three.CustomBlending
+    shadowMat.blendSrc = three.SrcAlphaFactor
+    shadowMat.blendDst = three.OneMinusSrcAlphaFactor
+    shadowMat.blendSrcAlpha = three.OneFactor
+    shadowMat.blendDstAlpha = three.OneMinusSrcAlphaFactor
+    const floor = new three.Mesh(new three.PlaneGeometry(VW * 2, VH * 2), shadowMat)
     floor.position.z = -26
+    floor.renderOrder = -1
     floor.receiveShadow = true
     sceneObj.add(floor)
     sceneObj.add(new three.AmbientLight(0xffffff, 1.35))
@@ -714,7 +861,7 @@ export async function mountPaper(
     key.shadow.camera.top = VH
     key.shadow.camera.bottom = -VH
     key.shadow.camera.far = dist * 2
-    key.shadow.radius = 6
+    key.shadow.radius = SHADOW_RADIUS
     sceneObj.add(key)
     const glare = new three.PointLight(0xffffff, 0, dist * 1.5, 1.4)
     glare.position.z = dist * 0.35
@@ -722,33 +869,45 @@ export async function mountPaper(
 
     const base = Float32Array.from(geoF.attributes.position!.array as ArrayLike<number>)
     const halfW = W / 2
+    // 翻面位置以半圈為單位（printFlip.ts）：0 正面、-1 背面；負值＝右緣掀起往左翻。
+    let turn = flipped ? -1 : 0
+    let turnGoal = turn
+    let turnFrom = turn
+    let turnStart = 0
+    let turnMs = FLIP_MS
+    // 手捏住紙的哪一側（紙面局部 x 的正負）：起翻時在觀者右邊的那一側
+    let grip: 1 | -1 = 1
+    let flex: FlexState = { value: 0, velocity: 0 }
+    let bent = 0
+    let lastRot = turn
+    let lastNow = 0
+    let peekNow = 0
+
+    // 單側懸臂：手捏的那一側平直，遠端因慣性落後、往起翻時朝向觀者的那一面彎。
+    // 背面幾何繞 Y 轉了 180°：它的 x 對到紙的 -x、z 對到 -z。
     function bend(amount: number) {
       const pf = geoF.attributes.position!
       const pb = geoB.attributes.position!
       const af = pf.array as Float32Array
       const ab = pb.array as Float32Array
+      const depth = grip * amount * W
       for (let i = 0; i < pf.count; i++) {
         const x = base[i * 3]!
-        const z = (amount * (x * x)) / halfW * 0.55
-        af[i * 3 + 2] = z
-        ab[i * 3 + 2] = -z
+        af[i * 3 + 2] = depth * cantilever(x, halfW, grip)
+        ab[i * 3 + 2] = -depth * cantilever(-x, halfW, grip)
       }
       pf.needsUpdate = pb.needsUpdate = true
       geoF.computeVertexNormals()
       geoB.computeVertexNormals()
     }
 
-    let flip = flipped ? 1 : 0
-    let flipTarget = flip
-    let flipStart = 0
-    let flipFrom = 0
     let tiltX = 0
     let tiltY = 0
     let aimX = 0
     let aimY = 0
     let glareAim = 0
-    let lift = 0
-    let liftAim = 0
+    let hover = 0
+    let hoverAim = 0
     let frame = 0
     let developStart = 0
     let peekStart = 0
@@ -760,40 +919,57 @@ export async function mountPaper(
       frame = 0
       if (disposed) return
       const now = performance.now()
+      // 閒置後第一幀的 dt 用 1/60；背景分頁回來最多算 50ms，避免彈簧一步跳太遠
+      const dt = lastNow ? Math.min(0.05, Math.max(0.001, (now - lastNow) / 1000)) : 1 / 60
+      lastNow = now
       let busy = false
-      if (flip !== flipTarget) {
-        const t = Math.min(1, (now - flipStart) / FLIP_MS)
-        const e = ease(t)
-        flip = flipFrom + (flipTarget - flipFrom) * e
-        // 用目前角度決定彎曲，連點反向也沿用當下紙形，不會突然攤平。
-        bend(Math.sin(flip * Math.PI) * 0.6)
-        lift = Math.sin(flip * Math.PI) * 34
-        if (t >= 1) {
-          flip = flipTarget
-          bend(0)
-          lift = 0
-        }
+      if (turn !== turnGoal) {
+        const t = Math.min(1, (now - turnStart) / turnMs)
+        turn = turnFrom + (turnGoal - turnFrom) * flipEase(t)
+        if (t >= 1) turn = turnGoal
         busy = true
       }
-      let peek = 0
+      peekNow = 0
       if (peekStart) {
         const t = Math.min(1, (now - peekStart) / PEEK_MS)
-        const s = Math.sin(t * Math.PI)
-        peek = -s * PEEK_TURN
-        lift = Math.max(lift, s * 14)
+        peekNow = -Math.sin(t * Math.PI) * PEEK_TURN
         if (t >= 1) {
           peekStart = 0
-          peek = 0
-          if (flip === flipTarget) lift = 0
+          peekNow = 0
         } else busy = true
       }
-      tiltX += (aimX - tiltX) * 0.18
-      tiltY += (aimY - tiltY) * 0.18
-      if (Math.abs(aimX - tiltX) > 0.0005 || Math.abs(aimY - tiltY) > 0.0005) busy = true
-      glare.intensity += (glareAim - glare.intensity) * 0.15
+      const rot = turn + peekNow
+      // 轉得越快遠端越落後；停下時彈簧帶出一次輕微回彈
+      const velocity = (rot - lastRot) / dt
+      lastRot = rot
+      const flexAim = Math.max(-FLEX_MAX, Math.min(FLEX_MAX, -velocity * FLEX_GAIN))
+      flex = stepFlex(flex, flexAim, dt)
+      if (Math.abs(flex.value) > 2e-4 || Math.abs(flex.velocity) > 2e-3 || flexAim !== 0) busy = true
+      else flex = { value: 0, velocity: 0 }
+      if (flex.value !== bent) {
+        bent = flex.value
+        bend(bent)
+      }
+      // 游標微傾與懸停抬升：依實際經過時間平滑，高更新率螢幕不會變快
+      const follow = 1 - Math.pow(0.82, dt * 60)
+      tiltX += (aimX - tiltX) * follow
+      tiltY += (aimY - tiltY) * follow
+      hover += (hoverAim - hover) * follow
+      if (Math.abs(aimX - tiltX) > 0.0005 || Math.abs(aimY - tiltY) > 0.0005 || Math.abs(hoverAim - hover) > 0.05) busy = true
+      glare.intensity += (glareAim - glare.intensity) * (1 - Math.pow(0.85, dt * 60))
       if (Math.abs(glareAim - glare.intensity) > 0.01) busy = true
-      paper.rotation.set(tiltX, tiltY + (flip + peek) * Math.PI, 0)
-      paper.position.z = lift + liftAim
+      // 立起的程度：抬升比轉角早到、晚退；折角那側（下緣）先起來一點
+      const open = Math.abs(Math.sin(rot * Math.PI))
+      const lift = Math.pow(open, 0.75) * LIFT
+      paper.rotation.set(tiltX - open * FLIP_TILT, tiltY + rot * Math.PI, 0)
+      paper.position.z = lift + hover
+      const height = Math.min(1, (lift + hover) / LIFT)
+      shadowMat.opacity = SHADOW_OPACITY * (1 - 0.35 * height)
+      key.shadow.radius = SHADOW_RADIUS + 8 * height
+      if (!busy && turn === turnGoal) {
+        // 停穩後收回 0／-1，數字不會越翻越大（旋轉等價，看不出跳動）
+        turn = turnGoal = turnFrom = lastRot = restTurn(turn)
+      }
       if (developStart) {
         const d = Math.min(1, (now - developStart) / developMs())
         develop = ease(d)
@@ -816,6 +992,7 @@ export async function mountPaper(
       viewCtx!.clearRect(0, 0, view.width, view.height)
       viewCtx!.drawImage(renderer.domElement, 0, 0, view.width, view.height)
       if (busy) frame = requestAnimationFrame(render)
+      else lastNow = 0
     }
     const kick = () => {
       if (!frame && !disposed) frame = requestAnimationFrame(render)
@@ -825,13 +1002,19 @@ export async function mountPaper(
       W,
       kick,
       setFlipped(next: boolean) {
-        const target = next ? 1 : 0
-        if (target === flipTarget) return
-        flipFrom = flip
-        flipTarget = target
-        flipStart = performance.now()
+        // 偷看途中被點：把當下的偷看角度併進翻面起點，不會先彈回正面
+        const position = turn + peekNow
+        const goal = turnTarget(position, next)
+        if (goal === turnGoal && !peekStart) return
+        // 從靜止起翻才換手；翻到一半再點是原路翻回，手不換
+        if (turn === turnGoal) grip = Math.abs(turn) % 2 === 1 ? -1 : 1
+        turn = turnFrom = position
+        turnGoal = goal
+        turnMs = FLIP_MS * Math.max(0.55, Math.abs(goal - position))
+        turnStart = performance.now()
         peekStart = 0
-        aimX = aimY = glareAim = liftAim = 0
+        peekNow = 0
+        aimX = aimY = glareAim = hoverAim = 0
         kick()
       },
       startDevelop() {
@@ -848,16 +1031,17 @@ export async function mountPaper(
         kick()
       },
       peek() {
-        if (peekStart || flipped || flip !== flipTarget) return
+        if (peekStart || flipped || turn !== turnGoal) return
+        grip = 1
         peekStart = performance.now()
         kick()
       },
       aim(x: number, y: number) {
-        if (flip !== flipTarget) return
+        if (turn !== turnGoal) return
         aimY = x * 0.28
         aimX = -y * 0.2
         glareAim = 3.2
-        liftAim = 10
+        hoverAim = 10
         glare.position.x = x * W * 1.2
         glare.position.y = -y * H * 1.2
         kick()
@@ -865,7 +1049,7 @@ export async function mountPaper(
       rest() {
         aimX = aimY = 0
         glareAim = 0
-        liftAim = 0
+        hoverAim = 0
         kick()
       },
       dispose() {
@@ -878,7 +1062,7 @@ export async function mountPaper(
         frontTex.dispose()
         backTex.dispose()
         floor.geometry.dispose()
-        ;(floor.material as ThreeNS.Material).dispose()
+        shadowMat.dispose()
         // shadow map 是 renderer 持有的 render target，不隨 light 被 GC；觸控名額反覆卸掛時每次都會配一張 512²。
         key.shadow.dispose()
       }
@@ -903,7 +1087,7 @@ export async function mountPaper(
   async function rebuild() {
     resizeFrame = 0
     if (disposed) return
-    const width = front!.getBoundingClientRect().width
+    const width = front!.offsetWidth
     if (scene && Math.abs(width - lastWidth) < 1) return
     const token = ++buildToken
     const next = await buildScene()
