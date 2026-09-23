@@ -3,7 +3,7 @@
 import * as THREE from "../../web/node_modules/three/build/three.module.js";
 
 // web/app/utils/entrance-timeline.ts
-var LOGO_DURATION = 1500;
+var LOGO_DURATION = 2500;
 var COUNTDOWN_DURATION = 3e3;
 var OPENING_DURATION = 3400;
 var OPENING_START = LOGO_DURATION + COUNTDOWN_DURATION;
@@ -31,6 +31,58 @@ function entranceTimeline(elapsedMs) {
   const shadowOpacity = 0.18 * (1 - smooth(opening / 0.8));
   return { phase, countdown, opening, projection, iris, logoOpacity, leaderOpacity, leaderIris, sweep, flash, flare, filmFrame: Math.floor(countElapsed / (1e3 / 12)), shadowOpacity, complete };
 }
+
+// web/app/utils/entrance-policy.ts
+var ENTRANCE_SESSION_KEY = "ivy-entrance-a-seen";
+var ENTRANCE_POSTERS = [
+  ["(min-aspect-ratio: 15/8)", "/assets/entrance-poster-wide.webp?v=284d0e3b"],
+  ["(max-aspect-ratio: 2/3)", "/assets/entrance-poster-phone.webp?v=0c426b53"],
+  ["(max-aspect-ratio: 25/24)", "/assets/entrance-poster-portrait.webp?v=7b04cd78"],
+  ["(max-aspect-ratio: 35/24)", "/assets/entrance-poster-landscape.webp?v=6a5f77f4"],
+  ["all", "/assets/entrance-poster-desktop.webp?v=35a6d775"]
+];
+var ENTRANCE_PROJECTION = "/assets/ivy-30th-anniversary-projection.webp?v=bd2d47dc";
+var ENTRANCE_DIGIT_FONT = "/assets/fonts/oswald-700-leader.woff2";
+var ENTRANCE_ASSETS = [[ENTRANCE_PROJECTION, "image"], [ENTRANCE_DIGIT_FONT, "font", "font/woff2"]];
+var entranceBootstrap = `(()=>{
+  try {
+    if(location.pathname!=='/'||location.hash||window.__ivyEntranceSeen)return;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches||matchMedia('(forced-colors: active)').matches)return;
+    const c=navigator.connection;
+    if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')))return;
+    try{if(sessionStorage.getItem('${ENTRANCE_SESSION_KEY}')==='1')return;sessionStorage.setItem('${ENTRANCE_SESSION_KEY}','1')}catch{}
+    window.__ivyEntranceSeen=true;
+    document.documentElement.dataset.ivyEntrance='pending';
+    document.documentElement.dataset.ivyEntranceStarted=String(Date.now());
+    // Fetch the cover's poster during head parsing, not after the first style pass.
+    const p=${JSON.stringify(ENTRANCE_POSTERS)}.find(([m])=>matchMedia(m).matches);
+    const l=document.createElement('link');
+    l.rel='preload';l.as='image';l.href=p[1];l.fetchPriority='high';
+    document.head.append(l);
+    // Left to the renderer, these start only after hydration and the three.js
+    // chunk: about 2.9 s on a 9 Mbps phone, past the 2.8 s load limit. Waiting
+    // for DOMContentLoaded keeps them off the hydration scripts' bandwidth. A
+    // late one means a slow link: EntranceCurtain gives up on mounts after
+    // 1.8 s, so the download would only be wasted.
+    const s=Date.now();
+    document.addEventListener('DOMContentLoaded',()=>{
+      if(Date.now()-s>1500)return;
+      for(const [h,a,t] of ${JSON.stringify(ENTRANCE_ASSETS)}){
+        const e=document.createElement('link');
+        e.rel='preload';e.as=a;e.href=h;e.crossOrigin='anonymous';if(t)e.type=t;
+        document.head.append(e);
+      }
+    },{once:true});
+  }catch{}
+})()`;
+var posterRules = [...ENTRANCE_POSTERS].reverse().map(([media, src]) => media === "all" ? `:root{--entrance-poster:url(${src})}` : `@media${media}{:root{--entrance-poster:url(${src})}}`).join("\n");
+var entranceCoverStyles = `
+${posterRules}
+:root{--entrance-cover:var(--entrance-poster) 0 0/100% 100% no-repeat,repeating-linear-gradient(90deg,#2c0006 0,#420112 2.2%,#7c0e1f 3.5%,#420112 5.3%,#2c0006 7%)}
+html[data-ivy-entrance="pending"]::before{content:"";position:fixed;inset:0;z-index:10000;pointer-events:none;background:var(--entrance-cover);animation:entrance-cover-release 0s 5.5s forwards}
+@keyframes entrance-cover-release{to{visibility:hidden}}
+@media(prefers-reduced-motion:reduce),(forced-colors:active){html[data-ivy-entrance="pending"]::before{display:none}}
+`;
 
 // web/app/utils/entranceCurtain.ts
 var velvetPalette = {
@@ -616,8 +668,8 @@ function drawDigits(atlas) {
     return mass ? weightedX / mass / DIGIT_CELL - 0.5 : 0;
   });
 }
-function createEntranceCurtain(canvas, host, logoUrl = "/assets/ivy-30th-anniversary-projection.png", options = {}) {
-  const { digitFontUrl = "/assets/fonts/oswald-700-leader.woff2" } = options;
+function createEntranceCurtain(canvas, host, logoUrl = ENTRANCE_PROJECTION, options = {}) {
+  const { digitFontUrl = ENTRANCE_DIGIT_FONT } = options;
   const mobile = host.clientWidth < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
   renderer.setClearColor(0, 0);

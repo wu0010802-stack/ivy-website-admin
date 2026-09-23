@@ -1,3 +1,9 @@
+## 2026-09-23 開場布幕：校徽停留時間拉長
+
+使用者要進站布幕的 logo 出現久一點。`web/app/utils/entrance-timeline.ts` 的 `LOGO_DURATION` 從 1500 改成 2500ms，校徽全亮的時間從約 0.7 秒變成約 1.7 秒。光圈開合速度、3-2-1 倒數與拉幕都沒動，整段開場從 7.9 秒變成 8.9 秒。`entrance-timeline.spec.ts` 新增一項，確認 480～2100ms 之間校徽都是全亮。設計預覽的 `velvet.js` 已用 `build-preview.mjs` 重產；首屏海報是第 0 幀，不受影響。
+
+驗證：用 Node 22 跑 vitest 的 `entrance-timeline`、`entrance-policy` 兩檔，共 34 項通過（新測試改常數前先確認會失敗）。在設計預覽定格截圖：1.3、2.0 秒校徽全亮，2.4 秒光圈收合，2.7 秒接上倒數「3」，總長顯示 8.9 秒。截圖在 `output/entrance-logo-hold-20260923/`。Nuxt 正式建置沒有實跑。未部署。
+
 ## 2026-09-23 拍立得翻面暗示改 A「角落捲起」：拿掉折角、風把右下角掀起來
 
 使用者要翻面提示有風吹的感覺，比稿 `design/flip-wind-20260923/`（無折角三版）與 `design/flip-corner-turn-20260923/`（依 A 做的翻面三版）後裁定：**A 角落捲起，點下去也從右下角先捲，翻面效果維持不變**。已接進 Nuxt `web/`：
