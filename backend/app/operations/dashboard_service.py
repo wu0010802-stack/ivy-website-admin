@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.booking.access_models import RescheduleRequest
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import today_local
@@ -88,6 +89,20 @@ async def get_dashboard_summary(
             awaiting_confirmation = count
             next_hold_expires_at = earliest_hold
 
+    # 家長線上申請改期、等園方核准的件數（規格 L239）。案件已結案的申請會
+    # 被標成 closed，這裡另外只算案件仍是已確認的，跟待核准清單同一個定義。
+    pending_reschedules_stmt = _scope(
+        select(func.count())
+        .select_from(RescheduleRequest)
+        .join(VisitRequest, RescheduleRequest.visit_request_id == VisitRequest.id)
+        .where(
+            RescheduleRequest.status == "pending",
+            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
+        ),
+        VisitRequest.campus_key,
+    )
+    pending_reschedule_requests = (await db.execute(pending_reschedules_stmt)).scalar_one()
+
     # 保守估計「待發布」：從未發布過但已經有草稿的內容項。精確判斷
     # 「草稿版本比已發布版本新」需要額外比對 latest revision id，
     # 目前 admin 畫面看到 current_published_revision_id 就能自行核對，
@@ -161,6 +176,7 @@ async def get_dashboard_summary(
         "new_requests": new_requests,
         "awaiting_confirmation": awaiting_confirmation,
         "next_hold_expires_at": next_hold_expires_at.isoformat() if next_hold_expires_at else None,
+        "pending_reschedule_requests": pending_reschedule_requests,
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
         "pending_publish_kinds": pending_publish_kinds,

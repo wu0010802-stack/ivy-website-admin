@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
+from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitRequest, VisitSlot
 from app.campuses.models import Campus
 from app.notifications import line as line_api
@@ -26,6 +27,8 @@ _KIND_LABELS = {
     "visit_request_cancelled": "參觀預約已取消",
     "visit_request_rescheduled": "參觀預約已改期",
     "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
+    # 規格 L239、L268：家長線上申請改期只是申請，原時段仍有效，要園方核准。
+    "visit_reschedule_requested": "家長申請改期（待園方核准）",
 }
 
 _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
@@ -165,12 +168,27 @@ async def _load_visit_request(db: AsyncSession, receipt_id: str | None) -> Visit
     return result.scalar_one_or_none()
 
 
+async def _requested_slot(db: AsyncSession, reschedule_request_id: object) -> VisitSlot | None:
+    try:
+        request_id = uuid.UUID(str(reschedule_request_id))
+    except ValueError:
+        return None
+    record = await db.get(RescheduleRequest, request_id)
+    return await db.get(VisitSlot, record.requested_slot_id) if record is not None else None
+
+
 async def email_content(
-    db: AsyncSession, *, label: str, campus_key: str, receipt_id: str | None, admin_origin: str | None
+    db: AsyncSession,
+    *,
+    label: str,
+    campus_key: str,
+    receipt_id: str | None,
+    admin_origin: str | None,
+    payload: dict | None = None,
 ) -> tuple[str, str]:
     """(主旨, 內文)。收件人都是有這校案件權限的園方人員，但信件仍只放校名、
     家長稱呼、參觀時段與後台連結，不放手機、Email 或孩子資料。內容在寄出
-    當下讀案件，時段是寄信時的最新狀態。"""
+    當下讀案件，時段是寄信時的最新狀態。改期申請另外列家長想改到的時段。"""
     campus_name = await _campus_name(db, campus_key)
     visit_request = await _load_visit_request(db, receipt_id)
     anonymized = visit_request is not None and visit_request.anonymized_at is not None
@@ -182,6 +200,10 @@ async def email_content(
     ]
     if visit_request is not None and visit_request.slot is not None:
         lines.append(f"參觀時段：{slot_text(visit_request.slot)}")
+    if payload and payload.get("reschedule_request_id"):
+        requested = await _requested_slot(db, payload["reschedule_request_id"])
+        if requested is not None:
+            lines.append(f"申請改到：{slot_text(requested)}")
     if url := admin_visit_url(admin_origin, receipt_id):
         lines.append(f"案件：{url}")
     elif receipt_id:
@@ -257,7 +279,12 @@ async def dispatch_outbox_message(
     if not pending:
         return
     subject, body = await email_content(
-        db, label=label, campus_key=campus_key, receipt_id=payload.get("receipt_id"), admin_origin=admin_origin
+        db,
+        label=label,
+        campus_key=campus_key,
+        receipt_id=payload.get("receipt_id"),
+        admin_origin=admin_origin,
+        payload=payload,
     )
     for user in pending:
         # SMTP 是阻塞 I/O（連線逾時 20 秒）。定期工作跑在 API 的 event loop

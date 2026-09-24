@@ -9,12 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import slot_service
+from app.booking import history, slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
     VisitRequest,
-    VisitRequestEvent,
     VisitRequestSource,
     VisitRequestStatus,
 )
@@ -280,13 +279,14 @@ async def submit_visit_request(
             raise IdempotencyConflict() from None
         return existing, False
 
-    db.add(
-        VisitRequestEvent(
-            id=uuid.uuid4(),
-            visit_request_id=visit_request.id,
-            event_type="created",
-            created_at=datetime.now(timezone.utc),
-        )
+    # 家長從官網送出：沒有帳號，歷程記來源為家長。slots 模式送出當下就占位
+    # （或自動確認），after 帶時段。
+    history.record_event(
+        db,
+        visit_request.id,
+        "created",
+        actor=history.PARENT,
+        after={"status": status, "slot": history.slot_brief(slot) if slot_id else None},
     )
     enqueue_outbox(
         db,
@@ -399,13 +399,12 @@ async def create_manual_visit_request(
             raise IdempotencyConflict() from None
         return existing, False
 
-    db.add(
-        VisitRequestEvent(
-            id=uuid.uuid4(),
-            visit_request_id=visit_request.id,
-            event_type="created",
-            created_at=now,
-        )
+    history.record_event(
+        db,
+        visit_request.id,
+        "created",
+        actor=history.Actor.staff(created_by),
+        after={"status": visit_request.status, "source": source.value},
     )
     await db.flush()
     return visit_request, True

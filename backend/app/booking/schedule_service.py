@@ -118,7 +118,8 @@ async def add_exception(
         .where(
             VisitSlot.campus_key == campus_key,
             VisitSlot.slot_date == exception_date,
-            slot_service.occupying_condition(),
+            # 只算還要來參觀、需要聯絡改期的；已完成／未到場不用再聯絡。
+            slot_service.awaiting_visit_condition(),
         )
     )
     await db.flush()

@@ -519,7 +519,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Reschedule Requests */
+        /**
+         * List Reschedule Requests
+         * @description 待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
+         *     新時段與新時段剩餘名額，園方不必點進案件就能判斷。
+         */
         get: operations["list_reschedule_requests_api_website_v1_admin_reschedule_requests_get"];
         put?: never;
         post?: never;
@@ -555,7 +559,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject Reschedule Request */
+        /**
+         * Reject Reschedule Request
+         * @description 退回：家長維持原時段。原因選填，記在申請與案件歷程。
+         */
         post: operations["reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post"];
         delete?: never;
         options?: never;
@@ -832,7 +839,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Visit Request */
+        /**
+         * Get Visit Request
+         * @description 案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長
+         *     改期申請、家長管理連結是否有效（規格 L299）。
+         */
         get: operations["get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get"];
         put?: never;
         post?: never;
@@ -851,7 +862,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Parent Access Link */
+        /**
+         * Create Parent Access Link
+         * @description 產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：
+         *     重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
+         *
+         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。
+         *     原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。
+         *     不會自動寄給家長——由園方自行轉交。
+         */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
         options?: never;
@@ -885,7 +904,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Visit Request */
+        /**
+         * Cancel Visit Request
+         * @description 本文可省略；有填原因就記在案件歷程。
+         */
         post: operations["cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -992,7 +1014,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reschedule Visit Request */
+        /**
+         * Reschedule Visit Request
+         * @description 已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後
+         *     時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。
+         */
         post: operations["reschedule_visit_request_api_website_v1_admin_visit_requests__visit_request_id__reschedule_post"];
         delete?: never;
         options?: never;
@@ -1954,6 +1980,42 @@ export interface components {
             width: number | null;
         };
         /**
+         * ParentAccessLinkCreatedOut
+         * @description manage_url 是可以直接給家長的完整網址（公開官網 origin＝
+         *     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
+         *     manage_url_fragment 自行組網址。兩者都含 token，只回這一次。
+         */
+        ParentAccessLinkCreatedOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Manage Url */
+            manage_url: string | null;
+            /** Manage Url Fragment */
+            manage_url_fragment: string;
+            /** Replaced Previous */
+            replaced_previous: boolean;
+        };
+        /**
+         * ParentAccessLinkOut
+         * @description 目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
+         *     後台「有沒有、什麼時候到期」。
+         */
+        ParentAccessLinkOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
          * ParentVisitRequestOut
          * @description 家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
          *     那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
@@ -2127,6 +2189,14 @@ export interface components {
              */
             revision_id: string;
         };
+        /**
+         * RescheduleDecisionRequest
+         * @description 退回家長改期申請時的原因（選填）。
+         */
+        RescheduleDecisionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** RescheduleRequestCreate */
         RescheduleRequestCreate: {
             /**
@@ -2134,6 +2204,40 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+        };
+        /**
+         * RescheduleRequestOut
+         * @description 家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
+         *     以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。
+         */
+        RescheduleRequestOut: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            current_slot: components["schemas"]["VisitSlotBriefOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Name */
+            parent_name: string;
+            requested_slot: components["schemas"]["VisitSlotBriefOut"];
+            /** Requested Slot Available */
+            requested_slot_available: boolean;
+            /** Requested Slot Remaining */
+            requested_slot_remaining: number;
+            /** Status */
+            status: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
         };
         /** ReviewDecisionRequest */
         ReviewDecisionRequest: {
@@ -2315,6 +2419,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Created By Email */
+            created_by_email?: string | null;
             /**
              * Id
              * Format: uuid
@@ -2367,10 +2475,52 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
+        /**
+         * VisitHistoryOut
+         * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
+         *     家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
+         *     before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
+         *     或下次聯絡時間，不含家長個資。
+         */
+        VisitHistoryOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** After */
+            after: {
+                [key: string]: unknown;
+            } | null;
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string | null;
+            /** Source */
+            source: string | null;
+        };
         /** VisitRequestAssignRequest */
         VisitRequestAssignRequest: {
             /** Assigned Staff Id */
             assigned_staff_id: string | null;
+        };
+        /** VisitRequestCancelRequest */
+        VisitRequestCancelRequest: {
+            /** Reason */
+            reason?: string | null;
         };
         /** VisitRequestConfirmRequest */
         VisitRequestConfirmRequest: {
@@ -2468,6 +2618,72 @@ export interface components {
             status: string;
         };
         /**
+         * VisitRequestFullOut
+         * @description 案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+         *     列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。
+         */
+        VisitRequestFullOut: {
+            access_link: components["schemas"]["ParentAccessLinkOut"] | null;
+            /** Age */
+            age: string | null;
+            /** Assigned Staff Id */
+            assigned_staff_id: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Follow Up At */
+            follow_up_at: string | null;
+            /** History */
+            history: components["schemas"]["VisitHistoryOut"][];
+            /** Hold Expires At */
+            hold_expires_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Name */
+            parent_name: string;
+            pending_reschedule: components["schemas"]["RescheduleRequestOut"] | null;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time: string | null;
+            /** Questions */
+            questions: string | null;
+            /** Referral Sources */
+            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            /** Related Request Id */
+            related_request_id?: string | null;
+            slot?: components["schemas"]["VisitSlotBriefOut"] | null;
+            /** Slot Id */
+            slot_id: string | null;
+            /**
+             * Source
+             * @default web
+             * @enum {string}
+             */
+            source: "web" | "phone" | "line" | "walk_in" | "external";
+            /** Status */
+            status: string;
+        };
+        /**
          * VisitRequestManualCreate
          * @description 後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
          *     預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上
@@ -2531,6 +2747,8 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * VisitRuleIn
@@ -4019,9 +4237,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["RescheduleRequestOut"][];
                 };
             };
             /** @description Validation Error */
@@ -4083,7 +4299,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RescheduleDecisionRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -4816,7 +5036,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                    "application/json": components["schemas"]["VisitRequestFullOut"];
                 };
             };
             /** @description Validation Error */
@@ -4851,9 +5071,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ParentAccessLinkCreatedOut"];
                 };
             };
             /** @description Validation Error */
@@ -4919,7 +5137,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestCancelRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

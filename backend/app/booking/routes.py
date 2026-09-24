@@ -13,7 +13,8 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import service, slot_service, workflow_service
+from app.booking import presenters, service, slot_service, workflow_service
+from app.booking.history import Actor
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
 from app.operations import audit_service
@@ -36,10 +37,11 @@ from app.booking.schemas import (
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
     VisitRequestAssignRequest,
+    VisitRequestCancelRequest,
     VisitRequestConfirmRequest,
-    VisitRequestManualCreate,
     VisitRequestCreate,
     VisitRequestDetailOut,
+    VisitRequestFullOut,
     VisitRequestManualCreate,
     VisitRequestOut,
     VisitRequestRescheduleRequest,
@@ -659,8 +661,15 @@ async def create_manual_visit_request(
         if related is not None:
             # 結案後重新預約：新案指回舊案，兩邊歷程都留痕。
             visit_request.related_request_id = related.id
-            workflow_service.record_event(db, visit_request.id, "linked_from_previous")
-            workflow_service.record_event(db, related.id, "rebooked_as_new")
+            actor = Actor.staff(current_user.id)
+            workflow_service.record_event(
+                db, visit_request.id, "linked_from_previous", actor=actor,
+                after={"related_request_id": str(related.id)},
+            )
+            workflow_service.record_event(
+                db, related.id, "rebooked_as_new", actor=actor,
+                after={"related_request_id": str(visit_request.id)},
+            )
         if payload.slot_id is not None:
             try:
                 await workflow_service.confirm_with_slot(
@@ -672,6 +681,9 @@ async def create_manual_visit_request(
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"code": "SLOT_FULL", "message": "這個時段名額已滿或已關閉，案件尚未建立"},
                 ) from exc
+            except slot_service.SlotNotBookable as exc:
+                await db.rollback()
+                raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
         if payload.note and payload.note.strip():
             await workflow_service.add_contact_note(
                 db,
@@ -741,14 +753,16 @@ async def list_visit_staff(
     return staff
 
 
-@router.get("/admin/visit-requests/{visit_request_id}", response_model=VisitRequestDetailOut)
+@router.get("/admin/visit-requests/{visit_request_id}", response_model=VisitRequestFullOut)
 async def get_visit_request(
     visit_request_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
+) -> VisitRequestFullOut:
+    """案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長
+    改期申請、家長管理連結是否有效（規格 L299）。"""
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    return VisitRequestDetailOut.model_validate(visit_request)
+    return await presenters.full_detail(db, visit_request)
 
 
 @router.get("/admin/visit-requests/{visit_request_id}/contact-notes", response_model=list[VisitContactNoteOut])
@@ -759,11 +773,15 @@ async def list_contact_notes(
 ) -> list[VisitContactNoteOut]:
     await _get_owned_visit_request(db, current_user, visit_request_id)
     result = await db.execute(
-        select(VisitContactNote)
+        select(VisitContactNote, User.email)
+        .outerjoin(User, User.id == VisitContactNote.created_by)
         .where(VisitContactNote.visit_request_id == visit_request_id)
         .order_by(VisitContactNote.created_at.desc())
     )
-    return [VisitContactNoteOut.model_validate(n) for n in result.scalars()]
+    return [
+        VisitContactNoteOut.model_validate(note).model_copy(update={"created_by_email": email})
+        for note, email in result.all()
+    ]
 
 
 @router.post(
@@ -787,7 +805,7 @@ async def create_contact_note(
         created_by=current_user.id,
     )
     await db.commit()
-    return VisitContactNoteOut.model_validate(note)
+    return VisitContactNoteOut.model_validate(note).model_copy(update={"created_by_email": current_user.email})
 
 
 @router.patch("/admin/visit-requests/{visit_request_id}/assignee", response_model=VisitRequestDetailOut)
@@ -814,7 +832,7 @@ async def assign_visit_request(
             )
     previous = visit_request.assigned_staff_id
     try:
-        await workflow_service.assign(db, visit_request, assignee)
+        await workflow_service.assign(db, visit_request, assignee, actor=Actor.staff(current_user.id))
     except workflow_service.AssigneeInvalid as exc:
         await db.rollback()
         raise HTTPException(
@@ -857,6 +875,9 @@ async def confirm_visit_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "SLOT_FULL", "message": "這個時段名額已滿"},
         ) from exc
+    except slot_service.SlotNotBookable as exc:
+        await db.rollback()
+        raise _slot_not_bookable(exc) from exc
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(
@@ -870,13 +891,17 @@ async def confirm_visit_request(
 @router.post("/admin/visit-requests/{visit_request_id}/cancel", response_model=VisitRequestDetailOut)
 async def cancel_visit_request(
     visit_request_id: uuid.UUID,
+    payload: VisitRequestCancelRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
+    """本文可省略；有填原因就記在案件歷程。"""
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
-        await workflow_service.cancel(db, visit_request)
+        await workflow_service.cancel(
+            db, visit_request, actor=Actor.staff(current_user.id), reason=payload.reason if payload else None
+        )
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(
@@ -896,7 +921,7 @@ async def mark_no_show(
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
-        await workflow_service.mark_no_show(db, visit_request)
+        await workflow_service.mark_no_show(db, visit_request, actor=Actor.staff(current_user.id))
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(
@@ -918,7 +943,7 @@ async def mark_completed(
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
-        await workflow_service.mark_completed(db, visit_request)
+        await workflow_service.mark_completed(db, visit_request, actor=Actor.staff(current_user.id))
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(
@@ -936,16 +961,23 @@ async def reschedule_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
+    """已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後
+    時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。"""
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
-        await workflow_service.reschedule(db, visit_request, payload.new_slot_id)
+        await workflow_service.reschedule(
+            db, visit_request, payload.new_slot_id, actor=Actor.staff(current_user.id), reason=payload.reason
+        )
     except workflow_service.SlotFull as exc:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "SLOT_FULL", "message": "新時段名額已滿，原時段維持不變"},
+            detail={"code": "SLOT_FULL", "message": "新時段名額已滿或已關閉，原時段維持不變"},
         ) from exc
+    except slot_service.SlotNotBookable as exc:
+        await db.rollback()
+        raise _slot_not_bookable(exc, suffix="，原時段維持不變") from exc
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(
@@ -954,6 +986,13 @@ async def reschedule_visit_request(
         ) from exc
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)
+
+
+def _slot_not_bookable(exc: slot_service.SlotNotBookable, *, suffix: str = "") -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "SLOT_NOT_BOOKABLE", "message": f"{exc.message}{suffix}"},
+    )
 
 
 def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPException:
@@ -972,7 +1011,7 @@ async def mark_contacting(
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
-        await workflow_service.mark_contacting(db, visit_request)
+        await workflow_service.mark_contacting(db, visit_request, actor=Actor.staff(current_user.id))
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise _invalid_transition(exc) from exc

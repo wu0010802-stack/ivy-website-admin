@@ -1306,6 +1306,64 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "ParentAccessLinkCreatedOut": {
+        "description": "manage_url 是可以直接給家長的完整網址（公開官網 origin＝\nWEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用\nmanage_url_fragment 自行組網址。兩者都含 token，只回這一次。",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "manage_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Url"
+          },
+          "manage_url_fragment": {
+            "title": "Manage Url Fragment",
+            "type": "string"
+          },
+          "replaced_previous": {
+            "title": "Replaced Previous",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "manage_url",
+          "manage_url_fragment",
+          "expires_at",
+          "replaced_previous"
+        ],
+        "title": "ParentAccessLinkCreatedOut",
+        "type": "object"
+      },
+      "ParentAccessLinkOut": {
+        "description": "目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴\n後台「有沒有、什麼時候到期」。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "expires_at"
+        ],
+        "title": "ParentAccessLinkOut",
+        "type": "object"
+      },
       "ParentVisitRequestOut": {
         "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
         "properties": {
@@ -1749,6 +1807,25 @@
         "title": "PublishRequest",
         "type": "object"
       },
+      "RescheduleDecisionRequest": {
+        "description": "退回家長改期申請時的原因（選填）。",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "RescheduleDecisionRequest",
+        "type": "object"
+      },
       "RescheduleRequestCreate": {
         "properties": {
           "new_slot_id": {
@@ -1761,6 +1838,73 @@
           "new_slot_id"
         ],
         "title": "RescheduleRequestCreate",
+        "type": "object"
+      },
+      "RescheduleRequestOut": {
+        "description": "家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，\n以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "requested_slot": {
+            "$ref": "#/components/schemas/VisitSlotBriefOut"
+          },
+          "requested_slot_available": {
+            "title": "Requested Slot Available",
+            "type": "boolean"
+          },
+          "requested_slot_remaining": {
+            "title": "Requested Slot Remaining",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "visit_request_id",
+          "campus_key",
+          "status",
+          "parent_name",
+          "current_slot",
+          "requested_slot",
+          "requested_slot_remaining",
+          "requested_slot_available",
+          "created_at"
+        ],
+        "title": "RescheduleRequestOut",
         "type": "object"
       },
       "ReviewDecisionRequest": {
@@ -2222,6 +2366,29 @@
             "title": "Created At",
             "type": "string"
           },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2340,6 +2507,107 @@
         "title": "VisitExceptionOut",
         "type": "object"
       },
+      "VisitHistoryOut": {
+        "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人\n或下次聯絡時間，不含家長個資。",
+        "properties": {
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "source",
+          "actor_user_id",
+          "actor_email",
+          "before",
+          "after",
+          "reason",
+          "created_at"
+        ],
+        "title": "VisitHistoryOut",
+        "type": "object"
+      },
       "VisitRequestAssignRequest": {
         "properties": {
           "assigned_staff_id": {
@@ -2359,6 +2627,24 @@
           "assigned_staff_id"
         ],
         "title": "VisitRequestAssignRequest",
+        "type": "object"
+      },
+      "VisitRequestCancelRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "VisitRequestCancelRequest",
         "type": "object"
       },
       "VisitRequestConfirmRequest": {
@@ -2770,6 +3056,284 @@
         "title": "VisitRequestDetailOut",
         "type": "object"
       },
+      "VisitRequestFullOut": {
+        "description": "案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。\n列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。",
+        "properties": {
+          "access_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParentAccessLinkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "assigned_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Staff Id"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/VisitHistoryOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hold_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "pending_reschedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RescheduleRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferred_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Time"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "facebook",
+                "google_reviews",
+                "parent_community",
+                "friends_family",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Referral Sources",
+            "type": "array"
+          },
+          "related_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Request Id"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Id"
+          },
+          "source": {
+            "default": "web",
+            "enum": [
+              "web",
+              "phone",
+              "line",
+              "walk_in",
+              "external"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "status",
+          "parent_name",
+          "phone",
+          "age",
+          "preferred_time",
+          "questions",
+          "slot_id",
+          "assigned_staff_id",
+          "confirmed_at",
+          "cancelled_at",
+          "follow_up_at",
+          "created_at",
+          "history",
+          "pending_reschedule",
+          "access_link"
+        ],
+        "title": "VisitRequestFullOut",
+        "type": "object"
+      },
       "VisitRequestManualCreate": {
         "description": "後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部\n預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上\n收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向\n家長說明並取得同意留存資料」，同樣必須為 true。",
         "properties": {
@@ -2980,6 +3544,18 @@
             "format": "uuid",
             "title": "New Slot Id",
             "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "required": [
@@ -6248,6 +6824,7 @@
     },
     "/api/website/v1/admin/reschedule-requests": {
       "get": {
+        "description": "待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的\n新時段與新時段剩餘名額，園方不必點進案件就能判斷。",
         "operationId": "list_reschedule_requests_api_website_v1_admin_reschedule_requests_get",
         "parameters": [
           {
@@ -6298,8 +6875,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/RescheduleRequestOut"
                   },
                   "title": "Response List Reschedule Requests Api Website V1 Admin Reschedule Requests Get",
                   "type": "array"
@@ -6402,6 +6978,7 @@
     },
     "/api/website/v1/admin/reschedule-requests/{request_id}/reject": {
       "post": {
+        "description": "退回：家長維持原時段。原因選填，記在申請與案件歷程。",
         "operationId": "reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post",
         "parameters": [
           {
@@ -6447,6 +7024,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RescheduleDecisionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -8115,6 +8709,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}": {
       "get": {
+        "description": "案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長\n改期申請、家長管理連結是否有效（規格 L299）。",
         "operationId": "get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get",
         "parameters": [
           {
@@ -8165,7 +8760,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                  "$ref": "#/components/schemas/VisitRequestFullOut"
                 }
               }
             },
@@ -8190,6 +8785,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/access-link": {
       "post": {
+        "description": "產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：\n重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。\n原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。\n不會自動寄給家長——由園方自行轉交。",
         "operationId": "create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post",
         "parameters": [
           {
@@ -8240,9 +8836,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Parent Access Link Api Website V1 Admin Visit Requests  Visit Request Id  Access Link Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ParentAccessLinkCreatedOut"
                 }
               }
             },
@@ -8352,6 +8946,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/cancel": {
       "post": {
+        "description": "本文可省略；有填原因就記在案件歷程。",
         "operationId": "cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post",
         "parameters": [
           {
@@ -8397,6 +8992,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/VisitRequestCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -8900,6 +9512,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/reschedule": {
       "post": {
+        "description": "已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後\n時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。",
         "operationId": "reschedule_visit_request_api_website_v1_admin_visit_requests__visit_request_id__reschedule_post",
         "parameters": [
           {

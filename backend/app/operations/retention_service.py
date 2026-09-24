@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
+from app.booking.access_models import RescheduleRequest
+from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 
 DEFAULT_RETENTION_DAYS = 365
 ANONYMIZED_NOTE = "（已依保存政策匿名化）"
@@ -54,8 +55,24 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
         .where(VisitContactNote.visit_request_id == visit_request.id)
         .values(note=ANONYMIZED_NOTE)
     )
+    await _clear_free_text_reasons(db, [visit_request.id])
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
+
+
+async def _clear_free_text_reasons(db: AsyncSession, visit_request_ids) -> None:
+    """歷程與改期退回的「原因」也是人員寫的自由文字，跟聯絡紀錄一樣清掉；
+    歷程的動作、時間與前後狀態保留。"""
+    await db.execute(
+        update(VisitRequestEvent)
+        .where(VisitRequestEvent.visit_request_id.in_(visit_request_ids), VisitRequestEvent.reason.is_not(None))
+        .values(reason=None)
+    )
+    await db.execute(
+        update(RescheduleRequest)
+        .where(RescheduleRequest.visit_request_id.in_(visit_request_ids), RescheduleRequest.reject_reason.is_not(None))
+        .values(reject_reason=None)
+    )
 
 
 async def run_retention_sweep(
@@ -78,5 +95,6 @@ async def run_retention_sweep(
         )
         .values(note=ANONYMIZED_NOTE)
     )
+    await _clear_free_text_reasons(db, select(VisitRequest.id).where(VisitRequest.anonymized_at.is_not(None)))
     await db.flush()
     return report

@@ -147,10 +147,9 @@ class VisitRequest(Base):
 
 
 class VisitSlot(Base):
-    """單次時段。階段 D 第一版由分校管理者手動建立，不含週期規則
-    自動產生（那是 Task 9 的排程工作範圍）。容量以「目前非取消/未到場
-    的 confirmed 案件數」即時計算，不用可變計數器，天然避免取消重試
-    重複釋放名額的問題。"""
+    """單次時段。可由分校管理者手動建立，或依每週規則產生。容量以占用
+    名額的案件數即時計算（slot_service.occupying_condition：待確認、已確認、
+    已完成、未到場），不用可變計數器，天然避免取消重試重複釋放名額的問題。"""
 
     __tablename__ = "visit_slots"
 
@@ -236,8 +235,18 @@ class VisitContactNote(Base):
     visit_request: Mapped[VisitRequest] = relationship(back_populates="contact_notes")
 
 
+class VisitEventSource(str, enum.Enum):
+    """歷程是誰做的。staff 另記 actor_user_id；家長沒有帳號，只記來源。"""
+
+    STAFF = "staff"
+    PARENT = "parent"
+    SYSTEM = "system"
+
+
 class VisitRequestEvent(Base):
-    """歷程紀錄；階段 C 只寫 created，Task 7 會補 confirmed/cancelled 等。"""
+    """案件歷程（規格 L299 VisitHistory）：做了什麼、誰做的、異動前後與原因。
+    before／after 只放狀態、時段、承辦人這類非個資欄位；reason 是人員填的
+    自由文字，匿名化時會清掉。2026-09-25 以前的舊歷程沒有操作人與前後值。"""
 
     __tablename__ = "visit_request_events"
 
@@ -247,6 +256,14 @@ class VisitRequestEvent(Base):
     )
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_visit_request_events_actor_user_id_users"),
+        nullable=True,
+    )
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     visit_request: Mapped[VisitRequest] = relationship(back_populates="events")
 

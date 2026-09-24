@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -411,6 +411,9 @@ class VisitContactNoteOut(BaseModel):
     id: uuid.UUID
     note: str
     created_at: datetime
+    # 誰記的：同一校多人接手時要知道找誰問。帳號刪除後為 None。
+    created_by: uuid.UUID | None = None
+    created_by_email: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -419,8 +422,84 @@ class VisitRequestConfirmRequest(BaseModel):
     slot_id: uuid.UUID
 
 
+# 人員填的原因（選填），記在案件歷程；匿名化時清掉。
+ReasonText = Annotated[str | None, Field(max_length=500)]
+
+
 class VisitRequestRescheduleRequest(BaseModel):
     new_slot_id: uuid.UUID
+    reason: ReasonText = None
+
+
+class VisitRequestCancelRequest(BaseModel):
+    reason: ReasonText = None
+
+
+class RescheduleDecisionRequest(BaseModel):
+    """退回家長改期申請時的原因（選填）。"""
+
+    reason: ReasonText = None
+
+
+class VisitHistoryOut(BaseModel):
+    """案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
+    家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
+    before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
+    或下次聯絡時間，不含家長個資。"""
+
+    id: uuid.UUID
+    event_type: str
+    source: str | None
+    actor_user_id: uuid.UUID | None
+    actor_email: str | None
+    before: dict | None
+    after: dict | None
+    reason: str | None
+    created_at: datetime
+
+
+class RescheduleRequestOut(BaseModel):
+    """家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
+    以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。"""
+
+    id: uuid.UUID
+    visit_request_id: uuid.UUID
+    campus_key: str
+    status: str
+    parent_name: str
+    current_slot: VisitSlotBriefOut | None
+    requested_slot: VisitSlotBriefOut
+    requested_slot_remaining: int
+    requested_slot_available: bool
+    created_at: datetime
+
+
+class ParentAccessLinkOut(BaseModel):
+    """目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
+    後台「有沒有、什麼時候到期」。"""
+
+    created_at: datetime
+    expires_at: datetime
+
+
+class ParentAccessLinkCreatedOut(BaseModel):
+    """manage_url 是可以直接給家長的完整網址（公開官網 origin＝
+    WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
+    manage_url_fragment 自行組網址。兩者都含 token，只回這一次。"""
+
+    manage_url: str | None
+    manage_url_fragment: str
+    expires_at: datetime
+    replaced_previous: bool
+
+
+class VisitRequestFullOut(VisitRequestDetailOut):
+    """案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+    列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。"""
+
+    history: list[VisitHistoryOut]
+    pending_reschedule: RescheduleRequestOut | None
+    access_link: ParentAccessLinkOut | None
 
 
 class VisitContactNoteCreateRequest(BaseModel):
