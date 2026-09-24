@@ -10,8 +10,9 @@ export function publicCopy(site: SiteContent): SiteContent {
     siteMeta: { ...site.siteMeta, description: site.siteMeta.description === OLD_DESCRIPTION
       ? '認識高雄常春藤幼兒園義華、明華、崇德、國際與仁武五校，查看校園環境、所在地、聯絡方式與參觀資訊。'
       : site.siteMeta.description },
+    // 原型說明在正式站不顯示；頁尾底列遇空字串會整段隱藏，CMS 另填的備註照常顯示。
     footer: { ...site.footer, bottomNote: site.footer.bottomNote === '官網設計提案 · 預約為操作示範，不會送出資料'
-      ? '參觀時間與入學資訊，請向各校確認。' : site.footer.bottomNote },
+      ? '' : site.footer.bottomNote },
     booking: { ...site.booking, consentText: site.booking.consentText === '我了解這是操作示範，資料不會傳送給學校，不代表預約成立。'
       ? '我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。' : site.booking.consentText },
     campuses: site.campuses.map((campus) => {
