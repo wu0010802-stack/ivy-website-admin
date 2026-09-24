@@ -1,3 +1,7 @@
+## 2026-09-24 頁尾拿掉校徽
+
+使用者要求拿掉頁尾品牌名稱左側的畢業版雙童校徽（09-23 `7def645` 加入）。`SiteFooter.vue` 移除校徽圖片、`.footer-crest` 與圖文並排的 flex 規則，品牌區回到只有中英文品牌名稱；1000px／760px 的欄位跨整列排版與英文名 `lang="en"` 保留。素材 `web/public/assets/ivy-graduation-crest.png` 先留在 repo（頁尾校徽旅程比稿待拍板），目前沒有頁面引用。DESIGN.md 同節已改為撤下紀錄。
+
 ## 2026-09-23 孩子的一天：iPhone 捲動時按鈕與背景抖動（根因修正）
 
 使用者回報 iPhone 17 下滑時「暫停背景」按鈕會抖、圖片也怪怪的，電腦 Chrome 開發者工具看不到。根因是 `.section.day-experience` 的 `overflow-x:clip`：WebKit 會替裡面的 sticky 圖層（背景影片 `.day-film`、按鈕層 `.day-film-ui`、大標 `.day-intro`）掛一層由主執行緒定位的祖先裁切層，捲動執行緒推得動 sticky，推不動這層，所以每幀晚一步再被拉回。iPhone 上的 Safari 和 Chrome 都是 WebKit；Chrome 的合成器沒有這個行為。同日下午（`bfcfef8`）加在 `.day-film-ui` 的 `translateZ(0)` 沒有效果（實測 89 幀仍偏移），這次一併移除。
