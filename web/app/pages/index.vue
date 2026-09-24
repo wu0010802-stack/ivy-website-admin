@@ -19,7 +19,7 @@ useHomeFooterFade(root, footer)
     <main id="main" tabindex="-1">
       <HeroVideo :hero="data.content.home.hero">
         <AboutSection :about="data.content.home.about">
-          <DayExperience :day="data.content.dayExperience" :lead="data.content.home.about.watermark.top">
+          <DayExperience :day="data.content.dayExperience">
             <HomeNewsTransition :news="data.content.news">
               <CampusBoard :board="data.content.home.campusBoard" :campuses="data.content.campuses" />
             </HomeNewsTransition>
