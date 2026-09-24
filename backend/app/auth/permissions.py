@@ -52,6 +52,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "site_settings.manage": {Role.SUPER_ADMIN},
     # 保存政策清理會刪個資，連預覽都限總管理者。
     "retention.manage": {Role.SUPER_ADMIN},
+    # LINE 官方帳號推到哪些群組：通知會帶案件編號與後台連結，限總管理者設定。
+    "notifications.manage": {Role.SUPER_ADMIN},
 }
 
 

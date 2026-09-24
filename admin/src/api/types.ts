@@ -195,3 +195,5 @@ export type VisitRequestDetailOut = components['schemas']['VisitRequestDetailOut
 export type VisitContactNoteOut = components['schemas']['VisitContactNoteOut']
 export type VisitRequestManualCreate = components['schemas']['VisitRequestManualCreate']
 export type VisitStaffOut = components['schemas']['VisitStaffOut']
+export type LineSettingsOut = components['schemas']['LineSettingsOut']
+export type LineGroupOut = components['schemas']['LineGroupOut']

@@ -21,6 +21,7 @@ from app.campuses.routes import router as campuses_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
 from app.media.routes import router as media_router
+from app.notifications.line_routes import router as line_router
 from app.notifications.routes import router as notifications_router
 from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
@@ -126,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(booking_schedule_router)
     app.include_router(booking_access_router)
     app.include_router(notifications_router)
+    app.include_router(line_router)
     app.include_router(operations_router)
 
     return app

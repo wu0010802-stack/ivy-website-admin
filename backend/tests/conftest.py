@@ -109,7 +109,8 @@ async def _clean_tables(app):
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
-                "booking_configs, rate_limit_counters RESTART IDENTITY CASCADE"
+                "booking_configs, rate_limit_counters, line_campus_targets, line_groups "
+                "RESTART IDENTITY CASCADE"
             )
         )
     yield

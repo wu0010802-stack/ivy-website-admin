@@ -110,6 +110,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'] },
       { name: 'policies', path: '/policies', title: '全站設定', icon: 'Setting', roles: ['super_admin'] },
+      { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'] },
     ],
   },
 ]

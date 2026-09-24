@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str | None = None
     smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    # LINE 官方帳號 Messaging API（園方群組推播）。與「用 LINE 登入」是不同
+    # 類型的 channel，金鑰也不同，所以另外命名。兩個都有才啟用。
+    line_messaging_channel_secret: str | None = Field(default=None, repr=False)
+    line_messaging_access_token: str | None = Field(default=None, repr=False)
     retention_allow_real_run: bool = False
     # API 內建定期工作（排程發布、逾期占位、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
@@ -61,6 +65,17 @@ class Settings(BaseSettings):
         if value is not None and value != 0 and not 10 <= value <= 3600:
             raise ValueError("WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS 必須是 0（關閉）或 10–3600 秒")
         return value
+
+    @field_validator("line_messaging_channel_secret", "line_messaging_access_token")
+    @classmethod
+    def _normalize_line_messaging(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @property
+    def line_messaging_enabled(self) -> bool:
+        return bool(self.line_messaging_channel_secret and self.line_messaging_access_token)
 
     @property
     def background_jobs_interval(self) -> int:
@@ -124,6 +139,10 @@ class Settings(BaseSettings):
                 )
         if self.environment == "production" and self.enable_fixture:
             raise ValueError("production 環境禁止啟用 fixture 模式")
+        if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):
+            raise ValueError(
+                "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
+            )
         if self.smtp_host and not self.smtp_from:
             raise ValueError("設定 WEBSITE_SMTP_HOST 時必須一併設定 WEBSITE_SMTP_FROM")
         if self.smtp_host and self.environment == "production" and self.smtp_security == "none":

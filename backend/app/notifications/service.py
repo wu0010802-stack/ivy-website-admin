@@ -11,8 +11,10 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
+from app.campuses.models import Campus
+from app.notifications import line as line_api
 from app.notifications.email_adapter import EmailAdapter
-from app.notifications.models import NotificationDelivery, NotificationInboxItem
+from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
 _KIND_LABELS = {
     "visit_request_created": "新的參觀需求",
@@ -83,6 +85,32 @@ def _record_delivery(
     )
 
 
+async def campus_line_target(db: AsyncSession, campus_key: str) -> str | None:
+    """這個校區目前要推播的 LINE 群組；bot 已被移出的群組不算。"""
+    result = await db.execute(
+        select(LineGroup.target_id)
+        .join(LineCampusTarget, LineCampusTarget.target_id == LineGroup.target_id)
+        .where(LineCampusTarget.campus_key == campus_key, LineGroup.left_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _campus_name(db: AsyncSession, campus_key: str) -> str:
+    name = (await db.execute(select(Campus.name).where(Campus.key == campus_key))).scalar_one_or_none()
+    return name or campus_key
+
+
+def line_text(label: str, campus_name: str, receipt_id: str | None, admin_origin: str | None) -> str:
+    """群組裡可能有非管理員：只放類型、校區、案件編號，不放家長或孩子資料；
+    明細要點連結登入後台看。"""
+    lines = [f"[常春藤官網] {label}", f"校區：{campus_name}"]
+    if receipt_id:
+        lines.append(f"案件編號：{receipt_id}")
+        if admin_origin:
+            lines.append(f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}")
+    return "\n".join(lines)
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -92,10 +120,13 @@ async def dispatch_outbox_message(
     payload: dict,
     adapter: EmailAdapter | None,
     created_at: datetime | None = None,
+    line: line_api.LineMessagingClient | None = None,
+    admin_origin: str | None = None,
 ) -> None:
-    """處理一筆 outbox 訊息：寫站內通知＋寄信。任何一個收件人寄信失敗
-    都讓整筆工作視為失敗，交給 worker 的重試機制處理，不會靜默丟失、
-    也不假裝已寄出。
+    """處理一筆 outbox 訊息：寫站內通知 → 推播校區的 LINE 群組 → 寄信。
+    任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
+    處理，不會靜默丟失、也不假裝已送出。`line` 為 None 或這校沒有指定
+    群組時略過 LINE。
 
     `adapter` 為 None 代表部署環境沒有設定寄信：站內通知照寫、email 這個
     管道整個略過。原本「未配置」會讓整批 outbox 停著不處理，結果後台連
@@ -122,9 +153,22 @@ async def dispatch_outbox_message(
         # 重試時再寫一次。
         await db.commit()
 
-    if adapter is None:
-        return
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
+        return
+
+    if line is not None:
+        target = await campus_line_target(db, campus_key)
+        if target and not await _already_delivered(db, outbox_message_id, "line", target):
+            receipt_id = payload.get("receipt_id")
+            await line.push_text(
+                target,
+                line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin),
+                key=line_api.retry_key(outbox_message_id, target),
+            )
+            _record_delivery(db, outbox_message_id, "line", target)
+            await db.commit()
+
+    if adapter is None:
         return
     recipients = await get_notification_recipients(db, campus_key)
     for user in recipients:

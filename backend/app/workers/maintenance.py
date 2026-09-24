@@ -19,6 +19,7 @@ import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -26,6 +27,7 @@ from app.booking.workflow_service import expire_holds
 from app.common.ratelimit import purge_expired_counters
 from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
+from app.notifications.line import LineMessagingClient
 from app.workers.runner import process_outbox_batch
 
 logger = logging.getLogger("app.maintenance")
@@ -40,6 +42,7 @@ class CycleResult:
     publish_failed: int = 0
     expired_holds: int = 0
     email_configured: bool = False
+    line_configured: bool = False
     notifications_sent: int = 0
     notifications_failed: int = 0
     rate_limit_rows_purged: int = 0
@@ -65,7 +68,11 @@ def default_worker_id() -> str:
 
 
 async def run_cycle(
-    session_factory: async_sessionmaker[AsyncSession], settings: Settings, *, worker_id: str
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    *,
+    worker_id: str,
+    line_transport: httpx.AsyncBaseTransport | None = None,
 ) -> CycleResult:
     """跑一輪。每一步用自己的 session，某一步失敗只記下來，不擋後面的步驟。"""
     async with session_factory() as lock_db:
@@ -76,13 +83,17 @@ async def run_cycle(
             await lock_db.rollback()
             return CycleResult(ran=False)
         try:
-            return await _run_steps(session_factory, settings, worker_id=worker_id)
+            return await _run_steps(session_factory, settings, worker_id=worker_id, line_transport=line_transport)
         finally:
             await lock_db.rollback()
 
 
 async def _run_steps(
-    session_factory: async_sessionmaker[AsyncSession], settings: Settings, *, worker_id: str
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    *,
+    worker_id: str,
+    line_transport: httpx.AsyncBaseTransport | None,
 ) -> CycleResult:
     result = CycleResult(ran=True)
 
@@ -113,14 +124,24 @@ async def _run_steps(
         result.email_configured = True
     except EmailNotConfigured:
         adapter = None
+    line = None
+    if settings.line_messaging_enabled:
+        assert settings.line_messaging_access_token is not None
+        line = LineMessagingClient(settings.line_messaging_access_token, transport=line_transport)
+        result.line_configured = True
     try:
         async with session_factory() as db:
-            outbox = await process_outbox_batch(db, adapter, worker_id=worker_id)
+            outbox = await process_outbox_batch(
+                db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin
+            )
         result.notifications_sent = outbox["sent"]
         result.notifications_failed = outbox["failed"]
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：處理通知失敗")
         result.failed_steps.append("outbox")
+    finally:
+        if line is not None:
+            await line.aclose()
 
     try:
         async with session_factory() as db:

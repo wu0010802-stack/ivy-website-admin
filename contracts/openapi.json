@@ -761,6 +761,152 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LineCampusTargetOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "target_id"
+        ],
+        "title": "LineCampusTargetOut",
+        "type": "object"
+      },
+      "LineCampusTargetUpdate": {
+        "properties": {
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          }
+        },
+        "required": [
+          "target_id"
+        ],
+        "title": "LineCampusTargetUpdate",
+        "type": "object"
+      },
+      "LineGroupOut": {
+        "properties": {
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "left_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left At"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "source_type",
+          "name",
+          "first_seen_at",
+          "last_seen_at",
+          "left_at"
+        ],
+        "title": "LineGroupOut",
+        "type": "object"
+      },
+      "LineSettingsOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/LineGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/LineCampusTargetOut"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhook Url"
+          }
+        },
+        "required": [
+          "enabled",
+          "webhook_url",
+          "groups",
+          "targets"
+        ],
+        "title": "LineSettingsOut",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -5119,6 +5265,223 @@
         "summary": "Get Dashboard",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line": {
+      "get": {
+        "operationId": "get_line_settings_api_website_v1_admin_line_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Settings",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/campus-targets/{campus_key}": {
+      "put": {
+        "operationId": "update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineCampusTargetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Campus Target",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/campus-targets/{campus_key}/test": {
+      "post": {
+        "description": "送一則測試訊息到這校指定的群組，確認設定真的通。",
+        "operationId": "send_line_test_message_api_website_v1_admin_line_campus_targets__campus_key__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Line Test Message",
+        "tags": [
+          "line"
         ]
       }
     },

@@ -155,6 +155,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'content.publish': '發布內容',
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
+  'line.campus_target.update': '更新 LINE 通知群組',
+  'line.test_push': '送出 LINE 測試訊息',
   'user.set_active': '變更帳號啟用狀態',
   'user.link_google': '綁定 Google 登入',
 }

@@ -27,6 +27,7 @@ import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
+import LineNotificationsView from '../views/LineNotificationsView.vue'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
@@ -83,6 +84,7 @@ const router = createRouter({
         page('analytics', 'analytics', AnalyticsView),
         page('audit', 'audit', AuditView),
         page('policies', 'policies', PoliciesView),
+        page('line-notifications', 'line-notifications', LineNotificationsView),
       ],
     },
   ],

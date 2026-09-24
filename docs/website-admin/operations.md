@@ -35,6 +35,8 @@ export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST
 
 寄信未設定（沒有 SMTP 也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好 SMTP 再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。SMTP 在背景 thread 執行，不會卡住 API 的請求。
 
+LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
+
 失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（通知本身跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。
 
 ## 備份與還原

@@ -35,6 +35,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
+| api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
@@ -99,6 +100,25 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 後台另外設過 cron 也無妨：同一時間只會有一輪（advisory lock），後到者跳過。
 上線後第一輪會把累積在 outbox 的舊訊息處理掉：一律寫站內通知，但超過 24 小時的舊訊息
 不寄信（`EXTERNAL_DELIVERY_STALE_AFTER`），不會一次把幾天前的通知寄給所有人。
+
+### LINE 群組推播（2026-09-24）
+
+參觀案件通知可以推到各校員工的 LINE 群組（LINE Notify 已停止服務，改用官方帳號
+的 Messaging API）。migration `9b2b0ebc14ae` 新增 `line_groups`、`line_campus_targets`。
+啟用步驟（全部在 LINE 與 Railway 後台操作，程式不會自己建任何東西）：
+
+1. LINE Developers → 官方帳號的 Messaging API channel：取得 **Channel secret** 與
+   **Channel access token（long-lived）**，存進 Railway api 的
+   `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`。
+   這是 Messaging API channel，與「用 LINE 登入」的 LINE Login channel 不同。
+2. Webhook URL 設為 `https://<官網網域>/api/website/v1/line/webhook`（後台「LINE 通知」頁
+   也會顯示），開啟 Use webhook。webhook 驗 `X-Line-Signature`，簽章不符一律 401。
+3. LINE Official Account Manager：允許加入群組，關閉自動回應。
+4. 把官方帳號拉進各校員工群組 → 後台「系統 → LINE 通知」替每校選群組 → 送測試訊息。
+
+群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
+帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
+`notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
 
 ## 初次初始化
 
