@@ -1,3 +1,9 @@
+## 2026-09-24 拍立得翻面提示改 F「第一張翻開進場」，取代首張偷看
+
+使用者問怎麼提示「可以翻面」、要自然。現行暗示都在捲動中或剛進場發生，而且輕掀 31°、偷看 12° 都看不到背面。比稿 `design/flip-hint-natural-20260924/` 兩批六版後選 F，已接進 Nuxt `web/`：每次工作階段第一次來，第一張（01 早安入園）背面朝上貼著，讀者看到它（可見 ≥60%）停留 0.8 秒後自己翻成照片、照片接著顯影；讀者先點也算示範完成。SSR／無 JS 維持正面，載入當下已在畫面內（錨點、回上一頁）不做；減少動態停在背面等讀者點。首張偷看（元件、WebGL `peek()`、CSS keyframes）移除。新增 `web/app/utils/printOpener.ts` 與 8 項單元測試。規則見 DESIGN.md「F『第一張翻開進場』定案」。
+
+驗證：Node 22 web vitest 26 檔 194 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。未提交、未部署；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
+
 ## 2026-09-24 首屏調亮：遮罩只墊在文字後面
 
 使用者要求首屏調亮一點。暗感來自 `web/app/assets/css/studio.css` 的 `.studio-hero::before`：左側滿高直欄在 0–34% 壓到 76%，文字上下與左下角沒有字的照片也一起變暗。改為三層：頂部導覽帶 .64→.60 並從 96/190px 收短到 76/140px（手機同步）；左側直欄降為原本三成（.23 起）；文字塊後方加橢圓光暈 `radial-gradient(40% 42% at 24% 49%, .68 → .60 55% → 0)`。遮罩色由字面值改為 `--hero-scrim` 變數（色值不變）；頁首收合的 `background-size` 補第三層 `auto`，否則光暈會一起被收掉。影片、文案、版面不動。
