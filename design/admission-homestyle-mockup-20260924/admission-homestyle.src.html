@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>入學資訊 首頁風格 mock</title>
+<meta name="robots" content="noindex">
+<!-- 2026-09-24 入學資訊頁「靠近首頁」mock。原始檔；build.py 把字型與圖片內嵌成 admission-homestyle-mockup.html。 -->
+<style>
+@font-face{font-family:'LINE Seed TW';font-weight:700;font-display:swap;src:url(../../web/public/assets/fonts/lineseed-bd.woff) format('woff')}
+@font-face{font-family:'Ivy Brand';font-weight:600;font-display:swap;src:url(../../web/public/assets/fonts/noto-sans-tc-600-brand.woff) format('woff')}
+@font-face{font-family:'Source Sans 3';font-weight:400;font-display:swap;src:url(../../web/public/assets/fonts/source-sans-3-400-brand.woff) format('woff')}
+
+/* 色票：值取自 web/app/assets/css/tokens.css，這裡只列本頁用到的。 */
+:root{
+  --green:oklch(37% .057 157);--deep:oklch(28% .04 162);--leaf:oklch(48% .075 155);
+  --paper:oklch(99% .008 95);--cream:oklch(96% .018 95);--white:oklch(99.7% .003 100);
+  --gold:oklch(82% .14 84);--yellow:oklch(87% .13 88);
+  --text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--trail:oklch(64% .055 155);
+  --studio-sage:oklch(94% .024 140);
+  --ink:17 42 33;--on-dark:255 255 255;--shadow-rgb:0 0 0;
+  --ivy-logo-chinese:oklch(41.466% .10216 153.575);--ivy-logo-english:oklch(31.943% .11932 279.102);
+  --ivy-forest:#203f32;--ivy-forest-rgb:32 63 50;--ivy-forest-mist:#c5ded0;--ivy-forest-ghost:#e6f1e7;--ivy-forest-soft:#42644e;
+  --ivy-campus-bg:oklch(98% .006 95);--ivy-campus-line:oklch(86% .012 95);--ivy-campus-muted:oklch(49% .018 150);
+  --ivy-campus-control:oklch(93% .009 95);--ivy-campus-control-border:oklch(86% .01 95);
+  --ivy-campus-heading-ink:#3d5057;--ivy-campus-heading-accent:#786c5c;--ivy-campus-heading-rule:#cdd3d0;--ivy-campus-heading-selected:#ebefec;
+  --ivy-news-paper:#faf7ef;--ivy-news-paper-blue:#dce7eb;--ivy-news-ink:#253d33;--ivy-news-green:#254b3c;--ivy-news-muted:#5d6c61;
+  --ivy-news-line:#d9ded3;--ivy-news-rule:oklch(84% .016 215);--ivy-news-note:#eff1e6;
+  --ivy-news-swept-gold:#f3d581;--ivy-news-swept-sage:#d3e5b5;--ivy-news-swept-mist:#bfdedb;--ivy-news-event-outline:#65794c;
+  --ivy-footer-bg:#efe8da;--ivy-footer-text:#27433a;--ivy-footer-muted:#5b6358;--ivy-footer-brand:#1f3a31;--ivy-footer-accent:#7a5a24;
+  --ivy-footer-bar-bg:#24483f;--ivy-footer-bar-text:#d9e2d9;
+  --ivy-print-face:oklch(99.5% .006 95);--ivy-print-back:oklch(98.5% .012 95);--ivy-print-tint:oklch(80% .1 52);
+
+  --font:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Noto Sans CJK TC',system-ui,sans-serif;
+  --font-head:'LINE Seed TW',var(--font);
+  --font-date:'Source Sans 3',Arial,var(--font);
+  --fs-xs:.75rem;--fs-sm:.875rem;--fs-md:1rem;--fs-lg:1.125rem;--fs-xl:1.25rem;--fs-2xl:1.5rem;--fs-3xl:1.75rem;--fs-4xl:2rem;--fs-5xl:2.5rem;--fs-6xl:3rem;
+  --gutter:56px;--ease:cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{margin:0;background:var(--paper);color:var(--text);font:400 var(--fs-md)/1.8 var(--font);-webkit-font-smoothing:antialiased;overflow-x:clip}
+img{display:block;max-width:100%}
+a{color:inherit}
+h1,h2,h3{margin:0;font-family:var(--font-head);font-weight:700;text-spacing-trim:trim-start;word-break:keep-all;overflow-wrap:anywhere}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit}
+.icon{width:1.1em;height:1.1em;flex:none}
+.wrap{width:min(1440px,calc(100% - var(--gutter) * 2));margin-inline:auto}
+.en{font-family:var(--font-date)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ── 頁首：首頁同款。首屏透明壓在照片上，捲過 40px 收成右上深綠膠囊 ── */
+.site-header{position:fixed;inset:0 0 auto;z-index:50;pointer-events:none}
+.header-top{pointer-events:auto;display:flex;align-items:stretch;justify-content:space-between;height:92px;padding-left:80px;border-bottom:1px solid rgb(var(--on-dark) / .32);color:rgb(var(--on-dark));transition:opacity .35s var(--ease),transform .35s var(--ease)}
+.brand{display:flex;align-items:center;gap:14px;text-decoration:none}
+.brand-crest{width:52px;height:55px;flex:none}
+.brand-text{display:grid;line-height:1.2}
+.brand-text b{font:600 28px/1.15 'Ivy Brand',var(--font);letter-spacing:.02em}
+.brand-text span{font:400 17px/1.2 var(--font-date);letter-spacing:.03em}
+.nav{display:flex;align-items:center;gap:0;margin-left:auto;margin-right:40px}
+.nav a{display:grid;justify-items:center;gap:2px;padding:0 22px;text-decoration:none;font-size:15px;line-height:1.3}
+.nav a small{font:400 11px/1.2 var(--font-date);opacity:.9}
+.nav a[aria-current]{position:relative}
+.nav a[aria-current]::after{content:"";position:absolute;left:22px;right:22px;bottom:-12px;height:2px;background:var(--gold)}
+.header-book{display:flex;align-items:center;gap:10px;padding:0 48px 0 36px;background:var(--gold);color:var(--deep);border-bottom-left-radius:32px;text-decoration:none}
+.header-book b{display:block;font-size:15px;line-height:1.3}
+.header-book small{display:block;font:400 11px/1.2 var(--font-date)}
+.menu-lines{display:grid;gap:5px;width:20px}
+.menu-lines span{display:block;width:20px;height:2px;background:currentColor;border-radius:2px}
+.header-menu{display:none}
+
+.pill{pointer-events:auto;position:absolute;top:14px;right:80px;display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:rgb(var(--ivy-forest-rgb) / .94);color:rgb(var(--on-dark));box-shadow:0 12px 32px rgb(var(--shadow-rgb) / .22);opacity:0;transform:translateY(-12px) scale(.96);visibility:hidden;transition:opacity .35s var(--ease),transform .35s var(--ease),visibility 0s .35s}
+.pill-logo{width:44px;height:44px;border-radius:50%;background:var(--white);display:grid;place-items:center}
+.pill-logo .brand-crest{width:32px;height:34px}
+.pill-menu{display:flex;align-items:center;gap:10px;height:44px;padding:0 16px;border:0;border-left:1px solid rgb(var(--on-dark) / .2);margin-left:6px;background:none;cursor:pointer}
+.pill-menu b{display:block;font-size:13px;line-height:1.2}
+.pill-menu small{display:block;font:400 10px/1.2 var(--font-date);opacity:.8}
+.pill-book{display:flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;background:var(--gold);color:var(--deep);font-size:14px;font-weight:600;text-decoration:none}
+.pill-chapter{display:flex;align-items:center;gap:8px;height:44px;padding:0 14px 0 8px;font-size:13px;white-space:nowrap}
+.pill-chapter .en{font-size:12px;opacity:.7;letter-spacing:.08em}
+.site-header[data-state=compact] .header-top{opacity:0;transform:translateY(-100%);pointer-events:none}
+.site-header[data-state=compact] .pill{opacity:1;transform:none;visibility:visible;transition:opacity .35s var(--ease),transform .35s var(--ease),visibility 0s}
+
+/* ── Hero：滿版照片＋左側壓字，字型、底線、動線跟首頁一樣 ── */
+.hero{position:relative;min-height:max(640px,100svh);display:grid;align-items:end;color:rgb(var(--on-dark));overflow:hidden;isolation:isolate}
+.hero-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% 40%;z-index:-2}
+.hero-shade{position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgb(var(--ink) / .72) 0%,rgb(var(--ink) / .42) 38%,rgb(var(--ink) / 0) 68%),linear-gradient(0deg,rgb(var(--ink) / .55) 0%,rgb(var(--ink) / 0) 34%)}
+.hero-copy{padding:180px 0 0 24px;max-width:640px}
+.eyebrow{display:block;font-size:var(--fs-sm);letter-spacing:.1em;font-weight:500}
+.hero h1{margin-top:28px;font-size:clamp(2.5rem,4.2vw,3.75rem);line-height:1.42;letter-spacing:.02em}
+.grow{position:relative;display:inline-block}
+.hero-underline{position:absolute;left:0;bottom:-.14em;width:100%;height:.23em}
+.hero-underline svg{position:absolute;inset:0;display:block;width:100%;height:100%;overflow:visible}
+.hero-underline path{fill:none;stroke:var(--gold);stroke-width:3;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.hero-lede{margin-top:34px;font-size:var(--fs-lg);line-height:1.9}
+.hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:28px;margin-top:36px}
+.pill-button{display:inline-flex;align-items:center;justify-content:space-between;gap:24px;min-height:54px;padding:14px 24px;border-radius:999px;background:var(--gold);color:var(--deep);font-size:var(--fs-md);font-weight:600;letter-spacing:.035em;text-decoration:none;transition:background .2s}
+.pill-button:hover{background:var(--yellow)}
+.text-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:1px}
+/* 章節索引：取代原本的灰色分頁列，首屏就看得到整頁四段 */
+.chapters{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:72px 0 0;padding:0;list-style:none;border-top:1px solid rgb(var(--on-dark) / .32)}
+.chapters a{display:grid;gap:4px;padding:20px 24px 28px;text-decoration:none;border-left:1px solid rgb(var(--on-dark) / .18);transition:background .25s}
+.chapters li:first-child a{border-left:0}
+.chapters a:hover{background:rgb(var(--on-dark) / .08)}
+.chapters .en{font-size:13px;letter-spacing:.14em;opacity:.78}
+.chapters b{font-size:var(--fs-lg);font-weight:600}
+.chapters span:last-child{font-size:var(--fs-sm);opacity:.82}
+
+/* 共用：首頁「SINCE 1997」那種短線小標 */
+.kicker{display:flex;align-items:center;gap:16px;margin:0 0 24px;font:400 12px/1.6 var(--font-date);letter-spacing:.2em;text-transform:uppercase}
+.kicker::before{content:"";width:34px;height:1px;background:currentColor;opacity:.4}
+.kicker b{font-weight:400;opacity:.65;margin-right:.4em}
+.chip{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border:1px solid currentColor;border-radius:999px;font:500 11px/1 var(--font);letter-spacing:.04em;text-transform:none}
+
+/* ── 01 入學流程：首頁「關於常春藤」的薄荷色帶＋巨大淡字＋圓角照片 ── */
+.process{position:relative;background:var(--ivy-forest-mist);color:var(--ivy-forest);padding:140px 0 150px;overflow:hidden;isolation:isolate}
+.watermark{position:absolute;z-index:-1;left:-.05em;top:80px;font-family:var(--font-head);font-weight:700;font-size:clamp(142px,14vw,208px);line-height:1.04;letter-spacing:-.075em;color:var(--ivy-forest-ghost);opacity:.5;pointer-events:none;user-select:none;white-space:nowrap}
+.process-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);column-gap:clamp(48px,6vw,96px);align-items:start}
+.process h2,.newcomer h2,.fees h2,.classes h2,.visit h2{font-size:clamp(2.25rem,3.35vw,3.25rem);line-height:1.5;letter-spacing:.015em;text-wrap:balance}
+.process-text{margin-top:28px;max-width:32em;font-size:var(--fs-lg);line-height:1.95}
+.photo{margin:0}
+.photo img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:16px}
+.photo figcaption{margin-top:14px;text-align:right;font-size:var(--fs-xs);color:var(--ivy-forest-soft);letter-spacing:.06em}
+.steps{list-style:none;margin:96px 0 0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;counter-reset:step;position:relative}
+.steps::before{content:"";position:absolute;left:28px;right:28px;top:27px;border-top:1.5px dashed var(--trail);z-index:0}
+.step{position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;padding:0 0 4px}
+.step-dot{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--ivy-forest);color:rgb(var(--on-dark));font:400 22px/1 var(--font-date);font-variant-numeric:tabular-nums;box-shadow:0 0 0 8px var(--ivy-forest-mist)}
+.step:last-child .step-dot{background:var(--gold);color:var(--deep)}
+.step-card{margin-top:18px;padding:22px 20px 24px;border-radius:12px;background:rgb(var(--on-dark) / .55);flex:1;transition:background .25s,transform .25s var(--ease)}
+.step:hover .step-card{background:rgb(var(--on-dark) / .8);transform:translateY(-3px)}
+.step small{display:block;font-size:var(--fs-xs);color:var(--ivy-forest-soft);letter-spacing:.06em}
+.step h3{margin-top:6px;font-size:var(--fs-xl);line-height:1.5}
+.step p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85;color:var(--ivy-forest)}
+.step:last-child .step-card{background:var(--ivy-news-swept-gold)}
+
+/* ── 02 分班對照：首頁五校區塊的淡米底、置中標題、線稿分頁、大圓角卡、膠囊控制 ── */
+.classes{background:var(--ivy-campus-bg);padding:140px 0 150px}
+.center-head{text-align:center;display:grid;justify-items:center}
+.center-head .kicker{color:var(--ivy-campus-heading-accent)}
+.classes h2{color:var(--ivy-campus-heading-ink)}
+.center-head p{margin-top:16px;max-width:30em;text-wrap:balance;color:var(--ivy-campus-muted);font-size:var(--fs-md)}
+.class-tabs{display:flex;justify-content:center;margin:56px auto 0;max-width:1000px;border-bottom:1px solid var(--ivy-campus-heading-rule)}
+.class-tabs button{position:relative;flex:1;display:grid;justify-items:center;gap:6px;padding:12px 8px 20px;border:0;background:none;cursor:pointer;color:var(--ivy-campus-muted);transition:color .2s}
+.class-tabs .age{font:400 clamp(44px,5vw,64px)/1 var(--font-date);letter-spacing:-.02em;color:var(--ivy-campus-heading-rule);transition:color .25s}
+.class-tabs .age sup{font-size:.32em;letter-spacing:.06em;vertical-align:top;margin-left:4px;position:relative;top:.5em}
+.class-tabs b{font-size:var(--fs-lg);font-weight:500;letter-spacing:.065em}
+.class-tabs button::after{content:"";position:absolute;left:50%;bottom:-1px;width:28px;height:2px;background:var(--ivy-campus-heading-ink);transform:translateX(-50%) scaleX(0);transition:transform .3s var(--ease)}
+.class-tabs button[aria-selected=true]{color:var(--ivy-campus-heading-ink)}
+.class-tabs button[aria-selected=true] .age{color:var(--ivy-forest-soft)}
+.class-tabs button[aria-selected=true]::after{transform:translateX(-50%) scaleX(1)}
+.class-tabs button:hover .age{color:var(--ivy-forest-soft)}
+.class-board{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);margin-top:48px;border-radius:24px;overflow:hidden;background:var(--white);box-shadow:0 1px 0 var(--ivy-campus-line),0 24px 60px rgb(var(--ink) / .06)}
+.finder{background:var(--ivy-forest);color:rgb(var(--on-dark));padding:48px 48px 44px}
+.finder label{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--gold);letter-spacing:.1em;margin-bottom:14px}
+.finder input{width:100%;min-height:56px;padding:10px 20px;border:0;border-radius:999px;background:var(--paper);color:var(--text);font:400 var(--fs-lg) var(--font)}
+.finder-summary{margin-top:28px;font-family:var(--font-head);font-weight:700;font-size:var(--fs-2xl);line-height:1.55}
+.finder-empty{margin-top:28px;color:var(--ivy-forest-mist);font-size:var(--fs-sm)}
+.years{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:6px}
+.years li{display:flex;justify-content:space-between;align-items:center;min-height:46px;padding:0 20px;border-radius:999px;border:1px solid rgb(var(--on-dark) / .22);font-size:var(--fs-sm)}
+.years li .en{font-size:15px}
+.years li.past{opacity:.5}
+.years li.current{background:var(--gold);border-color:var(--gold);color:var(--deep);font-weight:600}
+.class-detail{padding:48px 52px 44px;display:flex;flex-direction:column}
+.class-detail h3{font-size:var(--fs-4xl);color:var(--ivy-campus-heading-ink);letter-spacing:.06em}
+.class-detail .sub{margin-top:6px;color:var(--ivy-campus-muted);font-size:var(--fs-sm)}
+.ranges{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px}
+.range{padding:24px;border-radius:12px;background:var(--ivy-campus-heading-selected)}
+.range:first-child{background:var(--ivy-news-swept-sage)}
+.range small{display:block;font-size:var(--fs-xs);color:var(--ivy-campus-heading-accent);letter-spacing:.06em}
+.range strong{display:block;margin-top:10px;font:400 26px/1.25 var(--font-date);font-variant-numeric:tabular-nums;color:var(--ivy-news-ink)}
+.range span{display:block;margin-top:4px;font:400 var(--fs-sm) var(--font-date);color:var(--ivy-news-muted)}
+.class-note{margin-top:auto;padding-top:28px;font-size:var(--fs-sm);color:var(--ivy-campus-muted)}
+.table-toggle{display:flex;justify-content:center;margin-top:32px}
+.control-pill{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 22px;border:1px solid var(--ivy-campus-control-border);border-radius:999px;background:var(--ivy-campus-control);font-size:var(--fs-sm);cursor:pointer;list-style:none}
+.control-pill::-webkit-details-marker{display:none}
+details[open] .control-pill .icon{transform:rotate(45deg)}
+.full-table{margin-top:24px;overflow-x:auto;border-radius:16px;background:var(--white);padding:8px 28px 16px}
+.full-table table{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
+.full-table th,.full-table td{padding:14px 12px;border-bottom:1px solid var(--ivy-campus-line);text-align:left;white-space:nowrap}
+.full-table tbody tr:last-child>*{border-bottom:0}
+.full-table thead th{font-size:var(--fs-sm);color:var(--ivy-campus-heading-accent);font-weight:500}
+.full-table td{font-family:var(--font-date);font-variant-numeric:tabular-nums}
+.full-table td small{display:block;font-size:var(--fs-xs);color:var(--ivy-campus-muted)}
+
+/* ── 03 新生準備：首頁「孩子的一天」的深色舞台＋可翻面拍立得 ── */
+.newcomer{position:relative;background:var(--ivy-forest);color:rgb(var(--on-dark));padding:140px 0 200px;overflow:hidden;isolation:isolate}
+.newcomer .watermark{color:rgb(var(--on-dark));opacity:.06;top:auto;bottom:40px;left:50%;transform:translateX(-50%);font-size:clamp(120px,13vw,200px)}
+.newcomer-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,26em);align-items:end;gap:48px}
+.newcomer .kicker{color:var(--gold)}
+.newcomer-head p{color:rgb(var(--on-dark) / .82);font-size:var(--fs-md)}
+.prints{display:grid;grid-template-columns:1fr 1fr;gap:clamp(40px,6vw,96px);margin-top:80px;padding:0 clamp(0px,3vw,48px)}
+.print{perspective:1600px}
+.print:nth-child(1){--tilt:-2.2deg}
+.print:nth-child(2){--tilt:1.8deg;margin-top:64px}
+.print-inner{display:grid;transform:rotate(var(--tilt));transform-style:preserve-3d;transition:transform .8s var(--ease)}
+.print:hover .print-inner{transform:rotate(0deg)}
+.print.flipped .print-inner{transform:rotate(0deg) rotateY(180deg)}
+.face{grid-area:1/1;position:relative;padding:28px 28px 30px;background:var(--ivy-print-face);color:var(--ivy-news-ink);border-radius:3px;box-shadow:0 30px 60px rgb(var(--shadow-rgb) / .28),0 2px 4px rgb(var(--shadow-rgb) / .12);backface-visibility:hidden}
+.face.front{display:flex;flex-direction:column}
+.face.front .flip{margin-top:auto;align-self:flex-start}
+.face.front .bring{margin-bottom:22px}
+.face.back{background:var(--ivy-print-back);transform:rotateY(180deg);display:flex;flex-direction:column}
+.tape{position:absolute;top:-16px;left:50%;width:120px;height:30px;transform:translateX(-50%) rotate(-3deg);background:repeating-linear-gradient(135deg,var(--ivy-news-swept-gold) 0 8px,var(--yellow) 8px 16px);opacity:.9}
+.print:nth-child(2) .tape{left:auto;right:28px;transform:rotate(4deg);background:repeating-linear-gradient(135deg,var(--ivy-news-swept-mist) 0 8px,var(--ivy-news-paper-blue) 8px 16px)}
+.face img{width:100%;aspect-ratio:4/3;object-fit:cover}
+.print-meta{margin-top:22px;font-size:var(--fs-xs);color:var(--ivy-news-muted);letter-spacing:.04em}
+.print-meta .en{font-size:13px}
+.print h3{margin-top:8px;font-size:var(--fs-3xl);line-height:1.45;color:var(--ivy-news-green)}
+.bring{border:0;margin:20px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.bring legend{padding:0;margin-bottom:10px;font-size:var(--fs-sm);font-weight:600;color:var(--ivy-news-green)}
+.bring label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--ivy-news-line);border-radius:999px;background:var(--white);cursor:pointer;font-size:var(--fs-sm);transition:background .2s,border-color .2s}
+.bring input{position:absolute;opacity:0;width:1px;height:1px}
+.bring .box{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ivy-news-event-outline);background:var(--white);color:var(--white)}
+.bring .box .icon{width:12px;height:12px}
+.bring label:has(input:checked){background:var(--ivy-news-swept-sage);border-color:var(--ivy-news-event-outline)}
+.bring label:has(input:checked) .box{background:var(--ivy-news-green);border-color:var(--ivy-news-green)}
+.bring label:has(input:focus-visible){outline:2px solid var(--gold);outline-offset:2px}
+.flip{display:inline-flex;align-items:center;gap:8px;margin-top:22px;min-height:44px;padding:0;border:0;background:none;color:var(--ivy-news-green);font-size:var(--fs-sm);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:5px}
+.tips{list-style:none;margin:14px 0 0;padding:0;counter-reset:tip}
+.tips li{counter-increment:tip;display:grid;grid-template-columns:30px 1fr;gap:6px;padding:12px 0;border-top:1px solid var(--ivy-news-line);font-size:var(--fs-sm);line-height:1.9}
+.tips li::before{content:counter(tip,decimal-leading-zero);font:400 15px/1.9 var(--font-date);color:var(--ivy-news-event-outline)}
+.back h3{margin-top:4px}
+.back .flip{margin-top:auto;padding-top:12px}
+.daily{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:20px;margin-top:120px}
+.daily-card{padding:28px;border-radius:16px;background:rgb(var(--on-dark) / .07);border:1px solid rgb(var(--on-dark) / .12)}
+.daily-card h3{font-size:var(--fs-xl);color:rgb(var(--on-dark))}
+.daily-card p{margin-top:12px;font-size:var(--fs-sm);line-height:1.95;color:rgb(var(--on-dark) / .84)}
+.daily-card p+p{margin-top:8px}
+.daily-card .sub{margin-top:4px;font-size:var(--fs-xs);color:rgb(var(--on-dark) / .66)}
+.week{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.week li{display:grid;justify-items:center;gap:4px;padding:14px 4px;border-radius:12px;background:var(--ivy-news-swept-sage);color:var(--ivy-news-ink);text-align:center}
+.week .en{font-size:12px;letter-spacing:.1em;opacity:.7}
+.week strong{font-size:var(--fs-sm)}
+.week li[data-wear='運動服']{background:var(--ivy-news-swept-mist)}
+.week li[data-wear='便服']{background:var(--ivy-news-swept-gold)}
+
+/* ── 04 收退費：首頁「最新消息」那張從下方升起的圓角紙＋彩色活動卡 ── */
+.sheet{position:relative;z-index:2;margin:-96px 16px 0;padding:112px 0 64px;border-radius:28px 28px 0 0;background:var(--ivy-news-paper);color:var(--ivy-news-ink);box-shadow:0 -24px 60px rgb(var(--shadow-rgb) / .16)}
+.sheet .wrap{width:min(1296px,calc(100% - 144px))}
+.fees-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,28em);gap:48px;align-items:end}
+.fees .kicker{color:var(--ivy-news-muted)}
+.fees h2{color:var(--ivy-news-green)}
+.fees-head p{color:var(--ivy-news-muted);font-size:var(--fs-md)}
+.fees-layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:48px;margin-top:64px}
+.col-label{display:flex;align-items:center;gap:12px;margin-bottom:18px;font:400 12px/1.5 var(--font-date);letter-spacing:.14em;color:var(--ivy-news-muted)}
+.subsidies{display:grid;gap:18px}
+.subsidy{display:grid;grid-template-columns:auto 1fr;column-gap:16px;align-items:center;min-height:104px;padding:20px;border-radius:12px;background:var(--ivy-news-swept-gold);transition:transform .25s var(--ease)}
+.subsidy:hover{transform:translateY(-2px)}
+.subsidy:nth-child(2){background:var(--ivy-news-swept-sage)}
+.subsidy:nth-child(3){background:var(--ivy-news-swept-mist)}
+.subsidy-amt{display:grid;justify-items:center;min-width:5.6em}
+.subsidy-amt b{font:400 2rem/1 var(--font-date);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.subsidy-amt span{margin-top:6px;font-size:11px;letter-spacing:.04em}
+.subsidy-copy small{display:block;font-size:var(--fs-xs)}
+.subsidy-copy strong{display:block;margin-top:2px;font-size:var(--fs-md);font-weight:600;line-height:1.5}
+.allowance{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:center;padding:28px 32px;border-radius:16px;background:var(--ivy-news-paper-blue)}
+.allowance-title strong{display:block;font-size:var(--fs-lg);font-weight:600;color:var(--ivy-news-green)}
+.allowance-title small{display:block;margin-top:4px;font-size:var(--fs-xs);color:var(--ivy-news-muted)}
+.allowance dl{margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.allowance dl div{display:grid;justify-items:center;padding:4px 12px;border-left:1px solid var(--ivy-news-rule)}
+.allowance dt{font-size:var(--fs-xs);color:var(--ivy-news-muted)}
+.allowance dd{margin:4px 0 0;font:400 1.875rem/1.1 var(--font-date);font-variant-numeric:tabular-nums;color:var(--ivy-news-green)}
+.allowance dd span{font:400 var(--fs-xs) var(--font);margin-left:4px;color:var(--ivy-news-muted)}
+.refunds{margin-top:44px}
+.refunds h3{font-size:var(--fs-2xl);color:var(--ivy-news-green)}
+.refunds>p{margin-top:6px;font-size:var(--fs-sm);color:var(--ivy-news-muted)}
+.refund-list{margin-top:18px;border-top:1px solid var(--ivy-news-rule)}
+.refund-list details{border-bottom:1px solid var(--ivy-news-rule)}
+.refund-list summary{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px;padding:12px 0;cursor:pointer;list-style:none;font-size:var(--fs-lg);font-weight:600;color:var(--ivy-news-ink)}
+.refund-list summary::-webkit-details-marker{display:none}
+.refund-list summary .num{font:400 15px var(--font-date);color:var(--ivy-news-muted);margin-right:14px;font-weight:400}
+.refund-list summary .t{flex:1}
+.refund-list summary:hover .t{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+.plus{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;border:1px solid var(--ivy-news-line);transition:transform .3s var(--ease),background .2s}
+.refund-list details[open] .plus{transform:rotate(45deg);background:var(--ivy-news-swept-gold);border-color:transparent}
+.refund-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:0 0 24px 38px}
+.refund-group{padding:18px 20px;border-radius:12px;background:var(--ivy-news-note)}
+.refund-group h4{margin:0 0 6px;font-size:var(--fs-xs);color:var(--ivy-news-event-outline);font-weight:600;letter-spacing:.08em}
+.refund-group ul{margin:0;padding-left:1.1em;font-size:var(--fs-sm);line-height:1.9;color:var(--ivy-news-ink)}
+.refund-note{grid-column:1/-1;font-size:var(--fs-sm);color:var(--ivy-news-green)}
+.fine{margin-top:40px;font-size:var(--fs-xs);color:var(--ivy-news-muted);line-height:1.8}
+
+/* 收尾：預約參觀，照片＋金色膠囊鈕 */
+.visit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:center;gap:0;margin-top:96px;border-radius:24px;overflow:hidden;background:var(--ivy-forest-mist);color:var(--ivy-forest)}
+.visit img{width:100%;height:100%;min-height:360px;object-fit:cover}
+.visit-copy{padding:56px 64px}
+.visit-copy p{margin-top:16px;font-size:var(--fs-md)}
+.visit-copy .pill-button{margin-top:32px}
+.visit .kicker{color:var(--ivy-forest-soft)}
+
+/* ── 頁尾：首頁定案 R「燕麥＋深綠底列」 ── */
+.footer{background:var(--ivy-footer-bg);color:var(--ivy-footer-text);padding:72px 0 64px}
+.footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1.1fr;gap:48px}
+.footer-brand b{display:block;font:700 26px/1.3 var(--font-head);letter-spacing:.12em;color:var(--ivy-footer-brand)}
+.footer-brand small{display:block;margin-top:12px;font:400 13px/1 var(--font-date);letter-spacing:.24em;color:var(--ivy-footer-accent);font-weight:600}
+.footer-brand p{margin-top:24px;font-size:var(--fs-sm);color:var(--ivy-footer-muted)}
+.footer-links{display:grid;grid-template-columns:1fr 1fr;gap:18px 32px;align-content:start;font-size:var(--fs-sm)}
+.footer-links a,.footer-campus a{text-decoration:none}
+.footer-campus h4{margin:0 0 18px;font-size:var(--fs-sm);color:var(--ivy-footer-accent)}
+.footer-campus div{display:flex;flex-wrap:wrap;gap:12px 24px;font-size:var(--fs-sm)}
+.footer-bar{background:var(--ivy-footer-bar-bg);color:var(--ivy-footer-bar-text);padding:22px 0;font-size:13px}
+
+/* ── 斷點 ── */
+@media (max-width:1100px){
+  :root{--gutter:32px}
+  .header-top{padding-left:32px}
+  .nav a{padding:0 12px}
+  .header-book{padding:0 28px 0 24px}
+  .pill{right:32px}
+  .steps{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:40px}
+  .steps::before{display:none}
+  .process-layout{column-gap:36px}
+  .class-board{grid-template-columns:1fr}
+  .daily{grid-template-columns:1fr 1fr}
+  .daily .daily-card:first-child{grid-column:1/-1}
+  .fees-layout{grid-template-columns:1fr}
+  .subsidies{grid-template-columns:repeat(3,1fr)}
+  .sheet .wrap{width:calc(100% - 64px)}
+}
+@media (max-width:900px){
+  .nav{display:none}
+  .header-menu{display:grid;place-items:center;width:56px;border:0;background:none;cursor:pointer;color:inherit}
+  .header-book{border-radius:12px;margin:14px 0;padding:0 18px}
+  .header-top{padding-right:12px}
+  .process-layout,.newcomer-head,.fees-head{grid-template-columns:1fr;row-gap:32px}
+  .prints{grid-template-columns:1fr;max-width:560px;margin-inline:auto;padding:0}
+  .print:nth-child(2){margin-top:24px}
+  .visit{grid-template-columns:1fr}
+  .visit img{min-height:0;aspect-ratio:16/9}
+  .footer-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  :root{--gutter:20px}
+  html{scroll-padding-top:88px}
+  .header-top{height:78px;padding-left:20px;padding-right:4px;border-bottom-color:rgb(var(--on-dark) / .45);margin-inline:0}
+  .brand{gap:8px;min-width:0}
+  .brand-crest{width:38px;height:40px}
+  .brand-text b{font-size:17px}
+  .brand-text span{font-size:10.5px;letter-spacing:.01em}
+  .header-book{margin:14px 0;padding:0 12px;gap:6px;flex:none}
+  .header-menu{width:44px}
+  .header-book b{font-size:13px}
+  .pill{right:16px;top:12px}
+  .pill-chapter{display:none}
+  /* 手機首屏不滿版壓字：照片在上、字在米白底（同首頁手機版） */
+  .hero{min-height:0;display:block;color:var(--text);background:var(--paper)}
+  .hero-photo{position:relative;height:500px;z-index:0}
+  .hero-shade{bottom:auto;height:160px;background:linear-gradient(180deg,rgb(var(--ink) / .55),rgb(var(--ink) / 0))}
+  .hero-copy{padding:32px 0 0;max-width:none}
+  .eyebrow{font-size:13px}
+  .hero h1{margin-top:22px;font-size:2.125rem;color:var(--ivy-forest)}
+  .hero-lede{margin-top:20px;font-size:var(--fs-md)}
+  .hero-actions{gap:20px;margin-top:28px}
+  .chapters{grid-template-columns:1fr 1fr;margin-top:40px;border-top-color:var(--line)}
+  .chapters a{padding:16px 4px 18px 14px;border-left-color:var(--line);border-bottom:1px solid var(--line)}
+  .chapters li:nth-child(3) a{border-left:0}
+  .chapters b{font-size:var(--fs-md)}
+  .process,.classes{padding:88px 0 96px}
+  .watermark{font-size:96px;top:48px}
+  .process h2,.newcomer h2,.fees h2,.classes h2,.visit h2{font-size:var(--fs-4xl);line-height:1.45}
+  .process-text{font-size:var(--fs-md)}
+  .steps{grid-template-columns:1fr;row-gap:0;margin-top:56px}
+  .steps::before{display:block;left:27px;right:auto;top:28px;bottom:28px;border-top:0;border-left:1.5px dashed var(--trail)}
+  .step{display:grid;grid-template-columns:56px 1fr;column-gap:16px;padding-bottom:16px}
+  .step-card{margin-top:0}
+  .class-tabs{margin-top:40px}
+  .class-tabs button{padding:8px 2px 14px}
+  .class-tabs b{font-size:var(--fs-sm)}
+  .finder,.class-detail{padding:32px 24px}
+  .ranges{grid-template-columns:1fr}
+  .range strong{font-size:22px}
+  .newcomer{padding:88px 0 150px}
+  .newcomer .watermark{font-size:88px;bottom:60px}
+  .prints{margin-top:56px}
+  .face{padding:18px 18px 22px}
+  .print h3{font-size:var(--fs-2xl)}
+  .daily{grid-template-columns:1fr;margin-top:72px}
+  .daily-card{padding:22px}
+  .sheet{margin:-72px 0 0;padding:72px 0 48px;border-radius:24px 24px 0 0}
+  .sheet .wrap{width:calc(100% - 40px)}
+  .fees-layout{margin-top:40px;gap:40px}
+  .subsidies{grid-template-columns:1fr}
+  .allowance{grid-template-columns:1fr;gap:16px;padding:22px}
+  .allowance dl div{padding:4px 6px}
+  .allowance dd{font-size:1.5rem}
+  .allowance dd span{display:block;margin:2px 0 0;text-align:center}
+  .refund-list summary{font-size:var(--fs-md);min-height:60px}
+  .refund-body{padding-left:0}
+  .visit{margin-top:64px}
+  .visit-copy{padding:32px 24px 36px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><filter id="logo-colour-cutout" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -4.252 -14.304 -1.444 20 0"/></filter></defs>
+  <symbol id="i-calendar-check" viewBox="0 0 256 256"><path fill="currentColor" d="M208 32h-24v-8a8 8 0 0 0-16 0v8H88v-8a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M72 48v8a8 8 0 0 0 16 0v-8h80v8a8 8 0 0 0 16 0v-8h24v32H48V48Zm136 160H48V96h160zm-38.34-85.66a8 8 0 0 1 0 11.32l-48 48a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L116 164.69l42.34-42.35a8 8 0 0 1 11.32 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 256 256"><path fill="currentColor" d="m229.66 77.66l-128 128a8 8 0 0 1-11.32 0l-56-56a8 8 0 0 1 11.32-11.32L96 188.69L218.34 66.34a8 8 0 0 1 11.32 11.32"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 256 256"><path fill="currentColor" d="m221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 256 256"><path fill="currentColor" d="m205.66 149.66l-72 72a8 8 0 0 1-11.32 0l-72-72a8 8 0 0 1 11.32-11.32L120 196.69V40a8 8 0 0 1 16 0v156.69l58.34-58.35a8 8 0 0 1 11.32 11.32"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 256 256"><path fill="currentColor" d="M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8"/></symbol>
+  <symbol id="i-arrow-counter-clockwise" viewBox="0 0 256 256"><path fill="currentColor" d="M224 128a96 96 0 0 1-94.71 96H128a95.38 95.38 0 0 1-65.9-26.2a8 8 0 0 1 11-11.63a80 80 0 1 0-1.67-114.78a3 3 0 0 1-.26.25L44.59 96H72a8 8 0 0 1 0 16H24a8 8 0 0 1-8-8V56a8 8 0 0 1 16 0v29.8L60.25 60A96 96 0 0 1 224 128"/></symbol>
+</svg>
+
+<header class="site-header" data-state="hero">
+  <div class="header-top">
+    <a class="brand" href="#top" aria-label="常春藤教育機構 首頁">
+      <svg class="brand-crest" viewBox="30 26 124 132" aria-hidden="true"><image href="../../web/public/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)"/></svg>
+      <span class="brand-text"><b>常春藤教育機構</b><span lang="en">Ivy Educational Institution</span></span>
+    </a>
+    <nav class="nav" aria-label="主選單">
+      <a href="#">關於常春藤<small lang="en">About Ivy</small></a>
+      <a href="#">孩子的一天<small lang="en">A Day at Ivy</small></a>
+      <a href="#">五所校園<small lang="en">Our Campuses</small></a>
+      <a href="#">最新消息<small lang="en">Latest News</small></a>
+      <a href="#top" aria-current="page">入學資訊<small lang="en">Admission</small></a>
+    </nav>
+    <a class="header-book" href="#visit"><svg class="icon" aria-hidden="true"><use href="#i-calendar-check"/></svg><span><b>預約參觀</b><small lang="en">Book a Visit</small></span></a>
+    <button class="header-menu" type="button" aria-label="開啟導覽選單"><span class="menu-lines"><span></span><span></span></span></button>
+  </div>
+  <div class="pill">
+    <span class="pill-logo"><svg class="brand-crest" viewBox="30 26 124 132" aria-hidden="true"><image href="../../web/public/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)"/></svg></span>
+    <span class="pill-chapter" aria-live="polite"><span class="en" data-chapter-no>01</span><span data-chapter-name>入學流程</span></span>
+    <button class="pill-menu" type="button" aria-label="開啟導覽選單"><span class="menu-lines"><span></span><span></span></span><span><b>選單</b><small lang="en">Menu</small></span></button>
+    <a class="pill-book" href="#visit"><svg class="icon" aria-hidden="true"><use href="#i-calendar-check"/></svg>預約參觀</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" aria-labelledby="adm-title">
+    <img class="hero-photo" src="../../web/public/assets/day-discover.webp" alt="老師蹲在孩子身邊，一起看桌上的教具">
+    <div class="hero-shade"></div>
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="eyebrow">常春藤幼兒園 · 入學資訊</span>
+        <h1 id="adm-title">從參觀到開學，<br>一步<span class="grow">一步來<span class="hero-underline" aria-hidden="true"><svg viewBox="0 0 180 14" preserveAspectRatio="none"><path d="M3 9Q48 2 92 7T177 6"/></svg></span></span>。</h1>
+        <p class="hero-lede">入學流程、分班、新生準備與收退費，<br>整理在同一頁。</p>
+        <div class="hero-actions">
+          <a class="pill-button" href="#visit">預約參觀<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+          <a class="text-link" href="#classes">查寶貝讀哪一班<svg class="icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
+        </div>
+      </div>
+      <ol class="chapters" aria-label="本頁章節">
+        <li><a href="#process"><span class="en">01</span><b>入學流程</b><span>六個步驟</span></a></li>
+        <li><a href="#classes"><span class="en">02</span><b>分班對照</b><span>輸入生日查班別</span></a></li>
+        <li><a href="#newcomer"><span class="en">03</span><b>新生準備</b><span>必備品與叮嚀</span></a></li>
+        <li><a href="#fees"><span class="en">04</span><b>收退費辦法</b><span>補助與退費規定</span></a></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="process" class="process" data-chapter="01" data-name="入學流程" aria-labelledby="process-title">
+    <div class="watermark" aria-hidden="true">入學流程</div>
+    <div class="wrap">
+      <div class="process-layout">
+        <div>
+          <p class="kicker" lang="en"><b>01</b>How to join</p>
+          <h2 id="process-title">每一步，<br>都有人陪著你。</h2>
+          <p class="process-text">從第一通電話到開學第一天，大約一到兩個月。每一步都有老師陪著確認，不確定的地方，參觀時直接問我們。</p>
+        </div>
+        <figure class="photo">
+          <img src="../../web/public/assets/day-hello.webp" alt="孩子早上到校，和老師打招呼">
+          <figcaption>開學前三天以半天為主，慢慢熟悉新環境。</figcaption>
+        </figure>
+      </div>
+      <ol class="steps">
+        <li class="step"><span class="step-dot">01</span><div class="step-card"><small>隨時</small><h3>預約參觀</h3><p>以電話或親友介紹，確認名額並預約參觀時間。</p></div></li>
+        <li class="step"><span class="step-dot">02</span><div class="step-card"><small>約好的那天</small><h3>到園參觀</h3><p>學校安排專人，帶爸爸媽媽走一圈、聊聊孩子。</p></div></li>
+        <li class="step"><span class="step-dot">03</span><div class="step-card"><small>決定之後</small><h3>保留名額</h3><p>預先繳交訂位金 5,000 元，即可確定保留名額。</p></div></li>
+        <li class="step"><span class="step-dot">04</span><div class="step-card"><small>開學前約一個月</small><h3>新生報到</h3><p>通知報到日，領取代辦品，並繳交註冊費與代辦費。</p></div></li>
+        <li class="step"><span class="step-dot">05</span><div class="step-card"><small>開學前約一週</small><h3>導師來電</h3><p>班導師以電話聯絡，了解寶貝需要特別留意的地方。</p></div></li>
+        <li class="step"><span class="step-dot">06</span><div class="step-card"><small>開學日</small><h3>開心上學</h3><p>前三天以半天為主，讓寶貝慢慢熟悉新環境。</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="classes" class="classes" data-chapter="02" data-name="分班對照" aria-labelledby="classes-title">
+    <div class="wrap">
+      <div class="center-head">
+        <p class="kicker" lang="en"><b>02</b>Which class</p>
+        <h2 id="classes-title">寶貝何時入學？</h2>
+        <p>9 月 2 日到隔年 9 月 1 日出生為同一屆。點班別看出生區間，或直接輸入生日。</p>
+      </div>
+      <div class="class-tabs" role="tablist" aria-label="班別">
+        <button role="tab" type="button" aria-selected="true" data-offset="3"><span class="age en">2<sup>歲</sup></span><b>幼幼班</b></button>
+        <button role="tab" type="button" aria-selected="false" data-offset="4"><span class="age en">3<sup>歲</sup></span><b>小班</b></button>
+        <button role="tab" type="button" aria-selected="false" data-offset="5"><span class="age en">4<sup>歲</sup></span><b>中班</b></button>
+        <button role="tab" type="button" aria-selected="false" data-offset="6"><span class="age en">5<sup>歲</sup></span><b>大班</b></button>
+      </div>
+      <div class="class-board">
+        <div class="finder">
+          <label for="birthday">寶貝的生日</label>
+          <input id="birthday" type="date" min="2015-01-01" max="2035-12-31">
+          <div aria-live="polite" data-finder-result>
+            <p class="finder-empty">選好日期，這裡會列出寶貝從幼幼班到小一的每一年，上面的班別也會跟著跳過去。</p>
+          </div>
+        </div>
+        <div class="class-detail" role="tabpanel" aria-live="polite">
+          <h3 data-class-name>幼幼班</h3>
+          <p class="sub" data-class-sub>滿 2 歲入學</p>
+          <div class="ranges" data-ranges></div>
+          <p class="class-note">學年度 8 月 1 日起算。插班、轉學請參觀時向園方確認名額。</p>
+        </div>
+      </div>
+      <details class="table-toggle-wrap">
+        <summary class="table-toggle"><span class="control-pill">看完整對照表<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+        <div class="full-table"><table><thead data-thead></thead><tbody data-tbody></tbody></table></div>
+      </details>
+    </div>
+  </section>
+
+  <section id="newcomer" class="newcomer" data-chapter="03" data-name="新生準備" aria-labelledby="newcomer-title">
+    <div class="watermark" aria-hidden="true">新生入學二部曲</div>
+    <div class="wrap">
+      <div class="newcomer-head">
+        <div>
+          <p class="kicker" lang="en"><b>03</b>First weeks</p>
+          <h2 id="newcomer-title">新生入學二部曲</h2>
+        </div>
+        <p>先適應、再註冊。正面勾一勾必備品，翻到背面看老師的叮嚀。</p>
+      </div>
+      <div class="prints">
+        <article class="print">
+          <div class="print-inner">
+            <div class="face front">
+              <span class="tape" aria-hidden="true"></span>
+              <img src="../../web/public/assets/day-lunch.webp" alt="孩子自己拿湯匙吃點心">
+              <p class="print-meta"><span class="en">01</span> / 首部曲 · 上學前三天</p>
+              <h3>適應期</h3>
+              <fieldset class="bring">
+                <legend>寶貝必備品</legend>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>餐具（碗、湯匙）</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>抽取式面紙</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>替換衣物</label>
+              </fieldset>
+              <button class="flip" type="button" aria-expanded="false">翻面看 5 則叮嚀<svg class="icon" aria-hidden="true"><use href="#i-arrow-counter-clockwise"/></svg></button>
+            </div>
+            <div class="face back" aria-hidden="true">
+              <p class="print-meta"><span class="en">01</span> / 首部曲 · 給爸爸媽媽</p>
+              <h3>適應期</h3>
+              <ol class="tips">
+                <li>第一天報到時，老師會幫寶貝佩戴名牌，請記得每天配戴，加快師生之間的情感建立。</li>
+                <li>上學第一天請早一點起床準備，不要急，以免寶貝感染到您的慌亂；也早一點到校，讓寶貝有充裕的時間接觸老師和小朋友。</li>
+                <li>初期最好吃完早餐再入園，以免寶貝心情忐忑而食慾不佳。</li>
+                <li>寶貝入園時情緒比較明顯的話，爸爸媽媽可以稍微陪伴，減低初入幼兒園的不安。</li>
+                <li>可以跟寶貝說：「學校的老師是你的第二個媽咪，會用心呵護你喔！」讓寶貝與老師更貼近。</li>
+              </ol>
+              <button class="flip" type="button" tabindex="-1">翻回正面<svg class="icon" aria-hidden="true"><use href="#i-arrow-counter-clockwise"/></svg></button>
+            </div>
+          </div>
+        </article>
+        <article class="print">
+          <div class="print-inner">
+            <div class="face front">
+              <span class="tape" aria-hidden="true"></span>
+              <img src="../../web/public/assets/day-home.webp" alt="孩子在教室專心看繪本">
+              <p class="print-meta"><span class="en">02</span> / 快樂曲 · 註冊之後</p>
+              <h3>快樂來上學</h3>
+              <fieldset class="bring">
+                <legend>寶貝必備品</legend>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>牙刷</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>牙膏</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>漱口杯</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>棉被</label>
+                <label><input type="checkbox"><span class="box"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>枕頭</label>
+              </fieldset>
+              <button class="flip" type="button" aria-expanded="false">翻面看 2 則叮嚀<svg class="icon" aria-hidden="true"><use href="#i-arrow-counter-clockwise"/></svg></button>
+            </div>
+            <div class="face back" aria-hidden="true">
+              <p class="print-meta"><span class="en">02</span> / 快樂曲 · 給爸爸媽媽</p>
+              <h3>快樂來上學</h3>
+              <ol class="tips">
+                <li>新生入園第一天，學校會發回書包、餐袋（請清洗後再使用）、接送證 2 張、幼生名牌 1 張及註冊袋。</li>
+                <li>請勿拿老師來嚇寶貝，以免寶貝覺得老師很兇，而害怕老師或不願上學。</li>
+              </ol>
+              <button class="flip" type="button" tabindex="-1">翻回正面<svg class="icon" aria-hidden="true"><use href="#i-arrow-counter-clockwise"/></svg></button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="daily">
+        <div class="daily-card">
+          <h3>每天穿什麼</h3>
+          <p class="sub">制服與運動服於註冊後發放。</p>
+          <ol class="week">
+            <li data-wear="制服"><span class="en" lang="en">MON</span><strong>制服</strong></li>
+            <li data-wear="運動服"><span class="en" lang="en">TUE</span><strong>運動服</strong></li>
+            <li data-wear="便服"><span class="en" lang="en">WED</span><strong>便服</strong></li>
+            <li data-wear="制服"><span class="en" lang="en">THU</span><strong>制服</strong></li>
+            <li data-wear="運動服"><span class="en" lang="en">FRI</span><strong>運動服</strong></li>
+          </ol>
+        </div>
+        <div class="daily-card">
+          <h3>接送安全</h3>
+          <p>接寶貝回家時，請出示幼兒接送證（使用一個月），以便識別。</p>
+          <p>請他人代接時，請在受託人到園前 30 分鐘來電告知；確認身分並登記後，才會把寶貝交給對方。</p>
+        </div>
+        <div class="daily-card">
+          <h3>註冊須知</h3>
+          <p>收費袋每月由園方發給寶貝，請於次月 5 日前由家長親自繳交並簽收，請勿讓寶貝單獨攜帶費用。</p>
+          <p>收退費依教育局規定辦理，新學期收退費通知單於每學期結束前一個月公告。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="fees" class="sheet fees" data-chapter="04" data-name="收退費辦法" aria-labelledby="fees-title">
+    <div class="wrap">
+      <div class="fees-head">
+        <div>
+          <p class="kicker" lang="en"><b>04</b>Fees &amp; subsidies <span class="chip" lang="zh-Hant-TW">以各校公告為準</span></p>
+          <h2 id="fees-title">補助與退費，<br>一次看清楚。</h2>
+        </div>
+        <p>收退費依「高雄市教保服務機構收退費辦法」辦理。補助款皆待政府撥款到園後再轉發家長，開學後會協助辦理。</p>
+      </div>
+
+      <div class="fees-layout">
+        <div>
+          <p class="col-label" lang="en">SUBSIDY</p>
+          <div class="subsidies">
+            <div class="subsidy"><span class="subsidy-amt"><b>15,000</b><span>元／學期</span></span><span class="subsidy-copy"><small>教育部補助</small><strong>大班學費</strong></span></div>
+            <div class="subsidy"><span class="subsidy-amt"><b>5,000</b><span>元／學期</span></span><span class="subsidy-copy"><small>高雄市政府補助（符合資格者）</small><strong>中班、小班、幼幼班學費</strong></span></div>
+            <div class="subsidy"><span class="subsidy-amt"><b>3,000</b><span>元／月</span></span><span class="subsidy-copy"><small>中央或高雄市政府補助</small><strong>2–5 歲特殊家庭</strong></span></div>
+          </div>
+        </div>
+        <div>
+          <p class="col-label" lang="en">CHILDCARE ALLOWANCE · REFUNDS</p>
+          <div class="allowance">
+            <div class="allowance-title"><strong>私立幼兒園 2–6 歲育兒津貼</strong><small>不含公立、準公共、非營利幼兒園</small></div>
+            <dl>
+              <div><dt>第 1 胎</dt><dd>5,000<span>元／月</span></dd></div>
+              <div><dt>第 2 胎</dt><dd>6,000<span>元／月</span></dd></div>
+              <div><dt>第 3 胎以上</dt><dd>7,000<span>元／月</span></dd></div>
+            </dl>
+          </div>
+          <div class="refunds">
+            <h3>退費規定</h3>
+            <p>依情況點開查看。實際金額以園方開立的退費單據為準。</p>
+            <div class="refund-list">
+              <details open>
+                <summary><span class="num en">01</span><span class="t">幼兒中途入園</span><span class="plus"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+                <div class="refund-body">
+                  <div class="refund-group"><h4>學費及雜費</h4><ul><li>未逾學期教保服務總日數 1/3 入園：全額收取</li><li>逾 1/3、未逾 2/3 入園：收取 2/3</li><li>逾 2/3 入園：收取 1/3</li></ul></div>
+                  <div class="refund-group"><h4>保險費</h4><ul><li>依幼兒團體保險相關規定收取</li></ul></div>
+                  <div class="refund-group"><h4>其他代辦費</h4><ul><li>按學期收費者：依就讀月數比例收取</li><li>按月收費者：自入園當月收取，未滿一個月依就讀日數比例收取</li></ul></div>
+                </div>
+              </details>
+              <details>
+                <summary><span class="num en">02</span><span class="t">幼兒未入園或中途離園</span><span class="plus"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+                <div class="refund-body">
+                  <div class="refund-group"><h4>學費及雜費</h4><ul><li>學期教保服務起始日前未入園：全額退還</li><li>未逾學期教保服務總日數 1/3 離園：退還 2/3</li><li>逾 1/3、未逾 2/3 離園：退還 1/3</li><li>逾 2/3 離園：不予退費</li></ul></div>
+                  <div class="refund-group"><h4>保險費</h4><ul><li>依幼兒團體保險相關規定辦理退費</li></ul></div>
+                  <div class="refund-group"><h4>其他代辦費</h4><ul><li>按學期收費者：依就讀月數比例退還</li><li>按月收費者：依離園當月就讀日數比例退還</li><li>已製成成品者發還成品，不予退費</li></ul></div>
+                  <p class="refund-note">退費時會發給退費單據，列明退費項目及數額。</p>
+                </div>
+              </details>
+              <details>
+                <summary><span class="num en">03</span><span class="t">事前請假，連續達五個上課日以上</span><span class="plus"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+                <div class="refund-body"><div class="refund-group"><h4>退費項目</h4><ul><li>按連續請假日數比例退還午餐費、點心費及交通費，其餘項目不予退費</li><li>請假首日辦妥手續者，連續請假日數不含請假首日</li></ul></div></div>
+              </details>
+              <details>
+                <summary><span class="num en">04</span><span class="t">因法定傳染病等事由，強制停課連續達五個上課日以上</span><span class="plus"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+                <div class="refund-body"><div class="refund-group"><h4>退費項目</h4><ul><li>按停課日數比例退還午餐費、點心費及交通費，其餘項目不予退費</li></ul></div></div>
+              </details>
+              <details>
+                <summary><span class="num en">05</span><span class="t">國定假日及農曆春節，連續放假達五日以上</span><span class="plus"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span></summary>
+                <div class="refund-body"><div class="refund-group"><h4>預先扣除</h4><ul><li>除星期六、日及彈性放假日外，其餘放假期間的午餐費、點心費及交通費，按放假日數比例預先扣除，不另收取</li></ul></div></div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="visit" class="visit">
+        <img src="../../web/public/assets/about-together.webp" alt="園長和孩子們笑成一團">
+        <div class="visit-copy">
+          <p class="kicker" lang="en">Book a visit</p>
+          <h2>先來走走看，<br>再決定也不遲。</h2>
+          <p>名額、費用與入學時間，參觀時都可以直接問。</p>
+          <a class="pill-button" href="#visit">預約校園參觀<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+        </div>
+      </div>
+      <p class="fine">設計示意｜內容取自目前 /admission 的後台預設內容；金額與補助依各校公告及最新政策為準，報名前請向各校確認。</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="footer">
+    <div class="wrap footer-grid">
+      <div class="footer-brand"><b>常春藤幼兒園</b><small lang="en">IVY KINDERGARTEN</small><p>陪伴每一個孩子，長成自己喜歡的樣子。</p></div>
+      <div class="footer-links"><a href="#">關於常春藤</a><a href="#">五所校園</a><a href="#">孩子的一天</a><a href="#visit">預約參觀</a><a href="#">最新消息</a><a href="#top">入學資訊</a></div>
+      <div class="footer-campus"><h4>我們的大家庭</h4><div><a href="#">義華校</a><a href="#">明華校</a><a href="#">崇德校</a><a href="#">國際校</a><a href="#">仁武校</a></div></div>
+    </div>
+  </div>
+  <div class="footer-bar"><div class="wrap">© 2026 常春藤教育機構</div></div>
+</footer>
+
+<script>
+(() => {
+  // 頁首：捲過 40px 收成膠囊（同首頁 COMPACT_AT）；膠囊裡顯示目前章節。
+  const header = document.querySelector('.site-header');
+  const onScroll = () => { header.dataset.state = scrollY > 40 ? 'compact' : 'hero'; };
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  const chapterNo = document.querySelector('[data-chapter-no]');
+  const chapterName = document.querySelector('[data-chapter-name]');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { chapterNo.textContent = e.target.dataset.chapter; chapterName.textContent = e.target.dataset.name; } });
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  document.querySelectorAll('[data-chapter]').forEach((s) => io.observe(s));
+
+  // 拍立得翻面
+  document.querySelectorAll('.print').forEach((print) => {
+    const [front, back] = print.querySelectorAll('.face');
+    const [toBack, toFront] = print.querySelectorAll('.flip');
+    const set = (flipped) => {
+      print.classList.toggle('flipped', flipped);
+      front.setAttribute('aria-hidden', String(flipped)); back.setAttribute('aria-hidden', String(!flipped));
+      front.inert = flipped; back.inert = !flipped;
+      toBack.setAttribute('aria-expanded', String(flipped));
+      toFront.tabIndex = flipped ? 0 : -1;
+      (flipped ? toFront : toBack).focus({ preventScroll: true });
+    };
+    back.inert = true;
+    toBack.addEventListener('click', () => set(true));
+    toFront.addEventListener('click', () => set(false));
+  });
+
+  // 分班：規則同 web/app/utils/admission-classes.ts
+  const CLASS = { 3: '幼幼班', 4: '小班', 5: '中班', 6: '大班', 7: '小一' };
+  const SUB = { 3: '滿 2 歲入學', 4: '滿 3 歲', 5: '滿 4 歲', 6: '滿 5 歲，教育部補助大班學費' };
+  const [y, m] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-').map(Number);
+  const current = m >= 8 ? y - 1911 : y - 1912;
+  const years = [current, current + 1];
+  const range = (yr, off) => { const s = yr - off; return { roc: `${s}/9/2 – ${s + 1}/9/1`, ad: `${s + 1911}.9.2 – ${s + 1912}.9.1` }; };
+  const tabs = [...document.querySelectorAll('.class-tabs [role=tab]')];
+  const nameEl = document.querySelector('[data-class-name]');
+  const subEl = document.querySelector('[data-class-sub]');
+  const rangesEl = document.querySelector('[data-ranges]');
+  const select = (off) => {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(+t.dataset.offset === off)));
+    nameEl.textContent = CLASS[off]; subEl.textContent = SUB[off];
+    rangesEl.innerHTML = years.map((yr, i) => { const r = range(yr, off); return `<div class="range"><small>${yr} 學年度 · ${i ? '下學年' : '本學年'}</small><strong>${r.roc}</strong><span>${r.ad}</span></div>`; }).join('');
+  };
+  tabs.forEach((t) => t.addEventListener('click', () => select(+t.dataset.offset)));
+  select(3);
+  document.querySelector('[data-thead]').innerHTML = `<tr><th>班別</th>${years.map((yr, i) => `<th>${yr} 學年度（${i ? '下學年' : '本學年'}）</th>`).join('')}</tr>`;
+  document.querySelector('[data-tbody]').innerHTML = [3, 4, 5, 6].map((off) => `<tr><th>${CLASS[off]}</th>${years.map((yr) => { const r = range(yr, off); return `<td>${r.roc}<small>${r.ad}</small></td>`; }).join('')}</tr>`).join('');
+
+  const out = document.querySelector('[data-finder-result]');
+  document.getElementById('birthday').addEventListener('input', (e) => {
+    const mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value);
+    if (!mm) return;
+    const [by, bm, bd] = mm.slice(1).map(Number);
+    const roc = by - 1911;
+    const cohort = bm > 9 || (bm === 9 && bd >= 2) ? roc : roc - 1;
+    const rows = [3, 4, 5, 6, 7].map((off) => ({ year: cohort + off, off, name: CLASS[off] }));
+    const now = rows.find((r) => r.year === current);
+    const summary = now ? `${current} 學年度，寶貝就讀${now.name}。` : cohort + 3 > current ? `寶貝 ${cohort + 3} 學年度（${cohort + 3 + 1911} 年 8 月起）可以開始讀幼幼班。` : '寶貝已到國小年齡囉。';
+    out.innerHTML = `<p class="finder-summary">${summary}</p><ol class="years">${rows.map((r) => `<li class="${r.year === current ? 'current' : r.year < current ? 'past' : ''}"><span><span class="en">${r.year}</span> 學年度</span><strong>${r.name}</strong></li>`).join('')}</ol>`;
+    select(now && now.off <= 6 ? now.off : 3);
+  });
+})();
+</script>
+</body>
+</html>
