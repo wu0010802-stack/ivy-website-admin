@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download, Search } from '@element-plus/icons-vue'
+import { Download, Filter, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import StatusTag from '../components/StatusTag.vue'
@@ -13,6 +14,7 @@ import StatusTag from '../components/StatusTag.vue'
 const router = useRouter()
 const route = useRoute()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+const openRequests = useOpenRequestsStore()
 
 const campusFilter = ref('')
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
@@ -35,6 +37,22 @@ function clearFilters() {
   search.value = ''
   dueOnly.value = false
 }
+
+// 狀態是最常切的條件，攤成一排頁籤一鍵切換，不必每次打開下拉。兩個
+// 待處理狀態帶側欄同源的數字；數字是可見校區的總數，所以只在沒有縮小
+// 範圍（校區、搜尋、到期）時顯示，避免和清單對不上。
+const statusTabs = computed(() => {
+  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value
+  const counts: Record<string, number> = { new: openRequests.newRequests, pending_confirmation: openRequests.awaiting }
+  return [
+    { value: '', label: '全部', count: 0 },
+    ...VISIT_STATUS_ORDER.map(value => ({ value, label: VISIT_STATUS[value]!.label, count: showCounts ? counts[value] ?? 0 : 0 })),
+  ]
+})
+// 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
+// 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
+const moreFiltersOpen = ref(false)
+const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest'].filter(Boolean).length)
 
 const hasNext = computed(() => requests.value.length === pageSize)
 
@@ -125,25 +143,32 @@ onMounted(load)
       </template>
     </PageHeader>
 
-    <div class="toolbar">
+    <div class="status-tabs" role="group" aria-label="案件狀態">
+      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': statusFilter === tab.value }"
+        :aria-pressed="statusFilter === tab.value" @click="statusFilter = tab.value">
+        {{ tab.label }}<span v-if="tab.count" class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 件</span></span>
+      </button>
+    </div>
+
+    <div class="toolbar requests-filters" :class="{ 'is-open': moreFiltersOpen }">
       <div class="filter-field filter-field--search"><span>搜尋</span>
       <el-input v-model="search" placeholder="家長／孩子姓名、電話或 Email" clearable :prefix-icon="Search" aria-label="搜尋家長／孩子姓名、電話或 Email" />
       </div>
-      <div class="filter-field"><span>校區</span>
-      <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" />
+      <button type="button" class="more-filters" :aria-expanded="moreFiltersOpen" aria-controls="requests-more-filters" @click="moreFiltersOpen = !moreFiltersOpen">
+        <el-icon aria-hidden="true"><Filter /></el-icon>更多篩選<span v-if="moreFilterCount" class="status-tab__count num">{{ moreFilterCount }}</span>
+      </button>
+      <div id="requests-more-filters" class="requests-filters__more">
+        <div class="filter-field"><span>校區</span>
+        <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" />
+        </div>
+        <div class="filter-field"><span>排序</span>
+        <el-select v-model="order" aria-label="排序" class="order-select">
+          <el-option label="最新送出在前" value="newest" />
+          <el-option label="最早送出在前" value="oldest" />
+        </el-select>
+        </div>
+        <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
       </div>
-      <div class="filter-field"><span>案件狀態</span>
-      <el-select v-model="statusFilter" placeholder="全部狀態" clearable aria-label="狀態">
-        <el-option v-for="s in VISIT_STATUS_ORDER" :key="s" :label="VISIT_STATUS[s]!.label" :value="s" />
-      </el-select>
-      </div>
-      <div class="filter-field"><span>排序</span>
-      <el-select v-model="order" aria-label="排序" style="width: 150px">
-        <el-option label="最新送出在前" value="newest" />
-        <el-option label="最早送出在前" value="oldest" />
-      </el-select>
-      </div>
-      <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
 
@@ -226,6 +251,15 @@ onMounted(load)
 
 <style scoped>
 .toolbar { align-items: flex-end; }
+.status-tabs { display: flex; gap: 4px; margin-bottom: 16px; padding: 4px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); scrollbar-width: none; }
+.status-tabs::-webkit-scrollbar { display: none; }
+.status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+.status-tab:hover { background: var(--surface-2); color: var(--ink); }
+.status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-weight: 600; }
+.status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-gold); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+.requests-filters__more { display: contents; }
+.more-filters { display: none; }
+.order-select { width: 150px; }
 .filter-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .filter-due { align-self: center; padding-bottom: 6px; }
 .cell-sub { display: block; font-size: 12px; line-height: 1.4; }
@@ -259,6 +293,12 @@ onMounted(load)
   .requests-mobile { display: block; }
   .filter-field { flex: 1 1 130px; min-width: 0; font-size: 14px; }
   /* 搜尋是手機上最常用的入口，給整行才放得下提示文字 */
-  .filter-field--search { flex: 1 1 100%; max-width: none; }
+  .filter-field--search { flex: 1 1 0; max-width: none; }
+  .status-tab { min-height: 44px; }
+  .more-filters { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 14px; cursor: pointer; }
+  .requests-filters__more { display: none; }
+  .requests-filters.is-open .requests-filters__more { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; width: 100%; }
+  .requests-filters__more .filter-field { flex: 1 1 140px; }
+  .requests-filters__more .el-select { width: 100%; }
 }
 </style>

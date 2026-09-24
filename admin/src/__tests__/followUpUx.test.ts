@@ -64,7 +64,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await router.push('/visit-requests'); await router.isReady()
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    const orderSelect = wrapper.findAllComponents({ name: 'ElSelect' })[2]!
+    const orderSelect = wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.classes('order-select'))!
     orderSelect.vm.$emit('update:modelValue', 'oldest')
     await flushPromises()
     expect(String(get.mock.calls.at(-1)![0])).toContain('order=oldest')

@@ -68,7 +68,16 @@ describe('總覽看得到還沒處理的參觀案件', () => {
     const hrefs = wrapper.findAll('a').map(a => a.attributes('href'))
     expect(hrefs).toContain('/visit-requests?status=new&order=oldest')
     expect(hrefs).toContain('/visit-requests?status=pending_confirmation&order=oldest')
-    expect(wrapper.find('.dash__primary').text()).toContain('5')
+    // 主按鈕只帶去最急的那批（待確認），數字也只算那一批，不是 3＋2。
+    expect(wrapper.find('.dash__primary').text()).toContain('確認時段預約2')
+    expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=pending_confirmation&order=oldest')
+  })
+
+  it('只有新需求時，主按鈕帶去新需求且數字相同', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 4 }) as never)
+    const { wrapper } = await mountAt('/')
+    expect(wrapper.find('.dash__primary').text()).toContain('聯絡新需求4')
+    expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=new&order=oldest')
   })
 
   it('只有待確認時，主按鈕直接帶去待確認', async () => {
@@ -82,7 +91,8 @@ describe('總覽看得到還沒處理的參觀案件', () => {
     vi.spyOn(api, 'get').mockResolvedValue(legacy as never)
     const { wrapper } = await mountAt('/')
     expect(wrapper.text()).toContain('目前沒有待處理事項')
-    expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=new&order=oldest')
+    expect(wrapper.find('.dash__primary').text()).toContain('查看參觀案件')
+    expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests')
   })
 })
 
@@ -136,7 +146,7 @@ describe('側欄的待處理數字', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
     const { wrapper } = await mountAt('/')
     expect(get).toHaveBeenCalledOnce()
-    expect(wrapper.text()).toContain('處理參觀需求2')
+    expect(wrapper.text()).toContain('確認時段預約1')
   })
 })
 
