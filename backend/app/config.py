@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
     # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
     trusted_client_ip_header: str | None = "x-website-client-ip"
+    # 每個校區（共用素材另算一份）素材原檔的累計上限。單檔有 15/200 MB
+    # 限制，但五校共用同一顆 volume，沒有累計上限時一個校區帳號反覆上傳
+    # 就能把磁碟塞滿、讓其他校區也無法上傳。
+    media_quota_bytes_per_campus: int = 5 * 1024 * 1024 * 1024
 
     @field_validator("database_url", "test_database_url")
     @classmethod

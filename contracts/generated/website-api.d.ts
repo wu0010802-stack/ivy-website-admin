@@ -692,7 +692,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logout */
+        /**
+         * Logout
+         * @description 登出跟其他會改狀態的請求一樣要過 CSRF／Origin 檢查；否則任何外站
+         *     表單都能讓管理員的瀏覽器收到清除 cookie 的回應而被迫登出。沒有有效
+         *     session 時什麼都不做（也不送清除 cookie）。
+         */
         post: operations["logout_api_website_v1_auth_logout_post"];
         delete?: never;
         options?: never;
@@ -3327,7 +3332,9 @@ export interface operations {
     logout_api_website_v1_auth_logout_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
             path?: never;
             cookie?: {
                 ivy_admin_session?: string | null;
@@ -3477,7 +3484,9 @@ export interface operations {
             path: {
                 media_id: string;
             };
-            cookie?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
         };
         requestBody?: never;
         responses: {

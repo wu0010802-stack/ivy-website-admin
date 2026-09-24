@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,8 @@ class LocalSinkEmailAdapter:
         if not sink_dir:
             raise EmailNotConfigured("未設定 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR")
         self.sink_dir = Path(sink_dir)
-        self.sink_dir.mkdir(parents=True, exist_ok=True)
+        # 信件內容含員工信箱與案件編號：目錄 0700、檔案 0600，不依賴 umask。
+        self.sink_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     def send(self, *, to: str, subject: str, body: str) -> None:
         record = {
@@ -34,7 +36,9 @@ class LocalSinkEmailAdapter:
             "sent_at": datetime.now(timezone.utc).isoformat(),
         }
         path = self.sink_dir / f"{uuid.uuid4().hex}.json"
-        path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, indent=2))
 
 
 def get_email_adapter(sink_dir: str | None) -> EmailAdapter:

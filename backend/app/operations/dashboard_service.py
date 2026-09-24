@@ -127,8 +127,13 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         if config is None or config.mode == BookingMode.PAUSED:
             missing_config.append(key)
 
-    failed_notifications_stmt = select(func.count()).select_from(OutboxMessage).where(
-        OutboxMessage.status == OutboxStatus.FAILED.value
+    # outbox 本身沒有校區欄位，要經案件取得校區，否則分校帳號會看到全站數字。
+    failed_notifications_stmt = _scope(
+        select(func.count())
+        .select_from(OutboxMessage)
+        .join(VisitRequest, OutboxMessage.visit_request_id == VisitRequest.id)
+        .where(OutboxMessage.status == OutboxStatus.FAILED.value),
+        VisitRequest.campus_key,
     )
     failed_notifications = (await db.execute(failed_notifications_stmt)).scalar_one()
 

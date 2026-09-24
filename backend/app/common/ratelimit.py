@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 from fastapi import Request
@@ -18,25 +19,63 @@ class RateLimited(Exception):
 class SlidingWindowLimiter:
     """單一 process 記憶體內的滑動窗口。多 worker 部署時每個 process
     各有一份，等於實際上限是 workers × max_per_window——這是刻意接受的
-    近似，真正要精準得換 Redis／DB，見 README 的限制章節。"""
+    近似，真正要精準得換 Redis／DB，見 README 的限制章節。
+
+    key 由訪客控制（來源 IP、email、手機），所以記憶體必須有界：
+    `_hits` 依「最後一次命中」排序，每次操作順手丟掉開頭已閒置超過窗口
+    的 key；總數超過 `max_keys` 時淘汰最久沒動的。淘汰代表那個 key 的
+    計數歸零，是用「偶爾放寬」換「不會被灌爆記憶體」。"""
 
     window_seconds: int
     max_per_window: int
-    _hits: dict[str, list[float]] = field(default_factory=dict)
+    max_keys: int = 10_000
+    _hits: OrderedDict[str, list[float]] = field(default_factory=OrderedDict)
+
+    def _live_hits(self, key: str, now: float) -> list[float]:
+        # 先清開頭的閒置 key：它們的最後命中最舊，遇到仍在窗口內的就停。
+        while self._hits:
+            oldest_key, oldest_hits = next(iter(self._hits.items()))
+            if oldest_hits and now - oldest_hits[-1] < self.window_seconds:
+                break
+            del self._hits[oldest_key]
+        return [t for t in self._hits.get(key, ()) if now - t < self.window_seconds]
+
+    def _store(self, key: str, hits: list[float]) -> None:
+        if not hits:
+            self._hits.pop(key, None)
+            return
+        self._hits[key] = hits
+        self._hits.move_to_end(key)
+        while len(self._hits) > self.max_keys:
+            self._hits.popitem(last=False)
 
     def check(self, key: str) -> None:
+        """未超過上限就記一次命中；超過則丟 RateLimited。"""
         now = time.monotonic()
-        hits = [t for t in self._hits.get(key, []) if now - t < self.window_seconds]
-        self._hits[key] = hits
+        hits = self._live_hits(key, now)
         if len(hits) >= self.max_per_window:
             raise RateLimited(retry_after_seconds=int(self.window_seconds - (now - hits[0])) + 1)
         hits.append(now)
+        self._store(key, hits)
+
+    def is_limited(self, key: str) -> bool:
+        """只看不記：給「失敗之後才累計」的桶用。"""
+        return len(self._live_hits(key, time.monotonic())) >= self.max_per_window
+
+    def record(self, key: str) -> None:
+        now = time.monotonic()
+        hits = self._live_hits(key, now)
+        hits.append(now)
+        self._store(key, hits)
 
     def reset(self, key: str) -> None:
         self._hits.pop(key, None)
 
     def clear(self) -> None:
         self._hits.clear()
+
+    def __len__(self) -> int:
+        return len(self._hits)
 
 
 def client_key(request: Request) -> str:

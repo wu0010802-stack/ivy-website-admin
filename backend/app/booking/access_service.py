@@ -5,7 +5,7 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,10 @@ from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 
 TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
+# 同一案件同時有效的家長 session 上限。連結可以重複兌換，每次都會新增
+# 一列；不設上限的話持有連結的人能無限累積資料列。家長正常使用（手機、
+# 電腦各開幾次）遠低於這個數字，超過時刪除最舊的。
+MAX_ACTIVE_SESSIONS_PER_REQUEST = 10
 _TOKEN_BYTES = 32
 
 
@@ -77,8 +81,14 @@ async def exchange_token(db: AsyncSession, raw_token: str) -> tuple[str, VisitRe
     沒有寫過 revoked_at——語意與實作不符會讓人以為外流的連結會自動失效。
     真正的撤銷路徑是 `revoke_access_for_visit_request`（終態時呼叫）與
     admin 的撤銷端點。"""
+    # 鎖住 token 列：撤銷會先 UPDATE 同一列，兩者因此序列化。撤銷先提交
+    # → 這裡等鎖後重讀到 revoked_at；這裡先提交 → 撤銷在 token 之後才更新
+    # session，看得到這次新增的 session。否則並行交換可在撤銷後留下一個
+    # 有效 session。
     result = await db.execute(
-        select(ParentAccessToken).where(ParentAccessToken.token_hash == _hash(raw_token))
+        select(ParentAccessToken)
+        .where(ParentAccessToken.token_hash == _hash(raw_token))
+        .with_for_update()
     )
     token = result.scalar_one_or_none()
     now = datetime.now(timezone.utc)
@@ -94,6 +104,8 @@ async def exchange_token(db: AsyncSession, raw_token: str) -> tuple[str, VisitRe
     if visit_request is None:
         raise TokenInvalid()
 
+    await _prune_sessions(db, visit_request.id, now)
+
     raw_session_token = secrets.token_urlsafe(_TOKEN_BYTES)
     db.add(
         ParentSession(
@@ -105,6 +117,26 @@ async def exchange_token(db: AsyncSession, raw_token: str) -> tuple[str, VisitRe
     )
     await db.flush()
     return raw_session_token, visit_request
+
+
+async def _prune_sessions(db: AsyncSession, visit_request_id: uuid.UUID, now: datetime) -> None:
+    """刪掉已過期或已撤銷的 session，並把有效 session 壓到上限以下
+    （保留最新的，留一個位子給即將新增的這筆）。"""
+    await db.execute(
+        delete(ParentSession).where(
+            ParentSession.visit_request_id == visit_request_id,
+            or_(ParentSession.revoked_at.is_not(None), ParentSession.expires_at < now),
+        )
+    )
+    overflow = await db.execute(
+        select(ParentSession.id)
+        .where(ParentSession.visit_request_id == visit_request_id)
+        .order_by(ParentSession.created_at.desc())
+        .offset(MAX_ACTIVE_SESSIONS_PER_REQUEST - 1)
+    )
+    overflow_ids = [row[0] for row in overflow.all()]
+    if overflow_ids:
+        await db.execute(delete(ParentSession).where(ParentSession.id.in_(overflow_ids)))
 
 
 async def get_visit_request_for_session(db: AsyncSession, raw_session_token: str) -> VisitRequest | None:
@@ -153,6 +185,11 @@ async def create_reschedule_request(
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")
 
+    # 鎖住案件列，讓同一案件的並行申請排隊；否則兩個交易都看不到對方
+    # 尚未提交的 pending，會各自建立一筆。
+    await db.execute(
+        select(VisitRequest.id).where(VisitRequest.id == visit_request.id).with_for_update()
+    )
     existing = await db.execute(
         select(RescheduleRequest).where(
             RescheduleRequest.visit_request_id == visit_request.id,
