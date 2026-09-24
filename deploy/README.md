@@ -464,3 +464,10 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 等 `e0a50e5` 的 CI（run `35872555552`）部署完、線上 `base_commit` == `origin/main` 才推；`push ...:main` 被 auto 模式擋，由使用者執行。
 - CI run `35873790445`：三個測試 job 全綠、api 部署 SUCCESS，**deploy job 失敗**：web deployment `7b581397` 在 Railway `INITIALIZING` 約 9 分鐘、`BUILDING` 約 6 分鐘，超過 `railway_ci.py` `wait_for_deployment` 的 900 秒上限。Railway 端沒有中斷，14:27:51Z 的快照照常上線：`/release.json` snapshot `2eadd48291555b184ff364a8df5851450f744600fb8b69f9c93f94df65cbaf5a`、`base_commit` `c674eb3`。**GitHub 上這次 run 顯示失敗，但線上已是新版，不必重跑。**
 - 線上 Playwright（`output/playwright/home-films-prod-20260923.cjs`）390×844：近期活動隱藏、鼠尾草綠色帶、消息三列、無水平溢出；只有當前影片下載並播放，點右側露出的影片換到第 2 支（`day-film-mobile.mp4`）並播放、第 1 支暫停；圓點、最後一支往後滑回第 1 支、暫停鍵、減少動態不播通過；1440 桌機近期活動與三欄卡不變、不下載海報與影片；0 console error。截圖 `output/playwright/home-films-prod-20260923/`。Safari／iOS 實機未驗證。
+
+## 2026-09-24 孩子的一天 iPhone 捲動抖動修正（搭頁尾校徽的 main CI 部署上線）
+
+- 使用者要求部署。feature 提交 `83e65ca`（只有 `styles.css` 與 README 自己那段，別的 session 未提交的 README 段落沒帶）；deploy worktree 建在 `origin/main`（`2284ee4`，== 線上 `base_commit`）cherry-pick 為 `258c912`，改動與原 commit 逐行相同、無衝突。worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過；本機 `.output` 以 WebKit 真滾輪錄影量測：按鈕偏移 87/153 → 0、暫停後背景 108/153 → 0，11 種寬度卡片位置與頁高新舊一致、無水平溢出。
+- `push ...:main` 被 auto 模式擋，交給使用者執行時被拒（non-fast-forward）：另一個 session 已把疊在 `258c912` 之上的「頁尾拿掉畢業版校徽」`5be72ac` 推上 main，`258c912` 因此已在 main，不必再推。
+- CI run `35938730503` 全綠（含 deploy job）。`/release.json` snapshot `73611de83034cb8a09e1c4d3eb365f979b1ce7c1dfcca33397b2aaecd2494b3f`、`base_commit` `5be72ac`、`created_at` 2026-09-24T00:33:33Z；首頁 SSR 內嵌 CSS 已是新 `.day-prints`／`.section.day-experience` 規則。
+- 線上 WebKit（402×874）重跑：按鈕偏移 0/153、暫停後背景 0/153、捲完整段水平溢出 0。iPhone 實機未驗證。
