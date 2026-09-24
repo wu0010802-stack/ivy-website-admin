@@ -102,6 +102,10 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 - **樂觀鎖要配列鎖**。只比 Python 物件上的版本號，兩個人同時存檔會各自通過檢查。
 - **逾期占位、排程發布、通知都靠定期工作**：API 內建（見「定期工作」）；如果把 `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS` 設成 0，就要另外排程呼叫 `python -m app.cli process-notifications`。容量計算本身已排除到期占位，所以名額不會卡住，但案件狀態、排程發布與通知都不會動。
 
+## 素材儲存
+
+`WEBSITE_MEDIA_STORAGE=local`（預設）存 `WEBSITE_MEDIA_ROOT`；`s3` 存 S3 相容物件儲存（Cloudflare R2、AWS S3…），設定與從 volume 搬遷的步驟見 `deploy/README.md`「素材改存 S3」。兩種儲存的讀檔都經 API 串流並支援 Range。本機可用 `uv run python -m app.cli media-copy-to-s3 --dry-run` 預覽搬遷。
+
 ## 已知限制（誠實列出）
 
 - 完整 LINE Seed TW 字型檔仍未取得（外部阻擋，需使用者提供原始檔）。因此品牌名稱與 Logo 在後台鎖定不可改（「網站標題與電話」頁有說明）。

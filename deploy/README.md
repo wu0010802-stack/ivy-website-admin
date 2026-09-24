@@ -36,6 +36,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
+| api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
@@ -119,6 +120,31 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
 帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
 `notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
+
+### 素材改存 S3 相容物件儲存（2026-09-24，尚未切換）
+
+目前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
+單一實例，repo 裡也沒有備份機制。程式已支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
+`WEBSITE_MEDIA_STORAGE=s3` 時上傳、讀取、刪除都走 bucket，api 啟動不再要求 volume。
+讀檔仍經 API 串流（網址、權限、快取標頭不變，Range 轉給儲存服務，iOS 影片可播）。
+
+| 變數 | 說明 |
+| --- | --- |
+| `WEBSITE_S3_BUCKET` | bucket 名稱（建議私有，不要開公開存取） |
+| `WEBSITE_S3_ENDPOINT_URL` | R2 為 `https://<account id>.r2.cloudflarestorage.com`；AWS S3 留空 |
+| `WEBSITE_S3_REGION` | R2 填 `auto`；AWS 填 bucket 所在區域 |
+| `WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY` | 只授權這個 bucket 讀寫的金鑰，存 Railway Variables |
+| `WEBSITE_S3_PREFIX` | 選填，物件 key 前綴（例如 `media`） |
+
+切換步驟（bucket 與金鑰由園方自己建，程式不會建任何外部服務）：
+
+1. 先只設 `WEBSITE_S3_*`，**不要**設 `WEBSITE_MEDIA_STORAGE`，部署。此時仍讀寫 volume。
+2. 預覽：`railway ssh --service api --environment production -- python -m app.cli media-copy-to-s3 --dry-run`
+3. 複製：同上去掉 `--dry-run`。只讀 volume、只寫 bucket、不動 DB；bucket 已有同大小的檔案
+   會跳過，可以重跑；上傳後核對大小，失敗的檔案列在最後且指令以非 0 結束。
+4. 設 `WEBSITE_MEDIA_STORAGE=s3` 並重新部署；部署後**再跑一次第 3 步**，補上複製到切換
+   之間新上傳的檔案。
+5. 抽查官網圖片、影片與後台素材庫。volume 先保留一段時間當備份，確認無誤後再卸下。
 
 ## 初次初始化
 

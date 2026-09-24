@@ -163,11 +163,62 @@ async def process_notifications_once() -> None:
         raise SystemExit(1)
 
 
+async def media_copy_to_s3(dry_run: bool) -> None:
+    """把 volume（WEBSITE_MEDIA_ROOT）上的素材複製到 S3，供切換
+    WEBSITE_MEDIA_STORAGE=s3 之前執行。只讀本機、只寫 S3、不動 DB；S3 已有
+    同大小的物件就跳過，可以重跑。步驟見 deploy/README.md「素材改存 S3」。"""
+    from app.media import service as media_service
+    from app.media.models import MediaAsset, MediaVariant
+    from app.media.storage import LocalMediaStorage
+
+    settings = get_settings()
+    if not settings.s3_configured:
+        print("尚未設定 WEBSITE_S3_BUCKET／WEBSITE_S3_ACCESS_KEY_ID／WEBSITE_S3_SECRET_ACCESS_KEY。", file=sys.stderr)
+        raise SystemExit(1)
+    local = LocalMediaStorage(settings.media_root)
+    remote = media_service.s3_storage(settings)
+    factory = await _session_factory()
+    async with factory() as db:
+        keys = list((await db.execute(select(MediaAsset.storage_key))).scalars())
+        keys += list((await db.execute(select(MediaVariant.storage_key))).scalars())
+
+    copied = skipped = missing = failed = 0
+    for key in keys:
+        path = local.path_for(key)
+        if not path.is_file():
+            # DB 有記錄、volume 沒檔案：現在的官網上本來就是破圖，搬不過去。
+            missing += 1
+            print(f"本機找不到，略過：{key}")
+            continue
+        size = path.stat().st_size
+        if remote.size(key) == size:
+            skipped += 1
+            continue
+        if dry_run:
+            copied += 1
+            continue
+        try:
+            remote.upload_file(key, path)
+            if remote.size(key) != size:
+                raise RuntimeError("上傳後大小不符")
+        except Exception as exc:  # noqa: BLE001 - 一個檔案失敗不中斷整批，最後一起回報
+            failed += 1
+            print(f"複製失敗：{key}（{type(exc).__name__}）", file=sys.stderr)
+            continue
+        copied += 1
+
+    verb = "將複製" if dry_run else "已複製"
+    print(f"共 {len(keys)} 個檔案：{verb} {copied}、S3 已有 {skipped}、本機缺檔 {missing}、失敗 {failed}。")
+    if failed:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
             "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
-            "content-seed-from-fixture|initialize-content|process-notifications>",
+            "content-seed-from-fixture|initialize-content|process-notifications|"
+            "media-copy-to-s3 [--dry-run]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -199,6 +250,8 @@ def main() -> None:
         asyncio.run(run_initialize())
     elif command == "process-notifications":
         asyncio.run(process_notifications_once())
+    elif command == "media-copy-to-s3":
+        asyncio.run(media_copy_to_s3("--dry-run" in sys.argv[2:]))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)
