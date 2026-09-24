@@ -1,3 +1,42 @@
+## 2026-09-24 接力定案：「關於」掉進句首再沉下去
+
+比稿 `design/relay-drop-mockup-20260924/` 使用者選「沉下去」，現在已是首頁預設；`?drop=` 參數與另外四種消失方式都已移除。
+
+效果：停拍時「關於」從浮水印那行往下掉，穿過擦除線（上半淡綠、下半白字），落進「常春藤的一天」句首，接著「的一天」逐字接上。之後「關於」沉進字行（裁掉，不淡出），大標回到置中。手機放不下八個字，整行暫時縮到約 .76。簾幕距離桌機 1.25 屏、手機 0.8 屏。規則寫在 DESIGN.md 最上方。
+
+改動檔案：
+- `composables/useRelayDrop.ts`：只留沉下去。
+- `useCurtain.ts`：停拍 32%。
+- `pages/index.vue`：只把 `lead` 傳給日常區，其餘與 HEAD 相同。
+- `DayExperience.vue`：`aria-hidden` 的 `.day-lead`。
+- `studio.css`：`.day-lead`、`.wm-a` 的 transform-origin、簾幕距離。
+
+驗證：獨立樹 Node 22 `nuxt typecheck` 0 錯誤；`vitest run` 24 檔 185 項通過；`nuxt build` 成功。Playwright 1440×900／390×844：
+- 不帶參數的逐格與比稿時的 `?drop=sink` 相同，差異只來自背景影片。
+- 落地時大標讓位 171px（手機縮 .76）。
+- 「的一天」在落地後才逐字浮出。
+- 減少動態時 `.day-lead` 為 `display:none`，大標沒有 transform。
+- 無 page error。
+
+Safari／iOS 實機未驗證。快照 `versions/before-relay-drop-20260924-083057/`。未提交、未部署。
+
+## 2026-09-24 比稿：「關於」掉進「常春藤的一天」再直接消失（?drop=，同日定案 sink，參數已移除）
+
+使用者想看「關於」掉到「常春藤的一天」、再隨捲動直接消失（不是變透明）。在 `web/` 加了預覽參數 `?drop=wipe|sink|out|push|cut`，不帶參數的畫面與 DOM 都不變。
+
+效果：停拍時「關於」從浮水印那行掉下來，穿過擦除線（上半淡綠、下半白字），落在「常」前面湊成「關於常春藤的一天」，接著「的一天」逐字接上。停拍後「關於」消失、大標回到置中，五個方向只差在消失方式：擦掉、沉下去、掉出去、擠出去、瞬間消失。桌機大標往右讓出一個字；手機整行縮到約 75%。停拍加長到 32% 捲動，簾幕桌機 1.25 屏、手機 0.8 屏（只在帶參數時）。
+
+對照頁 `design/relay-drop-mockup-20260924/index.html`，每個方向都有桌機與手機的等速捲動影片和膠卷條。
+
+改動檔案：
+- 新增 `composables/useRelayDrop.ts`：兩份「關於」逐幀寫同一個視窗座標。
+- `useCurtain.ts`：只在 drop 時改停拍比例並呼叫它。
+- `pages/index.vue`：`data-drop`，並把 `lead` 傳給日常區。
+- `DayExperience.vue`：`aria-hidden` 的 `.day-lead`。
+- `studio.css`：`.day-lead`。
+
+驗證：在獨立樹用 Node 22 跑，`nuxt typecheck` 0 錯誤；`vitest run` 24 檔 185 項通過；`nuxt build` 成功。Playwright 1440×900／390×844 截五種方式的逐格與影片，無 page error。預設模式的逐字進度與前一版相同，也沒有 `.day-lead`。減少動態時沒有落下效果。Safari／iOS 實機未驗證。快照 `versions/before-relay-drop-20260924-083057/`。未提交。
+
 ## 2026-09-24 常春藤的一天：修復背景影片畫質
 
 背景影片原本被額外縮成桌機 1280×720、手機 480×270，並以 CRF 27 再壓縮；手機 `cover` 鋪滿直式螢幕後細節明顯模糊。`scripts/optimize-site-videos.py` 改為桌機直接保留現有 1440×810 母檔（9,333,850 bytes，位元相同），手機由同一母檔以 CRF 25 輸出 1440×810（7,488,249 bytes），更新 `video-manifest.json` 的兩個雜湊網址。原剪輯、構圖、25 秒／24fps／600 幀、無音軌、faststart、遮罩與播放控制不變，Hero 映射不變，舊影片資產保留。原始 4K 影片不在記錄路徑，這次以現有素材恢復畫質，沒有放大解析度。
@@ -10,6 +49,18 @@
 - `node --check app.js`、`python3 package_preview.py` 通過；凍結原型未修改，重打包與既有 `preview.html` 位元相同。
 
 證據與獨立預覽：`output/day-video-quality-20260924/`。Safari／iPhone 實機未驗證。尚未部署。
+
+## 2026-09-24 接力拿掉過字放慢，只留停拍逐字
+
+使用者要拿掉「放慢」。擦除線過「常春藤」恢復原本速度；過完字後在兩行中間停一拍（22% 捲動）、逐字接上「的一天」仍保留。`useCurtain.ts` 的查表只剩停拍，手機簾幕距離 .8→.7 屏（桌機 1.1 不變），停拍以外的擦除速度與原本相同。DESIGN.md 最上方同步改寫。
+
+驗證：在 scratchpad 獨立樹用 Node 22 跑，`nuxt typecheck` 0 錯誤；`vitest run` 24 檔 185 項通過；`nuxt build` 成功。Playwright 在 1440×900 和 390×844 下：
+- 過字時擦除線每捲 1px 走約 1.17px（桌機）和 1.83px（手機），與原本 .85／.55 屏時一致。
+- 停拍期間「的」「一」「天」依序浮出。
+- 減少動態時三個字透明度都是 1。
+- 無 page error。
+
+Safari／iOS 實機未驗證。快照 `versions/before-relay-noslow-20260924-082326/`（有放慢的版本）。未提交、未部署。
 
 ## 2026-09-24 頁尾拿掉校徽
 
@@ -28,6 +79,28 @@
 - 手機 WebGL 紙掛上後截圖新舊逐像素最大差 3/255，左右邊緣無差異。
 
 iPhone 實機未驗證。線上是 main，含 `paper-budget.ts` 等 feature 分支沒有的改動，但 `styles.css` 這幾條兩邊相同；以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。拍立得「停下才由 CSS 換成 WebGL」與快滑時角落被風掀起屬於原設計，這次沒有改。
+
+## 2026-09-23 接力定案：過「常春藤」放慢＋「的一天」逐字接上
+
+使用者想讓訪客發現「關於常春藤」的「常春藤」接成「常春藤的一天」，但不要太明顯。比稿時 `?relay=` 有 slow／type／dock／deepen 四個方向，對照頁在 `design/relay-discovery-mockup-20260923/`。看完後選 **slow＋type**，現在已是首頁預設；`?relay=` 參數與 dock、deepen 的程式碼都已移除。
+- 擦除線過「常春藤」時放慢，字框固定分到停拍前 45% 的捲動（桌機約 300px、手機約 170px，原本約 130px／32px）。
+- 過完字後在兩行中間停一拍，占 22% 的捲動，這段用來讓「的一天」一個字一個字接上。
+- seam=2 的簾幕距離拉長補回：桌機 .85→1.1 屏、手機 .55→.8 屏。
+
+改動檔案：
+- `useCurtain.ts`：onProgress 可帶 `remap`，捲動進度經查表變成擦除進度，只有 belief 簾幕會帶；`--relay-day` 改成逐字進度。
+- `DayExperience.vue`：「的一天」拆成逐字 span。
+- `studio.css`：`.t-day-ch` 逐字規則，以及簾幕距離。
+
+`index.vue` 與 HEAD 相同。規則與落選方向寫在 DESIGN.md 最上方。
+
+驗證：在 scratchpad 獨立樹（HEAD＋本次 3 檔）用 Node 22 跑，`nuxt typecheck` 0 錯誤（比稿階段改寫前抓到 13 個，確認它有在檢查）；`vitest run` 24 檔 185 項通過；`nuxt build` 成功。Playwright 在 1440×900 和 390×844 下：
+- 不帶參數的擦除曲線與比稿時的 `slow,type` 逐格相同。
+- 停拍期間「的」「一」「天」依序浮出。
+- 減少動態時沒有簾幕，三個字透明度都是 1。
+- 無 page error。
+
+另外，比稿階段已確認拆字前後每個字的排版框完全一致。Safari／iOS 實機未驗證。快照 `versions/before-relay-type-20260923-231256/`（本次 4 檔的 HEAD 版）。未提交、未部署。
 
 ## 2026-09-23 首頁手機版：活動影片取代近期活動、最新消息上下排列
 
