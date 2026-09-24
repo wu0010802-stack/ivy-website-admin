@@ -2,7 +2,7 @@
 
 使用者問怎麼提示「可以翻面」、要自然。現行暗示都在捲動中或剛進場發生，而且輕掀 31°、偷看 12° 都看不到背面。比稿 `design/flip-hint-natural-20260924/` 兩批六版後選 F，已接進 Nuxt `web/`：每次工作階段第一次來，第一張（01 早安入園）背面朝上貼著，讀者看到它（可見 ≥60%）停留 0.8 秒後自己翻成照片、照片接著顯影；讀者先點也算示範完成，翻開途中被點則讓它翻完、不翻回背面。SSR／無 JS 維持正面，載入當下已在畫面內（錨點、回上一頁）不做；減少動態停在背面等讀者點。首張偷看（元件、WebGL `peek()`、CSS keyframes）移除。新增 `web/app/utils/printOpener.ts` 與 9 項單元測試。規則見 DESIGN.md「F『第一張翻開進場』定案」。
 
-驗證：Node 22 web vitest 26 檔 195 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次、翻開途中點擊會翻完停在照片（WebGL 與 CSS 版）；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。未提交、未部署；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
+驗證：Node 22 web vitest 26 檔 195 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次、翻開途中點擊會翻完停在照片（WebGL 與 CSS 版）；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。已經 main CI 部署（`7dd7207`，見 `deploy/README.md`）；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
 
 ## 2026-09-24 首屏調亮：遮罩只墊在文字後面
 
