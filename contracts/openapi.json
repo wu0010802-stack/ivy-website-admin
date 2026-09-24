@@ -5643,8 +5643,25 @@
     },
     "/api/website/v1/auth/logout": {
       "post": {
+        "description": "登出跟其他會改狀態的請求一樣要過 CSRF／Origin 檢查；否則任何外站\n表單都能讓管理員的瀏覽器收到清除 cookie 的回應而被迫登出。沒有有效\nsession 時什麼都不做（也不送清除 cookie）。",
         "operationId": "logout_api_website_v1_auth_logout_post",
         "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
           {
             "in": "cookie",
             "name": "ivy_admin_session",
@@ -5856,6 +5873,22 @@
               "format": "uuid",
               "title": "Media Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
             }
           }
         ],

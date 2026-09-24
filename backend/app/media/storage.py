@@ -25,6 +25,9 @@ class LocalMediaStorage:
     def write_bytes(self, storage_key: str, data: bytes) -> None:
         self.path_for(storage_key).write_bytes(data)
 
+    def exists(self, storage_key: str) -> bool:
+        return self.path_for(storage_key).is_file()
+
     def read_bytes(self, storage_key: str) -> bytes:
         return self.path_for(storage_key).read_bytes()
 

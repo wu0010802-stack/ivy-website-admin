@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -27,6 +28,31 @@ class MediaInUse(Exception):
     pass
 
 
+class MediaQuotaExceeded(Exception):
+    pass
+
+
+async def _ensure_quota(
+    db: AsyncSession, campus_key: str | None, incoming_bytes: int, quota_bytes: int
+) -> None:
+    """同一校區的上傳用 advisory lock 排隊，才不會兩個並行請求都看到
+    「還有空間」而一起超過。處理失敗的素材原檔會被刪掉，不計入。"""
+    bind = db.get_bind()
+    if bind.dialect.name == "postgresql":
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": f"media-quota:{campus_key or '__shared__'}"},
+        )
+    scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
+    used = await db.execute(
+        select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(
+            scope, MediaAsset.status != MediaStatus.FAILED
+        )
+    )
+    if used.scalar_one() + incoming_bytes > quota_bytes:
+        raise MediaQuotaExceeded()
+
+
 def get_storage(settings: Settings) -> LocalMediaStorage:
     return LocalMediaStorage(settings.media_root)
 
@@ -42,18 +68,19 @@ async def create_media_asset(
     created_by: uuid.UUID,
     alt_text: str | None = None,
     source_attribution: str | None = None,
+    quota_bytes: int | None = None,
 ) -> MediaAsset:
-    """驗證 → 存檔 → 產生縮圖／poster → 寫入 metadata。整段目前是同步執行
-    （非同步 worker 佇列屬 Task 9，尚未建立），檔案較大時會拉長請求時間，
-    屬階段 B 的已知限制。"""
-    try:
-        content_type, width, height = sniff_and_validate(data, declared_kind)
-    except MediaValidationError:
-        raise
+    """驗證 → 存檔 → 產生縮圖／poster → 寫入 metadata。仍在請求內完成
+    （非同步 worker 佇列屬 Task 9，尚未建立），但解碼、寫檔與 ffmpeg 都
+    丟到 thread 執行：API 只有一個 event loop，同步做會讓一次影片上傳
+    卡住所有校區與公開訪客的請求（ffmpeg 最長 30 秒）。"""
+    content_type, width, height = await asyncio.to_thread(sniff_and_validate, data, declared_kind)
+    if quota_bytes is not None:
+        await _ensure_quota(db, campus_key, len(data), quota_bytes)
 
     extension = _EXTENSION_BY_CONTENT_TYPE[content_type]
     storage_key = storage.generate_key(extension)
-    storage.write_bytes(storage_key, data)
+    await asyncio.to_thread(storage.write_bytes, storage_key, data)
     # 從這裡開始磁碟上已經有檔案了；後面任何一步失敗都必須把它刪掉，
     # 否則 media_root 會累積永遠沒有 DB 記錄指向的孤兒檔。
     asset = MediaAsset(
@@ -81,9 +108,9 @@ async def create_media_asset(
 
     try:
         if declared_kind == MediaKind.IMAGE:
-            thumb_bytes = make_image_thumbnail_webp(data)
+            thumb_bytes = await asyncio.to_thread(make_image_thumbnail_webp, data)
             thumb_key = storage.generate_key(".webp")
-            storage.write_bytes(thumb_key, thumb_bytes)
+            await asyncio.to_thread(storage.write_bytes, thumb_key, thumb_bytes)
             db.add(
                 MediaVariant(
                     id=uuid.uuid4(),
@@ -96,9 +123,9 @@ async def create_media_asset(
                 )
             )
         else:
-            poster_bytes = extract_video_poster_webp(data)
+            poster_bytes = await asyncio.to_thread(extract_video_poster_webp, data)
             poster_key = storage.generate_key(".webp")
-            storage.write_bytes(poster_key, poster_bytes)
+            await asyncio.to_thread(storage.write_bytes, poster_key, poster_bytes)
             db.add(
                 MediaVariant(
                     id=uuid.uuid4(),
@@ -114,6 +141,9 @@ async def create_media_asset(
     except ProcessingError as exc:
         asset.status = MediaStatus.FAILED
         asset.processing_error = str(exc)[:500]
+        # 處理失敗的原檔永遠不會被公開，留著只會佔共用 volume；保留
+        # 紀錄讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
+        storage.delete(storage_key)
 
     await db.flush()
     return asset
@@ -126,21 +156,39 @@ async def is_referenced_by_current_release(db: AsyncSession, media_id: uuid.UUID
     都整批重建），所以只看 usages 會讓「線上版還在用、草稿已經換掉」的圖
     可以被刪掉，公開官網當場破圖。發布過的 revision payload 才是線上事實
     來源，這裡直接對 current release 的 manifest 重新解析一次。"""
+    return media_id in await current_release_media_ids(db)
+
+
+_release_media_cache: tuple[uuid.UUID, frozenset[uuid.UUID]] | None = None
+
+
+async def current_release_media_ids(db: AsyncSession) -> frozenset[uuid.UUID]:
+    """目前線上 release 引用的全部素材 id。公開素材路由每張圖都要問一次，
+    release 不變時結果也不變，所以依 release id 快取（只留最新一份）。"""
+    global _release_media_cache
+    release_id = (
+        await db.execute(select(SiteState.current_release_id).where(SiteState.id == 1))
+    ).scalar_one_or_none()
+    if release_id is None:
+        return frozenset()
+    if _release_media_cache is not None and _release_media_cache[0] == release_id:
+        return _release_media_cache[1]
     result = await db.execute(
         select(ContentRevision.payload, ContentItem.kind)
-        .select_from(SiteState)
-        .join(SiteReleaseEntry, SiteReleaseEntry.release_id == SiteState.current_release_id)
+        .select_from(SiteReleaseEntry)
         .join(ContentRevision, ContentRevision.id == SiteReleaseEntry.revision_id)
         .join(ContentItem, ContentItem.id == SiteReleaseEntry.content_item_id)
-        .where(SiteState.id == 1)
+        .where(SiteReleaseEntry.release_id == release_id)
     )
+    ids: set[uuid.UUID] = set()
     for payload, kind in result.all():
         config = CONTENT_KIND_REGISTRY.get(kind)
         if config is None or not isinstance(payload, dict):
             continue
-        if media_id in config.extract_media_ids(payload):
-            return True
-    return False
+        ids.update(config.extract_media_ids(payload))
+    media_ids = frozenset(ids)
+    _release_media_cache = (release_id, media_ids)
+    return media_ids
 
 
 async def delete_media_asset(
@@ -181,6 +229,7 @@ async def replace_media_asset(
     data: bytes,
     original_filename: str,
     created_by: uuid.UUID,
+    quota_bytes: int | None = None,
 ) -> MediaAsset:
     """替換產生全新 asset（新 id），舊 asset 原樣保留、不變動——
     其他仍引用舊 id 的內容不受影響。呼叫端（內容編輯器）負責把自己的
@@ -195,6 +244,7 @@ async def replace_media_asset(
         created_by=created_by,
         alt_text=old_asset.alt_text,
         source_attribution=old_asset.source_attribution,
+        quota_bytes=quota_bytes,
     )
     new_asset.replaces_media_id = old_asset.id
     await db.flush()

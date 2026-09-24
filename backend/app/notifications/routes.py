@@ -56,7 +56,9 @@ async def mark_notification_read(
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
-    require_scope(current_user, "booking.read", campus_keys=[item.campus_key])
+    # read_at 是全校共用的處理狀態，不是個人已讀；改寫它要有管理權，
+    # 唯讀／櫃台／編輯角色只能看。
+    require_scope(current_user, "booking.manage", campus_keys=[item.campus_key])
     item.read_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(item.id), "read_at": item.read_at.isoformat()}

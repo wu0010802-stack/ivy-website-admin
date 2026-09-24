@@ -428,7 +428,14 @@ async def export_visit_requests(
         """CSV 公式注入防護：儲存格開頭若是 = + - @ 這些會被試算表當成
         公式執行的字元，前面補一個單引號讓它變成純文字。"""
         text = "" if value is None else str(value)
-        if text and text[0] in ("=", "+", "-", "@"):
+        # 試算表會略過開頭的空白與控制字元（TAB、CR、LF…）再判斷是不是
+        # 公式，所以要看去掉這些字元後的第一個字，不能只看 text[0]。
+        # 控制字元本身開頭也一併視為危險，一律補單引號。
+        if text and (
+            text[0].isspace()
+            or not text[0].isprintable()
+            or text.lstrip()[:1] in ("=", "+", "-", "@")
+        ):
             return "'" + text
         return text
 

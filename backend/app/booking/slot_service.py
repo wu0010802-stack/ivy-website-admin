@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
@@ -14,14 +14,6 @@ MAX_QUERY_RANGE_DAYS = 62
 # 規格 225-226 的時間窗初始規則：最短提前 24 小時、最遠開放 60 天。
 MIN_LEAD_TIME = timedelta(hours=24)
 MAX_ADVANCE_DAYS = 60
-
-# 占用名額的狀態。規格 221：new/contacting 不占名額；
-# pending_confirmation／confirmed 占名額——人工待確認期間必須先卡住位子，
-# 否則同一個名額會被賣給多個家長，等園方逐一確認時才發現超收。
-_OCCUPYING_STATUSES = (
-    VisitRequestStatus.PENDING_CONFIRMATION.value,
-    VisitRequestStatus.CONFIRMED.value,
-)
 
 
 class SlotQueryRangeTooWide(Exception):
@@ -84,11 +76,31 @@ async def create_slot(
     return slot
 
 
+def occupying_condition(now: datetime | None = None):
+    """占名額的條件：已確認，或人工待確認且占位尚未到期。
+
+    規格 221：new/contacting 不占名額；pending_confirmation／confirmed
+    占名額——人工待確認期間必須先卡住位子，否則同一個名額會被賣給多個
+    家長，等園方逐一確認時才發現超收。
+
+    到期的 pending_confirmation 在清理排程把它轉成 cancelled 之前仍是
+    同一個狀態；若只看狀態計數，排程沒跑（或沒設定）時名額會被永久
+    佔住。所以容量計算自己排除已到期的占位，不依賴排程。"""
+    current = now or now_utc()
+    return or_(
+        VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
+        and_(
+            VisitRequest.status == VisitRequestStatus.PENDING_CONFIRMATION.value,
+            or_(VisitRequest.hold_expires_at.is_(None), VisitRequest.hold_expires_at > current),
+        ),
+    )
+
+
 async def count_booked(db: AsyncSession, slot_id: uuid.UUID) -> int:
     result = await db.execute(
         select(func.count())
         .select_from(VisitRequest)
-        .where(VisitRequest.slot_id == slot_id, VisitRequest.status.in_(_OCCUPYING_STATUSES))
+        .where(VisitRequest.slot_id == slot_id, occupying_condition())
     )
     return result.scalar_one()
 

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import time
 from datetime import datetime, timedelta, timezone
 
 from passlib.context import CryptContext
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Role, Session, User, UserCampusScope
+from app.common import ratelimit
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -23,8 +23,6 @@ _TOKEN_BYTES = 32
 # - 來源桶（IP）在驗證「之前」檢查，擋的是拿 bcrypt 當 CPU 消耗武器。
 # - 帳號桶只在「密碼錯誤」之後累計，且正確密碼一律放行並清零——否則
 #   任何未認證的人都能連續打錯密碼，把指定管理者永久鎖在門外。
-_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
-_LOGIN_SOURCE_ATTEMPTS: dict[str, list[float]] = {}
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_MAX_ATTEMPTS = 10
 LOGIN_SOURCE_WINDOW_SECONDS = 300
@@ -32,6 +30,13 @@ LOGIN_SOURCE_WINDOW_SECONDS = 300
 # 全體員工會共用同一個桶。這個數字對十來個園方帳號綽綽有餘，但仍然會
 # 掐掉自動化的密碼嘗試迴圈。
 LOGIN_SOURCE_MAX_ATTEMPTS = 100
+# 用有界的限流器：匿名者可以拿任意 email 打錯密碼，每個 email 都是新 key。
+_LOGIN_ATTEMPTS = ratelimit.SlidingWindowLimiter(
+    window_seconds=LOGIN_WINDOW_SECONDS, max_per_window=LOGIN_MAX_ATTEMPTS
+)
+_LOGIN_SOURCE_ATTEMPTS = ratelimit.SlidingWindowLimiter(
+    window_seconds=LOGIN_SOURCE_WINDOW_SECONDS, max_per_window=LOGIN_SOURCE_MAX_ATTEMPTS
+)
 
 
 class LoginRateLimited(Exception):
@@ -62,33 +67,24 @@ def _rate_limit_key(email: str) -> str:
     return email.strip().lower()
 
 
-def _window(bucket: dict[str, list[float]], key: str, window_seconds: int) -> list[float]:
-    now = time.monotonic()
-    attempts = [t for t in bucket.get(key, []) if now - t < window_seconds]
-    bucket[key] = attempts
-    return attempts
-
-
 def check_login_rate_limit(email: str) -> None:
-    attempts = _window(_LOGIN_ATTEMPTS, _rate_limit_key(email), LOGIN_WINDOW_SECONDS)
-    if len(attempts) >= LOGIN_MAX_ATTEMPTS:
+    if _LOGIN_ATTEMPTS.is_limited(_rate_limit_key(email)):
         raise LoginRateLimited()
 
 
 def check_login_source_rate_limit(client_key: str) -> None:
-    attempts = _window(_LOGIN_SOURCE_ATTEMPTS, client_key, LOGIN_SOURCE_WINDOW_SECONDS)
-    if len(attempts) >= LOGIN_SOURCE_MAX_ATTEMPTS:
-        raise LoginRateLimited()
-    attempts.append(time.monotonic())
+    try:
+        _LOGIN_SOURCE_ATTEMPTS.check(client_key)
+    except ratelimit.RateLimited as exc:
+        raise LoginRateLimited() from exc
 
 
 def record_login_attempt(email: str) -> None:
-    key = _rate_limit_key(email)
-    _LOGIN_ATTEMPTS.setdefault(key, []).append(time.monotonic())
+    _LOGIN_ATTEMPTS.record(_rate_limit_key(email))
 
 
 def clear_login_attempts(email: str) -> None:
-    _LOGIN_ATTEMPTS.pop(_rate_limit_key(email), None)
+    _LOGIN_ATTEMPTS.reset(_rate_limit_key(email))
 
 
 def reset_login_rate_limits() -> None:
@@ -191,6 +187,10 @@ async def count_active_super_admins(db: AsyncSession, exclude_user_id=None) -> i
 
 async def set_user_active(db: AsyncSession, user: User, active: bool) -> None:
     if not active and user.role == Role.SUPER_ADMIN:
+        # 兩個請求同時停權僅存的兩位總管理者時，各自都會看到「另一位還在」。
+        # 用交易層級的 advisory lock 讓所有停權總管理者的操作排隊，拿到鎖
+        # 之後才計數（READ COMMITTED 下這次查詢看得到前一筆已提交的停權）。
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('super-admin-invariant'))"))
         remaining = await count_active_super_admins(db, exclude_user_id=user.id)
         if remaining == 0:
             raise LastSuperAdminProtected()

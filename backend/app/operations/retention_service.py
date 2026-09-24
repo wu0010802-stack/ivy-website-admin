@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking.models import VisitRequest, VisitRequestStatus
+from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
 
 DEFAULT_RETENTION_DAYS = 365
+ANONYMIZED_NOTE = "（已依保存政策匿名化）"
 
 # 只匿名化已經結案、不會再變動的狀態；new/confirmed 這種還在走流程的
 # 案件即使超過天數也不動，避免破壞還在進行中的接待工作。
@@ -45,6 +46,14 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
     visit_request.email = None
     visit_request.referral_sources = []
     visit_request.questions = None
+    # 聯絡紀錄是接待人員寫的自由文字，常會記下姓名、電話或家庭狀況；
+    # 不清掉的話案件標成已匿名化，個資卻還留在關聯表裡。保留列與時間
+    # （聯絡歷程次數仍可統計），只換掉內容。
+    await db.execute(
+        update(VisitContactNote)
+        .where(VisitContactNote.visit_request_id == visit_request.id)
+        .values(note=ANONYMIZED_NOTE)
+    )
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
 
@@ -58,4 +67,16 @@ async def run_retention_sweep(
         return report
     for candidate in candidates:
         await anonymize(db, candidate)
+    # 回補：舊版匿名化沒有清聯絡紀錄，已標記的案件不會再被選為候選。
+    await db.execute(
+        update(VisitContactNote)
+        .where(
+            VisitContactNote.visit_request_id.in_(
+                select(VisitRequest.id).where(VisitRequest.anonymized_at.is_not(None))
+            ),
+            VisitContactNote.note != ANONYMIZED_NOTE,
+        )
+        .values(note=ANONYMIZED_NOTE)
+    )
+    await db.flush()
     return report

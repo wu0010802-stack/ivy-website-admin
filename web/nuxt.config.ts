@@ -91,6 +91,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     adminDistDir: process.env.NUXT_ADMIN_DIST_DIR ?? '',
     websiteApiInternalBase: apiInternalBase,
+    // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
+    // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
+    trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
     websiteEnv,
     public: {
       contentMode,

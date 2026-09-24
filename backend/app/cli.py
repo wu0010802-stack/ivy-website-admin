@@ -148,21 +148,22 @@ async def process_notifications_once() -> None:
     指令，暫不內建常駐 daemon（避免跟本機 8GB RAM 限制下的其他背景
     程序搶資源）。"""
     settings = get_settings()
-    try:
-        adapter = get_email_adapter(settings.notification_email_sink_dir)
-    except EmailNotConfigured:
-        print("尚未設定 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
-        return
-
     factory = await _session_factory()
     async with factory() as db:
         # 先處理過期占位：規格 222 要求逾期的 pending_confirmation 轉
         # cancelled、釋放名額並通知園方。它會寫進 outbox，所以要排在
         # 處理 outbox 之前，這一輪就能把通知一起送出去。
+        # 釋放占位與寄信無關：寄信未配置時也一定要跑，否則名額不會釋放。
         expired = await expire_holds(db)
         await db.commit()
         if expired:
             print(f"已釋放 {expired} 筆逾期的時段占位。")
+
+        try:
+            adapter = get_email_adapter(settings.notification_email_sink_dir)
+        except EmailNotConfigured:
+            print("尚未設定 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
+            return
 
         result = await process_outbox_batch(db, adapter, worker_id="cli-worker")
         print(f"已處理：成功 {result['sent']} 筆、失敗 {result['failed']} 筆")

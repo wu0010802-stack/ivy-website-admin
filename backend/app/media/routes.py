@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.deps import get_current_user, get_db_session
+from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
 from app.auth.models import Role, User
 from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
+from app.auth.service import get_session_by_token
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
 from app.media.schemas import MediaAssetOut, MediaUpdateRequest
@@ -55,14 +56,31 @@ async def _read_upload_within_limit(file: UploadFile, kind: MediaKind) -> bytes:
         chunks.append(chunk)
     return b"".join(chunks)
 
+def _quota_exceeded() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "MEDIA_QUOTA_EXCEEDED", "message": "此校區素材空間已滿，請先刪除不用的素材"},
+    )
+
+
+def _file_response(storage, asset: MediaAsset, headers: dict[str, str]) -> FileResponse:
+    """串流送檔：不把整個原檔讀進 API 記憶體（影片可達 200 MB，並行下載
+    會按檔案大小 × 請求數吃記憶體）。"""
+    if not storage.exists(asset.storage_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+    return FileResponse(
+        storage.path_for(asset.storage_key),
+        media_type=asset.content_type,
+        headers={"X-Content-Type-Options": "nosniff", **headers},
+    )
+
+
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
 
-# 給公開官網用的唯讀路由：CMS 內容（目前是 campus_tour 的場景圖片）一旦
-# 引用某個素材，訪客看頁面時要能直接載入圖片，不能要求先登入 admin。
-# 依 UUID 直接讀取（不驗證是否真的被已發布內容引用）——這跟大多數 CMS
-# 素材庫的作法一致（上傳後即可用穩定網址讀取，方便草稿預覽），UUID 不可
-# 猜測，且只服務 status=ready 的素材，不外洩 processing/failed 的內部
-# 狀態或任何其他欄位。
+# 給公開官網用的唯讀路由：CMS 內容一旦發布引用某個素材，訪客看頁面時要
+# 能直接載入圖片，不能要求先登入 admin。規格要求草稿素材授權才能取得，
+# 所以匿名請求只服務「目前線上 release 有引用」的 ready 素材；帶有效後台
+# session 的請求（/preview 草稿預覽）另依校區權限放行，且不給共用快取。
 public_router = APIRouter(prefix="/api/website/v1/public/media", tags=["media-public"])
 
 
@@ -156,7 +174,11 @@ async def upload_media(
             created_by=current_user.id,
             alt_text=alt_text,
             source_attribution=source_attribution,
+            quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
         )
+    except service.MediaQuotaExceeded as exc:
+        await db.rollback()
+        raise _quota_exceeded() from exc
     except MediaValidationError as exc:
         await db.rollback()
         raise HTTPException(
@@ -240,7 +262,11 @@ async def replace_media(
             data=data,
             original_filename=file.filename or "unnamed",
             created_by=current_user.id,
+            quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
         )
+    except service.MediaQuotaExceeded as exc:
+        await db.rollback()
+        raise _quota_exceeded() from exc
     except MediaValidationError as exc:
         await db.rollback()
         raise HTTPException(
@@ -258,15 +284,31 @@ async def get_media_file(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> Response:
+) -> FileResponse:
     asset = await _get_owned_asset(db, current_user, media_id)
     storage = service.get_storage(request.app.state.settings)
-    data = storage.read_bytes(asset.storage_key)
-    return Response(
-        content=data,
-        media_type=asset.content_type,
-        headers={"X-Content-Type-Options": "nosniff"},
+    return _file_response(storage, asset, {"Cache-Control": "private, no-store"})
+
+
+async def _admin_can_preview(db: AsyncSession, session_token: str | None, asset: MediaAsset) -> bool:
+    if session_token is None:
+        return False
+    session = await get_session_by_token(db, session_token)
+    if session is None:
+        return False
+    result = await db.execute(
+        select(User).options(selectinload(User.campus_scopes)).where(User.id == session.user_id)
     )
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        return False
+    try:
+        require_scope(
+            user, "media.read", campus_keys=[asset.campus_key] if asset.campus_key else None
+        )
+    except (CapabilityDenied, ScopeDenied):
+        return False
+    return True
 
 
 @public_router.get("/{media_id}/file")
@@ -274,20 +316,17 @@ async def get_public_media_file(
     media_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db_session),
-) -> Response:
+    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> FileResponse:
     result = await db.execute(select(MediaAsset).where(MediaAsset.id == media_id))
     asset = result.scalar_one_or_none()
     if asset is None or asset.status != MediaStatus.READY:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
     storage = service.get_storage(request.app.state.settings)
-    data = storage.read_bytes(asset.storage_key)
-    return Response(
-        content=data,
-        media_type=asset.content_type,
-        headers={
-            "Cache-Control": "public, max-age=31536000, immutable",
-            # content_type 來自實際解碼結果（只可能是 jpeg/png/webp/gif/mp4），
-            # 但仍明確關掉瀏覽器的 MIME 嗅探，避免任何殘留的誤判空間。
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    if media_id in await service.current_release_media_ids(db):
+        # content_type 來自實際解碼結果（只可能是 jpeg/png/webp/gif/mp4），
+        # _file_response 仍明確關掉瀏覽器的 MIME 嗅探。
+        return _file_response(storage, asset, {"Cache-Control": "public, max-age=31536000, immutable"})
+    if await _admin_can_preview(db, session_token, asset):
+        return _file_response(storage, asset, {"Cache-Control": "private, no-store"})
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
