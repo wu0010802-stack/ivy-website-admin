@@ -10,16 +10,16 @@
 
 | 路徑 | 角色 | 動它前要知道 |
 |---|---|---|
-| `index.html` `styles.css` `studio.css` `app.js` `assets/` | 凍結的 vanilla 原型（2026-09-19 baseline），**零依賴** | 設計迭代改在 `web/`；不在原型加 npm 套件、不引框架 |
+| `index.html` `styles.css` `studio.css` `app.js` `assets/` | 已凍結的 vanilla 原型（`63a0c05`），零依賴 | 不再修改；只在追溯原始設計時讀 |
 | `app.js` | hash 路由（`#/頁面/子路徑`，`render()` 在檔尾）＋所有內容資料：`campuses`、`dayMoments`、`faq()`、`homepageNews` | 高度壓縮成單行函式、無分節註解；切片刪除前**先印出行號範圍再刪**（已兩次多刪共用宣告） |
-| `studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔第 16 行為準（1100），不是 `styles.css` 的 1150 |
-| `preview.html` | `package_preview.py` 打包出的單檔，**刻意進版控**、可離線開 | 改任何原始檔後必重打包，見下 |
+| `web/app/assets/css/studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔第 16 行為準（1100），不是同目錄 `styles.css` 的 1150 |
+| `preview.html` | `package_preview.py` 打包出的原型單檔，**刻意進版控**、可離線開 | 改根目錄原型檔後必重打包，見下 |
 | `DESIGN.md` | 設計規則與每輪定案／否決紀錄 | 改版前先讀相關章節，否決過的方案不要再主動提 |
 | `README.md` | 日期 changelog（前 200 行）＋預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄 |
 | `design/<主題>-directions|mockup|demo[-YYYYMMDD]/` | 比稿工作檔、截圖、對照頁 | 只在需要追溯來源時讀；**不要把舊方案套回主站** |
 | `versions/before-<主題>-YYYYMMDD-HHMMSS/` | 改版前快照 | 大改前先建一份 |
 | `output/` `.playwright-*` `.impeccable/` `.codex/` | 本機截圖與工具狀態，已 gitignore | 暫存物放這裡，不要散在根目錄 |
-| `web/` | 正式公開官網（Nuxt 4 SSR），設計迭代都在這裡 | 顏色走 `web/app/assets/css/tokens.css`；改完跑 `npm --prefix web run typecheck`、`test:unit` |
+| `web/` | 正式公開官網（Nuxt 4 SSR），設計迭代都在這裡；樣式 `web/app/assets/css/`、元件 `web/app/components/` | 顏色走 `web/app/assets/css/tokens.css`；改完跑 `npm --prefix web run typecheck`、`test:unit` |
 | `admin/` | 後台 SPA（Vue 3＋Element Plus），build 後併進 web 的 `/admin/` | 型別取自 `contracts/generated`；`npm --prefix admin run typecheck`、`test:unit` |
 | `backend/` | FastAPI API＋Alembic migration | 合進 `main` 的 migration 部署時自動套到正式 DB，撰寫規則見 `deploy/CICD.md` |
 | `contracts/` | `openapi.json` 與產生的 TS 型別 | 改 API 後 `npm run contract:generate`；CI 跑 `contract:check` |
@@ -28,14 +28,14 @@
 
 ## 每次改版必做的流程
 
-根目錄原型自 2026-09-19 起凍結，設計改版都改在 `web/`；第 3–4 步的 `app.js`／`preview.html` 檢查只在真的要動原型時做，`web/` 改版改跑 web 的 typecheck 與 `test:unit`。
+根目錄原型自 2026-09-19 起凍結（`63a0c05`），設計改版都改在 `web/`；只有真的動到原型才做第 3 步的 `app.js`／`preview.html` 檢查。
 
 1. 動手前 `git status --short`：本 repo 長期有大量未提交設計修改，**全部視為使用者工作**。不 reset／checkout 還原／stash／clean，不 `git add .`、`-A`、`commit -a`。
 2. 大改前快照到 `versions/before-<主題>-$(date +%Y%m%d-%H%M%S)/`。
-3. 改完：`node --check app.js` → `python3 package_preview.py` → 確認 `preview.html` 有更新。
-4. 本機預覽：`python3 -m http.server 8765 --bind 127.0.0.1`，結束 `pkill -f "http.server 8765"`。
-5. 記錄：README 頂部加日期段落；定案或否決的規則寫進 DESIGN.md 對應章節；比稿參數（`?xxx=`）在定案後從 `app.js` 移除。
-6. 未經要求不 commit。使用者要求時原始檔與 `preview.html` 一起提交，Conventional Commit、繁體中文。
+3. 改完（Node 22，見 `.nvmrc`）：`npm --prefix web run typecheck`、`npm run test:website`；動到 API 或型別契約再跑 `npm run contract:check`；畫面改動在 dev server 上用 Playwright 驗桌機與手機。只有動到根目錄原型才需要 `node --check app.js` → `python3 package_preview.py`。
+4. 本機預覽：`web/`、`admin/`、`backend/` 的啟動命令見 `docs/website-admin/README.md`；看凍結原型才用 `python3 -m http.server 8765 --bind 127.0.0.1`，結束 `pkill -f "http.server 8765"`。
+5. 記錄：README 頂部加日期段落；定案或否決的規則寫進 DESIGN.md 對應章節；比稿參數（`?xxx=`）在定案後從程式移除。
+6. 未經要求不 commit。使用者要求時 Conventional Commit、繁體中文；動到根目錄原型才連同 `preview.html` 一起提交。
 
 ## 打包器 `package_preview.py` 的地雷
 
@@ -57,7 +57,7 @@
 - 頁首貼視窗右緣的做法是 `.header-top` 滿版＋補 gutter，包在 `@media(min-width:901px)`；**禁止**用 `.header-book` 負邊距（自訂屬性裡的 % 在使用端解析）。
 - 膠囊內任何 `span` 規則要明寫 `width/height/background`，否則被站內選擇器壓成白條。
 - 五校底板卡地圖抽屜桌機固定 `order:99`，不要改成插在被點卡片下方（Grid 斷行整批跑版，已實測）。
-- 已否決、勿再主動提：孩子的一天大標鏤空／白框、logo 雙濾鏡疊圖去背、`.paper-sun`／`.hero-sprout` 等已刪死碼。
+- 已否決、勿再主動提：孩子的一天大標鏤空／白框、logo 雙濾鏡疊圖去背。
 - 圖示只用 Phosphor Regular，sprite 內嵌 `index.html`；英文只留 `lang="en"` 副標與外部連結 ↗。
 - `ui-ux-pro-max` 之類的通用 UI 套件對本案不適用（會撞 PRODUCT.md 的反參考）。
 
@@ -66,14 +66,14 @@
 - 「孩子的一天」是背景影片（760px 分界切桌／手機檔）＋六張可翻面拍立得，不是舊分頁；`dayMoments` 欄位 `key,time,label,tint,photo,alt,caption,title,story,question,answer`。
 - 首頁五校是 e3 墨綠底板卡，首頁沒有嵌入地圖；分校內頁才有，且只載當前校。
 - 頁首預約鈕全站只有一種：金色滿高色塊（d9），手機退回膠囊。
-- 首頁捲過 40px 頁首收成靠右的深綠膠囊（2026-09-23 起分校頁與預約頁在 900px 以下也收，桌機內頁不收）；`?pill=`、`?autohide=1`、`?anni=a|b|c` 仍是預覽參數，**30 週年版尚未拍板**，不能順便上線。
-- 根目錄原型的預約表單只是前端示範；`web/` 的預約會真的送單、存進官網 DB。localStorage 只放動效偏好。
+- 首頁捲過 40px 頁首收成靠右的深綠膠囊；分校頁與預約頁在 900px 以下也收，桌機內頁不收。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
+- `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
 
 ## 驗證工具的本機繞法
 
 - chrome-devtools MCP 的 `resize_page` 無效，用 `emulate` 指定 viewport（`1440x900x2`、`390x844x3,mobile,touch`）；手機截圖逾時就改跑 Playwright。
-- Playwright 未裝在 repo，用 npx 快取 `~/.npm/_npx/*/node_modules/playwright-core` ＋ `chromium.launch({channel:'chrome'})`；範例在 `output/playwright/*.cjs`。
+- Playwright 是 repo 的 devDependency（`playwright.config.ts`、`npm run test:e2e`）；臨時腳本直接 `require('playwright')` ＋ `chromium.launch({channel:'chrome'})`，範例在 `output/playwright/*.cjs`。
 - ffmpeg 沒有 libwebp：先抽 PNG 再用 PIL 轉 WebP。
 - 對比度不要在瀏覽器 seek 影片取樣，改 ffmpeg 抽幀後離線算。
 - `npx impeccable detect --json <url>` 可用；`impeccable live` 這版跑不起來。
@@ -83,16 +83,17 @@
 
 - 規格、計畫、handoff：`docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`。A–D 四階段已全部實作，A01–A25 驗收狀態見 `docs/website-admin/acceptance.md`，維運見 `docs/website-admin/operations.md`。
 - **技術棧**（不要再重開選型，背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。
-- **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`。
+- **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`；部署後在 `deploy/README.md` 補紀錄。
 - 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
 - 預約語意（inquiry「已收到需求」／slots 人工確認「待確認」／只有已確認才叫「預約成立」）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
 - 排程發布、逾期占位、通知 outbox、清限流計數由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
 - **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相 TRUNCATE。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
+- 根目錄 vanilla 原型已在 `63a0c05` 凍結（階段 A 閘門，使用者同意）；設計迭代一律在 `web/`，不回寫根目錄。`preview.html` 保留為原型離線快照。
 - 標題與品牌字型是子集（見上節），CMS 開放編輯標題前必須先處理，規則在規格 3.1.1。
 
 ## 委派與回報
 
-- 唯讀盤點用 `scout`（sonnet）；比稿類任務常同時開多個 `?param=` 方向，記得在定案後清掉。
+- 唯讀盤點用 `scout` subagent；比稿類任務常同時開多個 `?param=` 方向，記得在定案後清掉。
 - 回報只給結論、`檔案:行號`、實際跑過的指令與結果、未驗證項；沒看到成功輸出不宣稱通過。
 - 不可逆或對外的動作（發布、刪對話、rotate token）先講不做。
