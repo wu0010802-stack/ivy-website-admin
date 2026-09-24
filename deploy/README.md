@@ -595,3 +595,15 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 使用者選擇不回滾，改做自動 migration 後推 `main` 恢復。`deploy/api-start.py` 啟動時先 `alembic upgrade head` 再唯讀核對；`backend/migrations/env.py` 加 advisory lock；`check_schema.py` 錯誤訊息改成對應新流程；新增 `deploy/tests/test_api_start.py`；規則寫進 [CICD.md](./CICD.md)。
 - 本機驗證見 CICD.md 2026-09-24 段。`d3a8f1c5b742` 只加 `visit_requests.source`（NOT NULL，預設 `web`）、nullable `created_by` 外鍵與承辦人索引。
 - 查到的其他狀態：api／web 仍綁 GitHub repo（原生部署不等 CI）；Railway Postgres PITR 未開；api healthcheck `/api/website/v1/health` 120 秒、restart ON_FAILURE 3 次、單一 replica、無 pre-deploy command。
+
+## 2026-09-24 拍立得 F「第一張翻開進場」（main CI 部署）
+
+- 使用者選定 F 後要求提交並部署。feature 提交 `9df9008`（feat；`README.md` 只暫存自己那段，別的 session 未提交的 Google OAuth 段落沒帶）、`2315a5b`（比稿頁）、`0574fce`（快照）。部署前在 main 的 build 實測，發現「自己翻開途中被點會原路翻回背面」，補 `dc8dd79`（fix，途中點擊不算、讓它翻完）。
+- 建 deploy worktree 與 cherry-pick 被 auto 模式判為正式部署擋下，由使用者執行：`/private/tmp/ivy-website-flip-opener-20260924`（`origin/main` `912da33`，等於線上 `base_commit`）cherry-pick 為 `a88e936`、`7dd7207`，無衝突，改動行與原 commit 逐行相同。main 比 feature 多 `paper-budget.ts`（手機 WebGL 名額）與顯影預畫格；F 的狀態留在 DOM，重新掛載由 `flipped`／`developed` 接手，實測相容。
+- worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 30 檔 222 項、`nuxt build` 通過；本機 `.output`（fixture）以 `output/playwright/flip-opener-20260924/check.cjs` 跑桌機 WebGL／強制 CSS／手機／減少動態／工作階段／錨點，另以 `midtap.cjs` 驗翻開途中點擊。
+- `push ...:main`（`912da33..7dd7207`）由使用者執行。CI run `36006127423` 全綠（含 deploy job）。`/release.json` snapshot `95a762aa9d0dcfa542c128105d2b707df60a07fb90c80f13e9b6c69bafd77c6a`、`base_commit` `7dd7207`、`created_at` 2026-09-24T13:35:33Z。
+- 線上 Playwright（`output/playwright/flip-opener-prod-20260924/`）：
+  - 桌機 WebGL：載入後第一張背面朝上、第二張不受影響；只露出約 20% 不翻；置中 700ms 仍是背面，之後翻開並顯影；同工作階段重新整理直接正面。
+  - 強制 CSS 版約 0.79 秒翻開；手機 390 背面→照片、無橫向溢出。
+  - 減少動態停在背面、點擊切換；讀者先點停在照片；翻開途中點擊（WebGL／CSS）翻完停在照片，之後再點照常翻面；`#day-hello` 直達維持正面。
+  - 0 page error。Safari／iOS 實機未驗證。
