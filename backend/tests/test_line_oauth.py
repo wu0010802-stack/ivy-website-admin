@@ -342,9 +342,8 @@ async def test_line_login_rotates_previous_session(line_client, line_provider, d
 
 
 async def test_line_login_is_source_rate_limited(line_client, line_provider, monkeypatch):
-    monkeypatch.setattr(
-        service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source", window_seconds=300, max_per_window=1)
-    )
+    # 限流計數存在 PostgreSQL（app.state.rate_limiter），換一個上限 1 的 Limit 即可。
+    monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source", window_seconds=300, max_per_window=1))
     await start_login(line_client, line_provider)
     response = await line_client.get(f"{ROOT}/line/login")
     assert response.headers["location"] == "/admin/login?oauth_error=rate_limited"

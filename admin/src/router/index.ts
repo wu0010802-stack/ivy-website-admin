@@ -27,8 +27,8 @@ import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
-import AccountView from '../views/AccountView.vue'
 import LineNotificationsView from '../views/LineNotificationsView.vue'
+import AccountView from '../views/AccountView.vue'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
