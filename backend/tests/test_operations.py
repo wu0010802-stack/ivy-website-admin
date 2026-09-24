@@ -104,10 +104,17 @@ async def test_export_visit_requests_does_not_leak_other_campus(
     admin_client, minghua_client, public_client
 ):
     await _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-export-01")
+    # 個資匯出是總管理者逐人授予的（2026-09-25 起），先授權再測校區範圍。
+    minghua_me = (await minghua_client.get("/api/website/v1/auth/me")).json()["user"]
+    granted = await admin_client.patch(
+        f"/api/website/v1/admin/users/{minghua_me['id']}/capabilities", json={"capabilities": ["booking.export"]}
+    )
+    assert granted.status_code == 200, granted.text
 
     minghua_export = await minghua_client.get(
         "/api/website/v1/admin/visit-requests/export?campus_key=minghua"
     )
+    assert minghua_export.status_code == 200
     assert "陳媽媽" not in minghua_export.text
 
     # minghua 不能匯出 yihua 的資料

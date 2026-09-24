@@ -187,7 +187,7 @@ async def create_parent_access_link(
     visit_request = result.scalar_one_or_none()
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
 
     raw_token = await access_service.create_access_token(db, visit_request_id)
     await db.commit()
@@ -207,7 +207,7 @@ async def revoke_parent_access_link(
     visit_request = result.scalar_one_or_none()
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
 
     await access_service.revoke_access_for_visit_request(db, visit_request_id)
     await audit_service.log_action(
@@ -261,7 +261,7 @@ async def approve_reschedule_request(
         .where(VisitRequest.id == record.visit_request_id)
     )
     visit_request = result.scalar_one()
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
 
     try:
         await workflow_service.reschedule(db, visit_request, record.requested_slot_id)
@@ -304,7 +304,7 @@ async def reject_reschedule_request(
         .where(VisitRequest.id == record.visit_request_id)
     )
     visit_request = result.scalar_one()
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
 
     record.status = "rejected"
     record.resolved_at = datetime.now(timezone.utc)

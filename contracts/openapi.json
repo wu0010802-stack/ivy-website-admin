@@ -2047,9 +2047,20 @@
             "title": "Capabilities",
             "type": "array"
           },
+          "effective_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Effective Capabilities",
+            "type": "array"
+          },
           "email": {
             "title": "Email",
             "type": "string"
+          },
+          "google_linked": {
+            "title": "Google Linked",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",
@@ -2074,6 +2085,8 @@
           "role",
           "is_active",
           "campus_keys",
+          "effective_capabilities",
+          "google_linked",
           "line_linked"
         ],
         "title": "UserOut",
@@ -7255,7 +7268,7 @@
     },
     "/api/website/v1/admin/users/{user_id}/capabilities": {
       "patch": {
-        "description": "規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。",
+        "description": "規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。",
         "operationId": "update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch",
         "parameters": [
           {
@@ -9442,7 +9455,7 @@
     },
     "/api/website/v1/admin/visit-staff": {
       "get": {
-        "description": "可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理\n者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。",
+        "description": "可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。\n非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出\n其他校的人員配置。",
         "operationId": "list_visit_staff_api_website_v1_admin_visit_staff_get",
         "parameters": [
           {
@@ -9588,6 +9601,65 @@
           }
         },
         "summary": "Google Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/google/link": {
+      "delete": {
+        "description": "本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會\n重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。\n解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。",
+        "operationId": "google_unlink_api_website_v1_auth_google_link_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Unlink",
         "tags": [
           "auth"
         ]

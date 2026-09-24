@@ -290,12 +290,12 @@ async def assign(
     db: AsyncSession, visit_request: VisitRequest, assignee: User | None
 ) -> VisitRequest:
     """改承辦人。assignee 是已載入 campus_scopes 的 User 或 None（取消
-    指派）；只能指派給仍啟用、而且有這個校區案件管理權限的人，否則這筆
-    案件會落到一個根本看不到它的人名下。"""
+    指派）；只能指派給仍啟用、而且能處理這個校區案件的人（booking.handle，
+    含接待人員），否則這筆案件會落到一個根本看不到它的人名下。"""
     if assignee is not None:
         if not assignee.is_active:
             raise AssigneeInvalid("這個帳號已停用，不能指派")
-        if not has_capability(assignee, "booking.manage"):
+        if not has_capability(assignee, "booking.handle"):
             raise AssigneeInvalid("這個帳號沒有處理參觀案件的權限")
         if not covers_campus(assignee, visit_request.campus_key):
             raise AssigneeInvalid("這個帳號沒有這個校區的權限")

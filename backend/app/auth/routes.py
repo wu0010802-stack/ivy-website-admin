@@ -19,8 +19,8 @@ from app.auth.deps import (
     get_db_session,
 )
 from app.auth.models import Session as AuthSession
-from app.auth.models import CREATABLE_ROLES, GRANTABLE_CAPABILITIES, GRANTABLE_ROLES, Role, User
-from app.auth.permissions import require_scope
+from app.auth.models import BOOKING_EXPORT, CREATABLE_ROLES, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
+from app.auth.permissions import effective_capabilities, require_scope
 from app.auth.oauth_common import private
 from app.auth.schemas import (
     AuthProviders,
@@ -50,17 +50,31 @@ def _require_scope_for_role(role: Role, campus_keys: list[str]) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請至少指定一個校區")
 
 
+# 授權給了不適用的角色時的說明；對應 GRANTABLE_CAPABILITIES。
+_GRANT_ROLE_HINTS = {
+    SHARED_CONTENT: "全站共用內容只能授予分校管理者與內容編輯",
+    BOOKING_EXPORT: "個資匯出只能授予分校管理者與櫃台",
+}
+
+
 def _clean_capabilities(role: Role, capabilities: list[str]) -> list[str]:
-    """只接受已知的授權，而且只給會用到的角色（分校管理者、內容編輯）。
+    """只接受已知的授權，而且只給會用到的角色（見 GRANTABLE_CAPABILITIES）。
     總管理者本來就涵蓋全部，存了也沒意義。"""
     unknown = [c for c in capabilities if c not in GRANTABLE_CAPABILITIES]
     if unknown:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支援的授權：{', '.join(unknown)}")
-    if capabilities and role.value not in GRANTABLE_ROLES:
+    not_applicable = [c for c in dict.fromkeys(capabilities) if role not in GRANTABLE_CAPABILITIES[c]]
+    if not_applicable:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="只有分校管理者與內容編輯可以授予這項權限"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="；".join(_GRANT_ROLE_HINTS[c] for c in not_applicable),
         )
     return sorted(set(capabilities))
+
+
+def _applicable_capabilities(role: Role, capabilities: list[str]) -> list[str]:
+    """改角色時，新角色不適用的授權一併清掉，免得日後改回來時意外復活。"""
+    return sorted(c for c in set(capabilities) if role in GRANTABLE_CAPABILITIES.get(c, ()))
 
 
 def _user_out(user: User) -> UserOut:
@@ -71,6 +85,8 @@ def _user_out(user: User) -> UserOut:
         is_active=user.is_active,
         campus_keys=sorted(scope.campus_key for scope in user.campus_scopes),
         capabilities=list(user.capabilities or []),
+        effective_capabilities=effective_capabilities(user),
+        google_linked=user.google_sub is not None,
         line_linked=user.line_sub is not None,
     )
 
@@ -317,16 +333,20 @@ async def update_user_role(
     except service.LastSuperAdminProtected as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="不能降級最後一位總管理者") from exc
     await service.set_campus_scopes(db, user, [] if payload.role == Role.SUPER_ADMIN else payload.campus_keys)
-    if payload.role.value not in GRANTABLE_ROLES:
-        # 改成總管理者、櫃台或唯讀時，授權不再適用，清掉免得日後改回來時意外復活。
-        user.capabilities = []
+    previous_capabilities = list(user.capabilities or [])
+    user.capabilities = _applicable_capabilities(payload.role, previous_capabilities)
+    metadata = {"before": before, "after": {"role": payload.role.value, "campus_keys": sorted(payload.campus_keys)}}
+    removed = sorted(set(previous_capabilities) - set(user.capabilities))
+    if removed:
+        # 收回個資匯出這類授權也要看得到是誰、何時、因為改角色而收回。
+        metadata["capabilities_removed"] = removed
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
         action="user.set_role",
         target_type="user",
         target_id=str(user_id),
-        metadata={"before": before, "after": {"role": payload.role.value, "campus_keys": sorted(payload.campus_keys)}},
+        metadata=metadata,
     )
     await db.commit()
     db.expire_all()
@@ -390,7 +410,7 @@ async def update_user_capabilities(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
-    """規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。"""
+    """規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。"""
     require_scope(current_user, "users.manage")
     user = await _load_user(db, user_id)
     before = list(user.capabilities or [])

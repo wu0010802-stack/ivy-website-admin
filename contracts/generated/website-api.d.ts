@@ -704,7 +704,7 @@ export interface paths {
         head?: never;
         /**
          * Update User Capabilities
-         * @description 規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。
+         * @description 規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。
          */
         patch: operations["update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch"];
         trace?: never;
@@ -1099,8 +1099,9 @@ export interface paths {
         };
         /**
          * List Visit Staff
-         * @description 可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理
-         *     者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。
+         * @description 可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。
+         *     非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出
+         *     其他校的人員配置。
          */
         get: operations["list_visit_staff_api_website_v1_admin_visit_staff_get"];
         put?: never;
@@ -1143,6 +1144,28 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/auth/google/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Google Unlink
+         * @description 本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會
+         *     重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。
+         *     解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
+         */
+        delete: operations["google_unlink_api_website_v1_auth_google_link_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2227,8 +2250,12 @@ export interface components {
             campus_keys: string[];
             /** Capabilities */
             capabilities?: string[];
+            /** Effective Capabilities */
+            effective_capabilities: string[];
             /** Email */
             email: string;
+            /** Google Linked */
+            google_linked: boolean;
             /**
              * Id
              * Format: uuid
@@ -5473,6 +5500,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    google_unlink_api_website_v1_auth_google_link_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

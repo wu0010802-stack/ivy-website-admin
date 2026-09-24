@@ -623,7 +623,7 @@ async def create_manual_visit_request(
     """人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
     人員改完再送一次即可。"""
-    require_scope(current_user, "booking.manage", campus_keys=[payload.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[payload.campus_key])
     result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
     campus = result.scalar_one_or_none()
     if campus is None or not campus.active:
@@ -709,13 +709,14 @@ async def list_visit_staff(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitStaffOut]:
-    """可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理
-    者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。"""
+    """可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。
+    非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出
+    其他校的人員配置。"""
     require_scope(current_user, "booking.read")
     result = await db.execute(
         select(User)
         .options(selectinload(User.campus_scopes))
-        .where(User.role.in_(roles_with("booking.manage")))
+        .where(User.role.in_(roles_with("booking.handle")))
         .order_by(User.email)
     )
     own = campus_scope(current_user)
@@ -777,7 +778,7 @@ async def create_contact_note(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitContactNoteOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     note = await workflow_service.add_contact_note(
         db,
         visit_request,
@@ -845,7 +846,7 @@ async def confirm_visit_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.confirm_with_slot(
             db, visit_request, payload.slot_id, current_user.id
@@ -873,7 +874,7 @@ async def cancel_visit_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.cancel(db, visit_request)
     except workflow_service.InvalidTransition as exc:
@@ -893,7 +894,7 @@ async def mark_no_show(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.mark_no_show(db, visit_request)
     except workflow_service.InvalidTransition as exc:
@@ -915,7 +916,7 @@ async def mark_completed(
     """家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。"""
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.mark_completed(db, visit_request)
     except workflow_service.InvalidTransition as exc:
@@ -936,7 +937,7 @@ async def reschedule_visit_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.reschedule(db, visit_request, payload.new_slot_id)
     except workflow_service.SlotFull as exc:
@@ -969,7 +970,7 @@ async def mark_contacting(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.mark_contacting(db, visit_request)
     except workflow_service.InvalidTransition as exc:
