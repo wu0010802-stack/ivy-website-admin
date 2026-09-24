@@ -21,7 +21,7 @@ describe('labels', () => {
 
   it('角色與案件狀態有中文與色調', () => {
     expect(roleLabel('super_admin')).toBe('總管理者')
-    expect(visitStatus('new')).toEqual({ label: '待處理', tone: 'warning' })
+    expect(visitStatus('new')).toEqual({ label: '待處理', tone: 'primary' })
     expect(visitStatus('weird').label).toBe('weird')
   })
 
