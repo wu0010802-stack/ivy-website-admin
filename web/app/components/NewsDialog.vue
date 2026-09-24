@@ -54,7 +54,7 @@ function formatDate(date: string) {
         <HomeFilms class="hn-films" />
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
-            <span class="hn-kicker" lang="en">UPCOMING EVENTS</span>
+            <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="news.sampleNote" class="hn-sample-tag">示意內容</span></span>
             <h2 id="upcoming-events-heading">近期活動</h2>
           </div>
           <div class="hn-event-stack">
@@ -82,7 +82,7 @@ function formatDate(date: string) {
         <div class="hn-news">
           <div class="hn-head hn-news-head">
             <div>
-              <span class="hn-kicker" lang="en">LATEST NEWS</span>
+              <span class="hn-kicker"><span lang="en">LATEST NEWS</span><span v-if="news.sampleNote" class="hn-sample-tag">示意內容</span></span>
               <h2 id="latest-news-heading">最新消息</h2>
             </div>
             <div class="hn-head-end">

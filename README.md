@@ -1,3 +1,15 @@
+## 2026-09-24 官網體檢第一批：資安標頭、FAQPage／llms.txt、示意消息標註、選單用語
+
+依「常春藤官網體檢」報告的「我可以直接做」欄，先做不需要園方或帳號的幾項。
+
+- 資安標頭：新增 `web/server/middleware/0.security-headers.ts`，前台、`/admin`、同源 `/api` 代理一律送 `X-Frame-Options: SAMEORIGIN`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（關相機、麥克風、定位、付款、USB、browsing-topics；不關 YouTube 嵌入要用的 fullscreen／autoplay）、CSP 先只收 `frame-ancestors 'self'; base-uri 'self'; object-src 'none'`；正式環境另送 HSTS（一年、不含子網域）。檔名 `0.` 讓它先於 `preview-headers.ts`，`/visit/manage` 的 `no-referrer` 照舊覆寫。完整 script-src CSP 要先盤點 inline 腳本並實機驗證，這輪不做。
+- SEO／GEO：分校頁 JSON-LD 加 `FAQPage`，問答與頁面上的參觀須知同一份；新增 `/llms.txt`，只列已發布校區的名稱、地址、電話與網址，跟 sitemap 同一道閘（未開索引回 404）。
+- 首頁「近期活動」「最新消息」標題上方加「示意內容」膠囊（`news.sampleNote` 有值才顯示）。消息與活動仍寫在 fixture、後台改不到，原本只有區塊底部一行小字說明。消息搬進後台前先這樣標；要整塊藏起來請再說。
+- 用語統一成主選單的叫法：頁尾連結「認識常春藤／五校介紹／校園生活」改為「關於常春藤／五所校園／孩子的一天」，分校頁麵包屑「五校介紹」改為「五所校園」。後台 CMS 頁名「五校介紹」不動。
+- Dependabot 沒加：repo 已有 Renovate 的 onboarding PR（#1，base 是 `feature/website-admin`），兩個一起開會重複發更新 PR，請擇一。
+
+驗證：web vitest 187 passed、`nuxt typecheck` 無錯誤、fixture 模式 `nuxt build` 後本機 :3161／:3162 實測：各路徑回應標頭、`/visit/manage` 仍為 `no-referrer`、未開索引 `/llms.txt` 404、開索引後 200 且內容正確、`/campuses/renwu` 輸出 FAQPage；Chromium 1440／390 截圖確認示意膠囊。線上站與 Safari 未驗證。
+
 ## 2026-09-24 頁尾拿掉「參觀時間與入學資訊，請向各校確認。」
 
 使用者要求拿掉這句開發輔助字。它不在 CMS 裡：線上發布的 `site_footer.bottom_note` 仍是原型字「官網設計提案 · 預約為操作示範，不會送出資料」，由 `web/app/utils/public-copy.ts` 換成這句。改為換成空字串，`SiteFooter.vue` 底列只剩版權；CMS 之後另填的備註照常顯示。`web/tests/public-copy.spec.ts` 補兩條斷言。
