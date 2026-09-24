@@ -1,3 +1,9 @@
+## 2026-09-24 頁尾改用 R「燕麥＋深綠底列」
+
+比稿 `design/footer-colour-directions-20260924/` 使用者選 R。共用 `web/app/components/SiteFooter.vue` 主體改淺燕麥 `#EFE8DA`、深綠字，版權列改成滿版深森林綠 `#24483F`（多包一層 `.footer-bar`，拿掉原本的分隔線）。文案、欄位、斷點不變；首頁消息區照舊漸退成暖白再接頁尾。規則寫在 DESIGN.md 最上方。
+
+驗證：Node 22 `nuxt typecheck` 無輸出（通過）。Playwright 對 3161 dev 跑首頁、義華分校頁、預約頁 × 1440／390px：底色與底列色正確、底列滿版、無橫向溢出、連結高度 ≥44px、最低對比主體 5.11／底列 7.63，另測強制色彩會補回分隔線；截圖與 `results.json` 在 `output/playwright/footer-colour-r-20260924/`。3161 既有的 Vite 遮罩（找不到已刪的 `visit-looks.css`）與本次無關，截圖前移除。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-24 接力定案：「關於」掉進句首再沉下去
 
 比稿 `design/relay-drop-mockup-20260924/` 使用者選「沉下去」，現在已是首頁預設；`?drop=` 參數與另外四種消失方式都已移除。
