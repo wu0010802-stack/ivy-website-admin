@@ -41,10 +41,12 @@ describe('參觀資料與已選場次', () => {
 describe('案件流程補完', () => {
   it('已確認的案件可以標記完成，也保留未到場', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
-    const wrapper = await setup({ ...details(), status: 'confirmed', hold_expires_at: null })
+    // 參觀日當天起才能標完成（main 的規則），所以用已過的場次。
+    const past = { ...slot, slot_date: '2026-01-05' }
+    const wrapper = await setup({ ...details(), status: 'confirmed', hold_expires_at: null, slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())
     expect(labels).toContain('標記未到場')
-    await wrapper.findAll('button').find(button => button.text() === '標記已完成參觀')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '完成參觀')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/complete')
   })
@@ -67,7 +69,7 @@ describe('案件流程補完', () => {
 
   it('人工補登的案件顯示來源；只能查看的角色看不到處理按鈕', async () => {
     const wrapper = await setup({ ...details(), status: 'new', source: 'phone', slot_id: null, slot: null })
-    expect(wrapper.text()).toContain('由園方補登（電話）')
+    expect(wrapper.text()).toContain('電話補登')
 
     wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
     vi.spyOn(api, 'get').mockImplementation(async path => path.endsWith('/contact-notes') ? [] : details() as never)

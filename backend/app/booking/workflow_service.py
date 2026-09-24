@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
 
+from app.auth.models import Role, User
+from app.auth.permissions import has_capability
 from app.booking import access_service, slot_service
 from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
@@ -16,6 +18,11 @@ from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
 
 __all__ = ["InvalidTransition", "SlotFull"]
+
+
+def record_event(db: AsyncSession, visit_request_id: uuid.UUID, event_type: str) -> None:
+    """給路由層記錄歷程（例如人工補登關聯舊案）。"""
+    _add_event(db, visit_request_id, event_type)
 
 
 def _add_event(db: AsyncSession, visit_request_id: uuid.UUID, event_type: str) -> None:
@@ -70,7 +77,9 @@ async def confirm_with_slot(
     # 已載入的物件才不會在 async 下觸發 lazy load。
     visit_request.slot = slot
     visit_request.status = VisitRequestStatus.CONFIRMED.value
-    visit_request.assigned_staff_id = staff_id
+    # 已經指派過承辦人就保留，確認的人不一定是負責後續聯絡的人。
+    if visit_request.assigned_staff_id is None:
+        visit_request.assigned_staff_id = staff_id
     visit_request.confirmed_at = now
     # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
     # 一筆已確認的案件當成過期占位取消掉。
@@ -143,74 +152,6 @@ async def mark_contacting(db: AsyncSession, visit_request: VisitRequest) -> Visi
     else:
         raise InvalidTransition(f"狀態 {visit_request.status} 不能改成聯絡中")
     await db.flush()
-    return visit_request
-
-
-async def assign_staff(
-    db: AsyncSession, visit_request: VisitRequest, staff_id: uuid.UUID | None
-) -> VisitRequest:
-    visit_request.assigned_staff_id = staff_id
-    _add_event(db, visit_request.id, "assigned" if staff_id else "unassigned")
-    await db.flush()
-    return visit_request
-
-
-async def create_manual(
-    db: AsyncSession,
-    *,
-    campus_key: str,
-    source: str,
-    config_version: int,
-    parent_name: str,
-    phone: str,
-    child_name: str | None,
-    child_birthdate,
-    email: str | None,
-    age: str | None,
-    preferred_time: str | None,
-    questions: str | None,
-    created_by: uuid.UUID,
-    related_to: uuid.UUID | None = None,
-) -> VisitRequest:
-    """規格 6.2 人工補登：電話、LINE、現場、外部預約網站的需求由園方手動建
-    案，記錄建立人。不寫 outbox——園方自己建的案子不需要再通知園方；同意
-    勾選由園方在電話或現場口頭取得，這裡記為 True 並以來源區分。"""
-    now = datetime.now(timezone.utc)
-    visit_request = VisitRequest(
-        id=uuid.uuid4(),
-        campus_key=campus_key,
-        # 人工建案沒有公開提交的冪等鍵；用 UUID 填滿唯一鍵，不會與官網送單衝突。
-        idempotency_key=f"manual-{uuid.uuid4()}",
-        payload_hash="manual",
-        config_version=config_version,
-        parent_name=parent_name,
-        phone=phone,
-        child_name=child_name,
-        child_birthdate=child_birthdate,
-        email=email,
-        referral_sources=[],
-        age=age,
-        preferred_time=preferred_time,
-        questions=questions,
-        consent_given=True,
-        status=VisitRequestStatus.NEW.value,
-        source=source,
-        created_by=created_by,
-        related_request_id=related_to,
-        created_at=now,
-    )
-    db.add(visit_request)
-    await db.flush()
-    _add_event(db, visit_request.id, "created_manual")
-    if related_to is not None:
-        # 規格 6.2：結案後重新預約建立新案並關聯舊案，歷程兩邊都留痕。
-        _add_event(db, visit_request.id, "linked_from_previous")
-        _add_event(db, related_to, "rebooked_as_new")
-    await analytics_service.record_internal_event(
-        db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key
-    )
-    await db.flush()
-    await db.refresh(visit_request, attribute_names=["slot"])
     return visit_request
 
 
@@ -337,3 +278,33 @@ async def add_contact_note(
     _add_event(db, visit_request.id, "contact_logged")
     await db.flush()
     return record
+
+
+class AssigneeInvalid(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+async def assign(
+    db: AsyncSession, visit_request: VisitRequest, assignee: User | None
+) -> VisitRequest:
+    """改承辦人。assignee 是已載入 campus_scopes 的 User 或 None（取消
+    指派）；只能指派給仍啟用、而且有這個校區案件管理權限的人，否則這筆
+    案件會落到一個根本看不到它的人名下。"""
+    if assignee is not None:
+        if not assignee.is_active:
+            raise AssigneeInvalid("這個帳號已停用，不能指派")
+        if not has_capability(assignee, "booking.manage"):
+            raise AssigneeInvalid("這個帳號沒有處理參觀案件的權限")
+        if assignee.role != Role.SUPER_ADMIN and not any(
+            s.campus_key == visit_request.campus_key for s in assignee.campus_scopes
+        ):
+            raise AssigneeInvalid("這個帳號沒有這個校區的權限")
+    new_id = assignee.id if assignee is not None else None
+    if visit_request.assigned_staff_id == new_id:
+        return visit_request
+    visit_request.assigned_staff_id = new_id
+    _add_event(db, visit_request.id, "assigned" if new_id else "unassigned")
+    await db.flush()
+    return visit_request

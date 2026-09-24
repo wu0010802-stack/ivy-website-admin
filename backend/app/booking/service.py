@@ -15,6 +15,7 @@ from app.booking.models import (
     BookingMode,
     VisitRequest,
     VisitRequestEvent,
+    VisitRequestSource,
     VisitRequestStatus,
 )
 from app.booking.exceptions import SlotFull
@@ -315,5 +316,96 @@ async def submit_visit_request(
             "visit_request_pending_confirmation",
             {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
         )
+    await db.flush()
+    return visit_request, True
+
+
+# 後台補登與官網表單共用 (campus_key, idempotency_key) 唯一鍵；加前綴分開
+# 兩個命名空間，家長端送來的 key 永遠不會撞到或重播出人員補登的案件。
+MANUAL_IDEMPOTENCY_PREFIX = "admin:"
+
+
+async def create_manual_visit_request(
+    db: AsyncSession,
+    *,
+    campus_key: str,
+    idempotency_key: str,
+    payload: dict,
+    source: VisitRequestSource,
+    created_by: uuid.UUID,
+) -> tuple[VisitRequest, bool]:
+    """人員補登一筆案件，狀態一律從 new 開始（要排時段由呼叫端接著走
+    confirm_with_slot，容量規則與一般確認完全相同）。不看預約模式、不寫
+    「新需求」通知（登錄的人自己就是承辦人），也不計入官網成效統計——
+    成效看的是官網帶來的需求，混進電話補登會讓轉換率失真。
+
+    回傳 (visit_request, is_new)；同一個 key 重送回原案件，不重複建立。"""
+    key = f"{MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}"
+    payload_hash = _hash_payload(payload)
+
+    async def _find_existing() -> VisitRequest | None:
+        result = await db.execute(
+            select(VisitRequest).where(
+                VisitRequest.campus_key == campus_key, VisitRequest.idempotency_key == key
+            )
+        )
+        return result.scalar_one_or_none()
+
+    existing = await _find_existing()
+    if existing is not None:
+        if existing.payload_hash != payload_hash:
+            raise IdempotencyConflict()
+        return existing, False
+
+    config = await get_or_create_config(db, campus_key)
+    now = now_utc()
+    visit_request = VisitRequest(
+        id=uuid.uuid4(),
+        campus_key=campus_key,
+        idempotency_key=key,
+        payload_hash=payload_hash,
+        config_version=config.version,
+        parent_name=payload["parent_name"],
+        phone=payload["phone"],
+        child_name=payload.get("child_name"),
+        child_birthdate=(
+            date.fromisoformat(payload["child_birthdate"])
+            if payload.get("child_birthdate")
+            else None
+        ),
+        email=payload.get("email"),
+        referral_sources=payload.get("referral_sources", []),
+        age=payload.get("age"),
+        preferred_time=payload.get("preferred_time"),
+        questions=payload.get("questions"),
+        consent_given=payload["consent_given"],
+        status=VisitRequestStatus.NEW.value,
+        source=source.value,
+        created_by=created_by,
+        # 誰接的電話誰先承辦，之後可以在案件頁改派。
+        assigned_staff_id=created_by,
+        created_at=now,
+    )
+    db.add(visit_request)
+    try:
+        await db.flush()
+    except IntegrityError:
+        # 同一張補登表單連點兩次、兩個請求同時通過上面的查詢。
+        await db.rollback()
+        existing = await _find_existing()
+        if existing is None:
+            raise
+        if existing.payload_hash != payload_hash:
+            raise IdempotencyConflict() from None
+        return existing, False
+
+    db.add(
+        VisitRequestEvent(
+            id=uuid.uuid4(),
+            visit_request_id=visit_request.id,
+            event_type="created",
+            created_at=now,
+        )
+    )
     await db.flush()
     return visit_request, True

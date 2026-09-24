@@ -33,8 +33,8 @@ class VisitRequestStatus(str, enum.Enum):
 
 
 class VisitRequestSource(str, enum.Enum):
-    """案件從哪裡來。web 是官網表單；其餘是園方人工補登（規格 6.2：
-    電話、LINE、現場、外部預約網站），不得憑外連點擊自動建案。"""
+    """案件從哪裡進來。web 是官網表單；其餘是園方在後台人工補登
+    （規格 6.2：不得憑外連點擊自動建案，只能由人員確認後補登）。"""
 
     WEB = "web"
     PHONE = "phone"
@@ -104,18 +104,19 @@ class VisitRequest(Base):
     questions: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     consent_given: Mapped[bool] = mapped_column(nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
-    source: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=VisitRequestSource.WEB.value, server_default="web"
-    )
-    # 人工補登的建立人；官網表單送進來的是 None。
-    created_by: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
     # 規格 6.2：結案後重新預約（含換校）另建新案，指回舊案。
     related_request_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("visit_requests.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=VisitRequestSource.WEB.value, server_default="web"
+    )
+    # 人工補登的建立人；官網表單送出的案件為 NULL。
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_visit_requests_created_by_users"),
+        nullable=True,
+    )
 
     slot_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("visit_slots.id", ondelete="RESTRICT"), nullable=True, index=True

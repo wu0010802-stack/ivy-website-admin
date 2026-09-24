@@ -30,12 +30,12 @@ from app.content.schemas import (
     ContentItemOut,
     ContentRevisionCreateRequest,
     ContentRevisionOut,
+    ContentRevisionRestoreRequest,
     ContentRevisionSummaryOut,
     PendingReviewOut,
     PublicSiteOut,
     PublishJobOut,
     PublishRequest,
-    RestoreRevisionRequest,
     ReviewDecisionRequest,
     ScheduleRequest,
     SubmitReviewRequest,
@@ -328,30 +328,49 @@ async def get_content_revision(
     return ContentRevisionOut.model_validate(revision)
 
 
-@router.post("/admin/content-items/{kind}/restore", response_model=ContentItemOut)
+@router.post(
+    "/admin/content-items/{kind}/revisions/{revision_id}/restore",
+    response_model=ContentItemOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def restore_content_revision(
     kind: str,
-    payload: RestoreRevisionRequest,
+    revision_id: uuid.UUID,
+    payload: ContentRevisionRestoreRequest,
     campus_key: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
-    """把舊版內容複製成一筆新草稿（不直接上線）。園方確認畫面後再照常發布；
-    也可以直接發布舊版 revision（publish 本來就接受任一版本）。規格：內容
-    還原不回復預約設定、時段、案件或通知，這裡只動內容。"""
+    """把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動
+    其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的
+    還原內容，別人尚未發布的草稿不會被帶上去。規格：內容還原不回復預約
+    設定、時段、案件或通知，這裡只動內容。
+
+    直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿
+    再送審），也要通過發布前檢查（例如校園探索熱點待複核）。"""
     config = _get_kind_config(kind)
     if config.shared_only:
         campus_key = None
+
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
-    result = await db.execute(
-        select(ContentRevision).where(
-            ContentRevision.id == payload.revision_id, ContentRevision.content_item_id == item.id
-        )
-    )
-    source = result.scalar_one_or_none()
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
+    if payload.publish:
+        _require_publish(current_user, item)
+    source = await _revision_of(db, item, revision_id)
+
+    # 舊版是用當時的欄位規則存的；欄位規則之後可能變嚴或多了必填欄位，
+    # 還原前用目前的規則再驗一次，不讓不合格的內容繞過存檔驗證上官網。
+    try:
+        config.payload_model.model_validate(source.payload)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "CONTENT_REVISION_OUTDATED",
+                "message": "這一版的欄位格式已經過時，無法直接還原，請手動修改後再儲存",
+            },
+        ) from exc
+
     revision = await _save_draft(
         db, config, kind, item, dict(source.payload), payload.expected_version, current_user
     )
@@ -362,8 +381,30 @@ async def restore_content_revision(
         target_type="content_item",
         target_id=str(item.id),
         campus_key=item.campus_key,
-        metadata={"kind": kind, "from_version": source.version, "new_version": revision.version},
+        metadata={
+            "kind": kind,
+            "restored_from_version": source.version,
+            "revision_version": revision.version,
+            "published": payload.publish,
+        },
     )
+    if payload.publish:
+        try:
+            await publish_jobs.check_publishable(db, item, revision)
+        except publish_jobs.NotPublishable as exc:
+            await db.rollback()
+            raise _not_ready(exc) from exc
+        await service.publish_revision(db, item, revision, current_user.id)
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="content.publish",
+            target_type="content_item",
+            target_id=str(item.id),
+            campus_key=item.campus_key,
+            metadata={"kind": kind, "revision_version": revision.version},
+        )
+
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
     return _item_out(item, latest)
@@ -664,3 +705,4 @@ async def cancel_schedule(
         metadata={"kind": kind, "job_id": str(job_id)},
     )
     await db.commit()
+

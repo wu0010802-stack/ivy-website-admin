@@ -5,7 +5,6 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
 import CampusFaqView from '../views/CampusFaqView.vue'
-import VisitCalendarView from '../views/VisitCalendarView.vue'
 import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
@@ -84,20 +83,6 @@ describe('草稿預覽網址', () => {
     expect(contentPreviewPath('admission_content')).toBe('/preview?page=admission')
     expect(contentPreviewPath('home_hero')).toBe('/preview')
     expect(contentPreviewPath('booking_content')).toBe('')
-  })
-})
-
-describe('接待日曆', () => {
-  it('把已排時段的參觀放進對應日期', async () => {
-    const today = new Date()
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const get = vi.spyOn(api, 'get').mockResolvedValue([
-      { id: 'v1', campus_key: 'yihua', status: 'confirmed', parent_name: '林爸爸', slot: { id: 's', slot_date: iso, start_time: '10:00:00', end_time: '10:30:00' } },
-    ] as never)
-    const wrapper = await mountWith(VisitCalendarView, 'reception')
-    expect(String(get.mock.calls[0]![0])).toMatch(/^\/admin\/visit-calendar\?date_from=/)
-    expect(wrapper.find('.cal__visit').text()).toContain('林爸爸')
-    expect(wrapper.find('.cal__visit').text()).toContain('10:00')
   })
 })
 

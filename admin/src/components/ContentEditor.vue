@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
-import ContentHistoryDrawer from './ContentHistoryDrawer.vue'
+import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -88,8 +88,6 @@ async function approve() {
   }
   await props.editor.review('approve')
 }
-const canShowHistory = computed(() => Boolean(apiPath.value && props.editor.restore && props.editor.publishRevision && latestRevisionAt.value))
-const currentForm = computed(() => (props.editor.form?.value ?? {}) as Record<string, unknown>)
 
 type Tone = 'success' | 'warning' | 'info'
 
@@ -124,9 +122,9 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
 
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
-// 發布是對外動作：按下去官網立刻換掉（改回要到「版本紀錄」）。
-// 時間戳沒人記得住，改成列出「哪些欄位會變、變成什麼」再問；沒有未儲存
-// 修改時（發布已存的草稿）至少講清楚官網現在是哪一版。
+// 發布是對外動作：按下去官網立刻換掉。時間戳沒人記得住，改成列出
+// 「哪些欄位會變、變成什麼」再問；沒有未儲存修改時（發布已存的草稿）
+// 至少講清楚官網現在是哪一版。發錯了可以從「版本紀錄」還原。
 async function publishWithConfirm() {
   const current = isPublished.value
     ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
@@ -144,9 +142,9 @@ async function publishWithConfirm() {
           h('span', { class: 'publish-diff__after' }, c.after),
         ]))),
         list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-        h('p', { class: 'hint' }, '發布後若要改回，可以在「版本紀錄」選舊版重新發布。'),
+        h('p', { class: 'hint' }, '發布後若要改回，可以從「版本紀錄」還原上一版。'),
       ])
-    : `${current}發布後家長立刻看到這一版。若要改回，可以在「版本紀錄」選舊版重新發布。`
+    : `${current}發布後家長立刻看到這一版。若要改回，可以從「版本紀錄」還原上一版。`
   try {
     await ElMessageBox.confirm(message, '發布到官網？', {
       confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
@@ -194,7 +192,16 @@ defineExpose({ confirmLeave })
             rel="noopener"
             class="editor__tool"
           >預覽草稿 ↗</a>
-          <el-button v-if="canShowHistory" text size="small" :disabled="busy" @click="historyOpen = true">版本紀錄</el-button>
+          <el-button
+            v-if="editor.history && latestRevisionAt"
+            text
+            size="small"
+            class="editor__history"
+            :disabled="busy"
+            @click="historyOpen = true"
+          >
+            版本紀錄
+          </el-button>
         </div>
       </div>
       <div v-if="scheduled.length || lastFailed" class="editor__schedules">
@@ -206,14 +213,13 @@ defineExpose({ confirmLeave })
           {{ formatDateTime(lastFailed.publish_at) }} 的排程沒有發布：{{ lastFailed.error }}
         </p>
       </div>
-      <ContentHistoryDrawer
-        v-if="canShowHistory"
+      <RevisionHistoryDrawer
+        v-if="editor.history"
         v-model="historyOpen"
-        :api-path="apiPath"
-        :current="currentForm"
-        :is-dirty="isDirty"
-        :restore="editor.restore!"
-        :publish-revision="editor.publishRevision!"
+        :history="editor.history"
+        :dirty="isDirty"
+        :busy="busy"
+        :can-publish="canPublishRole"
       />
 
       <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
@@ -340,8 +346,13 @@ defineExpose({ confirmLeave })
   font-weight: 600;
 }
 
-.editor__status span {
+.editor__status div span {
   color: var(--ink-3);
+}
+
+.editor__history {
+  margin-left: auto;
+  align-self: center;
 }
 
 .editor__dot {
@@ -353,11 +364,21 @@ defineExpose({ confirmLeave })
   background: var(--ink-3);
 }
 
-.editor__status[data-tone='success'] .editor__dot {
+.editor__status[data-tone='success'] .editor__history {
+  margin-left: auto;
+  align-self: center;
+}
+
+.editor__dot {
   background: var(--el-color-success);
 }
 
-.editor__status[data-tone='warning'] .editor__dot {
+.editor__status[data-tone='warning'] .editor__history {
+  margin-left: auto;
+  align-self: center;
+}
+
+.editor__dot {
   background: var(--brand-gold);
   box-shadow: 0 0 0 1px var(--brand-gold-ink);
 }

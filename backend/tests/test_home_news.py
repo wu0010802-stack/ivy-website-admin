@@ -124,3 +124,78 @@ async def test_campus_owned_photo_cannot_be_used_in_shared_news(admin_client):
     )
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "MEDIA_CROSS_CAMPUS"
+
+
+# ---------------------------------------------------------------------------
+# 上架／下架日期
+# ---------------------------------------------------------------------------
+
+
+def test_schedule_dates_are_optional_and_validated():
+    payload = HomeNewsPayload.model_validate(
+        {"sample_note": "", "articles": [_article(show_from="2026-10-01", show_until="")], "events": [_event()]}
+    ).model_dump()
+    assert payload["articles"][0]["show_from"] == "2026-10-01"
+    assert payload["articles"][0]["show_until"] is None
+    assert payload["events"][0]["show_from"] is None
+
+    with pytest.raises(ValidationError):
+        HomeNewsPayload.model_validate(
+            {"sample_note": "", "articles": [_article(show_from="2026/10/01")], "events": []}
+        )
+    with pytest.raises(ValidationError, match="下架日期不能早於上架日期"):
+        HomeNewsPayload.model_validate(
+            {"sample_note": "", "articles": [], "events": [_event(show_from="2026-10-05", show_until="2026-10-01")]}
+        )
+
+
+def test_is_scheduled_visible_is_inclusive_on_both_ends():
+    from app.content.schemas import is_scheduled_visible
+
+    entry = {"show_from": "2026-10-01", "show_until": "2026-10-03"}
+    assert not is_scheduled_visible(entry, "2026-09-30")
+    assert is_scheduled_visible(entry, "2026-10-01")
+    assert is_scheduled_visible(entry, "2026-10-03")
+    assert not is_scheduled_visible(entry, "2026-10-04")
+    assert is_scheduled_visible({}, "2026-10-04")
+    assert is_scheduled_visible({"show_from": None, "show_until": None}, "2026-10-04")
+
+
+@pytest.mark.asyncio
+async def test_public_site_hides_items_outside_their_schedule(admin_client, public_client):
+    from datetime import timedelta
+
+    from app.common.timezones import today_local
+
+    today = today_local()
+    past = (today - timedelta(days=1)).isoformat()
+    future = (today + timedelta(days=1)).isoformat()
+    payload = {
+        "sample_note": "",
+        "articles": [
+            _article(id="always"),
+            _article(id="expired", show_until=past),
+            _article(id="upcoming", show_from=future),
+            _article(id="today-only", show_from=today.isoformat(), show_until=today.isoformat()),
+        ],
+        "events": [_event(id="e-live", show_until=future), _event(id="e-gone", show_until=past)],
+    }
+    saved = await admin_client.post(
+        "/api/website/v1/admin/content-items/home_news/revisions",
+        json={"expected_version": 0, "payload": payload},
+    )
+    assert saved.status_code == 201, saved.text
+    await admin_client.post(
+        "/api/website/v1/admin/content-items/home_news/publish",
+        json={"revision_id": saved.json()["latest_revision"]["id"]},
+    )
+
+    news = (await public_client.get("/api/website/v1/public/site")).json()["content"]["home_news"]
+    assert [a["id"] for a in news["articles"]] == ["always", "today-only"]
+    assert [e["id"] for e in news["events"]] == ["e-live"]
+    # 排程日期是後台資訊，不輸出到官網。
+    assert "show_from" not in news["articles"][1] and "show_until" not in news["events"][0]
+
+    # 後台仍看得到全部（包含尚未上架與已下架），才能再改日期。
+    admin_view = await admin_client.get("/api/website/v1/admin/content-items/home_news")
+    assert len(admin_view.json()["latest_revision"]["payload"]["articles"]) == 4

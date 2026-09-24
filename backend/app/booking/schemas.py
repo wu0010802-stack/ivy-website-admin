@@ -137,9 +137,10 @@ class PublicBookingConfigOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class VisitRequestCreate(BaseModel):
+class _VisitRequestFields(BaseModel):
+    """官網表單與後台補登共用的家長／孩子欄位與驗證規則。"""
+
     campus_key: str
-    config_version: int
     parent_name: str = Field(min_length=1, max_length=64)
     phone: str
     # 新欄位保持選填，既有前端與舊的重試請求不必補資料才能送出。
@@ -200,6 +201,66 @@ class VisitRequestCreate(BaseModel):
         if not value:
             raise ValueError("需要勾選同意才能送出")
         return value
+
+
+class VisitRequestCreate(_VisitRequestFields):
+    config_version: int
+
+
+
+class VisitRequestManualCreate(_VisitRequestFields):
+    """後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
+    預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上
+    收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向
+    家長說明並取得同意留存資料」，同樣必須為 true。"""
+
+    source: ManualVisitSource
+    # 選填：當場就排定時段時直接確認，走與一般確認相同的容量檢查。
+    slot_id: uuid.UUID | None = None
+    # 選填：第一筆聯絡紀錄（例如「家長來電，想週六參觀」）。
+    note: str | None = Field(default=None, max_length=1000)
+    # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
+    related_request_id: uuid.UUID | None = None
+
+
+class VisitRequestAssignRequest(BaseModel):
+    # None 代表取消指派。
+    assigned_staff_id: uuid.UUID | None
+
+
+class VisitStaffOut(BaseModel):
+    """可以承辦案件的後台人員（總管理者、分校管理者）。campus_keys 為空
+    代表總管理者，可承辦任何校區。"""
+
+    id: uuid.UUID
+    email: str
+    role: str
+    campus_keys: list[str]
+    is_active: bool
+
+
+class CalendarVisitOut(BaseModel):
+    """月曆格子裡的一位家長：只放接待當天需要的欄位，完整資料點進案件看。"""
+
+    id: uuid.UUID
+    status: str
+    parent_name: str
+    child_name: str | None
+    phone: str
+    source: str
+    assigned_staff_id: uuid.UUID | None
+
+
+class CalendarSlotOut(BaseModel):
+    id: uuid.UUID
+    campus_key: str
+    slot_date: date
+    start_time: time
+    end_time: time
+    capacity: int
+    closed: bool
+    booked_count: int
+    visits: list[CalendarVisitOut]
 
 
 class VisitRequestOut(BaseModel):
@@ -268,6 +329,9 @@ class VisitRequestDetailOut(BaseModel):
     id: uuid.UUID
     campus_key: str
     status: str
+    # web＝官網表單；phone／line／walk_in／external＝後台人工補登。
+    source: str = "web"
+    created_by: uuid.UUID | None = None
     parent_name: str
     phone: str
     child_name: str | None = None
@@ -293,75 +357,6 @@ class VisitRequestDetailOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-class VisitRequestManualCreate(BaseModel):
-    """規格 6.2 人工補登。欄位規則與公開表單相同（手機一樣正規化成 10
-    碼），但不需要 config_version／同意勾選／冪等鍵：這是園方自己在後台建
-    的案子，不是家長從官網送的。"""
-
-    campus_key: str
-    source: ManualVisitSource
-    parent_name: str = Field(min_length=1, max_length=64)
-    phone: str
-    child_name: str | None = Field(default=None, max_length=64)
-    child_birthdate: date | None = None
-    email: EmailStr | None = Field(default=None, max_length=254)
-    age: AgeCode | None = None
-    preferred_time: ContactTimeCode | None = None
-    questions: str | None = Field(default=None, max_length=1000)
-
-    @field_validator("age", mode="before")
-    @classmethod
-    def _age_code(cls, value):
-        return _label_to_code(value, AGE_LABELS)
-
-    @field_validator("preferred_time", mode="before")
-    @classmethod
-    def _time_code(cls, value):
-        return _label_to_code(value, CONTACT_TIME_LABELS)
-
-    # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
-    related_request_id: uuid.UUID | None = None
-
-    @field_validator("parent_name")
-    @classmethod
-    def _parent_name_not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("請填寫家長稱呼")
-        return value.strip()
-
-    @field_validator("child_name", mode="before")
-    @classmethod
-    def _normalize_child_name(cls, value):
-        if isinstance(value, str):
-            value = value.strip()
-            return value or None
-        return value
-
-    @field_validator("child_birthdate")
-    @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
-
-    @field_validator("phone")
-    @classmethod
-    def _validate_phone(cls, value: str) -> str:
-        return normalize_phone(value)
-
-
-class VisitRequestAssignRequest(BaseModel):
-    """None 代表取消指派。"""
-
-    assigned_staff_id: uuid.UUID | None
-
-
-class StaffOut(BaseModel):
-    id: uuid.UUID
-    email: str
-    role: str
 
 
 def _mask_phone(phone: str) -> str:

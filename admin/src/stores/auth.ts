@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, api, setCsrfToken } from '../api/client'
 import type { UserOut } from '../api/types'
+import { resetVisitStaff } from '../composables/useVisitStaff'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
@@ -25,6 +26,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** 清掉本地登入狀態（不打 API）。401 的集中處理會用到。 */
   function clearSession(): void {
+    resetVisitStaff()
     user.value = null
     csrfToken.value = null
     setCsrfToken(null)

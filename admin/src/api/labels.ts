@@ -95,20 +95,29 @@ export function contactTimeLabel(value: string | null | undefined): string {
   return CONTACT_TIME_LABELS[value] ?? value
 }
 
-// 案件來源。web 以外都是園方在後台人工補登的。
+// 案件來源。web 是官網表單，其他是園方在後台補登。
 export const VISIT_SOURCE_LABELS: Record<string, string> = {
   web: '官網表單',
   phone: '電話',
   line: 'LINE',
-  walk_in: '現場',
+  walk_in: '親自到園',
   external: '外部預約網站',
 }
 
 export const MANUAL_VISIT_SOURCES = ['phone', 'line', 'walk_in', 'external'] as const
 
 export function visitSourceLabel(source: string | null | undefined): string {
-  if (!source) return VISIT_SOURCE_LABELS.web!
-  return VISIT_SOURCE_LABELS[source] ?? source
+  return VISIT_SOURCE_LABELS[source ?? 'web'] ?? source ?? ''
+}
+
+// 承辦人只存 id，畫面上顯示 email 的 @ 前面那段，表格裡才放得下。
+export function staffLabel(
+  staffId: string | null | undefined,
+  staff: readonly { id: string; email: string }[],
+): string {
+  if (!staffId) return '未指派'
+  const found = staff.find((s) => s.id === staffId)
+  return found ? found.email.split('@')[0]! : '已移除的帳號'
 }
 
 export const MEDIA_STATUS: Record<string, StatusMeta> = {

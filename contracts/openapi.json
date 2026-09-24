@@ -261,6 +261,126 @@
         "title": "BookingMode",
         "type": "string"
       },
+      "CalendarSlotOut": {
+        "properties": {
+          "booked_count": {
+            "title": "Booked Count",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "closed": {
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "slot_date": {
+            "format": "date",
+            "title": "Slot Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "visits": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarVisitOut"
+            },
+            "title": "Visits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "slot_date",
+          "start_time",
+          "end_time",
+          "capacity",
+          "closed",
+          "booked_count",
+          "visits"
+        ],
+        "title": "CalendarSlotOut",
+        "type": "object"
+      },
+      "CalendarVisitOut": {
+        "description": "月曆格子裡的一位家長：只放接待當天需要的欄位，完整資料點進案件看。",
+        "properties": {
+          "assigned_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Staff Id"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "parent_name",
+          "child_name",
+          "phone",
+          "source",
+          "assigned_staff_id"
+        ],
+        "title": "CalendarVisitOut",
+        "type": "object"
+      },
       "CampusOut": {
         "properties": {
           "active": {
@@ -531,6 +651,24 @@
           "created_at"
         ],
         "title": "ContentRevisionOut",
+        "type": "object"
+      },
+      "ContentRevisionRestoreRequest": {
+        "properties": {
+          "expected_version": {
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "publish": {
+            "default": false,
+            "title": "Publish",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ContentRevisionRestoreRequest",
         "type": "object"
       },
       "ContentRevisionSummaryOut": {
@@ -1461,25 +1599,6 @@
         "title": "RescheduleRequestCreate",
         "type": "object"
       },
-      "RestoreRevisionRequest": {
-        "properties": {
-          "expected_version": {
-            "title": "Expected Version",
-            "type": "integer"
-          },
-          "revision_id": {
-            "format": "uuid",
-            "title": "Revision Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "revision_id",
-          "expected_version"
-        ],
-        "title": "RestoreRevisionRequest",
-        "type": "object"
-      },
       "ReviewDecisionRequest": {
         "properties": {
           "decision": {
@@ -1584,30 +1703,6 @@
           "privacy_policy_version"
         ],
         "title": "SiteSettingsUpdate",
-        "type": "object"
-      },
-      "StaffOut": {
-        "properties": {
-          "email": {
-            "title": "Email",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "role": {
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "role"
-        ],
-        "title": "StaffOut",
         "type": "object"
       },
       "SubmitReviewRequest": {
@@ -2064,7 +2159,6 @@
         "type": "object"
       },
       "VisitRequestAssignRequest": {
-        "description": "None 代表取消指派。",
         "properties": {
           "assigned_staff_id": {
             "anyOf": [
@@ -2239,10 +2333,10 @@
         },
         "required": [
           "campus_key",
-          "config_version",
           "parent_name",
           "phone",
-          "consent_given"
+          "consent_given",
+          "config_version"
         ],
         "title": "VisitRequestCreate",
         "type": "object"
@@ -2495,7 +2589,7 @@
         "type": "object"
       },
       "VisitRequestManualCreate": {
-        "description": "規格 6.2 人工補登。欄位規則與公開表單相同（手機一樣正規化成 10\n碼），但不需要 config_version／同意勾選／冪等鍵：這是園方自己在後台建\n的案子，不是家長從官網送的。",
+        "description": "後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部\n預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上\n收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向\n家長說明並取得同意留存資料」，同樣必須為 true。",
         "properties": {
           "age": {
             "anyOf": [
@@ -2536,6 +2630,7 @@
             "anyOf": [
               {
                 "maxLength": 64,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -2543,6 +2638,10 @@
               }
             ],
             "title": "Child Name"
+          },
+          "consent_given": {
+            "title": "Consent Given",
+            "type": "boolean"
           },
           "email": {
             "anyOf": [
@@ -2556,6 +2655,18 @@
               }
             ],
             "title": "Email"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "parent_name": {
             "maxLength": 64,
@@ -2596,6 +2707,21 @@
             ],
             "title": "Questions"
           },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "facebook",
+                "google_reviews",
+                "parent_community",
+                "friends_family",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Referral Sources",
+            "type": "array"
+          },
           "related_request_id": {
             "anyOf": [
               {
@@ -2607,6 +2733,18 @@
               }
             ],
             "title": "Related Request Id"
+          },
+          "slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Id"
           },
           "source": {
             "enum": [
@@ -2621,9 +2759,10 @@
         },
         "required": [
           "campus_key",
-          "source",
           "parent_name",
-          "phone"
+          "phone",
+          "consent_given",
+          "source"
         ],
         "title": "VisitRequestManualCreate",
         "type": "object"
@@ -3014,6 +3153,44 @@
           }
         },
         "title": "VisitSlotUpdateRequest",
+        "type": "object"
+      },
+      "VisitStaffOut": {
+        "description": "可以承辦案件的後台人員（總管理者、分校管理者）。campus_keys 為空\n代表總管理者，可承辦任何校區。",
+        "properties": {
+          "campus_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Campus Keys",
+            "type": "array"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "campus_keys",
+          "is_active"
+        ],
+        "title": "VisitStaffOut",
         "type": "object"
       }
     }
@@ -3839,107 +4016,6 @@
         ]
       }
     },
-    "/api/website/v1/admin/content-items/{kind}/restore": {
-      "post": {
-        "description": "把舊版內容複製成一筆新草稿（不直接上線）。園方確認畫面後再照常發布；\n也可以直接發布舊版 revision（publish 本來就接受任一版本）。規格：內容\n還原不回復預約設定、時段、案件或通知，這裡只動內容。",
-        "operationId": "restore_content_revision_api_website_v1_admin_content_items__kind__restore_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "kind",
-            "required": true,
-            "schema": {
-              "title": "Kind",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "campus_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Campus Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RestoreRevisionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContentItemOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Restore Content Revision",
-        "tags": [
-          "content"
-        ]
-      }
-    },
     "/api/website/v1/admin/content-items/{kind}/review": {
       "post": {
         "description": "核准＝立即發布這一版；退回要附原因。",
@@ -4339,6 +4415,117 @@
           }
         },
         "summary": "Get Content Revision",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}/restore": {
+      "post": {
+        "description": "把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動\n其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的\n還原內容，別人尚未發布的草稿不會被帶上去。規格：內容還原不回復預約\n設定、時段、案件或通知，這裡只動內容。\n\n直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿\n再送審），也要通過發布前檢查（例如校園探索熱點待複核）。",
+        "operationId": "restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentRevisionRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Content Revision",
         "tags": [
           "content"
         ]
@@ -7017,8 +7204,8 @@
     },
     "/api/website/v1/admin/visit-calendar": {
       "get": {
-        "description": "接待日曆：已排時段的案件（待確認、已確認、已完成、未到場），依參觀\n時間排序。與案件清單讀同一張表，不另存一份日曆資料。",
-        "operationId": "visit_calendar_api_website_v1_admin_visit_calendar_get",
+        "description": "接待月曆（規格 6.2：日曆與清單讀同一份資料）。時段與案件都直接\n讀 visit_slots／visit_requests，名額用與送單相同的占位條件計算。",
+        "operationId": "get_visit_calendar_api_website_v1_admin_visit_calendar_get",
         "parameters": [
           {
             "in": "query",
@@ -7095,9 +7282,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/VisitRequestDetailOut"
+                    "$ref": "#/components/schemas/CalendarSlotOut"
                   },
-                  "title": "Response Visit Calendar Api Website V1 Admin Visit Calendar Get",
+                  "title": "Response Get Visit Calendar Api Website V1 Admin Visit Calendar Get",
                   "type": "array"
                 }
               }
@@ -7115,7 +7302,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Visit Calendar",
+        "summary": "Get Visit Calendar",
         "tags": [
           "booking"
         ]
@@ -7189,24 +7376,7 @@
             }
           },
           {
-            "in": "query",
-            "name": "source",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^(web|phone|line|walk_in|external)$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Source"
-            }
-          },
-          {
-            "description": "me、none，或承辦人 id",
+            "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
             "in": "query",
             "name": "assignee",
             "required": false,
@@ -7219,8 +7389,26 @@
                   "type": "null"
                 }
               ],
-              "description": "me、none，或承辦人 id",
+              "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
               "title": "Assignee"
+            }
+          },
+          {
+            "description": "案件來源：web／phone／line／walk_in／external",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件來源：web／phone／line／walk_in／external",
+              "title": "Source"
             }
           },
           {
@@ -7362,8 +7550,20 @@
         ]
       },
       "post": {
+        "description": "人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡\n紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，\n人員改完再送一次即可。",
         "operationId": "create_manual_visit_request_api_website_v1_admin_visit_requests_post",
         "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "x-csrf-token",
@@ -7828,6 +8028,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/complete": {
       "post": {
+        "description": "家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直\n沒有路由，已確認的案件只能停在「已確認」或被標成未到場。",
         "operationId": "mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post",
         "parameters": [
           {
@@ -8855,17 +9056,9 @@
     },
     "/api/website/v1/admin/visit-staff": {
       "get": {
+        "description": "可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理\n者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。",
         "operationId": "list_visit_staff_api_website_v1_admin_visit_staff_get",
         "parameters": [
-          {
-            "in": "query",
-            "name": "campus_key",
-            "required": true,
-            "schema": {
-              "title": "Campus Key",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "x-csrf-token",
@@ -8905,7 +9098,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/StaffOut"
+                    "$ref": "#/components/schemas/VisitStaffOut"
                   },
                   "title": "Response List Visit Staff Api Website V1 Admin Visit Staff Get",
                   "type": "array"

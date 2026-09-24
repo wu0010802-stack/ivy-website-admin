@@ -19,6 +19,7 @@ from app.content.schemas import (
     HomeNewsPayload,
     SiteFooterPayload,
     SiteMetaPayload,
+    is_scheduled_visible,
 )
 
 
@@ -71,6 +72,26 @@ def _tour_publish_blocker(payload: dict) -> str | None:
     if pending:
         return f"場景「{'、'.join(pending)}」換了照片，熱點還沒複核，確認位置後才能發布"
     return None
+_SCHEDULE_KEYS = ("show_from", "show_until")
+
+
+def _visible_entries(entries: list[dict], today: str) -> list[dict]:
+    # 排程日期是後台用的，官網不需要，也不必讓訪客看到「幾號會上架」。
+    return [
+        {k: v for k, v in entry.items() if k not in _SCHEDULE_KEYS}
+        for entry in entries
+        if is_scheduled_visible(entry, today)
+    ]
+
+
+def _public_home_news(payload: dict, today: str) -> dict:
+    """只把今天該顯示的消息與活動交給官網；尚未上架或已過下架日的留在
+    後台，發布紀錄裡的原始 payload 不動。"""
+    return {
+        **payload,
+        "articles": _visible_entries(payload.get("articles", []), today),
+        "events": _visible_entries(payload.get("events", []), today),
+    }
 
 
 @dataclass(frozen=True)
@@ -87,6 +108,9 @@ class ContentKindConfig:
     before_save: Callable[[dict, dict | None], dict] = field(default=lambda payload, previous: payload)
     # 發布前檢查；回傳字串代表不能發布的原因。
     publish_blocker: Callable[[dict], str | None] = field(default=lambda payload: None)
+    # 公開 API 輸出前的過濾（例如依上下架日期），參數是 payload 與台北
+    # 時間的今天（YYYY-MM-DD）。預設原樣輸出。
+    public_view: Callable[[dict, str], dict] = field(default=lambda payload, today: payload)
 
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
@@ -100,7 +124,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "booking_content": ContentKindConfig(BookingContentPayload, shared_only=True),
     "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
     "home_news": ContentKindConfig(
-        HomeNewsPayload, shared_only=True, extract_media_ids=_extract_home_news_media_ids
+        HomeNewsPayload,
+        shared_only=True,
+        extract_media_ids=_extract_home_news_media_ids,
+        public_view=_public_home_news,
     ),
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
     # 以下三種需要搭配 campus_key，每校各自一份，不是共用內容。

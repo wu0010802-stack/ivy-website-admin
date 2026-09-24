@@ -45,6 +45,24 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
     .map((key) => ({ key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }))
 }
 
+/** 版本紀錄列表的一列（後端 ContentRevisionSummaryOut） */
+export interface RevisionSummary {
+  id: string
+  version: number
+  created_at: string
+  created_by_email: string | null
+  is_published: boolean
+}
+
+/** 版本紀錄抽屜需要的動作；ContentEditor 有拿到才顯示「版本紀錄」按鈕 */
+export interface RevisionHistoryHandle {
+  list: () => Promise<RevisionSummary[]>
+  payloadOf: (revisionId: string) => Promise<Record<string, unknown>>
+  /** 目前已儲存的內容，用來列出「還原後哪些欄位會變」 */
+  savedPayload: () => Record<string, unknown>
+  restore: (revisionId: string, publish: boolean) => Promise<boolean>
+}
+
 // ContentEditor 外殼需要的狀態與動作；useContentItem 的回傳值結構上符合，
 // 頁面把整個 handle 傳給 <ContentEditor :editor> 即可。
 export interface ContentEditorState {
@@ -66,10 +84,6 @@ export interface ContentEditorState {
   previewUrl?: ComputedRef<string>
   /** 版本紀錄要打的 API 路徑（含 campus_key），例如 /admin/content-items/home_about */
   apiPath?: ComputedRef<string>
-  /** 把舊版複製成新草稿 */
-  restore?: (revisionId: string) => Promise<boolean>
-  /** 直接把指定版本發布到官網（回到舊版） */
-  publishRevision?: (revisionId: string) => Promise<boolean>
   /** 最新一版的審核狀態：draft | pending_review | approved | rejected */
   reviewStatus?: ComputedRef<string>
   reviewNote?: ComputedRef<string | null>
@@ -82,6 +96,7 @@ export interface ContentEditorState {
   /** 排程發布最新一版（有未儲存修改會先存）；publishAt 帶時區的 ISO 字串 */
   schedule?: (publishAt: string) => Promise<boolean>
   cancelSchedule?: (jobId: string) => Promise<boolean>
+  history?: RevisionHistoryHandle
   load: () => Promise<void>
   save: () => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -257,28 +272,6 @@ export function useContentItem<TPayload extends object>(
     return publish()
   }
 
-  /** 舊版複製成新草稿，載入到表單。有未儲存修改時由呼叫端先確認。 */
-  async function restore(revisionId: string): Promise<boolean> {
-    if (!item.value) return false
-    saving.value = true
-    try {
-      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/restore${query()}`, {
-        revision_id: revisionId,
-        expected_version: item.value.latest_version,
-      })
-      form.value = withDefaults(item.value.latest_revision?.payload)
-      isPublished.value = false
-      takeSnapshot()
-      ElMessage.success('已把舊版放回草稿，確認沒問題再發布')
-      return true
-    } catch (err) {
-      ElMessage.error(errorMessage(err, '還原失敗'))
-      return false
-    } finally {
-      saving.value = false
-    }
-  }
-
   async function submitForReview(): Promise<boolean> {
     if (isDirty.value && !(await save())) return false
     if (!item.value?.latest_revision) return false
@@ -358,6 +351,38 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
+  const history: RevisionHistoryHandle = {
+    list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
+    async payloadOf(revisionId) {
+      const revision = await api.get<{ payload: Record<string, unknown> }>(
+        `/admin/content-items/${kind}/revisions/${revisionId}${query()}`,
+      )
+      return revision.payload
+    },
+    savedPayload: () => (item.value?.latest_revision?.payload as Record<string, unknown> | undefined) ?? {},
+    async restore(revisionId, publishNow) {
+      if (!item.value) return false
+      const busyFlag = publishNow ? publishing : saving
+      busyFlag.value = true
+      try {
+        item.value = await api.post<ContentItemOut>(
+          `/admin/content-items/${kind}/revisions/${revisionId}/restore${query()}`,
+          { expected_version: item.value.latest_version, publish: publishNow },
+        )
+        form.value = withDefaults(item.value.latest_revision!.payload)
+        isPublished.value = publishNow
+        takeSnapshot()
+        ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
+        return true
+      } catch (err) {
+        ElMessage.error(errorMessage(err, '還原失敗'))
+        return false
+      } finally {
+        busyFlag.value = false
+      }
+    },
+  }
+
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
@@ -378,12 +403,11 @@ export function useContentItem<TPayload extends object>(
     apiPath,
     latestRevisionAt,
     neverPublished,
+    history,
     load,
     save,
     publish,
     saveAndPublish,
-    publishRevision,
-    restore,
     reviewStatus,
     reviewNote,
     submitForReview,

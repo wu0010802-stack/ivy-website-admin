@@ -41,8 +41,8 @@ async def test_restore_creates_new_draft_without_publishing(admin_client, public
     v2 = await _save(admin_client, 1, "改壞的版本")
     await admin_client.post(f"{API}/publish", json={"revision_id": v2["id"]})
 
-    restored = await admin_client.post(f"{API}/restore", json={"revision_id": v1["id"], "expected_version": 2})
-    assert restored.status_code == 200, restored.text
+    restored = await admin_client.post(f"{API}/revisions/{v1['id']}/restore", json={"expected_version": 2})
+    assert restored.status_code == 201, restored.text
     body = restored.json()
     assert body["latest_version"] == 3
     assert body["latest_revision"]["payload"]["title"] == "第一版"
@@ -50,7 +50,7 @@ async def test_restore_creates_new_draft_without_publishing(admin_client, public
     site = await public_client.get("/api/website/v1/public/site")
     assert site.json()["content"]["home_about"]["title"] == "改壞的版本"
 
-    stale = await admin_client.post(f"{API}/restore", json={"revision_id": v1["id"], "expected_version": 2})
+    stale = await admin_client.post(f"{API}/revisions/{v1['id']}/restore", json={"expected_version": 2})
     assert stale.status_code == 409
 
 
@@ -70,7 +70,7 @@ async def test_publish_old_revision_rolls_back_public_site(admin_client, public_
 @pytest.mark.asyncio
 async def test_campus_admin_cannot_restore_shared_content(admin_client, minghua_client):
     v1 = await _save(admin_client, 0, "第一版")
-    denied = await minghua_client.post(f"{API}/restore", json={"revision_id": v1["id"], "expected_version": 1})
+    denied = await minghua_client.post(f"{API}/revisions/{v1['id']}/restore", json={"expected_version": 1})
     assert denied.status_code == 403
 
 
@@ -78,3 +78,22 @@ async def test_campus_admin_cannot_restore_shared_content(admin_client, minghua_
 async def test_campus_history_is_scoped(admin_client, minghua_client):
     assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_faq/revisions?campus_key=yihua")).status_code == 404
     assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_faq/revisions?campus_key=minghua")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_editor_cannot_restore_and_publish_in_one_step(editor_client):
+    """main 的還原可以勾「同時發布」；內容編輯沒有發布權限，只能還原成草稿。"""
+    faq = "/api/website/v1/admin/content-items/campus_faq"
+    first = await editor_client.post(
+        f"{faq}/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": {"items": [{"q": "問", "a": "答"}]}},
+    )
+    rev_id = first.json()["latest_revision"]["id"]
+    denied = await editor_client.post(
+        f"{faq}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1, "publish": True}
+    )
+    assert denied.status_code == 403
+    draft_only = await editor_client.post(
+        f"{faq}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1}
+    )
+    assert draft_only.status_code == 201, draft_only.text

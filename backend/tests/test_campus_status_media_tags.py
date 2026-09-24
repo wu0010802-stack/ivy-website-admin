@@ -18,7 +18,8 @@ async def test_deactivate_campus_stops_public_booking_and_keeps_cases(admin_clie
     )
     manual = await admin_client.post(
         f"{API}/admin/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678"},
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678", "consent_given": True},
+        headers={"Idempotency-Key": "campus-status-manual"},
     )
     assert manual.status_code == 201
 
