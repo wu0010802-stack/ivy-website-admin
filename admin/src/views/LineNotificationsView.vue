@@ -158,20 +158,20 @@ onMounted(load)
       <section class="panel">
         <div class="panel__head"><h2>官方帳號所在的群組</h2></div>
         <div class="panel__body">
-          <el-table :data="data.groups" empty-text="還沒有偵測到任何群組">
-            <el-table-column label="群組">
-              <template #default="{ row }">{{ groupLabel(row) }}</template>
-            </el-table-column>
-            <el-table-column label="第一次偵測" width="170">
-              <template #default="{ row }">{{ formatDateTime(row.first_seen_at) }}</template>
-            </el-table-column>
-            <el-table-column label="狀態" width="200">
-              <template #default="{ row }">
-                <el-tag v-if="row.left_at" type="info">已離開（{{ formatDateTime(row.left_at) }}）</el-tag>
+          <p v-if="data.groups.length === 0" class="field-help empty">還沒有偵測到任何群組。</p>
+          <ul v-else class="group-list">
+            <li v-for="group in data.groups" :key="group.target_id" class="group-list__item">
+              <div class="group-list__main">
+                <span class="group-list__name">{{ groupLabel(group) }}</span>
+                <span class="group-list__meta">第一次偵測 {{ formatDateTime(group.first_seen_at) }}</span>
+              </div>
+              <div class="group-list__status">
+                <el-tag v-if="group.left_at" type="info">已離開</el-tag>
                 <el-tag v-else type="success">在群組中</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
+                <span v-if="group.left_at" class="group-list__meta">{{ formatDateTime(group.left_at) }}</span>
+              </div>
+            </li>
+          </ul>
           <p class="field-help">官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
         </div>
       </section>
@@ -230,5 +230,47 @@ onMounted(load)
 
 .empty {
   margin-top: 0;
+}
+
+.group-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.group-list__item:last-child {
+  border-bottom: 0;
+}
+
+.group-list__main,
+.group-list__status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.group-list__status {
+  align-items: flex-end;
+}
+
+.group-list__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.group-list__meta {
+  color: var(--ink-3);
+  font-size: 13px;
 }
 </style>

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import require_scope
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.notifications import line as line_api
 from app.notifications.models import LineCampusTarget, LineGroup
@@ -144,7 +144,11 @@ class LineCampusTargetUpdate(BaseModel):
 async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     settings = request.app.state.settings
     groups = (await db.execute(select(LineGroup).order_by(LineGroup.first_seen_at))).scalars().all()
-    campuses = (await db.execute(select(Campus).order_by(Campus.key))).scalars().all()
+    # 依全站固定順序（義華、明華、崇德、國際、仁武），不照 key 的字母排。
+    order = {key: index for index, key in enumerate(CAMPUS_KEYS)}
+    campuses = sorted(
+        (await db.execute(select(Campus))).scalars().all(), key=lambda c: (order.get(c.key, len(order)), c.key)
+    )
     mapping = dict((await db.execute(select(LineCampusTarget.campus_key, LineCampusTarget.target_id))).all())
     return LineSettingsOut(
         enabled=settings.line_messaging_enabled,
