@@ -528,3 +528,7 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 使用者選擇不回滾，改做自動 migration 後推 `main` 恢復。`deploy/api-start.py` 啟動時先 `alembic upgrade head` 再唯讀核對；`backend/migrations/env.py` 加 advisory lock；`check_schema.py` 錯誤訊息改成對應新流程；新增 `deploy/tests/test_api_start.py`；規則寫進 [CICD.md](./CICD.md)。
 - 本機驗證見 CICD.md 2026-09-24 段。`d3a8f1c5b742` 只加 `visit_requests.source`（NOT NULL，預設 `web`）、nullable `created_by` 外鍵與承辦人索引。
 - 查到的其他狀態：api／web 仍綁 GitHub repo（原生部署不等 CI）；Railway Postgres PITR 未開；api healthcheck `/api/website/v1/health` 120 秒、restart ON_FAILURE 3 次、單一 replica、無 pre-deploy command。
+- 使用者執行 push：`fef0dc6..6afca86`。Railway 原生部署 api `2be159b5`（commit `6afca86`）容器內 log：`Running upgrade c6e4a2b9d810 -> d3a8f1c5b742`、`Database schema ready: d3a8f1c5b742`、uvicorn 啟動；11:47:15 UTC（台灣 19:47）首頁恢復 200，停站約 23 分鐘。
+- CI run `35994898100` 四個 job 全綠（deploy job 3 分 28 秒）。CD 部署 api `202345f5`：alembic 沒有 `Running upgrade`（已在 head，no-op）、`Database schema ready: d3a8f1c5b742`；web `10b2ed9b` SUCCESS，公開 smoke 通過。`/release.json` snapshot `7d1e277a1b1cae0482f5a51f3013b3daf8658d1c99f2e4099036f799280a2843`、`base_commit` `6afca86`、`web+api`。
+- 另以公開 GET 核對 `/`、`/api/website/v1/health`、`/api/public-site`、`/campuses/yihua`、`/campuses/renwu`、`/visit/yihua`、`/admin/login` 皆 200。未做瀏覽器檢查、未登入後台或寫入業務資料。
+- 待使用者處理：Railway api／web 斷開 GitHub source（否則 migration 不等 CI 就套到正式 DB）；Postgres PITR 是否開啟。
