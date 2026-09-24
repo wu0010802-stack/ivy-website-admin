@@ -410,3 +410,11 @@ async def test_maintenance_cycle_pushes_when_line_is_configured(line_app, fake_l
     assert result.line_configured and not result.email_configured
     assert result.failed_steps == []
     assert [p["body"]["to"] for p in fake_line.pushes] == [GROUP] * len(fake_line.pushes) and fake_line.pushes
+
+
+async def test_same_group_twice_in_one_webhook(line_app):
+    """LINE 會把多個事件放在同一個 webhook；同一個群組先 join 再發話不能重複插入。"""
+    response = await _webhook(line_app, [_event("join"), _event("message", message={"type": "text", "text": "hi"})])
+    assert response.status_code == 200
+    async with line_app.state.session_factory() as db:
+        assert len((await db.execute(select(LineGroup))).scalars().all()) == 1
