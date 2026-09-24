@@ -4,15 +4,15 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
 
 class Role(str, enum.Enum):
-    """完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，
-    其餘（editor/reception/readonly）留給階段 D，不在此階段的建立/修改路由開放。"""
+    """完整角色列舉（規格 7）。2026-09-24 起五種都可以建立；除了總管理者，
+    其餘角色都必須指定校區範圍。"""
 
     SUPER_ADMIN = "super_admin"
     CAMPUS_ADMIN = "campus_admin"
@@ -21,7 +21,14 @@ class Role(str, enum.Enum):
     READONLY = "readonly"
 
 
-V1_CREATABLE_ROLES = (Role.SUPER_ADMIN, Role.CAMPUS_ADMIN)
+CREATABLE_ROLES = tuple(Role)
+
+# 規格 7：「全站內容編輯」是明確授權，不因擁有某校範圍就自動取得，只有
+# 總管理者可以授予。總管理者本身不需要（已涵蓋全部）。
+SHARED_CONTENT = "content.shared"
+GRANTABLE_CAPABILITIES = (SHARED_CONTENT,)
+# 只有這些角色的授權有意義：櫃台、唯讀本來就不能編內容。
+GRANTABLE_ROLES = ("campus_admin", "editor")
 
 
 class User(Base):
@@ -41,6 +48,7 @@ class User(Base):
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     campus_scopes: Mapped[list["UserCampusScope"]] = relationship(

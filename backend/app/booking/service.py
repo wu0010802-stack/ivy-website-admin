@@ -20,6 +20,7 @@ from app.booking.models import (
 )
 from app.booking.exceptions import SlotFull
 from app.booking.outbox import enqueue_outbox
+from app.booking.schemas import CONTACT_TIME_LABELS
 from app.common.timezones import now_utc, slot_start_utc
 from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
@@ -147,6 +148,13 @@ def _hash_payload(payload: dict) -> str:
     for field in ("child_name", "child_birthdate", "email", "referral_sources"):
         if canonical_payload.get(field) in (None, []):
             canonical_payload.pop(field, None)
+    # 2026-09-24 起方便聯絡時段存代碼，但更新前的官網送的是中文標籤，已存的
+    # hash 也是用標籤算的。hash 一律換回標籤再算，跨版本的重送（同一個
+    # Idempotency-Key）才會認得是同一筆，不會誤判成不同內容回 409。
+    # 年齡不用換：更新前後都是 "3-4" 這類值（現行表單已不送年齡）。
+    time_code = canonical_payload.get("preferred_time")
+    if time_code in CONTACT_TIME_LABELS:
+        canonical_payload["preferred_time"] = CONTACT_TIME_LABELS[time_code]
     canonical = json.dumps(canonical_payload, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -205,7 +213,7 @@ async def submit_visit_request(
             raise SlotFull()
         # 時間窗與公開查詢用同一份判斷：已過去或不在開放區間的時段不能被
         # 預約，否則名額會被永久佔住、也永遠不會有人來。
-        if not slot_service.is_publicly_bookable(slot, now):
+        if not slot_service.is_publicly_bookable(slot, now, **slot_service.window_for(config)):
             raise slot_service.SlotNotBookable()
         booked = await slot_service.count_booked(db, slot.id)
         if booked >= slot.capacity:

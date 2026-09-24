@@ -3,12 +3,17 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
-import { MANUAL_VISIT_SOURCES, VISIT_SOURCE_LABELS, formatSlotWhen } from '../api/labels'
+import { CONTACT_TIME_LABELS, MANUAL_VISIT_SOURCES, VISIT_SOURCE_LABELS, formatSlotWhen } from '../api/labels'
 import CampusSelect from './CampusSelect.vue'
 
 // 人工補登：家長打電話、傳 LINE、直接到園或從外部網站來的參觀需求。
 // 預設只建成「待處理」；當場談好時間可以直接選時段，送出即確認。
-const props = defineProps<{ campusKeys: readonly string[]; defaultCampus?: string }>()
+const props = defineProps<{
+  campusKeys: readonly string[]
+  defaultCampus?: string
+  /** 結案後重新預約：帶入舊案資料，新案會關聯舊案（跨校需總管理者） */
+  relatedFrom?: VisitRequestDetailOut | null
+}>()
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ created: [request: VisitRequestDetailOut] }>()
 
@@ -48,6 +53,15 @@ function newKey(): string {
 watch(open, (value) => {
   if (!value) return
   Object.assign(form, blank())
+  const from = props.relatedFrom
+  if (from) {
+    form.campus_key = from.campus_key
+    form.parent_name = from.parent_name
+    form.phone = from.phone
+    form.child_name = from.child_name ?? ''
+    form.child_birthdate = from.child_birthdate ?? null
+    form.email = from.email ?? ''
+  }
   error.value = null
   idempotencyKey = newKey()
   void loadSlots()
@@ -115,11 +129,13 @@ async function submit() {
     child_name: form.child_name.trim() || null,
     child_birthdate: form.child_birthdate || null,
     email: form.email.trim() || null,
-    preferred_time: form.preferred_time.trim() || null,
+    // 規格 190 固定選項，送代碼。
+    preferred_time: (form.preferred_time || null) as VisitRequestManualCreate['preferred_time'],
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
     slot_id: form.slot_id || null,
     consent_given: form.consent_given,
+    related_request_id: props.relatedFrom?.id ?? null,
   }
   try {
     const created = await api.post<VisitRequestDetailOut>('/admin/visit-requests', body, {
@@ -138,8 +154,8 @@ async function submit() {
 </script>
 
 <template>
-  <el-dialog v-model="open" title="補登參觀案件" width="min(560px, calc(100vw - 32px))" top="5vh" append-to-body :close-on-click-modal="false">
-    <p class="hint manual__lead">家長打電話、傳 LINE 或直接到園詢問時，在這裡登錄，之後就跟官網送來的案件一起追蹤。</p>
+  <el-dialog v-model="open" :title="relatedFrom ? '重新預約（另建新案）' : '補登參觀案件'" width="min(560px, calc(100vw - 32px))" top="5vh" append-to-body :close-on-click-modal="false">
+    <p class="hint manual__lead">{{ relatedFrom ? '舊案保持結案，新案會記下是從哪一筆重新預約。換到別校需要總管理者。' : '家長打電話、傳 LINE 或直接到園詢問時，在這裡登錄，之後就跟官網送來的案件一起追蹤。' }}</p>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="manual__alert" />
 
@@ -176,7 +192,9 @@ async function submit() {
           <el-input v-model="form.email" type="email" maxlength="254" />
         </el-form-item>
         <el-form-item label="方便聯絡時段">
-          <el-input v-model="form.preferred_time" maxlength="32" placeholder="例如：平日下午" />
+          <el-select v-model="form.preferred_time" clearable placeholder="選填" style="width: 100%">
+            <el-option v-for="(label, code) in CONTACT_TIME_LABELS" :key="code" :label="label" :value="code" />
+          </el-select>
         </el-form-item>
       </div>
 

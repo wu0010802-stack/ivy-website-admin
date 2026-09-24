@@ -15,9 +15,11 @@ from app.auth.models import Role, User
 from app.auth.permissions import ScopeDenied, require_scope
 from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
+from app.common.timezones import local_day_bounds_utc
 from app.operations import audit_service
 from app.booking.models import (
     BookingConfig,
+    BookingMode,
     VisitContactNote,
     VisitRequest,
     VisitRequestSource,
@@ -35,6 +37,7 @@ from app.booking.schemas import (
     VisitContactNoteOut,
     VisitRequestAssignRequest,
     VisitRequestConfirmRequest,
+    VisitRequestManualCreate,
     VisitRequestCreate,
     VisitRequestDetailOut,
     VisitRequestManualCreate,
@@ -129,13 +132,24 @@ async def get_public_booking_config(
     campus_key: str,
     db: AsyncSession = Depends(get_db_session),
 ) -> PublicBookingConfigOut:
-    result = await db.execute(select(Campus).where(Campus.key == campus_key, Campus.active.is_(True)))
-    if result.scalar_one_or_none() is None:
+    result = await db.execute(select(Campus).where(Campus.key == campus_key))
+    campus = result.scalar_one_or_none()
+    if campus is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
-    return PublicBookingConfigOut.model_validate(config)
+    out = PublicBookingConfigOut.model_validate(config)
+    if not campus.active:
+        # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，
+        # 家長看到的是暫停說明與電話，不是讀取失敗；送單端點另外擋。
+        out = out.model_copy(update={
+            "mode": BookingMode.PAUSED,
+            "message": "本校目前暫停受理線上參觀預約，請來電洽詢。",
+            "line_url": None,
+            "external_url": None,
+        })
+    return out
 
 
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
@@ -157,11 +171,16 @@ async def create_visit_request(
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
 
-    result = await db.execute(
-        select(Campus).where(Campus.key == payload.campus_key, Campus.active.is_(True))
-    )
-    if result.scalar_one_or_none() is None:
+    result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
+    campus = result.scalar_one_or_none()
+    if campus is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
+    if not campus.active:
+        # 與公開設定回報的 paused 一致：官網顯示暫停，而不是「找不到」。
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
+        )
 
     body = payload.model_dump(mode="json", exclude={"campus_key", "config_version"})
 
@@ -402,11 +421,13 @@ async def list_public_slots(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
         ) from exc
+    config = await db.get(BookingConfig, campus_key)
+    window = slot_service.window_for(config)
     result = []
     for slot in slots:
         # 與送單共用同一份判斷（closed／已過去／未達最短提前時間／
         # 超過最遠開放天數），避免公開頁列出根本訂不了的時段。
-        if not slot_service.is_publicly_bookable(slot):
+        if not slot_service.is_publicly_bookable(slot, **window):
             continue
         booked = await slot_service.count_booked(db, slot.id)
         remaining = max(slot.capacity - booked, 0)
@@ -452,6 +473,8 @@ async def list_visit_requests(
         default=None, description="承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id"
     ),
     source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
+    created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
+    created_to: date | None = Query(default=None, description="送出日期迄（含），台灣日期"),
     order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -490,6 +513,10 @@ async def list_visit_requests(
         stmt = stmt.where(VisitRequest.assigned_staff_id == assignee_id)
     if source:
         stmt = stmt.where(VisitRequest.source == source)
+    if created_from is not None:
+        stmt = stmt.where(VisitRequest.created_at >= local_day_bounds_utc(created_from)[0])
+    if created_to is not None:
+        stmt = stmt.where(VisitRequest.created_at < local_day_bounds_utc(created_to)[1])
     if q and q.strip():
         # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
         # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
@@ -544,7 +571,7 @@ async def export_visit_requests(
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow([
-        "campus_key", "status", "parent_name", "phone", "created_at",
+        "campus_key", "status", "source", "parent_name", "phone", "created_at",
         "child_name", "child_birthdate", "email", "referral_sources",
         "slot_date", "start_time", "end_time", "source",
     ])
@@ -554,6 +581,7 @@ async def export_visit_requests(
             [
                 _safe_cell(r.campus_key),
                 _safe_cell(r.status),
+                _safe_cell(r.source),
                 _safe_cell(r.parent_name),
                 _safe_cell(r.phone),
                 r.created_at.isoformat(),
@@ -603,6 +631,15 @@ async def create_manual_visit_request(
     campus = result.scalar_one_or_none()
     if campus is None or not campus.active:
         raise ScopeDenied()
+    related = None
+    if payload.related_request_id is not None:
+        related = await _get_owned_visit_request(db, current_user, payload.related_request_id)
+        if related.campus_key != payload.campus_key and current_user.role != Role.SUPER_ADMIN:
+            # 規格 6.2：不默默把案件搬到另一校；跨校關聯須總管理者權限。
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="跨校關聯舊案需要總管理者權限",
+            )
 
     body = payload.model_dump(mode="json", exclude={"campus_key"})
     try:
@@ -622,6 +659,11 @@ async def create_manual_visit_request(
         ) from exc
 
     if is_new:
+        if related is not None:
+            # 結案後重新預約：新案指回舊案，兩邊歷程都留痕。
+            visit_request.related_request_id = related.id
+            workflow_service.record_event(db, visit_request.id, "linked_from_previous")
+            workflow_service.record_event(db, related.id, "rebooked_as_new")
         if payload.slot_id is not None:
             try:
                 await workflow_service.confirm_with_slot(
@@ -648,7 +690,11 @@ async def create_manual_visit_request(
             target_type="visit_request",
             target_id=str(visit_request.id),
             campus_key=payload.campus_key,
-            metadata={"source": payload.source, "with_slot": payload.slot_id is not None},
+            metadata={
+                "source": payload.source,
+                "with_slot": payload.slot_id is not None,
+                "related_request_id": str(related.id) if related is not None else None,
+            },
         )
     await db.commit()
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
@@ -909,4 +955,29 @@ async def reschedule_visit_request(
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
     await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "INVALID_TRANSITION", "message": exc.message},
+    )
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/contacting", response_model=VisitRequestDetailOut)
+async def mark_contacting(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.mark_contacting(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _invalid_transition(exc) from exc
+    await db.commit()
+    await db.refresh(visit_request, attribute_names=["slot"])
     return VisitRequestDetailOut.model_validate(visit_request)

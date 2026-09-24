@@ -131,8 +131,19 @@ async def test_campus_admin_cannot_manage_users(minghua_client):
 
 
 @pytest.mark.asyncio
-async def test_v1_only_allows_two_creatable_roles(admin_client):
-    response = await admin_client.post(
+async def test_non_super_roles_require_campus_scope(admin_client):
+    """2026-09-24 起五種角色都能建立；總管理者以外一定要指定校區。"""
+    missing = await admin_client.post(
+        "/api/website/v1/admin/users",
+        json={
+            "email": "editor-attempt@ivy.example",
+            "password": "editor-attempt-password-123",
+            "role": "editor",
+            "campus_keys": [],
+        },
+    )
+    assert missing.status_code == 400
+    ok = await admin_client.post(
         "/api/website/v1/admin/users",
         json={
             "email": "editor-attempt@ivy.example",
@@ -141,7 +152,9 @@ async def test_v1_only_allows_two_creatable_roles(admin_client):
             "campus_keys": ["yihua"],
         },
     )
-    assert response.status_code == 400
+    assert ok.status_code == 201, ok.text
+    assert ok.json()["role"] == "editor"
+    assert ok.json()["campus_keys"] == ["yihua"]
 
 
 @pytest.mark.asyncio

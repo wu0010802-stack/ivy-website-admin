@@ -2,9 +2,20 @@ import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { ContentItemOut } from '../api/types'
-import { contentFieldLabel, contentPublicPath } from '../api/labels'
+import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
+
+export interface PublishJob {
+  id: string
+  revision_id: string
+  revision_version: number
+  publish_at: string
+  status: 'scheduled' | 'done' | 'failed' | 'cancelled'
+  error: string | null
+  created_by_email: string | null
+  finished_at: string | null
+}
 
 /** 發布確認框列出的一筆差異：欄位中文名、上次儲存的值、現在的值 */
 export interface FieldChange {
@@ -67,6 +78,24 @@ export interface ContentEditorState {
   changes?: ComputedRef<FieldChange[]>
   /** 發布後「查看官網」要開的完整網址 */
   publicUrl?: ComputedRef<string>
+  /** 目前表單內容；版本紀錄拿來和舊版比較 */
+  form?: Ref<unknown>
+  /** 私有草稿預覽網址；沒有對應預覽頁的內容為空字串 */
+  previewUrl?: ComputedRef<string>
+  /** 版本紀錄要打的 API 路徑（含 campus_key），例如 /admin/content-items/home_about */
+  apiPath?: ComputedRef<string>
+  /** 最新一版的審核狀態：draft | pending_review | approved | rejected */
+  reviewStatus?: ComputedRef<string>
+  reviewNote?: ComputedRef<string | null>
+  /** 內容編輯送審（有未儲存修改會先存） */
+  submitForReview?: () => Promise<boolean>
+  /** 核准（並發布）或退回送審的版本 */
+  review?: (decision: 'approve' | 'reject', note?: string) => Promise<boolean>
+  schedules?: Ref<PublishJob[]>
+  loadSchedules?: () => Promise<void>
+  /** 排程發布最新一版（有未儲存修改會先存）；publishAt 帶時區的 ISO 字串 */
+  schedule?: (publishAt: string) => Promise<boolean>
+  cancelSchedule?: (jobId: string) => Promise<boolean>
   history?: RevisionHistoryHandle
   load: () => Promise<void>
   save: () => Promise<boolean>
@@ -102,6 +131,13 @@ export function useContentItem<TPayload extends object>(
     return key ? `?campus_key=${encodeURIComponent(key)}` : ''
   }
 
+  // 舊版內容缺少後來新增的欄位時補上預設值（在拍快照之前補，才不會一
+  // 打開就顯示「有未儲存的修改」）。
+  function withDefaults(payload: unknown): TPayload {
+    if (!payload) return clone(emptyPayload)
+    return { ...clone(emptyPayload), ...clone(payload as TPayload) }
+  }
+
   function takeSnapshot() {
     snapshot.value = JSON.stringify(form.value)
   }
@@ -114,6 +150,14 @@ export function useContentItem<TPayload extends object>(
   })
 
   const publicUrl = computed(() => `${WEBSITE_ASSET_BASE}${contentPublicPath(kind, unref(campusKey))}`)
+  const previewUrl = computed(() => {
+    const path = contentPreviewPath(kind, unref(campusKey))
+    return path ? `${WEBSITE_ASSET_BASE}${path}` : ''
+  })
+  const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
+  const reviewStatus = computed(() => item.value?.latest_revision?.review_status ?? 'draft')
+  const reviewNote = computed(() => item.value?.latest_revision?.review_note ?? null)
+  const schedules = ref<PublishJob[]>([])
 
   /** 最新草稿的建立時間（ISO），沒有任何版本時為 null */
   const latestRevisionAt = computed(() => item.value?.latest_revision?.created_at ?? null)
@@ -131,9 +175,7 @@ export function useContentItem<TPayload extends object>(
       const result = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
       if (!requests.isCurrent(request)) return
       item.value = result
-      form.value = item.value.latest_revision
-        ? clone(item.value.latest_revision.payload as TPayload)
-        : clone(emptyPayload)
+      form.value = withDefaults(item.value.latest_revision?.payload)
       isPublished.value = Boolean(
         item.value.latest_revision &&
           item.value.current_published_revision_id === item.value.latest_revision.id,
@@ -192,12 +234,16 @@ export function useContentItem<TPayload extends object>(
 
   async function publish(): Promise<boolean> {
     if (!item.value?.latest_revision) return false
+    return publishRevision(item.value.latest_revision.id)
+  }
+
+  async function publishRevision(revisionId: string): Promise<boolean> {
     publishing.value = true
     try {
       item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
-        revision_id: item.value.latest_revision.id,
+        revision_id: revisionId,
       })
-      isPublished.value = true
+      isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       // 發布是唯一會被家長看到的動作，成功後直接給連結，不用自己去找官網。
       ElMessage({
         type: 'success',
@@ -226,6 +272,85 @@ export function useContentItem<TPayload extends object>(
     return publish()
   }
 
+  async function submitForReview(): Promise<boolean> {
+    if (isDirty.value && !(await save())) return false
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/submit${query()}`, {
+        revision_id: item.value.latest_revision.id,
+      })
+      ElMessage.success('已送審，校區管理者核准後才會出現在官網')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '送審失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function review(decision: 'approve' | 'reject', note?: string): Promise<boolean> {
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/review${query()}`, {
+        revision_id: item.value.latest_revision.id,
+        decision,
+        note: note ?? null,
+      })
+      isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
+      ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，編輯會看到你寫的原因')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function loadSchedules(): Promise<void> {
+    try {
+      const list = await api.get<PublishJob[]>(`/admin/content-items/${kind}/schedules${query()}`)
+      schedules.value = Array.isArray(list) ? list : []
+    } catch {
+      schedules.value = []
+    }
+  }
+
+  async function schedule(publishAt: string): Promise<boolean> {
+    if (isDirty.value && !(await save())) return false
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      await api.post<PublishJob>(`/admin/content-items/${kind}/schedules${query()}`, {
+        revision_id: item.value.latest_revision.id,
+        publish_at: publishAt,
+      })
+      await loadSchedules()
+      ElMessage.success('已排程，時間到會自動發布')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '排程失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function cancelSchedule(jobId: string): Promise<boolean> {
+    try {
+      await api.delete(`/admin/content-items/${kind}/schedules/${jobId}${query()}`)
+      await loadSchedules()
+      ElMessage.success('已取消排程')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '取消失敗'))
+      return false
+    }
+  }
+
   const history: RevisionHistoryHandle = {
     list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
     async payloadOf(revisionId) {
@@ -244,7 +369,7 @@ export function useContentItem<TPayload extends object>(
           `/admin/content-items/${kind}/revisions/${revisionId}/restore${query()}`,
           { expected_version: item.value.latest_version, publish: publishNow },
         )
-        form.value = clone(item.value.latest_revision!.payload as TPayload)
+        form.value = withDefaults(item.value.latest_revision!.payload)
         isPublished.value = publishNow
         takeSnapshot()
         ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
@@ -274,6 +399,8 @@ export function useContentItem<TPayload extends object>(
     isDirty,
     changes,
     publicUrl,
+    previewUrl,
+    apiPath,
     latestRevisionAt,
     neverPublished,
     history,
@@ -281,6 +408,14 @@ export function useContentItem<TPayload extends object>(
     save,
     publish,
     saveAndPublish,
+    reviewStatus,
+    reviewNote,
+    submitForReview,
+    review,
+    schedules,
+    loadSchedules,
+    schedule,
+    cancelSchedule,
     reset,
   }
 }

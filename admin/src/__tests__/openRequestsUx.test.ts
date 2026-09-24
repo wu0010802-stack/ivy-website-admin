@@ -159,6 +159,7 @@ describe('案件明細的確認期限', () => {
 
   async function mountDetail(data: ReturnType<typeof request>) {
     const pinia = createPinia()
+    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).endsWith('/contact-notes')) return [] as never
       if (path === '/admin/dashboard') return summary() as never

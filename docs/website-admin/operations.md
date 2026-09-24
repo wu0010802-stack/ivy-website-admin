@@ -12,6 +12,19 @@ export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=./var/mail-sink   # 本機/測試用�
 uv run python -m app.cli process-notifications
 ```
 
+真實寄信（2026-09-24 起）：設定 SMTP 就會改用 SMTP，不再寫 sink 檔。
+
+```bash
+export WEBSITE_SMTP_HOST=smtp.example.org
+export WEBSITE_SMTP_PORT=587                 # ssl 通常是 465
+export WEBSITE_SMTP_SECURITY=starttls        # starttls｜ssl｜none（production 不允許 none）
+export WEBSITE_SMTP_USERNAME=...             # 需要登入才設
+export WEBSITE_SMTP_PASSWORD=...             # 放部署平台的 secret，不要寫進 repo
+export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST 就必填
+```
+
+每一輪依序做三件事：到期的**排程發布**（每筆自己一個交易，失敗寫在排程上、後台看得到原因）→ 釋放逾期占位 → 處理 outbox 寄信。
+
 單次批次處理，非常駐 daemon。正式環境排程交給部署平台的 cron（例如每分鐘跑一次），本專案不內建常駐 worker process（本機 8GB RAM 限制下也不建議常駐）。
 
 失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（通知本身跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。
@@ -81,11 +94,11 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 
 ## 已知限制（誠實列出）
 
-- 完整 LINE Seed TW 字型檔仍未取得（外部阻擋，需使用者提供原始檔）。
-- 其餘 8 種內容欄位（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）尚無 admin editor。
-- Nuxt 端真實預約表單／CTA 接線／`/visit/manage` 頁面尚未實作（屬 Task 8）。
-- 週期性時段規則產生器尚未實作（屬 Task 9 剩餘範圍）。占位到期釋放已實作（`workflow_service.expire_holds`，由 `process-notifications` 帶跑），但仍需外部排程定期呼叫，沒有常駐 daemon。
-- 稽核紀錄涵蓋預約設定、內容發布、停權、帳號建立、校區範圍變更、案件匯出、撤銷家長連結，仍非全面覆蓋。
-- 規格 190 的 `age`／`contact_time` 固定 enum 尚未強制：公開表單目前送 CMS 的中文標籤，收緊成 Literal 會讓現行表單全部送不出去，需要 `web/` 與 CMS 選項一起改。目前只有長度上限（避免 500）。
+- 完整 LINE Seed TW 字型檔仍未取得（外部阻擋，需使用者提供原始檔）。因此品牌名稱與 Logo 在後台鎖定不可改（「網站標題與電話」頁有說明）。
+- 時段規則不會自己產生時段：園方在「時段與容量」按「依規則產生時段」才建立（一次最多 92 天，可重複按）。占位到期釋放與排程發布都靠外部排程定期呼叫 `process-notifications`，沒有常駐 daemon。
+- 稽核紀錄涵蓋預約設定、內容發布／還原／送審／核准／退回／排程、停權、帳號建立、角色與校區變更、重設密碼、案件匯出、指派、人工補登、時段規則、休假日、分校停用、撤銷家長連結，仍非全面覆蓋。
+- 規格 190 的 `age`／`preferred_time` 已改存固定代碼（2026-09-24，migration `a9c4e2f7d316` 轉換既有資料）。API 仍接受舊版官網送的中文標籤並換成代碼；冪等 hash 用中文標籤計算，跨版本重送不會誤判成 409。
 - 公開端點限流的來源桶依賴 web 代理帶上的 `x-website-client-ip`（`web/server/routes/api/website/v1/[...].ts` 已設定並顯式覆寫）。若日後把 api 直接暴露到公網，必須先拿掉 `WEBSITE_TRUSTED_CLIENT_IP_HEADER`，否則這個 header 可被偽造。
-- 內容審核流程（送審/核准/退回）與排程發布尚未實作（屬階段 D 擴充範圍）。
+- 共用內容（首頁、頁尾、網站設定、共用素材）預設只有總管理者能改；總管理者可以對分校管理者或內容編輯授予「全站共用內容」（`users.capabilities` 的 `content.shared`）。內容編輯有授權也只能送審；有授權的分校管理者可以發布與審核共用內容。個資匯出仍是依角色，不是逐人授權。
+- 分校停用只停止公開預約（官網顯示暫停、送單回 `BOOKING_UNAVAILABLE`）與該校內容發布；官網首頁五校區塊仍會列出這一校。
+- 重設密碼不寄信：總管理者設新密碼後自行告知對方。

@@ -19,6 +19,59 @@ _PHONE_PATTERN = re.compile(r"09[0-9]{8}")
 # 通訊錄貼過來的 0912-345-678 或 0912 345 678 都要能通過。
 _PHONE_STRIP_RE = re.compile(r"[\s\-\u2010-\u2015\u2212\uFF0D\u3000]")
 
+# 規格 190 的固定選項。API 只存代碼；中文是顯示用，後台與官網各自對照。
+AgeCode = Literal["unknown", "under_2", "2-3", "3-4", "4-5", "5-6"]
+ContactTimeCode = Literal["flexible", "weekday_morning", "weekday_afternoon", "other"]
+AGE_LABELS: dict[str, str] = {
+    "unknown": "尚未確定",
+    "under_2": "2 歲以下",
+    "2-3": "2–3 歲",
+    "3-4": "3–4 歲",
+    "4-5": "4–5 歲",
+    "5-6": "5–6 歲",
+}
+CONTACT_TIME_LABELS: dict[str, str] = {
+    "flexible": "時間彈性",
+    "weekday_morning": "平日上午",
+    "weekday_afternoon": "平日下午",
+    "other": "其他，另行確認",
+}
+_DASHES_RE = re.compile(r"[-\u2010-\u2015\u2212\uFF0D]")
+
+
+def _label_to_code(value, labels: dict[str, str]):
+    """舊版官網送的是中文標籤（已快取的頁面、還沒更新的分頁仍可能送），
+    收到時換成代碼再驗證；認不得的值交給 Literal 回 422。破折號寫法不一，
+    比對前統一。"""
+    if not isinstance(value, str):
+        return value
+    cleaned = value.strip()
+    if cleaned == "":
+        return None
+    if cleaned in labels:
+        return cleaned
+    normalized = _DASHES_RE.sub("-", cleaned).replace(" ", "")
+    for code, label in labels.items():
+        if normalized == _DASHES_RE.sub("-", label).replace(" ", ""):
+            return code
+    return cleaned
+
+
+VisitSource = Literal["web", "phone", "line", "walk_in", "external"]
+ManualVisitSource = Literal["phone", "line", "walk_in", "external"]
+
+
+def normalize_phone(value: str) -> str:
+    # 回傳正規化後的值：validator 的回傳值就是實際落庫的內容，這樣
+    # DB 裡一律是乾淨的 10 碼，後台搜尋與匯出才不會被空格分岔。
+    normalized = _PHONE_STRIP_RE.sub("", value)
+    # fullmatch 而不是 match：`$` 會允許結尾多一個換行，
+    # "0912345678\n" 原本可以通過驗證。
+    if not _PHONE_PATTERN.fullmatch(normalized):
+        raise ValueError("手機號碼格式錯誤，需為 09 開頭的 10 碼數字")
+    return normalized
+
+
 _ALLOWED_LINK_SCHEMES = ("https://", "http://")
 _INVISIBLE_RE = re.compile(r"[\x00-\x20\x7f\u00ad\u200b-\u200f\u2028\u2029\ufeff]")
 
@@ -95,16 +148,21 @@ class _VisitRequestFields(BaseModel):
     child_birthdate: date | None = None
     email: EmailStr | None = Field(default=None, max_length=254)
     referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=5)
-    # 規格 190 的固定 enum 是 unknown|under_2|2-3|3-4|4-5|5-6 與
-    # flexible|weekday_morning|weekday_afternoon|other，但公開表單目前送
-    # 的是 CMS 的中文標籤（web/server/data/site-fixture.json），直接收緊
-    # 成 Literal 會讓現行表單全部送不出去。這裡先對齊 models.py 的欄位
-    # 長度擋掉 500，enum 化需要 web/ 與 CMS 選項一起改。
-    age: str | None = Field(default=None, max_length=32)
-    preferred_time: str | None = Field(default=None, max_length=32)
+    age: AgeCode | None = None
+    preferred_time: ContactTimeCode | None = None
     questions: str | None = Field(default=None, max_length=1000)
     consent_given: bool
-    slot_id: uuid.UUID | None = None  # 官網：mode=slots 時必填
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def _age_code(cls, value):
+        return _label_to_code(value, AGE_LABELS)
+
+    @field_validator("preferred_time", mode="before")
+    @classmethod
+    def _time_code(cls, value):
+        return _label_to_code(value, CONTACT_TIME_LABELS)
+    slot_id: uuid.UUID | None = None  # mode=slots 時必填
 
     @field_validator("parent_name")
     @classmethod
@@ -135,14 +193,7 @@ class _VisitRequestFields(BaseModel):
     @field_validator("phone")
     @classmethod
     def _validate_phone(cls, value: str) -> str:
-        # 回傳正規化後的值：validator 的回傳值就是實際落庫的內容，這樣
-        # DB 裡一律是乾淨的 10 碼，後台搜尋與匯出才不會被空格分岔。
-        normalized = _PHONE_STRIP_RE.sub("", value)
-        # fullmatch 而不是 match：`$` 會允許結尾多一個換行，
-        # "0912345678\n" 原本可以通過驗證。
-        if not _PHONE_PATTERN.fullmatch(normalized):
-            raise ValueError("手機號碼格式錯誤，需為 09 開頭的 10 碼數字")
-        return normalized
+        return normalize_phone(value)
 
     @field_validator("consent_given")
     @classmethod
@@ -156,8 +207,6 @@ class VisitRequestCreate(_VisitRequestFields):
     config_version: int
 
 
-ManualVisitSource = Literal["phone", "line", "walk_in", "external"]
-
 
 class VisitRequestManualCreate(_VisitRequestFields):
     """後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
@@ -170,6 +219,8 @@ class VisitRequestManualCreate(_VisitRequestFields):
     slot_id: uuid.UUID | None = None
     # 選填：第一筆聯絡紀錄（例如「家長來電，想週六參觀」）。
     note: str | None = Field(default=None, max_length=1000)
+    # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
+    related_request_id: uuid.UUID | None = None
 
 
 class VisitRequestAssignRequest(BaseModel):
@@ -300,6 +351,9 @@ class VisitRequestDetailOut(BaseModel):
     cancelled_at: datetime | None
     follow_up_at: datetime | None
     hold_expires_at: datetime | None = None
+    source: VisitSource = "web"
+    created_by: uuid.UUID | None = None
+    related_request_id: uuid.UUID | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -372,3 +426,70 @@ class VisitRequestRescheduleRequest(BaseModel):
 class VisitContactNoteCreateRequest(BaseModel):
     note: str = Field(min_length=1, max_length=1000)
     follow_up_at: datetime | None = None
+
+
+class VisitRuleIn(BaseModel):
+    """0＝週一 … 6＝週日。"""
+
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+    slot_minutes: int = Field(ge=10, le=240)
+    capacity: int = Field(gt=0, le=200)
+
+    @field_validator("end_time")
+    @classmethod
+    def _end_after_start(cls, value: time, info) -> time:
+        start = info.data.get("start_time")
+        if start is not None and value <= start:
+            raise ValueError("結束時間必須晚於開始時間")
+        return value
+
+
+class VisitRuleOut(VisitRuleIn):
+    id: uuid.UUID
+
+    model_config = {"from_attributes": True}
+
+
+class VisitExceptionIn(BaseModel):
+    exception_date: date
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class VisitExceptionOut(BaseModel):
+    id: uuid.UUID
+    exception_date: date
+    reason: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class VisitExceptionCreatedOut(VisitExceptionOut):
+    closed_slots: int
+    affected_requests: int
+
+
+class VisitScheduleOut(BaseModel):
+    campus_key: str
+    min_lead_hours: int
+    max_advance_days: int
+    rules: list[VisitRuleOut]
+    exceptions: list[VisitExceptionOut]
+
+
+class VisitScheduleUpdate(BaseModel):
+    min_lead_hours: int = Field(ge=0, le=24 * 14)
+    max_advance_days: int = Field(ge=1, le=365)
+    rules: list[VisitRuleIn] = Field(default_factory=list, max_length=50)
+
+
+class VisitSlotGenerateRequest(BaseModel):
+    date_from: date
+    date_to: date
+
+
+class VisitSlotGenerateOut(BaseModel):
+    created: int
+    skipped_existing: int
+    skipped_exception_days: int

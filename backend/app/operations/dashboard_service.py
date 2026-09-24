@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import today_local
-from app.content.models import ContentItem
+from app.content.models import ContentItem, ContentRevision
 
 
-async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None) -> dict:
+async def get_dashboard_summary(
+    db: AsyncSession, campus_keys: list[str] | None, *, include_shared_reviews: bool = False
+) -> dict:
     """campus_keys 為 None 代表 super_admin（不限校區）；否則只統計
     這個使用者有權限的校區，天然不會洩漏其他校的數字。"""
     now = datetime.now(timezone.utc)
@@ -112,6 +114,22 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         )
     pending_publish_kinds = sorted(row[0] for row in (await db.execute(unpublished_kinds_stmt)).all())
 
+    # 等人審核的內容（內容編輯送上來的）。分校帳號只算自己校；共用內容只有
+    # 總管理者能發布，所以只算給總管理者。
+    pending_review_stmt = (
+        select(func.count())
+        .select_from(ContentRevision)
+        .join(ContentItem, ContentItem.id == ContentRevision.content_item_id)
+        .where(ContentRevision.review_status == "pending_review")
+    )
+    if campus_keys is not None:
+        # 有「全站共用內容」授權的分校管理者也要看到共用內容的送審。
+        condition = ContentItem.campus_key.in_(campus_keys)
+        if include_shared_reviews:
+            condition = condition | ContentItem.campus_key.is_(None)
+        pending_review_stmt = pending_review_stmt.where(condition)
+    pending_review = (await db.execute(pending_review_stmt)).scalar_one()
+
     campuses_stmt = select(Campus.key)
     if campus_keys is not None:
         campuses_stmt = campuses_stmt.where(Campus.key.in_(campus_keys))
@@ -146,6 +164,7 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
         "pending_publish_kinds": pending_publish_kinds,
+        "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
         "failed_notifications": failed_notifications,
     }

@@ -68,6 +68,9 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
         mode="json", exclude={"campus_key", "config_version"}
     )
     legacy_body = {key: value for key, value in body.items() if key not in _DETAIL_FIELDS}
+    # 更新前存的 hash 用的是官網送來的中文標籤；現在欄位存代碼，hash 仍要一樣。
+    assert body["preferred_time"] == "weekday_morning"
+    legacy_body["preferred_time"] = "平日上午"
     legacy_hash = hashlib.sha256(
         json.dumps(legacy_body, sort_keys=True, ensure_ascii=True).encode("utf-8")
     ).hexdigest()

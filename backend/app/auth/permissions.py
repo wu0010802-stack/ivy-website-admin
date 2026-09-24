@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, status
 
-from app.auth.models import Role, User
+from app.auth.models import SHARED_CONTENT, Role, User
 
 
 class ScopeDenied(HTTPException):
@@ -28,6 +28,9 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "media.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
     "content.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "content.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
+    # 規格 7：內容編輯只能送審，發布（含排程、審核核准、還原舊版上線）限
+    # 總管理者與分校管理者。
+    "content.publish": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 案件含家長與孩子個資。規格「權限」表：內容編輯不讀家長個資，唯讀
     # 不自動擁有案件個資權限——所以只給總管理、分校管理與接待。
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
@@ -68,3 +71,22 @@ def require_scope(user: User, capability: str, campus_keys: list[str] | None = N
     owned = {scope.campus_key for scope in user.campus_scopes}
     if not set(campus_keys).issubset(owned):
         raise ScopeDenied()
+
+
+def has_grant(user: User, capability: str) -> bool:
+    return capability in (user.capabilities or [])
+
+
+def can_edit_shared_content(user: User) -> bool:
+    """共用內容（首頁、頁尾、網站設定…）與共用素材：總管理者，或被明確授予
+    content.shared 且角色本來就能編內容的人（內容編輯、分校管理者）。"""
+    if user.role == Role.SUPER_ADMIN:
+        return True
+    return has_grant(user, SHARED_CONTENT) and has_capability(user, "content.manage")
+
+
+def can_publish_shared_content(user: User) -> bool:
+    """發布共用內容：總管理者，或有授權的分校管理者。內容編輯有授權也只能送審。"""
+    if user.role == Role.SUPER_ADMIN:
+        return True
+    return has_grant(user, SHARED_CONTENT) and has_capability(user, "content.publish")

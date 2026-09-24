@@ -7,6 +7,7 @@ import { CAMPUS_KEYS } from '../api/types'
 import type { MediaAssetOut } from '../api/types'
 import { campusLabel, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
+import { canEditSharedContent } from '../router/nav'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -16,9 +17,10 @@ const loading = ref(false)
 const campusFilter = ref('')
 const kindFilter = ref<'' | 'image' | 'video'>('')
 const query = ref('')
+const tagFilter = ref('')
 const loadError = ref<string | null>(null)
-const hasFilters = computed(() => Boolean(query.value.trim() || campusFilter.value || kindFilter.value))
-function clearFilters() { query.value = ''; campusFilter.value = ''; kindFilter.value = '' }
+const hasFilters = computed(() => Boolean(query.value.trim() || campusFilter.value || kindFilter.value || tagFilter.value))
+function clearFilters() { query.value = ''; campusFilter.value = ''; kindFilter.value = ''; tagFilter.value = '' }
 
 const uploadDialogVisible = ref(false)
 const uploadFile = ref<File | null>(null)
@@ -28,16 +30,29 @@ const uploadAlt = ref('')
 const uploading = ref(false)
 const dragOver = ref(false)
 
-const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const canManage = computed(() => ['super_admin', 'campus_admin', 'editor'].includes(authStore.user?.role ?? ''))
+// 共用素材（不指定校區）只有能編全站共用內容的人可以上傳；其他人只能選自己的校區。
+const canUploadShared = computed(() => canEditSharedContent(authStore.user))
+const uploadCampusOptions = computed(() =>
+  authStore.user?.role === 'super_admin' ? [...CAMPUS_KEYS] : (authStore.user?.campus_keys ?? []),
+)
 
 const visibleAssets = computed(() =>
   assets.value.filter(
     (a) =>
       (!campusFilter.value || a.campus_key === campusFilter.value || (campusFilter.value === '__shared' && a.campus_key === null)) &&
       (!kindFilter.value || a.kind === kindFilter.value) &&
-      (!query.value.trim() || `${a.original_filename} ${a.alt_text ?? ''}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())),
+      (!tagFilter.value || (a.tags ?? []).includes(tagFilter.value)) &&
+      (!query.value.trim() || `${a.original_filename} ${a.alt_text ?? ''} ${a.caption ?? ''} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())),
   ),
 )
+
+// 篩選選單列出目前素材用過的所有標籤，依使用次數排序。
+const allTags = computed(() => {
+  const counts = new Map<string, number>()
+  for (const a of assets.value) for (const t of a.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1)
+  return [...counts.entries()].sort((x, y) => y[1] - x[1]).map(([t]) => t)
+})
 
 const filterKeys = computed(() => ['__shared', ...CAMPUS_KEYS])
 function filterLabel(key: string): string {
@@ -75,6 +90,7 @@ function openUpload() {
   uploadFile.value = null
   uploadAlt.value = ''
   uploadCampusKey.value = campusFilter.value && campusFilter.value !== '__shared' ? campusFilter.value : ''
+  if (!uploadCampusKey.value && !canUploadShared.value) uploadCampusKey.value = uploadCampusOptions.value[0] ?? ''
   uploadDialogVisible.value = true
 }
 
@@ -111,6 +127,9 @@ const editDialogVisible = ref(false)
 const editingAsset = ref<MediaAssetOut | null>(null)
 const editAltText = ref('')
 const editSourceAttribution = ref('')
+const editCaption = ref('')
+const editLicense = ref('')
+const editTags = ref<string[]>([])
 const editCropFocusX = ref(0.5)
 const editCropFocusY = ref(0.5)
 const saving = ref(false)
@@ -120,6 +139,9 @@ function openEditDialog(asset: MediaAssetOut) {
   editingAsset.value = asset
   editAltText.value = asset.alt_text ?? ''
   editSourceAttribution.value = asset.source_attribution ?? ''
+  editCaption.value = asset.caption ?? ''
+  editLicense.value = asset.license_note ?? ''
+  editTags.value = [...(asset.tags ?? [])]
   editCropFocusX.value = asset.crop_focus_x ?? 0.5
   editCropFocusY.value = asset.crop_focus_y ?? 0.5
   editDialogVisible.value = true
@@ -140,6 +162,9 @@ async function submitEdit() {
     await api.patch(`/admin/media/${editingAsset.value.id}`, {
       alt_text: editAltText.value || null,
       source_attribution: editSourceAttribution.value || null,
+      caption: editCaption.value || null,
+      license_note: editLicense.value || null,
+      tags: editTags.value,
       crop_focus_x: editCropFocusX.value,
       crop_focus_y: editCropFocusY.value,
     })
@@ -185,7 +210,10 @@ onMounted(load)
     </PageHeader>
 
     <div class="toolbar">
-      <el-input v-model="query" aria-label="搜尋素材" placeholder="搜尋檔名或圖片說明" clearable class="media-search" />
+      <el-input v-model="query" aria-label="搜尋素材" placeholder="搜尋檔名、圖片說明、圖說或標籤" clearable class="media-search" />
+      <el-select v-if="allTags.length" v-model="tagFilter" placeholder="全部標籤" clearable filterable aria-label="標籤" style="width: 140px">
+        <el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
+      </el-select>
       <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
         <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
       </el-select>
@@ -221,8 +249,11 @@ onMounted(load)
             {{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}・{{ formatFileSize(asset.size_bytes) }}<template v-if="asset.width && asset.height">・{{ asset.width }}×{{ asset.height }}</template>
           </span>
           <span v-if="!asset.alt_text && asset.kind === 'image'" class="media__warn">未填替代文字</span>
+          <span v-if="asset.tags?.length" class="media__tags">
+            <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" @click="tagFilter = t">{{ t }}</button>
+          </span>
         </div>
-        <div v-if="canManage" class="media__actions">
+        <div v-if="canManage && (asset.campus_key || canUploadShared)" class="media__actions">
           <el-button v-if="asset.kind === 'image' && asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
           <el-tooltip :content="asset.usage_count > 0 ? '仍在使用中，無法刪除' : '刪除'" placement="top">
             <span>
@@ -255,10 +286,10 @@ onMounted(load)
           </label>
         </el-form-item>
         <el-form-item label="校區">
-          <el-select v-model="uploadCampusKey" placeholder="不指定（每一校都能用）" clearable style="width: 100%">
-            <el-option v-for="key in CAMPUS_KEYS" :key="key" :label="campusLabel(key)" :value="key" />
+          <el-select v-model="uploadCampusKey" :placeholder="canUploadShared ? '不指定（每一校都能用）' : '請選擇校區'" :clearable="canUploadShared" style="width: 100%">
+            <el-option v-for="key in uploadCampusOptions" :key="key" :label="campusLabel(key)" :value="key" />
           </el-select>
-          <span class="field-help">留空代表每一校的內容都能選用。</span>
+          <span class="field-help">{{ canUploadShared ? '留空代表每一校的內容都能選用。' : '共用素材需要「全站共用內容」權限，請選擇你負責的校區。' }}</span>
         </el-form-item>
         <el-form-item v-if="uploadKind === 'image'" label="圖片說明">
           <el-input v-model="uploadAlt" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
@@ -267,7 +298,7 @@ onMounted(load)
       </el-form>
       <template #footer>
         <el-button @click="uploadDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" :disabled="!uploadFile" @click="submitUpload">上傳</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="!uploadFile || (!uploadCampusKey && !canUploadShared)" @click="submitUpload">上傳</el-button>
       </template>
     </el-dialog>
 
@@ -284,8 +315,20 @@ onMounted(load)
           <el-input v-model="editAltText" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
           <span class="field-help">給看不見圖片的家長與搜尋引擎用，也是素材庫搜尋的依據。</span>
         </el-form-item>
+        <el-form-item label="圖說">
+          <el-input v-model="editCaption" maxlength="500" placeholder="顯示在照片旁的說明文字（選填）" />
+        </el-form-item>
+        <el-form-item label="標籤">
+          <el-select v-model="editTags" multiple filterable allow-create default-first-option :reserve-keyword="false" placeholder="輸入後按 Enter，例如：戶外、畢業典禮" style="width: 100%">
+            <el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
+          </el-select>
+          <span class="field-help">方便在素材庫與選圖時找照片，最多 20 個、每個 30 字內。</span>
+        </el-form-item>
         <el-form-item label="來源標註">
           <el-input v-model="editSourceAttribution" placeholder="例如：義華校 2026 春季攝影" />
+        </el-form-item>
+        <el-form-item label="授權註記">
+          <el-input v-model="editLicense" maxlength="255" placeholder="例如：園方自攝，已取得家長公開同意" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -297,6 +340,9 @@ onMounted(load)
 </template>
 
 <style scoped>
+.media__tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.media__tag { all: unset; cursor: pointer; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--surface-3); color: var(--ink-2); }
+.media__tag:focus-visible { outline: 2px solid var(--el-color-primary); }
 .media-search { flex: 1 1 220px; max-width: 340px; }
 .media-grid {
   display: grid;

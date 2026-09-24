@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
+import ssl
 import uuid
+from email.message import EmailMessage
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
@@ -41,5 +44,59 @@ class LocalSinkEmailAdapter:
             f.write(json.dumps(record, ensure_ascii=False, indent=2))
 
 
-def get_email_adapter(sink_dir: str | None) -> EmailAdapter:
+class SmtpEmailAdapter:
+    """真實寄信。每封信開一次連線：worker 一輪只寄幾封，不值得維持長連線，
+    也避免閒置連線被伺服器切斷後整批失敗。失敗直接拋出，由 outbox 記錄
+    錯誤碼、排下次重試（不會因此回滾預約）。"""
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int,
+        sender: str,
+        username: str | None = None,
+        password: str | None = None,
+        security: str = "starttls",
+        timeout: float = 20.0,
+    ) -> None:
+        self.host = host
+        self.port = port
+        self.sender = sender
+        self.username = username
+        self.password = password
+        self.security = security
+        self.timeout = timeout
+
+    def send(self, *, to: str, subject: str, body: str) -> None:
+        message = EmailMessage()
+        message["From"] = self.sender
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content(body)
+        context = ssl.create_default_context()
+        if self.security == "ssl":
+            client = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout, context=context)
+        else:
+            client = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
+        with client:
+            if self.security == "starttls":
+                client.starttls(context=context)
+            if self.username:
+                client.login(self.username, self.password or "")
+            client.send_message(message)
+
+
+def get_email_adapter(sink_dir: str | None, settings=None) -> EmailAdapter:
+    """有 SMTP 設定就真的寄；否則退回本機 sink（開發用）；兩者都沒有就拋
+    EmailNotConfigured，呼叫端如實回報未配置。"""
+    if settings is not None and getattr(settings, "smtp_host", None):
+        return SmtpEmailAdapter(
+            host=settings.smtp_host,
+            port=settings.smtp_port,
+            sender=settings.smtp_from,
+            username=settings.smtp_username,
+            password=settings.smtp_password,
+            security=settings.smtp_security,
+        )
     return LocalSinkEmailAdapter(sink_dir)

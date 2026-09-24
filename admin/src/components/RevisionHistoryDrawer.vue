@@ -6,12 +6,14 @@ import { diffPayload, type FieldChange, type RevisionHistoryHandle, type Revisio
 
 // 版本紀錄：列出最近幾次儲存，點一版看「還原後哪些欄位會變」，再選要
 // 還原成草稿還是直接發布。還原是新增一版，不會刪掉任何歷史。
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   history: RevisionHistoryHandle
   /** 表單有未儲存的修改：還原會蓋掉，要先問 */
   dirty: boolean
   busy: boolean
-}>()
+  /** 內容編輯只能還原成草稿再送審，不給「還原並發布」（後端也會擋）。預設可發布。 */
+  canPublish?: boolean
+}>(), { canPublish: true })
 const open = defineModel<boolean>({ required: true })
 
 const revisions = ref<RevisionSummary[]>([])
@@ -141,7 +143,7 @@ async function restore(publish: boolean) {
             </template>
             <div class="history__actions">
               <el-button :disabled="busy" @click="restore(false)">還原成草稿</el-button>
-              <el-button type="primary" :disabled="busy" @click="restore(true)">還原並發布</el-button>
+              <el-button v-if="canPublish !== false" type="primary" :disabled="busy" @click="restore(true)">還原並發布</el-button>
             </div>
           </template>
         </div>

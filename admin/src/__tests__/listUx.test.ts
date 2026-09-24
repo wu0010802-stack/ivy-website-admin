@@ -31,12 +31,13 @@ describe('案件列表的狀態頁籤', () => {
     useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 2 })
     await flushPromises()
     const tabs = wrapper.findAll('.status-tab')
-    expect(tabs.map(tab => tab.text())).toEqual(['全部', '待處理4 件', '待園方確認2 件', '已確認', '已完成', '未到場', '已取消'])
+    // 「聯絡中」沒有側欄數字（不是待辦），只有兩種待處理狀態帶數字。
+    expect(tabs.map(tab => tab.text())).toEqual(['全部', '待處理4 件', '聯絡中', '待園方確認2 件', '已確認', '已完成', '未到場', '已取消'])
     expect(tabs[0]!.attributes('aria-pressed')).toBe('true')
-    await tabs[2]!.trigger('click')
+    await tabs[3]!.trigger('click')
     await flushPromises()
     expect(String(get.mock.calls.at(-1)![0])).toContain('status=pending_confirmation')
-    expect(wrapper.findAll('.status-tab')[2]!.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('.status-tab')[3]!.attributes('aria-pressed')).toBe('true')
   })
 
   it('縮小到單一校區時不顯示總數，避免和清單對不上', async () => {

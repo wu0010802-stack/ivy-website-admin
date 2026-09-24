@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date as date_, datetime, time as time_
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -21,6 +21,8 @@ class BookingMode(str, enum.Enum):
 
 class VisitRequestStatus(str, enum.Enum):
     NEW = "new"
+    # 規格 6.2：園方已開始聯絡但還沒排定時段。不占名額。
+    CONTACTING = "contacting"
     # 規格 221：slots 模式的人工待確認狀態。占名額（避免超收），但還不是
     # 「預約成立」，家長頁與通知文案都必須講「待園方確認」。
     PENDING_CONFIRMATION = "pending_confirmation"
@@ -62,6 +64,10 @@ class BookingConfig(Base):
     slots_auto_confirm: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # 規格 225：公開可選時段的時間窗。改這兩個值不動 version——它們不影響
+    # 預約方式，只影響哪些時段現在列給家長看；送單時仍依當下的值重判。
+    min_lead_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
+    max_advance_days: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -98,6 +104,10 @@ class VisitRequest(Base):
     questions: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     consent_given: Mapped[bool] = mapped_column(nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
+    # 規格 6.2：結案後重新預約（含換校）另建新案，指回舊案。
+    related_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("visit_requests.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[str] = mapped_column(
         String(16), nullable=False, default=VisitRequestSource.WEB.value, server_default="web"
@@ -159,6 +169,53 @@ class VisitSlot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     visit_requests: Mapped[list[VisitRequest]] = relationship(back_populates="slot")
+
+
+class VisitRule(Base):
+    """每週開放規則（規格 6.3）：週幾、時間區間、每格長度、每格容量。
+    規則本身不會自動開放任何時段，園方按「依規則產生時段」才會建立
+    VisitSlot；改規則只影響之後產生的時段，已存在或已被預約的不動。"""
+
+    __tablename__ = "visit_rules"
+    __table_args__ = (
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="ck_visit_rules_weekday"),
+        CheckConstraint("end_time > start_time", name="ck_visit_rules_time_order"),
+        CheckConstraint("slot_minutes > 0 AND capacity > 0", name="ck_visit_rules_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campus_key: Mapped[str] = mapped_column(
+        ForeignKey("campuses.key", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    # 0＝週一 … 6＝週日，與 Python date.weekday() 相同。
+    weekday: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[time_] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time_] = mapped_column(Time, nullable=False)
+    slot_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VisitException(Base):
+    """休假日／臨時封鎖：整天不開放。建立時會把當天既有時段關閉（停止
+    新申請），已占位的案件不自動取消，另列待處理。"""
+
+    __tablename__ = "visit_exceptions"
+    __table_args__ = (UniqueConstraint("campus_key", "exception_date", name="uq_visit_exception_day"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campus_key: Mapped[str] = mapped_column(
+        ForeignKey("campuses.key", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    exception_date: Mapped[date_] = mapped_column(Date, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class VisitContactNote(Base):

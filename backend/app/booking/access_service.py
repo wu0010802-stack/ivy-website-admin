@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
 from app.booking import slot_service
-from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
 
 TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
@@ -180,7 +180,8 @@ async def create_reschedule_request(
     if slot is None or slot.campus_key != visit_request.campus_key:
         # 不區分「不存在」與「別校的」，避免用回應差異探測其他校的時段。
         raise RescheduleNotAllowed("SLOT_NOT_FOUND", "找不到這個時段")
-    if not slot_service.is_publicly_bookable(slot):
+    config = await db.get(BookingConfig, visit_request.campus_key)
+    if not slot_service.is_publicly_bookable(slot, **slot_service.window_for(config)):
         raise RescheduleNotAllowed("SLOT_NOT_BOOKABLE", "這個時段目前無法預約")
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")

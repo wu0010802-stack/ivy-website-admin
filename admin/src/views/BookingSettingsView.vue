@@ -9,8 +9,9 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import CampusStatusCard from '../components/CampusStatusCard.vue'
 
-const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
+const { visibleCampusKeys, selected: selectedCampus, isSuperAdmin } = useCampusScope()
 
 type Mode = BookingConfigOut['mode']
 
@@ -139,6 +140,8 @@ async function save() {
       <label class="filter-field"><span>編輯校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="saving || confirmingSwitch" @update:model-value="switchCampus" /></label>
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
+
+    <CampusStatusCard v-if="isSuperAdmin && selectedCampus" :campus-key="selectedCampus" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
     <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>

@@ -27,6 +27,17 @@ export const ROLE_LABELS: Record<Role, string> = {
   readonly: '唯讀',
 }
 
+// 新增帳號時給總管理者看的角色說明（規格 7 權限表）。
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  super_admin: '管理全部校區、使用者、全站內容與設定。',
+  campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件。',
+  editor: '編輯指定校區的內容與素材；不能發布，改好送審，由校區管理者發布。看不到家長個資。',
+  reception: '處理指定校區的參觀案件、聯絡紀錄與接待日曆；只能查看、不能改狀態，也不能改官網。',
+  readonly: '查看指定校區的內容與去識別的成效統計；看不到家長個資。',
+}
+
+export const ROLE_ORDER: Role[] = ['campus_admin', 'editor', 'reception', 'readonly', 'super_admin']
+
 export function roleLabel(role: string): string {
   return (ROLE_LABELS as Record<string, string>)[role] ?? role
 }
@@ -44,16 +55,44 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
   pending_confirmation: { label: '待園方確認', tone: 'warning' },
   // 新需求用操作色、待園方確認用暖黃（有期限），和總覽待辦的兩種數字底色一致。
   new: { label: '待處理', tone: 'primary' },
+  contacting: { label: '聯絡中', tone: 'primary' },
   confirmed: { label: '已確認', tone: 'success' },
   completed: { label: '已完成', tone: 'info' },
   cancelled: { label: '已取消', tone: 'info' },
   no_show: { label: '未到場', tone: 'danger' },
 }
 
-export const VISIT_STATUS_ORDER = ['new', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
+export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
+}
+
+// 規格 190 固定選項。API 存代碼；更新前的舊案件可能還是中文原字，照原字顯示。
+export const AGE_LABELS: Record<string, string> = {
+  unknown: '尚未確定',
+  under_2: '2 歲以下',
+  '2-3': '2–3 歲',
+  '3-4': '3–4 歲',
+  '4-5': '4–5 歲',
+  '5-6': '5–6 歲',
+}
+
+export const CONTACT_TIME_LABELS: Record<string, string> = {
+  flexible: '時間彈性',
+  weekday_morning: '平日上午',
+  weekday_afternoon: '平日下午',
+  other: '其他，另行確認',
+}
+
+export function ageLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  return AGE_LABELS[value] ?? value
+}
+
+export function contactTimeLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  return CONTACT_TIME_LABELS[value] ?? value
 }
 
 // 案件來源。web 是官網表單，其他是園方在後台補登。
@@ -203,6 +242,17 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   return '/'
+}
+
+// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁目前
+// 有首頁、入學資訊、分校頁三種；預約文案在預約頁，預覽頁沒有，回空字串。
+export function contentPreviewPath(kind: string, campusKey?: string | null): string {
+  if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
+    return campusKey ? `/preview?page=campus&campus=${encodeURIComponent(campusKey)}` : ''
+  }
+  if (kind === 'admission_content') return '/preview?page=admission'
+  if (kind === 'booking_content') return ''
+  return '/preview'
 }
 
 // 內容 kind 的中文名，給編輯頁標題與總覽「待發布」清單用。

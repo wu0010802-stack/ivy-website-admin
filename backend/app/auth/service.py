@@ -206,6 +206,30 @@ async def set_user_active(db: AsyncSession, user: User, active: bool) -> None:
         await db.flush()
 
 
+async def revoke_user_sessions(db: AsyncSession, user_id, *, keep_session_id: str | None = None) -> int:
+    """撤銷某人的所有 session（改密碼、重設密碼後舊裝置一律登出）。
+    keep_session_id 用在本人改密碼：目前這個分頁不要被登出。"""
+    result = await db.execute(select(Session).where(Session.user_id == user_id))
+    now = datetime.now(timezone.utc)
+    revoked = 0
+    for session in result.scalars():
+        if session.revoked_at is None and session.id != keep_session_id:
+            session.revoked_at = now
+            revoked += 1
+    await db.flush()
+    return revoked
+
+
+async def change_role(db: AsyncSession, user: User, role: Role) -> None:
+    """降級總管理者前一樣要確認不是最後一位（與停權同一把鎖）。"""
+    if user.role == Role.SUPER_ADMIN and role != Role.SUPER_ADMIN and user.is_active:
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('super-admin-invariant'))"))
+        if await count_active_super_admins(db, exclude_user_id=user.id) == 0:
+            raise LastSuperAdminProtected()
+    user.role = role
+    await db.flush()
+
+
 async def set_campus_scopes(db: AsyncSession, user: User, campus_keys: list[str]) -> None:
     result = await db.execute(select(UserCampusScope).where(UserCampusScope.user_id == user.id))
     for scope in result.scalars():

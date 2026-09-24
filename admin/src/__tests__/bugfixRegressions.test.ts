@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import CampusTourView from '../views/CampusTourView.vue'
 import { ApiError, api, setUnauthorizedHandler } from '../api/client'
-import { NAV_GROUPS, navItem } from '../router/nav'
+import { landingPath, NAV_GROUPS, navItem } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 
 const wrappers: VueWrapper[] = []
@@ -33,8 +33,18 @@ describe('共用內容頁的角色限制', () => {
 
   it('分校自有內容不受限制，分校管理者仍要能編', () => {
     for (const name of ['campus-profile', 'campus-faq', 'campus-tour']) {
-      expect(navItem(name)?.roles).toBeUndefined()
+      // 2026-09-24 起側欄依角色顯示：分校管理者與編輯一定要看得到分校內容，
+      // 只處理案件的櫃台不需要。
+      expect(navItem(name)?.roles).toEqual(expect.arrayContaining(['super_admin', 'campus_admin', 'editor']))
+      expect(navItem(name)?.roles).not.toContain('reception')
     }
+  })
+
+  it('編輯與唯讀沒有營運總覽，登入後落在看得到的第一頁', () => {
+    expect(landingPath('super_admin')).toBe('/')
+    expect(landingPath('reception')).toBe('/')
+    expect(landingPath('editor')).toBe('/content/campus-profile')
+    expect(landingPath('readonly')).toBe('/content/campus-profile')
   })
 
   it('每個標了 roles 的項目都真的存在於側欄結構裡', () => {

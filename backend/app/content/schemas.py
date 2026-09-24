@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -119,11 +120,33 @@ class SiteMetaPayload(_ContentPayload):
     description: str
     header_phone_number: str
     header_phone_note: str
+    # 以下為 2026-09-24 新增，預設值讓舊的已發布版本照常通過驗證。
+    # 社群分享圖：素材庫媒體 UUID；空字串沿用首頁大圖的分享圖。
+    share_image: str = ""
+    share_image_alt: str = Field(default="", max_length=200)
+    # 入學資訊頁的搜尋標題與描述；空字串沿用官網內建文字。
+    admission_title: str = Field(default="", max_length=120)
+    admission_description: str = Field(default="", max_length=300)
+    # 只能「收緊」：部署設定沒開索引時，這裡勾了也不會變成可索引。
+    allow_indexing: bool = True
 
-    @field_validator("title", "description", "header_phone_number", "header_phone_note")
+    @field_validator(
+        "title", "description", "header_phone_number", "header_phone_note",
+        "share_image_alt", "admission_title", "admission_description",
+    )
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("share_image")
+    @classmethod
+    def _share_image_is_media_id(cls, value: str) -> str:
+        if value == "":
+            return value
+        try:
+            return str(uuid.UUID(value))
+        except ValueError as exc:
+            raise ValueError("分享圖請從素材庫選擇") from exc
 
 
 class HomeCampusBoardPayload(_ContentPayload):
@@ -564,6 +587,10 @@ class TourScenePayload(_ContentPayload):
     image: str
     intro: str
     spots: list[TourSpotPayload]
+    # 規格 3.3：換了場景照片，原本的熱點座標可能對不上新照片。伺服器在
+    # 照片變更時一律把它改回 False（不信任前端），園方在後台逐點確認後
+    # 按「熱點已複核」才會是 True；有未複核的場景不能發布。
+    spots_reviewed: bool = True
 
     @field_validator("key", "name", "intro")
     @classmethod
@@ -607,19 +634,12 @@ class ContentRevisionOut(BaseModel):
     version: int
     payload: dict
     created_at: datetime
+    review_status: str = "draft"
+    review_note: str | None = None
+    submitted_at: datetime | None = None
+    reviewed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
-
-
-class ContentRevisionSummaryOut(BaseModel):
-    """版本紀錄列表的一列。payload 可能很大（消息最多 30 則），列表不帶，
-    要比對內容時再用單筆端點讀。"""
-
-    id: uuid.UUID
-    version: int
-    created_at: datetime
-    created_by_email: str | None
-    is_published: bool
 
 
 class ContentRevisionRestoreRequest(BaseModel):
@@ -642,6 +662,70 @@ class ContentItemOut(BaseModel):
 
 class PublishRequest(BaseModel):
     revision_id: uuid.UUID
+
+
+class ContentRevisionSummaryOut(BaseModel):
+    """版本歷史列表用；不含 payload，點開單一版本再讀。"""
+
+    id: uuid.UUID
+    version: int
+    created_at: datetime
+    created_by_email: str | None
+    is_published: bool
+    ever_published: bool
+    last_published_at: datetime | None
+    review_status: str = "draft"
+    review_note: str | None = None
+
+
+class SubmitReviewRequest(BaseModel):
+    revision_id: uuid.UUID
+
+
+class ReviewDecisionRequest(BaseModel):
+    revision_id: uuid.UUID
+    decision: Literal["approve", "reject"]
+    # 退回一定要寫原因，編輯才知道要改什麼。
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _reject_needs_note(self):
+        if self.decision == "reject" and not (self.note or "").strip():
+            raise ValueError("退回時請寫下原因")
+        return self
+
+
+class ScheduleRequest(BaseModel):
+    revision_id: uuid.UUID
+    # 必須帶時區（前端送 +08:00），存 UTC。
+    publish_at: datetime
+
+    @field_validator("publish_at")
+    @classmethod
+    def _aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("排程時間要帶時區")
+        return value
+
+
+class PublishJobOut(BaseModel):
+    id: uuid.UUID
+    revision_id: uuid.UUID
+    revision_version: int
+    publish_at: datetime
+    status: str
+    error: str | None
+    created_by_email: str | None
+    finished_at: datetime | None
+
+
+class PendingReviewOut(BaseModel):
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    version: int
+    submitted_at: datetime | None
+    submitted_by_email: str | None
 
 
 class PublicSiteOut(BaseModel):

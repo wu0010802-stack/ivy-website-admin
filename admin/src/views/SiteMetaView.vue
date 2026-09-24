@@ -1,22 +1,36 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
-import type { SiteMetaPayload } from '../api/types'
+import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
+import { mediaFileUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
+import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 
 const editor = useContentItem<SiteMetaPayload>('site_meta', {
   title: '',
   description: '',
   header_phone_number: '',
   header_phone_note: '',
+  share_image: '',
+  share_image_alt: '',
+  admission_title: '',
+  admission_description: '',
+  allow_indexing: true,
 })
+
+const pickerVisible = ref(false)
+function onPickShareImage(asset: MediaAssetOut) {
+  editor.form.value.share_image = asset.id
+  if (!editor.form.value.share_image_alt && asset.alt_text) editor.form.value.share_image_alt = asset.alt_text
+}
+const shareImageUrl = computed(() => (editor.form.value.share_image ? mediaFileUrl(editor.form.value.share_image) : ''))
 
 onMounted(editor.load)
 </script>
 
 <template>
   <ContentEditor :editor="editor">
-    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱，以及頁首右上角的聯絡電話。</template>
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖，以及頁首右上角的聯絡電話。</template>
 
     <el-form label-position="top" @submit.prevent>
       <el-form-item label="網站標題">
@@ -35,6 +49,48 @@ onMounted(editor.load)
           <el-input v-model="editor.form.value.header_phone_note" placeholder="例如：週一至週五 9:00–17:00" />
         </el-form-item>
       </div>
+
+      <h3 class="meta-section">社群分享圖</h3>
+      <el-form-item label="分享到 LINE、Facebook 時的預覽圖">
+        <div class="share">
+          <img v-if="shareImageUrl" :src="shareImageUrl" alt="" class="share__img" />
+          <div class="share__actions">
+            <el-button size="small" @click="pickerVisible = true">{{ editor.form.value.share_image ? '更換圖片' : '從素材庫選擇' }}</el-button>
+            <el-button v-if="editor.form.value.share_image" size="small" text @click="editor.form.value.share_image = ''">改回首頁大圖</el-button>
+          </div>
+        </div>
+        <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖；分校頁一律用各校照片。</span>
+      </el-form-item>
+      <el-form-item v-if="editor.form.value.share_image" label="分享圖說明">
+        <el-input v-model="editor.form.value.share_image_alt" maxlength="200" placeholder="例如：孩子在戶外遊戲場玩耍" />
+      </el-form-item>
+
+      <h3 class="meta-section">入學資訊頁的搜尋結果</h3>
+      <el-form-item label="標題">
+        <el-input v-model="editor.form.value.admission_title" maxlength="120" show-word-limit placeholder="留空使用預設：入學資訊｜入學流程、新生須知、收退費與分班｜常春藤教育機構" />
+      </el-form-item>
+      <el-form-item label="描述">
+        <el-input v-model="editor.form.value.admission_description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="300" show-word-limit placeholder="留空使用預設描述" />
+      </el-form-item>
+
+      <h3 class="meta-section">搜尋引擎</h3>
+      <el-form-item>
+        <el-switch v-model="editor.form.value.allow_indexing" active-text="允許 Google 等搜尋引擎收錄官網" />
+        <span class="field-help">關閉後各頁都會告訴搜尋引擎不要收錄。正式站是否開放收錄另由部署設定決定，這裡只能關、不能強制打開。</span>
+      </el-form-item>
+
+      <h3 class="meta-section">品牌名稱與 Logo</h3>
+      <p class="field-help">
+        品牌名稱「常春藤教育機構」與 Logo 使用只含這幾個字的專用字型檔，改字會讓頁首退回系統字、版面走樣，所以不開放在後台修改。需要更換時請聯絡網站維護人員重新製作字型與圖檔。
+      </p>
     </el-form>
+    <MediaPickerDialog v-model="pickerVisible" @select="onPickShareImage" />
   </ContentEditor>
 </template>
+
+<style scoped>
+.meta-section { margin: 24px 0 8px; font-size: 15px; }
+.share { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.share__img { width: 240px; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.share__actions { display: flex; gap: 8px; }
+</style>

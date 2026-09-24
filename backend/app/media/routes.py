@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
 from app.auth.models import Role, User
-from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
+from app.auth.permissions import can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
 from app.auth.service import get_session_by_token
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
@@ -27,7 +27,8 @@ def _require_media_manage(user: User, campus_key: str | None) -> None:
     `_require_shared_or_scope` 同一套裁定。read 維持開放（大家都要看得到）。"""
     if campus_key is None:
         require_scope(user, "media.manage")
-        if user.role != Role.SUPER_ADMIN:
+        # 有「全站共用內容」授權的人要能替首頁、消息換共用照片。
+        if not can_edit_shared_content(user):
             raise CapabilityDenied()
         return
     require_scope(user, "media.manage", campus_keys=[campus_key])
@@ -104,6 +105,9 @@ def _out(asset: MediaAsset) -> MediaAssetOut:
         height=asset.height,
         alt_text=asset.alt_text,
         source_attribution=asset.source_attribution,
+        caption=asset.caption,
+        license_note=asset.license_note,
+        tags=list(asset.tags or []),
         crop_focus_x=asset.crop_focus_x,
         crop_focus_y=asset.crop_focus_y,
         processing_error=asset.processing_error,
@@ -128,6 +132,8 @@ async def _get_owned_asset(db: AsyncSession, user: User, media_id: uuid.UUID) ->
 
 @router.get("", response_model=list[MediaAssetOut])
 async def list_media(
+    tag: str | None = Query(default=None, max_length=30, description="只列有這個標籤的素材"),
+    q: str | None = Query(default=None, max_length=100, description="檔名、圖片說明、圖說或標籤片段"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[MediaAssetOut]:
@@ -141,6 +147,20 @@ async def list_media(
     visible = _visible_campus_keys(current_user)
     if visible is not None:
         assets = [a for a in assets if a.campus_key is None or a.campus_key in visible]
+    # 素材量是幾百張等級，在應用層篩就好；JSON 欄位跨資料庫的包含查詢
+    # 寫法不一，不值得為此綁死 PostgreSQL 的 jsonb 運算子。
+    if tag and tag.strip():
+        wanted = tag.strip()
+        assets = [a for a in assets if wanted in (a.tags or [])]
+    if q and q.strip():
+        needle = q.strip().lower()
+        assets = [
+            a for a in assets
+            if needle in a.original_filename.lower()
+            or needle in (a.alt_text or "").lower()
+            or needle in (a.caption or "").lower()
+            or any(needle in t.lower() for t in (a.tags or []))
+        ]
     return [_out(a) for a in assets]
 
 

@@ -387,6 +387,29 @@
             "title": "Active",
             "type": "boolean"
           },
+          "deactivated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated At"
+          },
+          "deactivated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated Reason"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -402,6 +425,82 @@
           "active"
         ],
         "title": "CampusOut",
+        "type": "object"
+      },
+      "CampusStatusOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "deactivated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated At"
+          },
+          "deactivated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated Reason"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "open_requests": {
+            "default": 0,
+            "title": "Open Requests",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "active"
+        ],
+        "title": "CampusStatusOut",
+        "type": "object"
+      },
+      "CampusStatusUpdate": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "CampusStatusUpdate",
         "type": "object"
       },
       "ContentItemOut": {
@@ -500,6 +599,46 @@
             "title": "Payload",
             "type": "object"
           },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "review_status": {
+            "default": "draft",
+            "title": "Review Status",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -533,7 +672,7 @@
         "type": "object"
       },
       "ContentRevisionSummaryOut": {
-        "description": "版本紀錄列表的一列。payload 可能很大（消息最多 30 則），列表不帶，\n要比對內容時再用單筆端點讀。",
+        "description": "版本歷史列表用；不含 payload，點開單一版本再讀。",
         "properties": {
           "created_at": {
             "format": "date-time",
@@ -551,6 +690,10 @@
             ],
             "title": "Created By Email"
           },
+          "ever_published": {
+            "title": "Ever Published",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -559,6 +702,34 @@
           "is_published": {
             "title": "Is Published",
             "type": "boolean"
+          },
+          "last_published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Published At"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "review_status": {
+            "default": "draft",
+            "title": "Review Status",
+            "type": "string"
           },
           "version": {
             "title": "Version",
@@ -570,7 +741,9 @@
           "version",
           "created_at",
           "created_by_email",
-          "is_published"
+          "is_published",
+          "ever_published",
+          "last_published_at"
         ],
         "title": "ContentRevisionSummaryOut",
         "type": "object"
@@ -665,6 +838,17 @@
             ],
             "title": "Campus Key"
           },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
           "content_type": {
             "title": "Content Type",
             "type": "string"
@@ -710,6 +894,17 @@
           "kind": {
             "$ref": "#/components/schemas/MediaKind"
           },
+          "license_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Note"
+          },
           "original_filename": {
             "title": "Original Filename",
             "type": "string"
@@ -742,6 +937,13 @@
           },
           "status": {
             "$ref": "#/components/schemas/MediaStatus"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
           },
           "usage_count": {
             "title": "Usage Count",
@@ -817,6 +1019,18 @@
             ],
             "title": "Alt Text"
           },
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
           "crop_focus_x": {
             "anyOf": [
               {
@@ -839,6 +1053,18 @@
             ],
             "title": "Crop Focus Y"
           },
+          "license_note": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Note"
+          },
           "source_attribution": {
             "anyOf": [
               {
@@ -849,6 +1075,21 @@
               }
             ],
             "title": "Source Attribution"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
           }
         },
         "title": "MediaUpdateRequest",
@@ -1014,6 +1255,104 @@
         "title": "ParentVisitRequestOut",
         "type": "object"
       },
+      "PasswordChangeRequest": {
+        "description": "本人改密碼，要先輸入目前的密碼。",
+        "properties": {
+          "current_password": {
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 200,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChangeRequest",
+        "type": "object"
+      },
+      "PasswordResetRequest": {
+        "description": "總管理者替別人重設密碼。",
+        "properties": {
+          "password": {
+            "maxLength": 200,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "PasswordResetRequest",
+        "type": "object"
+      },
+      "PendingReviewOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "submitted_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted By Email"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "campus_key",
+          "revision_id",
+          "version",
+          "submitted_at",
+          "submitted_by_email"
+        ],
+        "title": "PendingReviewOut",
+        "type": "object"
+      },
       "PublicBookingConfigOut": {
         "description": "公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。",
         "properties": {
@@ -1159,6 +1498,79 @@
         "title": "PublicVisitSlotOut",
         "type": "object"
       },
+      "PublishJobOut": {
+        "properties": {
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "publish_at": {
+            "format": "date-time",
+            "title": "Publish At",
+            "type": "string"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_version": {
+            "title": "Revision Version",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision_id",
+          "revision_version",
+          "publish_at",
+          "status",
+          "error",
+          "created_by_email",
+          "finished_at"
+        ],
+        "title": "PublishJobOut",
+        "type": "object"
+      },
       "PublishRequest": {
         "properties": {
           "revision_id": {
@@ -1187,8 +1599,43 @@
         "title": "RescheduleRequestCreate",
         "type": "object"
       },
+      "ReviewDecisionRequest": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision_id",
+          "decision"
+        ],
+        "title": "ReviewDecisionRequest",
+        "type": "object"
+      },
       "Role": {
-        "description": "完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，\n其餘（editor/reception/readonly）留給階段 D，不在此階段的建立/修改路由開放。",
+        "description": "完整角色列舉（規格 7）。2026-09-24 起五種都可以建立；除了總管理者，\n其餘角色都必須指定校區範圍。",
         "enum": [
           "super_admin",
           "campus_admin",
@@ -1198,6 +1645,26 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "ScheduleRequest": {
+        "properties": {
+          "publish_at": {
+            "format": "date-time",
+            "title": "Publish At",
+            "type": "string"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision_id",
+          "publish_at"
+        ],
+        "title": "ScheduleRequest",
+        "type": "object"
       },
       "SiteSettingsUpdate": {
         "properties": {
@@ -1236,6 +1703,20 @@
           "privacy_policy_version"
         ],
         "title": "SiteSettingsUpdate",
+        "type": "object"
+      },
+      "SubmitReviewRequest": {
+        "properties": {
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision_id"
+        ],
+        "title": "SubmitReviewRequest",
         "type": "object"
       },
       "TelemetryIn": {
@@ -1334,6 +1815,20 @@
         "title": "TokenExchangeRequest",
         "type": "object"
       },
+      "UserCapabilitiesRequest": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Capabilities",
+            "type": "array"
+          }
+        },
+        "title": "UserCapabilitiesRequest",
+        "type": "object"
+      },
       "UserCreateRequest": {
         "properties": {
           "campus_keys": {
@@ -1341,6 +1836,13 @@
               "type": "string"
             },
             "title": "Campus Keys",
+            "type": "array"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
             "type": "array"
           },
           "email": {
@@ -1372,6 +1874,13 @@
               "type": "string"
             },
             "title": "Campus Keys",
+            "type": "array"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
             "type": "array"
           },
           "email": {
@@ -1412,6 +1921,25 @@
           "is_active"
         ],
         "title": "UserUpdateActiveRequest",
+        "type": "object"
+      },
+      "UserUpdateRoleRequest": {
+        "properties": {
+          "campus_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Campus Keys",
+            "type": "array"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "UserUpdateRoleRequest",
         "type": "object"
       },
       "UserUpdateScopeRequest": {
@@ -1530,6 +2058,106 @@
         "title": "VisitContactNoteOut",
         "type": "object"
       },
+      "VisitExceptionCreatedOut": {
+        "properties": {
+          "affected_requests": {
+            "title": "Affected Requests",
+            "type": "integer"
+          },
+          "closed_slots": {
+            "title": "Closed Slots",
+            "type": "integer"
+          },
+          "exception_date": {
+            "format": "date",
+            "title": "Exception Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "id",
+          "exception_date",
+          "reason",
+          "closed_slots",
+          "affected_requests"
+        ],
+        "title": "VisitExceptionCreatedOut",
+        "type": "object"
+      },
+      "VisitExceptionIn": {
+        "properties": {
+          "exception_date": {
+            "format": "date",
+            "title": "Exception Date",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "exception_date"
+        ],
+        "title": "VisitExceptionIn",
+        "type": "object"
+      },
+      "VisitExceptionOut": {
+        "properties": {
+          "exception_date": {
+            "format": "date",
+            "title": "Exception Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "id",
+          "exception_date",
+          "reason"
+        ],
+        "title": "VisitExceptionOut",
+        "type": "object"
+      },
       "VisitRequestAssignRequest": {
         "properties": {
           "assigned_staff_id": {
@@ -1570,7 +2198,14 @@
           "age": {
             "anyOf": [
               {
-                "maxLength": 32,
+                "enum": [
+                  "unknown",
+                  "under_2",
+                  "2-3",
+                  "3-4",
+                  "4-5",
+                  "5-6"
+                ],
                 "type": "string"
               },
               {
@@ -1642,7 +2277,12 @@
           "preferred_time": {
             "anyOf": [
               {
-                "maxLength": 32,
+                "enum": [
+                  "flexible",
+                  "weekday_morning",
+                  "weekday_afternoon",
+                  "other"
+                ],
                 "type": "string"
               },
               {
@@ -1878,6 +2518,18 @@
             "title": "Referral Sources",
             "type": "array"
           },
+          "related_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Request Id"
+          },
           "slot": {
             "anyOf": [
               {
@@ -1902,6 +2554,13 @@
           },
           "source": {
             "default": "web",
+            "enum": [
+              "web",
+              "phone",
+              "line",
+              "walk_in",
+              "external"
+            ],
             "title": "Source",
             "type": "string"
           },
@@ -1935,7 +2594,14 @@
           "age": {
             "anyOf": [
               {
-                "maxLength": 32,
+                "enum": [
+                  "unknown",
+                  "under_2",
+                  "2-3",
+                  "3-4",
+                  "4-5",
+                  "5-6"
+                ],
                 "type": "string"
               },
               {
@@ -2015,7 +2681,12 @@
           "preferred_time": {
             "anyOf": [
               {
-                "maxLength": 32,
+                "enum": [
+                  "flexible",
+                  "weekday_morning",
+                  "weekday_afternoon",
+                  "other"
+                ],
                 "type": "string"
               },
               {
@@ -2050,6 +2721,18 @@
             "maxItems": 5,
             "title": "Referral Sources",
             "type": "array"
+          },
+          "related_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Request Id"
           },
           "slot_id": {
             "anyOf": [
@@ -2123,6 +2806,164 @@
         "title": "VisitRequestRescheduleRequest",
         "type": "object"
       },
+      "VisitRuleIn": {
+        "description": "0＝週一 … 6＝週日。",
+        "properties": {
+          "capacity": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 200.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "slot_minutes": {
+            "maximum": 240.0,
+            "minimum": 10.0,
+            "title": "Slot Minutes",
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "start_time",
+          "end_time",
+          "slot_minutes",
+          "capacity"
+        ],
+        "title": "VisitRuleIn",
+        "type": "object"
+      },
+      "VisitRuleOut": {
+        "properties": {
+          "capacity": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 200.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "slot_minutes": {
+            "maximum": 240.0,
+            "minimum": 10.0,
+            "title": "Slot Minutes",
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "start_time",
+          "end_time",
+          "slot_minutes",
+          "capacity",
+          "id"
+        ],
+        "title": "VisitRuleOut",
+        "type": "object"
+      },
+      "VisitScheduleOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/VisitExceptionOut"
+            },
+            "title": "Exceptions",
+            "type": "array"
+          },
+          "max_advance_days": {
+            "title": "Max Advance Days",
+            "type": "integer"
+          },
+          "min_lead_hours": {
+            "title": "Min Lead Hours",
+            "type": "integer"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/VisitRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campus_key",
+          "min_lead_hours",
+          "max_advance_days",
+          "rules",
+          "exceptions"
+        ],
+        "title": "VisitScheduleOut",
+        "type": "object"
+      },
+      "VisitScheduleUpdate": {
+        "properties": {
+          "max_advance_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Max Advance Days",
+            "type": "integer"
+          },
+          "min_lead_hours": {
+            "maximum": 336.0,
+            "minimum": 0.0,
+            "title": "Min Lead Hours",
+            "type": "integer"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/VisitRuleIn"
+            },
+            "maxItems": 50,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "min_lead_hours",
+          "max_advance_days"
+        ],
+        "title": "VisitScheduleUpdate",
+        "type": "object"
+      },
       "VisitSlotBriefOut": {
         "description": "案件上要顯示的「參觀時間」。容量與已預約數是時段管理頁的事，\n這裡只回日期與起訖；後台明細與列表都直接顯示這一份，不必再打一次\n/admin/slots 去換算家長約在哪一天。",
         "properties": {
@@ -2187,6 +3028,49 @@
           "capacity"
         ],
         "title": "VisitSlotCreateRequest",
+        "type": "object"
+      },
+      "VisitSlotGenerateOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "skipped_exception_days": {
+            "title": "Skipped Exception Days",
+            "type": "integer"
+          },
+          "skipped_existing": {
+            "title": "Skipped Existing",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "skipped_existing",
+          "skipped_exception_days"
+        ],
+        "title": "VisitSlotGenerateOut",
+        "type": "object"
+      },
+      "VisitSlotGenerateRequest": {
+        "properties": {
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to"
+        ],
+        "title": "VisitSlotGenerateRequest",
         "type": "object"
       },
       "VisitSlotOut": {
@@ -2857,6 +3741,91 @@
         ]
       }
     },
+    "/api/website/v1/admin/campuses/{key}/status": {
+      "patch": {
+        "description": "停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的\n決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件\n一律不動，回傳仍在進行中的件數讓園方人工處理。",
+        "operationId": "update_campus_status_api_website_v1_admin_campuses__key__status_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampusStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Campus Status",
+        "tags": [
+          "campuses"
+        ]
+      }
+    },
     "/api/website/v1/admin/content-items/{kind}": {
       "get": {
         "operationId": "get_content_item_api_website_v1_admin_content_items__kind__get",
@@ -3047,8 +4016,110 @@
         ]
       }
     },
+    "/api/website/v1/admin/content-items/{kind}/review": {
+      "post": {
+        "description": "核准＝立即發布這一版；退回要附原因。",
+        "operationId": "review_submission_api_website_v1_admin_content_items__kind__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Submission",
+        "tags": [
+          "content"
+        ]
+      }
+    },
     "/api/website/v1/admin/content-items/{kind}/revisions": {
       "get": {
+        "description": "版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。",
         "operationId": "list_content_revisions_api_website_v1_admin_content_items__kind__revisions_get",
         "parameters": [
           {
@@ -3074,6 +4145,16 @@
                 }
               ],
               "title": "Campus Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
             }
           },
           {
@@ -3341,7 +4422,7 @@
     },
     "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}/restore": {
       "post": {
-        "description": "把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動\n其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的\n還原內容，別人尚未發布的草稿不會被帶上去。",
+        "description": "把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動\n其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的\n還原內容，別人尚未發布的草稿不會被帶上去。規格：內容還原不回復預約\n設定、時段、案件或通知，這裡只動內容。\n\n直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿\n再送審），也要通過發布前檢查（例如校園探索熱點待複核）。",
         "operationId": "restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post",
         "parameters": [
           {
@@ -3450,6 +4531,391 @@
         ]
       }
     },
+    "/api/website/v1/admin/content-items/{kind}/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_website_v1_admin_content_items__kind__schedules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublishJobOut"
+                  },
+                  "title": "Response List Schedules Api Website V1 Admin Content Items  Kind  Schedules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Schedules",
+        "tags": [
+          "content"
+        ]
+      },
+      "post": {
+        "operationId": "create_schedule_api_website_v1_admin_content_items__kind__schedules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Schedule",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/content-items/{kind}/schedules/{job_id}": {
+      "delete": {
+        "operationId": "cancel_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Schedule",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/content-items/{kind}/submit": {
+      "post": {
+        "operationId": "submit_for_review_api_website_v1_admin_content_items__kind__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit For Review",
+        "tags": [
+          "content"
+        ]
+      }
+    },
     "/api/website/v1/admin/content-kinds": {
       "get": {
         "operationId": "list_content_kinds_api_website_v1_admin_content_kinds_get",
@@ -3514,6 +4980,76 @@
           }
         },
         "summary": "List Content Kinds",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/content-reviews": {
+      "get": {
+        "description": "待審核清單：只列目前使用者有權發布的內容。",
+        "operationId": "list_pending_reviews_api_website_v1_admin_content_reviews_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PendingReviewOut"
+                  },
+                  "title": "Response List Pending Reviews Api Website V1 Admin Content Reviews Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pending Reviews",
         "tags": [
           "content"
         ]
@@ -3590,6 +5126,44 @@
       "get": {
         "operationId": "list_media_api_website_v1_admin_media_get",
         "parameters": [
+          {
+            "description": "只列有這個標籤的素材",
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 30,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只列有這個標籤的素材",
+              "title": "Tag"
+            }
+          },
+          {
+            "description": "檔名、圖片說明、圖說或標籤片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "檔名、圖片說明、圖說或標籤片段",
+              "title": "Q"
+            }
+          },
           {
             "in": "header",
             "name": "x-csrf-token",
@@ -5293,6 +6867,256 @@
         ]
       }
     },
+    "/api/website/v1/admin/users/{user_id}/capabilities": {
+      "patch": {
+        "description": "規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。",
+        "operationId": "update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCapabilitiesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update User Capabilities",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/admin/users/{user_id}/password": {
+      "post": {
+        "description": "總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，\n對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。",
+        "operationId": "reset_user_password_api_website_v1_admin_users__user_id__password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset User Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/admin/users/{user_id}/role": {
+      "patch": {
+        "operationId": "update_user_role_api_website_v1_admin_users__user_id__role_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update User Role",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/website/v1/admin/users/{user_id}/scope": {
       "patch": {
         "operationId": "update_user_scope_api_website_v1_admin_users__user_id__scope_patch",
@@ -5585,6 +7409,44 @@
               ],
               "description": "案件來源：web／phone／line／walk_in／external",
               "title": "Source"
+            }
+          },
+          {
+            "description": "送出日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "送出日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（含），台灣日期",
+              "title": "Created To"
             }
           },
           {
@@ -6487,6 +8349,81 @@
         ]
       }
     },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting": {
+      "post": {
+        "operationId": "mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Contacting",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
       "post": {
         "operationId": "mark_no_show_api_website_v1_admin_visit_requests__visit_request_id__no_show_post",
@@ -6716,6 +8653,407 @@
         ]
       }
     },
+    "/api/website/v1/admin/visit-schedule/{campus_key}": {
+      "get": {
+        "operationId": "get_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Visit Schedule",
+        "tags": [
+          "booking"
+        ]
+      },
+      "put": {
+        "operationId": "update_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitScheduleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Visit Schedule",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions": {
+      "post": {
+        "operationId": "add_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitExceptionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitExceptionCreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Visit Exception",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions/{exception_id}": {
+      "delete": {
+        "operationId": "remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "exception_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Exception Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Visit Exception",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-schedule/{campus_key}/generate": {
+      "post": {
+        "operationId": "generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitSlotGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitSlotGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Visit Slots",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/visit-staff": {
       "get": {
         "description": "可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理\n者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。",
@@ -6783,6 +9121,75 @@
         "summary": "List Visit Staff",
         "tags": [
           "booking"
+        ]
+      }
+    },
+    "/api/website/v1/auth/change-password": {
+      "post": {
+        "description": "本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。",
+        "operationId": "change_own_password_api_website_v1_auth_change_password_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Own Password",
+        "tags": [
+          "auth"
         ]
       }
     },

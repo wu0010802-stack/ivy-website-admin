@@ -7,12 +7,21 @@ useHead({
   meta: [{ name: 'robots', content: 'noindex, nofollow' }]
 })
 
-// ?page=admission 預覽入學資訊頁；其餘一律預覽首頁。
+// ?page=admission 預覽入學資訊頁；?page=campus&campus=<key> 預覽分校頁；
+// 其餘一律預覽首頁。
 const route = useRoute()
-const page = computed(() => (route.query.page === 'admission' ? 'admission' : 'home'))
+const page = computed(() => {
+  if (route.query.page === 'admission') return 'admission'
+  if (route.query.page === 'campus') return 'campus'
+  return 'home'
+})
 
 const status = ref<'checking' | 'denied' | 'ready'>('checking')
 const draft = ref<Awaited<ReturnType<typeof useDraftPreview>>['content']>(null)
+const previewCampus = computed(() => {
+  const key = typeof route.query.campus === 'string' ? route.query.campus : ''
+  return draft.value?.campuses.find((c) => c.key === key) ?? draft.value?.campuses[0] ?? null
+})
 
 onMounted(async () => {
   const result = await useDraftPreview()
@@ -38,6 +47,7 @@ onMounted(async () => {
       <div class="preview-banner" role="note">草稿預覽 · 尚未發布的內容，僅管理者可見</div>
       <SiteHeader :content="draft" />
       <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" />
+      <CampusPageMain v-else-if="page === 'campus' && previewCampus" :campus="previewCampus" />
       <main v-else id="main" tabindex="-1">
         <HeroVideo :hero="draft.home.hero" />
         <AboutSection :about="draft.home.about" />

@@ -27,13 +27,15 @@ import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
-import { navItem } from './nav'
+import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
   interface RouteMeta {
     title?: string
     /** 限定角色；未設定代表所有登入者 */
     roles?: string[]
+    /** 共用內容頁，有「全站共用內容」授權也可進入 */
+    shared?: boolean
   }
 }
 
@@ -41,7 +43,7 @@ declare module 'vue-router' {
 // 高亮三處共用同一份資料。
 function page(path: string, name: string, component: Component): RouteRecordRaw {
   const item = navItem(name)
-  return { path, name, component, meta: { title: item?.title, roles: item?.roles } }
+  return { path, name, component, meta: { title: item?.title, roles: item?.roles, shared: item?.shared } }
 }
 
 const router = createRouter({
@@ -75,7 +77,7 @@ const router = createRouter({
           path: 'visit-requests/:id',
           name: 'visit-detail',
           component: VisitDetailView,
-          meta: { title: '案件明細' },
+          meta: { title: '案件明細', roles: navItem('visit-requests')?.roles },
         },
         page('notifications', 'notifications', NotificationsView),
         page('analytics', 'analytics', AnalyticsView),
@@ -90,7 +92,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
-    if (authStore.user) return { name: 'dashboard' }
+    if (authStore.user) return { path: landingPath(authStore.user.role) }
     return true
   }
 
@@ -103,8 +105,9 @@ router.beforeEach(async (to) => {
   }
 
   const roles = to.meta.roles
-  if (roles && !roles.includes(authStore.user.role)) {
-    return { name: 'dashboard' }
+  if (roles && !canSeeNavItem({ name: '', path: to.path, title: '', roles, shared: to.meta.shared }, authStore.user)) {
+    const landing = landingPath(authStore.user.role)
+    return to.path === landing ? true : { path: landing }
   }
 
   return true

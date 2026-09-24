@@ -20,6 +20,11 @@ from app.operations.models import AnalyticsEventType
 __all__ = ["InvalidTransition", "SlotFull"]
 
 
+def record_event(db: AsyncSession, visit_request_id: uuid.UUID, event_type: str) -> None:
+    """給路由層記錄歷程（例如人工補登關聯舊案）。"""
+    _add_event(db, visit_request_id, event_type)
+
+
 def _add_event(db: AsyncSession, visit_request_id: uuid.UUID, event_type: str) -> None:
     db.add(
         VisitRequestEvent(
@@ -46,6 +51,7 @@ async def confirm_with_slot(
     )
     if visit_request.status not in (
         VisitRequestStatus.NEW.value,
+        VisitRequestStatus.CONTACTING.value,
         VisitRequestStatus.PENDING_CONFIRMATION.value,
     ):
         raise InvalidTransition(f"狀態 {visit_request.status} 不能確認")
@@ -123,6 +129,28 @@ async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
         "visit_request_cancelled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    await db.flush()
+    return visit_request
+
+
+async def mark_contacting(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
+    """規格 6.2：new → contacting（園方開始聯絡）；pending_confirmation 退回
+    contacting 時釋放占位並清掉 slot_id／hold_expires_at。已是 contacting 直接
+    回傳，重送不重複寫歷程。"""
+    await _lock_status(db, visit_request)
+    if visit_request.status == VisitRequestStatus.CONTACTING.value:
+        return visit_request
+    if visit_request.status == VisitRequestStatus.NEW.value:
+        visit_request.status = VisitRequestStatus.CONTACTING.value
+        _add_event(db, visit_request.id, "contacting")
+    elif visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value:
+        visit_request.status = VisitRequestStatus.CONTACTING.value
+        # 名額是依狀態即時算的，轉成 contacting 就等於釋放，不會重複釋放。
+        visit_request.slot = None
+        visit_request.hold_expires_at = None
+        _add_event(db, visit_request.id, "returned_to_contacting")
+    else:
+        raise InvalidTransition(f"狀態 {visit_request.status} 不能改成聯絡中")
     await db.flush()
     return visit_request
 

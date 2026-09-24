@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { useAuthStore } from '../stores/auth'
@@ -256,7 +256,7 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
+          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ contactTimeLabel(row.preferred_time) }}</template>
         </el-table-column>
         <el-table-column label="送出時間" width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
@@ -276,7 +276,7 @@ onMounted(() => {
             <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
             <p>承辦：{{ staffLabel(request.assigned_staff_id, staff) }}<template v-if="request.source && request.source !== 'web'"> · {{ visitSourceLabel(request.source) }}補登</template></p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
-            <p v-if="request.preferred_time">方便時段：{{ request.preferred_time }}</p>
+            <p v-if="request.preferred_time">方便時段：{{ contactTimeLabel(request.preferred_time) }}</p>
             <span class="hint">{{ formatDateTime(request.created_at) }} 送出</span>
           </li>
         </ul>

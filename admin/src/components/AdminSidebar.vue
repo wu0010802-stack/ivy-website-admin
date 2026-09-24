@@ -2,10 +2,11 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import * as Icons from '@element-plus/icons-vue'
-import { NAV_GROUPS } from '../router/nav'
+import { canSeeNavItem, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
+import ChangePasswordDialog from './ChangePasswordDialog.vue'
 
 defineProps<{ mobile?: boolean }>()
 const emit = defineEmits<{ close: []; logout: [] }>()
@@ -13,6 +14,7 @@ const auth = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const route = useRoute()
 const query = ref('')
+const passwordOpen = ref(false)
 // 每天要用的總覽與參觀預約預設展開，內容三組與系統收起；使用者自己的
 // 開合記在瀏覽器裡，下次進來不必重開。私密視窗或封鎖 site data 時讀寫
 // 都會丟例外，接住就好，收合只是便利。
@@ -40,7 +42,7 @@ watch(expanded, value => {
 const icons = Icons as unknown as Record<string, Component>
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)
 const groups = computed(() => NAV_GROUPS.map(group => {
-  const allowed = group.items.filter(item => !item.roles || item.roles.includes(auth.user?.role ?? ''))
+  const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
   const q = query.value.trim()
   if (!q) return { ...group, items: allowed }
   // 功能名先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開。
@@ -119,7 +121,9 @@ const userLine = computed(() => {
     <div v-if="auth.user" class="sidebar__user">
       <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
       <div class="sidebar__user-text"><strong :title="auth.user.email">{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
+      <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Icons.Key /></el-icon></el-button>
       <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><Icons.SwitchButton /></el-icon></el-button>
+      <ChangePasswordDialog v-model="passwordOpen" />
     </div>
   </div>
 </template>

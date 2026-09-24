@@ -79,6 +79,11 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 `WEBSITE_NOTIFICATION_EMAIL_SINK_DIR` 時仍會釋放，只是不處理 outbox）；
 容量計算本身也排除已到期的待確認占位，所以排程沒跑時名額也不會被卡住。
 
+2026-09-24 起同一個指令也負責**排程發布**（到期才發布，執行前重新檢查排程人
+權限、分校是否啟用、素材是否就緒），並可用 `WEBSITE_SMTP_*` 設定真實寄信
+（細節見 `docs/website-admin/operations.md`）。本次改動沒有碰正式站設定；
+正式站是否已有 cron 呼叫這個指令、是否要設 SMTP secret，需上線前在 Railway 確認。
+
 ## 初次初始化
 
 下列指令會寫資料庫，僅對已明確核准的新官網資料庫執行。2026-09-24 起 API 啟動時會自動 `alembic upgrade head`，第一行只在需要手動介入時用；CMS 初始化與管理員建立仍需另行執行。

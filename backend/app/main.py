@@ -13,6 +13,7 @@ from app.common.body_limit import BodySizeLimitMiddleware
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.booking.routes import router as booking_router
+from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -90,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(media_public_router)
     app.include_router(content_router)
     app.include_router(booking_router)
+    app.include_router(booking_schedule_router)
     app.include_router(booking_access_router)
     app.include_router(notifications_router)
     app.include_router(operations_router)

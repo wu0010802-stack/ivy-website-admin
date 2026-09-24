@@ -32,7 +32,7 @@ const visibleAssets = computed(() =>
       a.kind === 'image' &&
       a.status === 'ready' &&
       (a.campus_key === null || a.campus_key === props.campusKey) &&
-      (!query.value || a.original_filename.toLowerCase().includes(query.value.toLowerCase()) || (a.alt_text ?? '').includes(query.value)),
+      (!query.value || a.original_filename.toLowerCase().includes(query.value.toLowerCase()) || (a.alt_text ?? '').includes(query.value) || (a.caption ?? '').includes(query.value) || (a.tags ?? []).some((t) => t.includes(query.value))),
   ),
 )
 

@@ -18,6 +18,21 @@ export const REFERRAL_OPTIONS = [
   { value: 'other', label: '其他' }
 ] as const
 
+// 規格 190：方便聯絡時段是固定選項，送代碼、顯示中文。API 也接受舊的
+// 中文標籤（已快取的舊頁面），但新頁面一律送代碼。
+export const CONTACT_TIME_OPTIONS = [
+  { value: 'flexible', label: '時間彈性' },
+  { value: 'weekday_morning', label: '平日上午' },
+  { value: 'weekday_afternoon', label: '平日下午' },
+  { value: 'other', label: '其他，另行確認' }
+] as const
+
+export type ContactTimeCode = (typeof CONTACT_TIME_OPTIONS)[number]['value']
+
+export function contactTimeLabel(value: string): string {
+  return CONTACT_TIME_OPTIONS.find((option) => option.value === value)?.label ?? value
+}
+
 export function taipeiDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { useAuthStore } from '../stores/auth'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
@@ -26,10 +27,81 @@ const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const busy = computed(() => saving.value || publishing.value)
 const changes = computed(() => props.editor.changes?.value ?? [])
+const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
+const apiPath = computed(() => props.editor.apiPath?.value ?? '')
+const historyOpen = ref(false)
+const auth = useAuthStore()
+// 內容編輯只能送審；總管理者與分校管理者可以直接發布、排程、審核。
+const canPublishRole = computed(() => ['super_admin', 'campus_admin'].includes(auth.user?.role ?? ''))
+const reviewStatus = computed(() => props.editor.reviewStatus?.value ?? 'draft')
+const reviewNote = computed(() => props.editor.reviewNote?.value ?? null)
+const pendingReview = computed(() => reviewStatus.value === 'pending_review' && !isDirty.value)
+const scheduled = computed(() => (props.editor.schedules?.value ?? []).filter((j) => j.status === 'scheduled'))
+const lastFailed = computed(() => (props.editor.schedules?.value ?? []).find((j) => j.status === 'failed') ?? null)
+// 排程清單跟著內容一起換：切校區、重新載入、存檔後都重讀一次。
+watch(
+  () => [apiPath.value, props.editor.loading.value] as const,
+  ([path, isLoading]) => {
+    if (path && !isLoading && !props.editor.loadError.value) void props.editor.loadSchedules?.()
+  },
+  { immediate: true },
+)
+const scheduleOpen = ref(false)
+const scheduleAt = ref<string | null>(null)
+
+function disablePastDay(date: Date): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date.getTime() < today.getTime()
+}
+
+async function submitSchedule() {
+  if (!scheduleAt.value || !props.editor.schedule) return
+  if (await props.editor.schedule(scheduleAt.value)) scheduleOpen.value = false
+}
+
+async function rejectWithNote() {
+  if (!props.editor.review) return
+  try {
+    const result = await ElMessageBox.prompt('寫下要修改的地方，編輯打開這一頁就看得到。', '退回這次送審？', {
+      confirmButtonText: '退回',
+      cancelButtonText: '先不要',
+      inputType: 'textarea',
+      inputValidator: (v: string) => Boolean((v ?? '').trim()) || '請寫下退回原因',
+    })
+    await props.editor.review('reject', (result as { value: string }).value.trim())
+  } catch {
+    /* 取消 */
+  }
+}
+
+async function approve() {
+  if (!props.editor.review) return
+  try {
+    await ElMessageBox.confirm('核准後這一版會立刻發布到官網。', '核准並發布？', {
+      confirmButtonText: '核准並發布',
+      cancelButtonText: '先不要',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  await props.editor.review('approve')
+}
 
 type Tone = 'success' | 'warning' | 'info'
 
 const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
+  if (!isDirty.value && reviewStatus.value === 'pending_review') {
+    return {
+      tone: 'warning',
+      label: '已送審，等待核准',
+      detail: canPublishRole.value ? '內容編輯送上來的版本，檢查沒問題就核准發布，需要修改就退回並寫原因。' : '校區管理者核准後才會出現在官網；這段期間可以繼續修改，改完要重新送審。',
+    }
+  }
+  if (!isDirty.value && reviewStatus.value === 'rejected') {
+    return { tone: 'warning', label: '被退回', detail: reviewNote.value ? `原因：${reviewNote.value}` : '請修改後重新送審。' }
+  }
   if (isDirty.value) {
     return { tone: 'warning', label: '有未儲存的修改', detail: '儲存草稿後才會保留；發布時會自動先儲存。' }
   }
@@ -47,8 +119,6 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
       : `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}，官網仍是上一版。`,
   }
 })
-
-const historyOpen = ref(false)
 
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
@@ -114,24 +184,42 @@ defineExpose({ confirmLeave })
           <strong>{{ status.label }}</strong>
           <span>{{ status.detail }}</span>
         </div>
-        <el-button
-          v-if="editor.history && latestRevisionAt"
-          text
-          size="small"
-          class="editor__history"
-          :disabled="busy"
-          @click="historyOpen = true"
-        >
-          版本紀錄
-        </el-button>
+        <div class="editor__tools">
+          <a
+            v-if="previewUrl && latestRevisionAt && !isPublished"
+            :href="previewUrl"
+            target="_blank"
+            rel="noopener"
+            class="editor__tool"
+          >預覽草稿 ↗</a>
+          <el-button
+            v-if="editor.history && latestRevisionAt"
+            text
+            size="small"
+            class="editor__history"
+            :disabled="busy"
+            @click="historyOpen = true"
+          >
+            版本紀錄
+          </el-button>
+        </div>
       </div>
-
+      <div v-if="scheduled.length || lastFailed" class="editor__schedules">
+        <p v-for="job in scheduled" :key="job.id">
+          已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
+          <el-button v-if="canPublishRole && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
+        </p>
+        <p v-if="lastFailed && !scheduled.length" class="is-failed">
+          {{ formatDateTime(lastFailed.publish_at) }} 的排程沒有發布：{{ lastFailed.error }}
+        </p>
+      </div>
       <RevisionHistoryDrawer
         v-if="editor.history"
         v-model="historyOpen"
         :history="editor.history"
         :dirty="isDirty"
         :busy="busy"
+        :can-publish="canPublishRole"
       />
 
       <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
@@ -156,21 +244,59 @@ defineExpose({ confirmLeave })
         >
           儲存草稿
         </el-button>
-        <el-button
-          :loading="publishing"
-          :disabled="busy || !canPublish"
-          class="editor__publish"
-          @click="publishWithConfirm()"
-        >
-          {{ isDirty ? '儲存並發布到官網' : '發布到官網' }}
-        </el-button>
+        <template v-if="!canPublishRole">
+          <el-button
+            :loading="publishing"
+            :disabled="busy || !latestRevisionAt && !isDirty || pendingReview"
+            class="editor__publish"
+            @click="editor.submitForReview?.()"
+          >
+            {{ pendingReview ? '已送審' : isDirty ? '儲存並送審' : '送審' }}
+          </el-button>
+        </template>
+        <template v-else-if="pendingReview">
+          <el-button :disabled="busy" @click="rejectWithNote">退回</el-button>
+          <el-button type="success" :loading="publishing" :disabled="busy" @click="approve">核准並發布</el-button>
+        </template>
+        <template v-else>
+          <el-button v-if="editor.schedule" :disabled="busy || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
+          <el-button
+            :loading="publishing"
+            :disabled="busy || !canPublish"
+            class="editor__publish"
+            @click="publishWithConfirm()"
+          >
+            {{ isDirty ? '儲存並發布到官網' : '發布到官網' }}
+          </el-button>
+        </template>
         </div>
       </div>
     </template>
+
+    <el-dialog v-model="scheduleOpen" title="排程發布" width="400px" append-to-body>
+      <p class="hint">選一個時間，到時自動把{{ isDirty ? '儲存後的' : '目前最新的' }}這一版發布到官網。之後再改內容不會影響這次排程。</p>
+      <el-date-picker
+        v-model="scheduleAt"
+        type="datetime"
+        value-format="YYYY-MM-DDTHH:mm:ss+08:00"
+        format="YYYY/MM/DD HH:mm"
+        :disabled-date="disablePastDay"
+        :default-time="new Date(2000, 0, 1, 9, 0, 0)"
+        placeholder="發布時間（台灣時間）"
+        style="width: 100%"
+      />
+      <template #footer>
+        <el-button @click="scheduleOpen = false">取消</el-button>
+        <el-button type="primary" :loading="publishing" :disabled="!scheduleAt" @click="submitSchedule">{{ isDirty ? '儲存並排程' : '排程' }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
+.editor__schedules { margin: -12px 0 20px; font-size: 13px; color: var(--ink-2); }
+.editor__schedules p { margin: 0; }
+.editor__schedules .is-failed { color: var(--el-color-danger); }
 .editor {
   max-width: 720px;
 }
@@ -196,10 +322,23 @@ defineExpose({ confirmLeave })
   line-height: 1.45;
 }
 
-.editor__status div {
+.editor__status > div:not(.editor__tools) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+}
+
+.editor__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.editor__tool {
+  font-size: 13px;
 }
 
 .editor__status strong {
