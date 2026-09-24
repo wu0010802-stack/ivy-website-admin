@@ -1177,10 +1177,8 @@ html.menu-locked {overflow:hidden}
 /* 簾幕開始擦之前，日常區塊就要釘在視窗頂（多往上拉一個簾幕距離），大標才會停在浮水印的位置；卡片相對延後同樣距離。 */
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-reveal {margin-top:calc(-1 * (var(--reveal-height,100svh) + var(--belief-distance)))}
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28 * var(--motion-vh,1svh))}
-/* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。
-   2026-09-24 由 .85 拉長到 1.25（手機 .55→.8）：停拍（「關於」掉進句首＋逐字接「的一天」）吃掉 32% 的捲動，
-   其餘擦除才維持原本速度（useRelayProgress／useRelayDrop）。 */
-[data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * 1.25)}
+/* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
+[data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
 /* 減少動態／無 JS 的尾留白：段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。動態版見下方 1.52em。 */
 [data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 /* 手機保留較短的擦除距離，單欄照片後方需留出完整兩行浮水印。 */
@@ -1188,7 +1186,7 @@ html.menu-locked {overflow:hidden}
   [data-seam="2"],[data-seam="2"] .home-reveal {--display-size:min(clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px),calc((100vw - 40px) / 6))}
   [data-seam="2"] .belief-watermark {opacity:.28}
   [data-seam="2"] .day-intro .eyebrow {width:max-content;max-width:calc(100% - 40px);flex-wrap:wrap;justify-content:center;white-space:nowrap}
-  [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .8)}
+  [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .55)}
   [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32 * var(--motion-vh,1svh))}
   [data-seam="2"] .belief-content {padding-bottom:calc(30 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 }
@@ -1211,10 +1209,9 @@ html.menu-locked {overflow:hidden}
   white-space:nowrap;color:#e6f1e7;opacity:calc(.5 * var(--word-fade,1));pointer-events:none;
 }
 [data-seam="2"] .t-ivy,[data-seam="2"] .t-day {display:inline-block}
-/* 「的一天」逐字接上：--relay-day 0→1 期間 --i 個字依序淡入、往右滑回原位，前後字重疊一點。 */
-[data-seam="2"].relay-day .t-day-ch {
-  --o:clamp(0,calc((var(--relay-day,1) * (var(--n) + .5) - var(--i)) / 1.5),1);
-  display:inline-block;opacity:var(--o);transform:translateX(calc((1 - var(--o)) * -.14em));
+[data-seam="2"].relay-day .t-day {
+  opacity:var(--relay-day,1);
+  transform:translateX(calc((1 - var(--relay-day,1)) * -.14em));
 }
 [data-seam="2"].relay-glint .home-belief::after {
   content:"";position:absolute;z-index:3;pointer-events:none;
@@ -1232,13 +1229,3 @@ html.menu-locked {overflow:hidden}
 .relay-study label {display:flex;align-items:center;gap:8px;cursor:pointer}
 .relay-study input {accent-color:var(--gold)}
 @media(max-width:900px) {[data-seam="2"].relay-ghost .day-ghost {left:calc(32px - .05em)}}
-
-/* 接力的「關於」（2026-09-24 定案）：停拍時掉進「常春藤的一天」句首，之後沉進字行（裁掉，不淡出）。
-   位置每幀由 useRelayDrop 寫 inline transform；只在簾幕動態開啟時出現，減少動態／無 JS 不顯示。 */
-.day-lead {display:none}
-[data-seam="2"] .belief-reveal[data-motion="on"] .day-lead {
-  display:block;position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none;
-  font-family:var(--font-head);font-weight:700;font-size:var(--display-size);line-height:1;letter-spacing:0;white-space:nowrap;
-  color:var(--paper);text-shadow:0 4px 40px rgb(var(--ink) / .25);
-}
-[data-seam="2"] .wm-a {transform-origin:0 0}

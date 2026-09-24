@@ -6,8 +6,7 @@ import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
 import { readMotionViewport } from '~/utils/motionViewport'
 
-// lead：關於區浮水印的「關於」，接力時掉進大標句首再沉下去（useRelayDrop）；aria-hidden 裝飾字，讀屏仍只讀大標。
-const props = defineProps<{ day: DayExperienceContent; lead?: string }>()
+const props = defineProps<{ day: DayExperienceContent }>()
 
 const rootEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
@@ -18,8 +17,6 @@ const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
 const posterReady = ref(false)
 const posterImage = computed(() => responsiveImage(props.day.filmPoster))
-// 「的一天」拆成逐字 span，接力時跟著捲動逐字接上（studio.css 的 .t-day-ch）。
-const dayChars = computed(() => Array.from(props.day.titleParts.day))
 
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
@@ -222,9 +219,8 @@ onUnmounted(() => {
           <header ref="introEl" class="day-intro">
             <span class="eyebrow">{{ day.eyebrow }}<span lang="en">{{ day.eyebrowEn }}</span></span>
             <h2 class="day-title" id="day-heading">
-              <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day"><span v-for="(ch, i) in dayChars" :key="i" class="t-day-ch" :style="{ '--i': i, '--n': dayChars.length }">{{ ch }}</span></span>
+              <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
             </h2>
-            <span v-if="lead" class="day-lead" aria-hidden="true">{{ lead }}</span>
           </header>
           <ol ref="printsEl" class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
             <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" :active="i === activeIndex" />

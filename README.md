@@ -1,3 +1,9 @@
+## 2026-09-24 接力改回原樣：拿掉停拍與「關於」落下
+
+使用者看過上線版（15e3c9d）後，要求改回沒有接力動畫的樣子。回到 09-18 seam=2 原本的接力：擦除線掃過浮水印「常春藤」時變成白色大標，「的一天」整組淡入。拿掉的有停拍、「關於」掉進句首再沉下去、「的一天」逐字。簾幕距離回到桌機 .85 屏、手機 .55 屏。
+
+`studio.css`、`DayExperience.vue`、`useCurtain.ts`、`pages/index.vue` 還原成改之前（cfce2c8）的內容，刪除 `useRelayDrop.ts`；這些檔在 ba6a03e 之後沒有別的 commit 動過。DESIGN.md 最上方改寫為「維持原樣」並列出改回的方向。比稿對照頁與 versions 快照保留作紀錄。
+
 ## 2026-09-24 分校資訊線稿按鈕的白框（iPhone 輪播切換時閃現）
 
 使用者在手機上看到分校資訊的線稿按鈕有白框。線稿是白底圖，靠 `mix-blend-mode:multiply` 融進米白底；`.campus-tab-art` 直接對 `opacity`／`filter` 做 0.2 秒 transition，WebKit（iPhone Safari／Chrome、桌機 Safari）在轉場期間把圖移到獨立合成層，multiply 碰不到底色，露出白底長方形。自動輪播每 4 秒切換，被取消與新選取的兩張就各閃一次；點按觸發的 hover 濾鏡轉場也會閃。桌機 hover 的淡彩層（`.campus-tab-colour`，multiply＋0.35 秒 opacity）同理，淡出時整張線稿被白框蓋住。Chrome 合成方式不同，看不到。
