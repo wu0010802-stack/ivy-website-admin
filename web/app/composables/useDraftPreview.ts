@@ -28,7 +28,7 @@ export interface DraftPreviewResult {
   content: SiteContent | null
 }
 
-type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news'
+type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content'
 const SHARED_KINDS: SharedKind[] = [
   'home_about',
   'home_hero',
@@ -37,7 +37,8 @@ const SHARED_KINDS: SharedKind[] = [
   'home_campus_board',
   'booking_content',
   'day_experience',
-  'home_news'
+  'home_news',
+  'admission_content'
 ]
 type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour'
 const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour']

@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -292,6 +292,173 @@ class HomeNewsPayload(_ContentPayload):
         if len(ids) != len(set(ids)):
             raise ValueError("活動的 id 不可重複")
         return value
+
+
+def _reject_unsafe_strings(node: object) -> None:
+    """巢狀內容一次掃過所有字串，只擋會變成可執行連結的 scheme（同 _reject_unsafe_scheme）。"""
+    if isinstance(node, str):
+        _reject_unsafe_scheme(node)
+    elif isinstance(node, dict):
+        for value in node.values():
+            _reject_unsafe_strings(value)
+    elif isinstance(node, list):
+        for value in node:
+            _reject_unsafe_strings(value)
+
+
+def _nonblank(value: str, message: str) -> str:
+    if not value.strip():
+        raise ValueError(message)
+    return value
+
+
+def _bounded(value: list, low: int, high: int, what: str) -> list:
+    if not low <= len(value) <= high:
+        raise ValueError(f"{what}需為 {low}–{high} 項" if low else f"{what}最多 {high} 項")
+    return value
+
+
+class AdmissionStepPayload(_ContentPayload):
+    when: str
+    title: str
+    text: str
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, value: str) -> str:
+        return _nonblank(value, "步驟標題不可空白")
+
+
+class AdmissionPhasePayload(_ContentPayload):
+    tag: str
+    title: str
+    items: list[str]
+    tips: list[str]
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, value: str) -> str:
+        return _nonblank(value, "階段標題不可空白")
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, value: list[str]) -> list[str]:
+        return _bounded([v for v in value if v.strip()], 0, 20, "必備品")
+
+    @field_validator("tips")
+    @classmethod
+    def _tips(cls, value: list[str]) -> list[str]:
+        return _bounded([v for v in value if v.strip()], 0, 12, "提醒")
+
+
+class AdmissionUniformDayPayload(_ContentPayload):
+    day: str
+    wear: str
+
+
+class AdmissionSubsidyPayload(_ContentPayload):
+    amount: str
+    unit: str
+    who: str
+    by: str
+
+    @field_validator("amount")
+    @classmethod
+    def _amount(cls, value: str) -> str:
+        return _nonblank(value, "補助金額不可空白")
+
+
+class AdmissionAllowancePayload(_ContentPayload):
+    order: str
+    amount: str
+
+
+class AdmissionRefundGroupPayload(_ContentPayload):
+    label: str
+    lines: list[str]
+
+    @field_validator("lines")
+    @classmethod
+    def _lines(cls, value: list[str]) -> list[str]:
+        return _bounded([v for v in value if v.strip()], 1, 12, "每組退費說明")
+
+
+class AdmissionRefundPayload(_ContentPayload):
+    title: str
+    groups: list[AdmissionRefundGroupPayload]
+    note: str
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, value: str) -> str:
+        return _nonblank(value, "退費情況標題不可空白")
+
+    @field_validator("groups")
+    @classmethod
+    def _groups(cls, value: list[AdmissionRefundGroupPayload]) -> list[AdmissionRefundGroupPayload]:
+        return _bounded(value, 1, 6, "退費說明組")
+
+
+class AdmissionContentPayload(_ContentPayload):
+    """入學資訊頁（/admission）。區塊大標寫在官網程式裡（標題字型子集），
+    這裡只放園方會改的內容：金額、步驟、須知、退費規定。分班對照由官網依
+    生日規則計算，不存資料。"""
+
+    # 有值時頁面頂端顯示這行提醒（例如「金額以各校公告為準」）；清空就不顯示。
+    notice: str
+    intro: str
+    steps: list[AdmissionStepPayload]
+    phases: list[AdmissionPhasePayload]
+    uniform_week: list[AdmissionUniformDayPayload]
+    uniform_note: str
+    pickup_notes: list[str]
+    registration_notes: list[str]
+    fee_intro: str
+    subsidies: list[AdmissionSubsidyPayload]
+    allowance_title: str
+    allowance: list[AdmissionAllowancePayload]
+    allowance_note: str
+    refunds: list[AdmissionRefundPayload]
+
+    @field_validator("steps")
+    @classmethod
+    def _steps(cls, value: list[AdmissionStepPayload]) -> list[AdmissionStepPayload]:
+        return _bounded(value, 1, 10, "入學步驟")
+
+    @field_validator("phases")
+    @classmethod
+    def _phases(cls, value: list[AdmissionPhasePayload]) -> list[AdmissionPhasePayload]:
+        return _bounded(value, 0, 4, "入園階段")
+
+    @field_validator("uniform_week")
+    @classmethod
+    def _week(cls, value: list[AdmissionUniformDayPayload]) -> list[AdmissionUniformDayPayload]:
+        return _bounded(value, 0, 7, "每週穿著")
+
+    @field_validator("pickup_notes", "registration_notes")
+    @classmethod
+    def _notes(cls, value: list[str]) -> list[str]:
+        return _bounded([v for v in value if v.strip()], 0, 8, "說明")
+
+    @field_validator("subsidies")
+    @classmethod
+    def _subsidies(cls, value: list[AdmissionSubsidyPayload]) -> list[AdmissionSubsidyPayload]:
+        return _bounded(value, 0, 6, "補助項目")
+
+    @field_validator("allowance")
+    @classmethod
+    def _allowance(cls, value: list[AdmissionAllowancePayload]) -> list[AdmissionAllowancePayload]:
+        return _bounded(value, 0, 6, "育兒津貼")
+
+    @field_validator("refunds")
+    @classmethod
+    def _refunds(cls, value: list[AdmissionRefundPayload]) -> list[AdmissionRefundPayload]:
+        return _bounded(value, 0, 10, "退費情況")
+
+    @model_validator(mode="after")
+    def _no_script_scheme(self) -> "AdmissionContentPayload":
+        _reject_unsafe_strings(self.model_dump())
+        return self
 
 
 class CampusProfilePayload(_ContentPayload):

@@ -210,6 +210,32 @@ export interface SiteMetaContent {
   socialLinks?: { platform: 'facebook' | 'line'; label: string; url: string }[]
 }
 
+export interface AdmissionStep { when: string; title: string; text: string }
+export interface AdmissionPhase { tag: string; title: string; items: string[]; tips: string[] }
+export interface AdmissionUniformDay { day: string; wear: string }
+export interface AdmissionSubsidy { amount: string; unit: string; who: string; by: string }
+export interface AdmissionAllowance { order: string; amount: string }
+export interface AdmissionRefundGroup { label: string; lines: string[] }
+export interface AdmissionRefund { title: string; groups: AdmissionRefundGroup[]; note: string }
+
+/** 入學資訊頁（/admission）。後台 kind：admission_content。 */
+export interface AdmissionContent {
+  notice: string
+  intro: string
+  steps: AdmissionStep[]
+  phases: AdmissionPhase[]
+  uniformWeek: AdmissionUniformDay[]
+  uniformNote: string
+  pickupNotes: string[]
+  registrationNotes: string[]
+  feeIntro: string
+  subsidies: AdmissionSubsidy[]
+  allowanceTitle: string
+  allowance: AdmissionAllowance[]
+  allowanceNote: string
+  refunds: AdmissionRefund[]
+}
+
 export interface SiteContent {
   schemaVersion: string
   isDemo: boolean
@@ -217,6 +243,7 @@ export interface SiteContent {
   dayExperience: DayExperienceContent
   campuses: Campus[]
   news: NewsContent
+  admission: AdmissionContent
   booking: BookingContent
   footer: FooterContent
   siteMeta: SiteMetaContent

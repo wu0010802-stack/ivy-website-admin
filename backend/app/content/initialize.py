@@ -29,6 +29,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         # 原樣帶入原型的示意消息與 sampleNote：上線畫面不變（仍標「示意內容」），
         # 園方在後台換成真實消息、清空示意說明後才拿掉標示。
         ("home_news", None, _copy_fields(data["news"], "home_news")),
+        # 入學資訊頁：舊官網「常春藤入學」四個分頁移植來的內容（2026-09-24）。
+        ("admission_content", None, _copy_fields(data["admission"], "admission_content")),
     ]
     meta = data["siteMeta"]
     entries.append(("site_meta", None, {

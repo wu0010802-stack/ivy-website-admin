@@ -1,3 +1,32 @@
+## 2026-09-24 入學資訊頁上線版：內容進後台、選單入口、補字
+
+接續同日的 mock-up，使用者確認後改為正式頁面：內容由後台管理，頁面接上選單並開放索引，頁面上方保留「金額以各校公告為準」提醒，等園方確認金額後在後台清空。
+
+- 後端：新增共用內容 `admission_content`（只有 super_admin 能編）：頁面提醒、介紹、入學步驟（1–10）、新生入園階段（必備品、提醒）、每週穿著、接送與註冊須知、補助、育兒津貼、退費規定（每種情況 1–6 組條文）。所有巢狀字串都擋 `javascript:` 等 scheme，清單裡的空白項目直接略過。`initialize-content` 從 fixture 帶入，初始化筆數 19→20。不需要 migration，OpenAPI 契約不變。
+- 官網：`/admission` 改讀發布內容（沒發布過就用 fixture 同一份）；草稿預覽支援 `admission_content`。拿掉 noindex，加 canonical、WebPage＋麵包屑結構化資料，sitemap 與 llms.txt 列入。分班計算移到 `web/app/utils/admission-classes.ts`，用台北日期算學年度。主選單、手機選單、頁尾加「入學資訊」。
+- 後台：「全站與素材 → 入學資訊頁」編輯頁；清單類文字一行一項，步驟與退費情況可上下移，步驟／階段標題有缺字提示，發布後「查看官網」開 `/admission`。
+- 字型：LINE Seed Bold 補 12 字重切（見 `web/public/assets/fonts/README.md`），hero 大標另切 8 字明體子集。
+- 選單變五項後 901–915px 預約鈕被擠出 11px，901–1000px 選單間距改 14px。
+
+驗證：
+- 後端 pytest 全部通過（新增 `test_admission_content.py`），`npm run contract:check` 通過
+- web vitest 26 檔通過（新增 `admission.spec.ts`），`nuxt typecheck` 無錯誤，`nuxt build` 通過
+- admin vitest 16 檔通過（新增 `admissionContent.test.ts`），`vue-tsc` 無錯誤，`vite build` 通過
+- 本機 PostgreSQL＋API＋live 模式官網＋後台實跑：`initialize-content` 建 20 筆；Chromium 登入後台改訂位金、加必備品、清空提醒並發布，官網 `/admission` 立即反映；步驟標題清空時後台顯示「步驟標題不可空白」；缺字提示正確（本機後台與官網不同源，用瀏覽器攔截補 CORS 測，正式站同源不受影響）
+- 901–1100px 首頁、分校頁、預約頁、入學資訊頁皆無水平捲動；390px 手機選單第 05 項為入學資訊
+
+未驗證：正式站（需部署後跑 `initialize-content`，見 `deploy/README.md`）、Safari、真實搜尋引擎收錄。
+
+## 2026-09-24 入學資訊頁 mock-up（/admission）
+
+把舊官網「常春藤入學」四個子頁（寶貝入學流程、新生入園須知、收退費辦法、分班表）的內容搬到新官網，套用分校頁的版面。新增 `web/app/pages/admission.vue` 與 `web/app/assets/css/admission.css`，路徑 `/admission`，`noindex`、未加進主選單，內容先寫死在頁面。
+
+- 四段：六步入學流程、新生入學二部曲（必備品可勾選、每週服裝、接送、註冊須知）、補助與退費規定、分班對照（輸入生日列出每年班級，出生區間表依今天日期推算學年度）。
+- 舊站圖片與彈出視窗裡的文字已逐一取出，盤點、要園方確認的金額與已知待辦見 `design/admission-mockup-20260924/README.md`。
+- 標題字型子集缺 14 字，目前退回系統字，定案後再補字。
+
+驗證：`nuxt typecheck` 無錯誤；fixture 模式本機 Chromium 1440／390 截圖，分班計算用舊海報對照核對。
+
 ## 2026-09-24 安全掃描報告修補
 
 依安全掃描報告（30 項）修補官網後台；逐項對照見 PR 說明。重點：

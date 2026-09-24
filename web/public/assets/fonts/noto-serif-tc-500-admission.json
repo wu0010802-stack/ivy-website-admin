@@ -1,0 +1,10 @@
+{
+  "family": "Noto Serif TC",
+  "weight": 500,
+  "characters": "一到參學從步觀開",
+  "usedBy": "web/app/pages/admission.vue 入學資訊頁大標「從參觀到開學，一步一步來。」（「，。來」在 noto-serif-tc-500-visit.woff）",
+  "cssSource": "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500&text=%E4%B8%80%E5%88%B0%E5%8F%83%E5%AD%B8%E5%BE%9E%E6%AD%A5%E8%A7%80%E9%96%8B&display=swap",
+  "licenseSource": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoseriftc/OFL.txt",
+  "license": "同目錄 noto-serif-tc-500-campus-OFL.txt（同一字型家族）",
+  "unicodeRange": "U+4E00,U+5230,U+53C3,U+5B78,U+5F9E,U+6B65,U+89C0,U+958B"
+}

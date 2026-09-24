@@ -1,4 +1,4 @@
-import type { SiteContent } from '~/types/site-content'
+import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, SiteContent } from '~/types/site-content'
 import { newsMonth } from './news-content'
 
 export interface LiveHomeAbout {
@@ -87,6 +87,23 @@ export interface LiveHomeNews {
   events: LiveNewsEvent[]
 }
 
+export interface LiveAdmissionContent {
+  notice: string
+  intro: string
+  steps: AdmissionStep[]
+  phases: AdmissionPhase[]
+  uniform_week: AdmissionUniformDay[]
+  uniform_note: string
+  pickup_notes: string[]
+  registration_notes: string[]
+  fee_intro: string
+  subsidies: AdmissionSubsidy[]
+  allowance_title: string
+  allowance: AdmissionAllowance[]
+  allowance_note: string
+  refunds: AdmissionRefund[]
+}
+
 export interface LiveCampusProfile {
   name: string
   district: string
@@ -132,6 +149,7 @@ export interface ContentOverlay {
   booking_content?: LiveBookingContent | null
   day_experience?: LiveDayExperience | null
   home_news?: LiveHomeNews | null
+  admission_content?: LiveAdmissionContent | null
   // 這兩種是每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
@@ -268,6 +286,27 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       sampleNote: news.sample_note,
       articles: news.articles.map((a) => ({ ...a })),
       events: news.events.map((e) => ({ ...e, month: newsMonth(e.date) }))
+    }
+  }
+
+  if (overlay.admission_content) {
+    // 整組取代：後台一次送出完整內容；巢狀欄位名稱兩邊相同，只有頂層要轉 camelCase。
+    const a = overlay.admission_content
+    next.admission = {
+      notice: a.notice,
+      intro: a.intro,
+      steps: a.steps.map((x) => ({ ...x })),
+      phases: a.phases.map((x) => ({ ...x, items: [...x.items], tips: [...x.tips] })),
+      uniformWeek: a.uniform_week.map((x) => ({ ...x })),
+      uniformNote: a.uniform_note,
+      pickupNotes: [...a.pickup_notes],
+      registrationNotes: [...a.registration_notes],
+      feeIntro: a.fee_intro,
+      subsidies: a.subsidies.map((x) => ({ ...x })),
+      allowanceTitle: a.allowance_title,
+      allowance: a.allowance.map((x) => ({ ...x })),
+      allowanceNote: a.allowance_note,
+      refunds: a.refunds.map((r) => ({ ...r, groups: r.groups.map((g) => ({ ...g, lines: [...g.lines] })) }))
     }
   }
 

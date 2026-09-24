@@ -1232,3 +1232,6 @@ html.menu-locked {overflow:hidden}
 .relay-study label {display:flex;align-items:center;gap:8px;cursor:pointer}
 .relay-study input {accent-color:var(--gold)}
 @media(max-width:900px) {[data-seam="2"].relay-ghost .day-ghost {left:calc(32px - .05em)}}
+
+/* 2026-09-24 選單加「入學資訊」成五項：901–1000px 的間距 20→14px，否則 901–915px 預約鈕被推出視窗 11px。 */
+@media(min-width:901px) and (max-width:1000px){.nav-inner{gap:14px}}

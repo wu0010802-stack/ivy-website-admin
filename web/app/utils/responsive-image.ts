@@ -11,6 +11,9 @@ interface ImageInfo { width: number; height: number; candidates: { src: string; 
  */
 export const HOME_HERO_SIZES = '100vw'
 
+/** 入學資訊頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+export const ADMISSION_HERO_IMAGE = 'day-hello'
+
 export function responsiveImage(name: string, sizes = '100vw') {
   // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，
   // 一般物件會查到原型，接著 candidates.map 丟例外讓整頁渲染失敗。

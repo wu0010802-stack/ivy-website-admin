@@ -33,6 +33,12 @@ Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold�
 - 原始檔可從 `https://seed.line.me/src/images/fonts/LINE_Seed_TW.zip` 下載（ver02，OFL 1.1，含 OTF／TTF／WOFF2）；與本目錄 725 字子集逐字比對字寬 0 差異，可直接拿來補字重切。
 - 原始字型的 `halt` 只涵蓋「」『』（），「，」「。」是置中字形（墨色約 0.40–0.59em），換原始檔也無法靠字型收逗號句號。括號的 halt 值：「 XPlacement −320／XAdvance −500、（ −283／−500；`web/app/utils/paperPrints.ts` 的 canvas 標題照這組數值收行首括號，換標題字型時要重查。
 
+## 入學資訊頁補字（2026-09-24）
+
+- `lineseed-bd.woff`／`.woff2` 改由 `LINE_Seed_TW.zip`（ver02）的 `LINESeedTW_OTF_Bd.otf` 重切：原 725 字＋入學資訊頁用到的 12 字（二冊囉寶曲月楚註貝退遲部），共 737 字；既有 725 字的字寬逐字比對與舊檔相同。`chars-bd.txt` 同步（新字附在最後），後台缺字提示讀的就是這份。之後的 critical／remaining 切片同樣由 `scripts/subset-critical-fonts.py` 重跑產生，舊 hash 檔已刪。
+- 重切指令（fontTools）：`Subsetter(layout_features=['*'], hinting=False, desubroutinize=True)`，`font.flavor` 設為 `woff`／`woff2` 後存檔（flavor 要設在 TTFont 上，設在 Options 會輸出未壓縮檔）。
+- `noto-serif-tc-500-admission.woff`（8 字：一到參學從步觀開）給入學資訊頁 hero 大標「從參觀到開學，一步一步來。」，「，。來」由 visit 子集提供；來源記在 `noto-serif-tc-500-admission.json`，宣告在 `typography.css`。
+
 ## 分校區塊明體（2026-09-22）
 
 - `noto-serif-tc-500-campus.woff`：Noto Serif TC 500，CSS 名稱為 `Ivy Campus Serif`；原本只給 `CampusBoard.vue` 的中文區塊標題和校名，2026-09-23 起分校頁校名也共用（見上節）。

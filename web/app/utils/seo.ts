@@ -19,6 +19,28 @@ export function ogImagePath(imageName: string): string {
   return `/assets/og/${imageName}.jpg`
 }
 
+/** 公開的單頁（非分校頁）：目前只有入學資訊。 */
+export type StaticPage = 'admission'
+export const ADMISSION_PATH = '/admission'
+
+/** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
+export function admissionSeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `入學資訊｜入學流程、新生須知、收退費與分班｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園入學流程、新生入園須知、收退費辦法與補助，並可依寶貝生日查詢就讀班級。'
+  const canonical = origin ? `${origin}${ADMISSION_PATH}` : undefined
+  const imagePath = ogImagePath(site.home.hero.heroImage)
+  const image = origin ? `${origin}${imagePath}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '入學資訊', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath, imageAlt: site.home.hero.heroImageAlt, graph }
+}
+
 export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const title = campus ? `${campus.name}｜高雄${campus.district}｜${site.siteMeta.brandName}` : site.siteMeta.title
@@ -66,7 +88,7 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
 
 export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
+  const urls = ['/', ADMISSION_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
 
@@ -87,6 +109,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}；常見問題見 ${campusUrl(c)}#faq`),
     ''
   ]
+  out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')
   return out.join('\n')
 }

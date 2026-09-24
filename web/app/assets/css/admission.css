@@ -1,0 +1,145 @@
+/* 入學資訊（2026-09-24）。顏色一律走既有 token；字級只用 typography.css 的 --fs-*。 */
+
+.admission-hero { min-height: 440px; }
+.admission-hero h1 { font-size: clamp(2.25rem, 4vw, var(--fs-7xl)); letter-spacing: .04em; line-height: 1.35; }
+
+.admission-subnav { position: sticky; top: 92px; z-index: 5; }
+.admission-subnav a { font-weight: 500; color: var(--green); }
+.admission-subnav a:hover { color: var(--leaf); }
+
+.admission-notice { margin-top: 24px; padding: 14px 20px; border-left: 3px solid var(--gold); background: var(--cream); border-radius: 0 5px 5px 0; font-size: var(--fs-sm); color: var(--text); max-width: none; }
+
+.admission .section-title { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* ── 入學流程 ── */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--step-count, 6), minmax(0, 1fr)); gap: 0; }
+.steps li { position: relative; padding: 0 20px 0 0; }
+.steps li::before { content: ''; position: absolute; top: 23px; left: 48px; right: 0; height: 1px; background: var(--line); }
+.steps li:last-child::before, .steps li:nth-child(6n)::before { display: none; }
+.step-no { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--green); color: var(--paper); font-family: var(--font-en, var(--font)); font-size: var(--fs-md); font-weight: 600; letter-spacing: .04em; }
+.steps li:last-child .step-no { background: var(--yellow); color: var(--deep); }
+.steps small { display: block; margin-top: 20px; font-size: var(--fs-xs); color: var(--leaf); letter-spacing: .08em; }
+.steps h3 { margin-top: 6px; font-size: var(--fs-xl); }
+.steps p { margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); line-height: 1.9; }
+
+/* ── 新生入園須知 ── */
+.phase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.phase { background: var(--paper); border-radius: 5px; padding: 36px; }
+.phase header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.phase-tag { font-size: var(--fs-sm); font-weight: 600; color: var(--leaf); letter-spacing: .12em; }
+.phase h3 { font-size: var(--fs-2xl); }
+.bring { border: 0; margin: 24px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.bring legend { width: 100%; padding: 0; margin-bottom: 12px; font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
+.bring label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--white); cursor: pointer; font-size: var(--fs-sm); transition: background-color .2s, border-color .2s; }
+.bring label:has(input:checked) { background: var(--studio-sage); border-color: var(--leaf); color: var(--green); }
+.bring label:has(input:checked) span { text-decoration: line-through; text-decoration-color: var(--leaf); }
+.bring input { accent-color: var(--green); width: 16px; height: 16px; margin: 0; }
+.tips { margin: 28px 0 0; padding: 0; list-style: none; counter-reset: tip; }
+.tips li { counter-increment: tip; display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); font-size: var(--fs-md); line-height: 1.9; }
+.tips li::before { content: counter(tip); font-family: var(--font-en, var(--font)); color: var(--leaf); font-weight: 600; }
+
+.newcomer-more { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 32px; margin-top: 32px; }
+.info-card { background: var(--paper); border-radius: 5px; padding: 32px; }
+.info-card h3 { font-size: var(--fs-xl); margin-bottom: 16px; }
+.info-card p { font-size: var(--fs-sm); color: var(--muted); line-height: 1.95; }
+.info-card p + p { margin-top: 10px; }
+.info-card strong { color: var(--green); }
+.info-sub { margin-top: -8px; }
+.week { list-style: none; margin: 20px 0 0; padding: 0; display: grid; grid-template-columns: repeat(var(--day-count, 5), minmax(0, 1fr)); gap: 6px; }
+.week li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 4px; border-radius: 4px; background: var(--cream); text-align: center; }
+.week small { font-size: var(--fs-xs); color: var(--muted); }
+.week strong { font-size: var(--fs-md); color: var(--green); }
+.week li[data-wear='運動服'] { background: var(--studio-sage); }
+.week li[data-wear='便服'] { background: var(--yellow); }
+.week li[data-wear='便服'] strong { color: var(--deep); }
+
+/* ── 收退費辦法 ── */
+.subsidy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.subsidy { display: flex; flex-direction: column; gap: 10px; padding: 28px; border: 1px solid var(--line); border-radius: 5px; background: var(--white); }
+.subsidy small { font-size: var(--fs-sm); color: var(--muted); }
+.subsidy > strong { font-family: var(--font-head); font-size: var(--fs-5xl); line-height: 1.1; color: var(--green); letter-spacing: .02em; }
+.subsidy strong span, .allowance dd span { margin-left: 6px; font-family: var(--font); font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
+.subsidy p { font-size: var(--fs-sm); color: var(--text); }
+.allowance { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 3fr; align-items: center; column-gap: 32px; background: var(--studio-sage); border-color: transparent; }
+.allowance small { color: var(--green); font-weight: 600; font-size: var(--fs-md); }
+.allowance p { grid-column: 1; grid-row: 2; }
+.allowance dl { grid-column: 2; grid-row: 1 / span 2; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.allowance dl { margin: 0; display: grid; }
+.allowance dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.allowance dt { font-size: var(--fs-sm); color: var(--green); font-weight: 600; }
+.allowance dd { margin: 0; font-family: var(--font-head); font-size: var(--fs-2xl); font-weight: 700; color: var(--green); }
+.allowance p { font-size: var(--fs-xs); color: var(--muted); }
+
+.refund-grid { margin-top: 72px; }
+.refund-title { font-size: var(--fs-3xl); }
+.refund-list summary { font-size: var(--fs-lg); }
+.refund-body { display: grid; gap: 18px; margin-top: 16px; padding-right: 24px; }
+.refund-group h4 { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--leaf); font-weight: 600; letter-spacing: .08em; }
+.refund-group ul { margin: 0; padding-left: 1.2em; color: var(--muted); line-height: 1.95; }
+.refund-note { font-size: var(--fs-sm); color: var(--green); }
+
+/* ── 分班對照 ── */
+.class-grid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 32px; align-items: start; }
+.class-finder { background: var(--green); color: var(--paper); border-radius: 5px; padding: 36px; }
+.class-finder label { display: block; font-size: var(--fs-sm); font-weight: 600; color: var(--yellow); letter-spacing: .1em; margin-bottom: 12px; }
+.class-finder input { width: 100%; min-height: 52px; padding: 10px 16px; border: 0; border-radius: 4px; background: var(--paper); color: var(--text); font-size: var(--fs-lg); }
+.finder-result { margin-top: 28px; }
+.finder-summary { font-family: var(--font-head); font-size: var(--fs-2xl); font-weight: 700; line-height: 1.5; }
+.finder-empty { color: var(--mint); font-size: var(--fs-sm); }
+.finder-years { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 6px; }
+.finder-years li { display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 4px; border: 1px solid var(--trail); font-size: var(--fs-sm); }
+.finder-years li strong { font-size: var(--fs-md); }
+.finder-years li.past { opacity: .55; }
+.finder-years li.current { background: var(--yellow); border-color: var(--yellow); color: var(--deep); }
+
+.class-table-wrap { background: var(--paper); border-radius: 5px; padding: 12px 28px 20px; overflow-x: auto; }
+.class-table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
+.class-table caption { text-align: left; padding: 16px 0 8px; font-size: var(--fs-sm); color: var(--muted); }
+.class-table th, .class-table td { padding: 16px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.class-table tbody tr:last-child > * { border-bottom: 0; }
+.class-table thead th { font-size: var(--fs-sm); color: var(--green); font-weight: 600; white-space: nowrap; }
+.class-table tbody th { color: var(--green); font-weight: 700; white-space: nowrap; }
+.class-table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.class-table small { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--muted); font-weight: 400; }
+.class-table thead small { color: var(--leaf); }
+
+@media (max-width: 1100px) {
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 40px; }
+  .steps li:nth-child(6n)::before { display: block; }
+  .steps li:nth-child(3n)::before, .steps li:last-child::before { display: none; }
+  .allowance { grid-template-columns: 1fr; row-gap: 12px; }
+  .allowance p, .allowance dl { grid-column: 1; grid-row: auto; }
+  .newcomer-more { grid-template-columns: 1fr 1fr; }
+  .newcomer-more > :first-child { grid-column: 1 / -1; }
+  .class-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+  .admission-subnav { position: static; }
+}
+
+@media (max-width: 760px) {
+  .admission-hero { min-height: 400px; }
+  .admission-hero h1 { font-size: var(--fs-4xl); }
+  .steps { grid-template-columns: 1fr; row-gap: 0; }
+  .steps li { display: grid; grid-template-columns: 48px 1fr; column-gap: 16px; padding: 0 0 28px; }
+  .steps li::before, .steps li:nth-child(3n)::before { display: block; top: 48px; bottom: 0; left: 23px; right: auto; width: 1px; height: auto; }
+  .steps li:last-child::before { display: none; }
+  .step-no { grid-row: span 3; }
+  .steps small { margin-top: 2px; }
+  .phase-grid, .newcomer-more, .subsidy-grid { grid-template-columns: 1fr; gap: 20px; }
+  .phase, .info-card, .class-finder { padding: 24px 20px; }
+  .phase h3 { font-size: var(--fs-xl); }
+  .week strong { font-size: var(--fs-sm); }
+  .subsidy { padding: 22px; }
+  .allowance dl { grid-template-columns: 1fr; gap: 0; }
+  .subsidy > strong { font-size: var(--fs-4xl); }
+  .refund-grid { margin-top: 48px; }
+  .refund-title { font-size: var(--fs-2xl); }
+  .refund-list summary { font-size: var(--fs-md); }
+  .refund-body { padding-right: 0; }
+  .class-table-wrap { padding: 8px 16px 12px; }
+  .class-table { font-size: var(--fs-sm); }
+  .class-table th, .class-table td { padding: 12px 8px; }
+  .finder-summary { font-size: var(--fs-xl); }
+}
