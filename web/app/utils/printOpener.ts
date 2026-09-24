@@ -6,6 +6,8 @@
  * 載入當下已在畫面內（錨點、回上一頁、捲動還原）就不做，免得正面一閃變背面；
  * 減少動態時停在背面等讀者自己點（DayMomentCard.vue 判斷）。
  */
+import { FLIP_MS } from './printFlip'
+
 export const OPENER_DELAY_MS = 800
 /** 沿用舊首張偷看的 key：這個工作階段示範過（或已看過舊的偷看）就不再做。 */
 export const OPENER_KEY = 'ivy-day-peek'
@@ -22,6 +24,14 @@ export function seenEnough(top: number, bottom: number, viewHeight: number): boo
 /** 有任何一部分在畫面內。 */
 export function onScreen(top: number, bottom: number, viewHeight: number): boolean {
   return bottom > 0 && top < viewHeight
+}
+
+/**
+ * 自己翻開的途中被點（距離翻開 sinceOpenMs）：這一下不算。讀者要的就是翻過去，
+ * 照一般「翻到一半再點就原路翻回」會把照片翻回背面。
+ */
+export function tapDuringOpen(sinceOpenMs: number): boolean {
+  return sinceOpenMs >= 0 && sinceOpenMs < FLIP_MS
 }
 
 /** 要不要背面朝上等讀者：只有第一張、這個工作階段還沒示範過、載入當下不在畫面內。 */
