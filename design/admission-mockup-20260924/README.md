@@ -2,6 +2,8 @@
 
 舊官網「常春藤入學 Admission」（ivykidschool.com，Wix）移植到新官網的第一版示意。頁面在 `web/app/pages/admission.vue`，路徑 `/admission`，`noindex`、未加進主選單。
 
+可直接開啟的單檔：`admission-mockup.html`（字型、圖片都內嵌，生日查詢用一段小程式重現；站內連結不會跳頁）。
+
 截圖：`admission-desktop-1440.png`、`admission-mobile-390.png`（已填生日 2022/5/10、展開第二條退費規定、勾一項必備品）。
 
 ## 舊站內容盤點
