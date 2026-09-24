@@ -1044,6 +1044,89 @@
         "title": "SiteSettingsUpdate",
         "type": "object"
       },
+      "TelemetryIn": {
+        "additionalProperties": false,
+        "description": "與 web/shared/telemetry.ts 的 validateTelemetry 同一套規則：web 端先驗過、\n這裡再驗一次，因為同源代理讓任何人都能直接打到這支公開端點。",
+        "properties": {
+          "campus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yihua",
+                  "minghua",
+                  "chongde",
+                  "international",
+                  "renwu"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus"
+          },
+          "device": {
+            "enum": [
+              "mobile",
+              "desktop"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "page_view",
+              "visit_click",
+              "LCP",
+              "INP",
+              "CLS"
+            ],
+            "title": "Event",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "page": {
+            "enum": [
+              "home",
+              "campus",
+              "visit"
+            ],
+            "title": "Page",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "event",
+          "page",
+          "campus",
+          "device"
+        ],
+        "title": "TelemetryIn",
+        "type": "object"
+      },
       "TokenExchangeRequest": {
         "properties": {
           "token": {
@@ -1880,6 +1963,85 @@
           }
         },
         "summary": "Get Analytics Funnel",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/traffic": {
+      "get": {
+        "operationId": "get_traffic_api_website_v1_admin_analytics_traffic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Traffic Api Website V1 Admin Analytics Traffic Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Traffic",
         "tags": [
           "operations"
         ]
@@ -5807,6 +5969,40 @@
         "summary": "List Public Slots",
         "tags": [
           "booking"
+        ]
+      }
+    },
+    "/api/website/v1/public/telemetry": {
+      "post": {
+        "operationId": "record_telemetry_api_website_v1_public_telemetry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Telemetry",
+        "tags": [
+          "operations"
         ]
       }
     },

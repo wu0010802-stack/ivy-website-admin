@@ -1,3 +1,27 @@
+## 2026-09-24 官網瀏覽量與網頁速度存進資料庫，後台「數據」頁可看
+
+體檢報告「數據分析」一項：原本瀏覽量與 LCP／INP／CLS 只印在 web 的日誌，沒有存下來。
+
+- 後端：migration `b7d2e4f1a903` 新增兩張表。
+  - `page_view_daily`：依台北日期、頁面、校區、裝置累計成一列。
+  - `web_vital_samples`：每個指標一筆樣本，以瀏覽器端的隨機 id upsert，保留 90 天，每個程序每天清一次。
+  - 不存 IP、cookie、完整網址或任何訪客識別。
+- 新公開端點 `POST /public/telemetry`：驗證規則跟 `web/shared/telemetry.ts` 同一套，多的欄位一律拒收；每個來源每分鐘最多 120 筆，超過回 429。`visit_click` 只留在日誌裡，不存。
+- 新後台端點 `GET /admin/analytics/traffic?days=7–90`：回傳瀏覽總數、每日數字、各頁、裝置，以及各指標依裝置分開的 p75 與 Google 門檻評等。登入的帳號都能看。
+- web：`/api/telemetry` 原本的來源檢查、限流、日誌都保留，驗證通過後轉存到 API，並附上訪客 IP 給 API 限流用（IP 不入庫）。API 不通時照樣回 204。
+- 後台：「數據」頁最上方新增「官網瀏覽與速度」，可選近 7／28／90 天，內容有瀏覽次數、今天、手機比例、各頁瀏覽長條，以及速度表（主畫面出現／點擊反應／版面跳動，附評等與樣本數）。原本的預約漏斗移到下方「各校預約」。
+- 契約用 `npm run contract:generate` 重新產生。
+
+驗證：
+- 後端 pytest：209 passed、1 skipped，新增 `test_traffic.py` 15 項
+- `deploy/check_schema.py`：`Database schema ready: b7d2e4f1a903`
+- `npm run contract:check` 通過
+- web vitest 191 passed，`nuxt typecheck` 無錯誤
+- admin vitest 65 passed，`vue-tsc` 無錯誤
+- 本機實跑 API＋live web（開 telemetry）＋後台：Chromium 以手機、電腦各逛首頁、義華、仁武、預約頁，資料庫得到 8 列瀏覽、LCP／INP／CLS 樣本，後台「數據」頁顯示正確
+
+正式站還沒跑 migration，所以正式站目前不會存資料（見 `deploy/README.md`）。
+
 ## 2026-09-24 最新消息與活動搬進後台（home_news）
 
 體檢報告優先第 1 件的後半：首頁「最新消息」「近期活動」原本寫死在 fixture，後台改不到。

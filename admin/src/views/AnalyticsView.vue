@@ -5,6 +5,7 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 
 const { visibleCampusKeys, selected: campusKey } = useCampusScope()
 const funnel = ref<Record<string, number> | null>(null)
@@ -51,7 +52,11 @@ const stages = computed(() => {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="各校參觀需求、預約確認與完成參觀的累計紀錄，協助掌握家長從詢問到到訪的情況。" />
+    <PageHeader lead="官網瀏覽量與網頁速度，以及各校參觀需求、預約確認與完成參觀的累計紀錄，協助掌握家長從看網站到到訪的情況。" />
+
+    <SiteTrafficPanel />
+
+    <h2 class="analytics__section-title">各校預約</h2>
 
     <div class="filter-bar">
       <label class="filter-field"><span>查看校區</span><CampusSelect v-model="campusKey" :keys="visibleCampusKeys" /></label>
@@ -89,6 +94,11 @@ const stages = computed(() => {
 </template>
 
 <style scoped>
+.analytics__section-title {
+  margin: 28px 0 12px;
+  font-size: 16px;
+}
+
 .funnel {
   list-style: none;
   margin: 0;
