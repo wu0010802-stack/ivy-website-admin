@@ -34,6 +34,9 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
+| api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
+| api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
+| api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
@@ -64,6 +67,12 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - 後台登入的帳號桶只在密碼錯誤時累計，且正確密碼一律放行，任何人都無法
   用連續錯誤密碼把管理者鎖在門外；來源桶 5 分鐘 100 次。
 
+2026-09-24 起限流計數存在 PostgreSQL 的 `rate_limit_counters`（migration
+`7f0680b2eb47`），不再放在各 process 記憶體：多個 uvicorn worker 或 api 副本共用
+同一組上限，重新部署也不會歸零。key（手機、email、訪客 IP）以
+`WEBSITE_SESSION_SECRET` 做 HMAC 後才存，不留明文；換 session secret 等於
+所有限流計數歸零。過期的列由 api 內建背景工作清除（見下一節）。
+
 **這個 header 只有在 api 不直接對外時才可信任**（目前 api 無公開 domain，
 符合此前提）。若日後把 api 直接暴露到公網，必須先拿掉這個設定或改成解析
 可信任的 `X-Forwarded-For` 尾段，否則任何人都能偽造訪客 IP 繞過限流。
@@ -83,6 +92,59 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 權限、分校是否啟用、素材是否就緒），並可用 `WEBSITE_SMTP_*` 設定真實寄信
 （細節見 `docs/website-admin/operations.md`）。本次改動沒有碰正式站設定；
 正式站是否已有 cron 呼叫這個指令、是否要設 SMTP secret，需上線前在 Railway 確認。
+
+**2026-09-24 起 api 自己定期跑這些工作**（`app/workers/maintenance.py`，production
+預設每 60 秒一輪），不需要 Railway cron：repo 與部署設定裡從來沒有呼叫這個指令
+的排程，排程發布與通知在正式站上其實都沒有動過。部署後確認
+`/api/website/v1/health` 的 `background_jobs.enabled` 為 true、`last_completed_at`
+有在更新。要關掉時設 `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS=0`。若 Railway
+後台另外設過 cron 也無妨：同一時間只會有一輪（advisory lock），後到者跳過。
+上線後第一輪會把累積在 outbox 的舊訊息處理掉：一律寫站內通知，但超過 24 小時的舊訊息
+不寄信（`EXTERNAL_DELIVERY_STALE_AFTER`），不會一次把幾天前的通知寄給所有人。
+
+### LINE 群組推播（2026-09-24）
+
+參觀案件通知可以推到各校員工的 LINE 群組（LINE Notify 已停止服務，改用官方帳號
+的 Messaging API）。migration `9b2b0ebc14ae` 新增 `line_groups`、`line_campus_targets`。
+啟用步驟（全部在 LINE 與 Railway 後台操作，程式不會自己建任何東西）：
+
+1. LINE Developers → 官方帳號的 Messaging API channel：取得 **Channel secret** 與
+   **Channel access token（long-lived）**，存進 Railway api 的
+   `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`。
+   這是 Messaging API channel，與「用 LINE 登入」的 LINE Login channel 不同。
+2. Webhook URL 設為 `https://<官網網域>/api/website/v1/line/webhook`（後台「LINE 通知」頁
+   也會顯示），開啟 Use webhook。webhook 驗 `X-Line-Signature`，簽章不符一律 401。
+3. LINE Official Account Manager：允許加入群組，關閉自動回應。
+4. 把官方帳號拉進各校員工群組 → 後台「系統 → LINE 通知」替每校選群組 → 送測試訊息。
+
+群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
+帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
+`notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
+
+### 素材改存 S3 相容物件儲存（2026-09-24，尚未切換）
+
+目前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
+單一實例，repo 裡也沒有備份機制。程式已支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
+`WEBSITE_MEDIA_STORAGE=s3` 時上傳、讀取、刪除都走 bucket，api 啟動不再要求 volume。
+讀檔仍經 API 串流（網址、權限、快取標頭不變，Range 轉給儲存服務，iOS 影片可播）。
+
+| 變數 | 說明 |
+| --- | --- |
+| `WEBSITE_S3_BUCKET` | bucket 名稱（建議私有，不要開公開存取） |
+| `WEBSITE_S3_ENDPOINT_URL` | R2 為 `https://<account id>.r2.cloudflarestorage.com`；AWS S3 留空 |
+| `WEBSITE_S3_REGION` | R2 填 `auto`；AWS 填 bucket 所在區域 |
+| `WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY` | 只授權這個 bucket 讀寫的金鑰，存 Railway Variables |
+| `WEBSITE_S3_PREFIX` | 選填，物件 key 前綴（例如 `media`） |
+
+切換步驟（bucket 與金鑰由園方自己建，程式不會建任何外部服務）：
+
+1. 先只設 `WEBSITE_S3_*`，**不要**設 `WEBSITE_MEDIA_STORAGE`，部署。此時仍讀寫 volume。
+2. 預覽：`railway ssh --service api --environment production -- python -m app.cli media-copy-to-s3 --dry-run`
+3. 複製：同上去掉 `--dry-run`。只讀 volume、只寫 bucket、不動 DB；bucket 已有同大小的檔案
+   會跳過，可以重跑；上傳後核對大小，失敗的檔案列在最後且指令以非 0 結束。
+4. 設 `WEBSITE_MEDIA_STORAGE=s3` 並重新部署；部署後**再跑一次第 3 步**，補上複製到切換
+   之間新上傳的檔案。
+5. 抽查官網圖片、影片與後台素材庫。volume 先保留一段時間當備份，確認無誤後再卸下。
 
 ## 初次初始化
 

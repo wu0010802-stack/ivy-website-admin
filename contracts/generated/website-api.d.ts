@@ -353,6 +353,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Line Settings */
+        get: operations["get_line_settings_api_website_v1_admin_line_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/campus-targets/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Line Campus Target */
+        put: operations["update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/campus-targets/{campus_key}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Line Test Message
+         * @description 送一則測試訊息到這校指定的群組，確認設定真的通。
+         */
+        post: operations["send_line_test_message_api_website_v1_admin_line_campus_targets__campus_key__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/media": {
         parameters: {
             query?: never;
@@ -1719,10 +1773,56 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** LineCampusTargetOut */
+        LineCampusTargetOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /** Target Id */
+            target_id: string | null;
+        };
+        /** LineCampusTargetUpdate */
+        LineCampusTargetUpdate: {
+            /** Target Id */
+            target_id: string | null;
+        };
+        /** LineGroupOut */
+        LineGroupOut: {
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Left At */
+            left_at: string | null;
+            /** Name */
+            name: string | null;
+            /** Source Type */
+            source_type: string;
+            /** Target Id */
+            target_id: string;
+        };
         /** LineLinkStart */
         LineLinkStart: {
             /** Authorize Url */
             authorize_url: string;
+        };
+        /** LineSettingsOut */
+        LineSettingsOut: {
+            /** Enabled */
+            enabled: boolean;
+            /** Groups */
+            groups: components["schemas"]["LineGroupOut"][];
+            /** Targets */
+            targets: components["schemas"]["LineCampusTargetOut"][];
+            /** Webhook Url */
+            webhook_url: string | null;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -3424,6 +3524,111 @@ export interface operations {
                         [key: string]: unknown;
                     };
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_line_settings_api_website_v1_admin_line_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineCampusTargetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_line_test_message_api_website_v1_admin_line_campus_targets__campus_key__test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

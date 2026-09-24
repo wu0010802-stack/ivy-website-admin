@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
 from app.common.body_limit import BodySizeLimitMiddleware
+from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
 from app.booking.access_routes import router as booking_access_router
@@ -19,10 +22,12 @@ from app.campuses.routes import router as campuses_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
 from app.media.routes import router as media_router
+from app.notifications.line_routes import router as line_router
 from app.notifications.routes import router as notifications_router
 from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
 from app.db import create_engine, create_session_factory
+from app.workers.maintenance import MaintenanceLoop
 
 logger = logging.getLogger("app")
 
@@ -58,12 +63,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Application factory；可注入隔離測試設定，import 本模組不連真實 DB。"""
     settings = settings or get_settings()
 
-    app = FastAPI(title="Ivy Website Admin API", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # 排程發布、逾期占位、通知與限流清理原本只有 CLI，沒有任何排程在
+        # 呼叫——改由 API 自己定期跑，見 app/workers/maintenance.py。
+        interval = settings.background_jobs_interval
+        if interval:
+            app.state.maintenance = MaintenanceLoop(
+                app.state.session_factory, settings, interval_seconds=interval
+            )
+            app.state.maintenance.start()
+        try:
+            yield
+        finally:
+            if app.state.maintenance is not None:
+                await app.state.maintenance.stop()
+
+    app = FastAPI(title="Ivy Website Admin API", version="0.1.0", lifespan=lifespan)
+    app.state.maintenance = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
         app.state.engine
     )
+    app.state.rate_limiter = RateLimiter(app.state.engine, settings.session_secret)
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
     configure_google_oauth(app)
@@ -80,10 +103,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/website/v1/health")
     async def health() -> dict:
+        maintenance: MaintenanceLoop | None = app.state.maintenance
         return {
             "status": "ok",
             "environment": settings.environment,
             "fixture_enabled": settings.enable_fixture,
+            # 部署後用來確認定期工作真的有在跑（只有時間，不含任何資料）。
+            "background_jobs": {
+                "enabled": maintenance is not None,
+                "last_completed_at": (
+                    maintenance.last_completed_at.isoformat()
+                    if maintenance is not None and maintenance.last_completed_at
+                    else None
+                ),
+            },
         }
 
     app.include_router(auth_router)
@@ -97,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(booking_schedule_router)
     app.include_router(booking_access_router)
     app.include_router(notifications_router)
+    app.include_router(line_router)
     app.include_router(operations_router)
 
     return app

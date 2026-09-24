@@ -104,7 +104,11 @@ async def login(
     settings: Settings = request.app.state.settings
     try:
         user = await service.authenticate(
-            db, payload.email, payload.password, client_key=ratelimit.client_key(request)
+            db,
+            payload.email,
+            payload.password,
+            limiter=ratelimit.limiter(request),
+            client_key=ratelimit.client_key(request),
         )
     except service.LoginRateLimited as exc:
         raise HTTPException(

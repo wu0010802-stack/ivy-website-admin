@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.auth.models import Role, User
+from app.auth.models import User
+from app.auth.permissions import covers_campus, roles_with
+from app.campuses.models import Campus
+from app.notifications import line as line_api
 from app.notifications.email_adapter import EmailAdapter
-from app.notifications.models import NotificationDelivery, NotificationInboxItem
+from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
 _KIND_LABELS = {
     "visit_request_created": "新的參觀需求",
@@ -24,6 +29,11 @@ _KIND_LABELS = {
 
 _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
 
+# 超過這個時間還沒送出的訊息只寫站內通知、不再推播或寄信。正常重試（5 次、
+# 最長間隔 15 分鐘）遠短於此，這條只會擋到積壓的舊訊息——例如定期工作第一次
+# 上線、或寄信設定修好時，不該把幾天前的通知一次寄給所有人。
+EXTERNAL_DELIVERY_STALE_AFTER = timedelta(hours=24)
+
 
 def _header_safe(value: str) -> str:
     """收件者與主旨進 SMTP header 之前先把換行拿掉——含換行的值可以在
@@ -35,17 +45,17 @@ def _header_safe(value: str) -> str:
 async def get_notification_recipients(db: AsyncSession, campus_key: str) -> list[User]:
     """依校區通知：只給目前真的還有這個校區權限、且帳號啟用中的人員。
     這裡每次都即時查詢目前的 scope，不在建立通知時就把收件人清單寫死，
-    帳號被停權或改 scope 後自然收不到後續通知，不需要額外清理。"""
-    result = await db.execute(select(User).where(User.is_active.is_(True)))
-    recipients = []
-    for user in result.scalars():
-        if user.role == Role.SUPER_ADMIN:
-            recipients.append(user)
-        elif user.role == Role.CAMPUS_ADMIN:
-            await db.refresh(user, attribute_names=["campus_scopes"])
-            if any(s.campus_key == campus_key for s in user.campus_scopes):
-                recipients.append(user)
-    return recipients
+    帳號被停權或改 scope 後自然收不到後續通知，不需要額外清理。
+
+    收件人＝能處理這個校區案件的人（booking.manage），跟權限表同一個定義，
+    不另外寫死角色。"""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.campus_scopes))
+        .where(User.is_active.is_(True), User.role.in_(roles_with("booking.manage")))
+        .order_by(User.email)
+    )
+    return [user for user in result.scalars() if covers_campus(user, campus_key)]
 
 
 async def _already_delivered(
@@ -75,6 +85,32 @@ def _record_delivery(
     )
 
 
+async def campus_line_target(db: AsyncSession, campus_key: str) -> str | None:
+    """這個校區目前要推播的 LINE 群組；bot 已被移出的群組不算。"""
+    result = await db.execute(
+        select(LineGroup.target_id)
+        .join(LineCampusTarget, LineCampusTarget.target_id == LineGroup.target_id)
+        .where(LineCampusTarget.campus_key == campus_key, LineGroup.left_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _campus_name(db: AsyncSession, campus_key: str) -> str:
+    name = (await db.execute(select(Campus.name).where(Campus.key == campus_key))).scalar_one_or_none()
+    return name or campus_key
+
+
+def line_text(label: str, campus_name: str, receipt_id: str | None, admin_origin: str | None) -> str:
+    """群組裡可能有非管理員：只放類型、校區、案件編號，不放家長或孩子資料；
+    明細要點連結登入後台看。"""
+    lines = [f"[常春藤官網] {label}", f"校區：{campus_name}"]
+    if receipt_id:
+        lines.append(f"案件編號：{receipt_id}")
+        if admin_origin:
+            lines.append(f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}")
+    return "\n".join(lines)
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -82,11 +118,19 @@ async def dispatch_outbox_message(
     campus_key: str,
     kind: str,
     payload: dict,
-    adapter: EmailAdapter,
+    adapter: EmailAdapter | None,
+    created_at: datetime | None = None,
+    line: line_api.LineMessagingClient | None = None,
+    admin_origin: str | None = None,
 ) -> None:
-    """處理一筆 outbox 訊息：寫站內通知＋寄信。任何一個收件人寄信失敗
-    （含未配置）都讓整筆工作視為失敗，交給 worker 的重試機制處理，
-    不會靜默丟失、也不假裝已寄出。
+    """處理一筆 outbox 訊息：寫站內通知 → 推播校區的 LINE 群組 → 寄信。
+    任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
+    處理，不會靜默丟失、也不假裝已送出。`line` 為 None 或這校沒有指定
+    群組時略過 LINE。
+
+    `adapter` 為 None 代表部署環境沒有設定寄信：站內通知照寫、email 這個
+    管道整個略過。原本「未配置」會讓整批 outbox 停著不處理，結果後台連
+    站內通知都收不到；等日後設好 SMTP，又會把累積幾個月的舊通知一次寄出。
 
     重試時以 notification_deliveries 逐一去重：已經成功寄出的收件人不會
     再收到第二封，站內通知也只會寫一筆——原本整筆重試會讓每一輪都多一
@@ -109,11 +153,31 @@ async def dispatch_outbox_message(
         # 重試時再寫一次。
         await db.commit()
 
+    if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
+        return
+
+    if line is not None:
+        target = await campus_line_target(db, campus_key)
+        if target and not await _already_delivered(db, outbox_message_id, "line", target):
+            receipt_id = payload.get("receipt_id")
+            await line.push_text(
+                target,
+                line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin),
+                key=line_api.retry_key(outbox_message_id, target),
+            )
+            _record_delivery(db, outbox_message_id, "line", target)
+            await db.commit()
+
+    if adapter is None:
+        return
     recipients = await get_notification_recipients(db, campus_key)
     for user in recipients:
         if await _already_delivered(db, outbox_message_id, "email", user.email):
             continue
-        adapter.send(
+        # SMTP 是阻塞 I/O（連線逾時 20 秒）。定期工作跑在 API 的 event loop
+        # 上，直接呼叫會讓這段期間所有請求一起卡住。
+        await asyncio.to_thread(
+            adapter.send,
             to=_header_safe(user.email),
             subject=_header_safe(f"[常春藤官網] {label}"),
             body=f"校區：{campus_key}\n案件：{payload.get('receipt_id')}\n類型：{label}",

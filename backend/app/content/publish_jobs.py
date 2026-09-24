@@ -1,5 +1,5 @@
-"""排程發布的背景執行（規格 4）。由 `python -m app.cli process-notifications`
-（生產以 cron 定期呼叫）每輪先跑一次。"""
+"""排程發布的背景執行（規格 4）。由 API 內建的定期工作每輪先跑一次
+（app/workers/maintenance.py；手動補跑用 `python -m app.cli process-notifications`）。"""
 from __future__ import annotations
 
 import uuid
@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.models import Role, User
-from app.auth.permissions import can_publish_shared_content, has_capability
+from app.auth.models import User
+from app.auth.permissions import can_publish_shared_content, covers_campus, has_capability
 from app.campuses.models import Campus
 from app.content import service
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -32,7 +32,7 @@ def user_can_publish(user: User | None, item: ContentItem) -> bool:
         return can_publish_shared_content(user)
     if not has_capability(user, "content.publish"):
         return False
-    return user.role == Role.SUPER_ADMIN or item.campus_key in {s.campus_key for s in user.campus_scopes}
+    return covers_campus(user, item.campus_key)
 
 
 async def check_publishable(db: AsyncSession, item: ContentItem, revision: ContentRevision) -> None:

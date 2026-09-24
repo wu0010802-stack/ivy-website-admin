@@ -1,20 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
-from app.auth.models import Role, User
-from app.auth.permissions import can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
+from app.auth.models import User
+from app.auth.permissions import campus_scope, can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
 from app.auth.service import get_session_by_token
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
 from app.media.schemas import MediaAssetOut, MediaUpdateRequest
+from app.media.storage import MediaFileMissing, MediaStorage
 from app.media.validation import MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MediaValidationError
 
 _UPLOAD_CHUNK_BYTES = 1024 * 1024
@@ -64,16 +66,20 @@ def _quota_exceeded() -> HTTPException:
     )
 
 
-def _file_response(storage, asset: MediaAsset, headers: dict[str, str]) -> FileResponse:
+async def _file_response(
+    storage: MediaStorage, request: Request, asset: MediaAsset, headers: dict[str, str]
+) -> Response:
     """串流送檔：不把整個原檔讀進 API 記憶體（影片可達 200 MB，並行下載
-    會按檔案大小 × 請求數吃記憶體）。"""
-    if not storage.exists(asset.storage_key):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
-    return FileResponse(
-        storage.path_for(asset.storage_key),
-        media_type=asset.content_type,
-        headers={"X-Content-Type-Options": "nosniff", **headers},
-    )
+    會按檔案大小 × 請求數吃記憶體）。本機與 S3 都支援 Range。"""
+    try:
+        return await storage.file_response(
+            asset.storage_key,
+            request=request,
+            media_type=asset.content_type,
+            headers={"X-Content-Type-Options": "nosniff", **headers},
+        )
+    except MediaFileMissing as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材") from exc
 
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
@@ -87,9 +93,8 @@ public_router = APIRouter(prefix="/api/website/v1/public/media", tags=["media-pu
 
 def _visible_campus_keys(user: User) -> list[str] | None:
     """None 代表不限（super_admin）；其餘角色只能看自己校 + 共用（campus_key IS NULL）。"""
-    if user.role.value == "super_admin":
-        return None
-    return [s.campus_key for s in user.campus_scopes]
+    scope = campus_scope(user)
+    return None if scope is None else sorted(scope)
 
 
 def _out(asset: MediaAsset) -> MediaAssetOut:
@@ -259,7 +264,7 @@ async def delete_media(
     # 交易提交成功之後才真的動磁碟；提交失敗時檔案還在，只會留下孤兒檔，
     # 不會出現「DB 說有、磁碟沒有」的破圖。
     for key in storage_keys:
-        storage.delete(key)
+        await asyncio.to_thread(storage.delete, key)
 
 
 @router.post("/{media_id}/replace", response_model=MediaAssetOut, status_code=status.HTTP_201_CREATED)
@@ -304,10 +309,10 @@ async def get_media_file(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> FileResponse:
+) -> Response:
     asset = await _get_owned_asset(db, current_user, media_id)
     storage = service.get_storage(request.app.state.settings)
-    return _file_response(storage, asset, {"Cache-Control": "private, no-store"})
+    return await _file_response(storage, request, asset, {"Cache-Control": "private, no-store"})
 
 
 async def _admin_can_preview(db: AsyncSession, session_token: str | None, asset: MediaAsset) -> bool:
@@ -337,7 +342,7 @@ async def get_public_media_file(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
     session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-) -> FileResponse:
+) -> Response:
     result = await db.execute(select(MediaAsset).where(MediaAsset.id == media_id))
     asset = result.scalar_one_or_none()
     if asset is None or asset.status != MediaStatus.READY:
@@ -346,7 +351,9 @@ async def get_public_media_file(
     if media_id in await service.current_release_media_ids(db):
         # content_type 來自實際解碼結果（只可能是 jpeg/png/webp/gif/mp4），
         # _file_response 仍明確關掉瀏覽器的 MIME 嗅探。
-        return _file_response(storage, asset, {"Cache-Control": "public, max-age=31536000, immutable"})
+        return await _file_response(
+            storage, request, asset, {"Cache-Control": "public, max-age=31536000, immutable"}
+        )
     if await _admin_can_preview(db, session_token, asset):
-        return _file_response(storage, asset, {"Cache-Control": "private, no-store"})
+        return await _file_response(storage, request, asset, {"Cache-Control": "private, no-store"})
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")

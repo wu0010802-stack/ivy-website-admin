@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import uuid
 from datetime import datetime, timezone
 
@@ -12,7 +13,7 @@ from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, S
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
 from app.media.processing import ProcessingError, extract_video_poster_webp, make_image_thumbnail_webp
-from app.media.storage import LocalMediaStorage
+from app.media.storage import LocalMediaStorage, MediaStorage, S3MediaStorage
 from app.media.validation import MediaValidationError, sniff_and_validate
 
 _EXTENSION_BY_CONTENT_TYPE = {
@@ -53,13 +54,42 @@ async def _ensure_quota(
         raise MediaQuotaExceeded()
 
 
-def get_storage(settings: Settings) -> LocalMediaStorage:
+@functools.lru_cache(maxsize=4)
+def _s3_storage(
+    bucket: str, access_key_id: str, secret_access_key: str, endpoint_url: str | None, region: str | None, prefix: str
+) -> S3MediaStorage:
+    # boto3 client 建立一次要幾十毫秒，而且本身 thread-safe：同一組設定共用。
+    return S3MediaStorage(
+        bucket=bucket,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        endpoint_url=endpoint_url,
+        region=region,
+        prefix=prefix,
+    )
+
+
+def s3_storage(settings: Settings) -> S3MediaStorage:
+    assert settings.s3_bucket and settings.s3_access_key_id and settings.s3_secret_access_key
+    return _s3_storage(
+        settings.s3_bucket,
+        settings.s3_access_key_id,
+        settings.s3_secret_access_key,
+        settings.s3_endpoint_url,
+        settings.s3_region,
+        settings.s3_prefix,
+    )
+
+
+def get_storage(settings: Settings) -> MediaStorage:
+    if settings.media_storage == "s3":
+        return s3_storage(settings)
     return LocalMediaStorage(settings.media_root)
 
 
 async def create_media_asset(
     db: AsyncSession,
-    storage: LocalMediaStorage,
+    storage: MediaStorage,
     *,
     data: bytes,
     declared_kind: MediaKind,
@@ -103,7 +133,7 @@ async def create_media_asset(
     try:
         await db.flush()
     except Exception:
-        storage.delete(storage_key)
+        await asyncio.to_thread(storage.delete, storage_key)
         raise
 
     try:
@@ -143,7 +173,7 @@ async def create_media_asset(
         asset.processing_error = str(exc)[:500]
         # 處理失敗的原檔永遠不會被公開，留著只會佔共用 volume；保留
         # 紀錄讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
-        storage.delete(storage_key)
+        await asyncio.to_thread(storage.delete, storage_key)
 
     await db.flush()
     return asset
@@ -192,7 +222,7 @@ async def current_release_media_ids(db: AsyncSession) -> frozenset[uuid.UUID]:
 
 
 async def delete_media_asset(
-    db: AsyncSession, storage: LocalMediaStorage, asset: MediaAsset
+    db: AsyncSession, storage: MediaStorage, asset: MediaAsset
 ) -> list[str]:
     """刪除 DB 記錄並回傳需要刪除的 storage key；**檔案由呼叫端在 commit
     成功之後才刪**。先 unlink 再刪 DB 的順序會在交易回滾時留下「DB 有記錄、
@@ -223,7 +253,7 @@ async def delete_media_asset(
 
 async def replace_media_asset(
     db: AsyncSession,
-    storage: LocalMediaStorage,
+    storage: MediaStorage,
     old_asset: MediaAsset,
     *,
     data: bytes,

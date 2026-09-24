@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -21,6 +22,15 @@ class Settings(BaseSettings):
     database_url: str
     test_database_url: str | None = None
     media_root: str = "./var/media"
+    # 素材存哪裡：local＝media_root（Railway volume，api 只能單一實例）；
+    # s3＝S3 相容物件儲存（Cloudflare R2、AWS S3…），見 deploy/README.md。
+    media_storage: Literal["local", "s3"] = "local"
+    s3_bucket: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_region: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = Field(default=None, repr=False)
+    s3_prefix: str = ""
     session_secret: str
     enable_fixture: bool = False
     indexing_enabled: bool = False
@@ -39,7 +49,14 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str | None = None
     smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    # LINE 官方帳號 Messaging API（園方群組推播）。與「用 LINE 登入」是不同
+    # 類型的 channel，金鑰也不同，所以另外命名。兩個都有才啟用。
+    line_messaging_channel_secret: str | None = Field(default=None, repr=False)
+    line_messaging_access_token: str | None = Field(default=None, repr=False)
     retention_allow_real_run: bool = False
+    # API 內建定期工作（排程發布、逾期占位、通知、清限流計數）的間隔秒數。
+    # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
+    background_jobs_interval_seconds: int | None = None
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
     # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
     trusted_client_ip_header: str | None = "x-website-client-ip"
@@ -57,6 +74,53 @@ class Settings(BaseSettings):
         if value is None:
             return None
         return value.strip() or None
+
+    @field_validator("background_jobs_interval_seconds")
+    @classmethod
+    def _sane_background_interval(cls, value: int | None) -> int | None:
+        if value is not None and value != 0 and not 10 <= value <= 3600:
+            raise ValueError("WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS 必須是 0（關閉）或 10–3600 秒")
+        return value
+
+    @field_validator("line_messaging_channel_secret", "line_messaging_access_token")
+    @classmethod
+    def _normalize_line_messaging(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @field_validator("s3_bucket", "s3_endpoint_url", "s3_region", "s3_access_key_id", "s3_secret_access_key")
+    @classmethod
+    def _normalize_s3(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @field_validator("s3_prefix")
+    @classmethod
+    def _normalize_s3_prefix(cls, value: str) -> str:
+        value = value.strip().strip("/")
+        if not value:
+            return ""
+        if not re.fullmatch(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*", value) or ".." in value:
+            raise ValueError("WEBSITE_S3_PREFIX 只能是英數、.、_、- 組成的路徑")
+        return f"{value}/"
+
+    @property
+    def s3_configured(self) -> bool:
+        return bool(self.s3_bucket and self.s3_access_key_id and self.s3_secret_access_key)
+
+    @property
+    def line_messaging_enabled(self) -> bool:
+        return bool(self.line_messaging_channel_secret and self.line_messaging_access_token)
+
+    @property
+    def background_jobs_interval(self) -> int:
+        """0 代表不在 API 程序內跑定期工作。本機開發與測試預設關閉，避免
+        背景自己動資料；正式站預設開啟，因為沒有另外的排程在呼叫 CLI。"""
+        if self.background_jobs_interval_seconds is not None:
+            return self.background_jobs_interval_seconds
+        return 60 if self.environment == "production" else 0
 
     @property
     def google_oauth_enabled(self) -> bool:
@@ -106,6 +170,21 @@ class Settings(BaseSettings):
                 )
         if self.environment == "production" and self.enable_fixture:
             raise ValueError("production 環境禁止啟用 fixture 模式")
+        s3_fields = (self.s3_bucket, self.s3_access_key_id, self.s3_secret_access_key)
+        if any(s3_fields) and not all(s3_fields):
+            raise ValueError("S3 必須同時設定 WEBSITE_S3_BUCKET、WEBSITE_S3_ACCESS_KEY_ID 與 WEBSITE_S3_SECRET_ACCESS_KEY")
+        if self.media_storage == "s3" and not self.s3_configured:
+            raise ValueError("WEBSITE_MEDIA_STORAGE=s3 需要設定 S3 bucket 與金鑰")
+        if self.s3_endpoint_url:
+            endpoint = urlsplit(self.s3_endpoint_url)
+            if not endpoint.hostname or endpoint.username or endpoint.password or endpoint.path not in ("", "/"):
+                raise ValueError("WEBSITE_S3_ENDPOINT_URL 必須是不含帳密與路徑的網址")
+            if self.environment == "production" and endpoint.scheme != "https":
+                raise ValueError("production 環境的 WEBSITE_S3_ENDPOINT_URL 必須使用 HTTPS")
+        if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):
+            raise ValueError(
+                "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
+            )
         if self.smtp_host and not self.smtp_from:
             raise ValueError("設定 WEBSITE_SMTP_HOST 時必須一併設定 WEBSITE_SMTP_FROM")
         if self.smtp_host and self.environment == "production" and self.smtp_security == "none":

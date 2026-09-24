@@ -30,13 +30,8 @@ LOGIN_SOURCE_WINDOW_SECONDS = 300
 # 全體員工會共用同一個桶。這個數字對十來個園方帳號綽綽有餘，但仍然會
 # 掐掉自動化的密碼嘗試迴圈。
 LOGIN_SOURCE_MAX_ATTEMPTS = 100
-# 用有界的限流器：匿名者可以拿任意 email 打錯密碼，每個 email 都是新 key。
-_LOGIN_ATTEMPTS = ratelimit.SlidingWindowLimiter(
-    window_seconds=LOGIN_WINDOW_SECONDS, max_per_window=LOGIN_MAX_ATTEMPTS
-)
-_LOGIN_SOURCE_ATTEMPTS = ratelimit.SlidingWindowLimiter(
-    window_seconds=LOGIN_SOURCE_WINDOW_SECONDS, max_per_window=LOGIN_SOURCE_MAX_ATTEMPTS
-)
+LOGIN_ACCOUNT_LIMIT = ratelimit.Limit("login_account", LOGIN_WINDOW_SECONDS, LOGIN_MAX_ATTEMPTS)
+LOGIN_SOURCE_LIMIT = ratelimit.Limit("login_source", LOGIN_SOURCE_WINDOW_SECONDS, LOGIN_SOURCE_MAX_ATTEMPTS)
 
 
 class LoginRateLimited(Exception):
@@ -67,30 +62,24 @@ def _rate_limit_key(email: str) -> str:
     return email.strip().lower()
 
 
-def check_login_rate_limit(email: str) -> None:
-    if _LOGIN_ATTEMPTS.is_limited(_rate_limit_key(email)):
+async def check_login_rate_limit(limiter: ratelimit.RateLimiter, email: str) -> None:
+    if await limiter.is_limited(LOGIN_ACCOUNT_LIMIT, _rate_limit_key(email)):
         raise LoginRateLimited()
 
 
-def check_login_source_rate_limit(client_key: str) -> None:
+async def check_login_source_rate_limit(limiter: ratelimit.RateLimiter, client_key: str) -> None:
     try:
-        _LOGIN_SOURCE_ATTEMPTS.check(client_key)
+        await limiter.check(LOGIN_SOURCE_LIMIT, client_key)
     except ratelimit.RateLimited as exc:
         raise LoginRateLimited() from exc
 
 
-def record_login_attempt(email: str) -> None:
-    _LOGIN_ATTEMPTS.record(_rate_limit_key(email))
+async def record_login_attempt(limiter: ratelimit.RateLimiter, email: str) -> None:
+    await limiter.record(LOGIN_ACCOUNT_LIMIT, _rate_limit_key(email))
 
 
-def clear_login_attempts(email: str) -> None:
-    _LOGIN_ATTEMPTS.reset(_rate_limit_key(email))
-
-
-def reset_login_rate_limits() -> None:
-    """測試用：清掉兩個記憶體桶，避免測試之間互相污染。"""
-    _LOGIN_ATTEMPTS.clear()
-    _LOGIN_SOURCE_ATTEMPTS.clear()
+async def clear_login_attempts(limiter: ratelimit.RateLimiter, email: str) -> None:
+    await limiter.reset(LOGIN_ACCOUNT_LIMIT, _rate_limit_key(email))
 
 
 # 帳號不存在時也要付出一次 bcrypt 的成本，否則「查無此人」會在毫秒級
@@ -100,10 +89,15 @@ _DUMMY_PASSWORD_HASH = _pwd_context.hash(secrets.token_urlsafe(32))
 
 
 async def authenticate(
-    db: AsyncSession, email: str, password: str, *, client_key: str | None = None
+    db: AsyncSession,
+    email: str,
+    password: str,
+    *,
+    limiter: ratelimit.RateLimiter,
+    client_key: str | None = None,
 ) -> User:
     if client_key:
-        check_login_source_rate_limit(client_key)
+        await check_login_source_rate_limit(limiter, client_key)
 
     normalized = email.strip().lower()
     # 用 limit(1) 而不是 scalar_one_or_none()：萬一資料庫裡已經存在大小寫
@@ -122,14 +116,14 @@ async def authenticate(
 
     if user is not None and password_ok:
         if not user.is_active:
-            record_login_attempt(normalized)
+            await record_login_attempt(limiter, normalized)
             raise AccountInactive()
         # 密碼正確就放行並清零：帳號桶不能變成別人可以遠端觸發的鎖。
-        clear_login_attempts(normalized)
+        await clear_login_attempts(limiter, normalized)
         return user
 
-    record_login_attempt(normalized)
-    check_login_rate_limit(normalized)
+    await record_login_attempt(limiter, normalized)
+    await check_login_rate_limit(limiter, normalized)
     raise InvalidCredentials()
 
 

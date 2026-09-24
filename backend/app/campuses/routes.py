@@ -7,8 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import Role, User
-from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
+from app.auth.models import User
+from app.auth.permissions import ScopeDenied, campus_scope, require_scope
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import Campus
 from app.campuses.schemas import CampusOut, CampusStatusOut, CampusStatusUpdate
@@ -25,9 +25,9 @@ async def list_admin_campuses(
     require_scope(current_user, "campuses.read")
     result = await db.execute(select(Campus))
     campuses = list(result.scalars())
-    owned = {s.campus_key for s in current_user.campus_scopes}
-    if current_user.role.value != "super_admin":
-        campuses = [c for c in campuses if c.key in owned]
+    scope = campus_scope(current_user)
+    if scope is not None:
+        campuses = [c for c in campuses if c.key in scope]
     return [CampusOut.model_validate(c) for c in campuses]
 
 
@@ -63,9 +63,7 @@ async def update_campus_status(
     """停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的
     決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件
     一律不動，回傳仍在進行中的件數讓園方人工處理。"""
-    require_scope(current_user, "campuses.read")
-    if current_user.role != Role.SUPER_ADMIN:
-        raise CapabilityDenied()
+    require_scope(current_user, "campuses.activate")
     result = await db.execute(select(Campus).where(Campus.key == key).with_for_update())
     campus = result.scalar_one_or_none()
     if campus is None:
