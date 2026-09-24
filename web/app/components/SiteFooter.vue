@@ -36,13 +36,13 @@ const campuses = computed(() => props.content.campuses)
 <style scoped>
 /* 2026-09-24：頁尾配色 R「燕麥＋深綠底列」。主體淺燕麥，版權列滿版深森林綠、以色塊交界取代分隔線。色票限定於共用頁尾。 */
 .footer {
-  --footer-bg: #efe8da;
-  --footer-text: #27433a;
-  --footer-muted: #5b6358;
-  --footer-brand: #1f3a31;
-  --footer-accent: #7a5a24;
-  --footer-bar-bg: #24483f;
-  --footer-bar-text: #d9e2d9;
+  --footer-bg: var(--ivy-footer-bg);
+  --footer-text: var(--ivy-footer-text);
+  --footer-muted: var(--ivy-footer-muted);
+  --footer-brand: var(--ivy-footer-brand);
+  --footer-accent: var(--ivy-footer-accent);
+  --footer-bar-bg: var(--ivy-footer-bar-bg);
+  --footer-bar-text: var(--ivy-footer-bar-text);
   --footer-focus: var(--footer-accent);
   background: var(--footer-bg);
   color: var(--footer-text);

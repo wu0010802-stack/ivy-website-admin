@@ -351,8 +351,8 @@ onMounted(load)
   bottom: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: oklch(0.2 0.02 150 / 0.7);
-  color: oklch(0.98 0 0);
+  background: var(--photo-caption-bg);
+  color: var(--photo-caption-ink);
   font-size: 11px;
 }
 
@@ -442,10 +442,10 @@ onMounted(load)
   width: 18px;
   height: 18px;
   transform: translate(-50%, -50%);
-  border: 2px solid oklch(1 0 0);
+  border: 2px solid var(--on-photo);
   border-radius: 50%;
   background: var(--brand-gold);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.5), 0 0 6px oklch(0 0 0 / 0.5);
+  box-shadow: 0 0 0 1px var(--on-photo-shadow-strong), 0 0 6px var(--on-photo-shadow-strong);
   pointer-events: none;
 }
 </style>

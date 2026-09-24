@@ -9,6 +9,13 @@
 - 其他：CSV 匯出處理前導空白／控制字元；CMS 文字欄位上限 2000 字、圖片代號只收英數與連字號；匿名化同時清聯絡紀錄；登出要過 CSRF，失敗時後台不假裝已登出；`/api/site-fixture` 在正式內容模式需後台 session；備份與通知 sink 檔案改為 0700／0600。
 - 未處理：未驗證手機號碼仍可占用時段（要簡訊驗證或其他產品決策）。
 
+## 2026-09-24 品牌規範與色票收整
+
+- 新增 `docs/brand/brand-guidelines.md`：品牌個性、Logo 與字標規格、色彩（含 HEX 近似值）、字型與字級、圖示、用語、影像、後台色票、可及性底線，全部取自既有定案。
+- 官網新增 `web/app/assets/css/tokens.css` 作為唯一色票來源，拿掉 `styles.css`／`studio.css` 兩份互相覆蓋的 `:root` 顏色；`studio.css`、`styles.css`、`visit-booking.css` 與 `CampusBoard`、`SiteFooter`、`HomeFilms`、`HomeNewsTransition`、`EntranceCurtain`、`preview` 裡寫死的色碼都改引用色票。樣式裡已沒有寫死的顏色，只剩 TypeScript 的四個例外（見規範 3.3）。
+- 後台 `admin/src/style.css` 補 `--on-photo*`、`--photo-caption-*`，收掉校園探索與素材庫 8 處色碼。
+- 驗證：本機正式建置＋同一份 API 資料，改前改後逐元素比對計算後顏色 34,988 筆全同、截圖 32 張逐像素 0 差異（細節見 DESIGN.md）。web `vitest` 191 passed、`nuxt typecheck` 無錯誤、`nuxt build` 通過；後台 `vitest` 65 passed、build 通過。未部署。
+
 ## 2026-09-24 官網瀏覽量與網頁速度存進資料庫，後台「數據」頁可看
 
 體檢報告「數據分析」一項：原本瀏覽量與 LCP／INP／CLS 只印在 web 的日誌，沒有存下來。

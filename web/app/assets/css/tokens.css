@@ -1,0 +1,150 @@
+/* 常春藤官網色票：web/ 唯一的顏色來源（2026-09-24 收整）。
+   規則：
+   - 樣式表與元件不寫色碼，只引用這裡的變數。元件自己的區域變數（--visit-ink、--footer-bg…）
+     照舊定義在元件裡，但值一律指到這裡。
+   - 要透明度時用 RGB 三元組：rgb(var(--ink) / .6)、rgb(var(--on-dark) / .4)。
+   - 全站共用的品牌色沿用原本的短名（--green、--paper…）；只屬於某個區塊的色用 --ivy-<區塊>-<用途>。
+   - 改色、新增色前先看 docs/brand/brand-guidelines.md 與 DESIGN.md 的定案紀錄；沒有定案的顏色不要加。
+   收整前 styles.css 與 studio.css 各有一份 :root，--green／--paper／--cream／--leaf 以 studio.css 為準，
+   這裡保留的是實際生效的那一份。 */
+:root {
+  /* 1. 品牌核心：全站共用 --------------------------------------------------- */
+  --green: oklch(37% .057 157);          /* 品牌深綠：標題、連結、主要按鈕 */
+  --deep: oklch(28% .04 162);            /* 更深的綠：按鈕 hover、深色色塊 */
+  --leaf: oklch(48% .075 155);           /* 葉綠：次要強調 */
+  --paper: oklch(99% .008 95);           /* 米白頁面底（手機網址列 theme-color #fdfcf6 取自此色） */
+  --cream: oklch(96% .018 95);           /* 奶油色區塊底 */
+  --white: oklch(99.7% .003 100);        /* 卡片、表單白 */
+  --yellow: oklch(87% .13 88);
+  --gold: oklch(82% .14 84);             /* 品牌金：預約鈕、重點標示 */
+  --mint: oklch(88% .022 150);
+  --text: oklch(31% .025 160);           /* 內文 */
+  --muted: oklch(47% .025 155);          /* 次要文字 */
+  --line: oklch(86% .018 145);           /* 分隔線、框線 */
+  --error: oklch(47% .14 30);
+  --trail: oklch(64% .055 155);          /* 校園探索路徑 */
+  --trail-visited: oklch(47% .055 155);
+  --studio-sage: oklch(94% .024 140);
+  --studio-orange: oklch(69% .13 43);
+  --studio-blue: oklch(86% .055 225);
+
+  /* 透明度用的 RGB 三元組 */
+  --ink: 17 42 33;                       /* 遮罩、陰影、壓字漸層 */
+  --on-dark: 255 255 255;                /* 深底或照片上的白字、白線 */
+  --shadow-rgb: 0 0 0;
+  --ivy-white-pure: #fff;
+
+  /* 2. Logo 字標（官方色，頁首品牌名用） ---------------------------------- */
+  --ivy-logo-chinese: oklch(41.466% .10216 153.575);
+  --ivy-logo-english: oklch(31.943% .11932 279.102);
+
+  /* 3. 森林綠：首頁理念區、預約第一步、今日提示 ------------------------------ */
+  --ivy-forest: #203f32;
+  --ivy-forest-rgb: 32 63 50;
+  --ivy-forest-mist: #c5ded0;            /* 薄荷色帶 */
+  --ivy-forest-ghost: #e6f1e7;           /* 色帶上的巨大淡字 */
+  --ivy-forest-soft: #42644e;
+  --ivy-ivory: #fffdf5;                  /* 首屏揭開前的象牙底 */
+  --ivy-gold-glow-rgb: 255 215 94;
+
+  /* 4. 分校資訊：首頁五校區塊、分校頁、預約第二步 ------------------------------ */
+  --ivy-campus-green: oklch(37% .035 160);
+  --ivy-campus-deep: oklch(29% .022 160);
+  --ivy-campus-paper: oklch(99% .006 95);
+  --ivy-campus-gold: oklch(82% .065 85);
+  --ivy-campus-muted: oklch(49% .018 150);
+  --ivy-campus-line: oklch(86% .012 95);
+  --ivy-campus-bg: oklch(98% .006 95);
+  --ivy-campus-surface: oklch(97.9% .011 94);
+  --ivy-campus-soft: oklch(94% .014 150);
+  --ivy-campus-ink: oklch(40% .02 215);
+  --ivy-campus-accent: oklch(51% .025 75);
+  --ivy-campus-control: oklch(93% .009 95);
+  --ivy-campus-control-border: oklch(86% .01 95);
+  --ivy-campus-control-dot: oklch(53% .018 155);
+  --ivy-campus-control-hover: oklch(88% .013 95);
+  --ivy-campus-heading-ink: #3d5057;
+  --ivy-campus-heading-accent: #786c5c;
+  --ivy-campus-heading-rule: #cdd3d0;
+  --ivy-campus-heading-selected: #ebefec;
+  --ivy-campus-tab-hover-line: #cbd2cd;
+
+  /* 5. 最新消息與活動 --------------------------------------------------------- */
+  --ivy-news-paper: #faf7ef;
+  --ivy-news-paper-blue: #dce7eb;
+  --ivy-news-ink: #253d33;
+  --ivy-news-green: #254b3c;
+  --ivy-news-muted: #5d6c61;
+  --ivy-news-line: #d9ded3;
+  --ivy-news-rule: oklch(84% .016 215);
+  --ivy-news-date: #526d40;
+  --ivy-news-note: #eff1e6;
+  --ivy-news-dialog: #fffdf6;
+  --ivy-news-backdrop-rgb: 15 36 26;
+  --ivy-news-event-1: #dce8bd;
+  --ivy-news-event-2: #e8e9d2;
+  --ivy-news-event-3: #e5dfc9;
+  --ivy-news-event-outline: #65794c;
+  --ivy-news-swept-gold: #f3d581;
+  --ivy-news-swept-sage: #d3e5b5;
+  --ivy-news-swept-mist: #bfdedb;
+  --ivy-news-hover-gold: #f6cd68;
+  --ivy-news-hover-honey: #eabc74;
+  --ivy-news-hover-oat: #f5dda3;
+
+  /* 6. 頁尾 R「燕麥＋深綠底列」（2026-09-24 定案） ---------------------------- */
+  --ivy-footer-bg: #efe8da;
+  --ivy-footer-text: #27433a;
+  --ivy-footer-muted: #5b6358;
+  --ivy-footer-brand: #1f3a31;
+  --ivy-footer-accent: #7a5a24;
+  --ivy-footer-bar-bg: #24483f;
+  --ivy-footer-bar-text: #d9e2d9;
+
+  /* 7. 頁首選單卡（玻璃質感） ------------------------------------------------ */
+  --ivy-menu-solid: oklch(97% .002 95);
+  --ivy-menu-glass: oklch(98% .002 95 / .72);
+  --ivy-menu-ink: oklch(26% .005 260);
+  --ivy-menu-muted: oklch(38% .003 260);
+  --ivy-menu-heading-surface: oklch(98% .002 95 / .1);
+  --ivy-menu-soft: oklch(98% .002 95 / .12);
+  --ivy-menu-line: oklch(26% .005 260 / .12);
+  --ivy-menu-light-line: oklch(26% .005 260 / .2);
+  --ivy-menu-contact: oklch(98% .002 95 / .18);
+  --ivy-menu-social-hover: oklch(26% .005 260 / .035);
+  --ivy-menu-phone-badge: oklch(26% .005 260 / .06);
+  --ivy-menu-edge: oklch(98% .002 95 / .6);
+  --ivy-menu-shadow: oklch(15% .002 260 / .18);
+  --ivy-menu-glint: oklch(98% .002 95 / .48);
+
+  /* 8. 孩子的一天拍立得 ------------------------------------------------------- */
+  --ivy-print-tint: oklch(80% .1 52);
+  --ivy-print-face: oklch(99.5% .006 95);
+  --ivy-print-back: oklch(98.5% .012 95);
+  --ivy-print-glass-cool: oklch(92% .012 190 / .8);
+  --ivy-print-glass-warm: oklch(95% .03 92 / .66);
+  --ivy-print-spark: oklch(80% .14 62);
+  --ivy-print-spark-glow: oklch(70% .19 52 / .75);
+
+  /* 9. 手機活動影片輪播 ------------------------------------------------------- */
+  --ivy-film-band: #acbe9b;
+  --ivy-film-dot: oklch(99.5% .003 100);
+  --ivy-film-control: oklch(22% .02 160 / .55);
+  --ivy-film-mark: oklch(99% .004 100 / .92);
+  --ivy-film-frame: oklch(62% .035 140);
+
+  /* 10. 開場布幕 -------------------------------------------------------------- */
+  --ivy-curtain-cover: #2c0006;
+  --ivy-curtain-gold: #ebd9b7;
+  --ivy-curtain-button: #310f1dcc;
+  --ivy-curtain-border: #a38362;
+  --ivy-curtain-focus: #f2dfb9;
+
+  /* 11. 外部品牌（只用在對應圖示，不可挪作他用） ------------------------------- */
+  --ivy-line-brand: #06C755;
+  --ivy-facebook-brand: #0866FF;
+
+  /* 12. 內部預覽工具列（/preview，不對家長公開） -------------------------------- */
+  --ivy-dev-bar: #2d2d2d;
+  --ivy-dev-bar-text: #ffd75e;
+}

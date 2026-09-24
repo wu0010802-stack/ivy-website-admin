@@ -1,4 +1,5 @@
-:root{--green:oklch(38% .055 162);--deep:oklch(28% .04 162);--leaf:oklch(52% .09 158);--paper:oklch(99% .006 100);--cream:oklch(96% .02 92);--yellow:oklch(87% .13 88);--text:oklch(31% .025 160);--muted:oklch(47% .025 155);--line:oklch(86% .018 145);--white:oklch(99.7% .003 100);--ink:17 42 33;--mint:oklch(88% .022 150);--gold:oklch(82% .14 84);--error:oklch(47% .14 30);--trail:oklch(64% .055 155);--trail-visited:oklch(47% .055 155);--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'LINE Seed TW','PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
+/* 顏色變數在 tokens.css */
+:root{--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:'LINE Seed TW','PingFang TC','Microsoft JhengHei',system-ui,sans-serif}
 /* 字型檔名沒有內容雜湊、但 /assets/fonts/** 快取 30 天（nuxt.config.ts routeRules）：URL 帶 ?v=<sha256 前 8 碼>，
    重切子集（補字）後要同步更新這裡與 nuxt.config.ts 的 preload href（兩邊必須完全相同，否則預載會多下載一份）。
    算法：shasum -a 256 web/public/assets/fonts/<檔名> | cut -c1-8
@@ -38,9 +39,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film-video.is-ready{opacity:1}
 .day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
-.day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(255 255 255 / .86)}
+.day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark) / .86)}
 .day-film-caption span[lang]{font-size:.5625rem;letter-spacing:.14em}
-.day-film-toggle{position:absolute;right:32px;bottom:22px;pointer-events:auto;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:8px 18px;border:1px solid rgb(255 255 255 / .4);border-radius:100px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:var(--fs-xs);letter-spacing:.06em}
+.day-film-toggle{position:absolute;right:32px;bottom:22px;pointer-events:auto;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:8px 18px;border:1px solid rgb(var(--on-dark) / .4);border-radius:100px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:var(--fs-xs);letter-spacing:.06em}
 .day-film-toggle:hover{background:rgb(var(--ink) / .9)}
 .day-stage{grid-area:1/1;position:relative;z-index:2}
 .day-intro{position:sticky;top:0;z-index:0;height:var(--reveal-height,100svh);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-inline:24px}
@@ -53,7 +54,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print{grid-column:1/-1;display:grid;grid-template-columns:subgrid;--print-tint:var(--yellow)}
 .day-print+.day-print{margin-top:-40px}
 .day-print.tint-mint{--print-tint:var(--mint)}
-.day-print.tint-peach{--print-tint:oklch(80% .1 52)}
+.day-print.tint-peach{--print-tint:var(--ivy-print-tint)}
 .day-print.tint-cream{--print-tint:var(--cream)}
 /* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
 .print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
@@ -61,9 +62,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}
 .day-print:nth-child(3n) .print-card{--card-tilt:-.8deg}
 /* 紙膠帶在 .print 裡、略浮於正面（translateZ），跟著紙翻；翻到背面時被紙擋住，只露出超出上緣的一截。WebGL 版由 paperPrints.ts 讀 --tape-a／--tape-b 畫進貼圖。 */
-.print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,white);--tape-b:color-mix(in oklch,var(--print-tint) 32%,white);position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
+.print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,var(--ivy-white-pure));--tape-b:color-mix(in oklch,var(--print-tint) 32%,var(--ivy-white-pure));position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
 .day-print:nth-child(even) .print-tape{rotate:5deg;left:auto;right:26px}
-.print-wrap{--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,oklch(99.5% .006 95));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,oklch(98.5% .012 95));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
+.print-wrap{--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,var(--ivy-print-face));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,var(--ivy-print-back));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
 /* --flip 由 DayMomentCard 依翻面位置給（0、-180deg、-360deg…）：永遠右緣掀起往左翻。時長與曲線同 utils/printFlip.ts。 */
 .print{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .95s cubic-bezier(.28,.1,.38,1)}
 /* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。 */
@@ -102,14 +103,14 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-corner-flap>.print-corner-b{--shade:var(--corner-shade-b);clip-path:polygon(0 -1.5px,0 50%,50% 100%,calc(100% + 1.5px) 100%)}
 .print-corner-tip>.print-corner-a{--shade:var(--corner-tip-shade-a);clip-path:polygon(100% -1.5px,100% 100%,-1.5px 100%)}
 .print-corner-tip>.print-corner-b{--shade:var(--corner-tip-shade-b);clip-path:polygon(0 -1.5px,0 100%,calc(100% + 1.5px) 100%)}
-.print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(255 255 255 / .34) 0,rgb(255 255 255 / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
+.print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(var(--on-dark) / .34) 0,rgb(var(--on-dark) / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
 .print-front{padding:8% 8% 0}
 .print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}
 .print-photo{width:100%;height:auto;aspect-ratio:1;object-position:50% 40%;filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
 .day-print.is-revealed .print-photo{filter:none;opacity:1}
-.print-figure::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,oklch(92% .012 190 / .8),oklch(95% .03 92 / .66) 55%,oklch(92% .012 190 / .8));transition:opacity 3.2s ease .3s}
+.print-figure::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,var(--ivy-print-glass-cool),var(--ivy-print-glass-warm) 55%,var(--ivy-print-glass-cool));transition:opacity 3.2s ease .3s}
 .day-print.is-revealed .print-figure::after{opacity:0}
-.print-stamp{position:absolute;right:12px;bottom:10px;font-family:'Source Sans 3',var(--font);font-size:var(--fs-2xl);line-height:1;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:oklch(80% .14 62);text-shadow:0 0 6px oklch(70% .19 52 / .75);transform:skewX(-6deg);opacity:0;transition:opacity 1.6s ease 1.8s}
+.print-stamp{position:absolute;right:12px;bottom:10px;font-family:'Source Sans 3',var(--font);font-size:var(--fs-2xl);line-height:1;letter-spacing:.06em;font-variant-numeric:tabular-nums;color:var(--ivy-print-spark);text-shadow:0 0 6px var(--ivy-print-spark-glow);transform:skewX(-6deg);opacity:0;transition:opacity 1.6s ease 1.8s}
 .day-print.is-revealed .print-stamp{opacity:.85}
 .day-print.is-revealed.is-active .print-stamp{opacity:1}
 .print-foot{padding:18px 4px 46px;min-height:130px}
@@ -127,7 +128,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-wrap.is-turning .print-turn:focus-visible{outline-color:transparent;transition-duration:.12s}
 /* WebGL 已把紙膠帶畫入貼圖、角落捲起改彎網格，DOM 只留下語意與版面。 */
 .print-wrap.webgl-ready .print-tape{visibility:hidden}
-.day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto;padding-bottom:96px;color:rgb(255 255 255 / .74);font-size:var(--fs-xs);line-height:1.9}
+.day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto;padding-bottom:96px;color:rgb(var(--on-dark) / .74);font-size:var(--fs-xs);line-height:1.9}
 @media(max-width:1100px){.day-prints{padding-inline:32px;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.day-print:nth-child(n) .print-card{width:100%;margin-inline:0}.day-note{width:calc(100% - 64px)}}
 @media(max-width:760px){
  .day-intro .eyebrow{gap:12px;margin-bottom:12px}
@@ -182,7 +183,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 @media(max-width:760px){.campus-contact-map{min-height:280px}}
 /* 五校入口重排（2026-09-16）：入口只留照片＋校名＋地區，聯絡資訊與五校示意地圖常駐在下方 */
 .campus-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
-.campus-links{display:flex;flex-wrap:wrap;gap:8px 28px}.campus-link{display:inline-flex;align-items:center;gap:12px;min-height:44px;font-size:var(--fs-sm);font-weight:600;line-height:1.5;color:var(--text)}.campus-link-title{display:inline-flex;align-items:center;gap:6px}.campus-link-title .icon{width:14px;height:14px;color:var(--green)}.campus-link-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0}.campus-link-badge .icon{width:28px;height:28px;vertical-align:0}.campus-link.line .campus-link-badge{color:#06C755}.campus-link.facebook .campus-link-badge{color:#0866FF}.campus-link small{display:block;font-size:var(--fs-xs);font-weight:400;color:var(--muted)}.campus-link:hover{color:var(--green)}.campus-link.is-pending{color:var(--muted);cursor:default}
+.campus-links{display:flex;flex-wrap:wrap;gap:8px 28px}.campus-link{display:inline-flex;align-items:center;gap:12px;min-height:44px;font-size:var(--fs-sm);font-weight:600;line-height:1.5;color:var(--text)}.campus-link-title{display:inline-flex;align-items:center;gap:6px}.campus-link-title .icon{width:14px;height:14px;color:var(--green)}.campus-link-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0}.campus-link-badge .icon{width:28px;height:28px;vertical-align:0}.campus-link.line .campus-link-badge{color:var(--ivy-line-brand)}.campus-link.facebook .campus-link-badge{color:var(--ivy-facebook-brand)}.campus-link small{display:block;font-size:var(--fs-xs);font-weight:400;color:var(--muted)}.campus-link:hover{color:var(--green)}.campus-link.is-pending{color:var(--muted);cursor:default}
 @media(max-width:760px){.campus-links{gap:4px 20px}}
 /* B 全幅橫景：文字選校、寬幅照片、下方校名／聯絡資訊／預約與地圖。 */
 .section-heading.is-centered{flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:32px}.section-heading.is-centered>p{max-width:32em}
@@ -215,16 +216,16 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .campus-board .board-name-area{font-family:var(--font);font-size:var(--fs-sm);font-weight:400;letter-spacing:.08em;color:var(--gold)}
 .campus-board .board-facts{margin:0;display:grid;grid-template-columns:1fr;row-gap:4px}
 .campus-board .board-facts div{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:baseline}
-.campus-board .board-facts dt{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);white-space:nowrap;color:rgb(255 255 255 / .62)}
+.campus-board .board-facts dt{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);white-space:nowrap;color:rgb(var(--on-dark) / .62)}
 .campus-board .board-facts dt .icon{width:16px;height:16px;color:var(--gold)}
 .campus-board .board-facts dd{margin:0;font-size:var(--fs-md);line-height:1.6}
 .campus-board .board-facts dd a{color:var(--paper)}
-.campus-board .campus-links{display:flex;flex-direction:column;flex-wrap:wrap;gap:4px 24px;margin:0;padding:0 0 0 36px;border-left:1px solid rgb(255 255 255 / .16)}
+.campus-board .campus-links{display:flex;flex-direction:column;flex-wrap:wrap;gap:4px 24px;margin:0;padding:0 0 0 36px;border-left:1px solid rgb(var(--on-dark) / .16)}
 .campus-board .campus-link{gap:10px;min-height:36px;color:var(--paper)}
-.campus-board .campus-link .campus-link-badge{width:32px;height:32px;border-radius:50%;border:1px solid rgb(255 255 255 / .38);background:transparent;color:var(--paper);transition:background-color .2s,border-color .2s,color .2s}
+.campus-board .campus-link .campus-link-badge{width:32px;height:32px;border-radius:50%;border:1px solid rgb(var(--on-dark) / .38);background:transparent;color:var(--paper);transition:background-color .2s,border-color .2s,color .2s}
 .campus-board .campus-link .campus-link-badge .icon{width:16px;height:16px}
 .campus-board .campus-link:hover .campus-link-badge{background:var(--gold);border-color:var(--gold);color:var(--deep)}
-.campus-board .campus-link.is-pending .campus-link-badge{border-style:dashed;color:rgb(255 255 255 / .55)}
+.campus-board .campus-link.is-pending .campus-link-badge{border-style:dashed;color:rgb(var(--on-dark) / .55)}
 .campus-board .campus-link-title{font-size:var(--fs-sm);font-weight:600;color:var(--paper)}
 .campus-board .campus-link small{display:none}
 .campus-board .campus-stage-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin:0}
@@ -240,11 +241,11 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .campus-board .board-stage{width:100%;margin-top:20px;border-radius:16px 16px 0 0;position:relative}
  .campus-board .campus-stage-media{aspect-ratio:4/3;border-radius:16px}
  .campus-board .campus-stage-nav{position:absolute;right:12px;top:12px;z-index:2}
- .campus-board .campus-stage-nav .campus-stage-btn{background:rgb(var(--ink) / .55);border-color:rgb(255 255 255 / .35);color:var(--paper)}
+ .campus-board .campus-stage-nav .campus-stage-btn{background:rgb(var(--ink) / .55);border-color:rgb(var(--on-dark) / .35);color:var(--paper)}
  .campus-board .board-plate{grid-template-columns:minmax(0,1fr);row-gap:16px;padding:22px 4px 24px}
  .campus-board .campus-stage-info{display:block}
  .campus-board .board-facts{margin-top:12px}
- .campus-board .campus-links{margin-top:14px;padding-top:12px;border-top:1px solid rgb(255 255 255 / .16);gap:4px 20px}
+ .campus-board .campus-links{margin-top:14px;padding-top:12px;border-top:1px solid rgb(var(--on-dark) / .16);gap:4px 20px}
  .campus-board .campus-link{min-height:40px}
  .campus-board .campus-link .campus-link-badge{width:34px;height:34px}
  .campus-board .campus-link .campus-link-badge .icon{width:17px;height:17px}

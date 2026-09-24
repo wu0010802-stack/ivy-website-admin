@@ -23,9 +23,9 @@
   color:var(--text);
 }
 .visit-page[data-step='1'] {
-  --visit-band:#c5ded0;
-  --visit-ghost-ink:#e6f1e7;
-  --visit-ink:#203f32;
+  --visit-band:var(--ivy-forest-mist);
+  --visit-ghost-ink:var(--ivy-forest-ghost);
+  --visit-ink:var(--ivy-forest);
   --visit-soft:color-mix(in oklch,var(--visit-band) 45%,var(--visit-surface));
   --visit-cta-bg:var(--visit-ink);
   --visit-cta-hover-bg:var(--green);
@@ -33,16 +33,16 @@
   background:var(--visit-band);
 }
 .visit-page:not([data-step='1']) {
-  --visit-bg:oklch(98% .006 95);
-  --visit-ink:oklch(40% .02 215);
-  --visit-accent:oklch(51% .025 75);
-  --visit-muted:oklch(49% .018 150);
-  --visit-line:oklch(86% .012 95);
-  --visit-soft:oklch(94% .014 150);
-  --visit-cta-bg:oklch(82% .065 85);
-  --visit-cta-fg:oklch(29% .022 160);
-  --visit-cta-hover-bg:oklch(37% .035 160);
-  --visit-cta-hover-fg:oklch(99% .006 95);
+  --visit-bg:var(--ivy-campus-bg);
+  --visit-ink:var(--ivy-campus-ink);
+  --visit-accent:var(--ivy-campus-accent);
+  --visit-muted:var(--ivy-campus-muted);
+  --visit-line:var(--ivy-campus-line);
+  --visit-soft:var(--ivy-campus-soft);
+  --visit-cta-bg:var(--ivy-campus-gold);
+  --visit-cta-fg:var(--ivy-campus-deep);
+  --visit-cta-hover-bg:var(--ivy-campus-green);
+  --visit-cta-hover-fg:var(--ivy-campus-paper);
 }
 
 /* 迎賓區 ------------------------------------------------------------------ */
