@@ -4,6 +4,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import get_settings
@@ -44,6 +45,9 @@ def run_migrations_offline() -> None:
 def do_run_migrations(connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
+        # 正式 API 每次啟動都會 upgrade（deploy/api-start.py）。重疊的部署或
+        # 手動執行在此排隊，後到者讀到的已是新版本，不會重跑同一支 migration。
+        connection.execute(text("SELECT pg_advisory_xact_lock(hashtext('ivy-website:alembic'))"))
         context.run_migrations()
 
 

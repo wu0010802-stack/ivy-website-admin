@@ -1,4 +1,4 @@
-"""Read the database revision before API startup; never run migrations."""
+"""Verify, read-only, that the migrated database matches this image before API startup."""
 import asyncio
 
 
@@ -6,7 +6,8 @@ def validate_revision(actual: list[str], expected: list[str]) -> None:
     if len(expected) != 1 or sorted(actual) != sorted(expected):
         raise RuntimeError(
             f"Database revision {actual!r} does not match application {expected!r}. "
-            "An explicitly approved migration is required before this API can start."
+            "Startup migration did not reach this release's head; the database may be ahead "
+            "of this image (rollback) or the migrations may have diverged."
         )
 
 
