@@ -219,7 +219,7 @@ async def test_site_settings_requires_super_admin(minghua_client):
 async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client):
     """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
     數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""
-    from datetime import date
+    from app.common.timezones import today_local
 
     receipt_id = await _submit_inquiry(
         admin_client, public_client, campus_key="yihua", idempotency_key="ops-dash-today-01"
@@ -227,7 +227,7 @@ async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public
     slot = await admin_client.post(
         "/api/website/v1/admin/slots?campus_key=yihua",
         json={
-            "slot_date": date.today().isoformat(),
+            "slot_date": today_local().isoformat(),
             "start_time": "10:00:00",
             "end_time": "11:00:00",
             "capacity": 2,
