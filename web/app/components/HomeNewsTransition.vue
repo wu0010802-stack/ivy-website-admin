@@ -77,8 +77,8 @@ useNewsTransition(root, previous, paper)
 
 <style scoped>
 .news-transition {
-  --news-paper-base: #faf7ef;
-  --news-paper-blue: #dce7eb;
+  --news-paper-base: var(--ivy-news-paper);
+  --news-paper-blue: var(--ivy-news-paper-blue);
   --news-footer-fade: clamp(0, calc(var(--home-footer-progress, 0) * 1.65), 1);
   --news-paper-shadow: 0 -18px 70px rgb(var(--ink) / calc(.16 * (1 - var(--news-footer-fade))));
   --news-paper-radius: 88px;

@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 import re
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -44,17 +44,35 @@ def _require_safe_url(value: str) -> str:
     return value
 
 
+_MEDIA_CODE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
+
+
 def _require_safe_media_ref(value: str) -> str:
     """場景圖片欄位同時相容素材庫 UUID、舊 fixture 代號與外部網址
     （見 content/registry.py 的說明）。沒有 scheme 的純代號原樣放行，
     看起來像網址的才套允許清單。"""
     candidate = _strip_invisible(value)
     if ":" not in candidate:
+        # 代號會被前端拿去查圖片 manifest（一般物件），`__proto__`、
+        # `constructor` 這類鍵會查到原型而讓校區頁渲染失敗；素材代號與
+        # UUID 都只用英數與連字號，其他字元一律拒絕。
+        if candidate and not _MEDIA_CODE_PATTERN.fullmatch(candidate):
+            raise ValueError("圖片代號只能是英數字與連字號，或素材庫 UUID")
         return value
     return _require_safe_url(value)
 
 
-class HomeAboutPayload(BaseModel):
+# 內容欄位會被公開 API 整份聚合、每個頁面的 SSR 都帶著跑，所以每個文字
+# 欄位都要有上限：不然一個校區管理者發布一段超長 FAQ，就能讓全站所有
+# 訪客的每次載入一起變重。現有最長的文案不到 300 字，2000 字很寬。
+CONTENT_TEXT_MAX_LENGTH = 2000
+
+
+class _ContentPayload(BaseModel):
+    model_config = ConfigDict(str_max_length=CONTENT_TEXT_MAX_LENGTH)
+
+
+class HomeAboutPayload(_ContentPayload):
     title: str
     since_label: str
     body_text: str
@@ -66,7 +84,7 @@ class HomeAboutPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class HomeHeroPayload(BaseModel):
+class HomeHeroPayload(_ContentPayload):
     eyebrow: str
     copy_lines: list[str]
     cta_label: str
@@ -84,7 +102,7 @@ class HomeHeroPayload(BaseModel):
         return [_reject_unsafe_scheme(line) for line in value]
 
 
-class SiteFooterPayload(BaseModel):
+class SiteFooterPayload(_ContentPayload):
     tagline: str
     copyright: str
     bottom_note: str
@@ -96,7 +114,7 @@ class SiteFooterPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class SiteMetaPayload(BaseModel):
+class SiteMetaPayload(_ContentPayload):
     title: str
     description: str
     header_phone_number: str
@@ -108,7 +126,7 @@ class SiteMetaPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class HomeCampusBoardPayload(BaseModel):
+class HomeCampusBoardPayload(_ContentPayload):
     section_title: str
     eyebrow: str
     note: str
@@ -119,7 +137,7 @@ class HomeCampusBoardPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class BookingContentPayload(BaseModel):
+class BookingContentPayload(_ContentPayload):
     cta_label: str
     cta_label_en: str
     consent_text: str
@@ -140,7 +158,7 @@ class BookingContentPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class DayMomentPayload(BaseModel):
+class DayMomentPayload(_ContentPayload):
     key: str
     time: str
     label: str
@@ -156,7 +174,7 @@ class DayMomentPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class DayExperiencePayload(BaseModel):
+class DayExperiencePayload(_ContentPayload):
     eyebrow: str
     eyebrow_en: str
     note: str
@@ -194,7 +212,7 @@ def _require_iso_date(value: str) -> str:
     return value
 
 
-class NewsArticlePayload(BaseModel):
+class NewsArticlePayload(_ContentPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
     campus: str
@@ -223,7 +241,7 @@ class NewsArticlePayload(BaseModel):
         return _require_safe_media_ref(value)
 
 
-class NewsEventPayload(BaseModel):
+class NewsEventPayload(_ContentPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
     campus: str
@@ -241,7 +259,7 @@ class NewsEventPayload(BaseModel):
         return _require_iso_date(value)
 
 
-class HomeNewsPayload(BaseModel):
+class HomeNewsPayload(_ContentPayload):
     # 有值時首頁「近期活動」「最新消息」標出「示意內容」，並在區塊底部顯示這段
     # 說明；換成真實消息後清空即可。
     sample_note: str
@@ -300,7 +318,7 @@ def _bounded(value: list, low: int, high: int, what: str) -> list:
     return value
 
 
-class AdmissionStepPayload(BaseModel):
+class AdmissionStepPayload(_ContentPayload):
     when: str
     title: str
     text: str
@@ -311,7 +329,7 @@ class AdmissionStepPayload(BaseModel):
         return _nonblank(value, "步驟標題不可空白")
 
 
-class AdmissionPhasePayload(BaseModel):
+class AdmissionPhasePayload(_ContentPayload):
     tag: str
     title: str
     items: list[str]
@@ -333,12 +351,12 @@ class AdmissionPhasePayload(BaseModel):
         return _bounded([v for v in value if v.strip()], 0, 12, "提醒")
 
 
-class AdmissionUniformDayPayload(BaseModel):
+class AdmissionUniformDayPayload(_ContentPayload):
     day: str
     wear: str
 
 
-class AdmissionSubsidyPayload(BaseModel):
+class AdmissionSubsidyPayload(_ContentPayload):
     amount: str
     unit: str
     who: str
@@ -350,12 +368,12 @@ class AdmissionSubsidyPayload(BaseModel):
         return _nonblank(value, "補助金額不可空白")
 
 
-class AdmissionAllowancePayload(BaseModel):
+class AdmissionAllowancePayload(_ContentPayload):
     order: str
     amount: str
 
 
-class AdmissionRefundGroupPayload(BaseModel):
+class AdmissionRefundGroupPayload(_ContentPayload):
     label: str
     lines: list[str]
 
@@ -365,7 +383,7 @@ class AdmissionRefundGroupPayload(BaseModel):
         return _bounded([v for v in value if v.strip()], 1, 12, "每組退費說明")
 
 
-class AdmissionRefundPayload(BaseModel):
+class AdmissionRefundPayload(_ContentPayload):
     title: str
     groups: list[AdmissionRefundGroupPayload]
     note: str
@@ -381,7 +399,7 @@ class AdmissionRefundPayload(BaseModel):
         return _bounded(value, 1, 6, "退費說明組")
 
 
-class AdmissionContentPayload(BaseModel):
+class AdmissionContentPayload(_ContentPayload):
     """入學資訊頁（/admission）。區塊大標寫在官網程式裡（標題字型子集），
     這裡只放園方會改的內容：金額、步驟、須知、退費規定。分班對照由官網依
     生日規則計算，不存資料。"""
@@ -443,7 +461,7 @@ class AdmissionContentPayload(BaseModel):
         return self
 
 
-class CampusProfilePayload(BaseModel):
+class CampusProfilePayload(_ContentPayload):
     name: str
     district: str
     address: str
@@ -469,7 +487,7 @@ class CampusProfilePayload(BaseModel):
         return _require_safe_url(value)
 
 
-class CampusFaqItemPayload(BaseModel):
+class CampusFaqItemPayload(_ContentPayload):
     q: str
     a: str
 
@@ -479,7 +497,7 @@ class CampusFaqItemPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class CampusFaqPayload(BaseModel):
+class CampusFaqPayload(_ContentPayload):
     items: list[CampusFaqItemPayload]
 
     @field_validator("items")
@@ -490,7 +508,7 @@ class CampusFaqPayload(BaseModel):
         return value
 
 
-class TourSpotPayload(BaseModel):
+class TourSpotPayload(_ContentPayload):
     name: str
     x: float = Field(ge=0, le=100)
     y: float = Field(ge=0, le=100)
@@ -503,7 +521,7 @@ class TourSpotPayload(BaseModel):
         return _reject_unsafe_scheme(value)
 
 
-class TourScenePayload(BaseModel):
+class TourScenePayload(_ContentPayload):
     key: str
     name: str
     image: str
@@ -528,7 +546,7 @@ class TourScenePayload(BaseModel):
         return value
 
 
-class CampusTourPayload(BaseModel):
+class CampusTourPayload(_ContentPayload):
     scenes: list[TourScenePayload]
 
     @field_validator("scenes")

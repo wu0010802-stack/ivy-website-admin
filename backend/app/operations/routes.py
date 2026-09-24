@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import Role, User
-from app.auth.permissions import require_scope
+from app.auth.permissions import has_capability, require_scope
 from app.campuses.models import Campus
 from app.common import ratelimit
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
@@ -133,7 +133,11 @@ async def get_dashboard(
         if current_user.role == Role.SUPER_ADMIN
         else [s.campus_key for s in current_user.campus_scopes]
     )
-    return await dashboard_service.get_dashboard_summary(db, campus_keys)
+    summary = await dashboard_service.get_dashboard_summary(db, campus_keys)
+    if not has_capability(current_user, "booking.read"):
+        # 今日名單帶家長姓名；沒有案件讀取權的角色只看數字。
+        summary["today_visit_list"] = []
+    return summary
 
 
 @router.get("/admin/analytics/funnel")
@@ -142,7 +146,7 @@ async def get_analytics_funnel(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
     return await analytics_service.get_campus_funnel_counts(db, campus_key)
 
 

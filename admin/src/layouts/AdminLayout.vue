@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { TopRight, Menu } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { NAV_GROUPS } from '../router/nav'
@@ -41,7 +42,12 @@ watch(() => route.path, async () => {
   main.value?.focus({ preventScroll: true })
 })
 async function handleLogout() {
-  await auth.logout()
+  try {
+    await auth.logout()
+  } catch {
+    ElMessage.error('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
+    return
+  }
   openRequests.reset()
   router.push({ name: 'login' })
 }

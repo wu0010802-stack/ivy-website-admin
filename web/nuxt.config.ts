@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  css: ['~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
+  css: ['~/assets/css/tokens.css', '~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 
   // 2026-09-22 曾改成 inlineStyles:false（去掉 scoped 樣式 inline 又 link 的重複），線上 simulate 卻
   // 變差：阻塞渲染的 CSS 從 2 支變 4 支（多了 entry／pages），Lighthouse 估多等 1.5 s。同機同碼 A/B
@@ -91,6 +91,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     adminDistDir: process.env.NUXT_ADMIN_DIST_DIR ?? '',
     websiteApiInternalBase: apiInternalBase,
+    // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
+    // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
+    trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
     websiteEnv,
     public: {
       contentMode,

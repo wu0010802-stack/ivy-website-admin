@@ -11,6 +11,16 @@
 - **字型**：LINE Seed Bold 由原始 ver02 補 12 字（二冊囉寶曲月楚註貝退遲部）重切，725→737 字、既有字寬逐字核對不變；明體另切 `noto-serif-tc-500-admission.woff`（8 字）給 hero 大標，避免 Windows 落到新細明體。
 - 分享圖沿用首頁，不另產。
 
+## 品牌規範與色票收整（2026-09-24）
+
+- 官網顏色收成一組：`web/app/assets/css/tokens.css` 是唯一來源，`nuxt.config.ts` 第一個載入。原本 `styles.css` 與 `studio.css` 各有一份 `:root`，互相覆蓋 `--green`／`--paper`／`--cream`／`--leaf`（`studio.css` 生效），現在只留生效的那份。
+- 全站品牌色沿用短名（`--green`、`--paper`…）；只屬於某區塊的色用 `--ivy-<區塊>-<用途>`。元件的區域變數（`--visit-ink`、`--footer-bg`…）留在原處，值改成引用色票，作用範圍不變。透明度一律用 RGB 三元組（`--ink`、`--on-dark`、`--ivy-forest-rgb`…）。
+- 重複的值合併：分校資訊色票原本在 `CampusBoard.vue` 與 `visit-booking.css` 各寫一份，森林綠 `#203f32`／`#c5ded0`／`#e6f1e7` 在理念區與預約頁各寫一份，消息紙色 `#faf7ef` 兩份。
+- 例外：`app.vue` 的 theme-color、開場布幕 3D 材質、hydration 前布幕底圖、拍立得 WebGL 備用色寫在 TypeScript，讀不到 CSS 變數。
+- 後台維持 09-22 的獨立色票，只把校園探索熱點與素材庫縮圖上 8 處色碼收進 `--on-photo*`、`--photo-caption-*`。
+- 品牌規範整理成 `docs/brand/brand-guidelines.md`，內容只取既有定案。
+- **畫面不變**：同一個 API 與內容下，改前改後的正式建置在 1440／390px、8 個頁面、多個捲動位置、選單與 hover 狀態下，34,988 筆元素計算後的顏色屬性完全相同；26.5 萬筆 CSS 變數解析值中，只有頁首膠囊與首屏底線 4 個變數的寫法不同（舊版被壓縮器改寫成 `#ffffff47` 等 8 位元近似值，新版保留原本的 `.28`），32 張截圖逐像素比對 0 差異。
+
 ## 頁尾改用 R「燕麥＋深綠底列」（2026-09-24 定案，取代 09-22 的 A 深森林綠）
 
 使用者要求探索深森林綠以外的頁尾顏色，比稿 `design/footer-colour-directions-20260924/`（兩批共 17 個新案＋現行 A），選定雙色的 R。Nuxt 共用 `SiteFooter.vue` 已套用，首頁、分校、預約（含 manage）與後台草稿預覽共用。

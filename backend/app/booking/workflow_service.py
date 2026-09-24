@@ -88,10 +88,21 @@ async def confirm_with_slot(
     return visit_request
 
 
+async def _lock_status(db: AsyncSession, visit_request: VisitRequest) -> None:
+    """鎖住案件列後重讀狀態。家長取消與園方結案可能同時發生；只用請求
+    最初讀到的狀態判斷，較晚提交的一方會覆寫另一方已寫入的終態。"""
+    await db.refresh(
+        visit_request,
+        attribute_names=["status", "slot_id", "hold_expires_at"],
+        with_for_update=True,
+    )
+
+
 async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
     """取消是冪等的：已經是 cancelled 就直接回傳，不重複寫事件、
     不會因為重試而「重複釋放」名額（名額本來就是即時算出來的，
     不是可變計數器）。"""
+    await _lock_status(db, visit_request)
     if visit_request.status == VisitRequestStatus.CANCELLED.value:
         return visit_request
     if visit_request.status in (VisitRequestStatus.NO_SHOW.value, VisitRequestStatus.COMPLETED.value):
@@ -113,6 +124,7 @@ async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
 
 
 async def mark_no_show(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
+    await _lock_status(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記未到場")
     visit_request.status = VisitRequestStatus.NO_SHOW.value
@@ -123,6 +135,7 @@ async def mark_no_show(db: AsyncSession, visit_request: VisitRequest) -> VisitRe
 
 
 async def mark_completed(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
+    await _lock_status(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記完成")
     visit_request.status = VisitRequestStatus.COMPLETED.value

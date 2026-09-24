@@ -31,6 +31,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_ADMIN_ORIGIN=https://web-production-04caa.up.railway.app` |
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
+| api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
+| web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
 
@@ -40,9 +42,18 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 丟棄的）。
 
 api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
-`web/server/routes/api/website/v1/[...].ts` 則用
-`getRequestIP(event, { xForwardedFor: true })` 把訪客 IP 放進去，並**顯式
+`web/server/routes/api/website/v1/[...].ts` 則把訪客 IP 放進去，並**顯式
 覆寫**該 header（不覆寫的話任何人都能自己帶一個來偽造訪客身分）。
+
+2026-09-24 起訪客 IP 由 `web/server/utils/client-ip.ts` 取得：從
+`X-Forwarded-For` **右邊**數 `NUXT_TRUSTED_PROXY_HOPS` 層（Railway edge
+一層，預設 1），不是最左段——最左段是訪客自己能填的，原本用
+`getRequestIP(event, { xForwardedFor: true })` 取第一段，換一個值就換一個
+限流桶。前面多加一層 CDN／反向代理時要把層數調成實際值。
+
+同日另加本文上限：web 代理只轉送有 `Content-Length` 的本文（素材上傳 205 MB、
+其他 1 MB，超過 413、chunked 沒有長度 411），素材上傳改串流轉送；api 端
+`BodySizeLimitMiddleware` 在解析前再擋一次，素材上傳路徑先驗證後台 session。
 
 限流另外刻意設計成不會因為這層設定失準就誤傷正常流量：
 
@@ -60,7 +71,11 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 `python -m app.cli process-notifications` 現在會**先**釋放逾期的時段占位
 （規格 222：人工待確認的 slot 案件占位 24 小時，到期轉 cancelled、記
 `hold_expired`、釋放名額並通知園方），再處理 outbox。這個指令需要由排程
-定期呼叫；沒有排程的話逾期占位不會自動釋放，名額會一直被佔住。
+定期呼叫；沒有排程的話逾期占位不會被標成 cancelled。
+
+2026-09-24 起：釋放占位不再依賴寄信設定（未設定
+`WEBSITE_NOTIFICATION_EMAIL_SINK_DIR` 時仍會釋放，只是不處理 outbox）；
+容量計算本身也排除已到期的待確認占位，所以排程沒跑時名額也不會被卡住。
 
 ## 初次初始化
 

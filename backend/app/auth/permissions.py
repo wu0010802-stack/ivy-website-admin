@@ -28,13 +28,24 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "media.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
     "content.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "content.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
-    "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
+    # 案件含家長與孩子個資。規格「權限」表：內容編輯不讀家長個資，唯讀
+    # 不自動擁有案件個資權限——所以只給總管理、分校管理與接待。
+    "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
+    # 去識別的成效統計（漏斗數字），唯讀角色依規格可以看。
+    "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 批次匯出家長姓名與手機是另一個層級的事，不該跟「看得到案件」綁在
     # 一起——否則階段 D 一上 readonly／reception 角色，他們就自動能把整份
     # 個資下載回家。刻意獨立成一個 capability。
     "booking.export": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
 }
+
+
+def has_capability(user: User, capability: str) -> bool:
+    allowed_roles = _CAPABILITY_ROLES.get(capability)
+    if allowed_roles is None:
+        raise ValueError(f"未知的 capability：{capability}")
+    return user.role in allowed_roles
 
 
 def require_scope(user: User, capability: str, campus_keys: list[str] | None = None) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.auth import service
 from app.auth.deps import (
+    CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
+    check_csrf_and_origin,
     get_current_session,
     get_current_user,
     get_db_session,
@@ -89,13 +91,25 @@ async def login(
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db_session),
     session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    csrf_header: str | None = Header(default=None, alias=CSRF_HEADER_NAME),
 ) -> None:
-    if session_token is not None:
-        await service.revoke_session(db, session_token)
-        await db.commit()
+    """登出跟其他會改狀態的請求一樣要過 CSRF／Origin 檢查；否則任何外站
+    表單都能讓管理員的瀏覽器收到清除 cookie 的回應而被迫登出。沒有有效
+    session 時什麼都不做（也不送清除 cookie）。"""
+    if session_token is None:
+        return
+    session = await service.get_session_by_token(db, session_token)
+    if session is None:
+        # 已過期或已撤銷：cookie 沒有用了，清掉不會造成傷害。
+        response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+        return
+    check_csrf_and_origin(request, session, csrf_header)
+    await service.revoke_session(db, session_token)
+    await db.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
 
 

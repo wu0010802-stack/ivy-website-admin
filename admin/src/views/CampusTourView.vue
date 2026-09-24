@@ -413,13 +413,13 @@ function nudge(i: number, event: KeyboardEvent) {
   width: 28px;
   height: 28px;
   transform: translate(-50%, -50%);
-  border: 2px solid oklch(1 0 0 / 0.85);
+  border: 2px solid var(--on-photo-border);
   border-radius: 50%;
   background: var(--el-color-primary);
-  color: oklch(1 0 0);
+  color: var(--on-photo);
   font: 600 12px/1 var(--el-font-family);
   cursor: grab;
-  box-shadow: 0 1px 4px oklch(0 0 0 / 0.45);
+  box-shadow: 0 1px 4px var(--on-photo-shadow);
   transition: transform 120ms var(--ease-out);
 }
 
@@ -430,7 +430,7 @@ function nudge(i: number, event: KeyboardEvent) {
 .tour__pin.is-active {
   background: var(--brand-gold);
   color: var(--ink);
-  border-color: oklch(1 0 0);
+  border-color: var(--on-photo);
   transform: translate(-50%, -50%) scale(1.15);
 }
 

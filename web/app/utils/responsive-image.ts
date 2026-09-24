@@ -15,7 +15,10 @@ export const HOME_HERO_SIZES = '100vw'
 export const ADMISSION_HERO_IMAGE = 'day-hello'
 
 export function responsiveImage(name: string, sizes = '100vw') {
-  const info = (manifest as Record<string, ImageInfo>)[name]
+  // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，
+  // 一般物件會查到原型，接著 candidates.map 丟例外讓整頁渲染失敗。
+  const found = Object.hasOwn(manifest, name) ? (manifest as Record<string, ImageInfo>)[name] : undefined
+  const info = found && Array.isArray(found.candidates) ? found : undefined
   return {
     src: `/assets/${name}.webp`,
     width: info?.width,

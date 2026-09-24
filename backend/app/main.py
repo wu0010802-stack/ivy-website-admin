@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
+from app.common.body_limit import BodySizeLimitMiddleware
 from app.booking.access_routes import router as booking_access_router
 from app.booking.routes import router as booking_router
 from app.campuses.routes import router as campuses_router
@@ -61,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine
     )
     _register_exception_handlers(app)
+    app.add_middleware(BodySizeLimitMiddleware)
 
     @app.middleware("http")
     async def parent_access_privacy_headers(request: Request, call_next):

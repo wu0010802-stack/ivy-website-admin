@@ -57,8 +57,6 @@ const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour
  * `campuses`，不在這裡另外寫死一份清單，避免兩份清單以後漂移）。
  */
 export async function useDraftPreview(): Promise<DraftPreviewResult> {
-  const content = await $fetch<SiteContent>('/api/site-fixture')
-
   let me: MeResponse
   try {
     me = await $fetch<MeResponse>('/api/website/v1/auth/me')
@@ -68,6 +66,9 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   if (!me?.user?.is_active) {
     return { authorized: false, content: null }
   }
+
+  // fixture 端點也要後台 session（含未發布校區），確認登入後才讀。
+  const content = await $fetch<SiteContent>('/api/site-fixture')
 
   const overlay: ContentOverlay = {}
 

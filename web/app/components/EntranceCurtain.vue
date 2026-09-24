@@ -128,15 +128,15 @@ onUnmounted(() => {
 
 <style scoped>
 .entrance-curtain {
-  --entrance-gold: #ebd9b7;
-  --entrance-button: #310f1dcc;
-  --entrance-border: #a38362;
-  --entrance-focus: #f2dfb9;
+  --entrance-gold: var(--ivy-curtain-gold);
+  --entrance-button: var(--ivy-curtain-button);
+  --entrance-border: var(--ivy-curtain-border);
+  --entrance-focus: var(--ivy-curtain-focus);
   position: fixed; inset: 0; margin: 0; padding: 0; border: 0;
   width: 100%; height: 100dvh; max-width: none; max-height: none;
   overflow: hidden; color: var(--entrance-gold);
   /* The same first-frame poster as the pre-hydration cover (entrance-policy.ts). */
-  background: var(--entrance-cover, #2c0006);
+  background: var(--entrance-cover, var(--ivy-curtain-cover));
 }
 .entrance-curtain::backdrop { background: transparent; }
 /* The poster stays under the opaque cloth until it parts, so the live canvas can
