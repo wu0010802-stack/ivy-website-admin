@@ -485,3 +485,16 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 第一次量測在 main 版本得到 3 幀「白框」，查出是頁籤被捲到畫面外（y=-6）、取樣帶落到畫面外的量測失誤；腳本改成捲動後確認頁籤在畫面中段再量，重測如上。
 - `push ...:main` 這次沒有被 auto 模式擋。CI run `35943562324` 全綠（含 deploy job）。`/release.json` snapshot `af0139ed1c64fcd06843c100e1f494976c54cd5330fd1daf9644072502709226`、`base_commit` `d6a1879`、`created_at` 2026-09-24T01:38:49Z；首頁 SSR CSS 含三個 `@property`，明華新小圖 `56f214277928-480` 200。
 - 線上 WebKit 重跑：手機（402×874）自動輪播＋點按白框 0/404 幀（上線前 20）、桌機（1440×900）hover 淡入淡出 0/245 幀（上線前 54）。iPhone 實機未驗證。
+
+## 2026-09-24 關於→孩子的一天接力：「關於」落下上線後改回原樣（15e3c9d → 48d92c2）
+
+- **上線 15e3c9d**：使用者要求 commit 並併入 main。feature 提交 `ba6a03e`，在 `origin/main`（`5be72ac`，等於線上 `base_commit`）的 deploy worktree cherry-pick 成 `15e3c9d`；README／DESIGN 衝突以 main 為準，只插入自己的段落，web 改動與原 commit 逐行相同。worktree 內 Node 22 跑 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過，本機 `.output` 以 Playwright 驗證落下、逐字與減少動態。`push ...:main` 被 auto 模式擋，由使用者執行。CI run `35940230302` 全綠。之後的頁尾 R（`33ca882`）、分校線稿（`d6a1879`）部署疊在它之上。上一個 session 在上線驗證前就結束了，沒有做線上實測。
+- **改回 48d92c2**：使用者看過後要求「改回沒有接力動畫的樣子」，回到 09-18 seam=2 原樣。feature 提交 `acd60ce`：`studio.css`、`DayExperience.vue`、`useCurtain.ts`、`pages/index.vue` 還原成 `ba6a03e` 之前的內容，刪除 `useRelayDrop.ts`（`ba6a03e` 之後沒有別的 commit 動過這些檔）。在 `origin/main`（`d6a1879`，等於線上）的 deploy worktree cherry-pick 成 `48d92c2`，只有 DESIGN.md 衝突；這 5 個檔案與 `5be72ac` 逐字相同。worktree 驗證同上，都通過。`push ...:main` 交由使用者執行。
+- CI run `35945980160` 全綠（含 deploy job）。`/release.json` snapshot `9828f3dc4a05d7c3d89cd9cddabab93110ae7d44fcadc85df8bef79333b6709e`、`base_commit` `48d92c2`、`created_at` 2026-09-24T02:12:33Z。首頁 SSR 已無 `.day-lead`／`.t-day-ch`，內嵌 CSS 的簾幕距離是 `.85`／`.55`。
+- 線上 Playwright（1440×900、390×844）：
+  - 簾幕距離 765／464px，與改之前相同。
+  - 「的一天」整組淡入。
+  - 大標無 transform。
+  - 減少動態時完整顯示。
+  - 無 page error。
+  - iPhone 實機未驗證。
