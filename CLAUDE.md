@@ -45,6 +45,7 @@
 ## 設計硬規則（細節與理由在 DESIGN.md）
 
 - 遮罩、文字、錯誤、時間軸顏色一律走 token，不寫 rgba／oklch 字面值。
+- 官網顏色唯一來源是 `web/app/assets/css/tokens.css`，後台是 `admin/src/style.css` 的 `:root`；元件裡不寫色碼。品牌規範（Logo、色彩、字型、用語）整理在 `docs/brand/brand-guidelines.md`。
 - hero 遮罩對比要對**實際照片像素**量，桌機與手機分開量；手機首屏不做滿版壓字。
 - 頁首貼視窗右緣的做法是 `.header-top` 滿版＋補 gutter，包在 `@media(min-width:901px)`；**禁止**用 `.header-book` 負邊距（自訂屬性裡的 % 在使用端解析）。
 - 膠囊內任何 `span` 規則要明寫 `width/height/background`，否則被站內選擇器壓成白條。

@@ -222,12 +222,12 @@ onBeforeUnmount(() => {
 <style scoped>
 /* 參考圖：鼠尾草綠底、同尺寸白點，當前實心、其他約 20% */
 .home-films {
-  --film-band: #acbe9b;
-  --film-dot: oklch(99.5% .003 100);
+  --film-band: var(--ivy-film-band);
+  --film-dot: var(--ivy-film-dot);
   --film-dot-idle: color-mix(in oklch, var(--film-dot) 22%, transparent);
-  --film-control: oklch(22% .02 160 / .55);
-  --film-mark: oklch(99% .004 100 / .92);
-  --film-frame: oklch(62% .035 140);
+  --film-control: var(--ivy-film-control);
+  --film-mark: var(--ivy-film-mark);
+  --film-frame: var(--ivy-film-frame);
   background: var(--film-band);
 }
 .home-films .hn-kicker { color: inherit; }

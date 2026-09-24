@@ -55,8 +55,8 @@ onMounted(async () => {
   position: sticky;
   top: 0;
   z-index: 999;
-  background: #2d2d2d;
-  color: #ffd75e;
+  background: var(--ivy-dev-bar);
+  color: var(--ivy-dev-bar-text);
   text-align: center;
   padding: 8px 16px;
   font-size: var(--fs-sm);

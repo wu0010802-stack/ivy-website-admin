@@ -31,6 +31,14 @@
   --sidebar-active-ink: oklch(0.827586 0.101277 230.3179); /* #7dd3fc */
   --sidebar-line: oklch(0.437413 0.043760 256.0824); /* #42536a */
 
+  /* 疊在照片上的標記與圖說（校園探索熱點、素材庫縮圖），不論照片明暗都要看得到。 */
+  --on-photo: oklch(1 0 0);
+  --on-photo-border: oklch(1 0 0 / 0.85);
+  --on-photo-shadow: oklch(0 0 0 / 0.45);
+  --on-photo-shadow-strong: oklch(0 0 0 / 0.5);
+  --photo-caption-bg: oklch(0.2 0.02 150 / 0.7);
+  --photo-caption-ink: oklch(0.98 0 0);
+
   --side-w: 260px;
   --top-h: 64px;
   --control-h: 38px;

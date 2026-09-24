@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  css: ['~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
+  css: ['~/assets/css/tokens.css', '~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 
   // 2026-09-22 曾改成 inlineStyles:false（去掉 scoped 樣式 inline 又 link 的重複），線上 simulate 卻
   // 變差：阻塞渲染的 CSS 從 2 支變 4 支（多了 entry／pages），Lighthouse 估多等 1.5 s。同機同碼 A/B
