@@ -24,35 +24,27 @@ const campuses = computed(() => props.content.campuses)
         </div>
       </div>
     </div>
-    <div v-if="content.footer.copyright || content.footer.bottomNote" class="footer-bar">
-      <div class="container footer-bottom">
-        <span v-if="content.footer.copyright">{{ content.footer.copyright }}</span>
-        <span v-if="content.footer.bottomNote">{{ content.footer.bottomNote }}</span>
-      </div>
+    <div v-if="content.footer.copyright || content.footer.bottomNote" class="container footer-bottom">
+      <span v-if="content.footer.copyright">{{ content.footer.copyright }}</span>
+      <span v-if="content.footer.bottomNote">{{ content.footer.bottomNote }}</span>
     </div>
   </footer>
 </template>
 
 <style scoped>
-/* 2026-09-24：頁尾配色 R「燕麥＋深綠底列」。主體淺燕麥，版權列滿版深森林綠、以色塊交界取代分隔線。色票限定於共用頁尾。 */
+/* 2026-09-24：頁尾回到 A 深森林綠底，文字全部純白（使用者指定），層次只靠字級與字重。色票限定於共用頁尾。 */
 .footer {
-  --footer-bg: #efe8da;
-  --footer-text: #27433a;
-  --footer-muted: #5b6358;
-  --footer-brand: #1f3a31;
-  --footer-accent: #7a5a24;
-  --footer-bar-bg: #24483f;
-  --footer-bar-text: #d9e2d9;
-  --footer-focus: var(--footer-accent);
+  --footer-bg: #24483f;
+  --footer-text: #ffffff;
+  --footer-line: #526d61;
+  --footer-focus: var(--footer-text);
   background: var(--footer-bg);
   color: var(--footer-text);
 }
-.footer-name { color: var(--footer-brand); }
-.footer-name span { color: var(--footer-accent); }
-.footer-main p { color: var(--footer-muted); }
-.footer-main .footer-label { color: var(--footer-accent); }
-.footer-bar { background: var(--footer-bar-bg); color: var(--footer-bar-text); }
-.footer-bottom { border-top: 0; color: inherit; }
+.footer-main p,
+.footer-main .footer-label,
+.footer-bottom { color: var(--footer-text); }
+.footer-bottom { border-color: var(--footer-line); }
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
 .footer a:focus-visible { outline-color: var(--footer-focus); }
 
@@ -69,14 +61,8 @@ const campuses = computed(() => props.content.campuses)
   .footer {
     --footer-bg: Canvas;
     --footer-text: CanvasText;
-    --footer-muted: CanvasText;
-    --footer-brand: CanvasText;
-    --footer-accent: LinkText;
-    --footer-bar-bg: Canvas;
-    --footer-bar-text: CanvasText;
+    --footer-line: CanvasText;
     --footer-focus: Highlight;
   }
-  /* 兩塊底色都變 Canvas，補回分隔線 */
-  .footer-bottom { border-top: 1px solid CanvasText; }
 }
 </style>

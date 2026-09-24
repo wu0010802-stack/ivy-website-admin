@@ -1,3 +1,9 @@
+## 2026-09-24 頁尾回到 A 深森林綠，文字全部純白
+
+使用者看過上線的 R「燕麥＋深綠底列」後要求再看顏色：先在 `design/footer-colour-directions-20260924/` 加第三批 R 的變化（U–Z），使用者決定「走 A」；再比文字顏色 `design/footer-text-colour-a-20260924/`（10 案，含指定保留的全白版），選 1 全白。共用 `web/app/components/SiteFooter.vue` 底色回到 `#24483F`，所有文字 `#FFFFFF`，拿掉 R 的 `.footer-bar` 滿版底列、恢復 1px 分隔線 `#526D61`，鍵盤焦點外框改白。文案、欄位、斷點不變。規則寫在 DESIGN.md 最上方。
+
+驗證：Node 22 `nuxt typecheck` 通過、web vitest 25 檔 186 項通過。Playwright 對 3161 dev 跑首頁、義華分校頁、預約頁 × 1440／390px：底色 `rgb(36,72,63)`、頁尾所有文字計算色只有 `rgb(255,255,255)`（對比 10.13）、無 `.footer-bar`、分隔線 1px `#526D61`、無橫向溢出、連結高度 ≥44px；鍵盤焦點外框白色 3px；強制色彩底為 Canvas、分隔線保留。截圖與 `results.json` 在 `output/playwright/footer-text-white-20260924/`。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-24 頁尾拿掉「參觀時間與入學資訊，請向各校確認。」
 
 使用者要求拿掉這句開發輔助字。它不在 CMS 裡：線上發布的 `site_footer.bottom_note` 仍是原型字「官網設計提案 · 預約為操作示範，不會送出資料」，由 `web/app/utils/public-copy.ts` 換成這句。改為換成空字串，`SiteFooter.vue` 底列只剩版權；CMS 之後另填的備註照常顯示。`web/tests/public-copy.spec.ts` 補兩條斷言。
