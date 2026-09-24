@@ -141,7 +141,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/website/v1/admin/content-items/{kind}/revisions": {
+    "/api/website/v1/admin/content-items/{kind}/restore": {
         parameters: {
             query?: never;
             header?: never;
@@ -150,8 +150,51 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * Restore Content Revision
+         * @description 把舊版內容複製成一筆新草稿（不直接上線）。園方確認畫面後再照常發布；
+         *     也可以直接發布舊版 revision（publish 本來就接受任一版本）。規格：內容
+         *     還原不回復預約設定、時段、案件或通知，這裡只動內容。
+         */
+        post: operations["restore_content_revision_api_website_v1_admin_content_items__kind__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Content Revisions
+         * @description 版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。
+         */
+        get: operations["list_content_revisions_api_website_v1_admin_content_items__kind__revisions_get"];
+        put?: never;
         /** Create Content Revision */
         post: operations["create_content_revision_api_website_v1_admin_content_items__kind__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Content Revision */
+        get: operations["get_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -491,6 +534,27 @@ export interface paths {
         patch: operations["update_user_scope_api_website_v1_admin_users__user_id__scope_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/visit-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visit Calendar
+         * @description 接待日曆：已排時段的案件（待確認、已確認、已完成、未到場），依參觀
+         *     時間排序。與案件清單讀同一張表，不另存一份日曆資料。
+         */
+        get: operations["visit_calendar_api_website_v1_admin_visit_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests": {
         parameters: {
             query?: never;
@@ -501,7 +565,8 @@ export interface paths {
         /** List Visit Requests */
         get: operations["list_visit_requests_api_website_v1_admin_visit_requests_get"];
         put?: never;
-        post?: never;
+        /** Create Manual Visit Request */
+        post: operations["create_manual_visit_request_api_website_v1_admin_visit_requests_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -559,6 +624,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/assignee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Assign Visit Request */
+        patch: operations["assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/cancel": {
         parameters: {
             query?: never;
@@ -570,6 +652,23 @@ export interface paths {
         put?: never;
         /** Cancel Visit Request */
         post: operations["cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Completed */
+        post: operations["mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -605,6 +704,23 @@ export interface paths {
         put?: never;
         /** Create Contact Note */
         post: operations["create_contact_note_api_website_v1_admin_visit_requests__visit_request_id__contact_notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Contacting */
+        post: operations["mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -660,6 +776,92 @@ export interface paths {
          *     讓它立刻失效——在此之前 repo 裡沒有任何撤銷路徑。
          */
         post: operations["revoke_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__revoke_access_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-schedule/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Visit Schedule */
+        get: operations["get_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__get"];
+        /** Update Visit Schedule */
+        put: operations["update_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Visit Exception */
+        post: operations["add_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions/{exception_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Visit Exception */
+        delete: operations["remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-schedule/{campus_key}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Visit Slots */
+        post: operations["generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Visit Staff */
+        get: operations["list_visit_staff_api_website_v1_admin_visit_staff_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1054,6 +1256,32 @@ export interface components {
             /** Version */
             version: number;
         };
+        /**
+         * ContentRevisionSummaryOut
+         * @description 版本歷史列表用；不含 payload，點開單一版本再讀。
+         */
+        ContentRevisionSummaryOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /** Ever Published */
+            ever_published: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Published */
+            is_published: boolean;
+            /** Last Published At */
+            last_published_at: string | null;
+            /** Version */
+            version: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1271,6 +1499,16 @@ export interface components {
              */
             new_slot_id: string;
         };
+        /** RestoreRevisionRequest */
+        RestoreRevisionRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+        };
         /**
          * Role
          * @description 完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，
@@ -1290,6 +1528,18 @@ export interface components {
             share_image?: string | null;
             /** Title */
             title: string;
+        };
+        /** StaffOut */
+        StaffOut: {
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Role */
+            role: string;
         };
         /**
          * TelemetryIn
@@ -1402,6 +1652,58 @@ export interface components {
             /** Note */
             note: string;
         };
+        /** VisitExceptionCreatedOut */
+        VisitExceptionCreatedOut: {
+            /** Affected Requests */
+            affected_requests: number;
+            /** Closed Slots */
+            closed_slots: number;
+            /**
+             * Exception Date
+             * Format: date
+             */
+            exception_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string | null;
+        };
+        /** VisitExceptionIn */
+        VisitExceptionIn: {
+            /**
+             * Exception Date
+             * Format: date
+             */
+            exception_date: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** VisitExceptionOut */
+        VisitExceptionOut: {
+            /**
+             * Exception Date
+             * Format: date
+             */
+            exception_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string | null;
+        };
+        /**
+         * VisitRequestAssignRequest
+         * @description None 代表取消指派。
+         */
+        VisitRequestAssignRequest: {
+            /** Assigned Staff Id */
+            assigned_staff_id: string | null;
+        };
         /** VisitRequestConfirmRequest */
         VisitRequestConfirmRequest: {
             /**
@@ -1460,6 +1762,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By */
+            created_by?: string | null;
             /** Email */
             email?: string | null;
             /** Follow Up At */
@@ -1481,11 +1785,52 @@ export interface components {
             questions: string | null;
             /** Referral Sources */
             referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            /** Related Request Id */
+            related_request_id?: string | null;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Slot Id */
             slot_id: string | null;
+            /**
+             * Source
+             * @default web
+             * @enum {string}
+             */
+            source: "web" | "phone" | "line" | "walk_in" | "external";
             /** Status */
             status: string;
+        };
+        /**
+         * VisitRequestManualCreate
+         * @description 規格 6.2 人工補登。欄位規則與公開表單相同（手機一樣正規化成 10
+         *     碼），但不需要 config_version／同意勾選／冪等鍵：這是園方自己在後台建
+         *     的案子，不是家長從官網送的。
+         */
+        VisitRequestManualCreate: {
+            /** Age */
+            age?: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Parent Name */
+            parent_name: string;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time?: string | null;
+            /** Questions */
+            questions?: string | null;
+            /** Related Request Id */
+            related_request_id?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "phone" | "line" | "walk_in" | "external";
         };
         /** VisitRequestOut */
         VisitRequestOut: {
@@ -1509,6 +1854,74 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+        };
+        /**
+         * VisitRuleIn
+         * @description 0＝週一 … 6＝週日。
+         */
+        VisitRuleIn: {
+            /** Capacity */
+            capacity: number;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Slot Minutes */
+            slot_minutes: number;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** VisitRuleOut */
+        VisitRuleOut: {
+            /** Capacity */
+            capacity: number;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slot Minutes */
+            slot_minutes: number;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** VisitScheduleOut */
+        VisitScheduleOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Exceptions */
+            exceptions: components["schemas"]["VisitExceptionOut"][];
+            /** Max Advance Days */
+            max_advance_days: number;
+            /** Min Lead Hours */
+            min_lead_hours: number;
+            /** Rules */
+            rules: components["schemas"]["VisitRuleOut"][];
+        };
+        /** VisitScheduleUpdate */
+        VisitScheduleUpdate: {
+            /** Max Advance Days */
+            max_advance_days: number;
+            /** Min Lead Hours */
+            min_lead_hours: number;
+            /** Rules */
+            rules?: components["schemas"]["VisitRuleIn"][];
         };
         /**
          * VisitSlotBriefOut
@@ -1557,6 +1970,28 @@ export interface components {
              * Format: time
              */
             start_time: string;
+        };
+        /** VisitSlotGenerateOut */
+        VisitSlotGenerateOut: {
+            /** Created */
+            created: number;
+            /** Skipped Exception Days */
+            skipped_exception_days: number;
+            /** Skipped Existing */
+            skipped_existing: number;
+        };
+        /** VisitSlotGenerateRequest */
+        VisitSlotGenerateRequest: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
         };
         /** VisitSlotOut */
         VisitSlotOut: {
@@ -1936,6 +2371,85 @@ export interface operations {
             };
         };
     };
+    restore_content_revision_api_website_v1_admin_content_items__kind__restore_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_content_revisions_api_website_v1_admin_content_items__kind__revisions_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRevisionSummaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_content_revision_api_website_v1_admin_content_items__kind__revisions_post: {
         parameters: {
             query?: {
@@ -1964,6 +2478,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+                revision_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRevisionOut"];
                 };
             };
             /** @description Validation Error */
@@ -2890,6 +3442,43 @@ export interface operations {
             };
         };
     };
+    visit_calendar_api_website_v1_admin_visit_calendar_get: {
+        parameters: {
+            query: {
+                date_from: string;
+                date_to: string;
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
@@ -2899,6 +3488,13 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
+                source?: string | null;
+                /** @description me、none，或承辦人 id */
+                assignee?: string | null;
+                /** @description 送出日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 送出日期迄（含），台灣日期 */
+                created_to?: string | null;
                 /** @description 送出時間排序 */
                 order?: string;
                 page?: number;
@@ -2921,6 +3517,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitRequestDetailOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_manual_visit_request_api_website_v1_admin_visit_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestManualCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -3041,7 +3674,81 @@ export interface operations {
             };
         };
     };
+    assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3189,6 +3896,41 @@ export interface operations {
             };
         };
     };
+    mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_no_show_api_website_v1_admin_visit_requests__visit_request_id__no_show_post: {
         parameters: {
             query?: never;
@@ -3284,6 +4026,227 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_visit_schedule_api_website_v1_admin_visit_schedule__campus_key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitExceptionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitExceptionCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+                exception_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitSlotGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitSlotGenerateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_visit_staff_api_website_v1_admin_visit_staff_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOut"][];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -208,6 +208,14 @@ export interface SiteMetaContent {
   primaryNav: { label: string; labelEn: string; href: string }[]
   headerPhone: { number: string; note: string; _todo?: string }
   socialLinks?: { platform: 'facebook' | 'line'; label: string; url: string }[]
+  /** 後台「全站設定」：社群分享圖（素材庫媒體 UUID），空值沿用首頁大圖 */
+  shareImage?: string
+  shareImageAlt?: string
+  /** 入學資訊頁搜尋標題／描述；空值沿用內建文字 */
+  admissionTitle?: string
+  admissionDescription?: string
+  /** false 時一律 noindex（只能收緊，部署沒開索引時不會因此變成可索引） */
+  allowIndexing?: boolean
 }
 
 export interface AdmissionStep { when: string; title: string; text: string }

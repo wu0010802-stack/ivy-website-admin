@@ -106,7 +106,7 @@ async def _clean_tables(app):
                 "notification_deliveries, notification_inbox_items, "
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
-                "visit_requests, visit_slots, "
+                "visit_requests, visit_slots, visit_rules, visit_exceptions, "
                 "booking_configs RESTART IDENTITY CASCADE"
             )
         )

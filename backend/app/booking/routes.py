@@ -11,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import User
-from app.auth.permissions import ScopeDenied, require_scope
+from app.auth.models import Role, User, UserCampusScope
+from app.auth.permissions import ScopeDenied, has_capability, require_scope
 from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
+from app.common.timezones import local_day_bounds_utc
 from app.operations import audit_service
 from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.schemas import (
@@ -24,7 +25,10 @@ from app.booking.schemas import (
     PublicVisitSlotOut,
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
+    StaffOut,
+    VisitRequestAssignRequest,
     VisitRequestConfirmRequest,
+    VisitRequestManualCreate,
     VisitRequestCreate,
     VisitRequestDetailOut,
     VisitRequestOut,
@@ -318,11 +322,13 @@ async def list_public_slots(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
         ) from exc
+    config = await db.get(BookingConfig, campus_key)
+    window = slot_service.window_for(config)
     result = []
     for slot in slots:
         # 與送單共用同一份判斷（closed／已過去／未達最短提前時間／
         # 超過最遠開放天數），避免公開頁列出根本訂不了的時段。
-        if not slot_service.is_publicly_bookable(slot):
+        if not slot_service.is_publicly_bookable(slot, **window):
             continue
         booked = await slot_service.count_booked(db, slot.id)
         remaining = max(slot.capacity - booked, 0)
@@ -364,6 +370,10 @@ async def list_visit_requests(
     status_filter: str | None = Query(default=None, alias="status"),
     q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
     follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
+    source: str | None = Query(default=None, pattern="^(web|phone|line|walk_in|external)$"),
+    assignee: str | None = Query(default=None, description="me、none，或承辦人 id"),
+    created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
+    created_to: date | None = Query(default=None, description="送出日期迄（含），台灣日期"),
     order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -388,6 +398,21 @@ async def list_visit_requests(
         stmt = stmt.where(VisitRequest.campus_key.in_(owned))
     if status_filter:
         stmt = stmt.where(VisitRequest.status == status_filter)
+    if source:
+        stmt = stmt.where(VisitRequest.source == source)
+    if assignee == "me":
+        stmt = stmt.where(VisitRequest.assigned_staff_id == current_user.id)
+    elif assignee == "none":
+        stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
+    elif assignee:
+        try:
+            stmt = stmt.where(VisitRequest.assigned_staff_id == uuid.UUID(assignee))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="承辦人篩選格式錯誤") from exc
+    if created_from is not None:
+        stmt = stmt.where(VisitRequest.created_at >= local_day_bounds_utc(created_from)[0])
+    if created_to is not None:
+        stmt = stmt.where(VisitRequest.created_at < local_day_bounds_utc(created_to)[1])
     if q and q.strip():
         # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
         # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
@@ -442,7 +467,7 @@ async def export_visit_requests(
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow([
-        "campus_key", "status", "parent_name", "phone", "created_at",
+        "campus_key", "status", "source", "parent_name", "phone", "created_at",
         "child_name", "child_birthdate", "email", "referral_sources",
         "slot_date", "start_time", "end_time",
     ])
@@ -452,6 +477,7 @@ async def export_visit_requests(
             [
                 _safe_cell(r.campus_key),
                 _safe_cell(r.status),
+                _safe_cell(r.source),
                 _safe_cell(r.parent_name),
                 _safe_cell(r.phone),
                 r.created_at.isoformat(),
@@ -623,3 +649,195 @@ async def reschedule_visit_request(
         ) from exc
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)
+
+
+def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "INVALID_TRANSITION", "message": exc.message},
+    )
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/contacting", response_model=VisitRequestDetailOut)
+async def mark_contacting(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.mark_contacting(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _invalid_transition(exc) from exc
+    await db.commit()
+    await db.refresh(visit_request, attribute_names=["slot"])
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/complete", response_model=VisitRequestDetailOut)
+async def mark_completed(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.mark_completed(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _invalid_transition(exc) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+async def _staff_for_campus(db: AsyncSession, campus_key: str) -> list[User]:
+    """能處理這校案件的有效帳號：總管理者，或有這校範圍且角色讀得到案件。"""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.campus_scopes))
+        .where(User.is_active.is_(True))
+        .order_by(User.email)
+    )
+    staff = []
+    for user in result.scalars():
+        if not has_capability(user, "booking.read"):
+            continue
+        if user.role == Role.SUPER_ADMIN or campus_key in {s.campus_key for s in user.campus_scopes}:
+            staff.append(user)
+    return staff
+
+
+@router.get("/admin/visit-staff", response_model=list[StaffOut])
+async def list_visit_staff(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[StaffOut]:
+    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    return [
+        StaffOut(id=u.id, email=u.email, role=u.role.value)
+        for u in await _staff_for_campus(db, campus_key)
+    ]
+
+
+@router.patch("/admin/visit-requests/{visit_request_id}/assignee", response_model=VisitRequestDetailOut)
+async def assign_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestAssignRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    if payload.assigned_staff_id is not None:
+        allowed = {u.id for u in await _staff_for_campus(db, visit_request.campus_key)}
+        if payload.assigned_staff_id not in allowed:
+            raise HTTPException(
+                status_code=422,
+                detail="這個帳號不能處理這個校區的案件",
+            )
+    await workflow_service.assign_staff(db, visit_request, payload.assigned_staff_id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.assign",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={"assigned_staff_id": str(payload.assigned_staff_id) if payload.assigned_staff_id else None},
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post(
+    "/admin/visit-requests",
+    response_model=VisitRequestDetailOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_manual_visit_request(
+    payload: VisitRequestManualCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    require_scope(current_user, "booking.manage", campus_keys=[payload.campus_key])
+    campus = await db.get(Campus, payload.campus_key)
+    if campus is None:
+        raise ScopeDenied()
+    if payload.related_request_id is not None:
+        related = await _get_owned_visit_request(db, current_user, payload.related_request_id)
+        if related.campus_key != payload.campus_key and current_user.role != Role.SUPER_ADMIN:
+            # 規格 6.2：不默默把案件搬到另一校；跨校關聯須總管理者權限。
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="跨校關聯舊案需要總管理者權限",
+            )
+    config = await db.get(BookingConfig, payload.campus_key)
+    visit_request = await workflow_service.create_manual(
+        db,
+        campus_key=payload.campus_key,
+        source=payload.source,
+        config_version=config.version if config else 0,
+        parent_name=payload.parent_name,
+        phone=payload.phone,
+        child_name=payload.child_name,
+        child_birthdate=payload.child_birthdate,
+        email=payload.email,
+        age=payload.age,
+        preferred_time=payload.preferred_time,
+        questions=payload.questions,
+        created_by=current_user.id,
+        related_to=payload.related_request_id,
+    )
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.create_manual",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=payload.campus_key,
+        metadata={"source": payload.source},
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.get("/admin/visit-calendar", response_model=list[VisitRequestDetailOut])
+async def visit_calendar(
+    date_from: date,
+    date_to: date,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[VisitRequestDetailOut]:
+    """接待日曆：已排時段的案件（待確認、已確認、已完成、未到場），依參觀
+    時間排序。與案件清單讀同一張表，不另存一份日曆資料。"""
+    require_scope(current_user, "booking.read")
+    if date_to < date_from or (date_to - date_from).days > 62:
+        raise HTTPException(status_code=422, detail="日期範圍最多 62 天")
+    stmt = (
+        select(VisitRequest)
+        .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        .options(selectinload(VisitRequest.slot))
+        .where(
+            VisitSlot.slot_date >= date_from,
+            VisitSlot.slot_date <= date_to,
+            VisitRequest.status.in_([
+                VisitRequestStatus.PENDING_CONFIRMATION.value,
+                VisitRequestStatus.CONFIRMED.value,
+                VisitRequestStatus.COMPLETED.value,
+                VisitRequestStatus.NO_SHOW.value,
+            ]),
+        )
+        .order_by(VisitSlot.slot_date, VisitSlot.start_time, VisitRequest.created_at)
+    )
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        stmt = stmt.where(VisitRequest.campus_key == campus_key)
+    elif current_user.role != Role.SUPER_ADMIN:
+        stmt = stmt.where(VisitRequest.campus_key.in_([s.campus_key for s in current_user.campus_scopes]))
+    result = await db.execute(stmt)
+    return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]

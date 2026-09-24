@@ -80,8 +80,18 @@ const stageRef = ref<HTMLDivElement | null>(null)
 const pickerVisible = ref(false)
 
 function onPickMedia(asset: MediaAssetOut) {
-  if (currentScene.value) currentScene.value.image = asset.id
+  const scene = currentScene.value
+  if (scene) {
+    // 換照片後原本的座標可能對不上。伺服器存檔時也會這樣標，這裡先標，
+    // 畫面上立刻看得到要複核。
+    if (scene.image && scene.image !== asset.id) scene.spots_reviewed = false
+    scene.image = asset.id
+  }
   imageBroken.value = false
+}
+
+function markSpotsReviewed() {
+  if (currentScene.value) currentScene.value.spots_reviewed = true
 }
 
 function relativePosition(event: MouseEvent): { x: number; y: number } | null {
@@ -202,6 +212,7 @@ function nudge(i: number, event: KeyboardEvent) {
           <span v-else class="tour__scene-empty" aria-hidden="true" />
           <span class="tour__scene-name">{{ scene.name || `場景 ${i + 1}` }}</span>
           <span class="tour__scene-count">{{ scene.spots.length }} 個熱點</span>
+          <span v-if="scene.spots_reviewed === false" class="tour__scene-review">熱點待複核</span>
         </button>
         <button
           type="button"
@@ -257,6 +268,17 @@ function nudge(i: number, event: KeyboardEvent) {
           </div>
 
           <div class="tour__side">
+            <el-alert
+              v-if="currentScene.spots_reviewed === false"
+              type="warning"
+              :closable="false"
+              show-icon
+              title="換了照片，熱點位置要重新確認"
+              class="tour__review"
+            >
+              <p>逐一點開圖釘，確認每個熱點還落在對的位置。確認完按下面按鈕再儲存，這個場景才能發布。</p>
+              <el-button size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
+            </el-alert>
             <el-form label-position="top" @submit.prevent>
               <h3 class="tour__side-title">場景</h3>
               <el-form-item label="場景名稱">
@@ -455,6 +477,20 @@ function nudge(i: number, event: KeyboardEvent) {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.tour__scene-review {
+  font-size: 12px;
+  color: var(--brand-gold-ink);
+  font-weight: 600;
+}
+
+.tour__review {
+  margin-bottom: 12px;
+}
+
+.tour__review p {
+  margin: 4px 0 8px;
 }
 
 .tour__image-row {

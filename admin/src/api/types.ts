@@ -35,6 +35,12 @@ export interface SiteMetaPayload {
   description: string
   header_phone_number: string
   header_phone_note: string
+  /** 素材庫媒體 UUID；空字串沿用首頁大圖 */
+  share_image: string
+  share_image_alt: string
+  admission_title: string
+  admission_description: string
+  allow_indexing: boolean
 }
 
 export interface HomeCampusBoardPayload {
@@ -160,6 +166,8 @@ export interface TourScenePayload {
   image: string
   intro: string
   spots: TourSpotPayload[]
+  /** 換照片後伺服器改成 false；園方確認熱點位置後改回 true 才能發布 */
+  spots_reviewed?: boolean
 }
 
 export interface CampusTourPayload {

@@ -21,6 +21,7 @@ import BookingSettingsView from '../views/BookingSettingsView.vue'
 import VisitSlotsView from '../views/VisitSlotsView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
+import VisitCalendarView from '../views/VisitCalendarView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
@@ -69,6 +70,7 @@ const router = createRouter({
         page('booking', 'booking', BookingSettingsView),
         page('slots', 'slots', VisitSlotsView),
         page('visit-requests', 'visit-requests', VisitRequestsView),
+        page('visit-calendar', 'visit-calendar', VisitCalendarView),
         {
           path: 'visit-requests/:id',
           name: 'visit-detail',

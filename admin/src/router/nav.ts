@@ -31,7 +31,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '參觀預約',
     items: [
       { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests' },
-      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Calendar' },
+      { name: 'visit-calendar', path: '/visit-calendar', title: '接待日曆', icon: 'Calendar' },
+      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Clock' },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch' },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
     ],

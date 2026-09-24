@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import ContentHistoryDrawer from './ContentHistoryDrawer.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -25,6 +26,11 @@ const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const busy = computed(() => saving.value || publishing.value)
 const changes = computed(() => props.editor.changes?.value ?? [])
+const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
+const apiPath = computed(() => props.editor.apiPath?.value ?? '')
+const historyOpen = ref(false)
+const canShowHistory = computed(() => Boolean(apiPath.value && props.editor.restore && props.editor.publishRevision && latestRevisionAt.value))
+const currentForm = computed(() => (props.editor.form?.value ?? {}) as Record<string, unknown>)
 
 type Tone = 'success' | 'warning' | 'info'
 
@@ -49,7 +55,7 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
 
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
-// 發布是對外動作：按下去官網立刻換掉，後台沒有回到上一版的介面。
+// 發布是對外動作：按下去官網立刻換掉（改回要到「版本紀錄」）。
 // 時間戳沒人記得住，改成列出「哪些欄位會變、變成什麼」再問；沒有未儲存
 // 修改時（發布已存的草稿）至少講清楚官網現在是哪一版。
 async function publishWithConfirm() {
@@ -69,9 +75,9 @@ async function publishWithConfirm() {
           h('span', { class: 'publish-diff__after' }, c.after),
         ]))),
         list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-        h('p', { class: 'hint' }, '發布後若要改回，需要重新輸入舊內容再發布一次。'),
+        h('p', { class: 'hint' }, '發布後若要改回，可以在「版本紀錄」選舊版重新發布。'),
       ])
-    : `${current}發布後家長立刻看到這一版。發布後若要改回，需要重新輸入舊內容再發布一次。`
+    : `${current}發布後家長立刻看到這一版。若要改回，可以在「版本紀錄」選舊版重新發布。`
   try {
     await ElMessageBox.confirm(message, '發布到官網？', {
       confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
@@ -111,7 +117,26 @@ defineExpose({ confirmLeave })
           <strong>{{ status.label }}</strong>
           <span>{{ status.detail }}</span>
         </div>
+        <div class="editor__tools">
+          <a
+            v-if="previewUrl && latestRevisionAt && !isPublished"
+            :href="previewUrl"
+            target="_blank"
+            rel="noopener"
+            class="editor__tool"
+          >預覽草稿 ↗</a>
+          <el-button v-if="canShowHistory" text size="small" :disabled="busy" @click="historyOpen = true">版本紀錄</el-button>
+        </div>
       </div>
+      <ContentHistoryDrawer
+        v-if="canShowHistory"
+        v-model="historyOpen"
+        :api-path="apiPath"
+        :current="currentForm"
+        :is-dirty="isDirty"
+        :restore="editor.restore!"
+        :publish-revision="editor.publishRevision!"
+      />
 
       <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
         <div class="panel__body">
@@ -175,10 +200,23 @@ defineExpose({ confirmLeave })
   line-height: 1.45;
 }
 
-.editor__status div {
+.editor__status > div:not(.editor__tools) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
+}
+
+.editor__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.editor__tool {
+  font-size: 13px;
 }
 
 .editor__status strong {

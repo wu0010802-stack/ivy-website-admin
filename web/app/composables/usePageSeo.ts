@@ -5,7 +5,8 @@ import { ADMISSION_HERO_IMAGE, HOME_HERO_SIZES, responsiveImage } from '~/utils/
 export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>, page?: StaticPage) {
   const config = useRuntimeConfig()
   const origin = normalizeSiteOrigin(config.public.siteOrigin)
-  const indexable = config.public.indexingEnabled && Boolean(origin)
+  // 後台「允許搜尋引擎收錄」只能收緊：部署沒開索引時一律 noindex。
+  const indexable = computed(() => config.public.indexingEnabled && Boolean(origin) && site.value?.siteMeta.allowIndexing !== false)
   const seo = computed(() => {
     if (!site.value) return undefined
     return page === 'admission' ? admissionSeo(site.value, origin) : pageSeo(site.value, origin, campus?.value)
@@ -29,7 +30,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
     twitterTitle: () => seo.value?.title,
     twitterDescription: () => seo.value?.description,
     twitterImage: () => seo.value?.image,
-    robots: indexable ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'
+    robots: () => (indexable.value ? 'index, follow, max-image-preview:large' : 'noindex, nofollow')
   })
   useHead(() => ({
     link: [

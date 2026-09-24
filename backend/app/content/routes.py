@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,7 +12,7 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import Role, User
 from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.content import service
-from app.content.models import ContentItem, ContentRevision
+from app.content.models import ContentItem, ContentRevision, SiteRelease, SiteReleaseEntry
 from app.media.models import MediaAsset
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media import service as media_service
@@ -21,8 +21,10 @@ from app.content.schemas import (
     ContentItemOut,
     ContentRevisionCreateRequest,
     ContentRevisionOut,
+    ContentRevisionSummaryOut,
     PublicSiteOut,
     PublishRequest,
+    RestoreRevisionRequest,
 )
 
 router = APIRouter(prefix="/api/website/v1", tags=["content"])
@@ -155,8 +157,27 @@ async def create_content_revision(
     if config.shared_only:
         campus_key = None
 
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    _require_shared_or_scope(current_user, item)
+    await _save_draft(db, config, kind, item, payload.payload, payload.expected_version, current_user)
+    await db.commit()
+    item, latest = await _get_item_with_latest_revision(db, item.id)
+    return _item_out(item, latest)
+
+
+async def _save_draft(
+    db: AsyncSession,
+    config,
+    kind: str,
+    item: ContentItem,
+    raw_payload: dict,
+    expected_version: int,
+    current_user: User,
+) -> ContentRevision:
+    """新存草稿與「還原舊版成草稿」共用同一條路：一樣過目前的 schema 驗證、
+    素材引用驗證、樂觀鎖與素材引用同步，還原不能繞過任何一道檢查。"""
     try:
-        typed_payload = config.payload_model.model_validate(payload.payload)
+        typed_payload = config.payload_model.model_validate(raw_payload)
     except ValidationError as exc:
         errors = [
             {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()
@@ -165,15 +186,14 @@ async def create_content_revision(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors
         ) from exc
 
-    item = await service.get_or_create_content_item(db, kind, campus_key)
-    _require_shared_or_scope(current_user, item)
-
     dumped_payload = typed_payload.model_dump()
+    _, previous = await _get_item_with_latest_revision(db, item.id)
+    dumped_payload = config.before_save(dumped_payload, previous.payload if previous else None)
     media_ids = config.extract_media_ids(dumped_payload)
     await _validate_media_references(db, media_ids, item.campus_key)
     try:
-        await service.create_revision(
-            db, item, dumped_payload, payload.expected_version, current_user.id
+        revision = await service.create_revision(
+            db, item, dumped_payload, expected_version, current_user.id
         )
     except service.VersionConflict as exc:
         await db.rollback()
@@ -182,8 +202,123 @@ async def create_content_revision(
             detail={"code": "CONTENT_VERSION_CONFLICT", "message": "內容已被其他人更新，請重新載入"},
         ) from exc
 
-    await media_service.sync_content_item_usages(db, str(item.id), kind, campus_key, media_ids)
+    await media_service.sync_content_item_usages(db, str(item.id), kind, item.campus_key, media_ids)
+    return revision
 
+
+@router.get(
+    "/admin/content-items/{kind}/revisions",
+    response_model=list[ContentRevisionSummaryOut],
+)
+async def list_content_revisions(
+    kind: str,
+    campus_key: str | None = None,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ContentRevisionSummaryOut]:
+    """版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。"""
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    _require_read_scope(current_user, campus_key)
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    await db.commit()
+    limit = max(1, min(limit, 200))
+
+    published = await db.execute(
+        select(SiteReleaseEntry.revision_id, func.max(SiteRelease.created_at))
+        .join(SiteRelease, SiteRelease.id == SiteReleaseEntry.release_id)
+        .where(SiteReleaseEntry.content_item_id == item.id)
+        .group_by(SiteReleaseEntry.revision_id)
+    )
+    last_published = {rid: at for rid, at in published.all()}
+
+    rows = await db.execute(
+        select(ContentRevision, User.email)
+        .outerjoin(User, User.id == ContentRevision.created_by)
+        .where(ContentRevision.content_item_id == item.id)
+        .order_by(ContentRevision.version.desc())
+        .limit(limit)
+    )
+    return [
+        ContentRevisionSummaryOut(
+            id=rev.id,
+            version=rev.version,
+            created_at=rev.created_at,
+            created_by_email=email,
+            is_published=rev.id == item.current_published_revision_id,
+            ever_published=rev.id in last_published,
+            last_published_at=last_published.get(rev.id),
+        )
+        for rev, email in rows.all()
+    ]
+
+
+@router.get(
+    "/admin/content-items/{kind}/revisions/{revision_id}",
+    response_model=ContentRevisionOut,
+)
+async def get_content_revision(
+    kind: str,
+    revision_id: uuid.UUID,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ContentRevisionOut:
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    _require_read_scope(current_user, campus_key)
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    await db.commit()
+    result = await db.execute(
+        select(ContentRevision).where(
+            ContentRevision.id == revision_id, ContentRevision.content_item_id == item.id
+        )
+    )
+    revision = result.scalar_one_or_none()
+    if revision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
+    return ContentRevisionOut.model_validate(revision)
+
+
+@router.post("/admin/content-items/{kind}/restore", response_model=ContentItemOut)
+async def restore_content_revision(
+    kind: str,
+    payload: RestoreRevisionRequest,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ContentItemOut:
+    """把舊版內容複製成一筆新草稿（不直接上線）。園方確認畫面後再照常發布；
+    也可以直接發布舊版 revision（publish 本來就接受任一版本）。規格：內容
+    還原不回復預約設定、時段、案件或通知，這裡只動內容。"""
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    _require_shared_or_scope(current_user, item)
+    result = await db.execute(
+        select(ContentRevision).where(
+            ContentRevision.id == payload.revision_id, ContentRevision.content_item_id == item.id
+        )
+    )
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
+    revision = await _save_draft(
+        db, config, kind, item, dict(source.payload), payload.expected_version, current_user
+    )
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.restore",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "from_version": source.version, "new_version": revision.version},
+    )
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
     return _item_out(item, latest)
@@ -212,6 +347,12 @@ async def publish_content_item(
     revision = result.scalar_one_or_none()
     if revision is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
+    blocker = config.publish_blocker(revision.payload)
+    if blocker:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CONTENT_NOT_READY", "message": blocker},
+        )
 
     await service.publish_revision(db, item, revision, current_user.id)
     await audit_service.log_action(

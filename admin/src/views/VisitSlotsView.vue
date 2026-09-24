@@ -9,8 +9,12 @@ import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
+import { useAuthStore } from '../stores/auth'
 
 const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
+const authStore = useAuthStore()
+const canManage = computed(() => ['super_admin', 'campus_admin'].includes(authStore.user?.role ?? ''))
 
 function isoDate(offsetDays = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000))
@@ -144,6 +148,8 @@ function openCreate() {
       <label class="filter-field"><span>開始日期</span><el-date-picker v-model="dateFrom" :disabled="Boolean(busyId) || creating" type="date" value-format="YYYY-MM-DD" :clearable="false" aria-label="起始日期" /></label>
       <label class="filter-field"><span>結束日期</span><el-date-picker v-model="dateTo" :disabled="Boolean(busyId) || creating" type="date" value-format="YYYY-MM-DD" :clearable="false" aria-label="結束日期" /></label>
     </div>
+
+    <VisitSchedulePanel v-if="selectedCampus" :campus-key="selectedCampus" :can-manage="canManage" @slots-changed="load" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
 

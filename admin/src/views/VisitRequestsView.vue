@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download, Search } from '@element-plus/icons-vue'
+import { Calendar, Download, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import StatusTag from '../components/StatusTag.vue'
+import ManualVisitDialog from '../components/ManualVisitDialog.vue'
+import { useAuthStore } from '../stores/auth'
+import { useOpenRequestsStore } from '../stores/openRequests'
 
 const router = useRouter()
 const route = useRoute()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+const authStore = useAuthStore()
+const openRequests = useOpenRequestsStore()
+// 接待與唯讀角色看得到案件但不能建案或改狀態，按鈕不顯示。
+const canManage = computed(() => ['super_admin', 'campus_admin'].includes(authStore.user?.role ?? ''))
+const manualOpen = ref(false)
+function onManualCreated(created: VisitRequestDetailOut) {
+  openRequests.refresh(true)
+  router.push(`/visit-requests/${created.id}`)
+}
 
 const campusFilter = ref('')
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
@@ -28,12 +40,16 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 let loadVersion = 0
 const search = ref('')
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value))
+const sourceFilter = ref('')
+const mineOnly = ref(route.query.mine === '1')
+const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || mineOnly.value))
 function clearFilters() {
   campusFilter.value = ''
   statusFilter.value = ''
   search.value = ''
   dueOnly.value = false
+  sourceFilter.value = ''
+  mineOnly.value = false
 }
 
 const hasNext = computed(() => requests.value.length === pageSize)
@@ -48,6 +64,8 @@ async function load() {
     if (statusFilter.value) params.set('status', statusFilter.value)
     if (search.value.trim()) params.set('q', search.value.trim())
     if (dueOnly.value) params.set('follow_up_due', 'true')
+    if (sourceFilter.value) params.set('source', sourceFilter.value)
+    if (mineOnly.value) params.set('assignee', 'me')
     if (order.value !== 'newest') params.set('order', order.value)
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version === loadVersion) requests.value = result
@@ -61,7 +79,7 @@ async function load() {
   }
 }
 
-watch([campusFilter, statusFilter, dueOnly, order], () => {
+watch([campusFilter, statusFilter, dueOnly, order, sourceFilter, mineOnly], () => {
   page.value = 1
   load()
 })
@@ -119,11 +137,14 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
+    <PageHeader lead="官網送出與園方補登的參觀需求。「待處理」代表園方尚未聯絡，「聯絡中」代表正在談時間，確認並排入時段後才算預約成立。">
       <template #actions>
+        <el-button :icon="Calendar" @click="router.push('/visit-calendar')">接待日曆</el-button>
         <el-button :icon="Download" @click="exportCsv">匯出 CSV</el-button>
+        <el-button v-if="canManage" type="primary" :icon="Plus" @click="manualOpen = true">人工補登</el-button>
       </template>
     </PageHeader>
+    <ManualVisitDialog v-model="manualOpen" :campus-keys="visibleCampusKeys" @created="onManualCreated" />
 
     <div class="toolbar">
       <div class="filter-field filter-field--search"><span>搜尋</span>
@@ -143,7 +164,13 @@ onMounted(load)
         <el-option label="最早送出在前" value="oldest" />
       </el-select>
       </div>
+      <div class="filter-field"><span>來源</span>
+      <el-select v-model="sourceFilter" placeholder="全部來源" clearable aria-label="來源" style="width: 140px">
+        <el-option v-for="(label, key) in VISIT_SOURCE_LABELS" :key="key" :label="label" :value="key" />
+      </el-select>
+      </div>
       <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
+      <el-checkbox v-model="mineOnly" class="filter-due">只看我負責的</el-checkbox>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
 
@@ -172,7 +199,7 @@ onMounted(load)
         <el-table-column label="家長／孩子" min-width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link>
-            <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}</span>
+            <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}<template v-if="row.source && row.source !== 'web'">・{{ visitSourceLabel(row.source) }}補登</template></span>
             <span v-if="row.follow_up_at" class="cell-sub num" :class="{ 'is-due': followUpDue(row) }">
               {{ followUpDue(row) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(row.follow_up_at) }}
             </span>

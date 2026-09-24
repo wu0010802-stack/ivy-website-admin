@@ -43,16 +43,33 @@ export interface StatusMeta {
 export const VISIT_STATUS: Record<string, StatusMeta> = {
   pending_confirmation: { label: '待園方確認', tone: 'warning' },
   new: { label: '待處理', tone: 'warning' },
+  contacting: { label: '聯絡中', tone: 'primary' },
   confirmed: { label: '已確認', tone: 'success' },
   completed: { label: '已完成', tone: 'info' },
   cancelled: { label: '已取消', tone: 'info' },
   no_show: { label: '未到場', tone: 'danger' },
 }
 
-export const VISIT_STATUS_ORDER = ['new', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
+export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
+}
+
+// 案件來源。web 以外都是園方在後台人工補登的。
+export const VISIT_SOURCE_LABELS: Record<string, string> = {
+  web: '官網表單',
+  phone: '電話',
+  line: 'LINE',
+  walk_in: '現場',
+  external: '外部預約網站',
+}
+
+export const MANUAL_VISIT_SOURCES = ['phone', 'line', 'walk_in', 'external'] as const
+
+export function visitSourceLabel(source: string | null | undefined): string {
+  if (!source) return VISIT_SOURCE_LABELS.web!
+  return VISIT_SOURCE_LABELS[source] ?? source
 }
 
 export const MEDIA_STATUS: Record<string, StatusMeta> = {
@@ -176,6 +193,17 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   return '/'
+}
+
+// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁目前
+// 有首頁、入學資訊、分校頁三種；預約文案在預約頁，預覽頁沒有，回空字串。
+export function contentPreviewPath(kind: string, campusKey?: string | null): string {
+  if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
+    return campusKey ? `/preview?page=campus&campus=${encodeURIComponent(campusKey)}` : ''
+  }
+  if (kind === 'admission_content') return '/preview?page=admission'
+  if (kind === 'booking_content') return ''
+  return '/preview'
 }
 
 // 內容 kind 的中文名，給編輯頁標題與總覽「待發布」清單用。

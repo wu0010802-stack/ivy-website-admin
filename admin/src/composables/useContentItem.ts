@@ -2,7 +2,7 @@ import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { ContentItemOut } from '../api/types'
-import { contentFieldLabel, contentPublicPath } from '../api/labels'
+import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
 
@@ -49,6 +49,16 @@ export interface ContentEditorState {
   changes?: ComputedRef<FieldChange[]>
   /** 發布後「查看官網」要開的完整網址 */
   publicUrl?: ComputedRef<string>
+  /** 目前表單內容；版本紀錄拿來和舊版比較 */
+  form?: Ref<unknown>
+  /** 私有草稿預覽網址；沒有對應預覽頁的內容為空字串 */
+  previewUrl?: ComputedRef<string>
+  /** 版本紀錄要打的 API 路徑（含 campus_key），例如 /admin/content-items/home_about */
+  apiPath?: ComputedRef<string>
+  /** 把舊版複製成新草稿 */
+  restore?: (revisionId: string) => Promise<boolean>
+  /** 直接把指定版本發布到官網（回到舊版） */
+  publishRevision?: (revisionId: string) => Promise<boolean>
   load: () => Promise<void>
   save: () => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -83,6 +93,13 @@ export function useContentItem<TPayload extends object>(
     return key ? `?campus_key=${encodeURIComponent(key)}` : ''
   }
 
+  // 舊版內容缺少後來新增的欄位時補上預設值（在拍快照之前補，才不會一
+  // 打開就顯示「有未儲存的修改」）。
+  function withDefaults(payload: unknown): TPayload {
+    if (!payload) return clone(emptyPayload)
+    return { ...clone(emptyPayload), ...clone(payload as TPayload) }
+  }
+
   function takeSnapshot() {
     snapshot.value = JSON.stringify(form.value)
   }
@@ -95,6 +112,11 @@ export function useContentItem<TPayload extends object>(
   })
 
   const publicUrl = computed(() => `${WEBSITE_ASSET_BASE}${contentPublicPath(kind, unref(campusKey))}`)
+  const previewUrl = computed(() => {
+    const path = contentPreviewPath(kind, unref(campusKey))
+    return path ? `${WEBSITE_ASSET_BASE}${path}` : ''
+  })
+  const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
 
   /** 最新草稿的建立時間（ISO），沒有任何版本時為 null */
   const latestRevisionAt = computed(() => item.value?.latest_revision?.created_at ?? null)
@@ -112,9 +134,7 @@ export function useContentItem<TPayload extends object>(
       const result = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
       if (!requests.isCurrent(request)) return
       item.value = result
-      form.value = item.value.latest_revision
-        ? clone(item.value.latest_revision.payload as TPayload)
-        : clone(emptyPayload)
+      form.value = withDefaults(item.value.latest_revision?.payload)
       isPublished.value = Boolean(
         item.value.latest_revision &&
           item.value.current_published_revision_id === item.value.latest_revision.id,
@@ -173,12 +193,16 @@ export function useContentItem<TPayload extends object>(
 
   async function publish(): Promise<boolean> {
     if (!item.value?.latest_revision) return false
+    return publishRevision(item.value.latest_revision.id)
+  }
+
+  async function publishRevision(revisionId: string): Promise<boolean> {
     publishing.value = true
     try {
       item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
-        revision_id: item.value.latest_revision.id,
+        revision_id: revisionId,
       })
-      isPublished.value = true
+      isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       // 發布是唯一會被家長看到的動作，成功後直接給連結，不用自己去找官網。
       ElMessage({
         type: 'success',
@@ -207,6 +231,28 @@ export function useContentItem<TPayload extends object>(
     return publish()
   }
 
+  /** 舊版複製成新草稿，載入到表單。有未儲存修改時由呼叫端先確認。 */
+  async function restore(revisionId: string): Promise<boolean> {
+    if (!item.value) return false
+    saving.value = true
+    try {
+      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/restore${query()}`, {
+        revision_id: revisionId,
+        expected_version: item.value.latest_version,
+      })
+      form.value = withDefaults(item.value.latest_revision?.payload)
+      isPublished.value = false
+      takeSnapshot()
+      ElMessage.success('已把舊版放回草稿，確認沒問題再發布')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '還原失敗'))
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
@@ -223,12 +269,16 @@ export function useContentItem<TPayload extends object>(
     isDirty,
     changes,
     publicUrl,
+    previewUrl,
+    apiPath,
     latestRevisionAt,
     neverPublished,
     load,
     save,
     publish,
     saveAndPublish,
+    publishRevision,
+    restore,
     reset,
   }
 }

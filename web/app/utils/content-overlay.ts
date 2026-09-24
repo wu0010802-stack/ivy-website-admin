@@ -26,6 +26,12 @@ export interface LiveSiteMeta {
   description: string
   header_phone_number: string
   header_phone_note: string
+  // 2026-09-24 新增，舊的已發布版本沒有這些欄位。
+  share_image?: string
+  share_image_alt?: string
+  admission_title?: string
+  admission_description?: string
+  allow_indexing?: boolean
 }
 
 export interface LiveHomeCampusBoard {
@@ -220,7 +226,12 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         ...next.siteMeta.headerPhone,
         number: overlay.site_meta.header_phone_number,
         note: overlay.site_meta.header_phone_note
-      }
+      },
+      shareImage: overlay.site_meta.share_image || undefined,
+      shareImageAlt: overlay.site_meta.share_image_alt || undefined,
+      admissionTitle: overlay.site_meta.admission_title || undefined,
+      admissionDescription: overlay.site_meta.admission_description || undefined,
+      allowIndexing: overlay.site_meta.allow_indexing ?? true
     }
   }
 

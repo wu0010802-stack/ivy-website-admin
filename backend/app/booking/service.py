@@ -204,7 +204,7 @@ async def submit_visit_request(
             raise SlotFull()
         # 時間窗與公開查詢用同一份判斷：已過去或不在開放區間的時段不能被
         # 預約，否則名額會被永久佔住、也永遠不會有人來。
-        if not slot_service.is_publicly_bookable(slot, now):
+        if not slot_service.is_publicly_bookable(slot, now, **slot_service.window_for(config)):
             raise slot_service.SlotNotBookable()
         booked = await slot_service.count_booked(db, slot.id)
         if booked >= slot.capacity:

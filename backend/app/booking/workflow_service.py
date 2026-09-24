@@ -44,6 +44,7 @@ async def confirm_with_slot(
     )
     if visit_request.status not in (
         VisitRequestStatus.NEW.value,
+        VisitRequestStatus.CONTACTING.value,
         VisitRequestStatus.PENDING_CONFIRMATION.value,
     ):
         raise InvalidTransition(f"狀態 {visit_request.status} 不能確認")
@@ -120,6 +121,96 @@ async def cancel(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
     await db.flush()
+    return visit_request
+
+
+async def mark_contacting(db: AsyncSession, visit_request: VisitRequest) -> VisitRequest:
+    """規格 6.2：new → contacting（園方開始聯絡）；pending_confirmation 退回
+    contacting 時釋放占位並清掉 slot_id／hold_expires_at。已是 contacting 直接
+    回傳，重送不重複寫歷程。"""
+    await _lock_status(db, visit_request)
+    if visit_request.status == VisitRequestStatus.CONTACTING.value:
+        return visit_request
+    if visit_request.status == VisitRequestStatus.NEW.value:
+        visit_request.status = VisitRequestStatus.CONTACTING.value
+        _add_event(db, visit_request.id, "contacting")
+    elif visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value:
+        visit_request.status = VisitRequestStatus.CONTACTING.value
+        # 名額是依狀態即時算的，轉成 contacting 就等於釋放，不會重複釋放。
+        visit_request.slot = None
+        visit_request.hold_expires_at = None
+        _add_event(db, visit_request.id, "returned_to_contacting")
+    else:
+        raise InvalidTransition(f"狀態 {visit_request.status} 不能改成聯絡中")
+    await db.flush()
+    return visit_request
+
+
+async def assign_staff(
+    db: AsyncSession, visit_request: VisitRequest, staff_id: uuid.UUID | None
+) -> VisitRequest:
+    visit_request.assigned_staff_id = staff_id
+    _add_event(db, visit_request.id, "assigned" if staff_id else "unassigned")
+    await db.flush()
+    return visit_request
+
+
+async def create_manual(
+    db: AsyncSession,
+    *,
+    campus_key: str,
+    source: str,
+    config_version: int,
+    parent_name: str,
+    phone: str,
+    child_name: str | None,
+    child_birthdate,
+    email: str | None,
+    age: str | None,
+    preferred_time: str | None,
+    questions: str | None,
+    created_by: uuid.UUID,
+    related_to: uuid.UUID | None = None,
+) -> VisitRequest:
+    """規格 6.2 人工補登：電話、LINE、現場、外部預約網站的需求由園方手動建
+    案，記錄建立人。不寫 outbox——園方自己建的案子不需要再通知園方；同意
+    勾選由園方在電話或現場口頭取得，這裡記為 True 並以來源區分。"""
+    now = datetime.now(timezone.utc)
+    visit_request = VisitRequest(
+        id=uuid.uuid4(),
+        campus_key=campus_key,
+        # 人工建案沒有公開提交的冪等鍵；用 UUID 填滿唯一鍵，不會與官網送單衝突。
+        idempotency_key=f"manual-{uuid.uuid4()}",
+        payload_hash="manual",
+        config_version=config_version,
+        parent_name=parent_name,
+        phone=phone,
+        child_name=child_name,
+        child_birthdate=child_birthdate,
+        email=email,
+        referral_sources=[],
+        age=age,
+        preferred_time=preferred_time,
+        questions=questions,
+        consent_given=True,
+        status=VisitRequestStatus.NEW.value,
+        source=source,
+        created_by=created_by,
+        related_request_id=related_to,
+        created_at=now,
+    )
+    db.add(visit_request)
+    await db.flush()
+    _add_event(db, visit_request.id, "created_manual")
+    if related_to is not None:
+        # 規格 6.2：結案後重新預約建立新案並關聯舊案，歷程兩邊都留痕。
+        _add_event(db, visit_request.id, "linked_from_previous")
+        _add_event(db, related_to, "rebooked_as_new")
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key
+    )
+    await db.flush()
+    await db.refresh(visit_request, attribute_names=["slot"])
     return visit_request
 
 

@@ -29,19 +29,38 @@ class SlotNotBookable(Exception):
         super().__init__(message)
 
 
-def is_publicly_bookable(slot: VisitSlot, now: datetime | None = None) -> bool:
+def is_publicly_bookable(
+    slot: VisitSlot,
+    now: datetime | None = None,
+    *,
+    min_lead: timedelta = MIN_LEAD_TIME,
+    max_advance_days: int = MAX_ADVANCE_DAYS,
+) -> bool:
     """公開查詢與公開送單共用同一份判斷（規格 404：server 是唯一判斷
     來源）。原本兩邊都沒有檢查日期，導致已經過去的時段仍然可以被查到、
-    被預約，名額從此永久被佔住、也永遠不會有人來。"""
+    被預約，名額從此永久被佔住、也永遠不會有人來。
+
+    時間窗由各校設定（BookingConfig.min_lead_hours／max_advance_days），
+    呼叫端用 `window_for(config)` 取得。"""
     if slot.closed:
         return False
     current = now or now_utc()
     starts_at = slot_start_utc(slot.slot_date, slot.start_time)
-    if starts_at - current < MIN_LEAD_TIME:
+    if starts_at - current < min_lead:
         return False
-    if (slot.slot_date - today_local(current)).days > MAX_ADVANCE_DAYS:
+    if (slot.slot_date - today_local(current)).days > max_advance_days:
         return False
     return True
+
+
+def window_for(config) -> dict:
+    """把該校設定轉成 is_publicly_bookable 的關鍵字參數；沒有設定列時用預設。"""
+    if config is None:
+        return {}
+    return {
+        "min_lead": timedelta(hours=config.min_lead_hours),
+        "max_advance_days": config.max_advance_days,
+    }
 
 
 class SlotCapacityBelowBooked(Exception):
