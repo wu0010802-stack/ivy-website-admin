@@ -59,13 +59,14 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
 
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
-// 主按鈕帶去最急的一批：有占位待確認就先處理（會過期釋出），否則是新需求。
-// 最早送出的先處理，占位也是最早到期的在前面。
-const primaryTarget = computed(() =>
-  awaiting.value > 0 && newRequests.value === 0
-    ? '/visit-requests?status=pending_confirmation&order=oldest'
-    : '/visit-requests?status=new&order=oldest',
-)
+// 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
+// 沒有才是新需求。按鈕上的字與數字講的就是點進去那一批，不把兩批加總
+// 之後只帶去其中一批。最早送出的先處理，占位也是最早到期的在前面。
+const primary = computed(() => {
+  if (awaiting.value > 0) return { to: '/visit-requests?status=pending_confirmation&order=oldest', label: '確認時段預約', count: awaiting.value }
+  if (newRequests.value > 0) return { to: '/visit-requests?status=new&order=oldest', label: '聯絡新需求', count: newRequests.value }
+  return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
+})
 const openCount = computed(() => newRequests.value + awaiting.value)
 
 const hasTodo = computed(() => {
@@ -87,7 +88,7 @@ onMounted(load)
   <div class="page dashboard">
     <div class="dash__intro">
       <div><p class="dash__date">{{ todayLabel }}</p><h2>今天的工作</h2><p class="dash__lead">先確認參觀安排，再處理家長需求與官網更新。</p></div>
-      <router-link class="dash__primary" :to="primaryTarget">處理參觀需求<span v-if="openCount" class="dash__primary-count num">{{ openCount }}</span> <span aria-hidden="true">→</span></router-link>
+      <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span v-if="primary.count" class="dash__primary-count num">{{ primary.count }}<span class="visually-hidden"> 件</span></span> <span aria-hidden="true">→</span></router-link>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
       <el-button @click="load">重新載入</el-button>
