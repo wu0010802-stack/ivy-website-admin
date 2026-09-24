@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
@@ -14,7 +15,7 @@ _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 class Settings(BaseSettings):
     """官網後台設定。所有欄位一律來自環境變數，不寫死秘密或預設密碼。"""
 
-    model_config = SettingsConfigDict(env_prefix="WEBSITE_", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="WEBSITE_", extra="ignore", hide_input_in_errors=True)
 
     environment: Environment = "development"
     database_url: str
@@ -24,6 +25,9 @@ class Settings(BaseSettings):
     enable_fixture: bool = False
     indexing_enabled: bool = False
     admin_origin: str | None = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = Field(default=None, repr=False)
+    google_redirect_uri: str | None = None
     notification_email_sink_dir: str | None = None
     # 真實寄信（SMTP）。沒設定 smtp_host 就不會寄；開發環境繼續用 sink_dir。
     smtp_host: str | None = None
@@ -40,6 +44,17 @@ class Settings(BaseSettings):
     # 限制，但五校共用同一顆 volume，沒有累計上限時一個校區帳號反覆上傳
     # 就能把磁碟塞滿、讓其他校區也無法上傳。
     media_quota_bytes_per_campus: int = 5 * 1024 * 1024 * 1024
+
+    @field_validator("google_client_id", "google_client_secret", "google_redirect_uri")
+    @classmethod
+    def _normalize_google_settings(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @property
+    def google_oauth_enabled(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret and self.google_redirect_uri)
 
     @field_validator("database_url", "test_database_url")
     @classmethod
@@ -63,6 +78,24 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_environment_rules(self) -> "Settings":
+        google_fields = (self.google_client_id, self.google_client_secret, self.google_redirect_uri)
+        if any(google_fields) and not all(google_fields):
+            raise ValueError("Google OAuth 必須同時設定 CLIENT_ID、CLIENT_SECRET 與 REDIRECT_URI")
+        if self.google_redirect_uri:
+            uri = urlsplit(self.google_redirect_uri)
+            local_http = self.environment != "production" and uri.scheme == "http" and (
+                uri.hostname in {"localhost", "127.0.0.1", "::1"}
+                or self.environment == "test" and uri.hostname == "test"
+            )
+            if (
+                not uri.hostname or uri.username or uri.password
+                or (uri.scheme != "https" and not local_http)
+                or uri.path != "/api/website/v1/auth/google/callback"
+                or uri.query or uri.fragment
+            ):
+                raise ValueError("Google REDIRECT_URI 必須是公開同源 HTTPS 的 /api/website/v1/auth/google/callback")
+            if self.admin_origin and f"{uri.scheme}://{uri.netloc}" != self.admin_origin.rstrip("/"):
+                raise ValueError("Google REDIRECT_URI 必須與 WEBSITE_ADMIN_ORIGIN 同源")
         if self.environment == "test":
             if not self.test_database_url:
                 raise ValueError("test 環境必須明確設定 WEBSITE_TEST_DATABASE_URL")

@@ -1,7 +1,7 @@
 """參觀案件來源（官網／電話／LINE／現場／外部）與人工補登建立人。
 
 Revision ID: c4e8a1d3f210
-Revises: b7d2e4f1a903
+Revises: c6e4a2b9d810
 Create Date: 2026-09-24
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "c4e8a1d3f210"
-down_revision = "b7d2e4f1a903"
+down_revision = "c6e4a2b9d810"
 branch_labels = None
 depends_on = None
 

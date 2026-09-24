@@ -78,7 +78,9 @@ def _test_settings() -> Settings:
     return Settings(
         environment="test",
         database_url="postgresql+asyncpg://localhost/ivy_website_dev",
-        test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
+        test_database_url=os.environ.get(
+            "WEBSITE_TEST_DATABASE_URL", "postgresql+asyncpg://localhost/ivy_website_test"
+        ),
         session_secret="test-only-secret-please-rotate",
         media_root="/tmp/ivy-website-test-media",
         notification_email_sink_dir="/tmp/ivy-website-test-mail",

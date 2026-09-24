@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
 from app.common.body_limit import BodySizeLimitMiddleware
+from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
+    configure_google_oauth(app)
 
     @app.middleware("http")
     async def parent_access_privacy_headers(request: Request, call_next):
@@ -83,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(auth_router)
+    app.include_router(google_auth_router)
     app.include_router(campuses_router)
     app.include_router(media_router)
     app.include_router(media_public_router)

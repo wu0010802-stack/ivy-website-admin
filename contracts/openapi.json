@@ -25,6 +25,19 @@
         "title": "AnalyticsEventCreate",
         "type": "object"
       },
+      "AuthProviders": {
+        "properties": {
+          "google": {
+            "title": "Google",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "google"
+        ],
+        "title": "AuthProviders",
+        "type": "object"
+      },
       "Body_replace_media_api_website_v1_admin_media__media_id__replace_post": {
         "properties": {
           "file": {
@@ -8987,6 +9000,62 @@
         ]
       }
     },
+    "/api/website/v1/auth/google/callback": {
+      "get": {
+        "operationId": "google_callback_api_website_v1_auth_google_callback_get",
+        "responses": {
+          "303": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/google/login": {
+      "get": {
+        "operationId": "google_login_api_website_v1_auth_google_login_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "redirect",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Redirect"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/website/v1/auth/login": {
       "post": {
         "operationId": "login_api_website_v1_auth_login_post",
@@ -9147,6 +9216,27 @@
           }
         },
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/providers": {
+      "get": {
+        "operationId": "providers_api_website_v1_auth_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthProviders"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Providers",
         "tags": [
           "auth"
         ]

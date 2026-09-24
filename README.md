@@ -26,7 +26,29 @@
 - 後台 `vitest` 81 passed、`vue-tsc` 無錯誤、`vite build` 通過
 - 官網 `vitest` 209 passed、`nuxt typecheck` 無錯誤、`nuxt build` 通過
 
-未驗證：瀏覽器實際點過新畫面（只有元件測試）、真實 SMTP 伺服器寄信、正式站部署。未處理：`age`／`contact_time` 固定 enum（要和官網表單一起改，需產品決定）、「全站內容編輯」獨立授權（編輯目前只能改分校內容）。
+未驗證：瀏覽器實際點過新畫面（只有元件測試）、真實 SMTP 伺服器寄信、正式站部署。這兩項原本未處理的（`age`／`contact_time` 固定選項、全站內容編輯授權）已在上一段補上。
+
+## 2026-09-24 入學資訊頁改首頁版型
+
+依同日 mock 改寫 `web/app/components/AdmissionContent.vue` 與 `admission.css`，內容仍由後台 `admission_content` 管理、不需要 migration。首頁的透明頁首＋膠囊、滿版 hero、薄荷色帶、五校分頁卡、拍立得、升起的消息紙逐段套用；分班對照提到第二段；拿掉麵包屑、分頁列與提醒條（提醒移到 hero）。頁首：studio.css 首頁透明頁首選擇器加 `.photo-hero`，SiteHeader 的膠囊頁面加 `/admission`。細節見 DESIGN.md。
+
+驗證：web `nuxt typecheck` 無錯誤、vitest 27 檔 205 項通過、`nuxt build` 通過；fixture 模式本機 Chromium 1440／1024／390 截圖，無水平捲動、無主控台錯誤，生日查詢會同步切換班別分頁、拍立得翻面後焦點移到「翻回正面」；首頁、分校頁、預約頁的頁首狀態與改版前相同；hero 遮罩對比用照片像素量過。
+
+未驗證：Safari、螢幕報讀器、草稿預覽 `/preview?page=admission`（需要後台登入）、正式站。
+
+## 2026-09-24 入學資訊頁「靠近首頁」mock
+
+使用者想讓 `/admission` 更接近首頁的版型與風格，先出 mock、不動正式頁。`design/admission-homestyle-mockup-20260924/`：單檔 `admission-homestyle-mockup.html`、原始檔與打包腳本、1440／390 截圖。首頁的透明頁首＋膠囊、滿版 hero＋金色底線、薄荷色帶＋巨大淡字、五校的分頁與大圓角卡、孩子的一天的拍立得、最新消息的升起紙張，逐段對應到入學流程、分班對照、新生準備、收退費；分班提到第二段。待決定事項（大標改回 LINE Seed、桌機內頁收膠囊、拿掉分頁列等）見該資料夾 README。
+
+驗證：Chromium 1440×900、390×844 截圖，無水平捲動、無主控台錯誤；打包時檢查標題 LINE Seed 無缺字。
+
+## 2026-09-24 後台 Google OAuth 整合
+
+後台新增 Google 登入，僅接受已建立且啟用的管理員，首次驗證 Gmail／Google Workspace 信箱後綁定穩定 `sub`，沿用既有角色、分校權限、session 與 CSRF；帳密登入保留。OAuth 設定完全留空時隱藏入口。整合保留 main 的登入 Email 檢查、API 本文大小限制、可信代理 IP 判定與素材串流轉送。
+
+新增 `users.google_sub` migration，並以 `c6e4a2b9d810` 合併 Google 身分與流量統計 migration 歷史。正式 migration 必須在經核准的備份後、API 切換前執行；Google Client、回呼網址、管理員資格及上線順序見 [Google OAuth 設定說明](deploy/google-oauth.md)。
+
+驗證：backend 291、admin 78、web 207、deploy 12 項測試通過，Node 22 typecheck／build、API contract、原型語法與打包通過。隔離 PostgreSQL 從空庫及 main revision 升級皆通過，既有帳號／權限／流量資料保留。Chromium 正式 build 的 1440／390／320px 登入頁（模擬 API）無水平溢出或 runtime error，取消提示、帳密備援、Email 驗證及 Enter 單次提交通過。另補上明確的 ID token audience 驗證與回歸案例。真人 Google 往返及 Safari／iOS 實機尚未驗證。
 
 ## 2026-09-24 入學資訊頁上線版：內容進後台、選單入口、補字
 

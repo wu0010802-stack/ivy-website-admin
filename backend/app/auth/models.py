@@ -44,6 +44,8 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Google sub 是穩定識別碼；email 只用於首次核對已核准的管理員。
+    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
