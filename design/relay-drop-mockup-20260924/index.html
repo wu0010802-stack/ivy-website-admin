@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>關於落下比稿</title>
+<style>
+:root{
+  --paper:#fffdf5;--ink:#203f32;--muted:#5b7166;--mint:#c5ded0;--line:#dfe8e1;--gold:#ffd75e;--green:#2d8f5a;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.75 "PingFang TC","Noto Sans TC",system-ui,sans-serif}
+main{max-width:1240px;margin:0 auto;padding:40px 16px 96px}
+h1{font-size:clamp(26px,3.4vw,38px);line-height:1.3;margin:0 0 12px;letter-spacing:.02em}
+h2{font-size:22px;line-height:1.4;margin:0}
+p{margin:0}
+code{font:14px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef4ef;padding:3px 6px;border-radius:4px;white-space:nowrap}
+.lead{max-width:46em;color:var(--muted)}
+.decided{max-width:46em;margin:0 0 14px;padding:10px 14px;border-left:3px solid var(--gold);background:#fff6d6}
+.decided{max-width:46em;margin:0 0 14px;padding:10px 14px;border-left:3px solid var(--gold);background:#fff6d6}
+.bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:28px -16px 8px;padding:12px 16px;background:rgb(255 253 245 / .94);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-size:15px;min-height:40px;padding:6px 16px;border:1px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.bar nav{display:flex;flex-wrap:wrap;gap:4px 14px;margin-left:auto;font-size:14px}
+.bar nav a{color:var(--green)}
+.card{padding:32px 0;border-bottom:1px solid var(--line);scroll-margin-top:72px}
+.card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:10px}
+.tag{font-size:13px;padding:2px 10px;border-radius:999px;background:var(--mint)}
+.tag.rec{background:var(--gold)}
+.desc{max-width:52em;margin-bottom:6px}
+.note{max-width:52em;color:var(--muted);font-size:15px}
+.media{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:16px;align-items:start;margin-top:18px}
+.media figure,.duo figure{margin:0}
+.media video,.duo video{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+.strip{margin-top:14px;overflow-x:auto;border-radius:6px;overscroll-behavior-x:contain}
+.strip img{display:block;height:auto;max-width:none}
+.strip-d img{height:150px}
+.strip-m img{height:176px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.foot{margin-top:40px;padding-left:20px;font-size:15px;color:var(--muted)}
+.foot li{margin:4px 0}
+.foot code{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:760px){
+  .media,.duo{grid-template-columns:minmax(0,1fr)}
+  .media figure:last-child{max-width:240px}
+  .bar nav{margin-left:0}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>「關於」掉進「常春藤的一天」，再直接消失</h1>
+  <p class="decided"><strong>2026-09-24 定案：沉下去</strong>，已是首頁預設。<code>?drop=</code> 參數已移除，下面是當時的比稿紀錄。</p>
+  <p class="lead">擦除線過完「常春藤」停住時，「關於」從上一行往下掉，穿過擦除線：上半還是淡綠浮水印，下半已經是白字，跟「常春藤」接力的方式一樣。「關於」落在「常」的前面，整行成為「關於常春藤的一天」，接著「的一天」逐字接上。之後繼續捲動，「關於」會消失（不是淡出），大標再回到置中。五個方向只有<strong>消失的方式</strong>不同。影片都用同一個捲動速度（320 px/s）錄製；膠卷條是簾幕捲動 30%→90% 之間每 5% 截一格。</p>
+
+  <div class="bar">
+    <button type="button" id="replay">全部從頭播</button>
+    <button type="button" id="slowmo" aria-pressed="false">慢放 0.5×</button>
+    <nav aria-label="方向"><a href="#default">現況</a><a href="#wipe">擦掉</a><a href="#sink">沉下去</a><a href="#out">掉出去</a><a href="#push">擠出去</a><a href="#cut">瞬間消失</a></nav>
+  </div>
+
+  <section class="card" id="compare">
+    <div class="card-head"><h2>先看這個：現況 vs 沉下去</h2></div>
+    <div class="duo">
+      <figure><video src="media/1440x900-default.mp4" muted playsinline loop controls preload="auto"></video><figcaption>現況</figcaption></figure>
+      <figure><video src="media/1440x900-sink.mp4" muted playsinline loop controls preload="auto"></video><figcaption>沉下去</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="card" id="default">
+    <div class="card-head"><h2>現況</h2><span class="tag">基準</span><code>/</code></div>
+    <p class="desc">現在線上的版本：擦除線過完「常春藤」後停一拍，「的一天」逐字接上。「關於」留在原位，跟著擦除線被擦掉。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-default.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-default.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-default.jpg" alt="現況桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-default.jpg" alt="現況手機逐格" loading="lazy"></div>
+  </section>
+  <section class="card" id="wipe">
+    <div class="card-head"><h2>擦掉</h2><code>?drop=wipe</code></div>
+    <p class="desc">「關於」由下往上被擦掉，跟區塊之間的簾幕是同一種切法。擦完之後，大標才滑回置中。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-wipe.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-wipe.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-wipe.jpg" alt="擦掉桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-wipe.jpg" alt="擦掉手機逐格" loading="lazy"></div>
+  </section>
+  <section class="card" id="sink">
+    <div class="card-head"><h2>沉下去</h2><span class="tag rec">推薦</span><code>?drop=sink</code></div>
+    <p class="desc">「關於」往下沉進字行，字行底緣以下看不到，像是掉進來之後又沉進去。沉完之後大標回正。「掉」的動作前後一貫，也最安靜。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-sink.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-sink.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-sink.jpg" alt="沉下去桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-sink.jpg" alt="沉下去手機逐格" loading="lazy"></div>
+  </section>
+  <section class="card" id="out">
+    <div class="card-head"><h2>掉出去</h2><code>?drop=out</code></div>
+    <p class="desc">「關於」繼續往下掉，微微轉 12°，掉出畫面。掉到一半時，大標就開始回正。</p>
+    <p class="note">動作最大，也最俏皮。它會掉過下方的拍立得區，畫面比較熱鬧。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-out.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-out.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-out.jpg" alt="掉出去桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-out.jpg" alt="掉出去手機逐格" loading="lazy"></div>
+  </section>
+  <section class="card" id="push">
+    <div class="card-head"><h2>擠出去</h2><code>?drop=push</code></div>
+    <p class="desc">「關於」往左滑出畫面，大標同時往左回到置中，看起來像是被整句擠出去。</p>
+    <p class="note">手機上是往左邊界滑出，動作距離短，看起來比較像被推走。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-push.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-push.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-push.jpg" alt="擠出去桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-push.jpg" alt="擠出去手機逐格" loading="lazy"></div>
+  </section>
+  <section class="card" id="cut">
+    <div class="card-head"><h2>瞬間消失</h2><code>?drop=cut</code></div>
+    <p class="desc">擦除線走到某個點，「關於」直接不見，沒有任何過場；接著大標滑回置中。</p>
+    <p class="note">最符合字面上的「直接消失」。但少了過場，捲得快的人可能會以為是畫面閃了一下。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-cut.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-cut.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-cut.jpg" alt="瞬間消失桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-cut.jpg" alt="瞬間消失手機逐格" loading="lazy"></div>
+  </section>
+
+  <ul class="foot">
+    <li><strong>讓位與縮放</strong>：桌機 1440 寬剛好放得下 8 個字，所以「關於」掉下來時，大標只往右讓出一個字的位置。手機放不下，整行會縮到約 75%，「關於」消失後再放回原大小。</li>
+    <li><strong>捲動長度</strong>：停拍從 22% 加長到 32% 的捲動，前 45% 給「關於」掉下來，後段給「的一天」逐字。簾幕相應拉長：桌機 1.1→1.25 屏，手機 0.7→0.8 屏。停拍結束後，擦除線再往上走一段，這段捲動讓「關於」消失。</li>
+    <li><strong>無障礙</strong>：讀屏讀到的大標仍然是「常春藤的一天」；掉下來的「關於」是 <code>aria-hidden</code> 的裝飾字。開啟「減少動態」時沒有簾幕，也就不會出現落下的效果。</li>
+    <li>09-18 曾否決過「幽靈關於」，也就是在日常區放一個淡淡的「關於」。這次的效果是你指定的，而且「關於」會變成白字、最後會消失，跟那個方向不一樣。</li>
+    <li>錄影與截圖腳本放在 <code>scripts/</code>。定案後會把 <code>?drop=</code> 參數和沒選上的方式一起清掉。</li>
+  </ul>
+</main>
+<script>
+const videos = [...document.querySelectorAll('video')]
+document.getElementById('replay').addEventListener('click', () => {
+  for (const v of videos) { v.currentTime = 0; v.play().catch(() => {}) }
+})
+const slow = document.getElementById('slowmo')
+slow.addEventListener('click', () => {
+  const on = slow.getAttribute('aria-pressed') !== 'true'
+  slow.setAttribute('aria-pressed', String(on))
+  for (const v of videos) v.playbackRate = on ? 0.5 : 1
+})
+// 捲進視窗才播，省記憶體；對照區一起播。
+const io = new IntersectionObserver(entries => {
+  for (const e of entries) e.isIntersecting ? e.target.play().catch(() => {}) : e.target.pause()
+}, { threshold: .35 })
+videos.forEach(v => io.observe(v))
+</script>
+</body>
+</html>

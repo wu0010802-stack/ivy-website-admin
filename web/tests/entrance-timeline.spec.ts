@@ -20,6 +20,11 @@ describe('anniversary entrance timeline', () => {
     expect(entranceTimeline(LOGO_DURATION - 170).iris).toBeCloseTo(0.5)
     expect(entranceTimeline(LOGO_DURATION).iris).toBe(0)
   })
+  it('holds the emblem fully lit for well over a second before the iris closes', () => {
+    for (let elapsed = 480; elapsed <= 2100; elapsed += 20) {
+      expect(entranceTimeline(elapsed)).toMatchObject({ phase: 'logo', iris: 1, logoOpacity: 1 })
+    }
+  })
   it('irises the leader open and restarts the clockwise wipe once per number', () => {
     expect(entranceTimeline(LOGO_DURATION - 1)).toMatchObject({ leaderIris: 0, sweep: 0 })
     expect(entranceTimeline(LOGO_DURATION + 130).leaderIris).toBeGreaterThan(0.8)

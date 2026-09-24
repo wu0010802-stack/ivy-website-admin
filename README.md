@@ -234,6 +234,19 @@ Safari／iOS 實機未驗證。快照 `versions/before-relay-drop-20260924-08305
 
 驗證：在獨立樹用 Node 22 跑，`nuxt typecheck` 0 錯誤；`vitest run` 24 檔 185 項通過；`nuxt build` 成功。Playwright 1440×900／390×844 截五種方式的逐格與影片，無 page error。預設模式的逐字進度與前一版相同，也沒有 `.day-lead`。減少動態時沒有落下效果。Safari／iOS 實機未驗證。快照 `versions/before-relay-drop-20260924-083057/`。未提交。
 
+## 2026-09-24 常春藤的一天：修復背景影片畫質
+
+背景影片原本被額外縮成桌機 1280×720、手機 480×270，並以 CRF 27 再壓縮；手機 `cover` 鋪滿直式螢幕後細節明顯模糊。`scripts/optimize-site-videos.py` 改為桌機直接保留現有 1440×810 母檔（9,333,850 bytes，位元相同），手機由同一母檔以 CRF 25 輸出 1440×810（7,488,249 bytes），更新 `video-manifest.json` 的兩個雜湊網址。原剪輯、構圖、25 秒／24fps／600 幀、無音軌、faststart、遮罩與播放控制不變，Hero 映射不變，舊影片資產保留。原始 4K 影片不在記錄路徑，這次以現有素材恢復畫質，沒有放大解析度。
+
+驗證：
+- 兩支新影片全段解碼、格式、幀數、faststart 均通過；手機按 390×844 中央裁切，每 12 幀抽一幀、共 50 幀，相對 1440×810 素材的 VMAF 由 45.30 提升到 92.95。這是離線畫質對照，非實機效能指標。
+- Node 22 獨立 fixture 快照 `nuxt build` 成功；`vitest run tests/media-policy.spec.ts --maxWorkers=1 --minWorkers=1` 共 3 項通過。
+- 本機 Chrome：1440×900／390×844／320×568／760×393 實際載入正確的 1440×810 新檔；首屏不下載、捲入載入、暫停／恢復、循環、離開區塊暫停通過，無 page error／水平溢出。減少動態、省流量、3g 不下載影片，無 JS 保留靜態封面。
+- 另行量測載入 3 秒後的連續播放：桌機約 8.19 秒／197 幀、手機模擬約 8.04 秒／194 幀，期間皆 0 掉幀；首次載入與捲入時的手機檢查仍曾記錄 1–2 幀丟失，不將此結果解讀成整程零掉幀。
+- `node --check app.js`、`python3 package_preview.py` 通過；凍結原型未修改，重打包與既有 `preview.html` 位元相同。
+
+證據與獨立預覽：`output/day-video-quality-20260924/`。Safari／iPhone 實機未驗證。尚未部署。
+
 ## 2026-09-24 接力拿掉過字放慢，只留停拍逐字
 
 使用者要拿掉「放慢」。擦除線過「常春藤」恢復原本速度；過完字後在兩行中間停一拍（22% 捲動）、逐字接上「的一天」仍保留。`useCurtain.ts` 的查表只剩停拍，手機簾幕距離 .8→.7 屏（桌機 1.1 不變），停拍以外的擦除速度與原本相同。DESIGN.md 最上方同步改寫。
@@ -245,6 +258,24 @@ Safari／iOS 實機未驗證。快照 `versions/before-relay-drop-20260924-08305
 - 無 page error。
 
 Safari／iOS 實機未驗證。快照 `versions/before-relay-noslow-20260924-082326/`（有放慢的版本）。未提交、未部署。
+
+## 2026-09-24 頁尾拿掉校徽
+
+使用者要求拿掉頁尾品牌名稱左側的畢業版雙童校徽（09-23 `7def645` 加入）。`SiteFooter.vue` 移除校徽圖片、`.footer-crest` 與圖文並排的 flex 規則，品牌區回到只有中英文品牌名稱；1000px／760px 的欄位跨整列排版與英文名 `lang="en"` 保留。素材 `web/public/assets/ivy-graduation-crest.png` 先留在 repo（頁尾校徽旅程比稿待拍板），目前沒有頁面引用。DESIGN.md 同節已改為撤下紀錄。
+
+## 2026-09-23 孩子的一天：iPhone 捲動時按鈕與背景抖動（根因修正）
+
+使用者回報 iPhone 17 下滑時「暫停背景」按鈕會抖、圖片也怪怪的，電腦 Chrome 開發者工具看不到。根因是 `.section.day-experience` 的 `overflow-x:clip`：WebKit 會替裡面的 sticky 圖層（背景影片 `.day-film`、按鈕層 `.day-film-ui`、大標 `.day-intro`）掛一層由主執行緒定位的祖先裁切層，捲動執行緒推得動 sticky，推不動這層，所以每幀晚一步再被拉回。iPhone 上的 Safari 和 Chrome 都是 WebKit；Chrome 的合成器沒有這個行為。同日下午（`bfcfef8`）加在 `.day-film-ui` 的 `translateZ(0)` 沒有效果（實測 89 幀仍偏移），這次一併移除。
+
+- `styles.css`：區塊拿掉 `overflow-x:clip`；溢出的 WebGL 紙畫布（手機上超出視窗約 58px）改由 `.day-prints` 裁切。`.day-prints` 從「縮窄寬度＋置中」改成「滿版＋左右內距」，裁切邊界仍在視窗邊緣，內容寬度不變（桌機 `max(48px,(100% - 1280px)/2)`、≤1100 32px、≤760 20px）。
+
+驗證：WebKit 2359 用真的滾輪事件（走捲動執行緒，mobile 模式不支援滾輪，改關 isMobile 並補觸控規則）錄影，逐幀比對按鈕位置。在 scratchpad 獨立樹（HEAD＋本檔）建置後：
+- 按鈕偏移幀數：舊 87/153 → 新 0/153。
+- 暫停影片後追蹤背景：舊 81/153 有 ±1–3px → 新 0。
+- Chrome／WebKit 11 種寬度（1920～390，含 1101／1100、761／760 斷點兩側）：每張卡片位置、內容寬、區塊與整頁高度新舊一致，水平溢出 0。
+- 手機 WebGL 紙掛上後截圖新舊逐像素最大差 3/255，左右邊緣無差異。
+
+iPhone 實機未驗證。線上是 main，含 `paper-budget.ts` 等 feature 分支沒有的改動，但 `styles.css` 這幾條兩邊相同；以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。拍立得「停下才由 CSS 換成 WebGL」與快滑時角落被風掀起屬於原設計，這次沒有改。
 
 ## 2026-09-23 接力定案：過「常春藤」放慢＋「的一天」逐字接上
 
@@ -268,24 +299,6 @@ Safari／iOS 實機未驗證。快照 `versions/before-relay-noslow-20260924-082
 
 另外，比稿階段已確認拆字前後每個字的排版框完全一致。Safari／iOS 實機未驗證。快照 `versions/before-relay-type-20260923-231256/`（本次 4 檔的 HEAD 版）。未提交、未部署。
 
-## 2026-09-24 頁尾拿掉校徽
-
-使用者要求拿掉頁尾品牌名稱左側的畢業版雙童校徽（09-23 `7def645` 加入）。`SiteFooter.vue` 移除校徽圖片、`.footer-crest` 與圖文並排的 flex 規則，品牌區回到只有中英文品牌名稱；1000px／760px 的欄位跨整列排版與英文名 `lang="en"` 保留。素材 `web/public/assets/ivy-graduation-crest.png` 先留在 repo（頁尾校徽旅程比稿待拍板），目前沒有頁面引用。DESIGN.md 同節已改為撤下紀錄。
-
-## 2026-09-23 孩子的一天：iPhone 捲動時按鈕與背景抖動（根因修正）
-
-使用者回報 iPhone 17 下滑時「暫停背景」按鈕會抖、圖片也怪怪的，電腦 Chrome 開發者工具看不到。根因是 `.section.day-experience` 的 `overflow-x:clip`：WebKit 會替裡面的 sticky 圖層（背景影片 `.day-film`、按鈕層 `.day-film-ui`、大標 `.day-intro`）掛一層由主執行緒定位的祖先裁切層，捲動執行緒推得動 sticky，推不動這層，所以每幀晚一步再被拉回。iPhone 上的 Safari 和 Chrome 都是 WebKit；Chrome 的合成器沒有這個行為。同日下午（`bfcfef8`）加在 `.day-film-ui` 的 `translateZ(0)` 沒有效果（實測 89 幀仍偏移），這次一併移除。
-
-- `styles.css`：區塊拿掉 `overflow-x:clip`；溢出的 WebGL 紙畫布（手機上超出視窗約 58px）改由 `.day-prints` 裁切。`.day-prints` 從「縮窄寬度＋置中」改成「滿版＋左右內距」，裁切邊界仍在視窗邊緣，內容寬度不變（桌機 `max(48px,(100% - 1280px)/2)`、≤1100 32px、≤760 20px）。
-
-驗證：WebKit 2359 用真的滾輪事件（走捲動執行緒，mobile 模式不支援滾輪，改關 isMobile 並補觸控規則）錄影，逐幀比對按鈕位置。在 scratchpad 獨立樹（HEAD＋本檔）建置後：
-- 按鈕偏移幀數：舊 87/153 → 新 0/153。
-- 暫停影片後追蹤背景：舊 81/153 有 ±1–3px → 新 0。
-- Chrome／WebKit 11 種寬度（1920～390，含 1101／1100、761／760 斷點兩側）：每張卡片位置、內容寬、區塊與整頁高度新舊一致，水平溢出 0。
-- 手機 WebGL 紙掛上後截圖新舊逐像素最大差 3/255，左右邊緣無差異。
-
-iPhone 實機未驗證。線上是 main，含 `paper-budget.ts` 等 feature 分支沒有的改動，但 `styles.css` 這幾條兩邊相同；以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。拍立得「停下才由 CSS 換成 WebGL」與快滑時角落被風掀起屬於原設計，這次沒有改。
-
 ## 2026-09-23 首頁手機版：活動影片取代近期活動、最新消息上下排列
 
 依 `design/news-carousel-mobile-20260923/` 的 D 接進 `web/`，只改 640px 以下：近期活動換成 `HomeFilms.vue` 活動影片輪播（鼠尾草綠色帶、中央聚焦、左右露出、白色圓點、無限循環、只有當前那支靜音播放、支援 YouTube 連結點了才載入），最新消息改成縮圖列表；桌機不變。影片第一版用官網既有素材剪段（首屏影片＋舞台表演原檔），要換正式影片或 YouTube 改 `web/app/utils/campusFilms.ts`。
@@ -299,6 +312,18 @@ iPhone 實機未驗證。線上是 main，含 `paper-budget.ts` 等 feature 分�
 淡彩層只有顏色、不含線條（`web/public/assets/campus-line-art-<校區>-colour.webp`，各約 16KB），在 `CampusBoard.vue` 以 multiply 疊在原線稿上，hover 時 0.35 秒淡入，所以線條濃淡和原本的 hover 一樣。只在 `@media(hover:hover)` 顯示；觸控裝置為 `display:none`，搭配 `loading="lazy"` 不會下載。線稿尺寸規則從 `img` 移到外層 `.campus-tab-figure`，靜止、選中、強制色彩模式的樣子都不變。響應式圖用 `optimize-site-images.py --only` 產生，manifest 只新增 5 筆。
 
 驗證：Playwright 對 `:3161` 桌機 1440（DPR 2）hover 明華、崇德、義華、仁武，只有被 hover 的那一校淡彩 opacity 為 1，線稿濾鏡與框線大小（160×106.7）不變，無 page error。手機 390／320 淡彩層是 `display:none`，沒有發出淡彩圖請求，框線大小與原本一致。截圖在 `output/playwright/campus-tab-colour/`。`:3161` 的 `visit-looks.css` Vite 遮罩仍在，與本次無關。Nuxt typecheck 與正式建置沒有實跑。未 commit。
+
+## 2026-09-23 預約頁選校：其他校不再變暗
+
+使用者不要選一間學校後其他學校變暗。拿掉 `web/app/assets/css/visit-booking.css` 對未選卡片照片的 `filter:saturate(.55) brightness(.96)`，連帶移除 `img` 上只為它存在的 `filter` 過場。選中的卡仍是雙層外環＋右上打勾，五張照片一律原色。DESIGN.md「預約頁首頁風格」同步改寫。
+
+驗證：Playwright 對 `:3161/visit` 桌機 1440、手機 390 各點選崇德，五張照片的 computed `filter` 皆為 `none`、只有崇德 `checked`、無 page error。截圖在 scratchpad，未存進 `output/`。`:3161` 仍有別的 session 殘留的 `visit-looks.css` Vite 錯誤遮罩，與本次無關，驗證時先移除遮罩再點。
+
+## 2026-09-23 開場布幕：校徽停留時間拉長
+
+使用者要進站布幕的 logo 出現久一點。`web/app/utils/entrance-timeline.ts` 的 `LOGO_DURATION` 從 1500 改成 2500ms，校徽全亮的時間從約 0.7 秒變成約 1.7 秒。光圈開合速度、3-2-1 倒數與拉幕都沒動，整段開場從 7.9 秒變成 8.9 秒。`entrance-timeline.spec.ts` 新增一項，確認 480～2100ms 之間校徽都是全亮。設計預覽的 `velvet.js` 已用 `build-preview.mjs` 重產；首屏海報是第 0 幀，不受影響。
+
+驗證：用 Node 22 跑 vitest 的 `entrance-timeline`、`entrance-policy` 兩檔，共 34 項通過（新測試改常數前先確認會失敗）。在設計預覽定格截圖：1.3、2.0 秒校徽全亮，2.4 秒光圈收合，2.7 秒接上倒數「3」，總長顯示 8.9 秒。截圖在 `output/entrance-logo-hold-20260923/`。Nuxt 正式建置沒有實跑。未部署。
 
 ## 2026-09-23 拍立得翻面暗示改 A「角落捲起」：拿掉折角、風把右下角掀起來
 
