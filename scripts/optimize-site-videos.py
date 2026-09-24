@@ -22,10 +22,19 @@ hero_deliveries = {
 for name, source, width, crf in [
     ('hero-mobile', 'hero-campus.mp4', 720, 27),
     ('hero-desktop', 'hero-campus.mp4', 1280, 26),
-    ('day-desktop', 'day-film.mp4', 1280, 27),
-    ('day-mobile', 'day-film-mobile.mp4', 480, 27),
+    # 影片以 cover 鋪滿視窗；480×270 在直式手機會被放大數倍。
+    # 桌機直接保留現有最佳母檔；手機也由同一母檔輸出，避免小檔二次壓縮。
+    ('day-desktop', 'day-film.mp4', 1440, None),
+    ('day-mobile', 'day-film.mp4', 1440, 25),
 ]:
     original = ASSETS / source
+    if crf is None:
+        digest = sha256(original.read_bytes()).hexdigest()[:12]
+        target = OUT / f'{name}-{digest}.mp4'
+        shutil.copyfile(original, target)
+        manifest[name] = f'/assets/optimized/{target.name}'
+        print(f'{name}: 保留母檔 {target.stat().st_size:,} bytes', flush=True)
+        continue
     # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
     if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-smooth-master.mp4']['sha256']:
         prepared = restoration / hero_deliveries[name]
