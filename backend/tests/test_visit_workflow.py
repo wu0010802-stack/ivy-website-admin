@@ -528,3 +528,37 @@ async def test_visit_request_follow_up_due_filter_and_order(admin_client, public
 
     bad = await admin_client.get("/api/website/v1/admin/visit-requests?order=random")
     assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_dashboard_counts_open_requests_with_hold_deadline(admin_client, minghua_client, public_client):
+    """總覽要看得到兩種還沒處理的案件：新需求與待園方確認。後者占名額、
+    到期會被釋出，要附最早到期時間；數字定義與案件列表的 status 篩選相同。"""
+    await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="新需求家長", phone="0911000333", key="dash-open-01"
+    )
+    version = await _enable_slots(admin_client, auto_confirm=False)
+    slot = await _create_slot(admin_client, capacity=2)
+    held = await public_client.post(
+        "/api/website/v1/public/visit-requests",
+        json=_slot_payload("yihua", version, slot["id"], parent_name="占位家長"),
+        headers={"Idempotency-Key": "dash-open-02"},
+    )
+    assert held.status_code == 201, held.text
+    assert held.json()["status"] == "pending_confirmation"
+
+    summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
+    assert summary["new_requests"] == 1
+    assert summary["awaiting_confirmation"] == 1
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{held.json()['receipt_id']}")
+    assert summary["next_hold_expires_at"] is not None
+    assert summary["next_hold_expires_at"][:16] == detail.json()["hold_expires_at"][:16]
+
+    for status_value, key in (("new", "new_requests"), ("pending_confirmation", "awaiting_confirmation")):
+        listed = await admin_client.get(f"/api/website/v1/admin/visit-requests?status={status_value}")
+        assert len(listed.json()) == summary[key]
+
+    other_campus = (await minghua_client.get("/api/website/v1/admin/dashboard")).json()
+    assert other_campus["new_requests"] == 0
+    assert other_campus["awaiting_confirmation"] == 0
+    assert other_campus["next_hold_expires_at"] is None

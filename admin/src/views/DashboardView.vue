@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatTime } from '../api/labels'
+import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 
 interface TodayVisit {
@@ -15,6 +15,9 @@ interface TodayVisit {
 interface DashboardSummary {
   today_visits: number
   today_visit_list?: TodayVisit[]
+  new_requests?: number
+  awaiting_confirmation?: number
+  next_hold_expires_at?: string | null
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
@@ -51,10 +54,22 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
   timeZone: 'Asia/Taipei',
 }).format(new Date())
 
+const newRequests = computed(() => summary.value?.new_requests ?? 0)
+const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
+// 主按鈕帶去最急的一批：有占位待確認就先處理（會過期釋出），否則是新需求。
+// 最早送出的先處理，占位也是最早到期的在前面。
+const primaryTarget = computed(() =>
+  awaiting.value > 0 && newRequests.value === 0
+    ? '/visit-requests?status=pending_confirmation&order=oldest'
+    : '/visit-requests?status=new&order=oldest',
+)
+const openCount = computed(() => newRequests.value + awaiting.value)
+
 const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
+    openCount.value > 0 ||
     s.pending_follow_up > 0 ||
     s.pending_publish > 0 ||
     s.failed_notifications > 0 ||
@@ -69,7 +84,7 @@ onMounted(load)
   <div class="page dashboard">
     <div class="dash__intro">
       <div><p class="dash__date">{{ todayLabel }}</p><h2>今天的工作</h2><p class="dash__lead">先確認參觀安排，再處理家長需求與官網更新。</p></div>
-      <router-link class="dash__primary" to="/visit-requests?status=new">處理參觀需求 <span aria-hidden="true">→</span></router-link>
+      <router-link class="dash__primary" :to="primaryTarget">處理參觀需求<span v-if="openCount" class="dash__primary-count num">{{ openCount }}</span> <span aria-hidden="true">→</span></router-link>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
       <el-button @click="load">重新載入</el-button>
@@ -77,10 +92,10 @@ onMounted(load)
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
       <dl class="dash__summary" aria-label="營運摘要">
+        <div :class="{ 'is-attention': newRequests > 0 }"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></div>
+        <div :class="{ 'is-attention': awaiting > 0 }"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ summary.next_hold_expires_at ? `最早一筆${formatHoldRemaining(summary.next_hold_expires_at)}` : '查看待確認案件' }}</router-link></div>
         <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><router-link to="/visit-requests?status=confirmed">查看已確認案件</router-link></div>
         <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><router-link to="/visit-requests?due=1">查看到期案件</router-link></div>
-        <div><dt>未發布的草稿</dt><dd>{{ summary.pending_publish }}<span>篇</span></dd><span class="hint">儲存過但從未發布</span></div>
-        <div><dt>通知寄送失敗</dt><dd>{{ summary.failed_notifications }}<span>則</span></dd><router-link to="/notifications">查看通知紀錄</router-link></div>
       </dl>
       <section v-if="summary.today_visit_list?.length" class="dash__today" aria-labelledby="today-title">
         <div class="section__title"><h2 id="today-title">今天的參觀</h2><span class="hint">點一筆查看聯絡紀錄與電話</span></div>
@@ -99,6 +114,14 @@ onMounted(load)
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title"><h2 id="tasks-title">待辦與提醒</h2><span class="hint">依目前資料顯示</span></div>
           <div class="panel dash__task-list">
+            <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
+              <span class="task__number">{{ awaiting }}</span>
+              <div><h3>時段預約等園方確認</h3><p>家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span class="task__action">從最早送出的開始確認 →</span></div>
+            </router-link>
+            <router-link v-if="newRequests > 0" class="task" to="/visit-requests?status=new&order=oldest">
+              <span class="task__number">{{ newRequests }}</span>
+              <div><h3>新的參觀需求還沒聯絡</h3><p>家長送出後在等園方回電。聯絡後記一筆紀錄，談好時間就排入時段。</p><span class="task__action">從最早送出的開始聯絡 →</span></div>
+            </router-link>
             <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1">
               <span class="task__number">{{ summary.pending_follow_up }}</span>
               <div><h3>案件已到追蹤時間</h3><p>之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span class="task__action">查看到期案件 →</span></div>
@@ -147,6 +170,7 @@ onMounted(load)
 .dash__intro h2 { font-size: 24px; letter-spacing: -.02em; }
 .dash__lead { margin-top: 8px; color: var(--ink-2); }
 .dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
+.dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: 13px; font-weight: 600; line-height: 22px; text-align: center; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
 .dash__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
 .dash__summary > div { min-width: 0; padding: 20px; }
@@ -154,6 +178,7 @@ onMounted(load)
 .dash__summary dt { font-size: 14px; color: var(--ink-2); }
 .dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: 28px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .dash__summary dd span { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+.dash__summary > .is-attention dd { color: var(--brand-gold-ink); }
 .dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
 .dash__today { margin-bottom: 28px; }
 .today { list-style: none; margin: 0; padding: 0; }
@@ -171,6 +196,8 @@ onMounted(load)
 .task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }
 .task + .task { border-top: 1px solid var(--line); }
 a.task:hover { text-decoration: none; background: var(--surface-2); }
+.task--urgent .task__number { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
+.task p strong { color: var(--ink); font-weight: 600; }
 .task__number { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-weight: 600; font-size: 17px; }
 .task h3 { font-size: 16px; }
 .task p { margin-top: 6px; color: var(--ink-2); max-width: 60ch; line-height: 1.7; }
