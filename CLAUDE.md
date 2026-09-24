@@ -1,16 +1,16 @@
-# CLAUDE.md — 常春藤官網 prototype
+# CLAUDE.md — 常春藤官網
 
 本檔是本 repo 對所有 AI agent（Claude Code、Codex 等）的**單一權威規則**；`AGENTS.md` 只是指向這裡的入口。全域規則（語言、模型調度、安全）另見 `~/.claude/CLAUDE.md`，本檔只寫這個 repo 才有的事。文件互相矛盾時：**有日期的較新業主裁定 ＞ 本檔 ＞ DESIGN.md／README ＞ 舊的 design/、versions/ 工作檔**。
 
 ## 這個 repo 是什麼
 
-常春藤教育機構（五校：義華、明華、崇德、國際、仁武）官網互動提案。目標與反參考見 `PRODUCT.md`。**與園務系統三個 repo（ivy-backend／ivy-frontend／ivyManageSystem）無程式關聯**，接到任務先確認不是要動那三個；五個 campus key **不是** tenant_id。
+常春藤教育機構（五校：義華、明華、崇德、國際、仁武）官網。根目錄是 2026-09-19 定案後凍結的 vanilla 互動原型；正式官網 `web/`（Nuxt SSR）、後台 `admin/`、API `backend/` 已實作並部署在 Railway（見「官網後台」）。目標與反參考見 `PRODUCT.md`。**與園務系統三個 repo（ivy-backend／ivy-frontend／ivyManageSystem）無程式關聯**，接到任務先確認不是要動那三個；五個 campus key **不是** tenant_id。
 
 ## 檔案地圖
 
 | 路徑 | 角色 | 動它前要知道 |
 |---|---|---|
-| `index.html` `styles.css` `studio.css` `app.js` `assets/` | 可維護版主站，**零依賴** vanilla | 提案階段不加 npm 套件、不引框架 |
+| `index.html` `styles.css` `studio.css` `app.js` `assets/` | 凍結的 vanilla 原型（2026-09-19 baseline），**零依賴** | 設計迭代改在 `web/`；不在原型加 npm 套件、不引框架 |
 | `app.js` | hash 路由（`#/頁面/子路徑`，`render()` 在檔尾）＋所有內容資料：`campuses`、`dayMoments`、`faq()`、`homepageNews` | 高度壓縮成單行函式、無分節註解；切片刪除前**先印出行號範圍再刪**（已兩次多刪共用宣告） |
 | `studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔第 16 行為準（1100），不是 `styles.css` 的 1150 |
 | `preview.html` | `package_preview.py` 打包出的單檔，**刻意進版控**、可離線開 | 改任何原始檔後必重打包，見下 |
@@ -19,9 +19,16 @@
 | `design/<主題>-directions|mockup|demo[-YYYYMMDD]/` | 比稿工作檔、截圖、對照頁 | 只在需要追溯來源時讀；**不要把舊方案套回主站** |
 | `versions/before-<主題>-YYYYMMDD-HHMMSS/` | 改版前快照 | 大改前先建一份 |
 | `output/` `.playwright-*` `.impeccable/` `.codex/` | 本機截圖與工具狀態，已 gitignore | 暫存物放這裡，不要散在根目錄 |
-| `docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*` | 官網後台（web/ admin/ backend/）規格、計畫、執行提示 | 尚未實作；見「官網後台任務」 |
+| `web/` | 正式公開官網（Nuxt 4 SSR），設計迭代都在這裡 | 顏色走 `web/app/assets/css/tokens.css`；改完跑 `npm --prefix web run typecheck`、`test:unit` |
+| `admin/` | 後台 SPA（Vue 3＋Element Plus），build 後併進 web 的 `/admin/` | 型別取自 `contracts/generated`；`npm --prefix admin run typecheck`、`test:unit` |
+| `backend/` | FastAPI API＋Alembic migration | 合進 `main` 的 migration 部署時自動套到正式 DB，撰寫規則見 `deploy/CICD.md` |
+| `contracts/` | `openapi.json` 與產生的 TS 型別 | 改 API 後 `npm run contract:generate`；CI 跑 `contract:check` |
+| `deploy/` | Dockerfile、api 啟動腳本、Railway CI、部署紀錄 | 正式站變數、上線步驟、歷次部署記在 `deploy/README.md` |
+| `docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`、`docs/website-admin/` | 官網後台規格、計畫、執行提示（已實作）、驗收表與維運手冊 | 見「官網後台」 |
 
 ## 每次改版必做的流程
+
+根目錄原型自 2026-09-19 起凍結，設計改版都改在 `web/`；第 3–4 步的 `app.js`／`preview.html` 檢查只在真的要動原型時做，`web/` 改版改跑 web 的 typecheck 與 `test:unit`。
 
 1. 動手前 `git status --short`：本 repo 長期有大量未提交設計修改，**全部視為使用者工作**。不 reset／checkout 還原／stash／clean，不 `git add .`、`-A`、`commit -a`。
 2. 大改前快照到 `versions/before-<主題>-$(date +%Y%m%d-%H%M%S)/`。
@@ -54,13 +61,13 @@
 - 圖示只用 Phosphor Regular，sprite 內嵌 `index.html`；英文只留 `lang="en"` 副標與外部連結 ↗。
 - `ui-ux-pro-max` 之類的通用 UI 套件對本案不適用（會撞 PRODUCT.md 的反參考）。
 
-## 現況容易搞錯的事（2026-09-19）
+## 現況容易搞錯的事（2026-09-24）
 
 - 「孩子的一天」是背景影片（760px 分界切桌／手機檔）＋六張可翻面拍立得，不是舊分頁；`dayMoments` 欄位 `key,time,label,tint,photo,alt,caption,title,story,question,answer`。
 - 首頁五校是 e3 墨綠底板卡，首頁沒有嵌入地圖；分校內頁才有，且只載當前校。
 - 頁首預約鈕全站只有一種：金色滿高色塊（d9），手機退回膠囊。
 - 首頁捲過 40px 頁首收成靠右的深綠膠囊（2026-09-23 起分校頁與預約頁在 900px 以下也收，桌機內頁不收）；`?pill=`、`?autohide=1`、`?anni=a|b|c` 仍是預覽參數，**30 週年版尚未拍板**，不能順便上線。
-- 預約表單只是前端示範，不送出、不存庫；localStorage 只放動效偏好。
+- 根目錄原型的預約表單只是前端示範；`web/` 的預約會真的送單、存進官網 DB。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
 
 ## 驗證工具的本機繞法
@@ -72,13 +79,16 @@
 - `npx impeccable detect --json <url>` 可用；`impeccable live` 這版跑不起來。
 - 機器只有 8GB RAM：同時只跑一組測試或重型轉檔。
 
-## 官網後台任務（web/ admin/ backend/，尚未開工）
+## 官網後台（web/ admin/ backend/，已上線）
 
-- 入口：`docs/handoff/2026-09-19-claude-website-admin.md`，規格 `docs/specs/…`，計畫（11 個任務分 A–D 四階段，一次 session 只做一階段、階段間有硬閘）與 A01–A25 驗收表 `docs/superpowers/plans/…` Task 11。三份文件 2026-09-19 已修訂為 v3。
-- **技術棧以規格 v2 為準**（規格、計畫、handoff 三份已於 2026-09-19 同步為 v2）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。選型背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`，不要再重開框架選型。
-- 官網用獨立 DB，不連 `ivymanagement`、staging 或 prod；不部署、不 push、不發真實通知、不建付費服務。
-- 預約語意（inquiry「已收到需求」／slots 人工確認「待確認」／只有已確認才叫「預約成立」）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見規格第 17–30 行與 handoff「預約不可違反的規則」。
-- 現行 vanilla 站在階段 A 閘門通過前仍是設計基準，`preview.html` 機制要保留；閘門通過的 commit 為原型凍結點，之後設計迭代改在 `web/`。
+- 規格、計畫、handoff：`docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`。A–D 四階段已全部實作，A01–A25 驗收狀態見 `docs/website-admin/acceptance.md`，維運見 `docs/website-admin/operations.md`。
+- **技術棧**（不要再重開選型，背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。
+- **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`。
+- 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
+- 預約語意（inquiry「已收到需求」／slots 人工確認「待確認」／只有已確認才叫「預約成立」）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」。
+- 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
+- 排程發布、逾期占位、通知 outbox、清限流計數由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
+- **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相 TRUNCATE。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
 - 標題與品牌字型是子集（見上節），CMS 開放編輯標題前必須先處理，規則在規格 3.1.1。
 
 ## 委派與回報

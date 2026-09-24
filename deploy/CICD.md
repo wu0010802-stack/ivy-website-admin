@@ -75,6 +75,6 @@ actionlint .github/workflows/website.yml
 
 2026-09-24 自動 migration：本機 13 項工具測試通過；本機 PostgreSQL 14 拋棄式 DB 從 base 升到正式當時的 `c6e4a2b9d810` 後，兩個 `alembic upgrade head` 同時跑，一個執行 `d3a8f1c5b742`、一個排隊後 no-op；另以 psql 先占住 advisory lock，upgrade 等 8 秒釋放後才執行；`check_schema.py` 核對 `d3a8f1c5b742` 通過；在 head 重跑為 no-op。本機沒有 Docker，容器內實跑要看推上 `main` 後的 Railway API log。
 
-2026-09-22 本機已通過 12 項工具測試、actionlint 1.7.12、實際 Git HEAD 快照雜湊核對、專用 PostgreSQL 測試庫的 read-only schema 查核、現有正式站公開 GET smoke。尚未發布 workflow，未執行 GitHub runner 的完整 CI，也未部署本次候選程式；本機沒有 Docker，未驗證容器建置與容器啟動。
+2026-09-22 本機已通過 12 項工具測試、actionlint 1.7.12、實際 Git HEAD 快照雜湊核對、專用 PostgreSQL 測試庫的 read-only schema 查核、現有正式站公開 GET smoke。尚未發布 workflow，未執行 GitHub runner 的完整 CI，也未部署本次候選程式；本機沒有 Docker，未驗證容器建置與容器啟動。（2026-09-24 註：之後已啟用，部署分支改為 `main`，實際 CI 部署紀錄見 `deploy/README.md`。）
 
 參考：[Railway CLI 部署與 Project Token](https://docs.railway.com/cli/deploying)。`railway up --detach` 僅代表上傳完成，所以工具另行輪詢精確 deployment ID。

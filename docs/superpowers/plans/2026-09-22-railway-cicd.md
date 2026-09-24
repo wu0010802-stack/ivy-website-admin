@@ -33,6 +33,6 @@
 - 對 `ivy_website_visit_details_test` 執行 guard，唯讀核對 `8cf3e2b5a641` 成功；未執行 migration／寫入。
 - 原型語法與打包通過，`preview.html` 無差異。
 - 公開正式站 smoke 通過：release、production/live health、已發布 CMS、首頁、五校頁、後台入口。首次 TLS handshake 逾時後增加有限重試，重跑通過；此為既有線上版本的工具驗證，沒有部署候選程式。
-- GitHub 目前沒有 environment 或 repo secret，production branch 尚未建立；仍待發布設定與指定正式版基底。
+- GitHub 目前沒有 environment 或 repo secret，production branch 尚未建立；仍待發布設定與指定正式版基底。（2026-09-24 註：之後已啟用，部署分支改為 `main`，見 `deploy/CICD.md`。）
 - 未執行 GitHub runner 上的完整 CI 或正式部署；本機 Docker 不可用，磁碟剩約 381 MiB，本輪未額外重建完整應用。
 - 範圍限定的獨立 code review 未發現阻擋或重要缺陷；不取代 GitHub CI／Docker／首次自動部署驗證。
