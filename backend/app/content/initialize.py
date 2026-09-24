@@ -26,6 +26,9 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
         ("booking_content", None, _copy_fields(data["booking"], "booking_content")),
         ("day_experience", None, _copy_fields(data["dayExperience"], "day_experience")),
+        # 原樣帶入原型的示意消息與 sampleNote：上線畫面不變（仍標「示意內容」），
+        # 園方在後台換成真實消息、清空示意說明後才拿掉標示。
+        ("home_news", None, _copy_fields(data["news"], "home_news")),
     ]
     meta = data["siteMeta"]
     entries.append(("site_meta", None, {

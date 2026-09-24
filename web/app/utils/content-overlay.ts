@@ -1,4 +1,5 @@
 import type { SiteContent } from '~/types/site-content'
+import { newsMonth } from './news-content'
 
 export interface LiveHomeAbout {
   title: string
@@ -61,6 +62,31 @@ export interface LiveDayExperience {
   moments: LiveDayMoment[]
 }
 
+export interface LiveNewsArticle {
+  id: string
+  date: string
+  campus: string
+  category: string
+  title: string
+  description: string
+  image: string
+  alt: string
+}
+
+export interface LiveNewsEvent {
+  id: string
+  date: string
+  campus: string
+  title: string
+  description: string
+}
+
+export interface LiveHomeNews {
+  sample_note: string
+  articles: LiveNewsArticle[]
+  events: LiveNewsEvent[]
+}
+
 export interface LiveCampusProfile {
   name: string
   district: string
@@ -105,6 +131,7 @@ export interface ContentOverlay {
   home_campus_board?: LiveHomeCampusBoard | null
   booking_content?: LiveBookingContent | null
   day_experience?: LiveDayExperience | null
+  home_news?: LiveHomeNews | null
   // 這兩種是每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
@@ -120,8 +147,7 @@ export interface ContentOverlay {
  * `usePublishedSite`（讀已發布內容）跟 `useDraftPreview`（讀最新未發布
  * revision）共用這個函式，差別只在 overlay 資料是從哪支 API 拿的。
  *
- * 仍未搬進 CMS、維持 fixture 靜態資料的部分：消息（news，跟使用者當時
- * 進行中的首頁優化工作重疊，本輪刻意不動）、探索（tourScenes，含地圖
+ * 仍未搬進 CMS、維持 fixture 靜態資料的部分：探索（tourScenes，含地圖
  * 座標的複雜巢狀結構）、影片／照片素材本身（仍是路徑字串，尚未接媒體
  * 庫）、首頁五校排序與預設校區（結構性設定，不當文字內容編輯）。
  */
@@ -230,6 +256,18 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           answer: m.answer
         }
       })
+    }
+  }
+
+  if (overlay.home_news) {
+    // 整組取代：後台一次送出完整的消息與活動清單。圖片欄位同 campus_tour，
+    // 可以是素材庫 UUID 或 fixture 代號（NewsDialog 用 responsiveTourImage 解析）。
+    const news = overlay.home_news
+    next.news = {
+      ...next.news,
+      sampleNote: news.sample_note,
+      articles: news.articles.map((a) => ({ ...a })),
+      events: news.events.map((e) => ({ ...e, month: newsMonth(e.date) }))
     }
   }
 

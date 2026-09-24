@@ -37,7 +37,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
-  // （app/content/routes.py 的 _require_shared_or_scope），所以這七項
+  // （app/content/routes.py 的 _require_shared_or_scope），所以這八項
   // 一律標 roles: ['super_admin']——否則分校管理者看得到、改得動，
   // 但按儲存永遠是 403。分校自有內容（五校介紹／常見問題／校園探索）
   // 不限制。
@@ -53,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'] },
       { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'] },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'] },
+      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'] },
     ],
   },
   {

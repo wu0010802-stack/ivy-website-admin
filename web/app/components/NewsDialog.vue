@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { responsiveImage } from '~/utils/responsive-image'
+import { responsiveTourImage } from '~/utils/tour-image'
+import { sortedArticles, taipeiToday, upcomingEvents } from '~/utils/news-content'
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
 const props = defineProps<{ news: NewsContent }>()
@@ -8,7 +9,14 @@ const dialogEl = ref<HTMLDialogElement | null>(null)
 const dialogSupported = ref(false)
 const dialogOpen = ref(false)
 const cardsEl = ref<HTMLElement | null>(null)
-const { slots, page, pages, progress, enabled, playing } = useNewsRotation(() => props.news.articles, cardsEl, dialogOpen)
+// 後台可以自由排序與新增：消息一律新到舊，活動只列今天以後、近到遠（過期自動下架）。
+// SSR 與 hydrate 用同一個台北日期，只有跨午夜那一刻才可能兩邊不同。
+const today = taipeiToday()
+const articles = computed(() => sortedArticles(props.news.articles))
+const events = computed(() => upcomingEvents(props.news.events, today))
+// sampleNote 有值＝原型示意內容（fixture 或後台尚未換成真實消息）。
+const isSample = computed(() => Boolean(props.news.sampleNote))
+const { slots, page, pages, progress, enabled, playing } = useNewsRotation(() => articles.value, cardsEl, dialogOpen)
 const pad = (value: number) => String(value).padStart(2, '0')
 const view = ref<{ kind: 'articles' | 'events'; item: NewsArticle | NewsEvent } | { kind: 'list'; list: 'articles' | 'events' } | null>(null)
 
@@ -54,12 +62,12 @@ function formatDate(date: string) {
         <HomeFilms class="hn-films" />
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
-            <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="news.sampleNote" class="hn-sample-tag">示意內容</span></span>
+            <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="isSample" class="hn-sample-tag">示意內容</span></span>
             <h2 id="upcoming-events-heading">近期活動</h2>
           </div>
-          <div class="hn-event-stack">
+          <div v-if="events.length" class="hn-event-stack">
             <button
-              v-for="item in news.events"
+              v-for="item in events"
               :key="item.id"
               type="button"
               class="hn-event"
@@ -75,14 +83,15 @@ function formatDate(date: string) {
               </span>
             </button>
           </div>
-          <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('events')">
+          <p v-else class="hn-empty">目前沒有近期活動。</p>
+          <button v-if="events.length" type="button" class="hn-more" aria-haspopup="dialog" @click="openList('events')">
             所有活動
           </button>
         </aside>
         <div class="hn-news">
           <div class="hn-head hn-news-head">
             <div>
-              <span class="hn-kicker"><span lang="en">LATEST NEWS</span><span v-if="news.sampleNote" class="hn-sample-tag">示意內容</span></span>
+              <span class="hn-kicker"><span lang="en">LATEST NEWS</span><span v-if="isSample" class="hn-sample-tag">示意內容</span></span>
               <h2 id="latest-news-heading">最新消息</h2>
             </div>
             <div class="hn-head-end">
@@ -93,18 +102,19 @@ function formatDate(date: string) {
               >
                 <span>{{ pad(page + 1) }} / {{ pad(pages) }}</span><i><b /></i>
               </span>
-              <button type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
+              <button v-if="articles.length" type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
                 所有最新消息
               </button>
             </div>
           </div>
+          <p v-if="!articles.length" class="hn-empty">目前沒有新的消息。</p>
           <div ref="cardsEl" class="hn-cards">
             <!-- 換組時每格暫時有新舊兩層（見 useNewsRotation），平常只有一層。 -->
             <article v-for="(layers, slot) in slots" :key="slot" class="hn-card">
               <div class="hn-media">
                 <img
                   v-for="(item, layer) in layers" :key="item.id"
-                  v-bind="responsiveImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')"
+                  v-bind="responsiveTourImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')"
                   :alt="item.alt" :loading="layer ? 'eager' : 'lazy'" :class="{ 'is-incoming': layer > 0 }"
                 >
               </div>
@@ -118,7 +128,7 @@ function formatDate(date: string) {
           </div>
         </div>
       </div>
-      <p class="hn-sample-note">{{ news.sampleNote }}</p>
+      <p v-if="isSample" class="hn-sample-note">{{ news.sampleNote }}</p>
     </div>
   </section>
 
@@ -131,17 +141,17 @@ function formatDate(date: string) {
       <div class="hn-dialog-body">
         <template v-if="view?.kind === 'list'">
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.list === 'events' ? '近期活動' : '所有最新消息' }}</h2>
-          <p class="hn-dialog-note">以下為設計示意內容。</p>
+          <p v-if="isSample" class="hn-dialog-note">以下為設計示意內容。</p>
           <div v-if="view.list === 'events'" class="hn-event-stack">
-            <button v-for="item in news.events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
+            <button v-for="item in events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
               <time class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
               <span class="hn-event-copy"><small>{{ item.campus }}</small><strong>{{ item.title }}</strong></span>
               <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
           <div v-else class="hn-list">
-            <button v-for="item in news.articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
-              <img v-bind="responsiveImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
+            <button v-for="item in articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
+              <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
               <span class="hn-list-copy">
                 <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                 <strong>{{ item.title }}</strong>
@@ -155,16 +165,16 @@ function formatDate(date: string) {
           <span class="hn-kicker">{{ view.item.campus }} · {{ (view.item as NewsArticle).category }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <span class="hn-meta"><span>{{ view.item.campus }}</span><time :datetime="view.item.date">{{ formatDate(view.item.date) }}</time></span>
-          <img v-bind="responsiveImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px')" :alt="(view.item as NewsArticle).alt" loading="lazy">
+          <img v-bind="responsiveTourImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px')" :alt="(view.item as NewsArticle).alt" loading="lazy">
           <p class="hn-detail-copy">{{ view.item.description }}</p>
-          <p class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
+          <p v-if="isSample" class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
         </template>
         <template v-else-if="view?.kind === 'events'">
-          <span class="hn-kicker">{{ view.item.campus }} · 活動示意</span>
+          <span class="hn-kicker">{{ view.item.campus }}{{ isSample ? ' · 活動示意' : '' }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <time class="hn-detail-date" :datetime="view.item.date">{{ formatDate(view.item.date) }}</time>
           <p class="hn-detail-copy">{{ view.item.description }}</p>
-          <p class="hn-dialog-note">這是示意活動，並非已公告的活動或開放報名。正式內容將由園方提供。</p>
+          <p v-if="isSample" class="hn-dialog-note">這是示意活動，並非已公告的活動或開放報名。正式內容將由園方提供。</p>
         </template>
       </div>
     </dialog>
