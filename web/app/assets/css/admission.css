@@ -1,4 +1,4 @@
-/* 入學資訊 mock-up（2026-09-24）。顏色一律走既有 token；字級只用 typography.css 的 --fs-*。 */
+/* 入學資訊（2026-09-24）。顏色一律走既有 token；字級只用 typography.css 的 --fs-*。 */
 
 .admission-hero { min-height: 440px; }
 .admission-hero h1 { font-size: clamp(2.25rem, 4vw, var(--fs-7xl)); letter-spacing: .04em; line-height: 1.35; }
@@ -7,16 +7,15 @@
 .admission-subnav a { font-weight: 500; color: var(--green); }
 .admission-subnav a:hover { color: var(--leaf); }
 
-.mockup-note { display: flex; align-items: center; gap: 12px; margin-top: 24px; font-size: var(--fs-sm); color: var(--muted); max-width: none; }
-.mockup-note span { flex-shrink: 0; padding: 2px 12px; border-radius: 999px; background: var(--yellow); color: var(--deep); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; }
+.admission-notice { margin-top: 24px; padding: 14px 20px; border-left: 3px solid var(--gold); background: var(--cream); border-radius: 0 5px 5px 0; font-size: var(--fs-sm); color: var(--text); max-width: none; }
 
 .admission .section-title { word-break: keep-all; overflow-wrap: anywhere; }
 
 /* ── 入學流程 ── */
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; counter-reset: step; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--step-count, 6), minmax(0, 1fr)); gap: 0; }
 .steps li { position: relative; padding: 0 20px 0 0; }
 .steps li::before { content: ''; position: absolute; top: 23px; left: 48px; right: 0; height: 1px; background: var(--line); }
-.steps li:last-child::before { display: none; }
+.steps li:last-child::before, .steps li:nth-child(6n)::before { display: none; }
 .step-no { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--green); color: var(--paper); font-family: var(--font-en, var(--font)); font-size: var(--fs-md); font-weight: 600; letter-spacing: .04em; }
 .steps li:last-child .step-no { background: var(--yellow); color: var(--deep); }
 .steps small { display: block; margin-top: 20px; font-size: var(--fs-xs); color: var(--leaf); letter-spacing: .08em; }
@@ -46,7 +45,7 @@
 .info-card p + p { margin-top: 10px; }
 .info-card strong { color: var(--green); }
 .info-sub { margin-top: -8px; }
-.week { list-style: none; margin: 20px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.week { list-style: none; margin: 20px 0 0; padding: 0; display: grid; grid-template-columns: repeat(var(--day-count, 5), minmax(0, 1fr)); gap: 6px; }
 .week li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 4px; border-radius: 4px; background: var(--cream); text-align: center; }
 .week small { font-size: var(--fs-xs); color: var(--muted); }
 .week strong { font-size: var(--fs-md); color: var(--green); }
@@ -105,8 +104,9 @@
 .class-table thead small { color: var(--leaf); }
 
 @media (max-width: 1100px) {
-  .steps { grid-template-columns: repeat(3, 1fr); row-gap: 40px; }
-  .steps li:nth-child(3)::before { display: none; }
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 40px; }
+  .steps li:nth-child(6n)::before { display: block; }
+  .steps li:nth-child(3n)::before, .steps li:last-child::before { display: none; }
   .allowance { grid-template-columns: 1fr; row-gap: 12px; }
   .allowance p, .allowance dl { grid-column: 1; grid-row: auto; }
   .newcomer-more { grid-template-columns: 1fr 1fr; }
@@ -123,7 +123,7 @@
   .admission-hero h1 { font-size: var(--fs-4xl); }
   .steps { grid-template-columns: 1fr; row-gap: 0; }
   .steps li { display: grid; grid-template-columns: 48px 1fr; column-gap: 16px; padding: 0 0 28px; }
-  .steps li::before, .steps li:nth-child(3)::before { display: block; top: 48px; bottom: 0; left: 23px; right: auto; width: 1px; height: auto; }
+  .steps li::before, .steps li:nth-child(3n)::before { display: block; top: 48px; bottom: 0; left: 23px; right: auto; width: 1px; height: auto; }
   .steps li:last-child::before { display: none; }
   .step-no { grid-row: span 3; }
   .steps small { margin-top: 2px; }

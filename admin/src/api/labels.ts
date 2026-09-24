@@ -132,6 +132,19 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   sample_note: '示意說明',
   articles: '最新消息',
   events: '近期活動',
+  notice: '頁面提醒',
+  steps: '入學步驟',
+  phases: '新生入園階段',
+  uniform_week: '每週穿著',
+  uniform_note: '穿著說明',
+  pickup_notes: '接送安全',
+  registration_notes: '註冊須知',
+  fee_intro: '收退費說明',
+  subsidies: '補助',
+  allowance_title: '育兒津貼標題',
+  allowance: '育兒津貼',
+  allowance_note: '育兒津貼附註',
+  refunds: '退費規定',
   scenes: '場景',
   items: '項目',
   name: '校名',
@@ -161,6 +174,7 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
     return campusKey ? `/campuses/${campusKey}` : '/'
   }
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
+  if (kind === 'admission_content') return '/admission'
   return '/'
 }
 
@@ -171,6 +185,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   home_campus_board: '首頁五校區塊',
   day_experience: '孩子的一天',
   home_news: '最新消息與活動',
+  admission_content: '入學資訊',
   campus_profile: '五校介紹',
   campus_faq: '各校常見問題',
   campus_tour: '校園探索',

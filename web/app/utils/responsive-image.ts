@@ -11,6 +11,9 @@ interface ImageInfo { width: number; height: number; candidates: { src: string; 
  */
 export const HOME_HERO_SIZES = '100vw'
 
+/** 入學資訊頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+export const ADMISSION_HERO_IMAGE = 'day-hello'
+
 export function responsiveImage(name: string, sizes = '100vw') {
   const info = (manifest as Record<string, ImageInfo>)[name]
   return {

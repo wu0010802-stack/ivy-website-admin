@@ -7,6 +7,7 @@ from typing import Callable
 from pydantic import BaseModel
 
 from app.content.schemas import (
+    AdmissionContentPayload,
     BookingContentPayload,
     CampusFaqPayload,
     CampusProfilePayload,
@@ -66,6 +67,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_news": ContentKindConfig(
         HomeNewsPayload, shared_only=True, extract_media_ids=_extract_home_news_media_ids
     ),
+    "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
     # 以下三種需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
     "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False),

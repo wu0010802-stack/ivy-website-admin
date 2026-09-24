@@ -1,12 +1,12 @@
 {
   "critical": {
-    "src": "/assets/fonts/subsets/lineseed-bd-critical-6193955803d6.woff2",
-    "bytes": 13788,
+    "src": "/assets/fonts/subsets/lineseed-bd-critical-fd1f026e9ac2.woff2",
+    "bytes": 13820,
     "characters": 53
   },
   "remaining": {
-    "src": "/assets/fonts/subsets/lineseed-bd-remaining-26ed7ea8c85f.woff2",
-    "bytes": 146676,
-    "characters": 672
+    "src": "/assets/fonts/subsets/lineseed-bd-remaining-03ba918a9de5.woff2",
+    "bytes": 149072,
+    "characters": 684
   }
 }

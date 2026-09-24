@@ -12,6 +12,7 @@ import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
 import BookingContentView from '../views/BookingContentView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
 import HomeNewsView from '../views/HomeNewsView.vue'
+import AdmissionContentView from '../views/AdmissionContentView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import CampusFaqView from '../views/CampusFaqView.vue'
 import CampusTourView from '../views/CampusTourView.vue'
@@ -60,6 +61,7 @@ const router = createRouter({
         page('content/booking-content', 'booking-content', BookingContentView),
         page('content/day-experience', 'day-experience', DayExperienceView),
         page('content/home-news', 'home-news', HomeNewsView),
+        page('content/admission', 'admission-content', AdmissionContentView),
         page('content/campus-profile', 'campus-profile', CampusProfileView),
         page('content/campus-faq', 'campus-faq', CampusFaqView),
         page('content/campus-tour', 'campus-tour', CampusTourView),

@@ -80,6 +80,32 @@ export interface HomeNewsPayload {
   events: NewsEventPayload[]
 }
 
+export interface AdmissionStepPayload { when: string; title: string; text: string }
+export interface AdmissionPhasePayload { tag: string; title: string; items: string[]; tips: string[] }
+export interface AdmissionUniformDayPayload { day: string; wear: string }
+export interface AdmissionSubsidyPayload { amount: string; unit: string; who: string; by: string }
+export interface AdmissionAllowancePayload { order: string; amount: string }
+export interface AdmissionRefundGroupPayload { label: string; lines: string[] }
+export interface AdmissionRefundPayload { title: string; groups: AdmissionRefundGroupPayload[]; note: string }
+
+/** 入學資訊頁（/admission），後端 AdmissionContentPayload。 */
+export interface AdmissionContentPayload {
+  notice: string
+  intro: string
+  steps: AdmissionStepPayload[]
+  phases: AdmissionPhasePayload[]
+  uniform_week: AdmissionUniformDayPayload[]
+  uniform_note: string
+  pickup_notes: string[]
+  registration_notes: string[]
+  fee_intro: string
+  subsidies: AdmissionSubsidyPayload[]
+  allowance_title: string
+  allowance: AdmissionAllowancePayload[]
+  allowance_note: string
+  refunds: AdmissionRefundPayload[]
+}
+
 export interface DayMomentPayload {
   key: string
   time: string
