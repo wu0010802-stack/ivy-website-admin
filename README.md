@@ -1,3 +1,18 @@
+## 2026-09-24 分校資訊線稿按鈕的白框（iPhone 輪播切換時閃現）
+
+使用者在手機上看到分校資訊的線稿按鈕有白框。線稿是白底圖，靠 `mix-blend-mode:multiply` 融進米白底；`.campus-tab-art` 直接對 `opacity`／`filter` 做 0.2 秒 transition，WebKit（iPhone Safari／Chrome、桌機 Safari）在轉場期間把圖移到獨立合成層，multiply 碰不到底色，露出白底長方形。自動輪播每 4 秒切換，被取消與新選取的兩張就各閃一次；點按觸發的 hover 濾鏡轉場也會閃。桌機 hover 的淡彩層（`.campus-tab-colour`，multiply＋0.35 秒 opacity）同理，淡出時整張線稿被白框蓋住。Chrome 合成方式不同，看不到。
+
+- `CampusBoard.vue`：三個值改用 `@property` 註冊的數值變數（`--tab-art-opacity`、`--tab-art-brightness`、`--tab-colour-opacity`），transition 轉場變數、由它帶 opacity／brightness；主執行緒逐幀更新，不升合成層。靜止值與淡入時間不變；未支援 `@property` 的瀏覽器以 `var()` 後備值退回瞬間切換。
+- 順帶修明華淡彩層（只影響桌機 hover）：校名招牌的近白色補丁原是柔邊橢圓，溢到兩側磚柱與花台成一圈白霧。`make_colour_wash.py` 新增 `RECT_PATCHES` 貼齊線稿招牌外框（768 座標 x 358–490、y 360–393）；重產 `campus-line-art-minghua-colour.webp`、`preview-minghua.webp`，`optimize-site-images.py --only` 產出新雜湊 `56f214277928` 小圖，`image-manifest.json` 只改兩行。舊雜湊照慣例保留。
+
+驗證（scratchpad 獨立樹：HEAD＋本次檔案，Node 22 `nuxt build`；編譯後三個 `@property` 保留）：
+- WebKit 402×874 錄影逐幀量線稿框內外亮度：自動輪播＋點按，同一建置套回舊寫法 15 幀白框 → 新 0；線上原版 20 幀。桌機 WebKit hover 淡入淡出：舊 59 幀 → 新 0。
+- 逐幀讀 computed opacity：線稿 0.75→1 約 0.2 秒、淡彩 0→1 約 0.35 秒，WebKit 與 Chrome 曲線同原版；靜止時各頁籤 computed opacity／filter 新舊相同，版面尺寸相同。
+- 副作用：iPhone 上未選取的線稿改走完整解析度繪製，線條比原本略深、略銳利（線稿區平均墨量 15.8 → 17.2，Chrome 為 14.8）。
+- 明華素材：原腳本重跑與線上逐位元組相同；新舊差異只在招牌區，區外僅 WebP 壓縮雜訊。
+
+iPhone 實機未驗證。以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。另外發現（未改）：鍵盤方向鍵切換頁籤時，綠色焦點框上下兩邊被裁掉，只剩左右兩條直線。
+
 ## 2026-09-24 頁尾改用 R「燕麥＋深綠底列」
 
 比稿 `design/footer-colour-directions-20260924/` 使用者選 R。共用 `web/app/components/SiteFooter.vue` 主體改淺燕麥 `#EFE8DA`、深綠字，版權列改成滿版深森林綠 `#24483F`（多包一層 `.footer-bar`，拿掉原本的分隔線）。文案、欄位、斷點不變；首頁消息區照舊漸退成暖白再接頁尾。規則寫在 DESIGN.md 最上方。

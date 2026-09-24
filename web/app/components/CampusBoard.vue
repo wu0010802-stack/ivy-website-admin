@@ -298,12 +298,18 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
 .campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}
 .campus-tab-figure{position:relative;display:block;width:160px;max-width:100%;aspect-ratio:3/2}
-.campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);pointer-events:none;user-select:none;opacity:.75;transition:opacity .2s,filter .2s}
-.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{opacity:1}
-.campus-tabs button:hover .campus-tab-art{filter:grayscale(1) brightness(.68) contrast(3.2)}
+/* 線稿與淡彩層都是白底圖靠 multiply 融進底色。直接對 opacity／filter 做 transition 時，WebKit（iPhone、Safari）會把圖移到
+   獨立合成層，multiply 碰不到底色，轉場那 0.2–0.35 秒露出白底長方形（每次自動輪播切換都閃）。改成轉場註冊過的數值變數，
+   由主執行緒逐幀更新，不升合成層；淡入曲線不變。未支援 @property 的瀏覽器退回瞬間切換（var 的後備值即靜止狀態）。 */
+@property --tab-art-opacity{syntax:'<number>';inherits:false;initial-value:.75}
+@property --tab-art-brightness{syntax:'<number>';inherits:false;initial-value:.72}
+@property --tab-colour-opacity{syntax:'<number>';inherits:false;initial-value:0}
+.campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(var(--tab-art-brightness,.72)) contrast(3.2);pointer-events:none;user-select:none;opacity:var(--tab-art-opacity,.75);transition:--tab-art-opacity .2s,--tab-art-brightness .2s}
+.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{--tab-art-opacity:1}
+.campus-tabs button:hover .campus-tab-art{--tab-art-brightness:.68}
 /* 淡彩層只有顏色、不含線條，multiply 疊在線稿上，淡入時線條濃淡不變；觸控裝置不載入 */
-.campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:0;transition:opacity .35s ease}
-@media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:hover .campus-tab-colour{opacity:1}}
+.campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:var(--tab-colour-opacity,0);transition:--tab-colour-opacity .35s ease}
+@media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:hover .campus-tab-colour{--tab-colour-opacity:1}}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
 .campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}
