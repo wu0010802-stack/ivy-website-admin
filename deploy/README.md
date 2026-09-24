@@ -486,6 +486,47 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - CI run `35869678705` 四個 job 全綠，約 7 分鐘上線。`/release.json`：snapshot `2c627ae4a3beaeab7ef490bf3b0bfba6586fd561b4488ced0806984c677671fe`、`base_commit` `bfd7c5c`、`web+api`。
 - 線上檢查（`output/playwright/mobile-audit-20260923/prod-smoke.cjs`、`waterfall.cjs`）：`theme-color` `#fdfcf6`、手機首屏影片 `hero-mobile-ba791e4aa97c.mp4`；390 分校頁／預約頁捲動後收成膠囊、選單開啟 `menu-locked` 且捲動位置不動、Esc 解鎖，預約頁頁首與膠囊皆無預約鈕。一般 4G（9 Mbps）首訪 3 次布幕皆開演（1.49～1.55 秒就緒；部署前 0 次），投影貼圖 1.6 秒內到齊，首屏影片布幕開演後才載。Safari／iOS 實機未驗證。
 
+## 2026-09-23 首頁手機版活動影片輪播＋最新消息直列（main CI 部署，CI 等待逾時但已上線）
+
+- 使用者要求提交後部署，選「把 D 接進網站、影片先用現有素材剪段」。feature 提交 `9ff466b`（`README.md`／`DESIGN.md` 只暫存自己那段）＋快照 `0e0a5d2`。當下另一 session 的 feature→main 合併 `e0a50e5` 已建置未推，deploy worktree 直接建在 `e0a50e5` 上 cherry-pick 為 `c674eb3`（README 衝突只留自己那段，其他改動與原 commit 相同）；worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過，本機起 `.output` 確認首頁有影片區、海報與 `/assets/day-film-mobile.mp4` 200。
+- 等 `e0a50e5` 的 CI（run `35872555552`）部署完、線上 `base_commit` == `origin/main` 才推；`push ...:main` 被 auto 模式擋，由使用者執行。
+- CI run `35873790445`：三個測試 job 全綠、api 部署 SUCCESS，**deploy job 失敗**：web deployment `7b581397` 在 Railway `INITIALIZING` 約 9 分鐘、`BUILDING` 約 6 分鐘，超過 `railway_ci.py` `wait_for_deployment` 的 900 秒上限。Railway 端沒有中斷，14:27:51Z 的快照照常上線：`/release.json` snapshot `2eadd48291555b184ff364a8df5851450f744600fb8b69f9c93f94df65cbaf5a`、`base_commit` `c674eb3`。**GitHub 上這次 run 顯示失敗，但線上已是新版，不必重跑。**
+- 線上 Playwright（`output/playwright/home-films-prod-20260923.cjs`）390×844：近期活動隱藏、鼠尾草綠色帶、消息三列、無水平溢出；只有當前影片下載並播放，點右側露出的影片換到第 2 支（`day-film-mobile.mp4`）並播放、第 1 支暫停；圓點、最後一支往後滑回第 1 支、暫停鍵、減少動態不播通過；1440 桌機近期活動與三欄卡不變、不下載海報與影片；0 console error。截圖 `output/playwright/home-films-prod-20260923/`。Safari／iOS 實機未驗證。
+
+## 2026-09-24 孩子的一天 iPhone 捲動抖動修正（搭頁尾校徽的 main CI 部署上線）
+
+- 使用者要求部署。feature 提交 `83e65ca`（只有 `styles.css` 與 README 自己那段，別的 session 未提交的 README 段落沒帶）；deploy worktree 建在 `origin/main`（`2284ee4`，== 線上 `base_commit`）cherry-pick 為 `258c912`，改動與原 commit 逐行相同、無衝突。worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過；本機 `.output` 以 WebKit 真滾輪錄影量測：按鈕偏移 87/153 → 0、暫停後背景 108/153 → 0，11 種寬度卡片位置與頁高新舊一致、無水平溢出。
+- `push ...:main` 被 auto 模式擋，交給使用者執行時被拒（non-fast-forward）：另一個 session 已把疊在 `258c912` 之上的「頁尾拿掉畢業版校徽」`5be72ac` 推上 main，`258c912` 因此已在 main，不必再推。
+- CI run `35938730503` 全綠（含 deploy job）。`/release.json` snapshot `73611de83034cb8a09e1c4d3eb365f979b1ce7c1dfcca33397b2aaecd2494b3f`、`base_commit` `5be72ac`、`created_at` 2026-09-24T00:33:33Z；首頁 SSR 內嵌 CSS 已是新 `.day-prints`／`.section.day-experience` 規則。
+- 線上 WebKit（402×874）重跑：按鈕偏移 0/153、暫停後背景 0/153、捲完整段水平溢出 0。iPhone 實機未驗證。
+
+## 2026-09-24 頁尾改用 R「燕麥＋深綠底列」（main CI 部署）
+
+- 使用者選定比稿 R 後要求「commit 後併入 main」。feature 提交 `85f59de`（快照）、`eda8d77`（比稿頁）、`516aa57`（`SiteFooter.vue`＋DESIGN／README 自己那段，別的 session 未提交的 README 段落沒帶）。deploy worktree 建在 `origin/main`（`15e3c9d`）只 cherry-pick `516aa57` 為 `33ca882`；DESIGN.md 頂部衝突只留頁尾那段（feature 上未上 main 的「背景影片畫質」段落沒帶），改動與原 commit 逐行相同。worktree 內 Node 22 `nuxt typecheck` 無輸出、`vitest` 24 檔 185 項通過。
+- 等 `15e3c9d` 的 CI（run `35940230302`）部署完、線上 `base_commit` == `origin/main` 才推；`push ...:main` 被 auto 模式擋，由使用者執行。
+- CI run `35940950892` 全綠（含 deploy job）。`/release.json` snapshot `cbb2d0bd526148fdc21ecb435ffafeaef9fcebf1280e3b9a8189da2b3d609300`、`base_commit` `33ca882`、`created_at` 2026-09-24T01:03:36Z。
+- 線上 Playwright（`output/playwright/footer-colour-r-prod-20260924/verify.cjs`，`BASE` 指向正式站）首頁／義華分校／預約 × 1440／390：主體 `rgb(239,232,218)`、底列 `rgb(36,72,63)` 且滿版、無水平溢出、連結 ≥44px、最低對比 5.11／底列 7.63，強制色彩補回 1px 分隔線，0 page error。截圖同目錄。Safari／iOS 實機未驗證。
+
+## 2026-09-24 分校線稿按鈕 iPhone 閃白框修正（main CI 部署）
+
+- 使用者要求提交後部署。feature 提交 `0620470`（`CampusBoard.vue`、明華淡彩素材／腳本／manifest，README 只暫存自己那段，別的 session 未提交的 OAuth 段落沒帶）；deploy worktree 建在 `origin/main`（`33ca882`，== 線上 `base_commit`）cherry-pick 為 `d6a1879`，改動與原 commit 逐行相同、無衝突，manifest 無重複鍵。worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過（三個 `@property` 保留）；本機 `.output` 以 WebKit 錄影逐幀量測：手機輪播白框 舊寫法 13 幀 → 新 0、桌機 hover 0。
+- 第一次量測在 main 版本得到 3 幀「白框」，查出是頁籤被捲到畫面外（y=-6）、取樣帶落到畫面外的量測失誤；腳本改成捲動後確認頁籤在畫面中段再量，重測如上。
+- `push ...:main` 這次沒有被 auto 模式擋。CI run `35943562324` 全綠（含 deploy job）。`/release.json` snapshot `af0139ed1c64fcd06843c100e1f494976c54cd5330fd1daf9644072502709226`、`base_commit` `d6a1879`、`created_at` 2026-09-24T01:38:49Z；首頁 SSR CSS 含三個 `@property`，明華新小圖 `56f214277928-480` 200。
+- 線上 WebKit 重跑：手機（402×874）自動輪播＋點按白框 0/404 幀（上線前 20）、桌機（1440×900）hover 淡入淡出 0/245 幀（上線前 54）。iPhone 實機未驗證。
+
+## 2026-09-24 關於→孩子的一天接力：「關於」落下上線後改回原樣（15e3c9d → 48d92c2）
+
+- **上線 15e3c9d**：使用者要求 commit 並併入 main。feature 提交 `ba6a03e`，在 `origin/main`（`5be72ac`，等於線上 `base_commit`）的 deploy worktree cherry-pick 成 `15e3c9d`；README／DESIGN 衝突以 main 為準，只插入自己的段落，web 改動與原 commit 逐行相同。worktree 內 Node 22 跑 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過，本機 `.output` 以 Playwright 驗證落下、逐字與減少動態。`push ...:main` 被 auto 模式擋，由使用者執行。CI run `35940230302` 全綠。之後的頁尾 R（`33ca882`）、分校線稿（`d6a1879`）部署疊在它之上。上一個 session 在上線驗證前就結束了，沒有做線上實測。
+- **改回 48d92c2**：使用者看過後要求「改回沒有接力動畫的樣子」，回到 09-18 seam=2 原樣。feature 提交 `acd60ce`：`studio.css`、`DayExperience.vue`、`useCurtain.ts`、`pages/index.vue` 還原成 `ba6a03e` 之前的內容，刪除 `useRelayDrop.ts`（`ba6a03e` 之後沒有別的 commit 動過這些檔）。在 `origin/main`（`d6a1879`，等於線上）的 deploy worktree cherry-pick 成 `48d92c2`，只有 DESIGN.md 衝突；這 5 個檔案與 `5be72ac` 逐字相同。worktree 驗證同上，都通過。`push ...:main` 交由使用者執行。
+- CI run `35945980160` 全綠（含 deploy job）。`/release.json` snapshot `9828f3dc4a05d7c3d89cd9cddabab93110ae7d44fcadc85df8bef79333b6709e`、`base_commit` `48d92c2`、`created_at` 2026-09-24T02:12:33Z。首頁 SSR 已無 `.day-lead`／`.t-day-ch`，內嵌 CSS 的簾幕距離是 `.85`／`.55`。
+- 線上 Playwright（1440×900、390×844）：
+  - 簾幕距離 765／464px，與改之前相同。
+  - 「的一天」整組淡入。
+  - 大標無 transform。
+  - 減少動態時完整顯示。
+  - 無 page error。
+  - iPhone 實機未驗證。
+
 ## 2026-09-24 PR #9 部署停擺，部署流程改為 API 啟動時自動 migration
 
 - PR #9（`fef0dc6`）帶 `d3a8f1c5b742`，正式 DB 停在 `c6e4a2b9d810`。11:22 UTC push 當下 Railway 原生 GitHub 部署（api `08490c80`、web `245f61e6`）先起新 API；因 api 掛 volume，舊 API `6fab9890` 於 11:23:52 UTC（台灣 19:23）被停，新容器 schema 檢查失敗，CD 的 `0e3ff17f` 也同樣失敗。結果 API 0/1 running，`/`、`/api/public-site` 503，`/admin/login`、`/release.json` 仍 200。

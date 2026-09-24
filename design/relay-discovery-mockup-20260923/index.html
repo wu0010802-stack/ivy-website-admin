@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接力巧思比稿</title>
+<style>
+:root{
+  --paper:#fffdf5;--ink:#203f32;--muted:#5b7166;--mint:#c5ded0;--line:#dfe8e1;--gold:#ffd75e;--green:#2d8f5a;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.75 "PingFang TC","Noto Sans TC",system-ui,sans-serif}
+main{max-width:1240px;margin:0 auto;padding:40px 16px 96px}
+h1{font-size:clamp(26px,3.4vw,38px);line-height:1.3;margin:0 0 12px;letter-spacing:.02em}
+h2{font-size:22px;line-height:1.4;margin:0}
+p{margin:0}
+code{font:14px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef4ef;padding:3px 6px;border-radius:4px;white-space:nowrap}
+.lead{max-width:46em;color:var(--muted)}
+.decided{max-width:46em;margin:0 0 14px;padding:10px 14px;border-left:3px solid var(--gold);background:#fff6d6}
+.bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:28px -16px 8px;padding:12px 16px;background:rgb(255 253 245 / .94);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-size:15px;min-height:40px;padding:6px 16px;border:1px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);cursor:pointer}
+.bar button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.bar nav{display:flex;flex-wrap:wrap;gap:4px 14px;margin-left:auto;font-size:14px}
+.bar nav a{color:var(--green)}
+.card{padding:32px 0;border-bottom:1px solid var(--line);scroll-margin-top:72px}
+.card-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:10px}
+.tag{font-size:13px;padding:2px 10px;border-radius:999px;background:var(--mint)}
+.tag.rec{background:var(--gold)}
+.desc{max-width:52em;margin-bottom:6px}
+.note{max-width:52em;color:var(--muted);font-size:15px}
+.media{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:16px;align-items:start;margin-top:18px}
+.media figure,.duo figure{margin:0}
+.media video,.duo video{display:block;width:100%;height:auto;border-radius:8px;background:#000}
+figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+.strip{margin-top:14px;overflow-x:auto;border-radius:6px;overscroll-behavior-x:contain}
+.strip img{display:block;height:auto;max-width:none}
+.strip-d img{height:150px}
+.strip-m img{height:176px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.foot{margin-top:40px;padding-left:20px;font-size:15px;color:var(--muted)}
+.foot li{margin:4px 0}
+.foot code{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:760px){
+  .media,.duo{grid-template-columns:minmax(0,1fr)}
+  .media figure:last-child{max-width:240px}
+  .bar nav{margin-left:0}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>「關於＋常春藤＋的一天」接力：讓人發現、但不明說</h1>
+  <p class="decided"><strong>2026-09-23 晚定案：1＋2（放慢＋逐字）</strong>，已是首頁預設。<code>?relay=</code> 參數已移除，下面的網址參數只是當時的比稿紀錄，影片與膠卷條保留原樣。</p>
+  <p class="lead">目標是讓人注意到「關於常春藤」的「常春藤」接成了「常春藤的一天」，而且不加任何新元素（不用金線、不放幽靈「關於」、不加文字提示）。影片都用同一個捲動速度（320 px/s）錄製，桌機 1440×900、手機 390×844。膠卷條是簾幕捲動 20%→80% 之間每 5% 截一格：<strong>格子越多張停在同一個字上，代表那一刻停留越久</strong>。</p>
+
+  <div class="bar">
+    <button type="button" id="replay">全部從頭播</button>
+    <button type="button" id="slowmo" aria-pressed="false">慢放 0.5×</button>
+    <nav aria-label="方向">
+      <a href="#compare">現況 vs 推薦</a><a href="#slow">1 放慢</a><a href="#type">2 逐字</a><a href="#dock">3 對齊</a><a href="#deepen">4 浮出</a><a href="#slow-type">1＋2</a><a href="#all">1＋2＋3</a>
+    </nav>
+  </div>
+
+  <section class="card" id="compare">
+    <div class="card-head"><h2>先看這個：現況 vs 推薦組合（1＋2）</h2></div>
+    <p class="desc">左邊是線上現況：擦除線掃過「常春藤」只佔大約 130px 的捲動（手機約 32px），滾輪滑一下就過了。右邊是在字上放慢，過完字後停一拍，讓「的一天」一個字一個字接上去。</p>
+    <div class="duo">
+      <figure><video src="media/1440x900-default.mp4" muted playsinline loop controls preload="auto"></video><figcaption>現況</figcaption></figure>
+      <figure><video src="media/1440x900-slow+type.mp4" muted playsinline loop controls preload="auto"></video><figcaption>1＋2 推薦組合</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="card" id="default">
+    <div class="card-head"><h2>現況（seam=2 預設）</h2><span class="tag">基準</span><code>/</code></div>
+    <p class="desc">「的一天」在擦除線過字的最後 30% 一起淡入。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-default.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機 1440×900</figcaption></figure>
+      <figure><video src="media/390x844-default.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機 390×844</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-default.jpg" alt="現況桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-default.jpg" alt="現況手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="slow">
+    <div class="card-head"><h2>1　過字放慢＋停一拍</h2><span class="tag">最含蓄</span><code>?relay=slow</code></div>
+    <p class="desc">擦除線經過「常春藤」字框時變慢，固定分到停拍前 45% 的捲動（桌機約 300px、手機約 170px）。過完字頂後，在兩行中間停一拍（約 14% 的捲動），畫面停在「關於／常春藤的一天」。字框外的擦除相對快一點，簾幕總長也拉長補回（桌機 0.85→1.1 屏，手機 0.55→0.8 屏）。不加任何元素，只改節奏。</p>
+    <p class="note">要注意：停拍期間畫面上只有背景影片在動，捲得很慢的人可能會覺得頁面「頓了一下」。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-slow.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-slow.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-slow.jpg" alt="方向 1 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-slow.jpg" alt="方向 1 手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="type">
+    <div class="card-head"><h2>2　「的一天」逐字接上</h2><code>?relay=type</code></div>
+    <p class="desc">「的」「一」「天」跟著捲動一個一個浮出：先是半透明，接著變白，同時往右滑 0.14em，跟浮水印是同一種語言。</p>
+    <p class="note">單獨用的話，三個字全擠在過字的後 60% 裡，節奏很快，幾乎看不出逐字。要搭配 1 的停拍才有空間。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-type.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-type.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-type.jpg" alt="方向 2 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-type.jpg" alt="方向 2 手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="dock">
+    <div class="card-head"><h2>3　「關於」滑過去對齊</h2><span class="tag">最明顯</span><code>?relay=dock</code></div>
+    <p class="desc">讀關於區時構圖不變，「關於」仍然貼左。擦除線從畫面底部往上走到「常春藤」之前，「關於」會跟著捲動往右滑 160px（1440 寬），左緣對齊「常」，排成兩行標題「關於／常春藤的一天」。滑動剛好填在原本空白的那段擦除裡，把視線帶到大字上。</p>
+    <p class="note">手機上六個字已經撐滿螢幕寬，「關於」本來就幾乎對齊，只移約 10px，基本看不出來。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-dock.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-dock.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-dock.jpg" alt="方向 3 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-dock.jpg" alt="方向 3 手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="deepen">
+    <div class="card-head"><h2>4　「常春藤」先浮出來</h2><span class="tag">備選</span><code>?relay=deepen</code></div>
+    <p class="desc">擦除線接近前，只有「常春藤」三個字的透明度從 .5 提高到 .75（手機 .28→.50），「關於」不變。浮水印越接近白色，接縫變白那一下就越順。對手機幫助最大，因為手機浮水印最淡。</p>
+    <p class="note">這個方向會碰到浮水印透明度固定的規則（09-18 否決過淡出），所以列為備選。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-deepen.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-deepen.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-deepen.jpg" alt="方向 4 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-deepen.jpg" alt="方向 4 手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="slow-type">
+    <div class="card-head"><h2>1＋2　推薦組合</h2><span class="tag rec">推薦</span><code>?relay=slow,type</code></div>
+    <p class="desc">在字上放慢，把停拍（約 22% 的捲動）拿來一個字一個字寫出「的一天」。畫面依序讀成「關於常春藤」→「常春藤的一天」，沒加任何東西，只是讓那一刻長到看得見。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-slow+type.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-slow+type.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-slow+type.jpg" alt="1＋2 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-slow+type.jpg" alt="1＋2 手機逐格" loading="lazy"></div>
+  </section>
+
+  <section class="card" id="all">
+    <div class="card-head"><h2>1＋2＋3　加強版</h2><code>?relay=slow,type,dock</code></div>
+    <p class="desc">在推薦組合上再加「關於」對齊。停拍時畫面是一個完整的兩行標題「關於／常春藤的一天」，最容易看懂，但也最有「設計過」的感覺。</p>
+    <div class="media">
+      <figure><video src="media/1440x900-slow+type+dock.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>桌機</figcaption></figure>
+      <figure><video src="media/390x844-slow+type+dock.mp4" muted playsinline loop controls preload="metadata"></video><figcaption>手機</figcaption></figure>
+    </div>
+    <div class="strip strip-d"><img src="media/strip-1440x900-slow+type+dock.jpg" alt="1＋2＋3 桌機逐格" loading="lazy"></div>
+    <div class="strip strip-m"><img src="media/strip-390x844-slow+type+dock.jpg" alt="1＋2＋3 手機逐格" loading="lazy"></div>
+  </section>
+
+  <ul class="foot">
+    <li>參數可以任意組合，例如 <code>?relay=slow,dock</code>、<code>?relay=type,deepen</code>。定案後會把沒選上的碼和 <code>?relay=</code> 參數一起清掉。</li>
+    <li>錄影與截圖腳本放在 <code>scripts/</code>（Playwright，BASE 環境變數指向預覽 port）。</li>
+    <li>減少動態（prefers-reduced-motion）時沒有簾幕，也就沒有接力，所有方向都不會作用。</li>
+  </ul>
+</main>
+<script>
+const videos = [...document.querySelectorAll('video')]
+document.getElementById('replay').addEventListener('click', () => {
+  for (const v of videos) { v.currentTime = 0; v.play().catch(() => {}) }
+})
+const slow = document.getElementById('slowmo')
+slow.addEventListener('click', () => {
+  const on = slow.getAttribute('aria-pressed') !== 'true'
+  slow.setAttribute('aria-pressed', String(on))
+  for (const v of videos) v.playbackRate = on ? 0.5 : 1
+})
+// 捲進視窗才播，省記憶體；對照區一起播。
+const io = new IntersectionObserver(entries => {
+  for (const e of entries) e.isIntersecting ? e.target.play().catch(() => {}) : e.target.pause()
+}, { threshold: .35 })
+videos.forEach(v => io.observe(v))
+</script>
+</body>
+</html>
