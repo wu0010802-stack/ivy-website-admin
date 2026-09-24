@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>頁尾配色預覽｜常春藤</title>
+  <title>頁尾文字配色預覽｜常春藤</title>
   <link rel="stylesheet" href="preview.css">
   <script>
     const direction = new URLSearchParams(location.search).get('v');
-    document.documentElement.dataset.direction = 'adefghijklmnopqrstuvwxyz'.split('').includes(direction) ? direction : 'a';
+    document.documentElement.dataset.direction = ['t0','t1','t2','t3','t4','t5','t6','t7','t8','t9'].includes(direction) ? direction : 't0';
   </script>
 </head>
 <body>
