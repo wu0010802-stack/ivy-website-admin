@@ -611,3 +611,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 強制 CSS 版約 0.79 秒翻開；手機 390 背面→照片、無橫向溢出。
   - 減少動態停在背面、點擊切換；讀者先點停在照片；翻開途中點擊（WebGL／CSS）翻完停在照片，之後再點照常翻面；`#day-hello` 直達維持正面。
   - 0 page error。Safari／iOS 實機未驗證。
+
+## 2026-09-25 全部分支併入 main（ops-hardening／admin-gaps、website-admin、auto-migrate；main CI 部署）
+
+- 使用者要求把所有分支併進 main 並直接 push。整合分支 `merge/all-branches-20260925`（base `d4fcce4`）依序合併 `feature/ops-hardening-20260924`（＝`feature/admin-gaps-20260925`）、`feature/website-admin`、`deploy/auto-migrate-20260924`。其餘分支已在 main 或已被取代（`deploy/flip-wind-corner-20260923`、遠端舊版 `deploy/campus-tab-colour-20260923`、本機 `main` 的 `03fc267`＝main `8cdf785`、`merge-attempt1-84de061`）；`origin/renovate/configure` 刻意不併。
+- 合併後才出現的問題：`7f0680b2eb47` 改接 `d41e6c2a9f58`（否則雙 head）；LINE 登入仍呼叫舊同步限流 → `9277209`；admin LINE 通知頁測試缺 `line_linked` → `2d21833`。本機獨立測試庫 backend 493 passed、admin typecheck／127 tests／build、`contract:check`、deploy tests 15 項通過。
+- 第一次 push `d4fcce4..acc687a`：CI run `36070711409` backend 失敗、deploy skipped。原因是既有時區問題：`test_dashboard_lists_today_visits_and_draft_kinds` 用 `date.today()`，服務用台北 `today_local()`，UTC 16–24 點跑必紅。Railway 沒有原生部署（api／web 最新部署仍是 09-24 22:05），正式站未受影響。
+- 修正 `0d503cd`（`TZ=UTC` 重現後修，全套 493 passed），push `acc687a..0d503cd`。CI run `36072004265` 四個 job 全綠。api `bdda2150` log：`Running upgrade d41e6c2a9f58 -> 7f0680b2eb47`、`7f0680b2eb47 -> 9b2b0ebc14ae`、`Database schema ready: 9b2b0ebc14ae`，啟動後 4 分鐘內無 ERROR；web `d1d96f2b` SUCCESS。`/release.json` snapshot `2bbf77e1ddb418a77b7f560a5e5fb2b1435b0ac1fd8e15119e750b47d1b9788f`、`base_commit` `0d503cd`、`web+api`。
+- 公開 GET `/`、`/api/website/v1/health`、`/api/public-site`、`/campuses/yihua`、`/campuses/renwu`、`/visit/yihua`、`/admission`、`/admin/login` 皆 200。未做瀏覽器檢查、未登入後台、未寫入業務資料。
+- 這次 push 沒觸發 Railway 原生部署，看起來 GitHub source 已斷開，但沒進 Railway 設定頁確認。未檢查正式站是否已設定新功能的選用變數（`WEBSITE_LINE_MESSAGING_*`、`WEBSITE_MEDIA_STORAGE`／`WEBSITE_S3_*`）；定期工作在 production 預設每 60 秒執行。
