@@ -28,7 +28,7 @@ const error = ref<string | null>(null)
 const busyId = ref<string | null>(null)
 const requests = useRequestSequence()
 const rangeInvalid = computed(() => dateFrom.value > dateTo.value)
-const availableSlots = computed(() => slots.value.filter(slot => !slot.closed && slot.booked_count < slot.capacity).length)
+const availableSlots = computed(() => slots.value.filter(slot => !slot.closed && !isPast(slot) && slot.booked_count < slot.capacity).length)
 
 const createDialogVisible = ref(false)
 const createForm = ref({ slot_date: isoDate(1), start_time: '10:00:00', end_time: '11:00:00', capacity: 5 })
@@ -124,6 +124,45 @@ async function toggleClosed(slot: VisitSlotOut) {
   } finally { busyId.value = null }
 }
 
+// 預設從今天列起，今天早上的場次下午還在清單裡；已經結束的不能再預約，
+// 不該跟其他場次一樣顯示「開放中」、也不必再調名額或關閉。
+function isPast(slot: VisitSlotOut): boolean {
+  return new Date(`${slot.slot_date}T${slot.end_time}+08:00`).getTime() <= Date.now()
+}
+
+type SlotState = { label: string; tone: 'info' | 'warning' | 'success' }
+function slotState(slot: VisitSlotOut): SlotState {
+  if (isPast(slot)) return { label: '已結束', tone: 'info' }
+  if (slot.closed) return { label: '已關閉', tone: 'info' }
+  if (slot.booked_count >= slot.capacity) return { label: '已額滿', tone: 'warning' }
+  return { label: '開放中', tone: 'success' }
+}
+
+// 同一天常有上午、下午兩場以上；日期只寫一次，一眼看出哪天排了幾場。
+// 桌機表格合併日期儲存格，手機依日期分組。清單由後端依日期、時間排好。
+const days = computed(() => {
+  const out: { date: string; slots: VisitSlotOut[] }[] = []
+  for (const slot of slots.value) {
+    const last = out[out.length - 1]
+    if (last && last.date === slot.slot_date) last.slots.push(slot)
+    else out.push({ date: slot.slot_date, slots: [slot] })
+  }
+  return out
+})
+const todayIso = computed(() => isoDate())
+
+function dateSpan({ row, rowIndex, columnIndex }: { row: VisitSlotOut; rowIndex: number; columnIndex: number }) {
+  if (columnIndex !== 0) return undefined
+  if (rowIndex > 0 && slots.value[rowIndex - 1]?.slot_date === row.slot_date) return { rowspan: 0, colspan: 0 }
+  let span = 1
+  while (slots.value[rowIndex + span]?.slot_date === row.slot_date) span += 1
+  return { rowspan: span, colspan: 1 }
+}
+
+function rowClass({ row }: { row: VisitSlotOut }): string {
+  return isPast(row) ? 'is-past' : ''
+}
+
 function fillRatio(slot: VisitSlotOut): number {
   return slot.capacity === 0 ? 1 : Math.min(1, slot.booked_count / slot.capacity)
 }
@@ -161,11 +200,12 @@ function openCreate() {
       <el-skeleton v-if="loading" animated :rows="4" class="list-skeleton" />
       <el-empty v-else-if="!slots.length" description="這段期間尚未安排參觀時段"><el-button type="primary" @click="openCreate">新增第一個時段</el-button></el-empty>
       <template v-else>
-      <el-table class="data-table" :data="slots">
-        <el-table-column label="日期" width="170">
+      <el-table class="data-table slots-table" :data="slots" :span-method="dateSpan" :row-class-name="rowClass">
+        <el-table-column label="日期" width="170" class-name="slots-table__date">
           <template #default="{ row }: { row: VisitSlotOut }">
             <span class="num">{{ formatDate(row.slot_date) }}</span>
             <span class="muted">（{{ formatWeekday(row.slot_date) }}）</span>
+            <span v-if="row.slot_date === todayIso" class="today-mark">今天</span>
           </template>
         </el-table-column>
         <el-table-column label="時間" width="130">
@@ -185,7 +225,7 @@ function openCreate() {
                 size="small"
                 controls-position="right"
                 aria-label="名額"
-                :disabled="Boolean(busyId)"
+                :disabled="Boolean(busyId) || isPast(row)"
                 @change="(v: number | undefined) => v !== undefined && updateCapacity(row, v)"
               />
               <span class="cap__bar" aria-hidden="true">
@@ -196,27 +236,36 @@ function openCreate() {
         </el-table-column>
         <el-table-column label="狀態" width="100">
           <template #default="{ row }: { row: VisitSlotOut }">
-            <el-tag v-if="row.closed" type="info" size="small" round>已關閉</el-tag>
-            <el-tag v-else-if="row.booked_count >= row.capacity" type="warning" size="small" round>已額滿</el-tag>
-            <el-tag v-else type="success" size="small" round>開放中</el-tag>
+            <el-tag :type="slotState(row).tone" size="small" round>{{ slotState(row).label }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="110" align="right">
           <template #default="{ row }: { row: VisitSlotOut }">
-            <el-button size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
+            <el-button v-if="!isPast(row)" size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
               {{ row.closed ? '重新開放' : '關閉' }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      <ul class="mobile-records" aria-label="參觀時段">
-        <li v-for="slot in slots" :key="slot.id" class="mobile-record">
-          <div class="record-heading"><strong>{{ formatDate(slot.slot_date) }}（{{ formatWeekday(slot.slot_date) }}）</strong><el-tag :type="slot.closed ? 'info' : fillRatio(slot) >= 1 ? 'warning' : 'success'">{{ slot.closed ? '已關閉' : fillRatio(slot) >= 1 ? '已額滿' : '開放中' }}</el-tag></div>
-          <p class="slot-time num">{{ formatTime(slot.start_time) }}–{{ formatTime(slot.end_time) }}</p>
-          <dl class="record-meta"><dt>已確認</dt><dd>{{ slot.booked_count }} 組家庭</dd><dt>接待名額</dt><dd><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="Boolean(busyId)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /><span class="record-caption">調整後立即儲存</span></dd></dl>
-          <div class="record-actions"><span class="hint">{{ slot.closed ? '不接受新預約' : `剩餘 ${Math.max(0, slot.capacity - slot.booked_count)} 組名額` }}</span><el-button :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉時段' }}</el-button></div>
-        </li>
-      </ul>
+      <div class="slot-days mobile-records">
+        <section v-for="day in days" :key="day.date" class="slot-day" :aria-labelledby="`day-${day.date}`">
+          <h2 :id="`day-${day.date}`" class="slot-day__date num">{{ formatDate(day.date) }}（{{ formatWeekday(day.date) }}）<span v-if="day.date === todayIso" class="today-mark">今天</span></h2>
+          <ul class="slot-day__list">
+            <li v-for="slot in day.slots" :key="slot.id" class="slot-row" :class="{ 'is-past': isPast(slot) }">
+              <div class="slot-row__head">
+                <strong class="slot-time num">{{ formatTime(slot.start_time) }}–{{ formatTime(slot.end_time) }}</strong>
+                <el-tag :type="slotState(slot).tone" size="small" round>{{ slotState(slot).label }}</el-tag>
+              </div>
+              <div class="slot-row__body">
+                <span class="slot-row__booked">已確認 <b class="num">{{ slot.booked_count }}</b> 組</span>
+                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
+                <el-button v-if="!isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
+              </div>
+            </li>
+          </ul>
+        </section>
+        <p class="hint slot-days__note">名額調整後立即儲存。</p>
+      </div>
       </template>
     </div>
     </template>
@@ -248,9 +297,24 @@ function openCreate() {
 </template>
 
 <style scoped>
-.slot-time { margin-top:8px; font-size:16px; color:var(--el-color-primary); }
-.record-meta dd .record-caption { display:block; }
-.record-actions .el-button { margin-left:auto; }
+.today-mark { display:inline-block; margin-left:6px; padding:0 8px; border-radius:999px; background:var(--el-color-primary-light-9); color:var(--el-color-primary); font-size:12px; font-weight:600; line-height:20px; vertical-align:1px; }
+.slots-table :deep(td.slots-table__date) { vertical-align:top; background:var(--surface); }
+.slots-table :deep(tr.is-past td:not(.slots-table__date)) { color:var(--ink-3); }
+.slots-table :deep(tr.is-past .cap__count) { color:var(--ink-3); }
+.slot-day + .slot-day { border-top:1px solid var(--line); }
+.slot-day__date { padding:12px 16px; background:var(--surface-2); font-size:15px; }
+.slot-day__list { list-style:none; margin:0; padding:0; }
+.slot-row { padding:12px 16px; }
+.slot-row + .slot-row { border-top:1px solid var(--line); }
+.slot-row.is-past .slot-time, .slot-row.is-past .slot-row__booked { color:var(--ink-3); }
+.slot-row__head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.slot-time { font-size:16px; color:var(--el-color-primary); }
+.slot-row__body { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:8px; }
+.slot-row__booked { color:var(--ink-2); }
+.slot-row__cap { display:inline-flex; align-items:center; gap:8px; color:var(--ink-2); }
+.slot-row__cap .el-input-number { width:128px; }
+.slot-row__body .el-button { margin-left:auto; }
+.slot-days__note { padding:12px 16px; border-top:1px solid var(--line); }
 .cap {
   display: flex;
   align-items: center;

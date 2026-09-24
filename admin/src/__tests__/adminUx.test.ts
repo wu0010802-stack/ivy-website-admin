@@ -157,7 +157,7 @@ describe('後台導覽與編輯操作', () => {
     vi.spyOn(api, 'get').mockImplementationOnce(() => oldRequest as Promise<never>).mockResolvedValueOnce([])
     const wrapper = mount(VisitRequestsView, { global })
     wrappers.push(wrapper)
-    wrapper.findAllComponents({ name: 'ElSelect' })[1]!.vm.$emit('update:modelValue', 'new')
+    await wrapper.findAll('.status-tab').find(tab => tab.text() === '待處理')!.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('沒有「待處理」的案件')
     resolveOld([{ id: 'old-result', parent_name: '過時的篩選結果', status: 'confirmed', campus_key: 'renwu', phone: '000', created_at: '2026-09-21T00:00:00Z' }])

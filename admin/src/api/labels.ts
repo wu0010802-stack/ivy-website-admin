@@ -53,7 +53,8 @@ export interface StatusMeta {
 // 才叫「預約成立」，文字不能把 new 寫成「已預約」。
 export const VISIT_STATUS: Record<string, StatusMeta> = {
   pending_confirmation: { label: '待園方確認', tone: 'warning' },
-  new: { label: '待處理', tone: 'warning' },
+  // 新需求用操作色、待園方確認用暖黃（有期限），和總覽待辦的兩種數字底色一致。
+  new: { label: '待處理', tone: 'primary' },
   contacting: { label: '聯絡中', tone: 'primary' },
   confirmed: { label: '已確認', tone: 'success' },
   completed: { label: '已完成', tone: 'info' },
