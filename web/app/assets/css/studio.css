@@ -255,33 +255,34 @@ body:has(.hn-dialog[open]){overflow:hidden}
   .campus-artwork {display:none}
   .campuses .contact-location {box-shadow:none}
 }
-/* Homepage: one continuous photograph. The scrim protects the text, not the whole frame. */
-body:has(.studio-hero) {
+/* Homepage: one continuous photograph. The scrim protects the text, not the whole frame.
+   2026-09-24 起入學資訊頁 hero（.photo-hero）也用同一套透明頁首；:is() 包單一 class，特異度不變。 */
+body:has(:is(.studio-hero,.photo-hero)) {
   --hero-line:rgb(var(--on-dark) / .6);
 }
-body:has(.studio-hero) .header {
+body:has(:is(.studio-hero,.photo-hero)) .header {
   position:fixed;
   inset:0 0 auto;
   background:transparent;
   border:0;
   color:var(--white);
 }
-body:has(.studio-hero) .header.is-scrolled {
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled {
   background:var(--paper);
   color:var(--green);
   isolation:isolate;
   box-shadow:0 2px 5px rgb(var(--ink) / .14),0 8px 20px -8px rgb(var(--ink) / .16);
 }
-body:has(.studio-hero) .header-top {border-bottom:1px solid var(--hero-line)}
-body:has(.studio-hero) .nav-inner a:hover {color:inherit}
-body:has(.studio-hero) .header-top .menu-toggle {
+body:has(:is(.studio-hero,.photo-hero)) .header-top {border-bottom:1px solid var(--hero-line)}
+body:has(:is(.studio-hero,.photo-hero)) .nav-inner a:hover {color:inherit}
+body:has(:is(.studio-hero,.photo-hero)) .header-top .menu-toggle {
   align-items:center;
   flex-shrink:0;
   padding:0;
   border:0;
   border-radius:0;
 }
-body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;width:22px}
+body:has(:is(.studio-hero,.photo-hero)) .menu-toggle span {background:currentColor;height:2px;width:22px}
 /* 預約鈕：金色滿高色塊，貼齊視窗右緣、左下一道 44px 的弧收回內容
    （2026-09-18 定案，比稿與其他形狀見 design/book-cta-directions/）。全站共用——
    首頁壓在影片上，分校頁與預約頁壓在米白頁首上，兩邊都是同一顆。
@@ -330,7 +331,7 @@ body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;wid
 .brand-name {font-family:'Noto Sans TC',var(--font);font-size:1em;font-weight:600;line-height:1.2;letter-spacing:0;white-space:nowrap;color:var(--brand-chinese)}
 .brand-english {display:flex;justify-content:space-between;gap:.25em;font-family:'Source Sans 3',Arial,var(--font);font-size:.6em;font-weight:400;line-height:1.25;letter-spacing:.02em;white-space:nowrap;color:var(--brand-english)}
 .brand-english>span {flex:none;margin-inline-end:-.02em}
-body:has(.studio-hero) .header:not(.is-scrolled) .brand {--brand-chinese:var(--white);--brand-english:var(--white)}
+body:has(:is(.studio-hero,.photo-hero)) .header:not(.is-scrolled) .brand {--brand-chinese:var(--white);--brand-english:var(--white)}
 @media(max-width:1100px) {
   .brand {--brand-type:1.5rem;--brand-crest-size:3rem}
 }
@@ -343,34 +344,34 @@ body:has(.studio-hero) .header:not(.is-scrolled) .brand {--brand-chinese:var(--w
 @media(max-width:360px) {
   .brand {--brand-type:.9375rem;--brand-crest-size:1.5rem}
 }
-body:has(.studio-hero) .header :focus-visible,
+body:has(:is(.studio-hero,.photo-hero)) .header :focus-visible,
 .studio-hero :focus-visible {outline-color:var(--paper)}
-body:has(.studio-hero) .nav-inner a[aria-current] {
+body:has(:is(.studio-hero,.photo-hero)) .nav-inner a[aria-current] {
   color:inherit;
   text-decoration-thickness:2px;
   text-underline-offset:8px;
 }
-body:has(.studio-hero) .header.is-scrolled .header-top {
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .header-top {
   border-bottom-color:transparent;
   text-shadow:none;
 }
-body:has(.studio-hero) .header.is-scrolled .navigation {color:inherit}
-body:has(.studio-hero) .header.is-scrolled .header-book {
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .navigation {color:inherit}
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .header-book {
   background:var(--yellow);
   border-color:transparent;
   color:var(--deep);
 }
-body:has(.studio-hero) .header.is-scrolled .menu-toggle {
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .menu-toggle {
   border-color:rgb(var(--ink) / .2);
   border-radius:6px;
 }
-body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--green)}
+body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outline-color:var(--green)}
 @media(hover:hover) {
-  body:has(.studio-hero) .header.is-scrolled .header-book:hover {
+  body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .header-book:hover {
     background:var(--paper);
     border-color:transparent;
   }
-  body:has(.studio-hero) .header.is-scrolled .nav-inner a:hover {
+  body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled .nav-inner a:hover {
     color:var(--green);
     text-underline-offset:8px;
   }
@@ -452,8 +453,8 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 .studio-hero-foot {margin-top:0;border-top:1px solid var(--hero-line);border-bottom:0;color:inherit}
 @media(max-width:900px) {
   .studio-hero {padding-top:80px}
-  body:has(.studio-hero) .navigation {color:var(--text)}
-  body:has(.studio-hero) .navigation :focus-visible {outline-color:var(--leaf)}
+  body:has(:is(.studio-hero,.photo-hero)) .navigation {color:var(--text)}
+  body:has(:is(.studio-hero,.photo-hero)) .navigation :focus-visible {outline-color:var(--leaf)}
 }
 @media(max-width:1000px) {
   .studio-hero {--hero-photo-height:clamp(320px,calc(60 * var(--motion-vh,1svh)),620px);padding-top:0;min-height:0}
@@ -469,7 +470,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 }
 
 /* Keep white text legible even on the brightest video frames. */
-body:has(.studio-hero) .header-top,
+body:has(:is(.studio-hero,.photo-hero)) .header-top,
 .studio-hero-copy,.studio-hero-foot,.studio-media {text-shadow:0 1px 3px rgb(var(--ink) / .45)}
 .studio-hero-copy>p {max-width:28em;font-size:var(--fs-lg);font-weight:400;line-height:1.85;margin-top:28px;color:var(--white)}
 .hero-copy-line {display:block}
@@ -491,7 +492,7 @@ body:has(.studio-hero) .header-top,
  .studio-hero .studio-actions {margin-top:28px}
 }
 @media(max-width:360px) {
- body:has(.studio-hero) .header-book {white-space:nowrap;padding-inline:8px}
+ body:has(:is(.studio-hero,.photo-hero)) .header-book {white-space:nowrap;padding-inline:8px}
 }
 
 /* 預覽用：index.html?hero=quiet 看首屏完全沒有字的樣子。文字、說明列、底部列都不顯示，

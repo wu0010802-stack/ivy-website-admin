@@ -1,3 +1,17 @@
+## 2026-09-24 入學資訊頁改首頁版型
+
+依同日 mock 改寫 `web/app/components/AdmissionContent.vue` 與 `admission.css`，內容仍由後台 `admission_content` 管理、不需要 migration。首頁的透明頁首＋膠囊、滿版 hero、薄荷色帶、五校分頁卡、拍立得、升起的消息紙逐段套用；分班對照提到第二段；拿掉麵包屑、分頁列與提醒條（提醒移到 hero）。頁首：studio.css 首頁透明頁首選擇器加 `.photo-hero`，SiteHeader 的膠囊頁面加 `/admission`。細節見 DESIGN.md。
+
+驗證：web `nuxt typecheck` 無錯誤、vitest 27 檔 205 項通過、`nuxt build` 通過；fixture 模式本機 Chromium 1440／1024／390 截圖，無水平捲動、無主控台錯誤，生日查詢會同步切換班別分頁、拍立得翻面後焦點移到「翻回正面」；首頁、分校頁、預約頁的頁首狀態與改版前相同；hero 遮罩對比用照片像素量過。
+
+未驗證：Safari、螢幕報讀器、草稿預覽 `/preview?page=admission`（需要後台登入）、正式站。
+
+## 2026-09-24 入學資訊頁「靠近首頁」mock
+
+使用者想讓 `/admission` 更接近首頁的版型與風格，先出 mock、不動正式頁。`design/admission-homestyle-mockup-20260924/`：單檔 `admission-homestyle-mockup.html`、原始檔與打包腳本、1440／390 截圖。首頁的透明頁首＋膠囊、滿版 hero＋金色底線、薄荷色帶＋巨大淡字、五校的分頁與大圓角卡、孩子的一天的拍立得、最新消息的升起紙張，逐段對應到入學流程、分班對照、新生準備、收退費；分班提到第二段。待決定事項（大標改回 LINE Seed、桌機內頁收膠囊、拿掉分頁列等）見該資料夾 README。
+
+驗證：Chromium 1440×900、390×844 截圖，無水平捲動、無主控台錯誤；打包時檢查標題 LINE Seed 無缺字。
+
 ## 2026-09-24 後台 Google OAuth 整合
 
 後台新增 Google 登入，僅接受已建立且啟用的管理員，首次驗證 Gmail／Google Workspace 信箱後綁定穩定 `sub`，沿用既有角色、分校權限、session 與 CSRF；帳密登入保留。OAuth 設定完全留空時隱藏入口。整合保留 main 的登入 Email 檢查、API 本文大小限制、可信代理 IP 判定與素材串流轉送。
