@@ -91,6 +91,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
   'user.set_active': '變更帳號啟用狀態',
+  'user.link_google': '綁定 Google 登入',
 }
 
 export function auditActionLabel(action: string): string {

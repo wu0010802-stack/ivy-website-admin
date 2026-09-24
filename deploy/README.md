@@ -2,7 +2,9 @@
 
 此專案與園務系統完全分離，使用獨立 PostgreSQL。
 
-GitHub Actions 的 `production` 分支 CI/CD 設定與啟用步驟見 [CICD.md](./CICD.md)。設定發布並完成 environment secret 後才會生效；下方保留手動部署與歷次快照紀錄。
+GitHub Actions 的 `main` 分支 CI/CD 設定與啟用步驟見 [CICD.md](./CICD.md)。`main` push 通過 CI 後會自動正式部署；下方保留手動部署與歷次快照紀錄。
+
+Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順序見 [google-oauth.md](./google-oauth.md)。候選包含新 schema 時，必須先協調經核准的正式備份／migration，再推 `main` 觸發 API 與 web 切換；CI 的測試庫 migration 不會更新正式 DB。
 
 - Railway project：`d606df61-445a-4e65-9c5f-7e94a0766572`（ivy-website-admin）
 - environment：`cf5631c7-05b9-4f16-9358-c81d2650eb55`（production）

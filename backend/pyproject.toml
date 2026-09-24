@@ -17,6 +17,8 @@ dependencies = [
     "greenlet>=3.0,<4",
     "pillow>=10.4,<11",
     "python-multipart>=0.0.9,<0.1",
+    "authlib>=1.8,<2",
+    "itsdangerous>=2.2,<3",
 ]
 
 [dependency-groups]

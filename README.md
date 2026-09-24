@@ -1,3 +1,11 @@
+## 2026-09-24 後台 Google OAuth 整合
+
+後台新增 Google 登入，僅接受已建立且啟用的管理員，首次驗證 Gmail／Google Workspace 信箱後綁定穩定 `sub`，沿用既有角色、分校權限、session 與 CSRF；帳密登入保留。OAuth 設定完全留空時隱藏入口。整合保留 main 的登入 Email 檢查、API 本文大小限制、可信代理 IP 判定與素材串流轉送。
+
+新增 `users.google_sub` migration，並以 `c6e4a2b9d810` 合併 Google 身分與流量統計 migration 歷史。正式 migration 必須在經核准的備份後、API 切換前執行；Google Client、回呼網址、管理員資格及上線順序見 [Google OAuth 設定說明](deploy/google-oauth.md)。
+
+驗證：backend 291、admin 78、web 207、deploy 12 項測試通過，Node 22 typecheck／build、API contract、原型語法與打包通過。隔離 PostgreSQL 從空庫及 main revision 升級皆通過，既有帳號／權限／流量資料保留。Chromium 正式 build 的 1440／390／320px 登入頁（模擬 API）無水平溢出或 runtime error，取消提示、帳密備援、Email 驗證及 Enter 單次提交通過。另補上明確的 ID token audience 驗證與回歸案例。真人 Google 往返及 Safari／iOS 實機尚未驗證。
+
 ## 2026-09-24 入學資訊頁上線版：內容進後台、選單入口、補字
 
 接續同日的 mock-up，使用者確認後改為正式頁面：內容由後台管理，頁面接上選單並開放索引，頁面上方保留「金額以各校公告為準」提醒，等園方確認金額後在後台清空。
