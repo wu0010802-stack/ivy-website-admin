@@ -343,7 +343,7 @@ async def test_line_login_rotates_previous_session(line_client, line_provider, d
 
 async def test_line_login_is_source_rate_limited(line_client, line_provider, monkeypatch):
     monkeypatch.setattr(
-        service, "_LOGIN_SOURCE_ATTEMPTS", ratelimit.SlidingWindowLimiter(window_seconds=300, max_per_window=1)
+        service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source", window_seconds=300, max_per_window=1)
     )
     await start_login(line_client, line_provider)
     response = await line_client.get(f"{ROOT}/line/login")

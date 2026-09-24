@@ -28,7 +28,7 @@ from app.auth.models import User
 from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
 from app.auth.routes import _set_session_cookie
 from app.auth.schemas import LineLinkStart
-from app.common.ratelimit import client_key
+from app.common.ratelimit import client_key, limiter
 from app.config import Settings
 from app.operations import audit_service
 
@@ -173,7 +173,7 @@ async def line_login(request: Request, redirect: str | None = None) -> Response:
     if request.app.state.line_oauth is None:
         return _login_failure("line_unavailable")
     try:
-        service.check_login_source_rate_limit(client_key(request))
+        await service.check_login_source_rate_limit(limiter(request), client_key(request))
     except service.LoginRateLimited:
         return _login_failure("rate_limited")
     url, sealed = _begin(request, mode="login", return_to=safe_admin_path(redirect))
