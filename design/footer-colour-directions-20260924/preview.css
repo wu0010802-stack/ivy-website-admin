@@ -1,0 +1,123 @@
+/* 2026-09-24 頁尾配色第二輪。版面照目前 Nuxt SiteFooter（含 1000px 品牌跨列、760px 導覽跨列），只換色票。 */
+@font-face {
+  font-family:'LINE Seed TW';font-weight:700;font-display:swap;
+  src:url('../../web/public/assets/fonts/lineseed-bd.woff2') format('woff2'),url('../../web/public/assets/fonts/lineseed-bd.woff') format('woff');
+}
+:root {
+  --page-paper:oklch(99% .006 100);
+  --page-ink:oklch(47% .025 155);
+  --font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+  --font-head:'LINE Seed TW','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+}
+/* 現行 A 深森林綠，作為對照基準 */
+:root,[data-direction="a"] {
+  --footer-bg:#24483f;--footer-text:#f5f2e7;--footer-muted:#c2d0c5;--footer-brand:#fff9e9;--footer-accent:#e3c77b;--footer-line:#526d61;
+}
+/* D 絲絨酒紅：開場布幕的絲絨（#561326）壓深，流蘇金點綴 */
+[data-direction="d"] {
+  --footer-bg:#4e1624;--footer-text:#f6eadf;--footer-muted:#dcc0c0;--footer-brand:#fff4e8;--footer-accent:#e2b866;--footer-line:#74404a;
+}
+/* E 石墨藍灰：分校資訊標題的石墨藍灰（#3D5057）壓深，拍立得桃色點綴 */
+[data-direction="e"] {
+  --footer-bg:#2e4148;--footer-text:#eef0ea;--footer-muted:#bccacb;--footer-brand:#f8f6ee;--footer-accent:#f0b892;--footer-line:#51656b;
+}
+/* F 預約暖金：頁首預約鈕的金色鋪滿，墨綠字 */
+[data-direction="f"] {
+  --footer-bg:#ecc25a;--footer-text:#203f32;--footer-muted:#4b4526;--footer-brand:#1b3529;--footer-accent:#6a3f14;--footer-line:#bf963a;
+}
+/* G 赤陶：暖紅陶土，淡金點綴 */
+[data-direction="g"] {
+  --footer-bg:#8a3d2a;--footer-text:#fbefe4;--footer-muted:#f3d8c9;--footer-brand:#fff6ec;--footer-accent:#f7d89a;--footer-line:#ab5a43;
+}
+/* H 核桃木：深木色，嫩葉綠點綴 */
+[data-direction="h"] {
+  --footer-bg:#3a2d25;--footer-text:#f3eadb;--footer-muted:#cdbfae;--footer-brand:#fbf4e8;--footer-accent:#bcd2a3;--footer-line:#5e4c40;
+}
+/* I 消息霧藍：最新消息紙頁的霧藍（#DCE7EB）延續到頁尾，深藍綠字 */
+[data-direction="i"] {
+  --footer-bg:#dce7eb;--footer-text:#243e45;--footer-muted:#4a6265;--footer-brand:#1f363c;--footer-accent:#35666c;--footer-line:#adc4cb;
+}
+/* ── 第二批（同日加看）── */
+/* J 夜藍靛：孩子的一天從早到傍晚，頁尾接上夜色；杏桃點綴 */
+[data-direction="j"] {
+  --footer-bg:#262f55;--footer-text:#f3eee4;--footer-muted:#c3c6d8;--footer-brand:#fbf6ec;--footer-accent:#f2bc8f;--footer-line:#464f75;
+}
+/* K 松石藍綠：綠色家族偏藍，珊瑚點綴 */
+[data-direction="k"] {
+  --footer-bg:#1d4b50;--footer-text:#f1efe6;--footer-muted:#bcd3d1;--footer-brand:#faf7ee;--footer-accent:#f3a98f;--footer-line:#3f6a6e;
+}
+/* L 橄欖苔：偏黃的綠，蜂蜜點綴 */
+[data-direction="l"] {
+  --footer-bg:#474b28;--footer-text:#f4efdf;--footer-muted:#d3d1b6;--footer-brand:#fbf7ea;--footer-accent:#eec46c;--footer-line:#686c46;
+}
+/* M 茄紫：深紫，蜜桃點綴 */
+[data-direction="m"] {
+  --footer-bg:#3b2840;--footer-text:#f5ecea;--footer-muted:#d3c3d2;--footer-brand:#fcf5f1;--footer-accent:#f0b7a0;--footer-line:#5b4660;
+}
+/* N 暖炭：近黑帶暖，金色點綴 */
+[data-direction="n"] {
+  --footer-bg:#2d2a27;--footer-text:#f2ede4;--footer-muted:#c9c2b8;--footer-brand:#fbf7ef;--footer-accent:#e5c276;--footer-line:#4c4843;
+}
+/* O 天空藍：中明度天藍鋪滿，焦糖橘點綴 */
+[data-direction="o"] {
+  --footer-bg:#8ccde0;--footer-text:#16343f;--footer-muted:#234a57;--footer-brand:#102a33;--footer-accent:#7a3a12;--footer-line:#6fb3c7;
+}
+/* P 杏桃：淺蜜桃底，紅褐字 */
+[data-direction="p"] {
+  --footer-bg:#f7dcc9;--footer-text:#4a2418;--footer-muted:#6e4436;--footer-brand:#3f1d13;--footer-accent:#9a3f22;--footer-line:#e3bca4;
+}
+/* Q 薰衣草：淺紫底，墨紫字，標籤用品牌綠 */
+[data-direction="q"] {
+  --footer-bg:#e5e0ee;--footer-text:#34284a;--footer-muted:#5a4e6c;--footer-brand:#2c2140;--footer-accent:#2f6a4c;--footer-line:#c9c1d8;
+}
+/* ── 雙色：主體一色、底列另一色（底列滿版，分隔線改由色塊交界取代）── */
+/* R 燕麥主體＋深森林綠底列 */
+[data-direction="r"] {
+  --footer-bg:#efe8da;--footer-text:#27433a;--footer-muted:#5b6358;--footer-brand:#1f3a31;--footer-accent:#7a5a24;
+  --footer-bar-bg:#24483f;--footer-bar-text:#d9e2d9;--footer-line:transparent;
+}
+/* S 石墨藍灰兩階：底列再深一階 */
+[data-direction="s"] {
+  --footer-bg:#2e4148;--footer-text:#eef0ea;--footer-muted:#bccacb;--footer-brand:#f8f6ee;--footer-accent:#f0b892;
+  --footer-bar-bg:#223238;--footer-bar-text:#b3c2c4;--footer-line:transparent;
+}
+/* T 霧藍主體＋石墨藍灰底列 */
+[data-direction="t"] {
+  --footer-bg:#dce7eb;--footer-text:#243e45;--footer-muted:#4a6265;--footer-brand:#1f363c;--footer-accent:#35666c;
+  --footer-bar-bg:#2e4148;--footer-bar-text:#c9d5d6;--footer-line:transparent;
+}
+* {box-sizing:border-box}
+body {margin:0;background:var(--footer-bar-bg,var(--footer-bg));color:var(--footer-text);font:1rem/1.8 var(--font);-webkit-font-smoothing:antialiased}
+a {color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}
+a:focus-visible {outline:3px solid var(--footer-accent);outline-offset:5px}
+a:hover {text-decoration:underline;text-underline-offset:5px}
+p {margin:0;max-width:65ch}
+.container {width:min(1280px,calc(100% - 96px));margin-inline:auto}
+/* 頁尾上方一截暖白：首頁最新消息區漸退後的顏色，用來看接縫 */
+.context {height:56px;background:var(--page-paper);color:var(--page-ink);font-size:.75rem;letter-spacing:.08em;display:flex;align-items:flex-end;padding-bottom:12px}
+.footer {background:var(--footer-bg);color:var(--footer-text)}
+.footer-main {display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:60px;padding-block:64px}
+.footer-name {font-family:var(--font-head);font-size:1.5rem;font-weight:700;letter-spacing:.12em;color:var(--footer-brand)}
+.footer-name span {display:block;font-size:.6875rem;letter-spacing:.2em;margin-top:6px;color:var(--footer-accent)}
+.footer-main p {font-size:.875rem;color:var(--footer-muted);margin-top:20px}
+.footer-links {display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:12px 24px;font-size:.875rem}
+.footer-links a,.footer-campuses a {display:flex;min-height:44px;align-items:center}
+.footer-campuses a {min-width:44px}
+.footer-main .footer-label {margin:0 0 12px;font-weight:600;color:var(--footer-accent)}
+.footer-campuses {display:flex;flex-wrap:wrap;column-gap:24px;font-size:.875rem}
+.footer-bar {background:var(--footer-bar-bg,transparent)}
+.footer-bottom {border-top:1px solid var(--footer-line);padding-block:24px;display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:.75rem;color:var(--footer-bar-text,var(--footer-muted))}
+@media(max-width:1150px) {.container{width:calc(100% - 64px)}.footer-main{gap:40px}}
+@media(max-width:1000px) {.footer-main{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
+@media(max-width:760px) {
+  .container{width:calc(100% - 40px)}
+  .footer-main{grid-template-columns:1fr 1fr;gap:36px 24px;padding-block:40px}
+  .footer-main>div:last-child,.footer-links{grid-column:1/-1}
+  .footer-links{gap:4px 16px}
+  .footer-name{font-size:1.125rem}
+  .footer-bottom{flex-direction:column;align-items:flex-start;gap:4px}
+}
+@media(max-width:380px) {.container{width:calc(100% - 32px)}}
+@media(forced-colors:active) {
+  :root,[data-direction] {--footer-bar-bg:Canvas;--footer-bar-text:CanvasText;--footer-bg:Canvas;--footer-text:CanvasText;--footer-muted:CanvasText;--footer-brand:CanvasText;--footer-accent:LinkText;--footer-line:CanvasText}
+}
