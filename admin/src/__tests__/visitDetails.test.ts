@@ -17,7 +17,7 @@ async function setup(data: Record<string, unknown> = details()) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/visit-requests/local-case'); await router.isReady()
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
   const wrapper = mount(VisitDetailView, { global: { plugins: [pinia, router, ElementPlus] } })
   wrappers.push(wrapper); await flushPromises(); return wrapper
 }
@@ -76,7 +76,7 @@ describe('案件流程補完', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: defineComponent({ template: '<div />' }) }] })
     await router.push('/visit-requests/local-case'); await router.isReady()
     const pinia = createPinia()
-    useAuthStore(pinia).user = { id: 'reader', email: 'reader@example.invalid', role: 'reception', is_active: true, campus_keys: ['yihua'] }
+    useAuthStore(pinia).user = { id: 'reader', email: 'reader@example.invalid', role: 'reception', is_active: true, campus_keys: ['yihua'], line_linked: false }
     const readOnly = mount(VisitDetailView, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(readOnly); await flushPromises()
     expect(readOnly.text()).toContain('只能查看案件')

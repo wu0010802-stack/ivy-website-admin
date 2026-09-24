@@ -7,6 +7,7 @@ import type { components } from '../../../contracts/generated/website-api'
 export type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 export type UserOut = components['schemas']['UserOut']
 export type AuthProviders = components['schemas']['AuthProviders']
+export type LineLinkStart = components['schemas']['LineLinkStart']
 export type CampusOut = components['schemas']['CampusOut']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const

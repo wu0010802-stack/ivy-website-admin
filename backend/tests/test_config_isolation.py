@@ -112,3 +112,46 @@ def test_google_config_accepts_https_and_hides_secret():
     )
     assert settings.google_oauth_enabled
     assert "never-print-this-test-secret" not in repr(settings)
+
+
+LINE_CALLBACK = "https://example.org/api/website/v1/auth/line/callback"
+
+
+@pytest.mark.parametrize("overrides", [
+    {"line_channel_secret": None},
+    {"line_redirect_uri": None},
+    {"line_redirect_uri": "http://example.org/api/website/v1/auth/line/callback"},
+    {"line_redirect_uri": "https://example.org/api/website/v1/auth/google/callback"},
+    {"line_redirect_uri": LINE_CALLBACK + "?next=outside"},
+    {"line_redirect_uri": "https://user@example.org/api/website/v1/auth/line/callback"},
+    {"admin_origin": "https://another.example.org"},
+])
+def test_line_config_rejects_partial_or_unsafe_settings(overrides):
+    line = {
+        "line_channel_id": "1234567890", "line_channel_secret": "never-print-this-line-secret",
+        "line_redirect_uri": LINE_CALLBACK, **overrides,
+    }
+    with pytest.raises(ValidationError) as exc:
+        Settings(database_url="postgresql://localhost/ivy_website_test", session_secret="test-session-secret", **line)
+    assert "never-print-this-line-secret" not in str(exc.value)
+
+
+def test_line_config_accepts_https_and_hides_secret():
+    settings = Settings(
+        database_url="postgresql://localhost/ivy_website_test", session_secret="test-session-secret",
+        environment="production", admin_origin="https://example.org",
+        line_channel_id=" 1234567890 ", line_channel_secret="never-print-this-line-secret",
+        line_redirect_uri=LINE_CALLBACK,
+    )
+    assert settings.line_oauth_enabled
+    assert settings.line_channel_id == "1234567890"
+    assert not settings.google_oauth_enabled
+    assert "never-print-this-line-secret" not in repr(settings)
+
+
+def test_line_config_blank_values_disable_line():
+    settings = Settings(
+        database_url="postgresql://localhost/ivy_website_test", session_secret="test-session-secret",
+        line_channel_id=" ", line_channel_secret="", line_redirect_uri="",
+    )
+    assert not settings.line_oauth_enabled

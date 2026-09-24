@@ -61,7 +61,7 @@ describe('全域 401 處理', () => {
     const authStore = useAuthStore(pinia)
     authStore.user = {
       id: 'u1', email: 'admin@example.invalid', role: 'super_admin',
-      is_active: true, campus_keys: [],
+      is_active: true, campus_keys: [], line_linked: false,
     }
 
     const router = createRouter({
@@ -111,7 +111,7 @@ describe('校園探索場景預設值', () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = {
       id: 'u1', email: 'admin@example.invalid', role: 'super_admin',
-      is_active: true, campus_keys: ['yihua'],
+      is_active: true, campus_keys: ['yihua'], line_linked: false,
     }
     const router = createRouter({
       history: createMemoryHistory(),

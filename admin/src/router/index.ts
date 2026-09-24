@@ -27,6 +27,7 @@ import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
+import AccountView from '../views/AccountView.vue'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
@@ -83,6 +84,8 @@ const router = createRouter({
         page('analytics', 'analytics', AnalyticsView),
         page('audit', 'audit', AuditView),
         page('policies', 'policies', PoliciesView),
+        // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊。
+        { path: 'account', name: 'account', component: AccountView, meta: { title: '我的帳號' } },
       ],
     },
   ],

@@ -2,6 +2,8 @@
 
 此功能用於本 repo 的五校官網後台，與園務系統帳號／租戶無關。Google 登入只接受已在後台建立且啟用的管理員，沿用角色與分校範圍，不開放註冊、不依網域自動授權；帳密登入繼續可用。
 
+LINE 登入的綁定方式不同（登入後在「我的帳號」自行綁定），見 [LINE 登入設定說明](line-oauth.md)。
+
 ## Google Cloud 設定
 
 1. 在 Google Cloud 的 Google Auth Platform 設定 Branding、Audience 和支援聯絡資訊；只需 `openid`、`email`，不要求 Gmail／Drive API 權限。
