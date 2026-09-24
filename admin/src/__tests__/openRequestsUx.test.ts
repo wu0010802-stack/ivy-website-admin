@@ -29,7 +29,7 @@ const request = (changes = {}) => ({
 
 async function mountAt(path: string) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -114,7 +114,7 @@ describe('案件列表接住總覽帶來的條件', () => {
 describe('側欄的待處理數字', () => {
   it('參觀案件旁顯示新需求＋待確認的總數，0 件時不顯示', async () => {
     const pinia = createPinia()
-    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
     await router.push('/'); await router.isReady()
     const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
@@ -159,7 +159,7 @@ describe('案件明細的確認期限', () => {
 
   async function mountDetail(data: ReturnType<typeof request>) {
     const pinia = createPinia()
-    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).endsWith('/contact-notes')) return [] as never
       if (path === '/admin/dashboard') return summary() as never

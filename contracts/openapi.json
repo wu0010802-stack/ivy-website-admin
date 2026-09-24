@@ -30,10 +30,15 @@
           "google": {
             "title": "Google",
             "type": "boolean"
+          },
+          "line": {
+            "title": "Line",
+            "type": "boolean"
           }
         },
         "required": [
-          "google"
+          "google",
+          "line"
         ],
         "title": "AuthProviders",
         "type": "object"
@@ -759,6 +764,19 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LineLinkStart": {
+        "properties": {
+          "authorize_url": {
+            "title": "Authorize Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorize_url"
+        ],
+        "title": "LineLinkStart",
         "type": "object"
       },
       "LoginRequest": {
@@ -1896,6 +1914,10 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "line_linked": {
+            "title": "Line Linked",
+            "type": "boolean"
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           }
@@ -1905,7 +1927,8 @@
           "email",
           "role",
           "is_active",
-          "campus_keys"
+          "campus_keys",
+          "line_linked"
         ],
         "title": "UserOut",
         "type": "object"
@@ -9244,6 +9267,183 @@
           }
         },
         "summary": "Google Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/line/callback": {
+      "get": {
+        "operationId": "line_callback_api_website_v1_auth_line_callback_get",
+        "responses": {
+          "303": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Line Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/line/link": {
+      "delete": {
+        "operationId": "line_unlink_api_website_v1_auth_line_link_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Line Unlink",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "line_link_start_api_website_v1_auth_line_link_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineLinkStart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Line Link Start",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/line/login": {
+      "get": {
+        "operationId": "line_login_api_website_v1_auth_line_login_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "redirect",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Redirect"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Line Login",
         "tags": [
           "auth"
         ]

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     google_client_id: str | None = None
     google_client_secret: str | None = Field(default=None, repr=False)
     google_redirect_uri: str | None = None
+    line_channel_id: str | None = None
+    line_channel_secret: str | None = Field(default=None, repr=False)
+    line_redirect_uri: str | None = None
     notification_email_sink_dir: str | None = None
     # 真實寄信（SMTP）。沒設定 smtp_host 就不會寄；開發環境繼續用 sink_dir。
     smtp_host: str | None = None
@@ -45,9 +48,12 @@ class Settings(BaseSettings):
     # 就能把磁碟塞滿、讓其他校區也無法上傳。
     media_quota_bytes_per_campus: int = 5 * 1024 * 1024 * 1024
 
-    @field_validator("google_client_id", "google_client_secret", "google_redirect_uri")
+    @field_validator(
+        "google_client_id", "google_client_secret", "google_redirect_uri",
+        "line_channel_id", "line_channel_secret", "line_redirect_uri",
+    )
     @classmethod
-    def _normalize_google_settings(cls, value: str | None) -> str | None:
+    def _normalize_oauth_settings(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip() or None
@@ -55,6 +61,10 @@ class Settings(BaseSettings):
     @property
     def google_oauth_enabled(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret and self.google_redirect_uri)
+
+    @property
+    def line_oauth_enabled(self) -> bool:
+        return bool(self.line_channel_id and self.line_channel_secret and self.line_redirect_uri)
 
     @field_validator("database_url", "test_database_url")
     @classmethod
@@ -78,24 +88,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_environment_rules(self) -> "Settings":
-        google_fields = (self.google_client_id, self.google_client_secret, self.google_redirect_uri)
-        if any(google_fields) and not all(google_fields):
-            raise ValueError("Google OAuth 必須同時設定 CLIENT_ID、CLIENT_SECRET 與 REDIRECT_URI")
-        if self.google_redirect_uri:
-            uri = urlsplit(self.google_redirect_uri)
-            local_http = self.environment != "production" and uri.scheme == "http" and (
-                uri.hostname in {"localhost", "127.0.0.1", "::1"}
-                or self.environment == "test" and uri.hostname == "test"
-            )
-            if (
-                not uri.hostname or uri.username or uri.password
-                or (uri.scheme != "https" and not local_http)
-                or uri.path != "/api/website/v1/auth/google/callback"
-                or uri.query or uri.fragment
-            ):
-                raise ValueError("Google REDIRECT_URI 必須是公開同源 HTTPS 的 /api/website/v1/auth/google/callback")
-            if self.admin_origin and f"{uri.scheme}://{uri.netloc}" != self.admin_origin.rstrip("/"):
-                raise ValueError("Google REDIRECT_URI 必須與 WEBSITE_ADMIN_ORIGIN 同源")
+        self._check_oauth_provider(
+            "Google", "google", "CLIENT_ID、CLIENT_SECRET",
+            (self.google_client_id, self.google_client_secret), self.google_redirect_uri,
+        )
+        self._check_oauth_provider(
+            "LINE", "line", "CHANNEL_ID、CHANNEL_SECRET",
+            (self.line_channel_id, self.line_channel_secret), self.line_redirect_uri,
+        )
         if self.environment == "test":
             if not self.test_database_url:
                 raise ValueError("test 環境必須明確設定 WEBSITE_TEST_DATABASE_URL")
@@ -112,6 +112,31 @@ class Settings(BaseSettings):
             # 通知信含員工信箱與案件編號，正式環境不走明文 SMTP。
             raise ValueError("production 環境寄信必須使用 starttls 或 ssl")
         return self
+
+    def _check_oauth_provider(
+        self, label: str, slug: str, credential_names: str,
+        credentials: tuple[str | None, ...], redirect_uri: str | None,
+    ) -> None:
+        fields = (*credentials, redirect_uri)
+        if any(fields) and not all(fields):
+            raise ValueError(f"{label} OAuth 必須同時設定 {credential_names} 與 REDIRECT_URI")
+        if not redirect_uri:
+            return
+        callback_path = f"/api/website/v1/auth/{slug}/callback"
+        uri = urlsplit(redirect_uri)
+        local_http = self.environment != "production" and uri.scheme == "http" and (
+            uri.hostname in {"localhost", "127.0.0.1", "::1"}
+            or self.environment == "test" and uri.hostname == "test"
+        )
+        if (
+            not uri.hostname or uri.username or uri.password
+            or (uri.scheme != "https" and not local_http)
+            or uri.path != callback_path
+            or uri.query or uri.fragment
+        ):
+            raise ValueError(f"{label} REDIRECT_URI 必須是公開同源 HTTPS 的 {callback_path}")
+        if self.admin_origin and f"{uri.scheme}://{uri.netloc}" != self.admin_origin.rstrip("/"):
+            raise ValueError(f"{label} REDIRECT_URI 必須與 WEBSITE_ADMIN_ORIGIN 同源")
 
     def active_database_url(self) -> str:
         if self.environment == "test":

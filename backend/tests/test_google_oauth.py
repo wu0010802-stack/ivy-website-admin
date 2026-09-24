@@ -26,7 +26,7 @@ CALLBACK = f"http://test{ROOT}/google/callback"
 async def test_google_disabled_by_default(public_client):
     response = await public_client.get(f"{ROOT}/providers")
     assert response.status_code == 200
-    assert response.json() == {"google": False}
+    assert response.json() == {"google": False, "line": False}
     response = await public_client.get(f"{ROOT}/google/login")
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/login?oauth_error=unavailable"

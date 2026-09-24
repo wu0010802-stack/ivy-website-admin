@@ -17,7 +17,7 @@ type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 
 async function mountWith(component: unknown, role: Role, props: Record<string, unknown> = {}) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'me', email: 'me@example.invalid', role, is_active: true, campus_keys: ['yihua'] }
+  useAuthStore(pinia).user = { id: 'me', email: 'me@example.invalid', role, is_active: true, campus_keys: ['yihua'], line_linked: false }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/'); await router.isReady()
   const wrapper = mount(component as ReturnType<typeof defineComponent>, { props, global: { plugins: [pinia, router, ElementPlus] } } as never)

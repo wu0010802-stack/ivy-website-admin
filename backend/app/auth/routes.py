@@ -21,7 +21,9 @@ from app.auth.deps import (
 from app.auth.models import Session as AuthSession
 from app.auth.models import CREATABLE_ROLES, GRANTABLE_CAPABILITIES, GRANTABLE_ROLES, Role, User
 from app.auth.permissions import require_scope
+from app.auth.oauth_common import private
 from app.auth.schemas import (
+    AuthProviders,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -69,6 +71,7 @@ def _user_out(user: User) -> UserOut:
         is_active=user.is_active,
         campus_keys=sorted(scope.campus_key for scope in user.campus_scopes),
         capabilities=list(user.capabilities or []),
+        line_linked=user.line_sub is not None,
     )
 
 
@@ -82,6 +85,13 @@ def _set_session_cookie(response: Response, settings: Settings, raw_token: str) 
         max_age=int(service.SESSION_TTL.total_seconds()),
         path="/",
     )
+
+
+@router.get("/auth/providers", response_model=AuthProviders)
+async def providers(request: Request, response: Response) -> AuthProviders:
+    private(response)
+    settings: Settings = request.app.state.settings
+    return AuthProviders(google=settings.google_oauth_enabled, line=settings.line_oauth_enabled)
 
 
 @router.post("/auth/login", response_model=LoginResponse)
