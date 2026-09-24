@@ -478,3 +478,10 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 等 `15e3c9d` 的 CI（run `35940230302`）部署完、線上 `base_commit` == `origin/main` 才推；`push ...:main` 被 auto 模式擋，由使用者執行。
 - CI run `35940950892` 全綠（含 deploy job）。`/release.json` snapshot `cbb2d0bd526148fdc21ecb435ffafeaef9fcebf1280e3b9a8189da2b3d609300`、`base_commit` `33ca882`、`created_at` 2026-09-24T01:03:36Z。
 - 線上 Playwright（`output/playwright/footer-colour-r-prod-20260924/verify.cjs`，`BASE` 指向正式站）首頁／義華分校／預約 × 1440／390：主體 `rgb(239,232,218)`、底列 `rgb(36,72,63)` 且滿版、無水平溢出、連結 ≥44px、最低對比 5.11／底列 7.63，強制色彩補回 1px 分隔線，0 page error。截圖同目錄。Safari／iOS 實機未驗證。
+
+## 2026-09-24 分校線稿按鈕 iPhone 閃白框修正（main CI 部署）
+
+- 使用者要求提交後部署。feature 提交 `0620470`（`CampusBoard.vue`、明華淡彩素材／腳本／manifest，README 只暫存自己那段，別的 session 未提交的 OAuth 段落沒帶）；deploy worktree 建在 `origin/main`（`33ca882`，== 線上 `base_commit`）cherry-pick 為 `d6a1879`，改動與原 commit 逐行相同、無衝突，manifest 無重複鍵。worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 24 檔 185 項、`nuxt build` 通過（三個 `@property` 保留）；本機 `.output` 以 WebKit 錄影逐幀量測：手機輪播白框 舊寫法 13 幀 → 新 0、桌機 hover 0。
+- 第一次量測在 main 版本得到 3 幀「白框」，查出是頁籤被捲到畫面外（y=-6）、取樣帶落到畫面外的量測失誤；腳本改成捲動後確認頁籤在畫面中段再量，重測如上。
+- `push ...:main` 這次沒有被 auto 模式擋。CI run `35943562324` 全綠（含 deploy job）。`/release.json` snapshot `af0139ed1c64fcd06843c100e1f494976c54cd5330fd1daf9644072502709226`、`base_commit` `d6a1879`、`created_at` 2026-09-24T01:38:49Z；首頁 SSR CSS 含三個 `@property`，明華新小圖 `56f214277928-480` 200。
+- 線上 WebKit 重跑：手機（402×874）自動輪播＋點按白框 0/404 幀（上線前 20）、桌機（1440×900）hover 淡入淡出 0/245 幀（上線前 54）。iPhone 實機未驗證。
