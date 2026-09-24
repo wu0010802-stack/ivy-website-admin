@@ -1,3 +1,9 @@
+## 2026-09-24 頁尾拿掉「參觀時間與入學資訊，請向各校確認。」
+
+使用者要求拿掉這句開發輔助字。它不在 CMS 裡：線上發布的 `site_footer.bottom_note` 仍是原型字「官網設計提案 · 預約為操作示範，不會送出資料」，由 `web/app/utils/public-copy.ts` 換成這句。改為換成空字串，`SiteFooter.vue` 底列只剩版權；CMS 之後另填的備註照常顯示。`web/tests/public-copy.spec.ts` 補兩條斷言。
+
+驗證：Node 22 web vitest 25 檔 186 項通過、`nuxt typecheck` 無錯誤；:3161 的 `/`、`/visit`、`/campuses/yihua` SSR 輸出都不再含這句，底列只剩「© 2026 常春藤教育機構」。以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。
+
 ## 2026-09-24 後台第六輪 UX：側欄待處理數字、明細確認期限
 
 - 側欄「參觀案件」旁顯示新需求＋待園方確認的總數（暖黃小膠囊，0 件不顯示，超過 99 顯示 99+；報讀器讀「N 件待處理」，滑過顯示兩種各幾件）。數字來自同一個 `/admin/dashboard`，由新的 `stores/openRequests.ts` 保存：換頁時更新、30 秒內不重抓；總覽載入時直接沿用、不多打一次；案件確認或取消後強制重抓。讀不到時保留上一次的數字。
