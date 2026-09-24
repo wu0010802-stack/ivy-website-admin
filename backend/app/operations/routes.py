@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import Role, User
-from app.auth.permissions import can_publish_shared_content, has_capability, require_scope
+from app.auth.models import User
+from app.auth.permissions import campus_scope, can_publish_shared_content, has_capability, require_scope
 from app.campuses.models import Campus
 from app.common import ratelimit
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
@@ -128,11 +128,8 @@ async def get_dashboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    campus_keys = (
-        None
-        if current_user.role == Role.SUPER_ADMIN
-        else [s.campus_key for s in current_user.campus_scopes]
-    )
+    scope = campus_scope(current_user)
+    campus_keys = None if scope is None else sorted(scope)
     summary = await dashboard_service.get_dashboard_summary(
         db, campus_keys, include_shared_reviews=can_publish_shared_content(current_user)
     )
@@ -160,8 +157,8 @@ async def get_audit_log(
 ) -> list[dict]:
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
-    elif current_user.role != Role.SUPER_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="沒有權限執行此操作")
+    else:
+        require_scope(current_user, "audit.read_all")
     entries = await audit_service.list_recent(db, campus_key)
     return [
         {
@@ -219,8 +216,7 @@ async def update_site_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if current_user.role != Role.SUPER_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="沒有權限執行此操作")
+    require_scope(current_user, "site_settings.manage")
     settings = await _get_or_create_settings(db)
     settings.title = payload.title
     settings.description = payload.description
@@ -252,8 +248,7 @@ async def retention_dry_run(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if current_user.role != Role.SUPER_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="沒有權限執行此操作")
+    require_scope(current_user, "retention.manage")
     return await retention_service.run_retention_sweep(db, older_than_days=older_than_days, dry_run=True)
 
 
@@ -266,8 +261,7 @@ async def retention_run(
 ) -> dict:
     """預設環境不允許真的清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確
     設為 true），避免意外把個資清掉。"""
-    if current_user.role != Role.SUPER_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="沒有權限執行此操作")
+    require_scope(current_user, "retention.manage")
 
     settings = request.app.state.settings
     if not settings.retention_allow_real_run:

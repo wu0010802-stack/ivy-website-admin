@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import Role, User
-from app.auth.permissions import ScopeDenied, require_scope
+from app.auth.models import User
+from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
 from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
@@ -365,9 +365,8 @@ async def get_visit_calendar(
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         stmt = stmt.where(VisitSlot.campus_key == campus_key)
-    elif current_user.role != Role.SUPER_ADMIN:
-        owned = [s.campus_key for s in current_user.campus_scopes]
-        stmt = stmt.where(VisitSlot.campus_key.in_(owned))
+    elif (scope := campus_scope(current_user)) is not None:
+        stmt = stmt.where(VisitSlot.campus_key.in_(scope))
     slots = list(
         (await db.execute(stmt.order_by(VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.campus_key))).scalars()
     )
@@ -494,9 +493,8 @@ async def list_visit_requests(
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         stmt = stmt.where(VisitRequest.campus_key == campus_key)
-    elif current_user.role.value != "super_admin":
-        owned = [s.campus_key for s in current_user.campus_scopes]
-        stmt = stmt.where(VisitRequest.campus_key.in_(owned))
+    elif (scope := campus_scope(current_user)) is not None:
+        stmt = stmt.where(VisitRequest.campus_key.in_(scope))
     if status_filter:
         stmt = stmt.where(VisitRequest.status == status_filter)
     if assignee == "me":
@@ -547,9 +545,8 @@ async def export_visit_requests(
     if campus_key:
         require_scope(current_user, "booking.export", campus_keys=[campus_key])
         stmt = stmt.where(VisitRequest.campus_key == campus_key)
-    elif current_user.role.value != "super_admin":
-        owned = [s.campus_key for s in current_user.campus_scopes]
-        stmt = stmt.where(VisitRequest.campus_key.in_(owned))
+    elif (scope := campus_scope(current_user)) is not None:
+        stmt = stmt.where(VisitRequest.campus_key.in_(scope))
     stmt = stmt.order_by(VisitRequest.created_at.desc())
     result = await db.execute(stmt)
 
@@ -634,7 +631,7 @@ async def create_manual_visit_request(
     related = None
     if payload.related_request_id is not None:
         related = await _get_owned_visit_request(db, current_user, payload.related_request_id)
-        if related.campus_key != payload.campus_key and current_user.role != Role.SUPER_ADMIN:
+        if related.campus_key != payload.campus_key and not has_capability(current_user, "booking.cross_campus"):
             # 規格 6.2：不默默把案件搬到另一校；跨校關聯須總管理者權限。
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -718,18 +715,18 @@ async def list_visit_staff(
     result = await db.execute(
         select(User)
         .options(selectinload(User.campus_scopes))
-        .where(User.role.in_([Role.SUPER_ADMIN, Role.CAMPUS_ADMIN]))
+        .where(User.role.in_(roles_with("booking.manage")))
         .order_by(User.email)
     )
-    own = {s.campus_key for s in current_user.campus_scopes}
+    own = campus_scope(current_user)
     staff = []
     for user in result.scalars():
         keys = sorted(s.campus_key for s in user.campus_scopes)
-        if user.role == Role.SUPER_ADMIN:
+        if campus_scope(user) is None:
             keys = []
-        elif current_user.role != Role.SUPER_ADMIN and not own.intersection(keys):
+        elif own is not None and not own.intersection(keys):
             continue
-        elif current_user.role != Role.SUPER_ADMIN:
+        elif own is not None:
             keys = sorted(own.intersection(keys))
         staff.append(
             VisitStaffOut(

@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
-from app.auth.models import Role, User
-from app.auth.permissions import can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
+from app.auth.models import User
+from app.auth.permissions import campus_scope, can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
 from app.auth.service import get_session_by_token
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
@@ -87,9 +87,8 @@ public_router = APIRouter(prefix="/api/website/v1/public/media", tags=["media-pu
 
 def _visible_campus_keys(user: User) -> list[str] | None:
     """None 代表不限（super_admin）；其餘角色只能看自己校 + 共用（campus_key IS NULL）。"""
-    if user.role.value == "super_admin":
-        return None
-    return [s.campus_key for s in user.campus_scopes]
+    scope = campus_scope(user)
+    return None if scope is None else sorted(scope)
 
 
 def _out(asset: MediaAsset) -> MediaAssetOut:

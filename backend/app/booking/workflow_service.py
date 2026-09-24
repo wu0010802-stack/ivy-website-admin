@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
 
-from app.auth.models import Role, User
-from app.auth.permissions import has_capability
+from app.auth.models import User
+from app.auth.permissions import covers_campus, has_capability
 from app.booking import access_service, slot_service
 from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
@@ -297,9 +297,7 @@ async def assign(
             raise AssigneeInvalid("這個帳號已停用，不能指派")
         if not has_capability(assignee, "booking.manage"):
             raise AssigneeInvalid("這個帳號沒有處理參觀案件的權限")
-        if assignee.role != Role.SUPER_ADMIN and not any(
-            s.campus_key == visit_request.campus_key for s in assignee.campus_scopes
-        ):
+        if not covers_campus(assignee, visit_request.campus_key):
             raise AssigneeInvalid("這個帳號沒有這個校區的權限")
     new_id = assignee.id if assignee is not None else None
     if visit_request.assigned_staff_id == new_id:

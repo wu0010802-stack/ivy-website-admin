@@ -6,8 +6,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.auth.models import Role, User
+from app.auth.models import User
+from app.auth.permissions import covers_campus, roles_with
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.models import NotificationDelivery, NotificationInboxItem
 
@@ -35,17 +37,17 @@ def _header_safe(value: str) -> str:
 async def get_notification_recipients(db: AsyncSession, campus_key: str) -> list[User]:
     """依校區通知：只給目前真的還有這個校區權限、且帳號啟用中的人員。
     這裡每次都即時查詢目前的 scope，不在建立通知時就把收件人清單寫死，
-    帳號被停權或改 scope 後自然收不到後續通知，不需要額外清理。"""
-    result = await db.execute(select(User).where(User.is_active.is_(True)))
-    recipients = []
-    for user in result.scalars():
-        if user.role == Role.SUPER_ADMIN:
-            recipients.append(user)
-        elif user.role == Role.CAMPUS_ADMIN:
-            await db.refresh(user, attribute_names=["campus_scopes"])
-            if any(s.campus_key == campus_key for s in user.campus_scopes):
-                recipients.append(user)
-    return recipients
+    帳號被停權或改 scope 後自然收不到後續通知，不需要額外清理。
+
+    收件人＝能處理這個校區案件的人（booking.manage），跟權限表同一個定義，
+    不另外寫死角色。"""
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.campus_scopes))
+        .where(User.is_active.is_(True), User.role.in_(roles_with("booking.manage")))
+        .order_by(User.email)
+    )
+    return [user for user in result.scalars() if covers_campus(user, campus_key)]
 
 
 async def _already_delivered(

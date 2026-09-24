@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import require_scope
+from app.auth.permissions import campus_scope, require_scope
 from app.notifications.models import NotificationInboxItem
 
 router = APIRouter(prefix="/api/website/v1", tags=["notifications"])
@@ -26,9 +26,8 @@ async def list_notifications(
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         stmt = stmt.where(NotificationInboxItem.campus_key == campus_key)
-    elif current_user.role.value != "super_admin":
-        owned = [s.campus_key for s in current_user.campus_scopes]
-        stmt = stmt.where(NotificationInboxItem.campus_key.in_(owned))
+    elif (scope := campus_scope(current_user)) is not None:
+        stmt = stmt.where(NotificationInboxItem.campus_key.in_(scope))
     stmt = stmt.order_by(NotificationInboxItem.created_at.desc()).limit(100)
     result = await db.execute(stmt)
     return [
