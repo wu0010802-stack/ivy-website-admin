@@ -1,6 +1,7 @@
 // 從實際 SSR 頁面推導「首屏會用到 LINE Seed TW（Bold 700）的字」，供 scripts/subset-critical-fonts.py
 // 切 critical 子集：在幾個視窗尺寸下載入首頁、五個分校頁與 /visit，找出 computed font-family 以
-// LINE Seed TW 開頭、且在 scroll 0 時與視窗相交的文字節點，收集其字元。
+// LINE Seed TW 開頭、且在 scroll 0 時與視窗相交的文字節點，收集其字元。字重 700 記進 union；
+// 字重超過 700（會配到 ExtraBold 800）另記 extraBoldUnion，有字時 ExtraBold 才會預載 critical。
 //
 // 執行（先起本機 server，例如 cd web && npm run build && PORT=3100 NUXT_WEBSITE_ENV=staging
 // NUXT_PUBLIC_CONTENT_MODE=fixture node .output/server/index.mjs）：
@@ -36,8 +37,8 @@ const PAGES = ['/', '/campuses/yihua', '/campuses/minghua', '/campuses/chongde',
 
 ;(async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
-  const result = { generatedFrom: base, viewports: {}, union: '' }
-  const union = new Set()
+  const result = { generatedFrom: base, viewports: {}, union: '', extraBoldUnion: '' }
+  const union = new Set(), extraBoldUnion = new Set()
   for (const vp of VIEWPORTS) {
     const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dpr, isMobile: vp.isMobile, hasTouch: vp.hasTouch, locale: 'zh-TW' })
     await context.route(/\.mp4(\?.*)?$/, (route) => route.abort())
@@ -48,31 +49,36 @@ const PAGES = ['/', '/campuses/yihua', '/campuses/minghua', '/campuses/chongde',
       await page.waitForTimeout(1200)
       const text = await page.evaluate(() => {
         const vh = innerHeight, vw = innerWidth
-        const chars = new Set()
+        const bold = new Set(), extraBold = new Set()
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
         let node
         while ((node = walker.nextNode())) {
           const el = node.parentElement
           if (!el || !node.textContent.trim()) continue
           const cs = getComputedStyle(el)
-          if (!/^"?LINE Seed TW/.test(cs.fontFamily) || Number(cs.fontWeight) !== 700) continue
+          const weight = Number(cs.fontWeight)
+          if (!/^"?LINE Seed TW/.test(cs.fontFamily) || weight < 700) continue
           if (cs.display === 'none' || cs.visibility === 'hidden') continue
           const range = document.createRange()
           range.selectNodeContents(node)
           const r = range.getBoundingClientRect()
           if (!r.width || r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue
+          const chars = weight > 700 ? extraBold : bold
           for (const ch of node.textContent) if (ch.trim()) chars.add(ch)
         }
-        return [...chars].join('')
+        return { bold: [...bold].join(''), extraBold: [...extraBold].join('') }
       })
-      result.viewports[`${vp.name}${pagePath}`] = text
-      for (const ch of text) union.add(ch)
+      result.viewports[`${vp.name}${pagePath}`] = text.bold
+      for (const ch of text.bold) union.add(ch)
+      for (const ch of text.extraBold) extraBoldUnion.add(ch)
     }
     await context.close()
   }
   result.union = [...union].sort().join('')
+  result.extraBoldUnion = [...extraBoldUnion].sort().join('')
   fs.writeFileSync(out, JSON.stringify(result, null, 2) + '\n')
   console.log(`首屏 LINE Seed Bold 用字 ${result.union.length} 個：${result.union}`)
+  console.log(`首屏 LINE Seed ExtraBold 用字 ${result.extraBoldUnion.length} 個：${result.extraBoldUnion}`)
   console.log(`寫入 ${out}`)
   await browser.close()
 })().catch((error) => {

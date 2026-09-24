@@ -71,17 +71,17 @@ export default defineNuxtConfig({
       script: [{ key: 'motion-layout', tagPriority: 'critical', innerHTML: "document.documentElement.dataset.ivyMotion='ready'" }],
       // 頁首品牌字（Noto Sans TC 600／Source Sans 3）的 @font-face 併進
       // styles.css，不再另載一支阻塞渲染的 brand-fonts.css。只預載首屏
-      // 一定會用到的小檔：LINE Seed Bold 的首屏 critical 子集（約 14 KB，
-      // scripts/subset-critical-fonts.py 產生、URL 取自 font-manifest.json）、
-      // h1 的 LINE Seed EB（14 KB）與兩個品牌子集（合計 14 KB）；其餘用字的
-      // remaining 子集（150 KB）交給 CSS 自己發現，不跟 LCP 圖片搶手機頻寬。
+      // 一定會用到的小檔：LINE Seed TW 首屏 critical 分片（Bold 約 14 KB；
+      // scripts/subset-critical-fonts.py 產生，URL 取自 font-manifest.json 的
+      // preload。ExtraBold 目前沒有首屏文字，不預載）與兩個品牌子集（合計 14 KB）；
+      // 其餘 unicode-range 分片（font-subsets.css 與執行時才掛上的 lineseed-extended-*.css，
+      // 見 plugins/title-font-slices.client.ts）等頁面用到那些字才下載，不跟 LCP 圖片搶手機頻寬。
       link: [
         { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico?v=ivy-20260922' },
         { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48.png?v=ivy-20260922' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png?v=ivy-20260922' },
-        { rel: 'preload', as: 'font', type: 'font/woff2', href: fontManifest.critical.src, crossorigin: 'anonymous' },
+        ...fontManifest.preload.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: 'anonymous' }) as const),
         // ?v= 必須與 styles.css 的 @font-face URL 完全相同（重切子集時兩邊一起改，值是 sha256 前 8 碼）。
-        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/lineseed-eb.woff2?v=50d2dfc8', crossorigin: 'anonymous' },
         { rel: 'preload', as: 'font', type: 'font/woff', href: '/assets/fonts/noto-sans-tc-600-brand.woff?v=d220f83c', crossorigin: 'anonymous' },
         { rel: 'preload', as: 'font', type: 'font/woff', href: '/assets/fonts/source-sans-3-400-brand.woff?v=c98aaee6', crossorigin: 'anonymous' }
       ]
