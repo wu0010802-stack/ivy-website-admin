@@ -4,7 +4,7 @@
 
 GitHub Actions 的 `main` 分支 CI/CD 設定與啟用步驟見 [CICD.md](./CICD.md)。`main` push 通過 CI 後會自動正式部署；下方保留手動部署與歷次快照紀錄。
 
-Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順序見 [google-oauth.md](./google-oauth.md)。候選包含新 schema 時，必須先協調經核准的正式備份／migration，再推 `main` 觸發 API 與 web 切換；CI 的測試庫 migration 不會更新正式 DB。
+Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順序見 [google-oauth.md](./google-oauth.md)。2026-09-24 起 API 每次啟動會自動 `alembic upgrade head`，合併進 `main` 的 migration 會在部署時套到正式 DB；撰寫規則與失敗行為見 [CICD.md](./CICD.md)。刪除或改寫既有資料的 migration，合併前仍要先手動備份。
 
 - Railway project：`d606df61-445a-4e65-9c5f-7e94a0766572`（ivy-website-admin）
 - environment：`cf5631c7-05b9-4f16-9358-c81d2650eb55`（production）
@@ -81,7 +81,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 ## 初次初始化
 
-下列指令會寫資料庫，僅對已明確核准的新官網資料庫執行。部署本身不會自動執行 migration；後續 schema 更新也需另行確認。
+下列指令會寫資料庫，僅對已明確核准的新官網資料庫執行。2026-09-24 起 API 啟動時會自動 `alembic upgrade head`，第一行只在需要手動介入時用；CMS 初始化與管理員建立仍需另行執行。
 
 ```sh
 railway ssh --service api --environment production -- python -m alembic upgrade head
@@ -95,7 +95,7 @@ railway ssh --service api --environment production -- python -m app.cli bootstra
 
 `initialize-content` 驗證所有 payload 後，僅補 `latest_version=0` 的空白項目。重跑不覆蓋既有草稿、不多建版本。現行來源共初始化 20 筆：9 種共用內容（2026-09-24 起含 `home_news` 最新消息與活動、`admission_content` 入學資訊）、五校介紹、五校 FAQ、義華巡覽；其他四校巡覽仍保留待補狀態。來源文案原樣保留，包含尚未改成正式用語的原型說明。
 
-**官網瀏覽量與速度上線步驟（2026-09-24）**：新增 migration `b7d2e4f1a903`（只建 `page_view_daily`、`web_vital_samples` 兩張表，不動既有資料）。合併後 API 啟動前的 schema 檢查會擋下新版，直到正式 DB 用既有的核准流程跑完 `alembic upgrade head`；在那之前正式站維持舊版，不會壞。
+**官網瀏覽量與速度上線步驟（2026-09-24）**：新增 migration `b7d2e4f1a903`（只建 `page_view_daily`、`web_vital_samples` 兩張表，不動既有資料）。（2026-09-24 更正：「schema 檢查擋下時正式站維持舊版」不成立。api 掛 volume，Railway 先停舊容器，檢查擋下就是停站；現已改為啟動時自動 upgrade。）
 
 **home_news 上線步驟（2026-09-24）**：不需要 migration，但部署後要再跑一次上面的 `initialize-content`，才會建立並發布 `home_news`（只補這一筆，其餘 18 筆已有版本不會動）。沒跑之前官網仍顯示程式內建的示意消息，畫面與現在相同；跑完後由後台「首頁 → 最新消息與活動」編輯，示意說明清空後首頁才拿掉「示意內容」標示。
 
@@ -480,3 +480,10 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 推送當下另一 session 的 `deploy/flip-wind-corner-20260923`（`1f463e8`）尚未推；另備疊在其上的分支（README 衝突已解、180 項測試通過），由推送指令依 `origin/main` 自動選擇。實際 main 仍為 `c461429`，推的是 `bfd7c5c`；拍立得那支之後推送需 rebase，README 會衝突。`push ...:main` 由使用者執行。
 - CI run `35869678705` 四個 job 全綠，約 7 分鐘上線。`/release.json`：snapshot `2c627ae4a3beaeab7ef490bf3b0bfba6586fd561b4488ced0806984c677671fe`、`base_commit` `bfd7c5c`、`web+api`。
 - 線上檢查（`output/playwright/mobile-audit-20260923/prod-smoke.cjs`、`waterfall.cjs`）：`theme-color` `#fdfcf6`、手機首屏影片 `hero-mobile-ba791e4aa97c.mp4`；390 分校頁／預約頁捲動後收成膠囊、選單開啟 `menu-locked` 且捲動位置不動、Esc 解鎖，預約頁頁首與膠囊皆無預約鈕。一般 4G（9 Mbps）首訪 3 次布幕皆開演（1.49～1.55 秒就緒；部署前 0 次），投影貼圖 1.6 秒內到齊，首屏影片布幕開演後才載。Safari／iOS 實機未驗證。
+
+## 2026-09-24 PR #9 部署停擺，部署流程改為 API 啟動時自動 migration
+
+- PR #9（`fef0dc6`）帶 `d3a8f1c5b742`，正式 DB 停在 `c6e4a2b9d810`。11:22 UTC push 當下 Railway 原生 GitHub 部署（api `08490c80`、web `245f61e6`）先起新 API；因 api 掛 volume，舊 API `6fab9890` 於 11:23:52 UTC（台灣 19:23）被停，新容器 schema 檢查失敗，CD 的 `0e3ff17f` 也同樣失敗。結果 API 0/1 running，`/`、`/api/public-site` 503，`/admin/login`、`/release.json` 仍 200。
+- 使用者選擇不回滾，改做自動 migration 後推 `main` 恢復。`deploy/api-start.py` 啟動時先 `alembic upgrade head` 再唯讀核對；`backend/migrations/env.py` 加 advisory lock；`check_schema.py` 錯誤訊息改成對應新流程；新增 `deploy/tests/test_api_start.py`；規則寫進 [CICD.md](./CICD.md)。
+- 本機驗證見 CICD.md 2026-09-24 段。`d3a8f1c5b742` 只加 `visit_requests.source`（NOT NULL，預設 `web`）、nullable `created_by` 外鍵與承辦人索引。
+- 查到的其他狀態：api／web 仍綁 GitHub repo（原生部署不等 CI）；Railway Postgres PITR 未開；api healthcheck `/api/website/v1/health` 120 秒、restart ON_FAILURE 3 次、單一 replica、無 pre-deploy command。

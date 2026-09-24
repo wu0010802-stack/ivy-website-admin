@@ -1,4 +1,4 @@
-"""Prepare the mounted media directory, then run the API as an unprivileged user."""
+"""Prepare the mounted media directory, migrate the database, then run the API as an unprivileged user."""
 import os
 import pwd
 import secrets
@@ -27,5 +27,9 @@ try:
         raise SystemExit("Media volume read/write check failed.")
 finally:
     probe.unlink(missing_ok=True)
+# Every deploy upgrades to the migration head baked into this image. Alembic runs
+# all pending revisions in one transaction, so a failure or timeout rolls back and
+# the API does not start. Keep the total under the 120 s Railway healthcheck.
+subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True, timeout=90)
 subprocess.run([sys.executable, "/app/check-schema.py"], check=True, timeout=40)
 os.execvp("uvicorn", ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000")])

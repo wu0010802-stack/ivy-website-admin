@@ -30,7 +30,7 @@
 
 Google migration `b7930d2f6a10`（接在 `8cf3e2b5a641`）僅新增 nullable、unique 的 `users.google_sub`，不建立管理員、不調整密碼或角色。另以無 schema 操作的 merge revision `c6e4a2b9d810` 合併它與 main 的流量 migration `b7d2e4f1a903`，保留兩條既有歷史；整合後唯一 head 必須為 `c6e4a2b9d810`。
 
-`main` push 在 CI 通過後會自動先部署 API、再部署包含 admin 的 web。正式 API 只讀檢查 schema，不會自動 migration。合併／push 前必須先安排經核准的備份與 migration，避免自動部署被 schema guard 擋住。
+`main` push 在 CI 通過後會自動先部署 API、再部署包含 admin 的 web。2026-09-24 起 API 啟動時會自動 `alembic upgrade head`（見 [CICD.md](./CICD.md)）；下方手動步驟是當時的上線紀錄，正式 DB 已在 `c6e4a2b9d810`。
 
 上線前重新確認正式 release、DB revision 與目標候選 commit，依正式部署程序備份並核准 migration，套用後再部署 API／web：
 
