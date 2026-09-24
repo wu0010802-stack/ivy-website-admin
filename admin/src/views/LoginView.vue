@@ -17,6 +17,10 @@ const oauthErrors: Record<string, string> = {
   failed: 'Google 登入未完成或已逾時，請重新登入。',
   unavailable: 'Google 登入尚未啟用，請使用 Email 與密碼。',
   rate_limited: '嘗試次數過多，請 5 分鐘後再試。',
+  line_cancelled: '已取消 LINE 登入，可重新登入或使用 Email 與密碼。',
+  line_not_allowed: '這個 LINE 帳號尚未綁定後台帳號，或綁定的帳號已停用。請先用 Email 與密碼登入，到「我的帳號」綁定 LINE。',
+  line_failed: 'LINE 登入未完成或已逾時，請重新登入。',
+  line_unavailable: 'LINE 登入尚未啟用，請使用 Email 與密碼。',
 }
 const errorMessage = ref<string | null>(
   typeof route.query.oauth_error === 'string' && Object.hasOwn(oauthErrors, route.query.oauth_error)
@@ -24,6 +28,7 @@ const errorMessage = ref<string | null>(
 )
 const submitting = ref(false)
 const googleEnabled = ref(false)
+const lineEnabled = ref(false)
 const returnTo = computed(() => {
   const path = route.query.redirect
   if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return '/'
@@ -36,15 +41,26 @@ const returnTo = computed(() => {
   ) return '/'
   return path
 })
-const googleLoginUrl = computed(() => `${BASE_URL}/auth/google/login?${new URLSearchParams({ redirect: returnTo.value })}`)
+const redirectQuery = computed(() => new URLSearchParams({ redirect: returnTo.value }).toString())
+const googleLoginUrl = computed(() => `${BASE_URL}/auth/google/login?${redirectQuery.value}`)
+const lineLoginUrl = computed(() => `${BASE_URL}/auth/line/login?${redirectQuery.value}`)
+// LINE 沒有可信的 email，第一次一定要先在後台內綁定，入口旁要講清楚。
+const oauthHints = computed(() => {
+  if (googleEnabled.value && lineEnabled.value) {
+    return ['Google：使用已開通後台權限的帳號', 'LINE：先用帳密登入，到「我的帳號」綁定']
+  }
+  return [googleEnabled.value ? '請使用已開通後台權限的 Google 帳號' : 'LINE 要先用帳密登入，在「我的帳號」綁定後才能使用']
+})
 
 onMounted(async () => {
   try {
     const providers = await api.get<AuthProviders>('/auth/providers')
     googleEnabled.value = providers.google === true
+    lineEnabled.value = providers.line === true
   } catch {
     // Provider availability must never block the existing password login.
     googleEnabled.value = false
+    lineEnabled.value = false
   }
 })
 
@@ -92,12 +108,18 @@ async function handleSubmit() {
         <p>管理五校官網內容與參觀預約</p>
       </div>
 
-      <div v-if="googleEnabled" class="login__google">
-        <a :href="googleLoginUrl" class="login__google-link">
+      <div v-if="googleEnabled || lineEnabled" class="login__oauth">
+        <a v-if="googleEnabled" :href="googleLoginUrl" class="login__google-link">
           <img src="/google-g.png" alt="" width="20" height="20" />
           <span>使用 Google 登入</span>
         </a>
-        <p>請使用已開通後台權限的 Google 帳號</p>
+        <a v-if="lineEnabled" :href="lineLoginUrl" class="login__line-link">
+          <img src="/line-icon.png" alt="" width="44" height="44" />
+          <span>使用 LINE 登入</span>
+        </a>
+        <p>
+          <template v-for="(hint, index) in oauthHints" :key="hint"><br v-if="index" />{{ hint }}</template>
+        </p>
         <div class="login__divider">或使用 Email 與密碼</div>
       </div>
 
@@ -222,8 +244,57 @@ async function handleSubmit() {
   outline-offset: 3px;
 }
 
-.login__google p {
-  margin-top: 8px;
+.login__oauth {
+  display: grid;
+  gap: 10px;
+}
+
+/* LINE 官方按鈕規範：#06C755 底、白色圖示與文字、8% 黑分隔線，
+   hover／press 疊 10%／30% 黑。圖示取自官方素材包，比例不可改。 */
+.login__line-link {
+  --line-button-fill: #06c755;
+  --line-button-ink: #fff;
+  --line-button-separator: rgb(0 0 0 / 0.08);
+  --line-button-overlay: transparent;
+  display: flex;
+  align-items: stretch;
+  min-height: 44px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: linear-gradient(var(--line-button-overlay), var(--line-button-overlay)), var(--line-button-fill);
+  color: var(--line-button-ink);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.login__line-link img {
+  flex-shrink: 0;
+  border-right: 1px solid var(--line-button-separator);
+}
+
+.login__line-link span {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  /* 右側補一個圖示寬，文字才會落在整顆按鈕的正中央，與 Google 對齊。 */
+  padding-right: 44px;
+}
+
+.login__line-link:hover {
+  --line-button-overlay: rgb(0 0 0 / 0.1);
+}
+
+.login__line-link:active {
+  --line-button-overlay: rgb(0 0 0 / 0.3);
+}
+
+.login__line-link:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 3px;
+}
+
+.login__oauth p {
   color: var(--ink-3);
   font-size: 12px;
   text-align: center;
@@ -233,7 +304,8 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 22px 0;
+  /* 上方已有 .login__oauth 的 10px 間距 */
+  margin: 12px 0 22px;
   color: var(--ink-3);
   font-size: 12px;
 }

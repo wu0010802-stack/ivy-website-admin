@@ -8,6 +8,7 @@ import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from 
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
 import { CORNER_REST, PUFF_MS, cornerPose, fadePose, leadPose, puffPose, strongest, subscribeCornerWind, type CornerPose, type WindState } from '~/utils/cornerWind'
 import { curlAngle } from '~/utils/cornerCurl'
+import { OPENER_DELAY_MS, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown, tapDuringOpen } from '~/utils/printOpener'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -17,7 +18,7 @@ const turn = ref(0)
 const isTurning = ref(false)
 const isRevealed = ref(false)
 const isTilting = ref(false)
-const isPeeking = ref(false)
+const isSnapping = ref(false)
 const webglReady = ref(false)
 const isCornering = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
@@ -33,7 +34,6 @@ let tiltFrame = 0
 let pointerPosition: { x: number; y: number } | null = null
 let cueTimer = 0
 let cornerFrame = 0
-let peekTimer = 0
 let deferPaper = false
 let isNear = false
 let cancelPaper: (() => void) | null = null
@@ -51,14 +51,18 @@ let turnFrom = 0
 let turningTimer = 0
 let windObserver: IntersectionObserver | null = null
 let stopWind: (() => void) | null = null
+let openerObserver: IntersectionObserver | null = null
+let openerTimer = 0
+// F 第一張翻開進場（utils/printOpener.ts）：背面朝上等讀者，翻開前不顯影、不做進場輕掀
+let openerPending = false
+let openedAt = Number.NEGATIVE_INFINITY
 // 翻面後這段時間暫停游標傾斜與 WebGL 初始化（WebGL 版另有約 0.2 秒紙張回彈）
 const FLIP_SETTLE_MS = FLIP_MS + 150
 
 // 翻面暗示 A 角落捲起（utils/cornerWind.ts）：沒有折角，觀者看到的右下角被掀起。三個來源取最大的那個：
 // 捲動的風（共用時鐘）、點下去時翻面起手（角先捲，翻面本身不變）、顯影完成後輕掀一次。
 // WebGL 版把角度餵給 paperPrints.ts 彎網格；CSS 版用兩片 3D 三角紙近似（styles.css 的 .print-corner）。
-// 首張另在輕掀後向左微翻 12° 回正；減少動態不做、每次工作階段只偷看一次。
-const PEEK_KEY = 'ivy-day-peek'
+// 首張偷看已由 F 第一張翻開進場取代（見下方 faceDownQuietly／runOpener）。
 const seed = props.index * 7.31 + 3.7
 let windCorner: CornerPose = CORNER_REST
 let leadAt = 0
@@ -157,33 +161,58 @@ function runCorner() {
   cornerFrame = requestAnimationFrame(step)
 }
 
-function peekedThisSession(): boolean {
-  try {
-    return sessionStorage.getItem(PEEK_KEY) === '1'
-  } catch {
-    return false
-  }
+// F：載入後才翻成背面（SSR 與無 JS 維持正面朝上）。這時卡片在畫面外，直接跳過去、不播翻面。
+function faceDownQuietly() {
+  openerPending = true
+  isSnapping.value = true
+  isFlipped.value = true
+  turn.value = -1
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    isSnapping.value = false
+  }))
 }
 
-function markPeeked() {
-  try {
-    sessionStorage.setItem(PEEK_KEY, '1')
-  } catch {
-    /* 無 sessionStorage 就每次都偷看一次 */
-  }
+function openerInView(): boolean {
+  const box = cardEl.value?.getBoundingClientRect()
+  return Boolean(box && seenEnough(box.top, box.bottom, window.innerHeight))
 }
 
-function runPeek() {
-  if (isFlipped.value || !wrapEl.value?.isConnected || peekedThisSession()) return
-  markPeeked()
-  if (paper) {
-    paper.peek()
-    return
-  }
-  isPeeking.value = true
-  peekTimer = window.setTimeout(() => {
-    isPeeking.value = false
-  }, 1000)
+// 示範結束（自己翻開、讀者先點，或減少動態下看過）：記下這個工作階段，收掉觀測
+function settleOpener() {
+  openerPending = false
+  markOpenerShown()
+  window.clearTimeout(openerTimer)
+  openerTimer = 0
+  openerObserver?.disconnect()
+  openerObserver = null
+}
+
+// 讀者看得夠多、停留 0.8 秒：自己翻成照片，照片接著顯影（進場輕掀不做，翻開本身就是示範）
+function runOpener() {
+  openerTimer = 0
+  if (!openerPending || !wrapEl.value?.isConnected || !openerInView()) return
+  settleOpener()
+  observer?.disconnect()
+  isRevealed.value = true
+  openedAt = performance.now()
+  turnPrint()
+}
+
+function watchOpener(reduce: boolean) {
+  if (!cardEl.value) return
+  openerObserver = new IntersectionObserver(
+    (entries) => {
+      window.clearTimeout(openerTimer)
+      openerTimer = 0
+      if (!entries.at(-1)?.isIntersecting || !openerInView()) return
+      // 減少動態：不翻，停在背面等讀者點；看過就算示範過，下次載入正面朝上
+      if (reduce) settleOpener()
+      else openerTimer = window.setTimeout(runOpener, OPENER_DELAY_MS)
+    },
+    // 「看得夠多」要比對卡片與視窗較矮者，交給 seenEnough 判斷；門檻切細才不會漏掉那一刻
+    { threshold: Array.from({ length: 21 }, (_, i) => i / 20) }
+  )
+  openerObserver.observe(cardEl.value)
 }
 
 function scheduleCues() {
@@ -195,7 +224,6 @@ function scheduleCues() {
     if (isFlipped.value) return
     puffAt = performance.now()
     runCorner()
-    if (props.index === 0) peekTimer = window.setTimeout(runPeek, PUFF_MS + 300)
   }, delay)
 }
 
@@ -248,7 +276,7 @@ function onPointerLeave() {
 // WebGL 紙張版（比稿 R）：快接近視窗才載 three，成功就把 DOM 卡片的
 // 翻面／傾斜／顯影交給它；失敗或減少動態就維持 CSS 3D 版。
 function readyForPaper() {
-  return !deferPaper || (isNear && isScrollIdle() && !cueTimer && !cornerFrame && !isPeeking.value && performance.now() - lastFlipAt >= FLIP_SETTLE_MS)
+  return !deferPaper || (isNear && isScrollIdle() && !cueTimer && !cornerFrame && performance.now() - lastFlipAt >= FLIP_SETTLE_MS)
 }
 
 function queuePaper() {
@@ -326,6 +354,11 @@ watch(
 onMounted(() => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   deferPaper = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  const box = cardEl.value?.getBoundingClientRect()
+  if (box && typeof IntersectionObserver !== 'undefined' && startsFaceDown(props.index, openerShown(), onScreen(box.top, box.bottom, window.innerHeight))) {
+    faceDownQuietly()
+    watchOpener(prefersReducedMotion)
+  }
   if (prefersReducedMotion || typeof IntersectionObserver === 'undefined' || !cardEl.value) {
     isRevealed.value = true
     return
@@ -355,7 +388,8 @@ onMounted(() => {
   observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
-        if (entry.isIntersecting) {
+        // F 第一張翻開前不顯影，由 runOpener 接手
+        if (entry.isIntersecting && !openerPending) {
           isRevealed.value = true
           observer?.disconnect()
           scheduleCues()
@@ -374,6 +408,8 @@ onUnmounted(() => {
   nearObserver = null
   windObserver?.disconnect()
   windObserver = null
+  openerObserver?.disconnect()
+  openerObserver = null
   stopWind?.()
   stopWind = null
   cancelPaper?.()
@@ -381,7 +417,7 @@ onUnmounted(() => {
   cancelAnimationFrame(tiltFrame)
   cancelAnimationFrame(cornerFrame)
   window.clearTimeout(cueTimer)
-  window.clearTimeout(peekTimer)
+  window.clearTimeout(openerTimer)
   window.clearTimeout(turningTimer)
   detachPaper()
 })
@@ -390,12 +426,23 @@ function toggleFlip(event: MouseEvent) {
   // 滑鼠／觸控點完就放掉焦點：否則之後按方向鍵或空白鍵捲頁，Chrome 會把這顆按鈕判成
   // :focus-visible，冒出不跟紙傾斜的平面綠框，空白鍵還會再翻一次。鍵盤 Enter／Space 的 click detail 為 0，保留焦點框。
   if (event.detail > 0) (event.currentTarget as HTMLButtonElement | null)?.blur()
-  // 點擊接管提示動畫：進場輕掀／偷看不在翻頁途中繼續拉動紙張。
+  // F 自己翻開的途中被點：讓它翻完，不要原路翻回背面
+  if (tapDuringOpen(performance.now() - openedAt)) return
+  // 讀者比 F 的自動翻開先點：示範就算完成，照片跟著翻過來開始顯影
+  if (openerPending) {
+    settleOpener()
+    observer?.disconnect()
+    isRevealed.value = true
+  }
+  turnPrint()
+}
+
+// 翻面本身：讀者點擊與 F 的自動翻開共用（自動翻開不放焦點、不算讀者翻過）
+function turnPrint() {
+  // 翻面接管提示動畫：進場輕掀不在翻頁途中繼續拉動紙張。
   window.clearTimeout(cueTimer)
-  window.clearTimeout(peekTimer)
-  cueTimer = peekTimer = 0
+  cueTimer = 0
   puffAt = 0
-  isPeeking.value = false
   onPointerLeave()
   const now = performance.now()
   // 靜止時往左翻一格；翻到一半再點就原路翻回（CSS 版讀不到連續角度，用「是否仍在翻」判斷）
@@ -452,7 +499,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
       <div
         ref="wrapEl"
         class="print-wrap"
-        :class="{ 'is-flipped': isFlipped, 'is-turning': isTurning, 'is-tilting': isTilting, 'is-peeking': isPeeking, 'is-cornering': isCornering, 'webgl-ready': webglReady }"
+        :class="{ 'is-flipped': isFlipped, 'is-turning': isTurning, 'is-tilting': isTilting, 'is-snapping': isSnapping, 'is-cornering': isCornering, 'webgl-ready': webglReady }"
         :style="{ '--flip': `${turn * 180}deg` }"
         @pointermove="onPointerMove"
         @pointerleave="onPointerLeave"

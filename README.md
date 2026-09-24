@@ -1,3 +1,14 @@
+## 2026-09-24 後台 LINE 登入（登入後自行綁定）
+
+登入頁加入 LINE 登入，與 Google、帳密並存。LINE 的 ID token 沒有 `email_verified`，所以不拿 email 比對、不自動綁定：管理員先用帳密或 Google 登入，點側欄底部自己的 email 進入新的「我的帳號」（`/account`）按「綁定 LINE」，之後就能用 LINE 登入，也可以自行解除。後端新增 `app/auth/line.py`：只要 `openid`，帶 state／nonce／PKCE，用自己的簽章握手 cookie（不和 Google 的 `SessionMiddleware` 共用 `scope["session"]`），ID token 依演算法分別用 Channel secret（HS256）或 LINE JWKS（ES256）驗；綁定時確認是同一位仍啟用的管理員 session，綁定與解除寫入操作紀錄。migration `d41e6c2a9f58` 接在 `b6d1f8e3a524` 後，只新增 `users.line_sub`，部署時由 API 啟動自動套用。`/auth/providers` 移到 `routes.py` 並回傳 `{google, line}`，`UserOut` 加 `line_linked`；Google 與 LINE 共用的 `safe_admin_path` 等抽成 `app/auth/oauth_common.py`（Google 的 `aud` 檢查不變）。LINE Developers 設定、環境變數與驗收清單見 [LINE 登入設定說明](deploy/line-oauth.md)。三個 `WEBSITE_LINE_*` 未設定前入口不會出現。
+
+驗證（在 main `912da33` 上完成；之後 rebase 到 `7dd7207`，新增的兩個提交只動 `web/`）：backend 438 項通過（獨立測試庫從零 migrate 到 `d41e6c2a9f58`、單一 head，`check_schema.py` 通過；LINE 54 項，另以突變確認 nonce／aud／session／sub 檢查拿掉會轉紅）；admin 21 檔 121 項、`vue-tsc`、Node 22 build、`contract:check`、deploy 工具 13 項、web `oauth-proxy.spec` 通過。瀏覽器以真的 API 經 Vite 代理、只攔 `access.line.me`：1440／390／320 登入頁兩顆按鈕等寬、高 44px、無水平溢出；登入取消、無握手重放、綁定取消、竄改 state、解除綁定、手機抽屜導覽正常，無 page error。尚未建立真實 LINE channel，換 token 的真實往返未驗。
+## 2026-09-24 拍立得翻面提示改 F「第一張翻開進場」，取代首張偷看
+
+使用者問怎麼提示「可以翻面」、要自然。現行暗示都在捲動中或剛進場發生，而且輕掀 31°、偷看 12° 都看不到背面。比稿 `design/flip-hint-natural-20260924/` 兩批六版後選 F，已接進 Nuxt `web/`：每次工作階段第一次來，第一張（01 早安入園）背面朝上貼著，讀者看到它（可見 ≥60%）停留 0.8 秒後自己翻成照片、照片接著顯影；讀者先點也算示範完成，翻開途中被點則讓它翻完、不翻回背面。SSR／無 JS 維持正面，載入當下已在畫面內（錨點、回上一頁）不做；減少動態停在背面等讀者點。首張偷看（元件、WebGL `peek()`、CSS keyframes）移除。新增 `web/app/utils/printOpener.ts` 與 9 項單元測試。規則見 DESIGN.md「F『第一張翻開進場』定案」。
+
+驗證：Node 22 web vitest 26 檔 195 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次、翻開途中點擊會翻完停在照片（WebGL 與 CSS 版）；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。未提交、未部署；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
+
 ## 2026-09-24 首屏調亮：遮罩只墊在文字後面
 
 使用者要求首屏調亮一點。暗感來自 `web/app/assets/css/studio.css` 的 `.studio-hero::before`：左側滿高直欄在 0–34% 壓到 76%，文字上下與左下角沒有字的照片也一起變暗。改為三層：頂部導覽帶 .64→.60 並從 96/190px 收短到 76/140px（手機同步）；左側直欄降為原本三成（.23 起）；文字塊後方加橢圓光暈 `radial-gradient(40% 42% at 24% 49%, .68 → .60 55% → 0)`。遮罩色由字面值改為 `--hero-scrim` 變數（色值不變）；頁首收合的 `background-size` 補第三層 `auto`，否則光暈會一起被收掉。影片、文案、版面不動。

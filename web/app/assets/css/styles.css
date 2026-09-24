@@ -70,8 +70,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。 */
 .print::after{content:'';position:absolute;inset:0;z-index:-1;transform:translateZ(-1px);box-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3);transition:box-shadow .5s}
 .print-wrap:hover .print::after{box-shadow:0 2px 0 rgb(var(--ink) / .05),12px 32px 60px rgb(var(--ink) / .38)}
-.print-wrap.is-peeking:not(.webgl-ready) .print{animation:card-peek 1s cubic-bezier(.3,.9,.3,1)}
-@keyframes card-peek{0%{transform:rotateY(0)}45%{transform:rotateY(-12deg) translateZ(14px)}100%{transform:rotateY(0)}}
+/* F 第一張翻開進場：載入後在畫面外悄悄翻成背面，不播翻面（DayMomentCard.vue faceDownQuietly） */
+.print-wrap.is-snapping .print{transition:none}
 .print-wrap.is-tilting .print{transition:transform .18s ease-out}
 /* WebGL 紙張版（utils/paperPrints.ts）接手後：DOM 正反面留版面與 aria 但透明，畫布蓋在上面，整卡翻面感應區與紙膠帶浮在畫布之上。 */
 .print-wrap.webgl-ready{perspective:none}

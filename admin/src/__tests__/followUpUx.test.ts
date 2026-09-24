@@ -23,7 +23,7 @@ const base = () => ({
 
 function makePinia() {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
   return pinia
 }
 

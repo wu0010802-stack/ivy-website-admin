@@ -40,7 +40,7 @@ export default defineEventHandler((event) => {
 
   return proxyRequest(event, `${config.websiteApiInternalBase}/api/website/v1${path}`, {
     streamRequest,
-    // OAuth 302/303 必須交給瀏覽器，否則伺服器會跟到 Google 並遺失握手 cookie。
+    // OAuth 302/303 必須交給瀏覽器，否則伺服器會跟到 Google／LINE 並遺失握手 cookie。
     fetchOptions: { redirect: 'manual' },
     // 一定要顯式覆寫：proxyRequest 預設會把使用者送來的 header 一併轉發，
     // 不覆寫的話任何人都能自己帶一個 x-website-client-ip 來偽造訪客身分、

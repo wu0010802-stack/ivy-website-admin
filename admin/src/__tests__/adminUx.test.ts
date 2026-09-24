@@ -31,7 +31,7 @@ const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks(); localStorage.clear() })
 async function setup(path = '/', role: UserOut['role'] = 'super_admin') {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role, is_active: true, campus_keys: ['renwu'] }
+  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role, is_active: true, campus_keys: ['renwu'], line_linked: false }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push(path)
   await router.isReady()
@@ -56,10 +56,10 @@ describe('後台導覽與編輯操作', () => {
     const wrapper = mount(AdminSidebar, { global, attachTo: document.body })
     wrappers.push(wrapper)
     await wrapper.get('input').setValue('素材')
-    expect(wrapper.findAll('a').map(link => link.text())).toEqual(['素材庫'])
+    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['素材庫'])
     expect(wrapper.get('#nav-site').isVisible()).toBe(true)
     await wrapper.get('input').setValue('使用者')
-    expect(wrapper.findAll('a')).toHaveLength(0)
+    expect(wrapper.findAll('.sidebar__nav a')).toHaveLength(0)
     expect(wrapper.text()).toContain('找不到符合的功能')
   })
 
@@ -101,10 +101,10 @@ describe('後台導覽與編輯操作', () => {
     const wrapper = mount(AdminSidebar, { global, attachTo: document.body })
     wrappers.push(wrapper)
     await wrapper.get('input').setValue('素材')
-    expect(wrapper.findAll('a').map(link => link.text())).toEqual(['素材庫'])
+    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['素材庫'])
     // 分組名仍可搜：沒有功能叫「分校頁」，但該組三項要全出來
     await wrapper.get('input').setValue('分校頁')
-    expect(wrapper.findAll('a').map(link => link.text())).toEqual(['五校介紹', '各校常見問題', '校園探索'])
+    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['五校介紹', '各校常見問題', '校園探索'])
   })
 
   it('載入期間不誤報未儲存，儲存期間禁止編輯及重複發布', async () => {

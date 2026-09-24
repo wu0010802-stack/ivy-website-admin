@@ -3,7 +3,7 @@
 只新增一張表，與上一版程式相容：舊版不讀這張表，新版上線前它是空的。
 
 Revision ID: 7f0680b2eb47
-Revises: b6d1f8e3a524
+Revises: d41e6c2a9f58（原接 b6d1f8e3a524；與 main 的 LINE 登入 migration 合併時改接，避免雙 head）
 Create Date: 2026-09-24
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "7f0680b2eb47"
-down_revision = "b6d1f8e3a524"
+down_revision = "d41e6c2a9f58"
 branch_labels = None
 depends_on = None
 

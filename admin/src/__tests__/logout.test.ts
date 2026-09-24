@@ -8,7 +8,7 @@ afterEach(() => vi.restoreAllMocks())
 function loggedInStore() {
   setActivePinia(createPinia())
   const auth = useAuthStore()
-  auth.user = { id: 'u1', email: 'a@ivy.example', role: 'super_admin', is_active: true, campus_keys: [] } as never
+  auth.user = { id: 'u1', email: 'a@ivy.example', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false } as never
   return auth
 }
 

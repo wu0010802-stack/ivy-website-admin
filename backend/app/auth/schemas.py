@@ -30,8 +30,18 @@ class UserOut(BaseModel):
     campus_keys: list[str]
     # 明確授權，目前只有 "content.shared"（編輯全站共用內容）。
     capabilities: list[str] = Field(default_factory=list)
+    line_linked: bool
 
     model_config = {"from_attributes": True}
+
+
+class AuthProviders(BaseModel):
+    google: bool
+    line: bool
+
+
+class LineLinkStart(BaseModel):
+    authorize_url: str
 
 
 class UserCreateRequest(BaseModel):

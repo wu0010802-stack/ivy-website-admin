@@ -1165,6 +1165,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/auth/line/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Line Callback */
+        get: operations["line_callback_api_website_v1_auth_line_callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/auth/line/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Line Link Start */
+        post: operations["line_link_start_api_website_v1_auth_line_link_post"];
+        /** Line Unlink */
+        delete: operations["line_unlink_api_website_v1_auth_line_link_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/auth/line/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Line Login */
+        get: operations["line_login_api_website_v1_auth_line_login_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1460,6 +1512,8 @@ export interface components {
         AuthProviders: {
             /** Google */
             google: boolean;
+            /** Line */
+            line: boolean;
         };
         /** Body_replace_media_api_website_v1_admin_media__media_id__replace_post */
         Body_replace_media_api_website_v1_admin_media__media_id__replace_post: {
@@ -1753,6 +1807,11 @@ export interface components {
             source_type: string;
             /** Target Id */
             target_id: string;
+        };
+        /** LineLinkStart */
+        LineLinkStart: {
+            /** Authorize Url */
+            authorize_url: string;
         };
         /** LineSettingsOut */
         LineSettingsOut: {
@@ -2177,6 +2236,8 @@ export interface components {
             id: string;
             /** Is Active */
             is_active: boolean;
+            /** Line Linked */
+            line_linked: boolean;
             role: components["schemas"]["Role"];
         };
         /** UserUpdateActiveRequest */
@@ -5416,6 +5477,117 @@ export interface operations {
         };
     };
     google_login_api_website_v1_auth_google_login_get: {
+        parameters: {
+            query?: {
+                redirect?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    line_callback_api_website_v1_auth_line_callback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    line_link_start_api_website_v1_auth_line_link_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineLinkStart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    line_unlink_api_website_v1_auth_line_link_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    line_login_api_website_v1_auth_line_login_get: {
         parameters: {
             query?: {
                 redirect?: string | null;

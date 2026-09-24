@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from urllib.parse import unquote, urlsplit
 
 import httpx
 from authlib.integrations.base_client import OAuthError
@@ -9,7 +8,6 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from joserfc.errors import JoseError
-from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,16 +16,12 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.auth import service
 from app.auth.deps import SESSION_COOKIE_NAME, get_db_session
 from app.auth.models import User
+from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
 from app.auth.routes import _set_session_cookie
 from app.common.ratelimit import client_key, limiter
 from app.operations import audit_service
 
 router = APIRouter(prefix="/api/website/v1/auth", tags=["auth"])
-OAUTH_TTL_SECONDS = 600
-
-
-class AuthProviders(BaseModel):
-    google: bool
 
 
 def configure_google_oauth(app) -> None:
@@ -55,38 +49,8 @@ def configure_google_oauth(app) -> None:
     )
 
 
-def safe_admin_path(value: str | None) -> str:
-    if not value or not value.startswith("/") or value.startswith("//"):
-        return "/"
-    decoded = value
-    for _ in range(3):
-        decoded = unquote(decoded)
-    if "\\" in decoded or any(ord(char) < 32 or ord(char) == 127 for char in decoded):
-        return "/"
-    parsed = urlsplit(decoded)
-    if (
-        parsed.netloc or parsed.scheme or "%" in parsed.path
-        or parsed.path.startswith("//") or parsed.path.rstrip("/") == "/login"
-        or any(part in {".", ".."} for part in parsed.path.split("/"))
-    ):
-        return "/"
-    return value
-
-
-def _private(response: Response) -> Response:
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    return response
-
-
 def _failure(code: str) -> Response:
-    return _private(RedirectResponse(f"/admin/login?oauth_error={code}", status_code=303))
-
-
-@router.get("/providers", response_model=AuthProviders)
-async def providers(request: Request, response: Response) -> AuthProviders:
-    _private(response)
-    return AuthProviders(google=request.app.state.settings.google_oauth_enabled)
+    return private(RedirectResponse(f"/admin/login?oauth_error={code}", status_code=303))
 
 
 @router.get("/google/login", response_class=RedirectResponse, status_code=302)
@@ -102,7 +66,7 @@ async def google_login(request: Request, redirect: str | None = None) -> Respons
         response = await client.authorize_redirect(
             request, request.app.state.settings.google_redirect_uri, prompt="select_account"
         )
-        return _private(response)
+        return private(response)
     except service.LoginRateLimited:
         request.session.clear()
         return _failure("rate_limited")
@@ -183,7 +147,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
         await db.commit()
         response = RedirectResponse("/admin" + return_to, status_code=303)
         _set_session_cookie(response, request.app.state.settings, raw_token)
-        return _private(response)
+        return private(response)
     except (service.InvalidCredentials, service.AccountInactive, IntegrityError):
         await db.rollback()
         return _failure("not_allowed")

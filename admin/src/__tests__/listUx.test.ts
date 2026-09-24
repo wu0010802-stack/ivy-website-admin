@@ -15,7 +15,7 @@ afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.lengt
 
 async function mountView(component: object, path: string) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push(path)
   await router.isReady()

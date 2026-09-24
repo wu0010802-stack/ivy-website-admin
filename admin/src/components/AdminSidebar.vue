@@ -119,8 +119,12 @@ const userLine = computed(() => {
       </div>
     </nav>
     <div v-if="auth.user" class="sidebar__user">
-      <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
-      <div class="sidebar__user-text"><strong :title="auth.user.email">{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
+      <router-link to="/account" class="sidebar__account" :class="{ 'is-active': route.path === '/account' }"
+        :aria-current="route.path === '/account' ? 'page' : undefined"
+        :aria-label="`我的帳號：${auth.user.email}`" :title="auth.user.email">
+        <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
+        <div class="sidebar__user-text"><strong>{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
+      </router-link>
       <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Icons.Key /></el-icon></el-button>
       <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><Icons.SwitchButton /></el-icon></el-button>
       <ChangePasswordDialog v-model="passwordOpen" />
@@ -173,6 +177,9 @@ const userLine = computed(() => {
 .sidebar__badge { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand-gold); color: var(--sidebar-bg); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 .sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
 .sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
+.sidebar__account { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; margin: -6px; padding: 6px; border-radius: var(--radius); color: var(--sidebar-ink); }
+.sidebar__account:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); text-decoration: none; }
+.sidebar__account.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); }
 .sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__user-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }

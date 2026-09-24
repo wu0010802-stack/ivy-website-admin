@@ -40,8 +40,6 @@ export interface PaperHandle {
   pointerLeave(): void
   /** 觀者看到的右下角被掀起的程度（風、翻面起手、進場輕掀取最大值）；翻面途中固定掀起點那一面。 */
   setCorner(pose: CornerPose): void
-  /** 首張進場「偷看」：向左微翻再回正，一次。 */
-  peek(): void
   dispose(): void
 }
 
@@ -53,9 +51,6 @@ const FLEX_GAIN = 0.024 // 每秒半圈的轉速 → 遠端落後紙寬的比例
 const FLEX_MAX = 0.09
 const SHADOW_OPACITY = 0.28
 const SHADOW_RADIUS = 6
-// 首張偷看：與 styles.css 的 card-peek 同參數（12°、1 秒）
-const PEEK_MS = 1000
-const PEEK_TURN = 12 / 180
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
@@ -815,7 +810,6 @@ export async function mountPaper(
     let bent = 0
     let lastRot = turn
     let lastNow = 0
-    let peekNow = 0
 
     const cols = SEGMENTS_X + 1
     const curl = createCurl()
@@ -880,7 +874,6 @@ export async function mountPaper(
     let hoverAim = 0
     let frame = 0
     let developStart = 0
-    let peekStart = 0
     let dirtyFront = false
     let dirtyCorner = corner.hinge > 0
     const rendererSize = new three.Vector2()
@@ -899,16 +892,7 @@ export async function mountPaper(
         if (t >= 1) turn = turnGoal
         busy = true
       }
-      peekNow = 0
-      if (peekStart) {
-        const t = Math.min(1, (now - peekStart) / PEEK_MS)
-        peekNow = -Math.sin(t * Math.PI) * PEEK_TURN
-        if (t >= 1) {
-          peekStart = 0
-          peekNow = 0
-        } else busy = true
-      }
-      const rot = turn + peekNow
+      const rot = turn
       // 轉得越快遠端越落後；停下時彈簧帶出一次輕微回彈
       const velocity = (rot - lastRot) / dt
       lastRot = rot
@@ -972,18 +956,15 @@ export async function mountPaper(
       W,
       kick,
       setFlipped(next: boolean) {
-        // 偷看途中被點：把當下的偷看角度併進翻面起點，不會先彈回正面
-        const position = turn + peekNow
+        const position = turn
         const goal = turnTarget(position, next)
-        if (goal === turnGoal && !peekStart) return
+        if (goal === turnGoal) return
         // 從靜止起翻才換手；翻到一半再點是原路翻回，手不換
         if (turn === turnGoal) grip = Math.abs(turn) % 2 === 1 ? -1 : 1
         turn = turnFrom = position
         turnGoal = goal
         turnMs = FLIP_MS * Math.max(0.55, Math.abs(goal - position))
         turnStart = performance.now()
-        peekStart = 0
-        peekNow = 0
         aimX = aimY = glareAim = hoverAim = 0
         kick()
       },
@@ -998,12 +979,6 @@ export async function mountPaper(
       },
       redrawCorner() {
         dirtyCorner = true
-        kick()
-      },
-      peek() {
-        if (peekStart || flipped || turn !== turnGoal) return
-        grip = 1
-        peekStart = performance.now()
         kick()
       },
       aim(x: number, y: number) {
@@ -1116,9 +1091,6 @@ export async function mountPaper(
       corner = pose
       if (skip) return
       scene?.redrawCorner()
-    },
-    peek() {
-      scene?.peek()
     },
     dispose() {
       if (disposed) return

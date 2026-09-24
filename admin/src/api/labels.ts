@@ -159,6 +159,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.test_push': '送出 LINE 測試訊息',
   'user.set_active': '變更帳號啟用狀態',
   'user.link_google': '綁定 Google 登入',
+  'user.link_line': '綁定 LINE 登入',
+  'user.unlink_line': '解除 LINE 登入綁定',
 }
 
 export function auditActionLabel(action: string): string {
