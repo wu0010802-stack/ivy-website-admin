@@ -92,14 +92,10 @@
   --ivy-news-hover-honey: #eabc74;
   --ivy-news-hover-oat: #f5dda3;
 
-  /* 6. 頁尾 R「燕麥＋深綠底列」（2026-09-24 定案） ---------------------------- */
-  --ivy-footer-bg: #efe8da;
-  --ivy-footer-text: #27433a;
-  --ivy-footer-muted: #5b6358;
-  --ivy-footer-brand: #1f3a31;
-  --ivy-footer-accent: #7a5a24;
-  --ivy-footer-bar-bg: #24483f;
-  --ivy-footer-bar-text: #d9e2d9;
+  /* 6. 頁尾 A 深森林綠＋文字全白（2026-09-24 晚上定案，取代同日的 R） ---------- */
+  --ivy-footer-bg: #24483f;
+  --ivy-footer-text: var(--ivy-white-pure);  /* 所有文字純白，使用者指定 */
+  --ivy-footer-line: #526d61;              /* 版權列上方分隔線 */
 
   /* 7. 頁首選單卡（玻璃質感） ------------------------------------------------ */
   --ivy-menu-solid: oklch(97% .002 95);

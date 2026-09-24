@@ -1,3 +1,9 @@
+## 2026-09-24 頁尾回到 A 深森林綠，文字全部純白
+
+使用者看過上線的 R「燕麥＋深綠底列」後要求再看顏色：先在 `design/footer-colour-directions-20260924/` 加第三批 R 的變化（U–Z），使用者決定「走 A」；再比文字顏色 `design/footer-text-colour-a-20260924/`（10 案，含指定保留的全白版），選 1 全白。`web/app/assets/css/tokens.css` 的 `--ivy-footer-*` 改為底色 `#24483F`、文字 `--ivy-white-pure`、分隔線 `#526D61`（R 的其他頁尾變數刪除），共用 `SiteFooter.vue` 改讀這三個，拿掉 R 的 `.footer-bar` 滿版底列、恢復 1px 分隔線 `#526D61`，鍵盤焦點外框改白。文案、欄位、斷點不變。規則寫在 DESIGN.md 最上方。
+
+驗證：Node 22 `nuxt typecheck` 通過、web vitest 25 檔 186 項通過。Playwright 對 3161 dev 跑首頁、義華分校頁、預約頁 × 1440／390px：底色 `rgb(36,72,63)`、頁尾所有文字計算色只有 `rgb(255,255,255)`（對比 10.13）、無 `.footer-bar`、分隔線 1px `#526D61`、無橫向溢出、連結高度 ≥44px；鍵盤焦點外框白色 3px；強制色彩底為 Canvas、分隔線保留。截圖與 `results.json` 在 `output/playwright/footer-text-white-20260924/`。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-24 合併 main（PR #9）：重疊功能以 main 為準
 
 main 的 PR #9 與本分支同時做了補登案件、承辦人、接待月曆、完成參觀、版本還原。合併時重疊的部分一律採 main 的 API 與畫面，本分支只保留 main 沒有的：
