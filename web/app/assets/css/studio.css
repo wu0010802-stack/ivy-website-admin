@@ -386,9 +386,11 @@ body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outl
   padding-top:92px;
   background:var(--deep);
   color:var(--white);
+  --hero-scrim:18 29 24;
 }
-/* Two independent scrims: navigation above, copy at left. The right-hand
-   photograph and lower edge keep their original light and colour. */
+/* 2026-09-24 調亮：遮罩只墊在文字後面。頂部導覽帶收短，左側滿高直欄降到原本三成，
+   文字塊後方另加橢圓光暈（中心對齊文字塊 24% 49%）；文字上下與左下角的照片因此亮回來。
+   12 幀＋封面最差值：內文 4.79、導覽 4.66、大標 5.76。改數值要重量，見 DESIGN.md。 */
 .studio-hero::before {
   content:"";
   position:absolute;
@@ -396,8 +398,9 @@ body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outl
   z-index:-1;
   pointer-events:none;
   background:
-    linear-gradient(180deg,rgb(18 29 24 / .64) 0 96px,rgb(18 29 24 / 0)) top / 100% 190px no-repeat,
-    linear-gradient(90deg,rgb(18 29 24 / .76),rgb(18 29 24 / .72) 34%,rgb(18 29 24 / .58) 42%,rgb(18 29 24 / .12) 55%,rgb(18 29 24 / 0) 62%);
+    linear-gradient(180deg,rgb(var(--hero-scrim) / .6) 0 76px,rgb(var(--hero-scrim) / 0)) top / 100% 140px no-repeat,
+    radial-gradient(40% 42% at 24% 49%,rgb(var(--hero-scrim) / .68),rgb(var(--hero-scrim) / .6) 55%,rgb(var(--hero-scrim) / 0)),
+    linear-gradient(90deg,rgb(var(--hero-scrim) / .23),rgb(var(--hero-scrim) / .22) 34%,rgb(var(--hero-scrim) / .17) 42%,rgb(var(--hero-scrim) / .04) 55%,rgb(var(--hero-scrim) / 0) 62%);
 }
 .studio-hero-grid {display:flex;flex:1;align-items:center;padding-block:clamp(28px,calc(5 * var(--motion-vh,1vh)),56px);padding-bottom:calc(clamp(28px,calc(5 * var(--motion-vh,1vh)),56px) + 64px)}
 @media(min-width:1001px) and (max-height:740px) {
@@ -465,7 +468,7 @@ body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outl
   .studio-hero-grid {padding-top:calc(var(--hero-photo-height) + 24px);padding-bottom:36px}
   .studio-hero::before {
     background:
-      linear-gradient(180deg,rgb(18 29 24 / .64) 0 96px,rgb(18 29 24 / 0)) top / 100% 190px no-repeat;
+      linear-gradient(180deg,rgb(var(--hero-scrim) / .6) 0 76px,rgb(var(--hero-scrim) / 0)) top / 100% 140px no-repeat;
   }
 }
 
@@ -1093,7 +1096,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
 /* 收合後頁首的白字已經不在照片上，首屏頂部那條為導覽而設的遮罩帶就收掉：照片更完整，
    深綠膠囊也才浮得出來（壓在遮罩上時膠囊對背景只有 1.08 的對比）。 */
 .studio-hero::before {transition:background-size .35s ease}
-.header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto}
+.header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto,auto}
 /* 壓在首屏照片上時，膠囊的外框與陰影給重一點，讓形狀在任何一張照片上都站得住。
    只改變數，不直接寫 box-shadow，免得蓋掉左右分離版「膠囊本身不投影」的設定。 */
 body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
