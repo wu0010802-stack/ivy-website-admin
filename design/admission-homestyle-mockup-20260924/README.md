@@ -2,6 +2,8 @@
 
 現行 `/admission` 沿用分校頁版型（白底頁首、框在麵包屑下的 hero、明體大標、米色分頁列、一般卡片格線）。這份 mock 把首頁的版型語言套到入學資訊的內容上，**內容不變**（取自後台 `admission_content` 預設值），只換版面與節奏。
 
+> **2026-09-24 已依此 mock 改正式頁**（見 DESIGN.md「入學資訊頁 /admission 改首頁版型」）。與 mock 的差異：「金額以公告為準」提醒放在 hero 動作鈕下方（不是收退費標題旁）；hero 照片沿用 `day-hello`、`day-discover` 移到入學流程；hero 小標改內文粗體；膠囊裡沒有做「目前章節」。下方「要你決定的地方」第 1–4 點都照 mock 採用。
+
 - 可直接開的單檔：`admission-homestyle-mockup.html`（字型、圖片內嵌，約 440 KB）
 - 原始檔：`admission-homestyle.src.html`，改完跑 `python3 design/admission-homestyle-mockup-20260924/build.py` 重新打包（需要 `fonttools`、`Pillow`；會順便檢查標題有沒有 LINE Seed 缺字）
 - 截圖：`admission-homestyle-desktop-1440.webp`、`admission-homestyle-mobile-390.webp`（已填生日 2022/5/10）

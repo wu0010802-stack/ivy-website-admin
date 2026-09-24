@@ -6,11 +6,12 @@ const props = defineProps<{ content: SiteContent }>()
 
 const route = useRoute()
 
-// 首頁任何寬度捲過 COMPACT_AT 都收成浮動膠囊；分校頁與預約頁只在 900px
-// 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：手機內頁頁首原本
-// 一直佔 78px）。桌機內頁維持展開頁首與 `.navigation`。
+// 首頁與入學資訊頁（2026-09-24 改首頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
+// 分校頁與預約頁只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：
+// 手機內頁頁首原本一直佔 78px）。其他桌機內頁維持展開頁首與 `.navigation`。
+const PILL_PAGES = ['/', '/admission']
 const isNarrow = ref(false)
-const usePanel = computed(() => route.path === '/' || isNarrow.value)
+const usePanel = computed(() => PILL_PAGES.includes(route.path) || isNarrow.value)
 // 預約頁本身不再放「預約參觀」鈕（查詢／取消頁 /visit/manage 仍保留）。
 const isBookingPage = computed(() => route.path === '/visit' || (route.path.startsWith('/visit/') && route.path !== '/visit/manage'))
 const COMPACT_AT = 40
