@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
     retention_allow_real_run: bool = False
+    # API 內建定期工作（排程發布、逾期占位、通知、清限流計數）的間隔秒數。
+    # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
+    background_jobs_interval_seconds: int | None = None
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
     # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
     trusted_client_ip_header: str | None = "x-website-client-ip"
@@ -51,6 +54,21 @@ class Settings(BaseSettings):
         if value is None:
             return None
         return value.strip() or None
+
+    @field_validator("background_jobs_interval_seconds")
+    @classmethod
+    def _sane_background_interval(cls, value: int | None) -> int | None:
+        if value is not None and value != 0 and not 10 <= value <= 3600:
+            raise ValueError("WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS 必須是 0（關閉）或 10–3600 秒")
+        return value
+
+    @property
+    def background_jobs_interval(self) -> int:
+        """0 代表不在 API 程序內跑定期工作。本機開發與測試預設關閉，避免
+        背景自己動資料；正式站預設開啟，因為沒有另外的排程在呼叫 CLI。"""
+        if self.background_jobs_interval_seconds is not None:
+            return self.background_jobs_interval_seconds
+        return 60 if self.environment == "production" else 0
 
     @property
     def google_oauth_enabled(self) -> bool:

@@ -5,10 +5,18 @@
 - 開發：`ivy_website_dev`；測試：`ivy_website_test`（本機 PostgreSQL 14.15）。
 - Migration：`cd backend && uv run alembic upgrade head`（需先設定 `WEBSITE_DATABASE_URL`/`WEBSITE_TEST_DATABASE_URL`/`WEBSITE_SESSION_SECRET`/`WEBSITE_ENVIRONMENT`）。
 
-## 通知 worker
+## 定期工作（排程發布、逾期占位、通知、清限流計數）
+
+2026-09-24 起由 **API 程序自己定期執行**（`app/workers/maintenance.py`）：production
+預設每 60 秒一輪，本機與測試預設關閉。`WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`
+可覆寫（0＝關閉，否則 10–3600 秒）。部署後打 `/api/website/v1/health`，
+`background_jobs.enabled` 為 true、`last_completed_at` 持續更新就代表有在跑。
+
+同一時間全域只會跑一輪（PostgreSQL advisory lock），多個 worker／副本或同時手動
+執行 CLI 都不會重複處理。手動補跑或本機測試：
 
 ```bash
-export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=./var/mail-sink   # 本機/測試用；沒設定時 CLI 會如實印「尚未設定」
+export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR=./var/mail-sink   # 本機/測試用；沒設定時 email 管道略過、站內通知照寫
 uv run python -m app.cli process-notifications
 ```
 
@@ -23,9 +31,9 @@ export WEBSITE_SMTP_PASSWORD=...             # 放部署平台的 secret，不�
 export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST 就必填
 ```
 
-每一輪依序做三件事：到期的**排程發布**（每筆自己一個交易，失敗寫在排程上、後台看得到原因）→ 釋放逾期占位 → 處理 outbox 寄信。
+每一輪依序做四件事，一步失敗不擋後面的步驟：到期的**排程發布**（每筆自己一個交易，失敗寫在排程上、後台看得到原因）→ 釋放逾期占位 → 處理 outbox（站內通知＋寄信）→ 刪除過期的限流計數。
 
-單次批次處理，非常駐 daemon。正式環境排程交給部署平台的 cron（例如每分鐘跑一次），本專案不內建常駐 worker process（本機 8GB RAM 限制下也不建議常駐）。
+寄信未設定（沒有 SMTP 也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好 SMTP 再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。SMTP 在背景 thread 執行，不會卡住 API 的請求。
 
 失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（通知本身跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。
 
@@ -90,12 +98,12 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 - **會被綁進 `href` 的欄位用允許清單，不是黑名單**。瀏覽器會忽略 scheme 裡的 TAB／換行／控制字元，`java<TAB>script:` 可以繞過前綴比對。純文字欄位才用 `_reject_unsafe_scheme`。
 - **「今天」「已過期」一律用 `app.common.timezones` 的營運時區（Asia/Taipei）**，不可直接拿 UTC 的日界線比對 `slot_date`。
 - **樂觀鎖要配列鎖**。只比 Python 物件上的版本號，兩個人同時存檔會各自通過檢查。
-- **逾期占位要靠排程**：`python -m app.cli process-notifications` 會先跑 `expire_holds` 再處理 outbox，沒有排程的話名額不會自動釋放。
+- **逾期占位、排程發布、通知都靠定期工作**：API 內建（見「定期工作」）；如果把 `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS` 設成 0，就要另外排程呼叫 `python -m app.cli process-notifications`。容量計算本身已排除到期占位，所以名額不會卡住，但案件狀態、排程發布與通知都不會動。
 
 ## 已知限制（誠實列出）
 
 - 完整 LINE Seed TW 字型檔仍未取得（外部阻擋，需使用者提供原始檔）。因此品牌名稱與 Logo 在後台鎖定不可改（「網站標題與電話」頁有說明）。
-- 時段規則不會自己產生時段：園方在「時段與容量」按「依規則產生時段」才建立（一次最多 92 天，可重複按）。占位到期釋放與排程發布都靠外部排程定期呼叫 `process-notifications`，沒有常駐 daemon。
+- 時段規則不會自己產生時段：園方在「時段與容量」按「依規則產生時段」才建立（一次最多 92 天，可重複按）。
 - 稽核紀錄涵蓋預約設定、內容發布／還原／送審／核准／退回／排程、停權、帳號建立、角色與校區變更、重設密碼、案件匯出、指派、人工補登、時段規則、休假日、分校停用、撤銷家長連結，仍非全面覆蓋。
 - 規格 190 的 `age`／`preferred_time` 已改存固定代碼（2026-09-24，migration `a9c4e2f7d316` 轉換既有資料）。API 仍接受舊版官網送的中文標籤並換成代碼；冪等 hash 用中文標籤計算，跨版本重送不會誤判成 409。
 - 公開端點限流的來源桶依賴 web 代理帶上的 `x-website-client-ip`（`web/server/routes/api/website/v1/[...].ts` 已設定並顯式覆寫）。若日後把 api 直接暴露到公網，必須先拿掉 `WEBSITE_TRUSTED_CLIENT_IP_HEADER`，否則這個 header 可被偽造。

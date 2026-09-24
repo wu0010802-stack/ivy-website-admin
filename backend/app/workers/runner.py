@@ -8,10 +8,11 @@ from app.workers import lease_service
 
 
 async def process_outbox_batch(
-    db: AsyncSession, adapter: EmailAdapter, *, worker_id: str = "worker-1", limit: int = 10
+    db: AsyncSession, adapter: EmailAdapter | None, *, worker_id: str = "worker-1", limit: int = 10
 ) -> dict[str, int]:
     """認領並處理最多 `limit` 筆到期的 outbox 工作。每筆工作獨立
-    commit/rollback，一筆失敗不影響其他筆繼續處理。"""
+    commit/rollback，一筆失敗不影響其他筆繼續處理。`adapter` 為 None 時
+    只寫站內通知（部署環境沒設定寄信）。"""
     sent = 0
     failed = 0
     for _ in range(limit):
@@ -28,6 +29,7 @@ async def process_outbox_batch(
                 kind=message.kind,
                 payload=message.payload,
                 adapter=adapter,
+                created_at=message.created_at,
             )
         except Exception as exc:  # noqa: BLE001 - 任何寄送/處理失敗都走重試路徑
             # 先丟掉這一輪還沒提交的工作，再記錄失敗。少了這個 rollback，

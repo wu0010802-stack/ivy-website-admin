@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,11 @@ _KIND_LABELS = {
 }
 
 _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
+
+# 超過這個時間還沒送出的訊息只寫站內通知、不再推播或寄信。正常重試（5 次、
+# 最長間隔 15 分鐘）遠短於此，這條只會擋到積壓的舊訊息——例如定期工作第一次
+# 上線、或寄信設定修好時，不該把幾天前的通知一次寄給所有人。
+EXTERNAL_DELIVERY_STALE_AFTER = timedelta(hours=24)
 
 
 def _header_safe(value: str) -> str:
@@ -84,11 +90,16 @@ async def dispatch_outbox_message(
     campus_key: str,
     kind: str,
     payload: dict,
-    adapter: EmailAdapter,
+    adapter: EmailAdapter | None,
+    created_at: datetime | None = None,
 ) -> None:
     """處理一筆 outbox 訊息：寫站內通知＋寄信。任何一個收件人寄信失敗
-    （含未配置）都讓整筆工作視為失敗，交給 worker 的重試機制處理，
-    不會靜默丟失、也不假裝已寄出。
+    都讓整筆工作視為失敗，交給 worker 的重試機制處理，不會靜默丟失、
+    也不假裝已寄出。
+
+    `adapter` 為 None 代表部署環境沒有設定寄信：站內通知照寫、email 這個
+    管道整個略過。原本「未配置」會讓整批 outbox 停著不處理，結果後台連
+    站內通知都收不到；等日後設好 SMTP，又會把累積幾個月的舊通知一次寄出。
 
     重試時以 notification_deliveries 逐一去重：已經成功寄出的收件人不會
     再收到第二封，站內通知也只會寫一筆——原本整筆重試會讓每一輪都多一
@@ -111,11 +122,18 @@ async def dispatch_outbox_message(
         # 重試時再寫一次。
         await db.commit()
 
+    if adapter is None:
+        return
+    if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
+        return
     recipients = await get_notification_recipients(db, campus_key)
     for user in recipients:
         if await _already_delivered(db, outbox_message_id, "email", user.email):
             continue
-        adapter.send(
+        # SMTP 是阻塞 I/O（連線逾時 20 秒）。定期工作跑在 API 的 event loop
+        # 上，直接呼叫會讓這段期間所有請求一起卡住。
+        await asyncio.to_thread(
+            adapter.send,
             to=_header_safe(user.email),
             subject=_header_safe(f"[常春藤官網] {label}"),
             body=f"校區：{campus_key}\n案件：{payload.get('receipt_id')}\n類型：{label}",

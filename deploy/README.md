@@ -34,6 +34,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
+| api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
@@ -89,6 +90,15 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 權限、分校是否啟用、素材是否就緒），並可用 `WEBSITE_SMTP_*` 設定真實寄信
 （細節見 `docs/website-admin/operations.md`）。本次改動沒有碰正式站設定；
 正式站是否已有 cron 呼叫這個指令、是否要設 SMTP secret，需上線前在 Railway 確認。
+
+**2026-09-24 起 api 自己定期跑這些工作**（`app/workers/maintenance.py`，production
+預設每 60 秒一輪），不需要 Railway cron：repo 與部署設定裡從來沒有呼叫這個指令
+的排程，排程發布與通知在正式站上其實都沒有動過。部署後確認
+`/api/website/v1/health` 的 `background_jobs.enabled` 為 true、`last_completed_at`
+有在更新。要關掉時設 `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS=0`。若 Railway
+後台另外設過 cron 也無妨：同一時間只會有一輪（advisory lock），後到者跳過。
+上線後第一輪會把累積在 outbox 的舊訊息處理掉：一律寫站內通知，但超過 24 小時的舊訊息
+不寄信（`EXTERNAL_DELIVERY_STALE_AFTER`），不會一次把幾天前的通知寄給所有人。
 
 ## 初次初始化
 

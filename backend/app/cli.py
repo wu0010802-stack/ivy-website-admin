@@ -17,9 +17,7 @@ from app.campuses.models import Campus
 from app.config import get_settings
 from app.content import service as content_service
 from app.db import create_engine, create_session_factory
-from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
-from app.booking.workflow_service import expire_holds
-from app.workers.runner import process_outbox_batch
+from app.workers.maintenance import run_cycle
 
 CAMPUSES = [
     ("yihua", "義華校"),
@@ -143,37 +141,26 @@ async def content_seed_from_fixture(fixture_path: str) -> None:
 
 
 async def process_notifications_once() -> None:
-    """跑一輪 outbox worker；`WEBSITE_NOTIFICATION_EMAIL_SINK_DIR` 沒設定
-    時如實印出「未配置」，不假裝寄出。生產排程可用 cron 定期呼叫這個
-    指令，暫不內建常駐 daemon（避免跟本機 8GB RAM 限制下的其他背景
-    程序搶資源）。"""
+    """手動跑一輪定期工作（排程發布、逾期占位、通知、清限流計數）。正式站
+    的 API 已經每 60 秒自己跑一次（app/workers/maintenance.py），這個指令
+    留給本機、測試與臨時補跑；兩者同時執行時後到者會跳過，不會重複處理。
+    寄信未設定時如實印出「未配置」，站內通知照寫、不假裝寄出。"""
     settings = get_settings()
     factory = await _session_factory()
-    async with factory() as db:
-        # 到期的排程發布。每筆自己一個交易，失敗記在排程上，後台看得到原因。
-        from app.content.publish_jobs import run_due_jobs
-
-        scheduled = await run_due_jobs(db)
-        if scheduled["published"] or scheduled["failed"]:
-            print(f"排程發布：成功 {scheduled['published']} 筆、失敗 {scheduled['failed']} 筆")
-
-        # 先處理過期占位：規格 222 要求逾期的 pending_confirmation 轉
-        # cancelled、釋放名額並通知園方。它會寫進 outbox，所以要排在
-        # 處理 outbox 之前，這一輪就能把通知一起送出去。
-        # 釋放占位與寄信無關：寄信未配置時也一定要跑，否則名額不會釋放。
-        expired = await expire_holds(db)
-        await db.commit()
-        if expired:
-            print(f"已釋放 {expired} 筆逾期的時段占位。")
-
-        try:
-            adapter = get_email_adapter(settings.notification_email_sink_dir, settings)
-        except EmailNotConfigured:
-            print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
-            return
-
-        result = await process_outbox_batch(db, adapter, worker_id="cli-worker")
-        print(f"已處理：成功 {result['sent']} 筆、失敗 {result['failed']} 筆")
+    result = await run_cycle(factory, settings, worker_id="cli-worker")
+    if not result.ran:
+        print("另一個程序正在執行定期工作，這次跳過。")
+        return
+    if result.published or result.publish_failed:
+        print(f"排程發布：成功 {result.published} 筆、失敗 {result.publish_failed} 筆")
+    if result.expired_holds:
+        print(f"已釋放 {result.expired_holds} 筆逾期的時段占位。")
+    if not result.email_configured:
+        print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
+    print(f"已處理通知：成功 {result.notifications_sent} 筆、失敗 {result.notifications_failed} 筆")
+    if result.failed_steps:
+        print(f"以下步驟失敗，詳見錯誤紀錄：{'、'.join(result.failed_steps)}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def main() -> None:

@@ -1,5 +1,5 @@
-"""排程發布的背景執行（規格 4）。由 `python -m app.cli process-notifications`
-（生產以 cron 定期呼叫）每輪先跑一次。"""
+"""排程發布的背景執行（規格 4）。由 API 內建的定期工作每輪先跑一次
+（app/workers/maintenance.py；手動補跑用 `python -m app.cli process-notifications`）。"""
 from __future__ import annotations
 
 import uuid

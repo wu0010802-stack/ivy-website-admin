@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import Request
 from sqlalchemy import delete, literal, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 from app.common.models import RateLimitCounter
 
@@ -149,11 +149,14 @@ class RateLimiter:
             )
 
     async def purge_expired(self) -> int:
-        """刪掉已經不會再被讀到的列；由背景工作定期呼叫。"""
-        now = datetime.fromtimestamp(self._clock(), tz=timezone.utc)
         async with self._engine.begin() as conn:
-            result = await conn.execute(delete(RateLimitCounter).where(RateLimitCounter.expires_at < now))
-        return result.rowcount or 0
+            return await purge_expired_counters(conn, datetime.fromtimestamp(self._clock(), tz=timezone.utc))
+
+
+async def purge_expired_counters(db: AsyncConnection | AsyncSession, now: datetime) -> int:
+    """刪掉已經不會再被讀到的列；由定期工作呼叫（app/workers/maintenance.py）。"""
+    result = await db.execute(delete(RateLimitCounter).where(RateLimitCounter.expires_at < now))
+    return result.rowcount or 0
 
 
 def limiter(request: Request) -> RateLimiter:
