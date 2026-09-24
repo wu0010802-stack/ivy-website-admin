@@ -6,32 +6,44 @@ import uuid
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import User
+from app.auth.models import Role, User
 from app.auth.permissions import ScopeDenied, require_scope
 from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
 from app.operations import audit_service
-from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import (
+    BookingConfig,
+    VisitContactNote,
+    VisitRequest,
+    VisitRequestSource,
+    VisitRequestStatus,
+    VisitSlot,
+)
 from app.booking.schemas import (
     BookingConfigOut,
     BookingConfigUpdateRequest,
+    CalendarSlotOut,
+    CalendarVisitOut,
     PublicBookingConfigOut,
     PublicVisitSlotOut,
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
+    VisitRequestAssignRequest,
     VisitRequestConfirmRequest,
     VisitRequestCreate,
     VisitRequestDetailOut,
+    VisitRequestManualCreate,
     VisitRequestOut,
     VisitRequestRescheduleRequest,
     VisitSlotCreateRequest,
     VisitSlotOut,
     VisitSlotUpdateRequest,
+    VisitStaffOut,
 )
 from app.campuses.models import Campus
 
@@ -304,6 +316,78 @@ async def update_admin_slot(
     return _slot_out(slot, booked)
 
 
+# 月曆上顯示的案件：有排時段、還沒取消的都列（含已結案的完成／未到場，
+# 回頭查某天來了誰也要看得到）。
+_CALENDAR_STATUSES = (
+    VisitRequestStatus.PENDING_CONFIRMATION.value,
+    VisitRequestStatus.CONFIRMED.value,
+    VisitRequestStatus.COMPLETED.value,
+    VisitRequestStatus.NO_SHOW.value,
+)
+
+
+@router.get("/admin/visit-calendar", response_model=list[CalendarSlotOut])
+async def get_visit_calendar(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[CalendarSlotOut]:
+    """接待月曆（規格 6.2：日曆與清單讀同一份資料）。時段與案件都直接
+    讀 visit_slots／visit_requests，名額用與送單相同的占位條件計算。"""
+    require_scope(current_user, "booking.read")
+    if date_to < date_from or (date_to - date_from).days > slot_service.MAX_QUERY_RANGE_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
+        )
+    stmt = select(VisitSlot).where(VisitSlot.slot_date >= date_from, VisitSlot.slot_date <= date_to)
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        stmt = stmt.where(VisitSlot.campus_key == campus_key)
+    elif current_user.role != Role.SUPER_ADMIN:
+        owned = [s.campus_key for s in current_user.campus_scopes]
+        stmt = stmt.where(VisitSlot.campus_key.in_(owned))
+    slots = list(
+        (await db.execute(stmt.order_by(VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.campus_key))).scalars()
+    )
+    if not slots:
+        return []
+
+    booked_rows = await db.execute(
+        select(VisitRequest.slot_id, func.count())
+        .where(VisitRequest.slot_id.in_([s.id for s in slots]), slot_service.occupying_condition())
+        .group_by(VisitRequest.slot_id)
+    )
+    booked = dict(booked_rows.all())
+    visit_rows = await db.execute(
+        select(VisitRequest)
+        .where(
+            VisitRequest.slot_id.in_([s.id for s in slots]),
+            VisitRequest.status.in_(_CALENDAR_STATUSES),
+        )
+        .order_by(VisitRequest.created_at)
+    )
+    visits_by_slot: dict[uuid.UUID, list[CalendarVisitOut]] = {}
+    for visit in visit_rows.scalars():
+        visits_by_slot.setdefault(visit.slot_id, []).append(CalendarVisitOut.model_validate(visit, from_attributes=True))
+    return [
+        CalendarSlotOut(
+            id=slot.id,
+            campus_key=slot.campus_key,
+            slot_date=slot.slot_date,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            capacity=slot.capacity,
+            closed=slot.closed,
+            booked_count=booked.get(slot.id, 0),
+            visits=visits_by_slot.get(slot.id, []),
+        )
+        for slot in slots
+    ]
+
+
 @router.get("/public/slots", response_model=list[PublicVisitSlotOut])
 async def list_public_slots(
     campus_key: str,
@@ -364,6 +448,10 @@ async def list_visit_requests(
     status_filter: str | None = Query(default=None, alias="status"),
     q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
     follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
+    assignee: str | None = Query(
+        default=None, description="承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id"
+    ),
+    source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
     order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -388,6 +476,20 @@ async def list_visit_requests(
         stmt = stmt.where(VisitRequest.campus_key.in_(owned))
     if status_filter:
         stmt = stmt.where(VisitRequest.status == status_filter)
+    if assignee == "me":
+        stmt = stmt.where(VisitRequest.assigned_staff_id == current_user.id)
+    elif assignee == "none":
+        stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
+    elif assignee:
+        try:
+            assignee_id = uuid.UUID(assignee)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="承辦人篩選格式錯誤"
+            ) from exc
+        stmt = stmt.where(VisitRequest.assigned_staff_id == assignee_id)
+    if source:
+        stmt = stmt.where(VisitRequest.source == source)
     if q and q.strip():
         # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
         # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
@@ -444,7 +546,7 @@ async def export_visit_requests(
     writer.writerow([
         "campus_key", "status", "parent_name", "phone", "created_at",
         "child_name", "child_birthdate", "email", "referral_sources",
-        "slot_date", "start_time", "end_time",
+        "slot_date", "start_time", "end_time", "source",
     ])
     exported = 0
     for r in result.scalars():
@@ -462,6 +564,7 @@ async def export_visit_requests(
                 r.slot.slot_date.isoformat() if r.slot else "",
                 r.slot.start_time.isoformat() if r.slot else "",
                 r.slot.end_time.isoformat() if r.slot else "",
+                _safe_cell(r.source),
             ]
         )
         exported += 1
@@ -478,6 +581,120 @@ async def export_visit_requests(
     )
     await db.commit()
     return Response(content=buffer.getvalue(), media_type="text/csv")
+
+
+@router.post(
+    "/admin/visit-requests",
+    response_model=VisitRequestDetailOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_manual_visit_request(
+    payload: VisitRequestManualCreate,
+    response: Response,
+    idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
+    紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
+    人員改完再送一次即可。"""
+    require_scope(current_user, "booking.manage", campus_keys=[payload.campus_key])
+    result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
+    campus = result.scalar_one_or_none()
+    if campus is None or not campus.active:
+        raise ScopeDenied()
+
+    body = payload.model_dump(mode="json", exclude={"campus_key"})
+    try:
+        visit_request, is_new = await service.create_manual_visit_request(
+            db,
+            campus_key=payload.campus_key,
+            idempotency_key=idempotency_key,
+            payload=body,
+            source=VisitRequestSource(payload.source),
+            created_by=current_user.id,
+        )
+    except service.IdempotencyConflict as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "IDEMPOTENCY_CONFLICT", "message": "這張表單已經送出過不同的內容，請重新開啟補登"},
+        ) from exc
+
+    if is_new:
+        if payload.slot_id is not None:
+            try:
+                await workflow_service.confirm_with_slot(
+                    db, visit_request, payload.slot_id, current_user.id
+                )
+            except workflow_service.SlotFull as exc:
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "SLOT_FULL", "message": "這個時段名額已滿或已關閉，案件尚未建立"},
+                ) from exc
+        if payload.note and payload.note.strip():
+            await workflow_service.add_contact_note(
+                db,
+                visit_request,
+                note=payload.note.strip(),
+                follow_up_at=None,
+                created_by=current_user.id,
+            )
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="visit_request.manual_create",
+            target_type="visit_request",
+            target_id=str(visit_request.id),
+            campus_key=payload.campus_key,
+            metadata={"source": payload.source, "with_slot": payload.slot_id is not None},
+        )
+    await db.commit()
+    response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
+    result = await db.execute(
+        select(VisitRequest)
+        .options(selectinload(VisitRequest.slot))
+        .where(VisitRequest.id == visit_request.id)
+        .execution_options(populate_existing=True)
+    )
+    return VisitRequestDetailOut.model_validate(result.scalar_one())
+
+
+@router.get("/admin/visit-staff", response_model=list[VisitStaffOut])
+async def list_visit_staff(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[VisitStaffOut]:
+    """可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理
+    者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。"""
+    require_scope(current_user, "booking.read")
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.campus_scopes))
+        .where(User.role.in_([Role.SUPER_ADMIN, Role.CAMPUS_ADMIN]))
+        .order_by(User.email)
+    )
+    own = {s.campus_key for s in current_user.campus_scopes}
+    staff = []
+    for user in result.scalars():
+        keys = sorted(s.campus_key for s in user.campus_scopes)
+        if user.role == Role.SUPER_ADMIN:
+            keys = []
+        elif current_user.role != Role.SUPER_ADMIN and not own.intersection(keys):
+            continue
+        elif current_user.role != Role.SUPER_ADMIN:
+            keys = sorted(own.intersection(keys))
+        staff.append(
+            VisitStaffOut(
+                id=user.id,
+                email=user.email,
+                role=user.role.value,
+                campus_keys=keys,
+                is_active=user.is_active,
+            )
+        )
+    return staff
 
 
 @router.get("/admin/visit-requests/{visit_request_id}", response_model=VisitRequestDetailOut)
@@ -527,6 +744,54 @@ async def create_contact_note(
     )
     await db.commit()
     return VisitContactNoteOut.model_validate(note)
+
+
+@router.patch("/admin/visit-requests/{visit_request_id}/assignee", response_model=VisitRequestDetailOut)
+async def assign_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestAssignRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    assignee = None
+    if payload.assigned_staff_id is not None:
+        result = await db.execute(
+            select(User)
+            .options(selectinload(User.campus_scopes))
+            .where(User.id == payload.assigned_staff_id)
+        )
+        assignee = result.scalar_one_or_none()
+        if assignee is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "ASSIGNEE_INVALID", "message": "找不到這個人員"},
+            )
+    previous = visit_request.assigned_staff_id
+    try:
+        await workflow_service.assign(db, visit_request, assignee)
+    except workflow_service.AssigneeInvalid as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "ASSIGNEE_INVALID", "message": exc.message},
+        ) from exc
+    if previous != visit_request.assigned_staff_id:
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="visit_request.assign",
+            target_type="visit_request",
+            target_id=str(visit_request.id),
+            campus_key=visit_request.campus_key,
+            metadata={
+                "from": str(previous) if previous else None,
+                "to": str(visit_request.assigned_staff_id) if visit_request.assigned_staff_id else None,
+            },
+        )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
 
 
 @router.post("/admin/visit-requests/{visit_request_id}/confirm", response_model=VisitRequestDetailOut)
@@ -588,6 +853,28 @@ async def mark_no_show(
     require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.mark_no_show(db, visit_request)
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": exc.message},
+        ) from exc
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/complete", response_model=VisitRequestDetailOut)
+async def mark_completed(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
+    沒有路由，已確認的案件只能停在「已確認」或被標成未到場。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await workflow_service.mark_completed(db, visit_request)
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(

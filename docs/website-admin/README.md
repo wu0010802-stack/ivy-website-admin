@@ -103,4 +103,6 @@ WEBSITE_ENVIRONMENT=test uv run python scripts/restore_website.py ./var/backups/
 
 ## 尚未涵蓋
 
-其餘 8 種內容欄位的 editor（五校介紹、一天照片卡、探索熱點、FAQ、消息/活動、siteMeta）、素材裁切焦點 UI、既有素材 dry-run importer、Nuxt 端真實預約表單提交與 CTA 接線／`/visit/manage` 頁面（屬 Task 8）、週期時段規則產生器與占位到期釋放（Task 9 排程部分）、內容審核流程／排程發布（階段 D 擴充範圍）、全面稽核覆蓋，均待補，本文件屆時會補上對應命令。
+既有素材 dry-run importer、週期時段規則產生器與例外日、內容審核流程與整份內容的排程發布、全站 release 層級還原、全面稽核覆蓋，均待補。
+
+（2026-09-24 更新：內容 editor、版本紀錄與還原、人工補登、指派承辦人、接待月曆、消息上下架日期已完成，見 `acceptance.md` 最後一節。）

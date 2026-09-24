@@ -12,7 +12,7 @@
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
 | A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 10 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校）／campus_tour（各校，視覺化熱點編輯器，見「校園探索視覺化編輯器小結」）；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；影片/照片素材本身仍未接媒體庫（含 campus_tour 的場景圖片，仍是代號字串） |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
-| A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；版本「還原」與預約模組都尚未實作（預約屬階段 C） |
+| A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；單一內容項目的版本紀錄與還原（還原成草稿或直接發布、不帶上其他草稿、樂觀鎖、跨校 404、舊格式 422）見 `test_content_revisions.py`；還原只動內容表，不碰預約資料表。**全站 release 層級的一鍵還原未做** |
 | A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；裁切焦點編輯 UI；**素材庫已真的接上 CMS 內容**（campus_tour 場景圖片，見「素材庫接上媒體選圖小結」），含公開唯讀讀取路由與引用保護真的串接；熱點複核、既有素材 dry-run importer 未做 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
 | A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
@@ -20,11 +20,11 @@
 | A08 | C | 舊 config version 被拒；成功後重播仍回原結果 | 通過 | `test_stale_config_version_rejected_then_switch_to_line`、`test_request_retry_is_same_case` |
 | A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | 部分 | 最後名額真實 PostgreSQL 併發（`test_one_slot_cannot_accept_two_families`）、取消釋放、改期回滾皆已測；「逾期釋放」（占位到期自動作業）屬 Task 9 排程工作，未做 |
 | A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 部分 | 手動建立單次時段＋容量保護、滿額拒絕已測；週期規則產生器、例外日、提前時間/開放天數驗證屬 Task 9 範圍，未做 |
-| A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 部分 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）皆已測並有 admin UI；日曆視覺化用簡化的清單+日期區間取代，未做真正的月曆元件 |
+| A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 通過 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）；2026-09-24 補上人工補登（phone/line/walk_in/external，idempotency、可當場排時段）、指派承辦人與「我的案件」篩選、接待月曆（`/admin/visit-calendar`，與清單讀同一份資料）、完成參觀，見 `test_visit_manual_and_assign.py` |
 | A06, A16 | C | CTA 一致／SEO | 通過 | 各校 CTA（`BookingCta`／`useCampusBooking`）即時讀 booking-config，paused/line/phone/external/inquiry 五種模式皆用 e2e 驗證；SEO（canonical／OG／robots meta）依 `indexingEnabled`／`siteOrigin` 動態產生，`/visit`／`/preview` 一律 noindex，`robots.txt`／`sitemap.xml` 依索引開關切換，見 Task 8 小結 |
 | A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過 | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領 |
 | A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕 |
-| A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | not-run（審核/排程屬 Task 10／內容審核流程，本輪未做） | — |
+| A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 部分 | 消息／活動的上架、下架日期（公開 API 依台北日期過濾）已測（`test_home_news.py`）；審核流程與整份內容的排程發布仍未做 |
 | A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過 | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資 |
 | A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過 | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練（見 Task 10 小結） |
 | A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分 | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容（過程中抓到並修掉 `usePublishedSite` 固定 key 換頁不重抓的快取缺口）；範圍限於目前僅有的 3 個 CMS content kind（home_about/home_hero/site_footer），其餘內容仍是 fixture 靜態資料，無跨 request 私密資料一項未特別測（`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，已用 e2e 驗證） |
@@ -307,3 +307,26 @@ npx playwright test --project=desktop-1440                       # 27 passed
 **實際驗證**：`npm run typecheck`、`npm run build`、`npm run test:unit`（7 passed）；Playwright 對真實後端（本機 8000）以臨時 super_admin 與 campus_admin（仁武）帳號登入，1440×900 與 390×844 各截 19 頁、無水平溢出、無 JS 錯誤（只有校園探索頁向未啟動的 Nuxt 3000 埠要內建圖片的連線失敗），並實測：編輯欄位→狀態列變「有未儲存的修改」、「儲存草稿」啟用、發布鈕改成「儲存並發布」；點側欄離開跳出攔截並可留在本頁；「還原修改」回到載入值；校區帳號在只有一校時校區選單退成唯讀標籤、進 `/users` 被導回總覽；手機時段表格可橫向捲動、案件明細的「處理」面板排最前。示範資料（3 筆需求、3 個時段、1 張素材）與臨時帳號已刪除，義華預約模式已改回 paused（版本 2→4）；`audit_log_entries` 留下 2 筆 actor 為 null 的預約設定更新紀錄。
 
 **未做**：dashboard 的「未發布草稿」連到首頁首屏文字而非清單（API 沒有列出哪些 kind 未發布）；素材庫沒有分頁；通知「全部標記已讀」是逐筆呼叫；未做 e2e 測試。
+
+## 後台營運補強小結（2026-09-24）
+
+依使用者要求補齊五項：內容版本紀錄與還原、人工補登案件、指派承辦人、接待月曆、消息排程上下架。
+
+| 項目 | API | 後台 | 測試 |
+|---|---|---|---|
+| 版本紀錄與還原 | `GET /admin/content-items/{kind}/revisions`、`GET …/revisions/{id}`、`POST …/revisions/{id}/restore`（`publish` 選填） | 所有內容編輯頁狀態列的「版本紀錄」抽屜：列出最近 50 版、選一版看會改變的欄位、還原成草稿或還原並發布 | `test_content_revisions.py` 8 項、admin `receptionAndHistory.test.ts` |
+| 人工補登 | `POST /admin/visit-requests`（`Idempotency-Key` 必填，與官網 key 分開命名空間） | 參觀案件頁「補登案件」對話框 | `test_visit_manual_and_assign.py` |
+| 指派承辦人 | `PATCH /admin/visit-requests/{id}/assignee`、`GET /admin/visit-staff`、列表 `assignee=me|none|<id>`、`source=` | 列表承辦人欄與篩選、明細頁承辦人選單 | 同上 |
+| 接待月曆 | `GET /admin/visit-calendar?date_from&date_to[&campus_key]`（最多 62 天） | 側欄「接待月曆」 | 同上 |
+| 完成參觀 | `POST /admin/visit-requests/{id}/complete`（狀態機原本就有，只缺路由） | 明細頁參觀日當天起出現「完成參觀」 | 同上 |
+| 消息排程 | `home_news` 的 articles／events 加 `show_from`／`show_until`（選填，台北日期，含當天）；公開 API 過濾並拿掉這兩個欄位 | 最新消息與活動頁每則加上架／下架日期與狀態標籤 | `test_home_news.py` |
+
+設計決定：
+- 還原是「把舊版複製成新的一版」，不改寫歷史，也不會把其他人尚未發布的草稿帶上官網。舊版用目前的欄位規則重新驗證，不合格回 `CONTENT_REVISION_OUTDATED`；引用的素材已刪除則回 `MEDIA_NOT_FOUND`。
+- 補登不看官網預約模式（暫停線上收件時仍要能登錄來電），狀態從 `new` 開始；要當場排時段就走與一般確認相同的容量檢查，額滿則整筆不建立。補登者預設為承辦人。補登不寫「新需求」通知、不計入官網成效統計。人員必須勾選「已向家長說明並取得同意留存資料」。
+- 新增 migration `d3a8f1c5b742`：`visit_requests.source`（既有資料回填 `web`）、`visit_requests.created_by`，以及承辦人索引。
+- 確認預約時，已經指派過的承辦人會保留（原本一律改成按確認的人）。
+- 只能指派給啟用中、具 `booking.manage` 且有該校權限的人員；分校管理者看人員名單時只看得到總管理者與共同校區的同事。
+- 排程靠讀取時過濾，不需要背景工作；草稿預覽 `/preview` 仍顯示全部消息（含尚未上架的）。
+
+未做：全站 release 層級還原、內容審核流程、整份內容的排程發布、每週固定時段規則。

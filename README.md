@@ -1,3 +1,15 @@
+## 2026-09-24 後台營運補強：版本還原、補登案件、承辦人、接待月曆、消息上下架
+
+- **版本紀錄與還原**：所有內容編輯頁多一個「版本紀錄」抽屜，列出最近 50 次儲存、選一版可看還原後會變的欄位，可「還原成草稿」或「還原並發布」。還原是另存新的一版，不改歷史，也不會把其他人的草稿帶上官網。
+- **人工補登案件**：參觀案件頁「補登案件」，登錄電話／LINE／親自到園／外部網站來的需求；可當場排入時段（走同一套容量檢查）。暫停線上收件時也能用。新增 migration `d3a8f1c5b742`（`visit_requests.source`、`created_by`、承辦人索引）。
+- **指派承辦人**：明細頁選承辦人，列表新增承辦人欄、「我承辦的／尚未指派」與來源篩選。只能指派給有該校權限的啟用人員；確認預約不再覆蓋已指派的承辦人。
+- **接待月曆**：側欄「接待月曆」，按月看每個時段排了誰、剩幾位；點日期列出當天名單。另補上「完成參觀」（狀態機原本就有，只缺路由）。
+- **消息上下架日期**：最新消息與活動每一則可設上架、下架日期（台北時間，含當天），官網讀取時自動過濾，不用再發布一次。
+
+驗證：backend pytest 314 passed／1 skipped（新增 `test_content_revisions.py`、`test_visit_manual_and_assign.py`、`test_home_news.py` 排程案例），alembic upgrade／downgrade／check 通過；admin vue-tsc、vitest 85 項（新增 `receptionAndHistory.test.ts`）、vite build 通過；`npm run contract:check` 通過。本機 PostgreSQL＋API＋admin dev 用 Chromium 1440×900 與 390×844 實跑：補登→進入明細（顯示來源、登錄者、承辦人）、改標題存草稿→版本紀錄還原回原標題、月曆與列表、消息頁，皆無水平捲動、無 JS 錯誤（只有消息頁向未啟動的官網 3000 埠抓示意照片失敗）。
+
+未驗證：Safari、正式站 migration、草稿預覽 `/preview` 對上下架日期的呈現（預覽顯示全部消息）。
+
 ## 2026-09-24 入學資訊頁改首頁版型
 
 依同日 mock 改寫 `web/app/components/AdmissionContent.vue` 與 `admission.css`，內容仍由後台 `admission_content` 管理、不需要 migration。首頁的透明頁首＋膠囊、滿版 hero、薄荷色帶、五校分頁卡、拍立得、升起的消息紙逐段套用；分班對照提到第二段；拿掉麵包屑、分頁列與提醒條（提醒移到 hero）。頁首：studio.css 首頁透明頁首選擇器加 `.photo-hero`，SiteHeader 的膠囊頁面加 `/admission`。細節見 DESIGN.md。

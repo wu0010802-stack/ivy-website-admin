@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import select
 
+from app.auth.models import Role, User
+from app.auth.permissions import has_capability
 from app.booking import access_service, slot_service
 from app.booking.exceptions import InvalidTransition, SlotFull
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
@@ -69,7 +71,9 @@ async def confirm_with_slot(
     # 已載入的物件才不會在 async 下觸發 lazy load。
     visit_request.slot = slot
     visit_request.status = VisitRequestStatus.CONFIRMED.value
-    visit_request.assigned_staff_id = staff_id
+    # 已經指派過承辦人就保留，確認的人不一定是負責後續聯絡的人。
+    if visit_request.assigned_staff_id is None:
+        visit_request.assigned_staff_id = staff_id
     visit_request.confirmed_at = now
     # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
     # 一筆已確認的案件當成過期占位取消掉。
@@ -246,3 +250,33 @@ async def add_contact_note(
     _add_event(db, visit_request.id, "contact_logged")
     await db.flush()
     return record
+
+
+class AssigneeInvalid(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+async def assign(
+    db: AsyncSession, visit_request: VisitRequest, assignee: User | None
+) -> VisitRequest:
+    """改承辦人。assignee 是已載入 campus_scopes 的 User 或 None（取消
+    指派）；只能指派給仍啟用、而且有這個校區案件管理權限的人，否則這筆
+    案件會落到一個根本看不到它的人名下。"""
+    if assignee is not None:
+        if not assignee.is_active:
+            raise AssigneeInvalid("這個帳號已停用，不能指派")
+        if not has_capability(assignee, "booking.manage"):
+            raise AssigneeInvalid("這個帳號沒有處理參觀案件的權限")
+        if assignee.role != Role.SUPER_ADMIN and not any(
+            s.campus_key == visit_request.campus_key for s in assignee.campus_scopes
+        ):
+            raise AssigneeInvalid("這個帳號沒有這個校區的權限")
+    new_id = assignee.id if assignee is not None else None
+    if visit_request.assigned_staff_id == new_id:
+        return visit_request
+    visit_request.assigned_staff_id = new_id
+    _add_event(db, visit_request.id, "assigned" if new_id else "unassigned")
+    await db.flush()
+    return visit_request

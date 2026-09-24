@@ -30,6 +30,17 @@ class VisitRequestStatus(str, enum.Enum):
     COMPLETED = "completed"
 
 
+class VisitRequestSource(str, enum.Enum):
+    """案件從哪裡進來。web 是官網表單；其餘是園方在後台人工補登
+    （規格 6.2：不得憑外連點擊自動建案，只能由人員確認後補登）。"""
+
+    WEB = "web"
+    PHONE = "phone"
+    LINE = "line"
+    WALK_IN = "walk_in"
+    EXTERNAL = "external"
+
+
 class BookingConfig(Base):
     """每校一列。`version` 是樂觀鎖版本號，公開提交時要重驗這個值，
     版本不符代表使用者看到的設定已經過期（園方剛好改了模式）。"""
@@ -88,12 +99,20 @@ class VisitRequest(Base):
     consent_given: Mapped[bool] = mapped_column(nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=VisitRequestSource.WEB.value, server_default="web"
+    )
+    # 人工補登的建立人；官網表單送出的案件為 NULL。
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_visit_requests_created_by_users"),
+        nullable=True,
+    )
 
     slot_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("visit_slots.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     assigned_staff_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

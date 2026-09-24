@@ -212,7 +212,44 @@ def _require_iso_date(value: str) -> str:
     return value
 
 
-class NewsArticlePayload(_ContentPayload):
+def _require_optional_iso_date(value: str | None) -> str | None:
+    if value is None or value == "":
+        return None
+    return _require_iso_date(value)
+
+
+class _ScheduledPayload(_ContentPayload):
+    """上架／下架日期（台北時間，含當天）。兩個都是選填：留空代表一發布就
+    顯示、永遠不自動下架。官網讀公開內容時依今天日期過濾，不需要排程工作，
+    也不必為了下架再發布一次。"""
+
+    show_from: str | None = None
+    show_until: str | None = None
+
+    @field_validator("show_from", "show_until")
+    @classmethod
+    def _schedule_iso(cls, value: str | None) -> str | None:
+        return _require_optional_iso_date(value)
+
+    @model_validator(mode="after")
+    def _schedule_order(self):
+        if self.show_from and self.show_until and self.show_until < self.show_from:
+            raise ValueError("下架日期不能早於上架日期")
+        return self
+
+
+def is_scheduled_visible(entry: dict, today: str) -> bool:
+    """today 為台北時間的 YYYY-MM-DD；日期字串固定格式，可以直接比大小。"""
+    show_from = entry.get("show_from")
+    show_until = entry.get("show_until")
+    if show_from and today < show_from:
+        return False
+    if show_until and today > show_until:
+        return False
+    return True
+
+
+class NewsArticlePayload(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
     campus: str
@@ -241,7 +278,7 @@ class NewsArticlePayload(_ContentPayload):
         return _require_safe_media_ref(value)
 
 
-class NewsEventPayload(_ContentPayload):
+class NewsEventPayload(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
     campus: str
@@ -572,6 +609,24 @@ class ContentRevisionOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ContentRevisionSummaryOut(BaseModel):
+    """版本紀錄列表的一列。payload 可能很大（消息最多 30 則），列表不帶，
+    要比對內容時再用單筆端點讀。"""
+
+    id: uuid.UUID
+    version: int
+    created_at: datetime
+    created_by_email: str | None
+    is_published: bool
+
+
+class ContentRevisionRestoreRequest(BaseModel):
+    # 還原會新增一版，跟一般存檔一樣要樂觀鎖，不能蓋掉別人剛存的草稿。
+    expected_version: int
+    # True：還原後直接發布（同一個交易）；False：只變成最新草稿。
+    publish: bool = False
 
 
 class ContentItemOut(BaseModel):

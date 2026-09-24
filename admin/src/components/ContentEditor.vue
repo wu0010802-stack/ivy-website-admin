@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -47,11 +48,13 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
   }
 })
 
+const historyOpen = ref(false)
+
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
-// 發布是對外動作：按下去官網立刻換掉，後台沒有回到上一版的介面。
-// 時間戳沒人記得住，改成列出「哪些欄位會變、變成什麼」再問；沒有未儲存
-// 修改時（發布已存的草稿）至少講清楚官網現在是哪一版。
+// 發布是對外動作：按下去官網立刻換掉。時間戳沒人記得住，改成列出
+// 「哪些欄位會變、變成什麼」再問；沒有未儲存修改時（發布已存的草稿）
+// 至少講清楚官網現在是哪一版。發錯了可以從「版本紀錄」還原。
 async function publishWithConfirm() {
   const current = isPublished.value
     ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
@@ -69,9 +72,9 @@ async function publishWithConfirm() {
           h('span', { class: 'publish-diff__after' }, c.after),
         ]))),
         list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-        h('p', { class: 'hint' }, '發布後若要改回，需要重新輸入舊內容再發布一次。'),
+        h('p', { class: 'hint' }, '發布後若要改回，可以從「版本紀錄」還原上一版。'),
       ])
-    : `${current}發布後家長立刻看到這一版。發布後若要改回，需要重新輸入舊內容再發布一次。`
+    : `${current}發布後家長立刻看到這一版。若要改回，可以從「版本紀錄」還原上一版。`
   try {
     await ElMessageBox.confirm(message, '發布到官網？', {
       confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
@@ -111,7 +114,25 @@ defineExpose({ confirmLeave })
           <strong>{{ status.label }}</strong>
           <span>{{ status.detail }}</span>
         </div>
+        <el-button
+          v-if="editor.history && latestRevisionAt"
+          text
+          size="small"
+          class="editor__history"
+          :disabled="busy"
+          @click="historyOpen = true"
+        >
+          版本紀錄
+        </el-button>
       </div>
+
+      <RevisionHistoryDrawer
+        v-if="editor.history"
+        v-model="historyOpen"
+        :history="editor.history"
+        :dirty="isDirty"
+        :busy="busy"
+      />
 
       <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
         <div class="panel__body">
@@ -186,8 +207,13 @@ defineExpose({ confirmLeave })
   font-weight: 600;
 }
 
-.editor__status span {
+.editor__status div span {
   color: var(--ink-3);
+}
+
+.editor__history {
+  margin-left: auto;
+  align-self: center;
 }
 
 .editor__dot {
@@ -199,11 +225,21 @@ defineExpose({ confirmLeave })
   background: var(--ink-3);
 }
 
-.editor__status[data-tone='success'] .editor__dot {
+.editor__status[data-tone='success'] .editor__history {
+  margin-left: auto;
+  align-self: center;
+}
+
+.editor__dot {
   background: var(--el-color-success);
 }
 
-.editor__status[data-tone='warning'] .editor__dot {
+.editor__status[data-tone='warning'] .editor__history {
+  margin-left: auto;
+  align-self: center;
+}
+
+.editor__dot {
   background: var(--brand-gold);
   box-shadow: 0 0 0 1px var(--brand-gold-ink);
 }

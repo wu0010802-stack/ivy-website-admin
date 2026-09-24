@@ -64,6 +64,10 @@ export interface NewsArticlePayload {
   /** 素材庫媒體 UUID，或官網內建素材代號（舊的示意消息） */
   image: string
   alt: string
+  /** 上架日期（台北時間，含當天）；留空＝發布後立即顯示 */
+  show_from?: string | null
+  /** 下架日期（台北時間，當天仍顯示）；留空＝不自動下架 */
+  show_until?: string | null
 }
 
 export interface NewsEventPayload {
@@ -73,6 +77,8 @@ export interface NewsEventPayload {
   campus: string
   title: string
   description: string
+  show_from?: string | null
+  show_until?: string | null
 }
 
 export interface HomeNewsPayload {
@@ -179,3 +185,5 @@ export type VisitSlotOut = components['schemas']['VisitSlotOut']
 export type PublicVisitSlotOut = components['schemas']['PublicVisitSlotOut']
 export type VisitRequestDetailOut = components['schemas']['VisitRequestDetailOut']
 export type VisitContactNoteOut = components['schemas']['VisitContactNoteOut']
+export type VisitRequestManualCreate = components['schemas']['VisitRequestManualCreate']
+export type VisitStaffOut = components['schemas']['VisitStaffOut']
