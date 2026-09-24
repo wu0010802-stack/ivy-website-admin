@@ -19,6 +19,7 @@ interface DashboardSummary {
   new_requests?: number
   awaiting_confirmation?: number
   next_hold_expires_at?: string | null
+  pending_reschedule_requests?: number
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
@@ -70,11 +71,14 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
 
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
+const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
 // 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
 // 沒有才是新需求。按鈕上的字與數字講的就是點進去那一批，不把兩批加總
 // 之後只帶去其中一批。最早送出的先處理，占位也是最早到期的在前面。
 const primary = computed(() => {
   if (awaiting.value > 0) return { to: '/visit-requests?status=pending_confirmation&order=oldest', label: '確認時段預約', count: awaiting.value }
+  // 家長在等園方回覆能不能改期，原時段也可能快到了，排在新需求前面。
+  if (reschedules.value > 0) return { to: '/notifications', label: '核准改期申請', count: reschedules.value }
   if (newRequests.value > 0) return { to: '/visit-requests?status=new&order=oldest', label: '聯絡新需求', count: newRequests.value }
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
@@ -85,6 +89,7 @@ const hasTodo = computed(() => {
   if (!s) return false
   return (
     openCount.value > 0 ||
+    reschedules.value > 0 ||
     s.pending_follow_up > 0 ||
     s.pending_publish > 0 ||
     reviews.value.length > 0 ||
@@ -133,6 +138,10 @@ onMounted(load)
             <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
               <span class="task__number">{{ awaiting }}</span>
               <div><h3>時段預約等園方確認</h3><p>家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span class="task__action">從最早送出的開始確認 →</span></div>
+            </router-link>
+            <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications">
+              <span class="task__number">{{ reschedules }}</span>
+              <div><h3>家長申請改期，等你核准</h3><p>家長用管理連結申請換場次；核准前原時段仍有效。核准或退回後請告知家長。</p><span class="task__action">查看改期申請 →</span></div>
             </router-link>
             <router-link v-if="newRequests > 0" class="task" to="/visit-requests?status=new&order=oldest">
               <span class="task__number">{{ newRequests }}</span>

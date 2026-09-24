@@ -111,7 +111,12 @@ describe('參觀案件列表', () => {
 
 describe('站內通知', () => {
   const notification = { id: 'n1', campus_key: 'yihua', kind: 'visit_request_pending_confirmation', payload: {}, created_at: '2026-09-22T00:00:00Z', read_at: null }
-  const reschedule = { id: 'r1', visit_request_id: 'v1', requested_slot_id: 's2', created_at: '2026-09-22T00:00:00Z' }
+  const reschedule = {
+    id: 'r1', visit_request_id: 'v1', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
+    current_slot: { id: 's1', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' },
+    requested_slot: { id: 's2', slot_date: '2099-10-02', start_time: '14:00:00', end_time: '15:00:00' },
+    requested_slot_remaining: 2, requested_slot_available: true, created_at: '2026-09-22T00:00:00Z',
+  }
   function mockApi() {
     vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('reschedule-requests') ? [reschedule] : [notification]) as never)
   }

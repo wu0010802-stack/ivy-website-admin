@@ -15,7 +15,8 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 
-const slot = { id: 'slot-1', slot_date: '2026-09-26', start_time: '10:00:00', end_time: '11:00:00' }
+// 已經開始的場次不會出現在可排入的選單裡，測試用遠在未來的日期，不會隨執行日期過期。
+const slot = { id: 'slot-1', slot_date: '2099-09-26', start_time: '10:00:00', end_time: '11:00:00' }
 const base = () => ({
   id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '到期家長', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
@@ -109,7 +110,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '確認並排入時段')!.trigger('click')
     await flushPromises()
-    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('已致電家長，告知參觀時間 2026/09/26')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('已致電家長，告知參觀時間 2099/09/26')
   })
 })
 

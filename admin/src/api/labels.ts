@@ -148,6 +148,7 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_cancelled: '參觀預約已取消',
   visit_request_rescheduled: '參觀預約已改期',
   visit_request_hold_expired: '時段占位已逾期，名額已釋放',
+  visit_reschedule_requested: '家長申請改期（待園方核准）',
 }
 
 export function notificationKindLabel(kind: string): string {
@@ -165,6 +166,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.set_role': '變更角色與校區',
   'user.set_capabilities': '變更授權（全站內容／匯出個資）',
   'visit_request.export': '匯出家長個資',
+  'visit_request.manual_create': '人工補登參觀案件',
+  'visit_request.assign': '指派承辦人',
+  'visit_request.create_access_link': '產生家長管理連結',
+  'visit_request.revoke_access': '撤銷家長管理連結',
   'user.link_google': '綁定 Google 登入',
   'user.unlink_google': '解除 Google 登入綁定',
   'user.login_google': 'Google 登入',
@@ -192,6 +197,39 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
 
 export function auditReasonLabel(reason: string): string {
   return AUDIT_REASON_LABELS[reason] ?? reason
+}
+
+// 案件歷程（後端 visit_request_events.event_type）。
+export const VISIT_EVENT_LABELS: Record<string, string> = {
+  created: '建立案件',
+  contacting: '開始聯絡',
+  returned_to_contacting: '退回聯絡中，釋出場次',
+  confirmed: '確認預約',
+  rescheduled: '改期',
+  cancelled: '取消預約',
+  no_show: '標記未到場',
+  completed: '完成參觀',
+  hold_expired: '占位逾期，名額釋出',
+  contact_logged: '新增聯絡紀錄',
+  assigned: '指派承辦人',
+  unassigned: '取消指派',
+  linked_from_previous: '由先前的案件重新預約',
+  rebooked_as_new: '另建新案重新預約',
+  reschedule_requested: '家長申請改期',
+  reschedule_rejected: '退回改期申請',
+  access_link_created: '產生家長管理連結',
+  access_link_revoked: '撤銷家長管理連結',
+}
+
+export function visitEventLabel(eventType: string): string {
+  return VISIT_EVENT_LABELS[eventType] ?? eventType
+}
+
+// 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作。
+export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
+  staff: '園方人員',
+  parent: '家長',
+  system: '系統自動',
 }
 
 export const AUDIT_TARGET_LABELS: Record<string, string> = {
@@ -379,6 +417,16 @@ export function formatHoldRemaining(value: string | null | undefined, now: numbe
   if (minutes <= 0) return '已逾期'
   if (minutes < 60) return `還剩 ${minutes} 分鐘`
   return `還剩 ${Math.floor(minutes / 60)} 小時`
+}
+
+// 時段已經開始（或結束）：後台排入與改期都不能再選，後端也會拒絕。
+// 日期與時間是台灣時間。
+export function slotStarted(
+  slot: { slot_date: string; start_time: string },
+  now: number = Date.now(),
+): boolean {
+  const starts = new Date(`${slot.slot_date}T${slot.start_time.slice(0, 8)}+08:00`).getTime()
+  return !Number.isNaN(starts) && starts <= now
 }
 
 // 剩不到 6 小時就該先處理，列表與總覽用暖色提醒。

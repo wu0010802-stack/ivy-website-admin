@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '../api/client'
-import { campusLabel, formatDateTime, notificationKindLabel } from '../api/labels'
+import { ElMessage } from 'element-plus'
+import { api, ApiError } from '../api/client'
+import { campusLabel, formatDateTime, formatSlotWhen, notificationKindLabel } from '../api/labels'
+import type { RescheduleRequestOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
+import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
@@ -17,18 +20,12 @@ interface NotificationOut {
   read_at: string | null
 }
 
-interface RescheduleRequestOut {
-  id: string
-  visit_request_id: string
-  requested_slot_id: string
-  created_at: string
-}
-
 const { visibleCampusKeys, selected: campusFilter } = useCampusScope()
 const { can } = usePermissions()
 // 標記已處理與核准／退回改期都要能處理案件（booking.handle，含櫃台）；
 // 沒有的人只看清單，不顯示一按就被拒絕的按鈕。
 const canHandle = computed(() => can('booking.handle'))
+const openRequests = useOpenRequestsStore()
 
 const notifications = ref<NotificationOut[]>([])
 const pendingReschedules = ref<RescheduleRequestOut[]>([])
@@ -79,8 +76,10 @@ const visibleNotifications = computed(() =>
 )
 const unreadCount = computed(() => notifications.value.filter((n) => !n.read_at).length)
 
+// outbox 的 payload 用 receipt_id 放案件編號（舊版前端讀 visit_request_id，
+// 永遠找不到，「查看案件」連結從來沒出現過）。
 function visitRequestId(n: NotificationOut): string | null {
-  const id = n.payload?.visit_request_id
+  const id = n.payload?.receipt_id ?? n.payload?.visit_request_id
   return typeof id === 'string' ? id : null
 }
 
@@ -135,37 +134,36 @@ async function markAllRead() {
   } finally { bulkBusy.value = false }
 }
 
-async function decideReschedule(id: string, action: 'approve' | 'reject') {
+async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAction) {
   if (!canHandle.value || operationBusy.value || loading.value) return
   // 核准會直接換掉家長的參觀時間、退回會讓家長維持原時段，兩者都是對外
-  // 且不能反悔的動作，比照確認預約先問一次並講清楚後果。
-  try {
-    await ElMessageBox.confirm(
-      action === 'approve'
-        ? '核准後案件會改到家長申請的新時段，原時段名額釋出。請另行告知家長已改期。'
-        : '退回後家長的參觀時間維持原時段，申請不會再出現在這裡。請另行告知家長。',
-      action === 'approve' ? '核准這筆改期？' : '退回這筆改期申請？',
-      { confirmButtonText: action === 'approve' ? '核准改期' : '退回申請', cancelButtonText: '先不要', type: 'warning' },
-    )
-  } catch {
-    return
-  }
-  busyId.value = id
+  // 且不能反悔的動作，比照確認預約先問一次並講清楚是誰、從哪一場改到哪一場。
+  const decision = await confirmRescheduleDecision(row, action)
+  if (!decision) return
+  busyId.value = row.id
   const campus = campusFilter.value
   try {
-    await api.post(`/admin/reschedule-requests/${id}/${action}`)
+    await submitRescheduleDecision(row.id, action, decision.reason)
+    openRequests.refresh(true)
     if (!alive || campus !== campusFilter.value) return
-    ElMessage.success(action === 'approve' ? '已核准改期' : '已退回改期申請')
+    ElMessage.success(action === 'approve' ? `已核准，改到 ${formatSlotWhen(row.requested_slot)}` : '已退回改期申請')
     await load()
-  } catch {
-    if (alive) ElMessage.error('操作失敗，請重試')
+  } catch (err) {
+    if (!alive) return
+    const detail = err instanceof ApiError ? (err.detail as { message?: string } | null) : null
+    ElMessage.error(detail && typeof detail === 'object' && detail.message ? detail.message : '操作失敗，請重試')
+    await load()
   } finally { busyId.value = null }
+}
+
+function requestedSlotNote(row: RescheduleRequestOut): string {
+  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 位` : '已額滿、關閉或已開始，無法核准'
 }
 </script>
 
 <template>
   <div class="page">
-    <PageHeader lead="家長送出需求、確認或取消時的站內通知。Email 寄送另外處理，這裡一定看得到紀錄。" />
+    <PageHeader lead="家長送出需求、申請改期，以及案件確認、取消時的站內通知。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄。" />
 
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
@@ -191,32 +189,46 @@ async function decideReschedule(id: string, action: 'approve' | 'reject') {
       <section v-if="pendingReschedules.length > 0" class="panel reschedule">
         <div class="panel__head"><h2>待核准的改期申請（{{ pendingReschedules.length }}）</h2></div>
         <el-table :data="pendingReschedules" class="data-table">
-          <el-table-column label="案件" min-width="200">
+          <el-table-column label="家長" min-width="140">
             <template #default="{ row }: { row: RescheduleRequestOut }">
-              <router-link :to="`/visit-requests/${row.visit_request_id}`">查看案件</router-link>
+              <strong>{{ row.parent_name }}</strong>
+              <router-link :to="`/visit-requests/${row.visit_request_id}`" class="open-link">查看案件</router-link>
             </template>
           </el-table-column>
-          <el-table-column label="申請時間" width="160">
+          <el-table-column label="原時段" min-width="190">
+            <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num">{{ formatSlotWhen(row.current_slot) }}</span></template>
+          </el-table-column>
+          <el-table-column label="申請改到" min-width="210">
+            <template #default="{ row }: { row: RescheduleRequestOut }">
+              <strong class="num">{{ formatSlotWhen(row.requested_slot) }}</strong>
+              <span class="slot-note" :class="{ 'is-blocked': !row.requested_slot_available }">{{ requestedSlotNote(row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="申請時間" width="150">
             <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num">{{ formatDateTime(row.created_at) }}</span></template>
           </el-table-column>
           <el-table-column v-if="canHandle" label="操作" width="160" align="right">
             <template #default="{ row }: { row: RescheduleRequestOut }">
               <span class="cell-actions">
-                <el-button size="small" type="primary" :loading="busyId === row.id" :disabled="operationBusy" @click="decideReschedule(row.id, 'approve')">核准</el-button>
-                <el-button size="small" :loading="busyId === row.id" :disabled="operationBusy" @click="decideReschedule(row.id, 'reject')">退回</el-button>
+                <el-button size="small" type="primary" :loading="busyId === row.id" :disabled="operationBusy || !row.requested_slot_available" @click="decideReschedule(row, 'approve')">核准</el-button>
+                <el-button size="small" :loading="busyId === row.id" :disabled="operationBusy" @click="decideReschedule(row, 'reject')">退回</el-button>
               </span>
             </template>
           </el-table-column>
         </el-table>
         <ul class="mobile-records" aria-label="待核准的改期申請">
           <li v-for="row in pendingReschedules" :key="row.id" class="mobile-record">
-            <div class="record-heading"><strong>改期申請</strong><el-tag type="warning">待核准</el-tag></div>
-            <dl class="record-meta"><dt>申請時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd></dl>
+            <div class="record-heading"><strong>{{ row.parent_name }}</strong><el-tag type="warning">待核准</el-tag></div>
+            <dl class="record-meta">
+              <dt>原時段</dt><dd>{{ formatSlotWhen(row.current_slot) }}</dd>
+              <dt>申請改到</dt><dd>{{ formatSlotWhen(row.requested_slot) }}（{{ requestedSlotNote(row) }}）</dd>
+              <dt>申請時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd>
+            </dl>
             <div class="record-actions">
               <router-link :to="`/visit-requests/${row.visit_request_id}`">查看案件</router-link>
               <template v-if="canHandle">
-                <el-button type="primary" :loading="busyId === row.id" :disabled="operationBusy" @click="decideReschedule(row.id, 'approve')">核准</el-button>
-                <el-button :disabled="operationBusy" @click="decideReschedule(row.id, 'reject')">退回</el-button>
+                <el-button type="primary" :loading="busyId === row.id" :disabled="operationBusy || !row.requested_slot_available" @click="decideReschedule(row, 'approve')">核准</el-button>
+                <el-button :disabled="operationBusy" @click="decideReschedule(row, 'reject')">退回</el-button>
               </template>
             </div>
           </li>
@@ -299,6 +311,16 @@ async function decideReschedule(id: string, action: 'approve' | 'reject') {
 .open-link {
   margin-left: 10px;
   font-size: 13px;
+}
+
+.slot-note {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.slot-note.is-blocked {
+  color: var(--el-color-danger);
 }
 
 :deep(.el-table__row.is-read) {

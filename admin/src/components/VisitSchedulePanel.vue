@@ -136,7 +136,7 @@ async function generate() {
 async function addException() {
   if (!newException.value.date) return
   try {
-    await ElMessageBox.confirm('這一天的時段會全部關閉，不再接受新預約。已排入的家長不會自動取消，請另外聯絡。', `${formatDate(newException.value.date)} 設為休假？`, {
+    await ElMessageBox.confirm('這一天的時段會全部關閉，不再接受新預約。已排入的家長不會自動取消，請聯絡後在案件頁改期。', `${formatDate(newException.value.date)} 設為休假？`, {
       confirmButtonText: '設為休假',
       cancelButtonText: '先不要',
       type: 'warning',
@@ -150,7 +150,11 @@ async function addException() {
       reason: newException.value.reason.trim() || null,
     })
     if (result.affected_requests > 0) {
-      ElMessage.warning(`已關閉 ${result.closed_slots} 場時段。當天還有 ${result.affected_requests} 組家庭已排入，請到接待日曆聯絡改期。`)
+      ElMessage.warning({
+        message: `已關閉 ${result.closed_slots} 場時段。當天還有 ${result.affected_requests} 組家庭已排入：請到「接待月曆」點開各案件，聯絡家長後用「改期（換時段）」換到其他場次。`,
+        duration: 10000,
+        showClose: true,
+      })
     } else {
       ElMessage.success(result.closed_slots ? `已設為休假，關閉 ${result.closed_slots} 場時段` : '已設為休假')
     }

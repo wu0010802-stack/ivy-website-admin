@@ -95,8 +95,8 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
       const detail = err.detail as { message?: string; booked_count?: number }
       ElMessage.error(
         detail !== null && typeof detail === 'object' && detail.booked_count !== undefined
-          ? `名額不能低於已確認的 ${detail.booked_count} 筆`
-          : '名額不能低於目前已確認的案件數',
+          ? `名額不能低於已占用的 ${detail.booked_count} 組（含待確認、已確認、已完成與未到場）`
+          : '名額不能低於目前已占用的組數',
       )
       await load()
     } else {
@@ -113,7 +113,7 @@ async function toggleClosed(slot: VisitSlotOut) {
     if (!slot.closed && slot.booked_count > 0) {
       try {
         await ElMessageBox.confirm(
-          `這個時段已有 ${slot.booked_count} 筆確認案件，關閉後不再接受新預約，既有案件不受影響。`,
+          `這個時段已有 ${slot.booked_count} 組占用名額，關閉後不再接受新預約，既有案件不受影響。`,
           '關閉時段？',
           { confirmButtonText: '關閉', cancelButtonText: '先不要', type: 'warning' },
         )
@@ -216,7 +216,7 @@ function openCreate() {
             <span class="num">{{ formatTime(row.start_time) }}–{{ formatTime(row.end_time) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="已預約 / 名額" min-width="220">
+        <el-table-column label="已占用 / 名額" min-width="220">
           <template #default="{ row }: { row: VisitSlotOut }">
             <div class="cap">
               <span class="cap__count num">{{ row.booked_count }}</span>
@@ -260,7 +260,7 @@ function openCreate() {
                 <el-tag :type="slotState(slot).tone" size="small" round>{{ slotState(slot).label }}</el-tag>
               </div>
               <div class="slot-row__body">
-                <span class="slot-row__booked">已確認 <b class="num">{{ slot.booked_count }}</b> 組</span>
+                <span class="slot-row__booked">已占用 <b class="num">{{ slot.booked_count }}</b> 組</span>
                 <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
                 <el-button v-if="canManage && !isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
               </div>

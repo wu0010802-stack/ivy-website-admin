@@ -31,8 +31,8 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字；目前只有參觀案件（新需求＋待園方確認） */
-  badge?: 'open-requests'
+  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期） */
+  badge?: 'open-requests' | 'reschedule-requests'
 }
 
 export interface NavGroup {
@@ -57,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
