@@ -49,10 +49,15 @@ GROUND_FROM = {'minghua': 405, 'chongde': 402, 'renwu': 422}
 # 照片裡的文字、號誌（線稿已刻意拿掉）：橢圓 (cx, cy, rx, ry, 指定色或 None=取外圈平均)
 PATCHES = {
     'yihua': [(668, 205, 34, 118, None)],
-    'minghua': [(740, 240, 22, 14, None), (658, 275, 22, 12, None), (425, 378, 74, 20, (0.95, 0.94, 0.89))],
+    'minghua': [(740, 240, 22, 14, None), (658, 275, 22, 12, None)],
     'chongde': [],
     'international': [],
     'renwu': [],
+}
+# 長方形的招牌牆：(x0, y0, x1, y1, 指定色)。明華校名牆原本用橢圓補白，溢到兩側磚柱與底下花台，
+# hover 時變成一圈白框（2026-09-24）；改成貼齊線稿招牌外框，白色只留在牆面內。
+RECT_PATCHES = {
+    'minghua': [(358, 360, 490, 393, (0.95, 0.94, 0.89))],
 }
 
 
@@ -122,6 +127,11 @@ def build(key, strength=0.62, sat=1.25):
         c = np.array(fill) if fill else colour[ring].mean(0)
         w = np.clip((1.25 - e) / 0.35, 0, 1)[..., None]
         colour = colour * (1 - w) + c * w
+    for x0, y0, x1, y1, fill in RECT_PATCHES.get(key, []):
+        # 邊緣只留 1px 過渡，不往外暈開
+        edge = np.minimum.reduce([gx - x0, x1 - gx, gy - y0, y1 - gy])
+        w = np.clip(edge + 0.5, 0, 1)[..., None]
+        colour = colour * (1 - w) + np.array(fill) * w
     # 只在線稿有筆觸的地方上色：墨量密度 → 柔邊遮罩，天空與四周留白成暈染邊。
     ink = 1 - np.asarray(line, float) / 255
     ink = np.clip((ink - 0.02) / 0.25, 0, 1)

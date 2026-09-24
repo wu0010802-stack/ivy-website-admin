@@ -2,7 +2,7 @@
 
 使用者要首頁分校頁籤的線稿在 hover 時變彩色。原線稿（`../campus-line-art/`）是純線條、沒有彩色版，所以用各校實景修復照的顏色做一層淡彩。
 
-- `make_colour_wash.py`：只需 numpy＋Pillow。以手動對位點做 TPS 變形，把照片顏色對齊到線稿；中值濾波＋高斯模糊做出水彩感；只在線稿有筆觸處上色，天空淡化。照片裡的文字與號誌用 `PATCHES` 補色、行人用 `GROUND_FROM` 逐列中位數抹掉。
+- `make_colour_wash.py`：只需 numpy＋Pillow。以手動對位點做 TPS 變形，把照片顏色對齊到線稿；中值濾波＋高斯模糊做出水彩感；只在線稿有筆觸處上色，天空淡化。照片裡的文字與號誌用 `PATCHES`（橢圓）補色、行人用 `GROUND_FROM` 逐列中位數抹掉。長方形的招牌牆用 `RECT_PATCHES` 貼齊線稿外框補色；用橢圓會溢到兩側磚柱與花台，明華校名牆就曾因此在 hover 時出現一圈白框（2026-09-24 修正）。
 - 輸出 `web/public/assets/campus-line-art-<校區>-colour.webp`（768×512，只有顏色、不含線條），再跑 `python3 scripts/optimize-site-images.py --only campus-line-art-<校區>-colour …`。
 - `preview-<校區>.webp`：左為目前靜止樣子，右為 hover 後（模擬前台線條濾鏡後 multiply 到米白底）。
 
