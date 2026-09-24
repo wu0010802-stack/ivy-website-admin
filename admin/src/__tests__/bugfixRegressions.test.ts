@@ -23,7 +23,7 @@ describe('共用內容頁的角色限制', () => {
   // super_admin 編輯共用內容。側欄／路由不限制的話，分校管理者看得到、
   // 編得動，但按儲存永遠是 403。
   const SHARED = [
-    'home-hero', 'home-about', 'home-campus-board', 'day-experience',
+    'home-hero', 'home-about', 'home-campus-board', 'day-experience', 'home-news',
     'booking-content', 'site-footer', 'site-meta',
   ]
 

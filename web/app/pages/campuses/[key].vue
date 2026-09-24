@@ -21,7 +21,7 @@ usePageSeo(computed(() => data.value?.content), campus)
     <SiteHeader :content="data.content" />
     <main id="main" tabindex="-1" :data-campus-key="campus.key">
       <div class="container breadcrumb">
-        <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五校介紹</a> / {{ campus.name }}
+        <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五所校園</a> / {{ campus.name }}
       </div>
       <section class="hero campus-hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
         <img class="hero-photo" v-bind="responsiveImage(campus.image)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">

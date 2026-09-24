@@ -48,6 +48,13 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
         { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
         { '@type': 'ListItem', position: 2, name: campus.name, item: canonical }
       ] })
+      // 與頁面上 CampusFaq 顯示的同一份問答（伺服器端就輸出），不另寫文案。
+      const faq = campus.faq.items.filter((item) => item.q.trim() && item.a.trim())
+      if (faq.length) {
+        graph.push({ '@type': 'FAQPage', '@id': `${canonical}#faq`, url: `${canonical}#faq`, inLanguage: 'zh-Hant-TW', mainEntity: faq.map((item) => ({
+          '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a }
+        })) })
+      }
     } else {
       graph.push({ '@type': 'WebSite', '@id': `${origin}/#website`, name: site.siteMeta.brandName, url: canonical, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } })
       // 首頁列出已發布的每一校（地址、電話取自發布內容，不另編）。
@@ -61,4 +68,25 @@ export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): str
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const urls = ['/', ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
+}
+
+/**
+ * /llms.txt（https://llmstxt.org/）：給 AI 助理讀的網站摘要。只用已發布內容
+ * 的名稱、描述、地址與電話，不另寫宣傳文案；未開放索引時不提供（見路由）。
+ */
+export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'campuses'>): string {
+  const line = (value: string) => value.replace(/\s+/g, ' ').trim()
+  const campusUrl = (c: Campus) => `${origin}/campuses/${encodeURIComponent(c.key)}`
+  const out = [
+    `# ${line(site.siteMeta.brandName)}`,
+    '',
+    `> ${line(site.siteMeta.description)}`,
+    '',
+    '## 校區',
+    '',
+    ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}；常見問題見 ${campusUrl(c)}#faq`),
+    ''
+  ]
+  out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')
+  return out.join('\n')
 }

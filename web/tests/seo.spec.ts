@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
-import { normalizeSiteOrigin, ogImagePath, pageSeo, serializeJsonLd, sitemapXml } from '../app/utils/seo'
+import { llmsTxt, normalizeSiteOrigin, ogImagePath, pageSeo, serializeJsonLd, sitemapXml } from '../app/utils/seo'
 import { publishedContent } from '../app/utils/published-content'
 
 const site = fixture as unknown as SiteContent
@@ -51,6 +51,24 @@ describe('公開搜尋資料', () => {
   it('沒有 origin 不產生假 canonical 或 JSON-LD 網址', () => {
     expect(pageSeo(site, '').canonical).toBeUndefined()
     expect(pageSeo(site, '').graph).toEqual([])
+  })
+  it('分校頁 FAQPage 與頁面顯示的問答一致，首頁不輸出；空白題目不列入', () => {
+    const campus = site.campuses[4]!
+    const faqPage = pageSeo(site, 'https://ivy.example', campus).graph.find((item) => item['@type'] === 'FAQPage')!
+    expect(faqPage['@id']).toBe('https://ivy.example/campuses/renwu#faq')
+    expect(faqPage.mainEntity).toEqual(campus.faq.items.map((item) => ({ '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a } })))
+    expect(pageSeo(site, 'https://ivy.example').graph.some((item) => item['@type'] === 'FAQPage')).toBe(false)
+    const blank = { ...campus, faq: { ...campus.faq, items: [{ q: ' ', a: '空白題目' }] } }
+    expect(pageSeo(site, 'https://ivy.example', blank).graph.some((item) => item['@type'] === 'FAQPage')).toBe(false)
+  })
+  it('llms.txt 只列已發布校區的名稱、地址、電話與正式網址', () => {
+    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [site.campuses[4]!] })
+    const c = site.campuses[4]!
+    expect(text.startsWith(`# ${site.siteMeta.brandName}\n`)).toBe(true)
+    expect(text).toContain(`[${c.name}](https://ivy.example/campuses/renwu)`)
+    expect(text).toContain(c.address)
+    expect(text).toContain(c.phone)
+    expect(text).not.toContain('yihua')
   })
   it('sitemap 僅含傳入的已發布校區、不虛構 lastmod', () => {
     const xml = sitemapXml('https://ivy.example', [site.campuses[4]!])

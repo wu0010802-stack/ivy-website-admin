@@ -129,6 +129,9 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   source_note: '來源說明',
   bottom_note: '底部備註',
   moments: '時刻',
+  sample_note: '示意說明',
+  articles: '最新消息',
+  events: '近期活動',
   scenes: '場景',
   items: '項目',
   name: '校名',
@@ -167,6 +170,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   home_about: '首頁「關於常春藤」',
   home_campus_board: '首頁五校區塊',
   day_experience: '孩子的一天',
+  home_news: '最新消息與活動',
   campus_profile: '五校介紹',
   campus_faq: '各校常見問題',
   campus_tour: '校園探索',
@@ -241,6 +245,25 @@ export function formatSlotWhen(
   return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${formatTime(slot.start_time)}–${formatTime(slot.end_time)}`
 }
 
+
+// 待園方確認的占位還剩多久會被釋出：「還剩 5 小時」「還剩 40 分鐘」。
+// 無條件捨去，寧可講少不講多；過了期限 worker 還沒跑到時顯示「已逾期」。
+export function formatHoldRemaining(value: string | null | undefined, now: number = Date.now()): string {
+  if (!value) return ''
+  const expires = new Date(value).getTime()
+  if (Number.isNaN(expires)) return ''
+  const minutes = Math.floor((expires - now) / 60000)
+  if (minutes <= 0) return '已逾期'
+  if (minutes < 60) return `還剩 ${minutes} 分鐘`
+  return `還剩 ${Math.floor(minutes / 60)} 小時`
+}
+
+// 剩不到 6 小時就該先處理，列表與總覽用暖色提醒。
+export function holdIsUrgent(value: string | null | undefined, now: number = Date.now()): boolean {
+  if (!value) return false
+  const expires = new Date(value).getTime()
+  return !Number.isNaN(expires) && expires - now < 6 * 3600 * 1000
+}
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {
   const labels: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }

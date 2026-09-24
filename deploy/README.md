@@ -76,7 +76,11 @@ railway ssh --service api --environment production -- python -m app.cli initiali
 railway ssh --service api --environment production -- python -m app.cli bootstrap-admin
 ```
 
-`initialize-content` 驗證所有 payload 後，僅補 `latest_version=0` 的空白項目。重跑不覆蓋既有草稿、不多建版本。現行來源共初始化 18 筆：7 種共用內容、五校介紹、五校 FAQ、義華巡覽；其他四校巡覽仍保留待補狀態。來源文案原樣保留，包含尚未改成正式用語的原型說明。
+`initialize-content` 驗證所有 payload 後，僅補 `latest_version=0` 的空白項目。重跑不覆蓋既有草稿、不多建版本。現行來源共初始化 19 筆：8 種共用內容（2026-09-24 起含 `home_news` 最新消息與活動）、五校介紹、五校 FAQ、義華巡覽；其他四校巡覽仍保留待補狀態。來源文案原樣保留，包含尚未改成正式用語的原型說明。
+
+**官網瀏覽量與速度上線步驟（2026-09-24）**：新增 migration `b7d2e4f1a903`（只建 `page_view_daily`、`web_vital_samples` 兩張表，不動既有資料）。合併後 API 啟動前的 schema 檢查會擋下新版，直到正式 DB 用既有的核准流程跑完 `alembic upgrade head`；在那之前正式站維持舊版，不會壞。
+
+**home_news 上線步驟（2026-09-24）**：不需要 migration，但部署後要再跑一次上面的 `initialize-content`，才會建立並發布 `home_news`（只補這一筆，其餘 18 筆已有版本不會動）。沒跑之前官網仍顯示程式內建的示意消息，畫面與現在相同；跑完後由後台「首頁 → 最新消息與活動」編輯，示意說明清空後首頁才拿掉「示意內容」標示。
 
 初始五校預約維持 `paused`，搜尋索引關閉。既有通知 adapter 僅供本機測試，未部署寄信 worker；正式寄信需另外接上 provider。
 

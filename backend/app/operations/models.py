@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -43,6 +43,43 @@ class AnalyticsEvent(Base):
         ForeignKey("campuses.key", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PageViewDaily(Base):
+    """官網瀏覽量，按台北日期、頁面、校區、裝置累計成一列。不存 IP、cookie、
+    路徑以外的任何訪客資訊，也不存單次瀏覽的時間點。"""
+
+    __tablename__ = "page_view_daily"
+    __table_args__ = (
+        # campus_key 為 NULL（首頁、預約總頁）時 PostgreSQL 的唯一約束不會擋重複，
+        # 所以用空字串代表「不分校」。
+        UniqueConstraint("day", "page", "campus_key", "device", name="uq_page_view_daily_bucket"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    page: Mapped[str] = mapped_column(String(16), nullable=False)
+    campus_key: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    device: Mapped[str] = mapped_column(String(16), nullable=False)
+    views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class WebVitalSample(Base):
+    """瀏覽器回報的 Core Web Vitals（LCP／INP／CLS）單筆樣本，用來算 p75。
+    `id` 是瀏覽器端為每個指標產生的隨機 UUID：同一指標在頁面生命週期內會
+    回報多次（CLS／INP 會變大），以 id upsert 成最後一次的值。保留 90 天。"""
+
+    __tablename__ = "web_vital_samples"
+    __table_args__ = (Index("ix_web_vital_samples_day_metric", "day", "metric"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    metric: Mapped[str] = mapped_column(String(8), nullable=False)
+    page: Mapped[str] = mapped_column(String(16), nullable=False)
+    campus_key: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    device: Mapped[str] = mapped_column(String(16), nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuditLogEntry(Base):

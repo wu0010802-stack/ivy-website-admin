@@ -15,23 +15,32 @@ from app.content.schemas import (
     HomeAboutPayload,
     HomeCampusBoardPayload,
     HomeHeroPayload,
+    HomeNewsPayload,
     SiteFooterPayload,
     SiteMetaPayload,
 )
 
 
-def _extract_campus_tour_media_ids(payload: dict) -> list[uuid.UUID]:
+def _media_ids_from_images(entries: list[dict]) -> list[uuid.UUID]:
     """`image` 欄位同時相容兩種值：舊的 fixture 素材代號字串（例如
     "campus"，不是有效 UUID，直接略過）與素材庫的媒體 UUID。只有後者
     需要建立 MediaUsage 引用保護。"""
     ids: list[uuid.UUID] = []
-    for scene in payload.get("scenes", []):
-        image = scene.get("image", "")
+    for entry in entries:
+        image = entry.get("image", "")
         try:
             ids.append(uuid.UUID(str(image)))
         except (ValueError, AttributeError):
             continue
     return ids
+
+
+def _extract_campus_tour_media_ids(payload: dict) -> list[uuid.UUID]:
+    return _media_ids_from_images(payload.get("scenes", []))
+
+
+def _extract_home_news_media_ids(payload: dict) -> list[uuid.UUID]:
+    return _media_ids_from_images(payload.get("articles", []))
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,9 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
     "booking_content": ContentKindConfig(BookingContentPayload, shared_only=True),
     "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
+    "home_news": ContentKindConfig(
+        HomeNewsPayload, shared_only=True, extract_media_ids=_extract_home_news_media_ids
+    ),
     # 以下三種需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
     "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False),

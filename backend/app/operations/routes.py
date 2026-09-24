@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, ConfigDict, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +14,7 @@ from app.auth.models import Role, User
 from app.auth.permissions import require_scope
 from app.campuses.models import Campus
 from app.common import ratelimit
-from app.operations import analytics_service, audit_service, dashboard_service, retention_service
+from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
 from app.operations.models import SiteSettings
 
 router = APIRouter(prefix="/api/website/v1", tags=["operations"])
@@ -54,6 +56,71 @@ async def create_analytics_event(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁"
         ) from exc
     await db.commit()
+
+
+class TelemetryIn(BaseModel):
+    """與 web/shared/telemetry.ts 的 validateTelemetry 同一套規則：web 端先驗過、
+    這裡再驗一次，因為同源代理讓任何人都能直接打到這支公開端點。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["page_view", "visit_click", "LCP", "INP", "CLS"]
+    page: Literal["home", "campus", "visit"]
+    campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
+    device: Literal["mobile", "desktop"]
+    value: float | None = None
+    id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "TelemetryIn":
+        if (self.page == "home" and self.campus is not None) or (self.page == "campus" and self.campus is None):
+            raise ValueError("page 與 campus 不一致")
+        if self.event in ("LCP", "INP", "CLS"):
+            limit = 100 if self.event == "CLS" else 3_600_000
+            if self.value is None or self.id is None or not (0 <= self.value <= limit):
+                raise ValueError("效能指標需要合理的 value 與 id")
+        elif self.value is not None or self.id is not None:
+            raise ValueError("非效能事件不接受 value／id")
+        return self
+
+
+# 單一來源每分鐘上限；正常瀏覽一頁約 1 筆瀏覽＋3–6 筆效能回報。
+_telemetry_limiter = ratelimit.SlidingWindowLimiter(window_seconds=60, max_per_window=120)
+
+
+@router.post("/public/telemetry", status_code=status.HTTP_204_NO_CONTENT)
+async def record_telemetry(
+    payload: TelemetryIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    try:
+        _telemetry_limiter.check(ratelimit.client_key(request))
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    if payload.event == "page_view":
+        await traffic_service.record_page_view(db, page=payload.page, campus_key=payload.campus, device=payload.device)
+    elif payload.event in ("LCP", "INP", "CLS"):
+        assert payload.id is not None and payload.value is not None
+        await traffic_service.record_web_vital(
+            db, sample_id=payload.id, metric=payload.event, page=payload.page,
+            campus_key=payload.campus, device=payload.device, value=payload.value,
+        )
+    # visit_click 只留在 web 的日誌；預約轉換看「預約流程」的漏斗。
+    await db.commit()
+
+
+@router.get("/admin/analytics/traffic")
+async def get_traffic(
+    days: int = Query(28, ge=7, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
+    return await traffic_service.get_traffic_summary(db, days)
 
 
 @router.get("/admin/dashboard")

@@ -28,5 +28,15 @@ export default defineEventHandler(async (event) => {
   const payload = validateTelemetry(body)
   if (!payload) throw createError({ statusCode: 400 })
   console.info(JSON.stringify({ type: 'website_telemetry', at: new Date().toISOString(), ...payload }))
+  // 存進 API 的每日瀏覽量／效能樣本（後台「數據」頁）。訪客 IP 只給 API 做限流，
+  // 不入庫；API 不通時照樣回 204，觀測資料不影響瀏覽。
+  await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/telemetry`, {
+    method: 'POST',
+    body: payload,
+    headers: { 'x-website-client-ip': getRequestIP(event, { xForwardedFor: true }) ?? '' },
+    timeout: 2000
+  }).catch((error: unknown) => {
+    console.warn(JSON.stringify({ type: 'website_telemetry_store_failed', message: error instanceof Error ? error.message : String(error) }))
+  })
   setResponseStatus(event, 204)
 })

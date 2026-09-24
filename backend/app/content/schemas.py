@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 import re
 
@@ -176,6 +176,103 @@ class DayExperiencePayload(BaseModel):
         keys = [m.key for m in value]
         if len(keys) != len(set(keys)):
             raise ValueError("moments 的 key 不可重複")
+        return value
+
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _require_iso_date(value: str) -> str:
+    """消息／活動日期：官網直接拿字串切日、月與排序，所以固定 YYYY-MM-DD，
+    並確認是真的存在的日期（2026-02-30 這種擋掉）。"""
+    if not _ISO_DATE_RE.match(value):
+        raise ValueError("日期格式需為 YYYY-MM-DD")
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("不存在的日期") from exc
+    return value
+
+
+class NewsArticlePayload(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    date: str
+    campus: str
+    category: str
+    title: str = Field(min_length=1)
+    description: str
+    # 同 campus_tour 的場景圖：素材庫媒體 UUID，或舊 fixture 素材代號。
+    image: str
+    alt: str
+
+    @field_validator("id", "campus", "category", "title", "description", "alt")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("date")
+    @classmethod
+    def _date_iso(cls, value: str) -> str:
+        return _require_iso_date(value)
+
+    @field_validator("image")
+    @classmethod
+    def _image_ref_safe(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("每則消息都要有一張照片")
+        return _require_safe_media_ref(value)
+
+
+class NewsEventPayload(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    date: str
+    campus: str
+    title: str = Field(min_length=1)
+    description: str
+
+    @field_validator("id", "campus", "title", "description")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("date")
+    @classmethod
+    def _date_iso(cls, value: str) -> str:
+        return _require_iso_date(value)
+
+
+class HomeNewsPayload(BaseModel):
+    # 有值時首頁「近期活動」「最新消息」標出「示意內容」，並在區塊底部顯示這段
+    # 說明；換成真實消息後清空即可。
+    sample_note: str
+    # 允許 0 筆：沒有真實消息時寧可空著（官網會改顯示「目前沒有…」），
+    # 也不要為了過驗證而虛構內容。
+    articles: list[NewsArticlePayload]
+    events: list[NewsEventPayload]
+
+    @field_validator("sample_note")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("articles")
+    @classmethod
+    def _articles_bounded(cls, value: list[NewsArticlePayload]) -> list[NewsArticlePayload]:
+        if len(value) > 30:
+            raise ValueError("消息最多 30 則")
+        ids = [a.id for a in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("消息的 id 不可重複")
+        return value
+
+    @field_validator("events")
+    @classmethod
+    def _events_bounded(cls, value: list[NewsEventPayload]) -> list[NewsEventPayload]:
+        if len(value) > 12:
+            raise ValueError("活動最多 12 筆")
+        ids = [e.id for e in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("活動的 id 不可重複")
         return value
 
 

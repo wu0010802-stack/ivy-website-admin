@@ -8,6 +8,8 @@ export interface NavItem {
   icon?: string
   /** 只有這些角色看得到；未設定代表所有登入者 */
   roles?: string[]
+  /** 側欄項目旁的待辦數字；目前只有參觀案件（新需求＋待園方確認） */
+  badge?: 'open-requests'
 }
 
 export interface NavGroup {
@@ -28,14 +30,14 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets' },
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests' },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Calendar' },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch' },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
-  // （app/content/routes.py 的 _require_shared_or_scope），所以這七項
+  // （app/content/routes.py 的 _require_shared_or_scope），所以這八項
   // 一律標 roles: ['super_admin']——否則分校管理者看得到、改得動，
   // 但按儲存永遠是 403。分校自有內容（五校介紹／常見問題／校園探索）
   // 不限制。
@@ -51,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'] },
       { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'] },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'] },
+      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'] },
     ],
   },
   {

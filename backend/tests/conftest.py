@@ -102,6 +102,7 @@ async def _clean_tables(app):
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
                 "audit_log_entries, analytics_events, site_settings, "
+                "page_view_daily, web_vital_samples, "
                 "notification_deliveries, notification_inbox_items, "
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
@@ -121,12 +122,16 @@ def _reset_rate_limiters():
     from app.booking import routes as booking_routes
     from app.booking import access_routes
     from app.operations import analytics_service
+    from app.operations import routes as operations_routes
+    from app.operations import traffic_service
 
     auth_service.reset_login_rate_limits()
     booking_routes._SUBMIT_LIMITER_BY_PHONE.clear()
     booking_routes._SUBMIT_LIMITER_BY_CLIENT.clear()
     access_routes._PARENT_REQUEST_LIMITER.clear()
     analytics_service._CLICK_ATTEMPTS.clear()
+    operations_routes._telemetry_limiter.clear()
+    traffic_service._last_purge = None
     yield
 
 

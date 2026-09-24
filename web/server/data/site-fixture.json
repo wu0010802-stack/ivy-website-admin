@@ -396,9 +396,9 @@
     "brandNameEn": "IVY KINDERGARTEN",
     "tagline": "陪伴每一個孩子，長成自己喜歡的樣子。",
     "links": [
-      { "label": "認識常春藤", "href": "/#about" },
-      { "label": "五校介紹", "href": "/#campuses" },
-      { "label": "校園生活", "href": "/#life" },
+      { "label": "關於常春藤", "href": "/#about" },
+      { "label": "五所校園", "href": "/#campuses" },
+      { "label": "孩子的一天", "href": "/#life" },
       { "label": "預約參觀", "href": "/visit" },
       { "label": "最新消息", "href": "/#latest-news" }
     ],

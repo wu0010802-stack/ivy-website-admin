@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/analytics/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Traffic */
+        get: operations["get_traffic_api_website_v1_admin_analytics_traffic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -802,6 +819,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Telemetry */
+        post: operations["record_telemetry_api_website_v1_public_telemetry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/visit-manage/cancel": {
         parameters: {
             query?: never;
@@ -1252,6 +1286,34 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * TelemetryIn
+         * @description 與 web/shared/telemetry.ts 的 validateTelemetry 同一套規則：web 端先驗過、
+         *     這裡再驗一次，因為同源代理讓任何人都能直接打到這支公開端點。
+         */
+        TelemetryIn: {
+            /** Campus */
+            campus: ("yihua" | "minghua" | "chongde" | "international" | "renwu") | null;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "mobile" | "desktop";
+            /**
+             * Event
+             * @enum {string}
+             */
+            event: "page_view" | "visit_click" | "LCP" | "INP" | "CLS";
+            /** Id */
+            id?: string | null;
+            /**
+             * Page
+             * @enum {string}
+             */
+            page: "home" | "campus" | "visit";
+            /** Value */
+            value?: number | null;
+        };
         /** TokenExchangeRequest */
         TokenExchangeRequest: {
             /** Token */
@@ -1542,6 +1604,43 @@ export interface operations {
         parameters: {
             query: {
                 campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_traffic_api_website_v1_admin_analytics_traffic_get: {
+        parameters: {
+            query?: {
+                days?: number;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -3443,6 +3542,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicVisitSlotOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_telemetry_api_website_v1_public_telemetry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelemetryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

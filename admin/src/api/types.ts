@@ -52,6 +52,34 @@ export interface BookingContentPayload {
   banner_button_label: string
 }
 
+export interface NewsArticlePayload {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  campus: string
+  category: string
+  title: string
+  description: string
+  /** 素材庫媒體 UUID，或官網內建素材代號（舊的示意消息） */
+  image: string
+  alt: string
+}
+
+export interface NewsEventPayload {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  campus: string
+  title: string
+  description: string
+}
+
+export interface HomeNewsPayload {
+  sample_note: string
+  articles: NewsArticlePayload[]
+  events: NewsEventPayload[]
+}
+
 export interface DayMomentPayload {
   key: string
   time: string

@@ -72,6 +72,9 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-card:focus-within{outline:3px solid var(--leaf);outline-offset:6px}
 .hn-card button:focus-visible{outline:0}
 .hn-sample-note{font-size:var(--fs-xs);color:var(--hn-muted);margin-top:32px;max-width:none}
+/* 消息與活動仍是原型示意（sampleNote 有值）時，在兩個區塊標題上方直接標出，不只靠區塊底部的小字（2026-09-24 體檢第 1 項）。 */
+.hn-empty{color:var(--hn-muted);font-size:var(--fs-sm);padding-block:12px}
+.hn-sample-tag{display:inline-block;margin-left:10px;padding:1px 8px;border:1px solid currentColor;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;line-height:1.5;vertical-align:1px}
 .hn-dialog{--hn-muted:#5d6c61;--hn-green:#254b3c;border:1px solid #d9ded3;border-radius:8px;color:#253d33;background:#fffdf6;width:min(680px,calc(100% - 36px));max-width:none;max-height:85dvh;padding:24px;font:var(--fs-md)/1.9 var(--font)}
 .hn-dialog::backdrop{background:rgb(15 36 26 / .62)}
 body:has(.hn-dialog[open]){overflow:hidden}

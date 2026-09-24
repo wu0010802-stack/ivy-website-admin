@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Download, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatSlotWhen, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -18,8 +18,9 @@ const campusFilter = ref('')
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(route.query.due === '1')
-// 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。
-const order = ref<'newest' | 'oldest'>('newest')
+// 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
+const orderFromQuery = (value: unknown): 'newest' | 'oldest' => (value === 'oldest' ? 'oldest' : 'newest')
+const order = ref(orderFromQuery(route.query.order))
 const page = ref(1)
 const pageSize = 20
 const requests = ref<VisitRequestDetailOut[]>([])
@@ -81,6 +82,14 @@ watch(() => route.query.status, status => {
 watch(() => route.query.due, due => {
   dueOnly.value = due === '1'
 })
+watch(() => route.query.order, value => {
+  order.value = orderFromQuery(value)
+})
+
+// 只有待園方確認的占位有期限；其他狀態不顯示倒數。
+function holdLabel(row: VisitRequestDetailOut): string {
+  return row.status === 'pending_confirmation' ? formatHoldRemaining(row.hold_expires_at) : ''
+}
 
 function followUpDue(row: VisitRequestDetailOut): boolean {
   if (!row.follow_up_at) return false
@@ -173,6 +182,7 @@ onMounted(load)
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span v-if="row.slot" class="num">{{ formatSlotWhen(row.slot) }}</span>
             <span v-else class="muted">尚未排定</span>
+            <span v-if="holdLabel(row)" class="cell-sub num hold" :class="{ 'is-due': holdIsUrgent(row.hold_expires_at) }">確認期限{{ holdLabel(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="電話" width="140">
@@ -194,10 +204,11 @@ onMounted(load)
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
+            <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(request.follow_up_at) }}</p>
             <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
-            <p>方便時段：{{ request.preferred_time || '未填寫' }}</p>
+            <p v-if="request.preferred_time">方便時段：{{ request.preferred_time }}</p>
             <span class="hint">{{ formatDateTime(request.created_at) }} 送出</span>
           </li>
         </ul>
@@ -220,6 +231,7 @@ onMounted(load)
 .cell-sub { display: block; font-size: 12px; line-height: 1.4; }
 .cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
 .request-list__follow { font-size: 13px; }
+.hold { color: var(--ink-2); }
 .requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
 .requests-empty strong { font-size: 16px; color: var(--ink); }
 .requests-empty p { margin: 8px auto 16px; max-width: 50ch; }
@@ -232,6 +244,7 @@ onMounted(load)
 .request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
 .request-list__when { color: var(--el-color-primary); font-weight: 500; }
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
+.request-list > li > .hint { display: block; }
 .request-list__phone { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; font-variant-numeric: tabular-nums; }
 .pager {
   display: flex;

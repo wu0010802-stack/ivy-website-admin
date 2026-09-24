@@ -4,11 +4,13 @@ import { useRoute } from 'vue-router'
 import * as Icons from '@element-plus/icons-vue'
 import { NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
 
 defineProps<{ mobile?: boolean }>()
 const emit = defineEmits<{ close: []; logout: [] }>()
 const auth = useAuthStore()
+const openRequests = useOpenRequestsStore()
 const route = useRoute()
 const query = ref('')
 // 每天要用的總覽與參觀預約預設展開，內容三組與系統收起；使用者自己的
@@ -100,6 +102,10 @@ const userLine = computed(() => {
               :aria-current="activePath === item.path ? 'page' : undefined">
               <el-icon v-if="item.icon && icons[item.icon]" aria-hidden="true"><component :is="icons[item.icon]" /></el-icon>
               <span>{{ item.title }}</span>
+              <span v-if="item.badge === 'open-requests' && openRequests.total > 0" class="sidebar__badge num"
+                :title="`新需求 ${openRequests.newRequests} 件、待園方確認 ${openRequests.awaiting} 件`">
+                {{ openRequests.total > 99 ? '99+' : openRequests.total }}<span class="visually-hidden"> 件待處理</span>
+              </span>
             </router-link>
           </li>
         </ul>
@@ -159,6 +165,8 @@ const userLine = computed(() => {
 .sidebar__link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); text-decoration: none; }
 .sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__link .el-icon { font-size: 17px; }
+/* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
+.sidebar__badge { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand-gold); color: var(--sidebar-bg); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 .sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
 .sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
 .sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }

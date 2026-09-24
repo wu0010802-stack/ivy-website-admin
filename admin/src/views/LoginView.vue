@@ -9,6 +9,7 @@ const router = useRouter()
 const route = useRoute()
 
 const form = reactive({ email: '', password: '' })
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const errorMessage = ref<string | null>(null)
 const submitting = ref(false)
 
@@ -16,6 +17,12 @@ async function handleSubmit() {
   errorMessage.value = null
   if (!form.email.trim() || !form.password) {
     errorMessage.value = '請輸入 Email 與密碼'
+    return
+  }
+  // 帳號就是完整 Email；只打「admin」之類的會被後端以 422 擋下，
+  // 先在這裡講清楚，不要讓人看到狀態碼。
+  if (!EMAIL_PATTERN.test(form.email.trim())) {
+    errorMessage.value = '請輸入完整的 Email，例如 name@example.com'
     return
   }
   submitting.value = true
@@ -26,6 +33,8 @@ async function handleSubmit() {
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       errorMessage.value = '帳號或密碼錯誤'
+    } else if (err instanceof ApiError && err.status === 422) {
+      errorMessage.value = '請輸入完整的 Email，例如 name@example.com'
     } else if (err instanceof ApiError && err.status === 429) {
       errorMessage.value = '嘗試次數過多，請 5 分鐘後再試'
     } else if (err instanceof ApiError) {

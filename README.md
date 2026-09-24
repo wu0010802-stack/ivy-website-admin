@@ -1,8 +1,79 @@
+## 2026-09-24 官網瀏覽量與網頁速度存進資料庫，後台「數據」頁可看
+
+體檢報告「數據分析」一項：原本瀏覽量與 LCP／INP／CLS 只印在 web 的日誌，沒有存下來。
+
+- 後端：migration `b7d2e4f1a903` 新增兩張表。
+  - `page_view_daily`：依台北日期、頁面、校區、裝置累計成一列。
+  - `web_vital_samples`：每個指標一筆樣本，以瀏覽器端的隨機 id upsert，保留 90 天，每個程序每天清一次。
+  - 不存 IP、cookie、完整網址或任何訪客識別。
+- 新公開端點 `POST /public/telemetry`：驗證規則跟 `web/shared/telemetry.ts` 同一套，多的欄位一律拒收；每個來源每分鐘最多 120 筆，超過回 429。`visit_click` 只留在日誌裡，不存。
+- 新後台端點 `GET /admin/analytics/traffic?days=7–90`：回傳瀏覽總數、每日數字、各頁、裝置，以及各指標依裝置分開的 p75 與 Google 門檻評等。登入的帳號都能看。
+- web：`/api/telemetry` 原本的來源檢查、限流、日誌都保留，驗證通過後轉存到 API，並附上訪客 IP 給 API 限流用（IP 不入庫）。API 不通時照樣回 204。
+- 後台：「數據」頁最上方新增「官網瀏覽與速度」，可選近 7／28／90 天，內容有瀏覽次數、今天、手機比例、各頁瀏覽長條，以及速度表（主畫面出現／點擊反應／版面跳動，附評等與樣本數）。原本的預約漏斗移到下方「各校預約」。
+- 契約用 `npm run contract:generate` 重新產生。
+
+驗證：
+- 後端 pytest：209 passed、1 skipped，新增 `test_traffic.py` 15 項
+- `deploy/check_schema.py`：`Database schema ready: b7d2e4f1a903`
+- `npm run contract:check` 通過
+- web vitest 191 passed，`nuxt typecheck` 無錯誤
+- admin vitest 65 passed，`vue-tsc` 無錯誤
+- 本機實跑 API＋live web（開 telemetry）＋後台：Chromium 以手機、電腦各逛首頁、義華、仁武、預約頁，資料庫得到 8 列瀏覽、LCP／INP／CLS 樣本，後台「數據」頁顯示正確
+
+正式站還沒跑 migration，所以正式站目前不會存資料（見 `deploy/README.md`）。
+
+## 2026-09-24 最新消息與活動搬進後台（home_news）
+
+體檢報告優先第 1 件的後半：首頁「最新消息」「近期活動」原本寫死在 fixture，後台改不到。
+
+- 後端：新增共用內容種類 `home_news`（只有 super_admin 能編），內容有示意說明 `sample_note`、消息 `articles`（最多 30 則）、活動 `events`（最多 12 筆）。日期必須是存在的 `YYYY-MM-DD`；消息照片可以用素材庫 UUID（會建立引用保護，也不能引用分校自有素材），或沿用舊的內建素材代號；兩個清單都可以是 0 筆。`initialize-content` 會把原型的示意消息原樣帶進來，包含示意說明。不需要 migration，OpenAPI 契約不變。
+- 官網：`content-overlay.ts` 用後台發布的消息整組取代 fixture，英文月份由日期推出。首頁消息改成依日期新到舊排列；活動只列台北時間今天以後的，近到遠排列，過期的自動下架。清單是空的時候顯示「目前沒有新的消息／近期活動」。「示意內容」標籤、區塊底部說明，以及對話框裡「示意活動／閱讀互動示範」的字句，都只在示意說明有值時出現。草稿預覽也會讀 `home_news`。
+- 後台：「首頁 → 最新消息與活動」新頁面，功能包括：清空示意說明的快捷按鈕；新增的消息、活動放在最上面；日期選擇器；校區下拉選單（全校＋五校，也可以自己輸入）；從素材庫選照片，已填的替代文字會自動帶入；已過期的活動標「已過，官網不顯示」。
+- 標題缺字提示（規格 3.1.1）：後台讀官網公開的 `/assets/fonts/chars-bd.txt`，消息標題或活動名稱用到官網標題字型沒有的字時，當場列出是哪幾個字。實測發現現行標題「小小園丁」的「丁」本來就不在字型裡。
+
+驗證：
+- 後端 pytest：194 passed、1 skipped，新增 `test_home_news.py`，初始化筆數改為 19
+- web vitest：191 passed，`nuxt typecheck` 無錯誤
+- admin vitest：63 passed，`npm run build` 通過
+- `npm run contract:check` 通過
+- 本機實跑 PostgreSQL＋API＋live 模式 web＋後台，用 Chromium 操作過一輪：登入、清空示意說明、改標題（缺字提示正確）、刪掉示意活動、新增 12/06 的活動、儲存並發布。首頁沒有「示意內容」標籤，新標題與 DEC 06 活動都有出現，舊的示意活動消失。
+
+素材庫選照片這條路徑由後端測試涵蓋，沒有在瀏覽器裡實際點選。正式站與 Safari 都沒有驗證。
+
+## 2026-09-24 官網體檢第一批：資安標頭、FAQPage／llms.txt、示意消息標註、選單用語
+
+依「常春藤官網體檢」報告的「我可以直接做」欄，先做不需要園方或帳號的幾項。
+
+- 資安標頭：新增 `web/server/middleware/0.security-headers.ts`，前台、`/admin`、同源 `/api` 代理一律送 `X-Frame-Options: SAMEORIGIN`、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（關相機、麥克風、定位、付款、USB、browsing-topics；不關 YouTube 嵌入要用的 fullscreen／autoplay）、CSP 先只收 `frame-ancestors 'self'; base-uri 'self'; object-src 'none'`；正式環境另送 HSTS（一年、不含子網域）。檔名 `0.` 讓它先於 `preview-headers.ts`，`/visit/manage` 的 `no-referrer` 照舊覆寫。完整 script-src CSP 要先盤點 inline 腳本並實機驗證，這輪不做。
+- SEO／GEO：分校頁 JSON-LD 加 `FAQPage`，問答與頁面上的參觀須知同一份；新增 `/llms.txt`，只列已發布校區的名稱、地址、電話與網址，跟 sitemap 同一道閘（未開索引回 404）。
+- 首頁「近期活動」「最新消息」標題上方加「示意內容」膠囊（`news.sampleNote` 有值才顯示）。消息與活動仍寫在 fixture、後台改不到，原本只有區塊底部一行小字說明。消息搬進後台前先這樣標；要整塊藏起來請再說。
+- 用語統一成主選單的叫法：頁尾連結「認識常春藤／五校介紹／校園生活」改為「關於常春藤／五所校園／孩子的一天」，分校頁麵包屑「五校介紹」改為「五所校園」。後台 CMS 頁名「五校介紹」不動。
+- Dependabot 沒加：repo 已有 Renovate 的 onboarding PR（#1，base 是 `feature/website-admin`），兩個一起開會重複發更新 PR，請擇一。
+
+驗證：web vitest 187 passed、`nuxt typecheck` 無錯誤、fixture 模式 `nuxt build` 後本機 :3161／:3162 實測：各路徑回應標頭、`/visit/manage` 仍為 `no-referrer`、未開索引 `/llms.txt` 404、開索引後 200 且內容正確、`/campuses/renwu` 輸出 FAQPage；Chromium 1440／390 截圖確認示意膠囊。線上站與 Safari 未驗證。
+
 ## 2026-09-24 頁尾拿掉「參觀時間與入學資訊，請向各校確認。」
 
 使用者要求拿掉這句開發輔助字。它不在 CMS 裡：線上發布的 `site_footer.bottom_note` 仍是原型字「官網設計提案 · 預約為操作示範，不會送出資料」，由 `web/app/utils/public-copy.ts` 換成這句。改為換成空字串，`SiteFooter.vue` 底列只剩版權；CMS 之後另填的備註照常顯示。`web/tests/public-copy.spec.ts` 補兩條斷言。
 
 驗證：Node 22 web vitest 25 檔 186 項通過、`nuxt typecheck` 無錯誤；:3161 的 `/`、`/visit`、`/campuses/yihua` SSR 輸出都不再含這句，底列只剩「© 2026 常春藤教育機構」。以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。
+
+## 2026-09-24 後台第六輪 UX：側欄待處理數字、明細確認期限
+
+- 側欄「參觀案件」旁顯示新需求＋待園方確認的總數（暖黃小膠囊，0 件不顯示，超過 99 顯示 99+；報讀器讀「N 件待處理」，滑過顯示兩種各幾件）。數字來自同一個 `/admin/dashboard`，由新的 `stores/openRequests.ts` 保存：換頁時更新、30 秒內不重抓；總覽載入時直接沿用、不多打一次；案件確認或取消後強制重抓。讀不到時保留上一次的數字。
+- 案件明細（待園方確認）：原本一行灰字「請於 … 前確認」改成有底色的提示，加上「還剩 N 小時」與「逾期名額會自動釋出」，剩不到 6 小時改用暖色。
+- 新增全域 `.visually-hidden`。`visitDetails.test.ts` 掛載時補上 pinia（明細現在會用到 store）。
+- 登入頁：帳號欄只打「admin」這類非 Email 時，原本送出後顯示「登入失敗（422）」；改為送出前就提示「請輸入完整的 Email，例如 name@example.com」，後端仍回 422 時也用同一句（新增 `loginUx.test.ts` 2 項，前端合計 60 passed）。
+- 測試：前端 58 passed（新增 5 項：側欄數字、store 快取與失敗保留、總覽不重複讀取、明細倒數與暖色、確認後重抓）；`npm run build` 通過。本機 Chromium 1440px 明細、390px 抽屜截圖，並實際按「確認已選場次」看到側欄 11 → 10（只寫本機測試資料庫）。未部署。
+
+## 2026-09-24 後台第五輪 UX：總覽看得到還沒處理的參觀案件
+
+實際用本機 PostgreSQL＋後端＋11 筆種子案件跑後台，發現總覽在 4 筆新需求、7 筆「待園方確認」時仍寫「目前沒有待處理事項」，四格數字都是 0。待園方確認的名額 24 小時內沒確認會被自動釋出，是後台最急的事，卻沒有任何地方提醒。
+
+- 後端 `dashboard_service`：新增 `new_requests`、`awaiting_confirmation`、`next_hold_expires_at`（最早到期的占位），依登入者校區範圍統計，定義與案件列表的 `status` 篩選相同。回應本來就是 dict，OpenAPI 契約不變。
+- 總覽：四格改為「新需求待聯絡／待園方確認／今日參觀／到期待追蹤」，待確認那格寫「最早一筆還剩 N 小時」；待辦清單最上面是「時段預約等園方確認」（附最早期限）與「新的參觀需求還沒聯絡」；主按鈕帶總數，只有待確認時直接帶去待確認。草稿與通知失敗只在待辦清單出現（原本就有）。
+- 案件列表：接受 `?order=oldest`（總覽的入口都帶這個條件）；待園方確認的案件在參觀時間下顯示「確認期限還剩 N 小時」，剩不到 6 小時改用暖色；手機卡片沒填方便時段就不顯示「方便時段：未填寫」。
+- 測試：後端新增 1 項（計數、期限、校區範圍、與列表篩選一致）；前端新增 `openRequestsUx.test.ts` 5 項。後端 180 passed／1 skipped、前端 53 passed、`npm run build`、`contract:check` 通過。本機 Chromium 1440／390px 截圖檢查過總覽與待確認列表。未部署。
 
 ## 2026-09-24 接力改回原樣：拿掉停拍與「關於」落下
 
