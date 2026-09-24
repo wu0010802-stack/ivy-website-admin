@@ -8,7 +8,7 @@ import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from 
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
 import { CORNER_REST, PUFF_MS, cornerPose, fadePose, leadPose, puffPose, strongest, subscribeCornerWind, type CornerPose, type WindState } from '~/utils/cornerWind'
 import { curlAngle } from '~/utils/cornerCurl'
-import { OPENER_DELAY_MS, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown } from '~/utils/printOpener'
+import { OPENER_DELAY_MS, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown, tapDuringOpen } from '~/utils/printOpener'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
 
@@ -55,6 +55,7 @@ let openerObserver: IntersectionObserver | null = null
 let openerTimer = 0
 // F 第一張翻開進場（utils/printOpener.ts）：背面朝上等讀者，翻開前不顯影、不做進場輕掀
 let openerPending = false
+let openedAt = Number.NEGATIVE_INFINITY
 // 翻面後這段時間暫停游標傾斜與 WebGL 初始化（WebGL 版另有約 0.2 秒紙張回彈）
 const FLIP_SETTLE_MS = FLIP_MS + 150
 
@@ -193,6 +194,7 @@ function runOpener() {
   settleOpener()
   observer?.disconnect()
   isRevealed.value = true
+  openedAt = performance.now()
   turnPrint()
 }
 
@@ -424,6 +426,8 @@ function toggleFlip(event: MouseEvent) {
   // 滑鼠／觸控點完就放掉焦點：否則之後按方向鍵或空白鍵捲頁，Chrome 會把這顆按鈕判成
   // :focus-visible，冒出不跟紙傾斜的平面綠框，空白鍵還會再翻一次。鍵盤 Enter／Space 的 click detail 為 0，保留焦點框。
   if (event.detail > 0) (event.currentTarget as HTMLButtonElement | null)?.blur()
+  // F 自己翻開的途中被點：讓它翻完，不要原路翻回背面
+  if (tapDuringOpen(performance.now() - openedAt)) return
   // 讀者比 F 的自動翻開先點：示範就算完成，照片跟著翻過來開始顯影
   if (openerPending) {
     settleOpener()

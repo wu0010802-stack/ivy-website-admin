@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { OPENER_DELAY_MS, OPENER_KEY, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown } from '../app/utils/printOpener'
+import { FLIP_MS } from '../app/utils/printFlip'
+import { OPENER_DELAY_MS, OPENER_KEY, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown, tapDuringOpen } from '../app/utils/printOpener'
 
 describe('F 第一張翻開進場：什麼時候背面朝上', () => {
   it('只有第一張、這個工作階段還沒示範過、載入當下不在畫面內', () => {
@@ -12,6 +13,17 @@ describe('F 第一張翻開進場：什麼時候背面朝上', () => {
 
   it('停留 0.8 秒才翻', () => {
     expect(OPENER_DELAY_MS).toBe(800)
+  })
+})
+
+describe('自己翻開的途中被點', () => {
+  it('翻開那 0.95 秒內的點擊不算（讀者要的就是翻過去，不要原路翻回背面）', () => {
+    expect(tapDuringOpen(0)).toBe(true)
+    expect(tapDuringOpen(FLIP_MS - 1)).toBe(true)
+    expect(tapDuringOpen(FLIP_MS)).toBe(false)
+    // 從沒自己翻開過、或計時錯亂
+    expect(tapDuringOpen(Number.POSITIVE_INFINITY)).toBe(false)
+    expect(tapDuringOpen(-1)).toBe(false)
   })
 })
 
