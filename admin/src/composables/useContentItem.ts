@@ -34,6 +34,24 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
     .map((key) => ({ key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }))
 }
 
+/** 版本紀錄列表的一列（後端 ContentRevisionSummaryOut） */
+export interface RevisionSummary {
+  id: string
+  version: number
+  created_at: string
+  created_by_email: string | null
+  is_published: boolean
+}
+
+/** 版本紀錄抽屜需要的動作；ContentEditor 有拿到才顯示「版本紀錄」按鈕 */
+export interface RevisionHistoryHandle {
+  list: () => Promise<RevisionSummary[]>
+  payloadOf: (revisionId: string) => Promise<Record<string, unknown>>
+  /** 目前已儲存的內容，用來列出「還原後哪些欄位會變」 */
+  savedPayload: () => Record<string, unknown>
+  restore: (revisionId: string, publish: boolean) => Promise<boolean>
+}
+
 // ContentEditor 外殼需要的狀態與動作；useContentItem 的回傳值結構上符合，
 // 頁面把整個 handle 傳給 <ContentEditor :editor> 即可。
 export interface ContentEditorState {
@@ -49,6 +67,7 @@ export interface ContentEditorState {
   changes?: ComputedRef<FieldChange[]>
   /** 發布後「查看官網」要開的完整網址 */
   publicUrl?: ComputedRef<string>
+  history?: RevisionHistoryHandle
   load: () => Promise<void>
   save: () => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -207,6 +226,38 @@ export function useContentItem<TPayload extends object>(
     return publish()
   }
 
+  const history: RevisionHistoryHandle = {
+    list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
+    async payloadOf(revisionId) {
+      const revision = await api.get<{ payload: Record<string, unknown> }>(
+        `/admin/content-items/${kind}/revisions/${revisionId}${query()}`,
+      )
+      return revision.payload
+    },
+    savedPayload: () => (item.value?.latest_revision?.payload as Record<string, unknown> | undefined) ?? {},
+    async restore(revisionId, publishNow) {
+      if (!item.value) return false
+      const busyFlag = publishNow ? publishing : saving
+      busyFlag.value = true
+      try {
+        item.value = await api.post<ContentItemOut>(
+          `/admin/content-items/${kind}/revisions/${revisionId}/restore${query()}`,
+          { expected_version: item.value.latest_version, publish: publishNow },
+        )
+        form.value = clone(item.value.latest_revision!.payload as TPayload)
+        isPublished.value = publishNow
+        takeSnapshot()
+        ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
+        return true
+      } catch (err) {
+        ElMessage.error(errorMessage(err, '還原失敗'))
+        return false
+      } finally {
+        busyFlag.value = false
+      }
+    },
+  }
+
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
@@ -225,6 +276,7 @@ export function useContentItem<TPayload extends object>(
     publicUrl,
     latestRevisionAt,
     neverPublished,
+    history,
     load,
     save,
     publish,

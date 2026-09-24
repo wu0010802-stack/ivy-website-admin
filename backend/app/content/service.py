@@ -13,6 +13,7 @@ from app.content.models import (
     SiteReleaseEntry,
     SiteState,
 )
+from app.common.timezones import today_local
 from app.content.registry import CONTENT_KIND_REGISTRY
 
 
@@ -133,13 +134,15 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
         .where(SiteReleaseEntry.release_id == state.current_release_id)
     )
     content: dict = {}
+    today = today_local().isoformat()
     for _entry, revision, item in result.all():
         config = CONTENT_KIND_REGISTRY.get(item.kind)
+        payload = config.public_view(revision.payload, today) if config is not None else revision.payload
         # 非共用（campus_key 導向）的 kind 一個 kind 會有多校各一列，用
         # campus_key 當第二層 key，不能直接覆蓋成同一個扁平欄位，否則只
         # 會留下其中一校的資料。
         if config is not None and not config.shared_only and item.campus_key is not None:
-            content.setdefault(item.kind, {})[item.campus_key] = revision.payload
+            content.setdefault(item.kind, {})[item.campus_key] = payload
         else:
-            content[item.kind] = revision.payload
+            content[item.kind] = payload
     return str(state.current_release_id), content

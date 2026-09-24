@@ -46,6 +46,17 @@ const editor = useContentItem<HomeNewsPayload>('home_news', { sample_note: '', a
 const missingGlyphs = useTitleFontCoverage()
 const today = taipeiToday()
 
+// 上下架日期與後端 is_scheduled_visible 同一個規則：兩端都含當天。
+function scheduleState(entry: { show_from?: string | null; show_until?: string | null }): 'upcoming' | 'expired' | '' {
+  if (entry.show_from && today < entry.show_from) return 'upcoming'
+  if (entry.show_until && today > entry.show_until) return 'expired'
+  return ''
+}
+
+function scheduleInvalid(entry: { show_from?: string | null; show_until?: string | null }): boolean {
+  return Boolean(entry.show_from && entry.show_until && entry.show_until < entry.show_from)
+}
+
 const articles = computed(() => editor.form.value.articles)
 const events = computed(() => editor.form.value.events)
 const isSample = computed(() => editor.form.value.sample_note.trim() !== '')
@@ -94,7 +105,8 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>
       首頁「最新消息」與「近期活動」。官網上的消息依日期新到舊排列；活動只顯示今天以後的，
-      <strong>日期過了會自動從官網下架</strong>。沒有消息時可以全部刪掉，官網會顯示「目前沒有新的消息」，
+      <strong>日期過了會自動從官網下架</strong>。每一則也可以設定上架、下架日期，時間到官網自動顯示或隱藏，
+      不用再回來發布一次。沒有消息時可以全部刪掉，官網會顯示「目前沒有新的消息」，
       不需要為了填滿版面放示意內容。
     </template>
 
@@ -126,6 +138,8 @@ onMounted(editor.load)
           <span class="repeat-item__index">
             <b>{{ index + 1 }}</b>
             {{ article.date || '日期未填' }}{{ article.title ? `・${article.title}` : '' }}
+            <el-tag v-if="scheduleState(article) === 'upcoming'" size="small" type="warning">{{ article.show_from }} 起顯示</el-tag>
+            <el-tag v-else-if="scheduleState(article) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
           </span>
           <el-button text size="small" type="danger" :icon="Delete" @click="removeArticle(index)">移除</el-button>
         </div>
@@ -163,6 +177,14 @@ onMounted(editor.load)
             <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
               <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
             </el-form-item>
+            <div class="field-row">
+              <el-form-item label="上架日期（選填）">
+                <el-date-picker v-model="article.show_from" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="發布後立即顯示" clearable style="width: 100%" />
+              </el-form-item>
+              <el-form-item label="下架日期（選填，當天仍顯示）" :error="scheduleInvalid(article) ? '下架日期不能早於上架日期' : ''">
+                <el-date-picker v-model="article.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="不自動下架" clearable style="width: 100%" />
+              </el-form-item>
+            </div>
           </div>
         </div>
       </div>
@@ -180,6 +202,8 @@ onMounted(editor.load)
             <b>{{ index + 1 }}</b>
             {{ event.date || '日期未填' }}{{ event.title ? `・${event.title}` : '' }}
             <el-tag v-if="event.date && event.date < today" size="small" type="info">已過，官網不顯示</el-tag>
+            <el-tag v-else-if="scheduleState(event) === 'upcoming'" size="small" type="warning">{{ event.show_from }} 起顯示</el-tag>
+            <el-tag v-else-if="scheduleState(event) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
           </span>
           <el-button text size="small" type="danger" :icon="Delete" @click="removeEvent(index)">移除</el-button>
         </div>
@@ -202,6 +226,14 @@ onMounted(editor.load)
         <el-form-item label="活動說明">
           <el-input v-model="event.description" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
         </el-form-item>
+        <div class="field-row">
+          <el-form-item label="開始宣傳日期（選填）">
+            <el-date-picker v-model="event.show_from" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="發布後立即顯示" clearable style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="提前下架日期（選填）" :error="scheduleInvalid(event) ? '下架日期不能早於上架日期' : ''">
+            <el-date-picker v-model="event.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="活動日過後自動下架" clearable style="width: 100%" />
+          </el-form-item>
+        </div>
       </div>
     </el-form>
 

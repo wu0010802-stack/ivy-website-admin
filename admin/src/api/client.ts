@@ -35,10 +35,10 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; mutating?: boolean } = {},
+  options: { method?: string; body?: unknown; mutating?: boolean; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const { method = 'GET', body, mutating = false } = options
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...options.headers }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (mutating && csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -108,7 +108,8 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body, mutating: true }),
+  post: <T>(path: string, body?: unknown, options: { headers?: Record<string, string> } = {}) =>
+    request<T>(path, { method: 'POST', body, mutating: true, headers: options.headers }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body, mutating: true }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE', mutating: true }),
   upload: <T>(path: string, formData: FormData) => upload<T>(path, 'POST', formData),

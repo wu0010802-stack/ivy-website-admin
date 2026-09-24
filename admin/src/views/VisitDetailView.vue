@@ -5,8 +5,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitStatus, referralSourceLabels } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitStatus, referralSourceLabels, staffLabel, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
+import { useAuthStore } from '../stores/auth'
+import { useVisitStaff } from '../composables/useVisitStaff'
 import StatusTag from '../components/StatusTag.vue'
 
 const route = useRoute()
@@ -27,6 +29,30 @@ const noteInput = ref<{ focus: () => void } | null>(null)
 const nextPending = ref<{ id: string; count: number } | null>(null)
 const busy = ref(false)
 const loading = ref(true)
+const authStore = useAuthStore()
+const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const { staff, load: loadStaff } = useVisitStaff()
+const assignable = computed(() =>
+  staff.value.filter(
+    (s) => s.is_active && (s.role === 'super_admin' || (detail.value ? s.campus_keys.includes(detail.value.campus_key) : false)),
+  ),
+)
+const assigning = ref(false)
+
+async function assign(staffId: string | null) {
+  if (!detail.value) return
+  assigning.value = true
+  try {
+    detail.value = await api.patch<VisitRequestDetailOut>(`/admin/visit-requests/${id.value}/assignee`, {
+      assigned_staff_id: staffId || null,
+    })
+    ElMessage.success(staffId ? `已指派給 ${staffLabel(staffId, staff.value)}` : '已取消指派')
+  } catch (err) {
+    reportError(err, '指派失敗')
+  } finally {
+    assigning.value = false
+  }
+}
 const error = ref<string | null>(null)
 
 async function load() {
@@ -160,6 +186,27 @@ async function markNoShow() {
   }
 }
 
+// 參觀日當天或之後才出現「完成參觀」：還沒到的預約按完成沒有意義。
+const visitDayReached = computed(() => {
+  const day = detail.value?.slot?.slot_date
+  if (!day) return false
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())
+  return day <= today
+})
+
+async function markCompleted() {
+  busy.value = true
+  try {
+    await api.post(`/admin/visit-requests/${id.value}/complete`)
+    ElMessage.success('已標記完成參觀')
+    await load()
+  } catch (err) {
+    reportError(err, '操作失敗')
+  } finally {
+    busy.value = false
+  }
+}
+
 async function addNote() {
   if (!newNote.value.trim()) return
   busy.value = true
@@ -208,7 +255,10 @@ function disablePast(date: Date): boolean {
   return date.getTime() < today.getTime()
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  void loadStaff()
+})
 // 「下一筆待處理」是同一個元件換 id，router 不會重新掛載。
 watch(id, () => {
   newNote.value = ''
@@ -234,7 +284,10 @@ watch(id, () => {
       <div class="detail__head">
         <div>
           <h1 class="detail__title">{{ detail.parent_name }}</h1>
-          <p class="hint">{{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }} 送出</p>
+          <p class="hint">
+            {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
+            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（{{ staffLabel(detail.created_by, staff) }} 登錄）</template>
+          </p>
           <p v-if="detail.slot" class="detail__when">參觀時間 {{ formatSlotWhen(detail.slot) }}</p>
           <p v-if="detail.follow_up_at" class="detail__follow" :class="{ 'is-due': followUpDue }">
             {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
@@ -333,11 +386,35 @@ watch(id, () => {
               </template>
 
               <template v-else-if="detail.status === 'confirmed'">
-                <p class="hint">參觀日過後，若家長沒有出現請標記未到場。</p>
-                <el-button :loading="busy" style="width: 100%" @click="markNoShow">標記未到場</el-button>
+                <p class="hint">{{ visitDayReached ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀日當天起可以標記完成或未到場。' }}</p>
+                <el-button v-if="visitDayReached" type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
+                <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
               </template>
 
               <p v-else class="hint">這筆案件已結案，沒有可執行的動作。</p>
+            </div>
+            <div class="detail__assignee">
+              <label for="visit-assignee">承辦人</label>
+              <el-select
+                v-if="canManage"
+                id="visit-assignee"
+                :model-value="detail.assigned_staff_id ?? ''"
+                :loading="assigning"
+                :disabled="assigning"
+                placeholder="未指派"
+                clearable
+                style="width: 100%"
+                @change="(value: string) => assign(value || null)"
+              >
+                <el-option
+                  v-if="detail.assigned_staff_id && !assignable.some((s) => s.id === detail!.assigned_staff_id)"
+                  :value="detail.assigned_staff_id"
+                  :label="staffLabel(detail.assigned_staff_id, staff)"
+                  disabled
+                />
+                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="s.email" />
+              </el-select>
+              <span v-else>{{ staffLabel(detail.assigned_staff_id, staff) }}</span>
             </div>
             <div
               v-if="detail.status === 'new' || detail.status === 'pending_confirmation' || detail.status === 'confirmed'"
@@ -401,6 +478,15 @@ watch(id, () => {
 
 .notes__hint {
   font-size: 12px;
+}
+
+.detail__assignee {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
 }
 
 /* 取消預約與主動作隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */

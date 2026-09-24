@@ -148,10 +148,50 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Content Revisions */
+        get: operations["list_content_revisions_api_website_v1_admin_content_items__kind__revisions_get"];
         put?: never;
         /** Create Content Revision */
         post: operations["create_content_revision_api_website_v1_admin_content_items__kind__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Content Revision */
+        get: operations["get_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Content Revision
+         * @description 把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動
+         *     其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的
+         *     還原內容，別人尚未發布的草稿不會被帶上去。
+         */
+        post: operations["restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -491,6 +531,27 @@ export interface paths {
         patch: operations["update_user_scope_api_website_v1_admin_users__user_id__scope_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/visit-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Visit Calendar
+         * @description 接待月曆（規格 6.2：日曆與清單讀同一份資料）。時段與案件都直接
+         *     讀 visit_slots／visit_requests，名額用與送單相同的占位條件計算。
+         */
+        get: operations["get_visit_calendar_api_website_v1_admin_visit_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests": {
         parameters: {
             query?: never;
@@ -501,7 +562,13 @@ export interface paths {
         /** List Visit Requests */
         get: operations["list_visit_requests_api_website_v1_admin_visit_requests_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Manual Visit Request
+         * @description 人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
+         *     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
+         *     人員改完再送一次即可。
+         */
+        post: operations["create_manual_visit_request_api_website_v1_admin_visit_requests_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -559,6 +626,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/assignee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Assign Visit Request */
+        patch: operations["assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/cancel": {
         parameters: {
             query?: never;
@@ -570,6 +654,27 @@ export interface paths {
         put?: never;
         /** Cancel Visit Request */
         post: operations["cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Completed
+         * @description 家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
+         *     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。
+         */
+        post: operations["mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -660,6 +765,27 @@ export interface paths {
          *     讓它立刻失效——在此之前 repo 裡沒有任何撤銷路徑。
          */
         post: operations["revoke_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__revoke_access_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Visit Staff
+         * @description 可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理
+         *     者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。
+         */
+        get: operations["list_visit_staff_api_website_v1_admin_visit_staff_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1056,6 +1182,62 @@ export interface components {
          * @enum {string}
          */
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
+        /** CalendarSlotOut */
+        CalendarSlotOut: {
+            /** Booked Count */
+            booked_count: number;
+            /** Campus Key */
+            campus_key: string;
+            /** Capacity */
+            capacity: number;
+            /** Closed */
+            closed: boolean;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Slot Date
+             * Format: date
+             */
+            slot_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Visits */
+            visits: components["schemas"]["CalendarVisitOut"][];
+        };
+        /**
+         * CalendarVisitOut
+         * @description 月曆格子裡的一位家長：只放接待當天需要的欄位，完整資料點進案件看。
+         */
+        CalendarVisitOut: {
+            /** Assigned Staff Id */
+            assigned_staff_id: string | null;
+            /** Child Name */
+            child_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Name */
+            parent_name: string;
+            /** Phone */
+            phone: string;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+        };
         /** CampusOut */
         CampusOut: {
             /** Active */
@@ -1107,6 +1289,39 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+            /** Version */
+            version: number;
+        };
+        /** ContentRevisionRestoreRequest */
+        ContentRevisionRestoreRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /**
+             * Publish
+             * @default false
+             */
+            publish: boolean;
+        };
+        /**
+         * ContentRevisionSummaryOut
+         * @description 版本紀錄列表的一列。payload 可能很大（消息最多 30 則），列表不帶，
+         *     要比對內容時再用單筆端點讀。
+         */
+        ContentRevisionSummaryOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Published */
+            is_published: boolean;
             /** Version */
             version: number;
         };
@@ -1458,6 +1673,11 @@ export interface components {
             /** Note */
             note: string;
         };
+        /** VisitRequestAssignRequest */
+        VisitRequestAssignRequest: {
+            /** Assigned Staff Id */
+            assigned_staff_id: string | null;
+        };
         /** VisitRequestConfirmRequest */
         VisitRequestConfirmRequest: {
             /**
@@ -1516,6 +1736,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By */
+            created_by?: string | null;
             /** Email */
             email?: string | null;
             /** Follow Up At */
@@ -1540,8 +1762,53 @@ export interface components {
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Slot Id */
             slot_id: string | null;
+            /**
+             * Source
+             * @default web
+             */
+            source: string;
             /** Status */
             status: string;
+        };
+        /**
+         * VisitRequestManualCreate
+         * @description 後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
+         *     預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上
+         *     收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向
+         *     家長說明並取得同意留存資料」，同樣必須為 true。
+         */
+        VisitRequestManualCreate: {
+            /** Age */
+            age?: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Consent Given */
+            consent_given: boolean;
+            /** Email */
+            email?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Parent Name */
+            parent_name: string;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time?: string | null;
+            /** Questions */
+            questions?: string | null;
+            /** Referral Sources */
+            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            /** Slot Id */
+            slot_id?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "phone" | "line" | "walk_in" | "external";
         };
         /** VisitRequestOut */
         VisitRequestOut: {
@@ -1651,6 +1918,26 @@ export interface components {
             capacity?: number | null;
             /** Closed */
             closed?: boolean | null;
+        };
+        /**
+         * VisitStaffOut
+         * @description 可以承辦案件的後台人員（總管理者、分校管理者）。campus_keys 為空
+         *     代表總管理者，可承辦任何校區。
+         */
+        VisitStaffOut: {
+            /** Campus Keys */
+            campus_keys: string[];
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Role */
+            role: string;
         };
     };
     responses: never;
@@ -1992,6 +2279,43 @@ export interface operations {
             };
         };
     };
+    list_content_revisions_api_website_v1_admin_content_items__kind__revisions_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRevisionSummaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_content_revision_api_website_v1_admin_content_items__kind__revisions_post: {
         parameters: {
             query?: {
@@ -2010,6 +2334,86 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ContentRevisionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+                revision_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentRevisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+                revision_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentRevisionRestoreRequest"];
             };
         };
         responses: {
@@ -2946,6 +3350,43 @@ export interface operations {
             };
         };
     };
+    get_visit_calendar_api_website_v1_admin_visit_calendar_get: {
+        parameters: {
+            query: {
+                date_from: string;
+                date_to: string;
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarSlotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
@@ -2955,6 +3396,10 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                assignee?: string | null;
+                /** @description 案件來源：web／phone／line／walk_in／external */
+                source?: string | null;
                 /** @description 送出時間排序 */
                 order?: string;
                 page?: number;
@@ -2977,6 +3422,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitRequestDetailOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_manual_visit_request_api_website_v1_admin_visit_requests_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestManualCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -3097,7 +3580,81 @@ export interface operations {
             };
         };
     };
+    assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3340,6 +3897,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_visit_staff_api_website_v1_admin_visit_staff_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitStaffOut"][];
+                };
             };
             /** @description Validation Error */
             422: {

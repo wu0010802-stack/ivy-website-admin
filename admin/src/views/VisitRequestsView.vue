@@ -1,25 +1,36 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Download, Filter, Search } from '@element-plus/icons-vue'
+import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_STATUS, VISIT_STATUS_ORDER, visitStatus } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
+import { useVisitStaff } from '../composables/useVisitStaff'
+import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import StatusTag from '../components/StatusTag.vue'
+import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+const authStore = useAuthStore()
+// 補登與指派要 booking.manage：總管理者與校區管理者。
+const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const { staff, load: loadStaff } = useVisitStaff()
+const manualOpen = ref(false)
 const openRequests = useOpenRequestsStore()
 
 const campusFilter = ref('')
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(route.query.due === '1')
+// 承辦人：''＝全部、me＝我承辦的、none＝尚未指派。
+const assigneeFilter = ref(route.query.assignee === 'me' || route.query.assignee === 'none' ? String(route.query.assignee) : '')
+const sourceFilter = ref('')
 // 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
 const orderFromQuery = (value: unknown): 'newest' | 'oldest' => (value === 'oldest' ? 'oldest' : 'newest')
 const order = ref(orderFromQuery(route.query.order))
@@ -30,19 +41,21 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 let loadVersion = 0
 const search = ref('')
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value))
+const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value))
 function clearFilters() {
   campusFilter.value = ''
   statusFilter.value = ''
   search.value = ''
   dueOnly.value = false
+  assigneeFilter.value = ''
+  sourceFilter.value = ''
 }
 
 // 狀態是最常切的條件，攤成一排頁籤一鍵切換，不必每次打開下拉。兩個
 // 待處理狀態帶側欄同源的數字；數字是可見校區的總數，所以只在沒有縮小
 // 範圍（校區、搜尋、到期）時顯示，避免和清單對不上。
 const statusTabs = computed(() => {
-  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value
+  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value && !assigneeFilter.value && !sourceFilter.value
   const counts: Record<string, number> = { new: openRequests.newRequests, pending_confirmation: openRequests.awaiting }
   return [
     { value: '', label: '全部', count: 0 },
@@ -52,7 +65,7 @@ const statusTabs = computed(() => {
 // 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
 // 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
 const moreFiltersOpen = ref(false)
-const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest'].filter(Boolean).length)
+const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value].filter(Boolean).length)
 
 const hasNext = computed(() => requests.value.length === pageSize)
 
@@ -66,6 +79,8 @@ async function load() {
     if (statusFilter.value) params.set('status', statusFilter.value)
     if (search.value.trim()) params.set('q', search.value.trim())
     if (dueOnly.value) params.set('follow_up_due', 'true')
+    if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
+    if (sourceFilter.value) params.set('source', sourceFilter.value)
     if (order.value !== 'newest') params.set('order', order.value)
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version === loadVersion) requests.value = result
@@ -79,7 +94,7 @@ async function load() {
   }
 }
 
-watch([campusFilter, statusFilter, dueOnly, order], () => {
+watch([campusFilter, statusFilter, dueOnly, order, assigneeFilter, sourceFilter], () => {
   page.value = 1
   load()
 })
@@ -125,20 +140,30 @@ function openDetail(row: VisitRequestDetailOut) {
   router.push(`/visit-requests/${row.id}`)
 }
 
+function onManualCreated(created: VisitRequestDetailOut) {
+  router.push(`/visit-requests/${created.id}`)
+}
+
 const emptyText = computed(() => {
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
   if (dueOnly.value) return '沒有到期待追蹤的案件'
+  if (assigneeFilter.value === 'me') return '目前沒有你承辦的案件'
+  if (assigneeFilter.value === 'none') return '沒有尚未指派的案件'
   if (statusFilter.value) return `沒有「${VISIT_STATUS[statusFilter.value]?.label ?? statusFilter.value}」的案件`
   return '還沒有任何參觀需求'
 })
 
-onMounted(load)
+onMounted(() => {
+  load()
+  void loadStaff()
+})
 </script>
 
 <template>
   <div class="page">
     <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
       <template #actions>
+        <el-button v-if="canManage" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
         <el-button :icon="Download" @click="exportCsv">匯出 CSV</el-button>
       </template>
     </PageHeader>
@@ -165,6 +190,17 @@ onMounted(load)
         <el-select v-model="order" aria-label="排序" class="order-select">
           <el-option label="最新送出在前" value="newest" />
           <el-option label="最早送出在前" value="oldest" />
+        </el-select>
+        </div>
+        <div class="filter-field"><span>承辦人</span>
+        <el-select v-model="assigneeFilter" aria-label="承辦人" placeholder="全部承辦人" clearable class="order-select">
+          <el-option label="我承辦的" value="me" />
+          <el-option label="尚未指派" value="none" />
+        </el-select>
+        </div>
+        <div class="filter-field"><span>來源</span>
+        <el-select v-model="sourceFilter" aria-label="來源" placeholder="全部來源" clearable class="order-select">
+          <el-option v-for="(label, key) in VISIT_SOURCE_LABELS" :key="key" :label="label" :value="key" />
         </el-select>
         </div>
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
@@ -198,6 +234,7 @@ onMounted(load)
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link>
             <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}</span>
+            <span v-if="row.source && row.source !== 'web'" class="cell-sub source">{{ visitSourceLabel(row.source) }}補登</span>
             <span v-if="row.follow_up_at" class="cell-sub num" :class="{ 'is-due': followUpDue(row) }">
               {{ followUpDue(row) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(row.follow_up_at) }}
             </span>
@@ -212,6 +249,11 @@ onMounted(load)
         </el-table-column>
         <el-table-column label="電話" width="140">
           <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
+        </el-table-column>
+        <el-table-column label="承辦人" width="110" show-overflow-tooltip>
+          <template #default="{ row }: { row: VisitRequestDetailOut }">
+            <span :class="{ muted: !row.assigned_staff_id }">{{ staffLabel(row.assigned_staff_id, staff) }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
@@ -232,6 +274,7 @@ onMounted(load)
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(request.follow_up_at) }}</p>
             <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
+            <p>承辦：{{ staffLabel(request.assigned_staff_id, staff) }}<template v-if="request.source && request.source !== 'web'"> · {{ visitSourceLabel(request.source) }}補登</template></p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
             <p v-if="request.preferred_time">方便時段：{{ request.preferred_time }}</p>
             <span class="hint">{{ formatDateTime(request.created_at) }} 送出</span>
@@ -246,6 +289,14 @@ onMounted(load)
         <el-button size="small" :disabled="!hasNext || loading" @click="page += 1">下一頁</el-button>
       </div>
     </div>
+
+    <ManualVisitDialog
+      v-if="canManage"
+      v-model="manualOpen"
+      :campus-keys="visibleCampusKeys"
+      :default-campus="campusFilter"
+      @created="onManualCreated"
+    />
   </div>
 </template>
 
@@ -266,6 +317,7 @@ onMounted(load)
 .cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
 .request-list__follow { font-size: 13px; }
 .hold { color: var(--ink-2); }
+.source { color: var(--ink-2); }
 .requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
 .requests-empty strong { font-size: 16px; color: var(--ink); }
 .requests-empty p { margin: 8px auto 16px; max-width: 50ch; }
