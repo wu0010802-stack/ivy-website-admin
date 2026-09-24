@@ -5,6 +5,7 @@ import { useContentItem } from '../composables/useContentItem'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import type { AdmissionContentPayload, AdmissionRefundPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { WEBSITE_ASSET_BASE } from '../config'
 
 // 上限與後端 AdmissionContentPayload 相同（content/schemas.py）。
 const MAX_STEPS = 10
@@ -24,6 +25,8 @@ const EMPTY: AdmissionContentPayload = {
 const editor = useContentItem<AdmissionContentPayload>('admission_content', EMPTY)
 const missingGlyphs = useTitleFontCoverage()
 const form = editor.form
+// 草稿預覽讀的是最新「已儲存」的版本，未儲存的修改看不到。
+const draftPreviewUrl = `${WEBSITE_ASSET_BASE}/preview?page=admission`
 
 // 清單型文字（必備品、提醒、退費條文…）用「一行一項」編輯，空行由後端略過。
 function toLines(list: string[]): string {
@@ -56,6 +59,7 @@ onMounted(editor.load)
       官網「入學資訊」頁（/admission）的內容：入學流程、新生入園須知、補助與退費規定。
       各區大標與「分班對照」的計算規則固定在官網上，這裡不用填。
       <strong>金額與規定請先向各校確認再發布。</strong>
+      儲存草稿後可以先<a :href="draftPreviewUrl" target="_blank" rel="noopener">開草稿預覽 ↗</a>看效果（只有登入的管理者看得到）。
     </template>
 
     <el-form label-position="top" @submit.prevent>

@@ -7,6 +7,10 @@ useHead({
   meta: [{ name: 'robots', content: 'noindex, nofollow' }]
 })
 
+// ?page=admission 預覽入學資訊頁；其餘一律預覽首頁。
+const route = useRoute()
+const page = computed(() => (route.query.page === 'admission' ? 'admission' : 'home'))
+
 const status = ref<'checking' | 'denied' | 'ready'>('checking')
 const draft = ref<Awaited<ReturnType<typeof useDraftPreview>>['content']>(null)
 
@@ -33,7 +37,8 @@ onMounted(async () => {
     <template v-else-if="draft">
       <div class="preview-banner" role="note">草稿預覽 · 尚未發布的內容，僅管理者可見</div>
       <SiteHeader :content="draft" />
-      <main id="main" tabindex="-1">
+      <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" />
+      <main v-else id="main" tabindex="-1">
         <HeroVideo :hero="draft.home.hero" />
         <AboutSection :about="draft.home.about" />
         <DayExperience :day="draft.dayExperience" />
