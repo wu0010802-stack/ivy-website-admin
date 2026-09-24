@@ -54,3 +54,22 @@ class UserUpdateActiveRequest(BaseModel):
 
 class UserUpdateScopeRequest(BaseModel):
     campus_keys: list[str]
+
+
+class UserUpdateRoleRequest(BaseModel):
+    role: Role
+    # 總管理者不需要；其他角色至少一校。
+    campus_keys: list[str] = Field(default_factory=list)
+
+
+class PasswordResetRequest(BaseModel):
+    """總管理者替別人重設密碼。"""
+
+    password: str = Field(min_length=12, max_length=200)
+
+
+class PasswordChangeRequest(BaseModel):
+    """本人改密碼，要先輸入目前的密碼。"""
+
+    current_password: str
+    new_password: str = Field(min_length=12, max_length=200)

@@ -49,20 +49,28 @@ describe('設定頁的編輯保護', () => {
 
   it('拒絕放棄修改時保留校區與輸入，不載入另一校', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(config())
+    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/'))
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
     const wrapper = await booking()
     await wrapper.get('textarea').setValue('尚未儲存的說明')
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
     expect(confirm).toHaveBeenCalledOnce()
-    expect(get).toHaveBeenCalledOnce()
+    expect(configCalls()).toHaveLength(1)
     expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('yihua')
     expect(wrapper.get('textarea').element.value).toBe('尚未儲存的說明')
     expect(wrapper.text()).toContain('有未儲存的修改')
   })
 
   it('等待放棄修改確認，同意後才載入新校區', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValueOnce(config()).mockResolvedValueOnce(config('renwu'))
+    // 分校狀態卡另外讀 /admin/campuses/{key}；依網址回應，不靠呼叫順序。
+    let configLoads = 0
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active: true } as never
+      configLoads += 1
+      return (configLoads === 1 ? config() : config('renwu')) as never
+    })
+    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/'))
     let agree!: (value: { value: string; action: 'confirm' }) => void
     const confirmation = new Promise<{ value: string; action: 'confirm' }>(resolve => { agree = resolve })
     vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(confirmation as unknown as ReturnType<typeof ElMessageBox.confirm>)
@@ -70,11 +78,11 @@ describe('設定頁的編輯保護', () => {
     await wrapper.get('textarea').setValue('尚未儲存的說明')
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
-    expect(get).toHaveBeenCalledOnce()
+    expect(configCalls()).toHaveLength(1)
     expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('yihua')
     agree({ value: '', action: 'confirm' })
     await flushPromises()
-    expect(get).toHaveBeenLastCalledWith('/admin/booking-config/renwu')
+    expect(configCalls().at(-1)?.[0]).toBe('/admin/booking-config/renwu')
     expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('renwu')
     expect(wrapper.get('textarea').element.value).toBe('renwu 原本說明')
     expect(wrapper.text()).not.toContain('有未儲存的修改')

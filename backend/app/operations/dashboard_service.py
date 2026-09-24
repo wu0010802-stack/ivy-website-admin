@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import today_local
-from app.content.models import ContentItem
+from app.content.models import ContentItem, ContentRevision
 
 
 async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None) -> dict:
@@ -112,6 +112,18 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         )
     pending_publish_kinds = sorted(row[0] for row in (await db.execute(unpublished_kinds_stmt)).all())
 
+    # 等人審核的內容（內容編輯送上來的）。分校帳號只算自己校；共用內容只有
+    # 總管理者能發布，所以只算給總管理者。
+    pending_review_stmt = (
+        select(func.count())
+        .select_from(ContentRevision)
+        .join(ContentItem, ContentItem.id == ContentRevision.content_item_id)
+        .where(ContentRevision.review_status == "pending_review")
+    )
+    if campus_keys is not None:
+        pending_review_stmt = pending_review_stmt.where(ContentItem.campus_key.in_(campus_keys))
+    pending_review = (await db.execute(pending_review_stmt)).scalar_one()
+
     campuses_stmt = select(Campus.key)
     if campus_keys is not None:
         campuses_stmt = campuses_stmt.where(Campus.key.in_(campus_keys))
@@ -146,6 +158,7 @@ async def get_dashboard_summary(db: AsyncSession, campus_keys: list[str] | None)
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
         "pending_publish_kinds": pending_publish_kinds,
+        "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
         "failed_notifications": failed_notifications,
     }

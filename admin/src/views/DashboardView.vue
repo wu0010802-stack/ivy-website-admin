@@ -22,14 +22,19 @@ interface DashboardSummary {
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
+  pending_review?: number
   campuses_without_active_booking: string[]
   failed_notifications: number
 }
 
 // 內容 kind 與編輯頁路由同形，只差底線與連字號（home_hero → /content/home-hero）。
 function kindPath(kind: string): string {
+  if (kind === 'admission_content') return '/content/admission'
   return `/content/${kind.replace(/_/g, '-')}`
 }
+
+interface PendingReview { kind: string; campus_key: string | null; revision_id: string; submitted_by_email: string | null }
+const reviews = ref<PendingReview[]>([])
 
 const authStore = useAuthStore()
 const openRequests = useOpenRequestsStore()
@@ -43,6 +48,12 @@ async function load() {
   try {
     summary.value = await api.get<DashboardSummary>('/admin/dashboard')
     openRequests.apply(summary.value)
+    if ((summary.value.pending_review ?? 0) > 0) {
+      const list = await api.get<PendingReview[]>('/admin/content-reviews').catch(() => [])
+      reviews.value = Array.isArray(list) ? list : []
+    } else {
+      reviews.value = []
+    }
   } catch {
     error.value = '無法讀取總覽資料'
   } finally {
@@ -75,6 +86,7 @@ const hasTodo = computed(() => {
     openCount.value > 0 ||
     s.pending_follow_up > 0 ||
     s.pending_publish > 0 ||
+    reviews.value.length > 0 ||
     s.failed_notifications > 0 ||
     s.campuses_without_active_booking.length > 0
   )
@@ -137,6 +149,18 @@ onMounted(load)
               <span class="task__number">{{ summary.failed_notifications }}</span>
               <div><h3>通知需要確認</h3><p>查看寄送失敗原因，再決定是否重新寄送。</p><span class="task__action">查看通知 →</span></div>
             </router-link>
+            <div v-if="reviews.length > 0" class="task">
+              <span class="task__number">{{ reviews.length }}</span>
+              <div>
+                <h3>內容等你審核</h3>
+                <p>內容編輯送上來的修改，核准後才會出現在官網；需要修改就退回並寫原因。</p>
+                <span class="task__kinds">
+                  <router-link v-for="r in reviews" :key="r.revision_id" :to="kindPath(r.kind)">
+                    {{ CONTENT_KIND_LABELS[r.kind] ?? r.kind }}{{ r.campus_key ? `（${campusLabel(r.campus_key)}）` : '' }} →
+                  </router-link>
+                </span>
+              </div>
+            </div>
             <div v-if="summary.pending_publish > 0" class="task">
               <span class="task__number">{{ summary.pending_publish }}</span>
               <div>

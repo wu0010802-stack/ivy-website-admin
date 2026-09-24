@@ -27,7 +27,7 @@ import DashboardView from '../views/DashboardView.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
-import { navItem } from './nav'
+import { landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -75,7 +75,7 @@ const router = createRouter({
           path: 'visit-requests/:id',
           name: 'visit-detail',
           component: VisitDetailView,
-          meta: { title: '案件明細' },
+          meta: { title: '案件明細', roles: navItem('visit-requests')?.roles },
         },
         page('notifications', 'notifications', NotificationsView),
         page('analytics', 'analytics', AnalyticsView),
@@ -90,7 +90,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
-    if (authStore.user) return { name: 'dashboard' }
+    if (authStore.user) return { path: landingPath(authStore.user.role) }
     return true
   }
 
@@ -104,7 +104,8 @@ router.beforeEach(async (to) => {
 
   const roles = to.meta.roles
   if (roles && !roles.includes(authStore.user.role)) {
-    return { name: 'dashboard' }
+    const landing = landingPath(authStore.user.role)
+    return to.path === landing ? true : { path: landing }
   }
 
   return true

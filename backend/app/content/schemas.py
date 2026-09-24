@@ -4,6 +4,7 @@ import uuid
 from datetime import date, datetime
 
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -596,6 +597,10 @@ class ContentRevisionOut(BaseModel):
     version: int
     payload: dict
     created_at: datetime
+    review_status: str = "draft"
+    review_note: str | None = None
+    submitted_at: datetime | None = None
+    reviewed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -625,6 +630,58 @@ class ContentRevisionSummaryOut(BaseModel):
     is_published: bool
     ever_published: bool
     last_published_at: datetime | None
+    review_status: str = "draft"
+    review_note: str | None = None
+
+
+class SubmitReviewRequest(BaseModel):
+    revision_id: uuid.UUID
+
+
+class ReviewDecisionRequest(BaseModel):
+    revision_id: uuid.UUID
+    decision: Literal["approve", "reject"]
+    # 退回一定要寫原因，編輯才知道要改什麼。
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _reject_needs_note(self):
+        if self.decision == "reject" and not (self.note or "").strip():
+            raise ValueError("退回時請寫下原因")
+        return self
+
+
+class ScheduleRequest(BaseModel):
+    revision_id: uuid.UUID
+    # 必須帶時區（前端送 +08:00），存 UTC。
+    publish_at: datetime
+
+    @field_validator("publish_at")
+    @classmethod
+    def _aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("排程時間要帶時區")
+        return value
+
+
+class PublishJobOut(BaseModel):
+    id: uuid.UUID
+    revision_id: uuid.UUID
+    revision_version: int
+    publish_at: datetime
+    status: str
+    error: str | None
+    created_by_email: str | None
+    finished_at: datetime | None
+
+
+class PendingReviewOut(BaseModel):
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    version: int
+    submitted_at: datetime | None
+    submitted_by_email: str | None
 
 
 class RestoreRevisionRequest(BaseModel):

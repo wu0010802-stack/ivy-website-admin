@@ -17,7 +17,7 @@ from app.booking import service, slot_service, workflow_service
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
 from app.operations import audit_service
-from app.booking.models import BookingConfig, VisitContactNote, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import BookingConfig, BookingMode, VisitContactNote, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.schemas import (
     BookingConfigOut,
     BookingConfigUpdateRequest,
@@ -121,13 +121,24 @@ async def get_public_booking_config(
     campus_key: str,
     db: AsyncSession = Depends(get_db_session),
 ) -> PublicBookingConfigOut:
-    result = await db.execute(select(Campus).where(Campus.key == campus_key, Campus.active.is_(True)))
-    if result.scalar_one_or_none() is None:
+    result = await db.execute(select(Campus).where(Campus.key == campus_key))
+    campus = result.scalar_one_or_none()
+    if campus is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
-    return PublicBookingConfigOut.model_validate(config)
+    out = PublicBookingConfigOut.model_validate(config)
+    if not campus.active:
+        # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，
+        # 家長看到的是暫停說明與電話，不是讀取失敗；送單端點另外擋。
+        out = out.model_copy(update={
+            "mode": BookingMode.PAUSED,
+            "message": "本校目前暫停受理線上參觀預約，請來電洽詢。",
+            "line_url": None,
+            "external_url": None,
+        })
+    return out
 
 
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
@@ -149,11 +160,16 @@ async def create_visit_request(
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
 
-    result = await db.execute(
-        select(Campus).where(Campus.key == payload.campus_key, Campus.active.is_(True))
-    )
-    if result.scalar_one_or_none() is None:
+    result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
+    campus = result.scalar_one_or_none()
+    if campus is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
+    if not campus.active:
+        # 與公開設定回報的 paused 一致：官網顯示暫停，而不是「找不到」。
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
+        )
 
     body = payload.model_dump(mode="json", exclude={"campus_key", "config_version"})
 

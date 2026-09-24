@@ -107,6 +107,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/campuses/{key}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Campus Status
+         * @description 停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的
+         *     決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件
+         *     一律不動，回傳仍在進行中的件數讓園方人工處理。
+         */
+        patch: operations["update_campus_status_api_website_v1_admin_campuses__key__status_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/content-items/{kind}": {
         parameters: {
             query?: never;
@@ -163,6 +185,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/content-items/{kind}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Submission
+         * @description 核准＝立即發布這一版；退回要附原因。
+         */
+        post: operations["review_submission_api_website_v1_admin_content_items__kind__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/content-items/{kind}/revisions": {
         parameters: {
             query?: never;
@@ -201,6 +243,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/content-items/{kind}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedules */
+        get: operations["list_schedules_api_website_v1_admin_content_items__kind__schedules_get"];
+        put?: never;
+        /** Create Schedule */
+        post: operations["create_schedule_api_website_v1_admin_content_items__kind__schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/schedules/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel Schedule */
+        delete: operations["cancel_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-items/{kind}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit For Review */
+        post: operations["submit_for_review_api_website_v1_admin_content_items__kind__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/content-kinds": {
         parameters: {
             query?: never;
@@ -210,6 +304,26 @@ export interface paths {
         };
         /** List Content Kinds */
         get: operations["list_content_kinds_api_website_v1_admin_content_kinds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/content-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pending Reviews
+         * @description 待審核清單：只列目前使用者有權發布的內容。
+         */
+        get: operations["list_pending_reviews_api_website_v1_admin_content_reviews_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -515,6 +629,44 @@ export interface paths {
         head?: never;
         /** Update User Active */
         patch: operations["update_user_active_api_website_v1_admin_users__user_id__active_patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/users/{user_id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset User Password
+         * @description 總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，
+         *     對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。
+         */
+        post: operations["reset_user_password_api_website_v1_admin_users__user_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/users/{user_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update User Role */
+        patch: operations["update_user_role_api_website_v1_admin_users__user_id__role_patch"];
         trace?: never;
     };
     "/api/website/v1/admin/users/{user_id}/scope": {
@@ -868,6 +1020,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Own Password
+         * @description 本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。
+         */
+        post: operations["change_own_password_api_website_v1_auth_change_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1206,10 +1378,39 @@ export interface components {
         CampusOut: {
             /** Active */
             active: boolean;
+            /** Deactivated At */
+            deactivated_at?: string | null;
+            /** Deactivated Reason */
+            deactivated_reason?: string | null;
             /** Key */
             key: string;
             /** Name */
             name: string;
+        };
+        /** CampusStatusOut */
+        CampusStatusOut: {
+            /** Active */
+            active: boolean;
+            /** Deactivated At */
+            deactivated_at?: string | null;
+            /** Deactivated Reason */
+            deactivated_reason?: string | null;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Open Requests
+             * @default 0
+             */
+            open_requests: number;
+        };
+        /** CampusStatusUpdate */
+        CampusStatusUpdate: {
+            /** Active */
+            active: boolean;
+            /** Reason */
+            reason?: string | null;
         };
         /** ContentItemOut */
         ContentItemOut: {
@@ -1253,6 +1454,17 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+            /** Review Note */
+            review_note?: string | null;
+            /**
+             * Review Status
+             * @default draft
+             */
+            review_status: string;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /** Submitted At */
+            submitted_at?: string | null;
             /** Version */
             version: number;
         };
@@ -1279,6 +1491,13 @@ export interface components {
             is_published: boolean;
             /** Last Published At */
             last_published_at: string | null;
+            /** Review Note */
+            review_note?: string | null;
+            /**
+             * Review Status
+             * @default draft
+             */
+            review_status: string;
             /** Version */
             version: number;
         };
@@ -1315,6 +1534,8 @@ export interface components {
             alt_text: string | null;
             /** Campus Key */
             campus_key: string | null;
+            /** Caption */
+            caption?: string | null;
             /** Content Type */
             content_type: string;
             /** Crop Focus X */
@@ -1329,6 +1550,8 @@ export interface components {
              */
             id: string;
             kind: components["schemas"]["MediaKind"];
+            /** License Note */
+            license_note?: string | null;
             /** Original Filename */
             original_filename: string;
             /** Processing Error */
@@ -1338,6 +1561,8 @@ export interface components {
             /** Source Attribution */
             source_attribution: string | null;
             status: components["schemas"]["MediaStatus"];
+            /** Tags */
+            tags?: string[];
             /** Usage Count */
             usage_count: number;
             /** Variants */
@@ -1359,12 +1584,18 @@ export interface components {
         MediaUpdateRequest: {
             /** Alt Text */
             alt_text?: string | null;
+            /** Caption */
+            caption?: string | null;
             /** Crop Focus X */
             crop_focus_x?: number | null;
             /** Crop Focus Y */
             crop_focus_y?: number | null;
+            /** License Note */
+            license_note?: string | null;
             /** Source Attribution */
             source_attribution?: string | null;
+            /** Tags */
+            tags?: string[] | null;
         };
         /** MediaVariantOut */
         MediaVariantOut: {
@@ -1422,6 +1653,42 @@ export interface components {
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Status */
             status: string;
+        };
+        /**
+         * PasswordChangeRequest
+         * @description 本人改密碼，要先輸入目前的密碼。
+         */
+        PasswordChangeRequest: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
+         * PasswordResetRequest
+         * @description 總管理者替別人重設密碼。
+         */
+        PasswordResetRequest: {
+            /** Password */
+            password: string;
+        };
+        /** PendingReviewOut */
+        PendingReviewOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Kind */
+            kind: string;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Submitted By Email */
+            submitted_by_email: string | null;
+            /** Version */
+            version: number;
         };
         /**
          * PublicBookingConfigOut
@@ -1483,6 +1750,34 @@ export interface components {
              */
             start_time: string;
         };
+        /** PublishJobOut */
+        PublishJobOut: {
+            /** Created By Email */
+            created_by_email: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Version */
+            revision_version: number;
+            /** Status */
+            status: string;
+        };
         /** PublishRequest */
         PublishRequest: {
             /**
@@ -1509,13 +1804,41 @@ export interface components {
              */
             revision_id: string;
         };
+        /** ReviewDecisionRequest */
+        ReviewDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Note */
+            note?: string | null;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+        };
         /**
          * Role
-         * @description 完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，
-         *     其餘（editor/reception/readonly）留給階段 D，不在此階段的建立/修改路由開放。
+         * @description 完整角色列舉（規格 7）。2026-09-24 起五種都可以建立；除了總管理者，
+         *     其餘角色都必須指定校區範圍。
          * @enum {string}
          */
         Role: "super_admin" | "campus_admin" | "editor" | "reception" | "readonly";
+        /** ScheduleRequest */
+        ScheduleRequest: {
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+        };
         /** SiteSettingsUpdate */
         SiteSettingsUpdate: {
             /** Description */
@@ -1540,6 +1863,14 @@ export interface components {
             id: string;
             /** Role */
             role: string;
+        };
+        /** SubmitReviewRequest */
+        SubmitReviewRequest: {
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
         };
         /**
          * TelemetryIn
@@ -1606,6 +1937,12 @@ export interface components {
         UserUpdateActiveRequest: {
             /** Is Active */
             is_active: boolean;
+        };
+        /** UserUpdateRoleRequest */
+        UserUpdateRoleRequest: {
+            /** Campus Keys */
+            campus_keys?: string[];
+            role: components["schemas"]["Role"];
         };
         /** UserUpdateScopeRequest */
         UserUpdateScopeRequest: {
@@ -2293,6 +2630,45 @@ export interface operations {
             };
         };
     };
+    update_campus_status_api_website_v1_admin_campuses__key__status_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampusStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampusStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_content_item_api_website_v1_admin_content_items__kind__get: {
         parameters: {
             query?: {
@@ -2389,6 +2765,47 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RestoreRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_submission_api_website_v1_admin_content_items__kind__review_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewDecisionRequest"];
             };
         };
         responses: {
@@ -2529,6 +2946,161 @@ export interface operations {
             };
         };
     };
+    list_schedules_api_website_v1_admin_content_items__kind__schedules_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishJobOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_schedule_api_website_v1_admin_content_items__kind__schedules_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__delete: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+                job_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_for_review_api_website_v1_admin_content_items__kind__submit_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_content_kinds_api_website_v1_admin_content_kinds_get: {
         parameters: {
             query?: never;
@@ -2549,6 +3121,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_pending_reviews_api_website_v1_admin_content_reviews_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingReviewOut"][];
                 };
             };
             /** @description Validation Error */
@@ -2599,7 +3204,12 @@ export interface operations {
     };
     list_media_api_website_v1_admin_media_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 只列有這個標籤的素材 */
+                tag?: string | null;
+                /** @description 檔名、圖片說明、圖說或標籤片段 */
+                q?: string | null;
+            };
             header?: {
                 "x-csrf-token"?: string | null;
             };
@@ -3380,6 +3990,82 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserUpdateActiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_user_password_api_website_v1_admin_users__user_id__password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_user_role_api_website_v1_admin_users__user_id__role_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdateRoleRequest"];
             };
         };
         responses: {
@@ -4247,6 +4933,41 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StaffOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_own_password_api_website_v1_auth_change_password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -5,7 +5,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
 import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
-import { campusLabel, campusLabels, roleLabel } from '../api/labels'
+import { campusLabel, campusLabels, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -25,9 +25,14 @@ const creating = ref(false)
 const scopeDialogVisible = ref(false)
 const scopeTarget = ref<UserOut | null>(null)
 const scopeSelection = ref<string[]>([])
+const scopeRole = ref<Role>('campus_admin')
+const resetTarget = ref<UserOut | null>(null)
+const resetPassword = ref('')
+const resetVisible = ref(false)
+const resetting = ref(false)
 const togglingId = ref<string | null>(null)
 
-const operationBusy = computed(() => creating.value || savingScope.value || Boolean(togglingId.value))
+const operationBusy = computed(() => creating.value || savingScope.value || resetting.value || Boolean(togglingId.value))
 const visibleUsers = computed(() => sortedUsers.value.filter(user => {
   const text = [user.email, roleLabel(user.role), user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys)].join(' ').toLocaleLowerCase()
   return text.includes(search.value.trim().toLocaleLowerCase()) && (!status.value || (status.value === 'active') === user.is_active)
@@ -36,7 +41,7 @@ const visibleUsers = computed(() => sortedUsers.value.filter(user => {
 const form = reactive({
   email: '',
   password: '',
-  role: 'campus_admin' as Extract<Role, 'super_admin' | 'campus_admin'>,
+  role: 'campus_admin' as Role,
   campus_keys: [] as string[],
 })
 
@@ -44,7 +49,7 @@ const formValid = computed(
   () =>
     form.email.includes('@') &&
     form.password.length >= 12 &&
-    (form.role !== 'campus_admin' || form.campus_keys.length > 0),
+    (form.role === 'super_admin' || form.campus_keys.length > 0),
 )
 
 const sortedUsers = computed(() =>
@@ -111,7 +116,7 @@ async function submitCreate() {
       email: form.email.trim(),
       password: form.password,
       role: form.role,
-      campus_keys: form.role === 'campus_admin' ? form.campus_keys : [],
+      campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
     })
     users.value.push(created)
     dialogVisible.value = false
@@ -143,6 +148,7 @@ async function toggleActive(target: UserOut) {
 function openScopeDialog(target: UserOut) {
   if (operationBusy.value) return
   scopeTarget.value = target
+  scopeRole.value = target.role
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
 }
@@ -151,17 +157,45 @@ async function submitScope() {
   if (!scopeTarget.value || operationBusy.value) return
   savingScope.value = true
   try {
-    const updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/scope`, {
-      campus_keys: scopeSelection.value,
+    const updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/role`, {
+      role: scopeRole.value,
+      campus_keys: scopeRole.value === 'super_admin' ? [] : scopeSelection.value,
     })
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     scopeDialogVisible.value = false
-    ElMessage.success('已更新校區範圍')
+    ElMessage.success('已更新角色與校區')
   } catch (err) {
-    ElMessage.error(errorText(err, '更新校區範圍失敗'))
+    ElMessage.error(errorText(err, '更新角色與校區失敗'))
   } finally {
     savingScope.value = false
+  }
+}
+
+function openReset(target: UserOut) {
+  if (operationBusy.value) return
+  resetTarget.value = target
+  resetPassword.value = ''
+  resetVisible.value = true
+}
+
+function generateResetPassword() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  resetPassword.value = Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join('')
+}
+
+async function submitReset() {
+  if (!resetTarget.value || resetPassword.value.length < 12) return
+  resetting.value = true
+  try {
+    await api.post(`/admin/users/${resetTarget.value.id}/password`, { password: resetPassword.value })
+    resetVisible.value = false
+    ElMessage.success(`已重設 ${resetTarget.value.email} 的密碼，對方所有裝置都已登出。請把新密碼告訴對方。`)
+  } catch (err) {
+    ElMessage.error(errorText(err, '重設密碼失敗'))
+  } finally {
+    resetting.value = false
   }
 }
 
@@ -177,7 +211,7 @@ onMounted(loadUsers)
     <el-alert v-if="!isSuperAdmin" title="只有總管理者可以管理使用者" type="warning" :closable="false" show-icon />
 
     <template v-else>
-      <PageHeader lead="總管理者可以管理全部五校；校區管理者只能看到並修改自己校區的內容與案件。">
+      <PageHeader lead="總管理者管理全部五校；其他角色只看得到被指定的校區。編輯改內容但不能發布、櫃台只處理參觀案件、唯讀只能查看。">
         <template #actions>
           <el-button type="primary" :icon="Plus" :disabled="operationBusy || loading" @click="openCreateDialog">新增使用者</el-button>
         </template>
@@ -217,9 +251,9 @@ onMounted(loadUsers)
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" align="right">
+          <el-table-column label="操作" width="330" align="right">
             <template #default="{ row }: { row: UserOut }">
-              <UserActions :user="row" :self="isSelf(row)" :busy="operationBusy" :pending="togglingId === row.id" @scope="openScopeDialog" @toggle="toggleActive" />
+              <UserActions :user="row" :self="isSelf(row)" :busy="operationBusy" :pending="togglingId === row.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" />
             </template>
           </el-table-column>
         </el-table>
@@ -227,7 +261,7 @@ onMounted(loadUsers)
           <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
             <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
             <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd></dl>
-            <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" /></div>
+            <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" /></div>
           </li>
         </ul>
         </template>
@@ -248,15 +282,12 @@ onMounted(loadUsers)
             </span>
           </el-form-item>
           <el-form-item label="角色">
-            <el-radio-group v-model="form.role">
-              <el-radio value="campus_admin">校區管理者</el-radio>
-              <el-radio value="super_admin">總管理者</el-radio>
+            <el-radio-group v-model="form.role" class="role-group">
+              <el-radio v-for="role in ROLE_ORDER" :key="role" :value="role">{{ ROLE_LABELS[role] }}</el-radio>
             </el-radio-group>
-            <span class="field-help">
-              {{ form.role === 'super_admin' ? '可以管理全部校區、使用者與全站設定。' : '只能處理指定校區的內容與參觀案件。' }}
-            </span>
+            <span class="field-help">{{ ROLE_DESCRIPTIONS[form.role] }}</span>
           </el-form-item>
-          <el-form-item v-if="form.role === 'campus_admin'" label="負責校區">
+          <el-form-item v-if="form.role !== 'super_admin'" label="負責校區">
             <el-checkbox-group v-model="form.campus_keys">
               <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
             </el-checkbox-group>
@@ -268,16 +299,35 @@ onMounted(loadUsers)
         </template>
       </el-dialog>
 
-      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的校區範圍`" width="440px" :show-close="!savingScope" :close-on-click-modal="!savingScope" :close-on-press-escape="!savingScope">
-        <el-checkbox-group v-model="scopeSelection" :disabled="savingScope">
-          <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
-        </el-checkbox-group>
-        <p class="hint" style="margin-top: 12px">
-          {{ scopeSelection.length === 0 ? '沒有勾選任何校區時，這位使用者登入後看不到任何內容。' : '' }}
-        </p>
+      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的角色與校區`" width="460px" :show-close="!savingScope" :close-on-click-modal="!savingScope" :close-on-press-escape="!savingScope">
+        <el-form label-position="top" :disabled="savingScope">
+          <el-form-item label="角色">
+            <el-radio-group v-model="scopeRole" class="role-group">
+              <el-radio v-for="role in ROLE_ORDER" :key="role" :value="role">{{ ROLE_LABELS[role] }}</el-radio>
+            </el-radio-group>
+            <span class="field-help">{{ ROLE_DESCRIPTIONS[scopeRole] }}</span>
+          </el-form-item>
+          <el-form-item v-if="scopeRole !== 'super_admin'" label="負責校區">
+            <el-checkbox-group v-model="scopeSelection">
+              <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
+            </el-checkbox-group>
+          </el-form-item>
+        </el-form>
         <template #footer>
           <el-button :disabled="savingScope" @click="scopeDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="savingScope" @click="submitScope">儲存</el-button>
+          <el-button type="primary" :loading="savingScope" :disabled="scopeRole !== 'super_admin' && scopeSelection.length === 0" @click="submitScope">儲存</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="resetVisible" :title="`重設 ${resetTarget?.email ?? ''} 的密碼`" width="440px" :show-close="!resetting" :close-on-click-modal="!resetting">
+        <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信，請用電話或當面把新密碼告訴對方。</p>
+        <div class="password-row">
+          <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="至少 12 字元" />
+          <el-button @click="generateResetPassword">產生密碼</el-button>
+        </div>
+        <template #footer>
+          <el-button :disabled="resetting" @click="resetVisible = false">取消</el-button>
+          <el-button type="primary" :loading="resetting" :disabled="resetPassword.length < 12" @click="submitReset">重設密碼</el-button>
         </template>
       </el-dialog>
     </template>
@@ -286,6 +336,7 @@ onMounted(loadUsers)
 
 <style scoped>
 .password-row { display: flex; gap: 8px; width: 100%; }
+.role-group { display: grid; gap: 4px; }
 .password-row .el-input { flex: 1; }
 
 .self-tag {

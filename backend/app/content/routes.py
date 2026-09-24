@@ -4,6 +4,8 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import ValidationError
+from datetime import datetime, timezone
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,7 +14,8 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import Role, User
 from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
 from app.content import service
-from app.content.models import ContentItem, ContentRevision, SiteRelease, SiteReleaseEntry
+from app.content import publish_jobs
+from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease, SiteReleaseEntry
 from app.media.models import MediaAsset
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media import service as media_service
@@ -22,9 +25,14 @@ from app.content.schemas import (
     ContentRevisionCreateRequest,
     ContentRevisionOut,
     ContentRevisionSummaryOut,
+    PendingReviewOut,
     PublicSiteOut,
+    PublishJobOut,
     PublishRequest,
     RestoreRevisionRequest,
+    ReviewDecisionRequest,
+    ScheduleRequest,
+    SubmitReviewRequest,
 )
 
 router = APIRouter(prefix="/api/website/v1", tags=["content"])
@@ -60,6 +68,32 @@ def _require_shared_or_scope(user: User, item: ContentItem) -> None:
             raise CapabilityDenied()
         return
     require_scope(user, "content.manage", campus_keys=[item.campus_key])
+
+
+def _require_publish(user: User, item: ContentItem) -> None:
+    """發布（立即、核准送審、排程）要 content.publish：內容編輯只能送審。"""
+    _require_shared_or_scope(user, item)
+    if item.campus_key is not None:
+        require_scope(user, "content.publish", campus_keys=[item.campus_key])
+
+
+async def _revision_of(db: AsyncSession, item: ContentItem, revision_id: uuid.UUID) -> ContentRevision:
+    result = await db.execute(
+        select(ContentRevision).where(
+            ContentRevision.id == revision_id, ContentRevision.content_item_id == item.id
+        )
+    )
+    revision = result.scalar_one_or_none()
+    if revision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
+    return revision
+
+
+def _not_ready(exc: publish_jobs.NotPublishable) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "CONTENT_NOT_READY", "message": exc.message},
+    )
 
 
 async def _validate_media_references(
@@ -250,6 +284,8 @@ async def list_content_revisions(
             is_published=rev.id == item.current_published_revision_id,
             ever_published=rev.id in last_published,
             last_published_at=last_published.get(rev.id),
+            review_status=rev.review_status,
+            review_note=rev.review_note,
         )
         for rev, email in rows.all()
     ]
@@ -337,22 +373,12 @@ async def publish_content_item(
         campus_key = None
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
-    _require_shared_or_scope(current_user, item)
-
-    result = await db.execute(
-        select(ContentRevision).where(
-            ContentRevision.id == payload.revision_id, ContentRevision.content_item_id == item.id
-        )
-    )
-    revision = result.scalar_one_or_none()
-    if revision is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
-    blocker = config.publish_blocker(revision.payload)
-    if blocker:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "CONTENT_NOT_READY", "message": blocker},
-        )
+    _require_publish(current_user, item)
+    revision = await _revision_of(db, item, payload.revision_id)
+    try:
+        await publish_jobs.check_publishable(db, item, revision)
+    except publish_jobs.NotPublishable as exc:
+        raise _not_ready(exc) from exc
 
     await service.publish_revision(db, item, revision, current_user.id)
     await audit_service.log_action(
@@ -379,3 +405,253 @@ async def get_public_site(
     if release_id is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="尚無可用內容")
     return PublicSiteOut(schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content)
+
+
+# ---------------------------------------------------------------------------
+# 送審與審核（規格 4、7：內容編輯只能送審，分校管理者審核發布）
+# ---------------------------------------------------------------------------
+
+
+async def _item_for(db: AsyncSession, kind: str, campus_key: str | None):
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    return config, item
+
+
+@router.post("/admin/content-items/{kind}/submit", response_model=ContentItemOut)
+async def submit_for_review(
+    kind: str,
+    payload: SubmitReviewRequest,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ContentItemOut:
+    _, item = await _item_for(db, kind, campus_key)
+    _require_shared_or_scope(current_user, item)
+    revision = await _revision_of(db, item, payload.revision_id)
+    if revision.version != item.latest_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CONTENT_VERSION_CONFLICT", "message": "只能送審最新的草稿，請重新載入"},
+        )
+    if revision.review_status not in ("draft", "rejected"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": "這一版已經送審過了"},
+        )
+    revision.review_status = "pending_review"
+    revision.review_note = None
+    revision.submitted_by = current_user.id
+    revision.submitted_at = datetime.now(timezone.utc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.submit_review",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "revision_version": revision.version},
+    )
+    await db.commit()
+    item, latest = await _get_item_with_latest_revision(db, item.id)
+    return _item_out(item, latest)
+
+
+@router.post("/admin/content-items/{kind}/review", response_model=ContentItemOut)
+async def review_submission(
+    kind: str,
+    payload: ReviewDecisionRequest,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ContentItemOut:
+    """核准＝立即發布這一版；退回要附原因。"""
+    _, item = await _item_for(db, kind, campus_key)
+    _require_publish(current_user, item)
+    revision = await _revision_of(db, item, payload.revision_id)
+    if revision.review_status != "pending_review":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": "這一版不在待審核狀態"},
+        )
+    now = datetime.now(timezone.utc)
+    if payload.decision == "approve":
+        try:
+            await publish_jobs.check_publishable(db, item, revision)
+        except publish_jobs.NotPublishable as exc:
+            raise _not_ready(exc) from exc
+        revision.review_status = "approved"
+        revision.review_note = (payload.note or "").strip() or None
+        await service.publish_revision(db, item, revision, current_user.id)
+    else:
+        revision.review_status = "rejected"
+        revision.review_note = (payload.note or "").strip()
+    revision.reviewed_by = current_user.id
+    revision.reviewed_at = now
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.approve" if payload.decision == "approve" else "content.reject",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "revision_version": revision.version, "note": revision.review_note},
+    )
+    await db.commit()
+    item, latest = await _get_item_with_latest_revision(db, item.id)
+    return _item_out(item, latest)
+
+
+@router.get("/admin/content-reviews", response_model=list[PendingReviewOut])
+async def list_pending_reviews(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[PendingReviewOut]:
+    """待審核清單：只列目前使用者有權發布的內容。"""
+    require_scope(current_user, "content.read")
+    rows = await db.execute(
+        select(ContentRevision, ContentItem, User.email)
+        .join(ContentItem, ContentItem.id == ContentRevision.content_item_id)
+        .outerjoin(User, User.id == ContentRevision.submitted_by)
+        .where(ContentRevision.review_status == "pending_review")
+        .order_by(ContentRevision.submitted_at)
+    )
+    out = []
+    for rev, item, email in rows.all():
+        if not publish_jobs.user_can_publish(current_user, item):
+            continue
+        out.append(
+            PendingReviewOut(
+                kind=item.kind,
+                campus_key=item.campus_key,
+                revision_id=rev.id,
+                version=rev.version,
+                submitted_at=rev.submitted_at,
+                submitted_by_email=email,
+            )
+        )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 排程發布
+# ---------------------------------------------------------------------------
+
+
+async def _job_out(db: AsyncSession, job: PublishJob) -> PublishJobOut:
+    rev = await db.get(ContentRevision, job.revision_id)
+    creator = await db.get(User, job.created_by) if job.created_by else None
+    return PublishJobOut(
+        id=job.id,
+        revision_id=job.revision_id,
+        revision_version=rev.version if rev else 0,
+        publish_at=job.publish_at,
+        status=job.status,
+        error=job.error,
+        created_by_email=creator.email if creator else None,
+        finished_at=job.finished_at,
+    )
+
+
+@router.get("/admin/content-items/{kind}/schedules", response_model=list[PublishJobOut])
+async def list_schedules(
+    kind: str,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[PublishJobOut]:
+    config = _get_kind_config(kind)
+    if config.shared_only:
+        campus_key = None
+    _require_read_scope(current_user, campus_key)
+    item = await service.get_or_create_content_item(db, kind, campus_key)
+    await db.commit()
+    result = await db.execute(
+        select(PublishJob)
+        .where(PublishJob.content_item_id == item.id)
+        .order_by(PublishJob.publish_at.desc())
+        .limit(20)
+    )
+    return [await _job_out(db, job) for job in result.scalars()]
+
+
+@router.post(
+    "/admin/content-items/{kind}/schedules",
+    response_model=PublishJobOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_schedule(
+    kind: str,
+    payload: ScheduleRequest,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PublishJobOut:
+    _, item = await _item_for(db, kind, campus_key)
+    _require_publish(current_user, item)
+    revision = await _revision_of(db, item, payload.revision_id)
+    now = datetime.now(timezone.utc)
+    if payload.publish_at <= now:
+        raise HTTPException(status_code=422, detail="排程時間要在未來；要馬上上線請直接發布")
+    try:
+        # 先檢查一次，明顯不能發布的就不要排；到時候還會再檢查一次。
+        await publish_jobs.check_publishable(db, item, revision)
+    except publish_jobs.NotPublishable as exc:
+        raise _not_ready(exc) from exc
+    job = PublishJob(
+        id=uuid.uuid4(),
+        content_item_id=item.id,
+        revision_id=revision.id,
+        publish_at=payload.publish_at.astimezone(timezone.utc),
+        status="scheduled",
+        created_by=current_user.id,
+        created_at=now,
+    )
+    db.add(job)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.schedule",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "revision_version": revision.version, "publish_at": job.publish_at.isoformat()},
+    )
+    await db.commit()
+    return await _job_out(db, job)
+
+
+@router.delete("/admin/content-items/{kind}/schedules/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_schedule(
+    kind: str,
+    job_id: uuid.UUID,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    _, item = await _item_for(db, kind, campus_key)
+    _require_publish(current_user, item)
+    result = await db.execute(
+        select(PublishJob)
+        .where(PublishJob.id == job_id, PublishJob.content_item_id == item.id)
+        .with_for_update()
+    )
+    job = result.scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個排程")
+    if job.status != "scheduled":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="這個排程已經執行或取消了")
+    job.status = "cancelled"
+    job.finished_at = datetime.now(timezone.utc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="content.schedule_cancel",
+        target_type="content_item",
+        target_id=str(item.id),
+        campus_key=item.campus_key,
+        metadata={"kind": kind, "job_id": str(job_id)},
+    )
+    await db.commit()

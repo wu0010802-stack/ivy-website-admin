@@ -28,6 +28,9 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "media.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
     "content.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     "content.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR},
+    # 規格 7：內容編輯只能送審，發布（含排程、審核核准、還原舊版上線）限
+    # 總管理者與分校管理者。
+    "content.publish": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 案件含家長與孩子個資。規格「權限」表：內容編輯不讀家長個資，唯讀
     # 不自動擁有案件個資權限——所以只給總管理、分校管理與接待。
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},

@@ -150,6 +150,13 @@ async def process_notifications_once() -> None:
     settings = get_settings()
     factory = await _session_factory()
     async with factory() as db:
+        # 到期的排程發布。每筆自己一個交易，失敗記在排程上，後台看得到原因。
+        from app.content.publish_jobs import run_due_jobs
+
+        scheduled = await run_due_jobs(db)
+        if scheduled["published"] or scheduled["failed"]:
+            print(f"排程發布：成功 {scheduled['published']} 筆、失敗 {scheduled['failed']} 筆")
+
         # 先處理過期占位：規格 222 要求逾期的 pending_confirmation 轉
         # cancelled、釋放名額並通知園方。它會寫進 outbox，所以要排在
         # 處理 outbox 之前，這一輪就能把通知一起送出去。
@@ -160,9 +167,9 @@ async def process_notifications_once() -> None:
             print(f"已釋放 {expired} 筆逾期的時段占位。")
 
         try:
-            adapter = get_email_adapter(settings.notification_email_sink_dir)
+            adapter = get_email_adapter(settings.notification_email_sink_dir, settings)
         except EmailNotConfigured:
-            print("尚未設定 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
+            print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，通知寄送功能未配置。")
             return
 
         result = await process_outbox_batch(db, adapter, worker_id="cli-worker")

@@ -63,6 +63,20 @@ class ContentRevision(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 規格 4 審核流程：draft → pending_review →（approved 並發布｜rejected 附原因）。
+    # 能直接發布的角色（總管理者、分校管理者）不需要送審，照舊存草稿就發布。
+    review_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="draft", server_default="draft", index=True
+    )
+    review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     content_item: Mapped[ContentItem] = relationship(
         back_populates="revisions", foreign_keys=[content_item_id]
@@ -112,3 +126,28 @@ class SiteState(Base):
     current_release_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("site_releases.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class PublishJob(Base):
+    """排程發布（規格 4）：綁定明確的 revision 與時間（UTC 儲存）。到時由
+    背景工作重新檢查排程人仍有權限、分校仍啟用、內容可發布，才真正發布；
+    檢查不過就記 failed 與原因，不會默默換成別的版本。"""
+
+    __tablename__ = "publish_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    content_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("content_revisions.id", ondelete="CASCADE"), nullable=False
+    )
+    publish_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    # scheduled | done | failed | cancelled
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="scheduled", server_default="scheduled")
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

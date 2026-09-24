@@ -11,8 +11,8 @@ from app.db import Base
 
 
 class Role(str, enum.Enum):
-    """完整角色列舉；階段 B 第一版後台 API 只接受 super_admin／campus_admin，
-    其餘（editor/reception/readonly）留給階段 D，不在此階段的建立/修改路由開放。"""
+    """完整角色列舉（規格 7）。2026-09-24 起五種都可以建立；除了總管理者，
+    其餘角色都必須指定校區範圍。"""
 
     SUPER_ADMIN = "super_admin"
     CAMPUS_ADMIN = "campus_admin"
@@ -21,7 +21,7 @@ class Role(str, enum.Enum):
     READONLY = "readonly"
 
 
-V1_CREATABLE_ROLES = (Role.SUPER_ADMIN, Role.CAMPUS_ADMIN)
+CREATABLE_ROLES = tuple(Role)
 
 
 class User(Base):

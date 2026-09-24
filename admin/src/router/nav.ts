@@ -1,6 +1,12 @@
 // 側欄導覽結構。路由的 meta.title 也從這裡取，兩邊不會漂移。
 // 圖示名稱對應 @element-plus/icons-vue 的匯出名。
 
+// 角色可見範圍（規格 7 權限表）。後端才是真正的權限檢查，這裡只是不讓人
+// 點進一定會被拒絕的頁面。
+const MANAGE = ['super_admin', 'campus_admin']
+const VISITS = ['super_admin', 'campus_admin', 'reception']
+const CONTENT = ['super_admin', 'campus_admin', 'editor', 'readonly']
+
 export interface NavItem {
   name: string
   path: string
@@ -24,17 +30,17 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'overview',
     label: '總覽',
-    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'HomeFilled' }],
+    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'HomeFilled', roles: VISITS }],
   },
   {
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests' },
-      { name: 'visit-calendar', path: '/visit-calendar', title: '接待日曆', icon: 'Calendar' },
-      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Clock' },
-      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch' },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS },
+      { name: 'visit-calendar', path: '/visit-calendar', title: '接待日曆', icon: 'Calendar', roles: VISITS },
+      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Clock', roles: VISITS },
+      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
@@ -62,9 +68,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '分校頁',
     section: '官網內容',
     items: [
-      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School' },
-      { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare' },
-      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location' },
+      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT },
+      { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare', roles: CONTENT },
+      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT },
     ],
   },
   {
@@ -76,7 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'] },
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'] },
       { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'] },
-      { name: 'media', path: '/media', title: '素材庫', icon: 'Files' },
+      { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT },
     ],
   },
   {
@@ -84,7 +90,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '系統',
     items: [
       { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine' },
-      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List' },
+      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'] },
       { name: 'policies', path: '/policies', title: '全站設定', icon: 'Setting', roles: ['super_admin'] },
     ],
@@ -96,4 +102,14 @@ for (const group of NAV_GROUPS) for (const item of group.items) byName.set(item.
 
 export function navItem(name: string): NavItem | undefined {
   return byName.get(name)
+}
+
+/** 登入後的第一頁：該角色看得到的第一個側欄項目（編輯與唯讀沒有營運總覽）。 */
+export function landingPath(role: string | undefined): string {
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      if (!item.roles || (role && item.roles.includes(role))) return item.path
+    }
+  }
+  return '/'
 }

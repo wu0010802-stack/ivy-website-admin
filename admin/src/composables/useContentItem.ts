@@ -6,6 +6,17 @@ import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
 
+export interface PublishJob {
+  id: string
+  revision_id: string
+  revision_version: number
+  publish_at: string
+  status: 'scheduled' | 'done' | 'failed' | 'cancelled'
+  error: string | null
+  created_by_email: string | null
+  finished_at: string | null
+}
+
 /** 發布確認框列出的一筆差異：欄位中文名、上次儲存的值、現在的值 */
 export interface FieldChange {
   key: string
@@ -59,6 +70,18 @@ export interface ContentEditorState {
   restore?: (revisionId: string) => Promise<boolean>
   /** 直接把指定版本發布到官網（回到舊版） */
   publishRevision?: (revisionId: string) => Promise<boolean>
+  /** 最新一版的審核狀態：draft | pending_review | approved | rejected */
+  reviewStatus?: ComputedRef<string>
+  reviewNote?: ComputedRef<string | null>
+  /** 內容編輯送審（有未儲存修改會先存） */
+  submitForReview?: () => Promise<boolean>
+  /** 核准（並發布）或退回送審的版本 */
+  review?: (decision: 'approve' | 'reject', note?: string) => Promise<boolean>
+  schedules?: Ref<PublishJob[]>
+  loadSchedules?: () => Promise<void>
+  /** 排程發布最新一版（有未儲存修改會先存）；publishAt 帶時區的 ISO 字串 */
+  schedule?: (publishAt: string) => Promise<boolean>
+  cancelSchedule?: (jobId: string) => Promise<boolean>
   load: () => Promise<void>
   save: () => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -117,6 +140,9 @@ export function useContentItem<TPayload extends object>(
     return path ? `${WEBSITE_ASSET_BASE}${path}` : ''
   })
   const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
+  const reviewStatus = computed(() => item.value?.latest_revision?.review_status ?? 'draft')
+  const reviewNote = computed(() => item.value?.latest_revision?.review_note ?? null)
+  const schedules = ref<PublishJob[]>([])
 
   /** 最新草稿的建立時間（ISO），沒有任何版本時為 null */
   const latestRevisionAt = computed(() => item.value?.latest_revision?.created_at ?? null)
@@ -253,6 +279,85 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
+  async function submitForReview(): Promise<boolean> {
+    if (isDirty.value && !(await save())) return false
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/submit${query()}`, {
+        revision_id: item.value.latest_revision.id,
+      })
+      ElMessage.success('已送審，校區管理者核准後才會出現在官網')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '送審失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function review(decision: 'approve' | 'reject', note?: string): Promise<boolean> {
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/review${query()}`, {
+        revision_id: item.value.latest_revision.id,
+        decision,
+        note: note ?? null,
+      })
+      isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
+      ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，編輯會看到你寫的原因')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function loadSchedules(): Promise<void> {
+    try {
+      const list = await api.get<PublishJob[]>(`/admin/content-items/${kind}/schedules${query()}`)
+      schedules.value = Array.isArray(list) ? list : []
+    } catch {
+      schedules.value = []
+    }
+  }
+
+  async function schedule(publishAt: string): Promise<boolean> {
+    if (isDirty.value && !(await save())) return false
+    if (!item.value?.latest_revision) return false
+    publishing.value = true
+    try {
+      await api.post<PublishJob>(`/admin/content-items/${kind}/schedules${query()}`, {
+        revision_id: item.value.latest_revision.id,
+        publish_at: publishAt,
+      })
+      await loadSchedules()
+      ElMessage.success('已排程，時間到會自動發布')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '排程失敗'))
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  async function cancelSchedule(jobId: string): Promise<boolean> {
+    try {
+      await api.delete(`/admin/content-items/${kind}/schedules/${jobId}${query()}`)
+      await loadSchedules()
+      ElMessage.success('已取消排程')
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '取消失敗'))
+      return false
+    }
+  }
+
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
@@ -279,6 +384,14 @@ export function useContentItem<TPayload extends object>(
     saveAndPublish,
     publishRevision,
     restore,
+    reviewStatus,
+    reviewNote,
+    submitForReview,
+    review,
+    schedules,
+    loadSchedules,
+    schedule,
+    cancelSchedule,
     reset,
   }
 }

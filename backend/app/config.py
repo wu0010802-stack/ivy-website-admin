@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     indexing_enabled: bool = False
     admin_origin: str | None = None
     notification_email_sink_dir: str | None = None
+    # 真實寄信（SMTP）。沒設定 smtp_host 就不會寄；開發環境繼續用 sink_dir。
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
     retention_allow_real_run: bool = False
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
     # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
@@ -66,6 +73,11 @@ class Settings(BaseSettings):
                 )
         if self.environment == "production" and self.enable_fixture:
             raise ValueError("production 環境禁止啟用 fixture 模式")
+        if self.smtp_host and not self.smtp_from:
+            raise ValueError("設定 WEBSITE_SMTP_HOST 時必須一併設定 WEBSITE_SMTP_FROM")
+        if self.smtp_host and self.environment == "production" and self.smtp_security == "none":
+            # 通知信含員工信箱與案件編號，正式環境不走明文 SMTP。
+            raise ValueError("production 環境寄信必須使用 starttls 或 ssl")
         return self
 
     def active_database_url(self) -> str:

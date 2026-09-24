@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -48,6 +48,10 @@ class MediaAsset(Base):
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     alt_text: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_attribution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 規格 4：圖說、授權註記與標籤搜尋。標籤是自由文字，存正規化後的清單。
+    caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    license_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     crop_focus_x: Mapped[float | None] = mapped_column(Float, nullable=True)
     crop_focus_y: Mapped[float | None] = mapped_column(Float, nullable=True)
     processing_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
