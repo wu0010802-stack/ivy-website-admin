@@ -1,3 +1,17 @@
+## 2026-09-23 孩子的一天：iPhone 捲動時按鈕與背景抖動（根因修正）
+
+使用者回報 iPhone 17 下滑時「暫停背景」按鈕會抖、圖片也怪怪的，電腦 Chrome 開發者工具看不到。根因是 `.section.day-experience` 的 `overflow-x:clip`：WebKit 會替裡面的 sticky 圖層（背景影片 `.day-film`、按鈕層 `.day-film-ui`、大標 `.day-intro`）掛一層由主執行緒定位的祖先裁切層，捲動執行緒推得動 sticky，推不動這層，所以每幀晚一步再被拉回。iPhone 上的 Safari 和 Chrome 都是 WebKit；Chrome 的合成器沒有這個行為。同日下午（`bfcfef8`）加在 `.day-film-ui` 的 `translateZ(0)` 沒有效果（實測 89 幀仍偏移），這次一併移除。
+
+- `styles.css`：區塊拿掉 `overflow-x:clip`；溢出的 WebGL 紙畫布（手機上超出視窗約 58px）改由 `.day-prints` 裁切。`.day-prints` 從「縮窄寬度＋置中」改成「滿版＋左右內距」，裁切邊界仍在視窗邊緣，內容寬度不變（桌機 `max(48px,(100% - 1280px)/2)`、≤1100 32px、≤760 20px）。
+
+驗證：WebKit 2359 用真的滾輪事件（走捲動執行緒，mobile 模式不支援滾輪，改關 isMobile 並補觸控規則）錄影，逐幀比對按鈕位置。在 scratchpad 獨立樹（HEAD＋本檔）建置後：
+- 按鈕偏移幀數：舊 87/153 → 新 0/153。
+- 暫停影片後追蹤背景：舊 81/153 有 ±1–3px → 新 0。
+- Chrome／WebKit 11 種寬度（1920～390，含 1101／1100、761／760 斷點兩側）：每張卡片位置、內容寬、區塊與整頁高度新舊一致，水平溢出 0。
+- 手機 WebGL 紙掛上後截圖新舊逐像素最大差 3/255，左右邊緣無差異。
+
+iPhone 實機未驗證。線上是 main，含 `paper-budget.ts` 等 feature 分支沒有的改動，但 `styles.css` 這幾條兩邊相同；以單一 commit cherry-pick 上 main，部署紀錄見 `deploy/README.md`。拍立得「停下才由 CSS 換成 WebGL」與快滑時角落被風掀起屬於原設計，這次沒有改。
+
 ## 2026-09-23 首頁手機版：活動影片取代近期活動、最新消息上下排列
 
 依 `design/news-carousel-mobile-20260923/` 的 D 接進 `web/`，只改 640px 以下：近期活動換成 `HomeFilms.vue` 活動影片輪播（鼠尾草綠色帶、中央聚焦、左右露出、白色圓點、無限循環、只有當前那支靜音播放、支援 YouTube 連結點了才載入），最新消息改成縮圖列表；桌機不變。影片第一版用官網既有素材剪段（首屏影片＋舞台表演原檔），要換正式影片或 YouTube 改 `web/app/utils/campusFilms.ts`。
