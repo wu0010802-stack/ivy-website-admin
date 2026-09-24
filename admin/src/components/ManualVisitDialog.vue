@@ -5,7 +5,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { MANUAL_VISIT_SOURCES, VISIT_SOURCE_LABELS } from '../api/labels'
+import { AGE_LABELS, CONTACT_TIME_LABELS, MANUAL_VISIT_SOURCES, VISIT_SOURCE_LABELS } from '../api/labels'
 import CampusSelect from './CampusSelect.vue'
 
 const props = defineProps<{
@@ -34,6 +34,7 @@ function blank() {
     child_birthdate: null as string | null,
     email: '',
     preferred_time: '',
+    age: '',
     questions: '',
   }
 }
@@ -78,7 +79,8 @@ async function submit() {
       child_name: form.child_name.trim() || null,
       child_birthdate: form.child_birthdate || null,
       email: form.email.trim() || null,
-      preferred_time: form.preferred_time.trim() || null,
+      preferred_time: form.preferred_time || null,
+      age: form.age || null,
       questions: form.questions.trim() || null,
       related_request_id: props.relatedFrom?.id ?? null,
     })
@@ -134,9 +136,18 @@ async function submit() {
       <el-form-item label="Email">
         <el-input v-model="form.email" type="email" />
       </el-form-item>
-      <el-form-item label="方便聯絡時段">
-        <el-input v-model="form.preferred_time" maxlength="32" placeholder="例如：平日上午" />
-      </el-form-item>
+      <div class="form-row">
+        <el-form-item label="孩子年齡">
+          <el-select v-model="form.age" clearable placeholder="選填">
+            <el-option v-for="(label, code) in AGE_LABELS" :key="code" :label="label" :value="code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="方便聯絡時段">
+          <el-select v-model="form.preferred_time" clearable placeholder="選填">
+            <el-option v-for="(label, code) in CONTACT_TIME_LABELS" :key="code" :label="label" :value="code" />
+          </el-select>
+        </el-form-item>
+      </div>
       <el-form-item label="想了解的事">
         <el-input v-model="form.questions" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" maxlength="1000" />
       </el-form-item>

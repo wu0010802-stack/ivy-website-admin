@@ -631,6 +631,26 @@ export interface paths {
         patch: operations["update_user_active_api_website_v1_admin_users__user_id__active_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/users/{user_id}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update User Capabilities
+         * @description 規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。
+         */
+        patch: operations["update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/users/{user_id}/password": {
         parameters: {
             query?: never;
@@ -1905,10 +1925,17 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** UserCapabilitiesRequest */
+        UserCapabilitiesRequest: {
+            /** Capabilities */
+            capabilities?: string[];
+        };
         /** UserCreateRequest */
         UserCreateRequest: {
             /** Campus Keys */
             campus_keys?: string[];
+            /** Capabilities */
+            capabilities?: string[];
             /**
              * Email
              * Format: email
@@ -1922,6 +1949,8 @@ export interface components {
         UserOut: {
             /** Campus Keys */
             campus_keys: string[];
+            /** Capabilities */
+            capabilities?: string[];
             /** Email */
             email: string;
             /**
@@ -2052,7 +2081,7 @@ export interface components {
         /** VisitRequestCreate */
         VisitRequestCreate: {
             /** Age */
-            age?: string | null;
+            age?: ("unknown" | "under_2" | "2-3" | "3-4" | "4-5" | "5-6") | null;
             /** Campus Key */
             campus_key: string;
             /** Child Birthdate */
@@ -2070,7 +2099,7 @@ export interface components {
             /** Phone */
             phone: string;
             /** Preferred Time */
-            preferred_time?: string | null;
+            preferred_time?: ("flexible" | "weekday_morning" | "weekday_afternoon" | "other") | null;
             /** Questions */
             questions?: string | null;
             /** Referral Sources */
@@ -2144,7 +2173,7 @@ export interface components {
          */
         VisitRequestManualCreate: {
             /** Age */
-            age?: string | null;
+            age?: ("unknown" | "under_2" | "2-3" | "3-4" | "4-5" | "5-6") | null;
             /** Campus Key */
             campus_key: string;
             /** Child Birthdate */
@@ -2158,7 +2187,7 @@ export interface components {
             /** Phone */
             phone: string;
             /** Preferred Time */
-            preferred_time?: string | null;
+            preferred_time?: ("flexible" | "weekday_morning" | "weekday_afternoon" | "other") | null;
             /** Questions */
             questions?: string | null;
             /** Related Request Id */
@@ -3990,6 +4019,45 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserUpdateActiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCapabilitiesRequest"];
             };
         };
         responses: {

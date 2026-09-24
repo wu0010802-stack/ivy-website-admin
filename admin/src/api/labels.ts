@@ -67,6 +67,33 @@ export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
 }
 
+// 規格 190 固定選項。API 存代碼；更新前的舊案件可能還是中文原字，照原字顯示。
+export const AGE_LABELS: Record<string, string> = {
+  unknown: '尚未確定',
+  under_2: '2 歲以下',
+  '2-3': '2–3 歲',
+  '3-4': '3–4 歲',
+  '4-5': '4–5 歲',
+  '5-6': '5–6 歲',
+}
+
+export const CONTACT_TIME_LABELS: Record<string, string> = {
+  flexible: '時間彈性',
+  weekday_morning: '平日上午',
+  weekday_afternoon: '平日下午',
+  other: '其他，另行確認',
+}
+
+export function ageLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  return AGE_LABELS[value] ?? value
+}
+
+export function contactTimeLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  return CONTACT_TIME_LABELS[value] ?? value
+}
+
 // 案件來源。web 以外都是園方在後台人工補登的。
 export const VISIT_SOURCE_LABELS: Record<string, string> = {
   web: '官網表單',

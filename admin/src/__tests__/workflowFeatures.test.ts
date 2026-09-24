@@ -117,3 +117,40 @@ describe('每週開放規則', () => {
     })
   })
 })
+
+import { canPublishSharedContent, canSeeNavItem, navItem } from '../router/nav'
+import { ageLabel, contactTimeLabel } from '../api/labels'
+
+describe('全站共用內容授權', () => {
+  const editor = { role: 'editor', capabilities: [] as string[] }
+  const grantedEditor = { role: 'editor', capabilities: ['content.shared'] }
+  const grantedAdmin = { role: 'campus_admin', capabilities: ['content.shared'] }
+  const grantedReception = { role: 'reception', capabilities: ['content.shared'] }
+
+  it('有授權才看得到首頁、頁尾、網站設定', () => {
+    for (const name of ['home-hero', 'site-footer', 'site-meta', 'admission-content']) {
+      const item = navItem(name)!
+      expect(canSeeNavItem(item, editor)).toBe(false)
+      expect(canSeeNavItem(item, grantedEditor)).toBe(true)
+      expect(canSeeNavItem(item, grantedAdmin)).toBe(true)
+      expect(canSeeNavItem(item, grantedReception)).toBe(false)
+    }
+    // 使用者管理不受這個授權影響。
+    expect(canSeeNavItem(navItem('users')!, grantedAdmin)).toBe(false)
+  })
+
+  it('內容編輯有授權也只能送審，分校管理者有授權才能發布', () => {
+    expect(canPublishSharedContent(grantedEditor)).toBe(false)
+    expect(canPublishSharedContent(grantedAdmin)).toBe(true)
+    expect(canPublishSharedContent({ role: 'campus_admin', capabilities: [] })).toBe(false)
+  })
+})
+
+describe('孩子年齡、方便聯絡時段顯示', () => {
+  it('代碼顯示中文，舊資料照原字', () => {
+    expect(contactTimeLabel('weekday_afternoon')).toBe('平日下午')
+    expect(ageLabel('under_2')).toBe('2 歲以下')
+    expect(contactTimeLabel('平日上午')).toBe('平日上午')
+    expect(contactTimeLabel(null)).toBe('—')
+  })
+})

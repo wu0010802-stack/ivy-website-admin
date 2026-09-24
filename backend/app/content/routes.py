@@ -12,7 +12,13 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import Role, User
-from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
+from app.auth.permissions import (
+    CapabilityDenied,
+    ScopeDenied,
+    can_edit_shared_content,
+    can_publish_shared_content,
+    require_scope,
+)
 from app.content import service
 from app.content import publish_jobs
 from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease, SiteReleaseEntry
@@ -64,7 +70,7 @@ def _require_shared_or_scope(user: User, item: ContentItem) -> None:
     """共用內容（campus_key is None）只有 super_admin 能編，
     分校不能改共用內容；校區自有內容才走一般 campus scope 檢查。"""
     if item.campus_key is None:
-        if user.role != Role.SUPER_ADMIN:
+        if not can_edit_shared_content(user):
             raise CapabilityDenied()
         return
     require_scope(user, "content.manage", campus_keys=[item.campus_key])
@@ -73,7 +79,10 @@ def _require_shared_or_scope(user: User, item: ContentItem) -> None:
 def _require_publish(user: User, item: ContentItem) -> None:
     """發布（立即、核准送審、排程）要 content.publish：內容編輯只能送審。"""
     _require_shared_or_scope(user, item)
-    if item.campus_key is not None:
+    if item.campus_key is None:
+        if not can_publish_shared_content(user):
+            raise CapabilityDenied()
+    else:
         require_scope(user, "content.publish", campus_keys=[item.campus_key])
 
 

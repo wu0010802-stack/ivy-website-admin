@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitSourceLabel, visitStatus, referralSourceLabels } from '../api/labels'
+import { ageLabel, contactTimeLabel, campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitSourceLabel, visitStatus, referralSourceLabels } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { useAuthStore } from '../stores/auth'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -351,8 +351,8 @@ watch(id, () => {
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
               <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
-              <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ detail.age }}</el-descriptions-item>
-              <el-descriptions-item label="接電話時段">{{ detail.preferred_time || '—' }}</el-descriptions-item>
+              <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ ageLabel(detail.age) }}</el-descriptions-item>
+              <el-descriptions-item label="接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
               <el-descriptions-item label="想了解的事">
                 <span class="detail__pre">{{ detail.questions || '—' }}</span>
               </el-descriptions-item>

@@ -7,6 +7,7 @@ import { CAMPUS_KEYS } from '../api/types'
 import type { MediaAssetOut } from '../api/types'
 import { campusLabel, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
+import { canEditSharedContent } from '../router/nav'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -29,7 +30,12 @@ const uploadAlt = ref('')
 const uploading = ref(false)
 const dragOver = ref(false)
 
-const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const canManage = computed(() => ['super_admin', 'campus_admin', 'editor'].includes(authStore.user?.role ?? ''))
+// 共用素材（不指定校區）只有能編全站共用內容的人可以上傳；其他人只能選自己的校區。
+const canUploadShared = computed(() => canEditSharedContent(authStore.user))
+const uploadCampusOptions = computed(() =>
+  authStore.user?.role === 'super_admin' ? [...CAMPUS_KEYS] : (authStore.user?.campus_keys ?? []),
+)
 
 const visibleAssets = computed(() =>
   assets.value.filter(
@@ -84,6 +90,7 @@ function openUpload() {
   uploadFile.value = null
   uploadAlt.value = ''
   uploadCampusKey.value = campusFilter.value && campusFilter.value !== '__shared' ? campusFilter.value : ''
+  if (!uploadCampusKey.value && !canUploadShared.value) uploadCampusKey.value = uploadCampusOptions.value[0] ?? ''
   uploadDialogVisible.value = true
 }
 
@@ -246,7 +253,7 @@ onMounted(load)
             <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" @click="tagFilter = t">{{ t }}</button>
           </span>
         </div>
-        <div v-if="canManage" class="media__actions">
+        <div v-if="canManage && (asset.campus_key || canUploadShared)" class="media__actions">
           <el-button v-if="asset.kind === 'image' && asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
           <el-tooltip :content="asset.usage_count > 0 ? '仍在使用中，無法刪除' : '刪除'" placement="top">
             <span>
@@ -279,10 +286,10 @@ onMounted(load)
           </label>
         </el-form-item>
         <el-form-item label="校區">
-          <el-select v-model="uploadCampusKey" placeholder="不指定（每一校都能用）" clearable style="width: 100%">
-            <el-option v-for="key in CAMPUS_KEYS" :key="key" :label="campusLabel(key)" :value="key" />
+          <el-select v-model="uploadCampusKey" :placeholder="canUploadShared ? '不指定（每一校都能用）' : '請選擇校區'" :clearable="canUploadShared" style="width: 100%">
+            <el-option v-for="key in uploadCampusOptions" :key="key" :label="campusLabel(key)" :value="key" />
           </el-select>
-          <span class="field-help">留空代表每一校的內容都能選用。</span>
+          <span class="field-help">{{ canUploadShared ? '留空代表每一校的內容都能選用。' : '共用素材需要「全站共用內容」權限，請選擇你負責的校區。' }}</span>
         </el-form-item>
         <el-form-item v-if="uploadKind === 'image'" label="圖片說明">
           <el-input v-model="uploadAlt" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
@@ -291,7 +298,7 @@ onMounted(load)
       </el-form>
       <template #footer>
         <el-button @click="uploadDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" :disabled="!uploadFile" @click="submitUpload">上傳</el-button>
+        <el-button type="primary" :loading="uploading" :disabled="!uploadFile || (!uploadCampusKey && !canUploadShared)" @click="submitUpload">上傳</el-button>
       </template>
     </el-dialog>
 

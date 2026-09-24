@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Calendar, Download, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus } from '../api/labels'
+import { contactTimeLabel, campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -216,7 +216,7 @@ onMounted(load)
           <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
         </el-table-column>
         <el-table-column label="家長方便時段" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ row.preferred_time || '—' }}</template>
+          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ contactTimeLabel(row.preferred_time) }}</template>
         </el-table-column>
         <el-table-column label="送出時間" width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
@@ -235,7 +235,7 @@ onMounted(load)
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(request.follow_up_at) }}</p>
             <p>{{ campusLabel(request.campus_key) }}校 · {{ request.child_name || '孩子姓名未填寫' }}</p>
             <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
-            <p v-if="request.preferred_time">方便時段：{{ request.preferred_time }}</p>
+            <p v-if="request.preferred_time">方便時段：{{ contactTimeLabel(request.preferred_time) }}</p>
             <span class="hint">{{ formatDateTime(request.created_at) }} 送出</span>
           </li>
         </ul>

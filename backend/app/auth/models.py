@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -23,6 +23,13 @@ class Role(str, enum.Enum):
 
 CREATABLE_ROLES = tuple(Role)
 
+# 規格 7：「全站內容編輯」是明確授權，不因擁有某校範圍就自動取得，只有
+# 總管理者可以授予。總管理者本身不需要（已涵蓋全部）。
+SHARED_CONTENT = "content.shared"
+GRANTABLE_CAPABILITIES = (SHARED_CONTENT,)
+# 只有這些角色的授權有意義：櫃台、唯讀本來就不能編內容。
+GRANTABLE_ROLES = ("campus_admin", "editor")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -39,6 +46,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     campus_scopes: Mapped[list["UserCampusScope"]] = relationship(

@@ -42,3 +42,13 @@ describe('後台全站設定的分享圖與搜尋設定', () => {
     expect(next.siteMeta.allowIndexing).toBe(false)
   })
 })
+
+import { CONTACT_TIME_OPTIONS, contactTimeLabel } from '../app/utils/visit-form'
+
+describe('方便聯絡時段固定選項', () => {
+  it('送代碼、顯示中文，代碼與後端一致', () => {
+    expect(CONTACT_TIME_OPTIONS.map((o) => o.value)).toEqual(['flexible', 'weekday_morning', 'weekday_afternoon', 'other'])
+    expect(contactTimeLabel('weekday_morning')).toBe('平日上午')
+    expect(contactTimeLabel('舊資料原字')).toBe('舊資料原字')
+  })
+})

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
 from app.auth.models import Role, User
-from app.auth.permissions import CapabilityDenied, ScopeDenied, require_scope
+from app.auth.permissions import can_edit_shared_content, CapabilityDenied, ScopeDenied, require_scope
 from app.auth.service import get_session_by_token
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus
@@ -27,7 +27,8 @@ def _require_media_manage(user: User, campus_key: str | None) -> None:
     `_require_shared_or_scope` 同一套裁定。read 維持開放（大家都要看得到）。"""
     if campus_key is None:
         require_scope(user, "media.manage")
-        if user.role != Role.SUPER_ADMIN:
+        # 有「全站共用內容」授權的人要能替首頁、消息換共用照片。
+        if not can_edit_shared_content(user):
             raise CapabilityDenied()
         return
     require_scope(user, "media.manage", campus_keys=[campus_key])

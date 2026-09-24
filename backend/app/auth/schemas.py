@@ -28,6 +28,8 @@ class UserOut(BaseModel):
     role: Role
     is_active: bool
     campus_keys: list[str]
+    # 明確授權，目前只有 "content.shared"（編輯全站共用內容）。
+    capabilities: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -37,6 +39,7 @@ class UserCreateRequest(BaseModel):
     password: str = Field(min_length=12)
     role: Role
     campus_keys: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
 
     @field_validator("email")
     @classmethod
@@ -73,3 +76,7 @@ class PasswordChangeRequest(BaseModel):
 
     current_password: str
     new_password: str = Field(min_length=12, max_length=200)
+
+
+class UserCapabilitiesRequest(BaseModel):
+    capabilities: list[str] = Field(default_factory=list, max_length=5)

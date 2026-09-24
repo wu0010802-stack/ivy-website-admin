@@ -26,6 +26,7 @@ const scopeDialogVisible = ref(false)
 const scopeTarget = ref<UserOut | null>(null)
 const scopeSelection = ref<string[]>([])
 const scopeRole = ref<Role>('campus_admin')
+const scopeShared = ref(false)
 const resetTarget = ref<UserOut | null>(null)
 const resetPassword = ref('')
 const resetVisible = ref(false)
@@ -43,7 +44,14 @@ const form = reactive({
   password: '',
   role: 'campus_admin' as Role,
   campus_keys: [] as string[],
+  shared_content: false,
 })
+
+// 「全站共用內容」只對分校管理者與內容編輯有意義（後端 GRANTABLE_ROLES）。
+const GRANTABLE_ROLES: Role[] = ['campus_admin', 'editor']
+function hasSharedGrant(u: UserOut): boolean {
+  return (u.capabilities ?? []).includes('content.shared')
+}
 
 const formValid = computed(
   () =>
@@ -104,6 +112,7 @@ function openCreateDialog() {
   form.password = ''
   form.role = 'campus_admin'
   form.campus_keys = []
+  form.shared_content = false
   passwordVisible.value = false
   dialogVisible.value = true
 }
@@ -117,6 +126,7 @@ async function submitCreate() {
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
+      capabilities: GRANTABLE_ROLES.includes(form.role) && form.shared_content ? ['content.shared'] : [],
     })
     users.value.push(created)
     dialogVisible.value = false
@@ -149,6 +159,7 @@ function openScopeDialog(target: UserOut) {
   if (operationBusy.value) return
   scopeTarget.value = target
   scopeRole.value = target.role
+  scopeShared.value = hasSharedGrant(target)
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
 }
@@ -157,10 +168,16 @@ async function submitScope() {
   if (!scopeTarget.value || operationBusy.value) return
   savingScope.value = true
   try {
-    const updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/role`, {
+    let updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/role`, {
       role: scopeRole.value,
       campus_keys: scopeRole.value === 'super_admin' ? [] : scopeSelection.value,
     })
+    const wantShared = GRANTABLE_ROLES.includes(scopeRole.value) && scopeShared.value
+    if (wantShared !== hasSharedGrant(updated)) {
+      updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/capabilities`, {
+        capabilities: wantShared ? ['content.shared'] : [],
+      })
+    }
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     scopeDialogVisible.value = false
@@ -234,8 +251,8 @@ onMounted(loadUsers)
               <el-tag v-if="isSelf(row)" size="small" type="info" round class="self-tag">你</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" width="130">
-            <template #default="{ row }: { row: UserOut }">{{ roleLabel(row.role) }}</template>
+          <el-table-column label="角色" width="190">
+            <template #default="{ row }: { row: UserOut }">{{ roleLabel(row.role) }}<el-tag v-if="hasSharedGrant(row)" size="small" type="warning" round class="self-tag" title="可以編輯全站共用內容">全站內容</el-tag></template>
           </el-table-column>
           <el-table-column label="校區範圍" min-width="180">
             <template #default="{ row }: { row: UserOut }">
@@ -260,7 +277,7 @@ onMounted(loadUsers)
         <ul class="mobile-records" aria-label="使用者清單">
           <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
             <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
-            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd></dl>
+            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd></dl>
             <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" /></div>
           </li>
         </ul>
@@ -292,6 +309,10 @@ onMounted(loadUsers)
               <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
             </el-checkbox-group>
           </el-form-item>
+          <el-form-item v-if="form.role === 'campus_admin' || form.role === 'editor'">
+            <el-checkbox v-model="form.shared_content">也可以編輯全站共用內容（首頁、頁尾、網站設定、共用素材）</el-checkbox>
+            <span class="field-help">{{ form.role === 'editor' ? '改完一樣要送審，由總管理者核准發布。' : '可以直接發布共用內容，也能審核內容編輯送上來的共用內容。' }}</span>
+          </el-form-item>
         </el-form>
         <template #footer>
           <el-button :disabled="creating" @click="dialogVisible = false">取消</el-button>
@@ -311,6 +332,10 @@ onMounted(loadUsers)
             <el-checkbox-group v-model="scopeSelection">
               <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
             </el-checkbox-group>
+          </el-form-item>
+          <el-form-item v-if="scopeRole === 'campus_admin' || scopeRole === 'editor'">
+            <el-checkbox v-model="scopeShared">也可以編輯全站共用內容（首頁、頁尾、網站設定、共用素材）</el-checkbox>
+            <span class="field-help">{{ scopeRole === 'editor' ? '改完一樣要送審，由總管理者核准發布。' : '可以直接發布共用內容，也能審核內容編輯送上來的共用內容。' }}</span>
           </el-form-item>
         </el-form>
         <template #footer>

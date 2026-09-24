@@ -2,7 +2,7 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import * as Icons from '@element-plus/icons-vue'
-import { NAV_GROUPS } from '../router/nav'
+import { canSeeNavItem, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
@@ -42,7 +42,7 @@ watch(expanded, value => {
 const icons = Icons as unknown as Record<string, Component>
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)
 const groups = computed(() => NAV_GROUPS.map(group => {
-  const allowed = group.items.filter(item => !item.roles || item.roles.includes(auth.user?.role ?? ''))
+  const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
   const q = query.value.trim()
   if (!q) return { ...group, items: allowed }
   // 功能名先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開。

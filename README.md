@@ -1,3 +1,10 @@
+## 2026-09-24 孩子年齡、聯絡時段改固定選項；全站共用內容授權
+
+- **固定選項（規格 190）**：參觀案件的 `age`／`preferred_time` 只收固定代碼（`unknown|under_2|2-3|3-4|4-5|5-6`、`flexible|weekday_morning|weekday_afternoon|other`）。官網表單改送代碼、顯示中文；API 仍接受舊頁面送的中文標籤並換成代碼，認不得的值回 422。migration `a9c4e2f7d316` 把既有案件的中文標籤轉成代碼（認不得的保留原字）。冪等 hash 用中文標籤算，更新前後的重送會認得是同一筆。後台清單、明細改顯示中文，人工補登改成下拉選單。
+- **全站共用內容授權（規格 7）**：新增 `users.capabilities`（migration `b6d1f8e3a524`），總管理者可在「使用者 → 角色與校區」或新增帳號時，勾選「也可以編輯全站共用內容」給分校管理者或內容編輯。有授權的內容編輯能改首頁、頁尾、網站設定並上傳共用素材，但只能送審；有授權的分校管理者可以直接發布與審核共用內容。側欄與路由依授權顯示；改成櫃台／唯讀／總管理者時授權自動清掉。素材庫的上傳校區改為只列自己負責的校區（沒有授權時不能選「不指定」）。
+
+驗證：後端新增 `test_visit_option_codes.py`、`test_shared_content_grant.py`，調整 `test_visit_details.py` 的舊 hash 算法；後台 vitest 84 passed、`vue-tsc` 通過；官網 vitest 210 passed、`nuxt typecheck` 通過。
+
 ## 2026-09-24 後台補齊：案件流程、接待日曆、時段規則、版本紀錄、送審與排程、角色與帳號
 
 盤點規格後把後台還沒做的功能一次補上。四個新 migration（`c4e8a1d3f210`→`d1f5b2c8e437`→`e7a3c9d4b128`→`f2b8d6a1c953`），部署後要跑 `alembic upgrade head`；OpenAPI 契約已重新產生。

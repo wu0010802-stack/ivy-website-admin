@@ -2,7 +2,7 @@
 import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
-import { normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
 
 const props = defineProps<{
   booking: BookingContent
@@ -125,7 +125,8 @@ const idempotencyKey = ref(crypto.randomUUID())
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
 // 第一步是薄荷色帶的迎賓區＋照片卡選校；第二步與送出後收成一行頁名，左側改放所選校園。
 const isPicking = computed(() => step.value === 1 && !submitted.value)
-const timeOptions = computed(() => props.booking.fields.find((field) => field.name === 'time')?.options ?? [])
+// 選項固定（規格 190），不讀 fixture 的中文清單：送出的是代碼。
+const timeOptions = CONTACT_TIME_OPTIONS
 const nextLabel = computed(() => bookingPending.value ? '正在確認參觀方式…' : action.value.kind === 'form' || !selectedCampus.value ? '下一步：填寫資料' : '下一步：查看參觀方式')
 
 async function focusStage() {
@@ -398,7 +399,7 @@ async function onSubmit() {
                   <details class="visit-optional" :open="optionalOpen" @toggle="optionalOpen = ($event.target as HTMLDetailsElement).open">
                     <summary>其他想告訴我們的事<span>選填 <span class="visit-expand-mark" aria-hidden="true">＋</span></span></summary>
                     <div class="visit-field-grid">
-                      <div class="visit-field visit-full"><label for="contact-time">方便接電話的時段</label><select id="contact-time" v-model="form.time" name="time" aria-describedby="visit-time-hint"><option value="">請選擇（選填）</option><option v-for="option in timeOptions" :key="option" :value="option">{{ option }}</option></select><p id="visit-time-hint" class="visit-field-hint">這是聯絡時段，與參觀場次分開。</p></div>
+                      <div class="visit-field visit-full"><label for="contact-time">方便接電話的時段</label><select id="contact-time" v-model="form.time" name="time" aria-describedby="visit-time-hint"><option value="">請選擇（選填）</option><option v-for="option in timeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><p id="visit-time-hint" class="visit-field-hint">這是聯絡時段，與參觀場次分開。</p></div>
                       <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
                     </div>
                   </details>
@@ -416,7 +417,7 @@ async function onSubmit() {
             <span class="visit-result-status"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
-            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ form.time }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
+            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
             <div class="visit-result-next"><h3>接下來，等園所與你聯繫。</h3><p>需要補充、更正資料或調整安排，請直接聯絡{{ selectedCampus?.name }}。</p><div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><a v-if="selectedCampus?.line" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a></div></div>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>

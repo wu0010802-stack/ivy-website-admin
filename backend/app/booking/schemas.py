@@ -19,6 +19,44 @@ _PHONE_PATTERN = re.compile(r"09[0-9]{8}")
 # 通訊錄貼過來的 0912-345-678 或 0912 345 678 都要能通過。
 _PHONE_STRIP_RE = re.compile(r"[\s\-\u2010-\u2015\u2212\uFF0D\u3000]")
 
+# 規格 190 的固定選項。API 只存代碼；中文是顯示用，後台與官網各自對照。
+AgeCode = Literal["unknown", "under_2", "2-3", "3-4", "4-5", "5-6"]
+ContactTimeCode = Literal["flexible", "weekday_morning", "weekday_afternoon", "other"]
+AGE_LABELS: dict[str, str] = {
+    "unknown": "尚未確定",
+    "under_2": "2 歲以下",
+    "2-3": "2–3 歲",
+    "3-4": "3–4 歲",
+    "4-5": "4–5 歲",
+    "5-6": "5–6 歲",
+}
+CONTACT_TIME_LABELS: dict[str, str] = {
+    "flexible": "時間彈性",
+    "weekday_morning": "平日上午",
+    "weekday_afternoon": "平日下午",
+    "other": "其他，另行確認",
+}
+_DASHES_RE = re.compile(r"[-\u2010-\u2015\u2212\uFF0D]")
+
+
+def _label_to_code(value, labels: dict[str, str]):
+    """舊版官網送的是中文標籤（已快取的頁面、還沒更新的分頁仍可能送），
+    收到時換成代碼再驗證；認不得的值交給 Literal 回 422。破折號寫法不一，
+    比對前統一。"""
+    if not isinstance(value, str):
+        return value
+    cleaned = value.strip()
+    if cleaned == "":
+        return None
+    if cleaned in labels:
+        return cleaned
+    normalized = _DASHES_RE.sub("-", cleaned).replace(" ", "")
+    for code, label in labels.items():
+        if normalized == _DASHES_RE.sub("-", label).replace(" ", ""):
+            return code
+    return cleaned
+
+
 VisitSource = Literal["web", "phone", "line", "walk_in", "external"]
 ManualVisitSource = Literal["phone", "line", "walk_in", "external"]
 
@@ -109,15 +147,20 @@ class VisitRequestCreate(BaseModel):
     child_birthdate: date | None = None
     email: EmailStr | None = Field(default=None, max_length=254)
     referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=5)
-    # 規格 190 的固定 enum 是 unknown|under_2|2-3|3-4|4-5|5-6 與
-    # flexible|weekday_morning|weekday_afternoon|other，但公開表單目前送
-    # 的是 CMS 的中文標籤（web/server/data/site-fixture.json），直接收緊
-    # 成 Literal 會讓現行表單全部送不出去。這裡先對齊 models.py 的欄位
-    # 長度擋掉 500，enum 化需要 web/ 與 CMS 選項一起改。
-    age: str | None = Field(default=None, max_length=32)
-    preferred_time: str | None = Field(default=None, max_length=32)
+    age: AgeCode | None = None
+    preferred_time: ContactTimeCode | None = None
     questions: str | None = Field(default=None, max_length=1000)
     consent_given: bool
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def _age_code(cls, value):
+        return _label_to_code(value, AGE_LABELS)
+
+    @field_validator("preferred_time", mode="before")
+    @classmethod
+    def _time_code(cls, value):
+        return _label_to_code(value, CONTACT_TIME_LABELS)
     slot_id: uuid.UUID | None = None  # mode=slots 時必填
 
     @field_validator("parent_name")
@@ -264,9 +307,20 @@ class VisitRequestManualCreate(BaseModel):
     child_name: str | None = Field(default=None, max_length=64)
     child_birthdate: date | None = None
     email: EmailStr | None = Field(default=None, max_length=254)
-    age: str | None = Field(default=None, max_length=32)
-    preferred_time: str | None = Field(default=None, max_length=32)
+    age: AgeCode | None = None
+    preferred_time: ContactTimeCode | None = None
     questions: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def _age_code(cls, value):
+        return _label_to_code(value, AGE_LABELS)
+
+    @field_validator("preferred_time", mode="before")
+    @classmethod
+    def _time_code(cls, value):
+        return _label_to_code(value, CONTACT_TIME_LABELS)
+
     # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
     related_request_id: uuid.UUID | None = None
 

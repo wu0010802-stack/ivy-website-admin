@@ -19,7 +19,7 @@ from app.auth.deps import (
     get_db_session,
 )
 from app.auth.models import Session as AuthSession
-from app.auth.models import CREATABLE_ROLES, Role, User
+from app.auth.models import CREATABLE_ROLES, GRANTABLE_CAPABILITIES, GRANTABLE_ROLES, Role, User
 from app.auth.permissions import require_scope
 from app.auth.schemas import (
     LoginRequest,
@@ -30,6 +30,7 @@ from app.auth.schemas import (
     UserUpdateActiveRequest,
     UserUpdateScopeRequest,
     UserUpdateRoleRequest,
+    UserCapabilitiesRequest,
     PasswordChangeRequest,
     PasswordResetRequest,
 )
@@ -47,6 +48,19 @@ def _require_scope_for_role(role: Role, campus_keys: list[str]) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="請至少指定一個校區")
 
 
+def _clean_capabilities(role: Role, capabilities: list[str]) -> list[str]:
+    """只接受已知的授權，而且只給會用到的角色（分校管理者、內容編輯）。
+    總管理者本來就涵蓋全部，存了也沒意義。"""
+    unknown = [c for c in capabilities if c not in GRANTABLE_CAPABILITIES]
+    if unknown:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支援的授權：{', '.join(unknown)}")
+    if capabilities and role.value not in GRANTABLE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="只有分校管理者與內容編輯可以授予這項權限"
+        )
+    return sorted(set(capabilities))
+
+
 def _user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
@@ -54,6 +68,7 @@ def _user_out(user: User) -> UserOut:
         role=user.role,
         is_active=user.is_active,
         campus_keys=sorted(scope.campus_key for scope in user.campus_scopes),
+        capabilities=list(user.capabilities or []),
     )
 
 
@@ -153,6 +168,7 @@ async def create_user(
     if payload.role not in CREATABLE_ROLES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不支援的角色")
     _require_scope_for_role(payload.role, payload.campus_keys)
+    capabilities = _clean_capabilities(payload.role, payload.capabilities)
     # UserCreateRequest 已把 email 正規化成小寫，這裡仍用 lower() 比對，
     # 讓既有的大小寫混雜資料也能被擋下（DB 端另有 lower(email) 唯一索引兜底）。
     existing = await db.execute(select(User).where(func.lower(User.email) == payload.email))
@@ -165,6 +181,7 @@ async def create_user(
         password_hash=service.hash_password(payload.password),
         role=payload.role,
         is_active=True,
+        capabilities=capabilities,
         created_at=datetime.now(timezone.utc),
     )
     db.add(user)
@@ -177,7 +194,7 @@ async def create_user(
         action="user.create",
         target_type="user",
         target_id=str(user.id),
-        metadata={"role": payload.role.value, "campus_keys": sorted(payload.campus_keys)},
+        metadata={"role": payload.role.value, "campus_keys": sorted(payload.campus_keys), "capabilities": capabilities},
     )
     try:
         await db.commit()
@@ -286,6 +303,9 @@ async def update_user_role(
     except service.LastSuperAdminProtected as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="不能降級最後一位總管理者") from exc
     await service.set_campus_scopes(db, user, [] if payload.role == Role.SUPER_ADMIN else payload.campus_keys)
+    if payload.role.value not in GRANTABLE_ROLES:
+        # 改成總管理者、櫃台或唯讀時，授權不再適用，清掉免得日後改回來時意外復活。
+        user.capabilities = []
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -347,3 +367,28 @@ async def change_own_password(
         metadata={},
     )
     await db.commit()
+
+
+@router.patch("/admin/users/{user_id}/capabilities", response_model=UserOut)
+async def update_user_capabilities(
+    user_id: uuid.UUID,
+    payload: UserCapabilitiesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserOut:
+    """規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。"""
+    require_scope(current_user, "users.manage")
+    user = await _load_user(db, user_id)
+    before = list(user.capabilities or [])
+    user.capabilities = _clean_capabilities(user.role, payload.capabilities)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="user.set_capabilities",
+        target_type="user",
+        target_id=str(user_id),
+        metadata={"before": before, "after": user.capabilities},
+    )
+    await db.commit()
+    db.expire_all()
+    return _user_out(await _load_user(db, user_id))

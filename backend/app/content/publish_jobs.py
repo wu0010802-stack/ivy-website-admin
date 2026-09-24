@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.models import Role, User
-from app.auth.permissions import has_capability
+from app.auth.permissions import can_publish_shared_content, has_capability
 from app.campuses.models import Campus
 from app.content import service
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -29,7 +29,7 @@ def user_can_publish(user: User | None, item: ContentItem) -> bool:
     if user is None or not user.is_active:
         return False
     if item.campus_key is None:
-        return user.role == Role.SUPER_ADMIN
+        return can_publish_shared_content(user)
     if not has_capability(user, "content.publish"):
         return False
     return user.role == Role.SUPER_ADMIN or item.campus_key in {s.campus_key for s in user.campus_scopes}
