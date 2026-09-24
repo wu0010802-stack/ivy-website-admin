@@ -46,8 +46,15 @@ async function load() {
   error.value = null
   try {
     const result = await api.get<Schedule>(`/admin/visit-schedule/${props.campusKey}`)
+    // 回應形狀不對（例如代理回了別的東西）就當讀取失敗，不讓畫面在
+    // 計算「有沒有改過」時整個丟例外。
+    if (!result || !Array.isArray(result.rules) || !Array.isArray(result.exceptions)) {
+      schedule.value = null
+      error.value = '無法讀取開放規則'
+      return
+    }
     schedule.value = result
-    rules.value = (result.rules ?? []).map((r) => ({ ...r }))
+    rules.value = result.rules.map((r) => ({ ...r }))
     leadHours.value = result.min_lead_hours
     advanceDays.value = result.max_advance_days
   } catch (err) {
