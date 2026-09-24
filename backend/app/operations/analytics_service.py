@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import time
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import ratelimit
 from app.operations.models import PUBLIC_REPORTABLE_EVENT_TYPES, AnalyticsEvent, AnalyticsEventType
 
-# 簡易限流：同一個 process 記憶體內滑動窗口，跟 auth 的登入限流同一種
-# 做法（見 app/auth/service.py 的說明與限制）。
-_CLICK_ATTEMPTS: dict[str, list[float]] = {}
+# 簡易限流：同一個 process 記憶體內滑動窗口（有界，見 SlidingWindowLimiter）。
 CLICK_WINDOW_SECONDS = 60
 CLICK_MAX_PER_WINDOW = 20
+_CLICK_ATTEMPTS = ratelimit.SlidingWindowLimiter(
+    window_seconds=CLICK_WINDOW_SECONDS, max_per_window=CLICK_MAX_PER_WINDOW
+)
 
 
 class EventTypeNotAllowed(Exception):
@@ -27,12 +28,10 @@ class RateLimited(Exception):
 
 
 def check_rate_limit(client_key: str) -> None:
-    now = time.monotonic()
-    attempts = [t for t in _CLICK_ATTEMPTS.get(client_key, []) if now - t < CLICK_WINDOW_SECONDS]
-    _CLICK_ATTEMPTS[client_key] = attempts
-    if len(attempts) >= CLICK_MAX_PER_WINDOW:
-        raise RateLimited()
-    attempts.append(now)
+    try:
+        _CLICK_ATTEMPTS.check(client_key)
+    except ratelimit.RateLimited as exc:
+        raise RateLimited() from exc
 
 
 async def record_public_click(

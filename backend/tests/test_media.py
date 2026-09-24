@@ -171,17 +171,47 @@ async def test_replace_creates_new_asset_and_keeps_old_untouched(admin_client, d
 
 
 @pytest.mark.asyncio
-async def test_public_media_file_served_without_auth(admin_client, public_client):
+async def test_public_media_file_requires_published_reference(admin_client, public_client):
+    """規格：草稿素材授權才能取得，發布後才公開。ready 只代表處理完成。"""
     upload = await admin_client.post(
         "/api/website/v1/admin/media",
-        data={"kind": "image"},
+        data={"kind": "image", "campus_key": "yihua"},
         files={"file": ("test.jpg", _read("test.jpg"), "image/jpeg")},
     )
     media_id = upload.json()["id"]
+    url = f"/api/website/v1/public/media/{media_id}/file"
 
-    response = await public_client.get(f"/api/website/v1/public/media/{media_id}/file")
+    assert (await public_client.get(url)).status_code == 404
+    # 草稿預覽：帶後台 session 可以看，但不能讓共用快取存起來。
+    preview = await admin_client.get(url)
+    assert preview.status_code == 200
+    assert preview.content == _read("test.jpg")
+    assert preview.headers["cache-control"] == "private, no-store"
+
+    scenes = {
+        "scenes": [
+            {
+                "key": "hall", "name": "大廳", "image": media_id, "intro": "介紹",
+                "spots": [{"name": "櫃台", "x": 50, "y": 50, "text": "說明", "question": "問題"}],
+            }
+        ]
+    }
+    draft = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": scenes},
+    )
+    assert draft.status_code == 201, draft.text
+    published = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_tour/publish?campus_key=yihua",
+        json={"revision_id": draft.json()["latest_revision"]["id"]},
+    )
+    assert published.status_code == 200, published.text
+
+    response = await public_client.get(url)
     assert response.status_code == 200
     assert response.content == _read("test.jpg")
+    assert "immutable" in response.headers["cache-control"]
+    assert response.headers["x-content-type-options"] == "nosniff"
 
 
 @pytest.mark.asyncio
@@ -223,9 +253,11 @@ async def test_campus_tour_referencing_media_blocks_delete_until_reference_remov
     assert delete_blocked.status_code == 409
     assert delete_blocked.json()["detail"]["code"] == "MEDIA_IN_USE"
 
-    # 官網也真的讀得到這張圖（不用登入）。
+    # 只在草稿裡：匿名訪客讀不到，後台草稿預覽讀得到。
     public_file = await public_client.get(f"/api/website/v1/public/media/{media_id}/file")
-    assert public_file.status_code == 200
+    assert public_file.status_code == 404
+    preview_file = await admin_client.get(f"/api/website/v1/public/media/{media_id}/file")
+    assert preview_file.status_code == 200
 
     # 存新版把圖片換成舊的 fixture 代號字串，不再引用素材庫這張圖。
     item = await admin_client.get(

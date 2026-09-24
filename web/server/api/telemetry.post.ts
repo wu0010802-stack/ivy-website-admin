@@ -10,9 +10,6 @@ export default defineEventHandler(async (event) => {
   if (getHeader(event, 'sec-fetch-site') === 'cross-site') throw createError({ statusCode: 403 })
   const origin = getHeader(event, 'origin')
   if (origin && origin !== config.public.siteOrigin.replace(/\/$/, '') && origin !== getRequestURL(event).origin) throw createError({ statusCode: 403 })
-  const now = Date.now()
-  if (now - windowStart >= 60_000) { windowStart = now; accepted = 0 }
-  if (++accepted > 600) throw createError({ statusCode: 429 })
   if (Number(getHeader(event, 'content-length')) > 2048) throw createError({ statusCode: 413 })
   const chunks: Buffer[] = []
   let size = 0
@@ -27,13 +24,18 @@ export default defineEventHandler(async (event) => {
   catch { throw createError({ statusCode: 400 }) }
   const payload = validateTelemetry(body)
   if (!payload) throw createError({ statusCode: 400 })
+  // 配額只計有效事件：先計數再驗證的話，一串無效請求就能把全站的額度
+  // 在一分鐘內用完，真實訪客的瀏覽與效能回報全被擋成 429。
+  const now = Date.now()
+  if (now - windowStart >= 60_000) { windowStart = now; accepted = 0 }
+  if (++accepted > 600) throw createError({ statusCode: 429 })
   console.info(JSON.stringify({ type: 'website_telemetry', at: new Date().toISOString(), ...payload }))
   // 存進 API 的每日瀏覽量／效能樣本（後台「數據」頁）。訪客 IP 只給 API 做限流，
   // 不入庫；API 不通時照樣回 204，觀測資料不影響瀏覽。
   await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/telemetry`, {
     method: 'POST',
     body: payload,
-    headers: { 'x-website-client-ip': getRequestIP(event, { xForwardedFor: true }) ?? '' },
+    headers: { 'x-website-client-ip': trustedClientIp(event) },
     timeout: 2000
   }).catch((error: unknown) => {
     console.warn(JSON.stringify({ type: 'website_telemetry_store_failed', message: error instanceof Error ? error.message : String(error) }))

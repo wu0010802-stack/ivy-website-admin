@@ -124,6 +124,7 @@ def _reset_rate_limiters():
     from app.operations import analytics_service
     from app.operations import routes as operations_routes
     from app.operations import traffic_service
+    from app.media import service as media_service
 
     auth_service.reset_login_rate_limits()
     booking_routes._SUBMIT_LIMITER_BY_PHONE.clear()
@@ -132,6 +133,7 @@ def _reset_rate_limiters():
     analytics_service._CLICK_ATTEMPTS.clear()
     operations_routes._telemetry_limiter.clear()
     traffic_service._last_purge = None
+    media_service._release_media_cache = None
     yield
 
 
