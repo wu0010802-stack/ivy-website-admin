@@ -18,7 +18,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>首頁第二屏的理念介紹。標題會用大字顯示，內文分段請用空一行。</template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標題">
         <el-input v-model="editor.form.value.title" />
       </el-form-item>

@@ -23,7 +23,7 @@ onMounted(editor.load)
       <router-link to="/booking">各校預約方式</router-link> 設定。
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <h3 class="form-section">預約按鈕</h3>
       <div class="field-row">
         <el-form-item label="中文">

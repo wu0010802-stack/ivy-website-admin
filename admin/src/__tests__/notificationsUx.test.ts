@@ -8,6 +8,7 @@ import NotificationsView from '../views/NotificationsView.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
@@ -16,7 +17,7 @@ function notification(id: string, campus_key = 'yihua') {
 }
 async function setup() {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: ['yihua', 'renwu'], line_linked: false }
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua', 'renwu'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/notifications')
   await router.isReady()

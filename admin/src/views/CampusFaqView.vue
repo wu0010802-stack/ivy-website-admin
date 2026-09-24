@@ -42,11 +42,11 @@ function move(index: number, delta: number) {
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div v-for="(qa, index) in editor.form.value.items" :key="index" class="repeat-item">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>第 {{ index + 1 }} 題</span>
-          <span class="cell-actions">
+          <span v-if="!editor.readOnly.value" class="cell-actions">
             <el-button text size="small" :disabled="index === 0" @click="move(index, -1)">上移</el-button>
             <el-button text size="small" :disabled="index === editor.form.value.items.length - 1" @click="move(index, 1)">下移</el-button>
             <el-button
@@ -69,10 +69,12 @@ function move(index: number, delta: number) {
         </el-form-item>
       </div>
 
-      <el-button :icon="Plus" :disabled="editor.form.value.items.length >= MAX_ITEMS" @click="addItem">
-        新增一題
-      </el-button>
-      <span v-if="editor.form.value.items.length >= MAX_ITEMS" class="hint" style="margin-left: 8px">已達上限</span>
+      <template v-if="!editor.readOnly.value">
+        <el-button :icon="Plus" :disabled="editor.form.value.items.length >= MAX_ITEMS" @click="addItem">
+          新增一題
+        </el-button>
+        <span v-if="editor.form.value.items.length >= MAX_ITEMS" class="hint" style="margin-left: 8px">已達上限</span>
+      </template>
     </el-form>
   </ContentEditor>
 </template>

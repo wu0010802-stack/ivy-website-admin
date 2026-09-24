@@ -18,7 +18,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>官網每一頁最底下的文字。五校清單與聯絡方式來自「五校介紹」，這裡只改標語與版權字樣。</template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標語">
         <el-input v-model="editor.form.value.tagline" />
       </el-form-item>

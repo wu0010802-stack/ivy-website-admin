@@ -46,7 +46,7 @@ onMounted(editor.load)
       <strong>時刻卡的數量要對得上官網現有的照片張數</strong>，多出來的卡片官網不會顯示。
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
         <el-form-item label="小標（中文）">
           <el-input v-model="editor.form.value.eyebrow" placeholder="例如：孩子的一天" />

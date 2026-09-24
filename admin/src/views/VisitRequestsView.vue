@@ -7,7 +7,7 @@ import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -17,9 +17,10 @@ import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 const router = useRouter()
 const route = useRoute()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
-const authStore = useAuthStore()
-// 補登與指派要 booking.manage：總管理者與校區管理者。
-const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const { can } = usePermissions()
+// 補登要能處理案件（booking.handle，含櫃台）；匯出個資要總管理者另外授權。
+const canHandle = computed(() => can('booking.handle'))
+const canExport = computed(() => can('booking.export'))
 const { staff, load: loadStaff } = useVisitStaff()
 const manualOpen = ref(false)
 const openRequests = useOpenRequestsStore()
@@ -163,8 +164,8 @@ onMounted(() => {
   <div class="page">
     <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
       <template #actions>
-        <el-button v-if="canManage" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
-        <el-button :icon="Download" @click="exportCsv">匯出 CSV</el-button>
+        <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
+        <el-button v-if="canExport" :icon="Download" @click="exportCsv">匯出 CSV</el-button>
       </template>
     </PageHeader>
 
@@ -291,7 +292,7 @@ onMounted(() => {
     </div>
 
     <ManualVisitDialog
-      v-if="canManage"
+      v-if="canHandle"
       v-model="manualOpen"
       :campus-keys="visibleCampusKeys"
       :default-campus="campusFilter"

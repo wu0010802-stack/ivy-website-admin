@@ -10,11 +10,13 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 
 const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
-const authStore = useAuthStore()
-const canManage = computed(() => ['super_admin', 'campus_admin'].includes(authStore.user?.role ?? ''))
+const { can } = usePermissions()
+// 櫃台看得到時段與名額（排入案件要用），但新增、調整名額、關閉與每週規則
+// 限校區管理者以上（booking.manage）。
+const canManage = computed(() => can('booking.manage'))
 
 function isoDate(offsetDays = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000))
@@ -82,7 +84,7 @@ async function submitCreate() {
 }
 
 async function updateCapacity(slot: VisitSlotOut, capacity: number) {
-  if (busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
+  if (!canManage.value || busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
   busyId.value = slot.id
   try {
     await api.patch(`/admin/slots/${slot.id}`, { capacity })
@@ -105,7 +107,7 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
 }
 
 async function toggleClosed(slot: VisitSlotOut) {
-  if (busyId.value || loading.value) return
+  if (!canManage.value || busyId.value || loading.value) return
   busyId.value = slot.id
   try {
     if (!slot.closed && slot.booked_count > 0) {
@@ -168,7 +170,7 @@ function fillRatio(slot: VisitSlotOut): number {
 }
 
 function openCreate() {
-  if (busyId.value || loading.value || creating.value) return
+  if (!canManage.value || busyId.value || loading.value || creating.value) return
   createForm.value.slot_date = dateFrom.value >= isoDate() ? dateFrom.value : isoDate(1)
   createDialogVisible.value = true
 }
@@ -177,10 +179,11 @@ function openCreate() {
 <template>
   <div class="page">
     <PageHeader lead="家長可預約的參觀時段與每場名額。已確認的案件會占用名額；關閉時段只是不再開放，不影響既有案件。">
-      <template #actions>
+      <template v-if="canManage" #actions>
         <el-button type="primary" :icon="Plus" :disabled="!selectedCampus || Boolean(busyId) || loading || creating" @click="openCreate">新增時段</el-button>
       </template>
     </PageHeader>
+    <p v-if="!canManage" class="hint slots-readonly">你的帳號可以查看時段與名額；新增時段、調整名額或關閉由校區管理者處理。</p>
 
     <div class="toolbar filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="selectedCampus" :keys="visibleCampusKeys" :disabled="Boolean(busyId) || creating || createDialogVisible" /></label>
@@ -198,7 +201,7 @@ function openCreate() {
     <div class="list-summary"><span>{{ campusLabel(selectedCampus) }}校 · {{ loading ? '讀取中…' : `期間內 ${slots.length} 場，${availableSlots} 場仍有名額` }}</span><el-button text :loading="loading" :disabled="Boolean(busyId)" @click="load">重新整理</el-button></div>
     <div class="panel">
       <el-skeleton v-if="loading" animated :rows="4" class="list-skeleton" />
-      <el-empty v-else-if="!slots.length" description="這段期間尚未安排參觀時段"><el-button type="primary" @click="openCreate">新增第一個時段</el-button></el-empty>
+      <el-empty v-else-if="!slots.length" description="這段期間尚未安排參觀時段"><el-button v-if="canManage" type="primary" @click="openCreate">新增第一個時段</el-button></el-empty>
       <template v-else>
       <el-table class="data-table slots-table" :data="slots" :span-method="dateSpan" :row-class-name="rowClass">
         <el-table-column label="日期" width="170" class-name="slots-table__date">
@@ -225,7 +228,7 @@ function openCreate() {
                 size="small"
                 controls-position="right"
                 aria-label="名額"
-                :disabled="Boolean(busyId) || isPast(row)"
+                :disabled="!canManage || Boolean(busyId) || isPast(row)"
                 @change="(v: number | undefined) => v !== undefined && updateCapacity(row, v)"
               />
               <span class="cap__bar" aria-hidden="true">
@@ -241,7 +244,7 @@ function openCreate() {
         </el-table-column>
         <el-table-column label="操作" width="110" align="right">
           <template #default="{ row }: { row: VisitSlotOut }">
-            <el-button v-if="!isPast(row)" size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
+            <el-button v-if="canManage && !isPast(row)" size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
               {{ row.closed ? '重新開放' : '關閉' }}
             </el-button>
           </template>
@@ -258,13 +261,13 @@ function openCreate() {
               </div>
               <div class="slot-row__body">
                 <span class="slot-row__booked">已確認 <b class="num">{{ slot.booked_count }}</b> 組</span>
-                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
-                <el-button v-if="!isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
+                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
+                <el-button v-if="canManage && !isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
               </div>
             </li>
           </ul>
         </section>
-        <p class="hint slot-days__note">名額調整後立即儲存。</p>
+        <p v-if="canManage" class="hint slot-days__note">名額調整後立即儲存。</p>
       </div>
       </template>
     </div>
@@ -297,6 +300,7 @@ function openCreate() {
 </template>
 
 <style scoped>
+.slots-readonly { margin: -8px 0 16px; }
 .today-mark { display:inline-block; margin-left:6px; padding:0 8px; border-radius:999px; background:var(--el-color-primary-light-9); color:var(--el-color-primary); font-size:12px; font-weight:600; line-height:20px; vertical-align:1px; }
 .slots-table :deep(td.slots-table__date) { vertical-align:top; background:var(--surface); }
 .slots-table :deep(tr.is-past td:not(.slots-table__date)) { color:var(--ink-3); }

@@ -5,6 +5,8 @@ import type { ContentItemOut } from '../api/types'
 import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
+import { hasCapability } from './usePermissions'
+import { useAuthStore } from '../stores/auth'
 
 export interface PublishJob {
   id: string
@@ -80,6 +82,8 @@ export interface ContentEditorState {
   publicUrl?: ComputedRef<string>
   /** 目前表單內容；版本紀錄拿來和舊版比較 */
   form?: Ref<unknown>
+  /** 這個帳號只能查看：ContentEditor 停用欄位、不顯示儲存／送審／發布 */
+  readOnly?: ComputedRef<boolean>
   /** 私有草稿預覽網址；沒有對應預覽頁的內容為空字串 */
   previewUrl?: ComputedRef<string>
   /** 版本紀錄要打的 API 路徑（含 campus_key），例如 /admin/content-items/home_about */
@@ -155,6 +159,13 @@ export function useContentItem<TPayload extends object>(
     return path ? `${WEBSITE_ASSET_BASE}${path}` : ''
   })
   const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
+  // 唯讀：分校內容看 content.manage；共用內容（沒有 campusKey）要有「全站
+  // 共用內容」權限（總管理者或被授權的人，後端 can_edit_shared_content）。
+  // store 在 computed 裡才取，單獨測這個 composable 時不需要 Pinia。
+  const readOnly = computed(() => {
+    const user = useAuthStore().user
+    return !hasCapability(user, campusKey === undefined ? 'content.shared' : 'content.manage')
+  })
   const reviewStatus = computed(() => item.value?.latest_revision?.review_status ?? 'draft')
   const reviewNote = computed(() => item.value?.latest_revision?.review_note ?? null)
   const schedules = ref<PublishJob[]>([])
@@ -391,6 +402,7 @@ export function useContentItem<TPayload extends object>(
   return {
     item,
     form,
+    readOnly,
     loading,
     loadError,
     saving,

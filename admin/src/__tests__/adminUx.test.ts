@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/auth'
 import { api } from '../api/client'
 import type { ContentEditorState } from '../composables/useContentItem'
 import type { UserOut } from '../api/types'
+import { testUser } from './fixtures'
 
 // 這個 jsdom 環境下的 localStorage 只是個空物件，沒有 Storage 的方法；
 // 側欄的收合記憶要驗，就自己補一個最小實作。
@@ -31,7 +32,7 @@ const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks(); localStorage.clear() })
 async function setup(path = '/', role: UserOut['role'] = 'super_admin') {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role, is_active: true, campus_keys: ['renwu'], line_linked: false }
+  useAuthStore(pinia).user = testUser(role, { id: 'local-test', email: 'test@example.invalid', campus_keys: ['renwu'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push(path)
   await router.isReady()

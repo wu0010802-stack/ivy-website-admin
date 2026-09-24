@@ -7,7 +7,7 @@ import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
 import { ageLabel, campusLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitStatus, referralSourceLabels, staffLabel, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import StatusTag from '../components/StatusTag.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
@@ -33,8 +33,11 @@ const busy = ref(false)
 const rebookOpen = ref(false)
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 const loading = ref(true)
-const authStore = useAuthStore()
-const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const { can } = usePermissions()
+// 處理案件（聯絡紀錄、確認、取消、改期…）含櫃台；指派承辦人與新增時段
+// 仍是校區管理者以上（booking.manage）。
+const canHandle = computed(() => can('booking.handle'))
+const canManage = computed(() => can('booking.manage'))
 const { staff, load: loadStaff } = useVisitStaff()
 const assignable = computed(() =>
   staff.value.filter(
@@ -368,8 +371,8 @@ watch(id, () => {
                 <p class="detail__pre">{{ n.note }}</p>
               </li>
             </ol>
-            <p v-else class="hint">還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。</p>
-            <div class="notes__form">
+            <p v-else class="hint">{{ canHandle ? '還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。' : '還沒有聯絡紀錄。' }}</p>
+            <div v-if="canHandle" class="notes__form">
               <el-input
                 ref="noteInput"
                 v-model="newNote"
@@ -406,7 +409,7 @@ watch(id, () => {
           <div class="panel">
             <div class="panel__head"><h2>處理</h2></div>
             <div class="panel__body detail__actions">
-              <p v-if="!canManage" class="hint">你的帳號只能查看案件，狀態由校區管理者處理。</p>
+              <p v-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
               <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
                 <el-button v-if="detail.status === 'new'" :loading="busy" style="width: 100%" @click="markContacting">開始聯絡（標為聯絡中）</el-button>
                 <p class="hint">與家長確認時間後，選一個時段排入，預約才算成立。</p>
@@ -414,7 +417,8 @@ watch(id, () => {
                   <el-option v-for="slot in openSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
                 </el-select>
                 <p v-if="openSlots.length === 0" class="hint">
-                  未來 60 天沒有可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。
+                  <template v-if="canManage">未來 60 天沒有可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
+                  <template v-else>未來 60 天沒有可用時段，請校區管理者到「時段與容量」新增。</template>
                 </p>
                 <el-button type="primary" :loading="busy" :disabled="!selectedSlotId" style="width: 100%" @click="confirm">
                   確認並排入時段
@@ -465,7 +469,7 @@ watch(id, () => {
               <span v-else>{{ staffLabel(detail.assigned_staff_id, staff) }}</span>
             </div>
             <div
-              v-if="canManage && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
+              v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
               class="detail__danger"
             >
               <span class="hint">家長不來了？</span>

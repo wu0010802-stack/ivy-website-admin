@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
@@ -30,9 +30,12 @@ const changes = computed(() => props.editor.changes?.value ?? [])
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const apiPath = computed(() => props.editor.apiPath?.value ?? '')
 const historyOpen = ref(false)
-const auth = useAuthStore()
+const { can } = usePermissions()
 // 內容編輯只能送審；總管理者與分校管理者可以直接發布、排程、審核。
-const canPublishRole = computed(() => ['super_admin', 'campus_admin'].includes(auth.user?.role ?? ''))
+const canPublishRole = computed(() => can('content.publish'))
+// 唯讀帳號（沒有 content.manage，或共用內容沒有授權）只能看：欄位停用，
+// 不顯示儲存、送審、發布與還原。由 useContentItem 依內容範圍算好傳進來。
+const readOnly = computed(() => props.editor.readOnly?.value ?? false)
 const reviewStatus = computed(() => props.editor.reviewStatus?.value ?? 'draft')
 const reviewNote = computed(() => props.editor.reviewNote?.value ?? null)
 const pendingReview = computed(() => reviewStatus.value === 'pending_review' && !isDirty.value)
@@ -207,7 +210,7 @@ defineExpose({ confirmLeave })
       <div v-if="scheduled.length || lastFailed" class="editor__schedules">
         <p v-for="job in scheduled" :key="job.id">
           已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
-          <el-button v-if="canPublishRole && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
+          <el-button v-if="canPublishRole && !readOnly && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
         </p>
         <p v-if="lastFailed && !scheduled.length" class="is-failed">
           {{ formatDateTime(lastFailed.publish_at) }} 的排程沒有發布：{{ lastFailed.error }}
@@ -219,16 +222,21 @@ defineExpose({ confirmLeave })
         :history="editor.history"
         :dirty="isDirty"
         :busy="busy"
-        :can-publish="canPublishRole"
+        :can-publish="canPublishRole && !readOnly"
+        :can-restore="!readOnly"
       />
+
+      <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
 
       <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
         <div class="panel__body">
+          <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
+               刪除、拖曳等操作由頁面自己隱藏。 -->
           <slot />
         </div>
       </div>
 
-      <div class="editor__actions" :class="{ 'is-dirty': isDirty }">
+      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty }">
         <div class="editor__actions-state" role="status">
           <span v-if="busy">正在處理，請稍候…</span>
           <span v-else-if="isDirty">{{ changes.length ? `改了 ${changes.length} 個欄位，` : '' }}儲存草稿不會更動官網，發布後才會公開。</span>
@@ -295,6 +303,7 @@ defineExpose({ confirmLeave })
 
 <style scoped>
 .editor__schedules { margin: -12px 0 20px; font-size: 13px; color: var(--ink-2); }
+.editor__readonly { margin: -8px 0 16px; font-size: 13px; color: var(--ink-2); }
 .editor__schedules p { margin: 0; }
 .editor__schedules .is-failed { color: var(--el-color-danger); }
 .editor {

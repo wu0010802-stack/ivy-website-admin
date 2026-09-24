@@ -8,6 +8,7 @@ import type { MediaAssetOut } from '../api/types'
 import { campusLabel, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { canEditSharedContent } from '../router/nav'
+import { hasCapability } from '../composables/usePermissions'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -30,7 +31,8 @@ const uploadAlt = ref('')
 const uploading = ref(false)
 const dragOver = ref(false)
 
-const canManage = computed(() => ['super_admin', 'campus_admin', 'editor'].includes(authStore.user?.role ?? ''))
+// 上傳、改替代文字、刪除要 media.manage（唯讀與櫃台只能看、只能選）。
+const canManage = computed(() => hasCapability(authStore.user, 'media.manage'))
 // 共用素材（不指定校區）只有能編全站共用內容的人可以上傳；其他人只能選自己的校區。
 const canUploadShared = computed(() => canEditSharedContent(authStore.user))
 const uploadCampusOptions = computed(() =>

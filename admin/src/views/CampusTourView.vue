@@ -105,7 +105,7 @@ function relativePosition(event: MouseEvent): { x: number; y: number } | null {
 }
 
 function onStageClick(event: MouseEvent) {
-  if (!currentScene.value) return
+  if (!currentScene.value || editor.readOnly.value) return
   if (currentScene.value.spots.length >= MAX_SPOTS) return
   const pos = relativePosition(event)
   if (!pos) return
@@ -129,7 +129,7 @@ function removeSpot(i: number) {
 let dragging: { pointerId: number; target: HTMLElement; spot: TourScenePayload['spots'][number] } | null = null
 
 function startDrag(i: number, event: PointerEvent) {
-  if (!event.isPrimary || event.button !== 0 || (editor.saving.value || editor.publishing.value)) return
+  if (!event.isPrimary || event.button !== 0 || (editor.saving.value || editor.publishing.value) || editor.readOnly.value) return
   const spot = currentScene.value?.spots[i]
   if (!spot) return
   stopDrag()
@@ -165,7 +165,7 @@ onBeforeUnmount(stopDrag)
 // 鍵盤微調：焦點在圖釘上時用方向鍵移動 1%，Shift 為 5%
 function nudge(i: number, event: KeyboardEvent) {
   const spot = currentScene.value?.spots[i]
-  if (!spot) return
+  if (!spot || editor.readOnly.value) return
   const step = event.shiftKey ? 5 : 1
   const map: Record<string, [number, number]> = {
     ArrowLeft: [-step, 0],
@@ -215,6 +215,7 @@ function nudge(i: number, event: KeyboardEvent) {
           <span v-if="scene.spots_reviewed === false" class="tour__scene-review">熱點待複核</span>
         </button>
         <button
+          v-if="!editor.readOnly.value"
           type="button"
           class="tour__scene-tab tour__scene-tab--add"
           :disabled="scenes.length >= MAX_SCENES"
@@ -262,7 +263,8 @@ function nudge(i: number, event: KeyboardEvent) {
               </button>
             </div>
             <p class="hint tour__stage-hint">
-              <span v-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
+              <span v-if="editor.readOnly.value">點圖釘查看每個熱點的說明。</span>
+              <span v-else-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
               <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳或用方向鍵調整位置。</span>
             </p>
           </div>
@@ -277,9 +279,9 @@ function nudge(i: number, event: KeyboardEvent) {
               class="tour__review"
             >
               <p>逐一點開圖釘，確認每個熱點還落在對的位置。確認完按下面按鈕再儲存，這個場景才能發布。</p>
-              <el-button size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
+              <el-button v-if="!editor.readOnly.value" size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
             </el-alert>
-            <el-form label-position="top" @submit.prevent>
+            <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
               <h3 class="tour__side-title">場景</h3>
               <el-form-item label="場景名稱">
                 <el-input v-model="currentScene.name" placeholder="例如：戶外遊戲場" />
@@ -301,7 +303,7 @@ function nudge(i: number, event: KeyboardEvent) {
               <template v-if="currentSpot">
                 <h3 class="tour__side-title tour__side-title--spot">
                   熱點 {{ (spotIndex ?? 0) + 1 }}
-                  <el-button text size="small" type="danger" :icon="Delete" @click="removeSpot(spotIndex!)">移除</el-button>
+                  <el-button v-if="!editor.readOnly.value" text size="small" type="danger" :icon="Delete" @click="removeSpot(spotIndex!)">移除</el-button>
                 </h3>
                 <el-form-item label="名稱">
                   <el-input v-model="currentSpot.name" />
@@ -314,12 +316,12 @@ function nudge(i: number, event: KeyboardEvent) {
                   <span class="field-help">給家長的開放式提問，會顯示在熱點說明下方。</span>
                 </el-form-item>
               </template>
-              <p v-else class="hint tour__side-empty">點選照片上的圖釘，或在空白處新增一個熱點來編輯內容。</p>
+              <p v-else class="hint tour__side-empty">{{ editor.readOnly.value ? '點選照片上的圖釘查看熱點內容。' : '點選照片上的圖釘，或在空白處新增一個熱點來編輯內容。' }}</p>
             </el-form>
           </div>
         </div>
 
-        <div class="tour__scene-actions" v-if="scenes.length > 1">
+        <div class="tour__scene-actions" v-if="scenes.length > 1 && !editor.readOnly.value">
           <el-button text type="danger" :icon="Delete" @click="removeScene(sceneIndex)">刪除「{{ currentScene.name || `場景 ${sceneIndex + 1}` }}」</el-button>
         </div>
       </template>

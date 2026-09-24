@@ -27,12 +27,13 @@ export const ROLE_LABELS: Record<Role, string> = {
   readonly: '唯讀',
 }
 
-// 新增帳號時給總管理者看的角色說明（規格 7 權限表）。
+// 新增帳號時給總管理者看的角色說明（規格 7 權限表，2026-09-25 業主裁定
+// 接待人員可以處理案件）。要跟 backend/app/auth/permissions.py 一致。
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   super_admin: '管理全部校區、使用者、全站內容與設定。',
-  campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件。',
+  campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件，並指派承辦人。匯出家長個資要另外授權。',
   editor: '編輯指定校區的內容與素材；不能發布，改好送審，由校區管理者發布。看不到家長個資。',
-  reception: '處理指定校區的參觀案件、聯絡紀錄與接待日曆；只能查看、不能改狀態，也不能改官網。',
+  reception: '處理指定校區的參觀案件：記聯絡紀錄、排入既有時段、補登、改期、取消與完成。不能新增時段、改預約設定或官網內容。',
   readonly: '查看指定校區的內容與去識別的成效統計；看不到家長個資。',
 }
 
@@ -139,11 +140,14 @@ export const BOOKING_MODE_LABELS: Record<string, string> = {
   paused: '暫停預約',
 }
 
+// 與後端 notifications/service.py 的 _KIND_LABELS 同一組。
 export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_created: '新的參觀需求',
+  visit_request_pending_confirmation: '新的時段申請（待園方確認）',
   visit_request_confirmed: '參觀預約已確認',
   visit_request_cancelled: '參觀預約已取消',
   visit_request_rescheduled: '參觀預約已改期',
+  visit_request_hold_expired: '時段占位已逾期，名額已釋放',
 }
 
 export function notificationKindLabel(kind: string): string {
@@ -158,13 +162,36 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.campus_target.update': '更新 LINE 通知群組',
   'line.test_push': '送出 LINE 測試訊息',
   'user.set_active': '變更帳號啟用狀態',
+  'user.set_role': '變更角色與校區',
+  'user.set_capabilities': '變更授權（全站內容／匯出個資）',
+  'visit_request.export': '匯出家長個資',
   'user.link_google': '綁定 Google 登入',
+  'user.unlink_google': '解除 Google 登入綁定',
+  'user.login_google': 'Google 登入',
+  'user.login_google_failed': 'Google 登入失敗',
   'user.link_line': '綁定 LINE 登入',
   'user.unlink_line': '解除 LINE 登入綁定',
 }
 
 export function auditActionLabel(action: string): string {
   return AUDIT_ACTION_LABELS[action] ?? action
+}
+
+// 稽核紀錄 metadata 裡的 reason 代碼（目前是 Google 登入失敗的原因）。
+export const AUDIT_REASON_LABELS: Record<string, string> = {
+  cancelled: '使用者取消',
+  provider_error: 'Google 回傳錯誤',
+  failed: '驗證未完成或逾時',
+  unverified_email: 'Google 帳號 Email 未驗證',
+  unsupported_account: '不是 Gmail 或 Google Workspace 帳號',
+  no_matching_account: '沒有相同 Email 的後台帳號',
+  inactive: '帳號已停用',
+  linked_to_other_google: '帳號已綁定其他 Google 帳號',
+  not_allowed: '無法綁定',
+}
+
+export function auditReasonLabel(reason: string): string {
+  return AUDIT_REASON_LABELS[reason] ?? reason
 }
 
 export const AUDIT_TARGET_LABELS: Record<string, string> = {

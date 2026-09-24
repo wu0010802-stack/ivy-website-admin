@@ -13,7 +13,9 @@ const props = withDefaults(defineProps<{
   busy: boolean
   /** 內容編輯只能還原成草稿再送審，不給「還原並發布」（後端也會擋）。預設可發布。 */
   canPublish?: boolean
-}>(), { canPublish: true })
+  /** 唯讀帳號只能看歷史與差異，不給任何還原按鈕。預設可還原。 */
+  canRestore?: boolean
+}>(), { canPublish: true, canRestore: true })
 const open = defineModel<boolean>({ required: true })
 
 const revisions = ref<RevisionSummary[]>([])
@@ -141,7 +143,7 @@ async function restore(publish: boolean) {
               </ul></div>
               <p v-if="selectedChanges.length > 10" class="hint">還有 {{ selectedChanges.length - 10 }} 個欄位。</p>
             </template>
-            <div class="history__actions">
+            <div v-if="canRestore" class="history__actions">
               <el-button :disabled="busy" @click="restore(false)">還原成草稿</el-button>
               <el-button v-if="canPublish !== false" type="primary" :disabled="busy" @click="restore(true)">還原並發布</el-button>
             </div>

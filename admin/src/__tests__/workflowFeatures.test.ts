@@ -17,7 +17,7 @@ type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 
 async function mountWith(component: unknown, role: Role, props: Record<string, unknown> = {}) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'me', email: 'me@example.invalid', role, is_active: true, campus_keys: ['yihua'], line_linked: false }
+  useAuthStore(pinia).user = testUser(role, { id: 'me', email: 'me@example.invalid', campus_keys: ['yihua'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/'); await router.isReady()
   const wrapper = mount(component as ReturnType<typeof defineComponent>, { props, global: { plugins: [pinia, router, ElementPlus] } } as never)
@@ -105,6 +105,7 @@ describe('每週開放規則', () => {
 
 import { canPublishSharedContent, canSeeNavItem, navItem } from '../router/nav'
 import { ageLabel, contactTimeLabel } from '../api/labels'
+import { testUser } from './fixtures'
 
 describe('全站共用內容授權', () => {
   const editor = { role: 'editor', capabilities: [] as string[] }

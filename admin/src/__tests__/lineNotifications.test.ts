@@ -9,6 +9,7 @@ import { api, ApiError } from '../api/client'
 import type { LineSettingsOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { canSeeNavItem, navItem } from '../router/nav'
+import { testUser } from './fixtures'
 
 const GROUP = `C${'a'.repeat(32)}`
 const LEFT = `C${'b'.repeat(32)}`
@@ -36,7 +37,7 @@ afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.lengt
 
 async function setup(data: LineSettingsOut = settings()) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false }
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/line-notifications')
   await router.isReady()

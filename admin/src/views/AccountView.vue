@@ -24,9 +24,11 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const lineEnabled = ref(false)
+const googleEnabled = ref(false)
 const providersLoaded = ref(false)
 const linking = ref(false)
 const unlinking = ref(false)
+const googleUnlinking = ref(false)
 
 const result = route.query.line_link
 const notice = ref<Notice | null>(
@@ -35,6 +37,10 @@ const notice = ref<Notice | null>(
 
 function setLineLinked(linked: boolean) {
   if (auth.user) auth.user = { ...auth.user, line_linked: linked }
+}
+
+function setGoogleLinked(linked: boolean) {
+  if (auth.user) auth.user = { ...auth.user, google_linked: linked }
 }
 
 onMounted(async () => {
@@ -46,8 +52,10 @@ onMounted(async () => {
   try {
     const providers = await api.get<AuthProviders>('/auth/providers')
     lineEnabled.value = providers.line === true
+    googleEnabled.value = providers.google === true
   } catch {
     lineEnabled.value = false
+    googleEnabled.value = false
   } finally {
     providersLoaded.value = true
   }
@@ -71,6 +79,21 @@ async function link() {
     } else {
       notice.value = { type: 'error', text: '無法開始綁定，請稍後再試。' }
     }
+  }
+}
+
+async function unlinkGoogle() {
+  if (googleUnlinking.value) return
+  googleUnlinking.value = true
+  notice.value = null
+  try {
+    await api.delete('/auth/google/link')
+    setGoogleLinked(false)
+    notice.value = { type: 'success', text: '已解除 Google 綁定。之後用同一個 Email 的 Google 帳號登入時，會重新綁定。' }
+  } catch {
+    notice.value = { type: 'error', text: '解除綁定失敗，請稍後再試。' }
+  } finally {
+    googleUnlinking.value = false
   }
 }
 
@@ -103,9 +126,39 @@ async function unlink() {
           <dl class="account__facts">
             <div><dt>Email</dt><dd>{{ auth.user.email }}</dd></div>
             <div><dt>角色</dt><dd>{{ roleLabel(auth.user.role) }}</dd></div>
-            <div v-if="auth.user.role === 'campus_admin'"><dt>負責校區</dt><dd>{{ campusLabels(auth.user.campus_keys) }}</dd></div>
+            <div v-if="auth.user.role !== 'super_admin'"><dt>負責校區</dt><dd>{{ campusLabels(auth.user.campus_keys) || '尚未指定' }}</dd></div>
           </dl>
           <p class="field-help">Email、角色與校區由總管理者在「使用者」設定。</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__head account__line-head">
+          <h2>Google 登入</h2>
+          <el-tag :type="auth.user.google_linked ? 'success' : 'info'" disable-transitions>
+            {{ auth.user.google_linked ? '已綁定' : '尚未綁定' }}
+          </el-tag>
+        </div>
+        <div class="panel__body account__line">
+          <template v-if="auth.user.google_linked">
+            <p>可以在登入頁用 Google 直接登入，Email 與密碼仍然可以用。</p>
+            <el-popconfirm
+              title="解除後這個帳號不再記得目前的 Google 帳號；之後用同一個 Email 的 Google 帳號登入會重新綁定。"
+              confirm-button-text="解除綁定"
+              cancel-button-text="先不要"
+              confirm-button-type="danger"
+              :width="300"
+              @confirm="unlinkGoogle"
+            >
+              <template #reference>
+                <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
+              </template>
+            </el-popconfirm>
+            <p class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，再用 Google 登入一次即可。</p>
+          </template>
+          <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
+          <p v-else-if="googleEnabled">在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
+          <p v-else>Google 登入尚未啟用。</p>
         </div>
       </section>
 

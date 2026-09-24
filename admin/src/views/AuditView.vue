@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditTargetLabel, campusLabel, formatDateTime } from '../api/labels'
+import { auditActionLabel, auditReasonLabel, auditTargetLabel, campusLabel, formatDateTime } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
@@ -56,7 +56,7 @@ onMounted(() => {
 function metaSummary(m: Record<string, unknown>): string {
   return Object.entries(m ?? {})
     .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
-    .map(([k, v]) => `${k}=${String(v)}`)
+    .map(([k, v]) => (k === 'reason' ? `原因=${auditReasonLabel(String(v))}` : `${k}=${String(v)}`))
     .join('，')
 }
 </script>

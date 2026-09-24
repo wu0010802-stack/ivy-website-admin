@@ -37,7 +37,7 @@ const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
         <el-form-item label="校名">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />

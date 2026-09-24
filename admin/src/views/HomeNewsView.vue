@@ -110,7 +110,7 @@ onMounted(editor.load)
       不需要為了填滿版面放示意內容。
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-alert
         v-if="isSample"
         type="warning"

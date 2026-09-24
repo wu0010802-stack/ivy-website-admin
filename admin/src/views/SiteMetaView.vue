@@ -32,7 +32,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖，以及頁首右上角的聯絡電話。</template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="網站標題">
         <el-input v-model="editor.form.value.title" maxlength="40" show-word-limit />
         <span class="field-help">會出現在瀏覽器分頁與 Google 搜尋結果標題。</span>
