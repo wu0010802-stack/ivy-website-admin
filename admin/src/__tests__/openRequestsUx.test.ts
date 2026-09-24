@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import DashboardView from '../views/DashboardView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
+import VisitDetailView from '../views/VisitDetailView.vue'
+import AdminSidebar from '../components/AdminSidebar.vue'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import { api } from '../api/client'
 import { formatHoldRemaining, holdIsUrgent } from '../api/labels'
 
@@ -95,5 +98,85 @@ describe('案件列表接住總覽帶來的條件', () => {
     expect(wrapper.text()).toContain('確認期限還剩 2 小時')
     expect(wrapper.find('.hold.is-due').exists()).toBe(true)
     expect(wrapper.find('.request-list').text()).not.toContain('方便時段')
+  })
+})
+
+describe('側欄的待處理數字', () => {
+  it('參觀案件旁顯示新需求＋待確認的總數，0 件時不顯示', async () => {
+    const pinia = createPinia()
+    useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: [] }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/'); await router.isReady()
+    const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper)
+    expect(wrapper.find('.sidebar__badge').exists()).toBe(false)
+    useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 7 })
+    await flushPromises()
+    const badge = wrapper.find('.sidebar__badge')
+    expect(badge.text()).toBe('11 件待處理')
+    expect(badge.element.closest('a')!.getAttribute('href')).toBe('/visit-requests')
+    expect(badge.attributes('title')).toBe('新需求 4 件、待園方確認 7 件')
+  })
+
+  it('30 秒內換頁不重抓，強制重抓才會打 API；讀不到時保留原數字', async () => {
+    setActivePinia(createPinia())
+    const store = useOpenRequestsStore()
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 2, awaiting_confirmation: 1 }) as never)
+    await store.refresh()
+    await store.refresh()
+    expect(get).toHaveBeenCalledOnce()
+    expect(store.total).toBe(3)
+    get.mockRejectedValueOnce(new Error('offline'))
+    await store.refresh(true)
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(store.total).toBe(3)
+  })
+
+  it('總覽載入的數字直接給側欄，不必另外打一次', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
+    const { wrapper } = await mountAt('/')
+    expect(get).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('處理參觀需求2')
+  })
+})
+
+describe('案件明細的確認期限', () => {
+  const held = (hoursLeft: number) => request({
+    status: 'pending_confirmation', slot_id: 'slot-1',
+    slot: { id: 'slot-1', slot_date: '2026-09-30', start_time: '10:00:00', end_time: '11:00:00' },
+    hold_expires_at: new Date(Date.now() + hoursLeft * hour + 60000).toISOString(),
+  })
+
+  async function mountDetail(data: ReturnType<typeof request>) {
+    const pinia = createPinia()
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).endsWith('/contact-notes')) return [] as never
+      if (path === '/admin/dashboard') return summary() as never
+      if (String(path).startsWith('/admin/visit-requests?')) return [] as never
+      return data as never
+    })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: VisitDetailView }, { path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/visit-requests/case-a'); await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper); await flushPromises()
+    return { wrapper, get }
+  }
+
+  it('顯示剩多久，剩不到 6 小時改用暖色', async () => {
+    const soon = await mountDetail(held(3))
+    expect(soon.wrapper.find('.hold-deadline').text()).toContain('還剩 3 小時')
+    expect(soon.wrapper.find('.hold-deadline').classes()).toContain('is-urgent')
+    soon.wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
+    const later = await mountDetail(held(20))
+    expect(later.wrapper.find('.hold-deadline').classes()).not.toContain('is-urgent')
+  })
+
+  it('確認之後強制更新側欄數字', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
+    vi.spyOn(api, 'post').mockResolvedValue({})
+    const { wrapper, get } = await mountDetail(held(10))
+    await wrapper.findAll('button').find(button => button.text() === '確認已選場次')!.trigger('click')
+    await flushPromises()
+    expect(get.mock.calls.some(call => call[0] === '/admin/dashboard')).toBe(true)
   })
 })

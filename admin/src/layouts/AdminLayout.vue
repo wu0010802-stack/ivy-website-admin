@@ -3,11 +3,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { TopRight, Menu } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import { NAV_GROUPS } from '../router/nav'
 import { WEBSITE_ASSET_BASE } from '../config'
 import AdminSidebar from '../components/AdminSidebar.vue'
 
 const auth = useAuthStore()
+const openRequests = useOpenRequestsStore()
 const router = useRouter()
 const route = useRoute()
 const mobileQuery = window.matchMedia('(max-width: 900px)')
@@ -30,6 +32,8 @@ function updateViewport(event: MediaQueryListEvent) {
 }
 onMounted(() => mobileQuery.addEventListener('change', updateViewport))
 onBeforeUnmount(() => mobileQuery.removeEventListener('change', updateViewport))
+// 換頁順便更新側欄的待處理數字（store 內 30 秒內不重抓）。
+watch(() => route.path, () => { openRequests.refresh() }, { immediate: true })
 watch(() => route.path, async () => {
   drawerOpen.value = false
   await nextTick()
@@ -38,6 +42,7 @@ watch(() => route.path, async () => {
 })
 async function handleLogout() {
   await auth.logout()
+  openRequests.reset()
   router.push({ name: 'login' })
 }
 </script>

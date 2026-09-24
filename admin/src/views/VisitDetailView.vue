@@ -5,10 +5,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitSlotOut } from '../api/types'
-import { campusLabel, formatDateTime, formatSlotWhen, visitStatus, referralSourceLabels } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitStatus, referralSourceLabels } from '../api/labels'
+import { useOpenRequestsStore } from '../stores/openRequests'
 import StatusTag from '../components/StatusTag.vue'
 
 const route = useRoute()
+const openRequests = useOpenRequestsStore()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 
@@ -99,6 +101,7 @@ async function confirm() {
   try {
     await api.post(`/admin/visit-requests/${id.value}/confirm`, { slot_id: slot.id })
     ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}。記得告知家長。`)
+    openRequests.refresh(true)
     await load()
     // 確認完的下一步幾乎都是打電話告知家長：把紀錄框先填好、游標放進去，
     // 講完電話按 Enter 就記下，不用再想要寫什麼。
@@ -126,6 +129,7 @@ async function cancel() {
   try {
     await api.post(`/admin/visit-requests/${id.value}/cancel`)
     ElMessage.success('已取消')
+    openRequests.refresh(true)
     await load()
   } catch (err) {
     reportError(err, '取消失敗')
@@ -322,7 +326,9 @@ watch(id, () => {
 
               <template v-else-if="detail.status === 'pending_confirmation'">
                 <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
-                <p v-if="detail.hold_expires_at" class="hint">請於 {{ formatDateTime(detail.hold_expires_at) }} 前確認。</p>
+                <p v-if="detail.hold_expires_at" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at) }">
+                  請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at) }}），逾期名額會自動釋出。
+                </p>
                 <el-button type="primary" :loading="busy" :disabled="!detail.slot" style="width: 100%" @click="confirm">確認已選場次</el-button>
               </template>
 
@@ -348,6 +354,9 @@ watch(id, () => {
 </template>
 
 <style scoped>
+.hold-deadline { margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.hold-deadline strong { color: var(--ink); font-weight: 600; }
+.hold-deadline.is-urgent { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
 .detail__nav {
   display: flex;
   justify-content: space-between;

@@ -15,6 +15,7 @@ npm run build
 - `src/api/labels.ts`：校區、狀態、角色等代碼的中文與時間格式化；畫面上不要直接印 API 代碼。
 - `src/composables/useUnsavedChanges.ts`：內容與設定共用未儲存攔截、處理中離頁保護。
 - `src/composables/useRequestSequence.ts`：忽略過時與卸載後的清單／內容回應。
+- `src/stores/openRequests.ts`：側欄「參觀案件」的待處理數字（與總覽同源，換頁更新、30 秒快取，案件狀態變更後強制重抓）。
 - `src/composables/useCampusScope.ts`：登入者可見校區與預設選取。
 - `src/composables/useContentItem.ts` + `src/components/ContentEditor.vue`：內容編輯頁的資料層與外殼（草稿／發布狀態、未儲存攔截、黏底動作列）；新增內容 kind 時只要寫欄位。
 - `src/composables/useCampusContent.ts`：分校內容切校前確認未儲存修改。

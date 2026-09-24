@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
+import { useOpenRequestsStore } from '../stores/openRequests'
 
 interface TodayVisit {
   id: string
@@ -31,6 +32,7 @@ function kindPath(kind: string): string {
 }
 
 const authStore = useAuthStore()
+const openRequests = useOpenRequestsStore()
 const summary = ref<DashboardSummary | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -40,6 +42,7 @@ async function load() {
   error.value = null
   try {
     summary.value = await api.get<DashboardSummary>('/admin/dashboard')
+    openRequests.apply(summary.value)
   } catch {
     error.value = '無法讀取總覽資料'
   } finally {

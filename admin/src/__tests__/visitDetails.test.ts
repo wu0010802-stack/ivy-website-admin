@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia } from 'pinia'
 import ElementPlus, { ElMessageBox } from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import { api } from '../api/client'
@@ -14,7 +15,7 @@ async function setup(data = details()) {
   vi.spyOn(api, 'get').mockImplementation(async path => path.endsWith('/contact-notes') ? [] : data as never)
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/visit-requests/local-case'); await router.isReady()
-  const wrapper = mount(VisitDetailView, { global: { plugins: [router, ElementPlus] } })
+  const wrapper = mount(VisitDetailView, { global: { plugins: [createPinia(), router, ElementPlus] } })
   wrappers.push(wrapper); await flushPromises(); return wrapper
 }
 describe('參觀資料與已選場次', () => {

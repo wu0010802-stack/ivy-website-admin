@@ -8,6 +8,8 @@ export interface NavItem {
   icon?: string
   /** 只有這些角色看得到；未設定代表所有登入者 */
   roles?: string[]
+  /** 側欄項目旁的待辦數字；目前只有參觀案件（新需求＋待園方確認） */
+  badge?: 'open-requests'
 }
 
 export interface NavGroup {
@@ -28,7 +30,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets' },
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests' },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Calendar' },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch' },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell' },
