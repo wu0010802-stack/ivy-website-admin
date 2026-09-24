@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
 from app.common.body_limit import BodySizeLimitMiddleware
+from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.booking.routes import router as booking_router
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory: async_sessionmaker = create_session_factory(
         app.state.engine
     )
+    app.state.rate_limiter = RateLimiter(app.state.engine, settings.session_secret)
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
     configure_google_oauth(app)

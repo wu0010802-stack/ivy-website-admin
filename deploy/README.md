@@ -64,6 +64,12 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - 後台登入的帳號桶只在密碼錯誤時累計，且正確密碼一律放行，任何人都無法
   用連續錯誤密碼把管理者鎖在門外；來源桶 5 分鐘 100 次。
 
+2026-09-24 起限流計數存在 PostgreSQL 的 `rate_limit_counters`（migration
+`7f0680b2eb47`），不再放在各 process 記憶體：多個 uvicorn worker 或 api 副本共用
+同一組上限，重新部署也不會歸零。key（手機、email、訪客 IP）以
+`WEBSITE_SESSION_SECRET` 做 HMAC 後才存，不留明文；換 session secret 等於
+所有限流計數歸零。過期的列由 api 內建背景工作清除（見下一節）。
+
 **這個 header 只有在 api 不直接對外時才可信任**（目前 api 無公開 domain，
 符合此前提）。若日後把 api 直接暴露到公網，必須先拿掉這個設定或改成解析
 可信任的 `X-Forwarded-For` 尾段，否則任何人都能偽造訪客 IP 繞過限流。

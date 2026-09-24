@@ -62,8 +62,8 @@ router = APIRouter(prefix="/api/website/v1", tags=["booking"])
 #   十分鐘內連送五次）。
 # - 來源桶的上限放寬，只用來擋「單一來源換號碼狂灌」，即使退化成整站
 #   共用一個桶也不會誤傷正常流量。
-_SUBMIT_LIMITER_BY_PHONE = ratelimit.SlidingWindowLimiter(window_seconds=600, max_per_window=5)
-_SUBMIT_LIMITER_BY_CLIENT = ratelimit.SlidingWindowLimiter(window_seconds=600, max_per_window=60)
+SUBMIT_LIMIT_BY_PHONE = ratelimit.Limit("visit_submit_phone", window_seconds=600, max_per_window=5)
+SUBMIT_LIMIT_BY_CLIENT = ratelimit.Limit("visit_submit_client", window_seconds=600, max_per_window=60)
 
 
 @router.get("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
@@ -163,7 +163,7 @@ async def create_visit_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestOut:
     try:
-        _SUBMIT_LIMITER_BY_CLIENT.check(ratelimit.client_key(request))
+        await ratelimit.limiter(request).check(SUBMIT_LIMIT_BY_CLIENT, ratelimit.client_key(request))
     except ratelimit.RateLimited as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -227,7 +227,7 @@ async def create_visit_request(
     # 連點）本來就不會多建案件，把它算進限流會讓正常的重試被擋成 429。
     if is_new:
         try:
-            _SUBMIT_LIMITER_BY_PHONE.check(f"{payload.campus_key}:{payload.phone}")
+            await ratelimit.limiter(request).check(SUBMIT_LIMIT_BY_PHONE, f"{payload.campus_key}:{payload.phone}")
         except ratelimit.RateLimited as exc:
             await db.rollback()
             raise HTTPException(

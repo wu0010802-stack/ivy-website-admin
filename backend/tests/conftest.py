@@ -109,31 +109,19 @@ async def _clean_tables(app):
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
-                "booking_configs RESTART IDENTITY CASCADE"
+                "booking_configs, rate_limit_counters RESTART IDENTITY CASCADE"
             )
         )
     yield
 
 
 @pytest.fixture(autouse=True)
-def _reset_rate_limiters():
-    """限流器是 process 記憶體內的滑動窗口，會跨測試累積。測試共用同一個
-    來源 IP 與少數幾個手機號碼，不重置的話後面的測試會被前面的測試擋掉。
-    限流本身的行為由 test_rate_limits.py 明確驗證。"""
-    from app.auth import service as auth_service
-    from app.booking import routes as booking_routes
-    from app.booking import access_routes
-    from app.operations import analytics_service
-    from app.operations import routes as operations_routes
+def _reset_process_caches():
+    """限流計數在 rate_limit_counters，由 _clean_tables 每個測試清空；這裡
+    只重置仍留在 process 記憶體內、會跨測試累積的節流與快取。"""
     from app.operations import traffic_service
     from app.media import service as media_service
 
-    auth_service.reset_login_rate_limits()
-    booking_routes._SUBMIT_LIMITER_BY_PHONE.clear()
-    booking_routes._SUBMIT_LIMITER_BY_CLIENT.clear()
-    access_routes._PARENT_REQUEST_LIMITER.clear()
-    analytics_service._CLICK_ATTEMPTS.clear()
-    operations_routes._telemetry_limiter.clear()
     traffic_service._last_purge = None
     media_service._release_media_cache = None
     yield

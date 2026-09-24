@@ -12,7 +12,6 @@ from sqlalchemy import func, select, update
 from app.auth.models import Role, User
 from app.booking.access_models import ParentSession
 from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, VisitRequest, VisitRequestStatus
-from app.common.ratelimit import SlidingWindowLimiter
 from app.media.models import MediaAsset, MediaStatus
 from app.operations import retention_service
 from tests.conftest import _create_user, _logged_in_client
@@ -166,27 +165,7 @@ async def test_editor_and_readonly_cannot_list_visit_requests(app, db_session, r
         await client.aclose()
 
 
-# --- #10/#12/#23 限流表有界 --------------------------------------------------
-
-
-def test_sliding_window_limiter_is_bounded_and_evicts_idle_keys(monkeypatch):
-    import app.common.ratelimit as ratelimit_module
-
-    now = [1000.0]
-    monkeypatch.setattr(ratelimit_module.time, "monotonic", lambda: now[0])
-
-    limiter = SlidingWindowLimiter(window_seconds=60, max_per_window=2, max_keys=50)
-    for index in range(500):
-        limiter.check(f"source-{index}")
-    assert len(limiter) == 50
-
-    now[0] += 61
-    limiter.check("fresh")
-    assert len(limiter) == 1
-
-    limiter.check("fresh")
-    with pytest.raises(ratelimit_module.RateLimited):
-        limiter.check("fresh")
+# --- #10/#12/#23 限流：改存 DB，行為測試在 test_rate_limits.py ------------
 
 
 # --- #14 共用通知已讀需要管理權 ------------------------------------------------

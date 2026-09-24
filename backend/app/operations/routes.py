@@ -42,7 +42,11 @@ async def create_analytics_event(
     client_key = ratelimit.client_key(request)
     try:
         await analytics_service.record_public_click(
-            db, event_type=payload.event_type, campus_key=payload.campus_key, client_key=client_key
+            db,
+            event_type=payload.event_type,
+            campus_key=payload.campus_key,
+            limiter=ratelimit.limiter(request),
+            client_key=client_key,
         )
     except analytics_service.EventTypeNotAllowed as exc:
         await db.rollback()
@@ -85,7 +89,7 @@ class TelemetryIn(BaseModel):
 
 
 # 單一來源每分鐘上限；正常瀏覽一頁約 1 筆瀏覽＋3–6 筆效能回報。
-_telemetry_limiter = ratelimit.SlidingWindowLimiter(window_seconds=60, max_per_window=120)
+TELEMETRY_LIMIT = ratelimit.Limit("telemetry", window_seconds=60, max_per_window=120)
 
 
 @router.post("/public/telemetry", status_code=status.HTTP_204_NO_CONTENT)
@@ -95,7 +99,7 @@ async def record_telemetry(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     try:
-        _telemetry_limiter.check(ratelimit.client_key(request))
+        await ratelimit.limiter(request).check(TELEMETRY_LIMIT, ratelimit.client_key(request))
     except ratelimit.RateLimited as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",

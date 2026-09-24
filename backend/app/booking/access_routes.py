@@ -23,10 +23,10 @@ from app.booking.schemas import ParentVisitRequestOut, VisitRequestDetailOut
 router = APIRouter(prefix="/api/website/v1", tags=["parent-access"])
 
 PARENT_SESSION_COOKIE = "ivy_parent_session"
-_PARENT_REQUEST_LIMITER = ratelimit.SlidingWindowLimiter(window_seconds=60, max_per_window=30)
+PARENT_REQUEST_LIMIT = ratelimit.Limit("parent_request", window_seconds=60, max_per_window=30)
 
 
-def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
+async def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
     # 非 simple request header：跨來源網頁無法以表單偽造，也不能在沒有
     # CORS 授權下通過 preflight。此 API 不開放跨來源 CORS。
     origin = request.headers.get("origin")
@@ -34,7 +34,7 @@ def require_parent_request(request: Request, parent_header: str | None = Header(
     if parent_header != "1" or request.headers.get("sec-fetch-site") == "cross-site" or (allowed_origin and origin and origin != allowed_origin):
         raise HTTPException(status_code=403, detail={"code": "PARENT_REQUEST_FORBIDDEN", "message": "請從官網管理頁操作"})
     try:
-        _PARENT_REQUEST_LIMITER.check(ratelimit.client_key(request))
+        await ratelimit.limiter(request).check(PARENT_REQUEST_LIMIT, ratelimit.client_key(request))
     except ratelimit.RateLimited as exc:
         raise HTTPException(status_code=429, detail={"code": "RATE_LIMITED", "message": "操作太頻繁，請稍後再試"}, headers={"Retry-After": str(exc.retry_after_seconds)}) from exc
 

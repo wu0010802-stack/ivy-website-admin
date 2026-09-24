@@ -19,7 +19,7 @@ from app.auth import service
 from app.auth.deps import SESSION_COOKIE_NAME, get_db_session
 from app.auth.models import User
 from app.auth.routes import _set_session_cookie
-from app.common.ratelimit import client_key
+from app.common.ratelimit import client_key, limiter
 from app.operations import audit_service
 
 router = APIRouter(prefix="/api/website/v1/auth", tags=["auth"])
@@ -96,7 +96,7 @@ async def google_login(request: Request, redirect: str | None = None) -> Respons
         return _failure("unavailable")
     request.session.clear()
     try:
-        service.check_login_source_rate_limit(client_key(request))
+        await service.check_login_source_rate_limit(limiter(request), client_key(request))
         request.session["return_to"] = safe_admin_path(redirect)
         request.session["started_at"] = time.time()
         response = await client.authorize_redirect(

@@ -19,6 +19,7 @@ from app.booking import models as booking_models  # noqa: F401
 from app.booking import access_models as booking_access_models  # noqa: F401
 from app.notifications import models as notification_models  # noqa: F401
 from app.operations import models as operations_models  # noqa: F401
+from app.common import models as common_models  # noqa: F401
 
 config = context.config
 

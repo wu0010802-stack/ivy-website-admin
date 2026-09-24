@@ -9,12 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common import ratelimit
 from app.operations.models import PUBLIC_REPORTABLE_EVENT_TYPES, AnalyticsEvent, AnalyticsEventType
 
-# 簡易限流：同一個 process 記憶體內滑動窗口（有界，見 SlidingWindowLimiter）。
 CLICK_WINDOW_SECONDS = 60
 CLICK_MAX_PER_WINDOW = 20
-_CLICK_ATTEMPTS = ratelimit.SlidingWindowLimiter(
-    window_seconds=CLICK_WINDOW_SECONDS, max_per_window=CLICK_MAX_PER_WINDOW
-)
+CLICK_LIMIT = ratelimit.Limit("analytics_click", CLICK_WINDOW_SECONDS, CLICK_MAX_PER_WINDOW)
 
 
 class EventTypeNotAllowed(Exception):
@@ -27,15 +24,20 @@ class RateLimited(Exception):
     pass
 
 
-def check_rate_limit(client_key: str) -> None:
+async def check_rate_limit(limiter: ratelimit.RateLimiter, client_key: str) -> None:
     try:
-        _CLICK_ATTEMPTS.check(client_key)
+        await limiter.check(CLICK_LIMIT, client_key)
     except ratelimit.RateLimited as exc:
         raise RateLimited() from exc
 
 
 async def record_public_click(
-    db: AsyncSession, *, event_type: str, campus_key: str | None, client_key: str
+    db: AsyncSession,
+    *,
+    event_type: str,
+    campus_key: str | None,
+    limiter: ratelimit.RateLimiter,
+    client_key: str,
 ) -> None:
     try:
         parsed_type = AnalyticsEventType(event_type)
@@ -44,7 +46,7 @@ async def record_public_click(
     if parsed_type not in PUBLIC_REPORTABLE_EVENT_TYPES:
         raise EventTypeNotAllowed()
 
-    check_rate_limit(client_key)
+    await check_rate_limit(limiter, client_key)
 
     db.add(
         AnalyticsEvent(
