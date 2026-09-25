@@ -7,10 +7,10 @@ const props = defineProps<{ content: SiteContent }>()
 
 const route = useRoute()
 
-// 首頁、入學資訊頁（2026-09-24 改首頁版型）與常春藤環境頁（2026-09-25，同入學頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
+// 首頁、入學資訊頁（2026-09-24 改首頁版型）、常春藤環境頁（2026-09-25）與特色教學頁（2026-09-26，兩者同入學頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
 // 分校頁與預約頁只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：
 // 手機內頁頁首原本一直佔 78px）。其他桌機內頁維持展開頁首與 `.navigation`。
-const PILL_PAGES = ['/', '/admission', '/environment']
+const PILL_PAGES = ['/', '/admission', '/environment', '/curriculum']
 const isNarrow = ref(false)
 const usePanel = computed(() => PILL_PAGES.includes(route.path) || isNarrow.value)
 // 預約頁本身不再放「預約參觀」鈕（查詢／取消頁 /visit/manage 仍保留）。

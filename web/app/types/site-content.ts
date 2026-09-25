@@ -154,6 +154,16 @@ export interface Campus {
   mapUrl?: string
   tourScenes: TourScene[] | GeneratedTourScenes
   faq: { template: string; items: FaqItem[] }
+  /** 家長分享影片（2026-09-26，目前只有義華）；寫在 fixture，後台沒有這個欄位 */
+  testimonials?: CampusTestimonial[]
+}
+
+/** 分校頁「家長分享」：YouTube 影片＋影片標題裡家長說的話。poster 是影片畫面（不用頻道封面）。 */
+export interface CampusTestimonial {
+  youtubeId: string
+  quote: string
+  speaker: string
+  poster: string
 }
 
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock），官網逐塊用固定元素顯示。 */

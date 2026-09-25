@@ -24,9 +24,10 @@ describe('營養餐點書：依台北日期開到當月菜單那一頁', () => {
   })
 })
 
-describe('頁首只留真正的分頁（2026-09-25 使用者裁定）', () => {
-  it('選單只有常春藤環境與入學資訊，首頁錨點拿掉', () => {
+describe('頁首只留真正的分頁（2026-09-25 使用者裁定；2026-09-26 加特色教學）', () => {
+  it('選單只有特色教學、常春藤環境與入學資訊，首頁錨點拿掉', () => {
     expect(site.siteMeta.primaryNav).toEqual([
+      { label: '特色教學', labelEn: 'Curriculum', href: '/curriculum' },
       { label: '常春藤環境', labelEn: 'Environment', href: '/environment' },
       { label: '入學資訊', labelEn: 'Admission', href: '/admission' }
     ])

@@ -56,6 +56,8 @@ defineProps<{ campus: Campus }>()
 
     <CampusTour :campus="campus" />
 
+    <CampusTestimonials v-if="campus.testimonials?.length" :campus="campus" :items="campus.testimonials" />
+
     <!-- 本校題目都停用、也不顯示共用題目時，整段不出現。 -->
     <section v-if="campus.faq.items.length" class="section" id="faq">
       <div class="container faq-grid">

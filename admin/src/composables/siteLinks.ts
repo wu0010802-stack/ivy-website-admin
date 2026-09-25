@@ -11,6 +11,7 @@ export const FOOTER_LINKS_MAX = 12
 // 設定過的版本沒有這兩個欄位，編輯頁先帶入這份，存檔後官網才改用後台的。
 // __tests__/siteStructure.test.ts 會比對兩邊一致。
 export const DEFAULT_PRIMARY_NAV: NavLinkPayload[] = [
+  { label: '特色教學', label_en: 'Curriculum', href: '/curriculum' },
   { label: '常春藤環境', label_en: 'Environment', href: '/environment' },
   { label: '入學資訊', label_en: 'Admission', href: '/admission' },
 ]
@@ -23,6 +24,7 @@ export const DEFAULT_FOOTER_LINKS: SiteLinkPayload[] = [
   { label: '最新消息', href: '/#latest-news' },
   { label: '入學資訊', href: '/admission' },
   { label: '常春藤環境', href: '/environment' },
+  { label: '特色教學', href: '/curriculum' },
 ]
 
 const SITE_PATH = /^\/(?!\/)[A-Za-z0-9\-._~/#?=&%]*$/
