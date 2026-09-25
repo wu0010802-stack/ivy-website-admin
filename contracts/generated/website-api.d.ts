@@ -73,6 +73,27 @@ export interface paths {
         patch: operations["update_booking_config_api_website_v1_admin_booking_config__campus_key__patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/booking-config/{campus_key}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Readiness
+         * @description 各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。
+         *     後台在切換前顯示「不可啟用原因」與確認框用。
+         */
+        get: operations["get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/campuses": {
         parameters: {
             query?: never;
@@ -1630,11 +1651,71 @@ export interface components {
              */
             slots_auto_confirm: boolean;
         };
+        /** BookingConsentBriefOut */
+        BookingConsentBriefOut: {
+            /** Has Privacy Notice */
+            has_privacy_notice: boolean;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * BookingImpactOut
+         * @description 切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
+         *     照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。
+         */
+        BookingImpactOut: {
+            /** Bookable Slots */
+            bookable_slots: number;
+            /** Contacting */
+            contacting: number;
+            /** New Requests */
+            new_requests: number;
+            /** Open Requests */
+            open_requests: number;
+            /** Pending Confirmation */
+            pending_confirmation: number;
+            /** Upcoming Confirmed */
+            upcoming_confirmed: number;
+            /** Weekly Rules */
+            weekly_rules: number;
+        };
         /**
          * BookingMode
          * @enum {string}
          */
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
+        /**
+         * BookingReadinessOut
+         * @description 各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+         *     連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
+         *     條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。
+         */
+        BookingReadinessOut: {
+            /** Blockers */
+            blockers: {
+                [key: string]: components["schemas"]["BookingReadinessReason"][];
+            };
+            /** Campus Key */
+            campus_key: string;
+            consent: components["schemas"]["BookingConsentBriefOut"] | null;
+            current_mode: components["schemas"]["BookingMode"];
+            impact: components["schemas"]["BookingImpactOut"];
+        };
+        /**
+         * BookingReadinessReason
+         * @description 某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。
+         */
+        BookingReadinessReason: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
         /** CalendarSlotOut */
         CalendarSlotOut: {
             /** Booked Count */
@@ -1684,6 +1765,8 @@ export interface components {
             id: string;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Source */
@@ -2106,6 +2189,20 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** PrivacyNoticeOut */
+        PrivacyNoticeOut: {
+            /** Sections */
+            sections: components["schemas"]["PrivacySectionOut"][];
+            /** Title */
+            title: string;
+        };
+        /** PrivacySectionOut */
+        PrivacySectionOut: {
+            /** Body */
+            body: string;
+            /** Heading */
+            heading: string;
+        };
         /**
          * PublicBookingConfigOut
          * @description 公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。
@@ -2113,6 +2210,10 @@ export interface components {
         PublicBookingConfigOut: {
             /** Campus Key */
             campus_key: string;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
+            /** Consent Text */
+            consent_text?: string | null;
             /** External Url */
             external_url: string | null;
             /** Line Url */
@@ -2122,6 +2223,7 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Phone */
             phone: string | null;
+            privacy_notice?: components["schemas"]["PrivacyNoticeOut"] | null;
             /** Slots Auto Confirm */
             slots_auto_confirm: boolean;
             /** Version */
@@ -2564,10 +2666,14 @@ export interface components {
             config_version: number;
             /** Consent Given */
             consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
             /** Email */
             email?: string | null;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -2595,6 +2701,15 @@ export interface components {
             child_name?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at?: string | null;
+            /**
+             * Consent Given
+             * @default true
+             */
+            consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2615,6 +2730,8 @@ export interface components {
             id: string;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -2658,6 +2775,17 @@ export interface components {
             child_name?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at?: string | null;
+            /**
+             * Consent Given
+             * @default true
+             */
+            consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
+            /** Consent Revision Version */
+            consent_revision_version?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -2682,6 +2810,8 @@ export interface components {
             parent_change_deadline_hours: number;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             pending_reschedule: components["schemas"]["RescheduleRequestOut"] | null;
             /** Phone */
             phone: string;
@@ -2729,6 +2859,8 @@ export interface components {
             note?: string | null;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -3153,6 +3285,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookingConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingReadinessOut"];
                 };
             };
             /** @description Validation Error */

@@ -165,18 +165,110 @@ async def _logged_in_client(app, email: str, password: str) -> httpx.AsyncClient
     return client
 
 
+VISIT_SUBMIT_PATH = "/api/website/v1/public/visit-requests"
+TEST_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀（測試）。"
+
+
+class ParentClient(httpx.AsyncClient):
+    """官網家長端。官網送參觀需求一定會帶參觀人數，以及當時看到的同意說明版本
+    （公開預約設定的 consent_revision_id）；測試沒寫的就比照官網補上。要驗這兩個
+    欄位的測試自己帶值（包括明確帶 None）。"""
+
+    async def post(self, url, *args, **kwargs):  # type: ignore[override]
+        body = kwargs.get("json")
+        if str(url).endswith(VISIT_SUBMIT_PATH) and isinstance(body, dict):
+            body = dict(body)
+            body.setdefault("party_size", 2)
+            if "consent_revision_id" not in body and body.get("campus_key"):
+                config = await self.get(f"/api/website/v1/public/booking-config/{body['campus_key']}")
+                if config.status_code == 200:
+                    body["consent_revision_id"] = config.json().get("consent_revision_id")
+            kwargs["json"] = body
+        return await super().post(url, *args, **kwargs)
+
+
+def parent_client(app) -> ParentClient:
+    return ParentClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test", headers={"X-Ivy-Parent": "1"}
+    )
+
+
 @pytest_asyncio.fixture
 async def public_client(app):
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
+    async with parent_client(app) as client:
         yield client
 
 
 @pytest_asyncio.fixture
 async def second_public_client(app):
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
+    async with parent_client(app) as client:
         yield client
+
+
+async def publish_booking_consent(db: AsyncSession, **overrides) -> uuid.UUID:
+    """發布一版「預約文案」（含同意文字）。啟用 inquiry／slots 與官網送單都要有
+    已發布的同意文字；回傳 revision id。"""
+    from app.content import service as content_service
+
+    payload = {
+        "cta_label": "預約參觀",
+        "cta_label_en": "Book a Visit",
+        "consent_text": TEST_CONSENT_TEXT,
+        "banner_title_template": "歡迎預約參觀{campus}",
+        "banner_body": "期待與你相遇。",
+        "banner_button_label": "預約校園參觀",
+        "privacy_title": "",
+        "privacy_sections": [],
+        **overrides,
+    }
+    item = await content_service.get_or_create_content_item(db, "booking_content", None)
+    revision = await content_service.create_revision(db, item, payload, item.latest_version, None)
+    await content_service.publish_revision(db, item, revision, None)
+    await db.commit()
+    return revision.id
+
+
+@pytest_asyncio.fixture
+async def booking_consent(db_session) -> uuid.UUID:
+    """已發布的同意文字。預約相關的測試檔用 pytestmark 帶入。"""
+    return await publish_booking_consent(db_session)
+
+
+async def set_booking_mode(admin_client, campus_key: str = "yihua", **config) -> httpx.Response:
+    """測試前置：把某校切到指定的預約方式（config 是 PATCH 的其餘欄位）。
+
+    切到 slots 卻因為「沒有可預約場次也沒有每週規則」被擋時，補一條每週規則
+    再送一次——很多測試是先開 slots 再建自己的場次。先建好場次的測試不會被補
+    規則，不影響依規則產生時段、休假日這類要算場次數的測試。"""
+    url = f"/api/website/v1/admin/booking-config/{campus_key}"
+    current = await admin_client.get(url)
+    body = {"expected_version": current.json()["version"], **config}
+    response = await admin_client.patch(url, json=body)
+    if (
+        response.status_code == 400
+        and config.get("mode") == "slots"
+        and [r["code"] for r in response.json()["detail"].get("reasons", [])] == ["NO_SLOTS_OR_RULES"]
+    ):
+        await add_weekly_rule(admin_client, campus_key)
+        response = await admin_client.patch(url, json=body)
+    return response
+
+
+async def add_weekly_rule(admin_client, campus_key: str = "yihua") -> None:
+    """啟用 slots 需要官網可預約的場次或至少一條每週規則。先開 slots 再建場次
+    的測試用這個補一條規則（不會自己產生場次，要等定期工作或手動產生）。"""
+    current = (await admin_client.get(f"/api/website/v1/admin/visit-schedule/{campus_key}")).json()
+    if current["rules"]:
+        return
+    response = await admin_client.put(
+        f"/api/website/v1/admin/visit-schedule/{campus_key}",
+        json={
+            "min_lead_hours": current["min_lead_hours"],
+            "max_advance_days": current["max_advance_days"],
+            "rules": [{"weekday": 5, "start_time": "09:00:00", "end_time": "10:00:00", "slot_minutes": 60, "capacity": 1}],
+        },
+    )
+    assert response.status_code == 200, response.text
 
 
 @pytest_asyncio.fixture

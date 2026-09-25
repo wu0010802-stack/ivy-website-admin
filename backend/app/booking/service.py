@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import history, slot_service
+from app.booking import consent, history, readiness, slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
@@ -33,12 +33,6 @@ class ConfigVersionConflict(Exception):
     pass
 
 
-class ModeFieldMissing(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(message)
-
-
 class BookingConfigVersionChanged(Exception):
     """對應公開提交時的 BOOKING_CONFIG_CHANGED：使用者手上的 config_version
     已經過期（園方剛好改了設定）。"""
@@ -53,17 +47,26 @@ class IdempotencyConflict(Exception):
     """同一個 idempotency key 但 body 不同——不能悄悄當成同一筆處理。"""
 
 
-_MODE_REQUIRED_FIELD = {
-    BookingMode.LINE: "line_url",
-    BookingMode.PHONE: "phone",
-    BookingMode.EXTERNAL: "external_url",
-}
+class PartySizeRequired(Exception):
+    """官網新送的需求沒有參觀人數（規格 L194）。對應 422。"""
 
-_MODE_FIELD_LABEL = {
-    "line_url": "LINE 官方帳號連結",
-    "phone": "電話",
-    "external_url": "外部預約網址",
-}
+
+# 稽核紀錄記「修改前後」的完整設定（規格 L181）。都是分校公開資訊，沒有家長個資。
+CONFIG_AUDIT_FIELDS = (
+    "mode",
+    "line_url",
+    "phone",
+    "external_url",
+    "message",
+    "slots_auto_confirm",
+    "parent_change_deadline_hours",
+)
+
+
+def config_snapshot(config: BookingConfig) -> dict:
+    snapshot = {field: getattr(config, field) for field in CONFIG_AUDIT_FIELDS}
+    snapshot["mode"] = BookingMode(snapshot["mode"]).value
+    return snapshot
 
 
 async def get_or_create_config(
@@ -98,17 +101,6 @@ async def get_or_create_config(
     return config
 
 
-def _validate_mode_fields(
-    mode: BookingMode, line_url: str | None, phone: str | None, external_url: str | None
-) -> None:
-    required_field = _MODE_REQUIRED_FIELD.get(mode)
-    if required_field is None:
-        return
-    values = {"line_url": line_url, "phone": phone, "external_url": external_url}
-    if not values[required_field]:
-        raise ModeFieldMissing(f"啟用此模式前必須先填寫「{_MODE_FIELD_LABEL[required_field]}」")
-
-
 async def update_config(
     db: AsyncSession,
     config: BookingConfig,
@@ -126,7 +118,10 @@ async def update_config(
     if config.version != expected_version:
         raise ConfigVersionConflict()
 
-    _validate_mode_fields(mode, line_url, phone, external_url)
+    # 不符啟用條件丟 readiness.ModeNotReady（逐條列出原因）。
+    await readiness.check_update(
+        db, config, mode=mode, line_url=line_url, phone=phone, external_url=external_url, message=message
+    )
 
     config.mode = mode
     config.line_url = line_url
@@ -147,9 +142,14 @@ def _hash_payload(payload: dict) -> str:
     # 新 schema 的選填預設值不能改變舊 payload 的 hash。只排除這次新增的
     # 空欄位，保留既有 age/preferred_time/questions/slot_id 的序列化規則。
     canonical_payload = payload.copy()
-    for field in ("child_name", "child_birthdate", "email", "referral_sources"):
+    # 參觀人數是家長填的內容，同一把 key 改了人數就是不同的送單（回 409）；
+    # 舊的重試請求沒有這個欄位，空值不進 hash，舊 hash 不變。
+    for field in ("child_name", "child_birthdate", "email", "referral_sources", "party_size"):
         if canonical_payload.get(field) in (None, []):
             canonical_payload.pop(field, None)
+    # 同意說明版本不是家長填的資料：重送時只要內容相同就是同一筆，案件記的是
+    # 第一次成功送出時的版本。呼叫端應該另外傳，這裡保險再排除一次。
+    canonical_payload.pop("consent_revision_id", None)
     # 2026-09-24 起方便聯絡時段存代碼，但更新前的官網送的是中文標籤，已存的
     # hash 也是用標籤算的。hash 一律換回標籤再算，跨版本的重送（同一個
     # Idempotency-Key）才會認得是同一筆，不會誤判成不同內容回 409。
@@ -168,9 +168,14 @@ async def submit_visit_request(
     idempotency_key: str,
     payload: dict,
     config_version: int,
+    consent_revision_id: uuid.UUID | None = None,
 ) -> tuple[VisitRequest, bool]:
     """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
-    payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。"""
+    payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
+
+    consent_revision_id 是家長看到的同意說明版本，新建案件時要是目前發布中
+    的內容（consent.accept_submitted），否則丟 consent.ConsentVersionChanged；
+    重播不檢查——已成功建立的案件先回原結果（規格 L183）。"""
     payload_hash = _hash_payload(payload)
 
     # 先查是否為重播請求，避免對已存在的案件重新走一次驗證/寫入。
@@ -200,6 +205,14 @@ async def submit_visit_request(
 
     if config.mode not in (BookingMode.INQUIRY, BookingMode.SLOTS):
         raise BookingUnavailable()
+
+    if payload.get("party_size") is None:
+        raise PartySizeRequired()
+
+    try:
+        accepted_consent = await consent.accept_submitted(db, consent_revision_id)
+    except consent.ConsentUnavailable as exc:
+        raise BookingUnavailable() from exc
 
     slot_id = payload.get("slot_id")
     status = VisitRequestStatus.NEW.value
@@ -253,7 +266,10 @@ async def submit_visit_request(
         age=payload.get("age"),
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
+        party_size=payload.get("party_size"),
         consent_given=payload["consent_given"],
+        consent_revision_id=accepted_consent,
+        consent_accepted_at=now,
         status=status,
         slot_id=uuid.UUID(slot_id) if slot_id else None,
         confirmed_at=confirmed_at,
@@ -381,7 +397,10 @@ async def create_manual_visit_request(
         age=payload.get("age"),
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
+        party_size=payload.get("party_size"),
+        # 人員向家長說明並取得同意後代勾；沒有官網同意說明版本。
         consent_given=payload["consent_given"],
+        consent_accepted_at=now,
         status=VisitRequestStatus.NEW.value,
         source=source.value,
         created_by=created_by,

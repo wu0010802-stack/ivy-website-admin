@@ -153,6 +153,36 @@ async def count_booked(db: AsyncSession, slot_id: uuid.UUID) -> int:
     return result.scalar_one()
 
 
+async def count_bookable_slots(db: AsyncSession, campus_key: str, config, now: datetime | None = None) -> int:
+    """官網現在列得出來、訂得到的場次數：與公開時段查詢同一個判斷（開放中、
+    在該校的最短提前與最遠開放區間內、還有名額）。啟用 slots 的條件與總覽的
+    「開放選時段卻沒有場次」都用這個數字。"""
+    current = now or now_utc()
+    window = window_for(config)
+    max_days = window.get("max_advance_days", MAX_ADVANCE_DAYS)
+    today = today_local(current)
+    booked = (
+        select(func.count())
+        .select_from(VisitRequest)
+        .where(VisitRequest.slot_id == VisitSlot.id, occupying_condition(current))
+        .correlate(VisitSlot)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(VisitSlot, booked).where(
+            VisitSlot.campus_key == campus_key,
+            VisitSlot.closed.is_(False),
+            VisitSlot.slot_date >= today,
+            VisitSlot.slot_date <= today + timedelta(days=max_days),
+        )
+    )
+    return sum(
+        1
+        for slot, booked_count in result.all()
+        if slot.capacity > booked_count and is_publicly_bookable(slot, current, **window)
+    )
+
+
 async def get_slot_for_update(db: AsyncSession, slot_id: uuid.UUID) -> VisitSlot | None:
     result = await db.execute(select(VisitSlot).where(VisitSlot.id == slot_id).with_for_update())
     return result.scalar_one_or_none()

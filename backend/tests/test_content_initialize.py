@@ -26,6 +26,13 @@ async def test_initialize_preserves_source_and_skips_unverified_tours(db_session
     assert len(content["day_experience"]["moments"]) == 6
     assert content["home_news"]["sample_note"] == data["news"]["sampleNote"]
     assert [a["id"] for a in content["home_news"]["articles"]] == [a["id"] for a in data["news"]["articles"]]
+    # 原型的示範同意文字（資料不會傳送給學校）不能發布到正式站，匯入時換成
+    # 官網一直顯示的正式文字；隱私說明本文由園方提供，匯入時留空。
+    from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
+
+    assert data["booking"]["consentText"] == LEGACY_DEMO_CONSENT_TEXT
+    assert content["booking_content"]["consent_text"] == FORMAL_CONSENT_TEXT
+    assert content["booking_content"]["privacy_sections"] == []
     assert await initialize_content(db_session, data) == 0
     assert (await service.get_public_content(db_session))[0] == release_id
     assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 20

@@ -13,7 +13,11 @@ import pytest
 
 from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
-from tests.conftest import _create_user, _logged_in_client
+from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
 BASE = f"{API}/admin"
@@ -159,11 +163,7 @@ async def test_reception_stays_inside_own_campus(admin_client, reception):
 @pytest.mark.asyncio
 async def test_reception_decides_parent_reschedule_requests(app, admin_client, public_client, reception):
     _, desk = reception
-    current = await admin_client.get(f"{BASE}/booking-config/yihua")
-    await admin_client.patch(
-        f"{BASE}/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "slots", "slots_auto_confirm": True},
-    )
+    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
     version = (await admin_client.get(f"{BASE}/booking-config/yihua")).json()["version"]
     slot_a = await _slot(admin_client)
     slot_b = await _slot(admin_client, start="15:00:00", end="16:00:00")

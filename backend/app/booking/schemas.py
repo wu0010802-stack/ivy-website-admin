@@ -133,6 +133,57 @@ class BookingConfigUpdateRequest(BaseModel):
         return _validate_public_link(value)
 
 
+class BookingReadinessReason(BaseModel):
+    """某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。"""
+
+    code: str
+    message: str
+
+
+class BookingImpactOut(BaseModel):
+    """切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
+    照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。"""
+
+    # 還沒結案的案件（待處理、聯絡中、待園方確認、已確認）。
+    open_requests: int
+    new_requests: int
+    contacting: int
+    pending_confirmation: int
+    # 已確認、時段還沒開始：家長會照原時間來。
+    upcoming_confirmed: int
+    # 官網目前可以預約的場次（與公開查詢同一個判斷：開放中、在開放區間、還有名額）。
+    bookable_slots: int
+    weekly_rules: int
+
+
+class BookingConsentBriefOut(BaseModel):
+    revision_id: uuid.UUID
+    version: int
+    has_privacy_notice: bool
+
+
+class BookingReadinessOut(BaseModel):
+    """各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+    連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
+    條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。"""
+
+    campus_key: str
+    current_mode: BookingMode
+    consent: BookingConsentBriefOut | None
+    blockers: dict[BookingMode, list[BookingReadinessReason]]
+    impact: BookingImpactOut
+
+
+class PrivacySectionOut(BaseModel):
+    heading: str
+    body: str
+
+
+class PrivacyNoticeOut(BaseModel):
+    title: str
+    sections: list[PrivacySectionOut]
+
+
 class PublicBookingConfigOut(BaseModel):
     """公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。"""
 
@@ -144,6 +195,13 @@ class PublicBookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     slots_auto_confirm: bool
+    # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
+    # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
+    # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
+    consent_revision_id: uuid.UUID | None = None
+    consent_text: str | None = None
+    # 同一版的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
+    privacy_notice: PrivacyNoticeOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -161,7 +219,11 @@ class _VisitRequestFields(BaseModel):
     referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=5)
     age: AgeCode | None = None
     preferred_time: ContactTimeCode | None = None
-    questions: str | None = Field(default=None, max_length=1000)
+    # 規格 L192：問題最多 500 字（官網表單與補登都是）。DB 欄位仍是 1000，
+    # 以前收過的長問題照常讀得出來。
+    questions: str | None = Field(default=None, max_length=500)
+    # 規格 L194：參觀人數 1–10。補登沒問到可以不填；官網新送的需求必填（見 VisitRequestCreate）。
+    party_size: int | None = Field(default=None, ge=1, le=10)
     consent_given: bool
 
     @field_validator("age", mode="before")
@@ -216,6 +278,13 @@ class _VisitRequestFields(BaseModel):
 
 class VisitRequestCreate(_VisitRequestFields):
     config_version: int
+    # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
+    # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
+    # 需求重試時（當時表單沒有人數）仍能回到原案件。
+    # 家長看到的同意說明版本（公開預約設定的 consent_revision_id）。沒帶或
+    # 已不是發布中的內容回 409 CONSENT_VERSION_CHANGED，前端重新載入後請家長
+    # 重新閱讀、勾選。不算進 idempotency 的 payload hash，見 service._hash_payload。
+    consent_revision_id: uuid.UUID | None = None
 
 
 
@@ -260,6 +329,7 @@ class CalendarVisitOut(BaseModel):
     phone: str
     source: str
     assigned_staff_id: uuid.UUID | None
+    party_size: int | None = None
 
 
 class CalendarSlotOut(BaseModel):
@@ -354,6 +424,13 @@ class VisitRequestDetailOut(BaseModel):
     age: str | None
     preferred_time: str | None
     questions: str | None
+    # 參觀人數；舊案件與沒問到人數的補登為 None（畫面顯示「未填」）。
+    party_size: int | None = None
+    # 同意紀錄（規格 L196）：官網送單記錄家長看到的同意說明版本與伺服器接受
+    # 時間；補登由人員代勾，沒有版本。
+    consent_given: bool = True
+    consent_revision_id: uuid.UUID | None = None
+    consent_accepted_at: datetime | None = None
     slot_id: uuid.UUID | None
     # 未排時段（inquiry 待處理）時為 None。序列化會讀 VisitRequest.slot
     # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
@@ -519,6 +596,8 @@ class VisitRequestFullOut(VisitRequestDetailOut):
     access_link: ParentAccessLinkOut | None
     # 該校的家長線上異動期限（參觀前幾小時），產生連結時要跟家長講清楚。
     parent_change_deadline_hours: int
+    # consent_revision_id 是「預約文案」的第幾版，明細顯示用。
+    consent_revision_version: int | None = None
 
 
 class VisitContactNoteCreateRequest(BaseModel):

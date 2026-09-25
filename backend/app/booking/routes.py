@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import attention, presenters, service, slot_service, workflow_service
+from app.booking import attention, consent, presenters, readiness, service, slot_service, workflow_service
 from app.booking.history import Actor
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
@@ -30,8 +30,13 @@ from app.booking.models import (
 from app.booking.schemas import (
     BookingConfigOut,
     BookingConfigUpdateRequest,
+    BookingConsentBriefOut,
+    BookingImpactOut,
+    BookingReadinessOut,
+    BookingReadinessReason,
     CalendarSlotOut,
     CalendarVisitOut,
+    PrivacyNoticeOut,
     PublicBookingConfigOut,
     PublicVisitSlotOut,
     VisitContactNoteCreateRequest,
@@ -89,6 +94,7 @@ async def update_booking_config(
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
     config = await service.get_or_create_config(db, campus_key, for_update=True)
+    before = service.config_snapshot(config)
 
     try:
         await service.update_config(
@@ -110,13 +116,19 @@ async def update_booking_config(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "BOOKING_CONFIG_VERSION_CONFLICT", "message": "設定已被其他人更新，請重新載入"},
         ) from exc
-    except service.ModeFieldMissing as exc:
+    except readiness.ModeNotReady as exc:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "BOOKING_MODE_FIELD_MISSING", "message": exc.message},
+            detail={
+                "code": "BOOKING_MODE_NOT_READY",
+                "message": exc.message,
+                "reasons": [reason.as_dict() for reason in exc.reasons],
+            },
         ) from exc
 
+    after = service.config_snapshot(config)
+    # 規格 L181：修改前後的完整設定都留下來，事後查得到改之前是什麼。
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -128,10 +140,49 @@ async def update_booking_config(
             "mode": payload.mode.value,
             "version": config.version,
             "parent_change_deadline_hours": config.parent_change_deadline_hours,
+            "changed": [field for field in service.CONFIG_AUDIT_FIELDS if before[field] != after[field]],
+            "before": before,
+            "after": after,
         },
     )
     await db.commit()
     return BookingConfigOut.model_validate(config)
+
+
+@router.get("/admin/booking-config/{campus_key}/readiness", response_model=BookingReadinessOut)
+async def get_booking_readiness(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> BookingReadinessOut:
+    """各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。
+    後台在切換前顯示「不可啟用原因」與確認框用。"""
+    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    if await db.get(Campus, campus_key) is None:
+        raise ScopeDenied()
+    config = await service.get_or_create_config(db, campus_key)
+    published = await consent.current_consent(db)
+    blockers = await readiness.data_blockers(db, campus_key, config)
+    impact = await readiness.impact(db, campus_key, config)
+    await db.commit()
+    return BookingReadinessOut(
+        campus_key=campus_key,
+        current_mode=config.mode,
+        consent=(
+            BookingConsentBriefOut(
+                revision_id=published.revision_id,
+                version=published.version,
+                has_privacy_notice=published.has_privacy_notice,
+            )
+            if published is not None
+            else None
+        ),
+        blockers={
+            mode: [BookingReadinessReason(**reason.as_dict()) for reason in reasons]
+            for mode, reasons in blockers.items()
+        },
+        impact=BookingImpactOut(**impact),
+    )
 
 
 @router.get("/public/booking-config/{campus_key}", response_model=PublicBookingConfigOut)
@@ -145,8 +196,21 @@ async def get_public_booking_config(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
     config = await service.get_or_create_config(db, campus_key)
+    published = await consent.current_consent(db)
     await db.commit()
     out = PublicBookingConfigOut.model_validate(config)
+    if published is not None:
+        out = out.model_copy(update={
+            "consent_revision_id": published.revision_id,
+            "consent_text": published.text,
+            "privacy_notice": (
+                PrivacyNoticeOut.model_validate(
+                    {"title": published.privacy_title, "sections": published.privacy_sections}
+                )
+                if published.has_privacy_notice
+                else None
+            ),
+        })
     if not campus.active:
         # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，
         # 家長看到的是暫停說明與電話，不是讀取失敗；送單端點另外擋。
@@ -189,7 +253,7 @@ async def create_visit_request(
             detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
         )
 
-    body = payload.model_dump(mode="json", exclude={"campus_key", "config_version"})
+    body = payload.model_dump(mode="json", exclude={"campus_key", "config_version", "consent_revision_id"})
 
     try:
         visit_request, is_new = await service.submit_visit_request(
@@ -198,6 +262,7 @@ async def create_visit_request(
             idempotency_key=idempotency_key,
             payload=body,
             config_version=payload.config_version,
+            consent_revision_id=payload.consent_revision_id,
         )
     except service.IdempotencyConflict as exc:
         await db.rollback()
@@ -216,6 +281,18 @@ async def create_visit_request(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
+        ) from exc
+    except service.PartySizeRequired as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[{"loc": ["body", "party_size"], "msg": "請選擇參觀人數", "type": "missing"}],
+        ) from exc
+    except consent.ConsentVersionChanged as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CONSENT_VERSION_CHANGED", "message": "同意說明已更新，請重新閱讀並勾選後再送出"},
         ) from exc
     except workflow_service.SlotFull as exc:
         await db.rollback()
@@ -590,7 +667,7 @@ async def list_visit_requests(
 # 混淆或直接報錯（原本 source 重複兩次）。
 EXPORT_COLUMNS = (
     "campus_key", "status", "source", "parent_name", "phone", "created_at",
-    "child_name", "child_birthdate", "email", "referral_sources",
+    "child_name", "child_birthdate", "email", "referral_sources", "party_size",
     "slot_date", "start_time", "end_time",
 )
 
@@ -639,6 +716,8 @@ async def export_visit_requests(
                 r.child_birthdate.isoformat() if r.child_birthdate else "",
                 _safe_cell(r.email),
                 _safe_cell(";".join(r.referral_sources)),
+                # 舊案件沒有人數，留空。
+                str(r.party_size) if r.party_size is not None else "",
                 r.slot.slot_date.isoformat() if r.slot else "",
                 r.slot.start_time.isoformat() if r.slot else "",
                 r.slot.end_time.isoformat() if r.slot else "",

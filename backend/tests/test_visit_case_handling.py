@@ -15,17 +15,18 @@ from app.auth.models import Role
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import OutboxMessage, VisitRequest, VisitRequestEvent
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client
+from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
 BASE = f"{API}/admin"
 
 
 async def _set_mode(admin_client, **config) -> int:
-    current = await admin_client.get(f"{BASE}/booking-config/yihua")
-    response = await admin_client.patch(
-        f"{BASE}/booking-config/yihua", json={"expected_version": current.json()["version"], **config}
-    )
+    response = await set_booking_mode(admin_client, "yihua", **config)
     assert response.status_code == 200, response.text
     return response.json()["version"]
 

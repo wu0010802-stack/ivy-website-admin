@@ -14,15 +14,15 @@ from app.booking.access_models import ParentSession
 from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, VisitRequest, VisitRequestStatus
 from app.media.models import MediaAsset, MediaStatus
 from app.operations import retention_service
-from tests.conftest import _create_user, _logged_in_client
+from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
 async def _enable_slots(admin_client, campus_key="yihua", auto_confirm=True) -> int:
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    resp = await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={"expected_version": current.json()["version"], "mode": "slots", "slots_auto_confirm": auto_confirm},
-    )
+    resp = await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=auto_confirm)
     assert resp.status_code == 200, resp.text
     return resp.json()["version"]
 

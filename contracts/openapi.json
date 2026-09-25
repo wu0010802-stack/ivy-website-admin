@@ -272,6 +272,74 @@
         "title": "BookingConfigUpdateRequest",
         "type": "object"
       },
+      "BookingConsentBriefOut": {
+        "properties": {
+          "has_privacy_notice": {
+            "title": "Has Privacy Notice",
+            "type": "boolean"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision_id",
+          "version",
+          "has_privacy_notice"
+        ],
+        "title": "BookingConsentBriefOut",
+        "type": "object"
+      },
+      "BookingImpactOut": {
+        "description": "切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件\n照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。",
+        "properties": {
+          "bookable_slots": {
+            "title": "Bookable Slots",
+            "type": "integer"
+          },
+          "contacting": {
+            "title": "Contacting",
+            "type": "integer"
+          },
+          "new_requests": {
+            "title": "New Requests",
+            "type": "integer"
+          },
+          "open_requests": {
+            "title": "Open Requests",
+            "type": "integer"
+          },
+          "pending_confirmation": {
+            "title": "Pending Confirmation",
+            "type": "integer"
+          },
+          "upcoming_confirmed": {
+            "title": "Upcoming Confirmed",
+            "type": "integer"
+          },
+          "weekly_rules": {
+            "title": "Weekly Rules",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_requests",
+          "new_requests",
+          "contacting",
+          "pending_confirmation",
+          "upcoming_confirmed",
+          "bookable_slots",
+          "weekly_rules"
+        ],
+        "title": "BookingImpactOut",
+        "type": "object"
+      },
       "BookingMode": {
         "enum": [
           "inquiry",
@@ -283,6 +351,72 @@
         ],
         "title": "BookingMode",
         "type": "string"
+      },
+      "BookingReadinessOut": {
+        "description": "各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。\n連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部\n條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。",
+        "properties": {
+          "blockers": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/BookingReadinessReason"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/BookingMode"
+            },
+            "title": "Blockers",
+            "type": "object"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingConsentBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_mode": {
+            "$ref": "#/components/schemas/BookingMode"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/BookingImpactOut"
+          }
+        },
+        "required": [
+          "campus_key",
+          "current_mode",
+          "consent",
+          "blockers",
+          "impact"
+        ],
+        "title": "BookingReadinessOut",
+        "type": "object"
+      },
+      "BookingReadinessReason": {
+        "description": "某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "BookingReadinessReason",
+        "type": "object"
       },
       "CalendarSlotOut": {
         "properties": {
@@ -378,6 +512,17 @@
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -1598,12 +1743,74 @@
         "title": "PendingReviewOut",
         "type": "object"
       },
+      "PrivacyNoticeOut": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacySectionOut"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "sections"
+        ],
+        "title": "PrivacyNoticeOut",
+        "type": "object"
+      },
+      "PrivacySectionOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heading",
+          "body"
+        ],
+        "title": "PrivacySectionOut",
+        "type": "object"
+      },
       "PublicBookingConfigOut": {
         "description": "公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。",
         "properties": {
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
+          "consent_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Text"
           },
           "external_url": {
             "anyOf": [
@@ -1651,6 +1858,16 @@
               }
             ],
             "title": "Phone"
+          },
+          "privacy_notice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyNoticeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "slots_auto_confirm": {
             "title": "Slots Auto Confirm",
@@ -2760,6 +2977,18 @@
             "title": "Consent Given",
             "type": "boolean"
           },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
           "email": {
             "anyOf": [
               {
@@ -2778,6 +3007,19 @@
             "minLength": 1,
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -2803,7 +3045,7 @@
           "questions": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -2926,6 +3168,35 @@
             ],
             "title": "Confirmed At"
           },
+          "consent_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Accepted At"
+          },
+          "consent_given": {
+            "default": true,
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2986,6 +3257,17 @@
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -3184,6 +3466,46 @@
             ],
             "title": "Confirmed At"
           },
+          "consent_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Accepted At"
+          },
+          "consent_given": {
+            "default": true,
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
+          "consent_revision_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Version"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3255,6 +3577,17 @@
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "pending_reschedule": {
             "anyOf": [
@@ -3466,6 +3799,19 @@
             "title": "Parent Name",
             "type": "string"
           },
+          "party_size": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
           "phone": {
             "title": "Phone",
             "type": "string"
@@ -3490,7 +3836,7 @@
           "questions": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -4420,6 +4766,81 @@
           }
         },
         "summary": "Update Booking Config",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/booking-config/{campus_key}/readiness": {
+      "get": {
+        "description": "各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。\n後台在切換前顯示「不可啟用原因」與確認框用。",
+        "operationId": "get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingReadinessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Readiness",
         "tags": [
           "booking"
         ]

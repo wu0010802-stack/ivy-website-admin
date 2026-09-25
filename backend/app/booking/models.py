@@ -96,6 +96,10 @@ class VisitRequest(Base):
     __tablename__ = "visit_requests"
     __table_args__ = (
         UniqueConstraint("campus_key", "idempotency_key", name="uq_visit_request_idempotency"),
+        CheckConstraint(
+            "party_size IS NULL OR party_size BETWEEN 1 AND 10",
+            name="ck_visit_requests_party_size",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -117,6 +121,21 @@ class VisitRequest(Base):
     preferred_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
     questions: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     consent_given: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # 規格 L196：家長同意的是哪一版同意說明（booking_content 的已發布
+    # revision）與伺服器接受的時間。官網送單才有版本；人工補登是人員向家長
+    # 說明後代勾，沒有版本。2026-09-25 以前的案件沒有版本。
+    consent_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "content_revisions.id",
+            ondelete="RESTRICT",
+            name="fk_visit_requests_consent_revision_id_content_revisions",
+        ),
+        nullable=True,
+    )
+    consent_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 規格 L194、L221：參觀人數（含家長與孩子）1–10。名額仍以家庭組數計，
+    # 人數另存給接待準備用。舊案件與沒問到人數的補登為 NULL。
+    party_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
     # 規格 6.2：結案後重新預約（含換校）另建新案，指回舊案。
     related_request_id: Mapped[uuid.UUID | None] = mapped_column(

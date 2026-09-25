@@ -10,17 +10,18 @@ import pytest
 from app.auth.models import Role
 from app.notifications.service import parent_salutation
 from app.workers.runner import process_outbox_batch
-from tests.conftest import _create_user
+from tests.conftest import _create_user, set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
 ADMIN_ORIGIN = "https://www.ivy.example"
 
 
 async def _set_mode(admin_client, **config):
-    current = await admin_client.get(f"{API}/admin/booking-config/yihua")
-    await admin_client.patch(
-        f"{API}/admin/booking-config/yihua", json={"expected_version": current.json()["version"], **config}
-    )
+    await set_booking_mode(admin_client, "yihua", **config)
     return (await admin_client.get(f"{API}/admin/booking-config/yihua")).json()["version"]
 
 

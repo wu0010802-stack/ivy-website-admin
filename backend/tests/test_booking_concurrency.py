@@ -5,6 +5,12 @@ from datetime import date, timedelta
 
 import pytest
 
+from tests.conftest import set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 
 def _payload(config_version: int):
     return {
@@ -62,7 +68,10 @@ async def test_many_concurrent_identical_submissions_still_one_request(app, admi
         json={"expected_version": current.json()["version"], "mode": "inquiry"},
     )
     version = resp.json()["version"]
-    payload = _payload(version)
+    # 這裡用一般 httpx client（不經測試用的家長 client），官網會帶的人數與同意
+    # 版本自己補上，十個請求才會同時打到建單。
+    config = await public_client.get("/api/website/v1/public/booking-config/yihua")
+    payload = {**_payload(version), "party_size": 2, "consent_revision_id": config.json()["consent_revision_id"]}
     headers = {"Idempotency-Key": "race-test-many-01"}
 
     transport = httpx.ASGITransport(app=app)
@@ -91,15 +100,7 @@ async def test_one_slot_cannot_accept_two_families(
 ):
     """計畫 Task 7 明確要求的真實 PostgreSQL 併發驗證：同一個時段的
     最後一個名額，兩個不同 idempotency key 的並發請求只能一個成功。"""
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={
-            "expected_version": current.json()["version"],
-            "mode": "slots",
-            "slots_auto_confirm": True,
-        },
-    )
+    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
     me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
     version = me.json()["version"]
 

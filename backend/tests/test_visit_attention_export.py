@@ -105,7 +105,7 @@ async def test_export_header_has_each_column_once(admin_client):
     header = next(csv.reader(io.StringIO(resp.text)))
     assert header == [
         "campus_key", "status", "source", "parent_name", "phone", "created_at",
-        "child_name", "child_birthdate", "email", "referral_sources",
+        "child_name", "child_birthdate", "email", "referral_sources", "party_size",
         "slot_date", "start_time", "end_time",
     ]
     assert list(EXPORT_COLUMNS) == header

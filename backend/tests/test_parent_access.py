@@ -6,18 +6,16 @@ import uuid
 import httpx
 import pytest
 
+from tests.conftest import set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 
 async def _enable_slots_and_book(admin_client, public_client, campus_key="yihua"):
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={
-            "expected_version": current.json()["version"],
-            "mode": "slots",
-            # 家長自助管理的測試需要一筆「已確認」的案件才能申請改期。
-            "slots_auto_confirm": True,
-        },
-    )
+    # 家長自助管理的測試需要一筆「已確認」的案件才能申請改期。
+    await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=True)
     me = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
     version = me.json()["version"]
 

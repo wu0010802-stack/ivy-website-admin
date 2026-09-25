@@ -160,6 +160,38 @@ class HomeCampusBoardPayload(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+# 隱私／個資使用說明的草稿標記。後台「帶入示意段落」產生的文字都帶這個
+# 標記，含標記的版本不能發布（registry 的 publish_blocker）：正式條款要由
+# 園方提供，不讓示意文字被當成正式說明放上官網。
+PRIVACY_SAMPLE_MARKER = "【示意】"
+PRIVACY_SECTIONS_MAX = 12
+
+# 原型 fixture 的示範同意文字（「資料不會傳送給學校」），正式官網不能再
+# 發布它；匯入初始內容時換成官網一直顯示的正式文字（見 migration
+# 31eb94190b1c 的說明）。
+LEGACY_DEMO_CONSENT_TEXT = "我了解這是操作示範，資料不會傳送給學校，不代表預約成立。"
+FORMAL_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。"
+
+
+class PrivacySectionPayload(_ContentPayload):
+    """隱私說明的一段：小標（可留空）與內文。只收純文字，官網照段落顯示。"""
+
+    heading: str = Field(default="", max_length=60)
+    body: str = Field(min_length=1)
+
+    @field_validator("heading", "body")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("body")
+    @classmethod
+    def _body_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("段落內文不能空白")
+        return value
+
+
 class BookingContentPayload(_ContentPayload):
     cta_label: str
     cta_label_en: str
@@ -167,6 +199,12 @@ class BookingContentPayload(_ContentPayload):
     banner_title_template: str
     banner_body: str
     banner_button_label: str
+    # 2026-09-25 新增（規格 L130）：官網頁尾與預約表單可開啟的隱私／個資使用
+    # 說明。空清單＝還沒有正式說明，官網不顯示入口。預設值讓舊版本照常通過驗證。
+    privacy_title: str = Field(default="", max_length=40)
+    privacy_sections: list[PrivacySectionPayload] = Field(
+        default_factory=list, max_length=PRIVACY_SECTIONS_MAX
+    )
 
     @field_validator(
         "cta_label",
@@ -175,6 +213,7 @@ class BookingContentPayload(_ContentPayload):
         "banner_title_template",
         "banner_body",
         "banner_button_label",
+        "privacy_title",
     )
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:

@@ -17,6 +17,8 @@ from app.content.schemas import (
     HomeCampusBoardPayload,
     HomeHeroPayload,
     HomeNewsPayload,
+    LEGACY_DEMO_CONSENT_TEXT,
+    PRIVACY_SAMPLE_MARKER,
     SiteFooterPayload,
     SiteMetaPayload,
     is_scheduled_visible,
@@ -72,6 +74,22 @@ def _tour_publish_blocker(payload: dict) -> str | None:
     if pending:
         return f"場景「{'、'.join(pending)}」換了照片，熱點還沒複核，確認位置後才能發布"
     return None
+
+
+def _booking_publish_blocker(payload: dict) -> str | None:
+    """原型的示範同意文字、隱私說明還留著後台帶入的示意文字時不能發布
+    （正式條款由園方提供）。家長送單會記錄同意的是哪一版，發布出去的就是
+    家長看到的文字。"""
+    if (payload.get("consent_text") or "").strip() == LEGACY_DEMO_CONSENT_TEXT:
+        return "同意條款文字還是原型的示範文字（資料不會傳送給學校），請改成正式文字再發布"
+    texts = [payload.get("privacy_title", "")]
+    for section in payload.get("privacy_sections", []):
+        texts += [section.get("heading", ""), section.get("body", "")]
+    if any(PRIVACY_SAMPLE_MARKER in (text or "") for text in texts):
+        return f"隱私說明還有「{PRIVACY_SAMPLE_MARKER}」草稿文字，請換成園方提供的正式內容再發布"
+    return None
+
+
 _SCHEDULE_KEYS = ("show_from", "show_until")
 
 
@@ -121,7 +139,9 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         SiteMetaPayload, shared_only=True, extract_media_ids=_extract_site_meta_media_ids
     ),
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
-    "booking_content": ContentKindConfig(BookingContentPayload, shared_only=True),
+    "booking_content": ContentKindConfig(
+        BookingContentPayload, shared_only=True, publish_blocker=_booking_publish_blocker
+    ),
     "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
     "home_news": ContentKindConfig(
         HomeNewsPayload,

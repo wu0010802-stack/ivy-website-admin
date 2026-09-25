@@ -7,14 +7,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content import service
 from app.content.registry import CONTENT_KIND_REGISTRY
+from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
 
 
 def _copy_fields(source: dict, kind: str) -> dict:
     payload = {}
-    for field in CONTENT_KIND_REGISTRY[kind].payload_model.model_fields:
+    for field, info in CONTENT_KIND_REGISTRY[kind].payload_model.model_fields.items():
         parts = field.split("_")
         source_key = parts[0] + "".join(part.title() for part in parts[1:])
+        # 之後才加、有預設值的欄位（例如預約文案的隱私說明）原型沒有，用預設值。
+        if source_key not in source and not info.is_required():
+            continue
         payload[field] = source[source_key]
+    return payload
+
+
+def _booking_payload(source: dict) -> dict:
+    """原型的同意文字是示範用的（「資料不會傳送給學校」），正式官網不能
+    發布；匯入時換成官網實際顯示的正式文字。隱私說明本文由園方提供，
+    匯入時留空（官網不顯示入口）。"""
+    payload = _copy_fields(source, "booking_content")
+    if payload["consent_text"] == LEGACY_DEMO_CONSENT_TEXT:
+        payload["consent_text"] = FORMAL_CONSENT_TEXT
     return payload
 
 
@@ -24,7 +38,7 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("home_hero", None, _copy_fields(data["home"]["hero"], "home_hero")),
         ("site_footer", None, _copy_fields(data["footer"], "site_footer")),
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
-        ("booking_content", None, _copy_fields(data["booking"], "booking_content")),
+        ("booking_content", None, _booking_payload(data["booking"])),
         ("day_experience", None, _copy_fields(data["dayExperience"], "day_experience")),
         # 原樣帶入原型的示意消息與 sampleNote：上線畫面不變（仍標「示意內容」），
         # 園方在後台換成真實消息、清空示意說明後才拿掉標示。

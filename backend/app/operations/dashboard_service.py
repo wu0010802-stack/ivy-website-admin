@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.booking import slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
@@ -164,10 +165,16 @@ async def get_dashboard_summary(
     )
     configs_by_campus = {c.campus_key: c for c in configs_result.scalars()}
     missing_config = []
+    # 開放家長選時段，但官網現在一個可預約的場次都沒有：家長進到表單只看到
+    # 「目前沒有開放的參觀場次」。有每週規則時定期工作約一分鐘內會補上，
+    # 所以只看實際可預約的場次，不看規則。
+    slots_without_openings = []
     for key in all_campus_keys:
         config = configs_by_campus.get(key)
         if config is None or config.mode == BookingMode.PAUSED:
             missing_config.append(key)
+        elif config.mode == BookingMode.SLOTS and await slot_service.count_bookable_slots(db, key, config, now) == 0:
+            slots_without_openings.append(key)
 
     # outbox 本身沒有校區欄位，要經案件取得校區，否則分校帳號會看到全站數字。
     failed_notifications_stmt = _scope(
@@ -192,5 +199,6 @@ async def get_dashboard_summary(
         "pending_publish_kinds": pending_publish_kinds,
         "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
+        "campuses_slots_without_openings": slots_without_openings,
         "failed_notifications": failed_notifications,
     }
