@@ -1,3 +1,53 @@
+## 2026-09-26 內頁 hero 手機版 sizes 照實寫（入學資訊、常春藤環境、特色教學）
+
+三頁手機版 hero 是固定 500px 高的照片帶（`admission.css` 760px 以下的 `.adm-hero-photo`），用 `object-fit: cover`。橫幅照片實際顯示寬度是 500 × 寬高比：入學 675px、環境 1049px、特色教學 1245px。原本 `sizes` 一律寫 `100vw`，390 寬手機只選到 800w，有效解析度 0.32–0.68，看起來糊。
+- 改法：`utils/responsive-image.ts` 新增 `pageHeroImage()`／`PAGE_HERO_MOBILE_HEIGHT`，`sizes` 改為 `(max-width: 760px) <500×寬高比>px, 100vw`。三頁的 `<img>` 與 `usePageSeo` 的首屏預載都改用它，兩邊 sizes 一致。761px 以上維持 100vw：實測本來就選到最大候選，這次不變。
+- 實測（390 寬，DPR 1.75／2）：有效解析度入學 0.68／0.59 → 0.91／0.80、環境 0.44／0.38 → 1.07／0.93、特色教學 0.37／0.32 → 0.92／0.80。DPR 3 受原圖尺寸限制（入學 1080、環境 1960、特色教學 2000 寬），只到 0.53–0.62。
+- 代價：手機首屏圖變大，入學 34 → 61 KB、環境 32 → 119 KB、特色教學 28 → 92 KB。每次載入只下載一張首屏圖（預載與 `<img>` 選到同一個候選，已逐一確認）。
+- 測試：新增 `tests/page-hero.spec.ts` 6 項，檢查 sizes 算法、常數與 CSS 高度一致、`<img>` 與預載都用 `pageHeroImage`，以及找不到素材時不丟例外。
+- 驗證：web vitest 39 檔 351 項通過、`nuxt typecheck` 結束碼 0。e2e `old-site-content` 在 390 手機 6 項通過。前後對照截圖在 `output/playwright/page-hero-sizes-20260926/compare.png`。
+- 未量正式站 LCP：以 Lighthouse 慢速 4G 約 1.6 Mbps 粗估，環境頁多出約 87 KB，首屏圖下載時間約多 0.4 秒。部署後應該用線上 Lighthouse 確認。
+
+未 commit、未部署。
+
+## 2026-09-26 特色教學頁 /curriculum、四校校園探索換真實場景、義華家長分享
+
+接續舊官網盤點（ivykidschool.com、ivykids.tw），把可以直接搬的內容做完。
+- **特色教學頁 `/curriculum`**：`pages/curriculum.vue`＋`components/CurriculumContent.vue`＋`assets/css/curriculum.css`，版型照 `/environment`（共用 `admission.css`），內容寫在元件裡，不進後台。
+  - 01 四個年段：機構站「四年八階段」幼幼班到大班的 slogan。年齡寫法同入學資訊頁，有測試比對 `CLASS_BY_OFFSET`。
+  - 02 七個課程方向：機構站課程支柱。品德培養沒有照片，做成橫跨兩格的深綠引言卡。
+  - 03 五件事：義華 ivykids.tw「課程特色」（靜心、教具操作、美術創作、閱讀素養、大肌肉時間），照片與介紹標明取自義華校。
+  - 文案是舊站原文，只修錯字與標點；「做準備準備」改為「做準備」。「《常春藤幼兒園》高雄獨家課程」「大推」拿掉（無法佐證，待園方確認）。
+  - 大標只用 LINE Seed 子集有的字。課程名稱有缺字（統、元文、品培、術、美術、肌肉、六八），卡片標題整組改用內文字型。
+  - 照片 14 張 `cur-*`：首屏是義華首頁輪播原圖（孩子合十），課程照是機構站圓形照片裁內接 4:3。
+  - 選單改為「特色教學、常春藤環境、入學資訊」，頁尾加特色教學，後台 `siteLinks.ts` 預設同步。另接好 SEO、sitemap、llms.txt、頁首膠囊。
+- **四校校園探索**：明華、崇德、國際、仁武的 `tourScenes` 從通用模板換成機構站各校介紹頁的實景，共 11 個場景（`tour-*`，8:5，因為畫面用 `object-fit: fill`）。熱點只寫照片裡看得到的東西。
+  - 校別證據：明華的戶外廣場檔名是「07_明華戶外廣場」；國際校大門鑄著校名；仁武的照片來自「仁武校校園環境」相簿。
+  - 國際校美語商店街的場景說明，引用機構站 About 頁原句。
+  - 義華的校園探索存在後台，要補的花花世界、藝術走廊寫成操作說明 `docs/website-admin/handoff-yihua-tour-20260926.md`。
+- **義華家長分享**：新元件 `CampusTestimonials.vue`，分校頁校園探索後面放 4 支家長分享影片（ivykids.tw 共 16 支）。
+  - 引言是影片標題裡家長說的話。
+  - 海報用影片畫面，裁掉名字字卡與職稱字卡。
+  - 點了才插 `youtube-nocookie`；只在 fixture 有 `testimonials` 的學校出現（目前只有義華）。
+- **修午夜不穩定的測試**：`backend/tests/test_visit_details.py` 的「明天」改成執行當下才計算（09-25 CI run 36157022816 在台北午夜失敗過）。
+- main 的 `media-slots.spec.ts` 比對基準更新。逐欄比對過，差異只有：義華 `testimonials`、四校 `tourScenes`、選單與頁尾多了特色教學。
+
+驗證：
+- web：`nuxt typecheck` 結束碼 0，vitest 38 檔 345 項通過。新增 `curriculum.spec.ts`（SEO／sitemap／llms、年段對入學資訊、圖片）、`campus-old-site-content.spec.ts`（五校無模板、場景 8:5、熱點範圍、家長分享只有義華、海報檔在）。
+- admin：`vue-tsc` 結束碼 0，vitest 33 檔 264 項通過。
+- backend：`test_visit_details`、`test_content_initialize` 共 24 項通過。
+- `contract:check` 一致。
+- e2e：新增 `tests/e2e/old-site-content.spec.ts`，連同活動影片、五校卡社群在 1440／390 共 15 項通過、1 項桌機跳過。
+- Playwright 對 3218 dev（fixture 模式）：
+  - `/curriculum` 1440／1024／390 無 console 錯誤、無破圖、無橫向捲動。
+  - 選單三項在 901／950／1000／1024／1101／1180／1245／1280／1440 都排一行，預約鈕貼齊右緣。
+  - 11 個校園探索場景比例 1.6、熱點位置逐張看過，已調 2 個。
+  - 家長分享 4 張海報載入，點了插 iframe。
+  - 4 支家長分享影片從正式網域嵌入能載入播放器。
+- 截圖在 `output/playwright/curriculum-20260926/`。
+
+未 commit、未部署。
+
 ## 2026-09-25 各校 IG／YouTube 改由後台管理，首頁五校卡顯示
 
 接續同日上一段。後台「五校介紹」新增 Instagram、YouTube 兩欄，首頁五校卡跟著顯示。
