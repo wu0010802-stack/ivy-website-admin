@@ -7,7 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from app.media.models import MediaKind
 
 # 單檔大小上限是部署設定（Settings.media_max_image_mb／media_max_video_mb），
-# 在收檔時就擋（media/routes._receive_upload），這裡只看內容。
+# 由路由在複製上傳檔之前比對（media/routes._receive_upload），這裡只看內容。
 
 # 壓縮炸彈：一張 10KB 的 PNG 可以宣告成 40000x40000，解碼後要吃掉數 GB
 # 記憶體。Pillow 自己的 MAX_IMAGE_PIXELS 預設只會發 warning（超過兩倍才

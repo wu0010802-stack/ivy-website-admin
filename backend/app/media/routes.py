@@ -68,10 +68,31 @@ def _require_media_manage(user: User, campus_key: str | None) -> None:
     require_scope(user, "media.manage", campus_keys=[campus_key])
 
 
+def _too_large(max_bytes: int) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        detail={
+            "code": "MEDIA_TOO_LARGE",
+            "message": f"檔案超過大小限制（{max_bytes // (1024 * 1024)} MB）",
+        },
+    )
+
+
 async def _receive_upload(file: UploadFile, max_bytes: int) -> tuple[Path, int]:
-    """把上傳的檔案分塊寫進自己的暫存檔，超過上限**立刻中止**，回傳
-    (暫存檔路徑, 大小)。不再整份 b"".join 進記憶體：影片最大 150 MB，
-    幾個人同時上傳就會吃光 API 記憶體。呼叫端負責刪掉暫存檔。"""
+    """把上傳的檔案複製成有路徑的暫存檔（影片探測、解碼驗證、存進儲存體都
+    要實體路徑），回傳 (暫存檔路徑, 大小)；呼叫端負責刪掉暫存檔。
+
+    進到路由之前，Starlette 已經把整份 multipart 收完、檔案寫進它自己的
+    SpooledTemporaryFile（超過 1 MB 落地），所以這裡擋不住「傳輸中」的大檔：
+    傳輸中只有 BodySizeLimitMiddleware 依圖片、影片上限較大者擋整個本文，
+    圖片的單檔上限要等收完才知道。這裡做的是：
+    - UploadFile.size 已知就先比對這一類的上限，超過直接 413，不再複製；
+    - 分塊複製，不整份讀進記憶體（影片最大 150 MB，幾個人同時上傳就會吃光
+      API 記憶體）；
+    - 複製完立刻關掉 Starlette 的暫存檔，之後的驗證與轉檔（影片可能很久）
+      只佔一份磁碟空間；複製的那一下仍會短暫佔兩份。"""
+    if file.size is not None and file.size > max_bytes:
+        raise _too_large(max_bytes)
     fd, name = tempfile.mkstemp(prefix="media-upload-", suffix=".part")
     path = Path(name)
     total = 0
@@ -83,17 +104,12 @@ async def _receive_upload(file: UploadFile, max_bytes: int) -> tuple[Path, int]:
                     break
                 total += len(chunk)
                 if total > max_bytes:
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail={
-                            "code": "MEDIA_TOO_LARGE",
-                            "message": f"檔案超過大小限制（{max_bytes // (1024 * 1024)} MB）",
-                        },
-                    )
+                    raise _too_large(max_bytes)
                 await asyncio.to_thread(out.write, chunk)
     except BaseException:
         path.unlink(missing_ok=True)
         raise
+    await file.close()
     return path, total
 
 

@@ -1770,6 +1770,22 @@
             "minimum": 1.0,
             "title": "Expected Version",
             "type": "integer"
+          },
+          "field_paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Paths"
           }
         },
         "required": [
@@ -9253,7 +9269,7 @@
     },
     "/api/website/v1/admin/media/{media_id}/replace-references": {
       "post": {
-        "description": "把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新\n草稿（不發布，官網要等各自發布或送審）。影響範圍由\nGET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外\n存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。\n\n一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回\n錯誤，已處理的項目一起回滾。",
+        "description": "把選定內容項最新一版裡用到舊素材的欄位（有帶 field_paths 就只換那些\n位置）改成新素材，各存成一個新草稿（不發布，官網要等各自發布或送審）。影響範圍由\nGET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外\n存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。\n\n一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回\n錯誤，已處理的項目一起回滾。",
         "operationId": "replace_media_references_api_website_v1_admin_media__media_id__replace_references_post",
         "parameters": [
           {

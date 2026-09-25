@@ -61,11 +61,17 @@ async def check_publishable(
             raise NotPublishable("分校已停用，內容不會發布", "CAMPUS_INACTIVE")
     media_ids = config.extract_media_ids(revision.payload)
     if media_ids:
-        result = await db.execute(select(MediaAsset.id, MediaAsset.status).where(MediaAsset.id.in_(media_ids)))
-        found = dict(result.all())
+        result = await db.execute(
+            select(MediaAsset.id, MediaAsset.status, MediaAsset.deleted_at).where(MediaAsset.id.in_(media_ids))
+        )
+        found = {row.id: row for row in result.all()}
         for media_id in media_ids:
-            if found.get(media_id) != MediaStatus.READY:
+            row = found.get(media_id)
+            if row is None or row.status != MediaStatus.READY:
                 raise NotPublishable("引用的素材還沒處理完成或已被刪除", "MEDIA_NOT_READY")
+            # 待清理的素材公開路由一律 404：發布出去官網就破圖，到期還會被刪檔。
+            if row.deleted_at is not None:
+                raise NotPublishable("引用的素材已刪除（待清理），請到素材庫復原或換一個素材", "MEDIA_NOT_READY")
 
 
 async def run_due_jobs(db: AsyncSession, *, limit: int = 20) -> dict:

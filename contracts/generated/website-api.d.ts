@@ -586,8 +586,8 @@ export interface paths {
         put?: never;
         /**
          * Replace Media References
-         * @description 把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
-         *     草稿（不發布，官網要等各自發布或送審）。影響範圍由
+         * @description 把選定內容項最新一版裡用到舊素材的欄位（有帶 field_paths 就只換那些
+         *     位置）改成新素材，各存成一個新草稿（不發布，官網要等各自發布或送審）。影響範圍由
          *     GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
          *     存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
          *
@@ -2634,6 +2634,8 @@ export interface components {
             content_item_id: string;
             /** Expected Version */
             expected_version: number;
+            /** Field Paths */
+            field_paths?: string[] | null;
         };
         /** MediaReplaceReferencesOut */
         MediaReplaceReferencesOut: {

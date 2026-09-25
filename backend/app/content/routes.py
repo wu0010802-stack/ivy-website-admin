@@ -132,13 +132,20 @@ async def _validate_media_references(
     """引用的素材必須存在、而且屬於同一校或共用。不驗的話：引用不存在的
     UUID 會在寫 media_usages 時撞 FK 變成 500；引用別校的素材則會替對方
     建立一筆引用，讓那張圖再也刪不掉。影片版位只能放影片、照片版位只能放
-    圖片（MediaRef.kind）。"""
+    圖片（MediaRef.kind）。
+
+    素材列用 FOR SHARE 讀：刪除素材（media.service.mark_deleted）先 FOR UPDATE
+    鎖列、確認沒有引用才標記待清理。一般 SELECT 讀到的是對方 commit 前的
+    deleted_at，兩邊會同時成功，草稿就引用了待清理的素材（發布後官網破圖）。
+    FOR SHARE 跟 FOR UPDATE 互斥：對方先鎖就等它 commit、讀到新的 deleted_at；
+    這裡先鎖，刪除要等這份草稿 commit，之後查引用就會看到它。"""
     if not refs:
         return
     result = await db.execute(
-        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind).where(
-            MediaAsset.id.in_({ref.media_id for ref in refs})
-        )
+        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind)
+        .where(MediaAsset.id.in_({ref.media_id for ref in refs}))
+        .order_by(MediaAsset.id)
+        .with_for_update(read=True)
     )
     found = {row.id: row for row in result.all()}
     for ref in refs:
@@ -872,8 +879,8 @@ async def replace_media_references(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaReplaceReferencesOut:
-    """把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
-    草稿（不發布，官網要等各自發布或送審）。影響範圍由
+    """把選定內容項最新一版裡用到舊素材的欄位（有帶 field_paths 就只換那些
+    位置）改成新素材，各存成一個新草稿（不發布，官網要等各自發布或送審）。影響範圍由
     GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
     存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
 
@@ -907,6 +914,11 @@ async def replace_media_references(
                 },
             )
         paths = [ref.path for ref in config.extract_media_refs(latest.payload) if ref.media_id == old.id]
+        if entry.field_paths is not None:
+            # 只換勾選的位置。勾選的位置有任何一個不是舊素材（路徑送錯）一樣
+            # 整批停下，不會只換一半。
+            wanted = list(dict.fromkeys(entry.field_paths))
+            paths = wanted if set(wanted) <= set(paths) else []
         if not paths:
             await db.rollback()
             raise HTTPException(

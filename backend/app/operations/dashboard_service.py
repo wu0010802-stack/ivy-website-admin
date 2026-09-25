@@ -289,7 +289,10 @@ async def _media_issues(
     all_ids = {media_id for _, _, ids in refs for media_id in ids}
     if not all_ids:
         return []
-    result = await db.execute(select(MediaAsset.id, MediaAsset.status).where(MediaAsset.id.in_(all_ids)))
+    # 待清理（deleted_at）的素材公開路由已經回 404，跟真的刪掉一樣算 missing。
+    result = await db.execute(
+        select(MediaAsset.id, MediaAsset.status).where(MediaAsset.id.in_(all_ids), MediaAsset.deleted_at.is_(None))
+    )
     statuses = dict(result.all())
     issues: dict[tuple[str, str | None], dict] = {}
     for item, is_live, ids in refs:

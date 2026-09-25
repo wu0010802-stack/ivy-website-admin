@@ -167,6 +167,9 @@ class MediaReplaceItem(BaseModel):
     content_item_id: uuid.UUID
     # 看影響範圍當下的最新版本號；之後有人另外存過就停下來，請使用者重看。
     expected_version: int = Field(ge=1)
+    # 只換這些位置（usages 回傳的 field_path，例如只換封面、不換內文；規格
+    # L142「替換預設只改目前版位」）。省略＝最新版裡用到舊素材的位置全換。
+    field_paths: list[str] | None = Field(default=None, min_length=1, max_length=100)
 
 
 class MediaReplaceReferencesRequest(BaseModel):

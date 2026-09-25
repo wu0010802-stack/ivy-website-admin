@@ -60,13 +60,14 @@ class Settings(BaseSettings):
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進
     # 這個 header；API 不直接對外時才可信任，見 deploy/README.md。
     trusted_client_ip_header: str | None = "x-website-client-ip"
-    # 每個校區（共用素材另算一份）素材原檔的累計上限。單檔有 15/200 MB
-    # 限制，但五校共用同一顆 volume，沒有累計上限時一個校區帳號反覆上傳
-    # 就能把磁碟塞滿、讓其他校區也無法上傳。
+    # 每個校區（共用素材另算一份）素材原檔的累計上限。單檔有上限（預設
+    # 圖片 15 MB、影片 150 MB），但五校共用同一顆 volume，沒有累計上限時
+    # 一個校區帳號反覆上傳就能把磁碟塞滿、讓其他校區也無法上傳。
     media_quota_bytes_per_campus: int = 5 * 1024 * 1024 * 1024
     # 單檔上限（規格 L140：初始圖片 15 MB、影片 150 MB，可由部署設定調整）。
-    # API 的請求本文上限由這兩個值推導；web 代理另有 NUXT_MEDIA_MAX_VIDEO_MB，
-    # 兩邊要設一樣（見 deploy/README.md）。
+    # API 的請求本文上限由這兩個值推導（較大者＋5 MB）。web 代理的本文上限
+    # 另外讀 NUXT_MEDIA_MAX_UPLOAD_MB（預設 150，web/shared/request-guard.ts），
+    # 不會自動同步：調高這裡時 web 那邊要設成兩者較大的值，否則大檔先被 web 以 413 擋下。
     media_max_image_mb: int = Field(default=15, ge=1, le=100)
     media_max_video_mb: int = Field(default=150, ge=1, le=2048)
     # 刪除的素材先標記待清理，過這麼多天才由定期工作真的刪檔，期間可以復原。

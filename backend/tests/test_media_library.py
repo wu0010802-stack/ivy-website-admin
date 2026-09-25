@@ -2,6 +2,7 @@
 封存、刪除改為待清理＋定期清理、影片資訊、上傳上限與暫存檔。"""
 from __future__ import annotations
 
+import asyncio
 import glob
 import importlib.util
 import io
@@ -13,9 +14,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException, UploadFile
 from PIL import Image
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 
+from app.auth.models import User
+from app.content import routes as content_routes
+from app.content import service as content_service
+from app.content.registry import MediaRef
+from app.media import routes as media_routes
 from app.media import service as media_service
 from app.media.models import MediaAsset, MediaUsage
 from app.operations.models import AuditLogEntry
@@ -424,6 +431,112 @@ async def test_batch_replace_rejects_bad_replacement_and_other_campus(admin_clie
     assert denied.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_batch_replace_only_touches_selected_positions(admin_client):
+    """B09-2（規格 L142「替換預設只改目前版位」）：同一則消息的封面與內文都用
+    同一張，可以只換封面；送來的位置有一個不是舊素材就整批停下。"""
+    old = await _upload(admin_client, campus_key=None)
+    new = await _upload(admin_client, campus_key=None)
+    body = [{"type": "image", "image": old["id"], "alt": "內文照片"}]
+    news = await admin_client.post(
+        f"{NEWS}/revisions",
+        json={"expected_version": 0, "payload": {"sample_note": "", "articles": [_article(image=old["id"], body=body)], "events": []}},
+    )
+    assert news.status_code == 201, news.text
+    item = {"content_item_id": news.json()["id"], "expected_version": 1}
+
+    wrong = await admin_client.post(
+        f"{MEDIA}/{old['id']}/replace-references",
+        json={"replacement_id": new["id"], "items": [{**item, "field_paths": ["articles[0].image", "articles[0].title"]}]},
+    )
+    assert wrong.status_code == 409 and wrong.json()["detail"]["code"] == "MEDIA_NOT_REFERENCED"
+    assert (await admin_client.get(NEWS)).json()["latest_version"] == 1
+
+    result = await admin_client.post(
+        f"{MEDIA}/{old['id']}/replace-references",
+        json={"replacement_id": new["id"], "items": [{**item, "field_paths": ["articles[0].image"]}]},
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["items"][0]["field_paths"] == ["articles[0].image"]
+    article = (await admin_client.get(NEWS)).json()["latest_revision"]["payload"]["articles"][0]
+    assert article["image"] == new["id"] and article["body"][0]["image"] == old["id"]
+
+
+# ---------------------------------------------------------------------------
+# 刪除素材與存草稿同時發生（B09-1）
+# ---------------------------------------------------------------------------
+
+
+async def _admin_id(db) -> uuid.UUID:
+    return (await db.execute(select(User.id).where(User.email == "admin@ivy.example"))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_draft_saved_while_media_is_being_deleted_is_refused(app, admin_client):
+    """刪除先鎖住素材列、還沒 commit 時有人存草稿引用它：以前存草稿讀到的是
+    commit 前的 deleted_at（NULL），兩邊都成功，草稿引用了待清理的素材。
+    現在存草稿用 FOR SHARE 讀，會等刪除 commit、讀到 deleted_at 而回 422。"""
+    media = await _upload(admin_client, campus_key=None)
+    async with app.state.session_factory() as deleting:
+        asset = await deleting.get(MediaAsset, uuid.UUID(media["id"]))
+        await media_service.mark_deleted(deleting, asset, actor_id=await _admin_id(deleting))
+        task = asyncio.create_task(
+            admin_client.post(f"{META}/revisions", json={"expected_version": 0, "payload": _meta(share_image=media["id"])})
+        )
+        await asyncio.sleep(0.5)
+        assert not task.done(), "存草稿沒有等刪除 commit"
+        await deleting.commit()
+    saved = await asyncio.wait_for(task, timeout=10)
+    assert saved.status_code == 422, saved.text
+    assert saved.json()["detail"]["code"] == "MEDIA_NOT_FOUND"
+    assert (await admin_client.get(META)).json()["latest_version"] == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_waits_for_draft_that_already_validated_media(app, admin_client):
+    """反過來：存草稿已經驗過素材、還沒寫進版本與引用時有人按刪除。刪除要等
+    草稿 commit，之後查引用就看得到新草稿而拒絕，不會把它用到的素材標成待清理。"""
+    media = await _upload(admin_client, campus_key=None)
+    ref = MediaRef(media_id=uuid.UUID(media["id"]), path="share_image")
+    async with app.state.session_factory() as saving:
+        await content_routes._validate_media_references(saving, [ref], None)
+        task = asyncio.create_task(admin_client.delete(f"{MEDIA}/{media['id']}"))
+        await asyncio.sleep(0.5)
+        assert not task.done(), "刪除沒有等已經驗過素材的草稿"
+        item = await content_service.get_or_create_content_item(saving, "site_meta", None)
+        revision = await content_service.create_revision(
+            saving, item, _meta(share_image=media["id"]), 0, await _admin_id(saving)
+        )
+        await media_service.sync_content_item_usages(saving, str(item.id), "site_meta", None, revision.id, [ref])
+        await saving.commit()
+    deleted = await asyncio.wait_for(task, timeout=10)
+    assert deleted.status_code == 409, deleted.text
+    assert deleted.json()["detail"]["code"] == "MEDIA_IN_USE"
+
+
+@pytest.mark.asyncio
+async def test_draft_left_with_pending_cleanup_media_cannot_publish(admin_client, db_session):
+    """修好之前可能已經留下「草稿引用待清理素材」的資料：發布前檢查與總覽的
+    素材提示都把待清理當成已刪除，不能發布出去讓官網破圖。"""
+    media = await _upload(admin_client, campus_key=None)
+    saved = await admin_client.post(
+        f"{META}/revisions", json={"expected_version": 0, "payload": _meta(share_image=media["id"])}
+    )
+    assert saved.status_code == 201, saved.text
+    await db_session.execute(
+        update(MediaAsset).where(MediaAsset.id == uuid.UUID(media["id"])).values(deleted_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+
+    published = await admin_client.post(f"{META}/publish", json={"revision_id": saved.json()["latest_revision"]["id"]})
+    assert published.status_code == 409
+    detail = published.json()["detail"]
+    assert detail["code"] == "MEDIA_NOT_READY"
+    assert detail["message"] == "引用的素材已刪除（待清理），請到素材庫復原或換一個素材"
+    issues = (await admin_client.get(f"{API}/admin/dashboard")).json()["content_media_issues"]
+    assert issues == [{"kind": "site_meta", "campus_key": None, "missing": 1, "not_ready": 0, "live": False}]
+
+
 # ---------------------------------------------------------------------------
 # 上傳：格式、上限、暫存檔、影片資訊、上傳者
 # ---------------------------------------------------------------------------
@@ -472,6 +585,37 @@ async def test_upload_is_streamed_to_temp_file_and_cleaned_up(app, admin_client)
     )
     assert too_big.status_code == 413
     assert set(glob.glob(pattern)) == before
+
+
+@pytest.mark.asyncio
+async def test_receive_upload_checks_known_size_before_copying(monkeypatch):
+    """B09-6：Starlette 進路由前已經把檔案收進自己的暫存檔、知道大小；超過
+    上限直接 413，不再複製第二份。"""
+    made: list[str] = []
+    real_mkstemp = tempfile.mkstemp
+    monkeypatch.setattr(tempfile, "mkstemp", lambda *a, **kw: made.append("x") or real_mkstemp(*a, **kw))
+    spool = tempfile.SpooledTemporaryFile()
+    spool.write(b"x" * 11)
+    spool.seek(0)
+    with pytest.raises(HTTPException) as exc:
+        await media_routes._receive_upload(UploadFile(spool, size=11, filename="big.jpg"), 10)
+    assert exc.value.status_code == 413 and exc.value.detail["code"] == "MEDIA_TOO_LARGE"
+    assert made == []
+    spool.close()
+
+
+@pytest.mark.asyncio
+async def test_receive_upload_closes_starlette_spool_after_copy():
+    """複製完立刻關掉 Starlette 的暫存檔，驗證與轉檔期間只佔一份磁碟空間。"""
+    spool = tempfile.SpooledTemporaryFile()
+    spool.write(b"abc")
+    spool.seek(0)
+    path, size = await media_routes._receive_upload(UploadFile(spool, size=3, filename="a.jpg"), 10)
+    try:
+        assert size == 3 and path.read_bytes() == b"abc"
+        assert spool.closed
+    finally:
+        path.unlink(missing_ok=True)
 
 
 @pytest.mark.asyncio
