@@ -2,7 +2,8 @@
 import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
-import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { pickImage } from '~/utils/media-image'
+import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
 
 const props = defineProps<{
   booking: BookingContent
@@ -17,6 +18,8 @@ const form = reactive({
   childName: '',
   childBirthdate: '',
   email: '',
+  // 參觀人數：下拉選單預設不選（空字串），送出前必填 1–10。
+  partySize: '',
   referralSources: [] as string[],
   time: '',
   questions: '',
@@ -36,6 +39,10 @@ const optionalOpen = ref(false)
 const selectedCampusKey = computed(() => form.campus)
 const { data: bookingConfig, pending: bookingPending, error: bookingError, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
 const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null, Boolean(bookingError.value)))
+// 規格 L196：勾選框顯示的是公開預約設定回傳的那一版同意文字，送單帶同一個
+// 版本 id；讀不到（舊版 API）才退回站台內容的文字。
+const consentText = computed(() => bookingConfig.value?.consent_text || props.booking.consentText)
+const privacyNotice = computed(() => bookingConfig.value?.privacy_notice ?? null)
 
 interface PublicVisitSlot { id: string; slot_date: string; start_time: string; end_time: string; remaining: number }
 const availableSlots = ref<PublicVisitSlot[]>([])
@@ -215,10 +222,12 @@ async function onSubmit() {
         child_name: form.childName,
         child_birthdate: form.childBirthdate,
         email: form.email || null,
+        party_size: Number(form.partySize),
         referral_sources: form.referralSources,
         preferred_time: form.time || null,
         questions: form.questions || null,
         consent_given: form.consent,
+        consent_revision_id: bookingConfig.value?.consent_revision_id ?? null,
         slot_id: bookingConfig.value?.mode === 'slots' ? selectedSlotId.value : undefined
       }
     })
@@ -234,7 +243,12 @@ async function onSubmit() {
   } catch (err: any) {
     const detail = err?.data?.detail
     const code = typeof detail === 'object' ? detail.code : null
-    if (code === 'BOOKING_CONFIG_CHANGED') {
+    if (code === 'CONSENT_VERSION_CHANGED') {
+      // 園方剛改了同意說明：換上新的文字，請家長重新閱讀、勾選，其他欄位都保留。
+      form.consent = false
+      await refreshBookingConfig()
+      submitError.value = '同意說明剛剛更新了，請閱讀下方新的說明並重新勾選同意後再送出。'
+    } else if (code === 'BOOKING_CONFIG_CHANGED') {
       submitError.value = '這個校區的預約設定剛剛更新了，請確認以下資訊後再送出一次。'
       await refreshBookingConfig()
       await loadSlots()
@@ -294,7 +308,7 @@ async function onSubmit() {
       <div class="visit-shell">
         <aside v-if="!isPicking && selectedCampus" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
-            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="responsiveImage(selectedCampus.image, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
+            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
@@ -325,7 +339,7 @@ async function onSubmit() {
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="`${campus.name} · ${campus.district}`">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="responsiveImage(campus.image, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ campus.district }}</small></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
@@ -391,6 +405,7 @@ async function onSubmit() {
                     <div class="visit-field-grid">
                       <div class="visit-field"><label for="parent-name">家長稱呼<small>必填</small></label><input id="parent-name" v-model="form.parentName" name="parentName" autocomplete="section-parent name" maxlength="40" required placeholder="例如：陳媽媽" :aria-invalid="Boolean(fieldErrors.parentName)" aria-describedby="visit-name-error" @blur="checkField('parentName')" @input="clearFieldError('parentName')"><p id="visit-name-error" class="visit-field-error">{{ fieldErrors.parentName }}</p></div>
                       <div class="visit-field"><label for="parent-phone">聯絡電話<small>必填</small></label><input id="parent-phone" v-model="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="section-parent tel-national" maxlength="16" required pattern="09[0-9]{8}" placeholder="09xxxxxxxx" :aria-invalid="Boolean(fieldErrors.phone)" aria-describedby="phone-hint visit-phone-error" @blur="checkField('phone')" @input="clearFieldError('phone')"><small id="phone-hint" class="visit-field-hint">09 開頭的 10 碼手機號碼</small><p id="visit-phone-error" class="visit-field-error">{{ fieldErrors.phone }}</p></div>
+                      <div class="visit-field"><label for="party-size">參觀人數<small>必填</small></label><select id="party-size" v-model="form.partySize" name="partySize" required :aria-invalid="Boolean(fieldErrors.partySize)" aria-describedby="visit-party-hint visit-party-error" @change="checkField('partySize')"><option value="">請選擇</option><option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :value="String(size)">{{ size }} 位</option></select><small id="visit-party-hint" class="visit-field-hint">含大人與孩子，方便園所準備接待。</small><p id="visit-party-error" class="visit-field-error">{{ fieldErrors.partySize }}</p></div>
                       <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>選填</small></label><input id="parent-email" v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-error" @blur="checkField('email')" @input="clearFieldError('email')"><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
                     </div>
                   </section>
@@ -403,7 +418,8 @@ async function onSubmit() {
                       <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
                     </div>
                   </details>
-                  <label class="visit-consent"><input v-model="form.consent" name="consent" type="checkbox" required :aria-invalid="Boolean(fieldErrors.consent)" aria-describedby="visit-consent-error" @change="checkField('consent')"><span>{{ booking.consentText }}</span></label>
+                  <label class="visit-consent"><input v-model="form.consent" name="consent" type="checkbox" required :aria-invalid="Boolean(fieldErrors.consent)" aria-describedby="visit-consent-error" @change="checkField('consent')"><span>{{ consentText }}</span></label>
+                  <PrivacyNoticeDialog v-if="privacyNotice" :notice="privacyNotice" label="閱讀個資使用說明" trigger-class="visit-privacy-link" />
                   <p id="visit-consent-error" class="visit-field-error">{{ fieldErrors.consent }}</p>
                 </fieldset>
                 <p v-if="Object.keys(fieldErrors).length" class="sr-only" role="alert">請確認標示的欄位：{{ Object.values(fieldErrors).join(' ') }}</p>
@@ -413,11 +429,11 @@ async function onSubmit() {
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
-            <img v-if="selectedCampus" class="visit-result-art" v-bind="responsiveImage(`campus-line-art-${selectedCampus.key}`, '240px')" alt="" decoding="async">
+            <img v-if="selectedCampus" class="visit-result-art" v-bind="pickImage(`campus-line-art-${selectedCampus.key}`, selectedCampus.lineArtMedia, '240px')" alt="" decoding="async">
             <span class="visit-result-status"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
-            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
+            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
             <div class="visit-result-next"><h3>接下來，等園所與你聯繫。</h3><p>需要補充、更正資料或調整安排，請直接聯絡{{ selectedCampus?.name }}。</p><div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><a v-if="selectedCampus?.line" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a></div></div>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>

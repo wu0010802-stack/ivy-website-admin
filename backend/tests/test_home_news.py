@@ -106,7 +106,13 @@ async def test_news_photo_from_media_library_is_protected_and_published(admin_cl
     )
     assert published.status_code == 200, published.text
     site = await public_client.get("/api/website/v1/public/site")
-    assert site.json()["content"]["home_news"] == payload
+    # 官網拿到的是驗證後的內容（舊的校區文字換成 scope，補上新欄位的預設值），
+    # 上下架日期不輸出。
+    expected = HomeNewsPayload.model_validate(payload).model_dump()
+    for entry in expected["articles"] + expected["events"]:
+        entry.pop("show_from"), entry.pop("show_until")
+    assert site.json()["content"]["home_news"] == expected
+    assert expected["articles"][0]["scope"] == "campus" and expected["articles"][0]["campus_keys"] == ["yihua"]
 
 
 @pytest.mark.asyncio

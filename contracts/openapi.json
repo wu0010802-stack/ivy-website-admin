@@ -151,6 +151,10 @@
           "mode": {
             "$ref": "#/components/schemas/BookingMode"
           },
+          "parent_change_deadline_hours": {
+            "title": "Parent Change Deadline Hours",
+            "type": "integer"
+          },
           "phone": {
             "anyOf": [
               {
@@ -179,7 +183,8 @@
           "phone",
           "external_url",
           "message",
-          "slots_auto_confirm"
+          "slots_auto_confirm",
+          "parent_change_deadline_hours"
         ],
         "title": "BookingConfigOut",
         "type": "object"
@@ -229,6 +234,19 @@
           "mode": {
             "$ref": "#/components/schemas/BookingMode"
           },
+          "parent_change_deadline_hours": {
+            "anyOf": [
+              {
+                "maximum": 336.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Change Deadline Hours"
+          },
           "phone": {
             "anyOf": [
               {
@@ -254,6 +272,74 @@
         "title": "BookingConfigUpdateRequest",
         "type": "object"
       },
+      "BookingConsentBriefOut": {
+        "properties": {
+          "has_privacy_notice": {
+            "title": "Has Privacy Notice",
+            "type": "boolean"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision_id",
+          "version",
+          "has_privacy_notice"
+        ],
+        "title": "BookingConsentBriefOut",
+        "type": "object"
+      },
+      "BookingImpactOut": {
+        "description": "切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件\n照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。",
+        "properties": {
+          "bookable_slots": {
+            "title": "Bookable Slots",
+            "type": "integer"
+          },
+          "contacting": {
+            "title": "Contacting",
+            "type": "integer"
+          },
+          "new_requests": {
+            "title": "New Requests",
+            "type": "integer"
+          },
+          "open_requests": {
+            "title": "Open Requests",
+            "type": "integer"
+          },
+          "pending_confirmation": {
+            "title": "Pending Confirmation",
+            "type": "integer"
+          },
+          "upcoming_confirmed": {
+            "title": "Upcoming Confirmed",
+            "type": "integer"
+          },
+          "weekly_rules": {
+            "title": "Weekly Rules",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_requests",
+          "new_requests",
+          "contacting",
+          "pending_confirmation",
+          "upcoming_confirmed",
+          "bookable_slots",
+          "weekly_rules"
+        ],
+        "title": "BookingImpactOut",
+        "type": "object"
+      },
       "BookingMode": {
         "enum": [
           "inquiry",
@@ -265,6 +351,72 @@
         ],
         "title": "BookingMode",
         "type": "string"
+      },
+      "BookingReadinessOut": {
+        "description": "各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。\n連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部\n條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。",
+        "properties": {
+          "blockers": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/BookingReadinessReason"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/BookingMode"
+            },
+            "title": "Blockers",
+            "type": "object"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingConsentBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_mode": {
+            "$ref": "#/components/schemas/BookingMode"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/BookingImpactOut"
+          }
+        },
+        "required": [
+          "campus_key",
+          "current_mode",
+          "consent",
+          "blockers",
+          "impact"
+        ],
+        "title": "BookingReadinessOut",
+        "type": "object"
+      },
+      "BookingReadinessReason": {
+        "description": "某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "BookingReadinessReason",
+        "type": "object"
       },
       "CalendarSlotOut": {
         "properties": {
@@ -360,6 +512,17 @@
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -632,6 +795,11 @@
             ],
             "title": "Reviewed At"
           },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
           "submitted_at": {
             "anyOf": [
               {
@@ -735,6 +903,23 @@
             "default": "draft",
             "title": "Review Status",
             "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
           },
           "version": {
             "title": "Version",
@@ -991,6 +1176,18 @@
             ],
             "title": "Alt Text"
           },
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
           "campus_key": {
             "anyOf": [
               {
@@ -1017,6 +1214,22 @@
             "title": "Content Type",
             "type": "string"
           },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
           "crop_focus_x": {
             "anyOf": [
               {
@@ -1038,6 +1251,29 @@
               }
             ],
             "title": "Crop Focus Y"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
           },
           "height": {
             "anyOf": [
@@ -1084,6 +1320,30 @@
             ],
             "title": "Processing Error"
           },
+          "purge_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purge After"
+          },
+          "replaces_media_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Media Id"
+          },
           "size_bytes": {
             "title": "Size Bytes",
             "type": "integer"
@@ -1112,6 +1372,13 @@
           "usage_count": {
             "title": "Usage Count",
             "type": "integer"
+          },
+          "used_in": {
+            "items": {
+              "$ref": "#/components/schemas/MediaUsedInOut"
+            },
+            "title": "Used In",
+            "type": "array"
           },
           "variants": {
             "items": {
@@ -1142,6 +1409,7 @@
           "size_bytes",
           "width",
           "height",
+          "created_at",
           "alt_text",
           "source_attribution",
           "crop_focus_x",
@@ -1153,6 +1421,46 @@
         "title": "MediaAssetOut",
         "type": "object"
       },
+      "MediaHistoryReferenceOut": {
+        "description": "只剩可還原的舊版本在用：同一內容項合併成一筆。",
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "content_item_id": {
+            "format": "uuid",
+            "title": "Content Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "content_item_id",
+          "kind",
+          "campus_key",
+          "versions"
+        ],
+        "title": "MediaHistoryReferenceOut",
+        "type": "object"
+      },
       "MediaKind": {
         "enum": [
           "image",
@@ -1160,6 +1468,206 @@
         ],
         "title": "MediaKind",
         "type": "string"
+      },
+      "MediaReferenceOut": {
+        "description": "一處引用：哪個內容項的哪一版、哪個欄位。",
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "content_item_id": {
+            "format": "uuid",
+            "title": "Content Item Id",
+            "type": "string"
+          },
+          "field_path": {
+            "title": "Field Path",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "publish_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish At"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "states": {
+            "items": {
+              "enum": [
+                "draft",
+                "live",
+                "scheduled"
+              ],
+              "type": "string"
+            },
+            "title": "States",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content_item_id",
+          "kind",
+          "campus_key",
+          "revision_id",
+          "version",
+          "field_path",
+          "label",
+          "states",
+          "can_edit"
+        ],
+        "title": "MediaReferenceOut",
+        "type": "object"
+      },
+      "MediaReplaceItem": {
+        "properties": {
+          "content_item_id": {
+            "format": "uuid",
+            "title": "Content Item Id",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content_item_id",
+          "expected_version"
+        ],
+        "title": "MediaReplaceItem",
+        "type": "object"
+      },
+      "MediaReplaceReferencesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaReplacedItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "replacement_id": {
+            "format": "uuid",
+            "title": "Replacement Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "replacement_id",
+          "items"
+        ],
+        "title": "MediaReplaceReferencesOut",
+        "type": "object"
+      },
+      "MediaReplaceReferencesRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaReplaceItem"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "replacement_id": {
+            "format": "uuid",
+            "title": "Replacement Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "replacement_id",
+          "items"
+        ],
+        "title": "MediaReplaceReferencesRequest",
+        "type": "object"
+      },
+      "MediaReplacedItemOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "content_item_id": {
+            "format": "uuid",
+            "title": "Content Item Id",
+            "type": "string"
+          },
+          "field_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Field Paths",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content_item_id",
+          "kind",
+          "campus_key",
+          "version",
+          "field_paths"
+        ],
+        "title": "MediaReplacedItemOut",
+        "type": "object"
       },
       "MediaStatus": {
         "enum": [
@@ -1175,6 +1683,7 @@
           "alt_text": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -1198,6 +1707,8 @@
           "crop_focus_x": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -1209,6 +1720,8 @@
           "crop_focus_y": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -1232,6 +1745,7 @@
           "source_attribution": {
             "anyOf": [
               {
+                "maxLength": 255,
                 "type": "string"
               },
               {
@@ -1257,6 +1771,116 @@
           }
         },
         "title": "MediaUpdateRequest",
+        "type": "object"
+      },
+      "MediaUploadLimitsOut": {
+        "properties": {
+          "image_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Image Types",
+            "type": "array"
+          },
+          "max_image_bytes": {
+            "title": "Max Image Bytes",
+            "type": "integer"
+          },
+          "max_video_bytes": {
+            "title": "Max Video Bytes",
+            "type": "integer"
+          },
+          "purge_delay_days": {
+            "title": "Purge Delay Days",
+            "type": "integer"
+          },
+          "video_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Video Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "max_image_bytes",
+          "max_video_bytes",
+          "image_types",
+          "video_types",
+          "purge_delay_days"
+        ],
+        "title": "MediaUploadLimitsOut",
+        "type": "object"
+      },
+      "MediaUsagesOut": {
+        "properties": {
+          "can_archive": {
+            "title": "Can Archive",
+            "type": "boolean"
+          },
+          "can_delete": {
+            "title": "Can Delete",
+            "type": "boolean"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/MediaHistoryReferenceOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "media_id": {
+            "format": "uuid",
+            "title": "Media Id",
+            "type": "string"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/MediaReferenceOut"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "untracked_usages": {
+            "default": 0,
+            "title": "Untracked Usages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "media_id",
+          "references",
+          "history",
+          "can_archive",
+          "can_delete"
+        ],
+        "title": "MediaUsagesOut",
+        "type": "object"
+      },
+      "MediaUsedInOut": {
+        "description": "最新一版用到這個素材的內容項（依 MediaUsage，去重）。",
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "campus_key"
+        ],
+        "title": "MediaUsedInOut",
         "type": "object"
       },
       "MediaVariantOut": {
@@ -1306,6 +1930,218 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "NotificationOutboxOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivered": {
+            "$ref": "#/components/schemas/OutboxDeliveredOut"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requeued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requeued At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "visit_request_id",
+          "kind",
+          "reason",
+          "status",
+          "attempts",
+          "error_code",
+          "created_at",
+          "next_attempt_at",
+          "requeued_at",
+          "delivered"
+        ],
+        "title": "NotificationOutboxOut",
+        "type": "object"
+      },
+      "NotificationRetryBatchOut": {
+        "properties": {
+          "requeued": {
+            "title": "Requeued",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requeued",
+          "skipped"
+        ],
+        "title": "NotificationRetryBatchOut",
+        "type": "object"
+      },
+      "NotificationRetryBatchRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "NotificationRetryBatchRequest",
+        "type": "object"
+      },
+      "OutboxDeliveredOut": {
+        "description": "這則通知已經送到的管道：站內通知、LINE 群組、已寄出的 Email 人數。\n重新寄送時這些都會略過，只補還沒送到的。",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "integer"
+          },
+          "inbox": {
+            "title": "Inbox",
+            "type": "boolean"
+          },
+          "line": {
+            "title": "Line",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inbox",
+          "line",
+          "email"
+        ],
+        "title": "OutboxDeliveredOut",
+        "type": "object"
+      },
+      "ParentAccessLinkCreatedOut": {
+        "description": "manage_url 是可以直接給家長的完整網址（公開官網 origin＝\nWEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用\nmanage_url_fragment 自行組網址。兩者都含 token，只回這一次。",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "manage_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Url"
+          },
+          "manage_url_fragment": {
+            "title": "Manage Url Fragment",
+            "type": "string"
+          },
+          "replaced_previous": {
+            "title": "Replaced Previous",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "manage_url",
+          "manage_url_fragment",
+          "expires_at",
+          "replaced_previous"
+        ],
+        "title": "ParentAccessLinkCreatedOut",
+        "type": "object"
+      },
+      "ParentAccessLinkOut": {
+        "description": "目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴\n後台「有沒有、什麼時候到期」。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "expires_at"
+        ],
+        "title": "ParentAccessLinkOut",
+        "type": "object"
+      },
       "ParentVisitRequestOut": {
         "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
         "properties": {
@@ -1344,6 +2180,10 @@
               }
             ],
             "title": "Change Deadline"
+          },
+          "change_deadline_hours": {
+            "title": "Change Deadline Hours",
+            "type": "integer"
           },
           "confirmed_at": {
             "anyOf": [
@@ -1413,6 +2253,7 @@
           "hold_expires_at",
           "created_at",
           "change_deadline",
+          "change_deadline_hours",
           "can_cancel",
           "can_reschedule"
         ],
@@ -1517,12 +2358,74 @@
         "title": "PendingReviewOut",
         "type": "object"
       },
+      "PrivacyNoticeOut": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacySectionOut"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "sections"
+        ],
+        "title": "PrivacyNoticeOut",
+        "type": "object"
+      },
+      "PrivacySectionOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heading",
+          "body"
+        ],
+        "title": "PrivacySectionOut",
+        "type": "object"
+      },
       "PublicBookingConfigOut": {
         "description": "公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。",
         "properties": {
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
+          "consent_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Text"
           },
           "external_url": {
             "anyOf": [
@@ -1571,6 +2474,16 @@
             ],
             "title": "Phone"
           },
+          "privacy_notice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyNoticeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "slots_auto_confirm": {
             "title": "Slots Auto Confirm",
             "type": "boolean"
@@ -1593,11 +2506,146 @@
         "title": "PublicBookingConfigOut",
         "type": "object"
       },
+      "PublicMediaOut": {
+        "description": "公開內容引用到的素材資訊（GET /public/site 的 media）：官網用來組\nsrcset、套用素材預設焦點與補替代文字。檔案網址由官網依 id 組成\n（/public/media/{id}/file 與 /variants/{kind}），權限跟原檔同一套。",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "focus_x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus X"
+          },
+          "focus_y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus Y"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMediaVariantOut"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "content_type",
+          "width",
+          "height",
+          "alt_text",
+          "focus_x",
+          "focus_y",
+          "variants"
+        ],
+        "title": "PublicMediaOut",
+        "type": "object"
+      },
+      "PublicMediaVariantOut": {
+        "properties": {
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VariantKind"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "kind",
+          "width",
+          "height"
+        ],
+        "title": "PublicMediaVariantOut",
+        "type": "object"
+      },
       "PublicSiteOut": {
         "properties": {
           "content": {
             "additionalProperties": true,
             "title": "Content",
+            "type": "object"
+          },
+          "media": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublicMediaOut"
+            },
+            "title": "Media",
             "type": "object"
           },
           "release_id": {
@@ -1660,6 +2708,108 @@
           "remaining"
         ],
         "title": "PublicVisitSlotOut",
+        "type": "object"
+      },
+      "PublishJobListOut": {
+        "description": "全站排程清單的一列：比單一內容頁的 PublishJobOut 多了是哪一項內容。",
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "can_cancel": {
+            "title": "Can Cancel",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "publish_at": {
+            "format": "date-time",
+            "title": "Publish At",
+            "type": "string"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_version": {
+            "title": "Revision Version",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "campus_key",
+          "revision_id",
+          "revision_version",
+          "publish_at",
+          "status",
+          "error",
+          "created_by_email",
+          "created_at",
+          "finished_at",
+          "can_cancel"
+        ],
+        "title": "PublishJobListOut",
         "type": "object"
       },
       "PublishJobOut": {
@@ -1749,6 +2899,218 @@
         "title": "PublishRequest",
         "type": "object"
       },
+      "ReleaseChangeOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "content_item_id": {
+            "format": "uuid",
+            "title": "Content Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "previous_revision_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Revision Version"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_version": {
+            "title": "Revision Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content_item_id",
+          "kind",
+          "campus_key",
+          "revision_id",
+          "revision_version",
+          "previous_revision_version"
+        ],
+        "title": "ReleaseChangeOut",
+        "type": "object"
+      },
+      "ReleaseOut": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseChangeOut"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "restored_from_release_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restored From Release Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by_email",
+          "source",
+          "restored_from_release_id",
+          "is_current",
+          "changes"
+        ],
+        "title": "ReleaseOut",
+        "type": "object"
+      },
+      "ReleasePageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "title": "ReleasePageOut",
+        "type": "object"
+      },
+      "ReleaseRestoreOut": {
+        "properties": {
+          "changed_count": {
+            "title": "Changed Count",
+            "type": "integer"
+          },
+          "kept_count": {
+            "title": "Kept Count",
+            "type": "integer"
+          },
+          "release": {
+            "$ref": "#/components/schemas/ReleaseOut"
+          }
+        },
+        "required": [
+          "release",
+          "changed_count",
+          "kept_count"
+        ],
+        "title": "ReleaseRestoreOut",
+        "type": "object"
+      },
+      "ReleaseRestoreRequest": {
+        "properties": {
+          "expected_current_release_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Current Release Id"
+          }
+        },
+        "title": "ReleaseRestoreRequest",
+        "type": "object"
+      },
+      "RescheduleDecisionRequest": {
+        "description": "退回家長改期申請時的原因（選填）。",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "RescheduleDecisionRequest",
+        "type": "object"
+      },
       "RescheduleRequestCreate": {
         "properties": {
           "new_slot_id": {
@@ -1761,6 +3123,73 @@
           "new_slot_id"
         ],
         "title": "RescheduleRequestCreate",
+        "type": "object"
+      },
+      "RescheduleRequestOut": {
+        "description": "家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，\n以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "requested_slot": {
+            "$ref": "#/components/schemas/VisitSlotBriefOut"
+          },
+          "requested_slot_available": {
+            "title": "Requested Slot Available",
+            "type": "boolean"
+          },
+          "requested_slot_remaining": {
+            "title": "Requested Slot Remaining",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "visit_request_id",
+          "campus_key",
+          "status",
+          "parent_name",
+          "current_slot",
+          "requested_slot",
+          "requested_slot_remaining",
+          "requested_slot_available",
+          "created_at"
+        ],
+        "title": "RescheduleRequestOut",
         "type": "object"
       },
       "ReviewDecisionRequest": {
@@ -2031,6 +3460,143 @@
         "title": "UserCreateRequest",
         "type": "object"
       },
+      "UserNotificationOut": {
+        "description": "給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。",
+        "properties": {
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "content_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Kind"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "publish_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "revision_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Version"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "campus_key",
+          "content_kind",
+          "revision_version",
+          "note",
+          "error",
+          "publish_at",
+          "actor_email",
+          "created_at",
+          "read_at"
+        ],
+        "title": "UserNotificationOut",
+        "type": "object"
+      },
+      "UserNotificationReadAllOut": {
+        "properties": {
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "UserNotificationReadAllOut",
+        "type": "object"
+      },
       "UserOut": {
         "properties": {
           "campus_keys": {
@@ -2047,9 +3613,20 @@
             "title": "Capabilities",
             "type": "array"
           },
+          "effective_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Effective Capabilities",
+            "type": "array"
+          },
           "email": {
             "title": "Email",
             "type": "string"
+          },
+          "google_linked": {
+            "title": "Google Linked",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",
@@ -2074,6 +3651,8 @@
           "role",
           "is_active",
           "campus_keys",
+          "effective_capabilities",
+          "google_linked",
           "line_linked"
         ],
         "title": "UserOut",
@@ -2170,7 +3749,8 @@
       "VariantKind": {
         "enum": [
           "thumbnail",
-          "poster"
+          "poster",
+          "large"
         ],
         "title": "VariantKind",
         "type": "string"
@@ -2208,6 +3788,29 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
           },
           "id": {
             "format": "uuid",
@@ -2327,6 +3930,125 @@
         "title": "VisitExceptionOut",
         "type": "object"
       },
+      "VisitExceptionRemovedOut": {
+        "properties": {
+          "created_slots": {
+            "title": "Created Slots",
+            "type": "integer"
+          },
+          "reopened_slots": {
+            "title": "Reopened Slots",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reopened_slots",
+          "created_slots"
+        ],
+        "title": "VisitExceptionRemovedOut",
+        "type": "object"
+      },
+      "VisitHistoryOut": {
+        "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人\n或下次聯絡時間，不含家長個資。",
+        "properties": {
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "source",
+          "actor_user_id",
+          "actor_email",
+          "before",
+          "after",
+          "reason",
+          "created_at"
+        ],
+        "title": "VisitHistoryOut",
+        "type": "object"
+      },
       "VisitRequestAssignRequest": {
         "properties": {
           "assigned_staff_id": {
@@ -2346,6 +4068,24 @@
           "assigned_staff_id"
         ],
         "title": "VisitRequestAssignRequest",
+        "type": "object"
+      },
+      "VisitRequestCancelRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "VisitRequestCancelRequest",
         "type": "object"
       },
       "VisitRequestConfirmRequest": {
@@ -2420,6 +4160,18 @@
             "title": "Consent Given",
             "type": "boolean"
           },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
           "email": {
             "anyOf": [
               {
@@ -2438,6 +4190,19 @@
             "minLength": 1,
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -2463,7 +4228,7 @@
           "questions": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -2586,6 +4351,35 @@
             ],
             "title": "Confirmed At"
           },
+          "consent_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Accepted At"
+          },
+          "consent_given": {
+            "default": true,
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2646,6 +4440,17 @@
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
           },
           "phone": {
             "title": "Phone",
@@ -2757,6 +4562,340 @@
         "title": "VisitRequestDetailOut",
         "type": "object"
       },
+      "VisitRequestFullOut": {
+        "description": "案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。\n列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。",
+        "properties": {
+          "access_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParentAccessLinkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "assigned_staff_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Staff Id"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "consent_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Accepted At"
+          },
+          "consent_given": {
+            "default": true,
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
+          "consent_revision_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Version"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/VisitHistoryOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hold_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_change_deadline_hours": {
+            "title": "Parent Change Deadline Hours",
+            "type": "integer"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
+          "pending_reschedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RescheduleRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferred_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Time"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "facebook",
+                "google_reviews",
+                "parent_community",
+                "friends_family",
+                "other"
+              ],
+              "type": "string"
+            },
+            "title": "Referral Sources",
+            "type": "array"
+          },
+          "related_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Request Id"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Id"
+          },
+          "source": {
+            "default": "web",
+            "enum": [
+              "web",
+              "phone",
+              "line",
+              "walk_in",
+              "external"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "status",
+          "parent_name",
+          "phone",
+          "age",
+          "preferred_time",
+          "questions",
+          "slot_id",
+          "assigned_staff_id",
+          "confirmed_at",
+          "cancelled_at",
+          "follow_up_at",
+          "created_at",
+          "history",
+          "pending_reschedule",
+          "access_link",
+          "parent_change_deadline_hours"
+        ],
+        "title": "VisitRequestFullOut",
+        "type": "object"
+      },
       "VisitRequestManualCreate": {
         "description": "後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部\n預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上\n收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向\n家長說明並取得同意留存資料」，同樣必須為 true。",
         "properties": {
@@ -2843,6 +4982,19 @@
             "title": "Parent Name",
             "type": "string"
           },
+          "party_size": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
           "phone": {
             "title": "Phone",
             "type": "string"
@@ -2867,7 +5019,7 @@
           "questions": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -2967,6 +5119,18 @@
             "format": "uuid",
             "title": "New Slot Id",
             "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "required": [
@@ -3091,6 +5255,18 @@
             },
             "title": "Rules",
             "type": "array"
+          },
+          "rules_extended_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules Extended On"
           }
         },
         "required": [
@@ -3259,6 +5435,17 @@
           "closed": {
             "title": "Closed",
             "type": "boolean"
+          },
+          "closed_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Source"
           },
           "end_time": {
             "format": "time",
@@ -3767,6 +5954,81 @@
         ]
       }
     },
+    "/api/website/v1/admin/booking-config/{campus_key}/readiness": {
+      "get": {
+        "description": "各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。\n後台在切換前顯示「不可啟用原因」與確認框用。",
+        "operationId": "get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingReadinessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Readiness",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/campuses": {
       "get": {
         "operationId": "list_admin_campuses_api_website_v1_admin_campuses_get",
@@ -3912,7 +6174,7 @@
     },
     "/api/website/v1/admin/campuses/{key}/status": {
       "patch": {
-        "description": "停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的\n決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件\n一律不動，回傳仍在進行中的件數讓園方人工處理。",
+        "description": "停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的\n決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件\n一律不動，回傳仍在進行中的件數；這些案件會列在案件清單的「待人工處理」\n（needs_attention 篩選），總覽也有對應待辦。",
         "operationId": "update_campus_status_api_website_v1_admin_campuses__key__status_patch",
         "parameters": [
           {
@@ -5551,6 +7813,23 @@
             }
           },
           {
+            "description": "active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "description": "active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理",
+              "enum": [
+                "active",
+                "archived",
+                "deleted"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -5688,8 +7967,75 @@
         ]
       }
     },
+    "/api/website/v1/admin/media/upload-limits": {
+      "get": {
+        "description": "後台提示與送出前檢查用：單檔上限來自部署設定。",
+        "operationId": "get_upload_limits_api_website_v1_admin_media_upload_limits_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadLimitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Upload Limits",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/website/v1/admin/media/{media_id}": {
       "delete": {
+        "description": "刪除＝標記待清理（規格 L322-327）。檔案過 media_purge_delay_days 天才由\n定期工作刪掉，期間可以 POST .../restore 復原。任何一版內容（含可還原的\n舊版本與排程）還在用就回 409 並列出引用處。",
         "operationId": "delete_media_api_website_v1_admin_media__media_id__delete",
         "parameters": [
           {
@@ -5829,6 +8175,7 @@
         ]
       },
       "patch": {
+        "description": "圖片與影片都能補說明、圖說、來源、授權與標籤（規格 L138）。",
         "operationId": "update_media_api_website_v1_admin_media__media_id__patch",
         "parameters": [
           {
@@ -5912,6 +8259,82 @@
         ]
       }
     },
+    "/api/website/v1/admin/media/{media_id}/archive": {
+      "post": {
+        "description": "封存（規格 L143）：沒被草稿、官網或排程用到的素材從素材庫與選圖器收起來，\n檔案保留，舊版本照樣能還原。",
+        "operationId": "archive_media_api_website_v1_admin_media__media_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Media",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/website/v1/admin/media/{media_id}/file": {
       "get": {
         "operationId": "get_media_file_api_website_v1_admin_media__media_id__file_get",
@@ -5987,6 +8410,7 @@
     },
     "/api/website/v1/admin/media/{media_id}/replace": {
       "post": {
+        "description": "上傳新檔案成為新素材（新 id，沿用舊素材的說明與標籤），舊素材不動。\n要讓內容改用新素材，接著呼叫 .../replace-references。",
         "operationId": "replace_media_api_website_v1_admin_media__media_id__replace_post",
         "parameters": [
           {
@@ -6067,6 +8491,855 @@
         "summary": "Replace Media",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/media/{media_id}/replace-references": {
+      "post": {
+        "description": "把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新\n草稿（不發布，官網要等各自發布或送審）。影響範圍由\nGET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外\n存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。\n\n一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回\n錯誤，已處理的項目一起回滾。",
+        "operationId": "replace_media_references_api_website_v1_admin_media__media_id__replace_references_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaReplaceReferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaReplaceReferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Media References",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/media/{media_id}/restore": {
+      "post": {
+        "description": "把待清理的素材救回來（清理工作執行之前都可以）。",
+        "operationId": "restore_media_api_website_v1_admin_media__media_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Media",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/media/{media_id}/unarchive": {
+      "post": {
+        "operationId": "unarchive_media_api_website_v1_admin_media__media_id__unarchive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unarchive Media",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/media/{media_id}/usages": {
+      "get": {
+        "description": "用在哪裡（規格 L327）：草稿、官網、排程各是哪個內容項的哪一版、哪個\n欄位；只剩舊版本在用的另列。批次替換前的影響範圍也看這裡。",
+        "operationId": "get_media_usages_api_website_v1_admin_media__media_id__usages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUsagesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Media Usages",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/media/{media_id}/variants/{variant}": {
+      "get": {
+        "description": "素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。\n衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。",
+        "operationId": "get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "thumbnail",
+                "poster",
+                "large"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Media Variant",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/my-notifications": {
+      "get": {
+        "description": "給目前登入者自己的通知，新的在前。每個登入者都能看自己的，不需要案件權限。",
+        "operationId": "list_my_notifications_api_website_v1_admin_my_notifications_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserNotificationOut"
+                  },
+                  "title": "Response List My Notifications Api Website V1 Admin My Notifications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List My Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/my-notifications/read-all": {
+      "post": {
+        "operationId": "mark_all_my_notifications_read_api_website_v1_admin_my_notifications_read_all_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotificationReadAllOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark All My Notifications Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/my-notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "mark_my_notification_read_api_website_v1_admin_my_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark My Notification Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox": {
+      "get": {
+        "description": "寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定\n校區時列出你負責的所有校區。",
+        "operationId": "list_failed_notifications_api_website_v1_admin_notification_outbox_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationOutboxOut"
+                  },
+                  "title": "Response List Failed Notifications Api Website V1 Admin Notification Outbox Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Failed Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox/retry": {
+      "post": {
+        "description": "批次重新排入。只處理仍是寄送失敗、且在你校區範圍內的；其他的算\nskipped，不整批失敗（清單可能已經被別人處理過）。",
+        "operationId": "retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationRetryBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationRetryBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox/{message_id}/retry": {
+      "post": {
+        "description": "把一則寄送失敗的通知重新排入，下一輪定期工作（約一分鐘內）重送。\n已送到的管道與收件人不會重複送。",
+        "operationId": "retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOutboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Notification",
+        "tags": [
+          "notifications"
         ]
       }
     },
@@ -6233,8 +9506,258 @@
         ]
       }
     },
+    "/api/website/v1/admin/publish-jobs": {
+      "get": {
+        "description": "全站排程：還沒到期的依時間先後全部列出，已結束的列最近 50 筆（新的在前）。",
+        "operationId": "list_publish_jobs_api_website_v1_admin_publish_jobs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublishJobListOut"
+                  },
+                  "title": "Response List Publish Jobs Api Website V1 Admin Publish Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Publish Jobs",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/releases": {
+      "get": {
+        "description": "發布紀錄：每次官網內容切換一筆，新的在前，列出和前一次相比換掉了哪些內容。",
+        "operationId": "list_releases_api_website_v1_admin_releases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasePageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Releases",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/releases/{release_id}/restore": {
+      "post": {
+        "description": "整站還原（限總管理者）：把官網每一項內容換回那次發布時的版本，存成一筆\n新的發布紀錄，原本的紀錄都保留。只動內容，不回復預約設定、時段、案件或\n通知；各內容的草稿也不動。",
+        "operationId": "restore_release_api_website_v1_admin_releases__release_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Release Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseRestoreOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Release",
+        "tags": [
+          "content"
+        ]
+      }
+    },
     "/api/website/v1/admin/reschedule-requests": {
       "get": {
+        "description": "待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的\n新時段與新時段剩餘名額，園方不必點進案件就能判斷。",
         "operationId": "list_reschedule_requests_api_website_v1_admin_reschedule_requests_get",
         "parameters": [
           {
@@ -6285,8 +9808,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/RescheduleRequestOut"
                   },
                   "title": "Response List Reschedule Requests Api Website V1 Admin Reschedule Requests Get",
                   "type": "array"
@@ -6389,6 +9911,7 @@
     },
     "/api/website/v1/admin/reschedule-requests/{request_id}/reject": {
       "post": {
+        "description": "退回：家長維持原時段。原因選填，記在申請與案件歷程。",
         "operationId": "reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post",
         "parameters": [
           {
@@ -6434,6 +9957,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RescheduleDecisionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -7255,7 +10795,7 @@
     },
     "/api/website/v1/admin/users/{user_id}/capabilities": {
       "patch": {
-        "description": "規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。",
+        "description": "規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。",
         "operationId": "update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch",
         "parameters": [
           {
@@ -7699,6 +11239,42 @@
         "operationId": "list_visit_requests_api_website_v1_admin_visit_requests_get",
         "parameters": [
           {
+            "description": "送出時間排序",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "送出時間排序",
+              "pattern": "^(newest|oldest)$",
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
             "in": "query",
             "name": "campus_key",
             "required": false,
@@ -7836,39 +11412,15 @@
             }
           },
           {
-            "description": "送出時間排序",
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
             "in": "query",
-            "name": "order",
+            "name": "needs_attention",
             "required": false,
             "schema": {
-              "default": "newest",
-              "description": "送出時間排序",
-              "pattern": "^(newest|oldest)$",
-              "title": "Order",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1,
-              "title": "Page",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page_size",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
             }
           },
           {
@@ -8023,6 +11575,7 @@
     },
     "/api/website/v1/admin/visit-requests/export": {
       "get": {
+        "description": "依畫面上目前的篩選條件匯出（不分頁）。",
         "operationId": "export_visit_requests_api_website_v1_admin_visit_requests_export_get",
         "parameters": [
           {
@@ -8039,6 +11592,139 @@
                 }
               ],
               "title": "Campus Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "家長或寶貝姓名、電話或 Email 片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "家長或寶貝姓名、電話或 Email 片段",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "只列已到預定聯絡時間、尚未結案的案件",
+            "in": "query",
+            "name": "follow_up_due",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列已到預定聯絡時間、尚未結案的案件",
+              "title": "Follow Up Due",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+            "in": "query",
+            "name": "assignee",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+              "title": "Assignee"
+            }
+          },
+          {
+            "description": "案件來源：web／phone／line／walk_in／external",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件來源：web／phone／line／walk_in／external",
+              "title": "Source"
+            }
+          },
+          {
+            "description": "送出日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "送出日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（含），台灣日期",
+              "title": "Created To"
+            }
+          },
+          {
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+            "in": "query",
+            "name": "needs_attention",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
             }
           },
           {
@@ -8102,6 +11788,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}": {
       "get": {
+        "description": "案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長\n改期申請、家長管理連結是否有效（規格 L299）。",
         "operationId": "get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get",
         "parameters": [
           {
@@ -8152,7 +11839,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                  "$ref": "#/components/schemas/VisitRequestFullOut"
                 }
               }
             },
@@ -8177,6 +11864,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/access-link": {
       "post": {
+        "description": "產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：\n重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。\n原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。\n不會自動寄給家長——由園方自行轉交。",
         "operationId": "create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post",
         "parameters": [
           {
@@ -8227,9 +11915,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Parent Access Link Api Website V1 Admin Visit Requests  Visit Request Id  Access Link Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ParentAccessLinkCreatedOut"
                 }
               }
             },
@@ -8339,6 +12025,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/cancel": {
       "post": {
+        "description": "本文可省略；有填原因就記在案件歷程。",
         "operationId": "cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post",
         "parameters": [
           {
@@ -8384,6 +12071,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/VisitRequestCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -8887,6 +12591,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/reschedule": {
       "post": {
+        "description": "已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後\n時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。",
         "operationId": "reschedule_visit_request_api_website_v1_admin_visit_requests__visit_request_id__reschedule_post",
         "parameters": [
           {
@@ -9281,6 +12986,7 @@
     },
     "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions/{exception_id}": {
       "delete": {
+        "description": "取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。",
         "operationId": "remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete",
         "parameters": [
           {
@@ -9336,7 +13042,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitExceptionRemovedOut"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "422": {
@@ -9442,7 +13155,7 @@
     },
     "/api/website/v1/admin/visit-staff": {
       "get": {
-        "description": "可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理\n者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。",
+        "description": "可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。\n非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出\n其他校的人員配置。",
         "operationId": "list_visit_staff_api_website_v1_admin_visit_staff_get",
         "parameters": [
           {
@@ -9588,6 +13301,65 @@
           }
         },
         "summary": "Google Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/google/link": {
+      "delete": {
+        "description": "本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會\n重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。\n解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。",
+        "operationId": "google_unlink_api_website_v1_auth_google_link_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Unlink",
         "tags": [
           "auth"
         ]
@@ -10146,6 +13918,78 @@
           }
         },
         "summary": "Get Public Media File",
+        "tags": [
+          "media-public"
+        ]
+      }
+    },
+    "/api/website/v1/public/media/{media_id}/variants/{variant}": {
+      "get": {
+        "description": "官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。",
+        "operationId": "get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "thumbnail",
+                "poster",
+                "large"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Media Variant",
         "tags": [
           "media-public"
         ]

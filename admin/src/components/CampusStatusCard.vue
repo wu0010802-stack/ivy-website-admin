@@ -5,7 +5,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/client'
-import { campusLabel, formatDateTime } from '../api/labels'
+import { attentionListPath, campusLabel, formatDateTime } from '../api/labels'
 
 interface CampusStatus {
   key: string
@@ -36,7 +36,7 @@ async function deactivate() {
   let reason = ''
   try {
     const result = await ElMessageBox.prompt(
-      '官網的預約按鈕會改成暫停說明，家長無法再送出需求。已收到的案件不會被取消，需要另外聯絡。',
+      '官網的預約按鈕會改成暫停說明，家長無法再送出需求。已收到的案件不會被取消，會列入參觀案件的「待人工處理」，需要另外聯絡。',
       `停用${campusLabel(props.campusKey)}校？`,
       { confirmButtonText: '停用', cancelButtonText: '先不要', inputPlaceholder: '原因（選填），例如：整修中', type: 'warning', inputValidator: (v: string) => (v ?? '').length <= 200 || '最多 200 字' },
     )
@@ -53,7 +53,7 @@ async function update(active: boolean, reason: string | null) {
     const result = await api.patch<CampusStatus>(`/admin/campuses/${props.campusKey}/status`, { active, reason })
     campus.value = result
     if (!active && (result.open_requests ?? 0) > 0) {
-      ElMessage.warning(`已停用。還有 ${result.open_requests} 件進行中的案件，請到參觀案件逐一聯絡。`)
+      ElMessage.warning(`已停用。還有 ${result.open_requests} 件進行中的案件，已列入「待人工處理」，請逐一聯絡。`)
     } else {
       ElMessage.success(active ? '已重新啟用，官網依原本的預約方式開放' : '已停用')
     }
@@ -76,7 +76,7 @@ async function update(active: boolean, reason: string | null) {
         <p v-else class="hint">停用後官網停止收件，歷史案件與內容都會保留。</p>
       </div>
       <div class="campus-status__actions">
-        <el-button v-if="!campus.active" text @click="router.push(`/visit-requests`)">看進行中的案件</el-button>
+        <el-button v-if="!campus.active" text @click="router.push(attentionListPath(campus.key))">看待人工處理的案件</el-button>
         <el-button v-if="campus.active" :loading="busy" type="danger" plain @click="deactivate">停用分校</el-button>
         <el-button v-else :loading="busy" type="primary" @click="update(true, null)">重新啟用</el-button>
       </div>

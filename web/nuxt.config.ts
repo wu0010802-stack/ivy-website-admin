@@ -94,6 +94,9 @@ export default defineNuxtConfig({
     // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
     // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
     trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
+    // 素材上傳代理的單檔上限（MB），要和 API 的 WEBSITE_MEDIA_MAX_IMAGE_MB／
+    // WEBSITE_MEDIA_MAX_VIDEO_MB 較大者一致；見 shared/request-guard.ts。
+    mediaMaxUploadMb: Number(process.env.NUXT_MEDIA_MAX_UPLOAD_MB ?? 150),
     websiteEnv,
     public: {
       contentMode,

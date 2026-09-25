@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
 import { getCampusSocials } from '~/utils/campus-socials'
+import { siteLink } from '~/utils/site-links'
 
 const props = defineProps<{ content: SiteContent }>()
 
@@ -199,6 +200,11 @@ onUnmounted(() => {
 })
 
 const campuses = computed(() => props.content.campuses)
+// 後台可編輯的主選單；外部連結（https）另開分頁並標 ↗。
+const primaryNav = computed(() => props.content.siteMeta.primaryNav.flatMap((item) => {
+  const link = siteLink(item.href)
+  return link ? [{ ...item, ...link }] : []
+}))
 const headerPhone = computed(() => props.content.siteMeta.headerPhone)
 const institutionSocials = computed(() => props.content.siteMeta.socialLinks ?? [])
 const menuCampusKey = ref<string | null>(null)
@@ -241,9 +247,16 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       </NuxtLink>
       <nav id="navigation" class="navigation" :class="{ open: isMenuOpen && !usePanel }" aria-label="主要導覽">
         <div class="nav-inner">
-          <a v-for="item in content.siteMeta.primaryNav" :key="item.href" :href="item.href" :aria-current="route.path === item.href ? 'page' : undefined">
-            <span class="nav-zh">{{ item.label }}</span>
-            <span class="header-en" lang="en">{{ item.labelEn }}</span>
+          <a
+            v-for="item in primaryNav"
+            :key="item.href"
+            :href="item.href"
+            :target="item.external ? '_blank' : undefined"
+            :rel="item.external ? 'noopener noreferrer' : undefined"
+            :aria-current="route.path === item.href ? 'page' : undefined"
+          >
+            <span class="nav-zh">{{ item.label }}<template v-if="item.external"> ↗<span class="sr-only">（另開新視窗）</span></template></span>
+            <span v-if="item.labelEn" class="header-en" lang="en">{{ item.labelEn }}</span>
           </a>
         </div>
       </nav>
@@ -315,17 +328,19 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       </div>
       <nav class="menu-links" aria-label="導覽選單">
         <a
-          v-for="(item, index) in content.siteMeta.primaryNav"
+          v-for="(item, index) in primaryNav"
           :key="item.href"
           :href="item.href"
+          :target="item.external ? '_blank' : undefined"
+          :rel="item.external ? 'noopener noreferrer' : undefined"
           :aria-current="route.path === item.href ? 'page' : undefined"
         >
           <span class="menu-link-number" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
           <span class="menu-link-copy">
-            <span>{{ item.label }}</span>
-            <small lang="en">{{ item.labelEn }}</small>
+            <span>{{ item.label }}<span v-if="item.external" class="sr-only">（另開新視窗）</span></span>
+            <small v-if="item.labelEn" lang="en">{{ item.labelEn }}</small>
           </span>
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+          <svg class="icon" aria-hidden="true" focusable="false"><use :href="item.external ? '#i-arrow-up-right' : '#i-arrow-right'" /></svg>
         </a>
       </nav>
       <div class="menu-campuses">

@@ -13,8 +13,8 @@ export function publicCopy(site: SiteContent): SiteContent {
     // 原型說明在正式站不顯示；頁尾底列遇空字串會整段隱藏，CMS 另填的備註照常顯示。
     footer: { ...site.footer, bottomNote: site.footer.bottomNote === '官網設計提案 · 預約為操作示範，不會送出資料'
       ? '' : site.footer.bottomNote },
-    booking: { ...site.booking, consentText: site.booking.consentText === '我了解這是操作示範，資料不會傳送給學校，不代表預約成立。'
-      ? '我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。' : site.booking.consentText },
+    // 同意文字不在這裡替換：案件會記錄家長同意的是哪一版，家長看到的必須就是
+    // 已發布版本的文字（2026-09-25；原型示範文字已由 migration 換成正式文字發布）。
     campuses: site.campuses.map((campus) => {
       const isLegacy = campus.faq.items.some((item) => item.a === OLD_BOOKING)
       if (!isLegacy) return campus

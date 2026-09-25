@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { campusFilms } from '~/utils/campusFilms'
+import type { HomeFilm } from '~/types/site-content'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { mod, nearestTurn, ringOffset, settleTarget, youtubeEmbed } from '~/utils/filmCarousel'
 
@@ -8,8 +9,10 @@ import { mod, nearestTurn, ringOffset, settleTarget, youtubeEmbed } from '~/util
  * 位置 position 是連續值，各張依 ringOffset 排在左右，SSR 就是正確的初始排版（不用量寬度）。
  * 檔案影片只有當前那支設 src 靜音循環；YouTube 先放縮圖，點了才插 iframe，換走就拔掉。
  * 桌機由 studio.css 隱藏（display:none，影片 preload="none" 不會下載）。
+ * 清單由後台「首頁消息與活動」設定（NewsContent.films）；沒設定時用內建的 campusFilms。
  */
-const films = campusFilms
+const props = defineProps<{ films?: HomeFilm[] }>()
+const films = props.films?.length ? props.films : campusFilms
 const count = films.length
 const SLIDE_MS = 560
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 5)
@@ -69,7 +72,9 @@ function sync() {
 function loopClip(k: number) {
   const film = films[k]
   const video = videoEls[k]
-  if (film?.type === 'file' && video && video.currentTime >= film.end) video.currentTime = film.start
+  if (film?.type !== 'file' || !video) return
+  // 播到結束秒數就跳回開始；沒設結束（播到結尾）時 loop 會回到 0 秒，再跳回開始秒數。
+  if (film.end != null ? video.currentTime >= film.end : video.currentTime < film.start - 0.25) video.currentTime = film.start
 }
 
 watch(index, k => {

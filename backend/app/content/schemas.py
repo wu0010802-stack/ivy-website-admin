@@ -4,9 +4,13 @@ import uuid
 from datetime import date, datetime
 
 import re
-from typing import Literal
+from typing import Annotated, Literal, Union
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
+from app.media.schemas import PublicMediaOut
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -73,24 +77,79 @@ class _ContentPayload(BaseModel):
     model_config = ConfigDict(str_max_length=CONTENT_TEXT_MAX_LENGTH)
 
 
+def _require_media_id(value: str, message: str = "請從素材庫選擇") -> str:
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as exc:
+        raise ValueError(message) from exc
+
+
+class FocusPointPayload(_ContentPayload):
+    """版位的裁切焦點（規格 L108）：照片上的 0–100 百分比座標，左上為 0。
+    官網換成 object-position，不存任意 CSS 字串。"""
+
+    x: float = Field(ge=0, le=100)
+    y: float = Field(ge=0, le=100)
+
+
+class MediaSlotPayload(_ContentPayload):
+    """內容裡的一個素材版位：素材庫的素材與這個版位自己的焦點（規格 L141：
+    不強迫所有版位共用同一個裁切）。焦點留空＝用素材本身設定的焦點，素材
+    也沒設就置中。版位本身留空（None）＝官網沿用內建素材。"""
+
+    media_id: str
+    focus_x: float | None = Field(default=None, ge=0, le=100)
+    focus_y: float | None = Field(default=None, ge=0, le=100)
+
+    @field_validator("media_id")
+    @classmethod
+    def _media_id(cls, value: str) -> str:
+        return _require_media_id(value)
+
+    @model_validator(mode="after")
+    def _focus_pair(self) -> "MediaSlotPayload":
+        if (self.focus_x is None) != (self.focus_y is None):
+            raise ValueError("焦點的左右與上下位置要一起設定")
+        return self
+
+
+MEDIA_ALT_MAX_LENGTH = 200
+
+
 class HomeAboutPayload(_ContentPayload):
     title: str
     since_label: str
     body_text: str
     caption: str
+    # 2026-09-25 新增（2026-09-23 起「關於」只放一張照片）：留空沿用官網內建照片。
+    photo: MediaSlotPayload | None = None
+    photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
 
-    @field_validator("title", "since_label", "body_text", "caption")
+    @field_validator("title", "since_label", "body_text", "caption", "photo_alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
 
 
 class HomeHeroPayload(_ContentPayload):
+    """首屏小標與標語。2026-09-23 使用者拿掉了首屏按鈕，按鈕文字（cta_label）
+    不再是欄位：舊版本裡的值驗證時直接忽略（extra 預設 ignore），存檔與官網
+    都不再帶。
+
+    2026-09-25 起首屏影片與照片也可以從素材庫換（規格 L90）：桌機與手機影片
+    是不同版位（手機沒設就用桌機那支）、poster 是影片載入前與不自動播放時
+    看到的照片、替代圖是影片載入失敗時換上的照片（沒設就用 poster）。都留空
+    時官網沿用內建的影片與照片。"""
+
     eyebrow: str
     copy_lines: list[str]
-    cta_label: str
+    video_desktop: MediaSlotPayload | None = None
+    video_mobile: MediaSlotPayload | None = None
+    poster: MediaSlotPayload | None = None
+    poster_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    fallback_image: MediaSlotPayload | None = None
 
-    @field_validator("eyebrow", "cta_label")
+    @field_validator("eyebrow", "poster_alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -103,16 +162,90 @@ class HomeHeroPayload(_ContentPayload):
         return [_reject_unsafe_scheme(line) for line in value]
 
 
+# 主選單與頁尾連結（規格 L89）：只收站內路徑（/ 開頭、不能是 // 開頭的
+# 協定相對網址）或 https 外部網址。外部連結官網會加 ↗ 並另開分頁。
+_SITE_PATH_RE = re.compile(r"/(?!/)[A-Za-z0-9\-._~/#?=&%]*")
+SITE_LINK_MAX_LENGTH = 300
+PRIMARY_NAV_MAX = 8
+FOOTER_LINKS_MAX = 12
+
+
+def _require_site_link(value: str) -> str:
+    candidate = value.strip()
+    if not candidate:
+        raise ValueError("請填寫連結")
+    if len(candidate) > SITE_LINK_MAX_LENGTH:
+        raise ValueError(f"連結最多 {SITE_LINK_MAX_LENGTH} 字")
+    if _SITE_PATH_RE.fullmatch(candidate):
+        return candidate
+    parsed = urlsplit(candidate)
+    if (
+        not _INVISIBLE_RE.search(candidate)
+        and "\\" not in candidate
+        and candidate.lower().startswith("https://")
+        and parsed.hostname
+        and "." in parsed.hostname
+        and "@" not in parsed.netloc
+    ):
+        return candidate
+    raise ValueError("連結要是站內路徑（/ 開頭，例如 /admission、/#about）或 https:// 開頭的外部網址")
+
+
+def _unique_hrefs(links: list, what: str) -> None:
+    hrefs = [link.href for link in links]
+    if len(hrefs) != len(set(hrefs)):
+        raise ValueError(f"{what}的連結不可重複")
+
+
+class SiteLinkPayload(_ContentPayload):
+    label: str = Field(min_length=1, max_length=20)
+    href: str
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "連結文字不能空白"))
+
+    @field_validator("href")
+    @classmethod
+    def _href(cls, value: str) -> str:
+        return _require_site_link(value)
+
+
+class NavLinkPayload(SiteLinkPayload):
+    # 頁首選單中文下方的英文小字；英文字型是只含 ASCII 的子集，只收英數與基本標點。
+    label_en: str = Field(default="", max_length=40)
+
+    @field_validator("label_en")
+    @classmethod
+    def _label_en(cls, value: str) -> str:
+        if any(not (" " <= char <= "~") for char in value):
+            raise ValueError("英文小字只能用英文字母、數字與基本標點")
+        return _reject_unsafe_scheme(value)
+
+
 class SiteFooterPayload(_ContentPayload):
     tagline: str
     copyright: str
     bottom_note: str
     campus_list_label: str
+    # 頁尾連結（依清單順序）。None＝還沒在後台設定過，官網沿用內建的連結。
+    links: list[SiteLinkPayload] | None = None
 
     @field_validator("tagline", "copyright", "bottom_note", "campus_list_label")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("links")
+    @classmethod
+    def _links_bounded(cls, value: list[SiteLinkPayload] | None) -> list[SiteLinkPayload] | None:
+        if value is None:
+            return None
+        if len(value) > FOOTER_LINKS_MAX:
+            raise ValueError(f"頁尾連結最多 {FOOTER_LINKS_MAX} 個")
+        _unique_hrefs(value, "頁尾")
+        return value
 
 
 class SiteMetaPayload(_ContentPayload):
@@ -129,6 +262,9 @@ class SiteMetaPayload(_ContentPayload):
     admission_description: str = Field(default="", max_length=300)
     # 只能「收緊」：部署設定沒開索引時，這裡勾了也不會變成可索引。
     allow_indexing: bool = True
+    # 主選單（頁首與選單面板，依清單順序）。None＝還沒在後台設定過，官網沿用
+    # 內建選單。品牌名稱與 Logo 依 2026-09-19 核可鎖定，不在這裡。
+    primary_nav: list[NavLinkPayload] | None = None
 
     @field_validator(
         "title", "description", "header_phone_number", "header_phone_note",
@@ -148,16 +284,78 @@ class SiteMetaPayload(_ContentPayload):
         except ValueError as exc:
             raise ValueError("分享圖請從素材庫選擇") from exc
 
+    @field_validator("primary_nav")
+    @classmethod
+    def _nav_bounded(cls, value: list[NavLinkPayload] | None) -> list[NavLinkPayload] | None:
+        if value is None:
+            return None
+        if not 1 <= len(value) <= PRIMARY_NAV_MAX:
+            raise ValueError(f"主選單需為 1 到 {PRIMARY_NAV_MAX} 個項目")
+        _unique_hrefs(value, "主選單")
+        return value
+
 
 class HomeCampusBoardPayload(_ContentPayload):
     section_title: str
     eyebrow: str
     note: str
+    # 首頁五校的排列順序與預設顯示的校區（規格 L107）。預設值就是原本官網
+    # 內建的順序，舊版本照常通過驗證。停用的校區官網會略過。
+    campus_order: list[str] = Field(default_factory=lambda: list(CAMPUS_KEYS))
+    default_campus: str = CAMPUS_KEYS[0]
 
     @field_validator("section_title", "eyebrow", "note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("campus_order")
+    @classmethod
+    def _order_is_permutation(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("校區順序不可重複")
+        if sorted(value) != sorted(CAMPUS_KEYS):
+            raise ValueError("校區順序要剛好包含五校，不能缺漏")
+        return value
+
+    @field_validator("default_campus")
+    @classmethod
+    def _default_known(cls, value: str) -> str:
+        if value not in CAMPUS_KEYS:
+            raise ValueError("不認得的預設校區")
+        return value
+
+
+# 隱私／個資使用說明的草稿標記。後台「帶入示意段落」產生的文字都帶這個
+# 標記，含標記的版本不能發布（registry 的 publish_blocker）：正式條款要由
+# 園方提供，不讓示意文字被當成正式說明放上官網。
+PRIVACY_SAMPLE_MARKER = "【示意】"
+PRIVACY_SECTIONS_MAX = 12
+
+# 原型 fixture 的示範同意文字（「資料不會傳送給學校」），正式官網不能再
+# 發布它；匯入初始內容時換成官網一直顯示的正式文字（見 migration
+# 31eb94190b1c 的說明）。
+LEGACY_DEMO_CONSENT_TEXT = "我了解這是操作示範，資料不會傳送給學校，不代表預約成立。"
+FORMAL_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。"
+
+
+class PrivacySectionPayload(_ContentPayload):
+    """隱私說明的一段：小標（可留空）與內文。只收純文字，官網照段落顯示。"""
+
+    heading: str = Field(default="", max_length=60)
+    body: str = Field(min_length=1)
+
+    @field_validator("heading", "body")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("body")
+    @classmethod
+    def _body_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("段落內文不能空白")
+        return value
 
 
 class BookingContentPayload(_ContentPayload):
@@ -167,6 +365,12 @@ class BookingContentPayload(_ContentPayload):
     banner_title_template: str
     banner_body: str
     banner_button_label: str
+    # 2026-09-25 新增（規格 L130）：官網頁尾與預約表單可開啟的隱私／個資使用
+    # 說明。空清單＝還沒有正式說明，官網不顯示入口。預設值讓舊版本照常通過驗證。
+    privacy_title: str = Field(default="", max_length=40)
+    privacy_sections: list[PrivacySectionPayload] = Field(
+        default_factory=list, max_length=PRIVACY_SECTIONS_MAX
+    )
 
     @field_validator(
         "cta_label",
@@ -175,10 +379,15 @@ class BookingContentPayload(_ContentPayload):
         "banner_title_template",
         "banner_body",
         "banner_button_label",
+        "privacy_title",
     )
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+
+# 拍立得相紙的色調：只能選官網既有的色票（規格 L91：不能輸入 CSS）。
+DAY_MOMENT_TINTS = ("yellow", "mint", "peach", "cream")
 
 
 class DayMomentPayload(_ContentPayload):
@@ -190,8 +399,13 @@ class DayMomentPayload(_ContentPayload):
     story: str
     question: str
     answer: str
+    # 2026-09-25 新增：照片從素材庫選；留空時原有的六張沿用內建照片，後台新增
+    # 的卡片顯示無照片的相紙。色調留空＝沿用內建卡的色調。
+    photo: MediaSlotPayload | None = None
+    alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    tint: Literal["yellow", "mint", "peach", "cream"] | None = None
 
-    @field_validator("time", "label", "caption", "title", "story", "question", "answer")
+    @field_validator("time", "label", "caption", "title", "story", "question", "answer", "alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -203,11 +417,24 @@ class DayExperiencePayload(_ContentPayload):
     note: str
     source_note: str
     moments: list[DayMomentPayload]
+    # 2026-09-25 新增：背景影片（桌機、手機分開，手機沒設用桌機那支）、共同的
+    # poster 與影片左下角的說明文字。留空（None）＝沿用官網內建。影片是靜音的
+    # 裝飾背景（aria-hidden），沒有對白，字幕檔（.vtt）另列待辦。
+    film_desktop: MediaSlotPayload | None = None
+    film_mobile: MediaSlotPayload | None = None
+    film_poster: MediaSlotPayload | None = None
+    film_caption_zh: str | None = Field(default=None, max_length=40)
+    film_caption_en: str | None = Field(default=None, max_length=60)
 
     @field_validator("eyebrow", "eyebrow_en", "note", "source_note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("film_caption_zh", "film_caption_en")
+    @classmethod
+    def _caption_safe(cls, value: str | None) -> str | None:
+        return None if value is None else _reject_unsafe_scheme(value)
 
     @field_validator("moments")
     @classmethod
@@ -272,18 +499,160 @@ def is_scheduled_visible(entry: dict, today: str) -> bool:
     return True
 
 
-class NewsArticlePayload(_ScheduledPayload):
+# ---------------------------------------------------------------------------
+# 消息與活動（home_news 全站、campus_news 各校）
+# ---------------------------------------------------------------------------
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+# 規格 3.4：消息內文只支援段落、小標、清單、圖片與驗證後連結，存成結構化
+# 資料，官網逐塊用固定的元素顯示，不插入任何使用者 HTML。
+NEWS_BODY_MAX_BLOCKS = 40
+
+
+def _require_web_url(value: str) -> str:
+    """活動與內文的外部連結只收 http／https（不收 mailto、tel：這裡是「報名表、
+    活動詳情」這類網頁連結）。"""
+    candidate = _strip_invisible(value)
+    if candidate == "":
+        return ""
+    if not candidate.lower().startswith(("https://", "http://")) or len(candidate) <= len("https://"):
+        raise ValueError("連結必須是 https:// 或 http:// 開頭的完整網址")
+    return candidate
+
+
+class NewsParagraphBlock(_ContentPayload):
+    type: Literal["paragraph"]
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "段落不能空白"))
+
+
+class NewsHeadingBlock(_ContentPayload):
+    type: Literal["heading"]
+    text: str = Field(max_length=60)
+
+    @field_validator("text")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "小標不能空白"))
+
+
+class NewsListBlock(_ContentPayload):
+    type: Literal["list"]
+    ordered: bool = False
+    items: list[str]
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, value: list[str]) -> list[str]:
+        kept = [_reject_unsafe_scheme(v) for v in value if v.strip()]
+        return _bounded(kept, 1, 20, "清單")
+
+
+class NewsImageBlock(_ContentPayload):
+    type: Literal["image"]
+    # 素材庫媒體 UUID（內文圖片一律從素材庫選，才有引用保護）。
+    image: str
+    alt: str = Field(default="", max_length=200)
+    caption: str = Field(default="", max_length=120)
+
+    @field_validator("image")
+    @classmethod
+    def _image(cls, value: str) -> str:
+        try:
+            return str(uuid.UUID(value))
+        except ValueError as exc:
+            raise ValueError("內文圖片請從素材庫選擇") from exc
+
+    @field_validator("alt", "caption")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class NewsLinkBlock(_ContentPayload):
+    type: Literal["link"]
+    label: str = Field(max_length=40)
+    url: str
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "連結文字不能空白"))
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, value: str) -> str:
+        url = _require_web_url(value)
+        if not url:
+            raise ValueError("請填寫連結網址")
+        return url
+
+
+NewsBodyBlock = Annotated[
+    Union[NewsParagraphBlock, NewsHeadingBlock, NewsListBlock, NewsImageBlock, NewsLinkBlock],
+    Field(discriminator="type"),
+]
+
+
+NEWS_SCOPE_GLOBAL = "global"
+NEWS_SCOPE_CAMPUS = "campus"
+
+
+class _ScopedEntry(_ContentPayload):
+    """全站消息的適用範圍（規格 3.4）：global＝全校；campus＝指定校區清單
+    （至少一校、只收五校的 key，依五校固定順序存）。
+
+    2026-09-25 以前的版本只有一個手打的 campus 文字（「義華校」「全校」），
+    讀舊版本時照五校名稱換成 scope：認得的校名換成那一校，其他一律當全校。"""
+
+    scope: Literal["global", "campus"] = NEWS_SCOPE_GLOBAL
+    campus_keys: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_campus_label(cls, data):
+        if isinstance(data, dict) and "scope" not in data and "campus" in data:
+            label = str(data.get("campus") or "").strip()
+            key = next((k for k, name in CAMPUS_NAMES.items() if name == label), None)
+            data = {k: v for k, v in data.items() if k != "campus"}
+            data["scope"] = NEWS_SCOPE_CAMPUS if key else NEWS_SCOPE_GLOBAL
+            data["campus_keys"] = [key] if key else []
+        return data
+
+    @model_validator(mode="after")
+    def _scope_keys(self):
+        if self.scope == NEWS_SCOPE_GLOBAL:
+            self.campus_keys = []
+            return self
+        unknown = [key for key in self.campus_keys if key not in CAMPUS_KEYS]
+        if unknown:
+            raise ValueError(f"不認得的校區：{'、'.join(unknown)}")
+        if not self.campus_keys:
+            raise ValueError("指定校區時至少要選一校")
+        self.campus_keys = [key for key in CAMPUS_KEYS if key in self.campus_keys]
+        return self
+
+
+class _NewsArticleFields(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
-    campus: str
     category: str
     title: str = Field(min_length=1)
+    # 摘要：卡片、清單與沒有內文時的詳細頁都顯示這段（2026-09-25 以前唯一的
+    # 內文欄位，舊資料原樣當摘要）。
     description: str
+    # 結構化內文（見 NewsBodyBlock）；空清單＝詳細頁只顯示摘要。
+    body: list[NewsBodyBlock] = Field(default_factory=list, max_length=NEWS_BODY_MAX_BLOCKS)
     # 同 campus_tour 的場景圖：素材庫媒體 UUID，或舊 fixture 素材代號。
     image: str
     alt: str
 
-    @field_validator("id", "campus", "category", "title", "description", "alt")
+    @field_validator("id", "category", "title", "description", "alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -301,14 +670,20 @@ class NewsArticlePayload(_ScheduledPayload):
         return _require_safe_media_ref(value)
 
 
-class NewsEventPayload(_ScheduledPayload):
+class _NewsEventFields(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
-    campus: str
     title: str = Field(min_length=1)
     description: str
+    # 規格 3.4：開始／結束時間（或全天）、地點、相關連結。月份仍由日期推導。
+    all_day: bool = True
+    start_time: str | None = None
+    end_time: str | None = None
+    location: str = Field(default="", max_length=80)
+    link_url: str = ""
+    link_label: str = Field(default="", max_length=20)
 
-    @field_validator("id", "campus", "title", "description")
+    @field_validator("id", "title", "description", "location", "link_label")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -317,6 +692,100 @@ class NewsEventPayload(_ScheduledPayload):
     @classmethod
     def _date_iso(cls, value: str) -> str:
         return _require_iso_date(value)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def _time_format(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not _TIME_RE.match(value):
+            raise ValueError("時間格式需為 HH:MM（24 小時制）")
+        return value
+
+    @field_validator("link_url")
+    @classmethod
+    def _link(cls, value: str) -> str:
+        return _require_web_url(value)
+
+    @model_validator(mode="after")
+    def _time_and_link_rules(self):
+        if self.all_day:
+            self.start_time = None
+            self.end_time = None
+        elif self.start_time is None:
+            raise ValueError("不是全天的活動要填開始時間")
+        elif self.end_time is not None and self.end_time <= self.start_time:
+            raise ValueError("結束時間要晚於開始時間")
+        if not self.link_url:
+            self.link_label = ""
+        return self
+
+
+class NewsArticlePayload(_NewsArticleFields, _ScopedEntry):
+    # 首頁推薦（規格 3.1）：有任何推薦的消息時，首頁只輪播推薦的，依後台
+    # 清單順序；完全沒有推薦時照舊依日期新到舊（官網 utils/news-content.ts）。
+    featured: bool = False
+
+
+class NewsEventPayload(_NewsEventFields, _ScopedEntry):
+    pass
+
+
+def _unique_ids(entries: list, what: str) -> None:
+    ids = [entry.id for entry in entries]
+    if len(ids) != len(set(ids)):
+        raise ValueError(f"{what}的 id 不可重複")
+
+
+_YOUTUBE_ID_RE = re.compile(
+    r"(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))([\w-]{11})"
+)
+HOME_FILMS_MAX = 8
+
+
+def youtube_id(value: str) -> str:
+    """跟官網 utils/filmCarousel.ts 的 youtubeId 同一套規則：常見的 YouTube
+    網址或 11 碼影片 ID；看不懂回空字串。"""
+    text = value.strip()
+    match = _YOUTUBE_ID_RE.search(text)
+    if match:
+        return match.group(1)
+    return text if re.fullmatch(r"[\w-]{11}", text) else ""
+
+
+class HomeFilmPayload(_ContentPayload):
+    """首頁手機版「活動影片」的一支（桌機不顯示）。素材庫影片可以只播其中
+    一段（start～end 秒，end 留空＝播到結尾）；YouTube 先顯示縮圖，點了才載入。
+    標題不顯示，是螢幕閱讀器念的名稱。"""
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=40)
+    source: Literal["file", "youtube"]
+    video: MediaSlotPayload | None = None
+    start: float = Field(default=0, ge=0, le=3600)
+    end: float | None = Field(default=None, gt=0, le=3600)
+    # 封面照片；素材庫影片沒設就用影片自動抽的畫面，YouTube 沒設就用它的縮圖。
+    poster: MediaSlotPayload | None = None
+    youtube_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
+
+    @field_validator("id", "title")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @model_validator(mode="after")
+    def _source_fields(self) -> "HomeFilmPayload":
+        if self.source == "file":
+            if self.video is None:
+                raise ValueError("請從素材庫選一支影片")
+            self.youtube_url = ""
+        else:
+            if not youtube_id(self.youtube_url):
+                raise ValueError("看不懂的 YouTube 連結，請貼影片網址")
+            self.video = None
+        if self.end is not None and self.end <= self.start:
+            raise ValueError("結束秒數要大於開始秒數")
+        return self
 
 
 class HomeNewsPayload(_ContentPayload):
@@ -327,6 +796,21 @@ class HomeNewsPayload(_ContentPayload):
     # 也不要為了過驗證而虛構內容。
     articles: list[NewsArticlePayload]
     events: list[NewsEventPayload]
+    # 首頁最新消息最多輪播幾則（每組 3 則）；None＝全部。
+    home_display_count: int | None = Field(default=None, ge=1, le=30)
+    # 首頁手機版「活動影片」清單（2026-09-25 新增）。None＝還沒在後台設定過，
+    # 官網沿用內建的四支影片片段。
+    films: list[HomeFilmPayload] | None = None
+
+    @field_validator("films")
+    @classmethod
+    def _films_bounded(cls, value: list[HomeFilmPayload] | None) -> list[HomeFilmPayload] | None:
+        if value is None:
+            return None
+        if not 1 <= len(value) <= HOME_FILMS_MAX:
+            raise ValueError(f"活動影片需為 1 到 {HOME_FILMS_MAX} 支")
+        _unique_ids(value, "活動影片")
+        return value
 
     @field_validator("sample_note")
     @classmethod
@@ -338,9 +822,7 @@ class HomeNewsPayload(_ContentPayload):
     def _articles_bounded(cls, value: list[NewsArticlePayload]) -> list[NewsArticlePayload]:
         if len(value) > 30:
             raise ValueError("消息最多 30 則")
-        ids = [a.id for a in value]
-        if len(ids) != len(set(ids)):
-            raise ValueError("消息的 id 不可重複")
+        _unique_ids(value, "消息")
         return value
 
     @field_validator("events")
@@ -348,9 +830,40 @@ class HomeNewsPayload(_ContentPayload):
     def _events_bounded(cls, value: list[NewsEventPayload]) -> list[NewsEventPayload]:
         if len(value) > 12:
             raise ValueError("活動最多 12 筆")
-        ids = [e.id for e in value]
-        if len(ids) != len(set(ids)):
-            raise ValueError("活動的 id 不可重複")
+        _unique_ids(value, "活動")
+        return value
+
+
+class CampusNewsArticlePayload(_NewsArticleFields):
+    """分校自己的消息：只屬於這一校（內容項的 campus_key），沒有適用範圍與
+    首頁推薦——跨校與首頁的安排由總部在全站消息決定（規格 3.4）。"""
+
+
+class CampusNewsEventPayload(_NewsEventFields):
+    pass
+
+
+class CampusNewsPayload(_ContentPayload):
+    """各校消息與活動（campus_news），分校管理者與內容編輯只能編自己校。
+    官網把它和全站消息（home_news）合併顯示。"""
+
+    articles: list[CampusNewsArticlePayload] = Field(default_factory=list)
+    events: list[CampusNewsEventPayload] = Field(default_factory=list)
+
+    @field_validator("articles")
+    @classmethod
+    def _articles_bounded(cls, value: list[CampusNewsArticlePayload]) -> list[CampusNewsArticlePayload]:
+        if len(value) > 12:
+            raise ValueError("每校消息最多 12 則")
+        _unique_ids(value, "消息")
+        return value
+
+    @field_validator("events")
+    @classmethod
+    def _events_bounded(cls, value: list[CampusNewsEventPayload]) -> list[CampusNewsEventPayload]:
+        if len(value) > 12:
+            raise ValueError("每校活動最多 12 筆")
+        _unique_ids(value, "活動")
         return value
 
 
@@ -521,6 +1034,44 @@ class AdmissionContentPayload(_ContentPayload):
         return self
 
 
+# 地圖網址白名單：Google 地圖的分享網址（含台灣網域與短網址），只收 https。
+_MAP_PATH_HOSTS = {"www.google.com", "google.com", "www.google.com.tw", "google.com.tw"}
+_MAP_HOSTS = {"maps.google.com", "maps.google.com.tw"}
+MAP_URL_MESSAGE = "地圖連結只接受 Google 地圖的 https 網址（例如 https://maps.app.goo.gl/…）"
+
+
+def is_map_url(value: str) -> bool:
+    if _INVISIBLE_RE.search(value) or "\\" in value or not value.lower().startswith("https://"):
+        return False
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    if port is not None or parsed.username is not None or parsed.password is not None:
+        return False
+    path = parsed.path
+    if host in _MAP_PATH_HOSTS:
+        return path == "/maps" or path.startswith("/maps/")
+    if host in _MAP_HOSTS:
+        return True
+    if host == "maps.app.goo.gl":
+        return len(path) > 1
+    if host == "goo.gl":
+        return path.startswith("/maps/") and len(path) > len("/maps/")
+    return False
+
+
+def require_map_url(value: str) -> str:
+    candidate = value.strip()
+    if candidate == "":
+        return ""
+    if not is_map_url(candidate):
+        raise ValueError(MAP_URL_MESSAGE)
+    return candidate
+
+
 class CampusProfilePayload(_ContentPayload):
     name: str
     district: str
@@ -533,11 +1084,29 @@ class CampusProfilePayload(_ContentPayload):
     # 空字串代表這間校區尚未提供 LINE 官方帳號，跟前端 fixture 的
     # `line: string | null` 語意相同（web 端疊資料時把空字串轉回 null）。
     line: str
+    # 地圖連結（規格 L111：地址與地圖分別編輯）。只收 Google 地圖網址；空字串＝
+    # 官網照舊用地址組成 Google 地圖搜尋連結。
+    map_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
+    # 2026-09-25 新增（規格 L107-108）：封面照片與建築線稿從素材庫選，留空沿用
+    # 官網內建。封面在兩個版位裁成不同比例，各有自己的焦點：card_focus＝首頁
+    # 五校卡片與預約頁的校區照片、hero_focus＝分校頁首屏。版位焦點留空時用
+    # 封面設定的焦點，再沒有就用素材本身的焦點。沒換封面也可以只調焦點。
+    cover: MediaSlotPayload | None = None
+    card_focus: FocusPointPayload | None = None
+    hero_focus: FocusPointPayload | None = None
+    # 首頁五校分頁上的建築線稿（平常）與上色版（選到那一校時疊上去）。
+    line_art: MediaSlotPayload | None = None
+    line_art_colour: MediaSlotPayload | None = None
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("map_url")
+    @classmethod
+    def _map_url(cls, value: str) -> str:
+        return require_map_url(value)
 
     @field_validator("facebook", "line")
     @classmethod
@@ -550,6 +1119,8 @@ class CampusProfilePayload(_ContentPayload):
 class CampusFaqItemPayload(_ContentPayload):
     q: str
     a: str
+    # 停用的題目留在後台、官網不顯示（規格 3.4：逐題啟用狀態）。
+    enabled: bool = True
 
     @field_validator("q", "a")
     @classmethod
@@ -557,14 +1128,58 @@ class CampusFaqItemPayload(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+FAQ_SHARED_POSITIONS = ("before", "after")
+
+
 class CampusFaqPayload(_ContentPayload):
+    """各校常見問題：本校自己的題目，加上要不要顯示全站共用題目與放哪裡。
+
+    本校有一題和共用題目問題文字相同時，這校顯示本校的版本（停用就是這校
+    不顯示那一題），其他校照樣顯示共用的答案（規格 3.2：局部修改不改動其他校）。"""
+
+    # 可以是 0 題：全部用共用題目的校區不必另外寫。
     items: list[CampusFaqItemPayload]
+    include_shared: bool = True
+    shared_position: Literal["before", "after"] = "before"
 
     @field_validator("items")
     @classmethod
     def _items_bounded(cls, value: list[CampusFaqItemPayload]) -> list[CampusFaqItemPayload]:
-        if not (1 <= len(value) <= 20):
-            raise ValueError("items 需為 1 到 20 筆")
+        if len(value) > 20:
+            raise ValueError("本校題目最多 20 題")
+        return value
+
+
+class SharedFaqItemPayload(_ScopedEntry):
+    id: str = Field(min_length=1, max_length=64)
+    q: str
+    a: str
+    enabled: bool = True
+
+    @field_validator("id", "q", "a")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("q", "a")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        return _nonblank(value, "問題與回答都不能空白")
+
+
+class SharedFaqPayload(_ContentPayload):
+    """全站共用常見問題（shared_faq）：總管理者或有「全站共用內容」授權的人編輯。
+    每題可以適用全部分校或指定分校；各校在自己的常見問題決定要不要顯示、
+    放在本校題目之前或之後。"""
+
+    items: list[SharedFaqItemPayload]
+
+    @field_validator("items")
+    @classmethod
+    def _items_bounded(cls, value: list[SharedFaqItemPayload]) -> list[SharedFaqItemPayload]:
+        if len(value) > 20:
+            raise ValueError("共用題目最多 20 題")
+        _unique_ids(value, "共用題目")
         return value
 
 
@@ -634,6 +1249,8 @@ class ContentRevisionOut(BaseModel):
     version: int
     payload: dict
     created_at: datetime
+    # 存檔當下的欄位規則版本（registry.schema_version）。
+    schema_version: int = 1
     review_status: str = "draft"
     review_note: str | None = None
     submitted_at: datetime | None = None
@@ -674,8 +1291,11 @@ class ContentRevisionSummaryOut(BaseModel):
     is_published: bool
     ever_published: bool
     last_published_at: datetime | None
+    # draft | pending_review | approved | rejected | superseded（送審後又有新版）
     review_status: str = "draft"
     review_note: str | None = None
+    reviewed_at: datetime | None = None
+    schema_version: int = 1
 
 
 class SubmitReviewRequest(BaseModel):
@@ -732,3 +1352,64 @@ class PublicSiteOut(BaseModel):
     schema_version: str
     release_id: str | None
     content: dict
+    # 內容引用到的素材資訊，key 是素材 id（見 media/schemas.PublicMediaOut）。
+    media: dict[str, PublicMediaOut] = Field(default_factory=dict)
+
+
+class PublishJobListOut(BaseModel):
+    """全站排程清單的一列：比單一內容頁的 PublishJobOut 多了是哪一項內容。"""
+
+    id: uuid.UUID
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    revision_version: int
+    publish_at: datetime
+    status: str
+    error: str | None
+    created_by_email: str | None
+    created_at: datetime
+    finished_at: datetime | None
+    # 目前登入的人能不能取消（有這項內容的發布權限）。
+    can_cancel: bool
+
+
+class ReleaseChangeOut(BaseModel):
+    content_item_id: uuid.UUID
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    revision_version: int
+    # 這次發布之前官網上的版本；第一次上線為 null。
+    previous_revision_version: int | None
+
+
+class ReleaseOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    created_by_email: str | None
+    # publish | review | scheduled | restore | release_restore | initialize；
+    # 2026-09-25 以前的發布沒有記錄，為 null。
+    source: str | None
+    restored_from_release_id: uuid.UUID | None
+    is_current: bool
+    # 和前一次發布相比換掉的內容（只列你看得到的校區與共用內容）。
+    changes: list[ReleaseChangeOut]
+
+
+class ReleasePageOut(BaseModel):
+    items: list[ReleaseOut]
+    # 還有更早的紀錄時，下一頁帶 before=這個時間。
+    next_before: datetime | None
+
+
+class ReleaseRestoreRequest(BaseModel):
+    # 畫面上看到的「目前版本」；有人剛好又發布過就回 409，請重新整理再決定。
+    expected_current_release_id: uuid.UUID | None = None
+
+
+class ReleaseRestoreOut(BaseModel):
+    release: ReleaseOut
+    changed_count: int
+    # 目標那次發布之後才第一次上線、維持現狀的內容項數。
+    kept_count: int

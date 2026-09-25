@@ -23,12 +23,17 @@ class Role(str, enum.Enum):
 
 CREATABLE_ROLES = tuple(Role)
 
-# 規格 7：「全站內容編輯」是明確授權，不因擁有某校範圍就自動取得，只有
-# 總管理者可以授予。總管理者本身不需要（已涵蓋全部）。
+# 規格 7：「全站內容編輯」與「個資匯出」是明確授權，不因擁有某校範圍就自動
+# 取得，只有總管理者可以逐人授予。總管理者本身不需要（已涵蓋全部）。
 SHARED_CONTENT = "content.shared"
-GRANTABLE_CAPABILITIES = (SHARED_CONTENT,)
-# 只有這些角色的授權有意義：櫃台、唯讀本來就不能編內容。
-GRANTABLE_ROLES = ("campus_admin", "editor")
+# 2026-09-25 業主裁定：個資匯出改為逐人授權，不再依角色自動給分校管理者。
+BOOKING_EXPORT = "booking.export"
+# 授權 -> 可以接受這項授權的角色。共用內容只給本來就能編內容的角色（櫃台、
+# 唯讀不能編內容）；個資匯出只給看得到案件的角色，看不到案件授權了也沒東西可匯。
+GRANTABLE_CAPABILITIES: dict[str, tuple[Role, ...]] = {
+    SHARED_CONTENT: (Role.CAMPUS_ADMIN, Role.EDITOR),
+    BOOKING_EXPORT: (Role.CAMPUS_ADMIN, Role.RECEPTION),
+}
 
 
 class User(Base):

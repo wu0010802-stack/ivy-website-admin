@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, status
 
-from app.auth.models import SHARED_CONTENT, Role, User
+from app.auth.models import BOOKING_EXPORT, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
 
 
 class ScopeDenied(HTTPException):
@@ -36,11 +36,18 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
     # 去識別的成效統計（漏斗數字），唯讀角色依規格可以看。
     "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
+    # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、轉聯絡中、
+    # 確認排入時段、人工補登、取消、標記未到場、完成參觀、後台改期、核准／
+    # 退回家長改期申請、產生／撤銷家長管理連結，以及把站內通知標為已處理。
+    # 也是「可以承辦案件」與「收新案通知信」的定義。
+    "booking.handle": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
+    # 管理預約的設定面：時段新增／容量／關閉、每週規則、休假日、預約方式，
+    # 以及指派承辦人。仍限總管理者與分校管理者。
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 批次匯出家長姓名與手機是另一個層級的事，不該跟「看得到案件」綁在
-    # 一起——否則階段 D 一上 readonly／reception 角色，他們就自動能把整份
-    # 個資下載回家。刻意獨立成一個 capability。
-    "booking.export": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
+    # 一起。這裡列的是「可以接受授權」的角色；除了總管理者，其他人還要
+    # 總管理者逐人授予（見 _GRANT_REQUIRED），不因角色自動取得。
+    BOOKING_EXPORT: {Role.SUPER_ADMIN, *GRANTABLE_CAPABILITIES[BOOKING_EXPORT]},
     # 以下是機構層級的決定，只有總管理者能做。集中在這張表裡，路由不再各自
     # 寫 `role != SUPER_ADMIN`，之後要放寬給某個角色時只改一個地方。
     # 停用／重新啟用分校（規格 3.2）。
@@ -54,7 +61,13 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "retention.manage": {Role.SUPER_ADMIN},
     # LINE 官方帳號推到哪些群組：通知會帶案件編號與後台連結，限總管理者設定。
     "notifications.manage": {Role.SUPER_ADMIN},
+    # 整站還原（規格 L155）：一次把官網所有內容換回某次發布，跨校、跨共用內容。
+    "content.release_restore": {Role.SUPER_ADMIN},
 }
+
+# 角色符合之外，還要總管理者逐人授予（User.capabilities）才算擁有；總管理
+# 者本身永遠擁有。content.shared 另由 can_edit_shared_content 判斷。
+_GRANT_REQUIRED = {BOOKING_EXPORT}
 
 
 def roles_with(capability: str) -> set[Role]:
@@ -62,6 +75,9 @@ def roles_with(capability: str) -> set[Role]:
     allowed_roles = _CAPABILITY_ROLES.get(capability)
     if allowed_roles is None:
         raise ValueError(f"未知的 capability：{capability}")
+    if capability in _GRANT_REQUIRED:
+        # 逐人授權的 capability 光看角色會多算沒被授權的人，要用 has_capability。
+        raise ValueError(f"{capability} 要逐人判斷，不能只看角色")
     return set(allowed_roles)
 
 
@@ -82,21 +98,31 @@ def has_capability(user: User, capability: str) -> bool:
     allowed_roles = _CAPABILITY_ROLES.get(capability)
     if allowed_roles is None:
         raise ValueError(f"未知的 capability：{capability}")
-    return user.role in allowed_roles
+    if user.role not in allowed_roles:
+        return False
+    if capability in _GRANT_REQUIRED and user.role != Role.SUPER_ADMIN:
+        return has_grant(user, capability)
+    return True
+
+
+def effective_capabilities(user: User) -> list[str]:
+    """這個人目前實際擁有的 capability（角色＋逐人授權），給後台決定要不要
+    顯示按鈕；真正的檢查仍在各端點。校區範圍另看 campus_keys。"""
+    caps = {capability for capability in _CAPABILITY_ROLES if has_capability(user, capability)}
+    if can_edit_shared_content(user):
+        caps.add(SHARED_CONTENT)
+    return sorted(caps)
 
 
 def require_scope(user: User, capability: str, campus_keys: list[str] | None = None) -> None:
     """所有 route/service/export/job 共用的權限檢查。
 
-    - `capability` 不在使用者角色允許範圍 → 403（CapabilityDenied）。
+    - 沒有這個 `capability`（角色不符，或需要逐人授權卻沒被授予）→ 403（CapabilityDenied）。
     - `campus_keys` 給定時，super_admin 一律通過；其餘角色必須擁有其中
       *所有* campus 的 membership，否則視為「這個物件對你不存在」→ 404
       （ScopeDenied），不要用 403，避免洩漏物件存在性。
     """
-    allowed_roles = _CAPABILITY_ROLES.get(capability)
-    if allowed_roles is None:
-        raise ValueError(f"未知的 capability：{capability}")
-    if user.role not in allowed_roles:
+    if not has_capability(user, capability):
         raise CapabilityDenied()
 
     if campus_keys is None:

@@ -4,17 +4,19 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitSlotOut } from '../api/types'
-import { campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
+import { attentionListPath, campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 
 const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
-const authStore = useAuthStore()
-const canManage = computed(() => ['super_admin', 'campus_admin'].includes(authStore.user?.role ?? ''))
+const { can } = usePermissions()
+// 櫃台看得到時段與名額（排入案件要用），但新增、調整名額、關閉與每週規則
+// 限校區管理者以上（booking.manage）。
+const canManage = computed(() => can('booking.manage'))
 
 function isoDate(offsetDays = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000))
@@ -29,6 +31,10 @@ const busyId = ref<string | null>(null)
 const requests = useRequestSequence()
 const rangeInvalid = computed(() => dateFrom.value > dateTo.value)
 const availableSlots = computed(() => slots.value.filter(slot => !slot.closed && !isPast(slot) && slot.booked_count < slot.capacity).length)
+
+// 關掉還有人排入的時段後，留一個連到「待人工處理」的提醒（換校就清掉）。
+const attentionNotice = ref<{ campus: string; when: string; count: number } | null>(null)
+watch(selectedCampus, () => { attentionNotice.value = null })
 
 const createDialogVisible = ref(false)
 const createForm = ref({ slot_date: isoDate(1), start_time: '10:00:00', end_time: '11:00:00', capacity: 5 })
@@ -82,7 +88,7 @@ async function submitCreate() {
 }
 
 async function updateCapacity(slot: VisitSlotOut, capacity: number) {
-  if (busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
+  if (!canManage.value || busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
   busyId.value = slot.id
   try {
     await api.patch(`/admin/slots/${slot.id}`, { capacity })
@@ -93,8 +99,8 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
       const detail = err.detail as { message?: string; booked_count?: number }
       ElMessage.error(
         detail !== null && typeof detail === 'object' && detail.booked_count !== undefined
-          ? `名額不能低於已確認的 ${detail.booked_count} 筆`
-          : '名額不能低於目前已確認的案件數',
+          ? `名額不能低於已占用的 ${detail.booked_count} 組（含待確認、已確認、已完成與未到場）`
+          : '名額不能低於目前已占用的組數',
       )
       await load()
     } else {
@@ -105,20 +111,24 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
 }
 
 async function toggleClosed(slot: VisitSlotOut) {
-  if (busyId.value || loading.value) return
+  if (!canManage.value || busyId.value || loading.value) return
   busyId.value = slot.id
   try {
-    if (!slot.closed && slot.booked_count > 0) {
+    const closing = !slot.closed
+    if (closing && slot.booked_count > 0) {
       try {
         await ElMessageBox.confirm(
-          `這個時段已有 ${slot.booked_count} 筆確認案件，關閉後不再接受新預約，既有案件不受影響。`,
+          `這個時段已有 ${slot.booked_count} 組占用名額。關閉後不再接受新預約；既有案件不會取消，會列入參觀案件的「待人工處理」，請聯絡家長改期。`,
           '關閉時段？',
           { confirmButtonText: '關閉', cancelButtonText: '先不要', type: 'warning' },
         )
       } catch { return }
     }
     try {
-      await api.patch(`/admin/slots/${slot.id}`, { closed: !slot.closed })
+      await api.patch(`/admin/slots/${slot.id}`, { closed: closing })
+      if (closing && slot.booked_count > 0) {
+        attentionNotice.value = { campus: slot.campus_key, when: `${formatDate(slot.slot_date)} ${formatTime(slot.start_time)}`, count: slot.booked_count }
+      }
       await load()
     } catch { ElMessage.error('更新失敗') }
   } finally { busyId.value = null }
@@ -133,7 +143,7 @@ function isPast(slot: VisitSlotOut): boolean {
 type SlotState = { label: string; tone: 'info' | 'warning' | 'success' }
 function slotState(slot: VisitSlotOut): SlotState {
   if (isPast(slot)) return { label: '已結束', tone: 'info' }
-  if (slot.closed) return { label: '已關閉', tone: 'info' }
+  if (slot.closed) return { label: slot.closed_source === 'exception' ? '休假日關閉' : '已關閉', tone: 'info' }
   if (slot.booked_count >= slot.capacity) return { label: '已額滿', tone: 'warning' }
   return { label: '開放中', tone: 'success' }
 }
@@ -168,7 +178,7 @@ function fillRatio(slot: VisitSlotOut): number {
 }
 
 function openCreate() {
-  if (busyId.value || loading.value || creating.value) return
+  if (!canManage.value || busyId.value || loading.value || creating.value) return
   createForm.value.slot_date = dateFrom.value >= isoDate() ? dateFrom.value : isoDate(1)
   createDialogVisible.value = true
 }
@@ -177,10 +187,11 @@ function openCreate() {
 <template>
   <div class="page">
     <PageHeader lead="家長可預約的參觀時段與每場名額。已確認的案件會占用名額；關閉時段只是不再開放，不影響既有案件。">
-      <template #actions>
+      <template v-if="canManage" #actions>
         <el-button type="primary" :icon="Plus" :disabled="!selectedCampus || Boolean(busyId) || loading || creating" @click="openCreate">新增時段</el-button>
       </template>
     </PageHeader>
+    <p v-if="!canManage" class="hint slots-readonly">你的帳號可以查看時段與名額；新增時段、調整名額或關閉由校區管理者處理。</p>
 
     <div class="toolbar filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="selectedCampus" :keys="visibleCampusKeys" :disabled="Boolean(busyId) || creating || createDialogVisible" /></label>
@@ -190,6 +201,11 @@ function openCreate() {
 
     <VisitSchedulePanel v-if="selectedCampus" :campus-key="selectedCampus" :can-manage="canManage" @slots-changed="load" />
 
+    <el-alert v-if="attentionNotice" type="warning" show-icon class="slots-attention" title="關閉的時段還有家長排入" @close="attentionNotice = null">
+      <p>{{ attentionNotice.when }} 已關閉，還有 {{ attentionNotice.count }} 組占用名額。已確認或待確認的家長請聯絡改期到其他場次，或取消預約。</p>
+      <router-link :to="attentionListPath(attentionNotice.campus)">查看待人工處理的案件 →</router-link>
+    </el-alert>
+
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
 
     <el-alert v-else-if="rangeInvalid" title="結束日期需與開始日期相同或更晚。" type="warning" :closable="false" show-icon />
@@ -198,7 +214,7 @@ function openCreate() {
     <div class="list-summary"><span>{{ campusLabel(selectedCampus) }}校 · {{ loading ? '讀取中…' : `期間內 ${slots.length} 場，${availableSlots} 場仍有名額` }}</span><el-button text :loading="loading" :disabled="Boolean(busyId)" @click="load">重新整理</el-button></div>
     <div class="panel">
       <el-skeleton v-if="loading" animated :rows="4" class="list-skeleton" />
-      <el-empty v-else-if="!slots.length" description="這段期間尚未安排參觀時段"><el-button type="primary" @click="openCreate">新增第一個時段</el-button></el-empty>
+      <el-empty v-else-if="!slots.length" description="這段期間尚未安排參觀時段"><el-button v-if="canManage" type="primary" @click="openCreate">新增第一個時段</el-button></el-empty>
       <template v-else>
       <el-table class="data-table slots-table" :data="slots" :span-method="dateSpan" :row-class-name="rowClass">
         <el-table-column label="日期" width="170" class-name="slots-table__date">
@@ -213,7 +229,7 @@ function openCreate() {
             <span class="num">{{ formatTime(row.start_time) }}–{{ formatTime(row.end_time) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="已預約 / 名額" min-width="220">
+        <el-table-column label="已占用 / 名額" min-width="220">
           <template #default="{ row }: { row: VisitSlotOut }">
             <div class="cap">
               <span class="cap__count num">{{ row.booked_count }}</span>
@@ -225,7 +241,7 @@ function openCreate() {
                 size="small"
                 controls-position="right"
                 aria-label="名額"
-                :disabled="Boolean(busyId) || isPast(row)"
+                :disabled="!canManage || Boolean(busyId) || isPast(row)"
                 @change="(v: number | undefined) => v !== undefined && updateCapacity(row, v)"
               />
               <span class="cap__bar" aria-hidden="true">
@@ -241,7 +257,7 @@ function openCreate() {
         </el-table-column>
         <el-table-column label="操作" width="110" align="right">
           <template #default="{ row }: { row: VisitSlotOut }">
-            <el-button v-if="!isPast(row)" size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
+            <el-button v-if="canManage && !isPast(row)" size="small" text :loading="busyId === row.id" :disabled="Boolean(busyId)" @click="toggleClosed(row)">
               {{ row.closed ? '重新開放' : '關閉' }}
             </el-button>
           </template>
@@ -257,14 +273,14 @@ function openCreate() {
                 <el-tag :type="slotState(slot).tone" size="small" round>{{ slotState(slot).label }}</el-tag>
               </div>
               <div class="slot-row__body">
-                <span class="slot-row__booked">已確認 <b class="num">{{ slot.booked_count }}</b> 組</span>
-                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
-                <el-button v-if="!isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
+                <span class="slot-row__booked">已占用 <b class="num">{{ slot.booked_count }}</b> 組</span>
+                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
+                <el-button v-if="canManage && !isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
               </div>
             </li>
           </ul>
         </section>
-        <p class="hint slot-days__note">名額調整後立即儲存。</p>
+        <p v-if="canManage" class="hint slot-days__note">名額調整後立即儲存。</p>
       </div>
       </template>
     </div>
@@ -297,6 +313,9 @@ function openCreate() {
 </template>
 
 <style scoped>
+.slots-readonly { margin: -8px 0 16px; }
+.slots-attention { margin-bottom: 16px; }
+.slots-attention p { margin: 0 0 4px; }
 .today-mark { display:inline-block; margin-left:6px; padding:0 8px; border-radius:999px; background:var(--el-color-primary-light-9); color:var(--el-color-primary); font-size:12px; font-weight:600; line-height:20px; vertical-align:1px; }
 .slots-table :deep(td.slots-table__date) { vertical-align:top; background:var(--surface); }
 .slots-table :deep(tr.is-past td:not(.slots-table__date)) { color:var(--ink-3); }

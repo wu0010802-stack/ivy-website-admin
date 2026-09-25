@@ -1,3 +1,5 @@
+import type { PrivacyNotice } from '../types/site-content'
+
 export type BookingMode = 'inquiry' | 'slots' | 'line' | 'phone' | 'external' | 'paused'
 
 export interface BookingConfig {
@@ -7,6 +9,11 @@ export interface BookingConfig {
   line_url?: string | null
   phone?: string | null
   external_url?: string | null
+  /** 目前發布中的同意文字與版本（規格 L196）；送單時帶版本，伺服器確認仍是這一版才收 */
+  consent_revision_id?: string | null
+  consent_text?: string | null
+  /** 同一版的隱私說明；沒有正式說明時為 null */
+  privacy_notice?: PrivacyNotice | null
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'

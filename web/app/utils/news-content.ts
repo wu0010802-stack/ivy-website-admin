@@ -12,6 +12,28 @@ export function taipeiToday(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }
 
+/**
+ * 首頁輪播的消息（2026-09-25 業主裁定）：有任何推薦的消息時，只輪播推薦的，
+ * 依後台清單順序；完全沒有推薦時照舊依日期新到舊。再依後台設定的顯示筆數截斷。
+ */
+export function homeArticles(articles: readonly NewsArticle[], count?: number | null): NewsArticle[] {
+  const featured = articles.filter((item) => item.featured)
+  const list = featured.length ? featured : sortedArticles(articles)
+  return count && count > 0 ? list.slice(0, count) : list
+}
+
+/** 活動時間的顯示文字：全天、09:30–11:00，或只有開始時間的「09:30 開始」。 */
+export function eventTimeText(event: Pick<NewsEvent, 'allDay' | 'startTime' | 'endTime'>): string {
+  if (event.allDay !== false || !event.startTime) return '全天'
+  return event.endTime ? `${event.startTime}–${event.endTime}` : `${event.startTime} 開始`
+}
+
+/** 只放行 http／https 的完整網址（後端已驗證，這裡再擋一次才綁進 href）。 */
+export function safeWebUrl(url: string | undefined | null): string {
+  const value = (url ?? '').trim()
+  return /^https?:\/\/\S+$/i.test(value) ? value : ''
+}
+
 /** 消息依日期新到舊；同一天保留後台排列順序。 */
 export function sortedArticles(articles: readonly NewsArticle[]): NewsArticle[] {
   return articles.map((item, index) => ({ item, index }))

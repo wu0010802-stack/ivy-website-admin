@@ -6,18 +6,16 @@ import uuid
 import httpx
 import pytest
 
+from tests.conftest import set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 
 async def _enable_slots_and_book(admin_client, public_client, campus_key="yihua"):
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={
-            "expected_version": current.json()["version"],
-            "mode": "slots",
-            # 家長自助管理的測試需要一筆「已確認」的案件才能申請改期。
-            "slots_auto_confirm": True,
-        },
-    )
+    # 家長自助管理的測試需要一筆「已確認」的案件才能申請改期。
+    await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=True)
     me = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
     version = me.json()["version"]
 
@@ -253,3 +251,74 @@ async def test_parent_token_exchange_has_rate_limit(public_client):
     results = [await public_client.post('/api/website/v1/public/visit-manage/exchange', json={'token': 'invalid'}) for _ in range(31)]
     assert results[-1].status_code == 429
     assert 'retry-after' in results[-1].headers
+
+
+@pytest.mark.asyncio
+async def test_parent_change_deadline_follows_campus_setting(admin_client, public_client, db_session):
+    """規格 L238：期限依各校設定，預設參觀前 24 小時。家長頁顯示的截止時間、
+    能不能取消／改期與 API 實際擋下的時間點都要跟著設定走。"""
+    from sqlalchemy import select
+
+    from app.booking.models import VisitSlot
+    from app.common.timezones import slot_start_utc
+    from app.operations.models import AuditLogEntry
+
+    receipt, slot_id, _ = await _enable_slots_and_book(admin_client, public_client)
+    config = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()
+    assert config["parent_change_deadline_hours"] == 24
+    slot = await db_session.get(VisitSlot, uuid.UUID(slot_id))
+    starts = slot_start_utc(slot.slot_date, slot.start_time)
+
+    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt}/access-link")
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+    exchanged = (await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})).json()
+    assert exchanged["change_deadline_hours"] == 24
+    assert datetime.fromisoformat(exchanged["change_deadline"]) == starts - timedelta(hours=24)
+    assert exchanged["can_cancel"] is True
+
+    # 參觀在三天後；改成參觀前 5 天截止，線上就不能再取消或改期。
+    updated = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": config["version"], "mode": "slots", "slots_auto_confirm": True, "parent_change_deadline_hours": 120},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["parent_change_deadline_hours"] == 120
+    me = (await public_client.get("/api/website/v1/public/visit-manage/me")).json()
+    assert me["change_deadline_hours"] == 120
+    assert datetime.fromisoformat(me["change_deadline"]) == starts - timedelta(hours=120)
+    assert me["can_cancel"] is False and me["can_reschedule"] is False
+    blocked = await public_client.post("/api/website/v1/public/visit-manage/cancel", json={})
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["code"] == "CHANGE_DEADLINE_PASSED"
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt}")
+    assert detail.json()["parent_change_deadline_hours"] == 120
+
+    # 範圍 1–336 小時；沒帶這個欄位的存檔（舊版後台）維持原設定。
+    version = updated.json()["version"]
+    for bad in (0, 337):
+        rejected = await admin_client.patch(
+            "/api/website/v1/admin/booking-config/yihua",
+            json={"expected_version": version, "mode": "slots", "parent_change_deadline_hours": bad},
+        )
+        assert rejected.status_code == 422
+    kept = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": version, "mode": "slots", "slots_auto_confirm": True},
+    )
+    assert kept.json()["parent_change_deadline_hours"] == 120
+
+    # 改回 24 小時後又能取消，取消回應也帶該校的期限。
+    back = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": kept.json()["version"], "mode": "slots", "slots_auto_confirm": True, "parent_change_deadline_hours": 24},
+    )
+    assert back.status_code == 200
+    cancelled = await public_client.post("/api/website/v1/public/visit-manage/cancel", json={})
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["status"] == "cancelled"
+    assert cancelled.json()["change_deadline_hours"] == 24
+
+    audits = (
+        await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "booking_config.update"))
+    ).scalars().all()
+    assert {a.metadata_json["parent_change_deadline_hours"] for a in audits} >= {24, 120}

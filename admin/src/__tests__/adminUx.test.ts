@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/auth'
 import { api } from '../api/client'
 import type { ContentEditorState } from '../composables/useContentItem'
 import type { UserOut } from '../api/types'
+import { testUser } from './fixtures'
 
 // 這個 jsdom 環境下的 localStorage 只是個空物件，沒有 Storage 的方法；
 // 側欄的收合記憶要驗，就自己補一個最小實作。
@@ -31,7 +32,7 @@ const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks(); localStorage.clear() })
 async function setup(path = '/', role: UserOut['role'] = 'super_admin') {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role, is_active: true, campus_keys: ['renwu'], line_linked: false }
+  useAuthStore(pinia).user = testUser(role, { id: 'local-test', email: 'test@example.invalid', campus_keys: ['renwu'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push(path)
   await router.isReady()
@@ -102,9 +103,9 @@ describe('後台導覽與編輯操作', () => {
     wrappers.push(wrapper)
     await wrapper.get('input').setValue('素材')
     expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['素材庫'])
-    // 分組名仍可搜：沒有功能叫「分校頁」，但該組三項要全出來
+    // 分組名仍可搜：沒有功能叫「分校頁」，但該組每一項都要出來
     await wrapper.get('input').setValue('分校頁')
-    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['五校介紹', '各校常見問題', '校園探索'])
+    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['五校介紹', '各校常見問題', '共用常見問題', '各校消息與活動', '校園探索'])
   })
 
   it('載入期間不誤報未儲存，儲存期間禁止編輯及重複發布', async () => {

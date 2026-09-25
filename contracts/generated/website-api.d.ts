@@ -73,6 +73,27 @@ export interface paths {
         patch: operations["update_booking_config_api_website_v1_admin_booking_config__campus_key__patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/booking-config/{campus_key}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Readiness
+         * @description 各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。
+         *     後台在切換前顯示「不可啟用原因」與確認框用。
+         */
+        get: operations["get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/campuses": {
         parameters: {
             query?: never;
@@ -124,7 +145,8 @@ export interface paths {
          * Update Campus Status
          * @description 停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的
          *     決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件
-         *     一律不動，回傳仍在進行中的件數讓園方人工處理。
+         *     一律不動，回傳仍在進行中的件數；這些案件會列在案件清單的「待人工處理」
+         *     （needs_attention 篩選），總覽也有對應待辦。
          */
         patch: operations["update_campus_status_api_website_v1_admin_campuses__key__status_patch"];
         trace?: never;
@@ -425,6 +447,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/media/upload-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upload Limits
+         * @description 後台提示與送出前檢查用：單檔上限來自部署設定。
+         */
+        get: operations["get_upload_limits_api_website_v1_admin_media_upload_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/media/{media_id}": {
         parameters: {
             query?: never;
@@ -436,12 +478,41 @@ export interface paths {
         get: operations["get_media_api_website_v1_admin_media__media_id__get"];
         put?: never;
         post?: never;
-        /** Delete Media */
+        /**
+         * Delete Media
+         * @description 刪除＝標記待清理（規格 L322-327）。檔案過 media_purge_delay_days 天才由
+         *     定期工作刪掉，期間可以 POST .../restore 復原。任何一版內容（含可還原的
+         *     舊版本與排程）還在用就回 409 並列出引用處。
+         */
         delete: operations["delete_media_api_website_v1_admin_media__media_id__delete"];
         options?: never;
         head?: never;
-        /** Update Media */
+        /**
+         * Update Media
+         * @description 圖片與影片都能補說明、圖說、來源、授權與標籤（規格 L138）。
+         */
         patch: operations["update_media_api_website_v1_admin_media__media_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Media
+         * @description 封存（規格 L143）：沒被草稿、官網或排程用到的素材從素材庫與選圖器收起來，
+         *     檔案保留，舊版本照樣能還原。
+         */
+        post: operations["archive_media_api_website_v1_admin_media__media_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/website/v1/admin/media/{media_id}/file": {
@@ -470,8 +541,234 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Replace Media */
+        /**
+         * Replace Media
+         * @description 上傳新檔案成為新素材（新 id，沿用舊素材的說明與標籤），舊素材不動。
+         *     要讓內容改用新素材，接著呼叫 .../replace-references。
+         */
         post: operations["replace_media_api_website_v1_admin_media__media_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/replace-references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Media References
+         * @description 把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
+         *     草稿（不發布，官網要等各自發布或送審）。影響範圍由
+         *     GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
+         *     存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
+         *
+         *     一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回
+         *     錯誤，已處理的項目一起回滾。
+         */
+        post: operations["replace_media_references_api_website_v1_admin_media__media_id__replace_references_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Media
+         * @description 把待清理的素材救回來（清理工作執行之前都可以）。
+         */
+        post: operations["restore_media_api_website_v1_admin_media__media_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unarchive Media */
+        post: operations["unarchive_media_api_website_v1_admin_media__media_id__unarchive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media Usages
+         * @description 用在哪裡（規格 L327）：草稿、官網、排程各是哪個內容項的哪一版、哪個
+         *     欄位；只剩舊版本在用的另列。批次替換前的影響範圍也看這裡。
+         */
+        get: operations["get_media_usages_api_website_v1_admin_media__media_id__usages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/variants/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media Variant
+         * @description 素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。
+         *     衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。
+         */
+        get: operations["get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/my-notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Notifications
+         * @description 給目前登入者自己的通知，新的在前。每個登入者都能看自己的，不需要案件權限。
+         */
+        get: operations["list_my_notifications_api_website_v1_admin_my_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/my-notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All My Notifications Read */
+        post: operations["mark_all_my_notifications_read_api_website_v1_admin_my_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/my-notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark My Notification Read */
+        post: operations["mark_my_notification_read_api_website_v1_admin_my_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notification-outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Failed Notifications
+         * @description 寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定
+         *     校區時列出你負責的所有校區。
+         */
+        get: operations["list_failed_notifications_api_website_v1_admin_notification_outbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notification-outbox/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failed Notifications
+         * @description 批次重新排入。只處理仍是寄送失敗、且在你校區範圍內的；其他的算
+         *     skipped，不整批失敗（清單可能已經被別人處理過）。
+         */
+        post: operations["retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notification-outbox/{message_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failed Notification
+         * @description 把一則寄送失敗的通知重新排入，下一輪定期工作（約一分鐘內）重送。
+         *     已送到的管道與收件人不會重複送。
+         */
+        post: operations["retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -512,6 +809,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/publish-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Publish Jobs
+         * @description 全站排程：還沒到期的依時間先後全部列出，已結束的列最近 50 筆（新的在前）。
+         */
+        get: operations["list_publish_jobs_api_website_v1_admin_publish_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Releases
+         * @description 發布紀錄：每次官網內容切換一筆，新的在前，列出和前一次相比換掉了哪些內容。
+         */
+        get: operations["list_releases_api_website_v1_admin_releases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/releases/{release_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Release
+         * @description 整站還原（限總管理者）：把官網每一項內容換回那次發布時的版本，存成一筆
+         *     新的發布紀錄，原本的紀錄都保留。只動內容，不回復預約設定、時段、案件或
+         *     通知；各內容的草稿也不動。
+         */
+        post: operations["restore_release_api_website_v1_admin_releases__release_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/reschedule-requests": {
         parameters: {
             query?: never;
@@ -519,7 +878,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Reschedule Requests */
+        /**
+         * List Reschedule Requests
+         * @description 待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
+         *     新時段與新時段剩餘名額，園方不必點進案件就能判斷。
+         */
         get: operations["list_reschedule_requests_api_website_v1_admin_reschedule_requests_get"];
         put?: never;
         post?: never;
@@ -555,7 +918,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject Reschedule Request */
+        /**
+         * Reject Reschedule Request
+         * @description 退回：家長維持原時段。原因選填，記在申請與案件歷程。
+         */
         post: operations["reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post"];
         delete?: never;
         options?: never;
@@ -704,7 +1070,7 @@ export interface paths {
         head?: never;
         /**
          * Update User Capabilities
-         * @description 規格 7：全站內容編輯是明確授權，只有總管理者可以授予或收回。
+         * @description 規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。
          */
         patch: operations["update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch"];
         trace?: never;
@@ -815,7 +1181,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Export Visit Requests */
+        /**
+         * Export Visit Requests
+         * @description 依畫面上目前的篩選條件匯出（不分頁）。
+         */
         get: operations["export_visit_requests_api_website_v1_admin_visit_requests_export_get"];
         put?: never;
         post?: never;
@@ -832,7 +1201,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Visit Request */
+        /**
+         * Get Visit Request
+         * @description 案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長
+         *     改期申請、家長管理連結是否有效（規格 L299）。
+         */
         get: operations["get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get"];
         put?: never;
         post?: never;
@@ -851,7 +1224,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Parent Access Link */
+        /**
+         * Create Parent Access Link
+         * @description 產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：
+         *     重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
+         *
+         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。
+         *     原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。
+         *     不會自動寄給家長——由園方自行轉交。
+         */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
         options?: never;
@@ -885,7 +1266,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Visit Request */
+        /**
+         * Cancel Visit Request
+         * @description 本文可省略；有填原因就記在案件歷程。
+         */
         post: operations["cancel_visit_request_api_website_v1_admin_visit_requests__visit_request_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -992,7 +1376,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reschedule Visit Request */
+        /**
+         * Reschedule Visit Request
+         * @description 已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後
+         *     時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。
+         */
         post: operations["reschedule_visit_request_api_website_v1_admin_visit_requests__visit_request_id__reschedule_post"];
         delete?: never;
         options?: never;
@@ -1066,7 +1454,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove Visit Exception */
+        /**
+         * Remove Visit Exception
+         * @description 取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。
+         */
         delete: operations["remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete"];
         options?: never;
         head?: never;
@@ -1099,8 +1490,9 @@ export interface paths {
         };
         /**
          * List Visit Staff
-         * @description 可以承辦案件的人（總管理者＋分校管理者）。分校管理者只看得到總管理
-         *     者與跟自己有共同校區的同事，不藉這個清單看出其他校的人員配置。
+         * @description 可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。
+         *     非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出
+         *     其他校的人員配置。
          */
         get: operations["list_visit_staff_api_website_v1_admin_visit_staff_get"];
         put?: never;
@@ -1143,6 +1535,28 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/auth/google/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Google Unlink
+         * @description 本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會
+         *     重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。
+         *     解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
+         */
+        delete: operations["google_unlink_api_website_v1_auth_google_link_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1358,6 +1772,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/media/{media_id}/variants/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Media Variant
+         * @description 官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。
+         */
+        get: operations["get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/site": {
         parameters: {
             query?: never;
@@ -1544,6 +1978,8 @@ export interface components {
             /** Message */
             message: string | null;
             mode: components["schemas"]["BookingMode"];
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours: number;
             /** Phone */
             phone: string | null;
             /** Slots Auto Confirm */
@@ -1562,6 +1998,8 @@ export interface components {
             /** Message */
             message?: string | null;
             mode: components["schemas"]["BookingMode"];
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours?: number | null;
             /** Phone */
             phone?: string | null;
             /**
@@ -1570,11 +2008,71 @@ export interface components {
              */
             slots_auto_confirm: boolean;
         };
+        /** BookingConsentBriefOut */
+        BookingConsentBriefOut: {
+            /** Has Privacy Notice */
+            has_privacy_notice: boolean;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * BookingImpactOut
+         * @description 切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
+         *     照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。
+         */
+        BookingImpactOut: {
+            /** Bookable Slots */
+            bookable_slots: number;
+            /** Contacting */
+            contacting: number;
+            /** New Requests */
+            new_requests: number;
+            /** Open Requests */
+            open_requests: number;
+            /** Pending Confirmation */
+            pending_confirmation: number;
+            /** Upcoming Confirmed */
+            upcoming_confirmed: number;
+            /** Weekly Rules */
+            weekly_rules: number;
+        };
         /**
          * BookingMode
          * @enum {string}
          */
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
+        /**
+         * BookingReadinessOut
+         * @description 各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+         *     連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
+         *     條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。
+         */
+        BookingReadinessOut: {
+            /** Blockers */
+            blockers: {
+                [key: string]: components["schemas"]["BookingReadinessReason"][];
+            };
+            /** Campus Key */
+            campus_key: string;
+            consent: components["schemas"]["BookingConsentBriefOut"] | null;
+            current_mode: components["schemas"]["BookingMode"];
+            impact: components["schemas"]["BookingImpactOut"];
+        };
+        /**
+         * BookingReadinessReason
+         * @description 某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。
+         */
+        BookingReadinessReason: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
         /** CalendarSlotOut */
         CalendarSlotOut: {
             /** Booked Count */
@@ -1624,6 +2122,8 @@ export interface components {
             id: string;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Source */
@@ -1720,6 +2220,11 @@ export interface components {
             review_status: string;
             /** Reviewed At */
             reviewed_at?: string | null;
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
             /** Submitted At */
             submitted_at?: string | null;
             /** Version */
@@ -1765,6 +2270,13 @@ export interface components {
              * @default draft
              */
             review_status: string;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
             /** Version */
             version: number;
         };
@@ -1850,16 +2362,29 @@ export interface components {
         MediaAssetOut: {
             /** Alt Text */
             alt_text: string | null;
+            /** Archived At */
+            archived_at?: string | null;
             /** Campus Key */
             campus_key: string | null;
             /** Caption */
             caption?: string | null;
             /** Content Type */
             content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email?: string | null;
             /** Crop Focus X */
             crop_focus_x: number | null;
             /** Crop Focus Y */
             crop_focus_y: number | null;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
             /** Height */
             height: number | null;
             /**
@@ -1874,6 +2399,10 @@ export interface components {
             original_filename: string;
             /** Processing Error */
             processing_error: string | null;
+            /** Purge After */
+            purge_after?: string | null;
+            /** Replaces Media Id */
+            replaces_media_id?: string | null;
             /** Size Bytes */
             size_bytes: number;
             /** Source Attribution */
@@ -1883,16 +2412,113 @@ export interface components {
             tags?: string[];
             /** Usage Count */
             usage_count: number;
+            /** Used In */
+            used_in?: components["schemas"]["MediaUsedInOut"][];
             /** Variants */
             variants: components["schemas"]["MediaVariantOut"][];
             /** Width */
             width: number | null;
         };
         /**
+         * MediaHistoryReferenceOut
+         * @description 只剩可還原的舊版本在用：同一內容項合併成一筆。
+         */
+        MediaHistoryReferenceOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Kind */
+            kind: string;
+            /** Versions */
+            versions: number[];
+        };
+        /**
          * MediaKind
          * @enum {string}
          */
         MediaKind: "image" | "video";
+        /**
+         * MediaReferenceOut
+         * @description 一處引用：哪個內容項的哪一版、哪個欄位。
+         */
+        MediaReferenceOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Can Edit */
+            can_edit: boolean;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Field Path */
+            field_path: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string | null;
+            /** Publish At */
+            publish_at?: string | null;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** States */
+            states: ("draft" | "live" | "scheduled")[];
+            /** Version */
+            version: number;
+        };
+        /** MediaReplaceItem */
+        MediaReplaceItem: {
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** MediaReplaceReferencesOut */
+        MediaReplaceReferencesOut: {
+            /** Items */
+            items: components["schemas"]["MediaReplacedItemOut"][];
+            /**
+             * Replacement Id
+             * Format: uuid
+             */
+            replacement_id: string;
+        };
+        /** MediaReplaceReferencesRequest */
+        MediaReplaceReferencesRequest: {
+            /** Items */
+            items: components["schemas"]["MediaReplaceItem"][];
+            /**
+             * Replacement Id
+             * Format: uuid
+             */
+            replacement_id: string;
+        };
+        /** MediaReplacedItemOut */
+        MediaReplacedItemOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Field Paths */
+            field_paths: string[];
+            /** Kind */
+            kind: string;
+            /** Version */
+            version: number;
+        };
         /**
          * MediaStatus
          * @enum {string}
@@ -1915,6 +2541,50 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
+        /** MediaUploadLimitsOut */
+        MediaUploadLimitsOut: {
+            /** Image Types */
+            image_types: string[];
+            /** Max Image Bytes */
+            max_image_bytes: number;
+            /** Max Video Bytes */
+            max_video_bytes: number;
+            /** Purge Delay Days */
+            purge_delay_days: number;
+            /** Video Types */
+            video_types: string[];
+        };
+        /** MediaUsagesOut */
+        MediaUsagesOut: {
+            /** Can Archive */
+            can_archive: boolean;
+            /** Can Delete */
+            can_delete: boolean;
+            /** History */
+            history: components["schemas"]["MediaHistoryReferenceOut"][];
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+            /** References */
+            references: components["schemas"]["MediaReferenceOut"][];
+            /**
+             * Untracked Usages
+             * @default 0
+             */
+            untracked_usages: number;
+        };
+        /**
+         * MediaUsedInOut
+         * @description 最新一版用到這個素材的內容項（依 MediaUsage，去重）。
+         */
+        MediaUsedInOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Kind */
+            kind: string;
+        };
         /** MediaVariantOut */
         MediaVariantOut: {
             /** Content Type */
@@ -1929,6 +2599,105 @@ export interface components {
             kind: components["schemas"]["VariantKind"];
             /** Width */
             width: number | null;
+        };
+        /** NotificationOutboxOut */
+        NotificationOutboxOut: {
+            /** Attempts */
+            attempts: number;
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            delivered: components["schemas"]["OutboxDeliveredOut"];
+            /** Error Code */
+            error_code: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Reason */
+            reason: string | null;
+            /** Requeued At */
+            requeued_at: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
+        /** NotificationRetryBatchOut */
+        NotificationRetryBatchOut: {
+            /** Requeued */
+            requeued: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /** NotificationRetryBatchRequest */
+        NotificationRetryBatchRequest: {
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * OutboxDeliveredOut
+         * @description 這則通知已經送到的管道：站內通知、LINE 群組、已寄出的 Email 人數。
+         *     重新寄送時這些都會略過，只補還沒送到的。
+         */
+        OutboxDeliveredOut: {
+            /** Email */
+            email: number;
+            /** Inbox */
+            inbox: boolean;
+            /** Line */
+            line: boolean;
+        };
+        /**
+         * ParentAccessLinkCreatedOut
+         * @description manage_url 是可以直接給家長的完整網址（公開官網 origin＝
+         *     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
+         *     manage_url_fragment 自行組網址。兩者都含 token，只回這一次。
+         */
+        ParentAccessLinkCreatedOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Manage Url */
+            manage_url: string | null;
+            /** Manage Url Fragment */
+            manage_url_fragment: string;
+            /** Replaced Previous */
+            replaced_previous: boolean;
+        };
+        /**
+         * ParentAccessLinkOut
+         * @description 目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
+         *     後台「有沒有、什麼時候到期」。
+         */
+        ParentAccessLinkOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /**
          * ParentVisitRequestOut
@@ -1947,6 +2716,8 @@ export interface components {
             cancelled_at: string | null;
             /** Change Deadline */
             change_deadline: string | null;
+            /** Change Deadline Hours */
+            change_deadline_hours: number;
             /** Confirmed At */
             confirmed_at: string | null;
             /**
@@ -2008,6 +2779,20 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** PrivacyNoticeOut */
+        PrivacyNoticeOut: {
+            /** Sections */
+            sections: components["schemas"]["PrivacySectionOut"][];
+            /** Title */
+            title: string;
+        };
+        /** PrivacySectionOut */
+        PrivacySectionOut: {
+            /** Body */
+            body: string;
+            /** Heading */
+            heading: string;
+        };
         /**
          * PublicBookingConfigOut
          * @description 公開端點只回前端 resolveBookingAction 需要的欄位，不外洩管理用資訊。
@@ -2015,6 +2800,10 @@ export interface components {
         PublicBookingConfigOut: {
             /** Campus Key */
             campus_key: string;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
+            /** Consent Text */
+            consent_text?: string | null;
             /** External Url */
             external_url: string | null;
             /** Line Url */
@@ -2024,16 +2813,57 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Phone */
             phone: string | null;
+            privacy_notice?: components["schemas"]["PrivacyNoticeOut"] | null;
             /** Slots Auto Confirm */
             slots_auto_confirm: boolean;
             /** Version */
             version: number;
+        };
+        /**
+         * PublicMediaOut
+         * @description 公開內容引用到的素材資訊（GET /public/site 的 media）：官網用來組
+         *     srcset、套用素材預設焦點與補替代文字。檔案網址由官網依 id 組成
+         *     （/public/media/{id}/file 與 /variants/{kind}），權限跟原檔同一套。
+         */
+        PublicMediaOut: {
+            /** Alt Text */
+            alt_text: string | null;
+            /** Content Type */
+            content_type: string;
+            /** Focus X */
+            focus_x: number | null;
+            /** Focus Y */
+            focus_y: number | null;
+            /** Height */
+            height: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["MediaKind"];
+            /** Variants */
+            variants: components["schemas"]["PublicMediaVariantOut"][];
+            /** Width */
+            width: number | null;
+        };
+        /** PublicMediaVariantOut */
+        PublicMediaVariantOut: {
+            /** Height */
+            height: number | null;
+            kind: components["schemas"]["VariantKind"];
+            /** Width */
+            width: number | null;
         };
         /** PublicSiteOut */
         PublicSiteOut: {
             /** Content */
             content: {
                 [key: string]: unknown;
+            };
+            /** Media */
+            media?: {
+                [key: string]: components["schemas"]["PublicMediaOut"];
             };
             /** Release Id */
             release_id: string | null;
@@ -2067,6 +2897,48 @@ export interface components {
              * Format: time
              */
             start_time: string;
+        };
+        /**
+         * PublishJobListOut
+         * @description 全站排程清單的一列：比單一內容頁的 PublishJobOut 多了是哪一項內容。
+         */
+        PublishJobListOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Can Cancel */
+            can_cancel: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Version */
+            revision_version: number;
+            /** Status */
+            status: string;
         };
         /** PublishJobOut */
         PublishJobOut: {
@@ -2104,6 +2976,78 @@ export interface components {
              */
             revision_id: string;
         };
+        /** ReleaseChangeOut */
+        ReleaseChangeOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Kind */
+            kind: string;
+            /** Previous Revision Version */
+            previous_revision_version: number | null;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Version */
+            revision_version: number;
+        };
+        /** ReleaseOut */
+        ReleaseOut: {
+            /** Changes */
+            changes: components["schemas"]["ReleaseChangeOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Restored From Release Id */
+            restored_from_release_id: string | null;
+            /** Source */
+            source: string | null;
+        };
+        /** ReleasePageOut */
+        ReleasePageOut: {
+            /** Items */
+            items: components["schemas"]["ReleaseOut"][];
+            /** Next Before */
+            next_before: string | null;
+        };
+        /** ReleaseRestoreOut */
+        ReleaseRestoreOut: {
+            /** Changed Count */
+            changed_count: number;
+            /** Kept Count */
+            kept_count: number;
+            release: components["schemas"]["ReleaseOut"];
+        };
+        /** ReleaseRestoreRequest */
+        ReleaseRestoreRequest: {
+            /** Expected Current Release Id */
+            expected_current_release_id?: string | null;
+        };
+        /**
+         * RescheduleDecisionRequest
+         * @description 退回家長改期申請時的原因（選填）。
+         */
+        RescheduleDecisionRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** RescheduleRequestCreate */
         RescheduleRequestCreate: {
             /**
@@ -2111,6 +3055,40 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+        };
+        /**
+         * RescheduleRequestOut
+         * @description 家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
+         *     以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。
+         */
+        RescheduleRequestOut: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            current_slot: components["schemas"]["VisitSlotBriefOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Name */
+            parent_name: string;
+            requested_slot: components["schemas"]["VisitSlotBriefOut"];
+            /** Requested Slot Available */
+            requested_slot_available: boolean;
+            /** Requested Slot Remaining */
+            requested_slot_remaining: number;
+            /** Status */
+            status: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
         };
         /** ReviewDecisionRequest */
         ReviewDecisionRequest: {
@@ -2221,14 +3199,57 @@ export interface components {
             password: string;
             role: components["schemas"]["Role"];
         };
+        /**
+         * UserNotificationOut
+         * @description 給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。
+         */
+        UserNotificationOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            /** Campus Key */
+            campus_key: string | null;
+            /** Content Kind */
+            content_kind: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string | null;
+            /** Publish At */
+            publish_at: string | null;
+            /** Read At */
+            read_at: string | null;
+            /** Revision Version */
+            revision_version: number | null;
+        };
+        /** UserNotificationReadAllOut */
+        UserNotificationReadAllOut: {
+            /** Updated */
+            updated: number;
+        };
         /** UserOut */
         UserOut: {
             /** Campus Keys */
             campus_keys: string[];
             /** Capabilities */
             capabilities?: string[];
+            /** Effective Capabilities */
+            effective_capabilities: string[];
             /** Email */
             email: string;
+            /** Google Linked */
+            google_linked: boolean;
             /**
              * Id
              * Format: uuid
@@ -2273,7 +3294,7 @@ export interface components {
          * VariantKind
          * @enum {string}
          */
-        VariantKind: "thumbnail" | "poster";
+        VariantKind: "thumbnail" | "poster" | "large";
         /** VisitContactNoteCreateRequest */
         VisitContactNoteCreateRequest: {
             /** Follow Up At */
@@ -2288,6 +3309,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Created By Email */
+            created_by_email?: string | null;
             /**
              * Id
              * Format: uuid
@@ -2340,10 +3365,59 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
+        /** VisitExceptionRemovedOut */
+        VisitExceptionRemovedOut: {
+            /** Created Slots */
+            created_slots: number;
+            /** Reopened Slots */
+            reopened_slots: number;
+        };
+        /**
+         * VisitHistoryOut
+         * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
+         *     家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
+         *     before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
+         *     或下次聯絡時間，不含家長個資。
+         */
+        VisitHistoryOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** After */
+            after: {
+                [key: string]: unknown;
+            } | null;
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string | null;
+            /** Source */
+            source: string | null;
+        };
         /** VisitRequestAssignRequest */
         VisitRequestAssignRequest: {
             /** Assigned Staff Id */
             assigned_staff_id: string | null;
+        };
+        /** VisitRequestCancelRequest */
+        VisitRequestCancelRequest: {
+            /** Reason */
+            reason?: string | null;
         };
         /** VisitRequestConfirmRequest */
         VisitRequestConfirmRequest: {
@@ -2367,10 +3441,14 @@ export interface components {
             config_version: number;
             /** Consent Given */
             consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
             /** Email */
             email?: string | null;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -2398,6 +3476,15 @@ export interface components {
             child_name?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at?: string | null;
+            /**
+             * Consent Given
+             * @default true
+             */
+            consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2418,6 +3505,89 @@ export interface components {
             id: string;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time: string | null;
+            /** Questions */
+            questions: string | null;
+            /** Referral Sources */
+            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            /** Related Request Id */
+            related_request_id?: string | null;
+            slot?: components["schemas"]["VisitSlotBriefOut"] | null;
+            /** Slot Id */
+            slot_id: string | null;
+            /**
+             * Source
+             * @default web
+             * @enum {string}
+             */
+            source: "web" | "phone" | "line" | "walk_in" | "external";
+            /** Status */
+            status: string;
+        };
+        /**
+         * VisitRequestFullOut
+         * @description 案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+         *     列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。
+         */
+        VisitRequestFullOut: {
+            access_link: components["schemas"]["ParentAccessLinkOut"] | null;
+            /** Age */
+            age: string | null;
+            /** Assigned Staff Id */
+            assigned_staff_id: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at?: string | null;
+            /**
+             * Consent Given
+             * @default true
+             */
+            consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
+            /** Consent Revision Version */
+            consent_revision_version?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Follow Up At */
+            follow_up_at: string | null;
+            /** History */
+            history: components["schemas"]["VisitHistoryOut"][];
+            /** Hold Expires At */
+            hold_expires_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours: number;
+            /** Parent Name */
+            parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
+            pending_reschedule: components["schemas"]["RescheduleRequestOut"] | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -2464,6 +3634,8 @@ export interface components {
             note?: string | null;
             /** Parent Name */
             parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -2504,6 +3676,8 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * VisitRuleIn
@@ -2563,6 +3737,8 @@ export interface components {
             min_lead_hours: number;
             /** Rules */
             rules: components["schemas"]["VisitRuleOut"][];
+            /** Rules Extended On */
+            rules_extended_on?: string | null;
         };
         /** VisitScheduleUpdate */
         VisitScheduleUpdate: {
@@ -2653,6 +3829,8 @@ export interface components {
             capacity: number;
             /** Closed */
             closed: boolean;
+            /** Closed Source */
+            closed_source?: string | null;
             /**
              * End Time
              * Format: time
@@ -2882,6 +4060,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookingConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_readiness_api_website_v1_admin_booking_config__campus_key__readiness_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingReadinessOut"];
                 };
             };
             /** @description Validation Error */
@@ -3648,6 +4861,8 @@ export interface operations {
                 tag?: string | null;
                 /** @description 檔名、圖片說明、圖說或標籤片段 */
                 q?: string | null;
+                /** @description active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理 */
+                state?: "active" | "archived" | "deleted";
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -3703,6 +4918,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_limits_api_website_v1_admin_media_upload_limits_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaUploadLimitsOut"];
                 };
             };
             /** @description Validation Error */
@@ -3823,6 +5071,41 @@ export interface operations {
             };
         };
     };
+    archive_media_api_website_v1_admin_media__media_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_media_file_api_website_v1_admin_media__media_id__file_get: {
         parameters: {
             query?: never;
@@ -3884,6 +5167,394 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_media_references_api_website_v1_admin_media__media_id__replace_references_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaReplaceReferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaReplaceReferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_media_api_website_v1_admin_media__media_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unarchive_media_api_website_v1_admin_media__media_id__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_usages_api_website_v1_admin_media__media_id__usages_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaUsagesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+                variant: "thumbnail" | "poster" | "large";
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_notifications_api_website_v1_admin_my_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_my_notifications_read_api_website_v1_admin_my_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationReadAllOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_my_notification_read_api_website_v1_admin_my_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                notification_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_failed_notifications_api_website_v1_admin_notification_outbox_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOutboxOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRetryBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRetryBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                message_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOutboxOut"];
                 };
             };
             /** @description Validation Error */
@@ -3971,6 +5642,114 @@ export interface operations {
             };
         };
     };
+    list_publish_jobs_api_website_v1_admin_publish_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishJobListOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_releases_api_website_v1_admin_releases_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasePageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_release_api_website_v1_admin_releases__release_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                release_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseRestoreOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_reschedule_requests_api_website_v1_admin_reschedule_requests_get: {
         parameters: {
             query: {
@@ -3992,9 +5771,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["RescheduleRequestOut"][];
                 };
             };
             /** @description Validation Error */
@@ -4056,7 +5833,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RescheduleDecisionRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -4646,6 +6427,10 @@ export interface operations {
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
+                /** @description 送出時間排序 */
+                order?: string;
+                page?: number;
+                page_size?: number;
                 campus_key?: string | null;
                 status?: string | null;
                 /** @description 家長或寶貝姓名、電話或 Email 片段 */
@@ -4660,10 +6445,8 @@ export interface operations {
                 created_from?: string | null;
                 /** @description 送出日期迄（含），台灣日期 */
                 created_to?: string | null;
-                /** @description 送出時間排序 */
-                order?: string;
-                page?: number;
-                page_size?: number;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -4737,6 +6520,21 @@ export interface operations {
         parameters: {
             query?: {
                 campus_key?: string | null;
+                status?: string | null;
+                /** @description 家長或寶貝姓名、電話或 Email 片段 */
+                q?: string | null;
+                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
+                follow_up_due?: boolean;
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                assignee?: string | null;
+                /** @description 案件來源：web／phone／line／walk_in／external */
+                source?: string | null;
+                /** @description 送出日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 送出日期迄（含），台灣日期 */
+                created_to?: string | null;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -4789,7 +6587,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                    "application/json": components["schemas"]["VisitRequestFullOut"];
                 };
             };
             /** @description Validation Error */
@@ -4824,9 +6622,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ParentAccessLinkCreatedOut"];
                 };
             };
             /** @description Validation Error */
@@ -4892,7 +6688,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestCancelRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5334,11 +7134,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["VisitExceptionRemovedOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -5473,6 +7275,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    google_unlink_api_website_v1_auth_google_link_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -5823,6 +7656,40 @@ export interface operations {
             header?: never;
             path: {
                 media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                media_id: string;
+                variant: "thumbnail" | "poster" | "large";
             };
             cookie?: {
                 ivy_admin_session?: string | null;

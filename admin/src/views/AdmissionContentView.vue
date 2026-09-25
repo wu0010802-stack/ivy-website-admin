@@ -62,7 +62,7 @@ onMounted(editor.load)
       儲存草稿後可以先<a :href="draftPreviewUrl" target="_blank" rel="noopener">開草稿預覽 ↗</a>看效果（只有登入的管理者看得到）。
     </template>
 
-    <el-form label-position="top" @submit.prevent>
+    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="頁面提醒（顯示在頁面上方；清空就不顯示）">
         <el-input v-model="form.notice" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="例如：金額與補助依各校公告及最新政策為準" />
       </el-form-item>

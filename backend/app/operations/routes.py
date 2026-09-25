@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
@@ -14,6 +14,7 @@ from app.auth.models import User
 from app.auth.permissions import campus_scope, can_publish_shared_content, has_capability, require_scope
 from app.campuses.models import Campus
 from app.common import ratelimit
+from app.notifications.models import UserNotification
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
 from app.operations.models import SiteSettings
 
@@ -140,6 +141,15 @@ async def get_dashboard(
     if not has_capability(current_user, "booking.read"):
         # 今日名單帶家長姓名；沒有案件讀取權的角色只看數字。
         summary["today_visit_list"] = []
+    # 給自己的站內通知（送審、核准或退回、排程沒有執行）還沒讀的則數，側欄
+    # 「站內通知」旁的數字用；內容編輯也會讀這支 API。
+    summary["my_unread_notifications"] = (
+        await db.execute(
+            select(func.count())
+            .select_from(UserNotification)
+            .where(UserNotification.recipient_user_id == current_user.id, UserNotification.read_at.is_(None))
+        )
+    ).scalar_one()
     return summary
 
 

@@ -5,6 +5,8 @@ export interface VisitContact {
   childName?: string
   childBirthdate?: string
   email?: string
+  /** 參觀人數（下拉選單的值，未選為空字串） */
+  partySize?: string
 }
 
 export type VisitField = keyof VisitContact | 'visitDate' | 'slotId'
@@ -29,6 +31,14 @@ export const CONTACT_TIME_OPTIONS = [
 
 export type ContactTimeCode = (typeof CONTACT_TIME_OPTIONS)[number]['value']
 
+// 規格 L194：參觀人數 1–10（含大人與孩子）。名額仍以家庭組數計，人數給園所準備接待。
+export const PARTY_SIZE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
+
+export function isValidPartySize(value: string | number | null | undefined): boolean {
+  const size = Number(value)
+  return value !== '' && value !== null && value !== undefined && Number.isInteger(size) && size >= 1 && size <= 10
+}
+
 export function contactTimeLabel(value: string): string {
   return CONTACT_TIME_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
@@ -39,6 +49,12 @@ export function taipeiDate(now = new Date()) {
 
 export function visitDateLabel(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${value}T12:00:00+08:00`))
+}
+
+/** 線上取消／改期截止說明。期限是各校設定（預設參觀前 24 小時），整天數且超過一天時講「天」。 */
+export function changeDeadlineRule(hours: number | null | undefined) {
+  if (!hours || hours < 1) return ''
+  return hours >= 48 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
 }
 
 export function isValidDate(value: string) {
@@ -67,6 +83,8 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
   }
+  // 舊呼叫端不帶人數；新版表單未選時是空字串。
+  if (contact.partySize !== undefined && !isValidPartySize(contact.partySize)) errors.partySize = '請選擇參觀人數。'
   if (contact.email?.trim() && (contact.email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))) errors.email = '請填寫有效的 Email，例如 name@example.com。'
   return errors
 }

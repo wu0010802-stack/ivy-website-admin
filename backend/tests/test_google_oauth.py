@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import time
+import uuid
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -292,3 +293,107 @@ async def test_google_production_handshake_cookie_is_secure(app, google_provider
         assert "max-age=600" in cookie
         assert "samesite=lax" in cookie
     await oauth_app.state.engine.dispose()
+
+
+async def _audit_rows(db_session, action):
+    from app.operations.models import AuditLogEntry
+
+    db_session.expire_all()
+    return (await db_session.execute(
+        select(AuditLogEntry).where(AuditLogEntry.action == action).order_by(AuditLogEntry.created_at)
+    )).scalars().all()
+
+
+async def test_google_login_success_is_audited_and_shown_as_linked(google_client, google_provider, db_session):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user_id = user.id
+    state = await start(google_client, google_provider)
+    assert (await finish(google_client, state)).headers["location"].startswith("/admin/visit-requests")
+    [entry] = await _audit_rows(db_session, "user.login_google")
+    assert entry.actor_user_id == user_id and entry.target_id == str(user_id)
+    assert len(await _audit_rows(db_session, "user.link_google")) == 1
+    me = (await google_client.get(f"{ROOT}/me")).json()["user"]
+    assert me["google_linked"] is True
+
+
+@pytest.mark.parametrize(("overrides", "active", "reason", "known_user"), [
+    ({"email": "staff@example.org"}, True, "unsupported_account", False),
+    ({"email": "unknown@gmail.com"}, True, "no_matching_account", False),
+    ({"email_verified": False}, True, "unverified_email", False),
+    ({}, False, "inactive", True),
+])
+async def test_google_login_failures_are_audited_without_identity_details(
+    google_client, google_provider, db_session, overrides, active, reason, known_user
+):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    await _create_user(db_session, "staff@example.org", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user_id = user.id
+    user.is_active = active
+    await db_session.commit()
+    google_provider["overrides"] = overrides
+    state = await start(google_client, google_provider)
+    assert "oauth_error=not_allowed" in (await finish(google_client, state)).headers["location"]
+    [entry] = await _audit_rows(db_session, "user.login_google_failed")
+    assert entry.metadata_json == {"reason": reason}
+    assert entry.target_id == (str(user_id) if known_user else "unknown")
+    assert "google-person-123" not in str(entry.metadata_json)
+    assert await _audit_rows(db_session, "user.login_google") == []
+
+
+async def test_google_cancel_is_audited_but_stray_callbacks_are_not(google_client, google_provider, db_session):
+    # 沒有走過 /google/login 握手的 callback 不寫稽核（避免被灌爆）。
+    stray = await google_client.get(f"{ROOT}/google/callback", params={"state": "x", "code": "y"})
+    assert "oauth_error=failed" in stray.headers["location"]
+    assert await _audit_rows(db_session, "user.login_google_failed") == []
+
+    state = await start(google_client, google_provider)
+    await finish(google_client, state, error="access_denied")
+    [entry] = await _audit_rows(db_session, "user.login_google_failed")
+    assert entry.metadata_json == {"reason": "cancelled"}
+
+
+async def test_google_callback_counts_toward_login_rate_limit(google_client, monkeypatch):
+    from app.common import ratelimit
+
+    monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_google_test", 300, 3))
+    locations = [
+        (await google_client.get(f"{ROOT}/google/callback", params={"state": "x", "code": "y"})).headers["location"]
+        for _ in range(4)
+    ]
+    assert all("oauth_error=failed" in loc for loc in locations[:3])
+    assert locations[3] == "/admin/login?oauth_error=rate_limited"
+
+
+async def test_google_unlink_clears_binding_and_is_audited(google_client, google_provider, db_session):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user_id = user.id
+    state = await start(google_client, google_provider)
+    await finish(google_client, state)
+    me = await google_client.get(f"{ROOT}/me")
+    csrf = me.json()["csrf_token"]
+
+    assert (await google_client.delete(f"{ROOT}/google/link")).status_code == 403  # 沒帶 CSRF
+    response = await google_client.delete(f"{ROOT}/google/link", headers={"x-csrf-token": csrf})
+    assert response.status_code == 204
+    assert response.headers["cache-control"] == "no-store"
+    await db_session.refresh(user)
+    assert user.google_sub is None
+    [entry] = await _audit_rows(db_session, "user.unlink_google")
+    assert entry.actor_user_id == user_id
+    assert (await google_client.get(f"{ROOT}/me")).json()["user"]["google_linked"] is False
+
+    # 已經沒有綁定時再按一次不寫第二筆稽核。
+    assert (await google_client.delete(f"{ROOT}/google/link", headers={"x-csrf-token": csrf})).status_code == 204
+    assert len(await _audit_rows(db_session, "user.unlink_google")) == 1
+
+
+async def test_google_unlink_works_when_google_login_is_disabled(admin_client, db_session):
+    me = (await admin_client.get(f"{ROOT}/me")).json()["user"]
+    user = await db_session.get(User, uuid.UUID(me["id"]))
+    user.google_sub = "old-google-person"
+    await db_session.commit()
+    listed = (await admin_client.get("/api/website/v1/admin/users")).json()
+    assert [u["google_linked"] for u in listed if u["id"] == me["id"]] == [True]
+    assert (await admin_client.delete(f"{ROOT}/google/link")).status_code == 204
+    await db_session.refresh(user)
+    assert user.google_sub is None

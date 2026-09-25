@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -42,6 +42,9 @@ class ContentItem(Base):
     current_published_revision_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("content_revisions.id", ondelete="SET NULL", use_alter=True), nullable=True
     )
+    # 官網上的版本最近一次換掉的時間（發布、核准、排程、還原都算）。排程到期時
+    # 用它判斷「排好之後有沒有人另外發布過」，總覽用它判斷排程失敗後是否已處理。
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     revisions: Mapped[list["ContentRevision"]] = relationship(
         back_populates="content_item",
@@ -50,8 +53,20 @@ class ContentItem(Base):
     )
 
 
+# 審核狀態：draft → pending_review →（approved 並發布｜rejected 附原因）；
+# 送審之後又存了新版、或另外發布／還原了較新的版本，舊的待審版改成
+# superseded（已被取代），不再出現在待審清單與總覽。
+REVIEW_STATUSES = ("draft", "pending_review", "approved", "rejected", "superseded")
+
+
 class ContentRevision(Base):
     __tablename__ = "content_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status IN ('draft', 'pending_review', 'approved', 'rejected', 'superseded')",
+            name="ck_content_revisions_review_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     content_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -59,6 +74,9 @@ class ContentRevision(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # 存檔當下這種內容的欄位規則版本（registry 的 schema_version）。欄位規則
+    # 有不相容的改動時調高，還原或發布舊版就知道要不要先轉換或重新驗證。
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -83,6 +101,17 @@ class ContentRevision(Base):
     )
 
 
+class ReleaseSource:
+    """這次 release 是怎麼來的（發布紀錄頁顯示用）。舊資料沒有記錄，為 NULL。"""
+
+    PUBLISH = "publish"
+    REVIEW = "review"
+    SCHEDULED = "scheduled"
+    RESTORE = "restore"
+    RELEASE_RESTORE = "release_restore"
+    INITIALIZE = "initialize"
+
+
 class SiteRelease(Base):
     """一次發布產生一筆 release；`entries` 記錄該次 release 涵蓋的
     每個 content item 對應哪個 revision，形成完整 manifest 快照。"""
@@ -93,7 +122,12 @@ class SiteRelease(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    source: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # 整站還原產生的 release 記下還原的是哪一次；不刪任何歷史。
+    restored_from_release_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("site_releases.id", ondelete="SET NULL"), nullable=True
+    )
 
     entries: Mapped[list["SiteReleaseEntry"]] = relationship(
         back_populates="release", cascade="all, delete-orphan"
@@ -143,7 +177,8 @@ class PublishJob(Base):
         ForeignKey("content_revisions.id", ondelete="CASCADE"), nullable=False
     )
     publish_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    # scheduled | done | failed | cancelled
+    # scheduled | done | failed | skipped | cancelled。skipped＝到期時官網已經是
+    # 較新的版本（排好之後有人另外發布），不蓋回舊內容。
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="scheduled", server_default="scheduled")
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(

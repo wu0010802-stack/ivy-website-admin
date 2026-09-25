@@ -3,12 +3,17 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.booking.models import BookingMode
-from app.booking.parent_policy import parent_change_deadline, parent_change_open
+from app.booking.parent_policy import (
+    MAX_CHANGE_DEADLINE_HOURS,
+    MIN_CHANGE_DEADLINE_HOURS,
+    parent_change_deadline,
+    parent_change_open,
+)
 from app.common.timezones import today_local
 
 ReferralSource = Literal["facebook", "google_reviews", "parent_community", "friends_family", "other"]
@@ -99,6 +104,8 @@ class BookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     slots_auto_confirm: bool
+    # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
+    parent_change_deadline_hours: int
 
     model_config = {"from_attributes": True}
 
@@ -115,11 +122,66 @@ class BookingConfigUpdateRequest(BaseModel):
     # 規格 197／222：slots 預設為人工確認（家長看到「待園方確認」），
     # 園方要自動確認才明確打開。
     slots_auto_confirm: bool = False
+    # 省略＝維持原設定（沒有這個欄位的舊版後台存檔時不會把它改回預設）。
+    parent_change_deadline_hours: int | None = Field(
+        default=None, ge=MIN_CHANGE_DEADLINE_HOURS, le=MAX_CHANGE_DEADLINE_HOURS
+    )
 
     @field_validator("line_url", "external_url")
     @classmethod
     def _links_safe(cls, value: str | None) -> str | None:
         return _validate_public_link(value)
+
+
+class BookingReadinessReason(BaseModel):
+    """某個預約方式還不能啟用的原因。code 是固定代碼，message 是給園方看的中文。"""
+
+    code: str
+    message: str
+
+
+class BookingImpactOut(BaseModel):
+    """切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
+    照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。"""
+
+    # 還沒結案的案件（待處理、聯絡中、待園方確認、已確認）。
+    open_requests: int
+    new_requests: int
+    contacting: int
+    pending_confirmation: int
+    # 已確認、時段還沒開始：家長會照原時間來。
+    upcoming_confirmed: int
+    # 官網目前可以預約的場次（與公開查詢同一個判斷：開放中、在開放區間、還有名額）。
+    bookable_slots: int
+    weekly_rules: int
+
+
+class BookingConsentBriefOut(BaseModel):
+    revision_id: uuid.UUID
+    version: int
+    has_privacy_notice: bool
+
+
+class BookingReadinessOut(BaseModel):
+    """各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+    連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
+    條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。"""
+
+    campus_key: str
+    current_mode: BookingMode
+    consent: BookingConsentBriefOut | None
+    blockers: dict[BookingMode, list[BookingReadinessReason]]
+    impact: BookingImpactOut
+
+
+class PrivacySectionOut(BaseModel):
+    heading: str
+    body: str
+
+
+class PrivacyNoticeOut(BaseModel):
+    title: str
+    sections: list[PrivacySectionOut]
 
 
 class PublicBookingConfigOut(BaseModel):
@@ -133,6 +195,13 @@ class PublicBookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     slots_auto_confirm: bool
+    # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
+    # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
+    # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
+    consent_revision_id: uuid.UUID | None = None
+    consent_text: str | None = None
+    # 同一版的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
+    privacy_notice: PrivacyNoticeOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -150,7 +219,11 @@ class _VisitRequestFields(BaseModel):
     referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=5)
     age: AgeCode | None = None
     preferred_time: ContactTimeCode | None = None
-    questions: str | None = Field(default=None, max_length=1000)
+    # 規格 L192：問題最多 500 字（官網表單與補登都是）。DB 欄位仍是 1000，
+    # 以前收過的長問題照常讀得出來。
+    questions: str | None = Field(default=None, max_length=500)
+    # 規格 L194：參觀人數 1–10。補登沒問到可以不填；官網新送的需求必填（見 VisitRequestCreate）。
+    party_size: int | None = Field(default=None, ge=1, le=10)
     consent_given: bool
 
     @field_validator("age", mode="before")
@@ -205,6 +278,13 @@ class _VisitRequestFields(BaseModel):
 
 class VisitRequestCreate(_VisitRequestFields):
     config_version: int
+    # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
+    # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
+    # 需求重試時（當時表單沒有人數）仍能回到原案件。
+    # 家長看到的同意說明版本（公開預約設定的 consent_revision_id）。沒帶或
+    # 已不是發布中的內容回 409 CONSENT_VERSION_CHANGED，前端重新載入後請家長
+    # 重新閱讀、勾選。不算進 idempotency 的 payload hash，見 service._hash_payload。
+    consent_revision_id: uuid.UUID | None = None
 
 
 
@@ -249,6 +329,7 @@ class CalendarVisitOut(BaseModel):
     phone: str
     source: str
     assigned_staff_id: uuid.UUID | None
+    party_size: int | None = None
 
 
 class CalendarSlotOut(BaseModel):
@@ -277,6 +358,8 @@ class VisitSlotOut(BaseModel):
     end_time: time
     capacity: int
     closed: bool
+    # manual＝園方手動關閉、exception＝休假日關閉；開放中或舊資料為 None。
+    closed_source: str | None = None
     booked_count: int
 
     model_config = {"from_attributes": True}
@@ -341,6 +424,13 @@ class VisitRequestDetailOut(BaseModel):
     age: str | None
     preferred_time: str | None
     questions: str | None
+    # 參觀人數；舊案件與沒問到人數的補登為 None（畫面顯示「未填」）。
+    party_size: int | None = None
+    # 同意紀錄（規格 L196）：官網送單記錄家長看到的同意說明版本與伺服器接受
+    # 時間；補登由人員代勾，沒有版本。
+    consent_given: bool = True
+    consent_revision_id: uuid.UUID | None = None
+    consent_accepted_at: datetime | None = None
     slot_id: uuid.UUID | None
     # 未排時段（inquiry 待處理）時為 None。序列化會讀 VisitRequest.slot
     # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
@@ -381,12 +471,15 @@ class ParentVisitRequestOut(BaseModel):
     hold_expires_at: datetime | None
     created_at: datetime
     change_deadline: datetime | None
+    # 該校設定的「參觀前幾小時截止」，家長頁的說明文字用。
+    change_deadline_hours: int
     can_cancel: bool
     can_reschedule: bool
     reschedule_pending: bool = False
 
     @classmethod
-    def from_visit_request(cls, visit_request) -> "ParentVisitRequestOut":
+    def from_visit_request(cls, visit_request, *, deadline_hours: int) -> "ParentVisitRequestOut":
+        change_open = parent_change_open(visit_request, deadline_hours)
         return cls(
             id=visit_request.id,
             campus_key=visit_request.campus_key,
@@ -401,9 +494,10 @@ class ParentVisitRequestOut(BaseModel):
             cancelled_at=visit_request.cancelled_at,
             hold_expires_at=visit_request.hold_expires_at,
             created_at=visit_request.created_at,
-            change_deadline=parent_change_deadline(visit_request),
-            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and parent_change_open(visit_request),
-            can_reschedule=visit_request.status == "confirmed" and parent_change_open(visit_request),
+            change_deadline=parent_change_deadline(visit_request, deadline_hours),
+            change_deadline_hours=deadline_hours,
+            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
+            can_reschedule=visit_request.status == "confirmed" and change_open,
         )
 
 
@@ -411,6 +505,9 @@ class VisitContactNoteOut(BaseModel):
     id: uuid.UUID
     note: str
     created_at: datetime
+    # 誰記的：同一校多人接手時要知道找誰問。帳號刪除後為 None。
+    created_by: uuid.UUID | None = None
+    created_by_email: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -419,8 +516,88 @@ class VisitRequestConfirmRequest(BaseModel):
     slot_id: uuid.UUID
 
 
+# 人員填的原因（選填），記在案件歷程；匿名化時清掉。
+ReasonText = Annotated[str | None, Field(max_length=500)]
+
+
 class VisitRequestRescheduleRequest(BaseModel):
     new_slot_id: uuid.UUID
+    reason: ReasonText = None
+
+
+class VisitRequestCancelRequest(BaseModel):
+    reason: ReasonText = None
+
+
+class RescheduleDecisionRequest(BaseModel):
+    """退回家長改期申請時的原因（選填）。"""
+
+    reason: ReasonText = None
+
+
+class VisitHistoryOut(BaseModel):
+    """案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
+    家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
+    before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
+    或下次聯絡時間，不含家長個資。"""
+
+    id: uuid.UUID
+    event_type: str
+    source: str | None
+    actor_user_id: uuid.UUID | None
+    actor_email: str | None
+    before: dict | None
+    after: dict | None
+    reason: str | None
+    created_at: datetime
+
+
+class RescheduleRequestOut(BaseModel):
+    """家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
+    以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。"""
+
+    id: uuid.UUID
+    visit_request_id: uuid.UUID
+    campus_key: str
+    status: str
+    parent_name: str
+    current_slot: VisitSlotBriefOut | None
+    requested_slot: VisitSlotBriefOut
+    requested_slot_remaining: int
+    requested_slot_available: bool
+    created_at: datetime
+
+
+class ParentAccessLinkOut(BaseModel):
+    """目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
+    後台「有沒有、什麼時候到期」。"""
+
+    created_at: datetime
+    expires_at: datetime
+
+
+class ParentAccessLinkCreatedOut(BaseModel):
+    """manage_url 是可以直接給家長的完整網址（公開官網 origin＝
+    WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
+    manage_url_fragment 自行組網址。兩者都含 token，只回這一次。"""
+
+    manage_url: str | None
+    manage_url_fragment: str
+    expires_at: datetime
+    replaced_previous: bool
+
+
+class VisitRequestFullOut(VisitRequestDetailOut):
+    """案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+    列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。"""
+
+    history: list[VisitHistoryOut]
+    pending_reschedule: RescheduleRequestOut | None
+    access_link: ParentAccessLinkOut | None
+    # 該校的家長線上異動期限（參觀前幾小時），產生連結時要跟家長講清楚。
+    parent_change_deadline_hours: int
+    # consent_revision_id 是「預約文案」的第幾版，明細顯示用。
+    consent_revision_version: int | None = None
 
 
 class VisitContactNoteCreateRequest(BaseModel):
@@ -467,7 +644,15 @@ class VisitExceptionOut(BaseModel):
 
 class VisitExceptionCreatedOut(VisitExceptionOut):
     closed_slots: int
+    # 當天仍要來參觀的案件數；這些案件會出現在案件清單的「待人工處理」。
     affected_requests: int
+
+
+class VisitExceptionRemovedOut(BaseModel):
+    # 因這個休假日關閉、現在重新開放的時段（手動關閉的不動）。
+    reopened_slots: int
+    # 休假期間沒產生的場次，依每週規則補上的數量。
+    created_slots: int
 
 
 class VisitScheduleOut(BaseModel):
@@ -476,6 +661,8 @@ class VisitScheduleOut(BaseModel):
     max_advance_days: int
     rules: list[VisitRuleOut]
     exceptions: list[VisitExceptionOut]
+    # 定期工作上次依規則補時段的台灣日期；還沒補過（或剛改規則）為 None。
+    rules_extended_on: date | None = None
 
 
 class VisitScheduleUpdate(BaseModel):

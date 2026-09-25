@@ -12,6 +12,10 @@ from app.booking.models import OutboxMessage
 from app.operations.models import AnalyticsEvent, AuditLogEntry
 from tests.conftest import _create_user, _logged_in_client
 
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 BASE = "/api/website/v1/admin"
 
 

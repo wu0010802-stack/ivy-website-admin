@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
+import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 
@@ -13,24 +13,54 @@ interface TodayVisit {
   end_time: string
 }
 
+// 最新一版還沒上官網的內容項（從未發布，或發布後又存了新草稿）。
+interface PendingPublishItem {
+  kind: string
+  campus_key: string | null
+  latest_version: number
+  published_version: number | null
+  updated_at: string | null
+}
+
+// 官網上或最新草稿引用的素材已被刪除（missing）或還沒處理好（not_ready）。
+interface MediaIssue {
+  kind: string
+  campus_key: string | null
+  missing: number
+  not_ready: number
+  /** 官網上的版本就有問題（家長看到破圖或備用圖）；否則只有草稿有問題 */
+  live: boolean
+}
+
+// 排程到點沒有發布（檢查不過），而且之後還沒有人發布過這項內容。
+interface FailedPublishJob {
+  id: string
+  kind: string
+  campus_key: string | null
+  revision_version: number
+  publish_at: string
+  error: string | null
+}
+
 interface DashboardSummary {
   today_visits: number
   today_visit_list?: TodayVisit[]
   new_requests?: number
   awaiting_confirmation?: number
   next_hold_expires_at?: string | null
+  pending_reschedule_requests?: number
+  needs_attention?: number
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
+  pending_publish_items?: PendingPublishItem[]
+  content_media_issues?: MediaIssue[]
+  failed_publish_jobs?: FailedPublishJob[]
   pending_review?: number
   campuses_without_active_booking: string[]
+  // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
+  campuses_slots_without_openings?: string[]
   failed_notifications: number
-}
-
-// 內容 kind 與編輯頁路由同形，只差底線與連字號（home_hero → /content/home-hero）。
-function kindPath(kind: string): string {
-  if (kind === 'admission_content') return '/content/admission'
-  return `/content/${kind.replace(/_/g, '-')}`
 }
 
 interface PendingReview { kind: string; campus_key: string | null; revision_id: string; submitted_by_email: string | null }
@@ -70,26 +100,51 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
 
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
+const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
+// 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
+const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 // 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
 // 沒有才是新需求。按鈕上的字與數字講的就是點進去那一批，不把兩批加總
 // 之後只帶去其中一批。最早送出的先處理，占位也是最早到期的在前面。
 const primary = computed(() => {
   if (awaiting.value > 0) return { to: '/visit-requests?status=pending_confirmation&order=oldest', label: '確認時段預約', count: awaiting.value }
+  // 家長在等園方回覆能不能改期，原時段也可能快到了，排在新需求前面。
+  if (reschedules.value > 0) return { to: '/notifications', label: '核准改期申請', count: reschedules.value }
   if (newRequests.value > 0) return { to: '/visit-requests?status=new&order=oldest', label: '聯絡新需求', count: newRequests.value }
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
 const openCount = computed(() => newRequests.value + awaiting.value)
+const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
+const pendingPublishItems = computed(() => summary.value?.pending_publish_items ?? [])
+const mediaIssues = computed(() => summary.value?.content_media_issues ?? [])
+const failedJobs = computed(() => summary.value?.failed_publish_jobs ?? [])
+
+function mediaIssueText(issue: MediaIssue): string {
+  const parts: string[] = []
+  if (issue.missing) parts.push(`${issue.missing} 個已刪除`)
+  if (issue.not_ready) parts.push(`${issue.not_ready} 個還沒處理好`)
+  return `${issue.live ? '官網上' : '草稿'}${parts.join('、')}`
+}
+
+function pendingPublishText(item: PendingPublishItem): string {
+  return item.published_version === null ? '從未發布' : `官網第 ${item.published_version} 版，最新第 ${item.latest_version} 版`
+}
 
 const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
     openCount.value > 0 ||
+    reschedules.value > 0 ||
+    needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
     s.pending_publish > 0 ||
     reviews.value.length > 0 ||
     s.failed_notifications > 0 ||
-    s.campuses_without_active_booking.length > 0
+    mediaIssues.value.length > 0 ||
+    failedJobs.value.length > 0 ||
+    s.campuses_without_active_booking.length > 0 ||
+    slotsWithoutOpenings.value.length > 0
   )
 })
 
@@ -130,9 +185,17 @@ onMounted(load)
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title"><h2 id="tasks-title">待辦與提醒</h2><span class="hint">依目前資料顯示</span></div>
           <div class="panel dash__task-list">
+            <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()">
+              <span class="task__number">{{ needsAttention }}</span>
+              <div><h3>時段已關閉或分校停用，家長還要來</h3><p>這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園。</p><span class="task__action">查看待人工處理的案件 →</span></div>
+            </router-link>
             <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
               <span class="task__number">{{ awaiting }}</span>
               <div><h3>時段預約等園方確認</h3><p>家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span class="task__action">從最早送出的開始確認 →</span></div>
+            </router-link>
+            <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications">
+              <span class="task__number">{{ reschedules }}</span>
+              <div><h3>家長申請改期，等你核准</h3><p>家長用管理連結申請換場次；核准前原時段仍有效。核准或退回後請告知家長。</p><span class="task__action">查看改期申請 →</span></div>
             </router-link>
             <router-link v-if="newRequests > 0" class="task" to="/visit-requests?status=new&order=oldest">
               <span class="task__number">{{ newRequests }}</span>
@@ -146,30 +209,68 @@ onMounted(load)
               <span class="task__number">{{ summary.campuses_without_active_booking.length }}</span>
               <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(summary.campuses_without_active_booking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span class="task__action">檢查各校預約方式 →</span></div>
             </router-link>
+            <router-link v-if="slotsWithoutOpenings.length" class="task" to="/slots">
+              <span class="task__number">{{ slotsWithoutOpenings.length }}</span>
+              <div><h3>開放選時段，但沒有可預約的場次</h3><p>{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。請新增場次或每週開放規則，或改用其他預約方式。</p><span class="task__action">安排參觀時段 →</span></div>
+            </router-link>
             <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications">
               <span class="task__number">{{ summary.failed_notifications }}</span>
-              <div><h3>通知需要確認</h3><p>查看寄送失敗原因，再決定是否重新寄送。</p><span class="task__action">查看通知 →</span></div>
+              <div><h3>通知寄送失敗</h3><p>自動重試後仍沒送出的 Email 或 LINE 通知。查看失敗原因，修好設定後重新寄送。</p><span class="task__action">查看並重新寄送 →</span></div>
             </router-link>
+            <div v-if="failedJobs.length > 0" class="task task--urgent">
+              <span class="task__number">{{ failedJobs.length }}</span>
+              <div>
+                <h3>排程發布沒有執行</h3>
+                <p>時間到了但檢查沒通過，官網還是舊內容。看過原因、修好後直接發布或重新排程。</p>
+                <ul class="task__rows">
+                  <li v-for="job in failedJobs" :key="job.id">
+                    <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} →</router-link>
+                    <span>{{ formatDateTime(job.publish_at) }}・第 {{ job.revision_version }} 版{{ job.error ? `：${job.error}` : '' }}</span>
+                  </li>
+                </ul>
+                <router-link class="task__action" to="/releases?tab=schedules">查看全站排程 →</router-link>
+              </div>
+            </div>
             <div v-if="reviews.length > 0" class="task">
               <span class="task__number">{{ reviews.length }}</span>
               <div>
                 <h3>內容等你審核</h3>
                 <p>內容編輯送上來的修改，核准後才會出現在官網；需要修改就退回並寫原因。</p>
                 <span class="task__kinds">
-                  <router-link v-for="r in reviews" :key="r.revision_id" :to="kindPath(r.kind)">
-                    {{ CONTENT_KIND_LABELS[r.kind] ?? r.kind }}{{ r.campus_key ? `（${campusLabel(r.campus_key)}）` : '' }} →
+                  <router-link v-for="r in reviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
+                    {{ contentItemLabel(r.kind, r.campus_key) }} →
                   </router-link>
                 </span>
+              </div>
+            </div>
+            <div v-if="mediaIssues.length > 0" class="task">
+              <span class="task__number">{{ mediaIssues.length }}</span>
+              <div>
+                <h3>內容缺少素材或素材還沒處理好</h3>
+                <p>引用的照片或影片已從素材庫刪除，或還在處理、處理失敗。官網上的版本有問題時家長會看到備用圖；草稿有問題則發布不了。請換一張素材。</p>
+                <ul class="task__rows">
+                  <li v-for="issue in mediaIssues" :key="`${issue.kind}-${issue.campus_key ?? ''}`">
+                    <router-link :to="contentEditorPath(issue.kind, issue.campus_key)">{{ contentItemLabel(issue.kind, issue.campus_key) }} →</router-link>
+                    <span :class="{ 'is-live': issue.live }">{{ mediaIssueText(issue) }}</span>
+                  </li>
+                </ul>
+                <router-link class="task__action" to="/media">查看素材庫 →</router-link>
               </div>
             </div>
             <div v-if="summary.pending_publish > 0" class="task">
               <span class="task__number">{{ summary.pending_publish }}</span>
               <div>
                 <h3>草稿尚未公開</h3>
-                <p>這些內容存過草稿，官網顯示的還是舊版。檢查後再發布。</p>
-                <span class="task__kinds">
-                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="kindPath(kind)">
-                    {{ CONTENT_KIND_LABELS[kind] ?? kind }} →
+                <p>這些內容存過草稿，官網顯示的還是舊版或預設文字。檢查後再發布。</p>
+                <ul v-if="pendingPublishItems.length" class="task__rows">
+                  <li v-for="item in pendingPublishItems" :key="`${item.kind}-${item.campus_key ?? ''}`">
+                    <router-link :to="contentEditorPath(item.kind, item.campus_key)">{{ contentItemLabel(item.kind, item.campus_key) }} →</router-link>
+                    <span>{{ pendingPublishText(item) }}<template v-if="item.updated_at">・{{ formatDateTime(item.updated_at) }} 儲存</template></span>
+                  </li>
+                </ul>
+                <span v-else class="task__kinds">
+                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="contentEditorPath(kind)">
+                    {{ contentItemLabel(kind) }} →
                   </router-link>
                 </span>
               </div>
@@ -219,6 +320,11 @@ onMounted(load)
 .today__go { color: var(--ink-3); }
 .task__kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
 .task__kinds a { color: var(--el-color-primary); font-weight: 500; font-size: 14px; }
+.task__rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-size: 14px; }
+.task__rows a { color: var(--el-color-primary); font-weight: 500; }
+.task__rows span { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.task__rows span.is-live { color: var(--el-color-danger); }
 .dash__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
 .section__title h2 { font-size: 17px; }
 .task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }

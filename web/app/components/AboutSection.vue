@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { responsiveImage } from '~/utils/responsive-image'
+import { pickImage } from '~/utils/media-image'
 import type { AboutContent } from '~/types/site-content'
 import { useCurtain, useRelayProgress } from '~/composables/useCurtain'
 
@@ -47,8 +47,9 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
             </div>
             <figure v-if="photo" class="belief-photo">
               <img
-                v-bind="responsiveImage(photo.image, '(max-width: 900px) 90vw, 42vw')"
+                v-bind="pickImage(photo.image, photo.media, '(max-width: 900px) 90vw, 42vw')"
                 :alt="photo.alt"
+                :style="photo.media?.position ? { objectPosition: photo.media.position } : undefined"
                 loading="lazy"
                 fetchpriority="low"
                 decoding="async"

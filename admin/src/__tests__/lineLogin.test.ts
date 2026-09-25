@@ -10,6 +10,7 @@ import { api, ApiError } from '../api/client'
 import { browser } from '../api/oauth'
 import { useAuthStore } from '../stores/auth'
 import type { UserOut } from '../api/types'
+import { testUser } from './fixtures'
 
 const AUTHORIZE = 'https://access.line.me/oauth2/v2.1/authorize?client_id=1234567890&state=abc'
 
@@ -21,10 +22,7 @@ afterEach(() => {
 })
 
 function staff(overrides: Partial<UserOut> = {}): UserOut {
-  return {
-    id: 'local-test', email: 'staff@ivy.example', role: 'campus_admin', is_active: true,
-    campus_keys: ['renwu'], line_linked: false, ...overrides,
-  }
+  return testUser('campus_admin', { email: 'staff@ivy.example', campus_keys: ['renwu'], ...overrides })
 }
 
 async function mountAt(component: typeof LoginView, path: string, user?: UserOut) {

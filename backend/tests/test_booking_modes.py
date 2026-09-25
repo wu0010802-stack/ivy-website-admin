@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from tests.conftest import add_weekly_rule
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 
 def _inquiry_payload(campus_key="yihua", config_version=1, parent_name="陳媽媽", phone="0912345678"):
     return {
@@ -35,8 +41,18 @@ async def test_default_mode_is_paused(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_slots_mode_can_be_enabled(admin_client):
-    # Task 7 起 slots 已開放；不需要額外欄位即可啟用。
+async def test_slots_mode_requires_bookable_slots_or_weekly_rule(admin_client):
+    # 規格 L172：沒有場次也沒有每週規則時開 slots，家長進到表單什麼都選不了。
+    blocked = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": 0, "mode": "slots"},
+    )
+    assert blocked.status_code == 400
+    detail = blocked.json()["detail"]
+    assert detail["code"] == "BOOKING_MODE_NOT_READY"
+    assert [r["code"] for r in detail["reasons"]] == ["NO_SLOTS_OR_RULES"]
+
+    await add_weekly_rule(admin_client)
     response = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
         json={"expected_version": 0, "mode": "slots"},
@@ -46,13 +62,37 @@ async def test_slots_mode_can_be_enabled(admin_client):
 
 
 @pytest.mark.asyncio
+async def test_slots_mode_can_be_enabled_with_a_bookable_slot(admin_client):
+    from datetime import date, timedelta
+
+    slot = await admin_client.post(
+        "/api/website/v1/admin/slots?campus_key=yihua",
+        json={
+            "slot_date": (date.today() + timedelta(days=5)).isoformat(),
+            "start_time": "10:00:00",
+            "end_time": "11:00:00",
+            "capacity": 2,
+        },
+    )
+    assert slot.status_code == 201
+    response = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": 0, "mode": "slots"},
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.asyncio
 async def test_line_mode_requires_line_url(admin_client):
     response = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
         json={"expected_version": 0, "mode": "line"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "BOOKING_MODE_FIELD_MISSING"
+    detail = response.json()["detail"]
+    assert detail["code"] == "BOOKING_MODE_NOT_READY"
+    assert [r["code"] for r in detail["reasons"]] == ["LINE_URL_REQUIRED"]
+    assert "LINE 官方帳號連結" in detail["message"]
 
 
 @pytest.mark.asyncio
@@ -85,7 +125,15 @@ async def test_external_mode_requires_url(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_paused_mode_needs_no_fields(admin_client):
+async def test_paused_mode_requires_a_message(admin_client):
+    # 規格 L176：暫停時家長看到的是暫停說明，不能空白。
+    blocked = await admin_client.patch(
+        "/api/website/v1/admin/booking-config/yihua",
+        json={"expected_version": 0, "mode": "paused", "message": "  "},
+    )
+    assert blocked.status_code == 400
+    assert [r["code"] for r in blocked.json()["detail"]["reasons"]] == ["PAUSED_MESSAGE_REQUIRED"]
+
     response = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
         json={"expected_version": 0, "mode": "paused", "message": "暫停參觀"},

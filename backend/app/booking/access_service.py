@@ -10,8 +10,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
-from app.booking import slot_service
+from app.booking import history, slot_service
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.outbox import enqueue_outbox
 
 TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
@@ -20,6 +21,9 @@ SESSION_TTL = timedelta(hours=2)
 # 電腦各開幾次）遠低於這個數字，超過時刪除最舊的。
 MAX_ACTIVE_SESSIONS_PER_REQUEST = 10
 _TOKEN_BYTES = 32
+# 家長送出改期申請時寫的 outbox kind；站內通知、LINE、Email 的標籤見
+# notifications/service.py 的 _KIND_LABELS 與後台 labels.ts。
+RESCHEDULE_REQUESTED_KIND = "visit_reschedule_requested"
 
 
 class TokenInvalid(Exception):
@@ -30,20 +34,22 @@ def _hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> str:
+async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> tuple[str, datetime]:
+    """回傳 (原始 token, 到期時間)。原始 token 只有這一次拿得到。"""
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     now = datetime.now(timezone.utc)
+    expires_at = now + TOKEN_TTL
     db.add(
         ParentAccessToken(
             id=uuid.uuid4(),
             visit_request_id=visit_request_id,
             token_hash=_hash(raw_token),
             created_at=now,
-            expires_at=now + TOKEN_TTL,
+            expires_at=expires_at,
         )
     )
     await db.flush()
-    return raw_token
+    return raw_token, expires_at
 
 
 async def revoke_access_for_visit_request(db: AsyncSession, visit_request_id: uuid.UUID) -> None:
@@ -169,7 +175,14 @@ async def create_reschedule_request(
 
     但「不動時段」不代表可以不驗證：原本直接把家長傳來的 UUID 寫進去，
     不存在的 slot 會撞 FK 變成 500，別校的 slot 則會建立一筆永遠卡在
-    pending、園方核准時才炸的申請。驗證條件與初次預約共用同一份判準。"""
+    pending、園方核准時才炸的申請。驗證條件與初次預約共用同一份判準。
+
+    同一個交易寫歷程與 outbox（visit_reschedule_requested）：園方要從站內
+    通知、側欄與總覽的待核准數知道有人申請，不是等核准後才看到。"""
+    # 先鎖住案件列並重讀狀態：同一案件的並行申請排隊（否則兩個交易都看
+    # 不到對方尚未提交的 pending，會各自建立一筆），也不會替剛被園方取消
+    # 的案件建立申請。
+    await db.refresh(visit_request, attribute_names=["status", "slot_id"], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise RescheduleNotAllowed(
             "INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能申請改期"
@@ -186,11 +199,6 @@ async def create_reschedule_request(
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")
 
-    # 鎖住案件列，讓同一案件的並行申請排隊；否則兩個交易都看不到對方
-    # 尚未提交的 pending，會各自建立一筆。
-    await db.execute(
-        select(VisitRequest.id).where(VisitRequest.id == visit_request.id).with_for_update()
-    )
     existing = await db.execute(
         select(RescheduleRequest).where(
             RescheduleRequest.visit_request_id == visit_request.id,
@@ -208,5 +216,55 @@ async def create_reschedule_request(
         created_at=datetime.now(timezone.utc),
     )
     db.add(record)
+    history.record_event(
+        db,
+        visit_request.id,
+        "reschedule_requested",
+        actor=history.PARENT,
+        before={"slot": history.slot_brief(await history.load_slot(db, visit_request.slot_id))},
+        after={"slot": history.slot_brief(slot)},
+    )
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        RESCHEDULE_REQUESTED_KIND,
+        {
+            "campus_key": visit_request.campus_key,
+            "receipt_id": str(visit_request.id),
+            "reschedule_request_id": str(record.id),
+        },
+    )
     await db.flush()
     return record
+
+
+
+async def close_pending_reschedules(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, resolved_by: uuid.UUID | None
+) -> None:
+    """案件結案（取消／完成／未到場）時，還在等核准的改期申請跟著失效：
+    否則它會一直留在待核准清單與側欄數字裡，按核准也只會被拒。"""
+    await db.execute(
+        update(RescheduleRequest)
+        .where(
+            RescheduleRequest.visit_request_id == visit_request_id,
+            RescheduleRequest.status == "pending",
+        )
+        .values(status="closed", resolved_at=datetime.now(timezone.utc), resolved_by=resolved_by)
+    )
+
+
+async def active_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> ParentAccessToken | None:
+    """目前還能用的家長管理連結（未撤銷、未過期）中最新的一條；後台只顯示
+    有沒有、何時到期，原始連結產生後就查不回來。"""
+    result = await db.execute(
+        select(ParentAccessToken)
+        .where(
+            ParentAccessToken.visit_request_id == visit_request_id,
+            ParentAccessToken.revoked_at.is_(None),
+            ParentAccessToken.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(ParentAccessToken.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()

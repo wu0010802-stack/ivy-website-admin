@@ -108,6 +108,14 @@ const userLine = computed(() => {
                 :title="`新需求 ${openRequests.newRequests} 件、待園方確認 ${openRequests.awaiting} 件`">
                 {{ openRequests.total > 99 ? '99+' : openRequests.total }}<span class="visually-hidden"> 件待處理</span>
               </span>
+              <span v-else-if="item.badge === 'reschedule-requests' && openRequests.reschedules > 0" class="sidebar__badge num"
+                :title="`家長申請改期 ${openRequests.reschedules} 件待核准`">
+                {{ openRequests.reschedules > 99 ? '99+' : openRequests.reschedules }}<span class="visually-hidden"> 件改期待核准</span>
+              </span>
+              <span v-else-if="item.badge === 'content-notices' && openRequests.myNotices > 0" class="sidebar__badge num"
+                :title="`給你的內容通知 ${openRequests.myNotices} 則未讀`">
+                {{ openRequests.myNotices > 99 ? '99+' : openRequests.myNotices }}<span class="visually-hidden"> 則通知未讀</span>
+              </span>
             </router-link>
           </li>
         </ul>

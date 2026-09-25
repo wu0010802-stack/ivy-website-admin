@@ -27,6 +27,7 @@ const scopeTarget = ref<UserOut | null>(null)
 const scopeSelection = ref<string[]>([])
 const scopeRole = ref<Role>('campus_admin')
 const scopeShared = ref(false)
+const scopeExport = ref(false)
 const resetTarget = ref<UserOut | null>(null)
 const resetPassword = ref('')
 const resetVisible = ref(false)
@@ -45,12 +46,28 @@ const form = reactive({
   role: 'campus_admin' as Role,
   campus_keys: [] as string[],
   shared_content: false,
+  export_data: false,
 })
 
-// 「全站共用內容」只對分校管理者與內容編輯有意義（後端 GRANTABLE_ROLES）。
-const GRANTABLE_ROLES: Role[] = ['campus_admin', 'editor']
+// 總管理者逐人給的授權與可以接受的角色（後端 GRANTABLE_CAPABILITIES）：
+// 「全站共用內容」只對會編內容的角色有意義；「匯出家長個資」只給看得到
+// 案件的角色，2026-09-25 起不再依角色自動取得。
+const SHARED_ROLES: Role[] = ['campus_admin', 'editor']
+const EXPORT_ROLES: Role[] = ['campus_admin', 'reception']
 function hasSharedGrant(u: UserOut): boolean {
   return (u.capabilities ?? []).includes('content.shared')
+}
+function hasExportGrant(u: UserOut): boolean {
+  return (u.capabilities ?? []).includes('booking.export')
+}
+function grantsFor(role: Role, shared: boolean, exportData: boolean): string[] {
+  const grants: string[] = []
+  if (EXPORT_ROLES.includes(role) && exportData) grants.push('booking.export')
+  if (SHARED_ROLES.includes(role) && shared) grants.push('content.shared')
+  return grants
+}
+function sameGrants(a: readonly string[], b: readonly string[]): boolean {
+  return [...a].sort().join() === [...b].sort().join()
 }
 
 const formValid = computed(
@@ -113,6 +130,7 @@ function openCreateDialog() {
   form.role = 'campus_admin'
   form.campus_keys = []
   form.shared_content = false
+  form.export_data = false
   passwordVisible.value = false
   dialogVisible.value = true
 }
@@ -126,7 +144,7 @@ async function submitCreate() {
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
-      capabilities: GRANTABLE_ROLES.includes(form.role) && form.shared_content ? ['content.shared'] : [],
+      capabilities: grantsFor(form.role, form.shared_content, form.export_data),
     })
     users.value.push(created)
     dialogVisible.value = false
@@ -160,6 +178,7 @@ function openScopeDialog(target: UserOut) {
   scopeTarget.value = target
   scopeRole.value = target.role
   scopeShared.value = hasSharedGrant(target)
+  scopeExport.value = hasExportGrant(target)
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
 }
@@ -172,18 +191,19 @@ async function submitScope() {
       role: scopeRole.value,
       campus_keys: scopeRole.value === 'super_admin' ? [] : scopeSelection.value,
     })
-    const wantShared = GRANTABLE_ROLES.includes(scopeRole.value) && scopeShared.value
-    if (wantShared !== hasSharedGrant(updated)) {
+    // 改角色時後端會先清掉新角色不適用的授權；剩下的跟畫面上勾的不同才送。
+    const wanted = grantsFor(scopeRole.value, scopeShared.value, scopeExport.value)
+    if (!sameGrants(wanted, updated.capabilities ?? [])) {
       updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/capabilities`, {
-        capabilities: wantShared ? ['content.shared'] : [],
+        capabilities: wanted,
       })
     }
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     scopeDialogVisible.value = false
-    ElMessage.success('已更新角色與校區')
+    ElMessage.success('已更新角色、校區與權限')
   } catch (err) {
-    ElMessage.error(errorText(err, '更新角色與校區失敗'))
+    ElMessage.error(errorText(err, '更新角色、校區與權限失敗'))
   } finally {
     savingScope.value = false
   }
@@ -220,6 +240,13 @@ function isSelf(u: UserOut): boolean {
   return u.id === authStore.user?.id
 }
 
+const EXPORT_HELP = 'CSV 含家長姓名、電話、Email 與孩子資料，每次匯出都會留下操作紀錄。只開給確實需要的人。'
+
+// 本人在「我的帳號」綁定的快速登入方式；總管理者只看得到有沒有綁，看不到對方的 Google／LINE 帳號。
+function loginLinks(u: UserOut): string {
+  return [u.google_linked ? 'Google' : '', u.line_linked ? 'LINE' : ''].filter(Boolean).join('・')
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -249,10 +276,13 @@ onMounted(loadUsers)
             <template #default="{ row }: { row: UserOut }">
               <span :class="{ muted: !row.is_active }">{{ row.email }}</span>
               <el-tag v-if="isSelf(row)" size="small" type="info" round class="self-tag">你</el-tag>
+              <span v-if="loginLinks(row)" class="login-links" :title="`已綁定 ${loginLinks(row)} 登入`">{{ loginLinks(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="角色" width="190">
-            <template #default="{ row }: { row: UserOut }">{{ roleLabel(row.role) }}<el-tag v-if="hasSharedGrant(row)" size="small" type="warning" round class="self-tag" title="可以編輯全站共用內容">全站內容</el-tag></template>
+          <el-table-column label="角色" width="220">
+            <template #default="{ row }: { row: UserOut }">
+              {{ roleLabel(row.role) }}<el-tag v-if="hasSharedGrant(row)" size="small" type="warning" round class="self-tag" title="可以編輯全站共用內容">全站內容</el-tag><el-tag v-if="hasExportGrant(row)" size="small" type="danger" round class="self-tag" title="可以匯出家長個資">可匯出個資</el-tag>
+            </template>
           </el-table-column>
           <el-table-column label="校區範圍" min-width="180">
             <template #default="{ row }: { row: UserOut }">
@@ -277,7 +307,7 @@ onMounted(loadUsers)
         <ul class="mobile-records" aria-label="使用者清單">
           <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
             <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
-            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd></dl>
+            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd></dl>
             <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" /></div>
           </li>
         </ul>
@@ -309,9 +339,13 @@ onMounted(loadUsers)
               <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
             </el-checkbox-group>
           </el-form-item>
-          <el-form-item v-if="form.role === 'campus_admin' || form.role === 'editor'">
+          <el-form-item v-if="SHARED_ROLES.includes(form.role)">
             <el-checkbox v-model="form.shared_content">也可以編輯全站共用內容（首頁、頁尾、網站設定、共用素材）</el-checkbox>
             <span class="field-help">{{ form.role === 'editor' ? '改完一樣要送審，由總管理者核准發布。' : '可以直接發布共用內容，也能審核內容編輯送上來的共用內容。' }}</span>
+          </el-form-item>
+          <el-form-item v-if="EXPORT_ROLES.includes(form.role)">
+            <el-checkbox v-model="form.export_data">可以匯出負責校區的家長個資（CSV）</el-checkbox>
+            <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
         </el-form>
         <template #footer>
@@ -333,9 +367,13 @@ onMounted(loadUsers)
               <el-checkbox v-for="key in CAMPUS_KEYS" :key="key" :value="key">{{ campusLabel(key) }}</el-checkbox>
             </el-checkbox-group>
           </el-form-item>
-          <el-form-item v-if="scopeRole === 'campus_admin' || scopeRole === 'editor'">
+          <el-form-item v-if="SHARED_ROLES.includes(scopeRole)">
             <el-checkbox v-model="scopeShared">也可以編輯全站共用內容（首頁、頁尾、網站設定、共用素材）</el-checkbox>
             <span class="field-help">{{ scopeRole === 'editor' ? '改完一樣要送審，由總管理者核准發布。' : '可以直接發布共用內容，也能審核內容編輯送上來的共用內容。' }}</span>
+          </el-form-item>
+          <el-form-item v-if="EXPORT_ROLES.includes(scopeRole)">
+            <el-checkbox v-model="scopeExport">可以匯出負責校區的家長個資（CSV）</el-checkbox>
+            <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
         </el-form>
         <template #footer>
@@ -366,6 +404,12 @@ onMounted(loadUsers)
 
 .self-tag {
   margin-left: 8px;
+}
+
+.login-links {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-3);
 }
 
 .field-help.is-ok {

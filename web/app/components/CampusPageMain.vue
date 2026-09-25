@@ -2,7 +2,8 @@
 // 分校頁主體。正式頁（pages/campuses/[key].vue）與私有草稿預覽
 // （pages/preview.vue?page=campus）共用，兩邊畫面才不會漂移。
 import type { Campus } from '~/types/site-content'
-import { responsiveImage } from '~/utils/responsive-image'
+import { campusHeroAttrs } from '~/utils/media-image'
+import { campusMapUrl } from '~/utils/site-links'
 
 defineProps<{ campus: Campus }>()
 </script>
@@ -13,7 +14,7 @@ defineProps<{ campus: Campus }>()
       <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五所校園</a> / {{ campus.name }}
     </div>
     <section class="hero campus-hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
-      <img class="hero-photo" v-bind="responsiveImage(campus.image)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
+      <img class="hero-photo" v-bind="campusHeroAttrs(campus)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
       <div class="hero-shade" />
       <div class="container">
         <span class="eyebrow">常春藤幼兒園 · 高雄{{ campus.district }}</span>
@@ -43,7 +44,7 @@ defineProps<{ campus: Campus }>()
           </dl>
           <a
             class="text-link"
-            :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(campus.address)}`"
+            :href="campusMapUrl(campus)"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -55,7 +56,8 @@ defineProps<{ campus: Campus }>()
 
     <CampusTour :campus="campus" />
 
-    <section class="section" id="faq">
+    <!-- 本校題目都停用、也不顯示共用題目時，整段不出現。 -->
+    <section v-if="campus.faq.items.length" class="section" id="faq">
       <div class="container faq-grid">
         <div>
           <span class="eyebrow">參觀須知</span>

@@ -23,6 +23,10 @@ from app.workers.maintenance import MaintenanceLoop, run_cycle
 from tests.test_security_hardening import _create_slot, _enable_slots, _expire_hold, _payload
 
 
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
+
 async def _expired_hold(admin_client, public_client, db_session, key: str) -> str:
     version = await _enable_slots(admin_client, auto_confirm=False)
     slot = await _create_slot(admin_client, capacity=1)

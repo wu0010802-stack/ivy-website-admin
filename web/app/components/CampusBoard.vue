@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { responsiveImage } from '~/utils/responsive-image'
+import { pickImage } from '~/utils/media-image'
 import { createCarouselClock } from '~/utils/carouselClock'
+import { campusMapUrl } from '~/utils/site-links'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
@@ -41,7 +42,7 @@ const CARD_SIZES = '(max-width: 700px) calc(100vw - 48px), (max-width: 1100px) 8
 // 只有當前與左右鄰卡綁 src／srcset：再遠的卡雖然在視窗外，仍落在 loading=lazy 的預載邊距內，
 // 否則五張會一起下載（手機約 500 KB）。沒綁 src 的卡仍保留 width／height 佔位。
 function cardImage(campus: Campus, photo: number) {
-  const image = responsiveImage(campus.image, CARD_SIZES)
+  const image = pickImage(campus.image, campus.imageMedia, CARD_SIZES)
   return Math.abs(offset(photo)) <= 1 ? image : { width: image.width, height: image.height }
 }
 function select(next: number, automatic = false) {
@@ -189,12 +190,12 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
           <span class="campus-tab-figure" aria-hidden="true">
             <img
               class="campus-tab-art"
-              v-bind="responsiveImage(`campus-line-art-${campus.key}`, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
+              v-bind="pickImage(`campus-line-art-${campus.key}`, campus.lineArtMedia, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
               alt="" aria-hidden="true" loading="lazy" decoding="async"
             >
             <img
               class="campus-tab-colour"
-              v-bind="responsiveImage(`campus-line-art-${campus.key}-colour`, '160px')"
+              v-bind="pickImage(`campus-line-art-${campus.key}-colour`, campus.lineArtColourMedia, '160px')"
               alt="" aria-hidden="true" loading="lazy" decoding="async"
             >
           </span>
@@ -258,7 +259,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
       <div class="campus-contact">
         <div class="contact-row">
           <svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>
-          <a :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(current.address)}`" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
+          <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
         <div class="social-row">

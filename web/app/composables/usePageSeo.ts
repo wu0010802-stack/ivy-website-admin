@@ -1,6 +1,7 @@
 import type { Campus, SiteContent } from '~/types/site-content'
 import { admissionSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ADMISSION_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
+import { ADMISSION_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
+import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 
 export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>, page?: StaticPage) {
   const config = useRuntimeConfig()
@@ -18,7 +19,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
     if (!site.value) return undefined
     if (page === 'admission') return responsiveImage(ADMISSION_HERO_IMAGE)
     if (page === 'environment') return responsiveImage(ENVIRONMENT_HERO_IMAGE)
-    return campus?.value ? responsiveImage(campus.value.image) : responsiveImage(site.value.home.hero.heroImage, HOME_HERO_SIZES)
+    return campus?.value ? campusHeroAttrs(campus.value) : heroImageAttrs(site.value.home.hero)
   })
   useSeoMeta({
     title: () => seo.value?.title,

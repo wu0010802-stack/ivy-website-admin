@@ -119,3 +119,19 @@ export const api = {
 export function mediaFileUrl(id: string): string {
   return `${BASE_URL}/admin/media/${id}/file`
 }
+
+export type MediaVariantKind = 'thumbnail' | 'poster' | 'large'
+
+export function mediaVariantUrl(id: string, kind: MediaVariantKind): string {
+  return `${BASE_URL}/admin/media/${id}/variants/${kind}`
+}
+
+/**
+ * 素材庫列表、選圖器、版位預覽用的小圖：圖片用縮圖、影片用自動抽的畫面；
+ * 沒有衍生檔（舊素材處理失敗）的圖片退回原檔，影片回空字串（顯示佔位）。
+ */
+export function mediaPreviewUrl(asset: { id: string; kind: string; variants?: { kind: string }[] | null }): string {
+  const variants = asset.variants ?? []
+  if (asset.kind === 'video') return variants.some((v) => v.kind === 'poster') ? mediaVariantUrl(asset.id, 'poster') : ''
+  return variants.some((v) => v.kind === 'thumbnail') ? mediaVariantUrl(asset.id, 'thumbnail') : mediaFileUrl(asset.id)
+}

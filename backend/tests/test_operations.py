@@ -8,6 +8,10 @@ from app.booking.models import VisitRequest, VisitRequestStatus
 from app.operations import retention_service
 
 
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
+
 async def _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-01"):
     current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
     await admin_client.patch(
@@ -104,10 +108,17 @@ async def test_export_visit_requests_does_not_leak_other_campus(
     admin_client, minghua_client, public_client
 ):
     await _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-export-01")
+    # 個資匯出是總管理者逐人授予的（2026-09-25 起），先授權再測校區範圍。
+    minghua_me = (await minghua_client.get("/api/website/v1/auth/me")).json()["user"]
+    granted = await admin_client.patch(
+        f"/api/website/v1/admin/users/{minghua_me['id']}/capabilities", json={"capabilities": ["booking.export"]}
+    )
+    assert granted.status_code == 200, granted.text
 
     minghua_export = await minghua_client.get(
         "/api/website/v1/admin/visit-requests/export?campus_key=minghua"
     )
+    assert minghua_export.status_code == 200
     assert "陳媽媽" not in minghua_export.text
 
     # minghua 不能匯出 yihua 的資料
@@ -118,19 +129,29 @@ async def test_export_visit_requests_does_not_leak_other_campus(
 
 
 @pytest.mark.asyncio
-async def test_audit_log_records_booking_config_change_without_pii(admin_client):
+async def test_audit_log_records_booking_config_before_and_after(admin_client):
+    """規格 L181：預約設定要有修改前後紀錄。這些都是分校公開在官網上的設定
+    （學校電話、LINE、外部網址、說明），沒有家長個資，完整記下來事後才查得出
+    改之前是什麼（2026-09-25 缺口 10；原本刻意不記電話）。"""
     await admin_client.get("/api/website/v1/admin/booking-config/yihua")
     await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": 0, "mode": "phone", "phone": "07-392-8366"},
+        json={"expected_version": 0, "mode": "phone", "phone": "07-392-8366", "message": "請於上班時間來電"},
     )
     log = await admin_client.get("/api/website/v1/admin/audit-log?campus_key=yihua")
     assert log.status_code == 200
     entries = log.json()
     assert len(entries) == 1
     assert entries[0]["action"] == "booking_config.update"
-    # 稽核紀錄不應該出現電話這種個資/聯絡資訊欄位值
-    assert "07-392-8366" not in str(entries[0]["metadata"])
+    metadata = entries[0]["metadata"]
+    assert metadata["mode"] == "phone" and metadata["version"] == 1
+    assert metadata["before"] == {
+        "mode": "paused", "line_url": None, "phone": None, "external_url": None, "message": None,
+        "slots_auto_confirm": False, "parent_change_deadline_hours": 24,
+    }
+    assert metadata["after"]["phone"] == "07-392-8366"
+    assert metadata["after"]["message"] == "請於上班時間來電"
+    assert metadata["changed"] == ["mode", "phone", "message"]
 
 
 @pytest.mark.asyncio
@@ -216,9 +237,11 @@ async def test_site_settings_requires_super_admin(minghua_client):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client):
+async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client, db_session):
     """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
     數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""
+    import uuid
+
     from app.common.timezones import today_local
 
     receipt_id = await _submit_inquiry(
@@ -234,11 +257,13 @@ async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public
         },
     )
     assert slot.status_code == 201, slot.text
-    confirm = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm",
-        json={"slot_id": slot.json()["id"]},
-    )
-    assert confirm.status_code == 200, confirm.text
+    # 今天 10:00 的場次過了 10 點就不能再用確認端點排入（已開始的時段會回
+    # 409），這裡直接寫成已確認，測試才不會因為執行時間而失敗。
+    visit = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
+    visit.slot_id = uuid.UUID(slot.json()["id"])
+    visit.status = VisitRequestStatus.CONFIRMED.value
+    visit.confirmed_at = datetime.now(timezone.utc)
+    await db_session.commit()
 
     draft = await admin_client.post(
         "/api/website/v1/admin/content-items/home_about/revisions",

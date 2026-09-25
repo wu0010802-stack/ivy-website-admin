@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { visitDateLabel } from '~/utils/visit-form'
+import { changeDeadlineRule, visitDateLabel } from '~/utils/visit-form'
 
 const { data } = await usePublishedSite()
 const route = useRoute()
@@ -24,6 +24,8 @@ const statusLabel = computed(() => statusLabels[visit.value?.status || ''] || '�
 const deadlineLabel = computed(() => visit.value?.change_deadline
   ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(visit.value.change_deadline))
   : '')
+// 期限依各校設定，文案不寫死小時數。
+const deadlineRule = computed(() => changeDeadlineRule(visit.value?.change_deadline_hours))
 const changeClosed = computed(() => visit.value && !visit.value.can_cancel && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(visit.value.status))
 const slotLabel = (slot: { slot_date: string; start_time: string; end_time: string }) => `${visitDateLabel(slot.slot_date)} ${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
 
@@ -123,7 +125,7 @@ async function submitReschedule() {
             <p v-if="visit.status === 'pending_confirmation'" class="parent-visit-muted">這個時段尚待園方確認，預約還未成立。</p>
             <p v-else-if="visit.status === 'new' || visit.status === 'contacting'" class="parent-visit-muted">園所會與你聯繫，確認合適的參觀時間。</p>
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上異動時間。如需取消或改期，請直接聯絡園所。</p>
-            <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上異動截止：{{ deadlineLabel }}（台灣時間，參觀前 24 小時）。</p>
+            <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上異動截止：{{ deadlineLabel }}（台灣時間{{ deadlineRule ? `，${deadlineRule}` : '' }}）。</p>
 
             <div v-if="!showCancel && !showReschedule" class="parent-visit-actions">
               <button v-if="visit.can_reschedule && !reschedulePending" type="button" class="button primary" :disabled="busy" @click="openReschedule">申請改期</button>

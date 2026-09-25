@@ -1,4 +1,5 @@
 import type { BookingConfig } from '~/utils/booking-action'
+import { privacyNotice } from '../utils/privacy-notice'
 
 interface PublicBookingConfigResponse {
   campus_key: string
@@ -8,6 +9,9 @@ interface PublicBookingConfigResponse {
   phone: string | null
   external_url: string | null
   message: string | null
+  consent_revision_id?: string | null
+  consent_text?: string | null
+  privacy_notice?: { title: string; sections: { heading: string; body: string }[] } | null
 }
 
 /**
@@ -33,7 +37,11 @@ export function useCampusBooking(campusKey: Ref<string | null> | string | null) 
         message: response.message,
         line_url: response.line_url,
         phone: response.phone,
-        external_url: response.external_url
+        external_url: response.external_url,
+        // 表單勾選框顯示的就是這一版的同意文字，送單帶同一個版本 id。
+        consent_revision_id: response.consent_revision_id ?? null,
+        consent_text: response.consent_text ?? null,
+        privacy_notice: privacyNotice(response.privacy_notice?.title, response.privacy_notice?.sections)
       }
     },
     { watch: [key] }

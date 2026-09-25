@@ -141,7 +141,13 @@ async def test_home_hero_kind_roundtrip(admin_client, public_client):
     assert publish.status_code == 200
 
     site = await public_client.get("/api/website/v1/public/site")
-    assert site.json()["content"]["home_hero"]["cta_label"] == "看看孩子的一天"
+    # 2026-09-23 拿掉首屏按鈕：舊前端送來的按鈕文字直接忽略，不存也不輸出。
+    # 沒設的素材版位（None／空字串）＝官網沿用內建影片與照片。
+    hero = {k: v for k, v in site.json()["content"]["home_hero"].items() if v not in (None, "")}
+    assert hero == {
+        "eyebrow": "常春藤幼兒園 · 高雄五校",
+        "copy_lines": ["第一行", "第二行"],
+    }
 
 
 @pytest.mark.asyncio

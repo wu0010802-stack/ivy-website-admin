@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { ApiError, api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 
 afterEach(() => vi.restoreAllMocks())
 
 function loggedInStore() {
   setActivePinia(createPinia())
   const auth = useAuthStore()
-  auth.user = { id: 'u1', email: 'a@ivy.example', role: 'super_admin', is_active: true, campus_keys: [], line_linked: false } as never
+  auth.user = testUser('super_admin', { id: 'u1', email: 'a@ivy.example', campus_keys: [] }) as never
   return auth
 }
 

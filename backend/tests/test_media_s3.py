@@ -4,6 +4,7 @@ S3 以 moto 模擬，不連任何真的儲存服務。"""
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import boto3
@@ -111,6 +112,17 @@ async def test_upload_serve_range_and_delete_through_s3(s3_app, s3, tmp_path):
 
         deleted = await client.delete(f"/api/website/v1/admin/media/{asset['id']}")
         assert deleted.status_code == 204
+        # 刪除只是標記待清理，檔案等定期工作過了保留天數才刪。
+        assert len(_objects(s3)) == 2
+        settings = s3_app.state.settings
+        storage = media_service.get_storage(settings)
+        purged = await media_service.purge_due(
+            s3_app.state.session_factory,
+            storage,
+            delay_days=settings.media_purge_delay_days,
+            now=datetime.now(timezone.utc) + timedelta(days=settings.media_purge_delay_days, minutes=1),
+        )
+        assert purged == 1
         assert _objects(s3) == set()
     finally:
         await client.aclose()

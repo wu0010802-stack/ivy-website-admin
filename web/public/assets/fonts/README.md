@@ -27,6 +27,7 @@ Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold�
 - `Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `web/app/assets/css/typography.css`，改成全站宣告；首頁分校資訊、分校頁校名、預約頁大標共用 `--font-serif`。
 - 新增 `noto-serif-tc-500-visit.woff`（3.9 KB，9 字：帶著好奇來園走，。），來源同樣是 Google Fonts CSS API 的 `text=`，紀錄在 `noto-serif-tc-500-visit.json`，授權同 `noto-serif-tc-500-campus-OFL.txt`。兩個子集用互斥的 `unicode-range` 分流，不動既有 campus 子集。
 - 預約頁大標原本吃系統字 `Songti TC → Noto Serif TC → PMingLiU`，Windows 會落到新細明體；改用自託管子集後各平台一致。改預約頁大標文案時要同步擴充此子集並驗證 cmap。
+- `chars-serif.txt`（2026-09-25）＝三個明體子集 JSON 的 `characters` 聯集，後台「校名」「首頁五校區塊標題」的缺字提示讀這份（`chars-bd.txt`／`chars-eb.txt` 同理）。擴充明體子集時一併更新，`web/tests/site-structure.spec.ts` 會檢查兩邊一致。
 
 ## LINE Seed TW 原始檔與標點（2026-09-23 查證）
 

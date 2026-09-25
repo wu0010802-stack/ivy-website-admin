@@ -18,7 +18,7 @@ from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client, _test_settings
+from tests.conftest import _create_user, _logged_in_client, _test_settings, parent_client, publish_booking_consent
 from tests.test_maintenance import _expired_hold
 
 SECRET = "line-channel-secret-for-tests"
@@ -279,9 +279,10 @@ async def _setup_case(line_app, *, assign: bool = True) -> tuple[httpx.AsyncClie
     admin = await _super_admin(line_app)
     if assign:
         await admin.put("/api/website/v1/admin/line/campus-targets/yihua", json={"target_id": GROUP})
-    public = httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=line_app), base_url="http://test", headers={"X-Ivy-Parent": "1"}
-    )
+    # 開 slots 與官網送單都要有已發布的同意文字。
+    async with line_app.state.session_factory() as db:
+        await publish_booking_consent(db)
+    public = parent_client(line_app)
     return admin, public
 
 

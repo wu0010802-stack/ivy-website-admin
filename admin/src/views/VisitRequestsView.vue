@@ -7,7 +7,7 @@ import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
-import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -17,20 +17,27 @@ import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 const router = useRouter()
 const route = useRoute()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
-const authStore = useAuthStore()
-// 補登與指派要 booking.manage：總管理者與校區管理者。
-const canManage = computed(() => authStore.user?.role === 'super_admin' || authStore.user?.role === 'campus_admin')
+const { can } = usePermissions()
+// 補登要能處理案件（booking.handle，含櫃台）；匯出個資要總管理者另外授權。
+const canHandle = computed(() => can('booking.handle'))
+const canExport = computed(() => can('booking.export'))
 const { staff, load: loadStaff } = useVisitStaff()
 const manualOpen = ref(false)
 const openRequests = useOpenRequestsStore()
 
-const campusFilter = ref('')
+// 關時段、設休假日、停用分校後的提示帶 ?attention=1&campus=… 進來。
+const campusFromQuery = (value: unknown): string => (typeof value === 'string' ? value : '')
+const campusFilter = ref(campusFromQuery(route.query.campus))
 const statusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '')
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(route.query.due === '1')
 // 承辦人：''＝全部、me＝我承辦的、none＝尚未指派。
 const assigneeFilter = ref(route.query.assignee === 'me' || route.query.assignee === 'none' ? String(route.query.assignee) : '')
 const sourceFilter = ref('')
+// 送出日期區間（台灣日期，含頭尾）。
+const createdRange = ref<[string, string] | null>(null)
+// 待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
+const attentionOnly = ref(route.query.attention === '1')
 // 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
 const orderFromQuery = (value: unknown): 'newest' | 'oldest' => (value === 'oldest' ? 'oldest' : 'newest')
 const order = ref(orderFromQuery(route.query.order))
@@ -41,7 +48,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 let loadVersion = 0
 const search = ref('')
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value))
+const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value || createdRange.value || attentionOnly.value))
 function clearFilters() {
   campusFilter.value = ''
   statusFilter.value = ''
@@ -49,13 +56,15 @@ function clearFilters() {
   dueOnly.value = false
   assigneeFilter.value = ''
   sourceFilter.value = ''
+  createdRange.value = null
+  attentionOnly.value = false
 }
 
 // 狀態是最常切的條件，攤成一排頁籤一鍵切換，不必每次打開下拉。兩個
 // 待處理狀態帶側欄同源的數字；數字是可見校區的總數，所以只在沒有縮小
 // 範圍（校區、搜尋、到期）時顯示，避免和清單對不上。
 const statusTabs = computed(() => {
-  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value && !assigneeFilter.value && !sourceFilter.value
+  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value && !assigneeFilter.value && !sourceFilter.value && !createdRange.value && !attentionOnly.value
   const counts: Record<string, number> = { new: openRequests.newRequests, pending_confirmation: openRequests.awaiting }
   return [
     { value: '', label: '全部', count: 0 },
@@ -65,22 +74,35 @@ const statusTabs = computed(() => {
 // 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
 // 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
 const moreFiltersOpen = ref(false)
-const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value].filter(Boolean).length)
+const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value, createdRange.value, attentionOnly.value].filter(Boolean).length)
 
 const hasNext = computed(() => requests.value.length === pageSize)
+
+// 清單與 CSV 匯出送同一組篩選條件：畫面上篩好什麼，匯出的就是那一批。
+function filterParams(): URLSearchParams {
+  const params = new URLSearchParams()
+  if (campusFilter.value) params.set('campus_key', campusFilter.value)
+  if (statusFilter.value) params.set('status', statusFilter.value)
+  if (search.value.trim()) params.set('q', search.value.trim())
+  if (dueOnly.value) params.set('follow_up_due', 'true')
+  if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
+  if (sourceFilter.value) params.set('source', sourceFilter.value)
+  if (createdRange.value) {
+    params.set('created_from', createdRange.value[0])
+    params.set('created_to', createdRange.value[1])
+  }
+  if (attentionOnly.value) params.set('needs_attention', 'true')
+  return params
+}
 
 async function load() {
   const version = ++loadVersion
   loading.value = true
   error.value = null
   try {
-    const params = new URLSearchParams({ page: String(page.value), page_size: String(pageSize) })
-    if (campusFilter.value) params.set('campus_key', campusFilter.value)
-    if (statusFilter.value) params.set('status', statusFilter.value)
-    if (search.value.trim()) params.set('q', search.value.trim())
-    if (dueOnly.value) params.set('follow_up_due', 'true')
-    if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
-    if (sourceFilter.value) params.set('source', sourceFilter.value)
+    const params = filterParams()
+    params.set('page', String(page.value))
+    params.set('page_size', String(pageSize))
     if (order.value !== 'newest') params.set('order', order.value)
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version === loadVersion) requests.value = result
@@ -94,7 +116,7 @@ async function load() {
   }
 }
 
-watch([campusFilter, statusFilter, dueOnly, order, assigneeFilter, sourceFilter], () => {
+watch([campusFilter, statusFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly], () => {
   page.value = 1
   load()
 })
@@ -118,6 +140,12 @@ watch(() => route.query.due, due => {
 watch(() => route.query.order, value => {
   order.value = orderFromQuery(value)
 })
+watch(() => route.query.attention, value => {
+  attentionOnly.value = value === '1'
+})
+watch(() => route.query.campus, value => {
+  campusFilter.value = campusFromQuery(value)
+})
 
 // 只有待園方確認的占位有期限；其他狀態不顯示倒數。
 function holdLabel(row: VisitRequestDetailOut): string {
@@ -130,10 +158,11 @@ function followUpDue(row: VisitRequestDetailOut): boolean {
   return new Date(row.follow_up_at).getTime() <= Date.now()
 }
 
+// 匯出不分頁：符合目前篩選的全部案件。按鈕旁講清楚範圍，避免以為只匯出這一頁，
+// 或沒注意到沒篩選時會匯出可見校區的全部案件。
+const exportScope = computed(() => (hasFilters.value ? '匯出範圍：目前篩選的全部結果（不只本頁）' : '匯出範圍：可見校區的全部案件'))
 function exportCsv() {
-  const params = new URLSearchParams()
-  if (campusFilter.value) params.set('campus_key', campusFilter.value)
-  window.open(`${BASE_URL}/admin/visit-requests/export?${params}`, '_blank')
+  window.open(`${BASE_URL}/admin/visit-requests/export?${filterParams()}`, '_blank')
 }
 
 function openDetail(row: VisitRequestDetailOut) {
@@ -146,6 +175,7 @@ function onManualCreated(created: VisitRequestDetailOut) {
 
 const emptyText = computed(() => {
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
+  if (attentionOnly.value) return '沒有待人工處理的案件'
   if (dueOnly.value) return '沒有到期待追蹤的案件'
   if (assigneeFilter.value === 'me') return '目前沒有你承辦的案件'
   if (assigneeFilter.value === 'none') return '沒有尚未指派的案件'
@@ -163,8 +193,9 @@ onMounted(() => {
   <div class="page">
     <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
       <template #actions>
-        <el-button v-if="canManage" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
-        <el-button :icon="Download" @click="exportCsv">匯出 CSV</el-button>
+        <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
+        <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>
+        <span v-if="canExport" id="export-scope" class="export-scope hint">{{ exportScope }}</span>
       </template>
     </PageHeader>
 
@@ -203,10 +234,19 @@ onMounted(() => {
           <el-option v-for="(label, key) in VISIT_SOURCE_LABELS" :key="key" :label="label" :value="key" />
         </el-select>
         </div>
+        <div class="filter-field created-range"><span>送出日期</span>
+        <el-date-picker v-model="createdRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels
+          start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="送出日期區間" />
+        </div>
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
+        <el-checkbox v-model="attentionOnly" class="filter-due">只看待人工處理</el-checkbox>
       </div>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
+
+    <el-alert v-if="attentionOnly" class="attention-note" type="warning" :closable="false" show-icon title="待人工處理的案件">
+      <p>排入的時段已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。</p>
+    </el-alert>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">
       <el-button size="small" @click="load">重新載入</el-button>
@@ -291,7 +331,7 @@ onMounted(() => {
     </div>
 
     <ManualVisitDialog
-      v-if="canManage"
+      v-if="canHandle"
       v-model="manualOpen"
       :campus-keys="visibleCampusKeys"
       :default-campus="campusFilter"
@@ -311,6 +351,11 @@ onMounted(() => {
 .requests-filters__more { display: contents; }
 .more-filters { display: none; }
 .order-select { width: 150px; }
+.created-range :deep(.el-date-editor) { width: 260px; }
+/* 寬度跟著按鈕列走，不把整個動作區撐寬去擠左邊的說明文字。 */
+.export-scope { flex-basis: 100%; width: 0; min-width: 100%; font-size: 12px; text-align: right; }
+.attention-note { margin-bottom: 16px; }
+.attention-note p { margin: 0; }
 .filter-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .filter-due { align-self: center; padding-bottom: 6px; }
 .cell-sub { display: block; font-size: 12px; line-height: 1.4; }
@@ -351,6 +396,8 @@ onMounted(() => {
   .requests-filters__more { display: none; }
   .requests-filters.is-open .requests-filters__more { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; width: 100%; }
   .requests-filters__more .filter-field { flex: 1 1 140px; }
-  .requests-filters__more .el-select { width: 100%; }
+  .requests-filters__more .el-select, .created-range :deep(.el-date-editor) { width: 100%; }
+  .requests-filters__more .created-range { flex-basis: 100%; }
+  .export-scope { text-align: left; }
 }
 </style>

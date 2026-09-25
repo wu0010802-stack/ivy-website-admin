@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -19,11 +20,16 @@ from app.auth.permissions import (
     can_publish_shared_content,
     require_scope,
 )
-from app.content import service
+from app.content import notices, service
 from app.content import publish_jobs
-from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease, SiteReleaseEntry
-from app.media.models import MediaAsset
-from app.content.registry import CONTENT_KIND_REGISTRY
+from app.content.models import ContentItem, ContentRevision, PublishJob, ReleaseSource, SiteRelease, SiteReleaseEntry
+from app.media.models import MediaAsset, MediaStatus
+from app.media.schemas import (
+    MediaReplaceReferencesOut,
+    MediaReplaceReferencesRequest,
+    MediaReplacedItemOut,
+)
+from app.content.registry import CONTENT_KIND_REGISTRY, MediaRef, set_at_path
 from app.media import service as media_service
 from app.operations import audit_service
 from app.content.schemas import (
@@ -54,6 +60,20 @@ def _get_kind_config(kind: str):
     if config is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"未知的內容種類：{kind}")
     return config
+
+
+def _campus_key_for(config, campus_key: str | None) -> str | None:
+    """共用內容一律不看 campus_key；分校內容（五校介紹、FAQ、探索、各校消息）
+    一定要指定校區——沒帶的話會被當成一份「共用」的同名內容，發布後官網
+    讀到的形狀就錯了。"""
+    if config.shared_only:
+        return None
+    if not campus_key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "CAMPUS_KEY_REQUIRED", "message": "這項內容是各校各一份，請指定校區"},
+        )
+    return campus_key
 
 
 def _require_read_scope(user: User, campus_key: str | None) -> None:
@@ -106,28 +126,42 @@ def _not_ready(exc: publish_jobs.NotPublishable) -> HTTPException:
 
 
 async def _validate_media_references(
-    db: AsyncSession, media_ids: list[uuid.UUID], campus_key: str | None
+    db: AsyncSession, refs: list[MediaRef], campus_key: str | None
 ) -> None:
     """引用的素材必須存在、而且屬於同一校或共用。不驗的話：引用不存在的
     UUID 會在寫 media_usages 時撞 FK 變成 500；引用別校的素材則會替對方
-    建立一筆引用，讓那張圖再也刪不掉。"""
-    if not media_ids:
+    建立一筆引用，讓那張圖再也刪不掉。影片版位只能放影片、照片版位只能放
+    圖片（MediaRef.kind）。"""
+    if not refs:
         return
     result = await db.execute(
-        select(MediaAsset.id, MediaAsset.campus_key).where(MediaAsset.id.in_(set(media_ids)))
+        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind).where(
+            MediaAsset.id.in_({ref.media_id for ref in refs})
+        )
     )
-    found = {row.id: row.campus_key for row in result.all()}
-    for media_id in media_ids:
-        if media_id not in found:
+    found = {row.id: row for row in result.all()}
+    for ref in refs:
+        media_id = ref.media_id
+        # 待清理的素材過幾天就會真的刪掉，不能再被新的版本引用。
+        if media_id not in found or found[media_id].deleted_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"code": "MEDIA_NOT_FOUND", "message": f"找不到素材 {media_id}"},
             )
-        owner = found[media_id]
+        owner = found[media_id].campus_key
         if owner is not None and owner != campus_key:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"code": "MEDIA_CROSS_CAMPUS", "message": "不能引用其他校區的素材"},
+            )
+        if ref.kind is not None and found[media_id].kind.value != ref.kind:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "MEDIA_KIND_MISMATCH",
+                    "message": "影片欄位只能選影片" if ref.kind == "video" else "照片欄位只能選圖片",
+                    "field_path": ref.path,
+                },
             )
 
 
@@ -175,8 +209,7 @@ async def get_content_item(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -197,8 +230,7 @@ async def create_content_revision(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
@@ -232,8 +264,8 @@ async def _save_draft(
     dumped_payload = typed_payload.model_dump()
     _, previous = await _get_item_with_latest_revision(db, item.id)
     dumped_payload = config.before_save(dumped_payload, previous.payload if previous else None)
-    media_ids = config.extract_media_ids(dumped_payload)
-    await _validate_media_references(db, media_ids, item.campus_key)
+    media_refs = config.extract_media_refs(dumped_payload)
+    await _validate_media_references(db, media_refs, item.campus_key)
     try:
         revision = await service.create_revision(
             db, item, dumped_payload, expected_version, current_user.id
@@ -245,7 +277,9 @@ async def _save_draft(
             detail={"code": "CONTENT_VERSION_CONFLICT", "message": "內容已被其他人更新，請重新載入"},
         ) from exc
 
-    await media_service.sync_content_item_usages(db, str(item.id), kind, item.campus_key, media_ids)
+    await media_service.sync_content_item_usages(
+        db, str(item.id), kind, item.campus_key, revision.id, media_refs
+    )
     return revision
 
 
@@ -262,8 +296,7 @@ async def list_content_revisions(
 ) -> list[ContentRevisionSummaryOut]:
     """版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。"""
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -295,6 +328,8 @@ async def list_content_revisions(
             last_published_at=last_published.get(rev.id),
             review_status=rev.review_status,
             review_note=rev.review_note,
+            reviewed_at=rev.reviewed_at,
+            schema_version=rev.schema_version,
         )
         for rev, email in rows.all()
     ]
@@ -312,8 +347,7 @@ async def get_content_revision(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentRevisionOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -349,8 +383,7 @@ async def restore_content_revision(
     直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿
     再送審），也要通過發布前檢查（例如校園探索熱點待複核）。"""
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
@@ -394,7 +427,7 @@ async def restore_content_revision(
         except publish_jobs.NotPublishable as exc:
             await db.rollback()
             raise _not_ready(exc) from exc
-        await service.publish_revision(db, item, revision, current_user.id)
+        await service.publish_revision(db, item, revision, current_user.id, source=ReleaseSource.RESTORE)
         await audit_service.log_action(
             db,
             actor_user_id=current_user.id,
@@ -419,8 +452,7 @@ async def publish_content_item(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_publish(current_user, item)
@@ -454,7 +486,10 @@ async def get_public_site(
     release_id, content = await service.get_public_content(db)
     if release_id is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="尚無可用內容")
-    return PublicSiteOut(schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content)
+    media = await media_service.public_media(db, service.public_media_ids(content))
+    return PublicSiteOut(
+        schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content, media=media
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -464,8 +499,7 @@ async def get_public_site(
 
 async def _item_for(db: AsyncSession, kind: str, campus_key: str | None):
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     return config, item
 
@@ -495,6 +529,17 @@ async def submit_for_review(
     revision.review_note = None
     revision.submitted_by = current_user.id
     revision.submitted_at = datetime.now(timezone.utc)
+    # 通知能核准的人（規格 L151）；沒人能核准時送審照樣成立，總覽會列出。
+    reviewers = await notices.reviewers_for(db, item)
+    await notices.notify(
+        db,
+        [user.id for user in reviewers],
+        notices.REVIEW_SUBMITTED,
+        item,
+        exclude=current_user.id,
+        revision_version=revision.version,
+        actor_email=current_user.email,
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -534,12 +579,23 @@ async def review_submission(
             raise _not_ready(exc) from exc
         revision.review_status = "approved"
         revision.review_note = (payload.note or "").strip() or None
-        await service.publish_revision(db, item, revision, current_user.id)
+        await service.publish_revision(db, item, revision, current_user.id, source=ReleaseSource.REVIEW)
     else:
         revision.review_status = "rejected"
         revision.review_note = (payload.note or "").strip()
     revision.reviewed_by = current_user.id
     revision.reviewed_at = now
+    # 送審的人要知道結果；退回原因一起帶過去（規格 L152）。
+    await notices.notify(
+        db,
+        [revision.submitted_by],
+        notices.REVIEW_APPROVED if payload.decision == "approve" else notices.REVIEW_REJECTED,
+        item,
+        exclude=current_user.id,
+        revision_version=revision.version,
+        note=revision.review_note,
+        actor_email=current_user.email,
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -613,8 +669,7 @@ async def list_schedules(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublishJobOut]:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -706,3 +761,112 @@ async def cancel_schedule(
     )
     await db.commit()
 
+
+
+# ---------------------------------------------------------------------------
+# 批次替換素材（規格 L142：先列影響範圍，再為每個內容項產生草稿）
+# ---------------------------------------------------------------------------
+
+
+def _replace_invalid(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "MEDIA_REPLACEMENT_INVALID", "message": message},
+    )
+
+
+async def _visible_media(db: AsyncSession, user: User, media_id: uuid.UUID) -> MediaAsset:
+    asset = await db.get(MediaAsset, media_id)
+    if asset is None:
+        raise ScopeDenied()
+    require_scope(user, "media.read", campus_keys=[asset.campus_key] if asset.campus_key else None)
+    return asset
+
+
+@router.post("/admin/media/{media_id}/replace-references", response_model=MediaReplaceReferencesOut)
+async def replace_media_references(
+    media_id: uuid.UUID,
+    payload: MediaReplaceReferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MediaReplaceReferencesOut:
+    """把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
+    草稿（不發布，官網要等各自發布或送審）。影響範圍由
+    GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
+    存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
+
+    一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回
+    錯誤，已處理的項目一起回滾。"""
+    old = await _visible_media(db, current_user, media_id)
+    replacement = await _visible_media(db, current_user, payload.replacement_id)
+    if replacement.id == old.id:
+        raise _replace_invalid("請選另一個素材來替換")
+    if replacement.kind != old.kind:
+        raise _replace_invalid("圖片只能換成圖片、影片只能換成影片")
+    if replacement.status != MediaStatus.READY or replacement.deleted_at is not None:
+        raise _replace_invalid("替換用的素材還沒處理完成或已刪除")
+
+    results: list[MediaReplacedItemOut] = []
+    seen: set[uuid.UUID] = set()
+    for entry in payload.items:
+        if entry.content_item_id in seen:
+            continue
+        seen.add(entry.content_item_id)
+        item, latest = await _get_item_with_latest_revision(db, entry.content_item_id)
+        _require_shared_or_scope(current_user, item)
+        config = _get_kind_config(item.kind)
+        if latest is None or item.latest_version != entry.expected_version:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "CONTENT_VERSION_CONFLICT",
+                    "message": "查看影響範圍之後，有內容被別人存了新版本，請重新查看後再替換",
+                },
+            )
+        paths = [ref.path for ref in config.extract_media_refs(latest.payload) if ref.media_id == old.id]
+        if not paths:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "MEDIA_NOT_REFERENCED", "message": "有內容的最新版本已經沒有用到這個素材，請重新查看"},
+            )
+        new_payload = copy.deepcopy(latest.payload)
+        for path in paths:
+            set_at_path(new_payload, path, str(replacement.id))
+        revision = await _save_draft(
+            db, config, item.kind, item, new_payload, entry.expected_version, current_user
+        )
+        results.append(
+            MediaReplacedItemOut(
+                content_item_id=item.id,
+                kind=item.kind,
+                campus_key=item.campus_key,
+                version=revision.version,
+                field_paths=paths,
+            )
+        )
+
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="media.replace_references",
+        target_type="media_asset",
+        target_id=str(old.id),
+        campus_key=old.campus_key,
+        metadata={
+            "replacement_id": str(replacement.id),
+            "items": [
+                {
+                    "content_item_id": str(r.content_item_id),
+                    "kind": r.kind,
+                    "campus_key": r.campus_key,
+                    "version": r.version,
+                    "field_paths": r.field_paths,
+                }
+                for r in results
+            ],
+        },
+    )
+    await db.commit()
+    return MediaReplaceReferencesOut(replacement_id=replacement.id, items=results)

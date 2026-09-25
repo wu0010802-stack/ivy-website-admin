@@ -4,20 +4,18 @@ from datetime import date, timedelta
 
 import pytest
 
+from tests.conftest import set_booking_mode
+
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 
 async def _enable_slots(admin_client, campus_key="yihua", auto_confirm=True):
     """預設開啟自動確認：本檔多數測試驗的是「已確認案件」之後的工作流
     （改期／未到場／完成）。人工待確認（規格預設）的路徑另見
     test_slots_manual_confirm.py。"""
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    resp = await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={
-            "expected_version": current.json()["version"],
-            "mode": "slots",
-            "slots_auto_confirm": auto_confirm,
-        },
-    )
+    resp = await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=auto_confirm)
     assert resp.status_code == 200, resp.text
     return resp.json()["version"]
 

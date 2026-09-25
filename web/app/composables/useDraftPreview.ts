@@ -1,6 +1,6 @@
 import type { SiteContent } from '~/types/site-content'
 import type { ContentOverlay } from '~/utils/content-overlay'
-import { applyContentOverlay } from '~/utils/content-overlay'
+import { previewMedia, previewOverlay, type AdminMediaAsset, type HiddenNewsEntry } from '~/utils/draft-preview'
 
 interface MeResponse {
   csrf_token: string
@@ -23,12 +23,19 @@ interface ContentItemOut {
   latest_revision: ContentRevisionOut | null
 }
 
-export interface DraftPreviewResult {
-  authorized: boolean
-  content: SiteContent | null
+export interface DraftPreviewRender {
+  content: SiteContent
+  /** 預覽日期當天不會顯示的消息與活動（還沒上架或已下架） */
+  hiddenNews: HiddenNewsEntry[]
 }
 
-type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content'
+export interface DraftPreviewResult {
+  authorized: boolean
+  /** 用某一天（台北日期 YYYY-MM-DD）判斷消息上下架，組出預覽內容；只抓一次資料，換日期不用重抓 */
+  render: ((date: string) => DraftPreviewRender) | null
+}
+
+type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content' | 'shared_faq'
 const SHARED_KINDS: SharedKind[] = [
   'home_about',
   'home_hero',
@@ -38,10 +45,11 @@ const SHARED_KINDS: SharedKind[] = [
   'booking_content',
   'day_experience',
   'home_news',
-  'admission_content'
+  'admission_content',
+  'shared_faq'
 ]
-type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour'
-const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour']
+type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour' | 'campus_news'
+const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour', 'campus_news']
 
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
@@ -61,10 +69,10 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   try {
     me = await $fetch<MeResponse>('/api/website/v1/auth/me')
   } catch {
-    return { authorized: false, content: null }
+    return { authorized: false, render: null }
   }
   if (!me?.user?.is_active) {
-    return { authorized: false, content: null }
+    return { authorized: false, render: null }
   }
 
   // fixture 端點也要後台 session（含未發布校區），確認登入後才讀。
@@ -102,5 +110,17 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     }
   }
 
-  return { authorized: true, content: applyContentOverlay(content, overlay) }
+  // 素材的尺寸、衍生檔與預設焦點（讀不到就只用原檔，畫面照樣出得來）。
+  const media = previewMedia(
+    await $fetch<AdminMediaAsset[]>('/api/website/v1/admin/media').catch(() => [] as AdminMediaAsset[])
+  )
+
+  return {
+    authorized: true,
+    render(date: string) {
+      // 消息的上下架日期：官網公開 API 會先過濾，草稿 API 給的是原始內容，
+      // 這裡照同一條規則過濾（全站與各校消息都要），預覽看到的才會和上線後一樣。
+      return previewOverlay(content, overlay, date, media)
+    }
+  }
 }

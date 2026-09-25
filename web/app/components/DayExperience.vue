@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { responsiveImage } from '~/utils/responsive-image'
+import { pickImage } from '~/utils/media-image'
 import { noscriptImage } from '~/utils/noscript-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import type { DayExperienceContent } from '~/types/site-content'
@@ -16,7 +16,8 @@ const introEl = ref<HTMLElement | null>(null)
 const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
 const posterReady = ref(false)
-const posterImage = computed(() => responsiveImage(props.day.filmPoster))
+const posterImage = computed(() => pickImage(props.day.filmPoster, props.day.filmPosterMedia))
+const filmPosition = ref<string | null>(null)
 
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
@@ -100,6 +101,7 @@ function applyFilm() {
   if (!video.getAttribute('src')) {
     const isMobile = window.matchMedia('(max-width: 760px)').matches
     video.src = backgroundVideoSrc(isMobile ? props.day.filmSrcMobile : props.day.filmSrc, isMobile)
+    filmPosition.value = (isMobile ? props.day.filmPositionMobile : props.day.filmPosition) ?? null
   }
   if (!video.paused) { isPlaying.value = true; return }
   video
@@ -190,12 +192,13 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" aria-hidden="true">
-          <img class="day-film-poster" v-bind="responsiveImage(day.filmPoster)" loading="lazy" fetchpriority="low" alt="" decoding="async">
+          <img class="day-film-poster" v-bind="posterImage" :style="day.filmPosterMedia?.position ? { objectPosition: day.filmPosterMedia.position } : undefined" loading="lazy" fetchpriority="low" alt="" decoding="async">
           <video
             v-if="showVideo"
             ref="videoEl"
             class="day-film-video"
             :class="{ 'is-ready': isVideoReady }"
+            :style="filmPosition ? { objectPosition: filmPosition } : undefined"
             muted
             loop
             playsinline

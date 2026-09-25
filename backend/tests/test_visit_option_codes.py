@@ -5,6 +5,10 @@ import pytest
 
 from app.booking.schemas import VisitRequestCreate, VisitRequestManualCreate
 
+
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
 API = "/api/website/v1"
 
 

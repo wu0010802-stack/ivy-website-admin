@@ -9,13 +9,14 @@ import CampusSelect from '../components/CampusSelect.vue'
 import { useContentItem } from '../composables/useContentItem'
 import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 
 async function setup() {
   const pinia = createPinia()
-  useAuthStore(pinia).user = { id: 'local-test', email: 'test@example.invalid', role: 'super_admin', is_active: true, campus_keys: ['yihua', 'renwu'], line_linked: false }
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua', 'renwu'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/booking-settings')
   await router.isReady()
@@ -38,18 +39,21 @@ describe('設定頁的編輯保護', () => {
   it('可啟用日期場次並以人工確認作為預設', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(config())
     const patch = vi.spyOn(api, 'patch').mockResolvedValue({ ...config(), version: 2, mode: 'slots', slots_auto_confirm: false })
+    // 切換預約方式前會先確認影響範圍。
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = await booking()
     const radio = wrapper.get('input[type="radio"][value="slots"]')
     expect(radio.attributes('disabled')).toBeUndefined()
     await radio.setValue(true)
     await saveButton(wrapper).trigger('click')
     await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
     expect(patch).toHaveBeenCalledWith('/admin/booking-config/yihua', expect.objectContaining({ mode: 'slots', slots_auto_confirm: false }))
   })
 
   it('拒絕放棄修改時保留校區與輸入，不載入另一校', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(config())
-    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/'))
+    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/') && !String(call[0]).endsWith('/readiness'))
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
     const wrapper = await booking()
     await wrapper.get('textarea').setValue('尚未儲存的說明')
@@ -67,10 +71,11 @@ describe('設定頁的編輯保護', () => {
     let configLoads = 0
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active: true } as never
+      if (String(path).endsWith('/readiness')) return null as never
       configLoads += 1
       return (configLoads === 1 ? config() : config('renwu')) as never
     })
-    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/'))
+    const configCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/booking-config/') && !String(call[0]).endsWith('/readiness'))
     let agree!: (value: { value: string; action: 'confirm' }) => void
     const confirmation = new Promise<{ value: string; action: 'confirm' }>(resolve => { agree = resolve })
     vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(confirmation as unknown as ReturnType<typeof ElMessageBox.confirm>)

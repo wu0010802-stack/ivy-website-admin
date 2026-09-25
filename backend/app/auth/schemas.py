@@ -28,8 +28,13 @@ class UserOut(BaseModel):
     role: Role
     is_active: bool
     campus_keys: list[str]
-    # 明確授權，目前只有 "content.shared"（編輯全站共用內容）。
+    # 總管理者逐人給的明確授權："content.shared"（編輯全站共用內容）、
+    # "booking.export"（個資匯出）。
     capabilities: list[str] = Field(default_factory=list)
+    # 角色＋授權算出來的實際 capability，後台據此隱藏做不到的操作；真正的
+    # 檢查仍在各端點。
+    effective_capabilities: list[str]
+    google_linked: bool
     line_linked: bool
 
     model_config = {"from_attributes": True}

@@ -10,6 +10,10 @@ from app.workers import lease_service
 from app.workers.runner import process_outbox_batch
 
 
+# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+pytestmark = pytest.mark.usefixtures("booking_consent")
+
+
 async def _enable_inquiry_and_submit(admin_client, public_client, idempotency_key="notif-01"):
     current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
     await admin_client.patch(

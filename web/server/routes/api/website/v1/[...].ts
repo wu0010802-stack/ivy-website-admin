@@ -32,7 +32,7 @@ export default defineEventHandler((event) => {
     } else {
       const length = Number(declared)
       if (!Number.isSafeInteger(length) || length < 0) throw createError({ statusCode: 400 })
-      if (length > proxyBodyLimit(path)) throw createError({ statusCode: 413, statusMessage: 'Payload Too Large' })
+      if (length > proxyBodyLimit(path, Number(config.mediaMaxUploadMb))) throw createError({ statusCode: 413, statusMessage: 'Payload Too Large' })
     }
     // 素材上傳改用串流轉送，不在 web 記憶體裡累積整個檔案。
     streamRequest = isMediaUploadPath(path)

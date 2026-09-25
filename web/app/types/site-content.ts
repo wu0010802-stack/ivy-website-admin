@@ -1,3 +1,7 @@
+import type { MediaImage } from '../utils/media-image'
+
+export type { MediaImage }
+
 export interface HeroContent {
   eyebrow: string
   titleParts: {
@@ -14,6 +18,15 @@ export interface HeroContent {
   heroImageAlt: string
   heroVideoSrc: string
   heroVideoPoster: string
+  // 以下由後台素材版位疊上（content-overlay.ts）；沒有＝沿用上面的內建素材。
+  /** 首屏照片（影片載入前與不自動播放時） */
+  heroImageMedia?: MediaImage
+  /** 影片載入失敗時換上的照片；沒有就一直顯示 heroImageMedia／內建照片 */
+  heroFallbackMedia?: MediaImage
+  /** 手機（760px 以下）播的影片；沒有就用 heroVideoSrc 的手機版 */
+  heroVideoSrcMobile?: string
+  heroVideoPosition?: string | null
+  heroVideoPositionMobile?: string | null
 }
 
 export interface AboutContent {
@@ -22,7 +35,7 @@ export interface AboutContent {
   title: string
   watermark: { top: string; bottom: string }
   bodyText: string
-  photos: { image: string; alt: string; role: string }[]
+  photos: { image: string; alt: string; role: string; media?: MediaImage }[]
   caption: string
 }
 
@@ -53,6 +66,8 @@ export interface DayMoment {
   question: string
   answer: string
   _todo?: string
+  /** 後台從素材庫選的照片；有它時不看 photo */
+  photoMedia?: MediaImage
 }
 
 export interface DayExperienceContent {
@@ -64,6 +79,9 @@ export interface DayExperienceContent {
   filmSrc: string
   filmSrcMobile: string
   filmPoster: string
+  filmPosterMedia?: MediaImage
+  filmPosition?: string | null
+  filmPositionMobile?: string | null
   note: string
   sourceNote: string
   moments: DayMoment[]
@@ -83,6 +101,7 @@ export interface TourScene {
   image: string
   intro: string
   spots: TourSpot[]
+  imageMedia?: MediaImage
 }
 
 export interface GeneratedTourScenes {
@@ -115,6 +134,10 @@ export interface Campus {
   address: string
   phone: string
   image: string
+  /** 後台選的封面；panoramaPos／heroPhotoPos 會一起換成後台的焦點 */
+  imageMedia?: MediaImage
+  lineArtMedia?: MediaImage
+  lineArtColourMedia?: MediaImage
   photoPos: string | null
   panoramaPos: string | null
   heroPhotoPos: string | null
@@ -127,19 +150,37 @@ export interface Campus {
   fbNote: string
   _todo?: string | null
   mapQueryAddress: string
+  /** 後台「分校介紹」填的 Google 地圖網址；沒有時用地址組成搜尋連結（utils/site-links.ts） */
+  mapUrl?: string
   tourScenes: TourScene[] | GeneratedTourScenes
   faq: { template: string; items: FaqItem[] }
 }
 
+/** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock），官網逐塊用固定元素顯示。 */
+export type NewsBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'heading'; text: string }
+  | { type: 'list'; items: string[]; ordered?: boolean }
+  | { type: 'image'; image: string; alt?: string; caption?: string; imageMedia?: MediaImage }
+  | { type: 'link'; label: string; url: string }
+
 export interface NewsArticle {
   id: string
   date: string
+  /** 顯示用的校區文字（「全校」「義華校」「義華校、明華校」） */
   campus: string
+  /** 適用的校區 key；空陣列＝全校 */
+  campusKeys?: string[]
   category: string
   title: string
+  /** 摘要：卡片、清單與沒有內文時的詳細頁顯示 */
   description: string
+  body?: NewsBlock[]
+  /** 首頁推薦（只有全站消息有） */
+  featured?: boolean
   image: string
   alt: string
+  imageMedia?: MediaImage
 }
 
 export interface NewsEvent {
@@ -147,9 +188,25 @@ export interface NewsEvent {
   date: string
   month: string
   campus: string
+  campusKeys?: string[]
   title: string
   description: string
+  /** 沒有這些欄位的舊資料視為全天、沒有地點與連結 */
+  allDay?: boolean
+  startTime?: string | null
+  endTime?: string | null
+  location?: string
+  linkUrl?: string
+  linkLabel?: string
 }
+
+/**
+ * 首頁手機版「活動影片」的一支。標題不顯示，只當螢幕閱讀器的名稱。
+ * 檔案影片播 start～end 秒（end 為 null＝播到結尾再循環）。
+ */
+export type HomeFilm =
+  | { id: string; title: string; type: 'file'; src: string; start: number; end: number | null; poster: string }
+  | { id: string; title: string; type: 'youtube'; youtubeId: string; poster: string }
 
 export interface NewsContent {
   sectionId: string
@@ -157,6 +214,10 @@ export interface NewsContent {
   sampleNote: string
   articles: NewsArticle[]
   events: NewsEvent[]
+  /** 首頁最多輪播幾則；沒有值＝全部 */
+  homeCount?: number | null
+  /** 後台設定的手機版活動影片；沒有＝沿用 utils/campusFilms.ts 的內建清單 */
+  films?: HomeFilm[]
 }
 
 export interface BookingField {
@@ -172,10 +233,18 @@ export interface BookingField {
   optionsFrom?: string
 }
 
+/** 隱私／個資使用說明（後台「預約文案」維護）。段落是純文字。 */
+export interface PrivacyNotice {
+  title: string
+  sections: { heading: string; body: string }[]
+}
+
 export interface BookingContent {
   isDemo: boolean
   demoNote: string
   consentText: string
+  /** 已發布的隱私說明；沒有正式說明時為 null，頁尾與表單不顯示入口 */
+  privacyNotice?: PrivacyNotice | null
   ctaLabel: string
   ctaLabelEn: string
   bannerTitleTemplate: string

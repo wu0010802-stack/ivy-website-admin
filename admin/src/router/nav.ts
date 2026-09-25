@@ -31,8 +31,9 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字；目前只有參觀案件（新需求＋待園方確認） */
-  badge?: 'open-requests'
+  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期）、
+   * 發布紀錄（給自己的內容通知未讀數） */
+  badge?: 'open-requests' | 'reschedule-requests' | 'content-notices'
 }
 
 export interface NavGroup {
@@ -57,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
@@ -87,6 +88,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT },
       { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare', roles: CONTENT },
+      // 五校共用的常見問題是共用內容：總管理者或有「全站共用內容」授權的人。
+      { name: 'shared-faq', path: '/content/shared-faq', title: '共用常見問題', icon: 'ChatDotSquare', roles: ['super_admin'], shared: true },
+      // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
+      { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT },
       { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT },
     ],
   },
@@ -100,6 +105,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true },
       { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true },
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT },
+      // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
+      // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT },
     ],
   },
   {

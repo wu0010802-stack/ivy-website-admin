@@ -13,19 +13,12 @@ from sqlalchemy import func, select
 
 from app.auth import service
 from app.auth.models import Role, User
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_NAMES, Campus
 from app.config import get_settings
-from app.content import service as content_service
 from app.db import create_engine, create_session_factory
 from app.workers.maintenance import run_cycle
 
-CAMPUSES = [
-    ("yihua", "義華校"),
-    ("minghua", "明華校"),
-    ("chongde", "崇德校"),
-    ("international", "國際校"),
-    ("renwu", "仁武校"),
-]
+CAMPUSES = list(CAMPUS_NAMES.items())
 
 
 async def _session_factory():
@@ -95,53 +88,71 @@ async def bootstrap_admin() -> None:
         print(f"已建立總管理者：{email}")
 
 
-async def content_seed_from_fixture(fixture_path: str) -> None:
-    """階段 B 一次性工具：把 fixture 目前的 home_about／home_hero／
-    site_footer 文字灌進 typed content 系統並直接發布，讓 Nuxt 一開始讀到
-    的內容跟現行原型一致，不必園方手動重打一次文案。重跑會用目前
-    latest_version 建新 revision，不會出錯，但會多一版歷史
-    （屬預期行為，不是覆寫 bug）。"""
+async def content_seed_from_fixture(fixture_path: str, *, force: bool, dry_run: bool) -> None:
+    """把 fixture 的首頁「關於」、首頁大圖標語與頁尾文字寫進後台並發布。
+
+    只適合全新的資料庫：這三項任何一項已經有版本（後台編輯過、或跑過
+    initialize-content）就拒絕，避免把園方改好的文字蓋回原型文字；確定要蓋
+    才加 --force（舊版本仍留在版本紀錄，可以還原）。新環境請改用
+    initialize-content，它只補空白項目、不會覆寫。"""
+    from app.content.initialize import SeedRefused, seed_from_fixture
+
     data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
-    about = data["home"]["about"]
-    hero = data["home"]["hero"]
-    footer = data["footer"]
-
-    payloads = {
-        "home_about": {
-            "title": about["title"],
-            "since_label": about["sinceLabel"],
-            "body_text": about["bodyText"],
-            "caption": about["caption"],
-        },
-        "home_hero": {
-            "eyebrow": hero["eyebrow"],
-            "copy_lines": hero["copyLines"],
-            "cta_label": hero["ctaLabel"],
-        },
-        "site_footer": {
-            "tagline": footer["tagline"],
-        },
-    }
-
     factory = await _session_factory()
     async with factory() as db:
         result = await db.execute(select(User).where(User.role == Role.SUPER_ADMIN).limit(1))
         admin_user = result.scalar_one_or_none()
         created_by = admin_user.id if admin_user else None
-
-        for kind, payload in payloads.items():
-            item = await content_service.get_or_create_content_item(db, kind, None)
-            revision = await content_service.create_revision(
-                db, item, payload, item.latest_version, created_by
+        try:
+            plan = await seed_from_fixture(db, data, created_by, force=force, dry_run=dry_run)
+        except SeedRefused as exc:
+            await db.rollback()
+            print(
+                f"以下內容已經有版本，可能是後台編輯過的，這次不寫入：{'、'.join(exc.existing)}。"
+                "新環境請用 initialize-content；確定要用 fixture 蓋回去再加 --force。",
+                file=sys.stderr,
             )
-            await content_service.publish_revision(db, item, revision, created_by)
-            print(f"已建立並發布 {kind} revision v{revision.version}")
+            raise SystemExit(1) from exc
+        if dry_run:
+            await db.rollback()
+            print(f"dry-run：欄位驗證通過，會寫入並發布 {'、'.join(plan.kinds)}（未寫入）。")
+            if plan.existing:
+                print(f"其中 {'、'.join(plan.existing)} 已經有版本，--force 會以 fixture 文字另存新版並發布。")
+            return
         await db.commit()
-        print(f"（來源：{fixture_path}）")
+        print(f"已寫入並發布 {'、'.join(plan.kinds)}（來源：{fixture_path}）。")
+
+
+async def initialize_content_command(fixture_path: str, *, dry_run: bool) -> None:
+    """驗證所有 payload 後，只補還沒有任何版本的內容項並發布；dry-run 列出會補哪些。"""
+    from app.content.initialize import faq_adoption_candidates, initialize_content, pending_initialization
+
+    data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
+    factory = await _session_factory()
+    async with factory() as db:
+        adopt = await faq_adoption_candidates(db, data)
+        adopt_note = (
+            f"{'、'.join(adopt)} 的常見問題還是原型匯入的版本，改用全站共用題目"
+            "（拿掉搬進共用的那幾題並發布；題目內容不變，共用題目排在本校題目之前）。"
+        )
+        if dry_run:
+            pending = await pending_initialization(db, data)
+            await db.rollback()
+            print(f"dry-run：欄位驗證通過，會初始化並發布 {len(pending)} 筆內容（未寫入）。")
+            for kind, campus in pending:
+                print(f"  - {kind}{f'（{campus}）' if campus else ''}")
+            if adopt:
+                print(f"另外：{adopt_note}")
+            return
+        count = await initialize_content(db, data)
+        await db.commit()
+        print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
+        if adopt:
+            print(f"另外：{adopt_note}")
 
 
 async def process_notifications_once() -> None:
-    """手動跑一輪定期工作（排程發布、逾期占位、通知、清限流計數）。正式站
+    """手動跑一輪定期工作（排程發布、逾期占位、依規則補時段、提醒、通知、清限流計數）。正式站
     的 API 已經每 60 秒自己跑一次（app/workers/maintenance.py），這個指令
     留給本機、測試與臨時補跑；兩者同時執行時後到者會跳過，不會重複處理。
     寄信未設定時如實印出「未配置」，站內通知照寫、不假裝寄出。"""
@@ -151,16 +162,44 @@ async def process_notifications_once() -> None:
     if not result.ran:
         print("另一個程序正在執行定期工作，這次跳過。")
         return
-    if result.published or result.publish_failed:
+    if result.published or result.publish_failed or result.publish_skipped:
         print(f"排程發布：成功 {result.published} 筆、失敗 {result.publish_failed} 筆")
+    if result.publish_skipped:
+        print(f"另有 {result.publish_skipped} 筆排程到期時官網已經是較新的版本，沒有蓋回去。")
     if result.expired_holds:
         print(f"已釋放 {result.expired_holds} 筆逾期的時段占位。")
+    if result.slots_generated:
+        print(f"已依每週規則補上 {result.slots_generated} 場時段。")
+    if result.reminders_enqueued:
+        print(f"已產生 {result.reminders_enqueued} 則提醒（即將參觀、逾期未處理）。")
     if not result.email_configured:
         print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
     print(f"已處理通知：成功 {result.notifications_sent} 筆、失敗 {result.notifications_failed} 筆")
+    if result.notifications_skipped:
+        print(f"另有 {result.notifications_skipped} 則提醒到寄送時已不適用（改期、取消或已處理），未送出。")
     if result.failed_steps:
         print(f"以下步驟失敗，詳見錯誤紀錄：{'、'.join(result.failed_steps)}", file=sys.stderr)
         raise SystemExit(1)
+
+
+async def requeue_notifications(campus_key: str | None, dry_run: bool) -> None:
+    """把寄送失敗（已達自動重試上限）的通知重新排入，下一輪定期工作重送。
+    已送到的管道與收件人會略過，不會重複寫站內通知或重推 LINE。後台「站內
+    通知」頁也可以逐則或整批重新寄送；這個指令給 SMTP 修好後一次補送用。"""
+    from app.notifications import outbox_admin
+
+    factory = await _session_factory()
+    async with factory() as db:
+        scope = {campus_key} if campus_key else None
+        if dry_run:
+            failed = await outbox_admin.list_failed(db, scope, limit=10_000)
+            print(f"寄送失敗的通知共 {len(failed)} 則（dry-run，未重新排入）。")
+            for item in failed:
+                print(f"  - {item['id']} {item['campus_key']} {item['kind']}（{item['error_code'] or '無錯誤碼'}）")
+            return
+        count = await outbox_admin.requeue_all_failed(db, scope, actor_user_id=None, source="cli")
+        await db.commit()
+    print(f"已重新排入 {count} 則寄送失敗的通知，下一輪定期工作（約一分鐘內）會重送。")
 
 
 async def media_copy_to_s3(dry_run: bool) -> None:
@@ -213,12 +252,100 @@ async def media_copy_to_s3(dry_run: bool) -> None:
         raise SystemExit(1)
 
 
+_IMPORT_STATUS = {
+    "import": "會匯入",
+    "exists": "素材庫已有，沿用",
+    "missing": "找不到檔案",
+    "too_large": "超過上傳上限",
+    "imported": "已匯入",
+    "failed": "失敗",
+}
+
+
+async def import_site_assets(web_root: Path, *, apply: bool, write_drafts: bool) -> None:
+    """把官網內建的 Logo、首屏與孩子的一天的影片和 poster、關於與時刻卡照片、
+    五校封面與建築線稿匯入素材庫（app/media/site_import.py）。預設只列出會做
+    什麼；--apply 才寫入，--write-drafts 另外把對應版位寫成草稿（不發布）。
+    以檔案雜湊去重，可以重跑。"""
+    from app.media import service as media_service
+    from app.media import site_import
+
+    settings = get_settings()
+    entries = site_import.plan_site_assets(web_root)
+    max_bytes = {"image": settings.media_max_bytes("image"), "video": settings.media_max_bytes("video")}
+    storage = media_service.get_storage(settings)
+    factory = await _session_factory()
+    async with factory() as db:
+        results = await site_import.check_entries(db, entries, max_bytes)
+        await db.rollback()
+    if apply:
+        for result in results:
+            if result.status != "import":
+                continue
+            async with factory() as db:
+                await site_import.import_entry(db, storage, result, settings.media_quota_bytes_per_campus)
+                if result.status == "imported":
+                    await db.commit()
+                else:
+                    await db.rollback()
+
+    for result in results:
+        entry = result.entry
+        where = f"{CAMPUS_NAMES.get(entry.campus_key, entry.campus_key)}" if entry.campus_key else "共用"
+        media = f" → {result.media_id}" if result.media_id else ""
+        note = f"（{result.message}）" if result.message else ""
+        print(f"  [{_IMPORT_STATUS[result.status]}] {entry.label}・{where}：{entry.path.name}{media}{note}")
+
+    drafts: list = []
+    if write_drafts:
+        async with factory() as db:
+            drafts = await site_import.write_drafts(db, results, apply=apply)
+            if apply:
+                await site_import.log_import(db, results, drafts)
+                await db.commit()
+            else:
+                await db.rollback()
+        verb = "已寫成草稿" if apply else "會寫成草稿"
+        for draft in drafts:
+            where = f"（{draft.campus_key}）" if draft.campus_key else ""
+            if draft.note:
+                print(f"  {draft.kind}{where}：{draft.note}")
+                continue
+            if draft.written:
+                print(f"  {draft.kind}{where}：{verb} {'、'.join(draft.written)}")
+            for skipped in draft.skipped:
+                print(f"  {draft.kind}{where}：略過 {skipped}")
+    elif apply:
+        async with factory() as db:
+            await site_import.log_import(db, results, [])
+            await db.commit()
+
+    counts = {status: sum(1 for r in results if r.status == status) for status in _IMPORT_STATUS}
+    if not apply:
+        pending = counts["import"]
+        print(
+            f"dry-run：共 {len(results)} 個檔案，會匯入 {pending}、已在素材庫 {counts['exists']}、"
+            f"找不到 {counts['missing']}、超過上限 {counts['too_large']}（未寫入）。加 --apply 才會執行"
+            f"{'' if write_drafts else '；加 --write-drafts 會一併把版位寫成草稿'}。"
+        )
+        return
+    print(
+        f"共 {len(results)} 個檔案：已匯入 {counts['imported']}、沿用 {counts['exists']}、"
+        f"失敗 {counts['failed']}、找不到 {counts['missing']}、超過上限 {counts['too_large']}。"
+        + ("草稿不會自動發布，請到後台確認後發布。" if write_drafts else "")
+    )
+    if counts["failed"]:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
             "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
-            "content-seed-from-fixture|initialize-content|process-notifications|"
-            "media-copy-to-s3 [--dry-run]>",
+            "content-seed-from-fixture <fixture> [--dry-run] [--force]|"
+            "initialize-content <fixture> [--dry-run]|process-notifications|"
+            "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
+            "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -230,28 +357,46 @@ def main() -> None:
     elif command == "bootstrap-admin":
         asyncio.run(bootstrap_admin())
     elif command == "content-seed-from-fixture":
-        if len(sys.argv) < 3:
-            print("用法：python -m app.cli content-seed-from-fixture <fixture路徑>", file=sys.stderr)
+        args = [arg for arg in sys.argv[2:] if not arg.startswith("--")]
+        flags = {arg for arg in sys.argv[2:] if arg.startswith("--")}
+        if len(args) != 1 or flags - {"--dry-run", "--force"}:
+            print("用法：python -m app.cli content-seed-from-fixture <fixture路徑> [--dry-run] [--force]", file=sys.stderr)
             raise SystemExit(1)
-        asyncio.run(content_seed_from_fixture(sys.argv[2]))
+        asyncio.run(content_seed_from_fixture(args[0], force="--force" in flags, dry_run="--dry-run" in flags))
     elif command == "initialize-content":
-        if len(sys.argv) != 3:
-            raise SystemExit("用法：python -m app.cli initialize-content <fixture路徑>")
-        from app.content.initialize import initialize_content
-
-        async def run_initialize() -> None:
-            data = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-            factory = await _session_factory()
-            async with factory() as db:
-                count = await initialize_content(db, data)
-                await db.commit()
-                print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
-
-        asyncio.run(run_initialize())
+        args = [arg for arg in sys.argv[2:] if not arg.startswith("--")]
+        flags = {arg for arg in sys.argv[2:] if arg.startswith("--")}
+        if len(args) != 1 or flags - {"--dry-run"}:
+            raise SystemExit("用法：python -m app.cli initialize-content <fixture路徑> [--dry-run]")
+        asyncio.run(initialize_content_command(args[0], dry_run="--dry-run" in flags))
     elif command == "process-notifications":
         asyncio.run(process_notifications_once())
+    elif command == "requeue-notifications":
+        args = sys.argv[2:]
+        campus_key = None
+        if "--campus" in args:
+            index = args.index("--campus")
+            if index + 1 >= len(args):
+                raise SystemExit("用法：python -m app.cli requeue-notifications [--campus <key>] [--dry-run]")
+            campus_key = args[index + 1]
+        asyncio.run(requeue_notifications(campus_key, "--dry-run" in args))
     elif command == "media-copy-to-s3":
         asyncio.run(media_copy_to_s3("--dry-run" in sys.argv[2:]))
+    elif command == "import-site-assets":
+        from app.media.site_import import DEFAULT_WEB_ROOT
+
+        args = sys.argv[2:]
+        web_root = DEFAULT_WEB_ROOT
+        if "--web-root" in args:
+            index = args.index("--web-root")
+            if index + 1 >= len(args):
+                raise SystemExit("用法：python -m app.cli import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]")
+            web_root = Path(args[index + 1])
+            args = args[:index] + args[index + 2:]
+        unknown = set(args) - {"--apply", "--write-drafts", "--dry-run"}
+        if unknown or ("--apply" in args and "--dry-run" in args):
+            raise SystemExit("用法：python -m app.cli import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]")
+        asyncio.run(import_site_assets(web_root, apply="--apply" in args, write_drafts="--write-drafts" in args))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

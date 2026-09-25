@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # 限制，但五校共用同一顆 volume，沒有累計上限時一個校區帳號反覆上傳
     # 就能把磁碟塞滿、讓其他校區也無法上傳。
     media_quota_bytes_per_campus: int = 5 * 1024 * 1024 * 1024
+    # 單檔上限（規格 L140：初始圖片 15 MB、影片 150 MB，可由部署設定調整）。
+    # API 的請求本文上限由這兩個值推導；web 代理另有 NUXT_MEDIA_MAX_VIDEO_MB，
+    # 兩邊要設一樣（見 deploy/README.md）。
+    media_max_image_mb: int = Field(default=15, ge=1, le=100)
+    media_max_video_mb: int = Field(default=150, ge=1, le=2048)
+    # 刪除的素材先標記待清理，過這麼多天才由定期工作真的刪檔，期間可以復原。
+    media_purge_delay_days: int = Field(default=7, ge=1, le=90)
 
     @field_validator(
         "google_client_id", "google_client_secret", "google_redirect_uri",
@@ -105,6 +112,16 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*", value) or ".." in value:
             raise ValueError("WEBSITE_S3_PREFIX 只能是英數、.、_、- 組成的路徑")
         return f"{value}/"
+
+    def media_max_bytes(self, kind: str) -> int:
+        """kind 是 "image" 或 "video"。"""
+        megabytes = self.media_max_video_mb if kind == "video" else self.media_max_image_mb
+        return megabytes * 1024 * 1024
+
+    @property
+    def media_upload_body_limit(self) -> int:
+        """素材上傳請求本文上限：最大單檔再加 multipart 欄位與邊界的餘裕。"""
+        return max(self.media_max_bytes("image"), self.media_max_bytes("video")) + 5 * 1024 * 1024
 
     @property
     def s3_configured(self) -> bool:

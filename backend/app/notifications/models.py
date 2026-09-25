@@ -25,6 +25,31 @@ class NotificationInboxItem(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class UserNotification(Base):
+    """給特定一個人的站內通知（內容送審、核准或退回、排程發布沒有執行）。
+
+    和上面依校區共用的案件通知不同：這些只跟收件人自己有關，已讀也是個人的；
+    內容編輯沒有案件權限，一樣看得到給自己的通知。payload 只放內容種類、版本
+    與原因這類摘要，不放內容本身。"""
+
+    __tablename__ = "user_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    recipient_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("content_items.id", ondelete="CASCADE"), nullable=True
+    )
+    campus_key: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("campuses.key", ondelete="CASCADE"), nullable=True
+    )
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class NotificationDelivery(Base):
     """「這筆 outbox 訊息已經送到這個收件人」的紀錄。
 
