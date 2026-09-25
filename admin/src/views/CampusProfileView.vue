@@ -2,8 +2,8 @@
 import { computed, ref, useTemplateRef } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
-import type { CampusProfilePayload, FocusPointPayload } from '../api/types'
-import { mediaVariantUrl } from '../api/client'
+import type { CampusProfilePayload, FocusPointPayload, MediaAssetOut } from '../api/types'
+import { mediaFocusUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -46,14 +46,21 @@ const BUILTIN_COVERS: Record<string, string> = {
 const builtinCover = computed(() => (BUILTIN_COVERS[campus.value] ? `/assets/${BUILTIN_COVERS[campus.value]}.webp` : ''))
 const builtinLineArt = computed(() => (campus.value ? `/assets/campus-line-art-${campus.value}.webp` : ''))
 const builtinLineArtColour = computed(() => (campus.value ? `/assets/campus-line-art-${campus.value}-colour.webp` : ''))
-// 點焦點用的封面（換了封面用素材的縮圖，沒換用內建照片）。
-const coverSrc = computed(() => {
+// 封面版位目前的素材（MediaSlotField 載入後回報；換封面、切校區時跟著換）。
+const coverAsset = ref<MediaAssetOut | null>(null)
+const currentCoverAsset = computed(() => {
   const cover = editor.form.value.cover
-  return cover ? mediaVariantUrl(cover.media_id, 'thumbnail') : builtinCover.value
+  return cover && coverAsset.value?.id === cover.media_id ? coverAsset.value : null
+})
+// 點焦點用的封面（換了封面用素材的縮圖——舊縮圖沒依拍攝方向轉正時用原檔；沒換用內建照片）。
+// 換了封面、素材還在載入時先不顯示，免得在另一張照片上點。
+const coverSrc = computed(() => {
+  if (!editor.form.value.cover) return builtinCover.value
+  return currentCoverAsset.value ? mediaFocusUrl(currentCoverAsset.value) : ''
 })
 // 版位焦點沒設時官網實際用的位置：沒換封面＝內建位置（web fixture 的 panoramaPos／
-// heroPhotoPos，沒有就是元件預設）；換了封面＝封面設定的焦點，再沒有就是元件預設
-// （素材本身的預設焦點這裡不另外查）。
+// heroPhotoPos，沒有就是元件預設）；換了封面＝封面設定的焦點，再來是素材庫設定的
+// 素材預設焦點（官網 slotPosition 的順序），都沒有才是元件預設。
 const BUILTIN_CARD_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 50, y: 12 } }
 const BUILTIN_HERO_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 85, y: 8 } }
 const CARD_DEFAULT: FocusPointPayload = { x: 50, y: 55 }
@@ -62,11 +69,21 @@ const coverFocus = computed<FocusPointPayload | null>(() => {
   const cover = editor.form.value.cover
   return cover && cover.focus_x != null && cover.focus_y != null ? { x: cover.focus_x, y: cover.focus_y } : null
 })
+const assetFocus = computed<FocusPointPayload | null>(() => {
+  const a = currentCoverAsset.value
+  return a && a.crop_focus_x != null && a.crop_focus_y != null
+    ? { x: Math.round(a.crop_focus_x * 100), y: Math.round(a.crop_focus_y * 100) }
+    : null
+})
 const cardFallback = computed(() =>
-  editor.form.value.cover ? (coverFocus.value ?? CARD_DEFAULT) : (BUILTIN_CARD_FOCUS[campus.value] ?? CARD_DEFAULT),
+  editor.form.value.cover
+    ? (coverFocus.value ?? assetFocus.value ?? CARD_DEFAULT)
+    : (BUILTIN_CARD_FOCUS[campus.value] ?? CARD_DEFAULT),
 )
 const heroFallback = computed(() =>
-  editor.form.value.cover ? (coverFocus.value ?? HERO_DEFAULT) : (BUILTIN_HERO_FOCUS[campus.value] ?? HERO_DEFAULT),
+  editor.form.value.cover
+    ? (coverFocus.value ?? assetFocus.value ?? HERO_DEFAULT)
+    : (BUILTIN_HERO_FOCUS[campus.value] ?? HERO_DEFAULT),
 )
 const fallbackLabel = computed(() => (editor.form.value.cover ? '預設位置（封面或素材的焦點）' : '官網原本的位置'))
 
@@ -132,6 +149,7 @@ const mapPreviewUrl = computed(() => {
           v-model="editor.form.value.cover"
           :campus-key="campus"
           builtin="官網內建的校園外觀照"
+          @asset="coverAsset = $event"
           :builtin-src="builtinCover"
           :focus="false"
           :disabled="editor.readOnly.value"

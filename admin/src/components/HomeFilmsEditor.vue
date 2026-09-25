@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
-import type { HomeFilmPayload } from '../api/types'
+import type { HomeFilmPayload, MediaAssetOut } from '../api/types'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
-import { HOME_FILMS_MAX, filmClipError, filmYoutubeError, newHomeFilm } from '../composables/homeFilms'
+import { HOME_FILMS_MAX, filmClipError, filmStartError, filmYoutubeError, newHomeFilm } from '../composables/homeFilms'
 import MediaSlotField from './MediaSlotField.vue'
 
 /**
@@ -19,6 +19,16 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:films': [value: HomeFilmPayload[] | null] }>()
 
 const root = ref<HTMLElement | null>(null)
+// 選到的影片長度（依素材 id；MediaSlotField 載入素材後回報），用來即時檢查片段秒數。
+const durations = reactive(new Map<string, number | null>())
+
+function rememberDuration(asset: MediaAssetOut | null) {
+  if (asset) durations.set(asset.id, asset.duration_seconds ?? null)
+}
+
+function durationOf(film: HomeFilmPayload): number | null {
+  return film.video ? (durations.get(film.video.media_id) ?? null) : null
+}
 
 function toggle(on: boolean) {
   emit('update:films', on ? [newHomeFilm()] : null)
@@ -68,13 +78,13 @@ function move(index: number, delta: number) {
         </div>
         <template v-if="film.source === 'file'">
           <el-form-item label="影片">
-            <MediaSlotField v-model="film.video" kind="video" builtin="（請選一支影片）" :focus="false" :disabled="readOnly" />
+            <MediaSlotField v-model="film.video" kind="video" builtin="（請選一支影片）" :focus="false" :disabled="readOnly" @asset="rememberDuration" />
           </el-form-item>
           <div class="field-row">
-            <el-form-item label="從第幾秒開始">
+            <el-form-item label="從第幾秒開始" :error="filmStartError(film, durationOf(film))">
               <el-input-number v-model="film.start" :min="0" :max="3600" :step="0.1" :precision="1" controls-position="right" />
             </el-form-item>
-            <el-form-item label="播到第幾秒（留空＝播到結尾）" :error="filmClipError(film)">
+            <el-form-item label="播到第幾秒（留空＝播到結尾）" :error="filmClipError(film, durationOf(film))">
               <el-input-number v-model="film.end" :min="0.1" :max="3600" :step="0.1" :precision="1" :value-on-clear="null" controls-position="right" />
             </el-form-item>
           </div>

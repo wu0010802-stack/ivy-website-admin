@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
-import { api, ApiError, mediaPreviewUrl, mediaVariantUrl } from '../api/client'
+import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus } from '../api/labels'
@@ -426,7 +426,7 @@ onMounted(async () => {
     <el-dialog v-model="editDialogVisible" :title="editingAsset?.kind === 'video' ? '編輯影片說明' : '編輯素材'" width="min(520px, 100%)">
       <el-form v-if="editingAsset" label-position="top">
         <el-form-item v-if="editingAsset.kind === 'image'" label="預設裁切焦點">
-          <FocusPicker v-model="editFocus" :src="mediaVariantUrl(editingAsset.id, 'thumbnail')" label="預設裁切焦點" reset-label="清除（置中）" />
+          <FocusPicker v-model="editFocus" :src="mediaFocusUrl(editingAsset)" label="預設裁切焦點" reset-label="清除（置中）" />
           <span class="field-help">
             點照片上最重要的位置（也可以用方向鍵）。首屏、關於、孩子的一天、分校封面與消息封面把照片裁成不同比例時，
             沒有另外設定焦點的版位以這一點為中心；各版位可以在內容頁自己調整，不受這裡影響。校園探索的場景照片不裁切（熱點要對齊整張照片），不套用。

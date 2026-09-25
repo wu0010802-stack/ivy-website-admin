@@ -27,10 +27,25 @@ export function newHomeFilm(): HomeFilmPayload {
   }
 }
 
-/** 片段的結束秒數要大於開始秒數；沒問題回空字串。 */
-export function filmClipError(film: HomeFilmPayload): string {
+/**
+ * 片段的結束秒數要大於開始秒數；知道影片長度（duration，秒）時不能超過影片長度
+ * （跟後端存檔檢查相同：播不到的結束秒數會讓官網整支重播）。沒問題回空字串。
+ */
+export function filmClipError(film: HomeFilmPayload, duration?: number | null): string {
   if (film.source !== 'file' || film.end == null) return ''
-  return film.end <= film.start ? '結束秒數要大於開始秒數' : ''
+  if (film.end <= film.start) return '結束秒數要大於開始秒數'
+  if (duration && film.end > duration) return `影片只有 ${formatSeconds(duration)} 秒，結束秒數不能超過影片長度（留空＝播到結尾）`
+  return ''
+}
+
+/** 知道影片長度時，開始秒數要小於影片長度；沒問題回空字串。 */
+export function filmStartError(film: HomeFilmPayload, duration?: number | null): string {
+  if (film.source !== 'file' || !duration || film.start < duration) return ''
+  return `影片只有 ${formatSeconds(duration)} 秒，開始秒數要小於影片長度`
+}
+
+function formatSeconds(value: number): string {
+  return String(Math.round(value * 100) / 100)
 }
 
 export function filmYoutubeError(film: HomeFilmPayload): string {

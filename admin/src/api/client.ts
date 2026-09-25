@@ -122,16 +122,39 @@ export function mediaFileUrl(id: string): string {
 
 export type MediaVariantKind = 'thumbnail' | 'poster' | 'large'
 
-export function mediaVariantUrl(id: string, kind: MediaVariantKind): string {
-  return `${BASE_URL}/admin/media/${id}/variants/${kind}`
+/** version 是衍生檔記錄 id：重新產生衍生檔會換成新記錄，網址跟著換，瀏覽器不會沿用快取的舊縮圖。 */
+export function mediaVariantUrl(id: string, kind: MediaVariantKind, version?: string): string {
+  const url = `${BASE_URL}/admin/media/${id}/variants/${kind}`
+  return version ? `${url}?v=${encodeURIComponent(version)}` : url
+}
+
+interface PreviewableAsset {
+  id: string
+  kind: string
+  variants?: { id?: string; kind: string; width?: number | null }[] | null
 }
 
 /**
  * 素材庫列表、選圖器、版位預覽用的小圖：圖片用縮圖、影片用自動抽的畫面；
  * 沒有衍生檔（舊素材處理失敗）的圖片退回原檔，影片回空字串（顯示佔位）。
  */
-export function mediaPreviewUrl(asset: { id: string; kind: string; variants?: { kind: string }[] | null }): string {
+export function mediaPreviewUrl(asset: PreviewableAsset): string {
   const variants = asset.variants ?? []
-  if (asset.kind === 'video') return variants.some((v) => v.kind === 'poster') ? mediaVariantUrl(asset.id, 'poster') : ''
-  return variants.some((v) => v.kind === 'thumbnail') ? mediaVariantUrl(asset.id, 'thumbnail') : mediaFileUrl(asset.id)
+  const pick = (kind: MediaVariantKind) => variants.find((v) => v.kind === kind)
+  if (asset.kind === 'video') {
+    const poster = pick('poster')
+    return poster ? mediaVariantUrl(asset.id, 'poster', poster.id) : ''
+  }
+  const thumbnail = pick('thumbnail')
+  return thumbnail ? mediaVariantUrl(asset.id, 'thumbnail', thumbnail.id) : mediaFileUrl(asset.id)
+}
+
+/**
+ * 點選裁切焦點用的照片。焦點座標要跟官網實際顯示的方向一致：寬度不明的縮圖
+ * 還沒重新產生（2026-09-25 以前的縮圖沒依拍攝方向轉正，手機直拍的是躺著的），
+ * 改用原檔——瀏覽器顯示原檔時會依拍攝方向轉正，跟官網一樣。
+ */
+export function mediaFocusUrl(asset: PreviewableAsset): string {
+  const thumbnail = (asset.variants ?? []).find((v) => v.kind === 'thumbnail')
+  return thumbnail?.width ? mediaVariantUrl(asset.id, 'thumbnail', thumbnail.id) : mediaFileUrl(asset.id)
 }

@@ -15,10 +15,10 @@ import FocusPicker from '../components/FocusPicker.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
-import { api, mediaPreviewUrl, mediaVariantUrl } from '../api/client'
+import { api, mediaFocusUrl, mediaPreviewUrl, mediaVariantUrl } from '../api/client'
 import { auditActionLabel, contentFieldLabel, mediaFieldPathLabel } from '../api/labels'
 import type { FocusPointPayload, HomeFilmPayload, MediaAssetOut, MediaSlotPayload, UserOut } from '../api/types'
-import { filmClipError, filmYoutubeError, newHomeFilm, youtubeIdOf } from '../composables/homeFilms'
+import { filmClipError, filmStartError, filmYoutubeError, newHomeFilm, youtubeIdOf } from '../composables/homeFilms'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { resetUploadLimits } from '../composables/mediaUpload'
 import { useAuthStore } from '../stores/auth'
@@ -101,11 +101,19 @@ async function savedPayload(wrapper: VueWrapper, kind: string): Promise<Record<s
 
 describe('縮圖與 poster', () => {
   it('圖片用縮圖、影片用自動擷取的畫面，沒有衍生檔時退回原檔或佔位', () => {
-    expect(mediaPreviewUrl(asset())).toBe('/api/website/v1/admin/media/m1/variants/thumbnail')
+    // 網址帶衍生檔記錄 id：重新產生衍生檔後換網址，不會沿用快取的舊縮圖。
+    expect(mediaPreviewUrl(asset())).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
     expect(mediaPreviewUrl(asset({ variants: [] }))).toBe('/api/website/v1/admin/media/m1/file')
-    expect(mediaPreviewUrl(VIDEO)).toBe('/api/website/v1/admin/media/vid/variants/poster')
+    expect(mediaPreviewUrl(VIDEO)).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
     expect(mediaPreviewUrl({ ...VIDEO, variants: [] })).toBe('')
     expect(mediaVariantUrl('m1', 'large')).toBe('/api/website/v1/admin/media/m1/variants/large')
+  })
+
+  it('點焦點用的照片：縮圖寬度不明（舊縮圖沒依拍攝方向轉正，等重新產生）時改用原檔', () => {
+    expect(mediaFocusUrl(asset())).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
+    const legacy = asset({ variants: [{ id: 'v9', kind: 'thumbnail', content_type: 'image/webp', width: null, height: null }] })
+    expect(mediaFocusUrl(legacy)).toBe('/api/website/v1/admin/media/m1/file')
+    expect(mediaFocusUrl(asset({ variants: [] }))).toBe('/api/website/v1/admin/media/m1/file')
   })
 
   it('素材庫卡片不載原檔：圖片用縮圖、影片顯示 poster 與長度', async () => {
@@ -117,8 +125,8 @@ describe('縮圖與 poster', () => {
     const wrapper = await mountView(MediaLibraryView, '/media')
     const srcs = wrapper.findAll('.media__thumb img').map((img) => img.attributes('src'))
     expect(srcs).toEqual([
-      '/api/website/v1/admin/media/m1/variants/thumbnail',
-      '/api/website/v1/admin/media/vid/variants/poster',
+      '/api/website/v1/admin/media/m1/variants/thumbnail?v=v1',
+      '/api/website/v1/admin/media/vid/variants/poster?v=p1',
     ])
     expect(srcs.some((src) => src?.endsWith('/file'))).toBe(false)
     expect(wrapper.find('.media__duration').text()).toBe('影片・0:12')
@@ -158,7 +166,7 @@ describe('縮圖與 poster', () => {
     await flushPromises()
     const items = Array.from(document.body.querySelectorAll('.picker__item'))
     expect(items).toHaveLength(1)
-    expect(items[0]!.querySelector('img')!.getAttribute('src')).toBe('/api/website/v1/admin/media/vid/variants/poster')
+    expect(items[0]!.querySelector('img')!.getAttribute('src')).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
     expect(document.body.textContent).toContain('選擇影片')
     expect(document.body.querySelector('input[type=file]')!.getAttribute('accept')).toBe('video/mp4')
   })
@@ -215,7 +223,7 @@ describe('MediaSlotField', () => {
     slot.value = { media_id: 'm1', focus_x: 10, focus_y: 20 }
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/media/m1')
-    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail')
+    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
     expect(wrapper.text()).toContain('garden.jpg')
     expect(wrapper.get('.focus-picker__pin').attributes('style')).toContain('left: 10%')
 
@@ -243,7 +251,20 @@ describe('MediaSlotField', () => {
     await flushPromises()
     expect(wrapper.find('.focus-picker').exists()).toBe(false)
     expect(wrapper.text()).toContain('0:12')
-    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/vid/variants/poster')
+    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
+  })
+
+  it('舊縮圖（寬度不明）只當小圖，點焦點改在原檔上點；載入的素材回報給頁面', async () => {
+    const legacy = asset({ variants: [{ id: 'v9', kind: 'thumbnail', content_type: 'image/webp', width: null, height: null }] })
+    vi.spyOn(api, 'get').mockResolvedValue(legacy as never)
+    const reported: (MediaAssetOut | null)[] = []
+    const wrapper = mountPlain(() => h(MediaSlotField, {
+      modelValue: { media_id: 'm1', focus_x: null, focus_y: null }, builtin: 'x', onAsset: (a: MediaAssetOut | null) => reported.push(a),
+    }))
+    await flushPromises()
+    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v9')
+    expect(wrapper.find('.focus-picker__stage img').attributes('src')).toBe('/api/website/v1/admin/media/m1/file')
+    expect(reported.map((a) => a?.id)).toEqual(['m1'])
   })
 
   it('讀不到素材時請使用者重選', async () => {
@@ -311,6 +332,25 @@ describe('內容頁的素材版位', () => {
     expect(payload.cover).toBeNull()
   })
 
+  it('分校：換了封面、版位沒設焦點時，示意的是素材庫設定的素材焦點（跟官網一樣）', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/media/m1') return asset({ crop_focus_x: 0.3, crop_focus_y: 0.7 }) as never
+      return contentItem('campus_profile', {
+        name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
+        cover: { media_id: 'm1', focus_x: null, focus_y: null }, card_focus: null, hero_focus: null, line_art: null, line_art_colour: null,
+      }, 'yihua') as never
+    })
+    const wrapper = await mountView(CampusProfileView, '/content/campus-profile')
+    await flushPromises()
+    const pins = wrapper.findAll('.focus-picker__pin')
+    expect(pins).toHaveLength(2)
+    for (const pin of pins) {
+      expect(pin.attributes('style')).toContain('left: 30%')
+      expect(pin.attributes('style')).toContain('top: 70%')
+    }
+    expect(wrapper.findAll('.focus-picker__stage img')[0]!.attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
+  })
+
   it('首頁消息：活動影片清單預設沿用內建，打開自訂才送出清單', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', { sample_note: '', articles: [], events: [], home_display_count: null }) as never)
     const wrapper = await mountView(HomeNewsView, '/content/home-news')
@@ -339,7 +379,34 @@ describe('活動影片規則與標籤', () => {
     const film = { ...newHomeFilm(), start: 5, end: 5 }
     expect(filmClipError(film)).toContain('結束秒數')
     expect(filmClipError({ ...film, end: null })).toBe('')
+    // 知道影片長度時對照長度檢查（跟後端存檔相同）。
+    expect(filmClipError({ ...film, end: 12.5 }, 12.34)).toBe('影片只有 12.34 秒，結束秒數不能超過影片長度（留空＝播到結尾）')
+    expect(filmClipError({ ...film, end: 12.34 }, 12.34)).toBe('')
+    expect(filmClipError({ ...film, end: 30 }, null)).toBe('')
+    expect(filmStartError({ ...film, start: 12.34, end: null }, 12.34)).toBe('影片只有 12.34 秒，開始秒數要小於影片長度')
+    expect(filmStartError({ ...film, start: 12, end: null }, 12.34)).toBe('')
+    expect(filmStartError({ ...film, start: 99, end: null })).toBe('')
     expect(filmYoutubeError({ ...film, source: 'youtube', youtube_url: 'nope' })).toContain('YouTube')
+  })
+
+  it('HomeFilmsEditor 依選到的影片長度即時提示片段秒數', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(VIDEO as never)
+    const films = ref<HomeFilmPayload[] | null>([{ ...newHomeFilm(), video: { media_id: 'vid', focus_x: null, focus_y: null }, start: 2, end: 15 }])
+    const wrapper = mountPlain(() => h(HomeFilmsEditor, { films: films.value, 'onUpdate:films': (v: HomeFilmPayload[] | null) => (films.value = v) }))
+    // el-form-item 的錯誤訊息延遲約 100ms 才顯示。
+    const settle = async () => {
+      await flushPromises()
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    }
+    await settle()
+    expect(wrapper.text()).toContain('影片只有 12 秒，結束秒數不能超過影片長度')
+    films.value![0]!.end = 10
+    await settle()
+    expect(wrapper.text()).not.toContain('影片只有 12 秒')
+    films.value![0]!.start = 12
+    films.value![0]!.end = null
+    await settle()
+    expect(wrapper.text()).toContain('影片只有 12 秒，開始秒數要小於影片長度')
   })
 
   it('HomeFilmsEditor 關閉自訂時送 null', async () => {
@@ -357,5 +424,6 @@ describe('活動影片規則與標籤', () => {
     expect(contentFieldLabel('card_focus')).toBe('首頁卡片焦點')
     expect(contentFieldLabel('films')).toBe('手機版活動影片')
     expect(auditActionLabel('media.import_site_assets')).toBe('匯入官網內建素材')
+    expect(auditActionLabel('media.regenerate_variants')).toBe('重新產生素材縮圖與大圖')
   })
 })

@@ -316,6 +316,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.purge': '清理刪除的素材檔案',
   'media.replace_references': '替換素材並產生草稿',
   'media.import_site_assets': '匯入官網內建素材',
+  'media.regenerate_variants': '重新產生素材縮圖與大圖',
 }
 
 export function auditActionLabel(action: string): string {
