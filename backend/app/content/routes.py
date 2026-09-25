@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -22,8 +23,13 @@ from app.auth.permissions import (
 from app.content import notices, service
 from app.content import publish_jobs
 from app.content.models import ContentItem, ContentRevision, PublishJob, ReleaseSource, SiteRelease, SiteReleaseEntry
-from app.media.models import MediaAsset
-from app.content.registry import CONTENT_KIND_REGISTRY
+from app.media.models import MediaAsset, MediaStatus
+from app.media.schemas import (
+    MediaReplaceReferencesOut,
+    MediaReplaceReferencesRequest,
+    MediaReplacedItemOut,
+)
+from app.content.registry import CONTENT_KIND_REGISTRY, set_at_path
 from app.media import service as media_service
 from app.operations import audit_service
 from app.content.schemas import (
@@ -128,16 +134,19 @@ async def _validate_media_references(
     if not media_ids:
         return
     result = await db.execute(
-        select(MediaAsset.id, MediaAsset.campus_key).where(MediaAsset.id.in_(set(media_ids)))
+        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at).where(
+            MediaAsset.id.in_(set(media_ids))
+        )
     )
-    found = {row.id: row.campus_key for row in result.all()}
+    found = {row.id: row for row in result.all()}
     for media_id in media_ids:
-        if media_id not in found:
+        # 待清理的素材過幾天就會真的刪掉，不能再被新的版本引用。
+        if media_id not in found or found[media_id].deleted_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"code": "MEDIA_NOT_FOUND", "message": f"找不到素材 {media_id}"},
             )
-        owner = found[media_id]
+        owner = found[media_id].campus_key
         if owner is not None and owner != campus_key:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -244,8 +253,8 @@ async def _save_draft(
     dumped_payload = typed_payload.model_dump()
     _, previous = await _get_item_with_latest_revision(db, item.id)
     dumped_payload = config.before_save(dumped_payload, previous.payload if previous else None)
-    media_ids = config.extract_media_ids(dumped_payload)
-    await _validate_media_references(db, media_ids, item.campus_key)
+    media_refs = config.extract_media_refs(dumped_payload)
+    await _validate_media_references(db, [ref.media_id for ref in media_refs], item.campus_key)
     try:
         revision = await service.create_revision(
             db, item, dumped_payload, expected_version, current_user.id
@@ -257,7 +266,9 @@ async def _save_draft(
             detail={"code": "CONTENT_VERSION_CONFLICT", "message": "內容已被其他人更新，請重新載入"},
         ) from exc
 
-    await media_service.sync_content_item_usages(db, str(item.id), kind, item.campus_key, media_ids)
+    await media_service.sync_content_item_usages(
+        db, str(item.id), kind, item.campus_key, revision.id, media_refs
+    )
     return revision
 
 
@@ -736,3 +747,112 @@ async def cancel_schedule(
     )
     await db.commit()
 
+
+
+# ---------------------------------------------------------------------------
+# 批次替換素材（規格 L142：先列影響範圍，再為每個內容項產生草稿）
+# ---------------------------------------------------------------------------
+
+
+def _replace_invalid(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "MEDIA_REPLACEMENT_INVALID", "message": message},
+    )
+
+
+async def _visible_media(db: AsyncSession, user: User, media_id: uuid.UUID) -> MediaAsset:
+    asset = await db.get(MediaAsset, media_id)
+    if asset is None:
+        raise ScopeDenied()
+    require_scope(user, "media.read", campus_keys=[asset.campus_key] if asset.campus_key else None)
+    return asset
+
+
+@router.post("/admin/media/{media_id}/replace-references", response_model=MediaReplaceReferencesOut)
+async def replace_media_references(
+    media_id: uuid.UUID,
+    payload: MediaReplaceReferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MediaReplaceReferencesOut:
+    """把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
+    草稿（不發布，官網要等各自發布或送審）。影響範圍由
+    GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
+    存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
+
+    一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回
+    錯誤，已處理的項目一起回滾。"""
+    old = await _visible_media(db, current_user, media_id)
+    replacement = await _visible_media(db, current_user, payload.replacement_id)
+    if replacement.id == old.id:
+        raise _replace_invalid("請選另一個素材來替換")
+    if replacement.kind != old.kind:
+        raise _replace_invalid("圖片只能換成圖片、影片只能換成影片")
+    if replacement.status != MediaStatus.READY or replacement.deleted_at is not None:
+        raise _replace_invalid("替換用的素材還沒處理完成或已刪除")
+
+    results: list[MediaReplacedItemOut] = []
+    seen: set[uuid.UUID] = set()
+    for entry in payload.items:
+        if entry.content_item_id in seen:
+            continue
+        seen.add(entry.content_item_id)
+        item, latest = await _get_item_with_latest_revision(db, entry.content_item_id)
+        _require_shared_or_scope(current_user, item)
+        config = _get_kind_config(item.kind)
+        if latest is None or item.latest_version != entry.expected_version:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "CONTENT_VERSION_CONFLICT",
+                    "message": "查看影響範圍之後，有內容被別人存了新版本，請重新查看後再替換",
+                },
+            )
+        paths = [ref.path for ref in config.extract_media_refs(latest.payload) if ref.media_id == old.id]
+        if not paths:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "MEDIA_NOT_REFERENCED", "message": "有內容的最新版本已經沒有用到這個素材，請重新查看"},
+            )
+        new_payload = copy.deepcopy(latest.payload)
+        for path in paths:
+            set_at_path(new_payload, path, str(replacement.id))
+        revision = await _save_draft(
+            db, config, item.kind, item, new_payload, entry.expected_version, current_user
+        )
+        results.append(
+            MediaReplacedItemOut(
+                content_item_id=item.id,
+                kind=item.kind,
+                campus_key=item.campus_key,
+                version=revision.version,
+                field_paths=paths,
+            )
+        )
+
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="media.replace_references",
+        target_type="media_asset",
+        target_id=str(old.id),
+        campus_key=old.campus_key,
+        metadata={
+            "replacement_id": str(replacement.id),
+            "items": [
+                {
+                    "content_item_id": str(r.content_item_id),
+                    "kind": r.kind,
+                    "campus_key": r.campus_key,
+                    "version": r.version,
+                    "field_paths": r.field_paths,
+                }
+                for r in results
+            ],
+        },
+    )
+    await db.commit()
+    return MediaReplaceReferencesOut(replacement_id=replacement.id, items=results)

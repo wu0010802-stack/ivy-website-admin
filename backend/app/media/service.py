@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,22 +13,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings
 from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, SiteState
 from app.content.registry import CONTENT_KIND_REGISTRY
+from app.content.registry import MediaRef
+from app.media import references as media_references
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
-from app.media.processing import ProcessingError, extract_video_poster_webp, make_image_thumbnail_webp
+from app.media.processing import (
+    ProcessingError,
+    extract_video_poster_webp,
+    make_image_thumbnail_webp,
+    probe_video,
+)
 from app.media.storage import LocalMediaStorage, MediaStorage, S3MediaStorage
 from app.media.validation import MediaValidationError, sniff_and_validate
+from app.operations import audit_service
 
+logger = logging.getLogger("app.media")
+
+# 新上傳只會是這四種（見 validation._IMAGE_CONTENT_TYPES）；2026-09-25 以前的
+# GIF 素材已經有 storage_key，不再經過這裡。
 _EXTENSION_BY_CONTENT_TYPE = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
     "image/webp": ".webp",
-    "image/gif": ".gif",
     "video/mp4": ".mp4",
 }
 
 
 class MediaInUse(Exception):
-    pass
+    """草稿、官網、排程或可還原的舊版本仍引用這個素材。"""
+
+    def __init__(self, found: media_references.MediaReferences | None = None) -> None:
+        self.references = found
+        super().__init__("media in use")
 
 
 class MediaQuotaExceeded(Exception):
@@ -91,7 +108,8 @@ async def create_media_asset(
     db: AsyncSession,
     storage: MediaStorage,
     *,
-    data: bytes,
+    source_path: Path,
+    size_bytes: int,
     declared_kind: MediaKind,
     original_filename: str,
     campus_key: str | None,
@@ -100,19 +118,24 @@ async def create_media_asset(
     source_attribution: str | None = None,
     quota_bytes: int | None = None,
 ) -> MediaAsset:
-    """驗證 → 存檔 → 產生縮圖／poster → 寫入 metadata。仍在請求內完成
-    （非同步 worker 佇列屬 Task 9，尚未建立），但解碼、寫檔與 ffmpeg 都
-    丟到 thread 執行：API 只有一個 event loop，同步做會讓一次影片上傳
-    卡住所有校區與公開訪客的請求（ffmpeg 最長 30 秒）。"""
-    content_type, width, height = await asyncio.to_thread(sniff_and_validate, data, declared_kind)
+    """驗證 → 存檔 → 產生縮圖／poster → 寫入 metadata。上傳本體已經由路由
+    邊收邊寫進暫存檔（source_path），這裡全程讀檔，影片不會整份進記憶體。
+    仍在請求內完成（沒有背景轉檔佇列：目前只有抽一張 poster，ffmpeg 最長
+    30 秒），但解碼、寫檔、ffprobe 與 ffmpeg 都丟到 thread 執行：API 只有
+    一個 event loop，同步做會讓一次影片上傳卡住所有校區與公開訪客的請求。"""
+    content_type, width, height = await asyncio.to_thread(sniff_and_validate, source_path, declared_kind)
+    duration: float | None = None
+    if declared_kind == MediaKind.VIDEO:
+        probe = await asyncio.to_thread(probe_video, source_path)
+        width, height, duration = probe.width, probe.height, probe.duration_seconds
     if quota_bytes is not None:
-        await _ensure_quota(db, campus_key, len(data), quota_bytes)
+        await _ensure_quota(db, campus_key, size_bytes, quota_bytes)
 
     extension = _EXTENSION_BY_CONTENT_TYPE[content_type]
     storage_key = storage.generate_key(extension)
-    await asyncio.to_thread(storage.write_bytes, storage_key, data)
-    # 從這裡開始磁碟上已經有檔案了；後面任何一步失敗都必須把它刪掉，
-    # 否則 media_root 會累積永遠沒有 DB 記錄指向的孤兒檔。
+    await asyncio.to_thread(storage.write_file, storage_key, source_path)
+    # 從這裡開始儲存空間裡已經有檔案了；後面任何一步失敗都必須把它刪掉，
+    # 否則會累積永遠沒有 DB 記錄指向的孤兒檔。
     asset = MediaAsset(
         id=uuid.uuid4(),
         campus_key=campus_key,
@@ -121,9 +144,10 @@ async def create_media_asset(
         storage_key=storage_key,
         original_filename=original_filename,
         content_type=content_type,
-        size_bytes=len(data),
+        size_bytes=size_bytes,
         width=width,
         height=height,
+        duration_seconds=duration,
         alt_text=alt_text,
         source_attribution=source_attribution,
         created_by=created_by,
@@ -138,41 +162,30 @@ async def create_media_asset(
 
     try:
         if declared_kind == MediaKind.IMAGE:
-            thumb_bytes = await asyncio.to_thread(make_image_thumbnail_webp, data)
-            thumb_key = storage.generate_key(".webp")
-            await asyncio.to_thread(storage.write_bytes, thumb_key, thumb_bytes)
-            db.add(
-                MediaVariant(
-                    id=uuid.uuid4(),
-                    media_id=asset.id,
-                    kind=VariantKind.THUMBNAIL,
-                    storage_key=thumb_key,
-                    content_type="image/webp",
-                    width=None,
-                    height=None,
-                )
-            )
+            variant_bytes = await asyncio.to_thread(make_image_thumbnail_webp, source_path)
+            variant_kind = VariantKind.THUMBNAIL
         else:
-            poster_bytes = await asyncio.to_thread(extract_video_poster_webp, data)
-            poster_key = storage.generate_key(".webp")
-            await asyncio.to_thread(storage.write_bytes, poster_key, poster_bytes)
-            db.add(
-                MediaVariant(
-                    id=uuid.uuid4(),
-                    media_id=asset.id,
-                    kind=VariantKind.POSTER,
-                    storage_key=poster_key,
-                    content_type="image/webp",
-                    width=None,
-                    height=None,
-                )
+            variant_bytes = await asyncio.to_thread(extract_video_poster_webp, source_path)
+            variant_kind = VariantKind.POSTER
+        variant_key = storage.generate_key(".webp")
+        await asyncio.to_thread(storage.write_bytes, variant_key, variant_bytes)
+        db.add(
+            MediaVariant(
+                id=uuid.uuid4(),
+                media_id=asset.id,
+                kind=variant_kind,
+                storage_key=variant_key,
+                content_type="image/webp",
+                width=None,
+                height=None,
             )
+        )
         asset.status = MediaStatus.READY
     except ProcessingError as exc:
         asset.status = MediaStatus.FAILED
         asset.processing_error = str(exc)[:500]
-        # 處理失敗的原檔永遠不會被公開，留著只會佔共用 volume；保留
-        # 紀錄讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
+        # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
+        # 讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
         await asyncio.to_thread(storage.delete, storage_key)
 
     await db.flush()
@@ -221,34 +234,157 @@ async def current_release_media_ids(db: AsyncSession) -> frozenset[uuid.UUID]:
     return media_ids
 
 
-async def delete_media_asset(
-    db: AsyncSession, storage: MediaStorage, asset: MediaAsset
-) -> list[str]:
-    """刪除 DB 記錄並回傳需要刪除的 storage key；**檔案由呼叫端在 commit
-    成功之後才刪**。先 unlink 再刪 DB 的順序會在交易回滾時留下「DB 有記錄、
-    磁碟沒檔案」的破圖狀態，比留下孤兒檔更難修。"""
-    # 重新以 FOR UPDATE 鎖住這一列，並用即時查詢算引用數，不用 eager load
-    # 的快照——否則「A 正在刪、B 同時把這張圖加進內容」會兩邊都成功，
-    # 接著 cascade 把 B 剛建立的引用一起刪掉。
+async def _lock(db: AsyncSession, asset: MediaAsset) -> None:
+    # 重新以 FOR UPDATE 鎖住這一列，引用數用即時查詢算，不用 eager load 的
+    # 快照——否則「A 正在刪、B 同時把這張圖加進內容」會兩邊都成功。
     locked = await db.execute(
         select(MediaAsset.id).where(MediaAsset.id == asset.id).with_for_update()
     )
     if locked.scalar_one_or_none() is None:
         raise MediaInUse()
 
-    usage_count = await db.execute(
-        select(func.count()).select_from(MediaUsage).where(MediaUsage.media_id == asset.id)
-    )
-    if usage_count.scalar_one() > 0:
-        raise MediaInUse()
-    if await is_referenced_by_current_release(db, asset.id):
-        raise MediaInUse()
 
-    storage_keys = [variant.storage_key for variant in asset.variants]
-    storage_keys.append(asset.storage_key)
-    await db.delete(asset)
+async def mark_deleted(db: AsyncSession, asset: MediaAsset, *, actor_id: uuid.UUID) -> None:
+    """刪除＝標記待清理（規格 L143、L322-327）：從素材庫收起來、內容不能再
+    選用，過了保留天數才由定期工作刪檔（purge_due）。仍被任何一版內容引用
+    （含可還原的舊版本與排程）時拒絕：刪掉之後還原、排程都會失敗。"""
+    await _lock(db, asset)
+    found = await media_references.find_references(db, asset.id)
+    if found.referenced or await is_referenced_by_current_release(db, asset.id):
+        raise MediaInUse(found)
+    asset.deleted_at = datetime.now(timezone.utc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=actor_id,
+        action="media.delete",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata={"filename": asset.original_filename, "size_bytes": asset.size_bytes},
+    )
     await db.flush()
+
+
+async def restore_deleted(db: AsyncSession, asset: MediaAsset, *, actor_id: uuid.UUID) -> None:
+    asset.deleted_at = None
+    await audit_service.log_action(
+        db,
+        actor_user_id=actor_id,
+        action="media.restore",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata={"filename": asset.original_filename},
+    )
+    await db.flush()
+
+
+async def set_archived(db: AsyncSession, asset: MediaAsset, archived: bool, *, actor_id: uuid.UUID) -> None:
+    """封存只是從素材庫與選圖器收起來；只有沒被草稿、官網或排程用到的
+    素材可以封存（規格 L143）。舊版本還在用沒關係，檔案照樣保留。"""
+    if archived:
+        await _lock(db, asset)
+        found = await media_references.find_references(db, asset.id)
+        if found.in_use:
+            raise MediaInUse(found)
+    asset.archived_at = datetime.now(timezone.utc) if archived else None
+    await audit_service.log_action(
+        db,
+        actor_user_id=actor_id,
+        action="media.archive" if archived else "media.unarchive",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata={"filename": asset.original_filename},
+    )
+    await db.flush()
+
+
+async def due_for_purge(db: AsyncSession, now: datetime, delay_days: int, *, limit: int = 50) -> list[uuid.UUID]:
+    cutoff = now - timedelta(days=delay_days)
+    result = await db.execute(
+        select(MediaAsset.id)
+        .where(MediaAsset.deleted_at.is_not(None), MediaAsset.deleted_at <= cutoff)
+        .order_by(MediaAsset.deleted_at)
+        .limit(limit)
+    )
+    return list(result.scalars())
+
+
+async def purge_one(
+    db: AsyncSession, media_id: uuid.UUID, now: datetime, delay_days: int
+) -> list[str] | None:
+    """刪掉一筆到期的待清理素材的 DB 記錄，回傳要刪的 storage key；**檔案
+    由呼叫端在 commit 成功之後才刪**（交易回滾時才不會出現「DB 有記錄、
+    檔案沒了」的破圖）。已經被復原、還沒到期或又被引用（不應該發生：內容
+    不能選用待清理的素材）時不刪，回傳 None；又被引用的順便取消待清理。"""
+    result = await db.execute(select(MediaAsset).where(MediaAsset.id == media_id).with_for_update())
+    asset = result.scalar_one_or_none()
+    if asset is None or asset.deleted_at is None or asset.deleted_at > now - timedelta(days=delay_days):
+        return None
+    found = await media_references.find_references(db, asset.id)
+    if found.referenced or await is_referenced_by_current_release(db, asset.id):
+        logger.warning("待清理的素材 %s 仍被內容引用，取消清理", asset.id)
+        asset.deleted_at = None
+        await audit_service.log_action(
+            db,
+            actor_user_id=None,
+            action="media.restore",
+            target_type="media_asset",
+            target_id=str(asset.id),
+            campus_key=asset.campus_key,
+            metadata={"filename": asset.original_filename, "reason": "still_referenced"},
+        )
+        await db.flush()
+        return None
+    variants = (
+        await db.execute(select(MediaVariant.storage_key).where(MediaVariant.media_id == asset.id))
+    ).scalars().all()
+    storage_keys = [*variants, asset.storage_key]
+    await audit_service.log_action(
+        db,
+        actor_user_id=None,
+        action="media.purge",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata={
+            "filename": asset.original_filename,
+            "size_bytes": asset.size_bytes,
+            "deleted_at": asset.deleted_at.isoformat(),
+        },
+    )
+    # 縮圖與引用記錄由外鍵 ON DELETE CASCADE 一併刪掉。
+    await db.execute(delete(MediaAsset).where(MediaAsset.id == asset.id))
     return storage_keys
+
+
+async def purge_due(session_factory, storage: MediaStorage, *, delay_days: int, now: datetime | None = None) -> int:
+    """定期工作：把標記待清理超過 delay_days 天的素材真的刪掉。每筆自己一個
+    交易，某筆失敗不影響其他筆；刪檔失敗只留下孤兒檔，不影響官網。"""
+    now = now or datetime.now(timezone.utc)
+    async with session_factory() as db:
+        due = await due_for_purge(db, now, delay_days)
+        await db.rollback()
+    purged = 0
+    for media_id in due:
+        async with session_factory() as db:
+            try:
+                keys = await purge_one(db, media_id, now, delay_days)
+                await db.commit()
+            except Exception:  # noqa: BLE001
+                await db.rollback()
+                logger.exception("清理素材 %s 失敗", media_id)
+                continue
+        if keys is None:
+            continue
+        purged += 1
+        for key in keys:
+            try:
+                await asyncio.to_thread(storage.delete, key)
+            except Exception:  # noqa: BLE001
+                logger.exception("刪除素材檔 %s 失敗，留下孤兒檔", key)
+    return purged
 
 
 async def replace_media_asset(
@@ -256,18 +392,21 @@ async def replace_media_asset(
     storage: MediaStorage,
     old_asset: MediaAsset,
     *,
-    data: bytes,
+    source_path: Path,
+    size_bytes: int,
     original_filename: str,
     created_by: uuid.UUID,
     quota_bytes: int | None = None,
 ) -> MediaAsset:
     """替換產生全新 asset（新 id），舊 asset 原樣保留、不變動——
-    其他仍引用舊 id 的內容不受影響。呼叫端（內容編輯器）負責把自己的
-    引用指到新 id；這裡只負責「生出新版本」。"""
+    其他仍引用舊 id 的內容不受影響。要把內容改指到新素材，走
+    `POST /admin/media/{id}/replace-references`（為每個內容項產生新草稿）。
+    說明、圖說、來源、授權、標籤與裁切焦點沿用舊素材。"""
     new_asset = await create_media_asset(
         db,
         storage,
-        data=data,
+        source_path=source_path,
+        size_bytes=size_bytes,
         declared_kind=old_asset.kind,
         original_filename=original_filename,
         campus_key=old_asset.campus_key,
@@ -277,12 +416,24 @@ async def replace_media_asset(
         quota_bytes=quota_bytes,
     )
     new_asset.replaces_media_id = old_asset.id
+    new_asset.caption = old_asset.caption
+    new_asset.license_note = old_asset.license_note
+    new_asset.tags = list(old_asset.tags or [])
+    new_asset.crop_focus_x = old_asset.crop_focus_x
+    new_asset.crop_focus_y = old_asset.crop_focus_y
     await db.flush()
     return new_asset
 
 
 async def add_usage(
-    db: AsyncSession, media_id: uuid.UUID, campus_key: str | None, content_item_id: str, field_name: str
+    db: AsyncSession,
+    media_id: uuid.UUID,
+    campus_key: str | None,
+    content_item_id: str,
+    field_name: str,
+    *,
+    content_kind: str | None = None,
+    revision_id: uuid.UUID | None = None,
 ) -> None:
     db.add(
         MediaUsage(
@@ -290,6 +441,8 @@ async def add_usage(
             media_id=media_id,
             campus_key=campus_key,
             content_item_id=content_item_id,
+            content_kind=content_kind,
+            revision_id=revision_id,
             field_name=field_name,
             created_at=datetime.now(timezone.utc),
         )
@@ -300,28 +453,28 @@ async def add_usage(
 async def sync_content_item_usages(
     db: AsyncSession,
     content_item_id: str,
-    field_name: str,
+    content_kind: str,
     campus_key: str | None,
-    media_ids: list[uuid.UUID],
+    revision_id: uuid.UUID,
+    refs: list[MediaRef],
 ) -> None:
-    """把某個 content item 目前這個欄位引用的媒體，同步成 media_ids 這份
-    清單——整批刪掉舊的、換成新的一批，不逐一比對差異。呼叫時機是每次
+    """把某個 content item 的引用同步成最新一版（revision_id）的 refs——整批
+    刪掉舊的、換成新的一批，每處引用一筆（含欄位路徑）。呼叫時機是每次
     儲存新版 revision（草稿也算「正在使用」，避免使用者能刪掉自己正在
     編輯中、還沒發布的圖片）。"""
-    await db.execute(
-        delete(MediaUsage).where(
-            MediaUsage.content_item_id == content_item_id, MediaUsage.field_name == field_name
-        )
-    )
-    for media_id in media_ids:
+    await db.execute(delete(MediaUsage).where(MediaUsage.content_item_id == content_item_id))
+    now = datetime.now(timezone.utc)
+    for ref in refs:
         db.add(
             MediaUsage(
                 id=uuid.uuid4(),
-                media_id=media_id,
+                media_id=ref.media_id,
                 campus_key=campus_key,
                 content_item_id=content_item_id,
-                field_name=field_name,
-                created_at=datetime.now(timezone.utc),
+                content_kind=content_kind,
+                revision_id=revision_id,
+                field_name=ref.path[:128],
+                created_at=now,
             )
         )
     await db.flush()

@@ -447,6 +447,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/media/upload-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upload Limits
+         * @description 後台提示與送出前檢查用：單檔上限來自部署設定。
+         */
+        get: operations["get_upload_limits_api_website_v1_admin_media_upload_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/media/{media_id}": {
         parameters: {
             query?: never;
@@ -458,12 +478,41 @@ export interface paths {
         get: operations["get_media_api_website_v1_admin_media__media_id__get"];
         put?: never;
         post?: never;
-        /** Delete Media */
+        /**
+         * Delete Media
+         * @description 刪除＝標記待清理（規格 L322-327）。檔案過 media_purge_delay_days 天才由
+         *     定期工作刪掉，期間可以 POST .../restore 復原。任何一版內容（含可還原的
+         *     舊版本與排程）還在用就回 409 並列出引用處。
+         */
         delete: operations["delete_media_api_website_v1_admin_media__media_id__delete"];
         options?: never;
         head?: never;
-        /** Update Media */
+        /**
+         * Update Media
+         * @description 圖片與影片都能補說明、圖說、來源、授權與標籤（規格 L138）。
+         */
         patch: operations["update_media_api_website_v1_admin_media__media_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Media
+         * @description 封存（規格 L143）：沒被草稿、官網或排程用到的素材從素材庫與選圖器收起來，
+         *     檔案保留，舊版本照樣能還原。
+         */
+        post: operations["archive_media_api_website_v1_admin_media__media_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/website/v1/admin/media/{media_id}/file": {
@@ -492,8 +541,96 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Replace Media */
+        /**
+         * Replace Media
+         * @description 上傳新檔案成為新素材（新 id，沿用舊素材的說明與標籤），舊素材不動。
+         *     要讓內容改用新素材，接著呼叫 .../replace-references。
+         */
         post: operations["replace_media_api_website_v1_admin_media__media_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/replace-references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Media References
+         * @description 把選定內容項最新一版裡用到舊素材的欄位全部改成新素材，各存成一個新
+         *     草稿（不發布，官網要等各自發布或送審）。影響範圍由
+         *     GET /admin/media/{id}/usages 列出；每項帶當時看到的版本號，之後有人另外
+         *     存過就整批停下（409），請使用者重看，不會蓋掉別人的修改。
+         *
+         *     一律全部成功或全部不動：任何一項沒權限、版本對不上或存檔驗證不過都回
+         *     錯誤，已處理的項目一起回滾。
+         */
+        post: operations["replace_media_references_api_website_v1_admin_media__media_id__replace_references_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Media
+         * @description 把待清理的素材救回來（清理工作執行之前都可以）。
+         */
+        post: operations["restore_media_api_website_v1_admin_media__media_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unarchive Media */
+        post: operations["unarchive_media_api_website_v1_admin_media__media_id__unarchive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/media/{media_id}/usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media Usages
+         * @description 用在哪裡（規格 L327）：草稿、官網、排程各是哪個內容項的哪一版、哪個
+         *     欄位；只剩舊版本在用的另列。批次替換前的影響範圍也看這裡。
+         */
+        get: operations["get_media_usages_api_website_v1_admin_media__media_id__usages_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2184,16 +2321,29 @@ export interface components {
         MediaAssetOut: {
             /** Alt Text */
             alt_text: string | null;
+            /** Archived At */
+            archived_at?: string | null;
             /** Campus Key */
             campus_key: string | null;
             /** Caption */
             caption?: string | null;
             /** Content Type */
             content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email?: string | null;
             /** Crop Focus X */
             crop_focus_x: number | null;
             /** Crop Focus Y */
             crop_focus_y: number | null;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
             /** Height */
             height: number | null;
             /**
@@ -2208,6 +2358,10 @@ export interface components {
             original_filename: string;
             /** Processing Error */
             processing_error: string | null;
+            /** Purge After */
+            purge_after?: string | null;
+            /** Replaces Media Id */
+            replaces_media_id?: string | null;
             /** Size Bytes */
             size_bytes: number;
             /** Source Attribution */
@@ -2217,16 +2371,113 @@ export interface components {
             tags?: string[];
             /** Usage Count */
             usage_count: number;
+            /** Used In */
+            used_in?: components["schemas"]["MediaUsedInOut"][];
             /** Variants */
             variants: components["schemas"]["MediaVariantOut"][];
             /** Width */
             width: number | null;
         };
         /**
+         * MediaHistoryReferenceOut
+         * @description 只剩可還原的舊版本在用：同一內容項合併成一筆。
+         */
+        MediaHistoryReferenceOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Kind */
+            kind: string;
+            /** Versions */
+            versions: number[];
+        };
+        /**
          * MediaKind
          * @enum {string}
          */
         MediaKind: "image" | "video";
+        /**
+         * MediaReferenceOut
+         * @description 一處引用：哪個內容項的哪一版、哪個欄位。
+         */
+        MediaReferenceOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Can Edit */
+            can_edit: boolean;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Field Path */
+            field_path: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string | null;
+            /** Publish At */
+            publish_at?: string | null;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** States */
+            states: ("draft" | "live" | "scheduled")[];
+            /** Version */
+            version: number;
+        };
+        /** MediaReplaceItem */
+        MediaReplaceItem: {
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** MediaReplaceReferencesOut */
+        MediaReplaceReferencesOut: {
+            /** Items */
+            items: components["schemas"]["MediaReplacedItemOut"][];
+            /**
+             * Replacement Id
+             * Format: uuid
+             */
+            replacement_id: string;
+        };
+        /** MediaReplaceReferencesRequest */
+        MediaReplaceReferencesRequest: {
+            /** Items */
+            items: components["schemas"]["MediaReplaceItem"][];
+            /**
+             * Replacement Id
+             * Format: uuid
+             */
+            replacement_id: string;
+        };
+        /** MediaReplacedItemOut */
+        MediaReplacedItemOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Field Paths */
+            field_paths: string[];
+            /** Kind */
+            kind: string;
+            /** Version */
+            version: number;
+        };
         /**
          * MediaStatus
          * @enum {string}
@@ -2248,6 +2499,50 @@ export interface components {
             source_attribution?: string | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /** MediaUploadLimitsOut */
+        MediaUploadLimitsOut: {
+            /** Image Types */
+            image_types: string[];
+            /** Max Image Bytes */
+            max_image_bytes: number;
+            /** Max Video Bytes */
+            max_video_bytes: number;
+            /** Purge Delay Days */
+            purge_delay_days: number;
+            /** Video Types */
+            video_types: string[];
+        };
+        /** MediaUsagesOut */
+        MediaUsagesOut: {
+            /** Can Archive */
+            can_archive: boolean;
+            /** Can Delete */
+            can_delete: boolean;
+            /** History */
+            history: components["schemas"]["MediaHistoryReferenceOut"][];
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+            /** References */
+            references: components["schemas"]["MediaReferenceOut"][];
+            /**
+             * Untracked Usages
+             * @default 0
+             */
+            untracked_usages: number;
+        };
+        /**
+         * MediaUsedInOut
+         * @description 最新一版用到這個素材的內容項（依 MediaUsage，去重）。
+         */
+        MediaUsedInOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Kind */
+            kind: string;
         };
         /** MediaVariantOut */
         MediaVariantOut: {
@@ -4485,6 +4780,8 @@ export interface operations {
                 tag?: string | null;
                 /** @description 檔名、圖片說明、圖說或標籤片段 */
                 q?: string | null;
+                /** @description active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理 */
+                state?: "active" | "archived" | "deleted";
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -4540,6 +4837,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_limits_api_website_v1_admin_media_upload_limits_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaUploadLimitsOut"];
                 };
             };
             /** @description Validation Error */
@@ -4660,6 +4990,41 @@ export interface operations {
             };
         };
     };
+    archive_media_api_website_v1_admin_media__media_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_media_file_api_website_v1_admin_media__media_id__file_get: {
         parameters: {
             query?: never;
@@ -4721,6 +5086,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_media_references_api_website_v1_admin_media__media_id__replace_references_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaReplaceReferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaReplaceReferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_media_api_website_v1_admin_media__media_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unarchive_media_api_website_v1_admin_media__media_id__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_usages_api_website_v1_admin_media__media_id__usages_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaUsagesOut"];
                 };
             };
             /** @description Validation Error */

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 import secrets
+import shutil
 from datetime import timezone
 from email.utils import format_datetime
 from pathlib import Path
@@ -35,6 +36,7 @@ class MediaStorage(Protocol):
 
     def generate_key(self, extension: str) -> str: ...
     def write_bytes(self, storage_key: str, data: bytes) -> None: ...
+    def write_file(self, storage_key: str, path: Path) -> None: ...
     def read_bytes(self, storage_key: str) -> bytes: ...
     def exists(self, storage_key: str) -> bool: ...
     def delete(self, storage_key: str) -> None: ...
@@ -58,6 +60,10 @@ class LocalMediaStorage:
 
     def write_bytes(self, storage_key: str, data: bytes) -> None:
         self.path_for(storage_key).write_bytes(data)
+
+    def write_file(self, storage_key: str, path: Path) -> None:
+        """從暫存檔複製進來（逐塊複製，不整份讀進記憶體）。"""
+        shutil.copyfile(path, self.path_for(storage_key))
 
     def exists(self, storage_key: str) -> bool:
         return self.path_for(storage_key).is_file()
@@ -166,8 +172,11 @@ class S3MediaStorage:
         return self.size(storage_key) is not None
 
     def upload_file(self, storage_key: str, path: Path) -> None:
-        """大檔用分段上傳串流送出，不整個讀進記憶體（搬遷 volume 時用）。"""
+        """大檔用分段上傳串流送出，不整個讀進記憶體（上傳與搬遷 volume 都用）。"""
         self._client.upload_file(str(path), self.bucket, self._object_key(storage_key))
+
+    def write_file(self, storage_key: str, path: Path) -> None:
+        self.upload_file(storage_key, path)
 
     def delete(self, storage_key: str) -> None:
         # S3 刪除不存在的物件也回成功，與本機版的語意一致。

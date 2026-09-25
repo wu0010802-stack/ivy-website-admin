@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Callable
@@ -27,42 +28,74 @@ from app.content.schemas import (
 )
 
 
-def _media_ids_from_images(entries: list[dict]) -> list[uuid.UUID]:
+@dataclass(frozen=True)
+class MediaRef:
+    """內容裡一處素材引用：素材 id、欄位路徑（例如 `articles[2].body[0].image`）
+    與那一項的標題（消息標題、場景名稱），給素材庫的「用在哪裡」與批次替換用。"""
+
+    media_id: uuid.UUID
+    path: str
+    label: str | None = None
+
+
+def _media_ref(value: object, path: str, label: object = None) -> MediaRef | None:
     """`image` 欄位同時相容兩種值：舊的 fixture 素材代號字串（例如
     "campus"，不是有效 UUID，直接略過）與素材庫的媒體 UUID。只有後者
     需要建立 MediaUsage 引用保護。"""
-    ids: list[uuid.UUID] = []
-    for entry in entries:
-        image = entry.get("image", "")
-        try:
-            ids.append(uuid.UUID(str(image)))
-        except (ValueError, AttributeError):
-            continue
-    return ids
-
-
-def _extract_campus_tour_media_ids(payload: dict) -> list[uuid.UUID]:
-    return _media_ids_from_images(payload.get("scenes", []))
-
-
-def _extract_news_media_ids(payload: dict) -> list[uuid.UUID]:
-    """消息封面，加上結構化內文裡的圖片區塊（home_news、campus_news 共用）。"""
-    articles = payload.get("articles", [])
-    blocks = [
-        block
-        for article in articles
-        for block in article.get("body", []) or []
-        if isinstance(block, dict) and block.get("type") == "image"
-    ]
-    return _media_ids_from_images(articles) + _media_ids_from_images(blocks)
-
-
-def _extract_site_meta_media_ids(payload: dict) -> list[uuid.UUID]:
-    share = payload.get("share_image") or ""
     try:
-        return [uuid.UUID(share)] if share else []
-    except ValueError:
-        return []
+        media_id = uuid.UUID(str(value))
+    except (ValueError, AttributeError):
+        return None
+    return MediaRef(media_id, path, str(label) if label else None)
+
+
+def _refs(candidates: list[MediaRef | None]) -> list[MediaRef]:
+    return [ref for ref in candidates if ref is not None]
+
+
+def _extract_campus_tour_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs(
+        [
+            _media_ref(scene.get("image", ""), f"scenes[{i}].image", scene.get("name"))
+            for i, scene in enumerate(payload.get("scenes", []) or [])
+            if isinstance(scene, dict)
+        ]
+    )
+
+
+def _extract_news_media_refs(payload: dict) -> list[MediaRef]:
+    """消息封面，加上結構化內文裡的圖片區塊（home_news、campus_news 共用）。"""
+    refs: list[MediaRef | None] = []
+    for i, article in enumerate(payload.get("articles", []) or []):
+        if not isinstance(article, dict):
+            continue
+        title = article.get("title")
+        refs.append(_media_ref(article.get("image", ""), f"articles[{i}].image", title))
+        for j, block in enumerate(article.get("body", []) or []):
+            if isinstance(block, dict) and block.get("type") == "image":
+                refs.append(_media_ref(block.get("image", ""), f"articles[{i}].body[{j}].image", title))
+    return _refs(refs)
+
+
+def _extract_site_meta_media_refs(payload: dict) -> list[MediaRef]:
+    share = payload.get("share_image") or ""
+    return _refs([_media_ref(share, "share_image")]) if share else []
+
+
+_PATH_TOKEN = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)|\[(\d+)\]")
+
+
+def set_at_path(payload: dict, path: str, value: object) -> None:
+    """把 `articles[2].body[0].image` 這種路徑指到的欄位改成 value（原地修改）。
+    路徑只來自 extract_media_refs，格式固定；對不上時丟 KeyError／IndexError。"""
+    tokens: list[str | int] = []
+    for part in path.split("."):
+        for name, index in _PATH_TOKEN.findall(part):
+            tokens.append(name if name else int(index))
+    target: object = payload
+    for token in tokens[:-1]:
+        target = target[token]  # type: ignore[index]
+    target[tokens[-1]] = value  # type: ignore[index]
 
 
 def _mark_tour_spots_for_review(payload: dict, previous: dict | None) -> dict:
@@ -148,10 +181,10 @@ class ContentKindConfig:
     # True：跨校共用內容，只有 super_admin 能編，分校不能改共用內容。
     # False：該 kind 需要搭配 campus_key，一般 campus scope 規則套用。
     shared_only: bool
-    # 從已驗證過的 payload dict 抓出目前引用了哪些素材庫媒體 UUID，供
-    # content/service.py 同步 MediaUsage（沒有引用媒體庫的 kind 用預設
-    # 的「永遠沒有引用」，不必特別處理）。
-    extract_media_ids: Callable[[dict], list[uuid.UUID]] = field(default=lambda payload: [])
+    # 從 payload dict 抓出引用了哪些素材庫媒體（含欄位路徑），供同步
+    # MediaUsage、刪除保護與批次替換（沒有引用媒體庫的 kind 用預設的
+    # 「永遠沒有引用」，不必特別處理）。
+    extract_media_refs: Callable[[dict], list[MediaRef]] = field(default=lambda payload: [])
     # 存草稿前的伺服器端調整（新 payload, 上一版 payload 或 None）→ 新 payload。
     before_save: Callable[[dict, dict | None], dict] = field(default=lambda payload, previous: payload)
     # 發布前檢查；回傳字串代表不能發布的原因。
@@ -164,13 +197,16 @@ class ContentKindConfig:
     # 並在發布與還原時處理舊版本。2026-09-25 以前存的版本一律記為 1。
     schema_version: int = 1
 
+    def extract_media_ids(self, payload: dict) -> list[uuid.UUID]:
+        return [ref.media_id for ref in self.extract_media_refs(payload)]
+
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_about": ContentKindConfig(HomeAboutPayload, shared_only=True),
     "home_hero": ContentKindConfig(HomeHeroPayload, shared_only=True, public_view=_public_home_hero),
     "site_footer": ContentKindConfig(SiteFooterPayload, shared_only=True),
     "site_meta": ContentKindConfig(
-        SiteMetaPayload, shared_only=True, extract_media_ids=_extract_site_meta_media_ids
+        SiteMetaPayload, shared_only=True, extract_media_refs=_extract_site_meta_media_refs
     ),
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
     "booking_content": ContentKindConfig(
@@ -182,7 +218,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_news": ContentKindConfig(
         HomeNewsPayload,
         shared_only=True,
-        extract_media_ids=_extract_news_media_ids,
+        extract_media_refs=_extract_news_media_refs,
         public_view=_public_news,
         schema_version=2,
     ),
@@ -196,13 +232,13 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "campus_news": ContentKindConfig(
         CampusNewsPayload,
         shared_only=False,
-        extract_media_ids=_extract_news_media_ids,
+        extract_media_refs=_extract_news_media_refs,
         public_view=_public_news,
     ),
     "campus_tour": ContentKindConfig(
         CampusTourPayload,
         shared_only=False,
-        extract_media_ids=_extract_campus_tour_media_ids,
+        extract_media_refs=_extract_campus_tour_media_refs,
         before_save=_mark_tour_spots_for_review,
         publish_blocker=_tour_publish_blocker,
     ),

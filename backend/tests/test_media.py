@@ -66,14 +66,15 @@ async def test_disguised_extension_rejected(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_oversized_image_rejected(admin_client, monkeypatch):
-    monkeypatch.setattr("app.media.validation.MAX_IMAGE_BYTES", 100)
+async def test_oversized_image_rejected(app, admin_client):
+    # 上限是部署設定（MB），收檔時一超過就中止，回 413。
+    app.state.settings.media_max_image_mb = 0
     response = await admin_client.post(
         "/api/website/v1/admin/media",
         data={"kind": "image", "campus_key": "yihua"},
         files={"file": ("test.jpg", _read("test.jpg"), "image/jpeg")},
     )
-    assert response.status_code == 422
+    assert response.status_code == 413
     assert response.json()["detail"]["code"] == "MEDIA_TOO_LARGE"
 
 
@@ -271,6 +272,17 @@ async def test_campus_tour_referencing_media_blocks_delete_until_reference_remov
         },
     )
 
-    # 引用已經釋放，現在可以刪除了。
-    delete_ok = await admin_client.delete(f"/api/website/v1/admin/media/{media_id}")
-    assert delete_ok.status_code == 204
+    # 最新草稿不再引用，但第 1 版還用著：刪掉之後那一版就無法還原，所以
+    # 仍然不能刪（規格 L143），錯誤裡列出是哪個內容的哪幾版。
+    delete_blocked = await admin_client.delete(f"/api/website/v1/admin/media/{media_id}")
+    assert delete_blocked.status_code == 409
+    detail = delete_blocked.json()["detail"]
+    assert detail["code"] == "MEDIA_IN_HISTORY"
+    assert detail["usages"]["references"] == []
+    assert detail["usages"]["history"][0]["kind"] == "campus_tour"
+    assert detail["usages"]["history"][0]["versions"] == [1]
+
+    # 沒有草稿、官網或排程在用：可以封存收起來。
+    archived = await admin_client.post(f"/api/website/v1/admin/media/{media_id}/archive")
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["archived_at"] is not None

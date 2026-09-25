@@ -1,5 +1,6 @@
 """API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、產生提醒
-（即將參觀、逾期未處理）、處理通知 outbox、清過期限流計數。
+（即將參觀、逾期未處理）、處理通知 outbox、清過期限流計數、清理刪除超過
+保留天數的素材。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
 部署設定裡都沒有這個 cron——排程發布永遠不會到點上線，後台也收不到任何通知。
@@ -55,6 +56,7 @@ class CycleResult:
     notifications_failed: int = 0
     notifications_skipped: int = 0
     rate_limit_rows_purged: int = 0
+    media_purged: int = 0
     failed_steps: list[str] = field(default_factory=list)
 
     @property
@@ -71,6 +73,7 @@ class CycleResult:
                 self.notifications_failed,
                 self.notifications_skipped,
                 self.rate_limit_rows_purged,
+                self.media_purged,
                 self.failed_steps,
             )
         )
@@ -195,6 +198,19 @@ async def _run_steps(
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：清除過期限流計數失敗")
         result.failed_steps.append("rate_limits")
+
+    # 刪除（標記待清理）超過保留天數的素材：刪 DB 記錄，commit 後刪檔。
+    try:
+        from app.media import service as media_service
+
+        result.media_purged = await media_service.purge_due(
+            session_factory,
+            media_service.get_storage(settings),
+            delay_days=settings.media_purge_delay_days,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：清理刪除的素材失敗")
+        result.failed_steps.append("purge_media")
 
     return result
 

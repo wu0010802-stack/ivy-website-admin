@@ -9,10 +9,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.auth.deps import SESSION_COOKIE_NAME
 from app.auth.service import get_session_by_token
-from app.media.validation import MAX_VIDEO_BYTES
 
-# 素材上傳（multipart，含欄位與邊界的額外位元組）以外，API 本文都是小 JSON。
-MEDIA_UPLOAD_BODY_LIMIT = MAX_VIDEO_BYTES + 5 * 1024 * 1024
+# 素材上傳以外，API 本文都是小 JSON。素材上傳的上限由部署設定推導
+# （Settings.media_upload_body_limit：最大單檔＋multipart 欄位與邊界的餘裕）。
 DEFAULT_BODY_LIMIT = 1024 * 1024
 
 _MEDIA_UPLOAD_PATH = re.compile(r"^/api/website/v1/admin/media(?:/[0-9a-fA-F-]{36}/replace)?/?$")
@@ -43,7 +42,7 @@ class BodySizeLimitMiddleware:
 
         path = scope["path"]
         is_media_upload = scope["method"] == "POST" and bool(_MEDIA_UPLOAD_PATH.match(path))
-        limit = MEDIA_UPLOAD_BODY_LIMIT if is_media_upload else DEFAULT_BODY_LIMIT
+        limit = scope["app"].state.settings.media_upload_body_limit if is_media_upload else DEFAULT_BODY_LIMIT
         headers = {key.lower(): value for key, value in scope["headers"]}
 
         declared = headers.get(b"content-length")
