@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import func, select, update
 
-from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitSlot
+from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitRequestEvent, VisitSlot
 from app.common.timezones import slot_start_utc
 from app.notifications import outbox_admin, reminders
 from app.notifications.line import LineMessagingClient
@@ -77,7 +77,8 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
 
         listed = await admin_client.get(OUTBOX)
         assert listed.status_code == 200, listed.text
-        [item] = listed.json()
+        assert listed.json()["total"] == 1
+        [item] = listed.json()["items"]
         assert item["id"] == str(message_id)
         assert item["campus_key"] == "yihua"
         assert item["kind"] == "visit_request_created"
@@ -86,7 +87,7 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
         assert item["delivered"] == {"inbox": True, "line": True, "email": 0}
 
         # 別校帳號看不到、也重送不了（404，不洩漏存在）。
-        assert (await minghua_client.get(OUTBOX)).json() == []
+        assert (await minghua_client.get(OUTBOX)).json() == {"items": [], "total": 0}
         assert (await minghua_client.get(f"{OUTBOX}?campus_key=yihua")).status_code == 404
         assert (await minghua_client.post(f"{OUTBOX}/{message_id}/retry")).status_code == 404
 
@@ -97,7 +98,7 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
         assert body["attempts"] == 0
         assert body["error_code"] is None
         assert body["requeued_at"] is not None
-        assert (await admin_client.get(OUTBOX)).json() == []
+        assert (await admin_client.get(OUTBOX)).json() == {"items": [], "total": 0}
 
         again = await admin_client.post(f"{OUTBOX}/{message_id}/retry")
         assert again.status_code == 409
@@ -182,7 +183,25 @@ async def test_dashboard_failed_count_matches_outbox_list(
     await _fail_until_given_up(db_session, message_id, failing_mail_adapter, None)
 
     summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
-    assert summary["failed_notifications"] == len((await admin_client.get(OUTBOX)).json()) == 1
+    assert summary["failed_notifications"] == (await admin_client.get(OUTBOX)).json()["total"] == 1
+
+
+async def test_outbox_list_reports_total_beyond_limit(admin_client, public_client, db_session, monkeypatch):
+    for key in ("outbox-total-01", "outbox-total-02", "outbox-total-03"):
+        await _enable_inquiry_and_submit(admin_client, public_client, key)
+    await db_session.execute(
+        update(OutboxMessage).values(status=OutboxStatus.FAILED.value, attempts=lease_service.MAX_ATTEMPTS)
+    )
+    await db_session.commit()
+    monkeypatch.setattr(outbox_admin, "LIST_LIMIT", 2)
+
+    # SMTP 掛很久時失敗數會超過列表上限：列表只給最新的幾則，total 仍是全部，
+    # 和總覽的失敗數對得上，後台才能提示「另有幾則」。
+    body = (await admin_client.get(OUTBOX)).json()
+    assert len(body["items"]) == 2
+    assert body["total"] == 3
+    summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
+    assert summary["failed_notifications"] == 3
 
 
 # --- 即將參觀 ---------------------------------------------------------------
@@ -284,6 +303,35 @@ async def test_visit_confirmed_inside_lead_is_not_reminded_again(admin_client, p
     assert await reminders.enqueue_due_reminders(db_session, now=starts - timedelta(hours=1)) == 0
 
 
+async def test_rescheduled_inside_lead_is_not_reminded_again(admin_client, public_client, db_session):
+    receipt_id, _ = await _confirmed_visit(admin_client, public_client, "upcoming-04")
+    second_slot = await _create_slot(admin_client, capacity=2, days_ahead=5)
+    moved = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/reschedule", json={"new_slot_id": second_slot["id"]}
+    )
+    assert moved.status_code == 200, moved.text
+    starts = await _slot_start(db_session, second_slot["id"])
+
+    async def _rescheduled_at(when: datetime) -> None:
+        await db_session.execute(
+            update(VisitRequestEvent)
+            .where(
+                VisitRequestEvent.visit_request_id == uuid.UUID(receipt_id),
+                VisitRequestEvent.event_type == "rescheduled",
+            )
+            .values(created_at=when)
+        )
+        await db_session.commit()
+
+    # 很早就確認，參觀前 2 小時才改到這一場：「已改期」那則就是提醒，
+    # confirmed_at 還是當初確認的時間，不能拿它判斷。
+    await _rescheduled_at(starts - timedelta(hours=2))
+    assert await reminders.enqueue_due_reminders(db_session, now=starts - timedelta(hours=1)) == 0
+    # 提早兩天就改好的：到點照常提醒。
+    await _rescheduled_at(starts - timedelta(hours=48))
+    assert await reminders.enqueue_due_reminders(db_session, now=starts - timedelta(hours=1)) == 1
+
+
 # --- 逾期未處理 -------------------------------------------------------------
 
 
@@ -314,6 +362,49 @@ async def test_new_request_overdue_reminded_once_and_skipped_once_handled(
     # 寄出前有人開始聯絡了：提醒不再成立。
     contacted = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/contacting")
     assert contacted.status_code == 200, contacted.text
+    result = await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
+    assert result["skipped"] == 1
+    await db_session.refresh(reminder)
+    assert reminder.status == OutboxStatus.SKIPPED.value
+
+
+async def test_manual_request_is_not_reported_overdue(admin_client, db_session):
+    created = await admin_client.post(
+        "/api/website/v1/admin/visit-requests",
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678", "consent_given": True},
+        headers={"Idempotency-Key": "overdue-manual-01"},
+    )
+    assert created.status_code == 201, created.text
+    await _set_created_at(db_session, created.json()["id"], datetime.now(timezone.utc) - timedelta(hours=25))
+    # 人工補登的案件登錄的人就是承辦人，建立時也不發新案通知，不算「沒人處理」。
+    assert await reminders.enqueue_due_reminders(db_session) == 0
+
+
+async def test_new_request_with_contact_note_is_not_reported_overdue(
+    admin_client, public_client, db_session, recording_mail_adapter
+):
+    noted = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-noted-01")
+    pending = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-noted-02")
+    now = datetime.now(timezone.utc)
+    await _set_created_at(db_session, noted, now - timedelta(hours=25))
+    await _set_created_at(db_session, pending, now - timedelta(hours=25))
+
+    # 已經打過電話、約好下次聯絡時間，只是狀態還停在待處理。
+    note = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{noted}/contact-notes",
+        json={"note": "已致電，家長週末再回覆", "follow_up_at": (now + timedelta(days=2)).isoformat(), "expected_version": 1},
+    )
+    assert note.status_code == 201, note.text
+    assert await reminders.enqueue_due_reminders(db_session) == 1
+    await db_session.commit()
+    [reminder] = await _reminders(db_session, reminders.OVERDUE_KIND)
+    assert reminder.payload["receipt_id"] == pending
+
+    # 提醒寫進 outbox 之後、寄出之前才記聯絡紀錄：寄送當下重新判斷，不再送。
+    later = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{pending}/contact-notes", json={"note": "已留言給家長"}
+    )
+    assert later.status_code == 201, later.text
     result = await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
     assert result["skipped"] == 1
     await db_session.refresh(reminder)

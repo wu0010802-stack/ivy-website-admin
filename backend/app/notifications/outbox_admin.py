@@ -80,6 +80,12 @@ async def list_failed(
     return [_out(message, campus_key, delivered[message.id]) for message, campus_key in rows]
 
 
+async def count_failed(db: AsyncSession, campus_keys: set[str] | None) -> int:
+    """範圍內寄送失敗的總則數，不受列表上限影響（和總覽的失敗數同一個數字）。"""
+    stmt = select(func.count()).select_from(_failed_stmt(campus_keys).subquery())
+    return (await db.execute(stmt)).scalar_one()
+
+
 async def describe(db: AsyncSession, message: OutboxMessage, campus_key: str) -> dict:
     return _out(message, campus_key, (await _delivery_summary(db, [message.id]))[message.id])
 

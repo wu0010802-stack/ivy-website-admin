@@ -721,8 +721,9 @@ export interface paths {
         };
         /**
          * List Failed Notifications
-         * @description 寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定
-         *     校區時列出你負責的所有校區。
+         * @description 寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則；total 是
+         *     全部的則數，超過 200 則時後台提示重新寄送後再按一次。沒指定校區時列出你
+         *     負責的所有校區。
          */
         get: operations["list_failed_notifications_api_website_v1_admin_notification_outbox_get"];
         put?: never;
@@ -2768,6 +2769,13 @@ export interface components {
              * Format: uuid
              */
             visit_request_id: string;
+        };
+        /** NotificationOutboxPageOut */
+        NotificationOutboxPageOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOutboxOut"][];
+            /** Total */
+            total: number;
         };
         /** NotificationRetryBatchOut */
         NotificationRetryBatchOut: {
@@ -5748,7 +5756,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NotificationOutboxOut"][];
+                    "application/json": components["schemas"]["NotificationOutboxPageOut"];
                 };
             };
             /** @description Validation Error */

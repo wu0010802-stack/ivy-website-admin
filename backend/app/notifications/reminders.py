@@ -10,14 +10,19 @@
 改期到另一個時段就是新的鍵，依新時段重新判斷；舊時段那則如果還沒送出，寄送
 當下 `still_applies` 會發現時段已經不是這個，標成 skipped 不寄。
 
-閾值（都是常數，改這裡即可，文件與後台文案從這裡帶出數字）：
+閾值（都是常數，改這裡即可；信件與 LINE 文案從這裡帶出數字，後台 labels.ts 寫死
+同樣的數字，admin 的 labelCoverage.test.ts 會解析這裡的常數比對，改了會提醒）：
 - 即將參觀：已確認的參觀在開始前 `UPCOMING_VISIT_LEAD`（24 小時）內提醒一次。
-  確認時就已經在這個範圍內的（例如當天才確認）不另外提醒——「已確認」那則
-  通知就是提醒。
+  確認或改期到這個時段時就已經在這個範圍內的（例如當天才確認、改到明天上午）
+  不另外提醒——「已確認」「已改期」那則通知就是提醒。改期不會更新
+  confirmed_at，換到這個時段的時間看最後一筆 `rescheduled` 歷程。
 - 逾期未處理，兩種情形共用一個 kind，payload.reason 區分：
-  - `new_unhandled`：新需求送出超過 `NEW_REQUEST_OVERDUE_AFTER`（24 小時）
-    仍是「待處理」。只補最近 `NEW_REQUEST_CATCH_UP`（72 小時）內到點的，
-    功能第一次上線時不會把幾週前的舊案一次全推出去（總覽本來就列得到）。
+  - `new_unhandled`：官網送來的新需求超過 `NEW_REQUEST_OVERDUE_AFTER`（24
+    小時）仍是「待處理」、也還沒有人記過聯絡紀錄。人工補登不算（登錄的人
+    自己就是承辦人，建立時也不發新案通知）；記過聯絡紀錄（含設定下次聯絡
+    時間）就是已經有人在處理，只是狀態沒改成聯絡中。只補最近
+    `NEW_REQUEST_CATCH_UP`（72 小時）內到點的，功能第一次上線時不會把幾週前
+    的舊案一次全推出去（總覽本來就列得到）。
   - `hold_expiring`：待園方確認的時段占位 `HOLD_EXPIRING_WITHIN`（6 小時，
     與後台列表的紅字提醒同一個門檻）內到期，逾期會自動取消並釋出名額。占位
     本來就不到 6 小時的（場次很近）不另外提醒，送出當下的通知已經夠急。
@@ -28,11 +33,20 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import (
+    OutboxMessage,
+    OutboxStatus,
+    VisitContactNote,
+    VisitRequest,
+    VisitRequestEvent,
+    VisitRequestSource,
+    VisitRequestStatus,
+    VisitSlot,
+)
 from app.common.timezones import now_utc, slot_start_utc, today_local
 
 UPCOMING_VISIT_KIND = "visit_upcoming"
@@ -84,6 +98,30 @@ async def _enqueue(
     return (await db.execute(stmt)).scalar_one_or_none() is not None
 
 
+def _unhandled_new_request() -> tuple:
+    """「新需求放太久沒人處理」的條件，掃描與寄送前重新判斷共用同一組：
+    官網送來、仍是待處理、沒有任何聯絡紀錄（下次聯絡時間也只能隨聯絡紀錄設定）。
+    承辦人不算：指派了但還沒人聯絡家長，一樣是尚未處理。"""
+    return (
+        VisitRequest.status == VisitRequestStatus.NEW.value,
+        VisitRequest.source == VisitRequestSource.WEB.value,
+        VisitRequest.anonymized_at.is_(None),
+        ~exists().where(VisitContactNote.visit_request_id == VisitRequest.id),
+    )
+
+
+def _last_rescheduled_at():
+    # 改期不動 confirmed_at；最後一筆改期歷程就是換到目前這個時段的時間。
+    return (
+        select(func.max(VisitRequestEvent.created_at))
+        .where(
+            VisitRequestEvent.visit_request_id == VisitRequest.id,
+            VisitRequestEvent.event_type == "rescheduled",
+        )
+        .scalar_subquery()
+    )
+
+
 def upcoming_key(visit_request_id: uuid.UUID, slot_id: uuid.UUID) -> str:
     return f"{UPCOMING_VISIT_KIND}:{visit_request_id}:{slot_id}"
 
@@ -103,7 +141,13 @@ async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -
     # 即將參觀。slot_date 是營運時區的日期，先用日期粗篩再逐筆算開始時間。
     today = today_local(now)
     upcoming = await db.execute(
-        select(VisitRequest.id, VisitRequest.campus_key, VisitRequest.confirmed_at, VisitSlot)
+        select(
+            VisitRequest.id,
+            VisitRequest.campus_key,
+            VisitRequest.confirmed_at,
+            _last_rescheduled_at(),
+            VisitSlot,
+        )
         .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
         .where(
             VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
@@ -112,21 +156,22 @@ async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -
             VisitSlot.slot_date <= today + timedelta(days=2),
         )
     )
-    for visit_id, campus_key, confirmed_at, slot in upcoming.all():
+    for visit_id, campus_key, confirmed_at, rescheduled_at, slot in upcoming.all():
         starts = slot_start_utc(slot.slot_date, slot.start_time)
         remind_at = starts - UPCOMING_VISIT_LEAD
         if not remind_at <= now < starts:
             continue
-        if confirmed_at is not None and confirmed_at > remind_at:
+        # 確認或改期到這個時段時已經在提醒範圍內：那則通知就是提醒。
+        on_this_slot_since = max((t for t in (confirmed_at, rescheduled_at) if t is not None), default=None)
+        if on_this_slot_since is not None and on_this_slot_since > remind_at:
             continue
         payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot.id)}
         created += await _enqueue(db, visit_id, UPCOMING_VISIT_KIND, payload, upcoming_key(visit_id, slot.id))
 
-    # 新需求放太久沒人處理。
+    # 官網送來的新需求放太久沒人處理。
     overdue_new = await db.execute(
         select(VisitRequest.id, VisitRequest.campus_key).where(
-            VisitRequest.status == VisitRequestStatus.NEW.value,
-            VisitRequest.anonymized_at.is_(None),
+            *_unhandled_new_request(),
             VisitRequest.created_at <= now - NEW_REQUEST_OVERDUE_AFTER,
             VisitRequest.created_at > now - NEW_REQUEST_OVERDUE_AFTER - NEW_REQUEST_CATCH_UP,
         )
@@ -175,8 +220,8 @@ def _parse_datetime(value: object) -> datetime | None:
 
 async def still_applies(db: AsyncSession, kind: str, payload: dict, now: datetime | None = None) -> bool:
     """寄送當下再判斷一次提醒是否仍然成立（規格 L272「更動時段後尚未發送的
-    提醒需重新判斷」）：改期、取消、已經有人處理、占位已確認或已換過的，
-    都不再送。人工重新寄送失敗的提醒時也走這裡，已經過去的參觀不會補寄。"""
+    提醒需重新判斷」）：改期、取消、已經有人處理（改了狀態或記了聯絡紀錄）、
+    占位已確認或已換過的，都不再送。人工重新寄送失敗的提醒時也走這裡，已經過去的參觀不會補寄。"""
     now = now or now_utc()
     visit_id = _parse_uuid(payload.get("receipt_id"))
     if visit_id is None:
@@ -200,7 +245,10 @@ async def still_applies(db: AsyncSession, kind: str, payload: dict, now: datetim
     if kind == OVERDUE_KIND:
         reason = payload.get("reason")
         if reason == REASON_NEW_UNHANDLED:
-            return visit.status == VisitRequestStatus.NEW.value
+            still_new = await db.execute(
+                select(VisitRequest.id).where(VisitRequest.id == visit.id, *_unhandled_new_request())
+            )
+            return still_new.scalar_one_or_none() is not None
         if reason == REASON_HOLD_EXPIRING:
             expected = _parse_datetime(payload.get("hold_expires_at"))
             return (

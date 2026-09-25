@@ -44,6 +44,13 @@ class NotificationOutboxOut(BaseModel):
     delivered: OutboxDeliveredOut
 
 
+class NotificationOutboxPageOut(BaseModel):
+    # 最新的 outbox_admin.LIST_LIMIT 則。
+    items: list[NotificationOutboxOut]
+    # 範圍內寄送失敗的總則數，可能比 items 多；和總覽的失敗數同一個數字。
+    total: int
+
+
 class NotificationRetryBatchRequest(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=outbox_admin.LIST_LIMIT)
 
@@ -194,21 +201,25 @@ async def mark_all_my_notifications_read(
     return UserNotificationReadAllOut(updated=result.rowcount or 0)
 
 
-@router.get("/admin/notification-outbox", response_model=list[NotificationOutboxOut])
+@router.get("/admin/notification-outbox", response_model=NotificationOutboxPageOut)
 async def list_failed_notifications(
     campus_key: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> list[dict]:
-    """寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定
-    校區時列出你負責的所有校區。"""
+) -> dict:
+    """寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則；total 是
+    全部的則數，超過 200 則時後台提示重新寄送後再按一次。沒指定校區時列出你
+    負責的所有校區。"""
     require_scope(current_user, "booking.read")
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         scope: set[str] | None = {campus_key}
     else:
         scope = campus_scope(current_user)
-    return await outbox_admin.list_failed(db, scope)
+    return {
+        "items": await outbox_admin.list_failed(db, scope, limit=outbox_admin.LIST_LIMIT),
+        "total": await outbox_admin.count_failed(db, scope),
+    }
 
 
 @router.post("/admin/notification-outbox/{message_id}/retry", response_model=NotificationOutboxOut)
