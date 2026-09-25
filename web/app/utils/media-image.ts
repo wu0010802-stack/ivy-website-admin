@@ -14,6 +14,8 @@ export interface PublicMediaVariant {
   kind: 'thumbnail' | 'poster' | 'large'
   width: number | null
   height: number | null
+  /** 衍生檔版本：重新產生衍生檔時會換，加在網址上避開長快取過的舊檔 */
+  version?: string
 }
 
 /** 後端 media/schemas.py 的 PublicMediaOut。 */
@@ -68,8 +70,9 @@ export function mediaFileUrl(id: string): string {
   return `${BASE}/${id}/file`
 }
 
-export function mediaVariantUrl(id: string, kind: PublicMediaVariant['kind']): string {
-  return `${BASE}/${id}/variants/${kind}`
+export function mediaVariantUrl(id: string, kind: PublicMediaVariant['kind'], version?: string): string {
+  const url = `${BASE}/${id}/variants/${kind}`
+  return version ? `${url}?v=${encodeURIComponent(version)}` : url
 }
 
 function clampPercent(value: number): number {
@@ -92,9 +95,10 @@ export function slotPosition(slot: LiveMediaSlot, info?: PublicMediaInfo): strin
 export function mediaImage(id: string, info?: PublicMediaInfo, position: string | null = null): MediaImage {
   const candidates: { src: string; width: number }[] = []
   for (const variant of info?.variants ?? []) {
-    // poster 是影片的畫面，不是這張圖的縮小版。
+    // poster 是影片的畫面，不是這張圖的縮小版。寬度不明的衍生檔（舊縮圖沒依
+    // 拍攝方向轉正、去背圖曾經失去透明，等重新產生）不放進 srcset，改用原檔。
     if (variant.kind === 'poster' || !variant.width) continue
-    candidates.push({ src: mediaVariantUrl(id, variant.kind), width: variant.width })
+    candidates.push({ src: mediaVariantUrl(id, variant.kind, variant.version), width: variant.width })
   }
   if (info?.width) candidates.push({ src: mediaFileUrl(id), width: info.width })
   candidates.sort((a, b) => a.width - b.width)
@@ -123,7 +127,8 @@ export function slotVideoSrc(slot: LiveMediaSlot | null | undefined): string | u
 
 /** 影片自動抽的畫面（沒有就空字串）。 */
 export function videoPosterUrl(id: string, info?: PublicMediaInfo): string {
-  return info?.variants.some((v) => v.kind === 'poster') ? mediaVariantUrl(id, 'poster') : ''
+  const poster = info?.variants.find((v) => v.kind === 'poster')
+  return poster ? mediaVariantUrl(id, 'poster', poster.version) : ''
 }
 
 export function mediaImageAttrs(image: MediaImage, sizes: string) {

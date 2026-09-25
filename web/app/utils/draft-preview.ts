@@ -141,7 +141,8 @@ export interface AdminMediaAsset {
   alt_text: string | null
   crop_focus_x: number | null
   crop_focus_y: number | null
-  variants: PublicMediaInfo['variants']
+  /** id 是衍生檔記錄 id，前 12 碼（去掉連字號）就是公開 API 的 version */
+  variants: (PublicMediaInfo['variants'][number] & { id?: string })[]
 }
 
 /**
@@ -159,6 +160,6 @@ export function previewMedia(assets: AdminMediaAsset[]): MediaInfoMap {
     alt_text: a.alt_text,
     focus_x: percent(a.crop_focus_x),
     focus_y: percent(a.crop_focus_y),
-    variants: a.variants.map((v) => ({ kind: v.kind, width: v.width, height: v.height }))
+    variants: a.variants.map((v) => ({ kind: v.kind, width: v.width, height: v.height, ...(v.id ? { version: v.id.replace(/-/g, '').slice(0, 12) } : {}) }))
   }]))
 }

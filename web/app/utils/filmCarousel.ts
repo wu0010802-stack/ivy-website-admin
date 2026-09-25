@@ -23,6 +23,19 @@ export function settleTarget(position: number, start: number, velocity: number) 
   return Math.max(base - 1, Math.min(base + 1, target))
 }
 
+/**
+ * 剪段循環：該跳回片段開頭時回傳開始秒數，否則 null。影片設了 loop，播到結尾會
+ * 回到 0 秒，所以「目前時間早於開始秒數」一律跳回開頭——沒設結束秒數、或結束
+ * 秒數超過影片長度（永遠播不到）時都靠這條。開始秒數不小於影片長度時不跳，整支
+ * 從頭播，否則會在結尾與開頭之間來回跳。
+ */
+export function clipRestartTime(currentTime: number, duration: number, start: number, end: number | null): number | null {
+  const known = Number.isFinite(duration) && duration > 0
+  if (known && start >= duration) return null
+  if (end != null && currentTime >= end) return start
+  return currentTime < start - 0.25 ? start : null
+}
+
 /** 支援 youtu.be、watch?v=、shorts、embed、live 網址與 11 碼 ID；看不懂回傳空字串。 */
 export function youtubeId(input: string) {
   const text = input.trim()

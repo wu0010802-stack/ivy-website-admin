@@ -5,7 +5,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, homeFilms, type ContentOverlay } from '../app/utils/content-overlay'
 import { publishedContent } from '../app/utils/published-content'
 import { previewMedia } from '../app/utils/draft-preview'
-import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
+import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, videoPosterUrl, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
 import { responsiveTourImage } from '../app/utils/tour-image'
 import { campusShareImagePath, siteShareImage } from '../app/utils/seo'
 
@@ -69,6 +69,20 @@ describe('media-image', () => {
       sizes: '100vw'
     })
     expect(image.position).toBe('30% 60%')
+  })
+
+  it('衍生檔網址帶版本（重新產生後避開快取）；寬度不明的衍生檔不放進 srcset', () => {
+    const versioned = info(IMAGE, {
+      variants: [
+        { kind: 'thumbnail', width: 480, height: 320, version: 'a1b2c3' },
+        { kind: 'large', width: null, height: null, version: 'd4e5f6' }
+      ]
+    })
+    expect(mediaImageAttrs(mediaImage(IMAGE, versioned), '100vw').srcset).toBe(
+      `/api/website/v1/public/media/${IMAGE}/variants/thumbnail?v=a1b2c3 480w, /api/website/v1/public/media/${IMAGE}/file 2400w`
+    )
+    const video = info(VIDEO, { kind: 'video', content_type: 'video/mp4', variants: [{ kind: 'poster', width: 480, height: 270, version: 'p9' }] })
+    expect(videoPosterUrl(VIDEO, video)).toBe(`/api/website/v1/public/media/${VIDEO}/variants/poster?v=p9`)
   })
 
   it('沒有素材資訊（或只有原檔）時不輸出 srcset', () => {
@@ -224,10 +238,12 @@ describe('素材版位疊到官網內容', () => {
 describe('草稿預覽的素材資訊', () => {
   it('後台素材清單換成公開 API 的形狀，焦點 0–1 換成 0–100，未完成的略過', () => {
     const map = previewMedia([
-      { id: IMAGE, kind: 'image', status: 'ready', content_type: 'image/jpeg', width: 10, height: 8, alt_text: 'a', crop_focus_x: 0.305, crop_focus_y: 1, variants: [{ kind: 'thumbnail', width: 10, height: 8 }] },
+      { id: IMAGE, kind: 'image', status: 'ready', content_type: 'image/jpeg', width: 10, height: 8, alt_text: 'a', crop_focus_x: 0.305, crop_focus_y: 1, variants: [{ id: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0', kind: 'thumbnail', width: 10, height: 8 }] },
       { id: VIDEO, kind: 'video', status: 'processing', content_type: 'video/mp4', width: null, height: null, alt_text: null, crop_focus_x: null, crop_focus_y: null, variants: [] }
     ])
     expect(Object.keys(map)).toEqual([IMAGE])
     expect(map[IMAGE]).toMatchObject({ focus_x: 30.5, focus_y: 100, alt_text: 'a' })
+    // 衍生檔版本跟公開 API 一樣是記錄 id 的前 12 碼。
+    expect(map[IMAGE]!.variants).toEqual([{ kind: 'thumbnail', width: 10, height: 8, version: '0f1e2d3c4b5a' }])
   })
 })

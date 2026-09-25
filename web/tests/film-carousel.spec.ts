@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nearestTurn, ringOffset, settleTarget, youtubeEmbed, youtubeId } from '../app/utils/filmCarousel'
+import { clipRestartTime, nearestTurn, ringOffset, settleTarget, youtubeEmbed, youtubeId } from '../app/utils/filmCarousel'
 import { campusFilms, youtube } from '../app/utils/campusFilms'
 
 describe('手機活動影片輪播', () => {
@@ -29,6 +29,21 @@ describe('手機活動影片輪播', () => {
     expect(youtubeEmbed('abcdefghijk')).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/abcdefghijk\?/)
     expect(() => youtube('https://example.com', '壞連結')).toThrow()
     expect(youtube('https://youtu.be/abcdefghijk', '範例')).toMatchObject({ type: 'youtube', youtubeId: 'abcdefghijk' })
+  })
+  it('剪段循環：播到結束秒數跳回開始；結束秒數超過片長時，loop 回到 0 秒也跳回開始', () => {
+    expect(clipRestartTime(4.9, 20, 2, 5)).toBeNull()
+    expect(clipRestartTime(5, 20, 2, 5)).toBe(2)
+    // 結束秒數 30 超過 20 秒的影片：永遠播不到，loop 回到 0 秒時要跳回 2 秒，不是整支重播。
+    expect(clipRestartTime(19.9, 20, 2, 30)).toBeNull()
+    expect(clipRestartTime(0.1, 20, 2, 30)).toBe(2)
+    // 沒設結束：同樣靠回到開頭前跳回。
+    expect(clipRestartTime(0, 20, 2, null)).toBe(2)
+    expect(clipRestartTime(1.9, 20, 2, null)).toBeNull()
+    // 片長還不知道（metadata 沒載完）照結束秒數判斷。
+    expect(clipRestartTime(5, Number.NaN, 2, 5)).toBe(2)
+    // 開始秒數超過片長：整支從頭播，不在結尾與開頭之間來回跳。
+    expect(clipRestartTime(0, 20, 25, null)).toBeNull()
+    expect(clipRestartTime(0, 20, 25, 30)).toBeNull()
   })
   it('檔案影片的剪段在片長內、都有海報與標題', () => {
     for (const film of campusFilms) {

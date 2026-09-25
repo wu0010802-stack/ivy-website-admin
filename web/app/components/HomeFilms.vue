@@ -2,7 +2,7 @@
 import { campusFilms } from '~/utils/campusFilms'
 import type { HomeFilm } from '~/types/site-content'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
-import { mod, nearestTurn, ringOffset, settleTarget, youtubeEmbed } from '~/utils/filmCarousel'
+import { clipRestartTime, mod, nearestTurn, ringOffset, settleTarget, youtubeEmbed } from '~/utils/filmCarousel'
 
 /**
  * 2026-09-23 D：手機版把「近期活動」換成活動影片（B 中央聚焦＋參考圖白色圓點）。
@@ -73,8 +73,9 @@ function loopClip(k: number) {
   const film = films[k]
   const video = videoEls[k]
   if (film?.type !== 'file' || !video) return
-  // 播到結束秒數就跳回開始；沒設結束（播到結尾）時 loop 會回到 0 秒，再跳回開始秒數。
-  if (film.end != null ? video.currentTime >= film.end : video.currentTime < film.start - 0.25) video.currentTime = film.start
+  // 播到結束秒數就跳回開始；沒設結束、或結束秒數超過影片長度時，loop 會回到 0 秒，再跳回開始秒數。
+  const next = clipRestartTime(video.currentTime, video.duration, film.start, film.end)
+  if (next != null) video.currentTime = next
 }
 
 watch(index, k => {
