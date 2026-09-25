@@ -101,22 +101,32 @@ async function approve() {
 
 type Tone = 'success' | 'warning' | 'info'
 
+// 唯讀時只說現況，不寫「修改、送審、儲存」這類這個帳號做不到的動作指示。
 const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
   if (!isDirty.value && reviewStatus.value === 'pending_review') {
     return {
       tone: 'warning',
       label: '已送審，等待核准',
-      detail: canPublishRole.value ? '內容編輯送上來的版本，檢查沒問題就核准發布，需要修改就退回並寫原因。' : '校區管理者核准後才會出現在官網；這段期間可以繼續修改，改完要重新送審。',
+      detail: readOnly.value
+        ? '送審的版本核准後才會出現在官網。'
+        : canPublishRole.value
+          ? '內容編輯送上來的版本，檢查沒問題就核准發布，需要修改就退回並寫原因。'
+          : '校區管理者核准後才會出現在官網；這段期間可以繼續修改，改完要重新送審。',
     }
   }
   if (!isDirty.value && reviewStatus.value === 'rejected') {
-    return { tone: 'warning', label: '被退回', detail: reviewNote.value ? `原因：${reviewNote.value}` : '請修改後重新送審。' }
+    const fallback = readOnly.value ? '這一版沒有發布到官網。' : '請修改後重新送審。'
+    return { tone: 'warning', label: '被退回', detail: reviewNote.value ? `原因：${reviewNote.value}` : fallback }
   }
   if (isDirty.value) {
     return { tone: 'warning', label: '有未儲存的修改', detail: '儲存草稿後才會保留；發布時會自動先儲存。' }
   }
   if (!latestRevisionAt.value) {
-    return { tone: 'info', label: '尚未建立內容', detail: '填好後先儲存草稿；發布後，家長才會看到新內容。' }
+    return {
+      tone: 'info',
+      label: '尚未建立內容',
+      detail: readOnly.value ? '這份內容還沒有草稿。' : '填好後先儲存草稿；發布後，家長才會看到新內容。',
+    }
   }
   if (isPublished.value) {
     return { tone: 'success', label: '官網顯示的是這一版', detail: `目前發布的版本儲存於 ${formatDateTime(latestRevisionAt.value)}。` }

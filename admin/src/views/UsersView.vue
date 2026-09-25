@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
@@ -183,6 +183,15 @@ function openScopeDialog(target: UserOut) {
   scopeDialogVisible.value = true
 }
 
+// 換角色時後端會收回個資匯出授權（總管理者要針對新職位重新決定），勾選框
+// 跟著清掉並說明；改回原角色就恢復原狀。只改校區不影響。
+const exportDroppedByRoleChange = computed(() =>
+  Boolean(scopeTarget.value && scopeRole.value !== scopeTarget.value.role && hasExportGrant(scopeTarget.value)),
+)
+watch(scopeRole, (role) => {
+  if (scopeTarget.value) scopeExport.value = role === scopeTarget.value.role && hasExportGrant(scopeTarget.value)
+})
+
 async function submitScope() {
   if (!scopeTarget.value || operationBusy.value) return
   savingScope.value = true
@@ -361,6 +370,7 @@ onMounted(loadUsers)
               <el-radio v-for="role in ROLE_ORDER" :key="role" :value="role">{{ ROLE_LABELS[role] }}</el-radio>
             </el-radio-group>
             <span class="field-help">{{ ROLE_DESCRIPTIONS[scopeRole] }}</span>
+            <span v-if="exportDroppedByRoleChange" class="field-help" data-test="export-dropped">換角色會收回原本的個資匯出授權{{ EXPORT_ROLES.includes(scopeRole) ? '，新職位需要的話請在下方重新勾選' : '' }}。</span>
           </el-form-item>
           <el-form-item v-if="scopeRole !== 'super_admin'" label="負責校區">
             <el-checkbox-group v-model="scopeSelection">

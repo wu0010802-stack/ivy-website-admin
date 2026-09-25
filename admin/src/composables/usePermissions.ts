@@ -6,7 +6,8 @@ import { useAuthStore } from '../stores/auth'
 //
 // 常用的幾個：
 // - booking.handle：處理案件（聯絡紀錄、確認、取消、改期、補登…），含櫃台
-// - booking.manage：時段、每週規則、休假日、預約設定與指派承辦人
+// - booking.manage：時段、每週規則、休假日、預約設定、指派承辦人，以及把站內
+//   通知標為已讀（全校共用的狀態，業主確認前不開給櫃台）
 // - booking.export：匯出家長個資（總管理者逐人授予）
 // - content.manage：編輯分校內容（唯讀帳號沒有）
 export function hasCapability(

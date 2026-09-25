@@ -754,20 +754,78 @@ export function bookingConfigValueLabel(field: string, value: unknown): string {
 export function configChangeLines(
   before: Record<string, unknown> | null | undefined,
   after: Record<string, unknown> | null | undefined,
+  valueLabel: (field: string, value: unknown) => string = bookingConfigValueLabel,
 ): string[] {
   if (!before || !after) return []
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
   return keys
     .filter((key) => JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null))
-    .map((key) => `${BOOKING_CONFIG_FIELD_LABELS[key] ?? key}：${bookingConfigValueLabel(key, before[key])} → ${bookingConfigValueLabel(key, after[key])}`)
+    .map((key) => `${AUDIT_FIELD_LABELS[key] ?? BOOKING_CONFIG_FIELD_LABELS[key] ?? key}：${valueLabel(key, before[key])} → ${valueLabel(key, after[key])}`)
 }
 
-/** 稽核紀錄 metadata 有 before／after 時列出改了什麼；沒有回空字串。 */
+// 總管理者逐人授予的授權（後端 GRANTABLE_CAPABILITIES）。
+export const GRANT_LABELS: Record<string, string> = {
+  'content.shared': '全站內容',
+  'booking.export': '匯出個資',
+}
+
+export function grantLabels(codes: readonly unknown[]): string {
+  return codes.length ? codes.map((code) => GRANT_LABELS[String(code)] ?? String(code)).join('、') : '無'
+}
+
+// 帳號類稽核（變更角色與校區、新增帳號）的欄位。
+const AUDIT_FIELD_LABELS: Record<string, string> = { role: '角色', campus_keys: '負責校區', capabilities: '授權' }
+
+function auditValueLabel(field: string, value: unknown): string {
+  if (field === 'role' && typeof value === 'string') return roleLabel(value)
+  if (Array.isArray(value)) {
+    if (field === 'capabilities') return grantLabels(value)
+    if (!value.length) return '（無）'
+    return field === 'campus_keys' ? campusLabels(value.map(String)) : value.map(String).join('、')
+  }
+  return bookingConfigValueLabel(field, value)
+}
+
+/** 稽核紀錄 metadata 有 before／after 時列出改了什麼；沒有回空字串。
+ * 授權清單（user.set_capabilities 的 before／after 是陣列）講清楚這次是授予
+ * 還是收回哪一項，例如「授予：匯出個資」。 */
 export function auditChangeSummary(metadata: Record<string, unknown> | null | undefined): string {
   const before = metadata?.before
   const after = metadata?.after
+  if (Array.isArray(before) && Array.isArray(after)) {
+    const was = new Set(before.map(String))
+    const now = new Set(after.map(String))
+    const granted = [...now].filter((code) => !was.has(code))
+    const revoked = [...was].filter((code) => !now.has(code))
+    const parts = [granted.length ? `授予：${grantLabels(granted)}` : '', revoked.length ? `收回：${grantLabels(revoked)}` : '']
+    return parts.filter(Boolean).join('；') || `沒有變更（${grantLabels(after)}）`
+  }
   if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return ''
-  return configChangeLines(before as Record<string, unknown>, after as Record<string, unknown>).join('；')
+  return configChangeLines(before as Record<string, unknown>, after as Record<string, unknown>, auditValueLabel).join('；')
+}
+
+/** 操作紀錄「細節」欄：純值列成「key=值」，帳號與授權相關的陣列轉成中文，
+ * 有修改前後的再接「修改：…」。 */
+export function auditMetadataSummary(metadata: Record<string, unknown> | null | undefined): string {
+  // 物件與陣列形式的 before／after 交給 auditChangeSummary；其他物件不攤開。
+  const isPlainList = (value: unknown): value is unknown[] =>
+    Array.isArray(value) && value.every((item) => typeof item === 'string' || typeof item === 'number')
+  const plain = Object.entries(metadata ?? {})
+    .filter(([key, value]) => {
+      if (value === null || value === undefined) return false
+      if (typeof value !== 'object') return true
+      return isPlainList(value) && key !== 'before' && key !== 'after'
+    })
+    .map(([key, value]) => {
+      if (key === 'reason') return `原因=${auditReasonLabel(String(value))}`
+      // 改角色時一併收回的授權（例如分校管理者降為櫃台收回匯出個資）。
+      if (key === 'capabilities_removed' && Array.isArray(value)) return `因改角色收回授權：${grantLabels(value)}`
+      if (Array.isArray(value) || key === 'role') return `${AUDIT_FIELD_LABELS[key] ?? key}：${auditValueLabel(key, value)}`
+      return `${key}=${String(value)}`
+    })
+    .join('，')
+  const changes = auditChangeSummary(metadata)
+  return [plain, changes ? `修改：${changes}` : ''].filter(Boolean).join('，')
 }
 
 export const REFERRAL_SOURCE_LABELS: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }

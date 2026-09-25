@@ -22,9 +22,12 @@ interface NotificationOut {
 
 const { visibleCampusKeys, selected: campusFilter } = useCampusScope()
 const { can } = usePermissions()
-// 標記已處理與核准／退回改期都要能處理案件（booking.handle，含櫃台）；
-// 沒有的人只看清單，不顯示一按就被拒絕的按鈕。
+// 核准／退回改期與重新寄送要能處理案件（booking.handle，含櫃台）；沒有的人
+// 只看清單，不顯示一按就被拒絕的按鈕。
 const canHandle = computed(() => can('booking.handle'))
+// 標記已讀改的是全校共用的處理狀態（有人標了，同校其他人就看不到未讀），
+// 2026-09-25 裁定沒有開放給櫃台，業主確認前限 booking.manage。
+const canMarkRead = computed(() => can('booking.manage'))
 const openRequests = useOpenRequestsStore()
 
 const notifications = ref<NotificationOut[]>([])
@@ -118,7 +121,7 @@ function summary(n: NotificationOut): string {
 }
 
 async function markRead(n: NotificationOut) {
-  if (!canHandle.value || operationBusy.value || loading.value || n.read_at || n.campus_key !== campusFilter.value) return
+  if (!canMarkRead.value || operationBusy.value || loading.value || n.read_at || n.campus_key !== campusFilter.value) return
   busyId.value = n.id
   operationResult.value = ''
   const campus = campusFilter.value
@@ -133,7 +136,7 @@ async function markRead(n: NotificationOut) {
 }
 
 async function markAllRead() {
-  if (!canHandle.value || operationBusy.value || loading.value || loadError.value) return
+  if (!canMarkRead.value || operationBusy.value || loading.value || loadError.value) return
   const campus = campusFilter.value
   const unread = notifications.value.filter((n) => !n.read_at && n.campus_key === campus)
   if (!unread.length) return
@@ -243,7 +246,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
       <label class="filter-field"><span>校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
       <el-checkbox v-model="onlyUnread">只看未讀（{{ unreadCount }}）</el-checkbox>
       <span class="toolbar__spacer" />
-      <el-button v-if="canHandle" text :disabled="operationBusy || loading || !!loadError || unreadCount === 0" :loading="bulkBusy" @click="markAllRead">{{ bulkBusy ? `標記中 ${bulkProgress} / ${bulkTotal}` : '全部標記已讀' }}</el-button>
+      <el-button v-if="canMarkRead" text :disabled="operationBusy || loading || !!loadError || unreadCount === 0" :loading="bulkBusy" @click="markAllRead">{{ bulkBusy ? `標記中 ${bulkProgress} / ${bulkTotal}` : '全部標記已讀' }}</el-button>
     </div>
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可查看的校區" />
@@ -392,7 +395,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           </el-table-column>
           <el-table-column width="120" align="right">
             <template #default="{ row }: { row: NotificationOut }">
-              <el-button v-if="canHandle && !row.read_at" size="small" text :loading="busyId === row.id" :disabled="operationBusy" @click="markRead(row)">標記已讀</el-button>
+              <el-button v-if="canMarkRead && !row.read_at" size="small" text :loading="busyId === row.id" :disabled="operationBusy" @click="markRead(row)">標記已讀</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -401,9 +404,9 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
             <div class="record-heading"><strong>{{ notificationLabel(row.kind, row.payload) }}</strong><el-tag :type="row.read_at ? 'info' : 'primary'">{{ row.read_at ? '已讀' : '未讀' }}</el-tag></div>
             <p v-if="summary(row)">{{ summary(row) }}</p>
             <dl class="record-meta"><dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd><dt>時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd></dl>
-            <div v-if="visitRequestId(row) || (canHandle && !row.read_at)" class="record-actions">
+            <div v-if="visitRequestId(row) || (canMarkRead && !row.read_at)" class="record-actions">
               <router-link v-if="visitRequestId(row)" :to="`/visit-requests/${visitRequestId(row)}`">查看案件</router-link>
-              <el-button v-if="canHandle && !row.read_at" :loading="busyId === row.id" :disabled="operationBusy" @click="markRead(row)">標記已讀</el-button>
+              <el-button v-if="canMarkRead && !row.read_at" :loading="busyId === row.id" :disabled="operationBusy" @click="markRead(row)">標記已讀</el-button>
             </div>
           </li>
         </ul>

@@ -141,7 +141,10 @@ async function unlink() {
         </div>
         <div class="panel__body account__line">
           <template v-if="auth.user.google_linked">
-            <p>可以在登入頁用 Google 直接登入，Email 與密碼仍然可以用。</p>
+            <!-- 綁定會保留，但 Google 登入關掉時登入頁沒有 Google 按鈕，不能說「可以登入」。 -->
+            <el-skeleton v-if="!providersLoaded" animated :rows="1" />
+            <p v-else-if="googleEnabled">可以在登入頁用 Google 直接登入，Email 與密碼仍然可以用。</p>
+            <p v-else data-test="google-disabled-linked">Google 登入目前未開放，綁定仍保留，可以解除。</p>
             <el-popconfirm
               title="解除後這個帳號不再記得目前的 Google 帳號；之後用同一個 Email 的 Google 帳號登入會重新綁定。"
               confirm-button-text="解除綁定"
@@ -154,7 +157,7 @@ async function unlink() {
                 <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
               </template>
             </el-popconfirm>
-            <p class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，再用 Google 登入一次即可。</p>
+            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，再用 Google 登入一次即可。</p>
           </template>
           <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
           <p v-else-if="googleEnabled">在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
@@ -171,7 +174,9 @@ async function unlink() {
         </div>
         <div class="panel__body account__line">
           <template v-if="auth.user.line_linked">
-            <p>可以在登入頁用 LINE 直接登入，Email 與密碼仍然可以用。</p>
+            <el-skeleton v-if="!providersLoaded" animated :rows="1" />
+            <p v-else-if="lineEnabled">可以在登入頁用 LINE 直接登入，Email 與密碼仍然可以用。</p>
+            <p v-else data-test="line-disabled-linked">LINE 登入目前未開放，綁定仍保留，可以解除。</p>
             <el-popconfirm
               title="解除後就不能再用這個 LINE 登入，Email 與密碼不受影響。"
               confirm-button-text="解除綁定"

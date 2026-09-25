@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
+import { usePermissions } from '../composables/usePermissions'
+import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 
@@ -68,9 +70,19 @@ const reviews = ref<PendingReview[]>([])
 
 const authStore = useAuthStore()
 const openRequests = useOpenRequestsStore()
+const { can } = usePermissions()
 const summary = ref<DashboardSummary | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+// 總覽上的連結只放點得進去的（第 27 條）：進不去的頁面會被導回總覽本身，
+// 看起來像按了沒反應。櫃台進不了內容頁與「各校預約方式」，沒有「全站共用
+// 內容」授權的分校管理者進不了共用內容頁。
+const canOpen = (path: string) => canOpenPath(path, authStore.user)
+// 時段、每週規則與預約方式由校區管理者設定（booking.manage），櫃台只能看。
+const canManageBooking = computed(() => can('booking.manage'))
+// 待發布、素材與排程這類內容提醒只給能編內容的人；每一列再看進不進得了編輯頁。
+const canEditContent = computed(() => can('content.manage'))
 
 async function load() {
   loading.value = true
@@ -78,7 +90,8 @@ async function load() {
   try {
     summary.value = await api.get<DashboardSummary>('/admin/dashboard')
     openRequests.apply(summary.value)
-    if ((summary.value.pending_review ?? 0) > 0) {
+    // 待審清單只列自己能發布的內容，沒有發布權的人不用讀。
+    if ((summary.value.pending_review ?? 0) > 0 && can('content.publish')) {
       const list = await api.get<PendingReview[]>('/admin/content-reviews').catch(() => [])
       reviews.value = Array.isArray(list) ? list : []
     } else {
@@ -115,9 +128,37 @@ const primary = computed(() => {
 })
 const openCount = computed(() => newRequests.value + awaiting.value)
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
-const pendingPublishItems = computed(() => summary.value?.pending_publish_items ?? [])
-const mediaIssues = computed(() => summary.value?.content_media_issues ?? [])
-const failedJobs = computed(() => summary.value?.failed_publish_jobs ?? [])
+const campusesWithoutBooking = computed(() => summary.value?.campuses_without_active_booking ?? [])
+const openableContent = <T extends { kind: string; campus_key: string | null }>(rows: T[] | undefined): T[] =>
+  canEditContent.value ? (rows ?? []).filter((row) => canOpen(contentEditorPath(row.kind, row.campus_key))) : []
+const pendingPublishItems = computed(() => openableContent(summary.value?.pending_publish_items))
+const pendingPublishKinds = computed(() =>
+  canEditContent.value ? (summary.value?.pending_publish_kinds ?? []).filter((kind) => canOpen(contentEditorPath(kind))) : [],
+)
+const pendingPublishCount = computed(() => {
+  const s = summary.value
+  if (!s || !canEditContent.value) return 0
+  if (s.pending_publish_items) return pendingPublishItems.value.length
+  // 舊版 API 只有種類或只有總數。
+  return s.pending_publish_kinds ? pendingPublishKinds.value.length : s.pending_publish
+})
+const mediaIssues = computed(() => openableContent(summary.value?.content_media_issues))
+const failedJobs = computed(() => openableContent(summary.value?.failed_publish_jobs))
+const visibleReviews = computed(() => openableContent(reviews.value))
+
+// 常用工作：一樣只列點得進去的。櫃台看得到時段但不能新增，改成「查看」。
+const shortcuts = computed(() =>
+  [
+    canManageBooking.value
+      ? { to: '/slots', title: '安排參觀時段', hint: '開放時間與可接待人數' }
+      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約人數' },
+    { to: '/visit-calendar', title: '查看接待月曆', hint: '每天有誰要來參觀' },
+    { to: '/content/home-hero', title: '更新首頁文字', hint: '調整家長進站看到的標語' },
+    { to: '/content/campus-profile', title: '修改各校資料', hint: '校園介紹與聯絡方式' },
+    { to: '/media', title: '整理照片與影片', hint: '上傳素材、補上圖片說明' },
+    { to: '/users', title: '管理使用者', hint: '帳號與校區權限' },
+  ].filter((link) => canOpen(link.to)),
+)
 
 function mediaIssueText(issue: MediaIssue): string {
   const parts: string[] = []
@@ -138,12 +179,12 @@ const hasTodo = computed(() => {
     reschedules.value > 0 ||
     needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
-    s.pending_publish > 0 ||
-    reviews.value.length > 0 ||
+    pendingPublishCount.value > 0 ||
+    visibleReviews.value.length > 0 ||
     s.failed_notifications > 0 ||
     mediaIssues.value.length > 0 ||
     failedJobs.value.length > 0 ||
-    s.campuses_without_active_booking.length > 0 ||
+    campusesWithoutBooking.value.length > 0 ||
     slotsWithoutOpenings.value.length > 0
   )
 })
@@ -205,13 +246,18 @@ onMounted(load)
               <span class="task__number">{{ summary.pending_follow_up }}</span>
               <div><h3>案件已到追蹤時間</h3><p>之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span class="task__action">查看到期案件 →</span></div>
             </router-link>
-            <router-link v-if="summary.campuses_without_active_booking.length" class="task" to="/booking">
-              <span class="task__number">{{ summary.campuses_without_active_booking.length }}</span>
-              <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(summary.campuses_without_active_booking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span class="task__action">檢查各校預約方式 →</span></div>
+            <router-link v-if="campusesWithoutBooking.length && canOpen('/booking')" class="task" to="/booking">
+              <span class="task__number">{{ campusesWithoutBooking.length }}</span>
+              <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span class="task__action">檢查各校預約方式 →</span></div>
             </router-link>
+            <div v-else-if="campusesWithoutBooking.length" class="task">
+              <span class="task__number">{{ campusesWithoutBooking.length }}</span>
+              <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法從官網送出需求。預約方式由校區管理者設定。</p></div>
+            </div>
             <router-link v-if="slotsWithoutOpenings.length" class="task" to="/slots">
               <span class="task__number">{{ slotsWithoutOpenings.length }}</span>
-              <div><h3>開放選時段，但沒有可預約的場次</h3><p>{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。請新增場次或每週開放規則，或改用其他預約方式。</p><span class="task__action">安排參觀時段 →</span></div>
+              <div v-if="canManageBooking"><h3>開放選時段，但沒有可預約的場次</h3><p>{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。請新增場次或每週開放規則，或改用其他預約方式。</p><span class="task__action">安排參觀時段 →</span></div>
+              <div v-else><h3>開放選時段，但沒有可預約的場次</h3><p>{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。新增場次或每週開放規則由校區管理者處理。</p><span class="task__action">查看參觀時段 →</span></div>
             </router-link>
             <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications">
               <span class="task__number">{{ summary.failed_notifications }}</span>
@@ -228,16 +274,16 @@ onMounted(load)
                     <span>{{ formatDateTime(job.publish_at) }}・第 {{ job.revision_version }} 版{{ job.error ? `：${job.error}` : '' }}</span>
                   </li>
                 </ul>
-                <router-link class="task__action" to="/releases?tab=schedules">查看全站排程 →</router-link>
+                <router-link v-if="canOpen('/releases')" class="task__action" to="/releases?tab=schedules">查看全站排程 →</router-link>
               </div>
             </div>
-            <div v-if="reviews.length > 0" class="task">
-              <span class="task__number">{{ reviews.length }}</span>
+            <div v-if="visibleReviews.length > 0" class="task">
+              <span class="task__number">{{ visibleReviews.length }}</span>
               <div>
                 <h3>內容等你審核</h3>
                 <p>內容編輯送上來的修改，核准後才會出現在官網；需要修改就退回並寫原因。</p>
                 <span class="task__kinds">
-                  <router-link v-for="r in reviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
+                  <router-link v-for="r in visibleReviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
                     {{ contentItemLabel(r.kind, r.campus_key) }} →
                   </router-link>
                 </span>
@@ -254,11 +300,11 @@ onMounted(load)
                     <span :class="{ 'is-live': issue.live }">{{ mediaIssueText(issue) }}</span>
                   </li>
                 </ul>
-                <router-link class="task__action" to="/media">查看素材庫 →</router-link>
+                <router-link v-if="canOpen('/media')" class="task__action" to="/media">查看素材庫 →</router-link>
               </div>
             </div>
-            <div v-if="summary.pending_publish > 0" class="task">
-              <span class="task__number">{{ summary.pending_publish }}</span>
+            <div v-if="pendingPublishCount > 0" class="task">
+              <span class="task__number">{{ pendingPublishCount }}</span>
               <div>
                 <h3>草稿尚未公開</h3>
                 <p>這些內容存過草稿，官網顯示的還是舊版或預設文字。檢查後再發布。</p>
@@ -269,23 +315,19 @@ onMounted(load)
                   </li>
                 </ul>
                 <span v-else class="task__kinds">
-                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="contentEditorPath(kind)">
+                  <router-link v-for="kind in pendingPublishKinds" :key="kind" :to="contentEditorPath(kind)">
                     {{ contentItemLabel(kind) }} →
                   </router-link>
                 </span>
               </div>
             </div>
-            <div v-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>可以查看參觀安排，或利用下方入口整理官網內容。</p></div>
+            <div v-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與接待月曆。' }}</p></div>
           </div>
         </section>
         <section class="dash__shortcuts" aria-labelledby="shortcuts-title">
           <div class="section__title"><h2 id="shortcuts-title">常用工作</h2></div>
           <div class="dash__links">
-            <router-link to="/slots"><span><strong>安排參觀時段</strong><small>開放時間與可接待人數</small></span><span aria-hidden="true">→</span></router-link>
-            <router-link to="/content/home-hero"><span><strong>更新首頁文字</strong><small>調整家長進站看到的標語</small></span><span aria-hidden="true">→</span></router-link>
-            <router-link to="/content/campus-profile"><span><strong>修改各校資料</strong><small>校園介紹與聯絡方式</small></span><span aria-hidden="true">→</span></router-link>
-            <router-link to="/media"><span><strong>整理照片與影片</strong><small>上傳素材、補上圖片說明</small></span><span aria-hidden="true">→</span></router-link>
-            <router-link v-if="authStore.user?.role === 'super_admin'" to="/users"><span><strong>管理使用者</strong><small>帳號與校區權限</small></span><span aria-hidden="true">→</span></router-link>
+            <router-link v-for="link in shortcuts" :key="link.title" :to="link.to"><span><strong>{{ link.title }}</strong><small>{{ link.hint }}</small></span><span aria-hidden="true">→</span></router-link>
           </div>
         </section>
       </div>

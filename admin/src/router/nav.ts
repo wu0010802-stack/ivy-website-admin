@@ -124,7 +124,13 @@ export const NAV_GROUPS: NavGroup[] = [
 ]
 
 const byName = new Map<string, NavItem>()
-for (const group of NAV_GROUPS) for (const item of group.items) byName.set(item.name, item)
+const byPath = new Map<string, NavItem>()
+for (const group of NAV_GROUPS) {
+  for (const item of group.items) {
+    byName.set(item.name, item)
+    byPath.set(item.path, item)
+  }
+}
 
 export function canSeeNavItem(item: NavItem, user: { role: string; capabilities?: string[] } | null | undefined): boolean {
   if (!item.roles) return true
@@ -134,6 +140,14 @@ export function canSeeNavItem(item: NavItem, user: { role: string; capabilities?
 
 export function navItem(name: string): NavItem | undefined {
   return byName.get(name)
+}
+
+/** 連結點下去進得了嗎（可以帶 query）。跟 router.beforeEach 同一條規則：
+ * 進不去的頁面會被導回登入後第一頁，看起來像按了沒反應，所以總覽這類
+ * 連到別頁的入口先用它過濾。不在側欄的頁面（案件明細、我的帳號）不限制。 */
+export function canOpenPath(path: string, user: { role: string; capabilities?: string[] } | null | undefined): boolean {
+  const item = byPath.get(path.split(/[?#]/)[0] || '/')
+  return item ? canSeeNavItem(item, user) : true
 }
 
 /** 登入後的第一頁：該角色看得到的第一個側欄項目（編輯與唯讀沒有營運總覽）。 */
