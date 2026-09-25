@@ -96,7 +96,7 @@ describe('主選單與頁尾連結', () => {
 
   it('連結只收站內路徑或 https 外部網址（同後端）', () => {
     for (const ok of ['/', '/#about', '/admission', '/campuses/yihua#faq', 'https://www.ivykidschool.com/']) expect(siteLinkError(ok)).toBeNull()
-    for (const bad of ['', 'http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://user@example.com/', 'https://a b.com', '/\\evil.com']) {
+    for (const bad of ['', 'http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://user@example.com/', 'https://a b.com', '/\\evil.com', 'https://example.com:99999/', 'https://example.com:abc/']) {
       expect(siteLinkError(bad)).not.toBeNull()
     }
     expect(labelEnError('Admission')).toBeNull()
@@ -243,6 +243,16 @@ describe('標題缺字提示', () => {
     await flushPromises()
     expect(eb.text()).toContain('首頁大標字型沒有「園」')
     expect(missing.text()).toBe('')
+  })
+
+  it('首屏小標在官網用系統字，不提示缺字（避免誤報）', async () => {
+    mockCharsets({ bd: '高雄', eb: '高雄', serif: '高雄' })
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_hero', { eyebrow: '高雄五校・1997 創校', copy_lines: ['一', '二'] }) as never)
+    const wrapper = await mountAs(HomeHeroView, superAdmin(), '/content/home-hero')
+    await wrapper.findAll('input')[0]!.setValue('鳳山新校區')
+    await flushPromises()
+    expect(wrapper.find('.glyph-hint').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('會以系統字顯示')
   })
 })
 

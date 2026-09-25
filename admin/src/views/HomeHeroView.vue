@@ -4,7 +4,6 @@ import { useContentItem } from '../composables/useContentItem'
 import type { HomeHeroPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
-import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 
 // 首屏按鈕 2026-09-23 已拿掉（按鈕文字不再編輯）；舊版本的 cta_label 載入時丟掉，
@@ -47,10 +46,11 @@ onMounted(editor.load)
     <template #lead>首頁大圖（影片）旁的小標與標語。標語每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。大標題由官網設計固定，不在這裡修改。</template>
 
     <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+      <!-- 小標在官網用系統字（web typography.css 的字體分工），不是標題子集，所以不放缺字提示；
+           之後若改回標題字型再加 GlyphHint。 -->
       <el-form-item label="標語上方的小標">
         <el-input v-model="editor.form.value.eyebrow" placeholder="例如：高雄五校・1997 創校" />
         <LengthHint :value="editor.form.value.eyebrow" rule="heroEyebrow" />
-        <GlyphHint :value="editor.form.value.eyebrow" />
       </el-form-item>
       <el-form-item v-for="(_, i) in editor.form.value.copy_lines" :key="i" :label="`標語第 ${i + 1} 行`">
         <el-input v-model="editor.form.value.copy_lines[i]" maxlength="24" show-word-limit />
