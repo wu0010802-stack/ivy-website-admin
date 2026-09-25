@@ -1097,6 +1097,10 @@ class CampusProfilePayload(_ContentPayload):
     # 首頁五校分頁上的建築線稿（平常）與上色版（選到那一校時疊上去）。
     line_art: MediaSlotPayload | None = None
     line_art_colour: MediaSlotPayload | None = None
+    # 2026-09-25 新增。空字串＝尚未提供；有預設值，2026-09-25 以前存的版本沒有這兩欄
+    # 也照樣通過驗證（web 端遇到舊版本缺欄位時沿用 fixture，見 content-overlay.ts）。
+    instagram: str = ""
+    youtube: str = ""
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
@@ -1108,11 +1112,11 @@ class CampusProfilePayload(_ContentPayload):
     def _map_url(cls, value: str) -> str:
         return require_map_url(value)
 
-    @field_validator("facebook", "line")
+    @field_validator("facebook", "line", "instagram", "youtube")
     @classmethod
     def _social_links_safe(cls, value: str) -> str:
-        # 這兩個欄位在 web/app/components/CampusBoard.vue 直接綁 :href，
-        # 是 CMS 內容通到公開站 href 的唯一路徑，必須用允許清單。
+        # 社群連結在 CampusBoard.vue、SiteHeader.vue 直接綁 :href，
+        # 是 CMS 內容通到公開站 href 的路徑，必須用允許清單。
         return _require_safe_url(value)
 
 

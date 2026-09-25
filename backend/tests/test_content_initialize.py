@@ -21,6 +21,9 @@ async def test_initialize_preserves_source_and_skips_unverified_tours(db_session
     assert set(content["campus_profile"]) == {c["key"] for c in data["campuses"]}
     assert set(content["campus_tour"]) == {"yihua"}
     assert content["campus_profile"]["renwu"]["line"] == ""
+    assert content["campus_profile"]["yihua"]["instagram"] == "https://www.instagram.com/ivy.kids.school.ig/"
+    assert content["campus_profile"]["yihua"]["youtube"] == "https://www.youtube.com/@IvyKidsVideos"
+    assert content["campus_profile"]["renwu"]["instagram"] == content["campus_profile"]["renwu"]["youtube"] == ""
     assert content["site_footer"]["copyright"] == data["footer"]["copyright"]
     # 五校一字不差的題目搬進全站共用題目，各校只留帶校名的那題（預設顯示共用題）。
     shared_qs = [item["q"] for item in content["shared_faq"]["items"]]

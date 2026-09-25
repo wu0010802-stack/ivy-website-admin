@@ -31,6 +31,8 @@ const editor = useContentItem<CampusProfilePayload>(
     hero_focus: null,
     line_art: null,
     line_art_colour: null,
+    instagram: '',
+    youtube: '',
   },
   campus,
 )
@@ -200,6 +202,13 @@ const mapPreviewUrl = computed(() => {
       <el-form-item label="LINE 官方帳號網址">
         <el-input v-model="editor.form.value.line" placeholder="https://lin.ee/…" />
         <span class="field-help">留空代表這一校尚未提供，官網會顯示待補，不會帶入其他校的帳號。</span>
+      </el-form-item>
+      <el-form-item label="Instagram 網址">
+        <el-input v-model="editor.form.value.instagram" placeholder="https://www.instagram.com/…" />
+      </el-form-item>
+      <el-form-item label="YouTube 頻道網址">
+        <el-input v-model="editor.form.value.youtube" placeholder="https://www.youtube.com/@…" />
+        <span class="field-help">IG、YouTube 留空也一樣顯示待補。只填這一校自己的帳號，不要填其他校或機構的。</span>
       </el-form-item>
     </el-form>
   </ContentEditor>

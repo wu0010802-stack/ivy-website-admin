@@ -108,7 +108,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     }))
     for campus in data["campuses"]:
         profile = _copy_fields(campus, "campus_profile")
-        profile["line"] = profile["line"] or ""
+        for key in ("line", "instagram", "youtube"):
+            profile[key] = profile[key] or ""
         entries.append(("campus_profile", campus["key"], profile))
         entries.append(("campus_faq", campus["key"], {"items": _own_faq_items(campus, shared_faq)}))
         # Generated templates remain marked as pending on the public website.

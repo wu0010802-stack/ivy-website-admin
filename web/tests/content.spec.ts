@@ -251,6 +251,31 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     expect(yihua.line).toBeNull()
   })
 
+  describe('campus_profile 的 instagram／youtube（2026-09-25 新增欄位）', () => {
+    const profile = { name: 'n', district: 'd', address: 'a', phone: 'p', intro: 'i', description: 'desc', facebook: 'fb', fb_note: 'fbn', line: '' }
+    const withSocials = () => {
+      const fixture = makeFixture()
+      Object.assign(fixture.campuses[0]!, { instagram: 'https://fixture/ig', youtube: 'https://fixture/yt' })
+      return fixture
+    }
+
+    it('後台有這兩欄就以後台為準，空字串轉成 null（尚未提供）', () => {
+      const result = applyContentOverlay(withSocials(), {
+        campus_profile: { yihua: { ...profile, instagram: 'https://cms/ig', youtube: '' } }
+      })
+      const yihua = result.campuses.find((c) => c.key === 'yihua')!
+      expect(yihua.instagram).toBe('https://cms/ig')
+      expect(yihua.youtube).toBeNull()
+    })
+
+    it('舊版本沒有這兩欄時沿用 fixture，不會被蓋成 undefined', () => {
+      const result = applyContentOverlay(withSocials(), { campus_profile: { yihua: profile } })
+      const yihua = result.campuses.find((c) => c.key === 'yihua')!
+      expect(yihua.instagram).toBe('https://fixture/ig')
+      expect(yihua.youtube).toBe('https://fixture/yt')
+    })
+  })
+
   it('campus_tour 整組取代 tourScenes，含把 GeneratedTourScenes 佔位樣板換成真正場景', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {

@@ -419,6 +419,8 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   line: 'LINE',
   facebook: 'Facebook',
   fb_note: 'Facebook 備註',
+  instagram: 'Instagram',
+  youtube: 'YouTube',
   consent_text: '同意條款文字',
   privacy_title: '隱私說明標題',
   privacy_sections: '隱私說明段落',

@@ -276,6 +276,9 @@ export interface CampusProfilePayload {
   hero_focus?: FocusPointPayload | null
   line_art?: MediaSlotPayload | null
   line_art_colour?: MediaSlotPayload | null
+  /** 2026-09-25 新增；之前存的版本沒有這兩欄，表單載入時補空字串。 */
+  instagram: string
+  youtube: string
 }
 
 export interface CampusFaqItemPayload {
