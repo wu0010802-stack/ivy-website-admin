@@ -3,7 +3,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { NewsArticle, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, mergeCampusFaq, type LiveHomeNews } from '../app/utils/content-overlay'
 import { previewOverlay } from '../app/utils/draft-preview'
-import { eventTimeText, homeArticles, safeWebUrl } from '../app/utils/news-content'
+import { eventTimeDetail, eventTimeText, homeArticles, isSampleNews, safeWebUrl, sampleCoverage } from '../app/utils/news-content'
 import { pageSeo } from '../app/utils/seo'
 
 const site = fixture as unknown as SiteContent
@@ -45,6 +45,15 @@ describe('活動時間與連結', () => {
     expect(eventTimeText({ allDay: true, startTime: '09:00' })).toBe('全天')
     expect(eventTimeText({ allDay: false, startTime: '09:30', endTime: '11:00' })).toBe('09:30–11:00')
     expect(eventTimeText({ allDay: false, startTime: '09:30', endTime: null })).toBe('09:30 開始')
+  })
+
+  it('卡片與詳細頁只在園方填了時間時寫時間，不替舊活動或預設的全天寫「全天」', () => {
+    expect(eventTimeDetail({ allDay: false, startTime: '09:30', endTime: '11:00' })).toBe('09:30–11:00')
+    // 舊活動沒有時間欄位、後台勾選框預設全天：都不寫。
+    expect(eventTimeDetail({})).toBe('')
+    expect(eventTimeDetail({ allDay: true })).toBe('')
+    const [legacy] = applyContentOverlay(site, { home_news: { sample_note: '', articles: [], events: [{ ...baseEvent, id: 'old', date: '2026-10-06', campus: '全校' }] } }).news.events
+    expect(eventTimeDetail(legacy!)).toBe('')
   })
 
   it('只放行 http／https 網址', () => {
@@ -116,6 +125,39 @@ describe('消息疊資料：全站消息的適用範圍＋各校消息', () => {
     })
     expect(next.news.articles).toHaveLength(site.news.articles.length + 1)
     expect(next.news.sampleNote).toBe(site.news.sampleNote)
+    // 沿用的內建消息仍是示意，分校自己發布的那則不是。
+    expect(next.news.articles.find((a) => a.id === 'yihua:y')!.sample).toBe(false)
+    expect(next.news.articles.filter((a) => a.id !== 'yihua:y').every((a) => a.sample === true)).toBe(true)
+  })
+
+  it('全站消息還是示意內容時，各校發布的真實消息與活動不被標成範例', () => {
+    const next = applyContentOverlay(site, {
+      home_news: { ...homeNews, sample_note: '設計示意｜消息與活動日期均為範例。' },
+      campus_news: {
+        minghua: {
+          articles: [{ ...baseArticle, id: 'open-house', date: '2026-10-04' }],
+          events: [{ ...baseEvent, id: 'sports', date: '2026-10-09' }]
+        }
+      }
+    })
+    const { sampleNote } = next.news
+    const own = next.news.articles.find((a) => a.id === 'minghua:open-house')!
+    const ownEvent = next.news.events.find((e) => e.id === 'minghua:sports')!
+    expect(isSampleNews(own, sampleNote)).toBe(false)
+    expect(isSampleNews(ownEvent, sampleNote)).toBe(false)
+    expect(next.news.articles.filter((a) => !a.id.startsWith('minghua:')).every((a) => isSampleNews(a, sampleNote))).toBe(true)
+    // 混著真實消息：不在區塊標題整區標「示意內容」，改成逐則標。
+    expect(sampleCoverage(next.news.articles, sampleNote)).toBe('some')
+    expect(sampleCoverage([own], sampleNote)).toBe('none')
+    expect(sampleCoverage(next.news.articles.filter((a) => a !== own), sampleNote)).toBe('all')
+  })
+
+  it('全站消息清空示意說明後沒有任何一則是示意；純 fixture 沒有逐則標記時沿用整份說明', () => {
+    const next = applyContentOverlay(site, { home_news: homeNews })
+    expect(sampleCoverage([...next.news.articles, ...next.news.events], next.news.sampleNote)).toBe('none')
+    expect(isSampleNews(site.news.articles[0]!, site.news.sampleNote)).toBe(true)
+    expect(isSampleNews(site.news.articles[0]!, '')).toBe(false)
+    expect(sampleCoverage([], site.news.sampleNote)).toBe('none')
   })
 
   it('預覽依日期過濾各校消息，被藏起來的標上校名', () => {
@@ -164,6 +206,13 @@ describe('常見問題：全站共用＋各校', () => {
     expect(after.map((i) => i.q)).toEqual(['本校題', '共用一', '只給仁武', '可以改嗎？'])
     const off = mergeCampusFaq('renwu', { items: [{ q: '本校題', a: '本校答' }], include_shared: false }, shared)
     expect(off.map((i) => i.q)).toEqual(['本校題'])
+  })
+
+  it('問題或回答空白的本校題目不顯示，同一題的共用題目也照樣藏起來', () => {
+    const items = mergeCampusFaq('yihua', {
+      items: [{ q: '共用一', a: '', enabled: true }, { q: '本校題', a: '  ' }, { q: ' ', a: '沒有問題' }, { q: '本校題二', a: '答' }]
+    }, shared)
+    expect(items).toEqual([{ q: '可以改嗎？', a: '共用的回答' }, { q: '本校題二', a: '答' }])
   })
 
   it('本校有同一題時顯示本校版本，停用就是本校不顯示那一題；其他校不受影響', () => {

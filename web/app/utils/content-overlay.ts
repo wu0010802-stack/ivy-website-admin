@@ -344,7 +344,9 @@ function newsEvent(e: LiveNewsEvent, where: { campus: string; campusKeys: string
  * 分校頁的常見問題 = 本校題目＋全站共用題目（規格 3.2）。共用題目依各校設定
  * 放在本校題目之前或之後、或不顯示；只適用某幾校的共用題目只在那幾校出現。
  * 本校有一題和共用題目問題相同時，顯示本校的版本，停用就是這校不顯示那一題；
- * 其他校照樣顯示共用的答案。
+ * 其他校照樣顯示共用的答案。問題或回答空白的本校題目不顯示（後端 2026-09-26
+ * 起擋下，這裡顧及之前發布的「本校不顯示」題被切回顯示的情形），同一題的共用
+ * 題目也照樣藏起來，跟停用一樣。
  */
 export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: LiveSharedFaq | null | undefined): FaqItem[] {
   const own = faq.items
@@ -356,7 +358,9 @@ export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: Li
       .filter((item) => item.scope !== 'campus' || (item.campus_keys ?? []).includes(campusKey))
       .filter((item) => !ownQuestions.has(item.q.trim()))
       .map((item) => ({ q: item.q, a: item.a }))
-  const ownItems = own.filter((item) => item.enabled !== false).map((item) => ({ q: item.q, a: item.a }))
+  const ownItems = own
+    .filter((item) => item.enabled !== false && item.q.trim() && item.a.trim())
+    .map((item) => ({ q: item.q, a: item.a }))
   return faq.shared_position === 'after' ? [...ownItems, ...sharedItems] : [...sharedItems, ...ownItems]
 }
 
@@ -617,15 +621,22 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     // responsiveTourImage 解析）。
     const names = Object.fromEntries(next.campuses.map((c) => [c.key, c.name]))
     const news = overlay.home_news
-    const articles: NewsArticle[] = news ? news.articles.map((a) => newsArticle(a, newsScope(a, names), media)) : [...next.news.articles]
-    const events: NewsEvent[] = news ? news.events.map((e) => newsEvent(e, newsScope(e, names))) : [...next.news.events]
+    // 「示意內容」逐則標：全站消息（或還沒發布全站消息時沿用的內建消息）看
+    // 示意說明有沒有值；各校消息是分校自己發布的真實消息，一律不是示意。
+    const sample = Boolean(news ? news.sample_note : next.news.sampleNote)
+    const articles: NewsArticle[] = news
+      ? news.articles.map((a) => ({ ...newsArticle(a, newsScope(a, names), media), sample }))
+      : next.news.articles.map((a) => ({ ...a, sample: a.sample ?? sample }))
+    const events: NewsEvent[] = news
+      ? news.events.map((e) => ({ ...newsEvent(e, newsScope(e, names)), sample }))
+      : next.news.events.map((e) => ({ ...e, sample: e.sample ?? sample }))
     for (const c of next.campuses) {
       const own = overlay.campus_news?.[c.key]
       if (!own) continue
       const where = { campus: c.name, campusKeys: [c.key] }
       // 各校的 id 只在自己校內不重複，合併時加上校區避免撞到全站消息。
-      articles.push(...own.articles.map((a) => ({ ...newsArticle(a, where, media, `${c.key}:${a.id}`), featured: false })))
-      events.push(...own.events.map((e) => newsEvent(e, where, `${c.key}:${e.id}`)))
+      articles.push(...own.articles.map((a) => ({ ...newsArticle(a, where, media, `${c.key}:${a.id}`), featured: false, sample: false })))
+      events.push(...own.events.map((e) => ({ ...newsEvent(e, where, `${c.key}:${e.id}`), sample: false })))
     }
     next.news = {
       ...next.news,

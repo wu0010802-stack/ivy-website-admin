@@ -20,7 +20,7 @@ vi.mock('../server/utils/published-site', () => ({
       releaseId: 'r1',
       content: {
         siteMeta: { brandName: '常春藤', description: '官網', allowIndexing: state.allowIndexing },
-        campuses: [{ key: 'renwu', name: '仁武校', district: '仁武區', address: '高雄市', phone: '07-000-0000' }]
+        campuses: [{ key: 'renwu', name: '仁武校', district: '仁武區', address: '高雄市', phone: '07-000-0000', faq: { template: '', items: [{ q: '要預約嗎？', a: '要' }] } }]
       }
     }
   }

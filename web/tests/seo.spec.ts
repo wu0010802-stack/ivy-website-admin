@@ -69,6 +69,14 @@ describe('公開搜尋資料', () => {
     expect(text).toContain(c.address)
     expect(text).toContain(c.phone)
     expect(text).not.toContain('yihua')
+    expect(text).toContain('常見問題見 https://ivy.example/campuses/renwu#faq')
+  })
+  it('llms.txt 在分校頁沒有常見問題時不指向不存在的 #faq', () => {
+    const c = site.campuses[4]!
+    const noFaq = { ...c, faq: { ...c.faq, items: [] } }
+    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [noFaq] })
+    expect(text).toContain(`參觀專線 ${c.phone}\n`)
+    expect(text).not.toContain('#faq')
   })
   it('sitemap 僅含傳入的已發布校區、不虛構 lastmod', () => {
     const xml = sitemapXml('https://ivy.example', [site.campuses[4]!])

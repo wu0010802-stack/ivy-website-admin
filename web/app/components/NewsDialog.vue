@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { responsiveTourImage } from '~/utils/tour-image'
-import { eventTimeText, homeArticles, safeWebUrl, sortedArticles, taipeiToday, upcomingEvents } from '~/utils/news-content'
+import { eventTimeDetail, homeArticles, isSampleNews, safeWebUrl, sampleCoverage, sortedArticles, taipeiToday, upcomingEvents, type SampleCoverage } from '~/utils/news-content'
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
 const props = defineProps<{ news: NewsContent }>()
@@ -16,8 +16,14 @@ const today = taipeiToday()
 const articles = computed(() => sortedArticles(props.news.articles))
 const rotation = computed(() => homeArticles(props.news.articles, props.news.homeCount))
 const events = computed(() => upcomingEvents(props.news.events, today))
-// sampleNote 有值＝原型示意內容（fixture 或後台尚未換成真實消息）。
-const isSample = computed(() => Boolean(props.news.sampleNote))
+// 原型示意內容逐則判斷（見 NewsContent.sampleNote）：一區全是示意就在標題標一次，
+// 混著真實消息時改成逐則標，不讓分校自己發布的消息和活動也被標成範例。
+const isSample = (item: NewsArticle | NewsEvent) => isSampleNews(item, props.news.sampleNote)
+const rotationSample = computed(() => sampleCoverage(rotation.value, props.news.sampleNote))
+const articlesSample = computed(() => sampleCoverage(articles.value, props.news.sampleNote))
+const eventsSample = computed(() => sampleCoverage(events.value, props.news.sampleNote))
+const anySample = computed(() => Boolean(props.news.sampleNote) && [...articles.value, ...events.value].some(isSample))
+const tagged = (item: NewsArticle | NewsEvent, coverage: SampleCoverage) => coverage === 'some' && isSample(item)
 const { slots, page, pages, progress, enabled, playing } = useNewsRotation(() => rotation.value, cardsEl, dialogOpen)
 const pad = (value: number) => String(value).padStart(2, '0')
 const view = ref<{ kind: 'articles' | 'events'; item: NewsArticle | NewsEvent } | { kind: 'list'; list: 'articles' | 'events' } | null>(null)
@@ -56,7 +62,7 @@ function formatDate(date: string) {
 
 // 活動卡片上的第二行：時間（全天就不寫）與地點。
 function eventBrief(item: NewsEvent) {
-  return [item.allDay === false ? eventTimeText(item) : '', item.location ?? ''].filter(Boolean).join(' · ')
+  return [eventTimeDetail(item), item.location ?? ''].filter(Boolean).join(' · ')
 }
 
 </script>
@@ -69,7 +75,7 @@ function eventBrief(item: NewsEvent) {
         <HomeFilms class="hn-films" :films="news.films" />
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
-            <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="isSample" class="hn-sample-tag">示意內容</span></span>
+            <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="eventsSample === 'all'" class="hn-sample-tag">示意內容</span></span>
             <h2 id="upcoming-events-heading">近期活動</h2>
           </div>
           <div v-if="events.length" class="hn-event-stack">
@@ -85,7 +91,7 @@ function eventBrief(item: NewsEvent) {
                 <b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span>
               </time>
               <span class="hn-event-copy">
-                <small>{{ item.campus }}</small>
+                <small>{{ item.campus }}<span v-if="tagged(item, eventsSample)" class="hn-sample-tag">示意</span></small>
                 <strong>{{ item.title }}</strong>
                 <small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small>
               </span>
@@ -99,7 +105,7 @@ function eventBrief(item: NewsEvent) {
         <div class="hn-news">
           <div class="hn-head hn-news-head">
             <div>
-              <span class="hn-kicker"><span lang="en">LATEST NEWS</span><span v-if="isSample" class="hn-sample-tag">示意內容</span></span>
+              <span class="hn-kicker"><span lang="en">LATEST NEWS</span><span v-if="rotationSample === 'all'" class="hn-sample-tag">示意內容</span></span>
               <h2 id="latest-news-heading">最新消息</h2>
             </div>
             <div class="hn-head-end">
@@ -129,7 +135,7 @@ function eventBrief(item: NewsEvent) {
               </div>
               <div class="hn-copy-stack">
                 <div v-for="(item, layer) in layers" :key="item.id" class="hn-card-copy" :inert="(layers.length > 1 && layer === 0) || undefined">
-                  <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
+                  <span class="hn-meta"><span>{{ item.campus }}<span v-if="tagged(item, rotationSample)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                   <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
                 </div>
               </div>
@@ -137,7 +143,7 @@ function eventBrief(item: NewsEvent) {
           </div>
         </div>
       </div>
-      <p v-if="isSample" class="hn-sample-note">{{ news.sampleNote }}</p>
+      <p v-if="anySample" class="hn-sample-note">{{ news.sampleNote }}</p>
     </div>
   </section>
 
@@ -150,11 +156,11 @@ function eventBrief(item: NewsEvent) {
       <div class="hn-dialog-body">
         <template v-if="view?.kind === 'list'">
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.list === 'events' ? '近期活動' : '所有最新消息' }}</h2>
-          <p v-if="isSample" class="hn-dialog-note">以下為設計示意內容。</p>
+          <p v-if="(view.list === 'events' ? eventsSample : articlesSample) === 'all'" class="hn-dialog-note">以下為設計示意內容。</p>
           <div v-if="view.list === 'events'" class="hn-event-stack">
             <button v-for="item in events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
               <time class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
-              <span class="hn-event-copy"><small>{{ item.campus }}</small><strong>{{ item.title }}</strong><small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small></span>
+              <span class="hn-event-copy"><small>{{ item.campus }}<span v-if="tagged(item, eventsSample)" class="hn-sample-tag">示意</span></small><strong>{{ item.title }}</strong><small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small></span>
               <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
@@ -162,7 +168,7 @@ function eventBrief(item: NewsEvent) {
             <button v-for="item in articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
               <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 90vw, 420px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
               <span class="hn-list-copy">
-                <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
+                <span class="hn-meta"><span>{{ item.campus }}<span v-if="tagged(item, articlesSample)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                 <strong>{{ item.title }}</strong>
                 <span class="hn-category">{{ item.category }}</span>
               </span>
@@ -177,14 +183,15 @@ function eventBrief(item: NewsEvent) {
           <img v-bind="responsiveTourImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px', false, (view.item as NewsArticle).imageMedia)" :style="(view.item as NewsArticle).imageMedia?.position ? { objectPosition: (view.item as NewsArticle).imageMedia!.position! } : undefined" :alt="(view.item as NewsArticle).alt" loading="lazy">
           <NewsBody v-if="(view.item as NewsArticle).body?.length" :summary="view.item.description" :blocks="(view.item as NewsArticle).body!" />
           <p v-else class="hn-detail-copy">{{ view.item.description }}</p>
-          <p v-if="isSample" class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
+          <p v-if="isSample(view.item)" class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
         </template>
         <template v-else-if="view?.kind === 'events'">
-          <span class="hn-kicker">{{ view.item.campus }}{{ isSample ? ' · 活動示意' : '' }}</span>
+          <span class="hn-kicker">{{ view.item.campus }}{{ isSample(view.item) ? ' · 活動示意' : '' }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <time class="hn-detail-date" :datetime="view.item.date">{{ formatDate(view.item.date) }}</time>
-          <dl class="hn-event-facts">
-            <div><dt>時間</dt><dd>{{ eventTimeText(view.item as NewsEvent) }}</dd></div>
+          <!-- 時間只在園方填了開始時間時寫；全天（含沒有時間欄位的舊活動）只看日期，不替園方寫「全天」。 -->
+          <dl v-if="eventTimeDetail(view.item as NewsEvent) || (view.item as NewsEvent).location" class="hn-event-facts">
+            <div v-if="eventTimeDetail(view.item as NewsEvent)"><dt>時間</dt><dd>{{ eventTimeDetail(view.item as NewsEvent) }}</dd></div>
             <div v-if="(view.item as NewsEvent).location"><dt>地點</dt><dd>{{ (view.item as NewsEvent).location }}</dd></div>
           </dl>
           <p class="hn-detail-copy">{{ view.item.description }}</p>
@@ -192,7 +199,7 @@ function eventBrief(item: NewsEvent) {
             v-if="safeWebUrl((view.item as NewsEvent).linkUrl)" class="hn-more hn-event-link"
             :href="safeWebUrl((view.item as NewsEvent).linkUrl)" target="_blank" rel="noopener noreferrer"
           >{{ (view.item as NewsEvent).linkLabel || '活動詳情' }}<span aria-hidden="true">↗</span><span class="sr-only">（另開分頁）</span></a>
-          <p v-if="isSample" class="hn-dialog-note">這是示意活動，並非已公告的活動或開放報名。正式內容將由園方提供。</p>
+          <p v-if="isSample(view.item)" class="hn-dialog-note">這是示意活動，並非已公告的活動或開放報名。正式內容將由園方提供。</p>
         </template>
       </div>
     </dialog>

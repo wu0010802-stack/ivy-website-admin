@@ -154,7 +154,8 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     '',
     '## 校區',
     '',
-    ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}；常見問題見 ${campusUrl(c)}#faq`),
+    // 分校頁沒有題目時不輸出 #faq 區塊（CampusPageMain），這裡也就不指過去。
+    ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}${c.faq.items.length ? `；常見問題見 ${campusUrl(c)}#faq` : ''}`),
     ''
   ]
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')

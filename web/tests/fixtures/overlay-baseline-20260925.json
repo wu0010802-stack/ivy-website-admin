@@ -559,7 +559,8 @@
     "body": [],
     "featured": false,
     "image": "garden",
-    "alt": "既有校園果樹情境照片"
+    "alt": "既有校園果樹情境照片",
+    "sample": true
    },
    {
     "id": "learning",
@@ -574,7 +575,8 @@
     "body": [],
     "featured": false,
     "image": "learning",
-    "alt": "既有義華校學習活動情境照片"
+    "alt": "既有義華校學習活動情境照片",
+    "sample": true
    },
    {
     "id": "renwu",
@@ -589,7 +591,8 @@
     "body": [],
     "featured": false,
     "image": "renwu",
-    "alt": "仁武校既有校園外觀示意圖"
+    "alt": "仁武校既有校園外觀示意圖",
+    "sample": true
    },
    {
     "id": "minghua",
@@ -604,7 +607,8 @@
     "body": [],
     "featured": false,
     "image": "minghua",
-    "alt": "明華校既有校園照片"
+    "alt": "明華校既有校園照片",
+    "sample": true
    },
    {
     "id": "chongde",
@@ -619,7 +623,8 @@
     "body": [],
     "featured": false,
     "image": "chongde",
-    "alt": "崇德校既有校園照片"
+    "alt": "崇德校既有校園照片",
+    "sample": true
    },
    {
     "id": "international",
@@ -634,7 +639,8 @@
     "body": [],
     "featured": false,
     "image": "international",
-    "alt": "國際校既有校園照片"
+    "alt": "國際校既有校園照片",
+    "sample": true
    }
   ],
   "events": [
@@ -651,7 +657,8 @@
     "endTime": null,
     "location": "",
     "linkUrl": "",
-    "linkLabel": ""
+    "linkLabel": "",
+    "sample": true
    },
    {
     "id": "family",
@@ -668,7 +675,8 @@
     "endTime": null,
     "location": "",
     "linkUrl": "",
-    "linkLabel": ""
+    "linkLabel": "",
+    "sample": true
    },
    {
     "id": "outdoor",
@@ -683,7 +691,8 @@
     "endTime": null,
     "location": "",
     "linkUrl": "",
-    "linkLabel": ""
+    "linkLabel": "",
+    "sample": true
    }
   ],
   "homeCount": null

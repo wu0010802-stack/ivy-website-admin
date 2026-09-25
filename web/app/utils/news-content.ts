@@ -28,6 +28,30 @@ export function eventTimeText(event: Pick<NewsEvent, 'allDay' | 'startTime' | 'e
   return event.endTime ? `${event.startTime}–${event.endTime}` : `${event.startTime} 開始`
 }
 
+/**
+ * 活動卡片與詳細頁要寫出來的時間：只有園方填了開始時間才寫，其餘回空字串。
+ * 「全天」是後台勾選框的預設值，舊活動也一律當全天，不能據此替園方寫「全天」。
+ */
+export function eventTimeDetail(event: Pick<NewsEvent, 'allDay' | 'startTime' | 'endTime'>): string {
+  return event.allDay === false && event.startTime ? eventTimeText(event) : ''
+}
+
+/**
+ * 這一則是不是原型示意內容：疊上後台內容時每則都有 sample（各校消息一律不是）；
+ * 純 fixture 沒有逐則標記，沿用整份的示意說明（sampleNote 有值＝全部示意）。
+ */
+export function isSampleNews(item: Pick<NewsArticle, 'sample'>, sampleNote: string): boolean {
+  return item.sample ?? Boolean(sampleNote)
+}
+
+/** 一份清單裡示意內容的多寡：all＝整區在標題標一次；some＝混著真實消息，逐則標。 */
+export type SampleCoverage = 'all' | 'some' | 'none'
+
+export function sampleCoverage(list: readonly Pick<NewsArticle, 'sample'>[], sampleNote: string): SampleCoverage {
+  const count = list.filter((item) => isSampleNews(item, sampleNote)).length
+  return count === 0 ? 'none' : count === list.length ? 'all' : 'some'
+}
+
 /** 只放行 http／https 的完整網址（後端已驗證，這裡再擋一次才綁進 href）。 */
 export function safeWebUrl(url: string | undefined | null): string {
   const value = (url ?? '').trim()

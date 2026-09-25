@@ -178,6 +178,8 @@ export interface NewsArticle {
   body?: NewsBlock[]
   /** 首頁推薦（只有全站消息有） */
   featured?: boolean
+  /** 原型示意內容（見 NewsContent.sampleNote）；沒有這個欄位＝沿用整份的 sampleNote */
+  sample?: boolean
   image: string
   alt: string
   imageMedia?: MediaImage
@@ -198,6 +200,8 @@ export interface NewsEvent {
   location?: string
   linkUrl?: string
   linkLabel?: string
+  /** 同 NewsArticle.sample */
+  sample?: boolean
 }
 
 /**
@@ -211,6 +215,11 @@ export type HomeFilm =
 export interface NewsContent {
   sectionId: string
   note: string
+  /**
+   * 原型示意內容的說明。示意與否逐則判斷（NewsArticle／NewsEvent 的 sample）：
+   * 疊上後台內容時，全站消息看這段說明有沒有值，各校消息一律不是示意；
+   * 純 fixture 的消息沒有逐則標記，這段有值就全部當示意。
+   */
   sampleNote: string
   articles: NewsArticle[]
   events: NewsEvent[]

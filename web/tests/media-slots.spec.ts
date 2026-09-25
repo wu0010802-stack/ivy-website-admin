@@ -13,7 +13,8 @@ const site = fixture as unknown as SiteContent
 const read = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'))
 // initialize-content 匯入後的內容（後端 initial_payloads＋public_view 產生，素材版位都是 null）。
 const initialOverlay = read('overlay-initial-content.json') as ContentOverlay
-// 同一份內容用 2026-09-25 這批改動之前的 content-overlay.ts／published-content.ts 疊出來的結果。
+// 同一份內容用 2026-09-25 這批改動之前的 content-overlay.ts／published-content.ts 疊出來的結果
+// （2026-09-26 起消息與活動逐則多一個 sample 示意旗標，其餘不變）。
 const baseline = read('overlay-baseline-20260925.json') as SiteContent
 
 const IMAGE = '11111111-1111-4111-8111-111111111111'
