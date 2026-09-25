@@ -56,6 +56,25 @@ function logActionCalls(): string[] {
   return calls
 }
 
+// 提醒的門檻是 reminders.py 的 timedelta 常數，後端文案用 f-string 帶出數字，
+// labels.ts 則是寫死的。這裡解析常數、把後端的 f-string 算成實際文字再比對，
+// 改了常數忘了改 labels.ts（或反過來）就會失敗。常數改成別的寫法時直接報錯，
+// 不讓比對悄悄失效。
+function reminderHours(reminders: string): Record<string, number> {
+  const hours: Record<string, number> = {}
+  for (const m of reminders.matchAll(/^([A-Z_]+) = timedelta\((hours|days)=(\d+)\)$/gm)) {
+    hours[m[1]!] = Number(m[3]) * (m[2] === 'days' ? 24 : 1)
+  }
+  return hours
+}
+
+function renderReminderText(template: string, hours: Record<string, number>): string {
+  return template.replace(/\{(?:reminders\.)?whole_hours\((?:reminders\.)?([A-Z_]+)\)\}/g, (_, name: string) => {
+    if (hours[name] === undefined) throw new Error(`reminders.py 的 ${name} 不是 timedelta(hours=N) 或 timedelta(days=N)`)
+    return String(hours[name])
+  })
+}
+
 function literals(calls: string[], keyword: string): Set<string> {
   const found = new Set<string>()
   const pattern = new RegExp(`\\b${keyword}=([^,\\n]+)`, 'g')
@@ -99,11 +118,21 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(backendKinds.length).toBeGreaterThan(5)
     for (const [kind, text] of backendKinds) expect(NOTIFICATION_KIND_LABELS[kind], kind).toBe(text)
 
-    // 提醒的 kind 用常數寫在 reminders.py。
+    // 提醒的 kind 用常數寫在 reminders.py，_KIND_LABELS 以 reminders.XXX_KIND 當鍵、
+    // 門檻數字用 f-string 帶出。
     const reminders = source('notifications/reminders.py')
-    const reminderKinds = [...reminders.matchAll(/^[A-Z_]+_KIND = "([a-z_]+)"/gm)].map((m) => m[1]!)
-    expect(reminderKinds).toEqual(['visit_upcoming', 'visit_request_overdue'])
-    for (const kind of reminderKinds) expect(NOTIFICATION_KIND_LABELS[kind], kind).toBeTruthy()
+    const kindByConstant = Object.fromEntries(
+      [...reminders.matchAll(/^([A-Z_]+_KIND) = "([a-z_]+)"/gm)].map((m) => [m[1]!, m[2]!]),
+    )
+    expect(Object.values(kindByConstant)).toEqual(['visit_upcoming', 'visit_request_overdue'])
+    const hours = reminderHours(reminders)
+    const reminderLabels = [...block.matchAll(/^\s+reminders\.([A-Z_]+_KIND):\s*f?"([^"]+)"/gm)]
+    expect(reminderLabels.map((m) => kindByConstant[m[1]!])).toEqual(['visit_upcoming', 'visit_request_overdue'])
+    for (const [, constant, template] of reminderLabels) {
+      const kind = kindByConstant[constant!]!
+      expect(NOTIFICATION_KIND_LABELS[kind], kind).toBe(renderReminderText(template!, hours))
+    }
+    expect(NOTIFICATION_KIND_LABELS.visit_upcoming).toBe(`即將參觀（${hours.UPCOMING_VISIT_LEAD} 小時內）`)
 
     // 所有 enqueue_outbox 的 kind 也要有。
     const enqueued = new Set<string>()
@@ -114,16 +143,35 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect([...enqueued].filter((kind) => !NOTIFICATION_KIND_LABELS[kind])).toEqual([])
   })
 
-  it('逾期未處理的原因有中文，並帶進通知標題', () => {
+  it('逾期未處理的原因有中文、文字和後端一致，並帶進通知標題', () => {
     const reminders = source('notifications/reminders.py')
-    const reasons = [...reminders.matchAll(/^REASON_[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
-    expect(reasons.length).toBe(2)
-    for (const reason of reasons) expect(NOTIFICATION_REASON_LABELS[reason], reason).toBeTruthy()
+    const reasonByConstant = Object.fromEntries(
+      [...reminders.matchAll(/^(REASON_[A-Z_]+) = "([a-z_]+)"/gm)].map((m) => [m[1]!, m[2]!]),
+    )
+    expect(Object.values(reasonByConstant)).toEqual(['new_unhandled', 'hold_expiring'])
+    const hours = reminderHours(reminders)
+    const block = reminders.slice(reminders.indexOf('REASON_LABELS = {'), reminders.indexOf('\n}\n', reminders.indexOf('REASON_LABELS = {')))
+    const backendReasons = [...block.matchAll(/^\s+(REASON_[A-Z_]+):\s*f?"([^"]+)"/gm)]
+    expect(backendReasons.length).toBe(2)
+    for (const [, constant, template] of backendReasons) {
+      const reason = reasonByConstant[constant!]!
+      expect(NOTIFICATION_REASON_LABELS[reason], reason).toBe(renderReminderText(template!, hours))
+    }
+    expect(NOTIFICATION_REASON_LABELS.new_unhandled).toContain(`${hours.NEW_REQUEST_OVERDUE_AFTER} 小時`)
+    expect(NOTIFICATION_REASON_LABELS.hold_expiring).toContain(`${hours.HOLD_EXPIRING_WITHIN} 小時`)
+
     expect(notificationLabel('visit_request_overdue', { reason: 'new_unhandled' })).toBe(
-      '案件逾期未處理：新的參觀需求超過 24 小時尚未處理',
+      `案件逾期未處理：${NOTIFICATION_REASON_LABELS.new_unhandled}`,
     )
     expect(notificationLabel('visit_request_overdue', { reason: 'other' })).toBe('案件逾期未處理')
-    expect(notificationLabel('visit_upcoming', null)).toBe('即將參觀（24 小時內）')
+    expect(notificationLabel('visit_upcoming', null)).toBe(NOTIFICATION_KIND_LABELS.visit_upcoming)
+  })
+
+  it('解析得出提醒門檻，後端文案改成別的寫法時直接報錯', () => {
+    const hours = reminderHours('UPCOMING_VISIT_LEAD = timedelta(hours=24)\nHOLD_EXPIRING_WITHIN = timedelta(days=1)\n')
+    expect(hours).toEqual({ UPCOMING_VISIT_LEAD: 24, HOLD_EXPIRING_WITHIN: 24 })
+    expect(renderReminderText('即將參觀（{reminders.whole_hours(reminders.UPCOMING_VISIT_LEAD)} 小時內）', hours)).toBe('即將參觀（24 小時內）')
+    expect(() => renderReminderText('{whole_hours(NEW_REQUEST_OVERDUE_AFTER)}', hours)).toThrow('NEW_REQUEST_OVERDUE_AFTER')
   })
 
   it('個資保存政策的案件分類都有中文', () => {
@@ -140,6 +188,18 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(outboxErrorLabel('SMTPAuthenticationError')).toBe('寄信伺服器帳號或密碼錯誤')
     expect(outboxErrorLabel('SMTPServerDisconnected')).toBe('寄信伺服器錯誤')
     expect(outboxErrorLabel('ConnectionRefusedError')).toBe('連不上寄信或推播伺服器')
+    expect(outboxErrorLabel('TimeoutError')).toBe('連線逾時')
+    // LINE 推播連不上或逾時時，錯誤碼是 httpx 的例外類別名稱（沒有包成 LinePushError）。
+    for (const code of ['ConnectError', 'ReadError', 'WriteError', 'RemoteProtocolError', 'ProxyError']) {
+      expect(outboxErrorLabel(code), code).toBe('連不上寄信或推播伺服器')
+    }
+    for (const code of ['ConnectTimeout', 'ReadTimeout', 'WriteTimeout', 'PoolTimeout']) {
+      expect(outboxErrorLabel(code), code).toBe('連線逾時')
+    }
+    // 寄信走 smtplib，憑證或 TLS 握手失敗是 ssl 模組的例外。
+    for (const code of ['SSLError', 'SSLCertVerificationError', 'SSLEOFError']) {
+      expect(outboxErrorLabel(code), code).toBe('加密連線失敗，請檢查伺服器位址與憑證')
+    }
     expect(outboxErrorLabel('RuntimeError')).toBe('其他錯誤')
     expect(outboxErrorLabel(null)).toBe('原因不明')
   })

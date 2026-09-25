@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { campusLabel, formatDateTime, formatSlotWhen, notificationLabel, outboxErrorLabel } from '../api/labels'
-import type { NotificationOutboxOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
+import type { NotificationOutboxOut, NotificationOutboxPageOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
 import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
@@ -47,18 +47,25 @@ let alive = true
 
 // 寄送失敗（自動重試到上限仍失敗）的通知。列出你負責的所有校區，不跟著上面
 // 的校區切換——總覽的失敗數是全部校區加總，點進來要看得到同一批。另外載入，
-// 讀不到也不影響下面的通知清單。
+// 讀不到也不影響下面的通知清單。清單只給最新的 200 則，failedTotal 是全部的
+// 則數（和總覽同一個數字）；超過時提示重新寄送後再按一次。
 const failedOutbox = ref<NotificationOutboxOut[]>([])
+const failedTotal = ref(0)
+const failedHidden = computed(() => Math.max(failedTotal.value - failedOutbox.value.length, 0))
 const failedError = ref('')
 let failedVersion = 0
 
 async function loadFailed() {
   const version = ++failedVersion
   failedError.value = ''
-  if (!can('booking.read')) { failedOutbox.value = []; return }
+  if (!can('booking.read')) { failedOutbox.value = []; failedTotal.value = 0; return }
   try {
-    const rows = await api.get<NotificationOutboxOut[]>('/admin/notification-outbox')
-    if (alive && version === failedVersion) failedOutbox.value = rows
+    const page = await api.get<NotificationOutboxPageOut>('/admin/notification-outbox')
+    if (alive && version === failedVersion) {
+      // 部署交替的短暫期間可能拿到舊版 API 的陣列格式：當成沒有資料，不讓整頁壞掉。
+      failedOutbox.value = Array.isArray(page.items) ? page.items : []
+      failedTotal.value = typeof page.total === 'number' ? page.total : failedOutbox.value.length
+    }
   } catch {
     if (alive && version === failedVersion) failedError.value = '無法讀取寄送失敗的通知，請重新整理。'
   }
@@ -200,6 +207,7 @@ async function retryOne(row: NotificationOutboxOut) {
     if (!alive) return
     ElMessage.success('已排入重新寄送，約一分鐘內由系統重送')
     failedOutbox.value = failedOutbox.value.filter((item) => item.id !== row.id)
+    failedTotal.value = Math.max(failedTotal.value - 1, failedOutbox.value.length)
   } catch (err) {
     if (!alive) return
     ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
@@ -217,10 +225,14 @@ async function retryAll() {
     })
     if (!alive) return
     operationFailed.value = result.skipped > 0
-    operationResult.value = result.skipped
+    const done = result.skipped
       ? `已排入 ${result.requeued} 則重新寄送；${result.skipped} 則已被其他人處理或無法重送。`
       : `已排入 ${result.requeued} 則重新寄送，約一分鐘內由系統重送。`
     await loadFailed()
+    // 一次只送得出畫面上列出的這些；還有沒列出的，重新載入後已經補上來了。
+    operationResult.value = failedOutbox.value.length > 0 && !failedError.value
+      ? `${done}還有 ${failedTotal.value} 則寄送失敗，請再按一次「全部重新寄送」。`
+      : done
   } catch (err) {
     if (alive) ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
   } finally { retryAllBusy.value = false }
@@ -275,10 +287,11 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
       <el-alert v-if="failedError" :title="failedError" type="error" show-icon :closable="false" class="inline-error" />
       <section v-if="failedOutbox.length > 0" class="panel failed" aria-labelledby="failed-outbox-title">
         <div class="panel__head">
-          <h2 id="failed-outbox-title">寄送失敗（{{ failedOutbox.length }}）</h2>
+          <h2 id="failed-outbox-title">寄送失敗（{{ failedTotal }}）</h2>
           <el-button v-if="canHandle" type="primary" :loading="retryAllBusy" :disabled="operationBusy" @click="retryAll">全部重新寄送</el-button>
         </div>
         <p class="section-lead">系統自動重試 5 次仍沒送出的通知（含你負責的所有校區）。先確認寄信或 LINE 設定已修好再重新寄送；已送到的管道不會重複送。</p>
+        <el-alert v-if="failedHidden > 0" :title="`這裡只列出最新的 ${failedOutbox.length} 則，另有 ${failedHidden} 則沒有列出。「全部重新寄送」一次處理列出的這些，完成後會補上其餘的，請再按一次。`" type="warning" show-icon :closable="false" class="inline-error" />
         <el-table :data="failedOutbox" class="data-table">
           <el-table-column label="通知" min-width="220">
             <template #default="{ row }: { row: NotificationOutboxOut }">

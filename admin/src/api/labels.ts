@@ -230,6 +230,12 @@ export function notificationLabel(kind: string, payload?: Record<string, unknown
   return label
 }
 
+// 逾時與連不上：寄信走 smtplib（socket 的例外），LINE 推播走 httpx（httpx 自己的
+// 例外類別，LinePushError 只包 HTTP 狀態碼，網路錯誤是原樣的 httpx 類別名稱）。
+const OUTBOX_TIMEOUT_CODES = /^(TimeoutError|timeout|ConnectTimeout|ReadTimeout|WriteTimeout|PoolTimeout)$/
+const OUTBOX_CONNECTION_CODES =
+  /^(Connection\w*Error|OSError|gaierror|ConnectError|ReadError|WriteError|CloseError|NetworkError|RemoteProtocolError|ProxyError)$/
+
 // 寄送失敗的最後錯誤碼是後端例外的類別名稱，給園方看的是大概原因，代碼另外
 // 小字附上，查問題時對得上伺服器紀錄。
 export function outboxErrorLabel(code: string | null | undefined): string {
@@ -238,8 +244,9 @@ export function outboxErrorLabel(code: string | null | undefined): string {
   if (code === 'SMTPAuthenticationError') return '寄信伺服器帳號或密碼錯誤'
   if (code === 'SMTPRecipientsRefused') return '收件地址被寄信伺服器拒絕'
   if (code.startsWith('SMTP')) return '寄信伺服器錯誤'
-  if (code === 'TimeoutError' || code === 'timeout') return '連線逾時'
-  if (/^(Connection\w*Error|OSError|gaierror)$/.test(code)) return '連不上寄信或推播伺服器'
+  if (OUTBOX_TIMEOUT_CODES.test(code)) return '連線逾時'
+  if (/^SSL\w*Error$/.test(code)) return '加密連線失敗，請檢查伺服器位址與憑證'
+  if (OUTBOX_CONNECTION_CODES.test(code)) return '連不上寄信或推播伺服器'
   return '其他錯誤'
 }
 
@@ -247,7 +254,7 @@ export function outboxErrorLabel(code: string | null | undefined): string {
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'booking_config.update': '更新預約設定',
   'content.publish': '發布內容',
-  'content.publish_scheduled': '排程發布內容',
+  'content.publish_scheduled': '排程時間到，已自動發布',
   'content.submit_review': '內容送審',
   'content.approve': '核准並發布內容',
   'content.reject': '退回送審內容',

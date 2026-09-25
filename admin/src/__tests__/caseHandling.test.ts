@@ -295,7 +295,7 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
   }
 
   it('清單顯示家長、原時段、申請的新時段與剩餘名額；通知連得到案件', async () => {
-    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? [] : String(path).includes('reschedule-requests')
+    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : String(path).includes('reschedule-requests')
       ? [pendingReschedule()]
       : [{ id: 'n1', campus_key: 'yihua', kind: 'visit_reschedule_requested', payload: { campus_key: 'yihua', receipt_id: 'case-a', reschedule_request_id: 'req-1' }, created_at: '2026-09-24T02:00:00Z', read_at: null }]) as never)
     const wrapper = await mountNotifications()

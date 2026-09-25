@@ -31,7 +31,8 @@ describe('通知操作與回應競態', () => {
     let resolveOld!: (value: unknown[]) => void
     const old = new Promise<unknown[]>(resolve => { resolveOld = resolve })
     vi.spyOn(api, 'get').mockImplementation(url => {
-      if (String(url).includes('reschedule-requests') || String(url).includes('notification-outbox')) return Promise.resolve([]) as Promise<never>
+      if (String(url).includes('notification-outbox')) return Promise.resolve({ items: [], total: 0 }) as Promise<never>
+      if (String(url).includes('reschedule-requests')) return Promise.resolve([]) as Promise<never>
       if (String(url).includes('renwu')) return Promise.resolve([notification('仁武新通知', 'renwu')]) as Promise<never>
       return old as Promise<never>
     })
@@ -48,7 +49,7 @@ describe('通知操作與回應競態', () => {
   })
 
   it('批次期間鎖住重複操作與校區切換，部分失敗保持未讀', async () => {
-    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(/reschedule-requests|notification-outbox/.test(String(url)) ? [] : [notification('first'), notification('second')]) as Promise<never>)
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : [notification('first'), notification('second')]) as Promise<never>)
     let resolveFirst!: () => void
     const first = new Promise<void>(resolve => { resolveFirst = resolve })
     const post = vi.spyOn(api, 'post').mockImplementationOnce(() => first as Promise<never>).mockRejectedValueOnce(new Error('offline'))
@@ -79,10 +80,10 @@ function failedItem(id: string, overrides: Record<string, unknown> = {}) {
   }
 }
 
-function mockFailed(rows: unknown[]) {
+function mockFailed(rows: unknown[], total = rows.length) {
   return vi.spyOn(api, 'get').mockImplementation(url => {
     const path = String(url)
-    if (path.includes('notification-outbox')) return Promise.resolve(rows) as Promise<never>
+    if (path.includes('notification-outbox')) return Promise.resolve({ items: rows, total }) as Promise<never>
     return Promise.resolve([]) as Promise<never>
   })
 }
@@ -122,6 +123,27 @@ describe('寄送失敗的通知（第 2 條）', () => {
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/notification-outbox/retry', { ids: ['a', 'b'] })
     expect(wrapper.text()).toContain('已排入 1 則重新寄送；1 則已被其他人處理或無法重送。')
+  })
+
+  it('失敗超過列表上限時標題顯示全部則數，並提示重新寄送後再按一次', async () => {
+    const get = mockFailed([failedItem('a'), failedItem('b')], 350)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ requeued: 2, skipped: 0 } as never)
+    const wrapper = await setup()
+    await flushPromises()
+    // 標題和總覽的失敗數一致，不是畫面上列出的則數。
+    expect(wrapper.text()).toContain('寄送失敗（350）')
+    expect(wrapper.text()).toContain('這裡只列出最新的 2 則，另有 348 則沒有列出')
+
+    // 重新寄送後，下一批補上來：告訴園方還要再按一次。
+    get.mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox')
+      ? { items: [failedItem('c')], total: 348 }
+      : []) as Promise<never>)
+    await wrapper.findAll('button').find(button => button.text() === '全部重新寄送')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/admin/notification-outbox/retry', { ids: ['a', 'b'] })
+    expect(wrapper.text()).toContain('已排入 2 則重新寄送，約一分鐘內由系統重送。還有 348 則寄送失敗，請再按一次「全部重新寄送」。')
+    expect(wrapper.text()).toContain('寄送失敗（348）')
+    expect(wrapper.text()).toContain('這裡只列出最新的 1 則，另有 347 則沒有列出')
   })
 
   it('沒有處理權的帳號只看得到失敗清單，沒有重新寄送按鈕', async () => {
