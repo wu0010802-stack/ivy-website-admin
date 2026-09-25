@@ -242,18 +242,29 @@ async def create_reschedule_request(
 
 
 async def close_pending_reschedules(
-    db: AsyncSession, visit_request_id: uuid.UUID, *, resolved_by: uuid.UUID | None
-) -> None:
-    """案件結案（取消／完成／未到場）時，還在等核准的改期申請跟著失效：
-    否則它會一直留在待核准清單與側欄數字裡，按核准也只會被拒。"""
-    await db.execute(
-        update(RescheduleRequest)
-        .where(
-            RescheduleRequest.visit_request_id == visit_request_id,
-            RescheduleRequest.status == "pending",
-        )
-        .values(status="closed", resolved_at=datetime.now(timezone.utc), resolved_by=resolved_by)
+    db: AsyncSession,
+    visit_request_id: uuid.UUID,
+    *,
+    resolved_by: uuid.UUID | None,
+    keep_id: uuid.UUID | None = None,
+) -> list[uuid.UUID]:
+    """案件結案（取消／完成／未到場）或園方直接改期時，還在等核准的改期申請
+    跟著失效：否則它會一直留在待核准清單與側欄數字裡，結案後按核准只會被拒；
+    改期後按核准更會把案件搬回家長當初申請的時段，蓋掉園方剛談好的時間。
+
+    keep_id 是正在核准的那一筆，由呼叫端自己標成 approved。回傳每筆失效
+    申請原本要改到的時段 id，給呼叫端記歷程。"""
+    stmt = update(RescheduleRequest).where(
+        RescheduleRequest.visit_request_id == visit_request_id,
+        RescheduleRequest.status == "pending",
     )
+    if keep_id is not None:
+        stmt = stmt.where(RescheduleRequest.id != keep_id)
+    result = await db.execute(
+        stmt.values(status="closed", resolved_at=datetime.now(timezone.utc), resolved_by=resolved_by)
+        .returning(RescheduleRequest.requested_slot_id)
+    )
+    return list(result.scalars())
 
 
 async def active_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> ParentAccessToken | None:

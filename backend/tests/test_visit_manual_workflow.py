@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from tests.conftest import start_visit_slot
 from tests.test_visit_workflow import _create_slot, _enable_slots, _slot_payload
 
 
@@ -41,7 +42,7 @@ async def _create(client, **overrides):
 
 
 @pytest.mark.asyncio
-async def test_contacting_then_confirm_then_complete(admin_client):
+async def test_contacting_then_confirm_then_complete(admin_client, db_session):
     rid = (await _create(admin_client))["id"]
 
     contacting = await admin_client.post(f"{API}/admin/visit-requests/{rid}/contacting")
@@ -56,6 +57,11 @@ async def test_contacting_then_confirm_then_complete(admin_client):
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()["status"] == "confirmed"
 
+    # 場次還沒開始不能標完成（會提早占住名額）；開始後才可以。
+    early = await admin_client.post(f"{API}/admin/visit-requests/{rid}/complete")
+    assert early.status_code == 409
+    assert early.json()["detail"]["code"] == "INVALID_TRANSITION"
+    await start_visit_slot(db_session, rid)
     done = await admin_client.post(f"{API}/admin/visit-requests/{rid}/complete")
     assert done.json()["status"] == "completed"
     assert (await admin_client.post(f"{API}/admin/visit-requests/{rid}/contacting")).status_code == 409

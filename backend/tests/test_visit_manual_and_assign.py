@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.auth.models import Role
 from app.booking.models import OutboxMessage
 from app.operations.models import AnalyticsEvent, AuditLogEntry
-from tests.conftest import case_version, _create_user, _logged_in_client
+from tests.conftest import case_version, _create_user, _logged_in_client, start_visit_slot
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -339,7 +339,7 @@ async def test_calendar_is_scoped_and_range_limited(admin_client, minghua_client
 
 
 @pytest.mark.asyncio
-async def test_complete_only_from_confirmed(admin_client):
+async def test_complete_only_from_confirmed(admin_client, db_session):
     slot = await _create_slot(admin_client)
     pending = (
         await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "p"})
@@ -354,6 +354,7 @@ async def test_complete_only_from_confirmed(admin_client):
             headers={"Idempotency-Key": "q"},
         )
     ).json()
+    await start_visit_slot(db_session, confirmed["id"])
     done = await admin_client.post(f"{BASE}/visit-requests/{confirmed['id']}/complete")
     assert done.status_code == 200, done.text
     assert done.json()["status"] == "completed"

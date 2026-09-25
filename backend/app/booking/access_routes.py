@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import require_scope
+from app.auth.permissions import campus_scope, require_scope
 from app.booking import access_service, history, presenters, slot_service, workflow_service
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import PARENT, Actor
@@ -215,6 +215,10 @@ async def create_parent_access_link(
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    # 與取消、結案同一把案件列鎖，鎖住後重讀狀態：同時按兩次「重新產生」時
+    # 後到的一方才看得到前一方剛建的連結並撤銷它；取消先提交時，這裡讀到
+    # 的是已取消，不會替結案的案件留下一條可兌換的連結。
+    await workflow_service.lock_status(db, visit_request)
     if visit_request.status in _CLOSED_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -282,23 +286,33 @@ async def revoke_parent_access_link(
 
 @router.get("/admin/reschedule-requests", response_model=list[RescheduleRequestOut])
 async def list_reschedule_requests(
-    campus_key: str,
+    campus_key: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[RescheduleRequestOut]:
     """待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
-    新時段與新時段剩餘名額，園方不必點進案件就能判斷。"""
-    require_scope(current_user, "booking.read", campus_keys=[campus_key])
-    result = await db.execute(
+    新時段與新時段剩餘名額，園方不必點進案件就能判斷。
+
+    沒指定校區時列出你負責的所有校區，與側欄徽章、總覽的待核准數同一個
+    範圍：點進站內通知就看得到那幾件，不必一校一校切。"""
+    require_scope(current_user, "booking.read")
+    stmt = (
         select(RescheduleRequest, VisitRequest)
         .join(VisitRequest, RescheduleRequest.visit_request_id == VisitRequest.id)
         .where(
-            VisitRequest.campus_key == campus_key,
             RescheduleRequest.status == "pending",
             VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
         )
         .order_by(RescheduleRequest.created_at)
     )
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        stmt = stmt.where(VisitRequest.campus_key == campus_key)
+    else:
+        scope = campus_scope(current_user)
+        if scope is not None:
+            stmt = stmt.where(VisitRequest.campus_key.in_(scope))
+    result = await db.execute(stmt)
     return await presenters.reschedule_request_outs(db, list(result.tuples().all()))
 
 
@@ -343,6 +357,7 @@ async def approve_reschedule_request(
             record.requested_slot_id,
             actor=Actor.staff(current_user.id),
             reason="核准家長線上申請的改期",
+            approving_request_id=record.id,
         )
     except workflow_service.SlotFull as exc:
         await db.rollback()

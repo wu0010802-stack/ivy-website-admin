@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
 from app.operations.models import AuditLogEntry
-from tests.conftest import case_version, _create_user, _logged_in_client, set_booking_mode
+from tests.conftest import case_version, _create_user, _logged_in_client, set_booking_mode, start_visit_slot
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -120,10 +120,12 @@ async def test_reception_handles_a_case_end_to_end(admin_client, reception, db_s
         assert entry.campus_key == "yihua"
         assert token not in str(entry.metadata_json)
 
+    await start_visit_slot(db_session, case_id)
     assert (await desk.post(f"{BASE}/visit-requests/{case_id}/complete")).json()["status"] == "completed"
 
     no_show_case = await _manual_case(desk, "desk-2", slot_id=slot_a["id"])
     assert no_show_case["status"] == "confirmed"
+    await start_visit_slot(db_session, no_show_case["id"])
     assert (await desk.post(f"{BASE}/visit-requests/{no_show_case['id']}/no-show")).json()["status"] == "no_show"
 
     cancel_case = await _manual_case(desk, "desk-3")

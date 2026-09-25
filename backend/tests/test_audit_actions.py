@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from app.operations.models import AuditLogEntry
+from tests.conftest import start_visit_slot
 from tests.test_visit_case_handling import _parent_asks_for
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
@@ -104,6 +105,7 @@ async def test_case_transitions_and_contact_notes_are_audited(admin_client, db_s
         f"{BASE}/visit-requests/{case_id}/reschedule", json={"new_slot_id": other["id"], "reason": FREE_TEXT}
     )
     assert moved.status_code == 200, moved.text
+    await start_visit_slot(db_session, case_id)
     done = await admin_client.post(f"{BASE}/visit-requests/{case_id}/complete")
     assert done.status_code == 200, done.text
 
@@ -141,6 +143,7 @@ async def test_cancel_and_no_show_are_audited_without_reason_text(admin_client, 
     assert (
         await admin_client.post(f"{BASE}/visit-requests/{no_show_id}/confirm", json={"slot_id": slot["id"]})
     ).status_code == 200
+    await start_visit_slot(db_session, no_show_id)
     assert (await admin_client.post(f"{BASE}/visit-requests/{no_show_id}/no-show")).status_code == 200
 
     [cancelled] = await _entries(db_session, "visit_request.cancel")

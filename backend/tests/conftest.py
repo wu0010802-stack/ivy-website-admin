@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
@@ -12,7 +12,7 @@ os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
@@ -271,6 +271,25 @@ async def add_weekly_rule(admin_client, campus_key: str = "yihua") -> None:
         },
     )
     assert response.status_code == 200, response.text
+
+
+async def start_visit_slot(db: AsyncSession, visit_request_id) -> None:
+    """測試前置：把案件目前的場次移到昨天，當成參觀時段已經開始。
+
+    完成參觀／未到場要等場次開始後才能標記（提早按會永久占住未來場次的名額），
+    但公開預約與後台排入都只接受還沒開始的場次，所以先排進未來場次再往前移。
+    同一場的其他案件也會跟著移過去。"""
+    from app.booking.models import VisitRequest, VisitSlot
+    from app.common.timezones import today_local
+
+    slot_id = await db.scalar(
+        select(VisitRequest.slot_id).where(VisitRequest.id == uuid.UUID(str(visit_request_id)))
+    )
+    assert slot_id is not None, "案件還沒有排入場次"
+    await db.execute(
+        update(VisitSlot).where(VisitSlot.id == slot_id).values(slot_date=today_local() - timedelta(days=1))
+    )
+    await db.commit()
 
 
 async def case_version(client, case_id: str) -> int:

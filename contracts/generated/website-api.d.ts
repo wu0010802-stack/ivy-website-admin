@@ -882,6 +882,9 @@ export interface paths {
          * List Reschedule Requests
          * @description 待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
          *     新時段與新時段剩餘名額，園方不必點進案件就能判斷。
+         *
+         *     沒指定校區時列出你負責的所有校區，與側欄徽章、總覽的待核准數同一個
+         *     範圍：點進站內通知就看得到那幾件，不必一校一校切。
          */
         get: operations["list_reschedule_requests_api_website_v1_admin_reschedule_requests_get"];
         put?: never;
@@ -5996,8 +5999,8 @@ export interface operations {
     };
     list_reschedule_requests_api_website_v1_admin_reschedule_requests_get: {
         parameters: {
-            query: {
-                campus_key: string;
+            query?: {
+                campus_key?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

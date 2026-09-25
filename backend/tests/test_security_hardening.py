@@ -15,7 +15,7 @@ from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, Vi
 from app.media.models import MediaAsset, MediaStatus
 from app.operations import retention_service
 from app.operations.models import RetentionRunTrigger
-from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+from tests.conftest import _create_user, _logged_in_client, set_booking_mode, start_visit_slot
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -476,10 +476,14 @@ async def test_retention_anonymizes_contact_notes(admin_client, public_client, d
 
 
 @pytest.mark.asyncio
-async def test_cancel_waits_for_concurrent_no_show_and_keeps_terminal_state(app, admin_client, public_client):
+async def test_cancel_waits_for_concurrent_no_show_and_keeps_terminal_state(
+    app, admin_client, public_client, db_session
+):
     from app.booking import workflow_service
 
     receipt_id, _, _ = await _confirmed_booking_with_spare_slot(admin_client, public_client)
+    # 未到場要等參觀時段開始才能標記。
+    await start_visit_slot(db_session, receipt_id)
     factory = app.state.session_factory
     async with factory() as staff, factory() as parent:
         staff_view = await staff.get(VisitRequest, uuid.UUID(receipt_id))

@@ -45,7 +45,7 @@ class RescheduleRequest(Base):
     園方核准後才真的呼叫 workflow_service.reschedule。
 
     status：pending 待核准、approved 已核准、rejected 已退回、closed 案件
-    先結案（取消／完成／未到場），申請隨之失效。"""
+    先結案（取消／完成／未到場）或園方已直接改期，申請隨之失效。"""
 
     __tablename__ = "reschedule_requests"
 

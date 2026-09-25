@@ -4,18 +4,21 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import uuid
-from datetime import date, timedelta
+from datetime import date, time, timedelta
+from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from app.auth.models import Role
-from app.booking.access_models import RescheduleRequest
-from app.booking.models import OutboxMessage, VisitRequest, VisitRequestEvent
+from app.booking.access_models import ParentAccessToken, RescheduleRequest
+from app.booking.models import OutboxMessage, VisitRequest, VisitRequestEvent, VisitSlot
+from app.common.timezones import today_local
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+from tests.conftest import _create_user, _logged_in_client, set_booking_mode, start_visit_slot
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -167,33 +170,46 @@ async def test_reschedule_waits_for_concurrent_cancel_on_the_case_row(app, admin
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("closing", ["complete", "no-show"])
-async def test_completed_and_no_show_keep_the_used_seat(admin_client, public_client, closing):
+async def test_completed_and_no_show_keep_the_used_seat(admin_client, public_client, db_session, closing):
     version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
     slot = await _slot(admin_client, days_ahead=3, capacity=1)
     receipt_id = await _book(public_client, version, slot["id"], f"b02-keep-{closing}")
+    await start_visit_slot(db_session, receipt_id)
     closed = await admin_client.post(f"{BASE}/visit-requests/{receipt_id}/{closing}")
     assert closed.status_code == 200, closed.text
 
-    listed = await admin_client.get(
-        f"{BASE}/slots?campus_key=yihua&date_from={slot['slot_date']}&date_to={slot['slot_date']}"
-    )
+    day = (today_local() - timedelta(days=1)).isoformat()
+    listed = await admin_client.get(f"{BASE}/slots?campus_key=yihua&date_from={day}&date_to={day}")
     assert listed.json()[0]["booked_count"] == 1
-    calendar = await admin_client.get(
-        f"{BASE}/visit-calendar?date_from={slot['slot_date']}&date_to={slot['slot_date']}&campus_key=yihua"
-    )
+    calendar = await admin_client.get(f"{BASE}/visit-calendar?date_from={day}&date_to={day}&campus_key=yihua")
     assert calendar.json()[0]["booked_count"] == 1
-
-    # 後台不能再把別人排進這一格，公開頁也不再列出。
-    other = await _manual(admin_client, f"b02-keep-other-{closing}", slot_id=slot["id"])
-    assert other.status_code == 409
-    assert other.json()["detail"]["code"] == "SLOT_FULL"
-    public = await public_client.get(
-        f"{API}/public/slots?campus_key=yihua&date_from={slot['slot_date']}&date_to={slot['slot_date']}"
-    )
-    assert public.json() == []
+    # 月曆的已排數與「容量不得低於已占數」跟實際接待數一致。
     shrink = await admin_client.patch(f"{BASE}/slots/{slot['id']}", json={"capacity": 0, "expected_version": 1})
     assert shrink.status_code == 409
     assert shrink.json()["detail"]["booked_count"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("closing", ["complete", "no-show"])
+async def test_future_visit_cannot_be_marked_completed_or_no_show(admin_client, public_client, closing):
+    """未到場／完成會保留名額：場次還沒開始就按下去（家長來電說不來，櫃台按了
+    「標記未到場」而不是取消），未來那一場的名額會被永久占住、案件也改不回來。"""
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot = await _slot(admin_client, days_ahead=3, capacity=1)
+    receipt_id = await _book(public_client, version, slot["id"], f"b02-early-{closing}")
+
+    early = await admin_client.post(f"{BASE}/visit-requests/{receipt_id}/{closing}")
+    assert early.status_code == 409
+    assert early.json()["detail"]["code"] == "INVALID_TRANSITION"
+    assert "參觀時段開始後" in early.json()["detail"]["message"]
+    detail = await admin_client.get(f"{BASE}/visit-requests/{receipt_id}")
+    assert detail.json()["status"] == "confirmed"
+    assert not {"no_show", "completed"} & {e["event_type"] for e in detail.json()["history"]}
+
+    # 事先說不來走取消，名額釋出給別人。
+    assert (await admin_client.post(f"{BASE}/visit-requests/{receipt_id}/cancel")).status_code == 200
+    other = await _manual(admin_client, f"b02-early-other-{closing}", slot_id=slot["id"])
+    assert other.status_code == 201, other.text
 
 
 @pytest.mark.asyncio
@@ -214,15 +230,23 @@ async def test_staff_cannot_confirm_into_a_slot_that_already_started(admin_clien
 
 
 @pytest.mark.asyncio
-async def test_exception_day_counts_only_visits_still_to_come(admin_client, public_client):
+async def test_exception_day_counts_only_visits_still_to_come(admin_client, public_client, db_session):
     version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
     slot = await _slot(admin_client, days_ahead=5, capacity=3)
     done = await _book(public_client, version, slot["id"], "b02-exc-done")
     await _book(public_client, version, slot["id"], "b02-exc-coming", parent_name="林爸爸")
+    # 當天早上宣布颱風假：清晨那一場已經開始，一組沒來、另一組還沒標記。
+    today = today_local()
+    await db_session.execute(
+        update(VisitSlot)
+        .where(VisitSlot.id == uuid.UUID(slot["id"]))
+        .values(slot_date=today, start_time=time(0, 0), end_time=time(0, 30))
+    )
+    await db_session.commit()
     assert (await admin_client.post(f"{BASE}/visit-requests/{done}/no-show")).status_code == 200
 
     created = await admin_client.post(
-        f"{BASE}/visit-schedule/yihua/exceptions", json={"exception_date": slot["slot_date"], "reason": "颱風"}
+        f"{BASE}/visit-schedule/yihua/exceptions", json={"exception_date": today.isoformat(), "reason": "颱風"}
     )
     assert created.status_code == 201, created.text
     assert created.json()["affected_requests"] == 1
@@ -299,6 +323,65 @@ async def test_access_link_without_origin_and_for_closed_cases(app, admin_client
     closed = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/access-link")
     assert closed.status_code == 409
     assert closed.json()["detail"]["code"] == "INVALID_TRANSITION"
+
+
+@pytest.mark.asyncio
+async def test_regenerating_link_concurrently_leaves_one_valid_link(app, admin_client, public_client, db_session):
+    """兩位同事同時按「重新產生」：沒有鎖案件列時，兩個交易各自撤銷（看不到
+    對方還沒提交的新連結）再各自新增，最後兩條連結都有效。"""
+    from app.booking import access_service, workflow_service
+
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot = await _slot(admin_client)
+    receipt_id = await _book(public_client, version, slot["id"], "b02-link-race")
+
+    async with app.state.session_factory() as first:
+        case = await first.get(VisitRequest, uuid.UUID(receipt_id))
+        # 第一位同事的交易：鎖住案件、撤銷舊連結、建立新連結，還沒提交。
+        await workflow_service.lock_status(first, case)
+        await access_service.revoke_access_for_visit_request(first, case.id)
+        await access_service.create_access_token(first, case.id)
+        task = asyncio.create_task(admin_client.post(f"{BASE}/visit-requests/{receipt_id}/access-link"))
+        await asyncio.sleep(0.5)
+        assert not task.done(), "產生連結沒有等案件列鎖"
+        await first.commit()
+    second = await task
+    assert second.status_code == 200, second.text
+    assert second.json()["replaced_previous"] is True
+    active = await db_session.scalar(
+        select(func.count()).select_from(ParentAccessToken).where(
+            ParentAccessToken.visit_request_id == uuid.UUID(receipt_id), ParentAccessToken.revoked_at.is_(None)
+        )
+    )
+    assert active == 1
+
+
+@pytest.mark.asyncio
+async def test_link_requested_while_cancelling_is_refused(app, admin_client, public_client, db_session):
+    """取消與產生連結同時發生：取消先撤銷了連結，產生連結卻用取消前讀到的
+    已確認狀態通過檢查再新增，已取消的案件就留下一條還能兌換的連結。"""
+    from app.booking import workflow_service
+
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot = await _slot(admin_client)
+    receipt_id = await _book(public_client, version, slot["id"], "b02-link-cancel-race")
+
+    async with app.state.session_factory() as parent:
+        case = await parent.get(VisitRequest, uuid.UUID(receipt_id))
+        await workflow_service.cancel(parent, case, actor=workflow_service.PARENT)
+        task = asyncio.create_task(admin_client.post(f"{BASE}/visit-requests/{receipt_id}/access-link"))
+        await asyncio.sleep(0.5)
+        assert not task.done(), "產生連結沒有等取消交易的案件列鎖"
+        await parent.commit()
+    refused = await task
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "INVALID_TRANSITION"
+    active = await db_session.scalar(
+        select(func.count()).select_from(ParentAccessToken).where(
+            ParentAccessToken.visit_request_id == uuid.UUID(receipt_id), ParentAccessToken.revoked_at.is_(None)
+        )
+    )
+    assert active == 0
 
 
 # --- 第 15 條：案件歷程 -------------------------------------------------------
@@ -527,3 +610,150 @@ async def test_reschedule_requests_stay_inside_campus_scope(app, admin_client, p
     assert (await minghua_client.get(f"{BASE}/reschedule-requests?campus_key=yihua")).status_code == 404
     assert (await minghua_client.post(f"{BASE}/reschedule-requests/{request_id}/approve")).status_code == 404
     assert (await minghua_client.get(f"{BASE}/dashboard")).json()["pending_reschedule_requests"] == 0
+
+
+@pytest.mark.asyncio
+async def test_staff_reschedule_withdraws_the_parents_pending_request(app, admin_client, public_client, db_session):
+    """家長線上申請改到 B；櫃台電話談好直接改到 C。那筆申請要在同一步失效，
+    否則別的同事稍後在站內通知按核准，會把案件搬回 B、蓋掉電話裡的約定。"""
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot_a = await _slot(admin_client, days_ahead=3, capacity=2)
+    slot_b = await _slot(admin_client, days_ahead=4, capacity=2)
+    slot_c = await _slot(admin_client, days_ahead=5, capacity=2)
+    receipt_id = await _book(public_client, version, slot_a["id"], "b02-superseded")
+    request_id = await _parent_asks_for(app, admin_client, receipt_id, slot_b["id"])
+
+    moved = await admin_client.post(
+        f"{BASE}/visit-requests/{receipt_id}/reschedule",
+        json={"new_slot_id": slot_c["id"], "reason": "電話談好改到週五"},
+    )
+    assert moved.status_code == 200, moved.text
+
+    record = await db_session.get(RescheduleRequest, uuid.UUID(request_id))
+    await db_session.refresh(record)
+    assert record.status == "closed"
+    assert record.resolved_by is not None
+    assert (await admin_client.get(f"{BASE}/dashboard")).json()["pending_reschedule_requests"] == 0
+    assert (await admin_client.get(f"{BASE}/reschedule-requests")).json() == []
+    late = await admin_client.post(f"{BASE}/reschedule-requests/{request_id}/approve")
+    assert late.status_code == 409
+    assert late.json()["detail"]["code"] == "INVALID_TRANSITION"
+
+    detail = (await admin_client.get(f"{BASE}/visit-requests/{receipt_id}")).json()
+    assert detail["slot_id"] == slot_c["id"]
+    assert detail["pending_reschedule"] is None
+    superseded = next(e for e in detail["history"] if e["event_type"] == "reschedule_superseded")
+    assert superseded["actor_email"] == "admin@ivy.example"
+    assert superseded["after"]["requested_slot"]["id"] == slot_b["id"]
+
+
+@pytest.mark.asyncio
+async def test_pending_reschedules_without_campus_cover_every_visible_campus(
+    app, admin_client, public_client, minghua_client, db_session
+):
+    """側欄徽章與總覽的待核准數算的是你負責的所有校區；站內通知的清單不帶
+    校區時也要列同一批，不能只列校區選單預設的第一校。"""
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot_a = await _slot(admin_client, days_ahead=3, capacity=2)
+    slot_b = await _slot(admin_client, days_ahead=4, capacity=2)
+    receipt_id = await _book(public_client, version, slot_a["id"], "b02-all-campuses")
+    request_id = await _parent_asks_for(app, admin_client, receipt_id, slot_b["id"])
+
+    everything = await admin_client.get(f"{BASE}/reschedule-requests")
+    assert everything.status_code == 200, everything.text
+    assert [(row["id"], row["campus_key"]) for row in everything.json()] == [(request_id, "yihua")]
+    assert (await admin_client.get(f"{BASE}/reschedule-requests?campus_key=minghua")).json() == []
+
+    # 管明華、義華兩校的分校管理者，校區選單預設是明華，也看得到義華的申請。
+    await _create_user(db_session, "two-campus@ivy.example", "two-campus-password-1", Role.CAMPUS_ADMIN, ["minghua", "yihua"])
+    both = await _logged_in_client(app, "two-campus@ivy.example", "two-campus-password-1")
+    try:
+        assert [row["id"] for row in (await both.get(f"{BASE}/reschedule-requests")).json()] == [request_id]
+    finally:
+        await both.aclose()
+    # 只管明華的看不到。
+    assert (await minghua_client.get(f"{BASE}/reschedule-requests")).json() == []
+
+
+SUPERSEDED_MIGRATION = (
+    Path(__file__).resolve().parents[1]
+    / "migrations"
+    / "versions"
+    / "f1b8d3a6c925_close_superseded_reschedule_requests.py"
+)
+
+
+@pytest.mark.asyncio
+async def test_migration_closes_requests_superseded_by_staff_reschedule(app, admin_client, public_client, db_session):
+    """正式庫的資料修補：舊版程式園方直接改期後，家長先前的申請仍是 pending。
+    migration 只把「送出之後案件又被改期過」的申請標成失效並補歷程；改期
+    之後才送出的申請維持待核准。"""
+    version = await _set_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    slot_a = await _slot(admin_client, days_ahead=3, capacity=3)
+    slot_b = await _slot(admin_client, days_ahead=4, capacity=3)
+    slot_c = await _slot(admin_client, days_ahead=5, capacity=3)
+
+    # 舊資料：申請改到 B 之後，園方直接改到 C，申請卻還是 pending。
+    stale_case = await _book(public_client, version, slot_a["id"], "b02-migrate-stale")
+    stale_id = await _parent_asks_for(app, admin_client, stale_case, slot_b["id"])
+    moved = await admin_client.post(f"{BASE}/visit-requests/{stale_case}/reschedule", json={"new_slot_id": slot_c["id"]})
+    assert moved.status_code == 200, moved.text
+    await db_session.execute(
+        update(RescheduleRequest)
+        .where(RescheduleRequest.id == uuid.UUID(stale_id))
+        .values(status="pending", resolved_at=None, resolved_by=None)
+    )
+    await db_session.execute(
+        VisitRequestEvent.__table__.delete().where(VisitRequestEvent.event_type == "reschedule_superseded")
+    )
+    await db_session.commit()
+    # 對照組：先被園方改期、之後才送出的申請，不能被誤關。
+    fresh_case = await _book(public_client, version, slot_a["id"], "b02-migrate-fresh", parent_name="林爸爸")
+    assert (
+        await admin_client.post(f"{BASE}/visit-requests/{fresh_case}/reschedule", json={"new_slot_id": slot_c["id"]})
+    ).status_code == 200
+    fresh_id = await _parent_asks_for(app, admin_client, fresh_case, slot_b["id"])
+    assert (await admin_client.get(f"{BASE}/dashboard")).json()["pending_reschedule_requests"] == 2
+
+    spec = importlib.util.spec_from_file_location("close_superseded_reschedules", SUPERSEDED_MIGRATION)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    captured: list = []
+
+    class _Op:
+        @staticmethod
+        def execute(statement):
+            captured.append(statement)
+
+    migration.op = _Op()
+    migration.upgrade()
+    [statement] = captured
+    async with app.state.engine.begin() as conn:
+        await conn.execute(statement)
+
+    db_session.expire_all()
+    stale = await db_session.get(RescheduleRequest, uuid.UUID(stale_id))
+    rescheduled_at = await db_session.scalar(
+        select(VisitRequestEvent.created_at).where(
+            VisitRequestEvent.visit_request_id == uuid.UUID(stale_case), VisitRequestEvent.event_type == "rescheduled"
+        )
+    )
+    assert stale.status == "closed"
+    assert stale.resolved_at == rescheduled_at
+    assert stale.resolved_by is not None
+    assert (await db_session.get(RescheduleRequest, uuid.UUID(fresh_id))).status == "pending"
+    assert [row["id"] for row in (await admin_client.get(f"{BASE}/reschedule-requests")).json()] == [fresh_id]
+
+    # 補的歷程跟程式寫的同一個格式，後台時間軸照常顯示。
+    history = await _history(admin_client, stale_case)
+    superseded = [e for e in history if e["event_type"] == "reschedule_superseded"]
+    assert len(superseded) == 1
+    assert superseded[0]["actor_email"] == "admin@ivy.example"
+    assert superseded[0]["source"] == "staff"
+    assert superseded[0]["after"]["requested_slot"] == {
+        "id": slot_b["id"],
+        "slot_date": slot_b["slot_date"],
+        "start_time": slot_b["start_time"],
+        "end_time": slot_b["end_time"],
+    }
+    assert not [e for e in await _history(admin_client, fresh_case) if e["event_type"] == "reschedule_superseded"]

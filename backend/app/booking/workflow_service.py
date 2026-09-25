@@ -220,6 +220,15 @@ async def mark_contacting(
     return visit_request
 
 
+async def _require_visit_started(db: AsyncSession, visit_request: VisitRequest, message: str) -> None:
+    """未到場／完成會保留這一場的名額（規格 225 防止歷史時段重新出售），所以
+    只能用在已經開始的場次。提早按下去，未來那一場的名額就被永久占住、案件
+    也改不回來；家長事先說不來要走取消。"""
+    slot = await history.load_slot(db, visit_request.slot_id)
+    if slot is not None and not slot_service.has_started(slot):
+        raise InvalidTransition(message)
+
+
 async def mark_no_show(
     db: AsyncSession, visit_request: VisitRequest, *, actor: Actor | None = None
 ) -> VisitRequest:
@@ -227,6 +236,9 @@ async def mark_no_show(
     await _lock_status(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記未到場")
+    await _require_visit_started(
+        db, visit_request, "參觀時段開始後才能標記未到場；家長事先說不來，請改用取消預約"
+    )
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.NO_SHOW.value
     await _close(db, visit_request, "no_show", before=before, actor=actor)
@@ -241,6 +253,7 @@ async def mark_completed(
     await _lock_status(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記完成")
+    await _require_visit_started(db, visit_request, "參觀時段開始後才能標記完成參觀")
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.COMPLETED.value
     await _close(db, visit_request, "completed", before=before, actor=actor)
@@ -261,10 +274,15 @@ async def reschedule(
     *,
     actor: Actor | None = None,
     reason: str | None = None,
+    approving_request_id: uuid.UUID | None = None,
 ) -> VisitRequest:
     """已確認的案件換時段（規格 L211）：保留案件 id，舊時段釋放與新時段
     占位在同一個交易。新時段名額不足、已關閉或已開始時整筆回滾，原預約
     不受影響。
+
+    家長先前送出、還在等核准的改期申請在同一個交易失效（approving_request_id
+    是正在核准的那一筆，不算在內）：園方電話談好直接改期後，別的同事再按
+    核准那筆舊申請，會把案件搬回家長當初申請的時段。
 
     先鎖案件列（與取消、結案同一把鎖），再以固定次序鎖住新舊時段避免
     deadlock：一律先鎖 id 字串較小的那個。"""
@@ -306,6 +324,17 @@ async def reschedule(
         after={"status": visit_request.status, "slot": history.slot_brief(new_slot)},
         reason=reason,
     )
+    superseded = await access_service.close_pending_reschedules(
+        db, visit_request.id, resolved_by=_resolver_id(actor), keep_id=approving_request_id
+    )
+    for requested_slot_id in superseded:
+        history.record_event(
+            db,
+            visit_request.id,
+            "reschedule_superseded",
+            actor=actor,
+            after={"requested_slot": history.slot_brief(await history.load_slot(db, requested_slot_id))},
+        )
     enqueue_outbox(
         db,
         visit_request.id,
