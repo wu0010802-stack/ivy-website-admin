@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { nearestTurn, ringOffset, settleTarget, youtubeEmbed, youtubeId } from '../app/utils/filmCarousel'
 import { campusFilms, youtube } from '../app/utils/campusFilms'
@@ -28,7 +30,8 @@ describe('手機活動影片輪播', () => {
     expect(youtubeId('not a link')).toBe('')
     expect(youtubeEmbed('abcdefghijk')).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/abcdefghijk\?/)
     expect(() => youtube('https://example.com', '壞連結')).toThrow()
-    expect(youtube('https://youtu.be/abcdefghijk', '範例')).toMatchObject({ type: 'youtube', youtubeId: 'abcdefghijk' })
+    expect(youtube('https://youtu.be/abcdefghijk', '範例')).toMatchObject({ type: 'youtube', youtubeId: 'abcdefghijk', poster: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg' })
+    expect(youtube('https://youtu.be/abcdefghijk', '範例', '/assets/x.webp').poster).toBe('/assets/x.webp')
   })
   it('檔案影片的剪段在片長內、都有海報與標題', () => {
     for (const film of campusFilms) {
@@ -36,5 +39,11 @@ describe('手機活動影片輪播', () => {
       expect(film.poster).toMatch(/^\/assets\/|^https:\/\/i\.ytimg\.com\//)
       if (film.type === 'file') expect(film.end).toBeGreaterThan(film.start)
     }
+  })
+  it('站內海報檔都在，id 不重複', () => {
+    for (const film of campusFilms.filter(f => f.poster.startsWith('/assets/'))) {
+      expect(existsSync(fileURLToPath(new URL(`../public${film.poster}`, import.meta.url))), film.poster).toBe(true)
+    }
+    expect(new Set(campusFilms.map(f => f.id)).size).toBe(campusFilms.length)
   })
 })

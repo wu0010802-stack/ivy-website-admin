@@ -128,9 +128,12 @@ function onClickCapture(event: MouseEvent) {
   event.stopPropagation()
   dragged = false
 }
-// 兩側露出的影片是 inert，點擊會落在軌道上：往那一側翻一張
+// 兩側露出的影片是 inert，點擊會落在軌道上：往那一側翻一張。
+// 用 composedPath 不用 target.closest：點 YouTube 播放鍵時，按鈕在冒泡到這裡之前就被換成 iframe、
+// target 已脫離 DOM，closest 找不到當前這張，會被當成點兩側翻走（iframe 隨即被拔掉）。
 function onViewportClick(event: MouseEvent) {
-  if (event.defaultPrevented || !viewport.value || (event.target as Element).closest('.film-slide:not([inert])')) return
+  const onCurrent = event.composedPath().some(el => el instanceof Element && el.matches('.film-slide:not([inert])'))
+  if (event.defaultPrevented || !viewport.value || onCurrent) return
   const rect = viewport.value.getBoundingClientRect()
   go(Math.round(target.value) + (event.clientX < rect.left + rect.width / 2 ? -1 : 1), true)
 }
