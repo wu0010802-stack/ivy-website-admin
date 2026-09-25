@@ -1,6 +1,6 @@
 import type { Campus, SiteContent } from '~/types/site-content'
-import { admissionSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ADMISSION_HERO_IMAGE, HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
+import { admissionSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
+import { ADMISSION_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
 
 export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>, page?: StaticPage) {
   const config = useRuntimeConfig()
@@ -9,12 +9,15 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
   const indexable = computed(() => config.public.indexingEnabled && Boolean(origin) && site.value?.siteMeta.allowIndexing !== false)
   const seo = computed(() => {
     if (!site.value) return undefined
-    return page === 'admission' ? admissionSeo(site.value, origin) : pageSeo(site.value, origin, campus?.value)
+    if (page === 'admission') return admissionSeo(site.value, origin)
+    if (page === 'environment') return environmentSeo(site.value, origin)
+    return pageSeo(site.value, origin, campus?.value)
   })
   // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue／分校頁 hero-photo）。
   const hero = computed(() => {
     if (!site.value) return undefined
     if (page === 'admission') return responsiveImage(ADMISSION_HERO_IMAGE)
+    if (page === 'environment') return responsiveImage(ENVIRONMENT_HERO_IMAGE)
     return campus?.value ? responsiveImage(campus.value.image) : responsiveImage(site.value.home.hero.heroImage, HOME_HERO_SIZES)
   })
   useSeoMeta({

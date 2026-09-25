@@ -634,7 +634,8 @@
       { "label": "孩子的一天", "href": "/#life" },
       { "label": "預約參觀", "href": "/visit" },
       { "label": "最新消息", "href": "/#latest-news" },
-      { "label": "入學資訊", "href": "/admission" }
+      { "label": "入學資訊", "href": "/admission" },
+      { "label": "常春藤環境", "href": "/environment" }
     ],
     "campusListLabel": "我們的大家庭",
     "copyright": "© 2026 常春藤教育機構",
@@ -652,10 +653,7 @@
     "brandNameEn": "Ivy Educational Institution",
     "logo": "assets/logo.png",
     "primaryNav": [
-      { "label": "關於常春藤", "labelEn": "About Ivy", "href": "/#about" },
-      { "label": "孩子的一天", "labelEn": "A Day at Ivy", "href": "/#life" },
-      { "label": "五所校園", "labelEn": "Our Campuses", "href": "/#campuses" },
-      { "label": "最新消息", "labelEn": "Latest News", "href": "/#latest-news" },
+      { "label": "常春藤環境", "labelEn": "Environment", "href": "/environment" },
       { "label": "入學資訊", "labelEn": "Admission", "href": "/admission" }
     ],
     "headerPhone": { "number": "07-392-8366", "note": "義華校 · 參觀專線", "_todo": "頁首選單面板固定顯示義華校電話，非全園代表號，其他四校無對應頁首快撥號" },

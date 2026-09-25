@@ -758,5 +758,327 @@
         "width": 768
       }
     ]
+  },
+  "env-hero-hug": {
+    "width": 1960,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1960.webp",
+        "width": 1960
+      }
+    ]
+  },
+  "env-care-teacher": {
+    "width": 2221,
+    "height": 743,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-2221.webp",
+        "width": 2221
+      }
+    ]
+  },
+  "env-care-health": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-meal": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-clothes": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-comfort": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-clean": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-space-playground": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/env-space-playground.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-classroom": {
+    "width": 1213,
+    "height": 908,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1213.webp",
+        "width": 1213
+      }
+    ]
+  },
+  "env-space-materials": {
+    "width": 928,
+    "height": 693,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-928.webp",
+        "width": 928
+      }
+    ]
+  },
+  "env-space-plaza": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/env-space-plaza.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-corner": {
+    "width": 900,
+    "height": 675,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-900.webp",
+        "width": 900
+      }
+    ]
+  },
+  "env-space-restroom": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-animals": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-meal-book": {
+    "width": 1359,
+    "height": 1920,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-1359.webp",
+        "width": 1359
+      }
+    ]
   }
 }

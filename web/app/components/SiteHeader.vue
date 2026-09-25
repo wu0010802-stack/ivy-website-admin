@@ -6,10 +6,10 @@ const props = defineProps<{ content: SiteContent }>()
 
 const route = useRoute()
 
-// 首頁與入學資訊頁（2026-09-24 改首頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
+// 首頁、入學資訊頁（2026-09-24 改首頁版型）與常春藤環境頁（2026-09-25，同入學頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
 // 分校頁與預約頁只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：
 // 手機內頁頁首原本一直佔 78px）。其他桌機內頁維持展開頁首與 `.navigation`。
-const PILL_PAGES = ['/', '/admission']
+const PILL_PAGES = ['/', '/admission', '/environment']
 const isNarrow = ref(false)
 const usePanel = computed(() => PILL_PAGES.includes(route.path) || isNarrow.value)
 // 預約頁本身不再放「預約參觀」鈕（查詢／取消頁 /visit/manage 仍保留）。
@@ -241,7 +241,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       </NuxtLink>
       <nav id="navigation" class="navigation" :class="{ open: isMenuOpen && !usePanel }" aria-label="主要導覽">
         <div class="nav-inner">
-          <a v-for="item in content.siteMeta.primaryNav" :key="item.href" :href="item.href">
+          <a v-for="item in content.siteMeta.primaryNav" :key="item.href" :href="item.href" :aria-current="route.path === item.href ? 'page' : undefined">
             <span class="nav-zh">{{ item.label }}</span>
             <span class="header-en" lang="en">{{ item.labelEn }}</span>
           </a>
@@ -318,6 +318,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
           v-for="(item, index) in content.siteMeta.primaryNav"
           :key="item.href"
           :href="item.href"
+          :aria-current="route.path === item.href ? 'page' : undefined"
         >
           <span class="menu-link-number" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
           <span class="menu-link-copy">

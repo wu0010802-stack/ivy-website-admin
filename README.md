@@ -1,3 +1,11 @@
+## 2026-09-25 常春藤環境頁 /environment，頁首只留分頁
+
+把舊官網「一日常春藤 Environment」（幼兒保育、校園環境、幼兒餐點；一日流程不搬）搬成新頁 `/environment`，版型照入學資訊頁：`pages/environment.vue`＋`components/EnvironmentContent.vue`（共用 `admission.css`，另加 `assets/css/environment.css`）。照片從舊站原圖產生 15 張 `env-*` 母檔，經 `scripts/optimize-site-images.py --only` 產生響應式檔。菜單不抄進網站：營養餐點書按鈕依台北日期開到當月那一頁（`utils/meal-book.ts`）。頁首選單依使用者裁定只留真正的分頁「常春藤環境、入學資訊」（`site-fixture.json`），頁尾加常春藤環境；`/environment` 加進膠囊頁首頁面、選單目前頁標 `aria-current`。SEO、sitemap、llms.txt 加入新頁。設計紀錄與未選方案見 DESIGN.md 同日一節，mock 在 `design/environment-mockup-20260925/`。改前快照 `versions/before-environment-page-20260925-212623/`。
+
+未處理：標題有 21 字不在現行子集，等字型分支 `feature/admin-gaps-fonts-20260925` 合併後補齊；未 commit、未部署。
+
+驗證：Node 22 web vitest 31 檔 244 項通過（新增 `tests/environment.spec.ts` 22 項：餐點書月份與頁碼、台北時區換月、選單只剩兩項、SEO／sitemap／llms.txt、15 張圖都有響應式檔）；`nuxt typecheck` 通過。Playwright 對 3777 dev（fixture 模式）：`/environment` 1440／1024／390 無 console 錯誤與 hydration 警告、無破圖、無橫向捲動，餐點書連結 `#p=19`、按鈕「看 9 月菜單」；首頁、入學資訊、義華分校頁選單都只剩兩項，入學資訊頁標目前頁；桌機捲過後頁首收成膠囊；901–1440px 預約鈕都沒被擠出。
+
 ## 2026-09-24 後台 LINE 登入（登入後自行綁定）
 
 登入頁加入 LINE 登入，與 Google、帳密並存。LINE 的 ID token 沒有 `email_verified`，所以不拿 email 比對、不自動綁定：管理員先用帳密或 Google 登入，點側欄底部自己的 email 進入新的「我的帳號」（`/account`）按「綁定 LINE」，之後就能用 LINE 登入，也可以自行解除。後端新增 `app/auth/line.py`：只要 `openid`，帶 state／nonce／PKCE，用自己的簽章握手 cookie（不和 Google 的 `SessionMiddleware` 共用 `scope["session"]`），ID token 依演算法分別用 Channel secret（HS256）或 LINE JWKS（ES256）驗；綁定時確認是同一位仍啟用的管理員 session，綁定與解除寫入操作紀錄。migration `d41e6c2a9f58` 接在 `b6d1f8e3a524` 後，只新增 `users.line_sub`，部署時由 API 啟動自動套用。`/auth/providers` 移到 `routes.py` 並回傳 `{google, line}`，`UserOut` 加 `line_linked`；Google 與 LINE 共用的 `safe_admin_path` 等抽成 `app/auth/oauth_common.py`（Google 的 `aud` 檢查不變）。LINE Developers 設定、環境變數與驗收清單見 [LINE 登入設定說明](deploy/line-oauth.md)。三個 `WEBSITE_LINE_*` 未設定前入口不會出現。

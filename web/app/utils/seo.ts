@@ -31,9 +31,10 @@ export function siteShareImage(site: SiteContent): { path: string; alt: string }
   return { path: ogImagePath(site.home.hero.heroImage), alt: site.home.hero.heroImageAlt }
 }
 
-/** 公開的單頁（非分校頁）：目前只有入學資訊。 */
-export type StaticPage = 'admission'
+/** 公開的單頁（非分校頁）：入學資訊、常春藤環境。 */
+export type StaticPage = 'admission' | 'environment'
 export const ADMISSION_PATH = '/admission'
+export const ENVIRONMENT_PATH = '/environment'
 
 /** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
@@ -52,6 +53,24 @@ export function admissionSeo(site: SiteContent, siteOrigin: string) {
     ] }
   ] : []
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
+}
+
+/** 常春藤環境頁的 SEO（2026-09-25）：同入學資訊頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+export function environmentSeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `常春藤環境｜幼兒保育、校園環境與幼兒餐點｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園的保育照顧、校園空間與每日餐點：五顆心照顧孩子，教室、教具、衛廁到戶外廣場都以安全與探索為出發點，每月菜單收在營養餐點書。'
+  const canonical = origin ? `${origin}${ENVIRONMENT_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '常春藤環境', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
 export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
@@ -102,7 +121,7 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
 
 export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ADMISSION_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
+  const urls = ['/', ADMISSION_PATH, ENVIRONMENT_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
 
@@ -124,6 +143,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     ''
   ]
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
+  out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')
   return out.join('\n')
 }
