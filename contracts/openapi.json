@@ -5767,6 +5767,16 @@
             ],
             "title": "Rules Extended On"
           },
+          "slot_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitScheduleSlotSyncOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -5781,6 +5791,40 @@
           "version"
         ],
         "title": "VisitScheduleOut",
+        "type": "object"
+      },
+      "VisitScheduleSlotSyncOut": {
+        "description": "存規則時，依規則產生、還沒被使用的未來時段跟著新規則調整的結果。",
+        "properties": {
+          "capacity_updated": {
+            "title": "Capacity Updated",
+            "type": "integer"
+          },
+          "closed": {
+            "title": "Closed",
+            "type": "integer"
+          },
+          "kept_booked": {
+            "title": "Kept Booked",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "reopened": {
+            "title": "Reopened",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed",
+          "closed",
+          "reopened",
+          "capacity_updated",
+          "kept_booked"
+        ],
+        "title": "VisitScheduleSlotSyncOut",
         "type": "object"
       },
       "VisitScheduleUpdate": {

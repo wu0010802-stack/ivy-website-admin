@@ -672,6 +672,21 @@ class VisitExceptionRemovedOut(BaseModel):
     created_slots: int
 
 
+class VisitScheduleSlotSyncOut(BaseModel):
+    """存規則時，依規則產生、還沒被使用的未來時段跟著新規則調整的結果。"""
+
+    # 不符合新規則、沒有任何紀錄指著而刪除的場次。
+    removed: int
+    # 不符合新規則、有歷史案件指著刪不掉，改成關閉（closed_source=rule）。
+    closed: int
+    # 之前因規則變更停用、現在又符合新規則而重新開放的場次。
+    reopened: int
+    # 名額還是舊規則的值（園方沒調過），改成新規則名額的場次。
+    capacity_updated: int
+    # 不符合新規則，但已有家長排入（或有待核准改期申請）而維持原樣的場次。
+    kept_booked: int
+
+
 class VisitScheduleOut(BaseModel):
     campus_key: str
     min_lead_hours: int
@@ -682,6 +697,8 @@ class VisitScheduleOut(BaseModel):
     rules_extended_on: date | None = None
     # 規則與時間窗的樂觀鎖版本（booking_configs.schedule_version）。
     version: int
+    # 只有 PUT（存規則）的回應有；GET 為 None。
+    slot_sync: VisitScheduleSlotSyncOut | None = None
 
 
 class VisitScheduleUpdate(BaseModel):

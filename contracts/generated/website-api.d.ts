@@ -3976,8 +3976,25 @@ export interface components {
             rules: components["schemas"]["VisitRuleOut"][];
             /** Rules Extended On */
             rules_extended_on?: string | null;
+            slot_sync?: components["schemas"]["VisitScheduleSlotSyncOut"] | null;
             /** Version */
             version: number;
+        };
+        /**
+         * VisitScheduleSlotSyncOut
+         * @description 存規則時，依規則產生、還沒被使用的未來時段跟著新規則調整的結果。
+         */
+        VisitScheduleSlotSyncOut: {
+            /** Capacity Updated */
+            capacity_updated: number;
+            /** Closed */
+            closed: number;
+            /** Kept Booked */
+            kept_booked: number;
+            /** Removed */
+            removed: number;
+            /** Reopened */
+            reopened: number;
         };
         /** VisitScheduleUpdate */
         VisitScheduleUpdate: {

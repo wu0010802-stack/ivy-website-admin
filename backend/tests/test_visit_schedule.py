@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -360,3 +361,207 @@ async def test_extension_skips_started_windows_inactive_campus_and_campus_withou
         await db_session.execute(select(func.count()).select_from(VisitSlot).where(VisitSlot.campus_key == "minghua"))
     ).scalar_one()
     assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# 改規則時，依規則產生、還沒被使用的未來時段跟著新規則調整（規格 L227）；
+# 依規則產生時不建跟既有時段重疊的場次
+# ---------------------------------------------------------------------------
+
+
+def _times(slots):
+    return [(s["start_time"][:5], s["end_time"][:5]) for s in slots]
+
+
+async def _generate(client, day):
+    resp = await client.post(
+        f"{API}/admin/visit-schedule/yihua/generate", json={"date_from": day.isoformat(), "date_to": day.isoformat()}
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_changing_slot_length_retires_unused_old_slots_without_overlap(admin_client, public_client, db_session):
+    """審查情境：週三 09:00–10:30 每 30 分鐘已產生 09:00、09:30、10:00，改成每
+    45 分鐘後不能同時公開 09:00、09:30、09:45、10:00 四格。"""
+    await _set_rules(admin_client, [WED_MORNING])
+    version = await _enable_slots(admin_client, auto_confirm=True)
+    wed = _next_weekday(2)
+    assert (await _generate(admin_client, wed))["created"] == 3
+    # 園方在時段頁手動加開的場次不受改規則影響。
+    manual = await admin_client.post(
+        f"{API}/admin/slots?campus_key=yihua",
+        json={"slot_date": wed.isoformat(), "start_time": "13:00:00", "end_time": "14:00:00", "capacity": 1},
+    )
+    assert manual.status_code == 201, manual.text
+    by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    # 10:00 有家長已確認；09:30 有一筆已取消的案件（歷史紀錄指著，刪不掉）。
+    kept = await public_client.post(
+        f"{API}/public/visit-requests",
+        json=_slot_payload("yihua", version, by_start["10:00:00"]["id"]),
+        headers={"Idempotency-Key": "b03-rule-sync-kept"},
+    )
+    assert kept.status_code == 201, kept.text
+    gone = await public_client.post(
+        f"{API}/public/visit-requests",
+        json=_slot_payload("yihua", version, by_start["09:30:00"]["id"], parent_name="林爸爸"),
+        headers={"Idempotency-Key": "b03-rule-sync-cancelled"},
+    )
+    assert gone.status_code == 201, gone.text
+    cancelled = await admin_client.post(f"{API}/admin/visit-requests/{gone.json()['receipt_id']}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+
+    saved = await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+    assert saved["slot_sync"] == {"removed": 1, "closed": 1, "reopened": 0, "capacity_updated": 0, "kept_booked": 1}
+    assert saved["rules_extended_on"] is None
+    after = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    assert "09:00:00" not in after
+    assert (after["09:30:00"]["closed"], after["09:30:00"]["closed_source"]) == (True, "rule")
+    assert after["10:00:00"]["closed"] is False  # 已有家長排入，維持原樣
+    assert after["13:00:00"]["closed"] is False
+
+    # 依新規則補場次：09:00–09:45 建立；09:45–10:30 跟已排入的 10:00 重疊不建。
+    # 規則變更停用的 09:30 不佔時間。
+    generated = await _generate(admin_client, wed)
+    assert generated["created"] == 1
+    assert generated["skipped_existing"] == 1
+    public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
+    assert _times(public) == [("09:00", "09:45"), ("10:00", "10:30"), ("13:00", "14:00")]
+
+    # 規則改回每 30 分鐘：規則變更停用的 09:30 重新開放，沒人用的 09:00–09:45
+    # 移除，補上 09:00–09:30。
+    back = await _set_rules(admin_client, [WED_MORNING])
+    assert back["slot_sync"] == {"removed": 1, "closed": 0, "reopened": 1, "capacity_updated": 0, "kept_booked": 0}
+    assert (await _generate(admin_client, wed))["created"] == 1
+    reopened = await _slots_on(admin_client, wed)
+    assert _times(reopened) == [("09:00", "09:30"), ("09:30", "10:00"), ("10:00", "10:30"), ("13:00", "14:00")]
+    assert not any(s["closed"] for s in reopened)
+
+    from sqlalchemy import select
+
+    from app.operations.models import AuditLogEntry
+
+    audits = (
+        await db_session.execute(
+            select(AuditLogEntry).where(AuditLogEntry.action == "visit_schedule.update").order_by(AuditLogEntry.created_at)
+        )
+    ).scalars().all()
+    assert audits[-1].metadata_json["slot_sync"] == back["slot_sync"]
+
+
+@pytest.mark.asyncio
+async def test_removing_weekday_and_changing_capacity_follow_new_rules(admin_client, public_client):
+    thu_rule = {**WED_MORNING, "weekday": 3}
+    await _set_rules(admin_client, [WED_MORNING, thu_rule])
+    await _enable_slots(admin_client, auto_confirm=True)
+    wed = _next_weekday(2)
+    thu = _next_weekday(3)
+    later_wed = wed + timedelta(days=7)
+    for day in (wed, thu, later_wed):
+        await _generate(admin_client, day)
+    # 之後那個週三設了休假，場次是休假日關的。
+    holiday = await admin_client.post(
+        f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": later_wed.isoformat()}
+    )
+    assert holiday.json()["closed_slots"] == 3
+    # 週四：第一場園方把名額調成 5、第二場手動關閉，都是園方的決定，不能被蓋掉。
+    first, second, _ = await _slots_on(admin_client, thu)
+    await admin_client.patch(f"{API}/admin/slots/{first['id']}", json={"capacity": 5, "expected_version": 1})
+    await admin_client.patch(f"{API}/admin/slots/{second['id']}", json={"closed": True, "expected_version": 1})
+
+    saved = await _set_rules(admin_client, [{**thu_rule, "capacity": 3}])
+    assert saved["slot_sync"] == {"removed": 6, "closed": 0, "reopened": 0, "capacity_updated": 1, "kept_booked": 0}
+    assert await _slots_on(admin_client, wed) == []
+    assert await _slots_on(admin_client, later_wed) == []
+    thu_after = await _slots_on(admin_client, thu)
+    assert [(s["capacity"], s["closed"], s["closed_source"]) for s in thu_after] == [
+        (5, False, None),
+        (2, True, "manual"),
+        (3, False, None),
+    ]
+    # 名額跟著改的那場版本加一，拿舊版本存檔會被擋下。
+    assert thu_after[2]["version"] == 2
+    public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
+    assert public == []
+
+
+@pytest.mark.asyncio
+async def test_generate_skips_windows_overlapping_existing_slots(admin_client):
+    wed = _next_weekday(2)
+    manual = await admin_client.post(
+        f"{API}/admin/slots?campus_key=yihua",
+        json={"slot_date": wed.isoformat(), "start_time": "09:15:00", "end_time": "09:45:00", "capacity": 1},
+    )
+    assert manual.status_code == 201, manual.text
+    await _set_rules(admin_client, [WED_MORNING])
+    result = await _generate(admin_client, wed)
+    # 09:00–09:30、09:30–10:00 都跟 09:15–09:45 重疊，只建 10:00–10:30。
+    assert result == {"created": 1, "skipped_existing": 2, "skipped_exception_days": 0}
+    assert _times(await _slots_on(admin_client, wed)) == [("09:15", "09:45"), ("10:00", "10:30")]
+
+
+RULE_ORIGIN_MIGRATION = (
+    Path(__file__).resolve().parents[1] / "migrations" / "versions" / "eab4ead6271d_visit_slot_rule_origin.py"
+)
+
+
+@pytest.mark.asyncio
+async def test_migration_marks_rule_generated_slots(app, admin_client, db_session):
+    """正式庫回填：定期工作（沒有建立人）與「依規則產生時段」（同一個時間戳一批）
+    建的是規則時段；後台「新增時段」一次一筆，維持手動。"""
+    import importlib.util
+
+    from sqlalchemy import select, update
+
+    from app.booking import schedule_service
+    from app.booking.models import VisitSlot
+
+    await _set_rules(admin_client, [WED_MORNING], advance=10)
+    wed = _next_weekday(2, min_days_ahead=11)
+    await _generate(admin_client, wed)
+    await schedule_service.extend_from_rules(db_session, "yihua")
+    await db_session.commit()
+    for start in ("13:00:00", "14:00:00"):
+        created = await admin_client.post(
+            f"{API}/admin/slots?campus_key=yihua",
+            json={"slot_date": wed.isoformat(), "start_time": start, "end_time": start.replace(":00:00", ":30:00"), "capacity": 1},
+        )
+        assert created.status_code == 201, created.text
+    await db_session.execute(update(VisitSlot).values(from_rule=False))
+    await db_session.commit()
+
+    spec = importlib.util.spec_from_file_location("visit_slot_rule_origin", RULE_ORIGIN_MIGRATION)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    captured: list = []
+
+    class _Op:
+        @staticmethod
+        def execute(statement):
+            captured.append(statement)
+
+        @staticmethod
+        def add_column(*args, **kwargs):
+            pass
+
+        @staticmethod
+        def drop_constraint(*args, **kwargs):
+            pass
+
+        @staticmethod
+        def create_check_constraint(*args, **kwargs):
+            pass
+
+    migration.op = _Op()
+    migration.upgrade()
+    [statement] = captured
+    async with app.state.engine.begin() as conn:
+        await conn.execute(statement)
+
+    db_session.expire_all()
+    rows = (await db_session.execute(select(VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.created_by, VisitSlot.from_rule))).all()
+    auto = [r for r in rows if r.created_by is None]
+    assert auto and all(r.from_rule for r in auto)
+    on_wed = {r.start_time.strftime("%H:%M"): r.from_rule for r in rows if r.slot_date == wed}
+    assert on_wed == {"09:00": True, "09:30": True, "10:00": True, "13:00": False, "14:00": False}

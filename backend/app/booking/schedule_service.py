@@ -1,12 +1,16 @@
 """每週開放規則、休假日例外與依規則產生時段（規格 6.3）。
 
-時段有兩個來源：園方按「依規則產生時段」手動補一段日期，以及定期工作每天
-依規則補到「最遠開放天數」（extend_from_rules，規格 L221-223）。兩者都只
-新增還不存在的場次：同日同開始時間已有時段（含園方關閉或調過名額的）一律
-不動，所以「改規則只影響未來未被使用的時段」自然成立。
+依規則產生時段有兩個入口：園方按「依規則產生時段」手動補一段日期，以及
+定期工作每天依規則補到「最遠開放天數」（extend_from_rules，規格 L221-223）。
+兩者都只新增還不存在的場次：同一天已有時段跟新場次時間重疊（含園方關閉或
+調過名額的）就不建，所以不會產生重疊的場次，園方關掉的也不會被偷偷重開。
 
-同一校的產生、取消休假、改規則都先鎖該校的 booking_configs 列，定期工作
-與園方手動操作同時進行時不會重複建立同一個場次。"""
+時段是預先補到最遠開放天數的，改規則時要主動把「依規則產生、還沒被使用」
+的未來時段對齊新規則（sync_rule_slots，規格 L227「設定規則修改只影響未來
+未被使用的時段」），否則舊規則的場次要等幾十天才會消失。
+
+同一校的產生、取消休假、改規則都先鎖該校的 booking_configs 列（官網送單
+也鎖同一列），定期工作與園方手動操作同時進行時不會重複建立同一個場次。"""
 from __future__ import annotations
 
 import uuid
@@ -16,6 +20,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking import slot_service
+from app.booking.access_models import RescheduleRequest
 from app.booking.models import (
     BookingConfig,
     SlotClosedSource,
@@ -50,6 +55,23 @@ def rule_windows(rule: VisitRule) -> list[tuple[time, time]]:
     return out
 
 
+# (星期幾, 開始, 結束) → 每場名額。同一格被兩條規則涵蓋時以先排的規則為準，
+# 與 _create_from_rules 建立時段的順序一致。
+RuleWindowMap = dict[tuple[int, time, time], int]
+
+
+def rule_window_map(rules: list[VisitRule]) -> RuleWindowMap:
+    out: RuleWindowMap = {}
+    for rule in rules:
+        for start, end in rule_windows(rule):
+            out.setdefault((rule.weekday, start, end), rule.capacity)
+    return out
+
+
+def _overlaps(start: time, end: time, others: list[tuple[time, time]]) -> bool:
+    return any(start < other_end and other_start < end for other_start, other_end in others)
+
+
 async def list_rules(db: AsyncSession, campus_key: str) -> list[VisitRule]:
     result = await db.execute(
         select(VisitRule)
@@ -81,6 +103,125 @@ async def replace_rules(
         )
     await db.flush()
     return await list_rules(db, campus_key)
+
+
+async def sync_rule_slots(
+    db: AsyncSession,
+    campus_key: str,
+    old_windows: RuleWindowMap,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    """改每週規則後，把依規則產生、還沒被使用的未來時段對齊新規則（規格 L227）。
+
+    呼叫端要先鎖住該校的 booking_configs 列並寫好新規則；old_windows 是改之前
+    的規則（rule_window_map），用來判斷名額是不是園方調過的。
+
+    不動：已開始的場次、園方在時段頁手動新增的、園方手動關閉的（含分不出來源
+    的舊資料），以及有家長占名額（待確認、已確認）或有待核准改期申請的。
+
+    其餘時段：
+    - 不符合新規則（星期幾或起訖時間對不上）：沒有任何案件或改期申請指著就
+      刪除；有歷史紀錄（例如已取消的案件）刪不掉，改成關閉並記 rule。
+    - 符合新規則：之前因規則變更停用的重新打開；名額還是舊規則的值（園方沒
+      調過）就改成新規則的名額。休假日關閉的維持關閉，取消休假時照常重開。
+
+    新規則多出來的場次不在這裡建，交給下一輪定期工作（呼叫端清掉
+    rules_extended_on）。回傳各類處理的場次數；kept_booked 是不符合新規則、
+    但已有家長排入所以維持原樣的場次，後台要提醒園方自行處理。"""
+    current = now or now_utc()
+    counts = {"removed": 0, "closed": 0, "reopened": 0, "capacity_updated": 0, "kept_booked": 0}
+    new_windows = rule_window_map(await list_rules(db, campus_key))
+    result = await db.execute(
+        select(VisitSlot)
+        .where(
+            VisitSlot.campus_key == campus_key,
+            VisitSlot.from_rule.is_(True),
+            VisitSlot.slot_date >= today_local(current),
+            or_(
+                VisitSlot.closed.is_(False),
+                VisitSlot.closed_source.in_([SlotClosedSource.EXCEPTION.value, SlotClosedSource.RULE.value]),
+            ),
+        )
+        .order_by(VisitSlot.id)
+        .with_for_update()
+    )
+    slots = [s for s in result.scalars() if slot_start_utc(s.slot_date, s.start_time) > current]
+    if not slots:
+        return counts
+
+    # 先鎖住時段再查引用：後台同時把案件排進這一場的交易會先鎖同一列，
+    # 等它提交後這裡才看得到那筆案件，不會把剛被排入的時段刪掉。
+    ids = [s.id for s in slots]
+    in_use = set(
+        (
+            await db.execute(
+                select(VisitRequest.slot_id).where(
+                    VisitRequest.slot_id.in_(ids), slot_service.occupying_condition(current)
+                )
+            )
+        ).scalars()
+    )
+    in_use |= set(
+        (
+            await db.execute(
+                select(RescheduleRequest.requested_slot_id).where(
+                    RescheduleRequest.requested_slot_id.in_(ids), RescheduleRequest.status == "pending"
+                )
+            )
+        ).scalars()
+    )
+    # 外鍵是 RESTRICT：已取消的案件、已處理的改期申請也還指著時段，刪不掉。
+    referenced = set(
+        (await db.execute(select(VisitRequest.slot_id).where(VisitRequest.slot_id.in_(ids)))).scalars()
+    )
+    referenced |= set(
+        (
+            await db.execute(
+                select(RescheduleRequest.requested_slot_id).where(RescheduleRequest.requested_slot_id.in_(ids))
+            )
+        ).scalars()
+    )
+
+    to_delete: list[uuid.UUID] = []
+    for slot in slots:
+        key = (slot.slot_date.weekday(), slot.start_time, slot.end_time)
+        capacity = new_windows.get(key)
+        if slot.id in in_use:
+            if capacity is None:
+                counts["kept_booked"] += 1
+            continue
+        if capacity is None:
+            if slot.id not in referenced:
+                to_delete.append(slot.id)
+            elif slot.closed_source != SlotClosedSource.RULE.value:
+                slot.closed = True
+                slot.closed_source = SlotClosedSource.RULE.value
+                slot.version += 1
+                counts["closed"] += 1
+            continue
+        changed = False
+        if slot.closed_source == SlotClosedSource.RULE.value:
+            slot.closed = False
+            slot.closed_source = None
+            counts["reopened"] += 1
+            changed = True
+            # 停用期間的名額是更早那一版規則的，一律換成新規則的。
+            if slot.capacity != capacity:
+                slot.capacity = capacity
+                counts["capacity_updated"] += 1
+        elif old_windows.get(key) == slot.capacity and slot.capacity != capacity:
+            slot.capacity = capacity
+            counts["capacity_updated"] += 1
+            changed = True
+        if changed:
+            # 園方開著的時段頁拿舊版本存檔時會被擋下重新載入。
+            slot.version += 1
+    if to_delete:
+        await db.execute(delete(VisitSlot).where(VisitSlot.id.in_(to_delete)))
+        counts["removed"] = len(to_delete)
+    await db.flush()
+    return counts
 
 
 async def list_exceptions(db: AsyncSession, campus_key: str, *, since: date | None = None) -> list[VisitException]:
@@ -200,7 +341,7 @@ async def generate_slots(
     date_to: date,
     created_by: uuid.UUID,
 ) -> dict:
-    """依每週規則產生時段。跳過：今天以前、休假日、同日同開始時間已有時段
+    """依每週規則產生時段。跳過：今天以前、休假日、同一天已有時間重疊的時段
     （含已關閉的——園方關掉的不要被規則偷偷重開）。可重複執行。"""
     if date_to < date_from:
         raise GenerateRangeInvalid("結束日期不能早於開始日期")
@@ -271,13 +412,19 @@ async def _create_from_rules(
         e.exception_date for e in await list_exceptions(db, campus_key, since=start)
     }
     existing = await db.execute(
-        select(VisitSlot.slot_date, VisitSlot.start_time).where(
+        select(VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.end_time).where(
             VisitSlot.campus_key == campus_key,
             VisitSlot.slot_date >= start,
             VisitSlot.slot_date <= date_to,
+            # 改規則後停用的舊規則時段不佔時間，新規則的場次照樣建立。
+            VisitSlot.closed_source.is_distinct_from(SlotClosedSource.RULE.value),
         )
     )
-    taken = {(d, t) for d, t in existing.all()}
+    # 每天已經有的時間區間：新場次跟任何一個重疊就不建（只比開始時間的話，
+    # 每場長度從 30 分鐘改成 45 分鐘後會多出 09:45 這種跟舊場次重疊的場次）。
+    taken: dict[date, list[tuple[time, time]]] = {}
+    for d, t_start, t_end in existing.all():
+        taken.setdefault(d, []).append((t_start, t_end))
 
     created = skipped_existing = 0
     skipped_days: set[date] = set()
@@ -288,9 +435,10 @@ async def _create_from_rules(
         if todays and day in exception_days:
             skipped_days.add(day)
         elif todays:
+            day_taken = taken.setdefault(day, [])
             for rule in todays:
                 for slot_start, slot_end in rule_windows(rule):
-                    if (day, slot_start) in taken:
+                    if _overlaps(slot_start, slot_end, day_taken):
                         skipped_existing += 1
                         continue
                     if skip_started and slot_start_utc(day, slot_start) <= current:
@@ -304,11 +452,12 @@ async def _create_from_rules(
                             end_time=slot_end,
                             capacity=rule.capacity,
                             closed=False,
+                            from_rule=True,
                             created_by=created_by,
                             created_at=created_at,
                         )
                     )
-                    taken.add((day, slot_start))
+                    day_taken.append((slot_start, slot_end))
                     created += 1
         day += timedelta(days=1)
     await db.flush()

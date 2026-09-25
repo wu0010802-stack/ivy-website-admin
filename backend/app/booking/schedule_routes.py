@@ -16,6 +16,7 @@ from app.booking.schemas import (
     VisitExceptionRemovedOut,
     VisitRuleOut,
     VisitScheduleOut,
+    VisitScheduleSlotSyncOut,
     VisitScheduleUpdate,
     VisitSlotGenerateOut,
     VisitSlotGenerateRequest,
@@ -84,15 +85,19 @@ async def update_visit_schedule(
             },
         )
     before = {"min_lead_hours": config.min_lead_hours, "max_advance_days": config.max_advance_days}
+    old_windows = schedule_service.rule_window_map(await schedule_service.list_rules(db, campus_key))
     config.schedule_version += 1
     config.min_lead_hours = payload.min_lead_hours
     config.max_advance_days = payload.max_advance_days
     # 規則或最遠開放天數變了：讓定期工作下一輪（約一分鐘內）就依新設定補
-    # 時段，不必等到明天。已存在的時段一律不動。
+    # 時段，不必等到明天。
     config.rules_extended_on = None
     await schedule_service.replace_rules(
         db, campus_key, [r.model_dump() for r in payload.rules], current_user.id
     )
+    # 時段是預先補好的：還沒被使用的舊規則場次在同一把鎖內對齊新規則，
+    # 不然要等最遠開放天數過完才會消失，新場次還會跟它們重疊。
+    slot_sync = await schedule_service.sync_rule_slots(db, campus_key, old_windows)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -104,9 +109,11 @@ async def update_visit_schedule(
             "before": before,
             "after": {"min_lead_hours": payload.min_lead_hours, "max_advance_days": payload.max_advance_days},
             "rule_count": len(payload.rules),
+            "slot_sync": slot_sync,
         },
     )
     out = await _schedule_out(db, campus_key)
+    out.slot_sync = VisitScheduleSlotSyncOut(**slot_sync)
     await db.commit()
     return out
 

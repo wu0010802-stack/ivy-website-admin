@@ -75,7 +75,10 @@ class BookingConfig(Base):
     min_lead_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
     max_advance_days: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     # 規格 238：家長用管理連結線上取消／申請改期，最晚到參觀前幾小時。
-    # 同樣不動 version：只影響已成立的案件，不影響官網送單。
+    # 跟預約方式在同一個畫面、同一個 PATCH 存檔（service.update_config），
+    # 存檔一律讓 version 加一：正在官網填表的家長送出時會收到
+    # BOOKING_CONFIG_CHANGED，重新確認後再送。version 同時是後台兩人同時
+    # 編輯的樂觀鎖，只改這個欄位也不能跳過，否則會被拿舊畫面存檔的人蓋掉。
     parent_change_deadline_hours: Mapped[int] = mapped_column(
         Integer, nullable=False, default=24, server_default="24"
     )
@@ -187,10 +190,13 @@ class VisitRequest(Base):
 
 class SlotClosedSource(str, enum.Enum):
     """時段為什麼是關閉的。取消休假日只重開 exception 關掉的；manual 與
-    舊資料（NULL，分不出來源）都視為園方刻意關閉，不自動打開。"""
+    舊資料（NULL，分不出來源）都視為園方刻意關閉，不自動打開。rule 是改
+    每週規則後不再符合新規則、但有歷史案件指著刪不掉的舊規則時段；之後規則
+    又改回來包含它時會重新打開（schedule_service.sync_rule_slots）。"""
 
     MANUAL = "manual"
     EXCEPTION = "exception"
+    RULE = "rule"
 
 
 class VisitSlot(Base):
@@ -201,7 +207,7 @@ class VisitSlot(Base):
     __tablename__ = "visit_slots"
     __table_args__ = (
         CheckConstraint(
-            "closed_source IS NULL OR closed_source IN ('manual', 'exception')",
+            "closed_source IS NULL OR closed_source IN ('manual', 'exception', 'rule')",
             name="ck_visit_slots_closed_source",
         ),
     )
@@ -217,9 +223,13 @@ class VisitSlot(Base):
     closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # SlotClosedSource；開放中的時段為 NULL。
     closed_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    # 容量與開關的樂觀鎖；休假日自動關閉／重開也會加一。
+    # 容量與開關的樂觀鎖；休假日自動關閉／重開、改規則同步名額也會加一。
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
-    # 依規則自動產生的時段為 NULL（定期工作沒有操作人）。
+    # 依每週規則產生（定期工作、「依規則產生時段」、取消休假補場次）。改規則時
+    # 只有這些、而且還沒被使用的未來時段會跟著新規則調整；園方在時段頁手動
+    # 新增的不動。
+    from_rule: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # 定期工作自動產生的時段為 NULL（沒有操作人）。
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -231,8 +241,10 @@ class VisitSlot(Base):
 class VisitRule(Base):
     """每週開放規則（規格 6.3）：週幾、時間區間、每格長度、每格容量。
     定期工作每天依規則補產生時段到「最遠開放天數」（schedule_service.
-    extend_from_rules），園方也可以按「依規則產生時段」手動補。改規則只影響
-    之後產生的時段，已存在（含園方調過名額或關閉）的一律不動。"""
+    extend_from_rules），園方也可以按「依規則產生時段」手動補。改規則時，
+    依規則產生、還沒被使用的未來時段跟著新規則調整（規格 L227，
+    schedule_service.sync_rule_slots）；已有家長排入、園方手動關閉或手動
+    新增的時段不動。"""
 
     __tablename__ = "visit_rules"
     __table_args__ = (
