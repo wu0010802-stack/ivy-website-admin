@@ -5,18 +5,37 @@ import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
 import { mediaFileUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+import SiteLinksEditor from '../components/SiteLinksEditor.vue'
+import { DEFAULT_PRIMARY_NAV, PRIMARY_NAV_MAX } from '../composables/siteLinks'
 
-const editor = useContentItem<SiteMetaPayload>('site_meta', {
-  title: '',
-  description: '',
-  header_phone_number: '',
-  header_phone_note: '',
-  share_image: '',
-  share_image_alt: '',
-  admission_title: '',
-  admission_description: '',
-  allow_indexing: true,
-})
+const defaultNav = () => DEFAULT_PRIMARY_NAV.map((link) => ({ ...link }))
+
+const editor = useContentItem<SiteMetaPayload>(
+  'site_meta',
+  {
+    title: '',
+    description: '',
+    header_phone_number: '',
+    header_phone_note: '',
+    share_image: '',
+    share_image_alt: '',
+    admission_title: '',
+    admission_description: '',
+    allow_indexing: true,
+    primary_nav: defaultNav(),
+  },
+  undefined,
+  {
+    // 還沒在後台設定過主選單的版本（沒有欄位或 null）：先帶入官網現在的內建選單。
+    normalize: (payload) => ({
+      ...payload,
+      primary_nav: payload.primary_nav?.length
+        ? payload.primary_nav.map((link) => ({ ...link, label_en: link.label_en ?? '' }))
+        : defaultNav(),
+    }),
+  },
+)
+const nav = computed(() => editor.form.value.primary_nav ?? [])
 
 const pickerVisible = ref(false)
 function onPickShareImage(asset: MediaAssetOut) {
@@ -30,7 +49,7 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor">
-    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖，以及頁首右上角的聯絡電話。</template>
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、頁首右上角的聯絡電話與主選單。</template>
 
     <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="網站標題">
@@ -78,6 +97,12 @@ onMounted(editor.load)
         <el-switch v-model="editor.form.value.allow_indexing" active-text="允許 Google 等搜尋引擎收錄官網" />
         <span class="field-help">關閉後各頁都會告訴搜尋引擎不要收錄。正式站是否開放收錄另由部署設定決定，這裡只能關、不能強制打開。</span>
       </el-form-item>
+
+      <h3 class="meta-section">主選單</h3>
+      <p class="field-help">
+        頁首與選單面板的連結，依這裡的順序排列，最多 {{ PRIMARY_NAV_MAX }} 個。站內頁面用 / 開頭的路徑（例如 /admission、/#about）；外部網站官網會加 ↗ 並另開分頁。
+      </p>
+      <SiteLinksEditor :links="nav" with-english :min="1" :max="PRIMARY_NAV_MAX" :read-only="editor.readOnly.value" item-name="選單項目" />
 
       <h3 class="meta-section">品牌名稱與 Logo</h3>
       <p class="field-help">

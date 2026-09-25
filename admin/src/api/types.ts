@@ -19,10 +19,21 @@ export interface HomeAboutPayload {
   caption: string
 }
 
+/** 首屏小標與標語。按鈕文字（cta_label）2026-09-23 隨首屏按鈕拿掉，後端忽略舊值。 */
 export interface HomeHeroPayload {
   eyebrow: string
   copy_lines: string[]
-  cta_label: string
+}
+
+/** 頁尾連結：站內路徑（/ 開頭）或 https 外部網址 */
+export interface SiteLinkPayload {
+  label: string
+  href: string
+}
+
+/** 主選單項目：中文與頁首英文小字 */
+export interface NavLinkPayload extends SiteLinkPayload {
+  label_en: string
 }
 
 export interface SiteFooterPayload {
@@ -30,6 +41,8 @@ export interface SiteFooterPayload {
   copyright: string
   bottom_note: string
   campus_list_label: string
+  /** null＝還沒設定過，官網沿用內建頁尾連結 */
+  links?: SiteLinkPayload[] | null
 }
 
 export interface SiteMetaPayload {
@@ -43,12 +56,17 @@ export interface SiteMetaPayload {
   admission_title: string
   admission_description: string
   allow_indexing: boolean
+  /** null＝還沒設定過，官網沿用內建主選單 */
+  primary_nav?: NavLinkPayload[] | null
 }
 
 export interface HomeCampusBoardPayload {
   section_title: string
   eyebrow: string
   note: string
+  /** 首頁五校的排列（五校 key，不重複不缺漏） */
+  campus_order: string[]
+  default_campus: string
 }
 
 export interface PrivacySectionPayload {
@@ -197,6 +215,8 @@ export interface CampusProfilePayload {
   facebook: string
   fb_note: string
   line: string
+  /** Google 地圖網址；空字串＝官網用地址搜尋 */
+  map_url: string
 }
 
 export interface CampusFaqItemPayload {

@@ -4,6 +4,7 @@ import { useContentItem } from '../composables/useContentItem'
 import type { HomeAboutPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
+import GlyphHint from '../components/GlyphHint.vue'
 
 const editor = useContentItem<HomeAboutPayload>('home_about', {
   title: '',
@@ -23,6 +24,7 @@ onMounted(editor.load)
       <el-form-item label="標題">
         <el-input v-model="editor.form.value.title" />
         <LengthHint :value="editor.form.value.title" rule="aboutTitle" />
+        <GlyphHint :value="editor.form.value.title" />
       </el-form-item>
       <el-form-item label="創校標籤">
         <el-input v-model="editor.form.value.since_label" placeholder="例如：Since 1997" />

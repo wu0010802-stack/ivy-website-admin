@@ -11,6 +11,8 @@ import LengthHint from '../components/LengthHint.vue'
 import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+import GlyphHint from '../components/GlyphHint.vue'
+import { moveItem } from '../composables/newsContent'
 
 const MAX_SCENES = 6
 const MAX_SPOTS = 8
@@ -70,6 +72,33 @@ function removeScene(i: number) {
   scenes.value.splice(i, 1)
   sceneIndex.value = 0
   spotIndex.value = null
+}
+
+// 順序就是陣列順序（官網場景分頁與熱點的 Tab 順序都照它）。移動後選取跟著
+// 那一項走，按鈕固定在側欄同一個位置，鍵盤可以連按。
+function moveScene(delta: number) {
+  const from = sceneIndex.value
+  const to = from + delta
+  if (to < 0 || to >= scenes.value.length) return
+  moveItem(scenes.value, from, delta)
+  sceneIndex.value = to
+}
+
+function moveSpot(delta: number) {
+  const spots = currentScene.value?.spots
+  const from = spotIndex.value
+  if (!spots || from === null) return
+  const to = from + delta
+  if (to < 0 || to >= spots.length) return
+  moveItem(spots, from, delta)
+  spotIndex.value = to
+}
+
+// 座標數字輸入：0–100、一位小數（同拖曳與方向鍵的精度）。
+function setCoordinate(axis: 'x' | 'y', value: number | null | undefined) {
+  const spot = currentSpot.value
+  if (!spot || value === null || value === undefined || Number.isNaN(value)) return
+  spot[axis] = Math.min(100, Math.max(0, Math.round(value * 10) / 10))
 }
 
 function selectScene(i: number) {
@@ -267,7 +296,7 @@ function nudge(i: number, event: KeyboardEvent) {
             <p class="hint tour__stage-hint">
               <span v-if="editor.readOnly.value">點圖釘查看每個熱點的說明。</span>
               <span v-else-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
-              <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳或用方向鍵調整位置。</span>
+              <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳、方向鍵或右側的座標欄位調整位置。</span>
             </p>
           </div>
 
@@ -284,7 +313,13 @@ function nudge(i: number, event: KeyboardEvent) {
               <el-button v-if="!editor.readOnly.value" size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
             </el-alert>
             <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
-              <h3 class="tour__side-title">場景</h3>
+              <h3 class="tour__side-title">
+                場景 {{ sceneIndex + 1 }} / {{ scenes.length }}
+                <span v-if="!editor.readOnly.value && scenes.length > 1" class="tour__order">
+                  <el-button text size="small" :disabled="sceneIndex === 0" :aria-label="`場景「${currentScene.name || sceneIndex + 1}」上移（往前）`" @click="moveScene(-1)">上移</el-button>
+                  <el-button text size="small" :disabled="sceneIndex === scenes.length - 1" :aria-label="`場景「${currentScene.name || sceneIndex + 1}」下移（往後）`" @click="moveScene(1)">下移</el-button>
+                </span>
+              </h3>
               <el-form-item label="場景名稱">
                 <el-input v-model="currentScene.name" placeholder="例如：戶外遊戲場" />
               </el-form-item>
@@ -306,12 +341,44 @@ function nudge(i: number, event: KeyboardEvent) {
 
               <template v-if="currentSpot">
                 <h3 class="tour__side-title tour__side-title--spot">
-                  熱點 {{ (spotIndex ?? 0) + 1 }}
-                  <el-button v-if="!editor.readOnly.value" text size="small" type="danger" :icon="Delete" @click="removeSpot(spotIndex!)">移除</el-button>
+                  熱點 {{ (spotIndex ?? 0) + 1 }} / {{ currentScene.spots.length }}
+                  <span v-if="!editor.readOnly.value" class="tour__order">
+                    <el-button text size="small" :disabled="spotIndex === 0" :aria-label="`熱點「${currentSpot.name || (spotIndex ?? 0) + 1}」上移`" @click="moveSpot(-1)">上移</el-button>
+                    <el-button text size="small" :disabled="spotIndex === currentScene.spots.length - 1" :aria-label="`熱點「${currentSpot.name || (spotIndex ?? 0) + 1}」下移`" @click="moveSpot(1)">下移</el-button>
+                    <el-button text size="small" type="danger" :icon="Delete" :disabled="currentScene.spots.length <= 1" @click="removeSpot(spotIndex!)">移除</el-button>
+                  </span>
                 </h3>
+                <p class="hint tour__order-hint">官網依編號順序排列熱點，鍵盤 Tab 也照這個順序。</p>
                 <el-form-item label="名稱">
                   <el-input v-model="currentSpot.name" />
+                  <GlyphHint :value="currentSpot.name" />
                 </el-form-item>
+                <div class="field-row tour__coords">
+                  <el-form-item label="水平位置 X（%，0 最左）">
+                    <el-input-number
+                      :model-value="currentSpot.x"
+                      :min="0"
+                      :max="100"
+                      :step="1"
+                      :precision="1"
+                      controls-position="right"
+                      aria-label="水平位置 X，0 到 100"
+                      @update:model-value="setCoordinate('x', $event)"
+                    />
+                  </el-form-item>
+                  <el-form-item label="垂直位置 Y（%，0 最上）">
+                    <el-input-number
+                      :model-value="currentSpot.y"
+                      :min="0"
+                      :max="100"
+                      :step="1"
+                      :precision="1"
+                      controls-position="right"
+                      aria-label="垂直位置 Y，0 到 100"
+                      @update:model-value="setCoordinate('y', $event)"
+                    />
+                  </el-form-item>
+                </div>
                 <el-form-item label="說明文字">
                   <el-input v-model="currentSpot.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
                   <LengthHint :value="currentSpot.text" rule="tourSpotText" />
@@ -478,6 +545,20 @@ function nudge(i: number, event: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.tour__order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.tour__order-hint {
+  margin: -4px 0 12px;
+}
+
+.tour__coords :deep(.el-input-number) {
+  width: 100%;
 }
 
 .tour__side-title--spot {

@@ -5,6 +5,7 @@ import { useContentItem } from '../composables/useContentItem'
 import type { DayExperiencePayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
+import GlyphHint from '../components/GlyphHint.vue'
 
 const MAX_MOMENTS = 12
 
@@ -43,8 +44,8 @@ onMounted(editor.load)
 <template>
   <ContentEditor :editor="editor">
     <template #lead>
-      首頁「孩子的一天」的文字。照片與背景影片仍由官網程式提供、尚未接素材庫，所以
-      <strong>時刻卡的數量要對得上官網現有的照片張數</strong>，多出來的卡片官網不會顯示。
+      首頁「孩子的一天」的文字與卡片。卡片的張數、順序照這裡顯示，刪掉的卡片官網也會拿掉。
+      照片與背景影片仍由官網程式提供、尚未接素材庫：原有的六張沿用原本的照片，<strong>新增的卡片先以沒有照片的空白相紙顯示</strong>。
     </template>
 
     <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
@@ -97,6 +98,7 @@ onMounted(editor.load)
           <el-form-item label="拍立得標題">
             <el-input v-model="moment.title" />
             <LengthHint :value="moment.title" rule="momentTitle" />
+            <GlyphHint :value="moment.title" />
           </el-form-item>
           <el-form-item label="拍立得說明">
             <el-input v-model="moment.caption" />

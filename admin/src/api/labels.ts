@@ -365,6 +365,11 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   home_display_count: '首頁顯示筆數',
   include_shared: '顯示共用題目',
   shared_position: '共用題目位置',
+  primary_nav: '主選單',
+  links: '頁尾連結',
+  campus_order: '五校順序',
+  default_campus: '預設顯示的校區',
+  map_url: '地圖連結',
 }
 
 export function contentFieldLabel(key: string): string {

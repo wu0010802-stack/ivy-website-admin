@@ -10,7 +10,6 @@ export interface LengthHintRule {
 
 export const LENGTH_HINTS = {
   heroEyebrow: { max: 20, why: '手機上會換成兩行' },
-  heroCta: { max: 8, why: '按鈕會變寬、手機上換行' },
   aboutTitle: { max: 16, why: '標題在手機上會超過兩行' },
   aboutBody: { max: 300, why: '段落太長，家長不容易讀完' },
   aboutCaption: { max: 30, why: '照片說明會換成多行' },

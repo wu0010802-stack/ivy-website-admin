@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusProfilePayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import GlyphHint from '../components/GlyphHint.vue'
+import { addressSearchUrl, mapUrlError } from '../composables/siteLinks'
 
 const campus = ref('')
 const editor = useContentItem<CampusProfilePayload>(
@@ -20,11 +22,18 @@ const editor = useContentItem<CampusProfilePayload>(
     facebook: '',
     fb_note: '',
     line: '',
+    map_url: '',
   },
   campus,
 )
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
+// 「開啟看看」：填了地圖網址就開它，沒填開官網會用的地址搜尋。
+const mapPreviewUrl = computed(() => {
+  const form = editor.form.value
+  if (form.map_url.trim()) return mapUrlError(form.map_url) ? '' : form.map_url.trim()
+  return form.address.trim() ? addressSearchUrl(form.address) : ''
+})
 </script>
 
 <template>
@@ -42,6 +51,8 @@ const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
       <div class="field-row">
         <el-form-item label="校名">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
+          <!-- 首頁五校與分校頁大標用明體子集，分校頁「來認識…」小標用標題字型。 -->
+          <GlyphHint :value="editor.form.value.name" :fonts="['serif', 'bd']" />
         </el-form-item>
         <el-form-item label="行政區">
           <el-input v-model="editor.form.value.district" placeholder="例如：鳳山區" />
@@ -50,11 +61,20 @@ const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
       <el-form-item label="地址">
         <el-input v-model="editor.form.value.address" />
       </el-form-item>
+      <el-form-item label="地圖連結（選填）" :error="mapUrlError(editor.form.value.map_url) ?? ''">
+        <el-input v-model="editor.form.value.map_url" placeholder="https://maps.app.goo.gl/…" />
+        <span class="field-help">
+          在 Google 地圖找到學校、按「分享」複製連結貼上。留空時官網用上面的地址搜尋；地址搜尋不準時才需要填。
+          <a v-if="mapPreviewUrl" :href="mapPreviewUrl" target="_blank" rel="noopener noreferrer">開啟看看 ↗</a>
+        </span>
+      </el-form-item>
       <el-form-item label="參觀專線">
         <el-input v-model="editor.form.value.phone" placeholder="07-000-0000" />
       </el-form-item>
       <el-form-item label="一句話簡介">
         <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />
+        <!-- 分校頁「認識〇〇校」下方的大標。 -->
+        <GlyphHint :value="editor.form.value.intro" />
       </el-form-item>
       <el-form-item label="詳細介紹">
         <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
