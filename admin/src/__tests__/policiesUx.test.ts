@@ -169,4 +169,20 @@ describe('個資保存政策與全站設定保護', () => {
     await flushPromises()
     expect(wrapper.get('.seo-summary').text()).toContain('不允許收錄')
   })
+
+  it('官網從沒發布過任何內容時說明尚未發布，不當成讀取失敗（B11-R4）', async () => {
+    const { wrapper } = await setup(new ApiError(503, { code: 'NO_PUBLISHED_CONTENT', message: '尚無可用內容' }))
+    const notice = wrapper.get('.site-unpublished')
+    expect(notice.text()).toContain('官網還沒發布過任何內容')
+    expect(notice.find('a[href="/content/site-meta"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('無法讀取官網目前的設定')
+    expect(button(wrapper, '重新載入')).toBeUndefined()
+    expect(wrapper.find('.seo-summary').exists()).toBe(false)
+  })
+
+  it('其他 503（服務暫時無法使用）仍是讀取失敗', async () => {
+    const { wrapper } = await setup(new ApiError(503, 'Service Unavailable'))
+    expect(wrapper.text()).toContain('無法讀取官網目前的設定')
+    expect(wrapper.find('.site-unpublished').exists()).toBe(false)
+  })
 })

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '../api/client'
-import { apiErrorMessage, isVersionConflict } from '../api/errors'
+import { api, ApiError } from '../api/client'
+import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { RetentionPolicyOut, RetentionReportOut, RetentionRunOut } from '../api/types'
 import { RETENTION_CATEGORY_LABELS, RETENTION_TRIGGER_LABELS, formatDate, formatDateTime } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
@@ -20,15 +20,21 @@ interface PublishedSiteMeta {
 const siteMeta = ref<PublishedSiteMeta | null>(null)
 const loading = ref(true)
 const loadError = ref<string | null>(null)
+// 官網從沒發布過任何內容（上線前的空站）：API 回 503 NO_PUBLISHED_CONTENT，
+// 這是正常狀態，不當成讀取失敗叫人重新載入。
+const neverPublished = ref(false)
 
 async function loadSettings() {
   loading.value = true
   loadError.value = null
+  neverPublished.value = false
   try {
     const site = await api.get<{ content?: { site_meta?: PublishedSiteMeta } }>('/public/site')
     siteMeta.value = site.content?.site_meta ?? null
-  } catch {
-    loadError.value = '無法讀取官網目前的設定，請重新載入。'
+  } catch (err) {
+    siteMeta.value = null
+    if (err instanceof ApiError && err.status === 503 && apiErrorCode(err) === 'NO_PUBLISHED_CONTENT') neverPublished.value = true
+    else loadError.value = '無法讀取官網目前的設定，請重新載入。'
   } finally {
     loading.value = false
   }
@@ -189,6 +195,9 @@ onMounted(() => {
       <div class="panel__body">
         <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="loadSettings">重新載入</el-button></el-alert>
         <el-skeleton v-else-if="loading" animated :rows="4" />
+        <el-alert v-else-if="neverPublished" class="site-unpublished" type="info" :closable="false" show-icon title="官網還沒發布過任何內容">
+          發布第一版內容之前，官網各頁會顯示「網站內容服務暫時無法使用」。網站描述、社群分享圖與是否允許搜尋引擎收錄在<router-link to="/content/site-meta">網站標題與電話</router-link>設定，發布後會顯示在這裡。
+        </el-alert>
         <template v-else>
           <p class="page-lead">
             官網的網站描述、社群分享圖與是否允許搜尋引擎收錄，都在<router-link to="/content/site-meta">網站標題與電話</router-link>修改，發布後才會套用到官網。這裡顯示的是官網目前發布中的設定。
