@@ -633,3 +633,31 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 五校卡：1440／1024 排一行、390 排兩行，義華四個連結、明華兩個，無橫向溢出，0 console error。
   - 桌機不下載活動影片海報。
 - **未做**：後台還沒把義華 IG／YouTube 填進去發布，要由使用者在「五校介紹 → 義華校」完成；原因見 README 同日段落。iOS 實機播放 YouTube 未驗證。
+
+## 2026-09-26 特色教學頁、四校校園探索實景、義華家長分享、內頁 hero 手機 sizes（main CI 部署）
+
+- 使用者要求一起 commit 並 push 上 main。分支 `feature/old-site-content-20260926`，從 `0cdd29a` 開的 sparse worktree（跳過 design/、versions/，見本機磁碟空間問題）。共 4 個提交：
+  - `a9c8595` 午夜不穩定測試
+  - `fd3428f` 舊官網內容
+  - `b1ffc62` hero sizes
+  - `f487409` 文件
+- `responsive-image.ts`、`usePageSeo.ts`、`CurriculumContent.vue` 同時含第 2、3 個提交的改動，第 2 個提交暫用不含 `pageHeroImage` 的中間版本，每個提交都是可運作的狀態。
+- push 前 `origin/main` 仍是 `0cdd29a`，直接 fast-forward（`0cdd29a..f487409`）。沒有 migration。
+- 本機驗證（同一份內容）：
+  - web：`nuxt typecheck` 結束碼 0、vitest 39 檔 351 項。
+  - admin：`vue-tsc` 結束碼 0、vitest 33 檔 264 項。
+  - backend：`test_visit_details`、`test_content_initialize` 24 項。
+  - `contract:check` 一致。
+  - e2e `old-site-content` 在 1440／390 通過。
+- CI run `36200909343` 四個 job 全綠（含 deploy）。`/release.json` snapshot `8d03b6a92c14d1f504de22f76272b1256783584520f81a5a999d67cf645152be`、`base_commit` `f487409`、`created_at` 2026-09-25T23:37:25Z。
+- 線上 Playwright（`output/playwright/old-site-content-prod-20260926/`）：
+  - `/curriculum` 在 1440／1024／390 回應 200：4 個年段、7 個課程方向、5 張拍立得，無破圖、無橫向捲動，桌機選單三項。
+  - 明華 2 個、崇德 3 個、國際 3 個、仁武 3 個場景，沒有模板提示，照片捲到畫面內都載入成功（延遲載入）。
+  - 義華：4 支家長分享，點了之後 YouTube 播放器在正式網域開始播放；其他四校沒有家長分享段落。
+  - 手機 390@2 的三頁 hero：入學選到 `1080w`、環境 `1960w`、特色教學 `2000w`；`<img>` 與預載的 imagesizes 一致，每頁只下載一張首屏圖。
+  - 0 console error。
+- **未做**：
+  - 義華的新場景（花花世界、藝術走廊）要由園方在後台加，見 `docs/website-admin/handoff-yihua-tour-20260926.md`。
+  - 上一批要在後台補義華 IG／YouTube 的步驟仍待處理。
+  - 線上 Lighthouse 未量：hero 手機首屏圖變大，LCP 影響待確認。
+  - Safari／iOS 實機未驗證。
