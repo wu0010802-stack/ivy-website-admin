@@ -1,3 +1,38 @@
+## 2026-09-25 各校 IG／YouTube 改由後台管理，首頁五校卡顯示
+
+接續同日上一段。後台「五校介紹」新增 Instagram、YouTube 兩欄，首頁五校卡跟著顯示。
+- **後端**：`CampusProfilePayload` 加 `instagram`、`youtube`，預設 `""`，所以舊版本照樣通過驗證，也不需要 migration。兩欄跟 FB、LINE 一起走 `_require_safe_url` 允許清單。`initialize.py` 把 null 轉成空字串；種子 `content/site-fixture.json` 補上這兩欄（義華有值，其他四校 null）。
+- **後台**：`CampusProfileView.vue` 在 LINE 下方加兩個欄位；`types.ts`、`labels.ts`（版本比對的欄位名）同步更新。
+- **官網**：`content-overlay.ts` 有這一欄就以後台為準，空字串轉成 null；舊版本沒有這一欄才沿用 fixture。`CampusBoard.vue` 社群列在 Facebook 後面加 Instagram、YouTube，有值才出現。
+- API 契約沒有變動：分校資料在 API 上是泛用的 payload，`contract:check` 一致。
+
+**部署後要做**：到後台「五校介紹 → 義華校」填 IG `https://www.instagram.com/ivy.kids.school.ig/`、YouTube `https://www.youtube.com/@IvyKidsVideos`，然後發布。沒做的話，下一次有人存義華的資料，這兩個連結就會消失（原因見 DESIGN.md 同日段落）。
+
+驗證：
+- backend：全套 500 項通過（獨立測試庫 `ivy_website_social_test` 從零 migrate 到 `9b2b0ebc14ae`）。新增三組測試：IG／YouTube 發布往返（舊版本沒帶也能存）、6 組不安全網址回 422（驗證器拿掉這兩欄時 6 組全部轉紅）、初始化帶入義華的值。
+- web：`nuxt typecheck` 結束碼 0，vitest 31 檔 247 項通過（`content.spec.ts` 新增「以後台為準／舊版本沿用 fixture」兩項，修改前前者是紅的）。
+- admin：`vue-tsc` 結束碼 0，vitest 23 檔 128 項通過（新增 `campusProfileSocials.test.ts`：舊版本載入時補空白，填了會跟著存草稿送出）。
+- 新增 e2e `tests/e2e/campus-board-socials.spec.ts`：義華有 IG／YouTube 連結、明華沒有。1440 和 390 都通過，連同 `home-films.spec.ts` 一起跑 3 項通過、1 項桌機跳過。
+- Playwright 對 3217 dev（fixture 模式）：1440／1024／390 都無橫向溢出、無 console 錯誤，義華四個連結、明華兩個。截圖在 `output/playwright/campus-board-socials-20260925/`。
+
+未 commit、未部署。
+
+## 2026-09-25 義華 IG／YouTube 連結、手機活動影片換成義華 YouTube
+
+盤點兩個舊官網後先做風險最低的兩項。
+1. **義華 IG／YouTube**：`web/server/data/site-fixture.json` 義華的 `instagram`、`youtube` 從 null 填入 `instagram.com/ivy.kids.school.ig`、`youtube.com/@IvyKidsVideos`，兩者都取自 ivykids.tw 頁尾，也已確認帳號存在。正式站以 fixture 為底、再疊後台 `campus_profile`；疊的時候不會覆蓋這兩欄，所以改 fixture 就會上線。後台目前沒有這兩個欄位。其他四校維持「待提供」。
+2. **手機「活動影片」**：`web/app/utils/campusFilms.ts` 保留第一支 `run`，讓它繼續靜音預覽。從 `day-film-mobile` 剪的三段舞台片（孩子的一天的背景片已經在播）換成義華頻道的四支 YouTube：迎財神、果嶺公園放風箏、大班英語演講、IVY 盃校際足球聯賽。四支都是 ivykids.tw 活動頁內嵌的影片，oEmbed 公開可嵌入。頻道封面是綠框大字，不合站上風格，所以 `youtube()` 加了第三個參數 `poster`，海報改用影片畫面（`i.ytimg.com/vi/<id>/maxres3.jpg`，1280×720）縮成 720×405 WebP：`campus-film-{new-year,kite,speech,football}.webp`。舊的 `campus-film-{stage,dance,family}.webp` 已刪。
+3. **修 YouTube 播放鍵**：`HomeFilms.vue` 的 `onViewportClick` 原本用 `event.target.closest()` 判斷點到的是不是當前這張。點播放鍵時，按鈕在冒泡到 viewport 之前就被 Vue 換成 iframe，target 已經脫離 DOM，於是被當成點兩側、翻到下一張，iframe 也跟著被拔掉。改用 `event.composedPath()`。之前清單裡沒有 YouTube 影片，所以這條路徑從沒被觸發過。
+
+注意：「迎財神」（`T3AZm_UiDhY`）從 `http://127.0.0.1` 嵌入會顯示「無法播放這部影片」。同一支從正式站網域、example.com、ivykids.tw 嵌入都正常，另外三支從哪裡嵌入都正常。本機看到這個錯誤不是 bug。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；web vitest 31 檔 245 項通過（`film-carousel.spec.ts` 新增兩項：`poster` 參數、站內海報檔都存在且 id 不重複）。新增 e2e `tests/e2e/home-films.spec.ts`：YouTube 請求攔成空頁，點播放後 iframe 留在原位、圓點不跳走；修正前 mobile-390 連兩次失敗在 iframe 斷言，修正後 mobile-390／375 各兩次通過，桌機按設計跳過。Playwright 對 3217 dev（fixture 模式）：
+- 手機 390：5 個圓點，4 張海報都載入；點右側、左側可以翻頁；無橫向溢出、無 console 錯誤。
+- 手機選單：義華的 IG／FB／YouTube／LINE 四個都是連結。
+- 桌機 1440：`.hn-films` 為 `display:none`，不下載任何 `campus-film`／`ytimg`；膠囊選單中，義華四個都是連結，換到明華回到「待提供」。
+
+截圖在 `output/playwright/social-films-20260925/`。未在實機上點播 YouTube。未 commit、未部署。
+
 ## 2026-09-25 常春藤環境頁 /environment，頁首只留分頁
 
 把舊官網「一日常春藤 Environment」（幼兒保育、校園環境、幼兒餐點；一日流程不搬）搬成新頁 `/environment`，版型照入學資訊頁：`pages/environment.vue`＋`components/EnvironmentContent.vue`（共用 `admission.css`，另加 `assets/css/environment.css`）。照片從舊站原圖產生 15 張 `env-*` 母檔，經 `scripts/optimize-site-images.py --only` 產生響應式檔。菜單不抄進網站：營養餐點書按鈕依台北日期開到當月那一頁（`utils/meal-book.ts`）。頁首選單依使用者裁定只留真正的分頁「常春藤環境、入學資訊」（`site-fixture.json`），頁尾加常春藤環境；`/environment` 加進膠囊頁首頁面、選單目前頁標 `aria-current`。SEO、sitemap、llms.txt 加入新頁。設計紀錄與未選方案見 DESIGN.md 同日一節，mock 在 `design/environment-mockup-20260925/`。改前快照 `versions/before-environment-page-20260925-212623/`。
