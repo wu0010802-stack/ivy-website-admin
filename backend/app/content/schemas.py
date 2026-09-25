@@ -510,10 +510,20 @@ _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 NEWS_BODY_MAX_BLOCKS = 40
 
 
+_WHITESPACE_RE = re.compile(r"\s")
+
+
 def _require_web_url(value: str) -> str:
     """活動與內文的外部連結只收 http／https（不收 mailto、tel：這裡是「報名表、
-    活動詳情」這類網頁連結）。"""
-    candidate = _strip_invisible(value)
+    活動詳情」這類網頁連結）。
+
+    網址中間不能有空白（含全形空白、不換行空白）：官網的 safeWebUrl 與後台的
+    webUrlInvalid 都用 `^https?://\\S+$` 判斷，這裡放行的話後台存得進去、官網卻
+    默默不顯示連結；只刪掉半形空白又會把網址悄悄改成另一個。頭尾的空白照樣去掉。"""
+    trimmed = value.strip()
+    if _WHITESPACE_RE.search(trimmed):
+        raise ValueError("連結網址中間不能有空白，請貼上完整的一個網址")
+    candidate = _strip_invisible(trimmed)
     if candidate == "":
         return ""
     if not candidate.lower().startswith(("https://", "http://")) or len(candidate) <= len("https://"):
@@ -1126,6 +1136,26 @@ class CampusFaqItemPayload(_ContentPayload):
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @model_validator(mode="after")
+    def _shown_needs_text(self) -> "CampusFaqItemPayload":
+        # 停用的題目可以只有問題（「本校不顯示」某題共用題目就是存成這樣）；
+        # 要在官網顯示的題目問題與回答都要有，不然官網會出現一題空白的回答。
+        if self.enabled and not (self.q.strip() and self.a.strip()):
+            raise ValueError("在官網顯示的題目，問題與回答都不能空白（不想顯示請改成停用）")
+        return self
+
+
+def campus_faq_blank_items(payload: dict) -> list[int]:
+    """在官網顯示、但問題或回答空白的本校題目（從 1 起算的題號）。存檔時
+    CampusFaqItemPayload 已經擋下；這裡給發布前檢查用，擋住規則收緊前存的草稿。"""
+    return [
+        index
+        for index, item in enumerate(payload.get("items", []) or [], start=1)
+        if isinstance(item, dict)
+        and item.get("enabled", True)
+        and not (str(item.get("q") or "").strip() and str(item.get("a") or "").strip())
+    ]
 
 
 FAQ_SHARED_POSITIONS = ("before", "after")

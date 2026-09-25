@@ -24,6 +24,7 @@ from app.content.schemas import (
     SiteFooterPayload,
     SharedFaqPayload,
     SiteMetaPayload,
+    campus_faq_blank_items,
     is_scheduled_visible,
 )
 
@@ -233,12 +234,43 @@ def _public_shared_faq(payload: dict, today: str) -> dict:
 
 def _public_campus_faq(payload: dict, today: str) -> dict:
     """停用的本校題目只留問題文字與 enabled=False：官網靠它把同一題的共用
-    題目藏起來（見 CampusFaqPayload），回答不必讓訪客拿到。"""
+    題目藏起來（見 CampusFaqPayload），回答不必讓訪客拿到。跟共用題目無關的
+    停用題連問題也不該輸出，要對照共用題目才知道，由 service.get_public_content
+    讀完整份內容後再用 drop_unshared_faq_markers 拿掉。"""
     items = [
         item if item.get("enabled", True) else {"q": item.get("q", ""), "a": "", "enabled": False}
         for item in payload.get("items", [])
     ]
     return {**payload, "items": items}
+
+
+def drop_unshared_faq_markers(campus_key: str, payload: dict, shared: dict | None) -> dict:
+    """公開的各校常見問題只保留「藏住某題共用題目」的停用題：問題文字要跟
+    官網上這一校看得到的共用題目（已過 _public_shared_faq，只剩啟用的）完全
+    相同才留，其他停用題整題不輸出——園方停用就是從官網拿掉，問題文字也不該
+    還能從 /public/site 讀到。比對規則同官網 mergeCampusFaq（去頭尾空白）。"""
+    shared_questions = {
+        str(item.get("q") or "").strip()
+        for item in (shared or {}).get("items", []) or []
+        if isinstance(item, dict)
+        and (item.get("scope") != "campus" or campus_key in (item.get("campus_keys") or []))
+    }
+    items = [
+        item
+        for item in payload.get("items", []) or []
+        if not isinstance(item, dict)
+        or item.get("enabled", True)
+        or str(item.get("q") or "").strip() in shared_questions
+    ]
+    return {**payload, "items": items}
+
+
+def _campus_faq_publish_blocker(payload: dict) -> str | None:
+    blank = campus_faq_blank_items(payload)
+    if blank:
+        numbers = "、".join(str(n) for n in blank)
+        return f"第 {numbers} 題設為在官網顯示，但問題或回答是空白，請補上回答或改成停用再發布"
+    return None
 
 
 @dataclass(frozen=True)
@@ -304,7 +336,12 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "campus_profile": ContentKindConfig(
         CampusProfilePayload, shared_only=False, extract_media_refs=_extract_campus_profile_media_refs
     ),
-    "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False, public_view=_public_campus_faq),
+    "campus_faq": ContentKindConfig(
+        CampusFaqPayload,
+        shared_only=False,
+        publish_blocker=_campus_faq_publish_blocker,
+        public_view=_public_campus_faq,
+    ),
     # 各校自己的消息與活動（分校人員只編本校），官網和 home_news 合併顯示。
     "campus_news": ContentKindConfig(
         CampusNewsPayload,

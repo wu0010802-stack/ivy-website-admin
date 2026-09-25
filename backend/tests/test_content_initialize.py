@@ -95,6 +95,12 @@ async def test_existing_sites_adopt_shared_faq_only_where_untouched(db_session):
     _, content = await service.get_public_content(db_session)
 
     assert len(content["shared_faq"]["items"]) == 3
+    # 崇德的草稿拿掉了第 4 題，那題共用題目先不給崇德（草稿發布後才不會又冒出來）；
+    # 明華只改了回答，問題文字都還在，照常適用。
+    assert all(
+        item["scope"] == "campus" and item["campus_keys"] == ["yihua", "minghua", "international", "renwu"]
+        for item in content["shared_faq"]["items"]
+    )
     assert [i["q"] for i in content["campus_faq"]["yihua"]["items"]] == [original["yihua"][2]["q"]]
     assert [i["q"] for i in content["campus_faq"]["renwu"]["items"]] == [original["renwu"][2]["q"]]
     # 改過的明華與有草稿的崇德原樣保留。
@@ -106,3 +112,79 @@ async def test_existing_sites_adopt_shared_faq_only_where_untouched(db_session):
     # 共用題目已經有了，重跑不再動任何校區。
     assert await faq_adoption_candidates(db_session, data) == []
     assert await initialize_content(db_session, data) == 0
+
+
+def _merged_questions(campus_key: str, content: dict) -> list[str]:
+    """跟官網 content-overlay.ts 的 mergeCampusFaq 同一套規則，只取問題文字。"""
+    faq = content["campus_faq"][campus_key]
+    own = faq["items"]
+    own_qs = {item["q"].strip() for item in own}
+    shared = [] if faq.get("include_shared") is False else [
+        item["q"] for item in content.get("shared_faq", {}).get("items", [])
+        if item.get("enabled", True)
+        and (item.get("scope") != "campus" or campus_key in item.get("campus_keys", []))
+        and item["q"].strip() not in own_qs
+    ]
+    shown = [item["q"] for item in own if item.get("enabled", True)]
+    return shown + shared if faq.get("shared_position") == "after" else shared + shown
+
+
+@pytest.mark.asyncio
+async def test_campus_that_reworded_a_shared_question_does_not_get_duplicates(db_session):
+    """園方改過共用那幾題的問題文字（標點、用字）：官網只認文字完全相同的同一題，
+    補建共用題目後不能讓那一校同時出現本校版與共用版。共用題目先不給那一校，
+    其他校照常改用共用題目；CLI 會列出缺哪幾題原文。"""
+    from app.content.initialize import faq_initialization_plan, initialize_content
+
+    data = json.loads(FIXTURE.read_text())
+    original = {c["key"]: c["faq"]["items"] for c in data["campuses"]}
+    for key, items in original.items():
+        item = await service.get_or_create_content_item(db_session, "campus_faq", key)
+        revision = await service.create_revision(db_session, item, {"items": items}, 0, None)
+        await service.publish_revision(db_session, item, revision, None)
+    reworded = [dict(item) for item in original["minghua"]]
+    reworded[0]["q"] = reworded[0]["q"].rstrip("？?") + "呢？"
+    item = await service.get_or_create_content_item(db_session, "campus_faq", "minghua")
+    revision = await service.create_revision(db_session, item, {"items": reworded}, 1, None)
+    await service.publish_revision(db_session, item, revision, None)
+    await db_session.commit()
+
+    plan = await faq_initialization_plan(db_session, data)
+    assert plan.adopt == ["yihua", "chongde", "international", "renwu"]
+    assert plan.held_back == {"minghua": [original["minghua"][0]["q"]]}
+
+    await initialize_content(db_session, data)
+    await db_session.commit()
+    _, content = await service.get_public_content(db_session)
+    minghua = _merged_questions("minghua", content)
+    assert minghua == [item["q"] for item in reworded]
+    for key in ("yihua", "chongde", "international", "renwu"):
+        assert sorted(_merged_questions(key, content)) == sorted(item["q"] for item in original[key])
+
+
+@pytest.mark.asyncio
+async def test_all_campuses_reworded_creates_shared_faq_disabled(db_session):
+    """五校都改過：共用題目整批建成停用，官網每一校都維持原樣。"""
+    from app.content.initialize import faq_initialization_plan, initialize_content
+
+    data = json.loads(FIXTURE.read_text())
+    for campus in data["campuses"]:
+        items = [dict(item) for item in campus["faq"]["items"]]
+        items[1]["q"] = items[1]["q"] + " "  # 只差空白算同一題，不擋
+        items[3]["q"] = "（改寫）" + items[3]["q"]
+        item = await service.get_or_create_content_item(db_session, "campus_faq", campus["key"])
+        revision = await service.create_revision(db_session, item, {"items": items}, 0, None)
+        await service.publish_revision(db_session, item, revision, None)
+    await db_session.commit()
+
+    plan = await faq_initialization_plan(db_session, data)
+    assert plan.adopt == []
+    assert set(plan.held_back) == {c["key"] for c in data["campuses"]}
+    assert all(questions == [data["campuses"][0]["faq"]["items"][3]["q"]] for questions in plan.held_back.values())
+
+    await initialize_content(db_session, data)
+    await db_session.commit()
+    _, content = await service.get_public_content(db_session)
+    assert content["shared_faq"]["items"] == []
+    for campus in data["campuses"]:
+        assert len(_merged_questions(campus["key"], content)) == len(campus["faq"]["items"])

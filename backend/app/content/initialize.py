@@ -139,47 +139,116 @@ async def pending_initialization(db: AsyncSession, data: dict) -> list[tuple[str
     return pending
 
 
-async def faq_adoption_candidates(db: AsyncSession, data: dict) -> list[str]:
-    """已經初始化過的環境（共用題目是後來才有的）：這次補建共用題目時，哪幾校
-    的常見問題可以一起改用共用題目。只挑「官網上的版本就是原型匯入的那份、
-    之後沒有任何新版本」的校區；園方改過或有草稿的一律不動（官網遇到同一題
-    會顯示本校的版本，不會重複）。"""
+@dataclass
+class FaqPlan:
+    """補建全站共用題目時各校常見問題的處理方式（見 faq_initialization_plan）。"""
+
+    # 官網上還是原型匯入的版本：拿掉搬進共用的那幾題，改用共用題目。
+    adopt: list[str] = dataclass_field(default_factory=list)
+    # 園方改過（或有草稿）、本校題目裡沒有某幾題共用題目原文的校區 → 那幾題的
+    # 問題文字。共用題目先不給這幾校，免得改寫過的同一題在分校頁出現兩次。
+    held_back: dict[str, list[str]] = dataclass_field(default_factory=dict)
+
+
+def _new_shared_questions(payload: dict, shared_questions: list[str]) -> list[str]:
+    """這一版本校常見問題如果顯示共用題目，會多出哪幾題（官網 mergeCampusFaq
+    只用問題文字完全相同來判斷本校有沒有同一題，改過標點或用字就對不上）。"""
+    if payload.get("include_shared", True) is False:
+        return []
+    own = {str(item.get("q") or "").strip() for item in payload.get("items", []) or [] if isinstance(item, dict)}
+    return [q for q in shared_questions if q.strip() not in own]
+
+
+async def _latest_revision(db: AsyncSession, item: ContentItem) -> ContentRevision | None:
+    result = await db.execute(
+        select(ContentRevision).where(
+            ContentRevision.content_item_id == item.id, ContentRevision.version == item.latest_version
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def faq_initialization_plan(db: AsyncSession, data: dict) -> FaqPlan:
+    """已經初始化過的環境（共用題目是後來才有的）：這次補建共用題目時，各校的
+    常見問題怎麼處理。
+
+    - 「官網上的版本就是原型匯入的那份、之後沒有任何新版本」的校區改用共用題目
+      （adopt）。
+    - 其他有版本的校區一律不動；其中本校題目（已發布版或最新草稿）裡缺了某幾題
+      共用題目原文、又顯示共用題目的（held_back），共用題目先不適用這幾校：園方
+      可能改過那題的標點或用字，官網比對不到同一題就會兩個版本都顯示。
+    - 還沒有任何版本的校區照原型建立，本校題目＋共用題目＝原本的題目，不受影響。
+    共用題目已經有版本時什麼都不做。"""
     shared_item = await _existing_item(db, "shared_faq", None)
     if shared_item is not None and shared_item.latest_version > 0:
-        return []
-    candidates = []
+        return FaqPlan()
+    shared_questions = [item["q"] for item in shared_faq_source(data)]
+    plan = FaqPlan()
     for campus in data["campuses"]:
         item = await _existing_item(db, "campus_faq", campus["key"])
-        if item is None or item.latest_version == 0 or item.current_published_revision_id is None:
+        if item is None or item.latest_version == 0:
             continue
-        published = await db.get(ContentRevision, item.current_published_revision_id)
-        if published is None or published.version != item.latest_version:
-            continue
-        items = published.payload.get("items", [])
-        untouched = (
-            _qa(items) == _qa(campus["faq"]["items"])
-            and all(i.get("enabled", True) for i in items)
-            and published.payload.get("include_shared", True)
-            and published.payload.get("shared_position", "before") == "before"
+        published = (
+            await db.get(ContentRevision, item.current_published_revision_id)
+            if item.current_published_revision_id is not None
+            else None
         )
-        if untouched:
-            candidates.append(campus["key"])
-    return candidates
+        if published is not None and published.version == item.latest_version:
+            items = published.payload.get("items", [])
+            untouched = (
+                _qa(items) == _qa(campus["faq"]["items"])
+                and all(i.get("enabled", True) for i in items)
+                and published.payload.get("include_shared", True)
+                and published.payload.get("shared_position", "before") == "before"
+            )
+            if untouched:
+                plan.adopt.append(campus["key"])
+                continue
+        missing: list[str] = []
+        for revision in (published, await _latest_revision(db, item)):
+            if revision is None:
+                continue
+            for q in _new_shared_questions(revision.payload, shared_questions):
+                if q not in missing:
+                    missing.append(q)
+        if missing:
+            plan.held_back[campus["key"]] = missing
+    return plan
+
+
+async def faq_adoption_candidates(db: AsyncSession, data: dict) -> list[str]:
+    """補建共用題目時可以一起改用共用題目的校區（faq_initialization_plan 的 adopt）。"""
+    return (await faq_initialization_plan(db, data)).adopt
+
+
+def _hold_back_shared_faq(payload: dict, held_back: dict[str, list[str]], data: dict) -> dict:
+    """共用題目先不給 held_back 的校區：適用範圍改成其他校；五校都要擋時整批
+    建成停用，等總部確認後再到後台打開。"""
+    if not held_back:
+        return payload
+    allowed = [campus["key"] for campus in data["campuses"] if campus["key"] not in held_back]
+    if allowed:
+        items = [{**item, "scope": "campus", "campus_keys": allowed} for item in payload["items"]]
+    else:
+        items = [{**item, "enabled": False} for item in payload["items"]]
+    return CONTENT_KIND_REGISTRY["shared_faq"].payload_model.model_validate({"items": items}).model_dump()
 
 
 async def initialize_content(
     db: AsyncSession, data: dict, created_by: uuid.UUID | None = None
 ) -> int:
-    adopt = await faq_adoption_candidates(db, data)
+    plan = await faq_initialization_plan(db, data)
     created = 0
     for kind, campus, payload in initial_payloads(data):
         item = await service.get_or_create_content_item(db, kind, campus)
         if item.latest_version != 0:
-            if kind == "campus_faq" and campus in adopt:
+            if kind == "campus_faq" and campus in plan.adopt:
                 # 未改過的原型常見問題：拿掉已搬到共用題目的那幾題（新版本並發布）。
                 revision = await service.create_revision(db, item, payload, item.latest_version, created_by)
                 await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)
             continue
+        if kind == "shared_faq":
+            payload = _hold_back_shared_faq(payload, plan.held_back, data)
         revision = await service.create_revision(db, item, payload, 0, created_by)
         await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)
         created += 1

@@ -2,6 +2,7 @@
 與全站共用常見問題（shared_faq）的欄位規則與權限。"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -129,6 +130,7 @@ def test_body_accepts_the_five_block_types():
         {"type": "link", "label": "寫信", "url": "mailto:a@example.com"},
         {"type": "link", "label": "報名", "url": "example.com/form"},
         {"type": "link", "label": "", "url": "https://example.com"},
+        {"type": "link", "label": "報名", "url": "https://example.com/a b"},
     ],
 )
 def test_body_rejects_unsafe_or_unknown_blocks(block):
@@ -196,6 +198,17 @@ def test_event_time_location_and_link():
 def test_event_rejects_bad_times_and_links(overrides):
     with pytest.raises(ValidationError):
         NewsEventPayload.model_validate(_event(**overrides))
+
+
+@pytest.mark.parametrize("url", ["https://a b", "https://example.com/a\u3000b", "https://example.com/\u00a0x", "https://a\tb"])
+def test_event_link_with_inner_whitespace_is_rejected(url):
+    """官網 safeWebUrl 與後台 webUrlInvalid 都用 ^https?://\\S+$：後端放行的話
+    後台存得進去，官網卻默默不顯示連結（半形空白以前還會被悄悄刪掉、變成另一個網址）。"""
+    with pytest.raises(ValidationError, match="不能有空白"):
+        NewsEventPayload.model_validate(_event(link_url=url))
+    # 頭尾的空白（含全形）照樣去掉，不算錯。
+    event = NewsEventPayload.model_validate(_event(link_url="\u3000https://example.com/signup \n"))
+    assert event.link_url == "https://example.com/signup"
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +314,36 @@ def test_faq_rules():
         CampusFaqPayload.model_validate({"items": [{"q": "問", "a": "答"}] * 21})
 
 
+def test_campus_faq_shown_items_need_question_and_answer():
+    """「本校不顯示」產生的是只有問題的停用題；之後切回顯示卻沒寫回答，官網就會
+    出現一題空白的回答，所以顯示中的題目問題與回答都要有。"""
+    hidden = CampusFaqPayload.model_validate({"items": [{"q": "要帶什麼？", "a": "", "enabled": False}]})
+    assert hidden.items[0].enabled is False
+    for item in ({"q": "要帶什麼？", "a": ""}, {"q": "要帶什麼？", "a": "  "}, {"q": " ", "a": "水壺"}):
+        with pytest.raises(ValidationError, match="問題與回答都不能空白"):
+            CampusFaqPayload.model_validate({"items": [item]})
+
+
+@pytest.mark.asyncio
+async def test_campus_faq_with_blank_shown_item_cannot_be_published(db_session, admin_client):
+    """規則收緊前存下的草稿（顯示中卻沒有回答）發布時擋下，不讓空白回答上官網。"""
+    from app.content import service
+
+    item = await service.get_or_create_content_item(db_session, "campus_faq", "yihua")
+    revision = await service.create_revision(
+        db_session, item,
+        {"items": [{"q": "有校車嗎？", "a": "有", "enabled": True}, {"q": "要帶什麼？", "a": "", "enabled": True}]},
+        0, None,
+    )
+    await db_session.commit()
+    response = await admin_client.post(
+        f"{API}/campus_faq/publish?campus_key=yihua", json={"revision_id": str(revision.id)}
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "CONTENT_NOT_READY"
+    assert "第 2 題" in response.json()["detail"]["message"]
+
+
 @pytest.mark.asyncio
 async def test_shared_faq_is_shared_only_and_public_hides_disabled(admin_client, minghua_client, public_client):
     shared = {"items": [
@@ -316,6 +359,9 @@ async def test_shared_faq_is_shared_only_and_public_hides_disabled(admin_client,
         "items": [
             {"q": "明華的題目", "a": "明華的回答"},
             {"q": "要帶什麼？", "a": "明華不顯示這題", "enabled": False},
+            {"q": "明華停用的私房題", "a": "不該出現", "enabled": False},
+            # 跟停用的共用題目同一題：共用那題官網本來就不顯示，不必留記號。
+            {"q": "停用的題目", "a": "", "enabled": False},
         ],
         "shared_position": "after",
     }, "minghua")
@@ -324,5 +370,27 @@ async def test_shared_faq_is_shared_only_and_public_hides_disabled(admin_client,
     assert [item["id"] for item in content["shared_faq"]["items"]] == ["f1"]
     minghua = content["campus_faq"]["minghua"]
     assert minghua["shared_position"] == "after"
-    # 停用的本校題目只留問題文字（官網用來藏同一題的共用題目），回答不輸出。
-    assert minghua["items"][1] == {"q": "要帶什麼？", "a": "", "enabled": False}
+    # 停用的本校題目只在藏住同一題共用題目時留下問題文字（官網靠它藏那一題），
+    # 回答不輸出；跟共用題目無關的停用題整題不輸出。
+    assert minghua["items"] == [
+        {"q": "明華的題目", "a": "明華的回答", "enabled": True},
+        {"q": "要帶什麼？", "a": "", "enabled": False},
+    ]
+    assert "明華停用的私房題" not in json.dumps(content, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_public_faq_marker_needs_shared_question_for_that_campus(admin_client, public_client):
+    """共用題目只給別校時，本校同一題的停用記號也不輸出；還沒有共用題目時全部不輸出。"""
+    await _save_and_publish(admin_client, "campus_faq", {
+        "items": [{"q": "有校車嗎？", "a": "", "enabled": False}, {"q": "要帶什麼？", "a": "", "enabled": False}],
+    }, "yihua")
+    content = (await public_client.get("/api/website/v1/public/site")).json()["content"]
+    assert content["campus_faq"]["yihua"]["items"] == []
+
+    await _save_and_publish(admin_client, "shared_faq", {"items": [
+        {"id": "f1", "q": "要帶什麼？", "a": "水壺"},
+        {"id": "f2", "q": "有校車嗎？", "a": "仁武有", "scope": "campus", "campus_keys": ["renwu"]},
+    ]})
+    content = (await public_client.get("/api/website/v1/public/site")).json()["content"]
+    assert content["campus_faq"]["yihua"]["items"] == [{"q": "要帶什麼？", "a": "", "enabled": False}]

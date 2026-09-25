@@ -125,30 +125,44 @@ async def content_seed_from_fixture(fixture_path: str, *, force: bool, dry_run: 
 
 async def initialize_content_command(fixture_path: str, *, dry_run: bool) -> None:
     """驗證所有 payload 後，只補還沒有任何版本的內容項並發布；dry-run 列出會補哪些。"""
-    from app.content.initialize import faq_adoption_candidates, initialize_content, pending_initialization
+    from app.content.initialize import faq_initialization_plan, initialize_content, pending_initialization
 
     data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
     factory = await _session_factory()
     async with factory() as db:
-        adopt = await faq_adoption_candidates(db, data)
+        plan = await faq_initialization_plan(db, data)
         adopt_note = (
-            f"{'、'.join(adopt)} 的常見問題還是原型匯入的版本，改用全站共用題目"
+            f"{'、'.join(plan.adopt)} 的常見問題還是原型匯入的版本，改用全站共用題目"
             "（拿掉搬進共用的那幾題並發布；題目內容不變，共用題目排在本校題目之前）。"
         )
+        # 園方改過常見問題的校區：共用題目先不給，列出缺哪幾題原文讓總部確認。
+        held_back_note = [
+            "注意：以下校區的常見問題園方改過（或有還沒發布的草稿），本校題目裡沒有這幾題共用題目的原文。"
+            "官網只認問題文字完全相同的同一題，直接套用會讓改寫過的題目在分校頁出現兩次，"
+            "所以共用題目先不適用這幾校"
+            + ("（共用題目的適用範圍只列其他校）" if len(plan.held_back) < len(data["campuses"]) else "（五校都改過，共用題目先建成停用）")
+            + "。確認本校題目沒有重複後，到後台「共用常見問題」把適用範圍改回全校（或啟用），"
+            "重複的題目在「各校常見問題」停用或刪除：",
+            *(f"  - {key}：{'、'.join(f'「{q}」' for q in questions)}" for key, questions in plan.held_back.items()),
+        ]
         if dry_run:
             pending = await pending_initialization(db, data)
             await db.rollback()
             print(f"dry-run：欄位驗證通過，會初始化並發布 {len(pending)} 筆內容（未寫入）。")
             for kind, campus in pending:
                 print(f"  - {kind}{f'（{campus}）' if campus else ''}")
-            if adopt:
+            if plan.adopt:
                 print(f"另外：{adopt_note}")
+            if plan.held_back:
+                print("\n".join(held_back_note))
             return
         count = await initialize_content(db, data)
         await db.commit()
         print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
-        if adopt:
+        if plan.adopt:
             print(f"另外：{adopt_note}")
+        if plan.held_back:
+            print("\n".join(held_back_note))
 
 
 async def process_notifications_once() -> None:

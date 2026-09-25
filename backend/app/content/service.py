@@ -16,7 +16,7 @@ from app.content.models import (
 )
 from app.campuses.models import CAMPUS_NAMES, Campus
 from app.common.timezones import today_local
-from app.content.registry import CONTENT_KIND_REGISTRY, schema_version_of
+from app.content.registry import CONTENT_KIND_REGISTRY, drop_unshared_faq_markers, schema_version_of
 
 
 class VersionConflict(Exception):
@@ -326,6 +326,13 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
             content.setdefault(item.kind, {})[item.campus_key] = payload
         else:
             content[item.kind] = payload
+    if "campus_faq" in content:
+        # 停用的本校題目只在藏住同一題共用題目時才需要輸出問題文字，要等共用
+        # 題目也讀進來才能比對（見 registry.drop_unshared_faq_markers）。
+        content["campus_faq"] = {
+            campus_key: drop_unshared_faq_markers(campus_key, payload, content.get("shared_faq"))
+            for campus_key, payload in content["campus_faq"].items()
+        }
     return str(state.current_release_id), content
 
 
