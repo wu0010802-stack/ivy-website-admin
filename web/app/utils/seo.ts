@@ -1,4 +1,4 @@
-import type { Campus, SiteContent } from '../types/site-content'
+import type { Campus, SiteContent, SiteMetaContent } from '../types/site-content'
 
 /** 固定部署 origin；不從不可信 Host 或 CMS 文字組 canonical。 */
 export function normalizeSiteOrigin(value: string): string {
@@ -106,6 +106,33 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
   }
   return { title, description, canonical, image, imagePath, imageAlt: campus ? `${campus.name}校園外觀` : share.alt, graph }
 }
+
+/**
+ * 搜尋引擎可以收錄官網的條件（各頁 robots meta、robots.txt、sitemap.xml、
+ * llms.txt 共用）：部署開啟正式索引（NUXT_PUBLIC_INDEXING_ENABLED）、有正式
+ * 網址，而且已發布的「網站標題與電話」沒有關掉收錄。後台只能收緊、不能
+ * 在部署沒開時強制打開。
+ */
+export function crawlerIndexable(indexingEnabled: boolean, origin: string, siteMeta: Pick<SiteMetaContent, 'allowIndexing'> | undefined): boolean {
+  return indexingEnabled && Boolean(origin) && siteMeta?.allowIndexing !== false
+}
+
+export function robotsTxt(origin: string, indexable: boolean): string {
+  // 不能收錄時全站擋爬蟲，避免草稿階段或後台關閉收錄時被搜尋引擎收進去。
+  if (!indexable || !origin) return 'User-agent: *\nDisallow: /\n'
+  return [
+    'User-agent: *',
+    'Disallow: /admin',
+    'Disallow: /preview',
+    'Disallow: /visit',
+    'Disallow: /api/',
+    `Sitemap: ${origin}/sitemap.xml`,
+    ''
+  ].join('\n')
+}
+
+/** 不能收錄時回的 sitemap：合法但沒有任何網址。 */
+export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
 export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

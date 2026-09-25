@@ -98,7 +98,7 @@ async function submitReschedule() {
 <template>
   <div>
     <SiteHeader v-if="data" :content="data.content" />
-    <main id="main" class="parent-visit" tabindex="-1">
+    <main id="main" class="parent-visit" tabindex="-1" data-cta-entry="visit_manage">
       <div class="parent-visit-shell">
         <NuxtLink class="text-link" to="/">回官網首頁</NuxtLink>
         <header class="parent-visit-heading">

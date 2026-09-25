@@ -227,6 +227,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
   <header
     ref="headerRef"
     class="header"
+    data-cta-entry="header"
     :class="{ 'is-scrolled': isScrolled, 'is-pill-nav': usePanel, 'is-booking': isBookingPage }"
     :data-state="usePanel ? headerState : undefined"
     :data-menu="isMenuOpen ? 'open' : 'closed'"
@@ -316,6 +317,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
     <div
       ref="panelRef"
       class="menu-panel"
+      data-cta-entry="menu"
       id="menu-panel"
       :class="{ 'is-open': isPanelAnimating }"
       :hidden="!isPanelVisible"

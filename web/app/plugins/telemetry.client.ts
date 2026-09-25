@@ -1,9 +1,10 @@
-import { campusKeys, publicPage, type TelemetryEvent } from '../../shared/telemetry'
+import { publicPage, type TelemetryEvent } from '../../shared/telemetry'
+import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
 
 export default defineNuxtPlugin((app) => {
   const config = useRuntimeConfig()
   const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
-  if (!config.public.telemetryEnabled || navigator.doNotTrack === '1' || nav.globalPrivacyControl) return
+  if (!trackingAllowed(config.public.telemetryEnabled, nav)) return
   const device = matchMedia('(max-width: 760px)').matches ? 'mobile' as const : 'desktop' as const
   const entryPage = publicPage(location.pathname)
   function send(event: Omit<TelemetryEvent, 'device'>) {
@@ -31,21 +32,21 @@ export default defineNuxtPlugin((app) => {
       onLCP(report); onINP(report); onCLS(report)
     }).catch(() => {})
     document.addEventListener('click', (event) => {
-      if (!publicPage(location.pathname)) return
       const anchor = event.target instanceof Element ? event.target.closest('a') : null
       if (!anchor) return
       const target = new URL(anchor.href, location.origin)
       const destination = target.origin === location.origin ? publicPage(target.pathname) : null
-      if (destination?.page === 'visit') send({ event: 'visit_click', ...destination })
+      if (publicPage(location.pathname) && destination?.page === 'visit') send({ event: 'visit_click', ...destination })
+      if (!tracksClicks(location.pathname)) return
       if (anchor.hasAttribute('data-booking-cta')) return // BookingCta 已回報，避免重複。
+      const entry = ctaEntryOf(anchor)
+      // 往官網預約表單的按鈕（頁首、五校卡、分校頁、BookingCta 的表單模式）。
+      const booking = bookingCtaCampus(target, location.origin, location.pathname)
+      if (booking) return sendCtaEvent(ctaEvent('booking_cta_clicked', booking.campus, entry))
       const campus = anchor.closest<HTMLElement>('[data-campus-key]')?.dataset.campusKey
-      if (!campusKeys.some((key) => key === campus)) return
-      const kind = target.protocol === 'tel:' ? 'cta_click_phone'
-        : ['lin.ee', 'line.me'].includes(target.hostname) ? 'cta_click_line' : null
-      if (kind) void fetch('/api/website/v1/public/analytics-events', {
-        method: 'POST', credentials: 'omit', keepalive: true, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_type: kind, campus_key: campus })
-      }).catch(() => {})
+      if (!isCampusKey(campus)) return
+      const kind = contactClickKind(target)
+      if (kind) sendCtaEvent(ctaEvent(kind, campus, entry))
     })
   })
 })

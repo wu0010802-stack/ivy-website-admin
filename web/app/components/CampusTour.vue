@@ -193,7 +193,7 @@ watch(
 </script>
 
 <template>
-  <section class="section tour-section" id="environment" aria-labelledby="tour-heading">
+  <section class="section tour-section" id="environment" aria-labelledby="tour-heading" data-cta-entry="campus_tour">
     <div class="container">
       <div class="section-heading">
         <div>
@@ -325,7 +325,7 @@ watch(
                 <p class="tour-photo-credit">{{ campus.name }} · 官方實景照片</p>
               </div>
             </div>
-            <div class="tour-footnote">
+            <div class="tour-footnote" data-cta-entry="campus_tour">
               <span>照片取自校區官方網站，實際環境請以到園參觀為準。</span>
               <NuxtLink :to="`/visit/${campus.key}`">預約參觀{{ campus.name }}</NuxtLink>
             </div>

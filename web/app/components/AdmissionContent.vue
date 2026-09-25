@@ -71,7 +71,7 @@ function flip(index: number, toBack: boolean) {
 </script>
 
 <template>
-  <main id="main" tabindex="-1" class="adm">
+  <main id="main" tabindex="-1" class="adm" data-cta-entry="admission">
     <section class="adm-hero photo-hero" aria-labelledby="admission-title">
       <img class="adm-hero-photo" v-bind="responsiveImage(ADMISSION_HERO_IMAGE)" alt="孩子早上到校，和老師打招呼" loading="eager" fetchpriority="high">
       <div class="adm-hero-shade" aria-hidden="true" />

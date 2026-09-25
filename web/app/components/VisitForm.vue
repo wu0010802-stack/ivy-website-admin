@@ -289,7 +289,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <section class="visit-page" :data-campus-key="form.campus" :data-step="submitted ? 'result' : step">
+  <section class="visit-page" data-cta-entry="visit_page" :data-campus-key="form.campus" :data-step="submitted ? 'result' : step">
     <div v-if="isPicking" class="visit-ghost" aria-hidden="true"><span>預約</span><span>參觀</span></div>
     <header class="visit-welcome">
       <div class="container visit-welcome-inner">

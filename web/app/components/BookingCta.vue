@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { resolveBookingAction } from '~/utils/booking-action'
 import type { BookingActionKind } from '~/utils/booking-action'
+import { ctaEntryOf, ctaEvent, sendCtaEvent, trackingAllowed, type CtaEventType } from '~/utils/cta-analytics'
 
 const runtimeConfig = useRuntimeConfig()
 
@@ -17,23 +18,18 @@ const displayLabel = computed(() => props.label ?? action.value.label)
 
 // 點擊只回報去識別化的計數，不代表「已預約」——LINE/電話/外部網址
 // 點擊都不算成功預約，這裡也不會因為點擊就自動建案。失敗就安靜略過，
-// 不影響使用者原本要做的事（跳去 LINE／撥號／開外部網站）。
-function trackClick(kind: BookingActionKind) {
-  const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
-  if (!runtimeConfig.public.telemetryEnabled || nav.doNotTrack === '1' || nav.globalPrivacyControl) return
-  const eventMap: Partial<Record<BookingActionKind, string>> = {
+// 不影響使用者原本要做的事（跳去 LINE／撥號／開外部網站）。表單模式是
+// 站內連結，由 plugins/telemetry.client.ts 統一記 booking_cta_clicked。
+function trackClick(kind: BookingActionKind, event: MouseEvent) {
+  if (!trackingAllowed(runtimeConfig.public.telemetryEnabled, navigator)) return
+  const eventMap: Partial<Record<BookingActionKind, CtaEventType>> = {
     line: 'cta_click_line',
     phone: 'cta_click_phone',
     external: 'cta_click_external'
   }
   const eventType = eventMap[kind]
   if (!eventType) return
-  $fetch('/api/website/v1/public/analytics-events', {
-    keepalive: true,
-    credentials: 'omit',
-    method: 'POST',
-    body: { event_type: eventType, campus_key: props.campusKey }
-  }).catch(() => {})
+  sendCtaEvent(ctaEvent(eventType, props.campusKey, ctaEntryOf(event.currentTarget as Element | null)))
 }
 </script>
 
@@ -59,7 +55,7 @@ function trackClick(kind: BookingActionKind) {
     :href="action.href"
     target="_blank"
     rel="noopener noreferrer"
-    @click="trackClick(action.kind)"
+    @click="trackClick(action.kind, $event)"
   >
     <slot>{{ displayLabel }}</slot>
   </a>
@@ -68,7 +64,7 @@ function trackClick(kind: BookingActionKind) {
     v-else-if="!pending && action.kind === 'phone' && action.href"
     :class="buttonClass"
     :href="action.href"
-    @click="trackClick(action.kind)"
+    @click="trackClick(action.kind, $event)"
   >
     <slot>{{ displayLabel }}</slot>
   </a>

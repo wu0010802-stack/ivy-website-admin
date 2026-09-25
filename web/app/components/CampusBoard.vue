@@ -173,7 +173,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 
 <template>
   <section
-    v-if="current" id="campuses" ref="root" class="campus-panorama campus-gallery"
+    v-if="current" id="campuses" ref="root" class="campus-panorama campus-gallery" data-cta-entry="home_campus_board"
     aria-roledescription="輪播" aria-labelledby="campuses-heading"
     :data-campus="current.key" :data-campus-key="current.key" :data-playing="playing"
     @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"

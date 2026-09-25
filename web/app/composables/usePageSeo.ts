@@ -1,5 +1,5 @@
 import type { Campus, SiteContent } from '~/types/site-content'
-import { admissionSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
+import { admissionSeo, crawlerIndexable, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
 import { ADMISSION_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
 import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 
@@ -7,7 +7,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
   const config = useRuntimeConfig()
   const origin = normalizeSiteOrigin(config.public.siteOrigin)
   // 後台「允許搜尋引擎收錄」只能收緊：部署沒開索引時一律 noindex。
-  const indexable = computed(() => config.public.indexingEnabled && Boolean(origin) && site.value?.siteMeta.allowIndexing !== false)
+  const indexable = computed(() => crawlerIndexable(config.public.indexingEnabled, origin, site.value?.siteMeta))
   const seo = computed(() => {
     if (!site.value) return undefined
     return page === 'admission' ? admissionSeo(site.value, origin) : pageSeo(site.value, origin, campus?.value)

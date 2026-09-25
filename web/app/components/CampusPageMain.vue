@@ -13,7 +13,7 @@ defineProps<{ campus: Campus }>()
     <div class="container breadcrumb">
       <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五所校園</a> / {{ campus.name }}
     </div>
-    <section class="hero campus-hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
+    <section class="hero campus-hero" data-cta-entry="campus_hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
       <img class="hero-photo" v-bind="campusHeroAttrs(campus)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
       <div class="hero-shade" />
       <div class="container">
@@ -35,7 +35,7 @@ defineProps<{ campus: Campus }>()
           <p class="section-copy">{{ campus.description }}</p>
           <p class="section-copy">不急著做決定，先從一次親自走訪開始。帶著你想了解的事情，看看這裡是否適合孩子。</p>
         </div>
-        <div class="contact-panel">
+        <div class="contact-panel" data-cta-entry="campus_info">
           <h3>來認識{{ campus.name }}</h3>
           <dl>
             <div><dt>所在地</dt><dd>{{ campus.address }}</dd></div>
@@ -68,7 +68,7 @@ defineProps<{ campus: Campus }>()
       </div>
     </section>
 
-    <section class="section campuses" id="contact">
+    <section class="section campuses" id="contact" data-cta-entry="campus_contact">
       <div class="container detail-grid">
         <div class="contact-location">
           <span class="eyebrow">交通與聯絡</span>
@@ -82,7 +82,7 @@ defineProps<{ campus: Campus }>()
       </div>
     </section>
 
-    <section class="visit-banner">
+    <section class="visit-banner" data-cta-entry="campus_banner">
       <div class="container">
         <div>
           <span class="eyebrow">預約參觀</span>

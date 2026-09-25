@@ -14,7 +14,7 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
 </script>
 
 <template>
-  <footer class="footer">
+  <footer class="footer" data-cta-entry="footer">
     <div class="container footer-main">
       <div class="footer-brand">
         <NuxtLink to="/" class="footer-name">
