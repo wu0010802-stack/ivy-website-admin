@@ -1,6 +1,6 @@
 import type { Campus, SiteContent } from '~/types/site-content'
 import { admissionSeo, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ADMISSION_HERO_IMAGE, CURRICULUM_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
+import { ADMISSION_HERO_IMAGE, CURRICULUM_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, pageHeroImage } from '~/utils/responsive-image'
 import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 
 export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>, page?: StaticPage) {
@@ -18,9 +18,9 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
   // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue／分校頁 hero-photo）。
   const hero = computed(() => {
     if (!site.value) return undefined
-    if (page === 'admission') return responsiveImage(ADMISSION_HERO_IMAGE)
-    if (page === 'environment') return responsiveImage(ENVIRONMENT_HERO_IMAGE)
-    if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE)
+    if (page === 'admission') return pageHeroImage(ADMISSION_HERO_IMAGE)
+    if (page === 'environment') return pageHeroImage(ENVIRONMENT_HERO_IMAGE)
+    if (page === 'curriculum') return pageHeroImage(CURRICULUM_HERO_IMAGE)
     return campus?.value ? campusHeroAttrs(campus.value) : heroImageAttrs(site.value.home.hero)
   })
   useSeoMeta({

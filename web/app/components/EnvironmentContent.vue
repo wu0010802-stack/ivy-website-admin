@@ -4,7 +4,7 @@
 // 共用 admission.css 的 adm-*（mock：design/environment-mockup-20260925/）。
 // 各項目文案是舊站原文，只修錯字與標點；區塊大標與引言是新寫的，標題字型是子集（見 CLAUDE.md「字型子集」）。
 // 菜單不抄進網站：按鈕依台北日期開到營養餐點書當月那一頁（meal-book.ts）。
-import { ENVIRONMENT_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
+import { ENVIRONMENT_HERO_IMAGE, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { mealBookLink } from '~/utils/meal-book'
 import type { Campus } from '~/types/site-content'
 
@@ -47,7 +47,7 @@ const chapters = [
 <template>
   <main id="main" tabindex="-1" class="adm env">
     <section class="adm-hero photo-hero" aria-labelledby="environment-title">
-      <img class="adm-hero-photo env-hero-photo" v-bind="responsiveImage(ENVIRONMENT_HERO_IMAGE)" alt="兩個孩子在教室裡緊緊抱在一起" loading="eager" fetchpriority="high">
+      <img class="adm-hero-photo env-hero-photo" v-bind="pageHeroImage(ENVIRONMENT_HERO_IMAGE)" alt="兩個孩子在教室裡緊緊抱在一起" loading="eager" fetchpriority="high">
       <div class="adm-hero-shade" aria-hidden="true" />
       <div class="adm-wrap adm-hero-body">
         <div class="adm-hero-copy">

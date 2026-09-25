@@ -5,7 +5,7 @@
 // 版型沿用入學資訊頁與常春藤環境頁，共用 admission.css 的 adm-*。各項目是舊站原文，只修錯字與標點；
 // 「《常春藤幼兒園》高雄獨家課程」「大推」等宣傳語拿掉（未經園方確認的說法）。區塊大標與引言是新寫的。
 // 標題字型是子集（見 CLAUDE.md「字型子集」）：大標只用子集裡有的字；課程名稱有缺字，卡片標題改用內文字型。
-import { CURRICULUM_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
+import { CURRICULUM_HERO_IMAGE, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
 
 // 班別與年齡同入學資訊頁：當年 9 月 1 日前滿幾歲（utils/admission-classes.ts）。
 const YEARS = [
@@ -44,7 +44,7 @@ const chapters = [
 <template>
   <main id="main" tabindex="-1" class="adm cur">
     <section class="adm-hero photo-hero" aria-labelledby="curriculum-title">
-      <img class="adm-hero-photo cur-hero-photo" v-bind="responsiveImage(CURRICULUM_HERO_IMAGE)" alt="孩子閉上眼睛，雙手合十靜下心來" loading="eager" fetchpriority="high">
+      <img class="adm-hero-photo cur-hero-photo" v-bind="pageHeroImage(CURRICULUM_HERO_IMAGE)" alt="孩子閉上眼睛，雙手合十靜下心來" loading="eager" fetchpriority="high">
       <div class="adm-hero-shade" aria-hidden="true" />
       <div class="adm-wrap adm-hero-body">
         <div class="adm-hero-copy">
