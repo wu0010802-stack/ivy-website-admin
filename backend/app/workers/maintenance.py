@@ -1,4 +1,5 @@
-"""API 內建的定期工作：排程發布、釋放逾期占位、處理通知 outbox、清過期限流計數。
+"""API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、處理通知
+outbox、清過期限流計數。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
 部署設定裡都沒有這個 cron——排程發布永遠不會到點上線，後台也收不到任何通知。
@@ -23,8 +24,10 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.booking import schedule_service
 from app.booking.workflow_service import expire_holds
 from app.common.ratelimit import purge_expired_counters
+from app.common.timezones import today_local
 from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
 from app.notifications.line import LineMessagingClient
@@ -41,6 +44,7 @@ class CycleResult:
     published: int = 0
     publish_failed: int = 0
     expired_holds: int = 0
+    slots_generated: int = 0
     email_configured: bool = False
     line_configured: bool = False
     notifications_sent: int = 0
@@ -55,6 +59,7 @@ class CycleResult:
                 self.published,
                 self.publish_failed,
                 self.expired_holds,
+                self.slots_generated,
                 self.notifications_sent,
                 self.notifications_failed,
                 self.rate_limit_rows_purged,
@@ -118,6 +123,26 @@ async def _run_steps(
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：釋放逾期占位失敗")
         result.failed_steps.append("expire_holds")
+
+    # 依每週規則把時段補到最遠開放天數（規格 L221-223），每校一天一次。每校
+    # 自己一個交易：某校失敗不影響其他校，下一輪會再試。
+    try:
+        async with session_factory() as db:
+            due = await schedule_service.campuses_due_for_extension(db, today_local())
+            await db.rollback()
+        for campus_key in due:
+            async with session_factory() as db:
+                try:
+                    result.slots_generated += await schedule_service.extend_from_rules(db, campus_key)
+                    await db.commit()
+                except Exception:  # noqa: BLE001
+                    await db.rollback()
+                    logger.exception("定期工作：%s 依規則補時段失敗", campus_key)
+                    if "extend_slots" not in result.failed_steps:
+                        result.failed_steps.append("extend_slots")
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：依規則補時段失敗")
+        result.failed_steps.append("extend_slots")
 
     try:
         adapter = get_email_adapter(settings.notification_email_sink_dir, settings)

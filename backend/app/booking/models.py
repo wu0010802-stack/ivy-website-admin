@@ -48,6 +48,12 @@ class BookingConfig(Base):
     版本不符代表使用者看到的設定已經過期（園方剛好改了模式）。"""
 
     __tablename__ = "booking_configs"
+    __table_args__ = (
+        CheckConstraint(
+            "parent_change_deadline_hours BETWEEN 1 AND 336",
+            name="ck_booking_configs_parent_change_deadline_hours",
+        ),
+    )
 
     campus_key: Mapped[str] = mapped_column(
         ForeignKey("campuses.key", ondelete="RESTRICT"), primary_key=True
@@ -68,6 +74,14 @@ class BookingConfig(Base):
     # 預約方式，只影響哪些時段現在列給家長看；送單時仍依當下的值重判。
     min_lead_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
     max_advance_days: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
+    # 規格 238：家長用管理連結線上取消／申請改期，最晚到參觀前幾小時。
+    # 同樣不動 version：只影響已成立的案件，不影響官網送單。
+    parent_change_deadline_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=24, server_default="24"
+    )
+    # 定期工作上次依每週規則補產生時段的台灣日期；一天只補一次。改規則、
+    # 改最遠開放天數時清成 NULL，下一輪（約一分鐘內）就依新設定補上。
+    rules_extended_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -146,12 +160,26 @@ class VisitRequest(Base):
     slot: Mapped["VisitSlot | None"] = relationship(back_populates="visit_requests")
 
 
+class SlotClosedSource(str, enum.Enum):
+    """時段為什麼是關閉的。取消休假日只重開 exception 關掉的；manual 與
+    舊資料（NULL，分不出來源）都視為園方刻意關閉，不自動打開。"""
+
+    MANUAL = "manual"
+    EXCEPTION = "exception"
+
+
 class VisitSlot(Base):
     """單次時段。可由分校管理者手動建立，或依每週規則產生。容量以占用
     名額的案件數即時計算（slot_service.occupying_condition：待確認、已確認、
     已完成、未到場），不用可變計數器，天然避免取消重試重複釋放名額的問題。"""
 
     __tablename__ = "visit_slots"
+    __table_args__ = (
+        CheckConstraint(
+            "closed_source IS NULL OR closed_source IN ('manual', 'exception')",
+            name="ck_visit_slots_closed_source",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     campus_key: Mapped[str] = mapped_column(
@@ -162,6 +190,9 @@ class VisitSlot(Base):
     end_time: Mapped[time_] = mapped_column(Time, nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False)
     closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # SlotClosedSource；開放中的時段為 NULL。
+    closed_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 依規則自動產生的時段為 NULL（定期工作沒有操作人）。
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -172,8 +203,9 @@ class VisitSlot(Base):
 
 class VisitRule(Base):
     """每週開放規則（規格 6.3）：週幾、時間區間、每格長度、每格容量。
-    規則本身不會自動開放任何時段，園方按「依規則產生時段」才會建立
-    VisitSlot；改規則只影響之後產生的時段，已存在或已被預約的不動。"""
+    定期工作每天依規則補產生時段到「最遠開放天數」（schedule_service.
+    extend_from_rules），園方也可以按「依規則產生時段」手動補。改規則只影響
+    之後產生的時段，已存在（含園方調過名額或關閉）的一律不動。"""
 
     __tablename__ = "visit_rules"
     __table_args__ = (
@@ -200,7 +232,8 @@ class VisitRule(Base):
 
 class VisitException(Base):
     """休假日／臨時封鎖：整天不開放。建立時會把當天既有時段關閉（停止
-    新申請），已占位的案件不自動取消，另列待處理。"""
+    新申請，closed_source＝exception），已占位的案件不自動取消，列入案件
+    清單的「待人工處理」。取消休假時只重開因休假關閉的時段。"""
 
     __tablename__ = "visit_exceptions"
     __table_args__ = (UniqueConstraint("campus_key", "exception_date", name="uq_visit_exception_day"),)

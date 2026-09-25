@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.access_models import RescheduleRequest
+from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import today_local
@@ -103,6 +104,14 @@ async def get_dashboard_summary(
     )
     pending_reschedule_requests = (await db.execute(pending_reschedules_stmt)).scalar_one()
 
+    # 關了時段、設了休假日或停用分校之後仍在進行中的案件（規格 L110、L227），
+    # 要有人聯絡家長改期或取消。與案件清單 needs_attention 篩選同一個條件。
+    needs_attention_stmt = _scope(
+        select(func.count()).select_from(VisitRequest).where(needs_attention_condition(now)),
+        VisitRequest.campus_key,
+    )
+    needs_attention = (await db.execute(needs_attention_stmt)).scalar_one()
+
     # 保守估計「待發布」：從未發布過但已經有草稿的內容項。精確判斷
     # 「草稿版本比已發布版本新」需要額外比對 latest revision id，
     # 目前 admin 畫面看到 current_published_revision_id 就能自行核對，
@@ -177,6 +186,7 @@ async def get_dashboard_summary(
         "awaiting_confirmation": awaiting_confirmation,
         "next_hold_expires_at": next_hold_expires_at.isoformat() if next_hold_expires_at else None,
         "pending_reschedule_requests": pending_reschedule_requests,
+        "needs_attention": needs_attention,
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
         "pending_publish_kinds": pending_publish_kinds,

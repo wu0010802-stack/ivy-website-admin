@@ -141,7 +141,7 @@ async def content_seed_from_fixture(fixture_path: str) -> None:
 
 
 async def process_notifications_once() -> None:
-    """手動跑一輪定期工作（排程發布、逾期占位、通知、清限流計數）。正式站
+    """手動跑一輪定期工作（排程發布、逾期占位、依規則補時段、通知、清限流計數）。正式站
     的 API 已經每 60 秒自己跑一次（app/workers/maintenance.py），這個指令
     留給本機、測試與臨時補跑；兩者同時執行時後到者會跳過，不會重複處理。
     寄信未設定時如實印出「未配置」，站內通知照寫、不假裝寄出。"""
@@ -155,6 +155,8 @@ async def process_notifications_once() -> None:
         print(f"排程發布：成功 {result.published} 筆、失敗 {result.publish_failed} 筆")
     if result.expired_holds:
         print(f"已釋放 {result.expired_holds} 筆逾期的時段占位。")
+    if result.slots_generated:
+        print(f"已依每週規則補上 {result.slots_generated} 場時段。")
     if not result.email_configured:
         print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
     print(f"已處理通知：成功 {result.notifications_sent} 筆、失敗 {result.notifications_failed} 筆")

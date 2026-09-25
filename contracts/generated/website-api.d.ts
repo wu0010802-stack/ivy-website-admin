@@ -124,7 +124,8 @@ export interface paths {
          * Update Campus Status
          * @description 停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的
          *     決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件
-         *     一律不動，回傳仍在進行中的件數讓園方人工處理。
+         *     一律不動，回傳仍在進行中的件數；這些案件會列在案件清單的「待人工處理」
+         *     （needs_attention 篩選），總覽也有對應待辦。
          */
         patch: operations["update_campus_status_api_website_v1_admin_campuses__key__status_patch"];
         trace?: never;
@@ -822,7 +823,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Export Visit Requests */
+        /**
+         * Export Visit Requests
+         * @description 依畫面上目前的篩選條件匯出（不分頁）。
+         */
         get: operations["export_visit_requests_api_website_v1_admin_visit_requests_export_get"];
         put?: never;
         post?: never;
@@ -1092,7 +1096,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove Visit Exception */
+        /**
+         * Remove Visit Exception
+         * @description 取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。
+         */
         delete: operations["remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete"];
         options?: never;
         head?: never;
@@ -1593,6 +1600,8 @@ export interface components {
             /** Message */
             message: string | null;
             mode: components["schemas"]["BookingMode"];
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours: number;
             /** Phone */
             phone: string | null;
             /** Slots Auto Confirm */
@@ -1611,6 +1620,8 @@ export interface components {
             /** Message */
             message?: string | null;
             mode: components["schemas"]["BookingMode"];
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours?: number | null;
             /** Phone */
             phone?: string | null;
             /**
@@ -2032,6 +2043,8 @@ export interface components {
             cancelled_at: string | null;
             /** Change Deadline */
             change_deadline: string | null;
+            /** Change Deadline Hours */
+            change_deadline_hours: number;
             /** Confirmed At */
             confirmed_at: string | null;
             /**
@@ -2475,6 +2488,13 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
+        /** VisitExceptionRemovedOut */
+        VisitExceptionRemovedOut: {
+            /** Created Slots */
+            created_slots: number;
+            /** Reopened Slots */
+            reopened_slots: number;
+        };
         /**
          * VisitHistoryOut
          * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
@@ -2658,6 +2678,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours: number;
             /** Parent Name */
             parent_name: string;
             pending_reschedule: components["schemas"]["RescheduleRequestOut"] | null;
@@ -2808,6 +2830,8 @@ export interface components {
             min_lead_hours: number;
             /** Rules */
             rules: components["schemas"]["VisitRuleOut"][];
+            /** Rules Extended On */
+            rules_extended_on?: string | null;
         };
         /** VisitScheduleUpdate */
         VisitScheduleUpdate: {
@@ -2898,6 +2922,8 @@ export interface components {
             capacity: number;
             /** Closed */
             closed: boolean;
+            /** Closed Source */
+            closed_source?: string | null;
             /**
              * End Time
              * Format: time
@@ -4893,6 +4919,10 @@ export interface operations {
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
+                /** @description 送出時間排序 */
+                order?: string;
+                page?: number;
+                page_size?: number;
                 campus_key?: string | null;
                 status?: string | null;
                 /** @description 家長或寶貝姓名、電話或 Email 片段 */
@@ -4907,10 +4937,8 @@ export interface operations {
                 created_from?: string | null;
                 /** @description 送出日期迄（含），台灣日期 */
                 created_to?: string | null;
-                /** @description 送出時間排序 */
-                order?: string;
-                page?: number;
-                page_size?: number;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -4984,6 +5012,21 @@ export interface operations {
         parameters: {
             query?: {
                 campus_key?: string | null;
+                status?: string | null;
+                /** @description 家長或寶貝姓名、電話或 Email 片段 */
+                q?: string | null;
+                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
+                follow_up_due?: boolean;
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                assignee?: string | null;
+                /** @description 案件來源：web／phone／line／walk_in／external */
+                source?: string | null;
+                /** @description 送出日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 送出日期迄（含），台灣日期 */
+                created_to?: string | null;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -5583,11 +5626,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["VisitExceptionRemovedOut"];
+                };
             };
             /** @description Validation Error */
             422: {

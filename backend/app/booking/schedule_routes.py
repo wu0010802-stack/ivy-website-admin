@@ -13,6 +13,7 @@ from app.booking.schemas import (
     VisitExceptionCreatedOut,
     VisitExceptionIn,
     VisitExceptionOut,
+    VisitExceptionRemovedOut,
     VisitRuleOut,
     VisitScheduleOut,
     VisitScheduleUpdate,
@@ -41,6 +42,7 @@ async def _schedule_out(db: AsyncSession, campus_key: str) -> VisitScheduleOut:
         max_advance_days=config.max_advance_days,
         rules=[VisitRuleOut.model_validate(r) for r in rules],
         exceptions=[VisitExceptionOut.model_validate(e) for e in exceptions],
+        rules_extended_on=config.rules_extended_on,
     )
 
 
@@ -70,6 +72,9 @@ async def update_visit_schedule(
     before = {"min_lead_hours": config.min_lead_hours, "max_advance_days": config.max_advance_days}
     config.min_lead_hours = payload.min_lead_hours
     config.max_advance_days = payload.max_advance_days
+    # 規則或最遠開放天數變了：讓定期工作下一輪（約一分鐘內）就依新設定補
+    # 時段，不必等到明天。已存在的時段一律不動。
+    config.rules_extended_on = None
     await schedule_service.replace_rules(
         db, campus_key, [r.model_dump() for r in payload.rules], current_user.id
     )
@@ -128,16 +133,19 @@ async def add_visit_exception(
 
 @router.delete(
     "/admin/visit-schedule/{campus_key}/exceptions/{exception_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=VisitExceptionRemovedOut,
 )
 async def remove_visit_exception(
     campus_key: str,
     exception_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> None:
+) -> VisitExceptionRemovedOut:
+    """取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。"""
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
-    if not await schedule_service.remove_exception(db, campus_key, exception_id):
+    await _campus_or_404(db, campus_key)
+    result = await schedule_service.remove_exception(db, campus_key, exception_id, current_user.id)
+    if result is None:
         raise ScopeDenied()
     await audit_service.log_action(
         db,
@@ -146,9 +154,10 @@ async def remove_visit_exception(
         target_type="visit_exception",
         target_id=str(exception_id),
         campus_key=campus_key,
-        metadata={},
+        metadata=result,
     )
     await db.commit()
+    return VisitExceptionRemovedOut(**result)
 
 
 @router.post("/admin/visit-schedule/{campus_key}/generate", response_model=VisitSlotGenerateOut)

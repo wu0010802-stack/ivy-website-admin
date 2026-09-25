@@ -151,6 +151,10 @@
           "mode": {
             "$ref": "#/components/schemas/BookingMode"
           },
+          "parent_change_deadline_hours": {
+            "title": "Parent Change Deadline Hours",
+            "type": "integer"
+          },
           "phone": {
             "anyOf": [
               {
@@ -179,7 +183,8 @@
           "phone",
           "external_url",
           "message",
-          "slots_auto_confirm"
+          "slots_auto_confirm",
+          "parent_change_deadline_hours"
         ],
         "title": "BookingConfigOut",
         "type": "object"
@@ -228,6 +233,19 @@
           },
           "mode": {
             "$ref": "#/components/schemas/BookingMode"
+          },
+          "parent_change_deadline_hours": {
+            "anyOf": [
+              {
+                "maximum": 336.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Change Deadline Hours"
           },
           "phone": {
             "anyOf": [
@@ -1403,6 +1421,10 @@
             ],
             "title": "Change Deadline"
           },
+          "change_deadline_hours": {
+            "title": "Change Deadline Hours",
+            "type": "integer"
+          },
           "confirmed_at": {
             "anyOf": [
               {
@@ -1471,6 +1493,7 @@
           "hold_expires_at",
           "created_at",
           "change_deadline",
+          "change_deadline_hours",
           "can_cancel",
           "can_reschedule"
         ],
@@ -2507,6 +2530,24 @@
         "title": "VisitExceptionOut",
         "type": "object"
       },
+      "VisitExceptionRemovedOut": {
+        "properties": {
+          "created_slots": {
+            "title": "Created Slots",
+            "type": "integer"
+          },
+          "reopened_slots": {
+            "title": "Reopened Slots",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reopened_slots",
+          "created_slots"
+        ],
+        "title": "VisitExceptionRemovedOut",
+        "type": "object"
+      },
       "VisitHistoryOut": {
         "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人\n或下次聯絡時間，不含家長個資。",
         "properties": {
@@ -3207,6 +3248,10 @@
             "title": "Id",
             "type": "string"
           },
+          "parent_change_deadline_hours": {
+            "title": "Parent Change Deadline Hours",
+            "type": "integer"
+          },
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
@@ -3329,7 +3374,8 @@
           "created_at",
           "history",
           "pending_reschedule",
-          "access_link"
+          "access_link",
+          "parent_change_deadline_hours"
         ],
         "title": "VisitRequestFullOut",
         "type": "object"
@@ -3680,6 +3726,18 @@
             },
             "title": "Rules",
             "type": "array"
+          },
+          "rules_extended_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules Extended On"
           }
         },
         "required": [
@@ -3848,6 +3906,17 @@
           "closed": {
             "title": "Closed",
             "type": "boolean"
+          },
+          "closed_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Source"
           },
           "end_time": {
             "format": "time",
@@ -4501,7 +4570,7 @@
     },
     "/api/website/v1/admin/campuses/{key}/status": {
       "patch": {
-        "description": "停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的\n決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件\n一律不動，回傳仍在進行中的件數讓園方人工處理。",
+        "description": "停用／重新啟用分校（規格 3.2）。只有總管理者可以做：這是機構層級的\n決定。停用後公開預約立即停止（公開端點只認 active 的分校），既有案件\n一律不動，回傳仍在進行中的件數；這些案件會列在案件清單的「待人工處理」\n（needs_attention 篩選），總覽也有對應待辦。",
         "operationId": "update_campus_status_api_website_v1_admin_campuses__key__status_patch",
         "parameters": [
           {
@@ -8306,6 +8375,42 @@
         "operationId": "list_visit_requests_api_website_v1_admin_visit_requests_get",
         "parameters": [
           {
+            "description": "送出時間排序",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "送出時間排序",
+              "pattern": "^(newest|oldest)$",
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
             "in": "query",
             "name": "campus_key",
             "required": false,
@@ -8443,39 +8548,15 @@
             }
           },
           {
-            "description": "送出時間排序",
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
             "in": "query",
-            "name": "order",
+            "name": "needs_attention",
             "required": false,
             "schema": {
-              "default": "newest",
-              "description": "送出時間排序",
-              "pattern": "^(newest|oldest)$",
-              "title": "Order",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1,
-              "title": "Page",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page_size",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
             }
           },
           {
@@ -8630,6 +8711,7 @@
     },
     "/api/website/v1/admin/visit-requests/export": {
       "get": {
+        "description": "依畫面上目前的篩選條件匯出（不分頁）。",
         "operationId": "export_visit_requests_api_website_v1_admin_visit_requests_export_get",
         "parameters": [
           {
@@ -8646,6 +8728,139 @@
                 }
               ],
               "title": "Campus Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "家長或寶貝姓名、電話或 Email 片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "家長或寶貝姓名、電話或 Email 片段",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "只列已到預定聯絡時間、尚未結案的案件",
+            "in": "query",
+            "name": "follow_up_due",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列已到預定聯絡時間、尚未結案的案件",
+              "title": "Follow Up Due",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+            "in": "query",
+            "name": "assignee",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+              "title": "Assignee"
+            }
+          },
+          {
+            "description": "案件來源：web／phone／line／walk_in／external",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件來源：web／phone／line／walk_in／external",
+              "title": "Source"
+            }
+          },
+          {
+            "description": "送出日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "送出日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（含），台灣日期",
+              "title": "Created To"
+            }
+          },
+          {
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+            "in": "query",
+            "name": "needs_attention",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
             }
           },
           {
@@ -9907,6 +10122,7 @@
     },
     "/api/website/v1/admin/visit-schedule/{campus_key}/exceptions/{exception_id}": {
       "delete": {
+        "description": "取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。",
         "operationId": "remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete",
         "parameters": [
           {
@@ -9962,7 +10178,14 @@
           }
         ],
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitExceptionRemovedOut"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "422": {

@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import presenters, service, slot_service, workflow_service
+from app.booking import attention, presenters, service, slot_service, workflow_service
 from app.booking.history import Actor
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
@@ -102,6 +102,7 @@ async def update_booking_config(
             expected_version=payload.expected_version,
             updated_by=current_user.id,
             slots_auto_confirm=payload.slots_auto_confirm,
+            parent_change_deadline_hours=payload.parent_change_deadline_hours,
         )
     except service.ConfigVersionConflict as exc:
         await db.rollback()
@@ -123,7 +124,11 @@ async def update_booking_config(
         target_type="booking_config",
         target_id=campus_key,
         campus_key=campus_key,
-        metadata={"mode": payload.mode.value, "version": config.version},
+        metadata={
+            "mode": payload.mode.value,
+            "version": config.version,
+            "parent_change_deadline_hours": config.parent_change_deadline_hours,
+        },
     )
     await db.commit()
     return BookingConfigOut.model_validate(config)
@@ -259,6 +264,7 @@ def _slot_out(slot: VisitSlot, booked: int) -> VisitSlotOut:
         end_time=slot.end_time,
         capacity=slot.capacity,
         closed=slot.closed,
+        closed_source=slot.closed_source,
         booked_count=booked,
     )
 
@@ -464,18 +470,108 @@ async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_i
     return visit_request
 
 
+class VisitRequestFilters:
+    """案件清單與 CSV 匯出共用的篩選條件。畫面上篩好什麼，匯出的就是那一批；
+    原本匯出只看校區，篩好「本週已確認」再匯出會拿到整校案件，多帶出不必要
+    的家長個資。"""
+
+    def __init__(
+        self,
+        campus_key: str | None = None,
+        status_filter: str | None = Query(default=None, alias="status"),
+        q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
+        follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
+        assignee: str | None = Query(
+            default=None, description="承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id"
+        ),
+        source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
+        created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
+        created_to: date | None = Query(default=None, description="送出日期迄（含），台灣日期"),
+        needs_attention: bool = Query(
+            default=False,
+            description="只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+        ),
+    ) -> None:
+        self.campus_key = campus_key
+        self.status = status_filter
+        self.q = q.strip() if q and q.strip() else None
+        self.follow_up_due = follow_up_due
+        self.assignee = assignee
+        self.source = source
+        self.created_from = created_from
+        self.created_to = created_to
+        self.needs_attention = needs_attention
+
+    def apply(self, stmt, user: User, capability: str):
+        if self.follow_up_due:
+            # 與 dashboard_service 的「到期待追蹤」同一個定義，總覽的數字點進來
+            # 才會是同一批案件。
+            stmt = stmt.where(
+                VisitRequest.follow_up_at.is_not(None),
+                VisitRequest.follow_up_at <= datetime.now(timezone.utc),
+                VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
+            )
+        if self.needs_attention:
+            stmt = stmt.where(attention.needs_attention_condition())
+        if self.campus_key:
+            require_scope(user, capability, campus_keys=[self.campus_key])
+            stmt = stmt.where(VisitRequest.campus_key == self.campus_key)
+        elif (scope := campus_scope(user)) is not None:
+            stmt = stmt.where(VisitRequest.campus_key.in_(scope))
+        if self.status:
+            stmt = stmt.where(VisitRequest.status == self.status)
+        if self.assignee == "me":
+            stmt = stmt.where(VisitRequest.assigned_staff_id == user.id)
+        elif self.assignee == "none":
+            stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
+        elif self.assignee:
+            try:
+                assignee_id = uuid.UUID(self.assignee)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="承辦人篩選格式錯誤"
+                ) from exc
+            stmt = stmt.where(VisitRequest.assigned_staff_id == assignee_id)
+        if self.source:
+            stmt = stmt.where(VisitRequest.source == self.source)
+        if self.created_from is not None:
+            stmt = stmt.where(VisitRequest.created_at >= local_day_bounds_utc(self.created_from)[0])
+        if self.created_to is not None:
+            stmt = stmt.where(VisitRequest.created_at < local_day_bounds_utc(self.created_to)[1])
+        if self.q:
+            # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
+            # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
+            needle = self.q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{needle}%"
+            stmt = stmt.where(
+                or_(
+                    VisitRequest.parent_name.ilike(pattern, escape="\\"),
+                    VisitRequest.child_name.ilike(pattern, escape="\\"),
+                    VisitRequest.email.ilike(pattern, escape="\\"),
+                    VisitRequest.phone.like(pattern, escape="\\"),
+                )
+            )
+        return stmt
+
+    def audit_metadata(self) -> dict:
+        """稽核只記套用了哪些條件。搜尋字常常就是家長姓名或手機，只記「有
+        搜尋」，不記內容，稽核紀錄不能變成另一份個資。"""
+        applied = {
+            "status": self.status,
+            "source": self.source,
+            "assignee": self.assignee,
+            "created_from": self.created_from.isoformat() if self.created_from else None,
+            "created_to": self.created_to.isoformat() if self.created_to else None,
+            "follow_up_due": self.follow_up_due or None,
+            "needs_attention": self.needs_attention or None,
+            "has_search": True if self.q else None,
+        }
+        return {key: value for key, value in applied.items() if value is not None}
+
+
 @router.get("/admin/visit-requests", response_model=list[VisitRequestDetailOut])
 async def list_visit_requests(
-    campus_key: str | None = None,
-    status_filter: str | None = Query(default=None, alias="status"),
-    q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
-    follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
-    assignee: str | None = Query(
-        default=None, description="承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id"
-    ),
-    source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
-    created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
-    created_to: date | None = Query(default=None, description="送出日期迄（含），台灣日期"),
+    filters: VisitRequestFilters = Depends(),
     order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -483,72 +579,31 @@ async def list_visit_requests(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitRequestDetailOut]:
     require_scope(current_user, "booking.read")
-    stmt = select(VisitRequest).options(selectinload(VisitRequest.slot))
-    if follow_up_due:
-        # 與 dashboard_service 的「到期待追蹤」同一個定義，總覽的數字點進來
-        # 才會是同一批案件。
-        stmt = stmt.where(
-            VisitRequest.follow_up_at.is_not(None),
-            VisitRequest.follow_up_at <= datetime.now(timezone.utc),
-            VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
-        )
-    if campus_key:
-        require_scope(current_user, "booking.read", campus_keys=[campus_key])
-        stmt = stmt.where(VisitRequest.campus_key == campus_key)
-    elif (scope := campus_scope(current_user)) is not None:
-        stmt = stmt.where(VisitRequest.campus_key.in_(scope))
-    if status_filter:
-        stmt = stmt.where(VisitRequest.status == status_filter)
-    if assignee == "me":
-        stmt = stmt.where(VisitRequest.assigned_staff_id == current_user.id)
-    elif assignee == "none":
-        stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
-    elif assignee:
-        try:
-            assignee_id = uuid.UUID(assignee)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="承辦人篩選格式錯誤"
-            ) from exc
-        stmt = stmt.where(VisitRequest.assigned_staff_id == assignee_id)
-    if source:
-        stmt = stmt.where(VisitRequest.source == source)
-    if created_from is not None:
-        stmt = stmt.where(VisitRequest.created_at >= local_day_bounds_utc(created_from)[0])
-    if created_to is not None:
-        stmt = stmt.where(VisitRequest.created_at < local_day_bounds_utc(created_to)[1])
-    if q and q.strip():
-        # 櫃台接電話時用姓名或號碼找人。使用者打的 % 與 _ 是字面值，
-        # 不跳脫的話一個 % 就會把整個校區的案件全撈出來。
-        needle = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        pattern = f"%{needle}%"
-        stmt = stmt.where(
-            or_(
-                VisitRequest.parent_name.ilike(pattern, escape="\\"),
-                VisitRequest.child_name.ilike(pattern, escape="\\"),
-                VisitRequest.email.ilike(pattern, escape="\\"),
-                VisitRequest.phone.like(pattern, escape="\\"),
-            )
-        )
+    stmt = filters.apply(select(VisitRequest).options(selectinload(VisitRequest.slot)), current_user, "booking.read")
     ordering = VisitRequest.created_at.asc() if order == "oldest" else VisitRequest.created_at.desc()
     stmt = stmt.order_by(ordering).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
 
 
+# 匯出欄位。每個欄位只出現一次：同名欄位在試算表樞紐分析或匯入其他系統時會
+# 混淆或直接報錯（原本 source 重複兩次）。
+EXPORT_COLUMNS = (
+    "campus_key", "status", "source", "parent_name", "phone", "created_at",
+    "child_name", "child_birthdate", "email", "referral_sources",
+    "slot_date", "start_time", "end_time",
+)
+
+
 @router.get("/admin/visit-requests/export")
 async def export_visit_requests(
-    campus_key: str | None = None,
+    filters: VisitRequestFilters = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
+    """依畫面上目前的篩選條件匯出（不分頁）。"""
     require_scope(current_user, "booking.export")
-    stmt = select(VisitRequest).options(selectinload(VisitRequest.slot))
-    if campus_key:
-        require_scope(current_user, "booking.export", campus_keys=[campus_key])
-        stmt = stmt.where(VisitRequest.campus_key == campus_key)
-    elif (scope := campus_scope(current_user)) is not None:
-        stmt = stmt.where(VisitRequest.campus_key.in_(scope))
+    stmt = filters.apply(select(VisitRequest).options(selectinload(VisitRequest.slot)), current_user, "booking.export")
     stmt = stmt.order_by(VisitRequest.created_at.desc())
     result = await db.execute(stmt)
 
@@ -569,11 +624,7 @@ async def export_visit_requests(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([
-        "campus_key", "status", "source", "parent_name", "phone", "created_at",
-        "child_name", "child_birthdate", "email", "referral_sources",
-        "slot_date", "start_time", "end_time", "source",
-    ])
+    writer.writerow(EXPORT_COLUMNS)
     exported = 0
     for r in result.scalars():
         writer.writerow(
@@ -591,20 +642,19 @@ async def export_visit_requests(
                 r.slot.slot_date.isoformat() if r.slot else "",
                 r.slot.start_time.isoformat() if r.slot else "",
                 r.slot.end_time.isoformat() if r.slot else "",
-                _safe_cell(r.source),
             ]
         )
         exported += 1
 
-    # 個資批次外流一定要留痕：誰、什麼時候、匯出了哪個校區的幾筆。
+    # 個資批次外流一定要留痕：誰、什麼時候、用什麼條件匯出了哪個校區的幾筆。
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
         action="visit_request.export",
         target_type="visit_request",
-        target_id=campus_key or "all",
-        campus_key=campus_key,
-        metadata={"row_count": exported},
+        target_id=filters.campus_key or "all",
+        campus_key=filters.campus_key,
+        metadata={"row_count": exported, **filters.audit_metadata()},
     )
     await db.commit()
     return Response(content=buffer.getvalue(), media_type="text/csv")

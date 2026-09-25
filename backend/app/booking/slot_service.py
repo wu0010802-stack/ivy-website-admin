@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import SlotClosedSource, VisitRequest, VisitRequestStatus, VisitSlot
 from app.common.timezones import now_utc, slot_start_utc, today_local
 
 MAX_QUERY_RANGE_DAYS = 62
@@ -185,7 +185,9 @@ async def update_slot(
             raise SlotCapacityBelowBooked(booked)
     if capacity is not None:
         slot.capacity = capacity
-    if closed is not None:
+    if closed is not None and closed != slot.closed:
         slot.closed = closed
+        # 記下是園方手動關的：取消休假日時不會把它重新打開。
+        slot.closed_source = SlotClosedSource.MANUAL.value if closed else None
     await db.flush()
     return slot

@@ -121,6 +121,7 @@ async def update_config(
     expected_version: int,
     updated_by: uuid.UUID,
     slots_auto_confirm: bool = False,
+    parent_change_deadline_hours: int | None = None,
 ) -> BookingConfig:
     if config.version != expected_version:
         raise ConfigVersionConflict()
@@ -133,6 +134,8 @@ async def update_config(
     config.external_url = external_url
     config.message = message
     config.slots_auto_confirm = slots_auto_confirm
+    if parent_change_deadline_hours is not None:
+        config.parent_change_deadline_hours = parent_change_deadline_hours
     config.version += 1
     config.updated_at = datetime.now(timezone.utc)
     config.updated_by = updated_by

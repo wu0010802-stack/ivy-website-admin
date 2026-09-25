@@ -8,7 +8,12 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.booking.models import BookingMode
-from app.booking.parent_policy import parent_change_deadline, parent_change_open
+from app.booking.parent_policy import (
+    MAX_CHANGE_DEADLINE_HOURS,
+    MIN_CHANGE_DEADLINE_HOURS,
+    parent_change_deadline,
+    parent_change_open,
+)
 from app.common.timezones import today_local
 
 ReferralSource = Literal["facebook", "google_reviews", "parent_community", "friends_family", "other"]
@@ -99,6 +104,8 @@ class BookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     slots_auto_confirm: bool
+    # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
+    parent_change_deadline_hours: int
 
     model_config = {"from_attributes": True}
 
@@ -115,6 +122,10 @@ class BookingConfigUpdateRequest(BaseModel):
     # 規格 197／222：slots 預設為人工確認（家長看到「待園方確認」），
     # 園方要自動確認才明確打開。
     slots_auto_confirm: bool = False
+    # 省略＝維持原設定（沒有這個欄位的舊版後台存檔時不會把它改回預設）。
+    parent_change_deadline_hours: int | None = Field(
+        default=None, ge=MIN_CHANGE_DEADLINE_HOURS, le=MAX_CHANGE_DEADLINE_HOURS
+    )
 
     @field_validator("line_url", "external_url")
     @classmethod
@@ -277,6 +288,8 @@ class VisitSlotOut(BaseModel):
     end_time: time
     capacity: int
     closed: bool
+    # manual＝園方手動關閉、exception＝休假日關閉；開放中或舊資料為 None。
+    closed_source: str | None = None
     booked_count: int
 
     model_config = {"from_attributes": True}
@@ -381,12 +394,15 @@ class ParentVisitRequestOut(BaseModel):
     hold_expires_at: datetime | None
     created_at: datetime
     change_deadline: datetime | None
+    # 該校設定的「參觀前幾小時截止」，家長頁的說明文字用。
+    change_deadline_hours: int
     can_cancel: bool
     can_reschedule: bool
     reschedule_pending: bool = False
 
     @classmethod
-    def from_visit_request(cls, visit_request) -> "ParentVisitRequestOut":
+    def from_visit_request(cls, visit_request, *, deadline_hours: int) -> "ParentVisitRequestOut":
+        change_open = parent_change_open(visit_request, deadline_hours)
         return cls(
             id=visit_request.id,
             campus_key=visit_request.campus_key,
@@ -401,9 +417,10 @@ class ParentVisitRequestOut(BaseModel):
             cancelled_at=visit_request.cancelled_at,
             hold_expires_at=visit_request.hold_expires_at,
             created_at=visit_request.created_at,
-            change_deadline=parent_change_deadline(visit_request),
-            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and parent_change_open(visit_request),
-            can_reschedule=visit_request.status == "confirmed" and parent_change_open(visit_request),
+            change_deadline=parent_change_deadline(visit_request, deadline_hours),
+            change_deadline_hours=deadline_hours,
+            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
+            can_reschedule=visit_request.status == "confirmed" and change_open,
         )
 
 
@@ -500,6 +517,8 @@ class VisitRequestFullOut(VisitRequestDetailOut):
     history: list[VisitHistoryOut]
     pending_reschedule: RescheduleRequestOut | None
     access_link: ParentAccessLinkOut | None
+    # 該校的家長線上異動期限（參觀前幾小時），產生連結時要跟家長講清楚。
+    parent_change_deadline_hours: int
 
 
 class VisitContactNoteCreateRequest(BaseModel):
@@ -546,7 +565,15 @@ class VisitExceptionOut(BaseModel):
 
 class VisitExceptionCreatedOut(VisitExceptionOut):
     closed_slots: int
+    # 當天仍要來參觀的案件數；這些案件會出現在案件清單的「待人工處理」。
     affected_requests: int
+
+
+class VisitExceptionRemovedOut(BaseModel):
+    # 因這個休假日關閉、現在重新開放的時段（手動關閉的不動）。
+    reopened_slots: int
+    # 休假期間沒產生的場次，依每週規則補上的數量。
+    created_slots: int
 
 
 class VisitScheduleOut(BaseModel):
@@ -555,6 +582,8 @@ class VisitScheduleOut(BaseModel):
     max_advance_days: int
     rules: list[VisitRuleOut]
     exceptions: list[VisitExceptionOut]
+    # 定期工作上次依規則補時段的台灣日期；還沒補過（或剛改規則）為 None。
+    rules_extended_on: date | None = None
 
 
 class VisitScheduleUpdate(BaseModel):

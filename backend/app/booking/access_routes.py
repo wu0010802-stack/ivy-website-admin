@@ -17,7 +17,7 @@ from app.booking.history import PARENT, Actor
 from app.operations import audit_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitRequest, VisitRequestStatus
-from app.booking.parent_policy import parent_change_open
+from app.booking.parent_policy import change_deadline_hours, parent_change_open
 from app.common import ratelimit
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
@@ -46,8 +46,10 @@ async def require_parent_request(request: Request, parent_header: str | None = H
         raise HTTPException(status_code=429, detail={"code": "RATE_LIMITED", "message": "操作太頻繁，請稍後再試"}, headers={"Retry-After": str(exc.retry_after_seconds)}) from exc
 
 
-def require_change_window(visit_request: VisitRequest) -> None:
-    if not parent_change_open(visit_request):
+async def require_change_window(db: AsyncSession, visit_request: VisitRequest) -> None:
+    """期限依該校設定（規格 L238），與家長頁顯示的截止時間同一個算法。"""
+    hours = await change_deadline_hours(db, visit_request.campus_key)
+    if not parent_change_open(visit_request, hours):
         raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
 
 
@@ -72,7 +74,9 @@ async def _require_parent_session(
 
 
 async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> ParentVisitRequestOut:
-    output = ParentVisitRequestOut.from_visit_request(visit_request)
+    output = ParentVisitRequestOut.from_visit_request(
+        visit_request, deadline_hours=await change_deadline_hours(db, visit_request.campus_key)
+    )
     if visit_request.status == "confirmed":
         pending_id = await db.scalar(select(RescheduleRequest.id).where(
             RescheduleRequest.visit_request_id == visit_request.id,
@@ -137,7 +141,7 @@ async def parent_cancel(
 ) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
-    require_change_window(visit_request)
+    await require_change_window(db, visit_request)
     try:
         await workflow_service.cancel(db, visit_request, actor=PARENT)
     except workflow_service.InvalidTransition as exc:
@@ -147,7 +151,7 @@ async def parent_cancel(
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
     await db.commit()
-    return ParentVisitRequestOut.from_visit_request(visit_request)
+    return await _parent_output(db, visit_request)
 
 
 @router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_parent_request)])
@@ -160,7 +164,7 @@ async def parent_request_reschedule(
     """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
-    require_change_window(visit_request)
+    await require_change_window(db, visit_request)
     try:
         record = await access_service.create_reschedule_request(
             db, visit_request, payload.new_slot_id
