@@ -290,6 +290,21 @@ async def inactive_campus_keys(db: AsyncSession) -> set[str]:
     return set(result.scalars())
 
 
+async def published_payload(db: AsyncSession, kind: str, campus_key: str | None) -> dict | None:
+    """這項內容目前發布中的 payload；沒發布過回 None。「目前發布中」看
+    current_published_revision_id（與站台 release 在同一個交易切換，見
+    booking/consent.py）。不管分校是否停用：停用的分校只是 get_public_content
+    不輸出，家長管理頁仍要顯示那一校的校名與電話。"""
+    campus_filter = ContentItem.campus_key.is_(None) if campus_key is None else ContentItem.campus_key == campus_key
+    result = await db.execute(
+        select(ContentRevision.payload)
+        .join(ContentItem, ContentItem.current_published_revision_id == ContentRevision.id)
+        .where(ContentItem.kind == kind, campus_filter)
+    )
+    payload = result.scalar_one_or_none()
+    return payload if isinstance(payload, dict) else None
+
+
 async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
     """回傳 (release_id, content dict)。尚無任何 release 時 release_id 為 None，
     呼叫端（public route）應視為「尚無可用內容」回 503，不得回假資料。

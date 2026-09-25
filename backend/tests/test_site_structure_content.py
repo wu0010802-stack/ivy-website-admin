@@ -176,7 +176,10 @@ async def test_campus_board_order_roundtrip(admin_client, public_client):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("href", ["/", "/#about", "/admission", "/campuses/yihua#faq", "https://www.ivykidschool.com/"])
+@pytest.mark.parametrize(
+    "href",
+    ["/", "/#about", "/admission", "/campuses/yihua#faq", "https://www.ivykidschool.com/", "https://example.com:8443/"],
+)
 def test_site_links_accept_internal_paths_and_https(href):
     footer = SiteFooterPayload.model_validate(_footer(links=[{"label": "連結", "href": href}]))
     assert footer.links[0].href == href
@@ -188,6 +191,8 @@ def test_site_links_accept_internal_paths_and_https(href):
         "http://example.com/", "//example.com/", "javascript:alert(1)", "java\tscript:alert(1)",
         "admission", "https://", "https://user@example.com/", "https://example.com/a b", "mailto:a@b.c",
         "/\\example.com",
+        # 官網與後台用 new URL() 解析不了、會默默略過的網址（B08 審查）：埠號無效、主機名稱有不允許的字元。
+        "https://example.com:99999/", "https://example.com:abc/", "https://exa%mple.com/", "https://ex<a.com/",
     ],
 )
 def test_site_links_reject_other_urls(href):

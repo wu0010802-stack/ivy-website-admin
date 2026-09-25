@@ -170,23 +170,33 @@ PRIMARY_NAV_MAX = 8
 FOOTER_LINKS_MAX = 12
 
 
+# WHATWG URL 不接受的主機名稱字元（urlsplit 不擋）。
+_FORBIDDEN_HOST_CHARS_RE = re.compile(r"[%<>^|]")
+
+
+def _is_external_site_link(candidate: str) -> bool:
+    """官網（siteLink）與後台（siteLinkError）用 new URL() 解析外部連結，解析失敗
+    就不當連結。這裡要擋下同樣的網址，否則存得進去、官網卻默默少一個連結：
+    埠號不是 0–65535 的數字、主機名稱有不允許的字元。"""
+    if _INVISIBLE_RE.search(candidate) or "\\" in candidate or not candidate.lower().startswith("https://"):
+        return False
+    try:
+        parsed = urlsplit(candidate)
+        # 埠號超出範圍或不是數字時 .port 才會丟 ValueError。
+        _ = parsed.port
+    except ValueError:
+        return False
+    host = parsed.hostname or ""
+    return "." in host and "@" not in parsed.netloc and not _FORBIDDEN_HOST_CHARS_RE.search(host)
+
+
 def _require_site_link(value: str) -> str:
     candidate = value.strip()
     if not candidate:
         raise ValueError("請填寫連結")
     if len(candidate) > SITE_LINK_MAX_LENGTH:
         raise ValueError(f"連結最多 {SITE_LINK_MAX_LENGTH} 字")
-    if _SITE_PATH_RE.fullmatch(candidate):
-        return candidate
-    parsed = urlsplit(candidate)
-    if (
-        not _INVISIBLE_RE.search(candidate)
-        and "\\" not in candidate
-        and candidate.lower().startswith("https://")
-        and parsed.hostname
-        and "." in parsed.hostname
-        and "@" not in parsed.netloc
-    ):
+    if _SITE_PATH_RE.fullmatch(candidate) or _is_external_site_link(candidate):
         return candidate
     raise ValueError("連結要是站內路徑（/ 開頭，例如 /admission、/#about）或 https:// 開頭的外部網址")
 

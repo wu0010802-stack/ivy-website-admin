@@ -13,6 +13,7 @@ from app.booking.access_models import ParentAccessToken, ParentSession, Reschedu
 from app.booking import history, slot_service
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import enqueue_outbox
+from app.campuses.models import Campus
 
 TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
@@ -187,6 +188,10 @@ async def create_reschedule_request(
         raise RescheduleNotAllowed(
             "INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能申請改期"
         )
+    campus = await db.get(Campus, visit_request.campus_key)
+    if campus is not None and not campus.active:
+        # 停用的分校停止公開預約（規格 3.2）：公開時段不列，家長頁也不給改期。
+        raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，請來電洽詢")
 
     result = await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))
     slot = result.scalar_one_or_none()

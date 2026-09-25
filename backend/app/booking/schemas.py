@@ -487,13 +487,30 @@ class ParentVisitRequestOut(BaseModel):
     can_cancel: bool
     can_reschedule: bool
     reschedule_pending: bool = False
+    # 預約的分校。停用的分校不在公開內容裡（官網沒有它的分校頁與預約頁），家長
+    # 管理頁靠這三欄顯示校名、「暫停開放」與電話，不改列其他校區。校名與電話取自
+    # 目前發布中的分校介紹；沒有發布過時校名用分校資料表的名稱、電話為 None。
+    campus_name: str
+    campus_active: bool
+    campus_phone: str | None
 
     @classmethod
-    def from_visit_request(cls, visit_request, *, deadline_hours: int) -> "ParentVisitRequestOut":
+    def from_visit_request(
+        cls,
+        visit_request,
+        *,
+        deadline_hours: int,
+        campus_name: str,
+        campus_active: bool,
+        campus_phone: str | None,
+    ) -> "ParentVisitRequestOut":
         change_open = parent_change_open(visit_request, deadline_hours)
         return cls(
             id=visit_request.id,
             campus_key=visit_request.campus_key,
+            campus_name=campus_name,
+            campus_active=campus_active,
+            campus_phone=campus_phone,
             status=visit_request.status,
             phone_masked=_mask_phone(visit_request.phone),
             slot=(
@@ -508,7 +525,8 @@ class ParentVisitRequestOut(BaseModel):
             change_deadline=parent_change_deadline(visit_request, deadline_hours),
             change_deadline_hours=deadline_hours,
             can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
-            can_reschedule=visit_request.status == "confirmed" and change_open,
+            # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
+            can_reschedule=visit_request.status == "confirmed" and change_open and campus_active,
         )
 
 

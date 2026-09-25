@@ -2867,8 +2867,14 @@ export interface components {
          *     欄位，連結一旦外流就等於把整份個資交出去。
          */
         ParentVisitRequestOut: {
+            /** Campus Active */
+            campus_active: boolean;
             /** Campus Key */
             campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /** Campus Phone */
+            campus_phone: string | null;
             /** Can Cancel */
             can_cancel: boolean;
             /** Can Reschedule */

@@ -114,6 +114,14 @@ async def _clean_tables(app):
                 "RESTART IDENTITY CASCADE"
             )
         )
+        # 五校 seed 不清，但停用狀態要還原：停用分校的測試（或中途失敗的測試）
+        # 不會讓後面的測試拿到停用中的校區。
+        await conn.execute(
+            text(
+                "UPDATE campuses SET active = true, deactivated_at = NULL, deactivated_reason = NULL "
+                "WHERE active IS NOT true"
+            )
+        )
     yield
 
 

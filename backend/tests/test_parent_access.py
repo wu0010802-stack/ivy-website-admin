@@ -322,3 +322,52 @@ async def test_parent_change_deadline_follows_campus_setting(admin_client, publi
         await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "booking_config.update"))
     ).scalars().all()
     assert {a.metadata_json["parent_change_deadline_hours"] for a in audits} >= {24, 120}
+
+
+@pytest.mark.asyncio
+async def test_parent_page_keeps_inactive_campus_name_and_phone(admin_client, public_client, db_session):
+    """B08 審查：停用的分校不在公開內容裡，家長管理頁改用預約回應帶的校名與電話，
+    不改列其他校區；停用後不給改期（公開時段也不列），取消照常。"""
+    from app.content import service as content_service
+
+    receipt, _slot_id, slot_date = await _enable_slots_and_book(admin_client, public_client)
+    other_slot = await admin_client.post(
+        "/api/website/v1/admin/slots?campus_key=yihua",
+        json={"slot_date": slot_date, "start_time": "15:00:00", "end_time": "16:00:00", "capacity": 2},
+    )
+    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt}/access-link")
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+
+    # 還沒發布分校介紹：校名用分校資料表的名稱，沒有電話。
+    exchanged = (await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})).json()
+    assert (exchanged["campus_name"], exchanged["campus_active"], exchanged["campus_phone"]) == ("義華校", True, None)
+    assert exchanged["can_reschedule"] is True
+
+    item = await content_service.get_or_create_content_item(db_session, "campus_profile", "yihua")
+    profile = {
+        "name": "常春藤義華校", "district": "三民區", "address": "高雄市三民區義華路68號", "phone": " 07-3800000 ",
+        "intro": "", "description": "", "facebook": "", "fb_note": "", "line": "",
+    }
+    revision = await content_service.create_revision(db_session, item, profile, item.latest_version, None)
+    await content_service.publish_revision(db_session, item, revision, None)
+    await db_session.commit()
+
+    off = await admin_client.patch("/api/website/v1/admin/campuses/yihua/status", json={"active": False, "reason": "整修"})
+    assert off.status_code == 200, off.text
+    site = (await public_client.get("/api/website/v1/public/site")).json()["content"]
+    assert "yihua" not in site.get("campus_profile", {})
+
+    me = (await public_client.get("/api/website/v1/public/visit-manage/me")).json()
+    assert (me["campus_name"], me["campus_active"], me["campus_phone"]) == ("常春藤義華校", False, "07-3800000")
+    assert me["can_cancel"] is True
+    assert me["can_reschedule"] is False
+    blocked = await public_client.post(
+        "/api/website/v1/public/visit-manage/reschedule-request", json={"new_slot_id": other_slot.json()["id"]}
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["code"] == "BOOKING_UNAVAILABLE"
+
+    cancelled = await public_client.post("/api/website/v1/public/visit-manage/cancel", json={})
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["status"] == "cancelled"
+    assert cancelled.json()["campus_name"] == "常春藤義華校"

@@ -2374,9 +2374,28 @@
       "ParentVisitRequestOut": {
         "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
         "properties": {
+          "campus_active": {
+            "title": "Campus Active",
+            "type": "boolean"
+          },
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "campus_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Phone"
           },
           "can_cancel": {
             "title": "Can Cancel",
@@ -2484,7 +2503,10 @@
           "change_deadline",
           "change_deadline_hours",
           "can_cancel",
-          "can_reschedule"
+          "can_reschedule",
+          "campus_name",
+          "campus_active",
+          "campus_phone"
         ],
         "title": "ParentVisitRequestOut",
         "type": "object"

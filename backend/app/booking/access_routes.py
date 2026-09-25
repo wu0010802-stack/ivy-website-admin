@@ -27,6 +27,8 @@ from app.booking.schemas import (
     RescheduleRequestOut,
     VisitRequestDetailOut,
 )
+from app.campuses.models import Campus
+from app.content import service as content_service
 
 router = APIRouter(prefix="/api/website/v1", tags=["parent-access"])
 
@@ -75,8 +77,14 @@ async def _require_parent_session(
 
 
 async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> ParentVisitRequestOut:
+    campus = await db.get(Campus, visit_request.campus_key)
+    profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
     output = ParentVisitRequestOut.from_visit_request(
-        visit_request, deadline_hours=await change_deadline_hours(db, visit_request.campus_key)
+        visit_request,
+        deadline_hours=await change_deadline_hours(db, visit_request.campus_key),
+        campus_name=str(profile.get("name") or "").strip() or (campus.name if campus is not None else ""),
+        campus_active=campus is None or campus.active,
+        campus_phone=str(profile.get("phone") or "").strip() or None,
     )
     if visit_request.status == "confirmed":
         pending_id = await db.scalar(select(RescheduleRequest.id).where(
