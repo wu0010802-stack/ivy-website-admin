@@ -59,7 +59,7 @@ describe('主選單與頁尾連結', () => {
     expect(siteLink('/admission')).toEqual({ href: '/admission', external: false })
     expect(siteLink('/#about')).toEqual({ href: '/#about', external: false })
     expect(siteLink('https://www.ivykidschool.com/')).toEqual({ href: 'https://www.ivykidschool.com/', external: true })
-    for (const bad of ['http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://a b.com', 'https://user@example.com/', '/\\evil.com', '']) {
+    for (const bad of ['http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://a b.com', 'https://user@example.com/', '/\\evil.com', '', 'https://example.com:99999/', 'https://example.com:abc/', 'https://exa%mple.com/']) {
       expect(siteLink(bad)).toBeNull()
     }
   })

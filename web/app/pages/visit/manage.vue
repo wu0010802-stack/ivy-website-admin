@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
 import { changeDeadlineRule, visitDateLabel } from '~/utils/visit-form'
+import { parentVisitCampus } from '~/utils/parent-visit'
 
 const { data } = await usePublishedSite()
 const route = useRoute()
@@ -15,7 +16,8 @@ const slotError = ref('')
 const feedback = ref<HTMLElement | null>(null)
 const cancelPanel = ref<HTMLElement | null>(null)
 const slotSelect = ref<HTMLSelectElement | null>(null)
-const campus = computed(() => data.value?.content.campuses.find(item => item.key === visit.value?.campus_key))
+// 停用的分校不在公開內容裡：校名、電話改用預約回應帶的，不改列其他校區。
+const visitCampus = computed(() => parentVisitCampus(visit.value, data.value?.content.campuses))
 const statusLabels: Record<string, string> = {
   new: '已收到需求', contacting: '園所聯繫中', pending_confirmation: '待園方確認',
   confirmed: '預約成立', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
@@ -115,13 +117,16 @@ async function submitReschedule() {
           </div>
           <template v-if="visit">
             <div class="parent-visit-summary">
-              <h2>{{ campus?.name || '參觀預約' }}</h2>
+              <h2>{{ visitCampus?.name || '參觀預約' }}</h2>
               <strong class="parent-visit-status">{{ statusLabel }}</strong>
             </div>
             <dl class="parent-visit-details">
               <div><dt>聯絡手機</dt><dd>{{ visit.phone_masked }}</dd></div>
               <div><dt>{{ visit.status === 'cancelled' ? '原參觀時段' : '參觀時段' }}</dt><dd>{{ visit.slot ? slotLabel(visit.slot) : '待園所與你聯繫確認' }}</dd></div>
             </dl>
+            <p v-if="visitCampus?.paused" class="parent-visit-notice">
+              {{ visitCampus.name || '這所分校' }}目前暫停開放，暫不受理線上預約與改期。<template v-if="visitCampus.phone">如需協助，請來電 <a :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">{{ visitCampus.phone }}</a>。</template><template v-else>如需協助，請直接聯絡園所。</template>
+            </p>
             <p v-if="visit.status === 'pending_confirmation'" class="parent-visit-muted">這個時段尚待園方確認，預約還未成立。</p>
             <p v-else-if="visit.status === 'new' || visit.status === 'contacting'" class="parent-visit-muted">園所會與你聯繫，確認合適的參觀時間。</p>
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上異動時間。如需取消或改期，請直接聯絡園所。</p>
@@ -131,7 +136,7 @@ async function submitReschedule() {
               <button v-if="visit.can_reschedule && !reschedulePending" type="button" class="button primary" :disabled="busy" @click="openReschedule">申請改期</button>
               <button v-if="visit.can_cancel" type="button" class="button outline" :disabled="busy" @click="openCancel">取消預約</button>
               <button v-if="visit.status !== 'cancelled'" type="button" class="button outline" :disabled="busy" @click="reload">重新載入預約</button>
-              <NuxtLink v-if="visit.status === 'cancelled'" class="button primary" :to="`/visit/${visit.campus_key}`">重新預約</NuxtLink>
+              <NuxtLink v-if="visit.status === 'cancelled' && visitCampus?.listed" class="button primary" :to="`/visit/${visit.campus_key}`">重新預約</NuxtLink>
             </div>
 
             <section v-if="showCancel && visit.can_cancel" ref="cancelPanel" class="parent-visit-confirm" tabindex="-1" aria-labelledby="parent-cancel-title">
@@ -175,7 +180,11 @@ async function submitReschedule() {
           <h2 id="parent-contact-title">需要園所協助？</h2>
           <p>若連結失效，或需要更改聯絡資料，請直接與園所聯繫。</p>
           <div class="parent-visit-actions">
-            <NuxtLink v-if="campus" class="text-link" :to="`/campuses/${campus.key}`">聯絡{{ campus.name }}</NuxtLink>
+            <NuxtLink v-if="visitCampus?.listed" class="text-link" :to="`/campuses/${visitCampus.key}`">聯絡{{ visitCampus.name }}</NuxtLink>
+            <template v-else-if="visitCampus">
+              <a v-if="visitCampus.phone" class="text-link" :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">致電{{ visitCampus.name || '園所' }} {{ visitCampus.phone }}</a>
+              <NuxtLink v-else class="text-link" to="/">返回官網查看園所聯絡方式</NuxtLink>
+            </template>
             <template v-else>
               <NuxtLink v-for="item in data?.content.campuses || []" :key="item.key" class="text-link" :to="`/campuses/${item.key}`">{{ item.name }}</NuxtLink>
               <NuxtLink v-if="!data" class="text-link" to="/">返回官網查看園所聯絡方式</NuxtLink>
@@ -208,6 +217,7 @@ async function submitReschedule() {
 .parent-visit-error { color: var(--error); }
 .parent-visit-error:not(:empty), .parent-visit-notice { margin-bottom: 20px; }
 .parent-visit-notice { padding: 16px; background: var(--cream); color: var(--green); border-left: 3px solid var(--leaf); }
+.parent-visit-notice a { text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .parent-visit-confirm { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
 .parent-visit-confirm h3 { font-size: 1.2rem; margin-bottom: 12px; }
 .parent-visit-confirm label { display: block; margin-top: 20px; }

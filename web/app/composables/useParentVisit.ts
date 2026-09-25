@@ -114,8 +114,8 @@ export function useParentVisit() {
       notice.value = '已有改期申請待園所確認；核准前原時段仍保留。'
       return
     }
-    if (code === 'CHANGE_DEADLINE_PASSED' || code === 'INVALID_TRANSITION') {
-      // 截止時間／狀態可能在頁面開啟後改變，更新可操作項目。
+    if (code === 'CHANGE_DEADLINE_PASSED' || code === 'INVALID_TRANSITION' || code === 'BOOKING_UNAVAILABLE') {
+      // 截止時間／狀態／分校停用可能在頁面開啟後改變，更新可操作項目。
       try {
         const record = await $fetch<ParentVisit>(`${base}/me`, { ...requestOptions, signal: controller.signal })
         if (disposed || request !== revision) return
@@ -146,7 +146,10 @@ export function useParentVisit() {
       visit.value = result
       slots.value = []
       reschedulePending.value = false
-      notice.value = '預約已取消，原時段已釋出。若想再次參觀，請重新預約或聯絡園所。'
+      // 停用的分校沒有預約頁，不叫家長「重新預約」。
+      notice.value = result.campus_active === false
+        ? '預約已取消，原時段已釋出。若想再次參觀，請直接聯絡園所。'
+        : '預約已取消，原時段已釋出。若想再次參觀，請重新預約或聯絡園所。'
     } catch (cause) {
       if (!disposed && request === revision) await operationFailed(cause, request)
     } finally {
