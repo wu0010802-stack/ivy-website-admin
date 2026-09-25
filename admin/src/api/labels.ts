@@ -131,6 +131,42 @@ export function mediaStatus(status: string): StatusMeta {
   return MEDIA_STATUS[status] ?? { label: status, tone: 'info' }
 }
 
+// 素材被引用的那一版是什麼（後端 media/references.py）。
+export const MEDIA_REFERENCE_STATE: Record<string, StatusMeta> = {
+  draft: { label: '最新草稿', tone: 'info' },
+  live: { label: '官網上', tone: 'success' },
+  scheduled: { label: '已排程', tone: 'warning' },
+}
+
+export function mediaReferenceState(state: string): StatusMeta {
+  return MEDIA_REFERENCE_STATE[state] ?? { label: state, tone: 'info' }
+}
+
+/**
+ * 引用的欄位路徑（後端 registry 的 extract_media_refs）→ 園方看得懂的位置。
+ * 例：`articles[1].body[2].image` →「第 2 則消息內文第 3 段的圖片」。
+ */
+export function mediaFieldPathLabel(path: string): string {
+  if (path === 'share_image') return '分享預覽圖'
+  let m = /^scenes\[(\d+)\]\.image$/.exec(path)
+  if (m) return `第 ${Number(m[1]) + 1} 個場景的照片`
+  m = /^articles\[(\d+)\]\.image$/.exec(path)
+  if (m) return `第 ${Number(m[1]) + 1} 則消息的封面`
+  m = /^articles\[(\d+)\]\.body\[(\d+)\]\.image$/.exec(path)
+  if (m) return `第 ${Number(m[1]) + 1} 則消息內文第 ${Number(m[2]) + 1} 段的圖片`
+  return path
+}
+
+/** 影片長度（秒）→「1:05」；超過一小時「1:02:05」。 */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return '—'
+  const total = Math.round(seconds)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = String(total % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
+}
+
 export const BOOKING_MODE_LABELS: Record<string, string> = {
   inquiry: '線上表單（收到需求後由園方聯絡）',
   slots: '時段預約（家長自選場次）',
@@ -230,6 +266,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_exception.delete': '取消休假日',
   'campus.activate': '重新啟用分校',
   'campus.deactivate': '停用分校',
+  'media.delete': '刪除素材（移到待清理）',
+  'media.restore': '復原刪除的素材',
+  'media.archive': '封存素材',
+  'media.unarchive': '取消封存素材',
+  'media.purge': '清理刪除的素材檔案',
+  'media.replace_references': '替換素材並產生草稿',
 }
 
 export function auditActionLabel(action: string): string {
@@ -249,6 +291,8 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
   not_allowed: '無法綁定',
   // 2026-09-25 migration：把仍在發布中的原型示範同意文字換成正式文字。
   formal_consent_migration: '系統把原型示範同意文字換成正式文字',
+  // 定期清理時發現待清理的素材又被內容用到，改回一般素材。
+  still_referenced: '仍被內容引用，取消清理',
 }
 
 export function auditReasonLabel(reason: string): string {
@@ -293,6 +337,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   booking_config: '預約設定',
   campus: '分校',
   content_item: '內容',
+  media_asset: '素材',
   notification_outbox: '通知寄送',
   site_settings: '全站設定',
   site_release: '發布紀錄',

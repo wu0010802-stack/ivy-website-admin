@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { api, ApiError, mediaFileUrl } from '../api/client'
+import { api, mediaFileUrl } from '../api/client'
 import type { MediaAssetOut } from '../api/types'
-import { campusLabel } from '../api/labels'
+import { campusLabel, contentItemLabel } from '../api/labels'
+import { useMediaUploadQueue } from '../composables/mediaUpload'
+import MediaUploadList from './MediaUploadList.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -22,9 +24,10 @@ const visible = computed({
 
 const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
-const uploading = ref(false)
 const query = ref('')
 const error = ref<string | null>(null)
+// 選圖器裡上傳的照片一律標記為目前這一校（沒有校區時為共用），可一次選多張。
+const queue = useMediaUploadQueue({ campusKey: () => props.campusKey ?? null, allowed: 'image' })
 
 const visibleAssets = computed(() =>
   assets.value.filter(
@@ -36,10 +39,16 @@ const visibleAssets = computed(() =>
   ),
 )
 
+/** 最新草稿用到這張照片的內容（素材庫可看完整清單）。 */
+function usedInText(asset: MediaAssetOut): string {
+  return (asset.used_in ?? []).map((u) => contentItemLabel(u.kind, u.campus_key)).join('、')
+}
+
 async function load() {
   loading.value = true
   error.value = null
   try {
+    // 只列一般素材：已封存與待清理的不出現在選圖器。
     assets.value = await api.get<MediaAssetOut[]>('/admin/media')
   } catch {
     error.value = '無法讀取照片，請重新載入。'
@@ -51,6 +60,7 @@ async function load() {
 watch(visible, (v) => {
   if (v) {
     query.value = ''
+    queue.reset()
     load()
   }
 })
@@ -62,41 +72,35 @@ function choose(asset: MediaAssetOut) {
 
 async function onUploadChange(event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('kind', 'image')
-  if (props.campusKey) formData.append('campus_key', props.campusKey)
-
-  uploading.value = true
-  try {
-    const asset = await api.upload<MediaAssetOut>('/admin/media', formData)
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+  queue.reset()
+  await queue.add(files)
+  const uploaded = await queue.start()
+  const failed = queue.counts.value.failed
+  // 只傳一張而且成功：跟以前一樣直接選用。多張時留在選圖器，讓人自己挑。
+  if (files.length === 1 && uploaded.length === 1) {
     ElMessage.success('已上傳並選用')
-    choose(asset)
-  } catch (err) {
-    if (err instanceof ApiError) {
-      const detail = err.detail as { message?: string } | string
-      ElMessage.error((typeof detail === 'object' ? detail.message : detail) ?? '上傳失敗')
-    } else {
-      ElMessage.error('上傳失敗')
-    }
-  } finally {
-    uploading.value = false
-    input.value = ''
+    choose(uploaded[0]!)
+    return
   }
+  if (uploaded.length) await load()
+  if (failed) ElMessage.warning(`${uploaded.length} 張上傳完成、${failed} 張失敗`)
+  else if (uploaded.length) ElMessage.success(`已上傳 ${uploaded.length} 張，請點選要用的照片`)
 }
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="選擇照片" width="720px">
+  <el-dialog v-model="visible" title="選擇照片" width="min(720px, 100%)">
     <div class="picker__bar">
       <el-input v-model="query" aria-label="搜尋照片" placeholder="搜尋檔名或替代文字" clearable class="picker__search" />
-      <label class="el-button" :class="{ 'is-disabled': uploading }">
-        <input type="file" accept="image/*" class="picker__file" :disabled="uploading" @change="onUploadChange" />
-        {{ uploading ? '上傳中…' : '上傳新照片' }}
+      <label class="el-button" :class="{ 'is-disabled': queue.running.value }">
+        <input type="file" multiple accept="image/jpeg,image/png,image/webp" class="picker__file" :disabled="queue.running.value" @change="onUploadChange" />
+        {{ queue.running.value ? `上傳中（${queue.counts.value.done + queue.counts.value.failed}／${queue.items.value.length}）` : '上傳新照片' }}
       </label>
     </div>
+    <MediaUploadList :items="queue.items.value" :running="queue.running.value" @remove="queue.remove" />
     <p class="hint picker__hint">
       顯示跨校共用{{ campusKey ? `與${campusLabel(campusKey)}校` : '' }}的照片；這裡上傳的會自動標記為{{ campusKey ? `${campusLabel(campusKey)}校` : '共用' }}素材。
     </p>
@@ -107,6 +111,7 @@ async function onUploadChange(event: Event) {
         <img :src="mediaFileUrl(asset.id)" :alt="asset.alt_text ?? ''" loading="lazy" />
         <span class="picker__name">{{ asset.original_filename }}</span>
         <span class="picker__campus">{{ asset.campus_key ? campusLabel(asset.campus_key) : '共用' }}</span>
+        <span v-if="usedInText(asset)" class="picker__usage" :title="`用在：${usedInText(asset)}`">用在：{{ usedInText(asset) }}</span>
       </button>
       <el-empty
         v-if="!loading && visibleAssets.length === 0"
@@ -191,6 +196,15 @@ async function onUploadChange(event: Event) {
   padding: 0 8px;
   font-size: 11px;
   color: var(--ink-3);
+}
+
+.picker__usage {
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .picker__empty {

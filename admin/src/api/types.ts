@@ -271,6 +271,11 @@ export type VariantKind = 'thumbnail' | 'poster'
 
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
+export type MediaUsagesOut = components['schemas']['MediaUsagesOut']
+export type MediaReferenceOut = components['schemas']['MediaReferenceOut']
+export type MediaHistoryReferenceOut = components['schemas']['MediaHistoryReferenceOut']
+export type MediaUploadLimitsOut = components['schemas']['MediaUploadLimitsOut']
+export type MediaReplaceReferencesOut = components['schemas']['MediaReplaceReferencesOut']
 export type ContentItemOut = components['schemas']['ContentItemOut']
 export type ContentRevisionOut = components['schemas']['ContentRevisionOut']
 export type BookingConfigOut = components['schemas']['BookingConfigOut']
