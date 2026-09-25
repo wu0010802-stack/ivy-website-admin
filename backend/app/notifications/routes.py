@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
@@ -13,7 +13,7 @@ from app.auth.models import User
 from app.auth.permissions import campus_scope, covers_campus, require_scope
 from app.booking.models import OutboxStatus
 from app.notifications import outbox_admin
-from app.notifications.models import NotificationInboxItem
+from app.notifications.models import NotificationInboxItem, UserNotification
 
 router = APIRouter(prefix="/api/website/v1", tags=["notifications"])
 
@@ -101,6 +101,97 @@ async def mark_notification_read(
     item.read_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(item.id), "read_at": item.read_at.isoformat()}
+
+
+class UserNotificationOut(BaseModel):
+    """給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。"""
+
+    id: uuid.UUID
+    kind: str
+    campus_key: str | None
+    # 哪一種內容（home_about、campus_faq…），後台用它連到編輯頁。
+    content_kind: str | None
+    revision_version: int | None
+    # 退回原因或核准備註。
+    note: str | None
+    # 排程沒有執行的原因。
+    error: str | None
+    publish_at: datetime | None
+    # 做這個動作的人（送審者、審核者）；排程由系統執行時為 null。
+    actor_email: str | None
+    created_at: datetime
+    read_at: datetime | None
+
+
+class UserNotificationReadAllOut(BaseModel):
+    updated: int
+
+
+# 個人通知只列最近這麼多則。
+MY_NOTIFICATIONS_LIMIT = 100
+
+
+def _user_notification_out(item: UserNotification) -> UserNotificationOut:
+    payload = item.payload or {}
+    publish_at = payload.get("publish_at")
+    return UserNotificationOut(
+        id=item.id,
+        kind=item.kind,
+        campus_key=item.campus_key,
+        content_kind=payload.get("content_kind"),
+        revision_version=payload.get("revision_version"),
+        note=payload.get("note"),
+        error=payload.get("error"),
+        publish_at=datetime.fromisoformat(publish_at) if isinstance(publish_at, str) else None,
+        actor_email=payload.get("actor_email"),
+        created_at=item.created_at,
+        read_at=item.read_at,
+    )
+
+
+@router.get("/admin/my-notifications", response_model=list[UserNotificationOut])
+async def list_my_notifications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[UserNotificationOut]:
+    """給目前登入者自己的通知，新的在前。每個登入者都能看自己的，不需要案件權限。"""
+    result = await db.execute(
+        select(UserNotification)
+        .where(UserNotification.recipient_user_id == current_user.id)
+        .order_by(UserNotification.created_at.desc())
+        .limit(MY_NOTIFICATIONS_LIMIT)
+    )
+    return [_user_notification_out(item) for item in result.scalars()]
+
+
+@router.post("/admin/my-notifications/{notification_id}/read", response_model=UserNotificationOut)
+async def mark_my_notification_read(
+    notification_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserNotificationOut:
+    item = await db.get(UserNotification, notification_id)
+    # 別人的通知當作不存在。
+    if item is None or item.recipient_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
+    if item.read_at is None:
+        item.read_at = datetime.now(timezone.utc)
+        await db.commit()
+    return _user_notification_out(item)
+
+
+@router.post("/admin/my-notifications/read-all", response_model=UserNotificationReadAllOut)
+async def mark_all_my_notifications_read(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserNotificationReadAllOut:
+    result = await db.execute(
+        update(UserNotification)
+        .where(UserNotification.recipient_user_id == current_user.id, UserNotification.read_at.is_(None))
+        .values(read_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    return UserNotificationReadAllOut(updated=result.rowcount or 0)
 
 
 @router.get("/admin/notification-outbox", response_model=list[NotificationOutboxOut])

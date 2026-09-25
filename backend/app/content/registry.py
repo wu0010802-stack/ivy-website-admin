@@ -129,6 +129,10 @@ class ContentKindConfig:
     # 公開 API 輸出前的過濾（例如依上下架日期），參數是 payload 與台北
     # 時間的今天（YYYY-MM-DD）。預設原樣輸出。
     public_view: Callable[[dict, str], dict] = field(default=lambda payload, today: payload)
+    # 欄位規則版本，存進每一版 revision（ContentRevision.schema_version）。只加
+    # 有預設值的欄位不必調；改名、刪欄位、收緊規則讓舊資料過不了驗證時才加一，
+    # 並在發布與還原時處理舊版本。2026-09-25 以前存的版本一律記為 1。
+    schema_version: int = 1
 
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
@@ -161,3 +165,8 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         publish_blocker=_tour_publish_blocker,
     ),
 }
+
+
+def schema_version_of(kind: str) -> int:
+    config = CONTENT_KIND_REGISTRY.get(kind)
+    return config.schema_version if config is not None else 1

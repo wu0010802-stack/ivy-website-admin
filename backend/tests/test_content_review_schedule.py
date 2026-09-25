@@ -109,13 +109,13 @@ async def test_schedule_runs_when_due_and_can_be_cancelled(admin_client, public_
     assert job.json()["status"] == "scheduled"
 
     # 還沒到期：不發布。
-    assert await run_due_jobs(db_session) == {"published": 0, "failed": 0}
+    assert await run_due_jobs(db_session) == {"published": 0, "failed": 0, "skipped": 0}
     assert (await public_client.get("/api/website/v1/public/site")).status_code == 503
 
     # 把時間撥到過去，模擬到期。
     await db_session.execute(update(PublishJob).values(publish_at=datetime.now(timezone.utc) - timedelta(seconds=1)))
     await db_session.commit()
-    assert await run_due_jobs(db_session) == {"published": 1, "failed": 0}
+    assert await run_due_jobs(db_session) == {"published": 1, "failed": 0, "skipped": 0}
     site = await public_client.get("/api/website/v1/public/site")
     assert site.json()["content"]["campus_faq"]["yihua"]["items"][0]["q"] == "參觀要預約嗎？"
 
@@ -146,7 +146,7 @@ async def test_schedule_fails_if_scheduler_lost_permission(app, admin_client, db
     await admin_client.patch(f"/api/website/v1/admin/users/{creator.id}/active", json={"is_active": False})
     await db_session.execute(update(PublishJob).values(publish_at=datetime.now(timezone.utc) - timedelta(seconds=1)))
     await db_session.commit()
-    assert await run_due_jobs(db_session) == {"published": 0, "failed": 1}
+    assert await run_due_jobs(db_session) == {"published": 0, "failed": 1, "skipped": 0}
     listed = await admin_client.get(f"{FAQ}/schedules{Q}")
     assert listed.json()[0]["status"] == "failed"
     assert "權限" in listed.json()[0]["error"]

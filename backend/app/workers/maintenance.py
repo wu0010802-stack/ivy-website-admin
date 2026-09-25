@@ -44,6 +44,8 @@ class CycleResult:
     ran: bool
     published: int = 0
     publish_failed: int = 0
+    # 到期時官網已經是較新版本、所以沒有蓋回去的排程。
+    publish_skipped: int = 0
     expired_holds: int = 0
     slots_generated: int = 0
     reminders_enqueued: int = 0
@@ -61,6 +63,7 @@ class CycleResult:
             (
                 self.published,
                 self.publish_failed,
+                self.publish_skipped,
                 self.expired_holds,
                 self.slots_generated,
                 self.reminders_enqueued,
@@ -115,6 +118,7 @@ async def _run_steps(
             scheduled = await run_due_jobs(db)
         result.published = scheduled["published"]
         result.publish_failed = scheduled["failed"]
+        result.publish_skipped = scheduled.get("skipped", 0)
     except Exception:  # noqa: BLE001 - 一步失敗不擋後面的步驟
         logger.exception("定期工作：排程發布失敗")
         result.failed_steps.append("publish_jobs")

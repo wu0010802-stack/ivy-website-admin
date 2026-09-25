@@ -500,6 +500,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/my-notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Notifications
+         * @description 給目前登入者自己的通知，新的在前。每個登入者都能看自己的，不需要案件權限。
+         */
+        get: operations["list_my_notifications_api_website_v1_admin_my_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/my-notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All My Notifications Read */
+        post: operations["mark_all_my_notifications_read_api_website_v1_admin_my_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/my-notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark My Notification Read */
+        post: operations["mark_my_notification_read_api_website_v1_admin_my_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/notification-outbox": {
         parameters: {
             query?: never;
@@ -591,6 +645,68 @@ export interface paths {
         put?: never;
         /** Mark Notification Read */
         post: operations["mark_notification_read_api_website_v1_admin_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/publish-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Publish Jobs
+         * @description 全站排程：還沒到期的依時間先後全部列出，已結束的列最近 50 筆（新的在前）。
+         */
+        get: operations["list_publish_jobs_api_website_v1_admin_publish_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Releases
+         * @description 發布紀錄：每次官網內容切換一筆，新的在前，列出和前一次相比換掉了哪些內容。
+         */
+        get: operations["list_releases_api_website_v1_admin_releases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/releases/{release_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Release
+         * @description 整站還原（限總管理者）：把官網每一項內容換回那次發布時的版本，存成一筆
+         *     新的發布紀錄，原本的紀錄都保留。只動內容，不回復預約設定、時段、案件或
+         *     通知；各內容的草稿也不動。
+         */
+        post: operations["restore_release_api_website_v1_admin_releases__release_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1926,6 +2042,11 @@ export interface components {
             review_status: string;
             /** Reviewed At */
             reviewed_at?: string | null;
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
             /** Submitted At */
             submitted_at?: string | null;
             /** Version */
@@ -1971,6 +2092,13 @@ export interface components {
              * @default draft
              */
             review_status: string;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
             /** Version */
             version: number;
         };
@@ -2394,6 +2522,48 @@ export interface components {
              */
             start_time: string;
         };
+        /**
+         * PublishJobListOut
+         * @description 全站排程清單的一列：比單一內容頁的 PublishJobOut 多了是哪一項內容。
+         */
+        PublishJobListOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Can Cancel */
+            can_cancel: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Version */
+            revision_version: number;
+            /** Status */
+            status: string;
+        };
         /** PublishJobOut */
         PublishJobOut: {
             /** Created By Email */
@@ -2429,6 +2599,70 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+        };
+        /** ReleaseChangeOut */
+        ReleaseChangeOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Content Item Id
+             * Format: uuid
+             */
+            content_item_id: string;
+            /** Kind */
+            kind: string;
+            /** Previous Revision Version */
+            previous_revision_version: number | null;
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Version */
+            revision_version: number;
+        };
+        /** ReleaseOut */
+        ReleaseOut: {
+            /** Changes */
+            changes: components["schemas"]["ReleaseChangeOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Restored From Release Id */
+            restored_from_release_id: string | null;
+            /** Source */
+            source: string | null;
+        };
+        /** ReleasePageOut */
+        ReleasePageOut: {
+            /** Items */
+            items: components["schemas"]["ReleaseOut"][];
+            /** Next Before */
+            next_before: string | null;
+        };
+        /** ReleaseRestoreOut */
+        ReleaseRestoreOut: {
+            /** Changed Count */
+            changed_count: number;
+            /** Kept Count */
+            kept_count: number;
+            release: components["schemas"]["ReleaseOut"];
+        };
+        /** ReleaseRestoreRequest */
+        ReleaseRestoreRequest: {
+            /** Expected Current Release Id */
+            expected_current_release_id?: string | null;
         };
         /**
          * RescheduleDecisionRequest
@@ -2588,6 +2822,45 @@ export interface components {
             /** Password */
             password: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * UserNotificationOut
+         * @description 給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。
+         */
+        UserNotificationOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            /** Campus Key */
+            campus_key: string | null;
+            /** Content Kind */
+            content_kind: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string | null;
+            /** Publish At */
+            publish_at: string | null;
+            /** Read At */
+            read_at: string | null;
+            /** Revision Version */
+            revision_version: number | null;
+        };
+        /** UserNotificationReadAllOut */
+        UserNotificationReadAllOut: {
+            /** Updated */
+            updated: number;
         };
         /** UserOut */
         UserOut: {
@@ -4461,6 +4734,107 @@ export interface operations {
             };
         };
     };
+    list_my_notifications_api_website_v1_admin_my_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_my_notifications_read_api_website_v1_admin_my_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationReadAllOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_my_notification_read_api_website_v1_admin_my_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                notification_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserNotificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_failed_notifications_api_website_v1_admin_notification_outbox_get: {
         parameters: {
             query?: {
@@ -4629,6 +5003,114 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_publish_jobs_api_website_v1_admin_publish_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishJobListOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_releases_api_website_v1_admin_releases_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleasePageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_release_api_website_v1_admin_releases__release_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                release_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseRestoreOut"];
                 };
             };
             /** @description Validation Error */

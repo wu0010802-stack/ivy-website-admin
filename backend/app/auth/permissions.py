@@ -61,6 +61,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "retention.manage": {Role.SUPER_ADMIN},
     # LINE 官方帳號推到哪些群組：通知會帶案件編號與後台連結，限總管理者設定。
     "notifications.manage": {Role.SUPER_ADMIN},
+    # 整站還原（規格 L155）：一次把官網所有內容換回某次發布，跨校、跨共用內容。
+    "content.release_restore": {Role.SUPER_ADMIN},
 }
 
 # 角色符合之外，還要總管理者逐人授予（User.capabilities）才算擁有；總管理

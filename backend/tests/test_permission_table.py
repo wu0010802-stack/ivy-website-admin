@@ -46,6 +46,7 @@ def test_super_admin_only_capabilities():
         "audit.read_all",
         "site_settings.manage",
         "retention.manage",
+        "content.release_restore",
     ):
         assert roles_with(capability) == {Role.SUPER_ADMIN}, capability
 

@@ -19,9 +19,9 @@ from app.auth.permissions import (
     can_publish_shared_content,
     require_scope,
 )
-from app.content import service
+from app.content import notices, service
 from app.content import publish_jobs
-from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease, SiteReleaseEntry
+from app.content.models import ContentItem, ContentRevision, PublishJob, ReleaseSource, SiteRelease, SiteReleaseEntry
 from app.media.models import MediaAsset
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media import service as media_service
@@ -295,6 +295,8 @@ async def list_content_revisions(
             last_published_at=last_published.get(rev.id),
             review_status=rev.review_status,
             review_note=rev.review_note,
+            reviewed_at=rev.reviewed_at,
+            schema_version=rev.schema_version,
         )
         for rev, email in rows.all()
     ]
@@ -394,7 +396,7 @@ async def restore_content_revision(
         except publish_jobs.NotPublishable as exc:
             await db.rollback()
             raise _not_ready(exc) from exc
-        await service.publish_revision(db, item, revision, current_user.id)
+        await service.publish_revision(db, item, revision, current_user.id, source=ReleaseSource.RESTORE)
         await audit_service.log_action(
             db,
             actor_user_id=current_user.id,
@@ -495,6 +497,17 @@ async def submit_for_review(
     revision.review_note = None
     revision.submitted_by = current_user.id
     revision.submitted_at = datetime.now(timezone.utc)
+    # 通知能核准的人（規格 L151）；沒人能核准時送審照樣成立，總覽會列出。
+    reviewers = await notices.reviewers_for(db, item)
+    await notices.notify(
+        db,
+        [user.id for user in reviewers],
+        notices.REVIEW_SUBMITTED,
+        item,
+        exclude=current_user.id,
+        revision_version=revision.version,
+        actor_email=current_user.email,
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -534,12 +547,23 @@ async def review_submission(
             raise _not_ready(exc) from exc
         revision.review_status = "approved"
         revision.review_note = (payload.note or "").strip() or None
-        await service.publish_revision(db, item, revision, current_user.id)
+        await service.publish_revision(db, item, revision, current_user.id, source=ReleaseSource.REVIEW)
     else:
         revision.review_status = "rejected"
         revision.review_note = (payload.note or "").strip()
     revision.reviewed_by = current_user.id
     revision.reviewed_at = now
+    # 送審的人要知道結果；退回原因一起帶過去（規格 L152）。
+    await notices.notify(
+        db,
+        [revision.submitted_by],
+        notices.REVIEW_APPROVED if payload.decision == "approve" else notices.REVIEW_REJECTED,
+        item,
+        exclude=current_user.id,
+        revision_version=revision.version,
+        note=revision.review_note,
+        actor_email=current_user.email,
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,

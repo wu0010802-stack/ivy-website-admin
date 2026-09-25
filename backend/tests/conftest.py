@@ -105,7 +105,7 @@ async def _clean_tables(app):
                 "content_revisions, content_items, "
                 "audit_log_entries, analytics_events, site_settings, "
                 "page_view_daily, web_vital_samples, "
-                "notification_deliveries, notification_inbox_items, "
+                "notification_deliveries, notification_inbox_items, user_notifications, "
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "

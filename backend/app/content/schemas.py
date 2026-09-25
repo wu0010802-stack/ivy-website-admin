@@ -673,6 +673,8 @@ class ContentRevisionOut(BaseModel):
     version: int
     payload: dict
     created_at: datetime
+    # 存檔當下的欄位規則版本（registry.schema_version）。
+    schema_version: int = 1
     review_status: str = "draft"
     review_note: str | None = None
     submitted_at: datetime | None = None
@@ -713,8 +715,11 @@ class ContentRevisionSummaryOut(BaseModel):
     is_published: bool
     ever_published: bool
     last_published_at: datetime | None
+    # draft | pending_review | approved | rejected | superseded（送審後又有新版）
     review_status: str = "draft"
     review_note: str | None = None
+    reviewed_at: datetime | None = None
+    schema_version: int = 1
 
 
 class SubmitReviewRequest(BaseModel):
@@ -771,3 +776,62 @@ class PublicSiteOut(BaseModel):
     schema_version: str
     release_id: str | None
     content: dict
+
+
+class PublishJobListOut(BaseModel):
+    """全站排程清單的一列：比單一內容頁的 PublishJobOut 多了是哪一項內容。"""
+
+    id: uuid.UUID
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    revision_version: int
+    publish_at: datetime
+    status: str
+    error: str | None
+    created_by_email: str | None
+    created_at: datetime
+    finished_at: datetime | None
+    # 目前登入的人能不能取消（有這項內容的發布權限）。
+    can_cancel: bool
+
+
+class ReleaseChangeOut(BaseModel):
+    content_item_id: uuid.UUID
+    kind: str
+    campus_key: str | None
+    revision_id: uuid.UUID
+    revision_version: int
+    # 這次發布之前官網上的版本；第一次上線為 null。
+    previous_revision_version: int | None
+
+
+class ReleaseOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    created_by_email: str | None
+    # publish | review | scheduled | restore | release_restore | initialize；
+    # 2026-09-25 以前的發布沒有記錄，為 null。
+    source: str | None
+    restored_from_release_id: uuid.UUID | None
+    is_current: bool
+    # 和前一次發布相比換掉的內容（只列你看得到的校區與共用內容）。
+    changes: list[ReleaseChangeOut]
+
+
+class ReleasePageOut(BaseModel):
+    items: list[ReleaseOut]
+    # 還有更早的紀錄時，下一頁帶 before=這個時間。
+    next_before: datetime | None
+
+
+class ReleaseRestoreRequest(BaseModel):
+    # 畫面上看到的「目前版本」；有人剛好又發布過就回 409，請重新整理再決定。
+    expected_current_release_id: uuid.UUID | None = None
+
+
+class ReleaseRestoreOut(BaseModel):
+    release: ReleaseOut
+    changed_count: int
+    # 目標那次發布之後才第一次上線、維持現狀的內容項數。
+    kept_count: int

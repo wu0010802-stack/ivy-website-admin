@@ -15,7 +15,6 @@ from app.auth import service
 from app.auth.models import Role, User
 from app.campuses.models import Campus
 from app.config import get_settings
-from app.content import service as content_service
 from app.db import create_engine, create_session_factory
 from app.workers.maintenance import run_cycle
 
@@ -95,49 +94,58 @@ async def bootstrap_admin() -> None:
         print(f"已建立總管理者：{email}")
 
 
-async def content_seed_from_fixture(fixture_path: str) -> None:
-    """階段 B 一次性工具：把 fixture 目前的 home_about／home_hero／
-    site_footer 文字灌進 typed content 系統並直接發布，讓 Nuxt 一開始讀到
-    的內容跟現行原型一致，不必園方手動重打一次文案。重跑會用目前
-    latest_version 建新 revision，不會出錯，但會多一版歷史
-    （屬預期行為，不是覆寫 bug）。"""
+async def content_seed_from_fixture(fixture_path: str, *, force: bool, dry_run: bool) -> None:
+    """把 fixture 的首頁「關於」、首頁大圖標語與頁尾文字寫進後台並發布。
+
+    只適合全新的資料庫：這三項任何一項已經有版本（後台編輯過、或跑過
+    initialize-content）就拒絕，避免把園方改好的文字蓋回原型文字；確定要蓋
+    才加 --force（舊版本仍留在版本紀錄，可以還原）。新環境請改用
+    initialize-content，它只補空白項目、不會覆寫。"""
+    from app.content.initialize import SeedRefused, seed_from_fixture
+
     data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
-    about = data["home"]["about"]
-    hero = data["home"]["hero"]
-    footer = data["footer"]
-
-    payloads = {
-        "home_about": {
-            "title": about["title"],
-            "since_label": about["sinceLabel"],
-            "body_text": about["bodyText"],
-            "caption": about["caption"],
-        },
-        "home_hero": {
-            "eyebrow": hero["eyebrow"],
-            "copy_lines": hero["copyLines"],
-            "cta_label": hero["ctaLabel"],
-        },
-        "site_footer": {
-            "tagline": footer["tagline"],
-        },
-    }
-
     factory = await _session_factory()
     async with factory() as db:
         result = await db.execute(select(User).where(User.role == Role.SUPER_ADMIN).limit(1))
         admin_user = result.scalar_one_or_none()
         created_by = admin_user.id if admin_user else None
-
-        for kind, payload in payloads.items():
-            item = await content_service.get_or_create_content_item(db, kind, None)
-            revision = await content_service.create_revision(
-                db, item, payload, item.latest_version, created_by
+        try:
+            plan = await seed_from_fixture(db, data, created_by, force=force, dry_run=dry_run)
+        except SeedRefused as exc:
+            await db.rollback()
+            print(
+                f"以下內容已經有版本，可能是後台編輯過的，這次不寫入：{'、'.join(exc.existing)}。"
+                "新環境請用 initialize-content；確定要用 fixture 蓋回去再加 --force。",
+                file=sys.stderr,
             )
-            await content_service.publish_revision(db, item, revision, created_by)
-            print(f"已建立並發布 {kind} revision v{revision.version}")
+            raise SystemExit(1) from exc
+        if dry_run:
+            await db.rollback()
+            print(f"dry-run：欄位驗證通過，會寫入並發布 {'、'.join(plan.kinds)}（未寫入）。")
+            if plan.existing:
+                print(f"其中 {'、'.join(plan.existing)} 已經有版本，--force 會以 fixture 文字另存新版並發布。")
+            return
         await db.commit()
-        print(f"（來源：{fixture_path}）")
+        print(f"已寫入並發布 {'、'.join(plan.kinds)}（來源：{fixture_path}）。")
+
+
+async def initialize_content_command(fixture_path: str, *, dry_run: bool) -> None:
+    """驗證所有 payload 後，只補還沒有任何版本的內容項並發布；dry-run 列出會補哪些。"""
+    from app.content.initialize import initialize_content, pending_initialization
+
+    data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
+    factory = await _session_factory()
+    async with factory() as db:
+        if dry_run:
+            pending = await pending_initialization(db, data)
+            await db.rollback()
+            print(f"dry-run：欄位驗證通過，會初始化並發布 {len(pending)} 筆內容（未寫入）。")
+            for kind, campus in pending:
+                print(f"  - {kind}{f'（{campus}）' if campus else ''}")
+            return
+        count = await initialize_content(db, data)
+        await db.commit()
+        print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
 
 
 async def process_notifications_once() -> None:
@@ -151,8 +159,10 @@ async def process_notifications_once() -> None:
     if not result.ran:
         print("另一個程序正在執行定期工作，這次跳過。")
         return
-    if result.published or result.publish_failed:
+    if result.published or result.publish_failed or result.publish_skipped:
         print(f"排程發布：成功 {result.published} 筆、失敗 {result.publish_failed} 筆")
+    if result.publish_skipped:
+        print(f"另有 {result.publish_skipped} 筆排程到期時官網已經是較新的版本，沒有蓋回去。")
     if result.expired_holds:
         print(f"已釋放 {result.expired_holds} 筆逾期的時段占位。")
     if result.slots_generated:
@@ -243,7 +253,8 @@ def main() -> None:
     if len(sys.argv) < 2:
         print(
             "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
-            "content-seed-from-fixture|initialize-content|process-notifications|"
+            "content-seed-from-fixture <fixture> [--dry-run] [--force]|"
+            "initialize-content <fixture> [--dry-run]|process-notifications|"
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]>",
             file=sys.stderr,
         )
@@ -256,24 +267,18 @@ def main() -> None:
     elif command == "bootstrap-admin":
         asyncio.run(bootstrap_admin())
     elif command == "content-seed-from-fixture":
-        if len(sys.argv) < 3:
-            print("用法：python -m app.cli content-seed-from-fixture <fixture路徑>", file=sys.stderr)
+        args = [arg for arg in sys.argv[2:] if not arg.startswith("--")]
+        flags = {arg for arg in sys.argv[2:] if arg.startswith("--")}
+        if len(args) != 1 or flags - {"--dry-run", "--force"}:
+            print("用法：python -m app.cli content-seed-from-fixture <fixture路徑> [--dry-run] [--force]", file=sys.stderr)
             raise SystemExit(1)
-        asyncio.run(content_seed_from_fixture(sys.argv[2]))
+        asyncio.run(content_seed_from_fixture(args[0], force="--force" in flags, dry_run="--dry-run" in flags))
     elif command == "initialize-content":
-        if len(sys.argv) != 3:
-            raise SystemExit("用法：python -m app.cli initialize-content <fixture路徑>")
-        from app.content.initialize import initialize_content
-
-        async def run_initialize() -> None:
-            data = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-            factory = await _session_factory()
-            async with factory() as db:
-                count = await initialize_content(db, data)
-                await db.commit()
-                print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
-
-        asyncio.run(run_initialize())
+        args = [arg for arg in sys.argv[2:] if not arg.startswith("--")]
+        flags = {arg for arg in sys.argv[2:] if arg.startswith("--")}
+        if len(args) != 1 or flags - {"--dry-run"}:
+            raise SystemExit("用法：python -m app.cli initialize-content <fixture路徑> [--dry-run]")
+        asyncio.run(initialize_content_command(args[0], dry_run="--dry-run" in flags))
     elif command == "process-notifications":
         asyncio.run(process_notifications_once())
     elif command == "requeue-notifications":

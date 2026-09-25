@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.booking import slot_service
 from app.booking.access_models import RescheduleRequest
@@ -11,7 +13,9 @@ from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import today_local
-from app.content.models import ContentItem, ContentRevision
+from app.content.models import ContentItem, ContentRevision, PublishJob
+from app.content.registry import CONTENT_KIND_REGISTRY
+from app.media.models import MediaAsset, MediaStatus
 
 
 async def get_dashboard_summary(
@@ -113,31 +117,56 @@ async def get_dashboard_summary(
     )
     needs_attention = (await db.execute(needs_attention_stmt)).scalar_one()
 
-    # 保守估計「待發布」：從未發布過但已經有草稿的內容項。精確判斷
-    # 「草稿版本比已發布版本新」需要額外比對 latest revision id，
-    # 目前 admin 畫面看到 current_published_revision_id 就能自行核對，
-    # 這裡先給最基本、不會漏掉全新未發布內容的數字。
-    unpublished_stmt = select(func.count()).select_from(ContentItem).where(
-        ContentItem.current_published_revision_id.is_(None), ContentItem.latest_version > 0
-    )
-    if campus_keys is not None:
-        unpublished_stmt = unpublished_stmt.where(
-            (ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None))
-        )
-    pending_publish = (await db.execute(unpublished_stmt)).scalar_one()
+    # 「待發布」：最新一版還沒上官網的內容項——從來沒發布過的，以及發布後
+    # 又存了新草稿的（最新版本號比官網上的版本新）。正式站初始化時已經全部
+    # 發布過一次，之後改了文案忘了發布就是後者，只算前者會一直顯示 0。
+    content_items = await _content_in_scope(db, campus_keys)
+    pending_publish_items = [
+        {
+            "kind": item.kind,
+            "campus_key": item.campus_key,
+            "latest_version": item.latest_version,
+            "published_version": published.version if published else None,
+            "updated_at": latest.created_at.isoformat() if latest else None,
+        }
+        for item, latest, published in content_items
+        if item.latest_version > 0 and (published is None or item.latest_version > published.version)
+    ]
+    pending_publish_items.sort(key=lambda row: (row["updated_at"] or ""), reverse=True)
+    pending_publish = len(pending_publish_items)
+    # 總覽連到編輯頁用；分校型內容多校都有草稿時只算一種。
+    pending_publish_kinds = sorted({row["kind"] for row in pending_publish_items})
 
-    # 同時回是哪幾種內容：總覽要能直接連到該編輯頁，而不是丟一個
-    # 數字讓人自己在十個內容項裡找。分校型內容多校都有草稿時只算一種。
-    unpublished_kinds_stmt = (
-        select(ContentItem.kind)
-        .where(ContentItem.current_published_revision_id.is_(None), ContentItem.latest_version > 0)
-        .distinct()
+    content_media_issues = await _media_issues(db, content_items)
+
+    # 排程發布到點沒有執行（檢查不過）而且之後還沒有人發布過這項內容：要有人
+    # 決定改完再發布或重新排程。到期時官網已是較新版本而略過的不算，沒有待辦。
+    failed_jobs_stmt = (
+        select(PublishJob, ContentItem, ContentRevision.version)
+        .join(ContentItem, ContentItem.id == PublishJob.content_item_id)
+        .join(ContentRevision, ContentRevision.id == PublishJob.revision_id)
+        .where(
+            PublishJob.status == "failed",
+            (ContentItem.published_at.is_(None)) | (ContentItem.published_at < PublishJob.finished_at),
+        )
+        .order_by(PublishJob.finished_at.desc())
+        .limit(20)
     )
     if campus_keys is not None:
-        unpublished_kinds_stmt = unpublished_kinds_stmt.where(
+        failed_jobs_stmt = failed_jobs_stmt.where(
             (ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None))
         )
-    pending_publish_kinds = sorted(row[0] for row in (await db.execute(unpublished_kinds_stmt)).all())
+    failed_publish_jobs = [
+        {
+            "id": str(job.id),
+            "kind": item.kind,
+            "campus_key": item.campus_key,
+            "revision_version": version,
+            "publish_at": job.publish_at.isoformat(),
+            "error": job.error,
+        }
+        for job, item, version in (await db.execute(failed_jobs_stmt)).all()
+    ]
 
     # 等人審核的內容（內容編輯送上來的）。分校帳號只算自己校；共用內容只有
     # 總管理者能發布，所以只算給總管理者。
@@ -197,8 +226,66 @@ async def get_dashboard_summary(
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,
         "pending_publish_kinds": pending_publish_kinds,
+        "pending_publish_items": pending_publish_items,
+        "content_media_issues": content_media_issues,
+        "failed_publish_jobs": failed_publish_jobs,
         "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
         "campuses_slots_without_openings": slots_without_openings,
         "failed_notifications": failed_notifications,
     }
+
+
+async def _content_in_scope(
+    db: AsyncSession, campus_keys: list[str] | None
+) -> list[tuple[ContentItem, ContentRevision | None, ContentRevision | None]]:
+    """範圍內每個內容項，連同最新一版與官網上的那一版（共用內容大家都算）。"""
+    latest = aliased(ContentRevision)
+    published = aliased(ContentRevision)
+    stmt = (
+        select(ContentItem, latest, published)
+        .outerjoin(latest, (latest.content_item_id == ContentItem.id) & (latest.version == ContentItem.latest_version))
+        .outerjoin(published, published.id == ContentItem.current_published_revision_id)
+        .where(ContentItem.latest_version > 0)
+    )
+    if campus_keys is not None:
+        stmt = stmt.where((ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None)))
+    return [tuple(row) for row in (await db.execute(stmt)).all()]
+
+
+async def _media_issues(
+    db: AsyncSession, items: list[tuple[ContentItem, ContentRevision | None, ContentRevision | None]]
+) -> list[dict]:
+    """官網上或最新草稿引用的素材已被刪除（missing）或還沒處理好（not_ready：
+    處理中或失敗）。草稿有問題就發布不了；官網上的版本有問題，家長看到的是
+    破圖或備用圖。"""
+    refs: list[tuple[ContentItem, bool, list[uuid.UUID]]] = []
+    for item, latest, published in items:
+        config = CONTENT_KIND_REGISTRY.get(item.kind)
+        if config is None:
+            continue
+        for revision, is_live in ((published, True), (latest, False)):
+            if revision is None or (not is_live and published is not None and revision.id == published.id):
+                continue
+            ids = config.extract_media_ids(revision.payload)
+            if ids:
+                refs.append((item, is_live, ids))
+    all_ids = {media_id for _, _, ids in refs for media_id in ids}
+    if not all_ids:
+        return []
+    result = await db.execute(select(MediaAsset.id, MediaAsset.status).where(MediaAsset.id.in_(all_ids)))
+    statuses = dict(result.all())
+    issues: dict[tuple[str, str | None], dict] = {}
+    for item, is_live, ids in refs:
+        missing = sum(1 for media_id in set(ids) if media_id not in statuses)
+        not_ready = sum(1 for media_id in set(ids) if statuses.get(media_id, MediaStatus.READY) != MediaStatus.READY)
+        if not (missing or not_ready):
+            continue
+        row = issues.setdefault(
+            (item.kind, item.campus_key),
+            {"kind": item.kind, "campus_key": item.campus_key, "missing": 0, "not_ready": 0, "live": False},
+        )
+        row["missing"] = max(row["missing"], missing)
+        row["not_ready"] = max(row["not_ready"], not_ready)
+        row["live"] = row["live"] or is_live
+    return sorted(issues.values(), key=lambda row: (not row["live"], row["kind"], row["campus_key"] or ""))
