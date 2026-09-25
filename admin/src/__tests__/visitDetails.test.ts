@@ -43,7 +43,7 @@ describe('參觀資料與已選場次', () => {
 describe('案件流程補完', () => {
   it('已確認的案件可以標記完成，也保留未到場', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
-    // 參觀日當天起才能標完成（main 的規則），所以用已過的場次。
+    // 參觀時段開始後才能標完成或未到場（後端也會拒絕），所以用已過的場次。
     const past = { ...slot, slot_date: '2026-01-05' }
     const wrapper = await setup({ ...details(), status: 'confirmed', hold_expires_at: null, slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())

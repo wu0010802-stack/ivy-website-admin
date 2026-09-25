@@ -125,6 +125,9 @@ describe('待人工處理的入口', () => {
     await wrapper.findAll('button').find(button => button.text() === '設為休假')!.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('還有 2 組家庭已排入')
+    // 待確認的案件沒有「改期」按鈕，要告訴櫃台改走退回聯絡中。
+    expect(wrapper.text()).toContain('已確認的用「改期（換時段）」')
+    expect(wrapper.text()).toContain('待園方確認的先「退回聯絡中」再重新排入')
     expect(wrapper.find('a[href="/visit-requests?attention=1&campus=yihua"]').exists()).toBe(true)
   })
 

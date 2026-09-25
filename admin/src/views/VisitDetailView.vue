@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
@@ -219,6 +219,8 @@ async function markNoShow() {
   try {
     await api.post(`/admin/visit-requests/${id.value}/no-show`)
     ElMessage.success('已標記未到場')
+    // 結案時家長待核准的改期申請跟著失效，側欄的待核准數要一起更新。
+    openRequests.refresh(true)
     await load({ quiet: true })
   } catch (err) {
     reportError(err, '操作失敗')
@@ -227,12 +229,15 @@ async function markNoShow() {
   }
 }
 
-// 參觀日當天或之後才出現「完成參觀」：還沒到的預約按完成沒有意義。
-const visitDayReached = computed(() => {
-  const day = detail.value?.slot?.slot_date
-  if (!day) return false
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())
-  return day <= today
+// 參觀時段開始後才出現「完成參觀」與「標記未到場」（後端也會拒絕）：兩者都會
+// 保留這一場的名額，提早按下去未來那一場就永遠排不進人；家長事先說不來要取消。
+// 櫃台常開著案件頁等家長來，時間每 30 秒重算一次，場次一開始按鈕就出現。
+const clockNow = ref(Date.now())
+const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
+onBeforeUnmount(() => window.clearInterval(clock))
+const visitStarted = computed(() => {
+  const slot = detail.value?.slot
+  return slot ? slotStarted(slot, clockNow.value) : false
 })
 
 async function markContacting() {
@@ -290,6 +295,8 @@ async function reschedule() {
     ElMessage.success(`已改到 ${formatSlotWhen(target)}。記得告知家長。`)
     rescheduleSlotId.value = ''
     rescheduleReason.value = ''
+    // 家長先前的改期申請在直接改期時失效，側欄的待核准數要一起更新。
+    openRequests.refresh(true)
     await load({ quiet: true })
     if (!newNote.value.trim()) newNote.value = `已致電家長，參觀改到 ${formatSlotWhen(target)}。`
   } catch (err) {
@@ -330,6 +337,7 @@ async function markCompleted() {
   try {
     await api.post(`/admin/visit-requests/${id.value}/complete`)
     ElMessage.success('已標記完成參觀')
+    openRequests.refresh(true)
     await load({ quiet: true })
   } catch (err) {
     reportError(err, '操作失敗')
@@ -565,9 +573,11 @@ const linkApplicable = computed(() =>
                     <el-button :loading="busy" @click="decideReschedule('reject')">退回申請</el-button>
                   </div>
                 </div>
-                <p class="hint">{{ visitDayReached ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀日當天起可以標記完成或未到場。' }}</p>
-                <el-button v-if="visitDayReached" type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
-                <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
+                <p class="hint">{{ visitStarted ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀時段開始後可以標記完成或未到場；家長事先說不來，請用下方的「取消預約」。' }}</p>
+                <template v-if="visitStarted">
+                  <el-button type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
+                  <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
+                </template>
                 <div class="reschedule">
                   <p class="reschedule__title">改期（換時段）</p>
                   <el-select v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">

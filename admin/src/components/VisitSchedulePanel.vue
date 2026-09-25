@@ -249,7 +249,7 @@ function disablePast(date: Date): boolean {
 
       <h3 class="schedule__sub">休假日與臨時封鎖</h3>
       <el-alert v-if="attentionNotice" type="warning" show-icon :closable="true" class="schedule__attention" title="休假日當天還有家長要來" @close="attentionNotice = null">
-        <p>{{ formatDate(attentionNotice.date) }} 還有 {{ attentionNotice.count }} 組家庭已排入。請聯絡家長改期到其他場次，或取消預約。</p>
+        <p>{{ formatDate(attentionNotice.date) }} 還有 {{ attentionNotice.count }} 組家庭已排入。請聯絡家長後在案件頁處理：已確認的用「改期（換時段）」換到其他場次，待園方確認的先「退回聯絡中」再重新排入；不來了就取消預約。</p>
         <router-link :to="attentionListPath(campusKey)">查看待人工處理的案件 →</router-link>
       </el-alert>
       <ul v-if="schedule?.exceptions.length" class="exceptions">

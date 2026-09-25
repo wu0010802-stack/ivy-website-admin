@@ -31,7 +31,6 @@ const canMarkRead = computed(() => can('booking.manage'))
 const openRequests = useOpenRequestsStore()
 
 const notifications = ref<NotificationOut[]>([])
-const pendingReschedules = ref<RescheduleRequestOut[]>([])
 const loading = ref(false)
 const onlyUnread = ref(false)
 const busyId = ref<string | null>(null)
@@ -66,29 +65,45 @@ async function loadFailed() {
 }
 void loadFailed()
 
+// 待核准的改期申請同樣列出你負責的所有校區，不跟著上面的校區切換：側欄徽章
+// 與總覽「核准改期申請」算的是全部校區，點進來要看得到同一批，不能落在
+// 預設第一校的空清單。
+const pendingReschedules = ref<RescheduleRequestOut[]>([])
+const rescheduleError = ref('')
+let rescheduleVersion = 0
+
+async function loadReschedules() {
+  const version = ++rescheduleVersion
+  rescheduleError.value = ''
+  if (!can('booking.read')) { pendingReschedules.value = []; return }
+  try {
+    const rows = await api.get<RescheduleRequestOut[]>('/admin/reschedule-requests')
+    if (alive && version === rescheduleVersion) pendingReschedules.value = rows
+  } catch {
+    if (alive && version === rescheduleVersion) rescheduleError.value = '無法讀取待核准的改期申請，請重新整理。'
+  }
+}
+void loadReschedules()
+
 function refreshAll() {
   void load()
   void loadFailed()
+  void loadReschedules()
 }
 
 async function load() {
   const version = ++loadVersion
   const campus = campusFilter.value
   notifications.value = []
-  pendingReschedules.value = []
   loadError.value = ''
   if (!campus) { loading.value = false; return }
   loading.value = true
   try {
-    const [n, r] = await Promise.all([
-      api.get<NotificationOut[]>(`/admin/notifications?campus_key=${encodeURIComponent(campus)}`),
-      api.get<RescheduleRequestOut[]>(`/admin/reschedule-requests?campus_key=${encodeURIComponent(campus)}`),
-    ])
+    const n = await api.get<NotificationOut[]>(`/admin/notifications?campus_key=${encodeURIComponent(campus)}`)
     if (!alive || version !== loadVersion || campus !== campusFilter.value) return
     notifications.value = n
-    pendingReschedules.value = r
   } catch {
-    if (alive && version === loadVersion) loadError.value = '無法讀取通知與改期申請，請重試。'
+    if (alive && version === loadVersion) loadError.value = '無法讀取通知，請重試。'
   } finally {
     if (alive && version === loadVersion) loading.value = false
   }
@@ -212,24 +227,24 @@ async function retryAll() {
 }
 
 async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAction) {
-  if (!canHandle.value || operationBusy.value || loading.value) return
+  if (!canHandle.value || operationBusy.value) return
   // 核准會直接換掉家長的參觀時間、退回會讓家長維持原時段，兩者都是對外
   // 且不能反悔的動作，比照確認預約先問一次並講清楚是誰、從哪一場改到哪一場。
   const decision = await confirmRescheduleDecision(row, action)
   if (!decision) return
   busyId.value = row.id
-  const campus = campusFilter.value
   try {
     await submitRescheduleDecision(row.id, action, decision.reason)
     openRequests.refresh(true)
-    if (!alive || campus !== campusFilter.value) return
+    if (!alive) return
     ElMessage.success(action === 'approve' ? `已核准，改到 ${formatSlotWhen(row.requested_slot)}` : '已退回改期申請')
-    await load()
+    await loadReschedules()
   } catch (err) {
     if (!alive) return
-    const detail = err instanceof ApiError ? (err.detail as { message?: string } | null) : null
-    ElMessage.error(detail && typeof detail === 'object' && detail.message ? detail.message : '操作失敗，請重試')
-    await load()
+    ElMessage.error(apiMessage(err, '操作失敗，請重試'))
+    // 可能剛被別人處理或已失效：重讀清單，側欄數字也跟著更新。
+    openRequests.refresh(true)
+    await loadReschedules()
   } finally { busyId.value = null }
 }
 
@@ -263,7 +278,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <h2 id="failed-outbox-title">寄送失敗（{{ failedOutbox.length }}）</h2>
           <el-button v-if="canHandle" type="primary" :loading="retryAllBusy" :disabled="operationBusy" @click="retryAll">全部重新寄送</el-button>
         </div>
-        <p class="failed__lead">系統自動重試 5 次仍沒送出的通知（含你負責的所有校區）。先確認寄信或 LINE 設定已修好再重新寄送；已送到的管道不會重複送。</p>
+        <p class="section-lead">系統自動重試 5 次仍沒送出的通知（含你負責的所有校區）。先確認寄信或 LINE 設定已修好再重新寄送；已送到的管道不會重複送。</p>
         <el-table :data="failedOutbox" class="data-table">
           <el-table-column label="通知" min-width="220">
             <template #default="{ row }: { row: NotificationOutboxOut }">
@@ -308,20 +323,19 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           </li>
         </ul>
       </section>
-      <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false" class="inline-error">
-        <el-button :disabled="operationBusy" @click="load">重新載入</el-button>
-      </el-alert>
-      <div v-if="loading" class="panel loading-state" role="status">正在讀取通知與改期申請…</div>
-      <template v-else-if="!loadError">
-
+      <el-alert v-if="rescheduleError" :title="rescheduleError" type="error" show-icon :closable="false" class="inline-error" />
       <section v-if="pendingReschedules.length > 0" class="panel reschedule">
         <div class="panel__head"><h2>待核准的改期申請（{{ pendingReschedules.length }}）</h2></div>
+        <p class="section-lead">家長線上申請、等園方核准的改期（含你負責的所有校區）。核准前原時段仍有效。</p>
         <el-table :data="pendingReschedules" class="data-table">
           <el-table-column label="家長" min-width="140">
             <template #default="{ row }: { row: RescheduleRequestOut }">
               <strong>{{ row.parent_name }}</strong>
               <router-link :to="`/visit-requests/${row.visit_request_id}`" class="open-link">查看案件</router-link>
             </template>
+          </el-table-column>
+          <el-table-column label="校區" width="80">
+            <template #default="{ row }: { row: RescheduleRequestOut }">{{ campusLabel(row.campus_key) }}</template>
           </el-table-column>
           <el-table-column label="原時段" min-width="190">
             <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num">{{ formatSlotWhen(row.current_slot) }}</span></template>
@@ -348,6 +362,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <li v-for="row in pendingReschedules" :key="row.id" class="mobile-record">
             <div class="record-heading"><strong>{{ row.parent_name }}</strong><el-tag type="warning">待核准</el-tag></div>
             <dl class="record-meta">
+              <dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd>
               <dt>原時段</dt><dd>{{ formatSlotWhen(row.current_slot) }}</dd>
               <dt>申請改到</dt><dd>{{ formatSlotWhen(row.requested_slot) }}（{{ requestedSlotNote(row) }}）</dd>
               <dt>申請時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd>
@@ -362,7 +377,11 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           </li>
         </ul>
       </section>
-
+      <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false" class="inline-error">
+        <el-button :disabled="operationBusy" @click="load">重新載入</el-button>
+      </el-alert>
+      <div v-if="loading" class="panel loading-state" role="status">正在讀取通知…</div>
+      <template v-else-if="!loadError">
       <div class="panel">
         <el-empty v-if="visibleNotifications.length === 0" :description="onlyUnread ? '沒有未讀通知' : '這個校區還沒有通知'">
           <el-button v-if="onlyUnread" @click="onlyUnread = false">查看全部通知</el-button>
@@ -428,7 +447,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
   border-color: var(--el-color-danger-light-5);
 }
 
-.failed__lead {
+.section-lead {
   margin: 0;
   padding: 12px 24px;
   font-size: 13px;
@@ -436,7 +455,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 }
 
 @media (max-width: 720px) {
-  .failed__lead { padding: 12px 16px; }
+  .section-lead { padding: 12px 16px; }
 }
 
 .reschedule {

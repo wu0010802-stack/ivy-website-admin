@@ -353,6 +353,7 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   rebooked_as_new: '另建新案重新預約',
   reschedule_requested: '家長申請改期',
   reschedule_rejected: '退回改期申請',
+  reschedule_superseded: '家長的改期申請失效（園方已直接改期）',
   access_link_created: '產生家長管理連結',
   access_link_revoked: '撤銷家長管理連結',
 }
