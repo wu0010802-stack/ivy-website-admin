@@ -637,6 +637,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/media/{media_id}/variants/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Media Variant
+         * @description 素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。
+         *     衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。
+         */
+        get: operations["get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/my-notifications": {
         parameters: {
             query?: never;
@@ -1751,6 +1772,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/media/{media_id}/variants/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Media Variant
+         * @description 官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。
+         */
+        get: operations["get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/site": {
         parameters: {
             query?: never;
@@ -2778,11 +2819,51 @@ export interface components {
             /** Version */
             version: number;
         };
+        /**
+         * PublicMediaOut
+         * @description 公開內容引用到的素材資訊（GET /public/site 的 media）：官網用來組
+         *     srcset、套用素材預設焦點與補替代文字。檔案網址由官網依 id 組成
+         *     （/public/media/{id}/file 與 /variants/{kind}），權限跟原檔同一套。
+         */
+        PublicMediaOut: {
+            /** Alt Text */
+            alt_text: string | null;
+            /** Content Type */
+            content_type: string;
+            /** Focus X */
+            focus_x: number | null;
+            /** Focus Y */
+            focus_y: number | null;
+            /** Height */
+            height: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["MediaKind"];
+            /** Variants */
+            variants: components["schemas"]["PublicMediaVariantOut"][];
+            /** Width */
+            width: number | null;
+        };
+        /** PublicMediaVariantOut */
+        PublicMediaVariantOut: {
+            /** Height */
+            height: number | null;
+            kind: components["schemas"]["VariantKind"];
+            /** Width */
+            width: number | null;
+        };
         /** PublicSiteOut */
         PublicSiteOut: {
             /** Content */
             content: {
                 [key: string]: unknown;
+            };
+            /** Media */
+            media?: {
+                [key: string]: components["schemas"]["PublicMediaOut"];
             };
             /** Release Id */
             release_id: string | null;
@@ -3213,7 +3294,7 @@ export interface components {
          * VariantKind
          * @enum {string}
          */
-        VariantKind: "thumbnail" | "poster";
+        VariantKind: "thumbnail" | "poster" | "large";
         /** VisitContactNoteCreateRequest */
         VisitContactNoteCreateRequest: {
             /** Follow Up At */
@@ -5230,6 +5311,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaUsagesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+                variant: "thumbnail" | "poster" | "large";
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -7539,6 +7656,40 @@ export interface operations {
             header?: never;
             path: {
                 media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                media_id: string;
+                variant: "thumbnail" | "poster" | "large";
             };
             cookie?: {
                 ivy_admin_session?: string | null;

@@ -31,11 +31,14 @@ from app.content.schemas import (
 @dataclass(frozen=True)
 class MediaRef:
     """內容裡一處素材引用：素材 id、欄位路徑（例如 `articles[2].body[0].image`）
-    與那一項的標題（消息標題、場景名稱），給素材庫的「用在哪裡」與批次替換用。"""
+    與那一項的標題（消息標題、場景名稱），給素材庫的「用在哪裡」與批次替換用。
+    `kind` 是這個版位要的素材種類（image／video），存檔時檢查；None＝不檢查
+    （2026-09-25 以前的圖片欄位）。"""
 
     media_id: uuid.UUID
     path: str
     label: str | None = None
+    kind: str | None = None
 
 
 def _media_ref(value: object, path: str, label: object = None) -> MediaRef | None:
@@ -80,6 +83,63 @@ def _extract_news_media_refs(payload: dict) -> list[MediaRef]:
 def _extract_site_meta_media_refs(payload: dict) -> list[MediaRef]:
     share = payload.get("share_image") or ""
     return _refs([_media_ref(share, "share_image")]) if share else []
+
+
+def _slot_ref(payload: dict, field_name: str, kind: str, prefix: str = "", label: object = None) -> MediaRef | None:
+    """素材版位（MediaSlotPayload）的引用，路徑指到 `…media_id`，批次替換才能
+    直接改那個字串。"""
+    slot = payload.get(field_name)
+    if not isinstance(slot, dict):
+        return None
+    ref = _media_ref(slot.get("media_id"), f"{prefix}{field_name}.media_id", label)
+    return MediaRef(ref.media_id, ref.path, ref.label, kind) if ref else None
+
+
+def _extract_home_hero_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs(
+        [
+            _slot_ref(payload, "video_desktop", "video"),
+            _slot_ref(payload, "video_mobile", "video"),
+            _slot_ref(payload, "poster", "image"),
+            _slot_ref(payload, "fallback_image", "image"),
+        ]
+    )
+
+
+def _extract_home_about_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs([_slot_ref(payload, "photo", "image")])
+
+
+def _extract_day_media_refs(payload: dict) -> list[MediaRef]:
+    refs = [
+        _slot_ref(payload, "film_desktop", "video"),
+        _slot_ref(payload, "film_mobile", "video"),
+        _slot_ref(payload, "film_poster", "image"),
+    ]
+    for i, moment in enumerate(payload.get("moments", []) or []):
+        if isinstance(moment, dict):
+            refs.append(_slot_ref(moment, "photo", "image", f"moments[{i}].", moment.get("title")))
+    return _refs(refs)
+
+
+def _extract_campus_profile_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs(
+        [
+            _slot_ref(payload, "cover", "image"),
+            _slot_ref(payload, "line_art", "image"),
+            _slot_ref(payload, "line_art_colour", "image"),
+        ]
+    )
+
+
+def _extract_home_news_media_refs(payload: dict) -> list[MediaRef]:
+    refs: list[MediaRef | None] = list(_extract_news_media_refs(payload))
+    for i, film in enumerate(payload.get("films") or []):
+        if isinstance(film, dict):
+            prefix = f"films[{i}]."
+            refs.append(_slot_ref(film, "video", "video", prefix, film.get("title")))
+            refs.append(_slot_ref(film, "poster", "image", prefix, film.get("title")))
+    return _refs(refs)
 
 
 _PATH_TOKEN = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)|\[(\d+)\]")
@@ -202,8 +262,15 @@ class ContentKindConfig:
 
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
-    "home_about": ContentKindConfig(HomeAboutPayload, shared_only=True),
-    "home_hero": ContentKindConfig(HomeHeroPayload, shared_only=True, public_view=_public_home_hero),
+    "home_about": ContentKindConfig(
+        HomeAboutPayload, shared_only=True, extract_media_refs=_extract_home_about_media_refs
+    ),
+    "home_hero": ContentKindConfig(
+        HomeHeroPayload,
+        shared_only=True,
+        extract_media_refs=_extract_home_hero_media_refs,
+        public_view=_public_home_hero,
+    ),
     "site_footer": ContentKindConfig(SiteFooterPayload, shared_only=True),
     "site_meta": ContentKindConfig(
         SiteMetaPayload, shared_only=True, extract_media_refs=_extract_site_meta_media_refs
@@ -212,13 +279,15 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "booking_content": ContentKindConfig(
         BookingContentPayload, shared_only=True, publish_blocker=_booking_publish_blocker
     ),
-    "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
+    "day_experience": ContentKindConfig(
+        DayExperiencePayload, shared_only=True, extract_media_refs=_extract_day_media_refs
+    ),
     # 2：2026-09-25 起消息與活動的校區改成 scope＋campus_keys（舊版的 campus
     # 文字在驗證時換算，見 schemas._ScopedEntry），並加上內文、推薦與活動時間。
     "home_news": ContentKindConfig(
         HomeNewsPayload,
         shared_only=True,
-        extract_media_refs=_extract_news_media_refs,
+        extract_media_refs=_extract_home_news_media_refs,
         public_view=_public_news,
         schema_version=2,
     ),
@@ -226,7 +295,9 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "shared_faq": ContentKindConfig(SharedFaqPayload, shared_only=True, public_view=_public_shared_faq),
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
     # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
-    "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
+    "campus_profile": ContentKindConfig(
+        CampusProfilePayload, shared_only=False, extract_media_refs=_extract_campus_profile_media_refs
+    ),
     "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False, public_view=_public_campus_faq),
     # 各校自己的消息與活動（分校人員只編本校），官網和 home_news 合併顯示。
     "campus_news": ContentKindConfig(

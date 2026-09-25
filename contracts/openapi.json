@@ -1707,6 +1707,8 @@
           "crop_focus_x": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -1718,6 +1720,8 @@
           "crop_focus_y": {
             "anyOf": [
               {
+                "maximum": 1.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -2502,11 +2506,146 @@
         "title": "PublicBookingConfigOut",
         "type": "object"
       },
+      "PublicMediaOut": {
+        "description": "公開內容引用到的素材資訊（GET /public/site 的 media）：官網用來組\nsrcset、套用素材預設焦點與補替代文字。檔案網址由官網依 id 組成\n（/public/media/{id}/file 與 /variants/{kind}），權限跟原檔同一套。",
+        "properties": {
+          "alt_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Text"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "focus_x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus X"
+          },
+          "focus_y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus Y"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMediaVariantOut"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "content_type",
+          "width",
+          "height",
+          "alt_text",
+          "focus_x",
+          "focus_y",
+          "variants"
+        ],
+        "title": "PublicMediaOut",
+        "type": "object"
+      },
+      "PublicMediaVariantOut": {
+        "properties": {
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VariantKind"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "kind",
+          "width",
+          "height"
+        ],
+        "title": "PublicMediaVariantOut",
+        "type": "object"
+      },
       "PublicSiteOut": {
         "properties": {
           "content": {
             "additionalProperties": true,
             "title": "Content",
+            "type": "object"
+          },
+          "media": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PublicMediaOut"
+            },
+            "title": "Media",
             "type": "object"
           },
           "release_id": {
@@ -3610,7 +3749,8 @@
       "VariantKind": {
         "enum": [
           "thumbnail",
-          "poster"
+          "poster",
+          "large"
         ],
         "title": "VariantKind",
         "type": "string"
@@ -8667,6 +8807,94 @@
         ]
       }
     },
+    "/api/website/v1/admin/media/{media_id}/variants/{variant}": {
+      "get": {
+        "description": "素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。\n衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。",
+        "operationId": "get_media_variant_api_website_v1_admin_media__media_id__variants__variant__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "thumbnail",
+                "poster",
+                "large"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Media Variant",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/website/v1/admin/my-notifications": {
       "get": {
         "description": "給目前登入者自己的通知，新的在前。每個登入者都能看自己的，不需要案件權限。",
@@ -13690,6 +13918,78 @@
           }
         },
         "summary": "Get Public Media File",
+        "tags": [
+          "media-public"
+        ]
+      }
+    },
+    "/api/website/v1/public/media/{media_id}/variants/{variant}": {
+      "get": {
+        "description": "官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。",
+        "operationId": "get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "enum": [
+                "thumbnail",
+                "poster",
+                "large"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Media Variant",
         "tags": [
           "media-public"
         ]

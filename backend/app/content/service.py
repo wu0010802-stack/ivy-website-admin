@@ -319,3 +319,19 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
         else:
             content[item.kind] = payload
     return str(state.current_release_id), content
+
+
+def public_media_ids(content: dict) -> set[uuid.UUID]:
+    """公開內容（get_public_content 的輸出）引用到的素材：官網要這些素材的
+    尺寸、衍生檔與預設焦點才能組 srcset 與 object-position。"""
+    ids: set[uuid.UUID] = set()
+    for kind, value in content.items():
+        config = CONTENT_KIND_REGISTRY.get(kind)
+        if config is None or not isinstance(value, dict):
+            continue
+        payloads = value.values() if not config.shared_only else [value]
+        for payload in payloads:
+            if isinstance(payload, dict):
+                ids.update(config.extract_media_ids(payload))
+    return ids
+

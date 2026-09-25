@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
+from app.media.schemas import PublicMediaOut
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -76,13 +77,55 @@ class _ContentPayload(BaseModel):
     model_config = ConfigDict(str_max_length=CONTENT_TEXT_MAX_LENGTH)
 
 
+def _require_media_id(value: str, message: str = "請從素材庫選擇") -> str:
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as exc:
+        raise ValueError(message) from exc
+
+
+class FocusPointPayload(_ContentPayload):
+    """版位的裁切焦點（規格 L108）：照片上的 0–100 百分比座標，左上為 0。
+    官網換成 object-position，不存任意 CSS 字串。"""
+
+    x: float = Field(ge=0, le=100)
+    y: float = Field(ge=0, le=100)
+
+
+class MediaSlotPayload(_ContentPayload):
+    """內容裡的一個素材版位：素材庫的素材與這個版位自己的焦點（規格 L141：
+    不強迫所有版位共用同一個裁切）。焦點留空＝用素材本身設定的焦點，素材
+    也沒設就置中。版位本身留空（None）＝官網沿用內建素材。"""
+
+    media_id: str
+    focus_x: float | None = Field(default=None, ge=0, le=100)
+    focus_y: float | None = Field(default=None, ge=0, le=100)
+
+    @field_validator("media_id")
+    @classmethod
+    def _media_id(cls, value: str) -> str:
+        return _require_media_id(value)
+
+    @model_validator(mode="after")
+    def _focus_pair(self) -> "MediaSlotPayload":
+        if (self.focus_x is None) != (self.focus_y is None):
+            raise ValueError("焦點的左右與上下位置要一起設定")
+        return self
+
+
+MEDIA_ALT_MAX_LENGTH = 200
+
+
 class HomeAboutPayload(_ContentPayload):
     title: str
     since_label: str
     body_text: str
     caption: str
+    # 2026-09-25 新增（2026-09-23 起「關於」只放一張照片）：留空沿用官網內建照片。
+    photo: MediaSlotPayload | None = None
+    photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
 
-    @field_validator("title", "since_label", "body_text", "caption")
+    @field_validator("title", "since_label", "body_text", "caption", "photo_alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -91,12 +134,22 @@ class HomeAboutPayload(_ContentPayload):
 class HomeHeroPayload(_ContentPayload):
     """首屏小標與標語。2026-09-23 使用者拿掉了首屏按鈕，按鈕文字（cta_label）
     不再是欄位：舊版本裡的值驗證時直接忽略（extra 預設 ignore），存檔與官網
-    都不再帶。"""
+    都不再帶。
+
+    2026-09-25 起首屏影片與照片也可以從素材庫換（規格 L90）：桌機與手機影片
+    是不同版位（手機沒設就用桌機那支）、poster 是影片載入前與不自動播放時
+    看到的照片、替代圖是影片載入失敗時換上的照片（沒設就用 poster）。都留空
+    時官網沿用內建的影片與照片。"""
 
     eyebrow: str
     copy_lines: list[str]
+    video_desktop: MediaSlotPayload | None = None
+    video_mobile: MediaSlotPayload | None = None
+    poster: MediaSlotPayload | None = None
+    poster_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    fallback_image: MediaSlotPayload | None = None
 
-    @field_validator("eyebrow")
+    @field_validator("eyebrow", "poster_alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -333,6 +386,10 @@ class BookingContentPayload(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+# 拍立得相紙的色調：只能選官網既有的色票（規格 L91：不能輸入 CSS）。
+DAY_MOMENT_TINTS = ("yellow", "mint", "peach", "cream")
+
+
 class DayMomentPayload(_ContentPayload):
     key: str
     time: str
@@ -342,8 +399,13 @@ class DayMomentPayload(_ContentPayload):
     story: str
     question: str
     answer: str
+    # 2026-09-25 新增：照片從素材庫選；留空時原有的六張沿用內建照片，後台新增
+    # 的卡片顯示無照片的相紙。色調留空＝沿用內建卡的色調。
+    photo: MediaSlotPayload | None = None
+    alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    tint: Literal["yellow", "mint", "peach", "cream"] | None = None
 
-    @field_validator("time", "label", "caption", "title", "story", "question", "answer")
+    @field_validator("time", "label", "caption", "title", "story", "question", "answer", "alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -355,11 +417,24 @@ class DayExperiencePayload(_ContentPayload):
     note: str
     source_note: str
     moments: list[DayMomentPayload]
+    # 2026-09-25 新增：背景影片（桌機、手機分開，手機沒設用桌機那支）、共同的
+    # poster 與影片左下角的說明文字。留空（None）＝沿用官網內建。影片是靜音的
+    # 裝飾背景（aria-hidden），沒有對白，字幕檔（.vtt）另列待辦。
+    film_desktop: MediaSlotPayload | None = None
+    film_mobile: MediaSlotPayload | None = None
+    film_poster: MediaSlotPayload | None = None
+    film_caption_zh: str | None = Field(default=None, max_length=40)
+    film_caption_en: str | None = Field(default=None, max_length=60)
 
     @field_validator("eyebrow", "eyebrow_en", "note", "source_note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("film_caption_zh", "film_caption_en")
+    @classmethod
+    def _caption_safe(cls, value: str | None) -> str | None:
+        return None if value is None else _reject_unsafe_scheme(value)
 
     @field_validator("moments")
     @classmethod
@@ -662,6 +737,57 @@ def _unique_ids(entries: list, what: str) -> None:
         raise ValueError(f"{what}的 id 不可重複")
 
 
+_YOUTUBE_ID_RE = re.compile(
+    r"(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))([\w-]{11})"
+)
+HOME_FILMS_MAX = 8
+
+
+def youtube_id(value: str) -> str:
+    """跟官網 utils/filmCarousel.ts 的 youtubeId 同一套規則：常見的 YouTube
+    網址或 11 碼影片 ID；看不懂回空字串。"""
+    text = value.strip()
+    match = _YOUTUBE_ID_RE.search(text)
+    if match:
+        return match.group(1)
+    return text if re.fullmatch(r"[\w-]{11}", text) else ""
+
+
+class HomeFilmPayload(_ContentPayload):
+    """首頁手機版「活動影片」的一支（桌機不顯示）。素材庫影片可以只播其中
+    一段（start～end 秒，end 留空＝播到結尾）；YouTube 先顯示縮圖，點了才載入。
+    標題不顯示，是螢幕閱讀器念的名稱。"""
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=40)
+    source: Literal["file", "youtube"]
+    video: MediaSlotPayload | None = None
+    start: float = Field(default=0, ge=0, le=3600)
+    end: float | None = Field(default=None, gt=0, le=3600)
+    # 封面照片；素材庫影片沒設就用影片自動抽的畫面，YouTube 沒設就用它的縮圖。
+    poster: MediaSlotPayload | None = None
+    youtube_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
+
+    @field_validator("id", "title")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @model_validator(mode="after")
+    def _source_fields(self) -> "HomeFilmPayload":
+        if self.source == "file":
+            if self.video is None:
+                raise ValueError("請從素材庫選一支影片")
+            self.youtube_url = ""
+        else:
+            if not youtube_id(self.youtube_url):
+                raise ValueError("看不懂的 YouTube 連結，請貼影片網址")
+            self.video = None
+        if self.end is not None and self.end <= self.start:
+            raise ValueError("結束秒數要大於開始秒數")
+        return self
+
+
 class HomeNewsPayload(_ContentPayload):
     # 有值時首頁「近期活動」「最新消息」標出「示意內容」，並在區塊底部顯示這段
     # 說明；換成真實消息後清空即可。
@@ -672,6 +798,19 @@ class HomeNewsPayload(_ContentPayload):
     events: list[NewsEventPayload]
     # 首頁最新消息最多輪播幾則（每組 3 則）；None＝全部。
     home_display_count: int | None = Field(default=None, ge=1, le=30)
+    # 首頁手機版「活動影片」清單（2026-09-25 新增）。None＝還沒在後台設定過，
+    # 官網沿用內建的四支影片片段。
+    films: list[HomeFilmPayload] | None = None
+
+    @field_validator("films")
+    @classmethod
+    def _films_bounded(cls, value: list[HomeFilmPayload] | None) -> list[HomeFilmPayload] | None:
+        if value is None:
+            return None
+        if not 1 <= len(value) <= HOME_FILMS_MAX:
+            raise ValueError(f"活動影片需為 1 到 {HOME_FILMS_MAX} 支")
+        _unique_ids(value, "活動影片")
+        return value
 
     @field_validator("sample_note")
     @classmethod
@@ -948,6 +1087,16 @@ class CampusProfilePayload(_ContentPayload):
     # 地圖連結（規格 L111：地址與地圖分別編輯）。只收 Google 地圖網址；空字串＝
     # 官網照舊用地址組成 Google 地圖搜尋連結。
     map_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
+    # 2026-09-25 新增（規格 L107-108）：封面照片與建築線稿從素材庫選，留空沿用
+    # 官網內建。封面在兩個版位裁成不同比例，各有自己的焦點：card_focus＝首頁
+    # 五校卡片與預約頁的校區照片、hero_focus＝分校頁首屏。版位焦點留空時用
+    # 封面設定的焦點，再沒有就用素材本身的焦點。沒換封面也可以只調焦點。
+    cover: MediaSlotPayload | None = None
+    card_focus: FocusPointPayload | None = None
+    hero_focus: FocusPointPayload | None = None
+    # 首頁五校分頁上的建築線稿（平常）與上色版（選到那一校時疊上去）。
+    line_art: MediaSlotPayload | None = None
+    line_art_colour: MediaSlotPayload | None = None
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
@@ -1203,6 +1352,8 @@ class PublicSiteOut(BaseModel):
     schema_version: str
     release_id: str | None
     content: dict
+    # 內容引用到的素材資訊，key 是素材 id（見 media/schemas.PublicMediaOut）。
+    media: dict[str, PublicMediaOut] = Field(default_factory=dict)
 
 
 class PublishJobListOut(BaseModel):

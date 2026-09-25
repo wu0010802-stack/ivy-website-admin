@@ -22,8 +22,11 @@ class MediaStatus(str, enum.Enum):
 
 
 class VariantKind(str, enum.Enum):
+    # 圖片：長邊 480 的縮圖（每張都有）與長邊 1600 的大圖（原圖更大時才有）。
+    # 影片：抽一格做成的 poster（長邊 480，後台列表與沒設封面時的預設）。
     THUMBNAIL = "thumbnail"
     POSTER = "poster"
+    LARGE = "large"
 
 
 class MediaAsset(Base):
@@ -49,6 +52,9 @@ class MediaAsset(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 原檔內容的 SHA-256：匯入既有素材時用來去重（可重跑）。2026-09-25 以前的
+    # 素材為 NULL。
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 影片時長（秒），由 ffprobe 取得；圖片、或主機沒有 ffprobe 時為 NULL。

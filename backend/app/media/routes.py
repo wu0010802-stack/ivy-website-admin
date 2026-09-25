@@ -29,7 +29,7 @@ from app.auth.service import get_session_by_token
 from app.config import Settings
 from app.media import references as media_references
 from app.media import service
-from app.media.models import MediaAsset, MediaKind, MediaStatus
+from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
 from app.media.schemas import (
     MediaAssetOut,
     MediaHistoryReferenceOut,
@@ -110,10 +110,14 @@ def _quota_exceeded() -> HTTPException:
 
 
 async def _file_response(
-    storage: MediaStorage, request: Request, asset: MediaAsset, headers: dict[str, str]
+    storage: MediaStorage,
+    request: Request,
+    asset: MediaAsset | MediaVariant,
+    headers: dict[str, str],
 ) -> Response:
     """串流送檔：不把整個原檔讀進 API 記憶體（影片可達 150 MB，並行下載
-    會按檔案大小 × 請求數吃記憶體）。本機與 S3 都支援 Range。"""
+    會按檔案大小 × 請求數吃記憶體）。本機與 S3 都支援 Range。衍生檔
+    （縮圖、大圖、poster）走同一條路。"""
     try:
         return await storage.file_response(
             asset.storage_key,
@@ -123,6 +127,19 @@ async def _file_response(
         )
     except MediaFileMissing as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材") from exc
+
+
+VariantName = Literal["thumbnail", "poster", "large"]
+
+
+def _variant(asset: MediaAsset, name: VariantName) -> MediaVariant:
+    """素材的某種衍生檔；沒有（例如小圖沒有大圖、舊素材處理失敗）回 404，
+    官網與後台都不會組出不存在的網址（見 variants 欄位）。"""
+    wanted = VariantKind(name)
+    for variant in asset.variants:
+        if variant.kind == wanted:
+            return variant
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這個素材沒有這種縮圖")
 
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
@@ -576,6 +593,23 @@ async def get_media_file(
     return await _file_response(storage, request, asset, {"Cache-Control": "private, no-store"})
 
 
+@router.get("/{media_id}/variants/{variant}")
+async def get_media_variant(
+    media_id: uuid.UUID,
+    variant: VariantName,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。
+    衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。"""
+    asset = await _get_owned_asset(db, current_user, media_id)
+    storage = service.get_storage(request.app.state.settings)
+    return await _file_response(
+        storage, request, _variant(asset, variant), {"Cache-Control": "private, max-age=86400"}
+    )
+
+
 async def _admin_can_preview(db: AsyncSession, session_token: str | None, asset: MediaAsset) -> bool:
     if session_token is None:
         return False
@@ -597,6 +631,25 @@ async def _admin_can_preview(db: AsyncSession, session_token: str | None, asset:
     return True
 
 
+async def _public_asset(
+    db: AsyncSession, media_id: uuid.UUID, session_token: str | None
+) -> tuple[MediaAsset, dict[str, str]]:
+    """公開讀檔的權限（原檔與衍生檔共用）：目前線上 release 有引用的 ready
+    素材給所有人並允許長快取；其餘只給有權限的後台 session（草稿預覽），
+    不給共用快取。回傳 (素材, 快取標頭)，都不符合時 404。"""
+    result = await db.execute(
+        select(MediaAsset).options(selectinload(MediaAsset.variants)).where(MediaAsset.id == media_id)
+    )
+    asset = result.scalar_one_or_none()
+    if asset is None or asset.status != MediaStatus.READY or asset.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+    if media_id in await service.current_release_media_ids(db):
+        return asset, {"Cache-Control": "public, max-age=31536000, immutable"}
+    if await _admin_can_preview(db, session_token, asset):
+        return asset, {"Cache-Control": "private, no-store"}
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+
+
 @public_router.get("/{media_id}/file")
 async def get_public_media_file(
     media_id: uuid.UUID,
@@ -604,17 +657,22 @@ async def get_public_media_file(
     db: AsyncSession = Depends(get_db_session),
     session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> Response:
-    result = await db.execute(select(MediaAsset).where(MediaAsset.id == media_id))
-    asset = result.scalar_one_or_none()
-    if asset is None or asset.status != MediaStatus.READY or asset.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+    asset, headers = await _public_asset(db, media_id, session_token)
     storage = service.get_storage(request.app.state.settings)
-    if media_id in await service.current_release_media_ids(db):
-        # content_type 來自實際解碼結果（jpeg/png/webp/mp4，另有舊的 gif），
-        # _file_response 仍明確關掉瀏覽器的 MIME 嗅探。
-        return await _file_response(
-            storage, request, asset, {"Cache-Control": "public, max-age=31536000, immutable"}
-        )
-    if await _admin_can_preview(db, session_token, asset):
-        return await _file_response(storage, request, asset, {"Cache-Control": "private, no-store"})
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材")
+    # content_type 來自實際解碼結果（jpeg/png/webp/mp4，另有舊的 gif），
+    # _file_response 仍明確關掉瀏覽器的 MIME 嗅探。
+    return await _file_response(storage, request, asset, headers)
+
+
+@public_router.get("/{media_id}/variants/{variant}")
+async def get_public_media_variant(
+    media_id: uuid.UUID,
+    variant: VariantName,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> Response:
+    """官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。"""
+    asset, headers = await _public_asset(db, media_id, session_token)
+    storage = service.get_storage(request.app.state.settings)
+    return await _file_response(storage, request, _variant(asset, variant), headers)

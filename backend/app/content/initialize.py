@@ -35,6 +35,23 @@ def _booking_payload(source: dict) -> dict:
     return payload
 
 
+# 原型裡的照片、影片欄位是官網內建素材的代號（例如 "day-hello"），不是
+# 素材庫的素材；CMS 的素材版位留空就是「沿用官網內建」，匯入時不帶。
+_DAY_BUILTIN_MEDIA_FIELDS = ("film_desktop", "film_mobile", "film_poster")
+_MOMENT_BUILTIN_MEDIA_FIELDS = ("photo", "alt", "tint")
+
+
+def _day_payload(source: dict) -> dict:
+    payload = {
+        k: v for k, v in _copy_fields(source, "day_experience").items() if k not in _DAY_BUILTIN_MEDIA_FIELDS
+    }
+    payload["moments"] = [
+        {k: v for k, v in moment.items() if k not in _MOMENT_BUILTIN_MEDIA_FIELDS}
+        for moment in payload["moments"]
+    ]
+    return payload
+
+
 def _qa(items: list[dict]) -> list[tuple[str, str]]:
     return [(item["q"], item["a"]) for item in items]
 
@@ -73,7 +90,7 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("site_footer", None, {k: v for k, v in _copy_fields(data["footer"], "site_footer").items() if k != "links"}),
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
         ("booking_content", None, _booking_payload(data["booking"])),
-        ("day_experience", None, _copy_fields(data["dayExperience"], "day_experience")),
+        ("day_experience", None, _day_payload(data["dayExperience"])),
         # 原樣帶入原型的示意消息與 sampleNote：上線畫面不變（仍標「示意內容」），
         # 園方在後台換成真實消息、清空示意說明後才拿掉標示。
         ("home_news", None, _copy_fields(data["news"], "home_news")),

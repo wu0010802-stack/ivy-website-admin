@@ -281,7 +281,8 @@ def test_map_url_is_optional_for_old_profiles():
 
 def test_home_hero_ignores_legacy_cta_label():
     hero = HomeHeroPayload.model_validate({"eyebrow": "小標", "copy_lines": ["一"], "cta_label": "看看孩子的一天"})
-    assert hero.model_dump() == {"eyebrow": "小標", "copy_lines": ["一"]}
+    # 2026-09-25 起多了影片與照片版位（預設 None），這裡只看沒有按鈕文字。
+    assert hero.model_dump(exclude_defaults=True) == {"eyebrow": "小標", "copy_lines": ["一"]}
     assert HomeHeroPayload.model_validate({"eyebrow": "小標", "copy_lines": ["一"]})
     legacy = {"eyebrow": "小標", "copy_lines": ["一"], "cta_label": "舊按鈕"}
     assert "cta_label" not in CONTENT_KIND_REGISTRY["home_hero"].public_view(legacy, "2026-09-25")
@@ -294,7 +295,7 @@ async def test_home_hero_saved_without_cta_label(admin_client, public_client):
     )
     assert "cta_label" not in saved["latest_revision"]["payload"]
     hero = (await public_client.get(f"{API}/public/site")).json()["content"]["home_hero"]
-    assert hero == {"eyebrow": "小標", "copy_lines": ["一", "二"]}
+    assert {k: v for k, v in hero.items() if v not in (None, "")} == {"eyebrow": "小標", "copy_lines": ["一", "二"]}
 
 
 def test_initialize_keeps_builtin_links_and_order():

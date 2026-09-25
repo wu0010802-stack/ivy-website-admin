@@ -82,8 +82,34 @@ class MediaUpdateRequest(BaseModel):
             if cleaned not in out:
                 out.append(cleaned)
         return out
-    crop_focus_x: float | None = None
-    crop_focus_y: float | None = None
+
+    # 素材本身的裁切焦點（0–1，左上為 0）：內容版位沒有另外設定焦點時，官網
+    # 用它當 object-position（見 content/schemas.MediaSlotPayload）。
+    crop_focus_x: float | None = Field(default=None, ge=0, le=1)
+    crop_focus_y: float | None = Field(default=None, ge=0, le=1)
+
+
+class PublicMediaVariantOut(BaseModel):
+    kind: VariantKind
+    width: int | None
+    height: int | None
+
+
+class PublicMediaOut(BaseModel):
+    """公開內容引用到的素材資訊（GET /public/site 的 media）：官網用來組
+    srcset、套用素材預設焦點與補替代文字。檔案網址由官網依 id 組成
+    （/public/media/{id}/file 與 /variants/{kind}），權限跟原檔同一套。"""
+
+    id: uuid.UUID
+    kind: MediaKind
+    content_type: str
+    width: int | None
+    height: int | None
+    alt_text: str | None
+    # 素材的裁切焦點換成 0–100（跟內容版位的焦點同一個單位），沒設為 null。
+    focus_x: float | None
+    focus_y: float | None
+    variants: list[PublicMediaVariantOut]
 
 
 MediaReferenceState = Literal["draft", "live", "scheduled"]

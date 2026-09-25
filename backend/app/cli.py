@@ -252,13 +252,100 @@ async def media_copy_to_s3(dry_run: bool) -> None:
         raise SystemExit(1)
 
 
+_IMPORT_STATUS = {
+    "import": "會匯入",
+    "exists": "素材庫已有，沿用",
+    "missing": "找不到檔案",
+    "too_large": "超過上傳上限",
+    "imported": "已匯入",
+    "failed": "失敗",
+}
+
+
+async def import_site_assets(web_root: Path, *, apply: bool, write_drafts: bool) -> None:
+    """把官網內建的 Logo、首屏與孩子的一天的影片和 poster、關於與時刻卡照片、
+    五校封面與建築線稿匯入素材庫（app/media/site_import.py）。預設只列出會做
+    什麼；--apply 才寫入，--write-drafts 另外把對應版位寫成草稿（不發布）。
+    以檔案雜湊去重，可以重跑。"""
+    from app.media import service as media_service
+    from app.media import site_import
+
+    settings = get_settings()
+    entries = site_import.plan_site_assets(web_root)
+    max_bytes = {"image": settings.media_max_bytes("image"), "video": settings.media_max_bytes("video")}
+    storage = media_service.get_storage(settings)
+    factory = await _session_factory()
+    async with factory() as db:
+        results = await site_import.check_entries(db, entries, max_bytes)
+        await db.rollback()
+    if apply:
+        for result in results:
+            if result.status != "import":
+                continue
+            async with factory() as db:
+                await site_import.import_entry(db, storage, result, settings.media_quota_bytes_per_campus)
+                if result.status == "imported":
+                    await db.commit()
+                else:
+                    await db.rollback()
+
+    for result in results:
+        entry = result.entry
+        where = f"{CAMPUS_NAMES.get(entry.campus_key, entry.campus_key)}" if entry.campus_key else "共用"
+        media = f" → {result.media_id}" if result.media_id else ""
+        note = f"（{result.message}）" if result.message else ""
+        print(f"  [{_IMPORT_STATUS[result.status]}] {entry.label}・{where}：{entry.path.name}{media}{note}")
+
+    drafts: list = []
+    if write_drafts:
+        async with factory() as db:
+            drafts = await site_import.write_drafts(db, results, apply=apply)
+            if apply:
+                await site_import.log_import(db, results, drafts)
+                await db.commit()
+            else:
+                await db.rollback()
+        verb = "已寫成草稿" if apply else "會寫成草稿"
+        for draft in drafts:
+            where = f"（{draft.campus_key}）" if draft.campus_key else ""
+            if draft.note:
+                print(f"  {draft.kind}{where}：{draft.note}")
+                continue
+            if draft.written:
+                print(f"  {draft.kind}{where}：{verb} {'、'.join(draft.written)}")
+            for skipped in draft.skipped:
+                print(f"  {draft.kind}{where}：略過 {skipped}")
+    elif apply:
+        async with factory() as db:
+            await site_import.log_import(db, results, [])
+            await db.commit()
+
+    counts = {status: sum(1 for r in results if r.status == status) for status in _IMPORT_STATUS}
+    if not apply:
+        pending = counts["import"]
+        print(
+            f"dry-run：共 {len(results)} 個檔案，會匯入 {pending}、已在素材庫 {counts['exists']}、"
+            f"找不到 {counts['missing']}、超過上限 {counts['too_large']}（未寫入）。加 --apply 才會執行"
+            f"{'' if write_drafts else '；加 --write-drafts 會一併把版位寫成草稿'}。"
+        )
+        return
+    print(
+        f"共 {len(results)} 個檔案：已匯入 {counts['imported']}、沿用 {counts['exists']}、"
+        f"失敗 {counts['failed']}、找不到 {counts['missing']}、超過上限 {counts['too_large']}。"
+        + ("草稿不會自動發布，請到後台確認後發布。" if write_drafts else "")
+    )
+    if counts["failed"]:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
             "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
             "content-seed-from-fixture <fixture> [--dry-run] [--force]|"
             "initialize-content <fixture> [--dry-run]|process-notifications|"
-            "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]>",
+            "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
+            "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -295,6 +382,21 @@ def main() -> None:
         asyncio.run(requeue_notifications(campus_key, "--dry-run" in args))
     elif command == "media-copy-to-s3":
         asyncio.run(media_copy_to_s3("--dry-run" in sys.argv[2:]))
+    elif command == "import-site-assets":
+        from app.media.site_import import DEFAULT_WEB_ROOT
+
+        args = sys.argv[2:]
+        web_root = DEFAULT_WEB_ROOT
+        if "--web-root" in args:
+            index = args.index("--web-root")
+            if index + 1 >= len(args):
+                raise SystemExit("用法：python -m app.cli import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]")
+            web_root = Path(args[index + 1])
+            args = args[:index] + args[index + 2:]
+        unknown = set(args) - {"--apply", "--write-drafts", "--dry-run"}
+        if unknown or ("--apply" in args and "--dry-run" in args):
+            raise SystemExit("用法：python -m app.cli import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]")
+        asyncio.run(import_site_assets(web_root, apply="--apply" in args, write_drafts="--write-drafts" in args))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

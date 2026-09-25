@@ -29,7 +29,7 @@ from app.media.schemas import (
     MediaReplaceReferencesRequest,
     MediaReplacedItemOut,
 )
-from app.content.registry import CONTENT_KIND_REGISTRY, set_at_path
+from app.content.registry import CONTENT_KIND_REGISTRY, MediaRef, set_at_path
 from app.media import service as media_service
 from app.operations import audit_service
 from app.content.schemas import (
@@ -126,20 +126,22 @@ def _not_ready(exc: publish_jobs.NotPublishable) -> HTTPException:
 
 
 async def _validate_media_references(
-    db: AsyncSession, media_ids: list[uuid.UUID], campus_key: str | None
+    db: AsyncSession, refs: list[MediaRef], campus_key: str | None
 ) -> None:
     """引用的素材必須存在、而且屬於同一校或共用。不驗的話：引用不存在的
     UUID 會在寫 media_usages 時撞 FK 變成 500；引用別校的素材則會替對方
-    建立一筆引用，讓那張圖再也刪不掉。"""
-    if not media_ids:
+    建立一筆引用，讓那張圖再也刪不掉。影片版位只能放影片、照片版位只能放
+    圖片（MediaRef.kind）。"""
+    if not refs:
         return
     result = await db.execute(
-        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at).where(
-            MediaAsset.id.in_(set(media_ids))
+        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind).where(
+            MediaAsset.id.in_({ref.media_id for ref in refs})
         )
     )
     found = {row.id: row for row in result.all()}
-    for media_id in media_ids:
+    for ref in refs:
+        media_id = ref.media_id
         # 待清理的素材過幾天就會真的刪掉，不能再被新的版本引用。
         if media_id not in found or found[media_id].deleted_at is not None:
             raise HTTPException(
@@ -151,6 +153,15 @@ async def _validate_media_references(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"code": "MEDIA_CROSS_CAMPUS", "message": "不能引用其他校區的素材"},
+            )
+        if ref.kind is not None and found[media_id].kind.value != ref.kind:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "MEDIA_KIND_MISMATCH",
+                    "message": "影片欄位只能選影片" if ref.kind == "video" else "照片欄位只能選圖片",
+                    "field_path": ref.path,
+                },
             )
 
 
@@ -254,7 +265,7 @@ async def _save_draft(
     _, previous = await _get_item_with_latest_revision(db, item.id)
     dumped_payload = config.before_save(dumped_payload, previous.payload if previous else None)
     media_refs = config.extract_media_refs(dumped_payload)
-    await _validate_media_references(db, [ref.media_id for ref in media_refs], item.campus_key)
+    await _validate_media_references(db, media_refs, item.campus_key)
     try:
         revision = await service.create_revision(
             db, item, dumped_payload, expected_version, current_user.id
@@ -475,7 +486,10 @@ async def get_public_site(
     release_id, content = await service.get_public_content(db)
     if release_id is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="尚無可用內容")
-    return PublicSiteOut(schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content)
+    media = await media_service.public_media(db, service.public_media_ids(content))
+    return PublicSiteOut(
+        schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content, media=media
+    )
 
 
 # ---------------------------------------------------------------------------

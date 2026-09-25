@@ -8,9 +8,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
+# 衍生檔（規格 L139：原檔保留，衍生縮圖另存）。縮圖給後台列表、選圖器與官網
+# 小版位；大圖給官網手機與一般寬度的版位，原檔只在高解析螢幕的滿版才會被選到。
 THUMBNAIL_SIZE = (480, 480)
+LARGE_SIDE = 1600
 
 logger = logging.getLogger("app.media")
 
@@ -23,13 +26,33 @@ class ProcessingError(Exception):
     pass
 
 
-def make_image_thumbnail_webp(source: bytes | Path) -> bytes:
+@dataclass(frozen=True)
+class Rendition:
+    """一個 WebP 衍生檔與它的實際尺寸（官網 srcset 的寬度描述用）。"""
+
+    data: bytes
+    width: int
+    height: int
+
+
+def make_webp(source: bytes | Path, max_side: int, quality: int = 80) -> Rendition:
+    """縮到長邊不超過 max_side（小圖不放大）。先依 EXIF 轉正：瀏覽器顯示原檔
+    JPEG 時會套用拍攝方向，衍生檔若沒轉正，同一張照片會在官網上躺下來。"""
     with Image.open(io.BytesIO(source) if isinstance(source, bytes) else source) as img:
-        img = img.convert("RGB")
-        img.thumbnail(THUMBNAIL_SIZE)
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.thumbnail((max_side, max_side))
         buf = io.BytesIO()
-        img.save(buf, format="WEBP", quality=80)
-        return buf.getvalue()
+        img.save(buf, format="WEBP", quality=quality)
+        return Rendition(buf.getvalue(), img.width, img.height)
+
+
+def make_image_thumbnail_webp(source: bytes | Path) -> bytes:
+    return make_webp(source, THUMBNAIL_SIZE[0]).data
+
+
+def needs_large_rendition(width: int | None, height: int | None) -> bool:
+    """原圖長邊超過 LARGE_SIDE 才另存大圖；更小的原圖本身就夠小，官網直接用原檔。"""
+    return max(width or 0, height or 0) > LARGE_SIDE
 
 
 @dataclass(frozen=True)
@@ -93,6 +116,10 @@ def probe_video(video_path: Path) -> VideoProbe:
 
 
 def extract_video_poster_webp(video_path: Path, at_seconds: float = 0.5) -> bytes:
+    return extract_video_poster(video_path, at_seconds).data
+
+
+def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition:
     """從影片檔抽一格轉成 WebP。影片已經在暫存檔裡，直接讀路徑，不把整支
     影片讀進記憶體再寫一次。"""
     with tempfile.TemporaryDirectory() as tmp:
@@ -128,6 +155,6 @@ def extract_video_poster_webp(video_path: Path, at_seconds: float = 0.5) -> byte
                 f"ffmpeg 抽幀失敗：{result.stderr.decode('utf-8', errors='replace')[:500]}"
             )
         try:
-            return make_image_thumbnail_webp(frame_path.read_bytes())
+            return make_webp(frame_path.read_bytes(), THUMBNAIL_SIZE[0])
         except Exception as exc:  # Pillow 對壞影格可能丟各種例外
             raise ProcessingError(f"影片 poster 轉檔失敗：{exc}") from exc

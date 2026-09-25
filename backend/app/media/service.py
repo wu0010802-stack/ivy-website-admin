@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,6 +10,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import Settings
 from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, SiteState
@@ -16,10 +18,15 @@ from app.content.registry import CONTENT_KIND_REGISTRY
 from app.content.registry import MediaRef
 from app.media import references as media_references
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
+from app.media.schemas import PublicMediaOut, PublicMediaVariantOut
 from app.media.processing import (
+    LARGE_SIDE,
+    THUMBNAIL_SIZE,
     ProcessingError,
-    extract_video_poster_webp,
-    make_image_thumbnail_webp,
+    Rendition,
+    extract_video_poster,
+    make_webp,
+    needs_large_rendition,
     probe_video,
 )
 from app.media.storage import LocalMediaStorage, MediaStorage, S3MediaStorage
@@ -98,6 +105,24 @@ def s3_storage(settings: Settings) -> S3MediaStorage:
     )
 
 
+def file_sha256(path: Path) -> str:
+    """逐塊算，不把影片整份讀進記憶體。"""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _renditions(kind: MediaKind, source_path: Path, width: int | None, height: int | None) -> list[tuple[VariantKind, Rendition]]:
+    if kind == MediaKind.VIDEO:
+        return [(VariantKind.POSTER, extract_video_poster(source_path))]
+    out = [(VariantKind.THUMBNAIL, make_webp(source_path, THUMBNAIL_SIZE[0]))]
+    if needs_large_rendition(width, height):
+        out.append((VariantKind.LARGE, make_webp(source_path, LARGE_SIDE, quality=82)))
+    return out
+
+
 def get_storage(settings: Settings) -> MediaStorage:
     if settings.media_storage == "s3":
         return s3_storage(settings)
@@ -124,6 +149,7 @@ async def create_media_asset(
     30 秒），但解碼、寫檔、ffprobe 與 ffmpeg 都丟到 thread 執行：API 只有
     一個 event loop，同步做會讓一次影片上傳卡住所有校區與公開訪客的請求。"""
     content_type, width, height = await asyncio.to_thread(sniff_and_validate, source_path, declared_kind)
+    sha256 = await asyncio.to_thread(file_sha256, source_path)
     duration: float | None = None
     if declared_kind == MediaKind.VIDEO:
         probe = await asyncio.to_thread(probe_video, source_path)
@@ -145,6 +171,7 @@ async def create_media_asset(
         original_filename=original_filename,
         content_type=content_type,
         size_bytes=size_bytes,
+        sha256=sha256,
         width=width,
         height=height,
         duration_seconds=duration,
@@ -160,36 +187,52 @@ async def create_media_asset(
         await asyncio.to_thread(storage.delete, storage_key)
         raise
 
+    written: list[str] = []
     try:
-        if declared_kind == MediaKind.IMAGE:
-            variant_bytes = await asyncio.to_thread(make_image_thumbnail_webp, source_path)
-            variant_kind = VariantKind.THUMBNAIL
-        else:
-            variant_bytes = await asyncio.to_thread(extract_video_poster_webp, source_path)
-            variant_kind = VariantKind.POSTER
-        variant_key = storage.generate_key(".webp")
-        await asyncio.to_thread(storage.write_bytes, variant_key, variant_bytes)
-        db.add(
-            MediaVariant(
-                id=uuid.uuid4(),
-                media_id=asset.id,
-                kind=variant_kind,
-                storage_key=variant_key,
-                content_type="image/webp",
-                width=None,
-                height=None,
+        renditions = await asyncio.to_thread(_renditions, declared_kind, source_path, width, height)
+        for variant_kind, rendition in renditions:
+            variant_key = storage.generate_key(".webp")
+            await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
+            written.append(variant_key)
+            db.add(
+                MediaVariant(
+                    id=uuid.uuid4(),
+                    media_id=asset.id,
+                    kind=variant_kind,
+                    storage_key=variant_key,
+                    content_type="image/webp",
+                    width=rendition.width,
+                    height=rendition.height,
+                )
             )
-        )
         asset.status = MediaStatus.READY
     except ProcessingError as exc:
         asset.status = MediaStatus.FAILED
         asset.processing_error = str(exc)[:500]
         # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
         # 讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
-        await asyncio.to_thread(storage.delete, storage_key)
+        for key in [storage_key, *written]:
+            await asyncio.to_thread(storage.delete, key)
 
     await db.flush()
     return asset
+
+
+async def find_by_sha256(db: AsyncSession, sha256: str, campus_key: str | None) -> MediaAsset | None:
+    """同一校區（或共用）裡內容相同、可用的素材；匯入既有素材時去重用。"""
+    scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
+    result = await db.execute(
+        select(MediaAsset)
+        .where(
+            MediaAsset.sha256 == sha256,
+            scope,
+            MediaAsset.status == MediaStatus.READY,
+            MediaAsset.deleted_at.is_(None),
+        )
+        .order_by(MediaAsset.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def is_referenced_by_current_release(db: AsyncSession, media_id: uuid.UUID) -> bool:
@@ -232,6 +275,43 @@ async def current_release_media_ids(db: AsyncSession) -> frozenset[uuid.UUID]:
     media_ids = frozenset(ids)
     _release_media_cache = (release_id, media_ids)
     return media_ids
+
+
+def _percent(value: float | None) -> float | None:
+    return None if value is None else round(value * 100, 2)
+
+
+async def public_media(db: AsyncSession, media_ids: set[uuid.UUID]) -> dict[str, PublicMediaOut]:
+    """公開內容引用到的素材資訊，只給處理完成、沒被刪除的（其他的官網照樣
+    只拿得到 404，不必替它組 srcset）。"""
+    if not media_ids:
+        return {}
+    result = await db.execute(
+        select(MediaAsset)
+        .options(selectinload(MediaAsset.variants))
+        .where(
+            MediaAsset.id.in_(media_ids),
+            MediaAsset.status == MediaStatus.READY,
+            MediaAsset.deleted_at.is_(None),
+        )
+    )
+    out: dict[str, PublicMediaOut] = {}
+    for asset in result.scalars():
+        out[str(asset.id)] = PublicMediaOut(
+            id=asset.id,
+            kind=asset.kind,
+            content_type=asset.content_type,
+            width=asset.width,
+            height=asset.height,
+            alt_text=asset.alt_text,
+            focus_x=_percent(asset.crop_focus_x),
+            focus_y=_percent(asset.crop_focus_y),
+            variants=[
+                PublicMediaVariantOut(kind=v.kind, width=v.width, height=v.height)
+                for v in sorted(asset.variants, key=lambda v: (v.width or 0, v.kind.value))
+            ],
+        )
+    return out
 
 
 async def _lock(db: AsyncSession, asset: MediaAsset) -> None:
