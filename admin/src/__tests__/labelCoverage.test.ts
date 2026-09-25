@@ -9,6 +9,7 @@ import {
   CTA_ENTRY_LABELS,
   REFERRAL_SOURCE_LABELS,
   RETENTION_CATEGORY_LABELS,
+  SLOT_CLOSED_SOURCE_LABELS,
   VISIT_SOURCE_LABELS,
   NOTIFICATION_KIND_LABELS,
   NOTIFICATION_REASON_LABELS,
@@ -159,6 +160,12 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     const sources = [...sourceBlock.matchAll(/^\s+[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
     expect(sources).toContain('walk_in')
     expect(sources.filter((value) => !VISIT_SOURCE_LABELS[value])).toEqual([])
+
+    // 時段關閉來源：休假日、手動、改規則停用，時段頁的狀態欄都要有中文。
+    const closedBlock = bookingModels.slice(bookingModels.indexOf('class SlotClosedSource'), bookingModels.indexOf('class VisitSlot('))
+    const closedSources = [...closedBlock.matchAll(/^\s+[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
+    expect(closedSources).toEqual(['manual', 'exception', 'rule'])
+    expect(closedSources.filter((value) => !SLOT_CLOSED_SOURCE_LABELS[value])).toEqual([])
 
     const schemas = source('booking/schemas.py')
     const referralLine = schemas.slice(schemas.indexOf('ReferralSource = Literal['), schemas.indexOf('\n', schemas.indexOf('ReferralSource = Literal[')))

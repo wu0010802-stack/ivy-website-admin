@@ -5,7 +5,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { VisitSlotOut } from '../api/types'
-import { attentionListPath, campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
+import { attentionListPath, campusLabel, formatDate, formatTime, formatWeekday, slotClosedLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -82,12 +82,12 @@ async function submitCreate() {
   }
 }
 
-async function updateCapacity(slot: VisitSlotOut, capacity: number) {
+async function updateCapacity(slot: VisitSlotOut, capacity: number, successText = '已更新名額') {
   if (!canManage.value || busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
   busyId.value = slot.id
   try {
     await api.patch(`/admin/slots/${slot.id}`, { capacity, expected_version: slot.version })
-    ElMessage.success('已更新名額')
+    ElMessage.success(successText)
     await load()
   } catch (err) {
     if (isVersionConflict(err)) {
@@ -109,20 +109,28 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
   } finally { busyId.value = null }
 }
 
+// 關閉＝這一場不接待：已排入的家長會列入「待人工處理」，要聯絡改期或取消。
+// 園方常常只是不想再收人、已排入的照常來（規格 L227 關閉時段停止新申請），
+// 這時把名額調成已占用的組數就好，案件不會被列成要改期。
 async function toggleClosed(slot: VisitSlotOut) {
   if (!canManage.value || busyId.value || loading.value) return
+  const closing = !slot.closed
+  if (closing && slot.booked_count > 0) {
+    try {
+      await ElMessageBox.confirm(
+        `這個時段已有 ${slot.booked_count} 組占用名額。已排入的家長照常來、只是不再接受新預約，請選「只停止新預約」，名額會改成 ${slot.booked_count} 組。這一場不能接待才選「關閉時段」：既有案件不會自動取消，會列入參觀案件的「待人工處理」，請聯絡家長改期或取消。`,
+        '關閉時段？',
+        { confirmButtonText: '關閉時段', cancelButtonText: '只停止新預約', distinguishCancelAndClose: true, type: 'warning' },
+      )
+    } catch (action) {
+      if (action !== 'cancel') return
+      if (slot.capacity === slot.booked_count) ElMessage.info('名額已經等於已占用的組數，不會再接受新預約')
+      else await updateCapacity(slot, slot.booked_count, `已停止新預約：名額改為已占用的 ${slot.booked_count} 組，已排入的家長照常參觀`)
+      return
+    }
+  }
   busyId.value = slot.id
   try {
-    const closing = !slot.closed
-    if (closing && slot.booked_count > 0) {
-      try {
-        await ElMessageBox.confirm(
-          `這個時段已有 ${slot.booked_count} 組占用名額。關閉後不再接受新預約；既有案件不會取消，會列入參觀案件的「待人工處理」，請聯絡家長改期。`,
-          '關閉時段？',
-          { confirmButtonText: '關閉', cancelButtonText: '先不要', type: 'warning' },
-        )
-      } catch { return }
-    }
     try {
       await api.patch(`/admin/slots/${slot.id}`, { closed: closing, expected_version: slot.version })
       if (closing && slot.booked_count > 0) {
@@ -149,7 +157,7 @@ function isPast(slot: VisitSlotOut): boolean {
 type SlotState = { label: string; tone: 'info' | 'warning' | 'success' }
 function slotState(slot: VisitSlotOut): SlotState {
   if (isPast(slot)) return { label: '已結束', tone: 'info' }
-  if (slot.closed) return { label: slot.closed_source === 'exception' ? '休假日關閉' : '已關閉', tone: 'info' }
+  if (slot.closed) return { label: slotClosedLabel(slot.closed_source), tone: 'info' }
   if (slot.booked_count >= slot.capacity) return { label: '已額滿', tone: 'warning' }
   return { label: '開放中', tone: 'success' }
 }
@@ -192,7 +200,7 @@ function openCreate() {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長可預約的參觀時段與每場名額。已確認的案件會占用名額；關閉時段只是不再開放，不影響既有案件。">
+    <PageHeader lead="家長可預約的參觀時段與每場名額。已確認的案件會占用名額。關閉時段代表這一場不接待，已排入的家長要聯絡改期；只想停止新預約，把名額調成已占用的組數。">
       <template v-if="canManage" #actions>
         <el-button type="primary" :icon="Plus" :disabled="!selectedCampus || Boolean(busyId) || loading || creating" @click="openCreate">新增時段</el-button>
       </template>

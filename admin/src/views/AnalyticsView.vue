@@ -6,6 +6,7 @@ import { cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabe
 import { taipeiToday } from '../composables/newsContent'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
@@ -29,6 +30,8 @@ const funnel = ref<AnalyticsFunnelOut | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const requests = useRequestSequence()
+// 手機上日期區間只顯示一個月，雙月面板約 646px 會超出 390px 螢幕。
+const narrow = useNarrowScreen()
 
 // 台北日期往前推 n 天（含今天共 n 天）。後端也以台北日界線切日期。
 function daysBefore(today: string, days: number): string {
@@ -169,7 +172,7 @@ const entryRows = computed(() =>
       </label>
       <label v-if="period === 'custom'" class="filter-field analytics__range">
         <span>自訂區間</span>
-        <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels
+        <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
           :clearable="false" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="統計日期區間" />
       </label>
       <el-button :loading="loading" :disabled="!campusKey" @click="load">重新整理</el-button>

@@ -696,6 +696,33 @@ export function parentDeadlineLabel(hours: number): string {
   return `參觀前 ${hours} 小時`
 }
 
+// 時段為什麼關閉（後端 SlotClosedSource）。舊資料沒有來源（null）一律當手動關閉。
+export const SLOT_CLOSED_SOURCE_LABELS: Record<string, string> = {
+  manual: '已關閉',
+  exception: '休假日關閉',
+  rule: '不在開放規則內',
+}
+
+export function slotClosedLabel(source: string | null | undefined): string {
+  return SLOT_CLOSED_SOURCE_LABELS[source ?? 'manual'] ?? '已關閉'
+}
+
+// 存每週規則時，還沒被使用的舊規則時段跟著調整的結果（PUT visit-schedule 的
+// slot_sync，稽核紀錄的 metadata 也是同一份）。移除與停用對園方來說都是「這一
+// 場不再開放」，合在一起講。
+export interface SlotSyncResult { removed: number; closed: number; reopened: number; capacity_updated: number; kept_booked: number }
+
+export function slotSyncLines(sync: Partial<SlotSyncResult> | null | undefined): string[] {
+  if (!sync) return []
+  const retired = (sync.removed ?? 0) + (sync.closed ?? 0)
+  return [
+    retired ? `${retired} 場不符合新規則的時段不再開放` : '',
+    sync.reopened ? `重新開放 ${sync.reopened} 場` : '',
+    sync.capacity_updated ? `${sync.capacity_updated} 場名額改成新規則` : '',
+    sync.kept_booked ? `${sync.kept_booked} 場已有家長排入，維持原樣` : '',
+  ].filter(Boolean)
+}
+
 // 「待人工處理」：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未
 // 結案的案件。關時段、設休假日、停用分校後的提示與總覽待辦都連到這裡。
 export function attentionListPath(campusKey?: string | null): string {
@@ -826,7 +853,8 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
     })
     .join('，')
   const changes = auditChangeSummary(metadata)
-  return [plain, changes ? `修改：${changes}` : ''].filter(Boolean).join('，')
+  const slotSync = metadata?.slot_sync && typeof metadata.slot_sync === 'object' ? slotSyncLines(metadata.slot_sync as Partial<SlotSyncResult>) : []
+  return [plain, changes ? `修改：${changes}` : '', slotSync.length ? `時段：${slotSync.join('、')}` : ''].filter(Boolean).join('，')
 }
 
 export const REFERRAL_SOURCE_LABELS: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }

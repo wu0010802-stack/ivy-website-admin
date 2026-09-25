@@ -7,6 +7,7 @@ import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
@@ -34,8 +35,10 @@ const dueOnly = ref(route.query.due === '1')
 // 承辦人：''＝全部、me＝我承辦的、none＝尚未指派。
 const assigneeFilter = ref(route.query.assignee === 'me' || route.query.assignee === 'none' ? String(route.query.assignee) : '')
 const sourceFilter = ref('')
-// 送出日期區間（台灣日期，含頭尾）。
+// 送出日期區間（台灣日期，含頭尾）。櫃台會在手機上篩：窄螢幕的日期面板只顯示
+// 一個月，雙月面板約 646px 會超出 390px 螢幕。
 const createdRange = ref<[string, string] | null>(null)
+const narrow = useNarrowScreen()
 // 待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
 const attentionOnly = ref(route.query.attention === '1')
 // 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
@@ -235,7 +238,7 @@ onMounted(() => {
         </el-select>
         </div>
         <div class="filter-field created-range"><span>送出日期</span>
-        <el-date-picker v-model="createdRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels
+        <el-date-picker v-model="createdRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
           start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="送出日期區間" />
         </div>
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
@@ -245,7 +248,7 @@ onMounted(() => {
     </div>
 
     <el-alert v-if="attentionOnly" class="attention-note" type="warning" :closable="false" show-icon title="待人工處理的案件">
-      <p>排入的時段已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。</p>
+      <p>排入的時段已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。那一場其實照常接待的話，到參觀時段頁重新開放，並把名額調成已占用的組數（不再收新預約）。</p>
     </el-alert>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">

@@ -74,6 +74,9 @@ function dataReasons(mode: Mode): ModeReason[] {
 }
 const selectedReasons = computed(() => reasonsFor(form.value.mode))
 const modeChanged = computed(() => Boolean(config.value) && form.value.mode !== config.value!.mode)
+// 這一頁任何欄位存檔都會讓預約設定的版本加一（含只改家長異動期限），正在
+// 官網填表單的家長送出時會被請確認一次再送。只有收表單的方式才有人在填。
+const formsInProgress = computed(() => config.value?.mode === 'inquiry' || config.value?.mode === 'slots')
 
 // 數字框清空時是 null；送出 null 後端會當成「不改」，所以先擋下來。
 const deadlineInvalid = computed(() => {
@@ -262,7 +265,7 @@ async function save() {
               <el-button type="primary" :loading="saving" :disabled="!isDirty || selectedReasons.length > 0 || deadlineInvalid || conflict" @click="save">
                 儲存並套用到官網
               </el-button>
-              <span class="live-note">沒有草稿階段，儲存後官網立即套用{{ modeChanged ? '；切換前會先列出影響範圍' : '' }}。</span>
+              <span class="live-note">沒有草稿階段，儲存後官網立即套用{{ modeChanged ? '；切換前會先列出影響範圍' : '' }}{{ formsInProgress ? '；正在官網填預約表的家長送出時，會被請確認一次再送（已填內容保留）' : '' }}。</span>
             </div>
             <div v-if="selectedReasons.length" class="blocked-reasons" role="status">
               <strong>還不能使用「{{ modeLabel(form.mode) }}」：</strong>

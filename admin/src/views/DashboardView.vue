@@ -228,7 +228,7 @@ onMounted(load)
           <div class="panel dash__task-list">
             <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()">
               <span class="task__number">{{ needsAttention }}</span>
-              <div><h3>時段已關閉或分校停用，家長還要來</h3><p>這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園。</p><span class="task__action">查看待人工處理的案件 →</span></div>
+              <div><h3>時段已關閉或分校停用，家長還要來</h3><p>這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園；那一場其實照常接待的話，重新開放時段並把名額調成已占用的組數。</p><span class="task__action">查看待人工處理的案件 →</span></div>
             </router-link>
             <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
               <span class="task__number">{{ awaiting }}</span>
