@@ -41,8 +41,18 @@ from app.media.schemas import (
 )
 from app.media.storage import MediaFileMissing, MediaStorage
 from app.media.validation import MediaValidationError
+from app.operations import audit_service
 
 _UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+def _media_audit(asset: MediaAsset) -> dict:
+    return {
+        "kind": asset.kind.value,
+        "content_type": asset.content_type,
+        "size_bytes": asset.size_bytes,
+        "status": asset.status.value,
+    }
 
 
 def _require_media_manage(user: User, campus_key: str | None) -> None:
@@ -206,6 +216,7 @@ def _out(asset: MediaAsset, settings: Settings, emails: dict[uuid.UUID, str] | N
         usage_count=len(asset.usages),
         used_in=_used_in(asset),
         variants=list(asset.variants),
+        version=asset.version,
     )
 
 
@@ -404,6 +415,16 @@ async def upload_media(
     finally:
         source_path.unlink(missing_ok=True)
 
+    # 不記原始檔名：家長或孩子的名字常常直接寫在檔名裡。
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="media.upload",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata=_media_audit(asset),
+    )
     await db.commit()
     await db.refresh(asset, attribute_names=["variants", "usages"])
     return await _asset_out(db, request, asset)
@@ -444,8 +465,35 @@ async def update_media(
     """圖片與影片都能補說明、圖說、來源、授權與標籤（規格 L138）。"""
     asset = await _get_owned_asset(db, current_user, media_id)
     _require_media_manage(current_user, asset.campus_key)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    # 鎖列後重讀 version：兩個人同時存檔時後到的一方會等前一方提交，
+    # 再看到新的 version 而被擋下，不會悄悄蓋掉前一個人改的說明。
+    await db.refresh(asset, attribute_names=["version"], with_for_update=True)
+    if asset.version != payload.expected_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "MEDIA_VERSION_CONFLICT",
+                "message": "這個素材的說明剛被其他人修改，請重新載入後再編輯",
+                "current_version": asset.version,
+            },
+        )
+    changed = []
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"expected_version"}).items():
+        if getattr(asset, field) != value:
+            changed.append(field)
         setattr(asset, field, value)
+    if changed:
+        asset.version += 1
+        # 只記改了哪些欄位；說明與圖說是自由文字，不抄進稽核。
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="media.update",
+            target_type="media_asset",
+            target_id=str(asset.id),
+            campus_key=asset.campus_key,
+            metadata={"fields": sorted(changed)},
+        )
     await db.commit()
     await db.refresh(asset, attribute_names=["variants", "usages"])
     return await _asset_out(db, request, asset)
@@ -576,6 +624,15 @@ async def replace_media(
         raise _media_error(exc) from exc
     finally:
         source_path.unlink(missing_ok=True)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="media.replace",
+        target_type="media_asset",
+        target_id=str(new_asset.id),
+        campus_key=new_asset.campus_key,
+        metadata={"replaces_media_id": str(old_asset.id), **_media_audit(new_asset)},
+    )
     await db.commit()
     await db.refresh(new_asset, attribute_names=["variants", "usages"])
     return await _asset_out(db, request, new_asset)

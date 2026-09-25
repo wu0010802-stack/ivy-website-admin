@@ -16,6 +16,7 @@ from app.booking.schemas import VisitRequestCreate
 from app.booking.service import _hash_payload
 from app.common.timezones import today_local
 from app.operations import audit_service, retention_service
+from app.operations.models import RetentionRunTrigger
 from tests.conftest import set_booking_mode
 
 
@@ -276,10 +277,11 @@ async def test_retention_clears_new_details_and_audit_rejects_personal_fields(
     stored.created_at = datetime.now(timezone.utc) - timedelta(days=400)
     await db_session.commit()
 
-    dry_run = await retention_service.run_retention_sweep(db_session, dry_run=True)
-    assert dry_run["candidate_ids"] == [receipt_id]
+    days = {"cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365}
+    found = await retention_service.find_candidates(db_session, days)
+    assert [str(v.id) for v in found["cancelled"]] == [receipt_id]
     assert stored.child_name == "陳小樹"
-    await retention_service.run_retention_sweep(db_session, dry_run=False)
+    await retention_service.run_sweep(db_session, days, trigger=RetentionRunTrigger.MANUAL)
     await db_session.commit()
     await db_session.refresh(stored)
     assert stored.child_name is None

@@ -55,11 +55,15 @@ class MediaAssetOut(BaseModel):
     usage_count: int
     used_in: list[MediaUsedInOut] = Field(default_factory=list)
     variants: list[MediaVariantOut]
+    # metadata 的樂觀鎖版本（PATCH 帶 expected_version）。
+    version: int
 
     model_config = {"from_attributes": True}
 
 
 class MediaUpdateRequest(BaseModel):
+    # 畫面載入時素材的 version；不符回 409 MEDIA_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
     alt_text: str | None = Field(default=None, max_length=500)
     source_attribution: str | None = Field(default=None, max_length=255)
     caption: str | None = Field(default=None, max_length=500)

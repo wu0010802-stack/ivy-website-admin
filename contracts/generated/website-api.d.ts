@@ -929,6 +929,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/retention-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Retention Runs
+         * @description 真正執行過的清理紀錄（手動與定期工作；試算不留紀錄），最新的在前。
+         */
+        get: operations["list_retention_runs_api_website_v1_admin_retention_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/retention/dry-run": {
         parameters: {
             query?: never;
@@ -938,7 +958,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retention Dry Run */
+        /**
+         * Retention Dry Run
+         * @description 依保存政策的天數試算，不改資料、不留紀錄。
+         */
         post: operations["retention_dry_run_api_website_v1_admin_retention_dry_run_post"];
         delete?: never;
         options?: never;
@@ -957,10 +980,33 @@ export interface paths {
         put?: never;
         /**
          * Retention Run
-         * @description 預設環境不允許真的清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確
-         *     設為 true），避免意外把個資清掉。
+         * @description 依保存政策的天數立即匿名化，並留一筆清理紀錄。預設環境不允許真的
+         *     清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確設為 true），避免意外把
+         *     個資清掉。
          */
         post: operations["retention_run_api_website_v1_admin_retention_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/site-policies/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Retention Policy
+         * @description 個資保存政策（規格 L282）：已取消／未到場、已完成的保留天數，未結案
+         *     提醒天數，是否每天自動清理，以及依目前天數試算會處理幾筆。
+         */
+        get: operations["get_retention_policy_api_website_v1_admin_site_policies_retention_get"];
+        /** Update Retention Policy */
+        put: operations["update_retention_policy_api_website_v1_admin_site_policies_retention_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1805,7 +1851,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Public Site */
+        /**
+         * Get Public Site
+         * @description 規格 L311：帶 ETag。內容除了發布紀錄，還會隨日期（活動過期）、分校
+         *     停用與素材狀態改變，所以 ETag 直接取輸出本文的雜湊，不另外推算版本。
+         *     官網與瀏覽器帶 If-None-Match 重新驗證時，沒變就回 304、不再傳整份內容。
+         */
         get: operations["get_public_site_api_website_v1_public_site_get"];
         put?: never;
         post?: never;
@@ -2487,6 +2538,8 @@ export interface components {
             used_in?: components["schemas"]["MediaUsedInOut"][];
             /** Variants */
             variants: components["schemas"]["MediaVariantOut"][];
+            /** Version */
+            version: number;
             /** Width */
             width: number | null;
         };
@@ -2605,6 +2658,8 @@ export interface components {
             crop_focus_x?: number | null;
             /** Crop Focus Y */
             crop_focus_y?: number | null;
+            /** Expected Version */
+            expected_version: number;
             /** License Note */
             license_note?: string | null;
             /** Source Attribution */
@@ -3161,6 +3216,104 @@ export interface components {
              */
             visit_request_id: string;
         };
+        /** RetentionCountsOut */
+        RetentionCountsOut: {
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
+            /**
+             * Completed
+             * @default 0
+             */
+            completed: number;
+            /**
+             * No Show
+             * @default 0
+             */
+            no_show: number;
+        };
+        /** RetentionDaysOut */
+        RetentionDaysOut: {
+            /** Cancelled Days */
+            cancelled_days: number;
+            /** Completed Days */
+            completed_days: number;
+            /** Open Overdue Days */
+            open_overdue_days: number;
+        };
+        /** RetentionPolicyOut */
+        RetentionPolicyOut: {
+            /** Auto Run Enabled */
+            auto_run_enabled: boolean;
+            /** Cancelled Days */
+            cancelled_days: number;
+            /** Completed Days */
+            completed_days: number;
+            /** Last Scheduled On */
+            last_scheduled_on: string | null;
+            /** Open Overdue Days */
+            open_overdue_days: number;
+            preview: components["schemas"]["RetentionReportOut"];
+            /** Real Run Allowed */
+            real_run_allowed: boolean;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Email */
+            updated_by_email: string | null;
+            /** Version */
+            version: number;
+        };
+        /** RetentionPolicyUpdate */
+        RetentionPolicyUpdate: {
+            /** Auto Run Enabled */
+            auto_run_enabled: boolean;
+            /** Cancelled Days */
+            cancelled_days: number;
+            /** Completed Days */
+            completed_days: number;
+            /** Expected Version */
+            expected_version: number;
+            /** Open Overdue Days */
+            open_overdue_days: number;
+        };
+        /** RetentionReportOut */
+        RetentionReportOut: {
+            counts: components["schemas"]["RetentionCountsOut"];
+            days: components["schemas"]["RetentionDaysOut"];
+            /** Dry Run */
+            dry_run: boolean;
+            /** Open Overdue Count */
+            open_overdue_count: number;
+            /** Run Id */
+            run_id?: string | null;
+            /** Total */
+            total: number;
+        };
+        /** RetentionRunOut */
+        RetentionRunOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            counts: components["schemas"]["RetentionCountsOut"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            days: components["schemas"]["RetentionDaysOut"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Open Overdue Count */
+            open_overdue_count: number;
+            /** Total */
+            total: number;
+            /** Trigger */
+            trigger: string;
+        };
         /** ReviewDecisionRequest */
         ReviewDecisionRequest: {
             /**
@@ -3200,6 +3353,8 @@ export interface components {
         SiteSettingsUpdate: {
             /** Description */
             description: string;
+            /** Expected Version */
+            expected_version: number;
             /** Noindex */
             noindex: boolean;
             /** Privacy Policy Version */
@@ -3368,6 +3523,8 @@ export interface components {
         VariantKind: "thumbnail" | "poster" | "large";
         /** VisitContactNoteCreateRequest */
         VisitContactNoteCreateRequest: {
+            /** Expected Version */
+            expected_version?: number | null;
             /** Follow Up At */
             follow_up_at?: string | null;
             /** Note */
@@ -3484,6 +3641,8 @@ export interface components {
         VisitRequestAssignRequest: {
             /** Assigned Staff Id */
             assigned_staff_id: string | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /** VisitRequestCancelRequest */
         VisitRequestCancelRequest: {
@@ -3599,6 +3758,8 @@ export interface components {
             source: "web" | "phone" | "line" | "walk_in" | "external";
             /** Status */
             status: string;
+            /** Version */
+            version: number;
         };
         /**
          * VisitRequestFullOut
@@ -3680,6 +3841,8 @@ export interface components {
             source: "web" | "phone" | "line" | "walk_in" | "external";
             /** Status */
             status: string;
+            /** Version */
+            version: number;
         };
         /**
          * VisitRequestManualCreate
@@ -3810,9 +3973,13 @@ export interface components {
             rules: components["schemas"]["VisitRuleOut"][];
             /** Rules Extended On */
             rules_extended_on?: string | null;
+            /** Version */
+            version: number;
         };
         /** VisitScheduleUpdate */
         VisitScheduleUpdate: {
+            /** Expected Version */
+            expected_version: number;
             /** Max Advance Days */
             max_advance_days: number;
             /** Min Lead Hours */
@@ -3922,6 +4089,8 @@ export interface components {
              * Format: time
              */
             start_time: string;
+            /** Version */
+            version: number;
         };
         /** VisitSlotUpdateRequest */
         VisitSlotUpdateRequest: {
@@ -3929,6 +4098,8 @@ export interface components {
             capacity?: number | null;
             /** Closed */
             closed?: boolean | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /**
          * VisitStaffOut
@@ -5934,10 +6105,10 @@ export interface operations {
             };
         };
     };
-    retention_dry_run_api_website_v1_admin_retention_dry_run_post: {
+    list_retention_runs_api_website_v1_admin_retention_runs_get: {
         parameters: {
             query?: {
-                older_than_days?: number;
+                limit?: number;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -5955,9 +6126,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["RetentionRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retention_dry_run_api_website_v1_admin_retention_dry_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionReportOut"];
                 };
             };
             /** @description Validation Error */
@@ -5973,9 +6175,7 @@ export interface operations {
     };
     retention_run_api_website_v1_admin_retention_run_post: {
         parameters: {
-            query?: {
-                older_than_days?: number;
-            };
+            query?: never;
             header?: {
                 "x-csrf-token"?: string | null;
             };
@@ -5992,9 +6192,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["RetentionReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_retention_policy_api_website_v1_admin_site_policies_retention_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionPolicyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_retention_policy_api_website_v1_admin_site_policies_retention_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetentionPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionPolicyOut"];
                 };
             };
             /** @description Validation Error */
@@ -7807,6 +8075,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicSiteOut"];
                 };
+            };
+            /** @description 內容跟 If-None-Match 帶來的版本相同 */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

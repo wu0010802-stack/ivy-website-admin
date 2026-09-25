@@ -170,11 +170,15 @@ async def test_retention_dry_run_does_not_modify_data(admin_client, public_clien
 
     request = await db_session.get(VisitRequest, UUID(receipt_id))
     request.created_at = datetime.now(timezone.utc) - timedelta(days=400)
+    request.cancelled_at = datetime.now(timezone.utc) - timedelta(days=400)
     await db_session.commit()
 
-    dry_run = await admin_client.post("/api/website/v1/admin/retention/dry-run?older_than_days=365")
+    dry_run = await admin_client.post("/api/website/v1/admin/retention/dry-run")
     assert dry_run.status_code == 200
-    assert dry_run.json()["candidate_count"] == 1
+    assert dry_run.json()["counts"]["cancelled"] == 1
+    assert dry_run.json()["total"] == 1
+    # 試算不留紀錄。
+    assert (await admin_client.get("/api/website/v1/admin/retention-runs")).json() == []
 
     await db_session.refresh(request)
     assert request.parent_name == "陳媽媽"  # dry-run 不改資料
@@ -184,15 +188,16 @@ async def test_retention_dry_run_does_not_modify_data(admin_client, public_clien
 @pytest.mark.asyncio
 async def test_retention_real_run_disabled_by_default(admin_client, public_client):
     await _submit_inquiry(admin_client, public_client, idempotency_key="ops-retention-02")
-    response = await admin_client.post("/api/website/v1/admin/retention/run?older_than_days=0")
+    response = await admin_client.post("/api/website/v1/admin/retention/run")
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "RETENTION_REAL_RUN_DISABLED"
+    assert response.json()["detail"]["dry_run_preview"]["dry_run"] is True
 
 
 @pytest.mark.asyncio
 async def test_retention_does_not_touch_active_requests(admin_client, public_client, db_session):
-    """未結案（new/confirmed）的案件即使很舊也不會被匿名化，
-    不破壞還在進行中的接待工作。"""
+    """未結案（new/confirmed）的案件即使很舊也不會被匿名化，不破壞還在
+    進行中的接待工作；只算進「超過天數未結案」的提醒。"""
     from uuid import UUID
 
     receipt_id = await _submit_inquiry(admin_client, public_client, idempotency_key="ops-retention-03")
@@ -200,8 +205,10 @@ async def test_retention_does_not_touch_active_requests(admin_client, public_cli
     request.created_at = datetime.now(timezone.utc) - timedelta(days=400)
     await db_session.commit()
 
-    candidates = await retention_service.find_retention_candidates(db_session, older_than_days=365)
-    assert len(candidates) == 0  # 狀態是 new，不在保存政策的清理範圍內
+    days = {"cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365}
+    candidates = await retention_service.find_candidates(db_session, days)
+    assert all(found == [] for found in candidates.values())
+    assert await retention_service.count_open_overdue(db_session, days) == 1
 
 
 @pytest.mark.asyncio
@@ -209,6 +216,7 @@ async def test_site_settings_roundtrip(admin_client):
     update = await admin_client.patch(
         "/api/website/v1/admin/site-settings",
         json={
+            "expected_version": 1,
             "title": "常春藤幼兒園",
             "description": "測試描述",
             "share_image": None,
@@ -220,6 +228,24 @@ async def test_site_settings_roundtrip(admin_client):
     read = await admin_client.get("/api/website/v1/admin/site-settings")
     assert read.json()["title"] == "常春藤幼兒園"
     assert read.json()["noindex"] is True
+    assert read.json()["version"] == 2
+
+    # 拿舊版本存檔：不蓋掉別人剛改的設定。
+    stale = await admin_client.patch(
+        "/api/website/v1/admin/site-settings",
+        json={
+            "expected_version": 1,
+            "title": "舊畫面",
+            "description": "x",
+            "share_image": None,
+            "noindex": False,
+            "privacy_policy_version": "v1",
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "SITE_SETTINGS_VERSION_CONFLICT"
+    assert stale.json()["detail"]["current_version"] == 2
+    assert (await admin_client.get("/api/website/v1/admin/site-settings")).json()["title"] == "常春藤幼兒園"
 
 
 @pytest.mark.asyncio
@@ -227,6 +253,7 @@ async def test_site_settings_requires_super_admin(minghua_client):
     response = await minghua_client.patch(
         "/api/website/v1/admin/site-settings",
         json={
+            "expected_version": 1,
             "title": "x",
             "description": "x",
             "share_image": None,

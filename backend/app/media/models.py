@@ -67,6 +67,8 @@ class MediaAsset(Base):
     tags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     crop_focus_x: Mapped[float | None] = mapped_column(Float, nullable=True)
     crop_focus_y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 說明、標籤、焦點等 metadata 的樂觀鎖（PATCH 帶 expected_version）。
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     processing_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

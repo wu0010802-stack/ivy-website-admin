@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
@@ -306,6 +306,9 @@ class VisitRequestManualCreate(_VisitRequestFields):
 class VisitRequestAssignRequest(BaseModel):
     # None 代表取消指派。
     assigned_staff_id: uuid.UUID | None
+    # 畫面載入時案件的 version；別人先改了承辦人或下次聯絡時間就回 409
+    # VISIT_REQUEST_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
 
 
 class VisitStaffOut(BaseModel):
@@ -361,6 +364,7 @@ class VisitSlotOut(BaseModel):
     # manual＝園方手動關閉、exception＝休假日關閉；開放中或舊資料為 None。
     closed_source: str | None = None
     booked_count: int
+    version: int
 
     model_config = {"from_attributes": True}
 
@@ -393,6 +397,8 @@ class VisitSlotCreateRequest(BaseModel):
 class VisitSlotUpdateRequest(BaseModel):
     capacity: int | None = Field(default=None, ge=0, le=200)
     closed: bool | None = None
+    # 畫面載入時時段的 version；不符回 409 SLOT_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
 
 
 class VisitSlotBriefOut(BaseModel):
@@ -445,6 +451,8 @@ class VisitRequestDetailOut(BaseModel):
     created_by: uuid.UUID | None = None
     related_request_id: uuid.UUID | None = None
     created_at: datetime
+    # 可編輯欄位（承辦人、下次聯絡時間）的樂觀鎖版本。
+    version: int
 
     model_config = {"from_attributes": True}
 
@@ -603,6 +611,15 @@ class VisitRequestFullOut(VisitRequestDetailOut):
 class VisitContactNoteCreateRequest(BaseModel):
     note: str = Field(min_length=1, max_length=1000)
     follow_up_at: datetime | None = None
+    # 有改下次聯絡時間時必填（會蓋掉案件上的值，要跟改承辦人一樣檢查版本）；
+    # 只記一筆聯絡紀錄是新增，不會蓋掉別人的東西，可以省略。
+    expected_version: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _version_needed_for_follow_up(self) -> "VisitContactNoteCreateRequest":
+        if self.follow_up_at is not None and self.expected_version is None:
+            raise ValueError("設定下次聯絡時間時要帶 expected_version")
+        return self
 
 
 class VisitRuleIn(BaseModel):
@@ -663,9 +680,13 @@ class VisitScheduleOut(BaseModel):
     exceptions: list[VisitExceptionOut]
     # 定期工作上次依規則補時段的台灣日期；還沒補過（或剛改規則）為 None。
     rules_extended_on: date | None = None
+    # 規則與時間窗的樂觀鎖版本（booking_configs.schedule_version）。
+    version: int
 
 
 class VisitScheduleUpdate(BaseModel):
+    # 畫面載入時的 version；不符回 409 VISIT_SCHEDULE_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
     min_lead_hours: int = Field(ge=0, le=24 * 14)
     max_advance_days: int = Field(ge=1, le=365)
     rules: list[VisitRuleIn] = Field(default_factory=list, max_length=50)

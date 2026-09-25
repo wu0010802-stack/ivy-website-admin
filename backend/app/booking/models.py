@@ -82,6 +82,9 @@ class BookingConfig(Base):
     # 定期工作上次依每週規則補產生時段的台灣日期；一天只補一次。改規則、
     # 改最遠開放天數時清成 NULL，下一輪（約一分鐘內）就依新設定補上。
     rules_extended_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    # 每週開放規則與時間窗（PUT visit-schedule）的樂觀鎖，跟上面預約設定的
+    # version 分開：兩個畫面各存各的，不會互相擋。
+    schedule_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -165,6 +168,9 @@ class VisitRequest(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 可編輯欄位（承辦人、下次聯絡時間）的樂觀鎖。狀態轉換靠列鎖與狀態機，
+    # 不動這個欄位——否則家長取消一次，園方開著的頁面每個按鈕都要重新整理。
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     events: Mapped[list["VisitRequestEvent"]] = relationship(
@@ -211,6 +217,8 @@ class VisitSlot(Base):
     closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # SlotClosedSource；開放中的時段為 NULL。
     closed_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 容量與開關的樂觀鎖；休假日自動關閉／重開也會加一。
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     # 依規則自動產生的時段為 NULL（定期工作沒有操作人）。
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

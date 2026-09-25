@@ -13,7 +13,7 @@ import pytest
 
 from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
-from tests.conftest import _create_user, _logged_in_client, set_booking_mode
+from tests.conftest import case_version, _create_user, _logged_in_client, set_booking_mode
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -124,10 +124,10 @@ async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_cli
         f"{BASE}/slots?campus_key=yihua",
         json={"slot_date": date.today().isoformat(), "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 1},
     )).status_code == 403
-    assert (await desk.patch(f"{BASE}/slots/{slot['id']}", json={"capacity": 5})).status_code == 403
-    assert (await desk.patch(f"{BASE}/slots/{slot['id']}", json={"closed": True})).status_code == 403
+    assert (await desk.patch(f"{BASE}/slots/{slot['id']}", json={"capacity": 5, "expected_version": 1})).status_code == 403
+    assert (await desk.patch(f"{BASE}/slots/{slot['id']}", json={"closed": True, "expected_version": 1})).status_code == 403
     assert (await desk.put(
-        f"{BASE}/visit-schedule/yihua", json={"min_lead_hours": 24, "max_advance_days": 60, "rules": []}
+        f"{BASE}/visit-schedule/yihua", json={"expected_version": 1, "min_lead_hours": 24, "max_advance_days": 60, "rules": []}
     )).status_code == 403
     assert (await desk.post(
         f"{BASE}/visit-schedule/yihua/exceptions", json={"exception_date": date.today().isoformat()}
@@ -140,7 +140,7 @@ async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_cli
         f"{BASE}/booking-config/yihua", json={"expected_version": 0, "mode": "phone", "phone": "07-000-0000"}
     )).status_code == 403
     assert (await desk.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": me["id"]}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": me["id"], "expected_version": await case_version(desk, case["id"])}
     )).status_code == 403
     # 匯出要總管理者另外授權，接待角色本身沒有。
     assert (await desk.get(f"{BASE}/visit-requests/export")).status_code == 403
@@ -237,17 +237,17 @@ async def test_reception_is_an_assignable_handler(admin_client, minghua_client, 
 
     case = await _manual_case(admin_client, "desk-assign-1")
     assigned = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(desk_user.id)}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(desk_user.id), "expected_version": await case_version(admin_client, case["id"])}
     )
     assert assigned.status_code == 200, assigned.text
     assert assigned.json()["assigned_staff_id"] == str(desk_user.id)
 
     wrong_campus = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(other_desk.id)}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(other_desk.id), "expected_version": await case_version(admin_client, case["id"])}
     )
     assert wrong_campus.status_code == 422
     not_handler = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(readonly.id)}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(readonly.id), "expected_version": await case_version(admin_client, case["id"])}
     )
     assert not_handler.status_code == 422
 

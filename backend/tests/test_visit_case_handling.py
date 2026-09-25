@@ -191,7 +191,7 @@ async def test_completed_and_no_show_keep_the_used_seat(admin_client, public_cli
         f"{API}/public/slots?campus_key=yihua&date_from={slot['slot_date']}&date_to={slot['slot_date']}"
     )
     assert public.json() == []
-    shrink = await admin_client.patch(f"{BASE}/slots/{slot['id']}", json={"capacity": 0})
+    shrink = await admin_client.patch(f"{BASE}/slots/{slot['id']}", json={"capacity": 0, "expected_version": 1})
     assert shrink.status_code == 409
     assert shrink.json()["detail"]["booked_count"] == 1
 

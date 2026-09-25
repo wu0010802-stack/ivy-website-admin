@@ -43,6 +43,7 @@ async def _schedule_out(db: AsyncSession, campus_key: str) -> VisitScheduleOut:
         rules=[VisitRuleOut.model_validate(r) for r in rules],
         exceptions=[VisitExceptionOut.model_validate(e) for e in exceptions],
         rules_extended_on=config.rules_extended_on,
+        version=config.schedule_version,
     )
 
 
@@ -69,7 +70,21 @@ async def update_visit_schedule(
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
     await _campus_or_404(db, campus_key)
     config = await service.get_or_create_config(db, campus_key, for_update=True)
+    # 整份規則一次替換：兩個人同時編輯時，後存的一方如果沒擋下來，會把前
+    # 一個人加的規則整批蓋掉。
+    if config.schedule_version != payload.expected_version:
+        current = config.schedule_version
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VISIT_SCHEDULE_VERSION_CONFLICT",
+                "message": "開放規則剛被其他人修改，請重新載入後再編輯",
+                "current_version": current,
+            },
+        )
     before = {"min_lead_hours": config.min_lead_hours, "max_advance_days": config.max_advance_days}
+    config.schedule_version += 1
     config.min_lead_hours = payload.min_lead_hours
     config.max_advance_days = payload.max_advance_days
     # 規則或最遠開放天數變了：讓定期工作下一輪（約一分鐘內）就依新設定補

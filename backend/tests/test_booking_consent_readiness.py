@@ -303,7 +303,12 @@ async def test_data_conditions_only_block_switching_into_the_mode(admin_client, 
     schedule = (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()
     await admin_client.put(
         f"{API}/admin/visit-schedule/yihua",
-        json={"min_lead_hours": schedule["min_lead_hours"], "max_advance_days": schedule["max_advance_days"], "rules": []},
+        json={
+            "expected_version": schedule["version"],
+            "min_lead_hours": schedule["min_lead_hours"],
+            "max_advance_days": schedule["max_advance_days"],
+            "rules": [],
+        },
     )
     kept = await admin_client.patch(
         f"{API}/admin/booking-config/yihua",

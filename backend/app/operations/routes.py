@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +16,14 @@ from app.campuses.models import Campus
 from app.common import ratelimit
 from app.notifications.models import UserNotification
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
-from app.operations.models import CTA_ENTRIES, SiteSettings
+from app.operations.models import (
+    CTA_ENTRIES,
+    RETENTION_MAX_DAYS,
+    RETENTION_MIN_DAYS,
+    RetentionPolicy,
+    RetentionRunTrigger,
+    SiteSettings,
+)
 
 router = APIRouter(prefix="/api/website/v1", tags=["operations"])
 
@@ -262,6 +269,8 @@ async def get_audit_log(
 # 收錄以 site_meta 內容（有草稿與發布流程）為唯一來源，家長同意的版本記在
 # 案件的 consent_revision_id。端點保留給舊資料相容，後台已不再使用。
 class SiteSettingsUpdate(BaseModel):
+    # GET 拿到的 version；不符回 409 SITE_SETTINGS_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
     title: str
     description: str
     share_image: str | None = None
@@ -269,8 +278,9 @@ class SiteSettingsUpdate(BaseModel):
     privacy_policy_version: str
 
 
-async def _get_or_create_settings(db: AsyncSession) -> SiteSettings:
-    result = await db.execute(select(SiteSettings).where(SiteSettings.id == 1))
+async def _get_or_create_settings(db: AsyncSession, *, for_update: bool = False) -> SiteSettings:
+    stmt = select(SiteSettings).where(SiteSettings.id == 1)
+    result = await db.execute(stmt.with_for_update() if for_update else stmt)
     settings = result.scalar_one_or_none()
     if settings is None:
         settings = SiteSettings(id=1, updated_at=datetime.now(timezone.utc))
@@ -293,6 +303,7 @@ async def get_site_settings(
         "share_image": settings.share_image,
         "noindex": settings.noindex,
         "privacy_policy_version": settings.privacy_policy_version,
+        "version": settings.version,
     }
 
 
@@ -303,7 +314,19 @@ async def update_site_settings(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     require_scope(current_user, "site_settings.manage")
-    settings = await _get_or_create_settings(db)
+    settings = await _get_or_create_settings(db, for_update=True)
+    if settings.version != payload.expected_version:
+        current = settings.version
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SITE_SETTINGS_VERSION_CONFLICT",
+                "message": "全站設定剛被其他人修改，請重新載入後再編輯",
+                "current_version": current,
+            },
+        )
+    settings.version += 1
     settings.title = payload.title
     settings.description = payload.description
     settings.share_image = payload.share_image
@@ -325,46 +348,199 @@ async def update_site_settings(
         "share_image": settings.share_image,
         "noindex": settings.noindex,
         "privacy_policy_version": settings.privacy_policy_version,
+        "version": settings.version,
     }
 
 
-@router.post("/admin/retention/dry-run")
-async def retention_dry_run(
-    older_than_days: int = 365,
+class RetentionDaysOut(BaseModel):
+    # 已取消、未到場：結案後幾天匿名化。
+    cancelled_days: int
+    # 已完成參觀：結案後幾天匿名化。
+    completed_days: int
+    # 送出超過幾天仍未結案就列入提醒（不會被清理）。
+    open_overdue_days: int
+
+
+class RetentionCountsOut(BaseModel):
+    # 各狀態到期、會被（或已被）匿名化的件數。
+    cancelled: int = 0
+    no_show: int = 0
+    completed: int = 0
+
+
+class RetentionReportOut(BaseModel):
+    days: RetentionDaysOut
+    counts: RetentionCountsOut
+    total: int
+    # 超過 open_overdue_days 但還沒結案、不會被清的件數。
+    open_overdue_count: int
+    dry_run: bool
+    # 有留紀錄（真的執行）時是那一筆 retention_runs 的 id。
+    run_id: uuid.UUID | None = None
+
+
+class RetentionPolicyOut(RetentionDaysOut):
+    auto_run_enabled: bool
+    version: int
+    updated_at: datetime | None
+    updated_by_email: str | None
+    last_scheduled_on: date | None
+    # 部署設定 WEBSITE_RETENTION_ALLOW_REAL_RUN；關閉時自動與手動都只能試算。
+    real_run_allowed: bool
+    # 依目前天數、現在執行會處理幾筆（試算，不留紀錄）。
+    preview: RetentionReportOut
+
+
+class RetentionPolicyUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
+    cancelled_days: int = Field(ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
+    completed_days: int = Field(ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
+    open_overdue_days: int = Field(ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
+    auto_run_enabled: bool
+
+
+class RetentionRunOut(BaseModel):
+    id: uuid.UUID
+    created_at: datetime
+    # manual＝總管理者在後台按下執行、scheduled＝定期工作。
+    trigger: str
+    actor_email: str | None
+    days: RetentionDaysOut
+    counts: RetentionCountsOut
+    total: int
+    open_overdue_count: int
+
+
+def _report_out(report: retention_service.RetentionReport) -> RetentionReportOut:
+    return RetentionReportOut(
+        days=RetentionDaysOut(**report.days),
+        counts=RetentionCountsOut(**report.counts),
+        total=report.total,
+        open_overdue_count=report.open_overdue_count,
+        dry_run=report.dry_run,
+        run_id=report.run_id,
+    )
+
+
+async def _policy_out(db: AsyncSession, request: Request, policy: RetentionPolicy) -> RetentionPolicyOut:
+    days = retention_service.policy_days(policy)
+    editor = await db.get(User, policy.updated_by) if policy.updated_by else None
+    return RetentionPolicyOut(
+        **days,
+        auto_run_enabled=policy.auto_run_enabled,
+        version=policy.version,
+        updated_at=policy.updated_at,
+        updated_by_email=editor.email if editor else None,
+        last_scheduled_on=policy.last_scheduled_on,
+        real_run_allowed=request.app.state.settings.retention_allow_real_run,
+        preview=_report_out(await retention_service.preview(db, days)),
+    )
+
+
+@router.get("/admin/site-policies/retention", response_model=RetentionPolicyOut)
+async def get_retention_policy(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> RetentionPolicyOut:
+    """個資保存政策（規格 L282）：已取消／未到場、已完成的保留天數，未結案
+    提醒天數，是否每天自動清理，以及依目前天數試算會處理幾筆。"""
     require_scope(current_user, "retention.manage")
-    return await retention_service.run_retention_sweep(db, older_than_days=older_than_days, dry_run=True)
+    policy = await retention_service.get_policy(db)
+    out = await _policy_out(db, request, policy)
+    await db.commit()
+    return out
 
 
-@router.post("/admin/retention/run")
+@router.put("/admin/site-policies/retention", response_model=RetentionPolicyOut)
+async def update_retention_policy(
+    payload: RetentionPolicyUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RetentionPolicyOut:
+    require_scope(current_user, "retention.manage")
+    policy = await retention_service.get_policy(db, for_update=True)
+    if policy.version != payload.expected_version:
+        current = policy.version
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "RETENTION_POLICY_VERSION_CONFLICT",
+                "message": "保存政策剛被其他人修改，請重新載入後再編輯",
+                "current_version": current,
+            },
+        )
+    before = {**retention_service.policy_days(policy), "auto_run_enabled": policy.auto_run_enabled}
+    policy.cancelled_days = payload.cancelled_days
+    policy.completed_days = payload.completed_days
+    policy.open_overdue_days = payload.open_overdue_days
+    policy.auto_run_enabled = payload.auto_run_enabled
+    after = {**retention_service.policy_days(policy), "auto_run_enabled": policy.auto_run_enabled}
+    if after != before:
+        policy.version += 1
+        policy.updated_at = datetime.now(timezone.utc)
+        policy.updated_by = current_user.id
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="retention_policy.update",
+            target_type="retention_policy",
+            target_id="1",
+            metadata={"before": before, "after": after},
+        )
+    await db.flush()
+    out = await _policy_out(db, request, policy)
+    await db.commit()
+    return out
+
+
+@router.post("/admin/retention/dry-run", response_model=RetentionReportOut)
+async def retention_dry_run(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RetentionReportOut:
+    """依保存政策的天數試算，不改資料、不留紀錄。"""
+    require_scope(current_user, "retention.manage")
+    policy = await retention_service.get_policy(db)
+    report = await retention_service.preview(db, retention_service.policy_days(policy))
+    await db.commit()
+    return _report_out(report)
+
+
+@router.post("/admin/retention/run", response_model=RetentionReportOut)
 async def retention_run(
     request: Request,
-    older_than_days: int = 365,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """預設環境不允許真的清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確
-    設為 true），避免意外把個資清掉。"""
+) -> RetentionReportOut:
+    """依保存政策的天數立即匿名化，並留一筆清理紀錄。預設環境不允許真的
+    清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確設為 true），避免意外把
+    個資清掉。"""
     require_scope(current_user, "retention.manage")
+    # 鎖政策列：兩個人同時按執行（或剛好碰上定期工作）時排隊，不會重複處理。
+    policy = await retention_service.get_policy(db, for_update=True)
+    days = retention_service.policy_days(policy)
 
     settings = request.app.state.settings
     if not settings.retention_allow_real_run:
-        preview = await retention_service.run_retention_sweep(
-            db, older_than_days=older_than_days, dry_run=True
-        )
+        preview = await retention_service.preview(db, days)
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "RETENTION_REAL_RUN_DISABLED",
-                "message": "預設不開放真正清理，需設定 WEBSITE_RETENTION_ALLOW_REAL_RUN=true",
-                "dry_run_preview": preview,
+                "message": "部署設定沒有開放真正清理（WEBSITE_RETENTION_ALLOW_REAL_RUN），目前只能試算",
+                "dry_run_preview": _report_out(preview).model_dump(mode="json"),
             },
         )
 
-    result = await retention_service.run_retention_sweep(
-        db, older_than_days=older_than_days, dry_run=False
+    report = await retention_service.run_sweep(
+        db,
+        days,
+        trigger=RetentionRunTrigger.MANUAL,
+        actor_user_id=current_user.id,
     )
     await audit_service.log_action(
         db,
@@ -372,7 +548,36 @@ async def retention_run(
         action="retention.run",
         target_type="visit_requests",
         target_id="bulk",
-        metadata={"older_than_days": older_than_days, "candidate_count": result["candidate_count"]},
+        metadata=retention_service.audit_metadata(report, RetentionRunTrigger.MANUAL),
     )
     await db.commit()
-    return result
+    return _report_out(report)
+
+
+@router.get("/admin/retention-runs", response_model=list[RetentionRunOut])
+async def list_retention_runs(
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[RetentionRunOut]:
+    """真正執行過的清理紀錄（手動與定期工作；試算不留紀錄），最新的在前。"""
+    require_scope(current_user, "retention.manage")
+    runs = await retention_service.list_runs(db, limit=limit)
+    actor_ids = {run.actor_user_id for run in runs if run.actor_user_id}
+    emails: dict = {}
+    if actor_ids:
+        result = await db.execute(select(User.id, User.email).where(User.id.in_(actor_ids)))
+        emails = dict(result.all())
+    return [
+        RetentionRunOut(
+            id=run.id,
+            created_at=run.created_at,
+            trigger=run.trigger,
+            actor_email=emails.get(run.actor_user_id),
+            days=RetentionDaysOut(**run.policy),
+            counts=RetentionCountsOut(**run.counts),
+            total=run.total,
+            open_overdue_count=run.open_overdue_count,
+        )
+        for run in runs
+    ]

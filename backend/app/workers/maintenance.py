@@ -1,6 +1,6 @@
 """API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、產生提醒
 （即將參觀、逾期未處理）、處理通知 outbox、清過期限流計數、清理刪除超過
-保留天數的素材。
+保留天數的素材、依個資保存政策每天清理一次。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
 部署設定裡都沒有這個 cron——排程發布永遠不會到點上線，後台也收不到任何通知。
@@ -33,6 +33,8 @@ from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
 from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
+from app.operations import audit_service, retention_service
+from app.operations.models import RetentionRunTrigger
 from app.workers.runner import process_outbox_batch
 
 logger = logging.getLogger("app.maintenance")
@@ -57,6 +59,9 @@ class CycleResult:
     notifications_skipped: int = 0
     rate_limit_rows_purged: int = 0
     media_purged: int = 0
+    # 個資保存政策：這一輪有沒有執行、匿名化幾筆。
+    retention_ran: bool = False
+    retention_anonymized: int = 0
     failed_steps: list[str] = field(default_factory=list)
 
     @property
@@ -74,6 +79,7 @@ class CycleResult:
                 self.notifications_skipped,
                 self.rate_limit_rows_purged,
                 self.media_purged,
+                self.retention_ran,
                 self.failed_steps,
             )
         )
@@ -212,7 +218,45 @@ async def _run_steps(
         logger.exception("定期工作：清理刪除的素材失敗")
         result.failed_steps.append("purge_media")
 
+    # 個資保存政策（規格 L282）：政策開啟自動執行、而且部署設定允許真正清理
+    # 時，每個台灣日期最多匿名化一次；任一個沒開就什麼都不做。
+    if settings.retention_allow_real_run:
+        try:
+            async with session_factory() as db:
+                await _run_retention(db, result)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：個資保存政策執行失敗")
+            result.failed_steps.append("retention")
+
     return result
+
+
+async def _run_retention(db: AsyncSession, result: CycleResult) -> None:
+    today = today_local()
+    # 先不鎖列看一眼：政策沒開（絕大多數的每一輪）就不必排隊等鎖。
+    policy = await retention_service.get_policy(db)
+    if not policy.auto_run_enabled or not retention_service.due_today(policy, today):
+        await db.rollback()
+        return
+    # 鎖列後重讀：多個 API 程序同時跑到這裡時，只有第一個會執行。
+    policy = await retention_service.get_policy(db, for_update=True)
+    if not policy.auto_run_enabled or not retention_service.due_today(policy, today):
+        await db.rollback()
+        return
+    days = retention_service.policy_days(policy)
+    report = await retention_service.run_sweep(db, days, trigger=RetentionRunTrigger.SCHEDULED)
+    await audit_service.log_action(
+        db,
+        actor_user_id=None,
+        action="retention.run",
+        target_type="visit_requests",
+        target_id="bulk",
+        metadata=retention_service.audit_metadata(report, RetentionRunTrigger.SCHEDULED),
+    )
+    policy.last_scheduled_on = today
+    await db.commit()
+    result.retention_ran = True
+    result.retention_anonymized = report.total
 
 
 class MaintenanceLoop:

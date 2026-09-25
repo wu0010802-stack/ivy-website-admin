@@ -158,7 +158,7 @@ async def test_shared_media_cannot_be_mutated_by_campus_admin(admin_client, ming
 
     assert (await minghua_client.get(f"/api/website/v1/admin/media/{media_id}")).status_code == 200
     patched = await minghua_client.patch(
-        f"/api/website/v1/admin/media/{media_id}", json={"alt_text": "竄改"}
+        f"/api/website/v1/admin/media/{media_id}", json={"expected_version": 1, "alt_text": "竄改"}
     )
     assert patched.status_code == 403
     deleted = await minghua_client.delete(f"/api/website/v1/admin/media/{media_id}")

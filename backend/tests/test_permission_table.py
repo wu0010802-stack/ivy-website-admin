@@ -81,6 +81,7 @@ async def test_site_settings_update_requires_super_admin(minghua_client):
     response = await minghua_client.patch(
         "/api/website/v1/admin/site-settings",
         json={
+            "expected_version": 1,
             "title": "x",
             "description": "x",
             "share_image": None,

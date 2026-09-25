@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import ValidationError
 from datetime import datetime, timezone
 
@@ -121,7 +122,7 @@ async def _revision_of(db: AsyncSession, item: ContentItem, revision_id: uuid.UU
 def _not_ready(exc: publish_jobs.NotPublishable) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail={"code": "CONTENT_NOT_READY", "message": exc.message},
+        detail={"code": exc.code, "message": exc.message},
     )
 
 
@@ -477,19 +478,41 @@ async def publish_content_item(
     return _item_out(item, latest)
 
 
-@router.get("/public/site", response_model=PublicSiteOut)
+def _etag_matches(header: str | None, etag: str) -> bool:
+    """If-None-Match 可能是 *、多個以逗號分隔的值，或帶 W/ 的弱比對值。"""
+    if not header:
+        return False
+    for candidate in header.split(","):
+        candidate = candidate.strip()
+        if candidate == "*" or candidate.removeprefix("W/") == etag:
+            return True
+    return False
+
+
+@router.get(
+    "/public/site",
+    response_model=PublicSiteOut,
+    responses={304: {"description": "內容跟 If-None-Match 帶來的版本相同"}},
+)
 async def get_public_site(
-    response: Response,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
-) -> PublicSiteOut:
-    response.headers["Cache-Control"] = "no-cache, max-age=0"
+) -> Response:
+    """規格 L311：帶 ETag。內容除了發布紀錄，還會隨日期（活動過期）、分校
+    停用與素材狀態改變，所以 ETag 直接取輸出本文的雜湊，不另外推算版本。
+    官網與瀏覽器帶 If-None-Match 重新驗證時，沒變就回 304、不再傳整份內容。"""
     release_id, content = await service.get_public_content(db)
     if release_id is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="尚無可用內容")
     media = await media_service.public_media(db, service.public_media_ids(content))
-    return PublicSiteOut(
+    body = PublicSiteOut(
         schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content, media=media
-    )
+    ).model_dump_json().encode()
+    etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
+    headers = {"Cache-Control": "no-cache, max-age=0", "ETag": etag}
+    if _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -160,4 +160,73 @@ class SiteSettings(Base):
     share_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     noindex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     privacy_policy_version: Mapped[str] = mapped_column(String(32), nullable=False, default="draft-1")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# 規格 L282：個資保存期限可設定、預設不啟用自動清理。天數下限 30 天，避免
+# 誤設成 0 把剛結案的案件立刻清掉。
+RETENTION_MIN_DAYS = 30
+RETENTION_MAX_DAYS = 3650
+# 使用者 2026-09-25 裁定：各類都預設 365 天，要園方到保存政策頁確認後才會啟用。
+DEFAULT_RETENTION_DAYS = 365
+
+
+class RetentionPolicy(Base):
+    """個資保存政策單例（id=1）。"""
+
+    __tablename__ = "retention_policies"
+    __table_args__ = (
+        CheckConstraint(
+            f"cancelled_days BETWEEN {RETENTION_MIN_DAYS} AND {RETENTION_MAX_DAYS} "
+            f"AND completed_days BETWEEN {RETENTION_MIN_DAYS} AND {RETENTION_MAX_DAYS} "
+            f"AND open_overdue_days BETWEEN {RETENTION_MIN_DAYS} AND {RETENTION_MAX_DAYS}",
+            name="ck_retention_policies_days",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    # 已取消、未到場：結案（取消／標記未到場）後幾天匿名化。
+    cancelled_days: Mapped[int] = mapped_column(Integer, nullable=False, default=DEFAULT_RETENTION_DAYS)
+    # 已完成參觀：標記完成後幾天匿名化。
+    completed_days: Mapped[int] = mapped_column(Integer, nullable=False, default=DEFAULT_RETENTION_DAYS)
+    # 還沒結案的案件不會被清理；送出超過這個天數仍沒結案的，只算件數提醒
+    # 園方先處理（open_overdue_count）。
+    open_overdue_days: Mapped[int] = mapped_column(Integer, nullable=False, default=DEFAULT_RETENTION_DAYS)
+    # 定期工作要不要每天自動匿名化；另外還要部署設定
+    # WEBSITE_RETENTION_ALLOW_REAL_RUN=true，兩個都開才會執行。
+    auto_run_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # 定期工作上次執行的台灣日期；一天最多跑一次。
+    last_scheduled_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class RetentionRunTrigger(str, enum.Enum):
+    MANUAL = "manual"
+    SCHEDULED = "scheduled"
+
+
+class RetentionRun(Base):
+    """每一次真正的清理留一筆（只試算不留）：什麼時候、手動或定期、誰（定期
+    工作為 NULL）、當時的天數、各類幾筆。不記案件 id——匿名化之後也查不回
+    是誰。"""
+
+    __tablename__ = "retention_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    trigger: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # {"cancelled_days", "completed_days", "open_overdue_days"}
+    policy: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # {"cancelled", "no_show", "completed"}：各類匿名化幾筆。
+    counts: Mapped[dict] = mapped_column(JSON, nullable=False)
+    total: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 當時超過天數但還沒結案、沒有清理的件數。
+    open_overdue_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

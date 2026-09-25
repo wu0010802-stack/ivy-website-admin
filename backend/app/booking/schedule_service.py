@@ -129,6 +129,8 @@ async def add_exception(
         if not slot.closed:
             slot.closed = True
             slot.closed_source = SlotClosedSource.EXCEPTION.value
+            # 園方開著的時段頁若拿舊版本存檔，不能把休假日關掉的時段又打開。
+            slot.version += 1
             closed += 1
     affected = await db.execute(
         select(func.count())
@@ -179,6 +181,7 @@ async def remove_exception(
     for slot in slots.scalars():
         slot.closed = False
         slot.closed_source = None
+        slot.version += 1
         reopened += 1
 
     created = 0

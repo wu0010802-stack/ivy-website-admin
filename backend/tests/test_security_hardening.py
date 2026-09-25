@@ -14,6 +14,7 @@ from app.booking.access_models import ParentSession
 from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, VisitRequest, VisitRequestStatus
 from app.media.models import MediaAsset, MediaStatus
 from app.operations import retention_service
+from app.operations.models import RetentionRunTrigger
 from tests.conftest import _create_user, _logged_in_client, set_booking_mode
 
 
@@ -452,11 +453,15 @@ async def test_retention_anonymizes_contact_notes(admin_client, public_client, d
     await db_session.execute(
         update(VisitRequest)
         .where(VisitRequest.id == uuid.UUID(receipt_id))
-        .values(created_at=datetime.now(timezone.utc) - timedelta(days=400))
+        .values(cancelled_at=datetime.now(timezone.utc) - timedelta(days=400))
     )
     await db_session.commit()
 
-    await retention_service.run_retention_sweep(db_session, dry_run=False)
+    await retention_service.run_sweep(
+        db_session,
+        {"cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365},
+        trigger=RetentionRunTrigger.MANUAL,
+    )
     await db_session.commit()
 
     notes = (

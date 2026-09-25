@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.auth.models import User
 from app.auth.permissions import covers_campus, has_capability
 from app.booking import access_service, history, slot_service
-from app.booking.exceptions import InvalidTransition, SlotFull
+from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
 from app.booking.history import PARENT, SYSTEM, Actor
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
 from app.booking.outbox import enqueue_outbox
@@ -18,7 +18,7 @@ from app.common.timezones import now_utc
 from app.operations import analytics_service
 from app.operations.models import CANCEL_REASON_HOLD_EXPIRED, AnalyticsEventType
 
-__all__ = ["PARENT", "SYSTEM", "Actor", "InvalidTransition", "SlotFull"]
+__all__ = ["PARENT", "SYSTEM", "Actor", "InvalidTransition", "SlotClosed", "SlotFull", "SlotNotFound"]
 
 
 def record_event(
@@ -66,8 +66,10 @@ async def confirm_with_slot(
     before = await history.state_of(db, visit_request)
 
     slot = await slot_service.get_slot_for_update(db, slot_id)
-    if slot is None or slot.campus_key != visit_request.campus_key or slot.closed:
-        raise SlotFull()
+    if slot is None or slot.campus_key != visit_request.campus_key:
+        raise SlotNotFound()
+    if slot.closed:
+        raise SlotClosed()
     now = now_utc()
     is_pending = visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value
     if is_pending and visit_request.hold_expires_at is not None and visit_request.hold_expires_at <= now:
@@ -91,6 +93,7 @@ async def confirm_with_slot(
     # 已經指派過承辦人就保留，確認的人不一定是負責後續聯絡的人。
     if visit_request.assigned_staff_id is None:
         visit_request.assigned_staff_id = staff_id
+        visit_request.version += 1
     visit_request.confirmed_at = now
     # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
     # 一筆已確認的案件當成過期占位取消掉。
@@ -282,8 +285,10 @@ async def reschedule(
         locked_slots[sid] = await slot_service.get_slot_for_update(db, sid)
     new_slot = locked_slots[new_slot_id]
 
-    if new_slot is None or new_slot.campus_key != visit_request.campus_key or new_slot.closed:
-        raise SlotFull()
+    if new_slot is None or new_slot.campus_key != visit_request.campus_key:
+        raise SlotNotFound()
+    if new_slot.closed:
+        raise SlotClosed()
     if slot_service.has_started(new_slot):
         raise slot_service.SlotNotBookable(slot_service.SLOT_STARTED_MESSAGE)
 
@@ -376,6 +381,8 @@ async def add_contact_note(
     previous_follow_up = visit_request.follow_up_at
     if follow_up_at is not None:
         visit_request.follow_up_at = follow_up_at
+        if follow_up_at != previous_follow_up:
+            visit_request.version += 1
     # 內容本身在聯絡紀錄裡；歷程只記誰記了一筆，改了下次聯絡時間才記前後。
     changed = follow_up_at is not None
     history.record_event(
@@ -388,6 +395,26 @@ async def add_contact_note(
     )
     await db.flush()
     return record
+
+
+class VersionConflict(Exception):
+    """案件的可編輯欄位（承辦人、下次聯絡時間）已被別人改過。"""
+
+    def __init__(self, current_version: int) -> None:
+        self.current_version = current_version
+        super().__init__(current_version)
+
+
+async def lock_editable(db: AsyncSession, visit_request: VisitRequest, expected_version: int | None) -> None:
+    """鎖住案件列、重讀可編輯欄位後比對 version；expected_version 為 None
+    表示這次操作不會蓋掉任何欄位（例如只新增一筆聯絡紀錄），只鎖不比對。"""
+    await db.refresh(
+        visit_request,
+        attribute_names=["version", "assigned_staff_id", "follow_up_at"],
+        with_for_update=True,
+    )
+    if expected_version is not None and visit_request.version != expected_version:
+        raise VersionConflict(visit_request.version)
 
 
 class AssigneeInvalid(Exception):
@@ -414,6 +441,7 @@ async def assign(
         return visit_request
     previous = visit_request.assigned_staff_id
     visit_request.assigned_staff_id = new_id
+    visit_request.version += 1
     history.record_event(
         db,
         visit_request.id,

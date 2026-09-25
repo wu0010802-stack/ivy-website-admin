@@ -157,9 +157,9 @@ async def test_public_file_supports_range_requests(admin_client, public_client):
 @pytest.mark.asyncio
 async def test_crop_focus_must_be_between_zero_and_one(admin_client):
     body = await _upload(admin_client)
-    bad = await admin_client.patch(f"{MEDIA}/{body['id']}", json={"crop_focus_x": 1.5, "crop_focus_y": 0.5})
+    bad = await admin_client.patch(f"{MEDIA}/{body['id']}", json={"expected_version": 1, "crop_focus_x": 1.5, "crop_focus_y": 0.5})
     assert bad.status_code == 422
-    ok = await admin_client.patch(f"{MEDIA}/{body['id']}", json={"crop_focus_x": 0.25, "crop_focus_y": 1})
+    ok = await admin_client.patch(f"{MEDIA}/{body['id']}", json={"expected_version": 1, "crop_focus_x": 0.25, "crop_focus_y": 1})
     assert ok.status_code == 200 and ok.json()["crop_focus_x"] == 0.25
 
 
@@ -283,7 +283,7 @@ def test_film_validation():
 @pytest.mark.asyncio
 async def test_public_site_lists_referenced_media_with_variants_and_focus(admin_client, public_client):
     image = await _upload(admin_client, data=_jpeg(2000, 1500))
-    await admin_client.patch(f"{MEDIA}/{image['id']}", json={"alt_text": "孩子與長輩", "crop_focus_x": 0.3, "crop_focus_y": 0.6})
+    await admin_client.patch(f"{MEDIA}/{image['id']}", json={"expected_version": 1, "alt_text": "孩子與長輩", "crop_focus_x": 0.3, "crop_focus_y": 0.6})
     unused = await _upload(admin_client)
     saved = (await _save(admin_client, "home_about", _about(photo=_slot(image["id"]), photo_alt=""))).json()
     await _publish(admin_client, "home_about", saved)

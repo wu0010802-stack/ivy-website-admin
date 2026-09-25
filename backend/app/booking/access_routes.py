@@ -13,6 +13,7 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import require_scope
 from app.booking import access_service, history, presenters, slot_service, workflow_service
+from app.booking.exceptions import slot_unavailable
 from app.booking.history import PARENT, Actor
 from app.operations import audit_service
 from app.booking.access_models import RescheduleRequest
@@ -334,6 +335,7 @@ async def approve_reschedule_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     record, visit_request = await _load_pending_decision(db, current_user, request_id)
+    old_slot = visit_request.slot
     try:
         await workflow_service.reschedule(
             db,
@@ -344,10 +346,7 @@ async def approve_reschedule_request(
         )
     except workflow_service.SlotFull as exc:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "SLOT_FULL", "message": "新時段名額已滿或已關閉"},
-        ) from exc
+        raise slot_unavailable(exc, subject="新時段") from exc
     except slot_service.SlotNotBookable as exc:
         await db.rollback()
         raise HTTPException(
@@ -366,6 +365,19 @@ async def approve_reschedule_request(
     record.status = "approved"
     record.resolved_at = datetime.now(timezone.utc)
     record.resolved_by = current_user.id
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.approve_reschedule",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={
+            "reschedule_request_id": str(record.id),
+            "from_slot_id": str(old_slot.id) if old_slot else None,
+            "to_slot_id": str(record.requested_slot_id),
+        },
+    )
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)
 
@@ -391,6 +403,20 @@ async def reject_reschedule_request(
         actor=Actor.staff(current_user.id),
         after={"requested_slot": history.slot_brief(await history.load_slot(db, record.requested_slot_id))},
         reason=reason or None,
+    )
+    # 退回原因是自由文字，只記有沒有填。
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.reject_reschedule",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={
+            "reschedule_request_id": str(record.id),
+            "requested_slot_id": str(record.requested_slot_id),
+            "has_reason": bool(reason),
+        },
     )
     await db.commit()
     return {"id": str(record.id), "status": record.status}

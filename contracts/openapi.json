@@ -1577,6 +1577,10 @@
             "title": "Variants",
             "type": "array"
           },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
           "width": {
             "anyOf": [
               {
@@ -1606,7 +1610,8 @@
           "crop_focus_y",
           "processing_error",
           "usage_count",
-          "variants"
+          "variants",
+          "version"
         ],
         "title": "MediaAssetOut",
         "type": "object"
@@ -1920,6 +1925,11 @@
             ],
             "title": "Crop Focus Y"
           },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
           "license_note": {
             "anyOf": [
               {
@@ -1960,6 +1970,9 @@
             "title": "Tags"
           }
         },
+        "required": [
+          "expected_version"
+        ],
         "title": "MediaUpdateRequest",
         "type": "object"
       },
@@ -3382,6 +3395,268 @@
         "title": "RescheduleRequestOut",
         "type": "object"
       },
+      "RetentionCountsOut": {
+        "properties": {
+          "cancelled": {
+            "default": 0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "completed": {
+            "default": 0,
+            "title": "Completed",
+            "type": "integer"
+          },
+          "no_show": {
+            "default": 0,
+            "title": "No Show",
+            "type": "integer"
+          }
+        },
+        "title": "RetentionCountsOut",
+        "type": "object"
+      },
+      "RetentionDaysOut": {
+        "properties": {
+          "cancelled_days": {
+            "title": "Cancelled Days",
+            "type": "integer"
+          },
+          "completed_days": {
+            "title": "Completed Days",
+            "type": "integer"
+          },
+          "open_overdue_days": {
+            "title": "Open Overdue Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled_days",
+          "completed_days",
+          "open_overdue_days"
+        ],
+        "title": "RetentionDaysOut",
+        "type": "object"
+      },
+      "RetentionPolicyOut": {
+        "properties": {
+          "auto_run_enabled": {
+            "title": "Auto Run Enabled",
+            "type": "boolean"
+          },
+          "cancelled_days": {
+            "title": "Cancelled Days",
+            "type": "integer"
+          },
+          "completed_days": {
+            "title": "Completed Days",
+            "type": "integer"
+          },
+          "last_scheduled_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Scheduled On"
+          },
+          "open_overdue_days": {
+            "title": "Open Overdue Days",
+            "type": "integer"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/RetentionReportOut"
+          },
+          "real_run_allowed": {
+            "title": "Real Run Allowed",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Email"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled_days",
+          "completed_days",
+          "open_overdue_days",
+          "auto_run_enabled",
+          "version",
+          "updated_at",
+          "updated_by_email",
+          "last_scheduled_on",
+          "real_run_allowed",
+          "preview"
+        ],
+        "title": "RetentionPolicyOut",
+        "type": "object"
+      },
+      "RetentionPolicyUpdate": {
+        "properties": {
+          "auto_run_enabled": {
+            "title": "Auto Run Enabled",
+            "type": "boolean"
+          },
+          "cancelled_days": {
+            "maximum": 3650.0,
+            "minimum": 30.0,
+            "title": "Cancelled Days",
+            "type": "integer"
+          },
+          "completed_days": {
+            "maximum": 3650.0,
+            "minimum": 30.0,
+            "title": "Completed Days",
+            "type": "integer"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "open_overdue_days": {
+            "maximum": 3650.0,
+            "minimum": 30.0,
+            "title": "Open Overdue Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "cancelled_days",
+          "completed_days",
+          "open_overdue_days",
+          "auto_run_enabled"
+        ],
+        "title": "RetentionPolicyUpdate",
+        "type": "object"
+      },
+      "RetentionReportOut": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/RetentionCountsOut"
+          },
+          "days": {
+            "$ref": "#/components/schemas/RetentionDaysOut"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "open_overdue_count": {
+            "title": "Open Overdue Count",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "counts",
+          "total",
+          "open_overdue_count",
+          "dry_run"
+        ],
+        "title": "RetentionReportOut",
+        "type": "object"
+      },
+      "RetentionRunOut": {
+        "properties": {
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RetentionCountsOut"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "days": {
+            "$ref": "#/components/schemas/RetentionDaysOut"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "open_overdue_count": {
+            "title": "Open Overdue Count",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "trigger",
+          "actor_email",
+          "days",
+          "counts",
+          "total",
+          "open_overdue_count"
+        ],
+        "title": "RetentionRunOut",
+        "type": "object"
+      },
       "ReviewDecisionRequest": {
         "properties": {
           "decision": {
@@ -3455,6 +3730,11 @@
             "title": "Description",
             "type": "string"
           },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
           "noindex": {
             "title": "Noindex",
             "type": "boolean"
@@ -3480,6 +3760,7 @@
           }
         },
         "required": [
+          "expected_version",
           "title",
           "description",
           "noindex",
@@ -3947,6 +4228,18 @@
       },
       "VisitContactNoteCreateRequest": {
         "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -4252,10 +4545,16 @@
               }
             ],
             "title": "Assigned Staff Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
           }
         },
         "required": [
-          "assigned_staff_id"
+          "assigned_staff_id",
+          "expected_version"
         ],
         "title": "VisitRequestAssignRequest",
         "type": "object"
@@ -4731,6 +5030,10 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -4747,7 +5050,8 @@
           "confirmed_at",
           "cancelled_at",
           "follow_up_at",
-          "created_at"
+          "created_at",
+          "version"
         ],
         "title": "VisitRequestDetailOut",
         "type": "object"
@@ -5061,6 +5365,10 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -5078,6 +5386,7 @@
           "cancelled_at",
           "follow_up_at",
           "created_at",
+          "version",
           "history",
           "pending_reschedule",
           "access_link",
@@ -5457,6 +5766,10 @@
               }
             ],
             "title": "Rules Extended On"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -5464,13 +5777,19 @@
           "min_lead_hours",
           "max_advance_days",
           "rules",
-          "exceptions"
+          "exceptions",
+          "version"
         ],
         "title": "VisitScheduleOut",
         "type": "object"
       },
       "VisitScheduleUpdate": {
         "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
           "max_advance_days": {
             "maximum": 365.0,
             "minimum": 1.0,
@@ -5493,6 +5812,7 @@
           }
         },
         "required": [
+          "expected_version",
           "min_lead_hours",
           "max_advance_days"
         ],
@@ -5656,6 +5976,10 @@
             "format": "time",
             "title": "Start Time",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
@@ -5666,7 +5990,8 @@
           "end_time",
           "capacity",
           "closed",
-          "booked_count"
+          "booked_count",
+          "version"
         ],
         "title": "VisitSlotOut",
         "type": "object"
@@ -5696,8 +6021,16 @@
               }
             ],
             "title": "Closed"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
           }
         },
+        "required": [
+          "expected_version"
+        ],
         "title": "VisitSlotUpdateRequest",
         "type": "object"
       },
@@ -10230,17 +10563,20 @@
         ]
       }
     },
-    "/api/website/v1/admin/retention/dry-run": {
-      "post": {
-        "operationId": "retention_dry_run_api_website_v1_admin_retention_dry_run_post",
+    "/api/website/v1/admin/retention-runs": {
+      "get": {
+        "description": "真正執行過的清理紀錄（手動與定期工作；試算不留紀錄），最新的在前。",
+        "operationId": "list_retention_runs_api_website_v1_admin_retention_runs_get",
         "parameters": [
           {
             "in": "query",
-            "name": "older_than_days",
+            "name": "limit",
             "required": false,
             "schema": {
-              "default": 365,
-              "title": "Older Than Days",
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
               "type": "integer"
             }
           },
@@ -10282,9 +10618,77 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Retention Dry Run Api Website V1 Admin Retention Dry Run Post",
-                  "type": "object"
+                  "items": {
+                    "$ref": "#/components/schemas/RetentionRunOut"
+                  },
+                  "title": "Response List Retention Runs Api Website V1 Admin Retention Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Retention Runs",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/retention/dry-run": {
+      "post": {
+        "description": "依保存政策的天數試算，不改資料、不留紀錄。",
+        "operationId": "retention_dry_run_api_website_v1_admin_retention_dry_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReportOut"
                 }
               }
             },
@@ -10309,19 +10713,9 @@
     },
     "/api/website/v1/admin/retention/run": {
       "post": {
-        "description": "預設環境不允許真的清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確\n設為 true），避免意外把個資清掉。",
+        "description": "依保存政策的天數立即匿名化，並留一筆清理紀錄。預設環境不允許真的\n清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確設為 true），避免意外把\n個資清掉。",
         "operationId": "retention_run_api_website_v1_admin_retention_run_post",
         "parameters": [
-          {
-            "in": "query",
-            "name": "older_than_days",
-            "required": false,
-            "schema": {
-              "default": 365,
-              "title": "Older Than Days",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "x-csrf-token",
@@ -10360,9 +10754,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Retention Run Api Website V1 Admin Retention Run Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RetentionReportOut"
                 }
               }
             },
@@ -10380,6 +10772,145 @@
           }
         },
         "summary": "Retention Run",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/site-policies/retention": {
+      "get": {
+        "description": "個資保存政策（規格 L282）：已取消／未到場、已完成的保留天數，未結案\n提醒天數，是否每天自動清理，以及依目前天數試算會處理幾筆。",
+        "operationId": "get_retention_policy_api_website_v1_admin_site_policies_retention_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Retention Policy",
+        "tags": [
+          "operations"
+        ]
+      },
+      "put": {
+        "operationId": "update_retention_policy_api_website_v1_admin_site_policies_retention_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionPolicyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Retention Policy",
         "tags": [
           "operations"
         ]
@@ -14225,6 +14756,7 @@
     },
     "/api/website/v1/public/site": {
       "get": {
+        "description": "規格 L311：帶 ETag。內容除了發布紀錄，還會隨日期（活動過期）、分校\n停用與素材狀態改變，所以 ETag 直接取輸出本文的雜湊，不另外推算版本。\n官網與瀏覽器帶 If-None-Match 重新驗證時，沒變就回 304、不再傳整份內容。",
         "operationId": "get_public_site_api_website_v1_public_site_get",
         "responses": {
           "200": {
@@ -14236,6 +14768,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "304": {
+            "description": "內容跟 If-None-Match 帶來的版本相同"
           }
         },
         "summary": "Get Public Site",

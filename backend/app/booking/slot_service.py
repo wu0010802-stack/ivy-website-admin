@@ -205,19 +205,40 @@ async def list_slots(
     return list(result.scalars())
 
 
+class SlotVersionConflict(Exception):
+    def __init__(self, current_version: int) -> None:
+        self.current_version = current_version
+        super().__init__(current_version)
+
+
 async def update_slot(
-    db: AsyncSession, slot: VisitSlot, *, capacity: int | None, closed: bool | None
+    db: AsyncSession,
+    slot: VisitSlot,
+    *,
+    capacity: int | None,
+    closed: bool | None,
+    expected_version: int | None = None,
 ) -> VisitSlot:
-    """降低容量時，若已低於目前確認案件數則拒絕——不自動取消任何案件。"""
+    """降低容量時，若已低於目前確認案件數則拒絕——不自動取消任何案件。
+
+    slot 必須是 get_slot_for_update 鎖住的列；expected_version 不符丟
+    SlotVersionConflict（別人剛改過容量或開關、或休假日剛關掉它）。"""
+    if expected_version is not None and slot.version != expected_version:
+        raise SlotVersionConflict(slot.version)
     if capacity is not None and capacity < slot.capacity:
         booked = await count_booked(db, slot.id)
         if capacity < booked:
             raise SlotCapacityBelowBooked(booked)
-    if capacity is not None:
+    changed = False
+    if capacity is not None and capacity != slot.capacity:
         slot.capacity = capacity
+        changed = True
     if closed is not None and closed != slot.closed:
         slot.closed = closed
         # 記下是園方手動關的：取消休假日時不會把它重新打開。
         slot.closed_source = SlotClosedSource.MANUAL.value if closed else None
+        changed = True
+    if changed:
+        slot.version += 1
     await db.flush()
     return slot

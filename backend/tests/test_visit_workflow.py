@@ -130,7 +130,7 @@ async def test_reduce_capacity_below_booked_rejected(admin_client, public_client
     )
 
     resp = await admin_client.patch(
-        f"/api/website/v1/admin/slots/{slot['id']}", json={"capacity": 0}
+        f"/api/website/v1/admin/slots/{slot['id']}", json={"capacity": 0, "expected_version": 1}
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "CAPACITY_BELOW_BOOKED"
@@ -322,7 +322,7 @@ async def test_contact_note_and_follow_up(admin_client, public_client):
 
     note = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/contact-notes",
-        json={"note": "已電話確認家長會準時到場", "follow_up_at": "2026-10-01T09:00:00Z"},
+        json={"note": "已電話確認家長會準時到場", "follow_up_at": "2026-10-01T09:00:00Z", "expected_version": 1},
     )
     assert note.status_code == 201
 
@@ -337,7 +337,7 @@ async def test_contact_note_and_follow_up(admin_client, public_client):
 async def test_minghua_cannot_manage_yihua_slot(minghua_client, admin_client):
     slot = await _create_slot(admin_client)
     resp = await minghua_client.patch(
-        f"/api/website/v1/admin/slots/{slot['id']}", json={"capacity": 5}
+        f"/api/website/v1/admin/slots/{slot['id']}", json={"capacity": 5, "expected_version": 1}
     )
     assert resp.status_code == 404
 
@@ -503,12 +503,12 @@ async def test_visit_request_follow_up_due_filter_and_order(admin_client, public
     )
     past = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{older}/contact-notes",
-        json={"note": "家長說下週再聯絡", "follow_up_at": "2020-01-01T09:00:00Z"},
+        json={"note": "家長說下週再聯絡", "follow_up_at": "2020-01-01T09:00:00Z", "expected_version": 1},
     )
     assert past.status_code == 201, past.text
     future = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{newer}/contact-notes",
-        json={"note": "先不用追", "follow_up_at": "2999-01-01T09:00:00Z"},
+        json={"note": "先不用追", "follow_up_at": "2999-01-01T09:00:00Z", "expected_version": 1},
     )
     assert future.status_code == 201, future.text
 

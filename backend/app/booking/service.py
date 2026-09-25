@@ -17,7 +17,7 @@ from app.booking.models import (
     VisitRequestSource,
     VisitRequestStatus,
 )
-from app.booking.exceptions import SlotFull
+from app.booking.exceptions import SlotClosed, SlotFull, SlotNotFound
 from app.booking.outbox import enqueue_outbox
 from app.booking.schemas import CONTACT_TIME_LABELS
 from app.common.timezones import now_utc, slot_start_utc
@@ -224,8 +224,10 @@ async def submit_visit_request(
         if not slot_id:
             raise BookingUnavailable()
         slot = await slot_service.get_slot_for_update(db, uuid.UUID(slot_id))
-        if slot is None or slot.campus_key != campus_key or slot.closed:
-            raise SlotFull()
+        if slot is None or slot.campus_key != campus_key:
+            raise SlotNotFound()
+        if slot.closed:
+            raise SlotClosed()
         # 時間窗與公開查詢用同一份判斷：已過去或不在開放區間的時段不能被
         # 預約，否則名額會被永久佔住、也永遠不會有人來。
         if not slot_service.is_publicly_bookable(slot, now, **slot_service.window_for(config)):

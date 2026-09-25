@@ -64,7 +64,7 @@ async def test_needs_attention_lists_closed_slots_holidays_and_inactive_campuses
 
     assert await _ids(admin_client, "needs_attention=true") == set()
 
-    closed = await admin_client.patch(f"{API}/admin/slots/{closed_slot['id']}", json={"closed": True})
+    closed = await admin_client.patch(f"{API}/admin/slots/{closed_slot['id']}", json={"closed": True, "expected_version": 1})
     assert closed.status_code == 200
     holiday = await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": holiday_slot["slot_date"]}
@@ -135,7 +135,7 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
     today = today_local()
     assert len(await export(f"created_from={today - timedelta(days=1)}&created_to={today}")) == 3
     assert await export(f"created_from={today + timedelta(days=1)}") == []
-    await admin_client.patch(f"{API}/admin/slots/{slot['id']}", json={"closed": True})
+    await admin_client.patch(f"{API}/admin/slots/{slot['id']}", json={"closed": True, "expected_version": 1})
     assert [r["parent_name"] for r in await export("needs_attention=true")] == ["王媽媽"]
 
     # 清單與匯出同一組條件得到同一批案件。

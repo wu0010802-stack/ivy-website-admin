@@ -109,7 +109,8 @@ async def _clean_tables(app):
                 "reschedule_requests, parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
-                "booking_configs, rate_limit_counters, line_campus_targets, line_groups "
+                "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
+                "retention_policies, retention_runs "
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -263,12 +264,19 @@ async def add_weekly_rule(admin_client, campus_key: str = "yihua") -> None:
     response = await admin_client.put(
         f"/api/website/v1/admin/visit-schedule/{campus_key}",
         json={
+            "expected_version": current["version"],
             "min_lead_hours": current["min_lead_hours"],
             "max_advance_days": current["max_advance_days"],
             "rules": [{"weekday": 5, "start_time": "09:00:00", "end_time": "10:00:00", "slot_minutes": 60, "capacity": 1}],
         },
     )
     assert response.status_code == 200, response.text
+
+
+async def case_version(client, case_id: str) -> int:
+    detail = await client.get(f"/api/website/v1/admin/visit-requests/{case_id}")
+    assert detail.status_code == 200, detail.text
+    return detail.json()["version"]
 
 
 @pytest_asyncio.fixture

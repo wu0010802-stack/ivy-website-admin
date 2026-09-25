@@ -306,7 +306,7 @@ async def test_maintenance_cycle_purges_due_media(app, admin_client, db_session)
 async def test_replace_then_batch_replace_creates_drafts_without_publishing(admin_client, db_session):
     shared = await _upload(admin_client, campus_key=None)
     await admin_client.patch(
-        f"{MEDIA}/{shared['id']}", json={"caption": "園慶", "tags": ["活動"], "license_note": "園方自攝"}
+        f"{MEDIA}/{shared['id']}", json={"expected_version": 1, "caption": "園慶", "tags": ["活動"], "license_note": "園方自攝"}
     )
     meta = await admin_client.post(
         f"{META}/revisions", json={"expected_version": 0, "payload": _meta(share_image=shared["id"])}
@@ -478,9 +478,9 @@ async def test_upload_is_streamed_to_temp_file_and_cleaned_up(app, admin_client)
 async def test_uploader_email_and_metadata_length_limits(admin_client):
     media = await _upload(admin_client)
     assert media["created_by_email"] == "admin@ivy.example"
-    too_long = await admin_client.patch(f"{MEDIA}/{media['id']}", json={"alt_text": "字" * 501})
+    too_long = await admin_client.patch(f"{MEDIA}/{media['id']}", json={"expected_version": 1, "alt_text": "字" * 501})
     assert too_long.status_code == 422
-    too_long = await admin_client.patch(f"{MEDIA}/{media['id']}", json={"source_attribution": "字" * 256})
+    too_long = await admin_client.patch(f"{MEDIA}/{media['id']}", json={"expected_version": 1, "source_attribution": "字" * 256})
     assert too_long.status_code == 422
 
 
@@ -499,7 +499,7 @@ async def test_video_records_duration_size_and_accepts_metadata(admin_client):
 
     updated = await admin_client.patch(
         f"{MEDIA}/{video['id']}",
-        json={"alt_text": "孩子在沙坑玩", "caption": "午後", "source_attribution": "義華校", "license_note": "園方自攝", "tags": ["戶外"]},
+        json={"expected_version": 1, "alt_text": "孩子在沙坑玩", "caption": "午後", "source_attribution": "義華校", "license_note": "園方自攝", "tags": ["戶外"]},
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["alt_text"] == "孩子在沙坑玩" and updated.json()["tags"] == ["戶外"]

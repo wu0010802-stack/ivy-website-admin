@@ -86,7 +86,7 @@ async def test_media_tags_caption_license_and_search(admin_client):
 
     patched = await admin_client.patch(
         f"{API}/admin/media/{media_id}",
-        json={"tags": [" 戶外 ", "遊戲場", "戶外", ""], "caption": "午後的遊戲時間", "license_note": "園方自攝，可公開使用"},
+        json={"expected_version": 1, "tags": [" 戶外 ", "遊戲場", "戶外", ""], "caption": "午後的遊戲時間", "license_note": "園方自攝，可公開使用"},
     )
     assert patched.status_code == 200, patched.text
     body = patched.json()
@@ -105,5 +105,5 @@ async def test_media_tags_caption_license_and_search(admin_client):
     assert [m["id"] for m in by_q.json()] == [media_id]
     assert len((await admin_client.get(f"{API}/admin/media")).json()) == 2
 
-    too_long = await admin_client.patch(f"{API}/admin/media/{media_id}", json={"tags": ["x" * 31]})
+    too_long = await admin_client.patch(f"{API}/admin/media/{media_id}", json={"expected_version": 1, "tags": ["x" * 31]})
     assert too_long.status_code == 422

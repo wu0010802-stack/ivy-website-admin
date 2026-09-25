@@ -21,8 +21,13 @@ from app.operations import audit_service
 
 
 class NotPublishable(Exception):
-    def __init__(self, message: str) -> None:
+    """發布前檢查不通過。code 是 API 的錯誤碼：素材未就緒、分校停用、欄位
+    格式過時各有自己的代碼，內容規則（例如示範同意文字）才是
+    CONTENT_NOT_READY。"""
+
+    def __init__(self, message: str, code: str = "CONTENT_NOT_READY") -> None:
         self.message = message
+        self.code = code
         super().__init__(message)
 
 
@@ -39,26 +44,28 @@ async def check_publishable(
     分校停用中的內容照樣換回舊版（官網本來就不顯示停用的分校）。"""
     config = CONTENT_KIND_REGISTRY.get(item.kind)
     if config is None:
-        raise NotPublishable("未知的內容種類")
+        raise NotPublishable("未知的內容種類", "CONTENT_KIND_UNKNOWN")
     if validate_schema:
         try:
             config.payload_model.model_validate(revision.payload)
         except ValidationError as exc:
-            raise NotPublishable("這一版的欄位格式已經過時，請到編輯頁手動修改後再發布") from exc
+            raise NotPublishable(
+                "這一版的欄位格式已經過時，請到編輯頁手動修改後再發布", "CONTENT_SCHEMA_OUTDATED"
+            ) from exc
     blocker = config.publish_blocker(revision.payload)
     if blocker:
         raise NotPublishable(blocker)
     if require_active_campus and item.campus_key is not None:
         campus = await db.get(Campus, item.campus_key, populate_existing=True)
         if campus is None or not campus.active:
-            raise NotPublishable("分校已停用，內容不會發布")
+            raise NotPublishable("分校已停用，內容不會發布", "CAMPUS_INACTIVE")
     media_ids = config.extract_media_ids(revision.payload)
     if media_ids:
         result = await db.execute(select(MediaAsset.id, MediaAsset.status).where(MediaAsset.id.in_(media_ids)))
         found = dict(result.all())
         for media_id in media_ids:
             if found.get(media_id) != MediaStatus.READY:
-                raise NotPublishable("引用的素材還沒處理完成或已被刪除")
+                raise NotPublishable("引用的素材還沒處理完成或已被刪除", "MEDIA_NOT_READY")
 
 
 async def run_due_jobs(db: AsyncSession, *, limit: int = 20) -> dict:
@@ -173,9 +180,9 @@ async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
             return "skipped"
     try:
         if item is None or revision is None:
-            raise NotPublishable("內容或版本已不存在")
+            raise NotPublishable("內容或版本已不存在", "CONTENT_NOT_FOUND")
         if not user_can_publish(creator, item):
-            raise NotPublishable("排程的人已沒有發布權限")
+            raise NotPublishable("排程的人已沒有發布權限", "PUBLISHER_NOT_ALLOWED")
         await check_publishable(db, item, revision)
         await service.publish_revision(db, item, revision, job.created_by, source=ReleaseSource.SCHEDULED)
         job.status = "done"

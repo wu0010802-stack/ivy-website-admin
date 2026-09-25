@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.auth.models import Role
 from app.booking.models import OutboxMessage
 from app.operations.models import AnalyticsEvent, AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client
+from tests.conftest import case_version, _create_user, _logged_in_client
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -189,7 +189,7 @@ async def test_assign_and_filter_by_assignee(app, admin_client, db_session):
     ).json()
 
     assigned = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id)}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
     )
     assert assigned.status_code == 200, assigned.text
     assert assigned.json()["assigned_staff_id"] == str(colleague.id)
@@ -203,7 +203,7 @@ async def test_assign_and_filter_by_assignee(app, admin_client, db_session):
     assert (await admin_client.get(f"{BASE}/visit-requests?assignee=me")).json() == []
 
     cleared = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": await case_version(admin_client, case["id"])}
     )
     assert cleared.json()["assigned_staff_id"] is None
     unassigned = await admin_client.get(f"{BASE}/visit-requests?assignee=none")
@@ -232,7 +232,7 @@ async def test_cannot_assign_to_staff_without_campus_scope_or_inactive(admin_cli
     ).json()
     for user in (other_campus, editor, inactive):
         response = await admin_client.patch(
-            f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(user.id)}
+            f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(user.id), "expected_version": await case_version(admin_client, case["id"])}
         )
         assert response.status_code == 422, user.email
         assert response.json()["detail"]["code"] == "ASSIGNEE_INVALID"
@@ -248,7 +248,7 @@ async def test_confirm_keeps_existing_assignee(admin_client, db_session):
         await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "k"})
     ).json()
     await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id)}
+        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
     )
     confirmed = await admin_client.post(
         f"{BASE}/visit-requests/{case['id']}/confirm", json={"slot_id": slot["id"]}

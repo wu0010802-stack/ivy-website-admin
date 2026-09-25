@@ -6,12 +6,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
+from fastapi.utils import is_body_allowed_for_status_code
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
 from app.common.body_limit import BodySizeLimitMiddleware
+from app.common.request_id import REQUEST_ID_HEADER, RequestIdMiddleware, request_id_of
 from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
@@ -32,9 +37,30 @@ from app.workers.maintenance import MaintenanceLoop
 
 logger = logging.getLogger("app")
 
-_INTERNAL_ERROR_BODY = {
-    "detail": {"code": "INTERNAL_ERROR", "message": "系統發生未預期的錯誤，請稍後再試"}
-}
+_INTERNAL_ERROR = {"code": "INTERNAL_ERROR", "message": "系統發生未預期的錯誤，請稍後再試"}
+
+
+def _error_body(detail, request_id: str | None) -> dict:
+    """錯誤本文維持 {"detail": ...}（前後台都這樣解析），另外帶 request_id：
+    detail 是物件就放進去，字串與 422 的陣列則放在最外層，不改原本的形狀。"""
+    if isinstance(detail, dict) and request_id:
+        detail = {**detail, "request_id": request_id}
+    body = {"detail": detail}
+    if request_id:
+        body["request_id"] = request_id
+    return body
+
+
+def _error_response(request: Request, status_code: int, detail, headers: dict | None = None) -> JSONResponse:
+    request_id = request_id_of(request)
+    merged = dict(headers or {})
+    if request_id:
+        merged[REQUEST_ID_HEADER] = request_id
+    return JSONResponse(status_code=status_code, content=_error_body(detail, request_id), headers=merged)
+
+
+def _error_code(detail) -> str | None:
+    return detail.get("code") if isinstance(detail, dict) else None
 
 
 def _register_exception_handlers(app: FastAPI) -> None:
@@ -43,21 +69,43 @@ def _register_exception_handlers(app: FastAPI) -> None:
     SQLAlchemyError 註冊在 ExceptionMiddleware（會回應、不再往外拋），
     所以像 IntegrityError／MultipleResultsFound 這類資料層例外不會變成
     裸 500；Exception 這一支註冊在 ServerErrorMiddleware，回應後仍會
-    重新拋出，讓 uvicorn 記錄完整堆疊、測試也能看到真正的錯。"""
+    重新拋出，讓 uvicorn 記錄完整堆疊、測試也能看到真正的錯。
+
+    所有錯誤回應都帶 request_id（本文與 X-Request-ID header），並記一行
+    log：4xx 記 info（方法、路徑、狀態、錯誤碼），5xx 記完整堆疊。"""
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _handle_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        logger.info(
+            "HTTP %s %s → %s code=%s request_id=%s",
+            request.method, request.url.path, exc.status_code, _error_code(exc.detail), request_id_of(request),
+        )
+        if not is_body_allowed_for_status_code(exc.status_code):
+            return Response(status_code=exc.status_code, headers=exc.headers)
+        return _error_response(request, exc.status_code, exc.detail, exc.headers)
+
+    @app.exception_handler(RequestValidationError)
+    async def _handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        logger.info(
+            "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
+        )
+        return _error_response(
+            request, status.HTTP_422_UNPROCESSABLE_ENTITY, jsonable_encoder(exc.errors())
+        )
 
     @app.exception_handler(SQLAlchemyError)
     async def _handle_db_error(request: Request, exc: SQLAlchemyError) -> JSONResponse:
-        logger.exception("資料層未預期例外：%s %s", request.method, request.url.path)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=_INTERNAL_ERROR_BODY
+        logger.exception(
+            "資料層未預期例外：%s %s request_id=%s", request.method, request.url.path, request_id_of(request)
         )
+        return _error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, _INTERNAL_ERROR)
 
     @app.exception_handler(Exception)
     async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("未預期例外：%s %s", request.method, request.url.path)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=_INTERNAL_ERROR_BODY
+        logger.exception(
+            "未預期例外：%s %s request_id=%s", request.method, request.url.path, request_id_of(request)
         )
+        return _error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, _INTERNAL_ERROR)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -90,6 +138,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.rate_limiter = RateLimiter(app.state.engine, settings.session_secret)
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
+    # 最後加的在最外層：本文太大被擋下的 413 也帶得到 request id。
+    app.add_middleware(RequestIdMiddleware)
     configure_google_oauth(app)
     configure_line_oauth(app)
 

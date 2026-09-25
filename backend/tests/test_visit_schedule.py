@@ -23,9 +23,10 @@ def _next_weekday(weekday: int, min_days_ahead: int = 3) -> date:
 
 
 async def _set_rules(client, rules, campus="yihua", lead=24, advance=60):
+    current = (await client.get(f"{API}/admin/visit-schedule/{campus}")).json()
     resp = await client.put(
         f"{API}/admin/visit-schedule/{campus}",
-        json={"min_lead_hours": lead, "max_advance_days": advance, "rules": rules},
+        json={"expected_version": current["version"], "min_lead_hours": lead, "max_advance_days": advance, "rules": rules},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
@@ -48,18 +49,29 @@ async def test_schedule_defaults_and_replace(admin_client):
 
     replaced = await _set_rules(admin_client, [])
     assert replaced["rules"] == []
+    assert replaced["version"] == saved["version"] + 1
+
+    # 拿舊版本存：不蓋掉別人剛存的規則。
+    stale = await admin_client.put(
+        f"{API}/admin/visit-schedule/yihua",
+        json={"expected_version": saved["version"], "min_lead_hours": 24, "max_advance_days": 60, "rules": [WED_MORNING]},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "VISIT_SCHEDULE_VERSION_CONFLICT"
+    assert stale.json()["detail"]["current_version"] == replaced["version"]
+    assert (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()["rules"] == []
 
 
 @pytest.mark.asyncio
 async def test_rule_validation(admin_client):
     bad = await admin_client.put(
         f"{API}/admin/visit-schedule/yihua",
-        json={"min_lead_hours": 24, "max_advance_days": 60, "rules": [{**WED_MORNING, "end_time": "08:00:00"}]},
+        json={"expected_version": 1, "min_lead_hours": 24, "max_advance_days": 60, "rules": [{**WED_MORNING, "end_time": "08:00:00"}]},
     )
     assert bad.status_code == 422
     bad_day = await admin_client.put(
         f"{API}/admin/visit-schedule/yihua",
-        json={"min_lead_hours": 24, "max_advance_days": 60, "rules": [{**WED_MORNING, "weekday": 7}]},
+        json={"expected_version": 1, "min_lead_hours": 24, "max_advance_days": 60, "rules": [{**WED_MORNING, "weekday": 7}]},
     )
     assert bad_day.status_code == 422
 
@@ -180,7 +192,7 @@ async def test_schedule_is_campus_scoped(minghua_client):
     assert (await minghua_client.get(f"{API}/admin/visit-schedule/yihua")).status_code == 404
     assert (await minghua_client.put(
         f"{API}/admin/visit-schedule/yihua",
-        json={"min_lead_hours": 24, "max_advance_days": 60, "rules": []},
+        json={"expected_version": 1, "min_lead_hours": 24, "max_advance_days": 60, "rules": []},
     )).status_code == 404
     assert (await minghua_client.get(f"{API}/admin/visit-schedule/minghua")).status_code == 200
 
@@ -205,7 +217,7 @@ async def test_removing_holiday_reopens_only_slots_it_closed(admin_client, db_se
         json={"date_from": wed.isoformat(), "date_to": wed.isoformat()},
     )
     first, *_ = await _slots_on(admin_client, wed)
-    manual = await admin_client.patch(f"{API}/admin/slots/{first['id']}", json={"closed": True})
+    manual = await admin_client.patch(f"{API}/admin/slots/{first['id']}", json={"closed": True, "expected_version": 1})
     assert manual.json()["closed_source"] == "manual"
 
     exc = await admin_client.post(
@@ -271,8 +283,8 @@ async def test_rules_extend_daily_up_to_max_advance_days(app, admin_client):
         json={"date_from": tweaked_day.isoformat(), "date_to": tweaked_day.isoformat()},
     )
     tweaked = await _slots_on(admin_client, tweaked_day)
-    await admin_client.patch(f"{API}/admin/slots/{tweaked[0]['id']}", json={"capacity": 5})
-    await admin_client.patch(f"{API}/admin/slots/{tweaked[1]['id']}", json={"closed": True})
+    await admin_client.patch(f"{API}/admin/slots/{tweaked[0]['id']}", json={"capacity": 5, "expected_version": 1})
+    await admin_client.patch(f"{API}/admin/slots/{tweaked[1]['id']}", json={"closed": True, "expected_version": 1})
     holiday = today + timedelta(days=4)
     await admin_client.post(f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": holiday.isoformat()})
 
