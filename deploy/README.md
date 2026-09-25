@@ -611,3 +611,11 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 強制 CSS 版約 0.79 秒翻開；手機 390 背面→照片、無橫向溢出。
   - 減少動態停在背面、點擊切換；讀者先點停在照片；翻開途中點擊（WebGL／CSS）翻完停在照片，之後再點照常翻面；`#day-hello` 直達維持正面。
   - 0 page error。Safari／iOS 實機未驗證。
+
+## 2026-09-25 官網後台缺口補齊併入 main（main CI 部署，含 9 支 migration）
+
+- 合併提交 `a07c852`：`5baeb3a`（main）＋`feature/admin-gaps-20260925` 到 `84e9c41`（27 個 commit）。內容有接待人員處理案件、後台改期、家長管理連結、案件歷程、同意說明版本與參觀人數、寄送失敗重寄與提醒、發布紀錄與整站還原、消息／FAQ 結構化、主選單與頁尾、素材引用／替換／封存／版位焦點。衝突在 `SiteHeader.vue`、`usePageSeo.ts`、`test_operations.py`；另把後台預設主選單、頁尾連結與 `media-slots` 基準快照同步成 main 的「頁首只留常春藤環境、入學資訊」。
+- 部署前驗證：同一提交推 `feature/merge-admin-gaps-20260925` 跑 CI run `36149629447` 全綠（backend pytest 720 passed、schema guard、contract check；web 301 項、admin 前端），deploy job 依設計略過。本機 web／admin 單元測試、typecheck、`contract:check` 通過；alembic 單一 head `c4d8e2f6a913`。
+- migration：正式庫 `9b2b0ebc14ae` → `c4d8e2f6a913`，共 9 支，含改寫既有資料（發布正式同意文字、`review_status` 回填、分校管理者補授 `booking.export`、outbox `skipped`→`sent`、`media_usages` 重建）。依 `CICD.md` 先備份：`/var/lib/postgresql/data/ivy-website-backups/pre-admin-gaps-20260925.dump`（custom format、`pg_restore --list` 通過），SHA-256 `ad3d80b4e552b09dc43ab69b9edc24532efe5140c19437a15e588e81e671d0f4`，留在 Postgres 服務內、未下載個資。
+- 備份、`push a07c852:main`（`5baeb3a..a07c852`）與查 CI 都被 auto 模式擋下，由使用者執行。使用者以 `gh run watch` 看到的 main run `36154984701` 全綠，含 deploy job「Deploy API then web, verify release」；這個 run 對應哪個 commit 沒有另外核對（之後別的 session 在 `a07c852` 上推了 `8be201d`…`709f871`）。
+- 未驗證：部署後正式庫實際的 alembic 版本、後台新頁面的線上操作、Safari／iOS。`feature/admin-gaps-20260925` 在 `84e9c41` 之後的提交（成效統計與收錄開關 `dc2b69a`、`54af17d`、`c5e1b24`，以及在途的樂觀鎖）尚未上線，之後合併時同樣要先備份。
