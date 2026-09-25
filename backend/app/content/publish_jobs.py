@@ -86,17 +86,26 @@ async def run_due_jobs(db: AsyncSession, *, limit: int = 20) -> dict:
     return counts
 
 
-async def newer_version_since(db: AsyncSession, item: ContentItem, job: PublishJob) -> int | None:
-    """排好之後官網已經是、或曾經換成比排程版本新的版本時，回傳那個版本號。
+# 到期了但沒有發布：failed＝檢查不過，skipped＝官網已經是同一版或較新的版本。
+UNPUBLISHED_STATUSES = ("failed", "skipped")
 
-    排程綁的是明確的一版（規格 L156）。到期時如果有人另外發布過更新的內容
-    （包含還原舊內容，還原會存成新的一版），照排程發布就會把官網退回舊內容，
-    所以不發布。官網現在的版本本身就比排程版本新也一樣。"""
-    candidates = []
-    if item.current_published_revision_id is not None:
-        live = await db.get(ContentRevision, item.current_published_revision_id)
-        if live is not None:
-            candidates.append(live.version)
+
+async def live_version(db: AsyncSession, item: ContentItem) -> int | None:
+    """官網上這項內容目前是第幾版；從來沒發布過是 None。"""
+    if item.current_published_revision_id is None:
+        return None
+    live = await db.get(ContentRevision, item.current_published_revision_id)
+    return live.version if live is not None else None
+
+
+async def skip_reason(db: AsyncSession, item: ContentItem, revision: ContentRevision, job: PublishJob) -> str | None:
+    """到期時不照排程發布的原因；None 代表可以發布。呼叫端要先拿 lock_site_state，
+    讀到的才是別人發布完成之後的官網。
+
+    排程綁的是明確的一版（規格 L156）。到期時如果有人另外發布過同一版或更新
+    的內容（包含還原舊內容，還原會存成新的一版），照排程發布就會蓋掉別人
+    後來的決定，所以不發布。官網現在的版本本身就比排程版本新也一樣。"""
+    live = await live_version(db, item)
     since = await db.execute(
         select(func.max(ContentRevision.version))
         .select_from(SiteReleaseEntry)
@@ -104,10 +113,41 @@ async def newer_version_since(db: AsyncSession, item: ContentItem, job: PublishJ
         .join(ContentRevision, ContentRevision.id == SiteReleaseEntry.revision_id)
         .where(SiteReleaseEntry.content_item_id == item.id, SiteRelease.created_at > job.created_at)
     )
-    newest_since = since.scalar_one_or_none()
-    if newest_since is not None:
-        candidates.append(newest_since)
-    return max(candidates) if candidates else None
+    newest = max((v for v in (live, since.scalar_one_or_none()) if v is not None), default=None)
+    if newest is None or newest < revision.version:
+        return None
+    if live == revision.version:
+        return "官網已經是這一版，不需要再發布"
+    if newest == revision.version:
+        # 排好之後有人直接發布過這一版，之後又換掉（例如整站還原）：官網現在
+        # 不是這一版，原因不能寫成「已經是這一版」。
+        now_live = f"第 {live} 版" if live is not None else "其他內容"
+        return f"排好之後官網發布過第 {revision.version} 版，之後又換成{now_live}，不會自動蓋回去"
+    return f"排好之後官網已經發布過較新的第 {newest} 版，不會把第 {revision.version} 版蓋回去"
+
+
+def is_resolved(job: PublishJob, item: ContentItem) -> bool:
+    """沒有發布的排程（failed／skipped）已經有人處理：按了「知道了」，或官網
+    上這項內容在排程結束之後換過版本。編輯頁的提示與總覽的待辦用同一個
+    定義（總覽用 unresolved_condition）。"""
+    if job.status not in UNPUBLISHED_STATUSES:
+        return False
+    if job.acknowledged_at is not None:
+        return True
+    return item.published_at is not None and job.finished_at is not None and item.published_at >= job.finished_at
+
+
+def unresolved_condition():
+    """is_resolved 的反面，給 SQL 用（要和 ContentItem join）。"""
+    return (
+        PublishJob.status.in_(UNPUBLISHED_STATUSES)
+        & PublishJob.acknowledged_at.is_(None)
+        & (
+            ContentItem.published_at.is_(None)
+            | PublishJob.finished_at.is_(None)
+            | (ContentItem.published_at < PublishJob.finished_at)
+        )
+    )
 
 
 async def _finish_unpublished(
@@ -154,6 +194,11 @@ async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
     if job is None or job.status != "scheduled":
         await db.rollback()
         return None
+    # 先鎖官網再讀這項內容現在是哪一版：手動發布、核准、整站還原都拿同一把
+    # 鎖，這樣它們要嘛在這之前 commit（下面讀得到），要嘛等排程做完。先讀後
+    # 鎖的話，讀完到 publish_revision 拿到鎖之間有人發布較新的一版，排程還是
+    # 會把舊版蓋回官網。
+    await service.lock_site_state(db)
     item = await db.get(ContentItem, job.content_item_id, populate_existing=True)
     revision = await db.get(ContentRevision, job.revision_id, populate_existing=True)
     creator = None
@@ -169,14 +214,9 @@ async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
         creator = res.scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if item is not None and revision is not None:
-        newer = await newer_version_since(db, item, job)
-        if newer is not None and newer >= revision.version:
-            message = (
-                "官網已經是這一版，不需要再發布"
-                if newer == revision.version
-                else f"排好之後官網已經發布過較新的第 {newer} 版，不會把第 {revision.version} 版蓋回去"
-            )
-            await _finish_unpublished(db, job, item, revision, status="skipped", message=message, now=now)
+        reason = await skip_reason(db, item, revision, job)
+        if reason is not None:
+            await _finish_unpublished(db, job, item, revision, status="skipped", message=reason, now=now)
             return "skipped"
     try:
         if item is None or revision is None:

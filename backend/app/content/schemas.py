@@ -1337,6 +1337,9 @@ class PublishJobOut(BaseModel):
     error: str | None
     created_by_email: str | None
     finished_at: datetime | None
+    # 沒有發布（failed／skipped）的排程已經處理過：有人按了「知道了」，或官網
+    # 之後換過這項內容的版本。編輯頁只提示還沒處理的；其他狀態一律 false。
+    resolved: bool = False
 
 
 class PendingReviewOut(BaseModel):

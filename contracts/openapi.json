@@ -3087,6 +3087,11 @@
             "title": "Publish At",
             "type": "string"
           },
+          "resolved": {
+            "default": false,
+            "title": "Resolved",
+            "type": "boolean"
+          },
           "revision_id": {
             "format": "uuid",
             "title": "Revision Id",
@@ -7871,6 +7876,107 @@
           }
         },
         "summary": "Cancel Schedule",
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/api/website/v1/admin/content-items/{kind}/schedules/{job_id}/acknowledge": {
+      "post": {
+        "description": "沒有發布的排程（檢查不過或已略過）按「知道了」：總覽不再列成待辦、編輯\n頁不再提示。分校停用、決定不發布那一版時，沒有「之後重新發布」可以讓它\n消失。和取消排程同一個權限（能發布這項內容的人）。按過再按不重複記錄。",
+        "operationId": "acknowledge_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Acknowledge Schedule",
         "tags": [
           "content"
         ]

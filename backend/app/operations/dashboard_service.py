@@ -14,15 +14,24 @@ from app.booking.models import BookingConfig, BookingMode, OutboxMessage, Outbox
 from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
+from app.content.publish_jobs import unresolved_condition
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media.models import MediaAsset, MediaStatus
 
 
 async def get_dashboard_summary(
-    db: AsyncSession, campus_keys: list[str] | None, *, include_shared_reviews: bool = False
+    db: AsyncSession,
+    campus_keys: list[str] | None,
+    *,
+    include_shared_content: bool = False,
+    include_shared_reviews: bool = False,
 ) -> dict:
     """campus_keys 為 None 代表 super_admin（不限校區）；否則只統計
-    這個使用者有權限的校區，天然不會洩漏其他校的數字。"""
+    這個使用者有權限的校區，天然不會洩漏其他校的數字。
+
+    共用內容（首頁、消息、頁尾…）的待發布、素材問題與排程失敗只算給能編
+    共用內容的人（include_shared_content，和後台共用內容頁進不進得去同一條
+    規則）；送審只算給能發布共用內容的人（include_shared_reviews）。"""
     now = datetime.now(timezone.utc)
     # 「今天」要用園方所在時區算。原本用 UTC 的日界線，台北時間
     # 00:00–08:00 之間整個儀表板都會顯示成前一天的名單。
@@ -120,7 +129,7 @@ async def get_dashboard_summary(
     # 「待發布」：最新一版還沒上官網的內容項——從來沒發布過的，以及發布後
     # 又存了新草稿的（最新版本號比官網上的版本新）。正式站初始化時已經全部
     # 發布過一次，之後改了文案忘了發布就是後者，只算前者會一直顯示 0。
-    content_items = await _content_in_scope(db, campus_keys)
+    content_items = await _content_in_scope(db, campus_keys, include_shared=include_shared_content)
     pending_publish_items = [
         {
             "kind": item.kind,
@@ -139,23 +148,19 @@ async def get_dashboard_summary(
 
     content_media_issues = await _media_issues(db, content_items)
 
-    # 排程發布到點沒有執行（檢查不過）而且之後還沒有人發布過這項內容：要有人
-    # 決定改完再發布或重新排程。到期時官網已是較新版本而略過的不算，沒有待辦。
+    # 排程發布到點沒有執行（檢查不過）而且還沒有人處理（之後沒有發布過這項
+    # 內容、也沒有人按「知道了」）：要有人決定改完再發布、重新排程或不發布。
+    # 到期時官網已是較新版本而略過的不算，沒有待辦。
     failed_jobs_stmt = (
         select(PublishJob, ContentItem, ContentRevision.version)
         .join(ContentItem, ContentItem.id == PublishJob.content_item_id)
         .join(ContentRevision, ContentRevision.id == PublishJob.revision_id)
-        .where(
-            PublishJob.status == "failed",
-            (ContentItem.published_at.is_(None)) | (ContentItem.published_at < PublishJob.finished_at),
-        )
+        .where(PublishJob.status == "failed", unresolved_condition())
         .order_by(PublishJob.finished_at.desc())
         .limit(20)
     )
     if campus_keys is not None:
-        failed_jobs_stmt = failed_jobs_stmt.where(
-            (ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None))
-        )
+        failed_jobs_stmt = failed_jobs_stmt.where(_content_scope_condition(campus_keys, include_shared_content))
     failed_publish_jobs = [
         {
             "id": str(job.id),
@@ -178,10 +183,7 @@ async def get_dashboard_summary(
     )
     if campus_keys is not None:
         # 有「全站共用內容」授權的分校管理者也要看到共用內容的送審。
-        condition = ContentItem.campus_key.in_(campus_keys)
-        if include_shared_reviews:
-            condition = condition | ContentItem.campus_key.is_(None)
-        pending_review_stmt = pending_review_stmt.where(condition)
+        pending_review_stmt = pending_review_stmt.where(_content_scope_condition(campus_keys, include_shared_reviews))
     pending_review = (await db.execute(pending_review_stmt)).scalar_one()
 
     campuses_stmt = select(Campus.key)
@@ -243,10 +245,17 @@ async def get_dashboard_summary(
     }
 
 
+def _content_scope_condition(campus_keys: list[str], include_shared: bool):
+    condition = ContentItem.campus_key.in_(campus_keys)
+    if include_shared:
+        condition = condition | ContentItem.campus_key.is_(None)
+    return condition
+
+
 async def _content_in_scope(
-    db: AsyncSession, campus_keys: list[str] | None
+    db: AsyncSession, campus_keys: list[str] | None, *, include_shared: bool
 ) -> list[tuple[ContentItem, ContentRevision | None, ContentRevision | None]]:
-    """範圍內每個內容項，連同最新一版與官網上的那一版（共用內容大家都算）。"""
+    """範圍內每個內容項，連同最新一版與官網上的那一版。"""
     latest = aliased(ContentRevision)
     published = aliased(ContentRevision)
     stmt = (
@@ -256,7 +265,7 @@ async def _content_in_scope(
         .where(ContentItem.latest_version > 0)
     )
     if campus_keys is not None:
-        stmt = stmt.where((ContentItem.campus_key.in_(campus_keys)) | (ContentItem.campus_key.is_(None)))
+        stmt = stmt.where(_content_scope_condition(campus_keys, include_shared))
     return [tuple(row) for row in (await db.execute(stmt)).all()]
 
 

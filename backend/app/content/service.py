@@ -104,6 +104,14 @@ async def _get_or_create_site_state(db: AsyncSession) -> SiteState:
     return state
 
 
+async def lock_site_state(db: AsyncSession) -> SiteState:
+    """鎖住「官網目前是哪一次發布」直到交易結束。立即發布、核准、還原、整站
+    還原都在 publish_revision／restore_release 裡拿同一把鎖；要先看官網現在
+    是哪一版、再決定發不發布的呼叫端（排程到期）要先拿鎖再讀，否則讀完到
+    發布之間別人插進來的較新版本會被蓋回去。"""
+    return await _get_or_create_site_state(db)
+
+
 async def _release_entries(db: AsyncSession, release_id: uuid.UUID | None) -> dict[uuid.UUID, uuid.UUID]:
     if release_id is None:
         return {}

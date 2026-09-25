@@ -186,3 +186,9 @@ class PublishJob(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 沒有發布（failed／skipped）的排程有人按了「知道了」：例如分校停用、決定不
+    # 發布那一版，總覽不再列成待辦、編輯頁不再提示。
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )

@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import campus_scope, can_publish_shared_content, has_capability, require_scope
+from app.auth.permissions import (
+    campus_scope,
+    can_edit_shared_content,
+    can_publish_shared_content,
+    has_capability,
+    require_scope,
+)
 from app.campuses.models import Campus
 from app.common import ratelimit
 from app.notifications.models import UserNotification
@@ -155,7 +161,10 @@ async def get_dashboard(
     scope = campus_scope(current_user)
     campus_keys = None if scope is None else sorted(scope)
     summary = await dashboard_service.get_dashboard_summary(
-        db, campus_keys, include_shared_reviews=can_publish_shared_content(current_user)
+        db,
+        campus_keys,
+        include_shared_content=can_edit_shared_content(current_user),
+        include_shared_reviews=can_publish_shared_content(current_user),
     )
     if not has_capability(current_user, "booking.read"):
         # 今日名單帶家長姓名；沒有案件讀取權的角色只看數字。

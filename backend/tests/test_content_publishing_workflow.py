@@ -3,6 +3,7 @@
 欄位規則版本、fixture 匯入指令不覆寫後台內容。"""
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -12,7 +13,8 @@ import pytest
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 
-from app.auth.models import Role
+from app.auth.models import Role, User
+from app.content import service
 from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease
 from app.content.publish_jobs import run_due_jobs
 from app.media.models import MediaAsset, MediaKind, MediaStatus
@@ -463,3 +465,204 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
     # 20 筆（含 2026-09-25 起的全站共用常見問題）扣掉已有版本的 3 筆。
     assert len(pending) == 18
     assert len((await db_session.execute(select(ContentItem))).scalars().all()) == 3
+
+
+# ---------------------------------------------------------------------------
+# B06 審查意見：排程與手動發布的交錯、略過原因、排程舊版、總覽的共用內容與
+# 「知道了」
+# ---------------------------------------------------------------------------
+
+
+async def _faq_item(db_session) -> ContentItem:
+    result = await db_session.execute(
+        select(ContentItem).where(ContentItem.kind == "campus_faq", ContentItem.campus_key == "yihua")
+    )
+    return result.scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_schedule_waits_for_concurrent_publish_before_comparing_versions(app, admin_client, public_client, db_session):
+    """B06-1：排程先讀「官網現在是哪一版」、之後才鎖官網的話，中間有人手動發布
+    較新的一版，排程拿到鎖以後還是會把舊版蓋回去。現在先鎖再讀。"""
+    rev1 = await _draft(admin_client, q="第一版")
+    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    rev2 = await _draft(admin_client, expected=1, q="排程的第二版")
+    await _schedule(admin_client, rev2["id"])
+    rev3 = await _draft(admin_client, expected=2, q="同時手動發布的第三版")
+    await _make_due(db_session)
+
+    async with app.state.session_factory() as manual:
+        item = await _faq_item(manual)
+        revision = await manual.get(ContentRevision, uuid.UUID(rev3["id"]))
+        # 手動發布拿到官網的鎖、還沒 commit 時，排程剛好到期。
+        await service.publish_revision(manual, item, revision, None)
+        task = asyncio.create_task(run_due_jobs(db_session))
+        await asyncio.sleep(0.5)
+        assert not task.done()
+        await manual.commit()
+    counts = await asyncio.wait_for(task, timeout=10)
+
+    assert counts == {"published": 0, "failed": 0, "skipped": 1}
+    site = (await public_client.get(f"{API}/public/site")).json()
+    assert site["content"]["campus_faq"]["yihua"]["items"][0]["q"] == "同時手動發布的第三版"
+    job = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]
+    assert job["status"] == "skipped" and "第 3 版" in job["error"]
+
+
+@pytest.mark.asyncio
+async def test_skip_reason_tells_whether_site_still_has_that_version(admin_client, db_session):
+    """B06-3：排好之後直接發布過這一版、又被整站還原換掉時，官網現在不是這一版，
+    原因不能寫「官網已經是這一版」。"""
+    rev1 = await _draft(admin_client, q="第一版")
+    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    target = (await admin_client.get(f"{API}/admin/releases")).json()["items"][0]
+    rev2 = await _draft(admin_client, expected=1, q="排程的第二版")
+    await _schedule(admin_client, rev2["id"])
+    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})
+    restored = await admin_client.post(f"{API}/admin/releases/{target['id']}/restore", json={})
+    assert restored.status_code == 200, restored.text
+
+    # 另一項內容：排好之後直接發布了同一版，官網現在就是這一版。
+    about1 = await _about_draft(admin_client, 0, "排程的關於")
+    await _schedule(admin_client, about1["id"], path=ABOUT, query="")
+    await admin_client.post(f"{ABOUT}/publish", json={"revision_id": about1["id"]})
+
+    await _make_due(db_session)
+    assert await run_due_jobs(db_session) == {"published": 0, "failed": 0, "skipped": 2}
+    faq_job = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]
+    assert faq_job["error"] == "排好之後官網發布過第 2 版，之後又換成第 1 版，不會自動蓋回去"
+    about_job = (await admin_client.get(f"{ABOUT}/schedules")).json()[0]
+    assert about_job["error"] == "官網已經是這一版，不需要再發布"
+    notes = (await admin_client.get(f"{API}/admin/my-notifications")).json()
+    assert {n["error"] for n in notes if n["kind"] == "content_schedule_skipped"} == {faq_job["error"], about_job["error"]}
+
+
+@pytest.mark.asyncio
+async def test_schedule_refuses_revision_not_newer_than_live(admin_client, db_session):
+    """B06-4：排程官網上這一版或更舊的版本，到期一定會略過，建立時就擋下並說明。"""
+    rev1 = await _draft(admin_client, q="第一版")
+    rev2 = await _draft(admin_client, expected=1, q="第二版")
+    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})
+    at = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+
+    older = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev1["id"], "publish_at": at})
+    assert older.status_code == 409
+    assert older.json()["detail"]["code"] == "SCHEDULE_REVISION_NOT_NEWER"
+    assert "比官網目前的第 2 版舊" in older.json()["detail"]["message"]
+    assert "從版本紀錄還原" in older.json()["detail"]["message"]
+    same = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev2["id"], "publish_at": at})
+    assert same.status_code == 409 and same.json()["detail"]["message"] == "官網已經是這一版，不需要排程"
+    assert (await db_session.execute(select(PublishJob))).scalars().all() == []
+
+    # 比官網新的草稿照常可以排。
+    rev3 = await _draft(admin_client, expected=2, q="第三版")
+    await _schedule(admin_client, rev3["id"])
+
+
+async def _fail_due_job(db_session, job_id: str) -> None:
+    await db_session.execute(
+        update(PublishJob)
+        .where(PublishJob.id == uuid.UUID(job_id))
+        .values(status="failed", error="引用的素材還沒處理完成或已被刪除", finished_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shared_content_only_for_those_who_can_edit_it(admin_client, yihua_admin, db_session):
+    """B06-2：沒有「全站共用內容」授權的分校管理者進不了共用內容頁、也不能發布，
+    總覽不列共用內容的待發布、素材問題與排程失敗。"""
+    about = await _about_draft(admin_client, 0, "總管理者的草稿")
+    shared_job = await _schedule(admin_client, about["id"], path=ABOUT, query="")
+    await _fail_due_job(db_session, shared_job["id"])
+    media = MediaAsset(
+        id=uuid.uuid4(), kind=MediaKind.IMAGE, status=MediaStatus.PROCESSING, storage_key=f"t/{uuid.uuid4()}",
+        original_filename="share.jpg", content_type="image/jpeg", size_bytes=10, created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(media)
+    await db_session.commit()
+    meta = {
+        "title": "常春藤", "description": "描述", "header_phone_number": "07-0000000",
+        "header_phone_note": "義華", "share_image": str(media.id),
+    }
+    saved = await admin_client.post(f"{API}/admin/content-items/site_meta/revisions", json={"expected_version": 0, "payload": meta})
+    assert saved.status_code == 201, saved.text
+    faq = await _draft(yihua_admin)
+    own_job = await _schedule(yihua_admin, faq["id"])
+    await _fail_due_job(db_session, own_job["id"])
+
+    dash = (await yihua_admin.get(f"{API}/admin/dashboard")).json()
+    assert [(i["kind"], i["campus_key"]) for i in dash["pending_publish_items"]] == [("campus_faq", "yihua")]
+    assert dash["pending_publish"] == 1 and dash["pending_publish_kinds"] == ["campus_faq"]
+    assert dash["content_media_issues"] == []
+    assert [j["id"] for j in dash["failed_publish_jobs"]] == [own_job["id"]]
+
+    # 授權之後共用內容也算進來（和進得去共用內容頁同一條規則）。
+    user = (await db_session.execute(select(User).where(User.email == "yihua-admin@ivy.example"))).scalar_one()
+    granted = await admin_client.patch(f"{API}/admin/users/{user.id}/capabilities", json={"capabilities": ["content.shared"]})
+    assert granted.status_code == 200, granted.text
+    dash = (await yihua_admin.get(f"{API}/admin/dashboard")).json()
+    assert {(i["kind"], i["campus_key"]) for i in dash["pending_publish_items"]} == {
+        ("campus_faq", "yihua"), ("home_about", None), ("site_meta", None),
+    }
+    assert [i["kind"] for i in dash["content_media_issues"]] == ["site_meta"]
+    assert {j["id"] for j in dash["failed_publish_jobs"]} == {own_job["id"], shared_job["id"]}
+
+
+@pytest.mark.asyncio
+async def test_unpublished_schedule_can_be_acknowledged(admin_client, yihua_admin, editor_client, minghua_client, db_session):
+    """B06-5、B06-6：分校停用、決定不發布那一版時，沒有「之後重新發布」可以讓
+    失敗的排程消失，要能按「知道了」；手動發布過之後編輯頁也不再提示。"""
+    rev = await _draft(yihua_admin)
+    job = await _schedule(yihua_admin, rev["id"])
+    await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": False})
+    await _make_due(db_session)
+    assert await run_due_jobs(db_session) == {"published": 0, "failed": 1, "skipped": 0}
+    listed = (await yihua_admin.get(f"{FAQ}/schedules{Q}")).json()
+    assert listed[0]["status"] == "failed" and listed[0]["resolved"] is False
+    assert [j["id"] for j in (await yihua_admin.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"]] == [job["id"]]
+
+    ack_url = f"{FAQ}/schedules/{job['id']}/acknowledge{Q}"
+    # 和取消排程同一個權限：內容編輯只能送審，別校的人看不到這項內容。
+    assert (await editor_client.post(ack_url)).status_code == 403
+    assert (await minghua_client.post(ack_url)).status_code == 404
+    acked = await yihua_admin.post(ack_url)
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["resolved"] is True and acked.json()["status"] == "failed"
+    assert (await yihua_admin.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []
+    assert (await yihua_admin.get(f"{FAQ}/schedules{Q}")).json()[0]["resolved"] is True
+    # 再按一次不重複記錄。
+    assert (await yihua_admin.post(ack_url)).status_code == 200
+    entries = (
+        await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "content.schedule_acknowledge"))
+    ).scalars().all()
+    assert len(entries) == 1 and entries[0].metadata_json["job_id"] == job["id"]
+    stored = (await db_session.execute(select(PublishJob).where(PublishJob.id == uuid.UUID(job["id"])))).scalar_one()
+    assert stored.acknowledged_by == (
+        await db_session.execute(select(User.id).where(User.email == "yihua-admin@ivy.example"))
+    ).scalar_one()
+
+    # 還沒到期的排程不需要「知道了」。
+    await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
+    rev2 = await _draft(yihua_admin, expected=1, q="第二版")
+    pending = await _schedule(yihua_admin, rev2["id"])
+    refused = await yihua_admin.post(f"{FAQ}/schedules/{pending['id']}/acknowledge{Q}")
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "INVALID_TRANSITION"
+
+
+@pytest.mark.asyncio
+async def test_failed_schedule_resolved_once_site_changes_version(admin_client, db_session):
+    """B06-5：排程失敗之後有人直接發布，編輯頁拿到的 resolved 跟總覽一樣變成已處理。"""
+    rev = await _draft(admin_client)
+    await _schedule(admin_client, rev["id"])
+    await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": False})
+    await _make_due(db_session)
+    await run_due_jobs(db_session)
+    assert (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]["resolved"] is False
+
+    await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
+    rev2 = await _draft(admin_client, expected=1, q="改好再發布")
+    assert (await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})).status_code == 200
+    listed = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()
+    assert listed[0]["status"] == "failed" and listed[0]["resolved"] is True
+    assert (await admin_client.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []

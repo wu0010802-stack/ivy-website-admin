@@ -669,7 +669,7 @@ async def list_pending_reviews(
 # ---------------------------------------------------------------------------
 
 
-async def _job_out(db: AsyncSession, job: PublishJob) -> PublishJobOut:
+async def _job_out(db: AsyncSession, job: PublishJob, item: ContentItem) -> PublishJobOut:
     rev = await db.get(ContentRevision, job.revision_id)
     creator = await db.get(User, job.created_by) if job.created_by else None
     return PublishJobOut(
@@ -681,6 +681,7 @@ async def _job_out(db: AsyncSession, job: PublishJob) -> PublishJobOut:
         error=job.error,
         created_by_email=creator.email if creator else None,
         finished_at=job.finished_at,
+        resolved=publish_jobs.is_resolved(job, item),
     )
 
 
@@ -702,7 +703,7 @@ async def list_schedules(
         .order_by(PublishJob.publish_at.desc())
         .limit(20)
     )
-    return [await _job_out(db, job) for job in result.scalars()]
+    return [await _job_out(db, job, item) for job in result.scalars()]
 
 
 @router.post(
@@ -723,6 +724,22 @@ async def create_schedule(
     now = datetime.now(timezone.utc)
     if payload.publish_at <= now:
         raise HTTPException(status_code=422, detail="排程時間要在未來；要馬上上線請直接發布")
+    # 到期時官網已經是同一版或較新的版本就會略過（不蓋回舊內容），排了也不會
+    # 發布，當下就講清楚，不要等時間到了才發現。
+    live = await publish_jobs.live_version(db, item)
+    if live is not None and revision.version <= live:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SCHEDULE_REVISION_NOT_NEWER",
+                "message": (
+                    "官網已經是這一版，不需要排程"
+                    if revision.version == live
+                    else f"第 {revision.version} 版比官網目前的第 {live} 版舊，到時候不會發布；"
+                    "要回到舊內容請從版本紀錄還原（會存成新的一版），再排程或發布"
+                ),
+            },
+        )
     try:
         # 先檢查一次，明顯不能發布的就不要排；到時候還會再檢查一次。
         await publish_jobs.check_publishable(db, item, revision)
@@ -748,7 +765,7 @@ async def create_schedule(
         metadata={"kind": kind, "revision_version": revision.version, "publish_at": job.publish_at.isoformat()},
     )
     await db.commit()
-    return await _job_out(db, job)
+    return await _job_out(db, job, item)
 
 
 @router.delete("/admin/content-items/{kind}/schedules/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -783,6 +800,48 @@ async def cancel_schedule(
         metadata={"kind": kind, "job_id": str(job_id)},
     )
     await db.commit()
+
+
+@router.post("/admin/content-items/{kind}/schedules/{job_id}/acknowledge", response_model=PublishJobOut)
+async def acknowledge_schedule(
+    kind: str,
+    job_id: uuid.UUID,
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PublishJobOut:
+    """沒有發布的排程（檢查不過或已略過）按「知道了」：總覽不再列成待辦、編輯
+    頁不再提示。分校停用、決定不發布那一版時，沒有「之後重新發布」可以讓它
+    消失。和取消排程同一個權限（能發布這項內容的人）。按過再按不重複記錄。"""
+    _, item = await _item_for(db, kind, campus_key)
+    _require_publish(current_user, item)
+    result = await db.execute(
+        select(PublishJob)
+        .where(PublishJob.id == job_id, PublishJob.content_item_id == item.id)
+        .with_for_update()
+    )
+    job = result.scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個排程")
+    if job.status not in publish_jobs.UNPUBLISHED_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": "只有沒有發布的排程需要標成已處理"},
+        )
+    if job.acknowledged_at is None:
+        job.acknowledged_at = datetime.now(timezone.utc)
+        job.acknowledged_by = current_user.id
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="content.schedule_acknowledge",
+            target_type="content_item",
+            target_id=str(item.id),
+            campus_key=item.campus_key,
+            metadata={"kind": kind, "job_id": str(job_id), "status": job.status},
+        )
+    await db.commit()
+    return await _job_out(db, job, item)
 
 
 

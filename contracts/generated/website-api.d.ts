@@ -304,6 +304,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/content-items/{kind}/schedules/{job_id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge Schedule
+         * @description 沒有發布的排程（檢查不過或已略過）按「知道了」：總覽不再列成待辦、編輯
+         *     頁不再提示。分校停用、決定不發布那一版時，沒有「之後重新發布」可以讓它
+         *     消失。和取消排程同一個權限（能發布這項內容的人）。按過再按不重複記錄。
+         */
+        post: operations["acknowledge_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/content-items/{kind}/submit": {
         parameters: {
             query?: never;
@@ -3098,6 +3120,11 @@ export interface components {
              */
             publish_at: string;
             /**
+             * Resolved
+             * @default false
+             */
+            resolved: boolean;
+            /**
              * Revision Id
              * Format: uuid
              */
@@ -4869,6 +4896,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_schedule_api_website_v1_admin_content_items__kind__schedules__job_id__acknowledge_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                kind: string;
+                job_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishJobOut"];
+                };
             };
             /** @description Validation Error */
             422: {
