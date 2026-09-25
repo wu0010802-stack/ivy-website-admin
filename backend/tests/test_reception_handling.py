@@ -2,7 +2,8 @@
 
 櫃台可以記聯絡紀錄、轉聯絡中、確認排入時段、人工補登、取消、標記未到場、
 完成參觀、後台改期、核准／退回家長改期、產生／撤銷家長管理連結；時段、
-每週規則、休假日、預約設定與指派承辦人仍限 booking.manage。"""
+每週規則、休假日、預約設定與指派承辦人仍限 booking.manage。站內通知標為
+已處理不在裁定的清單裡，業主確認前也限 booking.manage。"""
 
 from __future__ import annotations
 
@@ -10,9 +11,11 @@ from datetime import date, timedelta
 
 import httpx
 import pytest
+from sqlalchemy import select
 
 from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
+from app.operations.models import AuditLogEntry
 from tests.conftest import case_version, _create_user, _logged_in_client, set_booking_mode
 
 
@@ -76,8 +79,8 @@ def test_booking_handle_includes_reception_but_manage_does_not():
 
 
 @pytest.mark.asyncio
-async def test_reception_handles_a_case_end_to_end(admin_client, reception):
-    _, desk = reception
+async def test_reception_handles_a_case_end_to_end(admin_client, reception, db_session):
+    desk_user, desk = reception
     slot_a = await _slot(admin_client)
     slot_b = await _slot(admin_client, start="14:00:00", end="15:00:00")
 
@@ -102,6 +105,20 @@ async def test_reception_handles_a_case_end_to_end(admin_client, reception):
     assert link.status_code == 200, link.text
     assert "token=" in link.json()["manage_url_fragment"]
     assert (await desk.post(f"{BASE}/visit-requests/{case_id}/revoke-access")).status_code == 204
+    # 拿到連結的人能以家長身分取消或改期：櫃台產生、撤銷都要查得到是誰、哪一校，
+    # 稽核裡不留 token。
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+    audits = (await db_session.execute(
+        select(AuditLogEntry).where(
+            AuditLogEntry.target_id == case_id,
+            AuditLogEntry.action.in_(["visit_request.create_access_link", "visit_request.revoke_access"]),
+        )
+    )).scalars().all()
+    assert sorted(entry.action for entry in audits) == ["visit_request.create_access_link", "visit_request.revoke_access"]
+    for entry in audits:
+        assert entry.actor_user_id == desk_user.id
+        assert entry.campus_key == "yihua"
+        assert token not in str(entry.metadata_json)
 
     assert (await desk.post(f"{BASE}/visit-requests/{case_id}/complete")).json()["status"] == "completed"
 
@@ -200,9 +217,10 @@ async def test_reception_decides_parent_reschedule_requests(app, admin_client, p
 
 
 @pytest.mark.asyncio
-async def test_reception_can_mark_notifications_handled(
+async def test_reception_sees_notifications_but_only_managers_mark_them_handled(
     admin_client, public_client, reception, run_outbox_once, recording_mail_adapter
 ):
+    # read_at 是全校共用的狀態；2026-09-25 裁定沒有把「標為已處理」開給櫃台。
     _, desk = reception
     current = await admin_client.get(f"{BASE}/booking-config/yihua")
     await admin_client.patch(
@@ -218,7 +236,10 @@ async def test_reception_can_mark_notifications_handled(
     await run_outbox_once(recording_mail_adapter)
     items = (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json()
     assert len(items) == 1
-    marked = await desk.post(f"{BASE}/notifications/{items[0]['id']}/read")
+    denied = await desk.post(f"{BASE}/notifications/{items[0]['id']}/read")
+    assert denied.status_code == 403, denied.text
+    assert (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json()[0]["read_at"] is None
+    marked = await admin_client.post(f"{BASE}/notifications/{items[0]['id']}/read")
     assert marked.status_code == 200, marked.text
 
 

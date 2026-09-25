@@ -38,11 +38,12 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、轉聯絡中、
     # 確認排入時段、人工補登、取消、標記未到場、完成參觀、後台改期、核准／
-    # 退回家長改期申請、產生／撤銷家長管理連結，以及把站內通知標為已處理。
+    # 退回家長改期申請、產生／撤銷家長管理連結。
     # 也是「可以承辦案件」與「收新案通知信」的定義。
     "booking.handle": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
     # 管理預約的設定面：時段新增／容量／關閉、每週規則、休假日、預約方式，
-    # 以及指派承辦人。仍限總管理者與分校管理者。
+    # 以及指派承辦人。仍限總管理者與分校管理者。站內通知標為已處理（全校
+    # 共用的狀態）裁定沒有開放給櫃台，業主確認前也用這一項。
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 批次匯出家長姓名與手機是另一個層級的事，不該跟「看得到案件」綁在
     # 一起。這裡列的是「可以接受授權」的角色；除了總管理者，其他人還要

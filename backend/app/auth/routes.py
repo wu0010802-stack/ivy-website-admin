@@ -72,9 +72,20 @@ def _clean_capabilities(role: Role, capabilities: list[str]) -> list[str]:
     return sorted(set(capabilities))
 
 
-def _applicable_capabilities(role: Role, capabilities: list[str]) -> list[str]:
-    """改角色時，新角色不適用的授權一併清掉，免得日後改回來時意外復活。"""
-    return sorted(c for c in set(capabilities) if role in GRANTABLE_CAPABILITIES.get(c, ()))
+# 角色一換就收回的授權：批次匯出家長個資是總管理者針對「這個人在這個職位」
+# 做的決定。分校管理者降為櫃台時不跟著帶過去，要保留就由總管理者重新勾選
+# （會另外記一筆 user.set_capabilities）。
+_REVOKED_ON_ROLE_CHANGE = {BOOKING_EXPORT}
+
+
+def _applicable_capabilities(role: Role, capabilities: list[str], *, role_changed: bool) -> list[str]:
+    """改角色時，新角色不適用的授權一併清掉，免得日後改回來時意外復活；
+    角色真的換了，個資匯出也一律收回。只改校區、角色不變時保留。"""
+    return sorted(
+        c
+        for c in set(capabilities)
+        if role in GRANTABLE_CAPABILITIES.get(c, ()) and not (role_changed and c in _REVOKED_ON_ROLE_CHANGE)
+    )
 
 
 def _user_out(user: User) -> UserOut:
@@ -334,7 +345,9 @@ async def update_user_role(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="不能降級最後一位總管理者") from exc
     await service.set_campus_scopes(db, user, [] if payload.role == Role.SUPER_ADMIN else payload.campus_keys)
     previous_capabilities = list(user.capabilities or [])
-    user.capabilities = _applicable_capabilities(payload.role, previous_capabilities)
+    user.capabilities = _applicable_capabilities(
+        payload.role, previous_capabilities, role_changed=before["role"] != payload.role.value
+    )
     metadata = {"before": before, "after": {"role": payload.role.value, "campus_keys": sorted(payload.campus_keys)}}
     removed = sorted(set(previous_capabilities) - set(user.capabilities))
     if removed:

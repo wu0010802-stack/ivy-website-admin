@@ -94,10 +94,10 @@ async def mark_notification_read(
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
-    # read_at 是全校共用的處理狀態，不是個人已讀；改寫它要能處理案件
-    # （booking.handle，含接待人員——新案通知本來就是櫃台在接），唯讀與
-    # 編輯本來就看不到通知。
-    require_scope(current_user, "booking.handle", campus_keys=[item.campus_key])
+    # read_at 是全校共用的處理狀態，不是個人已讀：有人標了，同校其他人就
+    # 看不到未讀提示。2026-09-25 業主裁定開放給櫃台的處理項目沒有列這一項，
+    # 業主確認前維持 booking.manage（總管理者、分校管理者），櫃台只看。
+    require_scope(current_user, "booking.manage", campus_keys=[item.campus_key])
     item.read_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(item.id), "read_at": item.read_at.isoformat()}

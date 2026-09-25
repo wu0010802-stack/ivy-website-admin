@@ -4103,8 +4103,8 @@ export interface components {
         };
         /**
          * VisitStaffOut
-         * @description 可以承辦案件的後台人員（總管理者、分校管理者）。campus_keys 為空
-         *     代表總管理者，可承辦任何校區。
+         * @description 可以承辦案件的後台人員：有 booking.handle 的總管理者、分校管理者與
+         *     櫃台。campus_keys 為空代表總管理者，可承辦任何校區。
          */
         VisitStaffOut: {
             /** Campus Keys */

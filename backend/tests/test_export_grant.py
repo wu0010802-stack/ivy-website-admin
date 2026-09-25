@@ -111,8 +111,19 @@ async def test_role_change_drops_grants_that_no_longer_apply(admin_client, db_se
         f"{API}/admin/users/{user.id}/role", json={"role": "reception", "campus_keys": ["yihua"]}
     )
     assert to_desk.status_code == 200, to_desk.text
-    # 櫃台仍可接受匯出授權；共用內容不適用，清掉。
-    assert to_desk.json()["capabilities"] == ["booking.export"]
+    # 分校管理者降為櫃台：共用內容不適用；匯出雖然櫃台也能接受授權，角色
+    # 一換就收回，不默默帶著批次匯出個資的權限過去。
+    assert to_desk.json()["capabilities"] == []
+    assert "booking.export" not in to_desk.json()["effective_capabilities"]
+
+    # 要保留就由總管理者重新勾選，另記一筆授權變更。
+    assert (await _grant(admin_client, user.id, ["booking.export"])).status_code == 200
+    # 角色不變、只改校區時保留。
+    same_role = await admin_client.patch(
+        f"{API}/admin/users/{user.id}/role", json={"role": "reception", "campus_keys": ["yihua", "minghua"]}
+    )
+    assert same_role.status_code == 200, same_role.text
+    assert same_role.json()["capabilities"] == ["booking.export"]
 
     to_editor = await admin_client.patch(
         f"{API}/admin/users/{user.id}/role", json={"role": "editor", "campus_keys": ["yihua"]}
@@ -122,7 +133,21 @@ async def test_role_change_drops_grants_that_no_longer_apply(admin_client, db_se
     audits = (await db_session.execute(
         select(AuditLogEntry).where(AuditLogEntry.action == "user.set_role").order_by(AuditLogEntry.created_at)
     )).scalars().all()
-    assert [a.metadata_json.get("capabilities_removed") for a in audits] == [["content.shared"], ["booking.export"]]
+    assert [a.metadata_json.get("capabilities_removed") for a in audits] == [
+        ["booking.export", "content.shared"], None, ["booking.export"],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_role_change_keeps_shared_content_grant_when_still_applicable(admin_client, db_session):
+    # 只有個資匯出會因換角色收回；共用內容對新角色仍適用就保留。
+    user = await _create_user(db_session, "promoted@ivy.example", "promoted-password-1", Role.EDITOR, ["yihua"])
+    await _grant(admin_client, user.id, ["content.shared"])
+    promoted = await admin_client.patch(
+        f"{API}/admin/users/{user.id}/role", json={"role": "campus_admin", "campus_keys": ["yihua"]}
+    )
+    assert promoted.status_code == 200, promoted.text
+    assert promoted.json()["capabilities"] == ["content.shared"]
 
 
 @pytest.mark.asyncio
