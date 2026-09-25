@@ -56,13 +56,19 @@ export function mediaKindOf(file: File): 'image' | 'video' {
   return file.type.startsWith('video/') ? 'video' : 'image'
 }
 
+/** 這個檔案要當成哪一類上傳。拿不到 type（空字串）的檔案看不出種類：這裡
+ * 限定了種類就照限定的（大小照那一類的上限），實際內容交給後端驗。 */
+export function uploadKindOf(file: File, allowed: 'image' | 'video' | 'any' = 'any'): 'image' | 'video' {
+  return !file.type && allowed !== 'any' ? allowed : mediaKindOf(file)
+}
+
 /** 送出前就看得出來的問題（格式、大小）；沒問題回 null。 */
 export function precheckFile(
   file: File,
   limits: MediaUploadLimitsOut | null,
   allowed: 'image' | 'video' | 'any' = 'any',
 ): string | null {
-  const kind = mediaKindOf(file)
+  const kind = uploadKindOf(file, allowed)
   if (allowed === 'image' && kind !== 'image') return '這裡只能上傳照片'
   if (allowed === 'video' && kind !== 'video') return '這裡只能上傳影片（MP4）'
   const types = kind === 'video' ? (limits?.video_types ?? DEFAULT_VIDEO_TYPES) : (limits?.image_types ?? DEFAULT_IMAGE_TYPES)
@@ -104,7 +110,7 @@ export function useMediaUploadQueue(options: {
       items.value.push({
         id: nextId++,
         file,
-        kind: mediaKindOf(file),
+        kind: uploadKindOf(file, options.allowed),
         status: error ? 'failed' : 'queued',
         error,
         asset: null,

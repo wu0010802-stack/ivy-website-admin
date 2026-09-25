@@ -8,6 +8,7 @@ import ElementPlus, { ElMessageBox } from 'element-plus'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 import MediaReplaceDialog from '../components/MediaReplaceDialog.vue'
+import MediaUsagesDrawer from '../components/MediaUsagesDrawer.vue'
 import { api, ApiError } from '../api/client'
 import { formatDuration, mediaFieldPathLabel } from '../api/labels'
 import type { MediaAssetOut, MediaUsagesOut, UserOut } from '../api/types'
@@ -139,6 +140,15 @@ describe('多檔上傳佇列', () => {
     expect(precheckFile(big, LIMITS)).toContain('150.0 MB')
     expect(precheckFile(new File(['x'], 'v.mp4', { type: 'video/mp4' }), LIMITS, 'image')).toBe('這裡只能上傳照片')
     expect(precheckFile(new File(['x'], 'ok.webp', { type: 'image/webp' }), LIMITS)).toBeNull()
+  })
+
+  it('限定影片時擋掉照片；拿不到 type 的檔案照限定的種類檢查大小', () => {
+    expect(precheckFile(new File(['x'], 'a.png', { type: 'image/png' }), LIMITS, 'video')).toBe('這裡只能上傳影片（MP4）')
+    expect(precheckFile(new File(['x'], 'v.mp4', { type: '' }), LIMITS, 'video')).toBeNull()
+    const big = new File(['x'], 'v.mp4', { type: '' })
+    Object.defineProperty(big, 'size', { value: LIMITS.max_image_bytes + 1 })
+    expect(precheckFile(big, LIMITS, 'video')).toBeNull()
+    expect(precheckFile(big, LIMITS, 'image')).toContain('15.0 MB')
   })
 
   it('同時最多上傳兩個，失敗的各自留下原因，不影響其他檔案', async () => {
@@ -294,33 +304,173 @@ describe('素材庫頁', () => {
 })
 
 describe('替換素材', () => {
-  it('上傳新檔案後列出影響範圍，只為勾選且能編輯的內容產生草稿', async () => {
+  async function openReplace(user: UserOut = admin(), target: MediaAssetOut = asset()) {
+    const wrapper = await mountAs(MediaReplaceDialog, user, { modelValue: false, asset: target })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    return wrapper
+  }
+
+  async function uploadNew(wrapper: VueWrapper, file = new File(['x'], 'new.png', { type: 'image/png' })) {
+    pickFiles(wrapper.find('input[type="file"]').element, [file])
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === '上傳新檔案')!.trigger('click')
+    await flushPromises()
+  }
+
+  const positionBoxes = (wrapper: VueWrapper) => wrapper.findAll('.replace__item input[type="checkbox"]')
+
+  it('上傳新檔案後列出影響範圍，預設不勾，只為勾選且能編輯的位置產生草稿', async () => {
     const get = mockGet([])
     const upload = vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'm2', replaces_media_id: 'm1' }) as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({
       replacement_id: 'm2',
       items: [{ content_item_id: 'tour', kind: 'campus_tour', campus_key: 'yihua', version: 4, field_paths: ['scenes[1].image'] }],
     } as never)
-    const wrapper = await mountAs(MediaReplaceDialog, admin(), { modelValue: false, asset: asset() })
-    await wrapper.setProps({ modelValue: true })
-    await flushPromises()
-    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'new.png', { type: 'image/png' })])
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === '上傳新檔案')!.trigger('click')
-    await flushPromises()
+    const wrapper = await openReplace()
+    await uploadNew(wrapper)
     expect(upload.mock.calls[0]![0]).toBe('/admin/media/m1/replace')
     expect(get).toHaveBeenCalledWith('/admin/media/m1/usages')
     expect(wrapper.text()).toContain('不會直接上線')
+    expect(wrapper.text()).toContain('預設不改任何位置')
     expect(wrapper.text()).toContain('你沒有編輯這項內容的權限')
-    expect(wrapper.text()).toContain('熱點位置要重新複核')
+    expect(wrapper.text()).not.toContain('熱點位置要重新複核')
+    const boxes = positionBoxes(wrapper)
+    expect(boxes.map((box) => (box.element as HTMLInputElement).checked)).toEqual([false, false])
+    expect((boxes[1]!.element as HTMLInputElement).disabled).toBe(true)
+    const submit = () => wrapper.findAll('button').find((b) => /^產生 \d+ 份草稿$/.test(b.text()))!
+    expect(submit().text()).toBe('產生 0 份草稿')
+    expect(submit().attributes('disabled')).toBeDefined()
 
-    await wrapper.findAll('button').find((b) => b.text() === '產生 1 份草稿')!.trigger('click')
+    await boxes[0]!.setValue(true)
+    expect(wrapper.text()).toContain('熱點位置要重新複核')
+    await submit().trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/media/m1/replace-references', {
       replacement_id: 'm2',
-      items: [{ content_item_id: 'tour', expected_version: 3 }],
+      items: [{ content_item_id: 'tour', expected_version: 3, field_paths: ['scenes[1].image'] }],
     })
     expect(wrapper.text()).toContain('第 4 版・第 2 個場景的照片')
+  })
+
+  it('同一則消息的封面與內文可以只換封面；全選只選能編輯的位置', async () => {
+    mockGet([], {
+      ...USAGES,
+      references: [
+        {
+          content_item_id: 'news', kind: 'home_news', campus_key: null, revision_id: 'r7', version: 7,
+          field_path: 'articles[0].image', label: '運動會', states: ['draft'], publish_at: null, can_edit: true,
+        },
+        {
+          content_item_id: 'news', kind: 'home_news', campus_key: null, revision_id: 'r7', version: 7,
+          field_path: 'articles[0].body[2].image', label: '運動會', states: ['draft'], publish_at: null, can_edit: true,
+        },
+        {
+          content_item_id: 'other', kind: 'campus_tour', campus_key: 'minghua', revision_id: 'r2', version: 2,
+          field_path: 'scenes[0].image', label: null, states: ['draft'], publish_at: null, can_edit: false,
+        },
+      ],
+    })
+    vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'm2' }) as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ replacement_id: 'm2', items: [] } as never)
+    const wrapper = await openReplace()
+    await uploadNew(wrapper)
+    expect(wrapper.text()).toContain('第 1 則消息的封面（運動會）')
+    expect(wrapper.text()).toContain('第 1 則消息內文第 3 段的圖片（運動會）')
+
+    const toggle = () => wrapper.findAll('button').find((b) => ['全選可編輯的位置', '全部取消'].includes(b.text()))!
+    await toggle().trigger('click')
+    expect(positionBoxes(wrapper).map((box) => (box.element as HTMLInputElement).checked)).toEqual([true, true, false])
+    await toggle().trigger('click')
+    expect(positionBoxes(wrapper).map((box) => (box.element as HTMLInputElement).checked)).toEqual([false, false, false])
+
+    await positionBoxes(wrapper)[0]!.setValue(true)
+    await wrapper.findAll('button').find((b) => b.text() === '產生 1 份草稿')!.trigger('click')
+    await flushPromises()
+    expect(post.mock.calls[0]![1]).toEqual({
+      replacement_id: 'm2',
+      items: [{ content_item_id: 'news', expected_version: 7, field_paths: ['articles[0].image'] }],
+    })
+  })
+
+  it('替換影片時，選到照片先擋下，不送到後端', async () => {
+    mockGet([])
+    const upload = vi.spyOn(api, 'upload')
+    const wrapper = await openReplace(admin(), asset({ kind: 'video', content_type: 'video/mp4', original_filename: 'day.mp4' }))
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+    await flushPromises()
+    expect(wrapper.text()).toContain('這裡只能上傳影片（MP4）')
+    const button = wrapper.findAll('button').find((b) => b.text() === '上傳新檔案')!
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('新檔案已上傳但讀不到影響範圍：停在確認步驟可重新載入，不會再上傳一次', async () => {
+    const get = mockGet([])
+    get.mockImplementation(async (path: string) => {
+      if (path === '/admin/media/upload-limits') return LIMITS as never
+      throw new ApiError(500, 'HTTP 500')
+    })
+    const upload = vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'm2' }) as never)
+    const wrapper = await openReplace()
+    await uploadNew(wrapper)
+    expect(upload).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('新檔案已經加入素材庫，不用重新上傳')
+    expect(buttons(wrapper)).not.toContain('上傳新檔案')
+    expect(wrapper.emitted('done')).toHaveLength(1)
+
+    get.mockImplementation(async (path: string) => (path.endsWith('/usages') ? USAGES : LIMITS) as never)
+    await wrapper.findAll('button').find((b) => b.text() === '重新載入影響範圍')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('無法讀取影響範圍')
+    expect(wrapper.text()).toContain('第 2 個場景的照片（操場）')
+    expect(upload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('用在哪裡的連結', () => {
+  const refs = (overrides: Partial<MediaUsagesOut['references'][number]>[]): MediaUsagesOut => ({
+    ...USAGES,
+    history: [],
+    references: overrides.map((o, i) => ({
+      content_item_id: `c${i}`, kind: 'campus_faq', campus_key: 'yihua', revision_id: `r${i}`, version: 1,
+      field_path: 'items[0].image', label: null, states: ['draft'], publish_at: null, can_edit: false, ...o,
+    })),
+  })
+
+  async function openDrawer(user: UserOut, usages: MediaUsagesOut) {
+    mockGet([], usages)
+    return mountAs(MediaUsagesDrawer, user, { modelValue: true, asset: asset({ campus_key: null }) })
+  }
+
+  const heads = (wrapper: VueWrapper) =>
+    wrapper.findAll('.usages__item-head').map((head) => ({
+      text: head.text(),
+      link: head.find('a').exists() ? head.find('a').attributes('href') : null,
+    }))
+
+  it('分校管理者看到別校與沒有授權的共用內容，只寫原因、不給會被擋的連結', async () => {
+    const wrapper = await openDrawer(
+      testUser('campus_admin', { campus_keys: ['minghua'] }),
+      refs([
+        { content_item_id: 'mine', campus_key: 'minghua', can_edit: true },
+        { content_item_id: 'theirs', campus_key: 'yihua' },
+        { content_item_id: 'shared', kind: 'home_news', campus_key: null, field_path: 'articles[0].image' },
+      ]),
+    )
+    const [mine, theirs, shared] = heads(wrapper)
+    expect(mine!.text).toContain('前往編輯')
+    expect(mine!.link).toContain('/content/campus-faq?campus=minghua')
+    expect(theirs).toEqual({ text: expect.stringContaining('由其他校區管理'), link: null })
+    expect(shared).toEqual({ text: expect.stringContaining('沒有編輯權限'), link: null })
+  })
+
+  it('唯讀帳號看自己校的內容是「前往查看」', async () => {
+    const wrapper = await openDrawer(testUser('readonly', { campus_keys: ['yihua'] }), refs([{ campus_key: 'yihua' }]))
+    const [own] = heads(wrapper)
+    expect(own!.text).toContain('前往查看')
+    expect(own!.text).not.toContain('前往編輯')
+    expect(own!.link).toContain('/content/campus-faq?campus=yihua')
   })
 })
 

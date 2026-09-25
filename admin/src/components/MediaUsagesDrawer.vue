@@ -10,6 +10,9 @@ import {
   mediaReferenceState,
 } from '../api/labels'
 import StatusTag from './StatusTag.vue'
+import { useCampusScope } from '../composables/useCampusScope'
+import { canOpenPath } from '../router/nav'
+import { useAuthStore } from '../stores/auth'
 
 // 素材「用在哪裡」：草稿、官網、排程各是哪個內容的哪一版、哪個位置，另列
 // 只剩舊版本在用的內容（刪掉會讓那些版本無法還原）。
@@ -26,27 +29,48 @@ const usages = ref<MediaUsagesOut | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+const authStore = useAuthStore()
+const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+
 interface ItemGroup {
   key: string
   kind: string
   campusKey: string | null
   refs: MediaReferenceOut[]
+  /** 點得進去才給連結；進不去的只寫原因 */
+  link: { to: string | null; label: string }
+}
+
+// 連結只給點得進去的人：能編輯（後端 can_edit）的「前往編輯」；唯讀帳號看
+// 自己校的內容是「前往查看」（編輯頁會顯示唯讀）；別校或沒有授權的共用
+// 內容點下去一定被擋，只寫原因。
+function groupLink(kind: string, campusKey: string | null, canEdit: boolean): ItemGroup['link'] {
+  const to = contentEditorPath(kind, campusKey)
+  if (canEdit) return { to, label: '前往編輯' }
+  const inScope = campusKey === null || visibleCampusKeys.value.includes(campusKey)
+  if (inScope && canOpenPath(to, authStore.user)) return { to, label: '前往查看' }
+  return { to: null, label: inScope ? '沒有編輯權限' : '由其他校區管理' }
 }
 
 // 同一內容項的多處引用（例如封面與內文都用同一張）收在一起。
 const groups = computed<ItemGroup[]>(() => {
-  const map = new Map<string, ItemGroup>()
+  const map = new Map<string, Omit<ItemGroup, 'link'> & { canEdit: boolean }>()
   for (const ref of usages.value?.references ?? []) {
     const group = map.get(ref.content_item_id) ?? {
       key: ref.content_item_id,
       kind: ref.kind,
       campusKey: ref.campus_key,
+      canEdit: false,
       refs: [],
     }
+    group.canEdit ||= ref.can_edit
     group.refs.push(ref)
     map.set(ref.content_item_id, group)
   }
-  return [...map.values()]
+  return [...map.values()].map(({ canEdit, ...group }) => ({
+    ...group,
+    link: groupLink(group.kind, group.campusKey, canEdit),
+  }))
 })
 
 async function load() {
@@ -90,7 +114,8 @@ defineExpose({ load })
           <article v-for="group in groups" :key="group.key" class="usages__item">
             <div class="usages__item-head">
               <strong>{{ contentItemLabel(group.kind, group.campusKey) }}</strong>
-              <router-link :to="contentEditorPath(group.kind, group.campusKey)" class="usages__link">前往編輯</router-link>
+              <router-link v-if="group.link.to" :to="group.link.to" class="usages__link">{{ group.link.label }}</router-link>
+              <span v-else class="usages__meta">{{ group.link.label }}</span>
             </div>
             <ul class="usages__refs">
               <li v-for="ref in group.refs" :key="`${ref.revision_id}:${ref.field_path}`" class="usages__ref">
