@@ -22,7 +22,7 @@ import {
   REVIEW_STATUS_LABELS,
   USER_NOTIFICATION_LABELS,
 } from '../api/labels'
-import { diffPayload, nestedChangeDetail, type ContentEditorState, type RevisionHistoryHandle } from '../composables/useContentItem'
+import { diffPayload, nestedChangeDetail, useContentItem, type ContentEditorState, type RevisionHistoryHandle } from '../composables/useContentItem'
 import { lengthHintText, LENGTH_HINTS, textLength } from '../composables/contentHints'
 import { useCampusContent } from '../composables/useCampusContent'
 import { useAuthStore } from '../stores/auth'
@@ -174,6 +174,67 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     wrappers.push(wrapper)
     await flushPromises()
     expect(wrapper.text()).not.toContain('素材還沒處理好')
+  })
+
+  it('排程失敗之後官網換過版本或有人按了「知道了」（resolved），就不再提示（B06-5）', async () => {
+    const { global } = await setup('/content/campus-faq')
+    const schedules = ref([
+      { id: 'j1', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-20T01:00:00Z', status: 'failed' as const, error: '分校已停用，內容不會發布', created_by_email: null, finished_at: '2026-09-20T01:00:10Z', resolved: true },
+    ])
+    const wrapper = mount(ContentEditor, { props: { editor: editorState({ schedules, loadSchedules: async () => {} }) }, global })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('分校已停用')
+  })
+
+  it('能發布的人可以把沒有發布的排程標成「知道了」；內容編輯看不到按鈕（B06-6）', async () => {
+    const failed = { id: 'j1', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-20T01:00:00Z', status: 'failed' as const, error: '分校已停用，內容不會發布', created_by_email: null, finished_at: '2026-09-20T01:00:10Z', resolved: false }
+    const schedules = ref([failed])
+    const acknowledgeSchedule = vi.fn(async (jobId: string) => {
+      schedules.value = schedules.value.map((job) => (job.id === jobId ? { ...job, resolved: true } : job))
+      return true
+    })
+    const { global } = await setup('/content/campus-faq')
+    const wrapper = mount(ContentEditor, { props: { editor: editorState({ schedules, loadSchedules: async () => {}, acknowledgeSchedule }) }, global })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.text()).toContain('的排程沒有發布：分校已停用，內容不會發布')
+    await button(wrapper, '知道了').trigger('click')
+    await flushPromises()
+    expect(acknowledgeSchedule).toHaveBeenCalledWith('j1')
+    expect(wrapper.text()).not.toContain('分校已停用')
+
+    const editor = await setup('/content/campus-faq', testUser('editor', { campus_keys: ['yihua'] }))
+    const readOnlyView = mount(ContentEditor, {
+      props: { editor: editorState({ schedules: ref([failed]), loadSchedules: async () => {}, acknowledgeSchedule }) },
+      global: editor.global,
+    })
+    wrappers.push(readOnlyView)
+    await flushPromises()
+    expect(readOnlyView.text()).toContain('分校已停用')
+    expect(readOnlyView.findAll('button').some((b) => b.text().trim() === '知道了')).toBe(false)
+  })
+
+  it('發布成功後重讀排程，已處理的失敗提示跟著消失；「知道了」打對的 API（B06-5、B06-6）', async () => {
+    const { global } = await setup('/content/campus-faq')
+    const item = { id: 'i1', kind: 'campus_faq', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1', latest_revision: { id: 'r2', version: 2, created_at: '2026-09-25T02:00:00Z', payload: { title: '' } } }
+    const get = vi.spyOn(api, 'get').mockImplementation(((path: string) =>
+      Promise.resolve(path.includes('/schedules') ? [] : item)) as typeof api.get)
+    const post = vi.spyOn(api, 'post').mockImplementation(((path: string) =>
+      Promise.resolve(path.endsWith('/publish?campus_key=yihua') ? { ...item, current_published_revision_id: 'r2' } : {})) as typeof api.post)
+    let editor!: ReturnType<typeof useContentItem<{ title: string }>>
+    const Harness = defineComponent({ setup() { editor = useContentItem('campus_faq', { title: '' }, 'yihua'); return () => null } })
+    wrappers.push(mount(Harness, { global }))
+    await editor.load()
+    get.mockClear()
+    expect(await editor.publish()).toBe(true)
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules?campus_key=yihua')
+
+    get.mockClear()
+    expect(await editor.acknowledgeSchedule('j1')).toBe(true)
+    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_faq/schedules/j1/acknowledge?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules?campus_key=yihua')
   })
 
   it('預約文案可以預覽預約頁；內容連結帶校區', () => {

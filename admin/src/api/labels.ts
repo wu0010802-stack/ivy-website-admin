@@ -263,6 +263,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'content.restore': '還原內容舊版',
   'content.schedule_failed': '排程發布未執行（檢查不通過）',
   'content.schedule_skipped': '排程發布略過（官網已是較新版本）',
+  'content.schedule_acknowledge': '沒有發布的排程標成已處理',
   'release.restore': '整站還原到某次發布',
   'notification_outbox.retry': '重新寄送通知',
   'retention.run': '執行資料清理',

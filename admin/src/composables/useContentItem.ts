@@ -19,6 +19,8 @@ export interface PublishJob {
   error: string | null
   created_by_email: string | null
   finished_at: string | null
+  /** 沒有發布（failed／skipped）的排程已經處理過：有人按了「知道了」，或官網之後換過這項內容的版本 */
+  resolved?: boolean
 }
 
 /** 發布確認框列出的一筆差異：欄位中文名、上次儲存的值、現在的值 */
@@ -198,6 +200,8 @@ export interface ContentEditorState {
   /** 排程發布最新一版（有未儲存修改會先存）；publishAt 帶時區的 ISO 字串 */
   schedule?: (publishAt: string) => Promise<boolean>
   cancelSchedule?: (jobId: string) => Promise<boolean>
+  /** 沒有發布的排程按「知道了」：編輯頁與總覽不再提示 */
+  acknowledgeSchedule?: (jobId: string) => Promise<boolean>
   history?: RevisionHistoryHandle
   load: () => Promise<void>
   save: () => Promise<boolean>
@@ -343,6 +347,8 @@ export function useContentItem<TPayload extends object>(
         revision_id: revisionId,
       })
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
+      // 官網換了版本，之前沒有發布的排程就算處理過了，提示跟著更新。
+      void loadSchedules()
       // 發布是唯一會被家長看到的動作，成功後直接給連結，不用自己去找官網。
       ElMessage({
         type: 'success',
@@ -399,6 +405,7 @@ export function useContentItem<TPayload extends object>(
         note: note ?? null,
       })
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
+      if (decision === 'approve') void loadSchedules()
       ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，編輯會看到你寫的原因')
       return true
     } catch (err) {
@@ -450,6 +457,17 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
+  async function acknowledgeSchedule(jobId: string): Promise<boolean> {
+    try {
+      await api.post<PublishJob>(`/admin/content-items/${kind}/schedules/${jobId}/acknowledge${query()}`)
+      await loadSchedules()
+      return true
+    } catch (err) {
+      ElMessage.error(errorMessage(err, '操作失敗'))
+      return false
+    }
+  }
+
   const history: RevisionHistoryHandle = {
     list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
     async payloadOf(revisionId) {
@@ -471,6 +489,7 @@ export function useContentItem<TPayload extends object>(
         form.value = withDefaults(item.value.latest_revision!.payload)
         isPublished.value = publishNow
         takeSnapshot()
+        if (publishNow) void loadSchedules()
         ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
         return true
       } catch (err) {
@@ -516,6 +535,7 @@ export function useContentItem<TPayload extends object>(
     loadSchedules,
     schedule,
     cancelSchedule,
+    acknowledgeSchedule,
     reset,
   }
 }

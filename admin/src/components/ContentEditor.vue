@@ -43,11 +43,22 @@ const reviewNote = computed(() => props.editor.reviewNote?.value ?? null)
 const pendingReview = computed(() => reviewStatus.value === 'pending_review' && !isDirty.value)
 const scheduled = computed(() => (props.editor.schedules?.value ?? []).filter((j) => j.status === 'scheduled'))
 // 最近一次到期的排程（清單依排程時間新到舊）；沒有發布（檢查不過）或略過
-// （官網已是較新版本）時寫出原因。之後又成功發布過就不再提。
+// （官網已是較新版本）時寫出原因。之後又成功排程發布、官網換過版本，或有人
+// 按了「知道了」（後端 resolved，和總覽的待辦同一個定義）就不再提。
 const lastUnpublished = computed(() => {
   const finished = (props.editor.schedules?.value ?? []).find((j) => j.status === 'done' || j.status === 'failed' || j.status === 'skipped')
-  return finished && finished.status !== 'done' ? finished : null
+  return finished && finished.status !== 'done' && !finished.resolved ? finished : null
 })
+const acknowledging = ref(false)
+async function acknowledge(jobId: string) {
+  if (!props.editor.acknowledgeSchedule) return
+  acknowledging.value = true
+  try {
+    await props.editor.acknowledgeSchedule(jobId)
+  } finally {
+    acknowledging.value = false
+  }
+}
 // 排程清單跟著內容一起換：切校區、重新載入、存檔後都重讀一次。
 watch(
   () => [apiPath.value, props.editor.loading.value] as const,
@@ -239,6 +250,15 @@ defineExpose({ confirmLeave })
         </p>
         <p v-if="lastUnpublished && !scheduled.length" :class="lastUnpublished.status === 'failed' ? 'is-failed' : 'is-skipped'">
           {{ formatDateTime(lastUnpublished.publish_at) }} 的排程{{ lastUnpublished.status === 'failed' ? '沒有發布' : '已略過' }}：{{ lastUnpublished.error }}
+          <el-button
+            v-if="canPublishRole && !readOnly && editor.acknowledgeSchedule"
+            text
+            size="small"
+            :loading="acknowledging"
+            @click="acknowledge(lastUnpublished.id)"
+          >
+            知道了
+          </el-button>
         </p>
         <router-link to="/releases?tab=schedules" class="editor__schedules-all">查看全站排程</router-link>
       </div>

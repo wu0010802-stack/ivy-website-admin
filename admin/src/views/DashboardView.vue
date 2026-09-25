@@ -279,7 +279,7 @@ onMounted(load)
               <span class="task__number">{{ failedJobs.length }}</span>
               <div>
                 <h3>排程發布沒有執行</h3>
-                <p>時間到了但檢查沒通過，官網還是舊內容。看過原因、修好後直接發布或重新排程。</p>
+                <p>時間到了但檢查沒通過，官網還是舊內容。看過原因、修好後直接發布或重新排程；決定不發布就在編輯頁按「知道了」。</p>
                 <ul class="task__rows">
                   <li v-for="job in failedJobs" :key="job.id">
                     <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} →</router-link>

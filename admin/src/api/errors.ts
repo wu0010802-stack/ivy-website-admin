@@ -16,6 +16,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   CONTENT_NOT_READY: '內容還不能發布',
   CONTENT_SCHEMA_OUTDATED: '這一版的欄位格式已經過時，請到編輯頁手動修改後再發布',
   CONTENT_VERSION_CONFLICT: '內容已被其他人更新，請重新載入後再試',
+  SCHEDULE_REVISION_NOT_NEWER: '官網已經是這一版或更新的版本，排程到時候不會發布',
   BOOKING_CONFIG_VERSION_CONFLICT: '設定已被其他人更新，請重新載入',
   SLOT_VERSION_CONFLICT: '這個時段剛被其他人修改，請重新載入後再調整',
   VISIT_REQUEST_VERSION_CONFLICT: '這筆案件剛被其他人修改，請重新載入後再操作',
