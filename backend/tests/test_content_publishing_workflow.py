@@ -134,12 +134,16 @@ async def test_submit_and_decisions_notify_the_other_side(editor_client, yihua_a
         ("content_review_rejected", "請補電話", "yihua-admin@ivy.example")
     ]
     assert mine[0]["read_at"] is None
+    # 側欄「發布紀錄」旁的未讀數字從總覽 API 取；內容編輯沒有營運總覽也讀得到。
+    assert (await editor_client.get(f"{API}/admin/dashboard")).json()["my_unread_notifications"] == 1
+    assert (await yihua_admin.get(f"{API}/admin/dashboard")).json()["my_unread_notifications"] == 1
 
     # 已讀是個人的；別人的通知當作不存在。
     other = await yihua_admin.post(f"{API}/admin/my-notifications/{mine[0]['id']}/read")
     assert other.status_code == 404
     read = await editor_client.post(f"{API}/admin/my-notifications/{mine[0]['id']}/read")
     assert read.status_code == 200 and read.json()["read_at"]
+    assert (await editor_client.get(f"{API}/admin/dashboard")).json()["my_unread_notifications"] == 0
     all_read = await yihua_admin.post(f"{API}/admin/my-notifications/read-all")
     assert all_read.json() == {"updated": 1}
     assert all(n["read_at"] for n in (await yihua_admin.get(f"{API}/admin/my-notifications")).json())
