@@ -5,6 +5,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { pickImage } from '~/utils/media-image'
 import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { consentOutdated, consentSeenNow, consentView, displayedConsentText, submittedConsentRevision, type ConsentSeen } from '~/utils/visit-consent'
+import { reportBookingActionClick } from '~/utils/cta-analytics'
 
 const props = defineProps<{
   booking: BookingContent
@@ -40,6 +41,12 @@ const optionalOpen = ref(false)
 const selectedCampusKey = computed(() => form.campus)
 const { data: bookingConfig, pending: bookingPending, error: bookingError, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
 const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null, Boolean(bookingError.value)))
+const runtimeConfig = useRuntimeConfig()
+// 聯絡步驟的主要按鈕（LINE／電話／外部網站）和 BookingCta 一樣自己回報
+// 點擊並標 data-booking-cta：外部網站的網址全站點擊統計認不出來。
+function trackContactAction(event: MouseEvent) {
+  reportBookingActionClick(action.value.kind, form.campus || null, event.currentTarget as Element | null, runtimeConfig.public.telemetryEnabled)
+}
 // 規格 L196：勾選框顯示的是公開預約設定回傳的那一版同意文字；讀不到（舊版
 // API）才退回站台內容的文字。
 const consentText = computed(() => displayedConsentText(bookingConfig.value, props.booking.consentText))
@@ -374,8 +381,8 @@ async function onSubmit() {
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
                   <button v-if="action.kind === 'unavailable'" type="button" class="button primary" @click="retryBookingConfig">重新載入參觀方式</button>
-                  <a v-if="action.href && action.kind !== 'phone'" class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer">{{ action.label }} <span aria-hidden="true">↗</span></a>
-                  <a v-else-if="action.href" class="button primary" :href="action.href"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
+                  <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction">{{ action.label }} <span aria-hidden="true">↗</span></a>
+                  <a v-else-if="action.href" data-booking-cta class="button primary" :href="action.href" @click="trackContactAction"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
                   <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span>{{ selectedCampus.phone }}</span></a>
                   <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
                 </div>

@@ -1,5 +1,5 @@
 import { publicPage, type TelemetryEvent } from '../../shared/telemetry'
-import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
+import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
 
 export default defineNuxtPlugin((app) => {
   const config = useRuntimeConfig()
@@ -35,10 +35,12 @@ export default defineNuxtPlugin((app) => {
       const anchor = event.target instanceof Element ? event.target.closest('a') : null
       if (!anchor) return
       const target = new URL(anchor.href, location.origin)
-      const destination = target.origin === location.origin ? publicPage(target.pathname) : null
+      // 站內、而且不是連到目前這一頁（例如跳至主要內容的 #main）才算往預約頁。
+      const destination = target.origin === location.origin && !isSamePage(target, location.origin, location.pathname) ? publicPage(target.pathname) : null
       if (publicPage(location.pathname) && destination?.page === 'visit') send({ event: 'visit_click', ...destination })
       if (!tracksClicks(location.pathname)) return
-      if (anchor.hasAttribute('data-booking-cta')) return // BookingCta 已回報，避免重複。
+      // BookingCta 與預約頁聯絡步驟的按鈕已自己回報，避免重複。
+      if (anchor.hasAttribute('data-booking-cta')) return
       const entry = ctaEntryOf(anchor)
       // 往官網預約表單的按鈕（頁首、五校卡、分校頁、BookingCta 的表單模式）。
       const booking = bookingCtaCampus(target, location.origin, location.pathname)

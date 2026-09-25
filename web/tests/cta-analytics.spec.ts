@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CTA_ENTRIES,
+  bookingActionClickKind,
   bookingCtaCampus,
   contactClickKind,
   ctaEntryOf,
   ctaEvent,
+  isSamePage,
+  reportBookingActionClick,
   sendCtaEvent,
   trackingAllowed,
   tracksClicks
@@ -52,6 +55,14 @@ describe('預約鈕與聯絡連結點擊（B11 #63）', () => {
     expect(bookingCtaCampus(url('/visit/manage'), origin, '/')).toBeNull()
     expect(bookingCtaCampus(url('/campuses/renwu'), origin, '/')).toBeNull()
     expect(bookingCtaCampus(new URL('https://other.example/visit'), origin, '/')).toBeNull()
+    // 連到目前這一頁（跳至主要內容的 #main、已在預約頁又點預約鈕）不算（B11-R2）。
+    expect(bookingCtaCampus(url('/visit/renwu#main'), origin, '/visit/renwu')).toBeNull()
+    expect(bookingCtaCampus(url('/visit#main'), origin, '/visit/')).toBeNull()
+    expect(bookingCtaCampus(url('/visit'), origin, '/visit/renwu')).toEqual({ campus: 'renwu' })
+    expect(isSamePage(url('/#main'), origin, '/')).toBe(true)
+    expect(isSamePage(url('/visit/renwu/'), origin, '/visit/renwu')).toBe(true)
+    expect(isSamePage(new URL('https://other.example/visit'), origin, '/visit')).toBe(false)
+    expect(isSamePage(new URL('tel:07-000-0000'), origin, '/visit')).toBe(false)
     expect(contactClickKind(new URL('tel:07-000-0000'))).toBe('cta_click_phone')
     expect(contactClickKind(new URL('https://lin.ee/abc'))).toBe('cta_click_line')
     expect(contactClickKind(new URL('https://www.facebook.com/ivy'))).toBeNull()
@@ -86,5 +97,32 @@ describe('預約鈕與聯絡連結點擊（B11 #63）', () => {
     const body = JSON.parse(init.body)
     expect(Object.keys(body).sort()).toEqual(['campus_key', 'entry', 'event_id', 'event_type'])
     expect(JSON.parse(fetch.mock.calls[1]![1].body).event_id).toBe(body.event_id)
+  })
+
+  it('LINE／電話／外部網站預約鈕依預約方式記事件類型，表單與暫停不記（B11-R1）', () => {
+    expect(bookingActionClickKind('line')).toBe('cta_click_line')
+    expect(bookingActionClickKind('phone')).toBe('cta_click_phone')
+    expect(bookingActionClickKind('external')).toBe('cta_click_external')
+    for (const kind of ['form', 'paused', 'unavailable', 'choose_campus']) expect(bookingActionClickKind(kind)).toBeNull()
+  })
+
+  it('預約鈕自己回報時和全站點擊同一道閘：統計關閉、草稿預覽不送', () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetch)
+    document.body.innerHTML = '<section data-cta-entry="visit_page"><a id="external" href="https://booking.example">前往預約網站</a></section>'
+    const anchor = document.getElementById('external')
+    try {
+      history.replaceState(null, '', '/visit/renwu')
+      reportBookingActionClick('external', 'renwu', anchor, true)
+      reportBookingActionClick('form', 'renwu', anchor, true)
+      reportBookingActionClick('external', 'renwu', anchor, false)
+      history.replaceState(null, '', '/preview')
+      reportBookingActionClick('line', 'renwu', anchor, true)
+    } finally {
+      history.replaceState(null, '', '/')
+    }
+    expect(fetch).toHaveBeenCalledOnce()
+    const body = JSON.parse(fetch.mock.calls[0]![1].body)
+    expect(body).toMatchObject({ event_type: 'cta_click_external', campus_key: 'renwu', entry: 'visit_page' })
   })
 })

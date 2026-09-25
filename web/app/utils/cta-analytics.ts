@@ -47,12 +47,21 @@ export function tracksClicks(path: string): boolean {
 }
 
 /**
+ * 連到目前這一頁（例如「跳至主要內容」的 #main，或已在預約頁又點頁首的
+ * 預約鈕）不是換頁，不算往預約頁的點擊。
+ */
+export function isSamePage(target: URL, origin: string, currentPath: string): boolean {
+  const clean = (path: string) => path.replace(/\/+$/, '') || '/'
+  return target.origin === origin && clean(target.pathname) === clean(currentPath)
+}
+
+/**
  * 連到官網預約表單（/visit 或 /visit/<校區>）的點擊算 booking_cta_clicked。
  * 目的地沒帶校區（頁首的預約鈕）時，在分校頁點的就算那一校。回傳 null
- * 表示不是往預約表單。
+ * 表示不是往預約表單（含連到目前這一頁）。
  */
 export function bookingCtaCampus(target: URL, origin: string, currentPath: string): { campus: string | null } | null {
-  if (target.origin !== origin) return null
+  if (target.origin !== origin || isSamePage(target, origin, currentPath)) return null
   const destination = publicPage(target.pathname)
   if (destination?.page !== 'visit') return null
   return { campus: destination.campus ?? publicPage(currentPath)?.campus ?? null }
@@ -62,6 +71,13 @@ export function bookingCtaCampus(target: URL, origin: string, currentPath: strin
 export function contactClickKind(target: URL): 'cta_click_phone' | 'cta_click_line' | null {
   if (target.protocol === 'tel:') return 'cta_click_phone'
   return ['lin.ee', 'line.me'].includes(target.hostname) ? 'cta_click_line' : null
+}
+
+/** 預約方式是 LINE／電話／外部網站時，預約鈕點擊的事件類型；表單等其他方式回 null。 */
+export function bookingActionClickKind(kind: string): CtaEventType | null {
+  if (kind === 'line') return 'cta_click_line'
+  if (kind === 'phone') return 'cta_click_phone'
+  return kind === 'external' ? 'cta_click_external' : null
 }
 
 export function isCampusKey(value: unknown): value is string {
@@ -87,4 +103,16 @@ export function sendCtaEvent(event: CtaEvent): void {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(event)
   }).catch(() => {})
+}
+
+/**
+ * LINE／電話／外部網站預約鈕（BookingCta、預約頁的聯絡步驟）由按鈕自己回報，
+ * 依預約方式記事件類型——外部網站的網址不是 tel:／LINE，全站點擊統計認不出來。
+ * 這些按鈕要標 data-booking-cta，plugins/telemetry.client.ts 才不會重複算。
+ * 表單模式是站內連結，由 plugin 記 booking_cta_clicked。
+ */
+export function reportBookingActionClick(kind: string, campusKey: string | null, element: Element | null, enabled: boolean): void {
+  const eventType = bookingActionClickKind(kind)
+  if (!eventType || !trackingAllowed(enabled, navigator) || !tracksClicks(location.pathname)) return
+  sendCtaEvent(ctaEvent(eventType, campusKey, ctaEntryOf(element)))
 }

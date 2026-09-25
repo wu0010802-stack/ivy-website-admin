@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { resolveBookingAction } from '~/utils/booking-action'
 import type { BookingActionKind } from '~/utils/booking-action'
-import { ctaEntryOf, ctaEvent, sendCtaEvent, trackingAllowed, type CtaEventType } from '~/utils/cta-analytics'
+import { reportBookingActionClick } from '~/utils/cta-analytics'
 
 const runtimeConfig = useRuntimeConfig()
 
@@ -21,15 +21,7 @@ const displayLabel = computed(() => props.label ?? action.value.label)
 // 不影響使用者原本要做的事（跳去 LINE／撥號／開外部網站）。表單模式是
 // 站內連結，由 plugins/telemetry.client.ts 統一記 booking_cta_clicked。
 function trackClick(kind: BookingActionKind, event: MouseEvent) {
-  if (!trackingAllowed(runtimeConfig.public.telemetryEnabled, navigator)) return
-  const eventMap: Partial<Record<BookingActionKind, CtaEventType>> = {
-    line: 'cta_click_line',
-    phone: 'cta_click_phone',
-    external: 'cta_click_external'
-  }
-  const eventType = eventMap[kind]
-  if (!eventType) return
-  sendCtaEvent(ctaEvent(eventType, props.campusKey, ctaEntryOf(event.currentTarget as Element | null)))
+  reportBookingActionClick(kind, props.campusKey, event.currentTarget as Element | null, runtimeConfig.public.telemetryEnabled)
 }
 </script>
 
