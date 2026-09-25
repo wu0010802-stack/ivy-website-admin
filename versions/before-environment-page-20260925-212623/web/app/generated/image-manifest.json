@@ -1,0 +1,762 @@
+{
+  "about-curious": {
+    "width": 760,
+    "height": 570,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-curious-9496acca346e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/about-curious.webp",
+        "width": 760
+      }
+    ]
+  },
+  "campus-line-art-chongde": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-international": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-minghua": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-renwu": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-yihua": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art": {
+    "width": 1938,
+    "height": 812,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-1938.webp",
+        "width": 1938
+      }
+    ]
+  },
+  "campus": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-815b7df1f159-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-815b7df1f159-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/campus.webp",
+        "width": 960
+      }
+    ]
+  },
+  "chongde-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1736.webp",
+        "width": 1736
+      }
+    ]
+  },
+  "chongde": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/chongde-b0fec25e6335-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/chongde-b0fec25e6335-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/chongde.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "classroom": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-960.webp",
+        "width": 960
+      }
+    ]
+  },
+  "day-discover": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-hello": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-home": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-lunch": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-outside": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-poster": {
+    "width": 1440,
+    "height": 810,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1440.webp",
+        "width": 1440
+      }
+    ]
+  },
+  "garden": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/garden-42efe2cb2b79-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/garden-42efe2cb2b79-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/garden.webp",
+        "width": 960
+      }
+    ]
+  },
+  "graduation": {
+    "width": 1000,
+    "height": 563,
+    "candidates": [
+      {
+        "src": "/assets/responsive/graduation-6e17a5aad29d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/graduation-6e17a5aad29d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/graduation.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "hero-campus-restored-v1-still": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "hero-campus-still": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-640.webp",
+        "width": 640
+      },
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/hero-campus-still.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "hero": {
+    "width": 1440,
+    "height": 578,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-82c55d626730-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-82c55d626730-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/hero-82c55d626730-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/hero.webp",
+        "width": 1440
+      }
+    ]
+  },
+  "international-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1736.webp",
+        "width": 1736
+      }
+    ]
+  },
+  "international": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/international-6e718dc52b98-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/international-6e718dc52b98-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/international.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "learning": {
+    "width": 1000,
+    "height": 402,
+    "candidates": [
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "minghua-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1737.webp",
+        "width": 1737
+      }
+    ]
+  },
+  "minghua": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/minghua-1d403ab1bd62-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/minghua-1d403ab1bd62-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/minghua.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "renwu-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1737.webp",
+        "width": 1737
+      }
+    ]
+  },
+  "renwu": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/renwu-ab46d9df4a7f-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/renwu-ab46d9df4a7f-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/renwu.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "water": {
+    "width": 1000,
+    "height": 563,
+    "candidates": [
+      {
+        "src": "/assets/responsive/water-e823d1e5d336-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/water-e823d1e5d336-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/water.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "yihua-exterior-enhanced-v1": {
+    "width": 1546,
+    "height": 1017,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1546.webp",
+        "width": 1546
+      }
+    ]
+  },
+  "yihua-exterior": {
+    "width": 590,
+    "height": 388,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-87edb1595b78-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-87edb1595b78-590.webp",
+        "width": 590
+      }
+    ]
+  },
+  "about-together": {
+    "width": 1204,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/about-together.webp",
+        "width": 1204
+      }
+    ]
+  },
+  "campus-line-art-yihua-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-colour-08fbe2de8704-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-colour-08fbe2de8704-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-yihua-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-minghua-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-colour-56f214277928-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-colour-56f214277928-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-minghua-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-chongde-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-colour-25859748458d-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-colour-25859748458d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-chongde-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-international-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-international-colour-ac524c7a7e63-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-colour-ac524c7a7e63-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-international-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-renwu-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-colour-100c37241671-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-colour-100c37241671-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-renwu-colour.webp",
+        "width": 768
+      }
+    ]
+  }
+}
