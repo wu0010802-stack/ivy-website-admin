@@ -68,7 +68,9 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     entries = [
         ("home_about", None, _copy_fields(data["home"]["about"], "home_about")),
         ("home_hero", None, _copy_fields(data["home"]["hero"], "home_hero")),
-        ("site_footer", None, _copy_fields(data["footer"], "site_footer")),
+        # 原型的頁尾連結是 hash 網址（#/visit），不是正式官網的路徑；不帶入，
+        # 官網沿用內建連結，主選單同理（site_meta 不帶 primary_nav）。
+        ("site_footer", None, {k: v for k, v in _copy_fields(data["footer"], "site_footer").items() if k != "links"}),
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
         ("booking_content", None, _booking_payload(data["booking"])),
         ("day_experience", None, _copy_fields(data["dayExperience"], "day_experience")),

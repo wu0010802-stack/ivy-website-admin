@@ -433,6 +433,8 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
         "copyright": data["footer"]["copyright"],
         "bottom_note": data["footer"]["bottomNote"],
         "campus_list_label": data["footer"]["campusListLabel"],
+        # 原型的頁尾連結是 hash 網址，不帶入；None＝官網沿用內建連結。
+        "links": None,
     }
     releases = (await db_session.execute(select(SiteRelease.source))).scalars().all()
     assert set(releases) == {"initialize"}

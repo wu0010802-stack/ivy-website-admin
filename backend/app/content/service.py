@@ -14,6 +14,7 @@ from app.content.models import (
     SiteReleaseEntry,
     SiteState,
 )
+from app.campuses.models import CAMPUS_NAMES, Campus
 from app.common.timezones import today_local
 from app.content.registry import CONTENT_KIND_REGISTRY, schema_version_of
 
@@ -244,13 +245,56 @@ async def restore_release(
     return new_release, changed, kept
 
 
+def _drop_inactive_scope(entries: list, inactive: set[str]) -> list:
+    """全站消息、活動與共用常見問題裡只適用停用校區的項目不輸出；適用多校的
+    只拿掉停用的那幾校。舊版本手打的 campus 文字（「仁武校」）照校名比對。"""
+    inactive_names = {CAMPUS_NAMES[key] for key in inactive if key in CAMPUS_NAMES}
+    kept = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            kept.append(entry)
+            continue
+        if entry.get("scope") == "campus":
+            keys = [key for key in entry.get("campus_keys") or [] if key not in inactive]
+            if not keys:
+                continue
+            entry = {**entry, "campus_keys": keys}
+        elif "scope" not in entry and (entry.get("campus") or "").strip() in inactive_names:
+            continue
+        kept.append(entry)
+    return kept
+
+
+def _without_inactive_campuses(kind: str, payload: dict, inactive: set[str]) -> dict:
+    if kind == "home_news":
+        return {
+            **payload,
+            "articles": _drop_inactive_scope(payload.get("articles", []), inactive),
+            "events": _drop_inactive_scope(payload.get("events", []), inactive),
+        }
+    if kind == "shared_faq":
+        return {**payload, "items": _drop_inactive_scope(payload.get("items", []), inactive)}
+    return payload
+
+
+async def inactive_campus_keys(db: AsyncSession) -> set[str]:
+    result = await db.execute(select(Campus.key).where(Campus.active.is_(False)))
+    return set(result.scalars())
+
+
 async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
     """回傳 (release_id, content dict)。尚無任何 release 時 release_id 為 None，
-    呼叫端（public route）應視為「尚無可用內容」回 503，不得回假資料。"""
+    呼叫端（public route）應視為「尚無可用內容」回 503，不得回假資料。
+
+    停用的分校（規格 3.2、9.2）不出現在公開內容裡：那一校的介紹、常見問題、
+    探索與消息都不輸出，官網因此不列這一校（首頁五校、頁尾、sitemap），分校頁
+    回 404；只適用那一校的全站消息與共用題目也一起拿掉。發布紀錄不動，重新
+    啟用後原本已發布的內容直接恢復。草稿預覽走後台 API，不受影響。"""
     result = await db.execute(select(SiteState).where(SiteState.id == 1))
     state = result.scalar_one_or_none()
     if state is None or state.current_release_id is None:
         return None, {}
+    inactive = await inactive_campus_keys(db)
 
     result = await db.execute(
         select(SiteReleaseEntry, ContentRevision, ContentItem)
@@ -261,8 +305,12 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
     content: dict = {}
     today = today_local().isoformat()
     for _entry, revision, item in result.all():
+        if item.campus_key is not None and item.campus_key in inactive:
+            continue
         config = CONTENT_KIND_REGISTRY.get(item.kind)
         payload = config.public_view(revision.payload, today) if config is not None else revision.payload
+        if inactive:
+            payload = _without_inactive_campuses(item.kind, payload, inactive)
         # 非共用（campus_key 導向）的 kind 一個 kind 會有多校各一列，用
         # campus_key 當第二層 key，不能直接覆蓋成同一個扁平欄位，否則只
         # 會留下其中一校的資料。

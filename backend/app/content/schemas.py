@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 import re
 from typing import Annotated, Literal, Union
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -88,11 +89,14 @@ class HomeAboutPayload(_ContentPayload):
 
 
 class HomeHeroPayload(_ContentPayload):
+    """首屏小標與標語。2026-09-23 使用者拿掉了首屏按鈕，按鈕文字（cta_label）
+    不再是欄位：舊版本裡的值驗證時直接忽略（extra 預設 ignore），存檔與官網
+    都不再帶。"""
+
     eyebrow: str
     copy_lines: list[str]
-    cta_label: str
 
-    @field_validator("eyebrow", "cta_label")
+    @field_validator("eyebrow")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -105,16 +109,90 @@ class HomeHeroPayload(_ContentPayload):
         return [_reject_unsafe_scheme(line) for line in value]
 
 
+# 主選單與頁尾連結（規格 L89）：只收站內路徑（/ 開頭、不能是 // 開頭的
+# 協定相對網址）或 https 外部網址。外部連結官網會加 ↗ 並另開分頁。
+_SITE_PATH_RE = re.compile(r"/(?!/)[A-Za-z0-9\-._~/#?=&%]*")
+SITE_LINK_MAX_LENGTH = 300
+PRIMARY_NAV_MAX = 8
+FOOTER_LINKS_MAX = 12
+
+
+def _require_site_link(value: str) -> str:
+    candidate = value.strip()
+    if not candidate:
+        raise ValueError("請填寫連結")
+    if len(candidate) > SITE_LINK_MAX_LENGTH:
+        raise ValueError(f"連結最多 {SITE_LINK_MAX_LENGTH} 字")
+    if _SITE_PATH_RE.fullmatch(candidate):
+        return candidate
+    parsed = urlsplit(candidate)
+    if (
+        not _INVISIBLE_RE.search(candidate)
+        and "\\" not in candidate
+        and candidate.lower().startswith("https://")
+        and parsed.hostname
+        and "." in parsed.hostname
+        and "@" not in parsed.netloc
+    ):
+        return candidate
+    raise ValueError("連結要是站內路徑（/ 開頭，例如 /admission、/#about）或 https:// 開頭的外部網址")
+
+
+def _unique_hrefs(links: list, what: str) -> None:
+    hrefs = [link.href for link in links]
+    if len(hrefs) != len(set(hrefs)):
+        raise ValueError(f"{what}的連結不可重複")
+
+
+class SiteLinkPayload(_ContentPayload):
+    label: str = Field(min_length=1, max_length=20)
+    href: str
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "連結文字不能空白"))
+
+    @field_validator("href")
+    @classmethod
+    def _href(cls, value: str) -> str:
+        return _require_site_link(value)
+
+
+class NavLinkPayload(SiteLinkPayload):
+    # 頁首選單中文下方的英文小字；英文字型是只含 ASCII 的子集，只收英數與基本標點。
+    label_en: str = Field(default="", max_length=40)
+
+    @field_validator("label_en")
+    @classmethod
+    def _label_en(cls, value: str) -> str:
+        if any(not (" " <= char <= "~") for char in value):
+            raise ValueError("英文小字只能用英文字母、數字與基本標點")
+        return _reject_unsafe_scheme(value)
+
+
 class SiteFooterPayload(_ContentPayload):
     tagline: str
     copyright: str
     bottom_note: str
     campus_list_label: str
+    # 頁尾連結（依清單順序）。None＝還沒在後台設定過，官網沿用內建的連結。
+    links: list[SiteLinkPayload] | None = None
 
     @field_validator("tagline", "copyright", "bottom_note", "campus_list_label")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("links")
+    @classmethod
+    def _links_bounded(cls, value: list[SiteLinkPayload] | None) -> list[SiteLinkPayload] | None:
+        if value is None:
+            return None
+        if len(value) > FOOTER_LINKS_MAX:
+            raise ValueError(f"頁尾連結最多 {FOOTER_LINKS_MAX} 個")
+        _unique_hrefs(value, "頁尾")
+        return value
 
 
 class SiteMetaPayload(_ContentPayload):
@@ -131,6 +209,9 @@ class SiteMetaPayload(_ContentPayload):
     admission_description: str = Field(default="", max_length=300)
     # 只能「收緊」：部署設定沒開索引時，這裡勾了也不會變成可索引。
     allow_indexing: bool = True
+    # 主選單（頁首與選單面板，依清單順序）。None＝還沒在後台設定過，官網沿用
+    # 內建選單。品牌名稱與 Logo 依 2026-09-19 核可鎖定，不在這裡。
+    primary_nav: list[NavLinkPayload] | None = None
 
     @field_validator(
         "title", "description", "header_phone_number", "header_phone_note",
@@ -150,16 +231,46 @@ class SiteMetaPayload(_ContentPayload):
         except ValueError as exc:
             raise ValueError("分享圖請從素材庫選擇") from exc
 
+    @field_validator("primary_nav")
+    @classmethod
+    def _nav_bounded(cls, value: list[NavLinkPayload] | None) -> list[NavLinkPayload] | None:
+        if value is None:
+            return None
+        if not 1 <= len(value) <= PRIMARY_NAV_MAX:
+            raise ValueError(f"主選單需為 1 到 {PRIMARY_NAV_MAX} 個項目")
+        _unique_hrefs(value, "主選單")
+        return value
+
 
 class HomeCampusBoardPayload(_ContentPayload):
     section_title: str
     eyebrow: str
     note: str
+    # 首頁五校的排列順序與預設顯示的校區（規格 L107）。預設值就是原本官網
+    # 內建的順序，舊版本照常通過驗證。停用的校區官網會略過。
+    campus_order: list[str] = Field(default_factory=lambda: list(CAMPUS_KEYS))
+    default_campus: str = CAMPUS_KEYS[0]
 
     @field_validator("section_title", "eyebrow", "note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("campus_order")
+    @classmethod
+    def _order_is_permutation(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("校區順序不可重複")
+        if sorted(value) != sorted(CAMPUS_KEYS):
+            raise ValueError("校區順序要剛好包含五校，不能缺漏")
+        return value
+
+    @field_validator("default_campus")
+    @classmethod
+    def _default_known(cls, value: str) -> str:
+        if value not in CAMPUS_KEYS:
+            raise ValueError("不認得的預設校區")
+        return value
 
 
 # 隱私／個資使用說明的草稿標記。後台「帶入示意段落」產生的文字都帶這個
@@ -784,6 +895,44 @@ class AdmissionContentPayload(_ContentPayload):
         return self
 
 
+# 地圖網址白名單：Google 地圖的分享網址（含台灣網域與短網址），只收 https。
+_MAP_PATH_HOSTS = {"www.google.com", "google.com", "www.google.com.tw", "google.com.tw"}
+_MAP_HOSTS = {"maps.google.com", "maps.google.com.tw"}
+MAP_URL_MESSAGE = "地圖連結只接受 Google 地圖的 https 網址（例如 https://maps.app.goo.gl/…）"
+
+
+def is_map_url(value: str) -> bool:
+    if _INVISIBLE_RE.search(value) or "\\" in value or not value.lower().startswith("https://"):
+        return False
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    if port is not None or parsed.username is not None or parsed.password is not None:
+        return False
+    path = parsed.path
+    if host in _MAP_PATH_HOSTS:
+        return path == "/maps" or path.startswith("/maps/")
+    if host in _MAP_HOSTS:
+        return True
+    if host == "maps.app.goo.gl":
+        return len(path) > 1
+    if host == "goo.gl":
+        return path.startswith("/maps/") and len(path) > len("/maps/")
+    return False
+
+
+def require_map_url(value: str) -> str:
+    candidate = value.strip()
+    if candidate == "":
+        return ""
+    if not is_map_url(candidate):
+        raise ValueError(MAP_URL_MESSAGE)
+    return candidate
+
+
 class CampusProfilePayload(_ContentPayload):
     name: str
     district: str
@@ -796,11 +945,19 @@ class CampusProfilePayload(_ContentPayload):
     # 空字串代表這間校區尚未提供 LINE 官方帳號，跟前端 fixture 的
     # `line: string | null` 語意相同（web 端疊資料時把空字串轉回 null）。
     line: str
+    # 地圖連結（規格 L111：地址與地圖分別編輯）。只收 Google 地圖網址；空字串＝
+    # 官網照舊用地址組成 Google 地圖搜尋連結。
+    map_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
+
+    @field_validator("map_url")
+    @classmethod
+    def _map_url(cls, value: str) -> str:
+        return require_map_url(value)
 
     @field_validator("facebook", "line")
     @classmethod

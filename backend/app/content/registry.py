@@ -122,6 +122,11 @@ def _public_news(payload: dict, today: str) -> dict:
     }
 
 
+def _public_home_hero(payload: dict, today: str) -> dict:
+    # 2026-09-23 拿掉首屏按鈕：舊版本裡的按鈕文字不再輸出。
+    return {k: v for k, v in payload.items() if k != "cta_label"}
+
+
 def _public_shared_faq(payload: dict, today: str) -> dict:
     # 停用的共用題目不輸出（舊資料沒有 enabled 欄位，視為啟用）。
     return {**payload, "items": [i for i in payload.get("items", []) if i.get("enabled", True)]}
@@ -162,7 +167,7 @@ class ContentKindConfig:
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_about": ContentKindConfig(HomeAboutPayload, shared_only=True),
-    "home_hero": ContentKindConfig(HomeHeroPayload, shared_only=True),
+    "home_hero": ContentKindConfig(HomeHeroPayload, shared_only=True, public_view=_public_home_hero),
     "site_footer": ContentKindConfig(SiteFooterPayload, shared_only=True),
     "site_meta": ContentKindConfig(
         SiteMetaPayload, shared_only=True, extract_media_ids=_extract_site_meta_media_ids

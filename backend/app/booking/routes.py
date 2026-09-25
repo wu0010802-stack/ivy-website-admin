@@ -498,6 +498,10 @@ async def list_public_slots(
     date_to: date = Query(...),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublicVisitSlotOut]:
+    # 停用的分校不開放公開預約（規格 3.2）：公開設定回 paused，這裡也不列時段。
+    campus = await db.get(Campus, campus_key)
+    if campus is not None and not campus.active:
+        return []
     try:
         slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
     except slot_service.SlotQueryRangeTooWide as exc:
