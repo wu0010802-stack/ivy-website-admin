@@ -172,10 +172,18 @@ export interface BookingField {
   optionsFrom?: string
 }
 
+/** 隱私／個資使用說明（後台「預約文案」維護）。段落是純文字。 */
+export interface PrivacyNotice {
+  title: string
+  sections: { heading: string; body: string }[]
+}
+
 export interface BookingContent {
   isDemo: boolean
   demoNote: string
   consentText: string
+  /** 已發布的隱私說明；沒有正式說明時為 null，頁尾與表單不顯示入口 */
+  privacyNotice?: PrivacyNotice | null
   ctaLabel: string
   ctaLabelEn: string
   bannerTitleTemplate: string

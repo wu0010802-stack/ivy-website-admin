@@ -1,5 +1,6 @@
 import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, SiteContent } from '~/types/site-content'
 import { newsMonth } from './news-content'
+import { privacyNotice } from './privacy-notice'
 
 export interface LiveHomeAbout {
   title: string
@@ -47,6 +48,9 @@ export interface LiveBookingContent {
   banner_title_template: string
   banner_body: string
   banner_button_label: string
+  // 2026-09-25 新增，舊的已發布版本沒有這兩個欄位。
+  privacy_title?: string
+  privacy_sections?: { heading: string; body: string }[]
 }
 
 export interface LiveDayMoment {
@@ -254,7 +258,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       consentText: booking.consent_text,
       bannerTitleTemplate: booking.banner_title_template,
       bannerBody: booking.banner_body,
-      bannerButtonLabel: booking.banner_button_label
+      bannerButtonLabel: booking.banner_button_label,
+      privacyNotice: privacyNotice(booking.privacy_title, booking.privacy_sections)
     }
   }
 

@@ -172,6 +172,8 @@
 .visit-optional .visit-field-grid {margin-top:8px;padding-bottom:24px}
 .visit-consent {display:flex;align-items:flex-start;gap:11px;min-height:48px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted);cursor:pointer}
 .visit-consent>input {flex-shrink:0;width:19px;height:19px;min-height:0;margin:4px 0 0;accent-color:var(--green)}
+/* 同意勾選框下方的「閱讀個資使用說明」，對齊勾選框後的文字。 */
+.visit-contact-form :deep(.visit-privacy-link) {margin-left:30px;font-size:var(--fs-sm);color:var(--visit-ink)}
 .visit-form-fields:disabled {opacity:.7}
 .visit-submit-row {border-top:1px solid var(--visit-line);padding-top:22px;margin-top:21px;display:flex;align-items:center;justify-content:space-between;gap:18px}
 .visit-submit-row>p {font-size:var(--fs-sm);line-height:1.8;color:var(--visit-muted)}

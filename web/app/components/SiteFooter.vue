@@ -3,6 +3,8 @@ import type { SiteContent } from '~/types/site-content'
 
 const props = defineProps<{ content: SiteContent }>()
 const campuses = computed(() => props.content.campuses)
+// 園方發布了隱私說明才顯示入口（規格 L130）。
+const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null)
 </script>
 
 <template>
@@ -24,8 +26,9 @@ const campuses = computed(() => props.content.campuses)
         </div>
       </div>
     </div>
-    <div v-if="content.footer.copyright || content.footer.bottomNote" class="container footer-bottom">
+    <div v-if="content.footer.copyright || content.footer.bottomNote || privacyNotice" class="container footer-bottom">
       <span v-if="content.footer.copyright">{{ content.footer.copyright }}</span>
+      <PrivacyNoticeDialog v-if="privacyNotice" :notice="privacyNotice" trigger-class="footer-privacy" />
       <span v-if="content.footer.bottomNote">{{ content.footer.bottomNote }}</span>
     </div>
   </footer>
@@ -46,7 +49,8 @@ const campuses = computed(() => props.content.campuses)
 .footer-bottom { color: var(--footer-text); }
 .footer-bottom { border-color: var(--footer-line); }
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
-.footer a:focus-visible { outline-color: var(--footer-focus); }
+.footer a:focus-visible,
+.footer :deep(.footer-privacy:focus-visible) { outline-color: var(--footer-focus); }
 
 @media (max-width: 1000px) {
   .footer-main { grid-template-columns: 1fr 1fr; }
