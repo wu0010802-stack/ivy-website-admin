@@ -974,14 +974,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Site Settings */
+        /**
+         * Get Site Settings
+         * @deprecated
+         */
         get: operations["get_site_settings_api_website_v1_admin_site_settings_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Site Settings */
+        /**
+         * Update Site Settings
+         * @deprecated
+         */
         patch: operations["update_site_settings_api_website_v1_admin_site_settings_patch"];
         trace?: never;
     };
@@ -1935,12 +1941,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AnalyticsEventCreate */
+        /**
+         * AnalyticsEventCreate
+         * @description 規格 L279、L314：只收允許的點擊、event id、校區與入口代碼。
+         *     event_id 由瀏覽器每次點擊產生一個 UUID，重送同一個 id 只算一次。
+         */
         AnalyticsEventCreate: {
             /** Campus Key */
             campus_key?: string | null;
+            /** Entry */
+            entry?: ("header" | "menu" | "footer" | "home_campus_board" | "campus_hero" | "campus_info" | "campus_contact" | "campus_banner" | "campus_tour" | "admission" | "visit_page" | "visit_manage" | "other") | null;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
             /** Event Type */
             event_type: string;
+        };
+        /** AnalyticsFunnelOut */
+        AnalyticsFunnelOut: {
+            /** By Referral */
+            by_referral: components["schemas"]["FunnelReferralOut"][];
+            /** By Source */
+            by_source: components["schemas"]["FunnelSourceOut"][];
+            /** Campus Key */
+            campus_key: string;
+            /** Cancelled By Reason */
+            cancelled_by_reason: {
+                [key: string]: number;
+            };
+            /** Clicks By Entry */
+            clicks_by_entry: components["schemas"]["FunnelEntryOut"][];
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Unassigned Clicks */
+            unassigned_clicks?: {
+                [key: string]: number;
+            } | null;
         };
         /** AuthProviders */
         AuthProviders: {
@@ -2279,6 +2323,33 @@ export interface components {
             schema_version: number;
             /** Version */
             version: number;
+        };
+        /** FunnelEntryOut */
+        FunnelEntryOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Entry */
+            entry: string;
+        };
+        /** FunnelReferralOut */
+        FunnelReferralOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Referral */
+            referral: string;
+        };
+        /** FunnelSourceOut */
+        FunnelSourceOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Source */
+            source: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3892,6 +3963,10 @@ export interface operations {
         parameters: {
             query: {
                 campus_key: string;
+                /** @description 台北日期（含），省略＝不限 */
+                from?: string | null;
+                /** @description 台北日期（含），省略＝不限 */
+                to?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -3909,9 +3984,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AnalyticsFunnelOut"];
                 };
             };
             /** @description Validation Error */

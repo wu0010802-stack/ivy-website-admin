@@ -2,6 +2,8 @@
   "components": {
     "schemas": {
       "AnalyticsEventCreate": {
+        "additionalProperties": false,
+        "description": "規格 L279、L314：只收允許的點擊、event id、校區與入口代碼。\nevent_id 由瀏覽器每次點擊產生一個 UUID，重送同一個 id 只算一次。",
         "properties": {
           "campus_key": {
             "anyOf": [
@@ -14,15 +16,140 @@
             ],
             "title": "Campus Key"
           },
+          "entry": {
+            "anyOf": [
+              {
+                "enum": [
+                  "header",
+                  "menu",
+                  "footer",
+                  "home_campus_board",
+                  "campus_hero",
+                  "campus_info",
+                  "campus_contact",
+                  "campus_banner",
+                  "campus_tour",
+                  "admission",
+                  "visit_page",
+                  "visit_manage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
           "event_type": {
             "title": "Event Type",
             "type": "string"
           }
         },
         "required": [
-          "event_type"
+          "event_type",
+          "event_id"
         ],
         "title": "AnalyticsEventCreate",
+        "type": "object"
+      },
+      "AnalyticsFunnelOut": {
+        "properties": {
+          "by_referral": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelReferralOut"
+            },
+            "title": "By Referral",
+            "type": "array"
+          },
+          "by_source": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelSourceOut"
+            },
+            "title": "By Source",
+            "type": "array"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancelled_by_reason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Cancelled By Reason",
+            "type": "object"
+          },
+          "clicks_by_entry": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelEntryOut"
+            },
+            "title": "Clicks By Entry",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "unassigned_clicks": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unassigned Clicks"
+          }
+        },
+        "required": [
+          "campus_key",
+          "date_from",
+          "date_to",
+          "counts",
+          "cancelled_by_reason",
+          "by_source",
+          "by_referral",
+          "clicks_by_entry"
+        ],
+        "title": "AnalyticsFunnelOut",
         "type": "object"
       },
       "AuthProviders": {
@@ -936,6 +1063,69 @@
           "last_published_at"
         ],
         "title": "ContentRevisionSummaryOut",
+        "type": "object"
+      },
+      "FunnelEntryOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "entry": {
+            "title": "Entry",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry",
+          "counts"
+        ],
+        "title": "FunnelEntryOut",
+        "type": "object"
+      },
+      "FunnelReferralOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "referral": {
+            "title": "Referral",
+            "type": "string"
+          }
+        },
+        "required": [
+          "referral",
+          "counts"
+        ],
+        "title": "FunnelReferralOut",
+        "type": "object"
+      },
+      "FunnelSourceOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "counts"
+        ],
+        "title": "FunnelSourceOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5571,6 +5761,44 @@
             }
           },
           {
+            "description": "台北日期（含），省略＝不限",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝不限",
+              "title": "From"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝不限",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝不限",
+              "title": "To"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -5608,9 +5836,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Analytics Funnel Api Website V1 Admin Analytics Funnel Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/AnalyticsFunnelOut"
                 }
               }
             },
@@ -10161,6 +10387,7 @@
     },
     "/api/website/v1/admin/site-settings": {
       "get": {
+        "deprecated": true,
         "operationId": "get_site_settings_api_website_v1_admin_site_settings_get",
         "parameters": [
           {
@@ -10226,6 +10453,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "update_site_settings_api_website_v1_admin_site_settings_patch",
         "parameters": [
           {

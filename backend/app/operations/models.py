@@ -11,7 +11,10 @@ from app.db import Base
 
 
 class AnalyticsEventType(str, enum.Enum):
-    # 點擊類：只有這幾種能透過公開端點自己回報。
+    # 點擊類：只有這幾種能透過公開端點自己回報。booking_cta_clicked 是點了
+    # 往官網預約表單的按鈕（規格 L277）；其餘三種是預約方式為 LINE／電話／
+    # 外部網站時的聯絡連結點擊（規格的 contact_link_clicked，依管道分開計）。
+    BOOKING_CTA_CLICKED = "booking_cta_clicked"
     CTA_CLICK_LINE = "cta_click_line"
     CTA_CLICK_PHONE = "cta_click_phone"
     CTA_CLICK_EXTERNAL = "cta_click_external"
@@ -20,20 +23,60 @@ class AnalyticsEventType(str, enum.Enum):
     REQUEST_CREATED = "request_created"
     VISIT_CONFIRMED = "visit_confirmed"
     VISIT_COMPLETED = "visit_completed"
+    VISIT_CANCELLED = "visit_cancelled"
 
 
 PUBLIC_REPORTABLE_EVENT_TYPES = {
+    AnalyticsEventType.BOOKING_CTA_CLICKED,
     AnalyticsEventType.CTA_CLICK_LINE,
     AnalyticsEventType.CTA_CLICK_PHONE,
     AnalyticsEventType.CTA_CLICK_EXTERNAL,
 }
 
+# 公開點擊的入口代碼：按鈕在官網哪個區塊。白名單要和
+# web/app/utils/cta-analytics.ts 的 CTA_ENTRIES 一致（web 測試會比對），
+# 後台 labels.ts 的 CTA_ENTRY_LABELS 也要有中文（admin 測試會比對）。
+CTA_ENTRIES = (
+    "header",
+    "menu",
+    "footer",
+    "home_campus_board",
+    "campus_hero",
+    "campus_info",
+    "campus_contact",
+    "campus_banner",
+    "campus_tour",
+    "admission",
+    "visit_page",
+    "visit_manage",
+    "other",
+)
+
+# visit_cancelled 的取消原因：家長用管理連結取消、園方在後台取消、
+# 人工待確認的占位逾期由定期工作取消。
+CANCEL_REASON_PARENT = "parent"
+CANCEL_REASON_STAFF = "staff"
+CANCEL_REASON_HOLD_EXPIRED = "hold_expired"
+CANCEL_REASONS = (CANCEL_REASON_PARENT, CANCEL_REASON_STAFF, CANCEL_REASON_HOLD_EXPIRED)
+
 
 class AnalyticsEvent(Base):
-    """去識別化的成效事件；不存訪客個資，`campus_key` 可為 null
-    代表跨校事件（目前沒有這種情境，保留彈性）。"""
+    """去識別化的成效事件；不存訪客個資，也不指回案件。`campus_key` 為 null
+    代表不分校的點擊（例如頁首的預約鈕）。
+
+    - `event_id`：公開點擊由瀏覽器產生的 UUID，唯一；同一個點擊重送只記一次。
+      伺服器產生的事件為 NULL。
+    - `entry`：公開點擊的入口代碼（見 CTA_ENTRIES）。
+    - `source`、`referral_sources`：伺服器事件當下案件的來源與「從哪裡知道
+      我們」的快照，統計依來源分組用；之後匿名化案件也不影響統計。
+    - `reason`：visit_cancelled 的取消原因（見 CANCEL_REASONS）。
+    2026-09-25 以前的事件這幾欄都是 NULL。"""
 
     __tablename__ = "analytics_events"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_analytics_events_event_id"),
+        Index("ix_analytics_events_campus_created", "campus_key", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     event_type: Mapped[AnalyticsEventType] = mapped_column(
@@ -43,6 +86,11 @@ class AnalyticsEvent(Base):
         ForeignKey("campuses.key", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    event_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    entry: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    referral_sources: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class PageViewDaily(Base):

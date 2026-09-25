@@ -16,7 +16,7 @@ from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatu
 from app.booking.outbox import enqueue_outbox
 from app.common.timezones import now_utc
 from app.operations import analytics_service
-from app.operations.models import AnalyticsEventType
+from app.operations.models import CANCEL_REASON_HOLD_EXPIRED, AnalyticsEventType
 
 __all__ = ["PARENT", "SYSTEM", "Actor", "InvalidTransition", "SlotFull"]
 
@@ -110,7 +110,10 @@ async def confirm_with_slot(
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
     await analytics_service.record_internal_event(
-        db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=visit_request.campus_key
+        db,
+        event_type=AnalyticsEventType.VISIT_CONFIRMED,
+        campus_key=visit_request.campus_key,
+        visit_request=visit_request,
     )
     await db.flush()
     return visit_request
@@ -176,6 +179,7 @@ async def cancel(
         "visit_request_cancelled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    await analytics_service.record_cancelled(db, visit_request, reason=analytics_service.cancel_reason(actor))
     await db.flush()
     return visit_request
 
@@ -238,7 +242,10 @@ async def mark_completed(
     visit_request.status = VisitRequestStatus.COMPLETED.value
     await _close(db, visit_request, "completed", before=before, actor=actor)
     await analytics_service.record_internal_event(
-        db, event_type=AnalyticsEventType.VISIT_COMPLETED, campus_key=visit_request.campus_key
+        db,
+        event_type=AnalyticsEventType.VISIT_COMPLETED,
+        campus_key=visit_request.campus_key,
+        visit_request=visit_request,
     )
     await db.flush()
     return visit_request
@@ -345,6 +352,7 @@ async def expire_holds(db: AsyncSession, *, limit: int = 100) -> int:
             "visit_request_hold_expired",
             {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
         )
+        await analytics_service.record_cancelled(db, visit_request, reason=CANCEL_REASON_HOLD_EXPIRED)
     await db.flush()
     return len(expired)
 

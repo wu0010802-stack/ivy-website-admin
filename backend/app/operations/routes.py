@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -16,14 +16,24 @@ from app.campuses.models import Campus
 from app.common import ratelimit
 from app.notifications.models import UserNotification
 from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
-from app.operations.models import SiteSettings
+from app.operations.models import CTA_ENTRIES, SiteSettings
 
 router = APIRouter(prefix="/api/website/v1", tags=["operations"])
 
 
+CtaEntry = Literal[CTA_ENTRIES]  # type: ignore[valid-type]
+
+
 class AnalyticsEventCreate(BaseModel):
+    """規格 L279、L314：只收允許的點擊、event id、校區與入口代碼。
+    event_id 由瀏覽器每次點擊產生一個 UUID，重送同一個 id 只算一次。"""
+
+    model_config = ConfigDict(extra="forbid")
+
     event_type: str
     campus_key: str | None = None
+    event_id: uuid.UUID
+    entry: CtaEntry | None = None
 
 
 @router.post("/public/analytics-events", status_code=status.HTTP_204_NO_CONTENT)
@@ -46,6 +56,8 @@ async def create_analytics_event(
             db,
             event_type=payload.event_type,
             campus_key=payload.campus_key,
+            event_id=payload.event_id,
+            entry=payload.entry,
             limiter=ratelimit.limiter(request),
             client_key=client_key,
         )
@@ -153,14 +165,71 @@ async def get_dashboard(
     return summary
 
 
-@router.get("/admin/analytics/funnel")
+class FunnelSourceOut(BaseModel):
+    # 案件來源（web／phone／line／walk_in／external）；unknown＝2026-09-25 以前的事件。
+    source: str
+    counts: dict[str, int]
+
+
+class FunnelReferralOut(BaseModel):
+    # 「從哪裡知道我們」（可複選）；none＝沒填、unknown＝舊事件。
+    referral: str
+    counts: dict[str, int]
+
+
+class FunnelEntryOut(BaseModel):
+    # 入口代碼（見 CTA_ENTRIES）；unknown＝舊事件或沒帶入口的點擊。
+    entry: str
+    counts: dict[str, int]
+
+
+class AnalyticsFunnelOut(BaseModel):
+    campus_key: str
+    date_from: date | None
+    date_to: date | None
+    # 每一種事件類型都有鍵（沒有事件為 0）。
+    counts: dict[str, int]
+    # visit_cancelled 依原因：parent／staff／hold_expired；unknown＝舊事件。
+    cancelled_by_reason: dict[str, int]
+    # 伺服器事件（建案、確認、完成、取消）依來源分組。
+    by_source: list[FunnelSourceOut]
+    by_referral: list[FunnelReferralOut]
+    # 公開點擊依入口分組。
+    clicks_by_entry: list[FunnelEntryOut]
+    # 不分校的點擊（首頁頁首往預約總頁等）。只有看得到全部校區的人才有值，
+    # 其他人為 null。
+    unassigned_clicks: dict[str, int] | None = None
+
+
+# 日期區間最長一年多一點，夠看一整個招生季，也不會一次掃太多年。
+FUNNEL_MAX_DAYS = 400
+
+
+@router.get("/admin/analytics/funnel", response_model=AnalyticsFunnelOut)
 async def get_analytics_funnel(
     campus_key: str,
+    date_from: date | None = Query(None, alias="from", description="台北日期（含），省略＝不限"),
+    date_to: date | None = Query(None, alias="to", description="台北日期（含），省略＝不限"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     require_scope(current_user, "analytics.read", campus_keys=[campus_key])
-    return await analytics_service.get_campus_funnel_counts(db, campus_key)
+    if date_from is not None and date_to is not None:
+        if date_from > date_to:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
+            )
+        if (date_to - date_from).days + 1 > FUNNEL_MAX_DAYS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {FUNNEL_MAX_DAYS} 天"},
+            )
+    period = analytics_service.FunnelRange(date_from, date_to)
+    funnel = await analytics_service.get_campus_funnel(db, campus_key, period)
+    if campus_scope(current_user) is None:
+        funnel["unassigned_clicks"] = await analytics_service.get_unassigned_clicks(db, period)
+    return funnel
 
 
 @router.get("/admin/audit-log")
@@ -189,6 +258,9 @@ async def get_audit_log(
     ]
 
 
+# 舊的「全站設定」單列：官網與後端都不讀它。官網的描述、分享圖與是否允許
+# 收錄以 site_meta 內容（有草稿與發布流程）為唯一來源，家長同意的版本記在
+# 案件的 consent_revision_id。端點保留給舊資料相容，後台已不再使用。
 class SiteSettingsUpdate(BaseModel):
     title: str
     description: str
@@ -207,7 +279,7 @@ async def _get_or_create_settings(db: AsyncSession) -> SiteSettings:
     return settings
 
 
-@router.get("/admin/site-settings")
+@router.get("/admin/site-settings", deprecated=True)
 async def get_site_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -224,7 +296,7 @@ async def get_site_settings(
     }
 
 
-@router.patch("/admin/site-settings")
+@router.patch("/admin/site-settings", deprecated=True)
 async def update_site_settings(
     payload: SiteSettingsUpdate,
     current_user: User = Depends(get_current_user),

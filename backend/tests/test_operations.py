@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import pytest
 
@@ -41,7 +42,7 @@ async def _submit_inquiry(admin_client, public_client, campus_key="yihua", idemp
 async def test_click_event_recorded(public_client):
     response = await public_client.post(
         "/api/website/v1/public/analytics-events",
-        json={"event_type": "cta_click_line", "campus_key": "yihua"},
+        json={"event_type": "cta_click_line", "campus_key": "yihua", "event_id": str(uuid4())},
     )
     assert response.status_code == 204
 
@@ -52,7 +53,7 @@ async def test_forged_conversion_event_rejected(public_client):
     公開端點只接受點擊類事件。"""
     response = await public_client.post(
         "/api/website/v1/public/analytics-events",
-        json={"event_type": "visit_confirmed", "campus_key": "yihua"},
+        json={"event_type": "visit_confirmed", "campus_key": "yihua", "event_id": str(uuid4())},
     )
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "EVENT_TYPE_NOT_ALLOWED"
@@ -65,11 +66,11 @@ async def test_click_events_do_not_change_request_created_count(
     for _ in range(5):
         await public_client.post(
             "/api/website/v1/public/analytics-events",
-            json={"event_type": "cta_click_phone", "campus_key": "yihua"},
+            json={"event_type": "cta_click_phone", "campus_key": "yihua", "event_id": str(uuid4())},
         )
     funnel = await admin_client.get("/api/website/v1/admin/analytics/funnel?campus_key=yihua")
-    assert funnel.json()["cta_click_phone"] == 5
-    assert funnel.json()["request_created"] == 0
+    assert funnel.json()["counts"]["cta_click_phone"] == 5
+    assert funnel.json()["counts"]["request_created"] == 0
 
 
 @pytest.mark.asyncio
@@ -78,7 +79,7 @@ async def test_click_event_rate_limited(public_client):
     for _ in range(25):
         resp = await public_client.post(
             "/api/website/v1/public/analytics-events",
-            json={"event_type": "cta_click_line", "campus_key": "yihua"},
+            json={"event_type": "cta_click_line", "campus_key": "yihua", "event_id": str(uuid4())},
         )
         last_status = resp.status_code
     assert last_status == 429
@@ -88,7 +89,7 @@ async def test_click_event_rate_limited(public_client):
 async def test_request_created_event_recorded_internally(admin_client, public_client):
     await _submit_inquiry(admin_client, public_client, idempotency_key="ops-internal-01")
     funnel = await admin_client.get("/api/website/v1/admin/analytics/funnel?campus_key=yihua")
-    assert funnel.json()["request_created"] == 1
+    assert funnel.json()["counts"]["request_created"] == 1
 
 
 @pytest.mark.asyncio

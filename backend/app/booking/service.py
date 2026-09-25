@@ -314,7 +314,7 @@ async def submit_visit_request(
         {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
     )
     await analytics_service.record_internal_event(
-        db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key
+        db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key, visit_request=visit_request
     )
     if status == VisitRequestStatus.CONFIRMED.value:
         enqueue_outbox(
@@ -324,7 +324,7 @@ async def submit_visit_request(
             {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
         )
         await analytics_service.record_internal_event(
-            db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key
+            db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key, visit_request=visit_request
         )
     elif status == VisitRequestStatus.PENDING_CONFIRMATION.value:
         # 通知園方有一筆待確認的時段申請——不是「已確認」，文案不同，
