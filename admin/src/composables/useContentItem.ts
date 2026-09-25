@@ -204,10 +204,16 @@ export interface ContentEditorState {
   reset: () => void
 }
 
+export interface ContentItemOptions<TPayload> {
+  /** 舊版內容的巢狀欄位補預設值或換算（例如消息的舊校區文字），在拍快照之前做 */
+  normalize?: (payload: TPayload) => TPayload
+}
+
 export function useContentItem<TPayload extends object>(
   kind: string,
   emptyPayload: TPayload,
   campusKey?: Ref<string> | string,
+  options: ContentItemOptions<TPayload> = {},
 ) {
   const item = ref<ContentItemOut | null>(null)
   const form = ref<TPayload>(clone(emptyPayload))
@@ -236,7 +242,8 @@ export function useContentItem<TPayload extends object>(
   // 打開就顯示「有未儲存的修改」）。
   function withDefaults(payload: unknown): TPayload {
     if (!payload) return clone(emptyPayload)
-    return { ...clone(emptyPayload), ...clone(payload as TPayload) }
+    const merged = { ...clone(emptyPayload), ...clone(payload as TPayload) }
+    return options.normalize ? options.normalize(merged) : merged
   }
 
   function takeSnapshot() {

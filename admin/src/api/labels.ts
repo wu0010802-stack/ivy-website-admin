@@ -362,6 +362,9 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   copyright: '版權文字',
   header_phone_number: '頁首電話',
   header_phone_note: '頁首電話備註',
+  home_display_count: '首頁顯示筆數',
+  include_shared: '顯示共用題目',
+  shared_position: '共用題目位置',
 }
 
 export function contentFieldLabel(key: string): string {
@@ -373,6 +376,8 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     return campusKey ? `/campuses/${campusKey}` : '/'
   }
+  // 共用常見問題出現在每一校的分校頁，先開第一校（義華）。
+  if (kind === 'shared_faq') return '/campuses/yihua#faq'
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   return '/'
@@ -384,6 +389,7 @@ export function contentPreviewPath(kind: string, campusKey?: string | null): str
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     return campusKey ? `/preview?page=campus&campus=${encodeURIComponent(campusKey)}` : ''
   }
+  if (kind === 'shared_faq') return '/preview?page=campus&campus=yihua'
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
   return '/preview'
@@ -460,6 +466,8 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   admission_content: '入學資訊',
   campus_profile: '五校介紹',
   campus_faq: '各校常見問題',
+  shared_faq: '共用常見問題',
+  campus_news: '各校消息與活動',
   campus_tour: '校園探索',
   booking_content: '預約文案',
   site_footer: '頁尾文字',

@@ -69,14 +69,32 @@ export interface BookingContentPayload {
   privacy_sections: PrivacySectionPayload[]
 }
 
-export interface NewsArticlePayload {
+/** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock）；不收 HTML。 */
+export type NewsBodyBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'heading'; text: string }
+  | { type: 'list'; items: string[]; ordered: boolean }
+  | { type: 'image'; image: string; alt: string; caption: string }
+  | { type: 'link'; label: string; url: string }
+
+/** 全站消息、活動與共用常見問題的適用範圍：global＝全校；campus＝指定校區（至少一校） */
+export type ContentScope = 'global' | 'campus'
+
+export interface ScopedEntry {
+  scope: ContentScope
+  campus_keys: string[]
+}
+
+/** 各校消息（campus_news）的消息：屬於那一校，沒有適用範圍與首頁推薦 */
+export interface CampusNewsArticlePayload {
   id: string
   /** YYYY-MM-DD */
   date: string
-  campus: string
   category: string
   title: string
+  /** 摘要：卡片、清單與沒有內文時的詳細頁顯示 */
   description: string
+  body: NewsBodyBlock[]
   /** 素材庫媒體 UUID，或官網內建素材代號（舊的示意消息） */
   image: string
   alt: string
@@ -86,21 +104,42 @@ export interface NewsArticlePayload {
   show_until?: string | null
 }
 
-export interface NewsEventPayload {
+export interface NewsArticlePayload extends CampusNewsArticlePayload, ScopedEntry {
+  /** 首頁推薦：有任何推薦時首頁只輪播推薦的，依清單順序 */
+  featured: boolean
+}
+
+export interface CampusNewsEventPayload {
   id: string
   /** YYYY-MM-DD */
   date: string
-  campus: string
   title: string
   description: string
+  all_day: boolean
+  /** HH:MM；全天活動為 null */
+  start_time: string | null
+  end_time: string | null
+  location: string
+  /** 只收 http／https */
+  link_url: string
+  link_label: string
   show_from?: string | null
   show_until?: string | null
 }
+
+export type NewsEventPayload = CampusNewsEventPayload & ScopedEntry
 
 export interface HomeNewsPayload {
   sample_note: string
   articles: NewsArticlePayload[]
   events: NewsEventPayload[]
+  /** 首頁最多輪播幾則；null＝全部 */
+  home_display_count: number | null
+}
+
+export interface CampusNewsPayload {
+  articles: CampusNewsArticlePayload[]
+  events: CampusNewsEventPayload[]
 }
 
 export interface AdmissionStepPayload { when: string; title: string; text: string }
@@ -163,10 +202,25 @@ export interface CampusProfilePayload {
 export interface CampusFaqItemPayload {
   q: string
   a: string
+  /** 停用＝留在後台、官網不顯示；和共用題目同一題時等於這校不顯示那一題 */
+  enabled: boolean
 }
 
 export interface CampusFaqPayload {
   items: CampusFaqItemPayload[]
+  include_shared: boolean
+  shared_position: 'before' | 'after'
+}
+
+export interface SharedFaqItemPayload extends ScopedEntry {
+  id: string
+  q: string
+  a: string
+  enabled: boolean
+}
+
+export interface SharedFaqPayload {
+  items: SharedFaqItemPayload[]
 }
 
 export interface TourSpotPayload {
@@ -198,6 +252,7 @@ export type VariantKind = 'thumbnail' | 'poster'
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
 export type ContentItemOut = components['schemas']['ContentItemOut']
+export type ContentRevisionOut = components['schemas']['ContentRevisionOut']
 export type BookingConfigOut = components['schemas']['BookingConfigOut']
 export type BookingMode = components['schemas']['BookingMode']
 export type BookingReadinessOut = components['schemas']['BookingReadinessOut']

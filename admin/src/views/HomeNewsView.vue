@@ -1,103 +1,33 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Delete, Picture, Plus } from '@element-plus/icons-vue'
+import { computed, onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
-import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
-import type { HomeNewsPayload, MediaAssetOut, NewsArticlePayload, NewsEventPayload } from '../api/types'
-import { CAMPUS_LABELS } from '../api/labels'
-import { mediaFileUrl } from '../api/client'
-import { websiteAssetUrl } from '../config'
+import type { HomeNewsPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
-import LengthHint from '../components/LengthHint.vue'
-import { IMAGE_HINTS } from '../composables/contentHints'
-import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
+import { NEWS_LIMITS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
 
-// 上限與後端 HomeNewsPayload 相同（content/schemas.py）。
-const MAX_ARTICLES = 30
-const MAX_EVENTS = 12
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const CAMPUS_OPTIONS = ['全校', ...Object.values(CAMPUS_LABELS).map((name) => `${name}校`)]
-
-function isMediaId(image: string): boolean {
-  return UUID_PATTERN.test(image)
+// 舊版消息沒有適用範圍、內文、推薦與活動時間：載入時換算成新欄位
+// （跟後端讀舊版本的規則相同），再拍快照，才不會一打開就顯示有修改。
+function normalize(payload: HomeNewsPayload): HomeNewsPayload {
+  return {
+    ...payload,
+    articles: (payload.articles ?? []).map((a) => normalizeArticle(a as never)),
+    events: (payload.events ?? []).map((e) => normalizeEvent(e as never)),
+    home_display_count: payload.home_display_count ?? null,
+  }
 }
 
-// 同校園探索：素材庫 UUID 走後台媒體 API；舊示意消息的代號走官網靜態素材。
-function previewUrl(image: string): string {
-  return isMediaId(image) ? mediaFileUrl(image) : websiteAssetUrl(image)
-}
+const editor = useContentItem<HomeNewsPayload>(
+  'home_news',
+  { sample_note: '', articles: [], events: [], home_display_count: null },
+  undefined,
+  { normalize },
+)
 
-function taipeiToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-}
-
-function newId(prefix: string): string {
-  // 後端要求同一清單內 id 不重複；同一毫秒連按兩次也不能撞號。
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-}
-
-function newArticle(): NewsArticlePayload {
-  return { id: newId('news'), date: taipeiToday(), campus: '全校', category: '', title: '', description: '', image: '', alt: '' }
-}
-
-function newEvent(): NewsEventPayload {
-  return { id: newId('event'), date: taipeiToday(), campus: '全校', title: '', description: '' }
-}
-
-const editor = useContentItem<HomeNewsPayload>('home_news', { sample_note: '', articles: [], events: [] })
-const missingGlyphs = useTitleFontCoverage()
-const today = taipeiToday()
-
-// 上下架日期與後端 is_scheduled_visible 同一個規則：兩端都含當天。
-function scheduleState(entry: { show_from?: string | null; show_until?: string | null }): 'upcoming' | 'expired' | '' {
-  if (entry.show_from && today < entry.show_from) return 'upcoming'
-  if (entry.show_until && today > entry.show_until) return 'expired'
-  return ''
-}
-
-function scheduleInvalid(entry: { show_from?: string | null; show_until?: string | null }): boolean {
-  return Boolean(entry.show_from && entry.show_until && entry.show_until < entry.show_from)
-}
-
-const articles = computed(() => editor.form.value.articles)
-const events = computed(() => editor.form.value.events)
 const isSample = computed(() => editor.form.value.sample_note.trim() !== '')
-
-// 新增的放最上面：官網會依日期重新排序，這裡只是讓剛加的那則不用捲到底才找得到。
-function addArticle() {
-  editor.form.value.articles.unshift(newArticle())
-}
-
-function addEvent() {
-  editor.form.value.events.unshift(newEvent())
-}
-
-function removeArticle(index: number) {
-  editor.form.value.articles.splice(index, 1)
-}
-
-function removeEvent(index: number) {
-  editor.form.value.events.splice(index, 1)
-}
 
 function clearSampleNote() {
   editor.form.value.sample_note = ''
-}
-
-const pickerVisible = ref(false)
-const pickingIndex = ref<number | null>(null)
-
-function pickImage(index: number) {
-  pickingIndex.value = index
-  pickerVisible.value = true
-}
-
-function onPickMedia(asset: MediaAssetOut) {
-  const article = pickingIndex.value === null ? null : articles.value[pickingIndex.value]
-  if (!article) return
-  article.image = asset.id
-  // 素材庫已經填了替代文字的話直接帶入，園方不用再打一次。
-  if (!article.alt && asset.alt_text) article.alt = asset.alt_text
 }
 
 onMounted(editor.load)
@@ -106,10 +36,10 @@ onMounted(editor.load)
 <template>
   <ContentEditor :editor="editor">
     <template #lead>
-      首頁「最新消息」與「近期活動」。官網上的消息依日期新到舊排列；活動只顯示今天以後的，
-      <strong>日期過了會自動從官網下架</strong>。每一則也可以設定上架、下架日期，時間到官網自動顯示或隱藏，
-      不用再回來發布一次。沒有消息時可以全部刪掉，官網會顯示「目前沒有新的消息」，
-      不需要為了填滿版面放示意內容。
+      首頁「最新消息」與「近期活動」，適用全校或指定幾校（各校自己的消息在「分校頁 → 各校消息與活動」）。
+      官網上的消息依日期新到舊排列；活動只顯示今天以後的，<strong>日期過了會自動從官網下架</strong>。
+      每一則也可以設定上架、下架日期，時間到官網自動顯示或隱藏，不用再回來發布一次。
+      沒有消息時可以全部刪掉，官網會顯示「目前沒有新的消息」，不需要為了填滿版面放示意內容。
     </template>
 
     <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
@@ -127,191 +57,26 @@ onMounted(editor.load)
       <el-form-item label="示意說明（有內容時，官網在標題旁標示「示意內容」，並在區塊底部顯示這段文字）">
         <el-input v-model="editor.form.value.sample_note" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="真實消息請留空" />
       </el-form-item>
+      <el-form-item label="首頁最多輪播幾則消息（每次顯示 3 則）">
+        <el-input-number
+          v-model="editor.form.value.home_display_count"
+          :min="1"
+          :max="NEWS_LIMITS.displayCount"
+          :value-on-clear="null"
+          placeholder="全部"
+          controls-position="right"
+        />
+        <span class="field-help">留空＝全部。「所有最新消息」清單不受這個限制。</span>
+      </el-form-item>
 
-      <div class="section__title" style="margin-top: 20px">
-        <h2>最新消息</h2>
-        <span class="hint">{{ articles.length }} / {{ MAX_ARTICLES }} 則</span>
-      </div>
-      <el-button :icon="Plus" :disabled="articles.length >= MAX_ARTICLES" @click="addArticle">新增一則消息</el-button>
-      <p v-if="!articles.length" class="hint news-empty">目前沒有消息，官網會顯示「目前沒有新的消息」。</p>
-
-      <div v-for="(article, index) in articles" :key="article.id" class="repeat-item news-item">
-        <div class="repeat-item__head">
-          <span class="repeat-item__index">
-            <b>{{ index + 1 }}</b>
-            {{ article.date || '日期未填' }}{{ article.title ? `・${article.title}` : '' }}
-            <el-tag v-if="scheduleState(article) === 'upcoming'" size="small" type="warning">{{ article.show_from }} 起顯示</el-tag>
-            <el-tag v-else-if="scheduleState(article) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
-          </span>
-          <el-button text size="small" type="danger" :icon="Delete" @click="removeArticle(index)">移除</el-button>
-        </div>
-        <div class="news-item__grid">
-          <div class="news-item__photo">
-            <button type="button" class="news-item__thumb" :aria-label="article.image ? '更換照片' : '從素材庫選擇照片'" @click="pickImage(index)">
-              <img v-if="article.image" :src="previewUrl(article.image)" alt="" @error="($event.target as HTMLImageElement).style.visibility = 'hidden'" />
-              <span v-else class="news-item__thumb-empty"><el-icon><Picture /></el-icon>選擇照片</span>
-            </button>
-            <span v-if="article.image && !isMediaId(article.image)" class="hint">官網內建示意照片</span>
-            <span class="field-help">{{ IMAGE_HINTS.news }}</span>
-          </div>
-          <div>
-            <div class="field-row">
-              <el-form-item label="日期">
-                <el-date-picker v-model="article.date" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :clearable="false" style="width: 100%" />
-              </el-form-item>
-              <el-form-item label="校區">
-                <el-select v-model="article.campus" filterable allow-create default-first-option>
-                  <el-option v-for="option in CAMPUS_OPTIONS" :key="option" :label="option" :value="option" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="分類">
-                <el-input v-model="article.category" placeholder="例如：校園日常" />
-              </el-form-item>
-            </div>
-            <el-form-item label="標題">
-              <el-input v-model="article.title" />
-              <LengthHint :value="article.title" rule="newsTitle" />
-              <p v-if="missingGlyphs(article.title).length" class="glyph-hint">
-                官網標題字型沒有「{{ missingGlyphs(article.title).join('') }}」，這幾個字會以系統字顯示。可以換個說法，或請工程補字。
-              </p>
-            </el-form-item>
-            <el-form-item label="內文">
-              <el-input v-model="article.description" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
-              <LengthHint :value="article.description" rule="newsDescription" />
-            </el-form-item>
-            <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
-              <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
-            </el-form-item>
-            <div class="field-row">
-              <el-form-item label="上架日期（選填）">
-                <el-date-picker v-model="article.show_from" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="發布後立即顯示" clearable style="width: 100%" />
-              </el-form-item>
-              <el-form-item label="下架日期（選填，當天仍顯示）" :error="scheduleInvalid(article) ? '下架日期不能早於上架日期' : ''">
-                <el-date-picker v-model="article.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="不自動下架" clearable style="width: 100%" />
-              </el-form-item>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section__title" style="margin-top: 28px">
-        <h2>近期活動</h2>
-        <span class="hint">{{ events.length }} / {{ MAX_EVENTS }} 筆</span>
-      </div>
-      <el-button :icon="Plus" :disabled="events.length >= MAX_EVENTS" @click="addEvent">新增一筆活動</el-button>
-      <p v-if="!events.length" class="hint news-empty">目前沒有活動，官網會顯示「目前沒有近期活動」。</p>
-
-      <div v-for="(event, index) in events" :key="event.id" class="repeat-item">
-        <div class="repeat-item__head">
-          <span class="repeat-item__index">
-            <b>{{ index + 1 }}</b>
-            {{ event.date || '日期未填' }}{{ event.title ? `・${event.title}` : '' }}
-            <el-tag v-if="event.date && event.date < today" size="small" type="info">已過，官網不顯示</el-tag>
-            <el-tag v-else-if="scheduleState(event) === 'upcoming'" size="small" type="warning">{{ event.show_from }} 起顯示</el-tag>
-            <el-tag v-else-if="scheduleState(event) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
-          </span>
-          <el-button text size="small" type="danger" :icon="Delete" @click="removeEvent(index)">移除</el-button>
-        </div>
-        <div class="field-row">
-          <el-form-item label="日期">
-            <el-date-picker v-model="event.date" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :clearable="false" style="width: 100%" />
-          </el-form-item>
-          <el-form-item label="校區">
-            <el-select v-model="event.campus" filterable allow-create default-first-option>
-              <el-option v-for="option in CAMPUS_OPTIONS" :key="option" :label="option" :value="option" />
-            </el-select>
-          </el-form-item>
-        </div>
-        <el-form-item label="活動名稱">
-          <el-input v-model="event.title" />
-          <LengthHint :value="event.title" rule="eventTitle" />
-          <p v-if="missingGlyphs(event.title).length" class="glyph-hint">
-            官網標題字型沒有「{{ missingGlyphs(event.title).join('') }}」，這幾個字會以系統字顯示。
-          </p>
-        </el-form-item>
-        <el-form-item label="活動說明">
-          <el-input v-model="event.description" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
-        </el-form-item>
-        <div class="field-row">
-          <el-form-item label="開始宣傳日期（選填）">
-            <el-date-picker v-model="event.show_from" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="發布後立即顯示" clearable style="width: 100%" />
-          </el-form-item>
-          <el-form-item label="提前下架日期（選填）" :error="scheduleInvalid(event) ? '下架日期不能早於上架日期' : ''">
-            <el-date-picker v-model="event.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="活動日過後自動下架" clearable style="width: 100%" />
-          </el-form-item>
-        </div>
-      </div>
+      <NewsEntriesEditor
+        :articles="editor.form.value.articles"
+        :events="editor.form.value.events"
+        mode="global"
+        :max-articles="NEWS_LIMITS.homeArticles"
+        :max-events="NEWS_LIMITS.homeEvents"
+        :read-only="editor.readOnly.value"
+      />
     </el-form>
-
-    <MediaPickerDialog v-model="pickerVisible" @select="onPickMedia" />
   </ContentEditor>
 </template>
-
-<style scoped>
-.news-empty {
-  margin: 12px 0 4px;
-}
-
-.news-item:first-of-type {
-  margin-top: 12px;
-}
-
-.news-item__grid {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.news-item__photo {
-  display: grid;
-  gap: 6px;
-}
-
-.news-item__thumb {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1.55;
-  padding: 0;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-2);
-  cursor: pointer;
-}
-
-.news-item__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.news-item__thumb-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 100%;
-  color: var(--ink-2);
-  font-size: 13px;
-}
-
-.glyph-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--el-color-warning-dark-2);
-}
-
-@media (max-width: 720px) {
-  .news-item__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .news-item__photo {
-    max-width: 240px;
-  }
-}
-</style>

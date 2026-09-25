@@ -15,6 +15,8 @@ import HomeNewsView from '../views/HomeNewsView.vue'
 import AdmissionContentView from '../views/AdmissionContentView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import CampusFaqView from '../views/CampusFaqView.vue'
+import CampusNewsView from '../views/CampusNewsView.vue'
+import SharedFaqView from '../views/SharedFaqView.vue'
 import CampusTourView from '../views/CampusTourView.vue'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import BookingSettingsView from '../views/BookingSettingsView.vue'
@@ -70,6 +72,8 @@ const router = createRouter({
         page('content/admission', 'admission-content', AdmissionContentView),
         page('content/campus-profile', 'campus-profile', CampusProfileView),
         page('content/campus-faq', 'campus-faq', CampusFaqView),
+        page('content/shared-faq', 'shared-faq', SharedFaqView),
+        page('content/campus-news', 'campus-news', CampusNewsView),
         page('content/campus-tour', 'campus-tour', CampusTourView),
         page('media', 'media', MediaLibraryView),
         page('releases', 'releases', PublishHistoryView),
