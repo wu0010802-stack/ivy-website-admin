@@ -1,3 +1,6 @@
+import type { SiteContent } from '../types/site-content'
+import { applyContentOverlay, type ContentOverlay } from './content-overlay'
+
 // 私有草稿預覽（/preview）的網址參數與消息上下架判斷。
 //
 // - page：home｜admission｜campus｜visit（預約頁的同意文字與個資說明）
@@ -101,4 +104,27 @@ export function scheduleNewsDraft<T extends Record<string, unknown>>(payload: T,
   const articles = splitEntries(payload.articles, 'article', date, hidden)
   const events = splitEntries(payload.events, 'event', date, hidden)
   return { payload: { ...payload, articles, events }, hidden }
+}
+
+/**
+ * 預覽某一天的內容：全站消息與各校消息都依預覽日期過濾上下架，再疊到
+ * fixture 上；另外回傳被藏起來的清單（各校的標上校區）。
+ */
+export function previewOverlay(content: SiteContent, overlay: ContentOverlay, date: string): { content: SiteContent; hiddenNews: HiddenNewsEntry[] } {
+  const hiddenNews: HiddenNewsEntry[] = []
+  const next: ContentOverlay = { ...overlay }
+  if (overlay.home_news) {
+    const scheduled = scheduleNewsDraft(overlay.home_news as unknown as Record<string, unknown>, date)
+    next.home_news = scheduled.payload as never
+    hiddenNews.push(...scheduled.hidden)
+  }
+  if (overlay.campus_news) {
+    const names = Object.fromEntries(content.campuses.map((c) => [c.key, c.name]))
+    next.campus_news = Object.fromEntries(Object.entries(overlay.campus_news).map(([key, payload]) => {
+      const scheduled = scheduleNewsDraft(payload as unknown as Record<string, unknown>, date)
+      hiddenNews.push(...scheduled.hidden.map((entry) => ({ ...entry, title: `${entry.title}（${names[key] ?? key}）` })))
+      return [key, scheduled.payload as never]
+    }))
+  }
+  return { content: applyContentOverlay(content, next), hiddenNews }
 }

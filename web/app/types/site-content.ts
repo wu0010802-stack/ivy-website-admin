@@ -131,13 +131,28 @@ export interface Campus {
   faq: { template: string; items: FaqItem[] }
 }
 
+/** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock），官網逐塊用固定元素顯示。 */
+export type NewsBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'heading'; text: string }
+  | { type: 'list'; items: string[]; ordered?: boolean }
+  | { type: 'image'; image: string; alt?: string; caption?: string }
+  | { type: 'link'; label: string; url: string }
+
 export interface NewsArticle {
   id: string
   date: string
+  /** 顯示用的校區文字（「全校」「義華校」「義華校、明華校」） */
   campus: string
+  /** 適用的校區 key；空陣列＝全校 */
+  campusKeys?: string[]
   category: string
   title: string
+  /** 摘要：卡片、清單與沒有內文時的詳細頁顯示 */
   description: string
+  body?: NewsBlock[]
+  /** 首頁推薦（只有全站消息有） */
+  featured?: boolean
   image: string
   alt: string
 }
@@ -147,8 +162,16 @@ export interface NewsEvent {
   date: string
   month: string
   campus: string
+  campusKeys?: string[]
   title: string
   description: string
+  /** 沒有這些欄位的舊資料視為全天、沒有地點與連結 */
+  allDay?: boolean
+  startTime?: string | null
+  endTime?: string | null
+  location?: string
+  linkUrl?: string
+  linkLabel?: string
 }
 
 export interface NewsContent {
@@ -157,6 +180,8 @@ export interface NewsContent {
   sampleNote: string
   articles: NewsArticle[]
   events: NewsEvent[]
+  /** 首頁最多輪播幾則；沒有值＝全部 */
+  homeCount?: number | null
 }
 
 export interface BookingField {

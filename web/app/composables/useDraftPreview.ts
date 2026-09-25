@@ -1,7 +1,6 @@
 import type { SiteContent } from '~/types/site-content'
 import type { ContentOverlay } from '~/utils/content-overlay'
-import { applyContentOverlay } from '~/utils/content-overlay'
-import { scheduleNewsDraft, type HiddenNewsEntry } from '~/utils/draft-preview'
+import { previewOverlay, type HiddenNewsEntry } from '~/utils/draft-preview'
 
 interface MeResponse {
   csrf_token: string
@@ -36,7 +35,7 @@ export interface DraftPreviewResult {
   render: ((date: string) => DraftPreviewRender) | null
 }
 
-type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content'
+type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content' | 'shared_faq'
 const SHARED_KINDS: SharedKind[] = [
   'home_about',
   'home_hero',
@@ -46,10 +45,11 @@ const SHARED_KINDS: SharedKind[] = [
   'booking_content',
   'day_experience',
   'home_news',
-  'admission_content'
+  'admission_content',
+  'shared_faq'
 ]
-type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour'
-const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour']
+type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour' | 'campus_news'
+const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour', 'campus_news']
 
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
@@ -114,14 +114,8 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     authorized: true,
     render(date: string) {
       // 消息的上下架日期：官網公開 API 會先過濾，草稿 API 給的是原始內容，
-      // 這裡照同一條規則過濾，預覽看到的才會和上線後一樣。
-      const news = overlay.home_news as Record<string, unknown> | undefined
-      if (!news) return { content: applyContentOverlay(content, overlay), hiddenNews: [] }
-      const scheduled = scheduleNewsDraft(news, date)
-      return {
-        content: applyContentOverlay(content, { ...overlay, home_news: scheduled.payload as never }),
-        hiddenNews: scheduled.hidden
-      }
+      // 這裡照同一條規則過濾（全站與各校消息都要），預覽看到的才會和上線後一樣。
+      return previewOverlay(content, overlay, date)
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, SiteContent } from '~/types/site-content'
+import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, FaqItem, NewsArticle, NewsBlock, NewsEvent, SiteContent } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { privacyNotice } from './privacy-notice'
 
@@ -72,27 +72,47 @@ export interface LiveDayExperience {
   moments: LiveDayMoment[]
 }
 
-export interface LiveNewsArticle {
+/** 全站消息的適用範圍；2026-09-25 以前發布的版本只有手打的 campus 文字。 */
+export interface LiveNewsScope {
+  scope?: 'global' | 'campus'
+  campus_keys?: string[]
+  campus?: string
+}
+
+export interface LiveNewsArticle extends LiveNewsScope {
   id: string
   date: string
-  campus: string
   category: string
   title: string
   description: string
+  body?: NewsBlock[]
+  featured?: boolean
   image: string
   alt: string
 }
 
-export interface LiveNewsEvent {
+export interface LiveNewsEvent extends LiveNewsScope {
   id: string
   date: string
-  campus: string
   title: string
   description: string
+  all_day?: boolean
+  start_time?: string | null
+  end_time?: string | null
+  location?: string
+  link_url?: string
+  link_label?: string
 }
 
 export interface LiveHomeNews {
   sample_note: string
+  articles: LiveNewsArticle[]
+  events: LiveNewsEvent[]
+  home_display_count?: number | null
+}
+
+/** 各校自己的消息與活動：屬於那一校，沒有適用範圍與首頁推薦。 */
+export interface LiveCampusNews {
   articles: LiveNewsArticle[]
   events: LiveNewsEvent[]
 }
@@ -127,7 +147,13 @@ export interface LiveCampusProfile {
 }
 
 export interface LiveCampusFaq {
-  items: { q: string; a: string }[]
+  items: { q: string; a: string; enabled?: boolean }[]
+  include_shared?: boolean
+  shared_position?: 'before' | 'after'
+}
+
+export interface LiveSharedFaq {
+  items: ({ id: string; q: string; a: string; enabled?: boolean } & LiveNewsScope)[]
 }
 
 export interface LiveTourSpot {
@@ -160,11 +186,74 @@ export interface ContentOverlay {
   day_experience?: LiveDayExperience | null
   home_news?: LiveHomeNews | null
   admission_content?: LiveAdmissionContent | null
-  // 這兩種是每校各一份，key 是 campus_key（見後端 get_public_content /
+  shared_faq?: LiveSharedFaq | null
+  // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
   campus_faq?: Record<string, LiveCampusFaq> | null
   campus_tour?: Record<string, LiveCampusTour> | null
+  campus_news?: Record<string, LiveCampusNews> | null
+}
+
+/** 適用範圍 → 顯示用的校區文字與 key；舊版本沿用當時手打的文字。 */
+function newsScope(entry: LiveNewsScope, names: Record<string, string>): { campus: string; campusKeys: string[] } {
+  if (entry.scope === 'campus' && entry.campus_keys?.length) {
+    return { campus: entry.campus_keys.map((key) => names[key] ?? key).join('、'), campusKeys: [...entry.campus_keys] }
+  }
+  if (entry.scope === 'global') return { campus: '全校', campusKeys: [] }
+  return { campus: entry.campus || '全校', campusKeys: [] }
+}
+
+function newsArticle(a: LiveNewsArticle, where: { campus: string; campusKeys: string[] }, id = a.id): NewsArticle {
+  return {
+    id,
+    date: a.date,
+    ...where,
+    category: a.category,
+    title: a.title,
+    description: a.description,
+    body: (a.body ?? []).map((block) => ({ ...block }) as NewsBlock),
+    featured: Boolean(a.featured),
+    image: a.image,
+    alt: a.alt
+  }
+}
+
+function newsEvent(e: LiveNewsEvent, where: { campus: string; campusKeys: string[] }, id = e.id): NewsEvent {
+  return {
+    id,
+    date: e.date,
+    month: newsMonth(e.date),
+    ...where,
+    title: e.title,
+    description: e.description,
+    allDay: e.all_day ?? true,
+    startTime: e.start_time ?? null,
+    endTime: e.end_time ?? null,
+    location: e.location ?? '',
+    linkUrl: e.link_url ?? '',
+    linkLabel: e.link_label ?? ''
+  }
+}
+
+/**
+ * 分校頁的常見問題 = 本校題目＋全站共用題目（規格 3.2）。共用題目依各校設定
+ * 放在本校題目之前或之後、或不顯示；只適用某幾校的共用題目只在那幾校出現。
+ * 本校有一題和共用題目問題相同時，顯示本校的版本，停用就是這校不顯示那一題；
+ * 其他校照樣顯示共用的答案。
+ */
+export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: LiveSharedFaq | null | undefined): FaqItem[] {
+  const own = faq.items
+  const ownQuestions = new Set(own.map((item) => item.q.trim()))
+  const sharedItems = faq.include_shared === false
+    ? []
+    : (shared?.items ?? [])
+      .filter((item) => item.enabled !== false)
+      .filter((item) => item.scope !== 'campus' || (item.campus_keys ?? []).includes(campusKey))
+      .filter((item) => !ownQuestions.has(item.q.trim()))
+      .map((item) => ({ q: item.q, a: item.a }))
+  const ownItems = own.filter((item) => item.enabled !== false).map((item) => ({ q: item.q, a: item.a }))
+  return faq.shared_position === 'after' ? [...ownItems, ...sharedItems] : [...sharedItems, ...ownItems]
 }
 
 /**
@@ -293,18 +382,6 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     }
   }
 
-  if (overlay.home_news) {
-    // 整組取代：後台一次送出完整的消息與活動清單。圖片欄位同 campus_tour，
-    // 可以是素材庫 UUID 或 fixture 代號（NewsDialog 用 responsiveTourImage 解析）。
-    const news = overlay.home_news
-    next.news = {
-      ...next.news,
-      sampleNote: news.sample_note,
-      articles: news.articles.map((a) => ({ ...a })),
-      events: news.events.map((e) => ({ ...e, month: newsMonth(e.date) }))
-    }
-  }
-
   if (overlay.admission_content) {
     // 整組取代：後台一次送出完整內容；巢狀欄位名稱兩邊相同，只有頂層要轉 camelCase。
     const a = overlay.admission_content
@@ -351,8 +428,35 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     next.campuses = next.campuses.map((c) => {
       const faq = faqs[c.key]
       if (!faq) return c
-      return { ...c, faq: { ...c.faq, items: faq.items } }
+      return { ...c, faq: { ...c.faq, items: mergeCampusFaq(c.key, faq, overlay.shared_faq) } }
     })
+  }
+
+  if (overlay.home_news || overlay.campus_news) {
+    // 整組取代：後台一次送出完整的消息與活動清單。全站消息（home_news）和
+    // 各校消息（campus_news）合併成同一份清單，官網依日期排序；校區名稱用
+    // 上面疊好的分校介紹，所以放在 campus_profile 之後。圖片欄位同
+    // campus_tour，可以是素材庫 UUID 或 fixture 代號（NewsDialog 用
+    // responsiveTourImage 解析）。
+    const names = Object.fromEntries(next.campuses.map((c) => [c.key, c.name]))
+    const news = overlay.home_news
+    const articles: NewsArticle[] = news ? news.articles.map((a) => newsArticle(a, newsScope(a, names))) : [...next.news.articles]
+    const events: NewsEvent[] = news ? news.events.map((e) => newsEvent(e, newsScope(e, names))) : [...next.news.events]
+    for (const c of next.campuses) {
+      const own = overlay.campus_news?.[c.key]
+      if (!own) continue
+      const where = { campus: c.name, campusKeys: [c.key] }
+      // 各校的 id 只在自己校內不重複，合併時加上校區避免撞到全站消息。
+      articles.push(...own.articles.map((a) => ({ ...newsArticle(a, where, `${c.key}:${a.id}`), featured: false })))
+      events.push(...own.events.map((e) => newsEvent(e, where, `${c.key}:${e.id}`)))
+    }
+    next.news = {
+      ...next.news,
+      sampleNote: news ? news.sample_note : next.news.sampleNote,
+      articles,
+      events,
+      homeCount: news?.home_display_count ?? null
+    }
   }
 
   if (overlay.campus_tour) {
