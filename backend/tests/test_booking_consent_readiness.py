@@ -9,7 +9,7 @@ import csv
 import importlib.util
 import io
 import uuid
-from datetime import date, timedelta
+from datetime import date, time as datetime_time, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -203,6 +203,20 @@ async def test_form_modes_reject_submissions_without_a_published_consent(admin_c
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "BOOKING_UNAVAILABLE"
 
+    # B04-R1：送單一定被擋，官網就不顯示表單（講暫停），總覽另外列出這些校區。
+    public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
+    assert public["mode"] == "paused"
+    assert public["message"] == "線上預約表單暫時無法使用，請來電洽詢。"
+    assert public["consent_revision_id"] is None
+    summary = (await admin_client.get(f"{API}/admin/dashboard")).json()
+    assert summary["campuses_form_without_consent"] == ["yihua"]
+    assert "yihua" not in summary["campuses_without_active_booking"]
+
+    await _publish_booking(admin_client)
+    public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
+    assert public["mode"] == "inquiry" and public["consent_text"] == TEST_CONSENT_TEXT
+    assert (await admin_client.get(f"{API}/admin/dashboard")).json()["campuses_form_without_consent"] == []
+
 
 @pytest.mark.asyncio
 async def test_manual_case_has_no_consent_version_but_records_time(admin_client):
@@ -264,6 +278,22 @@ async def test_sample_privacy_text_and_prototype_consent_cannot_be_published(adm
     blocked = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": demo["id"]})
     assert blocked.status_code == 409
     assert "示範" in blocked.json()["detail"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_blank_consent_text_cannot_be_published(admin_client, public_client):
+    """B04-R1：空白的同意文字發布出去，已開放表單的校區送單全部會被擋。"""
+    revision_id = await _publish_booking(admin_client)
+    for blank in ("", "  \n "):
+        draft = await _save_booking(admin_client, consent_text=blank)
+        blocked = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": draft["id"]})
+        assert blocked.status_code == 409, blank
+        assert blocked.json()["detail"]["code"] == "CONTENT_NOT_READY"
+        assert "不能空白" in blocked.json()["detail"]["message"]
+    # 官網仍是原本那一版。
+    config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
+    assert config["consent_revision_id"] == revision_id
+    assert config["consent_text"] == TEST_CONSENT_TEXT
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +359,7 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     assert body["blockers"]["line"] == [] and body["blockers"]["paused"] == []
     assert body["impact"] == {
         "open_requests": 0, "new_requests": 0, "contacting": 0, "pending_confirmation": 0,
-        "upcoming_confirmed": 0, "bookable_slots": 0, "weekly_rules": 0,
+        "upcoming_confirmed": 0, "past_confirmed": 0, "bookable_slots": 0, "weekly_rules": 0,
     }
 
     revision_id = await _publish_booking(admin_client, privacy_sections=_PRIVACY)
@@ -348,12 +378,41 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     assert body["blockers"]["inquiry"] == [] and body["blockers"]["slots"] == []
     assert body["impact"] == {
         "open_requests": 2, "new_requests": 1, "contacting": 0, "pending_confirmation": 0,
-        "upcoming_confirmed": 1, "bookable_slots": 2, "weekly_rules": 0,
+        "upcoming_confirmed": 1, "past_confirmed": 0, "bookable_slots": 2, "weekly_rules": 0,
     }
 
     # 其他校的人看不到。
     assert (await minghua_client.get(f"{API}/admin/booking-config/yihua/readiness")).status_code == 404
     assert (await admin_client.get(f"{API}/admin/booking-config/nowhere/readiness")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_impact_counts_confirmed_visits_already_past_separately(admin_client, public_client, db_session):
+    """B04-R4：參觀時間已過、還沒結案的已確認案件另外列，細項加總等於進行中件數。"""
+    from app.booking import readiness as readiness_service
+    from app.booking.models import BookingConfig
+    from app.common.timezones import slot_start_utc
+
+    await publish_booking_consent(db_session)
+    early = await _slot(admin_client, days_ahead=2)
+    later = await _slot(admin_client, days_ahead=6)
+    version = (await set_booking_mode(admin_client, mode="slots", slots_auto_confirm=True)).json()["version"]
+    for key, slot in (("past-a", early), ("past-b", early), ("upcoming", later)):
+        created = await _submit(public_client, version, key, slot_id=slot["id"])
+        assert created.status_code == 201, created.text
+        assert created.json()["status"] == "confirmed"
+
+    config = await db_session.get(BookingConfig, "yihua")
+    # 第一個場次開始後一小時：兩組已過參觀時間、一組還沒來。
+    after_early = slot_start_utc(
+        date.fromisoformat(early["slot_date"]), datetime_time.fromisoformat(early["start_time"])
+    ) + timedelta(hours=1)
+    impact = await readiness_service.impact(db_session, "yihua", config, now=after_early)
+    assert impact["open_requests"] == 3
+    assert impact["upcoming_confirmed"] == 1
+    assert impact["past_confirmed"] == 2
+    parts = ("new_requests", "contacting", "pending_confirmation", "upcoming_confirmed", "past_confirmed")
+    assert sum(impact[part] for part in parts) == impact["open_requests"]
 
 
 @pytest.mark.asyncio
@@ -647,3 +706,64 @@ async def test_formal_consent_migration_without_draft_only_adds_the_published_ve
     # 新發布的版本可以直接拿來送單（家長看到的就是這一版）。
     config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
     assert config["consent_revision_id"] == str(published.id)
+
+
+@pytest.mark.asyncio
+async def test_formal_consent_migration_leftover_review_and_schedule_are_not_lost_silently(
+    app, admin_client, public_client, db_session
+):
+    """B04-R3：migration 保留的舊草稿（示範同意文字）若在送審或排程中——
+
+    - 排程到期時 migration 已發布了較新的版本，照「不蓋回較新版本」的規則記
+      skipped（不是被 publish_blocker 擋成 failed），排程的人會收到通知；
+    - 送審中的舊版核准時回 CONTENT_NOT_READY（核准會把示範文字發布到官網），
+      接續的最新草稿（已換成正式文字）可以直接送審、核准。"""
+    from datetime import datetime, timezone
+
+    from app.content import publish_jobs
+    from app.content.models import PublishJob
+
+    demo = await _publish_raw(db_session, "booking_content", {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT})
+    item = await db_session.get(ContentItem, demo.content_item_id)
+    draft = await content_service.create_revision(
+        db_session, item, {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT, "cta_label": "送審中"}, item.latest_version, None
+    )
+    draft.review_status = "pending_review"
+    now = datetime.now(timezone.utc)
+    job = PublishJob(
+        id=uuid.uuid4(), content_item_id=item.id, revision_id=draft.id, publish_at=now + timedelta(days=1), created_at=now - timedelta(minutes=5)
+    )
+    db_session.add(job)
+    item_id, draft_id, draft_version, job_id = item.id, draft.id, draft.version, job.id
+    await db_session.commit()
+
+    await _run_formal_consent_migration(app)
+    db_session.expire_all()
+
+    job = await db_session.get(PublishJob, job_id)
+    job.publish_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    await db_session.commit()
+    counts = await publish_jobs.run_due_jobs(db_session)
+    assert counts == {"published": 0, "failed": 0, "skipped": 1}
+    db_session.expire_all()
+    job = await db_session.get(PublishJob, job_id)
+    assert job.status == "skipped"
+    assert f"較新的第 {draft_version + 1} 版" in job.error
+
+    approve_old = await admin_client.post(f"{BOOKING}/review", json={"revision_id": str(draft_id), "decision": "approve"})
+    assert approve_old.status_code == 409
+    assert approve_old.json()["detail"]["code"] == "CONTENT_NOT_READY"
+    assert "示範" in approve_old.json()["detail"]["message"]
+
+    item = await db_session.get(ContentItem, item_id)
+    carried = await db_session.scalar(
+        select(ContentRevision).where(ContentRevision.content_item_id == item_id, ContentRevision.version == item.latest_version)
+    )
+    carried_id = str(carried.id)
+    submitted = await admin_client.post(f"{BOOKING}/submit", json={"revision_id": carried_id})
+    assert submitted.status_code == 200, submitted.text
+    approved = await admin_client.post(f"{BOOKING}/review", json={"revision_id": carried_id, "decision": "approve"})
+    assert approved.status_code == 200, approved.text
+    config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
+    assert config["consent_revision_id"] == carried_id
+    assert config["consent_text"] == FORMAL_CONSENT_TEXT

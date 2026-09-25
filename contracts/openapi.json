@@ -442,6 +442,10 @@
             "title": "Open Requests",
             "type": "integer"
           },
+          "past_confirmed": {
+            "title": "Past Confirmed",
+            "type": "integer"
+          },
           "pending_confirmation": {
             "title": "Pending Confirmation",
             "type": "integer"
@@ -461,6 +465,7 @@
           "contacting",
           "pending_confirmation",
           "upcoming_confirmed",
+          "past_confirmed",
           "bookable_slots",
           "weekly_rules"
         ],

@@ -2132,6 +2132,8 @@ export interface components {
             new_requests: number;
             /** Open Requests */
             open_requests: number;
+            /** Past Confirmed */
+            past_confirmed: number;
             /** Pending Confirmation */
             pending_confirmation: number;
             /** Upcoming Confirmed */

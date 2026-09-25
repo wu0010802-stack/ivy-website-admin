@@ -151,6 +151,9 @@ class BookingImpactOut(BaseModel):
     pending_confirmation: int
     # 已確認、時段還沒開始：家長會照原時間來。
     upcoming_confirmed: int
+    # 已確認、參觀時間已過，還沒改成完成或未到場（2026-09-26 起）。
+    # open_requests ＝ 待處理＋聯絡中＋待園方確認＋兩種已確認。
+    past_confirmed: int
     # 官網目前可以預約的場次（與公開查詢同一個判斷：開放中、在開放區間、還有名額）。
     bookable_slots: int
     weekly_rules: int

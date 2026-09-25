@@ -60,7 +60,8 @@ NO_SLOTS_OR_RULES = NotReadyReason(
     "NO_SLOTS_OR_RULES", "目前沒有官網可預約的場次，也沒有每週開放規則，請先到「時段與容量」新增場次或規則"
 )
 
-_FORM_MODES = (BookingMode.INQUIRY, BookingMode.SLOTS)
+# 家長在官網填表的方式：要有已發布的同意文字才能收件。
+FORM_MODES = (BookingMode.INQUIRY, BookingMode.SLOTS)
 
 
 def field_blockers(
@@ -123,7 +124,7 @@ async def check_update(
     message: str | None,
 ) -> None:
     reasons = field_blockers(mode, line_url=line_url, phone=phone, external_url=external_url, message=message)
-    if mode in _FORM_MODES and mode != config.mode:
+    if mode in FORM_MODES and mode != config.mode:
         reasons += (await data_blockers(db, config.campus_key, config))[mode]
     if reasons:
         raise ModeNotReady(reasons)
@@ -164,12 +165,16 @@ async def impact(db: AsyncSession, campus_key: str, config: BookingConfig | None
         )
     ).all()
     rules = await db.scalar(select(func.count()).select_from(VisitRule).where(VisitRule.campus_key == campus_key))
+    upcoming = sum(1 for day, start in confirmed_starts if slot_start_utc(day, start) > current)
+    # 已確認的案件一定排了時段；時段已開始、還沒改成完成或未到場的另外列，
+    # 細項加總才等於進行中的件數。
     return {
         "open_requests": sum(counts.values()),
         "new_requests": counts.get(VisitRequestStatus.NEW.value, 0),
         "contacting": counts.get(VisitRequestStatus.CONTACTING.value, 0),
         "pending_confirmation": counts.get(VisitRequestStatus.PENDING_CONFIRMATION.value, 0),
-        "upcoming_confirmed": sum(1 for day, start in confirmed_starts if slot_start_utc(day, start) > current),
+        "upcoming_confirmed": upcoming,
+        "past_confirmed": counts.get(VisitRequestStatus.CONFIRMED.value, 0) - upcoming,
         "bookable_slots": await slot_service.count_bookable_slots(db, campus_key, config, current),
         "weekly_rules": rules or 0,
     }

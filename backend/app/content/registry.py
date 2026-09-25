@@ -182,8 +182,14 @@ def _tour_publish_blocker(payload: dict) -> str | None:
 def _booking_publish_blocker(payload: dict) -> str | None:
     """原型的示範同意文字、隱私說明還留著後台帶入的示意文字時不能發布
     （正式條款由園方提供）。家長送單會記錄同意的是哪一版，發布出去的就是
-    家長看到的文字。"""
-    if (payload.get("consent_text") or "").strip() == LEGACY_DEMO_CONSENT_TEXT:
+    家長看到的文字。
+
+    同意文字也不能空白：發布中的同意文字是空白時，已開放表單的校區送單都會被擋
+    （consent.current_consent 視為沒有同意文字），官網卻還顯示表單。"""
+    consent_text = (payload.get("consent_text") or "").strip()
+    if not consent_text:
+        return "同意條款文字不能空白，家長要看得到同意的內容才能勾選，請填寫後再發布"
+    if consent_text == LEGACY_DEMO_CONSENT_TEXT:
         return "同意條款文字還是原型的示範文字（資料不會傳送給學校），請改成正式文字再發布"
     texts = [payload.get("privacy_title", "")]
     for section in payload.get("privacy_sections", []):

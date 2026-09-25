@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.booking import slot_service
+from app.booking import consent, readiness, slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
@@ -198,10 +198,16 @@ async def get_dashboard_summary(
     # 「目前沒有開放的參觀場次」。有每週規則時定期工作約一分鐘內會補上，
     # 所以只看實際可預約的場次，不看規則。
     slots_without_openings = []
+    # 開放表單，但「預約文案」沒有發布中的同意文字：送單一定被擋，官網對家長
+    # 顯示暫停。切換成表單類方式時會先擋，這裡列的是更新前就開著表單的校區。
+    published_consent = await consent.current_consent(db)
+    forms_without_consent = []
     for key in all_campus_keys:
         config = configs_by_campus.get(key)
         if config is None or config.mode == BookingMode.PAUSED:
             missing_config.append(key)
+        elif published_consent is None and config.mode in readiness.FORM_MODES:
+            forms_without_consent.append(key)
         elif config.mode == BookingMode.SLOTS and await slot_service.count_bookable_slots(db, key, config, now) == 0:
             slots_without_openings.append(key)
 
@@ -232,6 +238,7 @@ async def get_dashboard_summary(
         "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
         "campuses_slots_without_openings": slots_without_openings,
+        "campuses_form_without_consent": forms_without_consent,
         "failed_notifications": failed_notifications,
     }
 

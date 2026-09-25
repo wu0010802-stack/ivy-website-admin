@@ -221,6 +221,16 @@ async def get_public_booking_config(
             "line_url": None,
             "external_url": None,
         })
+    elif published is None and config.mode in readiness.FORM_MODES:
+        # 開放表單卻沒有發布中的同意文字（切換時會擋，這是更新前就開著表單的
+        # 舊資料）：送單端點一定回 BOOKING_UNAVAILABLE，對官網先講暫停，免得
+        # 家長填完整張表才被拒。總覽會列出這些校區。
+        out = out.model_copy(update={
+            "mode": BookingMode.PAUSED,
+            "message": "線上預約表單暫時無法使用，請來電洽詢。",
+            "line_url": None,
+            "external_url": None,
+        })
     return out
 
 
