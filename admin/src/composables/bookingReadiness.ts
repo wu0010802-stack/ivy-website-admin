@@ -6,6 +6,7 @@
 //   而且只在「切換成」該方式時才算數，和後端一致。
 import type { BookingImpactOut, BookingMode, BookingReadinessOut } from '../api/types'
 import { BOOKING_MODE_LABELS } from '../api/labels'
+import { canOpenPath } from '../router/nav'
 
 export interface BookingFormFields {
   mode: BookingMode
@@ -50,10 +51,24 @@ export function modeReasons(
   return reasons
 }
 
-// 不可啟用原因對應的處理頁面，讓園方可以直接過去補。
-export const REASON_LINKS: Record<string, { to: string; label: string }> = {
-  CONSENT_NOT_PUBLISHED: { to: '/content/booking-content', label: '到預約文案發布同意文字' },
-  NO_SLOTS_OR_RULES: { to: '/slots', label: '到時段與容量新增場次' },
+// 不可啟用原因對應的處理頁面，讓園方可以直接過去補。進不去那一頁的人（例如
+// 沒有「全站共用內容」授權的分校管理者，路由守衛會導回首頁）改顯示要找誰處理。
+export const REASON_LINKS: Record<string, { to: string; label: string; otherwise: string }> = {
+  CONSENT_NOT_PUBLISHED: {
+    to: '/content/booking-content',
+    label: '到預約文案發布同意文字',
+    otherwise: '請聯絡總管理者到「預約文案」發布同意條款。',
+  },
+  NO_SLOTS_OR_RULES: { to: '/slots', label: '到時段與容量新增場次', otherwise: '請聯絡校區管理者新增場次或每週規則。' },
+}
+
+export type ReasonAction = { to: string; label: string } | { note: string } | null
+
+/** 不可啟用原因後面接的處理方式：點得進去就給連結，進不去就說要找誰。 */
+export function reasonAction(code: string, user: Parameters<typeof canOpenPath>[1]): ReasonAction {
+  const link = REASON_LINKS[code]
+  if (!link) return null
+  return canOpenPath(link.to, user) ? { to: link.to, label: link.label } : { note: link.otherwise }
 }
 
 /** 切換確認框裡的影響範圍。切換不改既有案件，數字只是提醒還要繼續跟進的。 */
@@ -66,6 +81,8 @@ export function impactLines(impact: BookingImpactOut | null | undefined, to: Boo
       impact.contacting ? `聯絡中 ${impact.contacting}` : '',
       impact.pending_confirmation ? `待園方確認 ${impact.pending_confirmation}` : '',
       impact.upcoming_confirmed ? `已確認、還沒參觀 ${impact.upcoming_confirmed}` : '',
+      // 參觀時間已過、還沒改成完成或未到場；舊版 API 沒有這個欄位。
+      impact.past_confirmed ? `已過參觀時間、尚未結案 ${impact.past_confirmed}` : '',
     ].filter(Boolean)
     lines.push(`進行中的案件 ${impact.open_requests} 件${parts.length ? `（${parts.join('、')}）` : ''}：不會被修改，照常在「參觀案件」處理。`)
   } else {

@@ -20,7 +20,7 @@ import {
   consentRecordLabel,
   partySizeLabel,
 } from '../api/labels'
-import { fieldReasons, impactLines, modeReasons } from '../composables/bookingReadiness'
+import { fieldReasons, impactLines, modeReasons, reasonAction } from '../composables/bookingReadiness'
 import { PRIVACY_SAMPLE_MARKER, privacyHasSample, privacySampleSections } from '../composables/privacyNotice'
 import type { BookingReadinessOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -34,9 +34,14 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-async function mountAt(component: unknown, path: string, routePath = '/:pathMatch(.*)*') {
+async function mountAt(
+  component: unknown,
+  path: string,
+  routePath = '/:pathMatch(.*)*',
+  user = testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: [] }),
+) {
   const pinia = createPinia()
-  useAuthStore(pinia).user = testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: [] })
+  useAuthStore(pinia).user = user
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: routePath, component: defineComponent({ template: '<div />' }) }] })
   await router.push(path)
   await router.isReady()
@@ -48,7 +53,7 @@ async function mountAt(component: unknown, path: string, routePath = '/:pathMatc
   return wrapper
 }
 
-const impact = { open_requests: 3, new_requests: 1, contacting: 0, pending_confirmation: 1, upcoming_confirmed: 1, bookable_slots: 4, weekly_rules: 0 }
+const impact = { open_requests: 3, new_requests: 1, contacting: 0, pending_confirmation: 1, upcoming_confirmed: 1, past_confirmed: 0, bookable_slots: 4, weekly_rules: 0 }
 
 function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadinessOut {
   return {
@@ -112,6 +117,25 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(impactLines(null, 'phone')[0]).toContain('無法讀取')
   })
 
+  it('已過參觀時間、還沒結案的已確認案件另外列，細項加總等於進行中件數（B04-R4）', () => {
+    const lines = impactLines({ ...impact, open_requests: 5, past_confirmed: 2 }, 'phone')
+    expect(lines[0]).toBe('進行中的案件 5 件（待處理 1、待園方確認 1、已確認、還沒參觀 1、已過參觀時間、尚未結案 2）：不會被修改，照常在「參觀案件」處理。')
+    // 舊版 API 沒有這個欄位時照舊顯示。
+    const { past_confirmed: _omitted, ...legacy } = impact
+    expect(impactLines(legacy as typeof impact, 'phone')[0]).not.toContain('尚未結案')
+  })
+
+  it('處理連結只給進得去的人，其他人看到要找誰（B04-R5）', () => {
+    const superAdmin = testUser('super_admin')
+    const campusAdmin = testUser('campus_admin', { campus_keys: ['yihua'] })
+    const grantedCampusAdmin = testUser('campus_admin', { campus_keys: ['yihua'], capabilities: ['content.shared'] })
+    expect(reasonAction('CONSENT_NOT_PUBLISHED', superAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
+    expect(reasonAction('CONSENT_NOT_PUBLISHED', grantedCampusAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
+    expect(reasonAction('CONSENT_NOT_PUBLISHED', campusAdmin)).toEqual({ note: '請聯絡總管理者到「預約文案」發布同意條款。' })
+    expect(reasonAction('NO_SLOTS_OR_RULES', campusAdmin)).toEqual({ to: '/slots', label: '到時段與容量新增場次' })
+    expect(reasonAction('FIELD', superAdmin)).toBeNull()
+  })
+
   it('稽核修改前後與中文標籤', () => {
     expect(configChangeLines({ mode: 'paused', message: null, slots_auto_confirm: false }, { mode: 'inquiry', message: '歡迎', slots_auto_confirm: false })).toEqual([
       '預約方式：暫停預約 → 線上表單（收到需求後由園方聯絡）',
@@ -153,6 +177,25 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
     await saveButton(wrapper).trigger('click')
     expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('沒有共用內容授權的分校管理者不會拿到進不去的預約文案連結（B04-R5）', async () => {
+    const blocked = readiness({
+      current_mode: 'paused',
+      consent: null,
+      blockers: {
+        inquiry: [{ code: 'CONSENT_NOT_PUBLISHED', message: '「預約文案」還沒有發布同意條款文字' }],
+        slots: [], line: [], phone: [], external: [], paused: [],
+      },
+    })
+    mockBookingApi(blocked, config('paused', '暑假暫停'))
+    const campusAdmin = testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] })
+    const wrapper = await mountAt(BookingSettingsView, '/booking', '/:pathMatch(.*)*', campusAdmin)
+    await wrapper.get('input[type="radio"][value="inquiry"]').setValue(true)
+    await nextTick()
+    const reasons = wrapper.get('.blocked-reasons')
+    expect(reasons.find('a[href="/content/booking-content"]').exists()).toBe(false)
+    expect(reasons.text()).toContain('請聯絡總管理者到「預約文案」發布同意條款。')
   })
 
   it('暫停預約要填暫停說明', async () => {
@@ -263,6 +306,23 @@ describe('總覽、案件明細、補登與全站設定', () => {
     expect(wrapper.text()).toContain('開放選時段，但沒有可預約的場次')
     expect(wrapper.text()).toContain('義華、仁武官網顯示「目前沒有開放的參觀場次」')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
+  })
+
+  it('開放線上表單卻沒有發布同意條款的校區列入待辦，連結只給進得去的人（B04-R1）', async () => {
+    const summary = { today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], campuses_slots_without_openings: [], campuses_form_without_consent: ['yihua'], failed_notifications: 0 }
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => (path === '/admin/dashboard' ? summary : []) as never)
+    let wrapper = await mountAt(DashboardView, '/')
+    expect(wrapper.text()).toContain('開放線上表單，但沒有發布同意條款')
+    expect(wrapper.text()).toContain('義華的預約方式是線上表單')
+    expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('目前沒有待處理事項')
+    wrapper.unmount()
+
+    const campusAdmin = testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] })
+    wrapper = await mountAt(DashboardView, '/', '/:pathMatch(.*)*', campusAdmin)
+    expect(wrapper.text()).toContain('開放線上表單，但沒有發布同意條款')
+    expect(wrapper.text()).toContain('請聯絡總管理者到「預約文案」發布同意條款')
+    expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(false)
   })
 
   it('案件明細顯示參觀人數與同意紀錄；舊案顯示未填', async () => {

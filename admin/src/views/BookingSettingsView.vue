@@ -4,8 +4,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { BookingConfigOut, BookingReadinessOut } from '../api/types'
 import { BOOKING_MODE_LABELS, campusLabel, configChangeLines, parentDeadlineLabel } from '../api/labels'
-import { asReadiness, impactLines, modeLabel, modeReasons, REASON_LINKS, type ModeReason } from '../composables/bookingReadiness'
+import { asReadiness, impactLines, modeLabel, modeReasons, reasonAction, type ModeReason } from '../composables/bookingReadiness'
 import { useCampusScope } from '../composables/useCampusScope'
+import { useAuthStore } from '../stores/auth'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
@@ -13,6 +14,7 @@ import { useRequestSequence } from '../composables/useRequestSequence'
 import CampusStatusCard from '../components/CampusStatusCard.vue'
 
 const { visibleCampusKeys, selected: selectedCampus, isSuperAdmin } = useCampusScope()
+const authStore = useAuthStore()
 
 type Mode = BookingConfigOut['mode']
 
@@ -73,6 +75,10 @@ function dataReasons(mode: Mode): ModeReason[] {
   return reasonsFor(mode).filter((reason) => reason.code !== 'FIELD')
 }
 const selectedReasons = computed(() => reasonsFor(form.value.mode))
+// 原因後面接的處理連結；進不去那一頁的人改顯示要找誰處理。
+const selectedReasonRows = computed(() =>
+  selectedReasons.value.map((reason) => ({ ...reason, action: reasonAction(reason.code, authStore.user) })),
+)
 const modeChanged = computed(() => Boolean(config.value) && form.value.mode !== config.value!.mode)
 // 這一頁任何欄位存檔都會讓預約設定的版本加一（含只改家長異動期限），正在
 // 官網填表單的家長送出時會被請確認一次再送。只有收表單的方式才有人在填。
@@ -270,9 +276,10 @@ async function save() {
             <div v-if="selectedReasons.length" class="blocked-reasons" role="status">
               <strong>還不能使用「{{ modeLabel(form.mode) }}」：</strong>
               <ul>
-                <li v-for="reason in selectedReasons" :key="reason.code + reason.message">
+                <li v-for="reason in selectedReasonRows" :key="reason.code + reason.message">
                   {{ reason.message }}
-                  <router-link v-if="REASON_LINKS[reason.code]" :to="REASON_LINKS[reason.code]!.to">{{ REASON_LINKS[reason.code]!.label }} →</router-link>
+                  <router-link v-if="reason.action && 'to' in reason.action" :to="reason.action.to">{{ reason.action.label }} →</router-link>
+                  <span v-else-if="reason.action" class="blocked-reasons__note">{{ reason.action.note }}</span>
                 </li>
               </ul>
             </div>
@@ -356,7 +363,8 @@ async function save() {
   padding-left: 18px;
 }
 
-.blocked-reasons a {
+.blocked-reasons a,
+.blocked-reasons__note {
   margin-left: 6px;
 }
 
