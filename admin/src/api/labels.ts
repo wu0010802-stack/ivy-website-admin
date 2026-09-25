@@ -140,7 +140,7 @@ export const BOOKING_MODE_LABELS: Record<string, string> = {
   paused: '暫停預約',
 }
 
-// 與後端 notifications/service.py 的 _KIND_LABELS 同一組。
+// 與後端 notifications/service.py 的 _KIND_LABELS 同一組（labels.test.ts 會比對）。
 export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_created: '新的參觀需求',
   visit_request_pending_confirmation: '新的時段申請（待園方確認）',
@@ -149,20 +149,65 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_rescheduled: '參觀預約已改期',
   visit_request_hold_expired: '時段占位已逾期，名額已釋放',
   visit_reschedule_requested: '家長申請改期（待園方核准）',
+  // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
+  visit_upcoming: '即將參觀（24 小時內）',
+  visit_request_overdue: '案件逾期未處理',
+}
+
+// 逾期未處理提醒的細分原因（payload.reason），與後端 reminders.REASON_LABELS 同一組。
+export const NOTIFICATION_REASON_LABELS: Record<string, string> = {
+  new_unhandled: '新的參觀需求超過 24 小時尚未處理',
+  hold_expiring: '待確認的時段申請 6 小時內到期，逾期會自動釋出名額',
 }
 
 export function notificationKindLabel(kind: string): string {
   return NOTIFICATION_KIND_LABELS[kind] ?? kind
 }
 
+/** 站內通知的標題：逾期未處理另外帶出是哪一種，和信件主旨同一個寫法。 */
+export function notificationLabel(kind: string, payload?: Record<string, unknown> | null): string {
+  const label = notificationKindLabel(kind)
+  const reason = payload?.reason
+  if (kind === 'visit_request_overdue' && typeof reason === 'string' && NOTIFICATION_REASON_LABELS[reason]) {
+    return `${label}：${NOTIFICATION_REASON_LABELS[reason]}`
+  }
+  return label
+}
+
+// 寄送失敗的最後錯誤碼是後端例外的類別名稱，給園方看的是大概原因，代碼另外
+// 小字附上，查問題時對得上伺服器紀錄。
+export function outboxErrorLabel(code: string | null | undefined): string {
+  if (!code) return '原因不明'
+  if (code === 'LinePushError') return 'LINE 推播失敗'
+  if (code === 'SMTPAuthenticationError') return '寄信伺服器帳號或密碼錯誤'
+  if (code === 'SMTPRecipientsRefused') return '收件地址被寄信伺服器拒絕'
+  if (code.startsWith('SMTP')) return '寄信伺服器錯誤'
+  if (code === 'TimeoutError' || code === 'timeout') return '連線逾時'
+  if (/^(Connection\w*Error|OSError|gaierror)$/.test(code)) return '連不上寄信或推播伺服器'
+  return '其他錯誤'
+}
+
+// 與後端所有 audit_service.log_action 的 action 同一組（labels.test.ts 會掃後端原始碼比對）。
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'booking_config.update': '更新預約設定',
   'content.publish': '發布內容',
+  'content.publish_scheduled': '排程發布內容',
+  'content.submit_review': '內容送審',
+  'content.approve': '核准並發布內容',
+  'content.reject': '退回送審內容',
+  'content.schedule': '設定排程發布',
+  'content.schedule_cancel': '取消排程發布',
+  'content.restore': '還原內容舊版',
+  'notification_outbox.retry': '重新寄送通知',
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
   'line.campus_target.update': '更新 LINE 通知群組',
   'line.test_push': '送出 LINE 測試訊息',
+  'user.create': '新增帳號',
   'user.set_active': '變更帳號啟用狀態',
+  'user.set_scope': '變更負責校區',
+  'user.reset_password': '重設密碼',
+  'user.change_password': '變更自己的密碼',
   'user.set_role': '變更角色與校區',
   'user.set_capabilities': '變更授權（全站內容／匯出個資）',
   'visit_request.export': '匯出家長個資',
@@ -240,13 +285,16 @@ export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
   system: '系統自動',
 }
 
+// 與後端 log_action 的 target_type 同一組（labels.test.ts 會比對）。
 export const AUDIT_TARGET_LABELS: Record<string, string> = {
   booking_config: '預約設定',
   campus: '分校',
   content_item: '內容',
+  notification_outbox: '通知寄送',
   site_settings: '全站設定',
   user: '使用者',
   visit_request: '參觀案件',
+  visit_requests: '參觀案件（批次清理）',
   visit_schedule: '開放規則',
   visit_exception: '休假日',
 }

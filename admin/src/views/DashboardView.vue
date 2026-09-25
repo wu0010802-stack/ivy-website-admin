@@ -173,7 +173,7 @@ onMounted(load)
             </router-link>
             <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications">
               <span class="task__number">{{ summary.failed_notifications }}</span>
-              <div><h3>通知需要確認</h3><p>查看寄送失敗原因，再決定是否重新寄送。</p><span class="task__action">查看通知 →</span></div>
+              <div><h3>通知寄送失敗</h3><p>自動重試後仍沒送出的 Email 或 LINE 通知。查看失敗原因，修好設定後重新寄送。</p><span class="task__action">查看並重新寄送 →</span></div>
             </router-link>
             <div v-if="reviews.length > 0" class="task">
               <span class="task__number">{{ reviews.length }}</span>

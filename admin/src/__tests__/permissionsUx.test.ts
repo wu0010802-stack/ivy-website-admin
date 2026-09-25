@@ -118,7 +118,7 @@ describe('站內通知', () => {
     requested_slot_remaining: 2, requested_slot_available: true, created_at: '2026-09-22T00:00:00Z',
   }
   function mockApi() {
-    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('reschedule-requests') ? [reschedule] : [notification]) as never)
+    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? [] : String(path).includes('reschedule-requests') ? [reschedule] : [notification]) as never)
   }
 
   it('櫃台可以標記已讀、核准或退回改期', async () => {

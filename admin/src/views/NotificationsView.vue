@@ -2,8 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
-import { campusLabel, formatDateTime, formatSlotWhen, notificationKindLabel } from '../api/labels'
-import type { RescheduleRequestOut } from '../api/types'
+import { campusLabel, formatDateTime, formatSlotWhen, notificationLabel, outboxErrorLabel } from '../api/labels'
+import type { NotificationOutboxOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
 import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
@@ -38,9 +38,35 @@ const bulkTotal = ref(0)
 const loadError = ref('')
 const operationResult = ref('')
 const operationFailed = ref(false)
-const operationBusy = computed(() => busyId.value !== null || bulkBusy.value)
+const retryAllBusy = ref(false)
+const operationBusy = computed(() => busyId.value !== null || bulkBusy.value || retryAllBusy.value)
 let loadVersion = 0
 let alive = true
+
+// 寄送失敗（自動重試到上限仍失敗）的通知。列出你負責的所有校區，不跟著上面
+// 的校區切換——總覽的失敗數是全部校區加總，點進來要看得到同一批。另外載入，
+// 讀不到也不影響下面的通知清單。
+const failedOutbox = ref<NotificationOutboxOut[]>([])
+const failedError = ref('')
+let failedVersion = 0
+
+async function loadFailed() {
+  const version = ++failedVersion
+  failedError.value = ''
+  if (!can('booking.read')) { failedOutbox.value = []; return }
+  try {
+    const rows = await api.get<NotificationOutboxOut[]>('/admin/notification-outbox')
+    if (alive && version === failedVersion) failedOutbox.value = rows
+  } catch {
+    if (alive && version === failedVersion) failedError.value = '無法讀取寄送失敗的通知，請重新整理。'
+  }
+}
+void loadFailed()
+
+function refreshAll() {
+  void load()
+  void loadFailed()
+}
 
 async function load() {
   const version = ++loadVersion
@@ -134,6 +160,54 @@ async function markAllRead() {
   } finally { bulkBusy.value = false }
 }
 
+// 已經送到的管道：重新寄送時會略過，只補沒送到的。
+function deliveredText(row: NotificationOutboxOut): string {
+  const parts: string[] = []
+  if (row.delivered.inbox) parts.push('站內通知')
+  if (row.delivered.line) parts.push('LINE 群組')
+  if (row.delivered.email > 0) parts.push(`Email ${row.delivered.email} 人`)
+  return parts.length ? parts.join('、') : '尚未送到任何管道'
+}
+
+function apiMessage(err: unknown, fallback: string): string {
+  const detail = err instanceof ApiError ? (err.detail as { message?: string } | null) : null
+  return detail && typeof detail === 'object' && detail.message ? detail.message : fallback
+}
+
+async function retryOne(row: NotificationOutboxOut) {
+  if (!canHandle.value || operationBusy.value) return
+  busyId.value = row.id
+  try {
+    await api.post(`/admin/notification-outbox/${row.id}/retry`)
+    if (!alive) return
+    ElMessage.success('已排入重新寄送，約一分鐘內由系統重送')
+    failedOutbox.value = failedOutbox.value.filter((item) => item.id !== row.id)
+  } catch (err) {
+    if (!alive) return
+    ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
+    await loadFailed()
+  } finally { busyId.value = null }
+}
+
+async function retryAll() {
+  if (!canHandle.value || operationBusy.value || failedOutbox.value.length === 0) return
+  retryAllBusy.value = true
+  operationResult.value = ''
+  try {
+    const result = await api.post<NotificationRetryBatchOut>('/admin/notification-outbox/retry', {
+      ids: failedOutbox.value.map((row) => row.id),
+    })
+    if (!alive) return
+    operationFailed.value = result.skipped > 0
+    operationResult.value = result.skipped
+      ? `已排入 ${result.requeued} 則重新寄送；${result.skipped} 則已被其他人處理或無法重送。`
+      : `已排入 ${result.requeued} 則重新寄送，約一分鐘內由系統重送。`
+    await loadFailed()
+  } catch (err) {
+    if (alive) ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
+  } finally { retryAllBusy.value = false }
+}
+
 async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAction) {
   if (!canHandle.value || operationBusy.value || loading.value) return
   // 核准會直接換掉家長的參觀時間、退回會讓家長維持原時段，兩者都是對外
@@ -163,7 +237,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長送出需求、申請改期，以及案件確認、取消時的站內通知。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄。" />
+    <PageHeader lead="家長送出需求、申請改期、案件確認與取消，以及即將參觀、逾期未處理的提醒。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。" />
 
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
@@ -177,9 +251,60 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
     <template v-else>
       <div class="list-summary" aria-live="polite">
         <span>{{ campusLabel(campusFilter) }} · {{ loading ? '讀取中…' : loadError ? '尚未載入' : `${notifications.length} 則通知，${unreadCount} 則未讀` }}</span>
-        <el-button :disabled="operationBusy || loading" @click="load">重新整理</el-button>
+        <el-button :disabled="operationBusy || loading" @click="refreshAll">重新整理</el-button>
       </div>
       <el-alert v-if="operationResult" :title="operationResult" :type="operationFailed ? 'warning' : 'success'" show-icon :closable="false" class="inline-error" />
+      <el-alert v-if="failedError" :title="failedError" type="error" show-icon :closable="false" class="inline-error" />
+      <section v-if="failedOutbox.length > 0" class="panel failed" aria-labelledby="failed-outbox-title">
+        <div class="panel__head">
+          <h2 id="failed-outbox-title">寄送失敗（{{ failedOutbox.length }}）</h2>
+          <el-button v-if="canHandle" type="primary" :loading="retryAllBusy" :disabled="operationBusy" @click="retryAll">全部重新寄送</el-button>
+        </div>
+        <p class="failed__lead">系統自動重試 5 次仍沒送出的通知（含你負責的所有校區）。先確認寄信或 LINE 設定已修好再重新寄送；已送到的管道不會重複送。</p>
+        <el-table :data="failedOutbox" class="data-table">
+          <el-table-column label="通知" min-width="220">
+            <template #default="{ row }: { row: NotificationOutboxOut }">
+              <strong>{{ notificationLabel(row.kind, { reason: row.reason }) }}</strong>
+              <router-link :to="`/visit-requests/${row.visit_request_id}`" class="open-link">查看案件</router-link>
+            </template>
+          </el-table-column>
+          <el-table-column label="校區" width="80">
+            <template #default="{ row }: { row: NotificationOutboxOut }">{{ campusLabel(row.campus_key) }}</template>
+          </el-table-column>
+          <el-table-column label="失敗原因" min-width="170">
+            <template #default="{ row }: { row: NotificationOutboxOut }">
+              {{ outboxErrorLabel(row.error_code) }}
+              <span v-if="row.error_code" class="slot-note">{{ row.error_code }}・已試 {{ row.attempts }} 次</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="已送到" min-width="150">
+            <template #default="{ row }: { row: NotificationOutboxOut }">{{ deliveredText(row) }}</template>
+          </el-table-column>
+          <el-table-column label="通知時間" width="150">
+            <template #default="{ row }: { row: NotificationOutboxOut }"><span class="num">{{ formatDateTime(row.created_at) }}</span></template>
+          </el-table-column>
+          <el-table-column v-if="canHandle" width="110" align="right">
+            <template #default="{ row }: { row: NotificationOutboxOut }">
+              <el-button size="small" :loading="busyId === row.id" :disabled="operationBusy" @click="retryOne(row)">重新寄送</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <ul class="mobile-records" aria-label="寄送失敗的通知">
+          <li v-for="row in failedOutbox" :key="row.id" class="mobile-record">
+            <div class="record-heading"><strong>{{ notificationLabel(row.kind, { reason: row.reason }) }}</strong><el-tag type="danger">寄送失敗</el-tag></div>
+            <dl class="record-meta">
+              <dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd>
+              <dt>失敗原因</dt><dd>{{ outboxErrorLabel(row.error_code) }}</dd>
+              <dt>已送到</dt><dd>{{ deliveredText(row) }}</dd>
+              <dt>通知時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd>
+            </dl>
+            <div class="record-actions">
+              <router-link :to="`/visit-requests/${row.visit_request_id}`">查看案件</router-link>
+              <el-button v-if="canHandle" :loading="busyId === row.id" :disabled="operationBusy" @click="retryOne(row)">重新寄送</el-button>
+            </div>
+          </li>
+        </ul>
+      </section>
       <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false" class="inline-error">
         <el-button :disabled="operationBusy" @click="load">重新載入</el-button>
       </el-alert>
@@ -254,7 +379,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           </el-table-column>
           <el-table-column label="通知" min-width="260">
             <template #default="{ row }: { row: NotificationOut }">
-              <strong :class="{ muted: row.read_at }">{{ notificationKindLabel(row.kind) }}</strong>
+              <strong :class="{ muted: row.read_at }">{{ notificationLabel(row.kind, row.payload) }}</strong>
               <span v-if="summary(row)" class="muted">・{{ summary(row) }}</span>
               <router-link v-if="visitRequestId(row)" :to="`/visit-requests/${visitRequestId(row)}`" class="open-link">查看案件</router-link>
             </template>
@@ -273,7 +398,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
         </el-table>
         <ul class="mobile-records" aria-label="通知清單">
           <li v-for="row in visibleNotifications" :key="row.id" class="mobile-record">
-            <div class="record-heading"><strong>{{ notificationKindLabel(row.kind) }}</strong><el-tag :type="row.read_at ? 'info' : 'primary'">{{ row.read_at ? '已讀' : '未讀' }}</el-tag></div>
+            <div class="record-heading"><strong>{{ notificationLabel(row.kind, row.payload) }}</strong><el-tag :type="row.read_at ? 'info' : 'primary'">{{ row.read_at ? '已讀' : '未讀' }}</el-tag></div>
             <p v-if="summary(row)">{{ summary(row) }}</p>
             <dl class="record-meta"><dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd><dt>時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd></dl>
             <div v-if="visitRequestId(row) || (canHandle && !row.read_at)" class="record-actions">
@@ -294,6 +419,22 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 .record-actions { align-items: center; }
 .record-actions a { margin-right: auto; }
 .record-heading strong { overflow-wrap: anywhere; }
+
+.failed {
+  margin-bottom: 20px;
+  border-color: var(--el-color-danger-light-5);
+}
+
+.failed__lead {
+  margin: 0;
+  padding: 12px 24px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 720px) {
+  .failed__lead { padding: 12px 16px; }
+}
 
 .reschedule {
   margin-bottom: 20px;
