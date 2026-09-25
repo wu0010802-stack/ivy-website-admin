@@ -1,3 +1,19 @@
+## 2026-09-25 手機捲動順暢度：拿掉每幀整頁樣式重算與 WebGL 紙的通用法線重算
+
+使用者反映手機版滑動不順。對線上站用 Chrome 手機模擬（390×844、3×、CDP 觸控捲動手勢、CPU 4 倍降速）錄 trace、invalidation tracking 與 CPU profile，找到三個每幀成本來源。只改 `web/`，畫面與行為不變：
+
+- 「關於」簾幕擦除時，`useRelayProgress`（`useCurtain.ts`）每幀把四個變數寫在 `<html>`；自訂屬性會繼承，整頁五百多個元素每幀重算樣式。改成只把 `--relay-day` 寫在唯一讀它的「的一天」（`.t-day`）上，值不變就不寫。`--seam-inset`／`--relay`／`--relay-glow` 只給原型的 relay-glint 研究面板用，Nuxt 沒開這個 class，不再寫。
+- 手機 WebGL 拍立得掛上後，捲動起風每幀要重算整張紙兩面的頂點法線，three 的 `computeVertexNormals()` 佔這段 JS 的四分之一以上。新增 `web/app/utils/gridNormals.ts`，用 typed array 跑同一套運算，結果與 three 逐位元相同。`cornerCurl.ts` 的 `setCurl` 基準轉角改成只算一次（原本七個波紋層級各算一遍），積分表逐值相同。
+- 順風微擺 `--sway` 原本寫在 `li.day-print`，整張卡的子樹每幀跟著重算。改寫在唯一讀它的 `.print-card`，並用 `@property` 註冊成不繼承。
+
+驗證（本機 fixture production build，原版 `origin/main` 對修改版，Chrome 手機模擬）：
+- 「關於」接縫來回滑（4× 降速，3 輪）：樣式重算元素 8.5k–11.7k → 21–66，樣式時間 548–1179 → 25–133 ms，慢幀（>20 ms）16–23 → 2–15。
+- 拍立得區 CSS 版（4×，3 輪）：重算元素 15.7k–19.2k → 5.5k–6.0k，幀距 p50 16.8–33 → 16.7 ms，慢幀 74–89 → 27–46。
+- 拍立得區 WebGL 已掛上（2×，2 輪）：慢幀 12、62 → 3、5，p95 33 → 16.8 ms。1× 兩版都是 60 fps，4× 兩版都飽和。CPU profile：法線 1211 → 292 ms，主執行緒閒置 689 → 1465 ms。
+- 等價：Node 22 web vitest 32 檔 233 項通過（新增 `grid-normals.spec.ts` 5 項逐位元比對 three；`corner-curl.spec.ts` 3 項比對舊積分表；`relay-progress.spec.ts` 3 項），`nuxt typecheck` 0 個 `error TS`。法線測試用 float32 捨入突變確認會轉紅。接縫 321 個捲動位置「的一天」opacity 兩版相同（含中間值）。Chrome 與 WebKit 捲動中 `.print-card` rotate 兩版相同，停下後歸位。WebGL 版靜止截圖兩版逐像素相同。CSS 版截圖曾有差異，隔離後確認是照片點陣化時機的雜訊：同一版重跑也會不同，原版注入同一條 `@property` 仍與原版相同。無 page error。
+
+未處理（另案）：觸控裝置停下 200 ms 後掛上 WebGL 紙時，該幀仍有 100–250 ms 的長任務（2× 降速，兩版相同），剛好接著滑會卡一下。iPhone Safari 實機與 GPU 端（3× DPR WebGL 繪製、畫布複製）都還沒量。腳本與結果在 `output/playwright/mobile-scroll-perf-20260925/`，快照在 `versions/before-mobile-scroll-perf-20260925-070912/`。凍結的 vanilla 原型未改。
+
 ## 2026-09-24 後台 LINE 登入（登入後自行綁定）
 
 登入頁加入 LINE 登入，與 Google、帳密並存。LINE 的 ID token 沒有 `email_verified`，所以不拿 email 比對、不自動綁定：管理員先用帳密或 Google 登入，點側欄底部自己的 email 進入新的「我的帳號」（`/account`）按「綁定 LINE」，之後就能用 LINE 登入，也可以自行解除。後端新增 `app/auth/line.py`：只要 `openid`，帶 state／nonce／PKCE，用自己的簽章握手 cookie（不和 Google 的 `SessionMiddleware` 共用 `scope["session"]`），ID token 依演算法分別用 Channel secret（HS256）或 LINE JWKS（ES256）驗；綁定時確認是同一位仍啟用的管理員 session，綁定與解除寫入操作紀錄。migration `d41e6c2a9f58` 接在 `b6d1f8e3a524` 後，只新增 `users.line_sub`，部署時由 API 啟動自動套用。`/auth/providers` 移到 `routes.py` 並回傳 `{google, line}`，`UserOut` 加 `line_linked`；Google 與 LINE 共用的 `safe_admin_path` 等抽成 `app/auth/oauth_common.py`（Google 的 `aud` 檢查不變）。LINE Developers 設定、環境變數與驗收清單見 [LINE 登入設定說明](deploy/line-oauth.md)。三個 `WEBSITE_LINE_*` 未設定前入口不會出現。

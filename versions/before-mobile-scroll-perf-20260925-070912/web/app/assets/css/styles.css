@@ -56,9 +56,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print.tint-mint{--print-tint:var(--mint)}
 .day-print.tint-peach{--print-tint:var(--ivy-print-tint)}
 .day-print.tint-cream{--print-tint:var(--cream)}
-/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。
-   --sway 捲動中每幀由 DayMomentCard 直接寫在 .print-card 上；註冊成不繼承，只重算這一個元素，不連整張卡片的子樹一起重算。 */
-@property --sway{syntax:'<angle>';inherits:false;initial-value:0deg}
+/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
 .print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
 .day-print:nth-child(odd) .print-card{grid-column:1;justify-self:start;margin-left:6%}
 .day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}

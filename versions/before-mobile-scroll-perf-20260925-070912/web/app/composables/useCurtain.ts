@@ -127,28 +127,13 @@ export function useCurtain(
 
 /**
  * ?seam=2 接力效果（2026-09-18 定案為預設）：算擦除邊界掃過浮水印
- * 「常春藤」的進度，寫成 `--relay-day` 給 `.relay-day .t-day`（「的一天」）用。
+ * 「常春藤」的進度，寫成 CSS 變數給 `.relay-day .t-day` 之類的規則用。
  * 只用在 belief 簾幕的 onProgress。
- *
- * 變數直接寫在 `.t-day` 上、值沒變就不寫：原本寫在 <html>，自訂屬性會繼承，
- * 擦除期間每幀整頁五百多個元素重算樣式（4 倍 CPU 降速的手機模擬每幀約 15ms）。
- * 舊版另寫的 --seam-inset／--relay／--relay-glow 只給原型的 relay-glint 研究面板用，Nuxt 沒有開這個 class。
  */
 export function useRelayProgress(panelRef: Ref<HTMLElement | null>) {
   const clamp = (n: number) => Math.max(0, Math.min(1, n))
   let wordBottom = 0
   let wordHeight = 0
-  let targets: HTMLElement[] = []
-  let written = ''
-  function write(value: string) {
-    if (!targets[0]?.isConnected) {
-      targets = Array.from(document.querySelectorAll<HTMLElement>('.t-day'))
-      written = ''
-    }
-    if (value === written) return
-    written = value
-    for (const target of targets) target.style.setProperty('--relay-day', value)
-  }
   function measure() {
     const word = panelRef.value?.querySelector<HTMLElement>('.wm-b')
     const backdrop = panelRef.value?.querySelector<HTMLElement>('.belief-backdrop')
@@ -161,13 +146,18 @@ export function useRelayProgress(panelRef: Ref<HTMLElement | null>) {
     wordBottom = wordRect.bottom - backdropRect.top + (Number.parseFloat(getComputedStyle(backdrop).top) || 0)
   }
   const update = (progress: number | null, screen: number) => {
+    const style = document.documentElement.style
     if (progress === null) {
-      write('1')
+      style.setProperty('--relay-day', '1')
+      style.setProperty('--relay-glow', '0')
       return
     }
     const seamY = screen - progress * screen
     const t = progress <= 0 ? 0 : progress >= 1 ? 1 : wordHeight ? clamp((wordBottom - seamY) / wordHeight) : 0
-    write(clamp((t - 0.7) / 0.3).toFixed(3))
+    style.setProperty('--seam-inset', `${(progress * screen).toFixed(1)}px`)
+    style.setProperty('--relay', t.toFixed(3))
+    style.setProperty('--relay-glow', `${Math.min(1, t * 8, (1 - t) * 8).toFixed(3)}`)
+    style.setProperty('--relay-day', `${clamp((t - 0.7) / 0.3).toFixed(3)}`)
   }
   return Object.assign(update, { measure })
 }

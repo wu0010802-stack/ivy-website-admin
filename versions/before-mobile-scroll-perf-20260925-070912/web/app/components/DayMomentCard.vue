@@ -22,7 +22,6 @@ const isSnapping = ref(false)
 const webglReady = ref(false)
 const isCornering = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
-const swayEl = ref<HTMLDivElement | null>(null)
 const wrapEl = ref<HTMLDivElement | null>(null)
 const printEl = ref<HTMLDivElement | null>(null)
 const frontCornerEl = ref<HTMLSpanElement | null>(null)
@@ -128,18 +127,10 @@ function renderCorner(now = performance.now()) {
   else writeCssCorner(pose, side)
 }
 
-// --sway 註冊成不繼承（styles.css），要寫在讀它的 .print-card 本身；值沒變就不寫。
-let sway = ''
-function writeSway(value: string) {
-  if (value === sway) return
-  sway = value
-  swayEl.value?.style.setProperty('--sway', value)
-}
-
 function applyWind(wind: Readonly<WindState>, t: number) {
   windCorner = cornerPose(wind, t, seed)
   renderCorner()
-  writeSway(`${wind.sway.toFixed(3)}deg`)
+  cardEl.value?.style.setProperty('--sway', `${wind.sway.toFixed(3)}deg`)
 }
 
 // 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫。
@@ -153,7 +144,7 @@ function listenWind(on: boolean) {
   stopWind = null
   windCorner = CORNER_REST
   renderCorner()
-  writeSway('0.000deg')
+  cardEl.value?.style.setProperty('--sway', '0deg')
 }
 
 // 翻面起手與進場輕掀的時鐘：跑完就收掉
@@ -504,7 +495,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
     :class="[`tint-${moment.tint}`, { 'is-revealed': isRevealed, 'is-active': active }]"
     :id="`day-${moment.key}`"
   >
-    <div ref="swayEl" class="print-card">
+    <div class="print-card">
       <div
         ref="wrapEl"
         class="print-wrap"
