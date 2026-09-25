@@ -5,12 +5,13 @@ import { api, ApiError } from '../api/client'
 import PageHeader from '../components/PageHeader.vue'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
-interface SiteSettingsOut {
-  title: string
-  description: string
-  share_image: string | null
-  noindex: boolean
-  privacy_policy_version: string
+// 官網的描述、分享圖與是否允許收錄只以「網站標題與電話」（site_meta）為準，
+// 有草稿與發布流程；這裡只讀官網目前發布中的值給總管理者核對。舊的
+// /admin/site-settings 官網從來不讀，已不再使用。
+interface PublishedSiteMeta {
+  description?: string
+  share_image?: string
+  allow_indexing?: boolean
 }
 
 interface RetentionReport {
@@ -18,52 +19,32 @@ interface RetentionReport {
   candidate_ids: string[]
 }
 
-const settings = ref<SiteSettingsOut>({
-  title: '',
-  description: '',
-  share_image: null,
-  noindex: true,
-  privacy_policy_version: '',
-})
-const snapshot = ref('')
+const siteMeta = ref<PublishedSiteMeta | null>(null)
 const loading = ref(true)
-const savingSettings = ref(false)
 const loadError = ref<string | null>(null)
-const isDirty = computed(() => Boolean(snapshot.value) && JSON.stringify(settings.value) !== snapshot.value)
-useUnsavedChanges(isDirty, computed(() => savingSettings.value || runningRetention.value))
 
 const retentionDays = ref(365)
 const retentionReport = ref<RetentionReport | null>(null)
 const checkedDays = ref<number | null>(null)
 const runningRetention = ref(false)
+useUnsavedChanges(computed(() => false), runningRetention)
 watch(retentionDays, () => { retentionReport.value = null; checkedDays.value = null })
 
 async function loadSettings() {
   loading.value = true
   loadError.value = null
   try {
-    settings.value = await api.get<SiteSettingsOut>('/admin/site-settings')
-    snapshot.value = JSON.stringify(settings.value)
+    const site = await api.get<{ content?: { site_meta?: PublishedSiteMeta } }>('/public/site')
+    siteMeta.value = site.content?.site_meta ?? null
   } catch {
-    loadError.value = '無法讀取全站設定，請重新載入。'
+    loadError.value = '無法讀取官網目前的設定，請重新載入。'
   } finally {
     loading.value = false
   }
 }
 
-async function saveSettings() {
-  if (loading.value || loadError.value || savingSettings.value || !isDirty.value) return
-  savingSettings.value = true
-  try {
-    settings.value = await api.patch<SiteSettingsOut>('/admin/site-settings', settings.value)
-    snapshot.value = JSON.stringify(settings.value)
-    ElMessage.success('已更新全站設定')
-  } catch (err) {
-    ElMessage.error(err instanceof ApiError && err.status === 403 ? '只有總管理者可以修改全站設定' : '更新失敗')
-  } finally {
-    savingSettings.value = false
-  }
-}
+// 官網沒有發布過 site_meta 時沿用內建設定：允許收錄（仍受部署設定限制）。
+const allowIndexing = computed(() => siteMeta.value?.allow_indexing !== false)
 
 async function dryRunRetention() {
   if (runningRetention.value) return
@@ -118,39 +99,40 @@ onMounted(loadSettings)
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="搜尋引擎相關設定與個資保存政策，只有總管理者可以修改。這一頁不經過草稿，儲存後官網立即生效。" />
+    <PageHeader lead="個資保存政策，以及官網搜尋與分享設定的總覽。個資清理只有總管理者可以執行。" />
 
     <section class="panel">
       <div class="panel__head"><h2>搜尋與分享</h2></div>
       <div class="panel__body">
         <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="loadSettings">重新載入</el-button></el-alert>
         <el-skeleton v-else-if="loading" animated :rows="4" />
-        <el-form v-else label-position="top" :disabled="savingSettings" :aria-busy="savingSettings" @submit.prevent="saveSettings">
-          <el-form-item label="站名（後台識別用）">
-            <el-input v-model="settings.title" />
-            <span class="field-help">官網分頁標題在 <router-link to="/content/site-meta">網站標題與電話</router-link> 修改。</span>
-          </el-form-item>
-          <el-form-item label="預設描述">
-            <el-input v-model="settings.description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
-          </el-form-item>
-          <el-form-item label="搜尋引擎" class="stacked-field">
-            <el-checkbox v-model="settings.noindex">暫時不讓 Google 收錄（上線前）</el-checkbox>
-            <span class="field-help">
-              {{ settings.noindex ? '目前搜尋不到官網。正式上線時要取消勾選，家長才找得到。' : '官網可以被搜尋引擎收錄。' }}
-            </span>
-          </el-form-item>
-          <el-form-item label="隱私政策版本">
-            <el-input v-model="settings.privacy_policy_version" placeholder="例如：2026-09" />
-            <span class="field-help">只是園方內部的版本標記，不會記在案件上。家長送出參觀需求時，案件記錄的是<router-link to="/content/booking-content">預約文案</router-link>裡當時發布中的同意條款與隱私說明版本，在案件明細可以看到。</span>
-          </el-form-item>
-          <div class="save-row">
-            <el-button type="primary" :loading="savingSettings" :disabled="!isDirty" @click="saveSettings">
-              儲存並套用到官網
-            </el-button>
-            <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
-            <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
-          </div>
-        </el-form>
+        <template v-else>
+          <p class="page-lead">
+            官網的網站描述、社群分享圖與是否允許搜尋引擎收錄，都在<router-link to="/content/site-meta">網站標題與電話</router-link>修改，發布後才會套用到官網。這裡顯示的是官網目前發布中的設定。
+          </p>
+          <dl class="seo-summary">
+            <div>
+              <dt>搜尋引擎收錄</dt>
+              <dd>
+                <strong>{{ allowIndexing ? '允許收錄' : '不允許收錄' }}</strong>
+                <span class="field-help">要同時符合兩個條件官網才會被收錄：部署設定開啟正式索引，而且這裡是允許收錄。任一個關閉，各頁、robots.txt 與 sitemap.xml 都會請搜尋引擎不要收錄。</span>
+              </dd>
+            </div>
+            <div>
+              <dt>網站描述</dt>
+              <dd>{{ siteMeta?.description || '沿用官網內建的描述' }}</dd>
+            </div>
+            <div>
+              <dt>社群分享圖</dt>
+              <dd>{{ siteMeta?.share_image ? '已選擇分享圖' : '沿用首頁大圖' }}</dd>
+            </div>
+            <div>
+              <dt>家長同意的版本</dt>
+              <dd>家長送出參觀需求時，案件會記錄當時發布中的<router-link to="/content/booking-content">預約文案</router-link>同意說明版本，在案件明細可以看到。</dd>
+            </div>
+          </dl>
+          <p v-if="!siteMeta" class="field-help">官網還沒發布過網站標題與電話，目前沿用內建設定。</p>
+        </template>
       </div>
     </section>
 
@@ -187,11 +169,35 @@ onMounted(loadSettings)
 </template>
 
 <style scoped>
-/* 勾選框是 inline，說明會被排到同一行；其他欄位的說明都在下方，統一成直排。 */
-.stacked-field :deep(.el-form-item__content) {
+.seo-summary {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.seo-summary > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.seo-summary dt {
+  color: var(--ink-3);
+}
+
+.seo-summary dd {
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 4px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .seo-summary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }
 
 .retention {

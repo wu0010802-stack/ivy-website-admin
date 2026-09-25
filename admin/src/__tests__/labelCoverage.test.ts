@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest'
 import {
   AUDIT_ACTION_LABELS,
   AUDIT_TARGET_LABELS,
+  CANCEL_REASON_LABELS,
+  CTA_ENTRY_LABELS,
+  REFERRAL_SOURCE_LABELS,
+  VISIT_SOURCE_LABELS,
   NOTIFICATION_KIND_LABELS,
   NOTIFICATION_REASON_LABELS,
   notificationLabel,
@@ -120,5 +124,29 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(outboxErrorLabel('ConnectionRefusedError')).toBe('連不上寄信或推播伺服器')
     expect(outboxErrorLabel('RuntimeError')).toBe('其他錯誤')
     expect(outboxErrorLabel(null)).toBe('原因不明')
+  })
+
+  it('成效統計的入口代碼、取消原因、案件來源與「從哪裡知道我們」都有中文', () => {
+    const models = source('operations/models.py')
+    const entriesBlock = models.slice(models.indexOf('CTA_ENTRIES = ('), models.indexOf(')', models.indexOf('CTA_ENTRIES = (')))
+    const entries = [...entriesBlock.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!)
+    expect(entries.length).toBeGreaterThan(8)
+    expect(entries.filter((entry) => !CTA_ENTRY_LABELS[entry])).toEqual([])
+
+    const reasons = [...models.matchAll(/^CANCEL_REASON_[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
+    expect(reasons).toEqual(['parent', 'staff', 'hold_expired'])
+    expect(reasons.filter((reason) => !CANCEL_REASON_LABELS[reason])).toEqual([])
+
+    const bookingModels = source('booking/models.py')
+    const sourceBlock = bookingModels.slice(bookingModels.indexOf('class VisitRequestSource'), bookingModels.indexOf('class BookingConfig'))
+    const sources = [...sourceBlock.matchAll(/^\s+[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
+    expect(sources).toContain('walk_in')
+    expect(sources.filter((value) => !VISIT_SOURCE_LABELS[value])).toEqual([])
+
+    const schemas = source('booking/schemas.py')
+    const referralLine = schemas.slice(schemas.indexOf('ReferralSource = Literal['), schemas.indexOf('\n', schemas.indexOf('ReferralSource = Literal[')))
+    const referrals = [...referralLine.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!)
+    expect(referrals.length).toBe(5)
+    expect(referrals.filter((value) => !REFERRAL_SOURCE_LABELS[value])).toEqual([])
   })
 })

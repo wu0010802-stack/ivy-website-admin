@@ -303,10 +303,11 @@ describe('總覽、案件明細、補登與全站設定', () => {
     expect(post.mock.calls[0]![1]).toMatchObject({ party_size: 3 })
   })
 
-  it('全站設定的隱私政策版本說明講清楚實際記錄的是預約文案的版本', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue({ title: '常春藤', description: '', share_image: null, noindex: true, privacy_policy_version: '2026-09' } as never)
+  it('全站設定頁說明家長同意記錄的是預約文案的版本，不再有沒作用的隱私政策版本欄位', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ content: { site_meta: { description: '', share_image: '', allow_indexing: true } } } as never)
     const wrapper = await mountAt(PoliciesView, '/policies')
-    expect(wrapper.text()).toContain('不會記在案件上')
+    expect(wrapper.text()).toContain('案件會記錄當時發布中的')
+    expect(wrapper.text()).not.toContain('隱私政策版本')
     expect(wrapper.text()).not.toContain('改版後家長送出表單時會記錄同意的是哪一版')
     expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)
   })

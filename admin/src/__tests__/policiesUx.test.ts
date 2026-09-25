@@ -12,13 +12,16 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 
-async function setup() {
+const site: { content: { site_meta?: Record<string, unknown> } } = { content: { site_meta: { description: '網站說明', share_image: '', allow_indexing: false } } }
+
+async function setup(firstError?: Error) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/policies')
   await router.isReady()
-  vi.spyOn(api, 'get').mockResolvedValue({ title: '常春藤', description: '網站說明', share_image: null, noindex: true, privacy_policy_version: '2026-09' })
+  const get = vi.spyOn(api, 'get').mockResolvedValue(site)
+  if (firstError) get.mockRejectedValueOnce(firstError)
   const wrapper = mount(PoliciesView, { global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } } })
   wrappers.push(wrapper)
   await flushPromises()
@@ -65,15 +68,44 @@ describe('個資清理與全站設定保護', () => {
     expect(button(wrapper, '檢查數量').classes()).not.toContain('is-loading')
   })
 
-  it('未儲存表單在重新整理時攔截，乾淨表單則不攔截', async () => {
+  it('搜尋與分享只顯示官網發布中的 site_meta，連到網站標題與電話修改，不再有會誤導的表單', async () => {
+    const patch = vi.spyOn(api, 'patch')
     const wrapper = await setup()
-    const clean = new Event('beforeunload', { cancelable: true })
-    window.dispatchEvent(clean)
-    expect(clean.defaultPrevented).toBe(false)
-    await wrapper.get('textarea').setValue('尚未儲存的新描述')
-    const dirty = new Event('beforeunload', { cancelable: true })
-    window.dispatchEvent(dirty)
-    expect(dirty.defaultPrevented).toBe(true)
-    expect(wrapper.text()).toContain('有未儲存的修改')
+    const get = vi.mocked(api.get)
+    expect(get).toHaveBeenCalledWith('/public/site')
+    expect(get.mock.calls.some(([url]) => String(url).includes('site-settings'))).toBe(false)
+    const summary = wrapper.get('.seo-summary').text()
+    expect(summary).toContain('不允許收錄')
+    expect(summary).toContain('網站說明')
+    expect(summary).toContain('沿用首頁大圖')
+    expect(summary).toContain('robots.txt 與 sitemap.xml')
+    expect(wrapper.find('a[href="/content/site-meta"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)
+    // 沒有可以在這裡儲存的欄位，也不再宣稱「儲存後官網立即生效」。
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('立即')
+    expect(wrapper.text()).not.toContain('隱私政策版本')
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('官網還沒發布過 site_meta 時說明沿用內建設定（允許收錄）', async () => {
+    site.content = {}
+    try {
+      const wrapper = await setup()
+      expect(wrapper.get('.seo-summary').text()).toContain('允許收錄')
+      expect(wrapper.text()).toContain('還沒發布過網站標題與電話')
+    } finally {
+      site.content = { site_meta: { description: '網站說明', share_image: '', allow_indexing: false } }
+    }
+  })
+
+  it('讀不到官網設定時顯示錯誤並可重新載入', async () => {
+    const wrapper = await setup(new TypeError('Failed to fetch'))
+    expect(wrapper.text()).toContain('無法讀取官網目前的設定')
+    expect(wrapper.find('.seo-summary').exists()).toBe(false)
+    await button(wrapper, '重新載入').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.seo-summary').text()).toContain('不允許收錄')
   })
 })
