@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditReasonLabel, auditTargetLabel, campusLabel, formatDateTime } from '../api/labels'
+import { auditActionLabel, auditChangeSummary, auditReasonLabel, auditTargetLabel, campusLabel, formatDateTime } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
@@ -54,10 +54,13 @@ onMounted(() => {
 })
 
 function metaSummary(m: Record<string, unknown>): string {
-  return Object.entries(m ?? {})
+  const plain = Object.entries(m ?? {})
     .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
     .map(([k, v]) => (k === 'reason' ? `原因=${auditReasonLabel(String(v))}` : `${k}=${String(v)}`))
     .join('，')
+  // 預約設定、開放規則這類有修改前後值的紀錄，直接列出改了什麼。
+  const changes = auditChangeSummary(m)
+  return [plain, changes ? `修改：${changes}` : ''].filter(Boolean).join('，')
 }
 </script>
 

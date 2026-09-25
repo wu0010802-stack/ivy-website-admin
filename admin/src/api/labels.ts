@@ -199,6 +199,8 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
   inactive: '帳號已停用',
   linked_to_other_google: '帳號已綁定其他 Google 帳號',
   not_allowed: '無法綁定',
+  // 2026-09-25 migration：把仍在發布中的原型示範同意文字換成正式文字。
+  formal_consent_migration: '系統把原型示範同意文字換成正式文字',
 }
 
 export function auditReasonLabel(reason: string): string {
@@ -300,6 +302,8 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   facebook: 'Facebook',
   fb_note: 'Facebook 備註',
   consent_text: '同意條款文字',
+  privacy_title: '隱私說明標題',
+  privacy_sections: '隱私說明段落',
   banner_title_template: '橫幅標題',
   banner_body: '橫幅內文',
   banner_button_label: '橫幅按鈕文字',
@@ -456,6 +460,75 @@ export function parentDeadlineLabel(hours: number): string {
 // 結案的案件。關時段、設休假日、停用分校後的提示與總覽待辦都連到這裡。
 export function attentionListPath(campusKey?: string | null): string {
   return campusKey ? `/visit-requests?attention=1&campus=${encodeURIComponent(campusKey)}` : '/visit-requests?attention=1'
+}
+
+// 規格 L194：參觀人數 1–10。舊案件與沒問到的補登沒有人數。
+export const PARTY_SIZE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
+
+export function partySizeLabel(value: number | null | undefined): string {
+  return value ? `${value} 位` : '未填'
+}
+
+// 案件的同意紀錄（規格 L196）：官網送單記錄家長看到的「預約文案」版本與伺服器
+// 接受時間；補登是人員向家長說明後代勾；2026-09-25 以前的官網案件沒有版本。
+export function consentRecordLabel(detail: {
+  source?: string | null
+  consent_given?: boolean
+  consent_revision_id?: string | null
+  consent_revision_version?: number | null
+  consent_accepted_at?: string | null
+}): string {
+  if (detail.consent_given === false) return '未同意'
+  const when = detail.consent_accepted_at ? `・${formatDateTime(detail.consent_accepted_at)}` : ''
+  if (detail.consent_revision_id) {
+    const version = detail.consent_revision_version ? `預約文案第 ${detail.consent_revision_version} 版` : '版本已無法查到'
+    return `家長勾選同意（${version}）${when}`
+  }
+  if (detail.source && detail.source !== 'web') return `人員說明後代為勾選${when}`
+  return `家長勾選同意（案件建立時尚未記錄版本）${when}`
+}
+
+// 預約設定的欄位名（稽核紀錄的修改前後、切換確認框用），與後端
+// booking/service.py 的 CONFIG_AUDIT_FIELDS 同一組；另含開放規則的兩個欄位。
+export const BOOKING_CONFIG_FIELD_LABELS: Record<string, string> = {
+  mode: '預約方式',
+  line_url: 'LINE 連結',
+  phone: '洽詢電話',
+  external_url: '外部預約網址',
+  message: '給家長的說明',
+  slots_auto_confirm: '送出後自動確認',
+  parent_change_deadline_hours: '家長線上異動期限',
+  min_lead_hours: '最短提前時數',
+  max_advance_days: '最遠開放天數',
+}
+
+export function bookingConfigValueLabel(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '（空白）'
+  if (field === 'mode') return BOOKING_MODE_LABELS[String(value)] ?? String(value)
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (field === 'parent_change_deadline_hours' && typeof value === 'number') return parentDeadlineLabel(value)
+  const text = String(value)
+  return text.length > 40 ? `${text.slice(0, 40)}…` : text
+}
+
+/** 修改前後不同的欄位：「預約方式：暫停預約 → 線上表單」。 */
+export function configChangeLines(
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown> | null | undefined,
+): string[] {
+  if (!before || !after) return []
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
+  return keys
+    .filter((key) => JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null))
+    .map((key) => `${BOOKING_CONFIG_FIELD_LABELS[key] ?? key}：${bookingConfigValueLabel(key, before[key])} → ${bookingConfigValueLabel(key, after[key])}`)
+}
+
+/** 稽核紀錄 metadata 有 before／after 時列出改了什麼；沒有回空字串。 */
+export function auditChangeSummary(metadata: Record<string, unknown> | null | undefined): string {
+  const before = metadata?.before
+  const after = metadata?.after
+  if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return ''
+  return configChangeLines(before as Record<string, unknown>, after as Record<string, unknown>).join('；')
 }
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {

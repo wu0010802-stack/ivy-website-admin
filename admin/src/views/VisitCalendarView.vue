@@ -21,6 +21,8 @@ interface CalendarVisit {
   phone: string
   source: string
   assigned_staff_id: string | null
+  /** 參觀人數；舊案件與沒問到的補登為 null */
+  party_size?: number | null
 }
 
 interface CalendarSlot {
@@ -215,7 +217,7 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
         <ul v-if="slot.visits.length" class="calendar__visits">
           <li v-for="visit in slot.visits" :key="visit.id">
             <router-link :to="`/visit-requests/${visit.id}`" class="calendar__visit-name">{{ visit.parent_name }}</router-link>
-            <span class="muted">{{ visit.child_name || '孩子姓名未填寫' }}</span>
+            <span class="muted">{{ visit.child_name || '孩子姓名未填寫' }}<template v-if="visit.party_size"> · {{ visit.party_size }} 人參觀</template></span>
             <a class="num" :href="`tel:${visit.phone}`">{{ visit.phone }}</a>
             <span class="muted">承辦：{{ staffLabel(visit.assigned_staff_id, staff) }}<template v-if="visit.source !== 'web'"> · {{ visitSourceLabel(visit.source) }}補登</template></span>
             <StatusTag :meta="visitStatus(visit.status)" size="small" />

@@ -51,6 +51,12 @@ export interface HomeCampusBoardPayload {
   note: string
 }
 
+export interface PrivacySectionPayload {
+  /** 小標，可留空 */
+  heading: string
+  body: string
+}
+
 export interface BookingContentPayload {
   cta_label: string
   cta_label_en: string
@@ -58,6 +64,9 @@ export interface BookingContentPayload {
   banner_title_template: string
   banner_body: string
   banner_button_label: string
+  /** 隱私／個資使用說明（2026-09-25 新增）；空清單＝官網不顯示說明入口 */
+  privacy_title: string
+  privacy_sections: PrivacySectionPayload[]
 }
 
 export interface NewsArticlePayload {
@@ -190,6 +199,10 @@ export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
 export type ContentItemOut = components['schemas']['ContentItemOut']
 export type BookingConfigOut = components['schemas']['BookingConfigOut']
+export type BookingMode = components['schemas']['BookingMode']
+export type BookingReadinessOut = components['schemas']['BookingReadinessOut']
+export type BookingReadinessReason = components['schemas']['BookingReadinessReason']
+export type BookingImpactOut = components['schemas']['BookingImpactOut']
 export type VisitSlotOut = components['schemas']['VisitSlotOut']
 export type PublicVisitSlotOut = components['schemas']['PublicVisitSlotOut']
 export type VisitRequestDetailOut = components['schemas']['VisitRequestDetailOut']

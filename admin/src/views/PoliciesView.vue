@@ -141,7 +141,7 @@ onMounted(loadSettings)
           </el-form-item>
           <el-form-item label="隱私政策版本">
             <el-input v-model="settings.privacy_policy_version" placeholder="例如：2026-09" />
-            <span class="field-help">改版後家長送出表單時會記錄同意的是哪一版。</span>
+            <span class="field-help">只是園方內部的版本標記，不會記在案件上。家長送出參觀需求時，案件記錄的是<router-link to="/content/booking-content">預約文案</router-link>裡當時發布中的同意條款與隱私說明版本，在案件明細可以看到。</span>
           </el-form-item>
           <div class="save-row">
             <el-button type="primary" :loading="savingSettings" :disabled="!isDirty" @click="saveSettings">

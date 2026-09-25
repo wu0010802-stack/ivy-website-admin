@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
-import { CONTACT_TIME_LABELS, MANUAL_VISIT_SOURCES, VISIT_SOURCE_LABELS, formatSlotWhen } from '../api/labels'
+import { CONTACT_TIME_LABELS, MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, formatSlotWhen } from '../api/labels'
 import CampusSelect from './CampusSelect.vue'
 
 // 人工補登：家長打電話、傳 LINE、直接到園或從外部網站來的參觀需求。
@@ -29,6 +29,8 @@ function blank() {
     child_birthdate: null as string | null,
     email: '',
     preferred_time: '',
+    // 參觀人數 1–10；電話裡沒問到可以留空（明細顯示「未填」）。
+    party_size: null as number | null,
     questions: '',
     note: '',
     slot_id: '',
@@ -61,6 +63,7 @@ watch(open, (value) => {
     form.child_name = from.child_name ?? ''
     form.child_birthdate = from.child_birthdate ?? null
     form.email = from.email ?? ''
+    form.party_size = from.party_size ?? null
   }
   error.value = null
   idempotencyKey = newKey()
@@ -131,6 +134,7 @@ async function submit() {
     email: form.email.trim() || null,
     // 規格 190 固定選項，送代碼。
     preferred_time: (form.preferred_time || null) as VisitRequestManualCreate['preferred_time'],
+    party_size: form.party_size,
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
     slot_id: form.slot_id || null,
@@ -198,8 +202,16 @@ async function submit() {
         </el-form-item>
       </div>
 
+      <div class="manual__row">
+        <el-form-item label="參觀人數">
+          <el-select v-model="form.party_size" clearable placeholder="選填，含大人與孩子" style="width: 100%">
+            <el-option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :label="`${size} 位`" :value="size" />
+          </el-select>
+        </el-form-item>
+      </div>
+
       <el-form-item label="家長想了解的事">
-        <el-input v-model="form.questions" type="textarea" maxlength="1000" :autosize="{ minRows: 2, maxRows: 5 }" />
+        <el-input v-model="form.questions" type="textarea" maxlength="500" show-word-limit :autosize="{ minRows: 2, maxRows: 5 }" />
       </el-form-item>
 
       <el-form-item label="聯絡紀錄">

@@ -26,6 +26,8 @@ interface DashboardSummary {
   pending_publish_kinds?: string[]
   pending_review?: number
   campuses_without_active_booking: string[]
+  // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
+  campuses_slots_without_openings?: string[]
   failed_notifications: number
 }
 
@@ -86,6 +88,7 @@ const primary = computed(() => {
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
 const openCount = computed(() => newRequests.value + awaiting.value)
+const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
 
 const hasTodo = computed(() => {
   const s = summary.value
@@ -98,7 +101,8 @@ const hasTodo = computed(() => {
     s.pending_publish > 0 ||
     reviews.value.length > 0 ||
     s.failed_notifications > 0 ||
-    s.campuses_without_active_booking.length > 0
+    s.campuses_without_active_booking.length > 0 ||
+    slotsWithoutOpenings.value.length > 0
   )
 })
 
@@ -162,6 +166,10 @@ onMounted(load)
             <router-link v-if="summary.campuses_without_active_booking.length" class="task" to="/booking">
               <span class="task__number">{{ summary.campuses_without_active_booking.length }}</span>
               <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(summary.campuses_without_active_booking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span class="task__action">檢查各校預約方式 →</span></div>
+            </router-link>
+            <router-link v-if="slotsWithoutOpenings.length" class="task" to="/slots">
+              <span class="task__number">{{ slotsWithoutOpenings.length }}</span>
+              <div><h3>開放選時段，但沒有可預約的場次</h3><p>{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。請新增場次或每週開放規則，或改用其他預約方式。</p><span class="task__action">安排參觀時段 →</span></div>
             </router-link>
             <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications">
               <span class="task__number">{{ summary.failed_notifications }}</span>

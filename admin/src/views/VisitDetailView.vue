@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
-import { ageLabel, campusLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, visitStatus, referralSourceLabels, slotStarted, staffLabel, visitSourceLabel } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffLabel, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
 import { useVisitStaff } from '../composables/useVisitStaff'
@@ -443,12 +443,14 @@ const linkApplicable = computed(() =>
               <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
+              <el-descriptions-item label="參觀人數">{{ partySizeLabel(detail.party_size) }}</el-descriptions-item>
               <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ ageLabel(detail.age) }}</el-descriptions-item>
               <el-descriptions-item label="接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
               <el-descriptions-item label="想了解的事">
                 <span class="detail__pre">{{ detail.questions || '—' }}</span>
               </el-descriptions-item>
+              <el-descriptions-item label="同意紀錄">{{ consentRecordLabel(detail) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.confirmed_at" label="確認時間">{{ formatDateTime(detail.confirmed_at) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.cancelled_at" label="取消時間">{{ formatDateTime(detail.cancelled_at) }}</el-descriptions-item>
             </el-descriptions>
