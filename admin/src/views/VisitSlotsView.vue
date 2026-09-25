@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import type { VisitSlotOut } from '../api/types'
-import { campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
+import { attentionListPath, campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -31,6 +31,10 @@ const busyId = ref<string | null>(null)
 const requests = useRequestSequence()
 const rangeInvalid = computed(() => dateFrom.value > dateTo.value)
 const availableSlots = computed(() => slots.value.filter(slot => !slot.closed && !isPast(slot) && slot.booked_count < slot.capacity).length)
+
+// 關掉還有人排入的時段後，留一個連到「待人工處理」的提醒（換校就清掉）。
+const attentionNotice = ref<{ campus: string; when: string; count: number } | null>(null)
+watch(selectedCampus, () => { attentionNotice.value = null })
 
 const createDialogVisible = ref(false)
 const createForm = ref({ slot_date: isoDate(1), start_time: '10:00:00', end_time: '11:00:00', capacity: 5 })
@@ -110,17 +114,21 @@ async function toggleClosed(slot: VisitSlotOut) {
   if (!canManage.value || busyId.value || loading.value) return
   busyId.value = slot.id
   try {
-    if (!slot.closed && slot.booked_count > 0) {
+    const closing = !slot.closed
+    if (closing && slot.booked_count > 0) {
       try {
         await ElMessageBox.confirm(
-          `這個時段已有 ${slot.booked_count} 組占用名額，關閉後不再接受新預約，既有案件不受影響。`,
+          `這個時段已有 ${slot.booked_count} 組占用名額。關閉後不再接受新預約；既有案件不會取消，會列入參觀案件的「待人工處理」，請聯絡家長改期。`,
           '關閉時段？',
           { confirmButtonText: '關閉', cancelButtonText: '先不要', type: 'warning' },
         )
       } catch { return }
     }
     try {
-      await api.patch(`/admin/slots/${slot.id}`, { closed: !slot.closed })
+      await api.patch(`/admin/slots/${slot.id}`, { closed: closing })
+      if (closing && slot.booked_count > 0) {
+        attentionNotice.value = { campus: slot.campus_key, when: `${formatDate(slot.slot_date)} ${formatTime(slot.start_time)}`, count: slot.booked_count }
+      }
       await load()
     } catch { ElMessage.error('更新失敗') }
   } finally { busyId.value = null }
@@ -135,7 +143,7 @@ function isPast(slot: VisitSlotOut): boolean {
 type SlotState = { label: string; tone: 'info' | 'warning' | 'success' }
 function slotState(slot: VisitSlotOut): SlotState {
   if (isPast(slot)) return { label: '已結束', tone: 'info' }
-  if (slot.closed) return { label: '已關閉', tone: 'info' }
+  if (slot.closed) return { label: slot.closed_source === 'exception' ? '休假日關閉' : '已關閉', tone: 'info' }
   if (slot.booked_count >= slot.capacity) return { label: '已額滿', tone: 'warning' }
   return { label: '開放中', tone: 'success' }
 }
@@ -192,6 +200,11 @@ function openCreate() {
     </div>
 
     <VisitSchedulePanel v-if="selectedCampus" :campus-key="selectedCampus" :can-manage="canManage" @slots-changed="load" />
+
+    <el-alert v-if="attentionNotice" type="warning" show-icon class="slots-attention" title="關閉的時段還有家長排入" @close="attentionNotice = null">
+      <p>{{ attentionNotice.when }} 已關閉，還有 {{ attentionNotice.count }} 組占用名額。已確認或待確認的家長請聯絡改期到其他場次，或取消預約。</p>
+      <router-link :to="attentionListPath(attentionNotice.campus)">查看待人工處理的案件 →</router-link>
+    </el-alert>
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
 
@@ -301,6 +314,8 @@ function openCreate() {
 
 <style scoped>
 .slots-readonly { margin: -8px 0 16px; }
+.slots-attention { margin-bottom: 16px; }
+.slots-attention p { margin: 0 0 4px; }
 .today-mark { display:inline-block; margin-left:6px; padding:0 8px; border-radius:999px; background:var(--el-color-primary-light-9); color:var(--el-color-primary); font-size:12px; font-weight:600; line-height:20px; vertical-align:1px; }
 .slots-table :deep(td.slots-table__date) { vertical-align:top; background:var(--surface); }
 .slots-table :deep(tr.is-past td:not(.slots-table__date)) { color:var(--ink-3); }

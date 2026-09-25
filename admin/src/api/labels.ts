@@ -176,6 +176,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.login_google_failed': 'Google 登入失敗',
   'user.link_line': '綁定 LINE 登入',
   'user.unlink_line': '解除 LINE 登入綁定',
+  'visit_schedule.update': '更新每週開放規則',
+  'visit_slots.generate': '依規則產生時段',
+  'visit_exception.create': '設定休假日',
+  'visit_exception.delete': '取消休假日',
+  'campus.activate': '重新啟用分校',
+  'campus.deactivate': '停用分校',
 }
 
 export function auditActionLabel(action: string): string {
@@ -234,10 +240,13 @@ export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
 
 export const AUDIT_TARGET_LABELS: Record<string, string> = {
   booking_config: '預約設定',
+  campus: '分校',
   content_item: '內容',
   site_settings: '全站設定',
   user: '使用者',
   visit_request: '參觀案件',
+  visit_schedule: '開放規則',
+  visit_exception: '休假日',
 }
 
 export function auditTargetLabel(target: string): string {
@@ -434,6 +443,19 @@ export function holdIsUrgent(value: string | null | undefined, now: number = Dat
   if (!value) return false
   const expires = new Date(value).getTime()
   return !Number.isNaN(expires) && expires - now < 6 * 3600 * 1000
+}
+
+// 家長線上取消／改期的截止（各校設定，預設參觀前 24 小時）。整天數且超過一天
+// 時講「天」，家長與櫃台都比較好理解。
+export function parentDeadlineLabel(hours: number): string {
+  if (hours >= 48 && hours % 24 === 0) return `參觀前 ${hours / 24} 天`
+  return `參觀前 ${hours} 小時`
+}
+
+// 「待人工處理」：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未
+// 結案的案件。關時段、設休假日、停用分校後的提示與總覽待辦都連到這裡。
+export function attentionListPath(campusKey?: string | null): string {
+  return campusKey ? `/visit-requests?attention=1&campus=${encodeURIComponent(campusKey)}` : '/visit-requests?attention=1'
 }
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {

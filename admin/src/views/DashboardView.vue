@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
+import { attentionListPath, campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 
@@ -20,6 +20,7 @@ interface DashboardSummary {
   awaiting_confirmation?: number
   next_hold_expires_at?: string | null
   pending_reschedule_requests?: number
+  needs_attention?: number
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
@@ -72,6 +73,8 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
 const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
+// 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
+const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 // 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
 // 沒有才是新需求。按鈕上的字與數字講的就是點進去那一批，不把兩批加總
 // 之後只帶去其中一批。最早送出的先處理，占位也是最早到期的在前面。
@@ -90,6 +93,7 @@ const hasTodo = computed(() => {
   return (
     openCount.value > 0 ||
     reschedules.value > 0 ||
+    needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
     s.pending_publish > 0 ||
     reviews.value.length > 0 ||
@@ -135,6 +139,10 @@ onMounted(load)
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title"><h2 id="tasks-title">待辦與提醒</h2><span class="hint">依目前資料顯示</span></div>
           <div class="panel dash__task-list">
+            <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()">
+              <span class="task__number">{{ needsAttention }}</span>
+              <div><h3>時段已關閉或分校停用，家長還要來</h3><p>這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園。</p><span class="task__action">查看待人工處理的案件 →</span></div>
+            </router-link>
             <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
               <span class="task__number">{{ awaiting }}</span>
               <div><h3>時段預約等園方確認</h3><p>家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span class="task__action">從最早送出的開始確認 →</span></div>

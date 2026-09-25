@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
-import { formatDateTime } from '../api/labels'
+import { formatDateTime, parentDeadlineLabel } from '../api/labels'
 import type { ParentAccessLinkCreatedOut } from '../api/types'
 
 // 家長管理連結（規格 6.4）：家長用它查看預約、取消或申請改期。完整網址只在
@@ -12,6 +12,8 @@ const props = defineProps<{
   visitId: string
   accessLink: { created_at: string; expires_at: string } | null | undefined
   canHandle: boolean
+  // 該校設定的線上異動期限（參觀前幾小時）；舊版 API 沒回時只講依本校設定。
+  deadlineHours?: number | null
 }>()
 const emit = defineEmits<{ changed: [] }>()
 
@@ -93,7 +95,7 @@ async function copy() {
 <template>
   <section class="section access">
     <div class="section__title"><h2>家長管理連結</h2></div>
-    <p class="hint">家長用這條連結可以自己查看預約、取消或申請改期（參觀前 24 小時截止）。系統不會自動寄出，請用簡訊、LINE 或 Email 轉交。</p>
+    <p class="hint">家長用這條連結可以自己查看預約、取消或申請改期（{{ deadlineHours ? `${parentDeadlineLabel(deadlineHours)}截止` : '截止時間依本校預約設定' }}）。系統不會自動寄出，請用簡訊、LINE 或 Email 轉交。</p>
 
     <div v-if="created" class="access__created">
       <el-alert type="warning" :closable="false" show-icon title="連結只顯示這一次" description="離開這頁就看不到了；遺失請重新產生，舊連結會同時失效。" />

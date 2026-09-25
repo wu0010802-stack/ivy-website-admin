@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type { BookingConfigOut } from '../api/types'
-import { BOOKING_MODE_LABELS, campusLabel } from '../api/labels'
+import { BOOKING_MODE_LABELS, campusLabel, parentDeadlineLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -25,6 +25,8 @@ const form = ref({
   message: '',
   // 預設由園方確認；明確開啟後才允許送出即成立。
   slots_auto_confirm: false,
+  // 家長線上取消／申請改期最晚到參觀前幾小時（規格 238，預設 24）。
+  parent_change_deadline_hours: 24,
 })
 const snapshot = ref('')
 const saving = ref(false)
@@ -65,6 +67,12 @@ const requiredMissing = computed(() => {
   return false
 })
 
+// 數字框清空時是 null；送出 null 後端會當成「不改」，所以先擋下來。
+const deadlineInvalid = computed(() => {
+  const hours = form.value.parent_change_deadline_hours
+  return !Number.isInteger(hours) || hours < 1 || hours > 336
+})
+
 async function load(campusKey: string) {
   const request = requests.begin()
   if (!campusKey) return
@@ -84,6 +92,7 @@ async function load(campusKey: string) {
       external_url: config.value.external_url ?? '',
       message: config.value.message ?? '',
       slots_auto_confirm: config.value.slots_auto_confirm ?? false,
+      parent_change_deadline_hours: config.value.parent_change_deadline_hours ?? 24,
     }
     snapshot.value = JSON.stringify(form.value)
   } catch {
@@ -96,7 +105,7 @@ async function load(campusKey: string) {
 watch(selectedCampus, (key) => load(key), { immediate: true })
 
 async function save() {
-  if (!config.value || requiredMissing.value || saving.value || loading.value || conflict.value || !isDirty.value) return
+  if (!config.value || requiredMissing.value || deadlineInvalid.value || saving.value || loading.value || conflict.value || !isDirty.value) return
   const campusKey = selectedCampus.value
   saving.value = true
   saveError.value = null
@@ -109,6 +118,7 @@ async function save() {
       external_url: form.value.external_url || null,
       message: form.value.message || null,
       slots_auto_confirm: form.value.slots_auto_confirm,
+      parent_change_deadline_hours: form.value.parent_change_deadline_hours,
     })
     snapshot.value = JSON.stringify(form.value)
     ElMessage.success(`已更新${campusLabel(campusKey)}校的預約方式，官網立即生效`)
@@ -173,18 +183,27 @@ async function save() {
             <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" />
             <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link to="/slots">管理此校日期與場次</router-link></p>
           </el-form-item>
+          <el-form-item label="家長線上取消／改期期限">
+            <div class="deadline">
+              <span>參觀前</span>
+              <el-input-number v-model="form.parent_change_deadline_hours" :min="1" :max="336" :step="1" step-strictly controls-position="right" aria-label="參觀前幾小時截止" class="deadline__input" />
+              <span>小時截止</span>
+            </div>
+            <p class="hint">家長用園方給的管理連結取消或申請改期，最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}；之後頁面會請家長直接聯絡園所。</p>
+          </el-form-item>
           <el-form-item label="顯示給家長的說明（選填）">
             <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />
           </el-form-item>
 
           <div class="form-actions">
             <div class="save-row">
-              <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing || conflict" @click="save">
+              <el-button type="primary" :loading="saving" :disabled="!isDirty || requiredMissing || deadlineInvalid || conflict" @click="save">
                 儲存並套用到官網
               </el-button>
               <span class="live-note">沒有草稿階段，儲存後官網立即套用。</span>
             </div>
             <span v-if="requiredMissing" class="hint" style="color: var(--el-color-danger)">請填寫這個方式需要的連結或電話</span>
+            <span v-else-if="deadlineInvalid" class="hint" style="color: var(--el-color-danger)">家長線上異動期限請填 1 到 336 小時</span>
           </div>
         </el-form>
       </div>
@@ -193,6 +212,8 @@ async function save() {
 </template>
 
 <style scoped>
+.deadline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.deadline__input { width: 120px; }
 .modes {
   display: flex;
   flex-direction: column;

@@ -459,6 +459,7 @@ const linkApplicable = computed(() =>
             :visit-id="detail.id"
             :access-link="detail.access_link"
             :can-handle="canHandle"
+            :deadline-hours="detail.parent_change_deadline_hours"
             @changed="refreshDetail"
           />
 

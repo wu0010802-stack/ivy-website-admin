@@ -1,15 +1,16 @@
 <script setup lang="ts">
-// 每週開放規則、公開時間窗與休假日（規格 6.3）。規則本身不開放任何時段：
-// 按「依規則產生時段」才會建立，已存在或已被預約的時段一律不動。
+// 每週開放規則、公開時間窗與休假日（規格 6.3）。系統每天依規則把時段補到
+// 「最遠開放天數」；也可以按「依規則產生時段」立即補一段日期。已存在的時段
+// （含調過名額或關閉的）一律不動。
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
-import { formatDate, formatWeekday } from '../api/labels'
+import { attentionListPath, formatDate, formatWeekday } from '../api/labels'
 
 interface RuleRow { weekday: number; start_time: string; end_time: string; slot_minutes: number; capacity: number }
 interface ExceptionRow { id: string; exception_date: string; reason: string | null }
-interface Schedule { campus_key: string; min_lead_hours: number; max_advance_days: number; rules: RuleRow[]; exceptions: ExceptionRow[] }
+interface Schedule { campus_key: string; min_lead_hours: number; max_advance_days: number; rules: RuleRow[]; exceptions: ExceptionRow[]; rules_extended_on?: string | null }
 
 const props = defineProps<{ campusKey: string; canManage: boolean }>()
 const emit = defineEmits<{ (e: 'slots-changed'): void }>()
@@ -30,6 +31,9 @@ function taipeiDate(offsetDays = 0): string {
 }
 const genRange = ref<[string, string]>([taipeiDate(), taipeiDate(28)])
 const newException = ref({ date: taipeiDate(1), reason: '' })
+// 設休假日時當天還有家長要來：留一個看得到、點得到的提醒，不是幾秒就消失的訊息。
+const attentionNotice = ref<{ date: string; count: number } | null>(null)
+watch(() => props.campusKey, () => { attentionNotice.value = null })
 
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
@@ -101,7 +105,7 @@ async function save() {
     })
     schedule.value = result
     rules.value = result.rules.map((r) => ({ ...r }))
-    ElMessage.success('已儲存開放規則。要開放新時段，請再按「依規則產生時段」。')
+    ElMessage.success(`已儲存開放規則。系統稍後會依新規則補上 ${result.max_advance_days} 天內的時段，已存在的不會變動；要馬上開放可以按「依規則產生時段」。`)
   } catch (err) {
     ElMessage.error(errorText(err, '儲存失敗'))
   } finally {
@@ -136,7 +140,7 @@ async function generate() {
 async function addException() {
   if (!newException.value.date) return
   try {
-    await ElMessageBox.confirm('這一天的時段會全部關閉，不再接受新預約。已排入的家長不會自動取消，請聯絡後在案件頁改期。', `${formatDate(newException.value.date)} 設為休假？`, {
+    await ElMessageBox.confirm('這一天的時段會全部關閉，不再接受新預約。已排入的家長不會自動取消，會列入參觀案件的「待人工處理」，請聯絡後改期。', `${formatDate(newException.value.date)} 設為休假？`, {
       confirmButtonText: '設為休假',
       cancelButtonText: '先不要',
       type: 'warning',
@@ -145,19 +149,13 @@ async function addException() {
     return
   }
   try {
+    const date = newException.value.date
     const result = await api.post<{ closed_slots: number; affected_requests: number }>(`/admin/visit-schedule/${props.campusKey}/exceptions`, {
-      exception_date: newException.value.date,
+      exception_date: date,
       reason: newException.value.reason.trim() || null,
     })
-    if (result.affected_requests > 0) {
-      ElMessage.warning({
-        message: `已關閉 ${result.closed_slots} 場時段。當天還有 ${result.affected_requests} 組家庭已排入：請到「接待月曆」點開各案件，聯絡家長後用「改期（換時段）」換到其他場次。`,
-        duration: 10000,
-        showClose: true,
-      })
-    } else {
-      ElMessage.success(result.closed_slots ? `已設為休假，關閉 ${result.closed_slots} 場時段` : '已設為休假')
-    }
+    ElMessage.success(result.closed_slots ? `已設為休假，關閉 ${result.closed_slots} 場時段` : '已設為休假')
+    attentionNotice.value = result.affected_requests > 0 ? { date, count: result.affected_requests } : null
     newException.value.reason = ''
     await load()
     emit('slots-changed')
@@ -168,9 +166,15 @@ async function addException() {
 
 async function removeException(row: ExceptionRow) {
   try {
-    await api.delete(`/admin/visit-schedule/${props.campusKey}/exceptions/${row.id}`)
-    ElMessage.success('已取消休假。當天已關閉的時段不會自動重開，需要的話請在下方逐一打開。')
+    const result = await api.delete<{ reopened_slots: number; created_slots: number }>(`/admin/visit-schedule/${props.campusKey}/exceptions/${row.id}`)
+    const parts = [
+      result?.reopened_slots ? `重新開放 ${result.reopened_slots} 場` : '',
+      result?.created_slots ? `依規則補上 ${result.created_slots} 場` : '',
+    ].filter(Boolean)
+    ElMessage.success(`已取消休假${parts.length ? `，${parts.join('、')}` : ''}。手動關閉的時段維持關閉。`)
+    if (attentionNotice.value?.date === row.exception_date) attentionNotice.value = null
     await load()
+    emit('slots-changed')
   } catch (err) {
     ElMessage.error(errorText(err, '取消失敗'))
   }
@@ -187,7 +191,7 @@ function disablePast(date: Date): boolean {
   <section class="panel schedule" :aria-busy="loading">
     <div class="panel__head">
       <h2>每週開放規則</h2>
-      <span class="hint">規則不會自動開放時段，按「依規則產生時段」才會建立</span>
+      <span class="hint">系統每天依規則把時段補到最遠開放天數，已存在的時段不會變動</span>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
     <div v-else class="panel__body schedule__body">
@@ -224,13 +228,19 @@ function disablePast(date: Date): boolean {
         <el-button type="primary" size="small" :loading="saving" :disabled="!dirty || !rulesValid" @click="save">儲存規則</el-button>
       </div>
 
+      <p v-if="schedule?.rules.length" class="hint">{{ schedule.rules_extended_on ? `上次自動補時段：${formatDate(schedule.rules_extended_on)}，補到 ${schedule.max_advance_days} 天內。` : '系統稍後會依規則自動補上時段。' }}整天不開放請設休假日；單一場次不開放可以在時段清單關閉，系統不會把它重新打開。</p>
+
       <div v-if="canManage" class="schedule__generate">
         <el-date-picker v-model="genRange" type="daterange" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" start-placeholder="開始" end-placeholder="結束" size="small" />
         <el-button size="small" :loading="generating" :disabled="rules.length === 0" @click="generate">依規則產生時段</el-button>
-        <span class="hint">可以重複按，已存在的時段不會重複建立</span>
+        <span class="hint">立即補一段日期；可以重複按，已存在的時段不會重複建立</span>
       </div>
 
       <h3 class="schedule__sub">休假日與臨時封鎖</h3>
+      <el-alert v-if="attentionNotice" type="warning" show-icon :closable="true" class="schedule__attention" title="休假日當天還有家長要來" @close="attentionNotice = null">
+        <p>{{ formatDate(attentionNotice.date) }} 還有 {{ attentionNotice.count }} 組家庭已排入。請聯絡家長改期到其他場次，或取消預約。</p>
+        <router-link :to="attentionListPath(campusKey)">查看待人工處理的案件 →</router-link>
+      </el-alert>
       <ul v-if="schedule?.exceptions.length" class="exceptions">
         <li v-for="row in schedule.exceptions" :key="row.id">
           <span class="num">{{ formatDate(row.exception_date) }}（{{ formatWeekday(row.exception_date) }}）</span>
@@ -258,4 +268,5 @@ function disablePast(date: Date): boolean {
 .exceptions li { display: flex; gap: 12px; align-items: center; font-size: 14px; }
 .is-bad { color: var(--el-color-danger); }
 .schedule__sub { margin: 8px 0 0; font-size: 14px; }
+.schedule__attention p { margin: 0 0 4px; }
 </style>
