@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS } from '../app/utils/visit-form'
+import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule } from '../app/utils/visit-form'
 
 describe('visit contact input', () => {
   it('accepts phone autofill spacing without changing the API format', () => {
@@ -43,5 +43,15 @@ describe('visit contact input', () => {
 
   it('uses stable values for the requested referral channels', () => {
     expect(REFERRAL_OPTIONS.map(source => source.value)).toEqual(['facebook', 'google_reviews', 'parent_community', 'friends_family', 'other'])
+  })
+})
+
+describe('parent change deadline copy', () => {
+  it('follows the campus setting instead of a fixed 24 hours', () => {
+    expect(changeDeadlineRule(24)).toBe('參觀前 24 小時')
+    expect(changeDeadlineRule(36)).toBe('參觀前 36 小時')
+    expect(changeDeadlineRule(72)).toBe('參觀前 3 天')
+    // 舊版 API 沒回這個欄位時不顯示規則，只顯示截止時間本身。
+    expect(changeDeadlineRule(undefined)).toBe('')
   })
 })

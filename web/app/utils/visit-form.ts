@@ -41,6 +41,12 @@ export function visitDateLabel(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${value}T12:00:00+08:00`))
 }
 
+/** 線上取消／改期截止說明。期限是各校設定（預設參觀前 24 小時），整天數且超過一天時講「天」。 */
+export function changeDeadlineRule(hours: number | null | undefined) {
+  if (!hours || hours < 1) return ''
+  return hours >= 48 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
+}
+
 export function isValidDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(`${value}T00:00:00Z`)

@@ -5,7 +5,7 @@ const visit = {
   id: 'visit-1', campus_key: 'minghua', status: 'confirmed', phone_masked: '0999***001',
   slot: { id: 'slot-1', slot_date: '2026-10-10', start_time: '10:00:00', end_time: '11:00:00' },
   confirmed_at: null, cancelled_at: null, hold_expires_at: null, created_at: '2026-09-23T00:00:00Z',
-  change_deadline: '2026-10-09T02:00:00Z', can_cancel: true, can_reschedule: true
+  change_deadline: '2026-10-09T02:00:00Z', change_deadline_hours: 24, can_cancel: true, can_reschedule: true
 }
 const failure = (status: number, code = '') => ({ response: { status }, data: { detail: { code } } })
 afterEach(() => vi.unstubAllGlobals())
