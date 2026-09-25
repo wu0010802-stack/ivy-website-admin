@@ -611,3 +611,25 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 強制 CSS 版約 0.79 秒翻開；手機 390 背面→照片、無橫向溢出。
   - 減少動態停在背面、點擊切換；讀者先點停在照片；翻開途中點擊（WebGL／CSS）翻完停在照片，之後再點照常翻面；`#day-hello` 直達維持正面。
   - 0 page error。Safari／iOS 實機未驗證。
+
+## 2026-09-25 手機活動影片換義華 YouTube、各校 IG／YouTube 進後台（main CI 部署）
+
+- 使用者要求 push 上 main。feature 分支 `feature/social-films-20260925`（從 `5baeb3a` 開）三個提交；push 前 `origin/main` 已到 `a07c852`（admin-gaps 合併，含後台活動影片清單、素材版位、地圖連結），所以從 `a07c852` 開 `deploy/social-films-20260925` cherry-pick：
+  - `8be201d` 活動影片。`campusFilms.ts` 檔頭註解衝突，兩邊都留，內建清單改成「後台沒設定時的預設」。
+  - `dfa4cd4` IG／YouTube。`schemas.py`、`types.ts`、`CampusProfileView.vue`、`content-overlay.ts` 衝突，main 新增的 `map_url`、封面、線稿欄位都保留，IG／YouTube 接在後面，`content-overlay.ts` 的 `...campusMedia()` 維持在最後。後台測試改用 `testUser()`，因為 main 的權限模型下原本的寫法是唯讀。
+  - `17d9b40` 文件，無衝突。
+  - 另補 `709f871`：main 的 `media-slots.spec.ts` 比對基準裡義華 IG／YouTube 是 null，更新這兩欄，其他欄位不變。
+- deploy 分支本機驗證：
+  - backend 727 項通過（`ivy_website_social_test` migrate 到 `c4d8e2f6a913`）。
+  - web `nuxt typecheck` 結束碼 0、vitest 36 檔 304 項。
+  - admin `vue-tsc` 結束碼 0、vitest 33 檔 264 項。
+  - `contract:check` 一致。
+  - e2e `home-films`、`campus-board-socials` 在 1440／390 共 3 項通過、1 項桌機跳過。
+- `push deploy/social-films-20260925:main`（`a07c852..709f871`）。CI run `36154984701` 四個 job 全綠（含 deploy）。`/release.json` snapshot `cbdc204ad6e9693de7e3d0d88a9916e8680da2446441b75d6fbc3202c7b1ac57`、`base_commit` `709f871`、`created_at` 2026-09-25T15:44:54Z。
+- 部署前後正式站 `home_news.films` 都沒設定，所以活動影片走內建清單；義華 `campus_profile` 還是舊版本，沒有 `instagram` 欄位，所以沿用 fixture。
+- 線上 Playwright（`output/playwright/social-films-prod-20260925/`、`campus-board-socials-prod-20260925/`）：
+  - 手機 390：5 個圓點，4 張海報都載入。點「迎財神」播放鍵後 iframe 留在原位，YouTube 播放器載入影片、沒有「無法播放」；點左右兩側會翻頁。
+  - 選單：義華 IG／FB／YouTube／LINE 四個都是連結，明華都是待提供。
+  - 五校卡：1440／1024 排一行、390 排兩行，義華四個連結、明華兩個，無橫向溢出，0 console error。
+  - 桌機不下載活動影片海報。
+- **未做**：後台還沒把義華 IG／YouTube 填進去發布，要由使用者在「五校介紹 → 義華校」完成；原因見 README 同日段落。iOS 實機播放 YouTube 未驗證。
