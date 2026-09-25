@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { VisitSlotOut } from '../api/types'
 import { attentionListPath, campusLabel, formatDate, formatTime, formatWeekday } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -40,13 +41,7 @@ const createDialogVisible = ref(false)
 const createForm = ref({ slot_date: isoDate(1), start_time: '10:00:00', end_time: '11:00:00', capacity: 5 })
 const creating = ref(false)
 
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    const detail = err.detail as { message?: string } | string
-    return detail !== null && typeof detail === 'object' ? (detail.message ?? fallback) : typeof detail === 'string' ? detail : fallback
-  }
-  return fallback
-}
+const errorText = apiErrorMessage
 
 async function load() {
   const request = requests.begin()
@@ -91,11 +86,15 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number) {
   if (!canManage.value || busyId.value || loading.value || !Number.isInteger(capacity) || capacity === slot.capacity) return
   busyId.value = slot.id
   try {
-    await api.patch(`/admin/slots/${slot.id}`, { capacity })
+    await api.patch(`/admin/slots/${slot.id}`, { capacity, expected_version: slot.version })
     ElMessage.success('已更新名額')
     await load()
   } catch (err) {
-    if (err instanceof ApiError && err.status === 409) {
+    if (isVersionConflict(err)) {
+      // 別人剛改過這個時段（或休假日剛把它關掉）：不蓋掉，重新讀最新的。
+      ElMessage.warning(errorText(err, '這個時段剛被其他人修改，已重新載入'))
+      await load()
+    } else if (err instanceof ApiError && err.status === 409) {
       const detail = err.detail as { message?: string; booked_count?: number }
       ElMessage.error(
         detail !== null && typeof detail === 'object' && detail.booked_count !== undefined
@@ -125,12 +124,19 @@ async function toggleClosed(slot: VisitSlotOut) {
       } catch { return }
     }
     try {
-      await api.patch(`/admin/slots/${slot.id}`, { closed: closing })
+      await api.patch(`/admin/slots/${slot.id}`, { closed: closing, expected_version: slot.version })
       if (closing && slot.booked_count > 0) {
         attentionNotice.value = { campus: slot.campus_key, when: `${formatDate(slot.slot_date)} ${formatTime(slot.start_time)}`, count: slot.booked_count }
       }
       await load()
-    } catch { ElMessage.error('更新失敗') }
+    } catch (err) {
+      if (isVersionConflict(err)) {
+        ElMessage.warning(errorText(err, '這個時段剛被其他人修改，已重新載入'))
+        await load()
+      } else {
+        ElMessage.error(errorText(err, '更新失敗'))
+      }
+    }
   } finally { busyId.value = null }
 }
 

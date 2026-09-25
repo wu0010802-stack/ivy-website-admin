@@ -8,6 +8,7 @@ import {
   CANCEL_REASON_LABELS,
   CTA_ENTRY_LABELS,
   REFERRAL_SOURCE_LABELS,
+  RETENTION_CATEGORY_LABELS,
   VISIT_SOURCE_LABELS,
   NOTIFICATION_KIND_LABELS,
   NOTIFICATION_REASON_LABELS,
@@ -30,20 +31,25 @@ function source(path: string): string {
 // 每個 audit_service.log_action(...) 呼叫的參數區段（到下一個右括號收尾為止
 // 的第一層），從裡面取 action= 與 target_type= 的字串字面值；條件式
 // `"a" if x else "b"` 兩邊都算。
+// booking/routes.py 的 _audit_transition(...) 也是在呼叫端寫 action 字面值。
+const AUDIT_CALLS = ['log_action(', '_audit_transition(']
+
 function logActionCalls(): string[] {
   const calls: string[] = []
   for (const [path, text] of Object.entries(backendSources)) {
     if (path.endsWith('audit_service.py')) continue
-    let index = text.indexOf('log_action(')
-    while (index !== -1) {
-      let depth = 0
-      let end = index + 'log_action'.length
-      for (; end < text.length; end++) {
-        if (text[end] === '(') depth++
-        else if (text[end] === ')' && --depth === 0) break
+    for (const name of AUDIT_CALLS) {
+      let index = text.indexOf(name)
+      while (index !== -1) {
+        let depth = 0
+        let end = index + name.length - 1
+        for (; end < text.length; end++) {
+          if (text[end] === '(') depth++
+          else if (text[end] === ')' && --depth === 0) break
+        }
+        calls.push(text.slice(index, end + 1))
+        index = text.indexOf(name, end)
       }
-      calls.push(text.slice(index, end + 1))
-      index = text.indexOf('log_action(', end)
     }
   }
   return calls
@@ -74,6 +80,8 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(actions.size).toBeGreaterThan(30)
     expect(actions).toContain('content.approve')
     expect(actions).toContain('content.reject')
+    // 狀態轉換經 _audit_transition 記，也要掃得到。
+    expect(actions).toContain('visit_request.cancel')
     expect([...actions].filter((action) => !AUDIT_ACTION_LABELS[action])).toEqual([])
   })
 
@@ -115,6 +123,15 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     )
     expect(notificationLabel('visit_request_overdue', { reason: 'other' })).toBe('案件逾期未處理')
     expect(notificationLabel('visit_upcoming', null)).toBe('即將參觀（24 小時內）')
+  })
+
+  it('個資保存政策的案件分類都有中文', () => {
+    const retention = source('operations/retention_service.py')
+    const block = retention.slice(retention.indexOf('# 各類的代碼'), retention.indexOf('CATEGORIES = ('))
+    // 類別直接沿用案件狀態的代碼（VisitRequestStatus.XXX.value）。
+    const categories = [...block.matchAll(/^[A-Z_]+ = VisitRequestStatus\.([A-Z_]+)\.value/gm)].map((m) => m[1]!.toLowerCase())
+    expect(categories).toEqual(['cancelled', 'no_show', 'completed'])
+    expect(categories.filter((c) => !RETENTION_CATEGORY_LABELS[c])).toEqual([])
   })
 
   it('寄送失敗的錯誤碼轉成大概原因', () => {

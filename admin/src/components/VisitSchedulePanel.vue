@@ -5,12 +5,13 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus } from '@element-plus/icons-vue'
-import { api, ApiError } from '../api/client'
+import { api } from '../api/client'
+import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import { attentionListPath, formatDate, formatWeekday } from '../api/labels'
 
 interface RuleRow { weekday: number; start_time: string; end_time: string; slot_minutes: number; capacity: number }
 interface ExceptionRow { id: string; exception_date: string; reason: string | null }
-interface Schedule { campus_key: string; min_lead_hours: number; max_advance_days: number; rules: RuleRow[]; exceptions: ExceptionRow[]; rules_extended_on?: string | null }
+interface Schedule { campus_key: string; min_lead_hours: number; max_advance_days: number; rules: RuleRow[]; exceptions: ExceptionRow[]; rules_extended_on?: string | null; version: number }
 
 const props = defineProps<{ campusKey: string; canManage: boolean }>()
 const emit = defineEmits<{ (e: 'slots-changed'): void }>()
@@ -35,14 +36,7 @@ const newException = ref({ date: taipeiDate(1), reason: '' })
 const attentionNotice = ref<{ date: string; count: number } | null>(null)
 watch(() => props.campusKey, () => { attentionNotice.value = null })
 
-function errorText(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    const d = err.detail as { message?: string } | string
-    if (typeof d === 'string') return d
-    if (d && typeof d === 'object' && d.message) return d.message
-  }
-  return fallback
-}
+const errorText = apiErrorMessage
 
 async function load() {
   if (!props.campusKey) return
@@ -99,6 +93,7 @@ async function save() {
   saving.value = true
   try {
     const result = await api.put<Schedule>(`/admin/visit-schedule/${props.campusKey}`, {
+      expected_version: schedule.value?.version,
       min_lead_hours: leadHours.value,
       max_advance_days: advanceDays.value,
       rules: rules.value,
@@ -107,10 +102,26 @@ async function save() {
     rules.value = result.rules.map((r) => ({ ...r }))
     ElMessage.success(`已儲存開放規則。系統稍後會依新規則補上 ${result.max_advance_days} 天內的時段，已存在的不會變動；要馬上開放可以按「依規則產生時段」。`)
   } catch (err) {
-    ElMessage.error(errorText(err, '儲存失敗'))
+    if (isVersionConflict(err)) await offerReload(err)
+    else ElMessage.error(errorText(err, '儲存失敗'))
   } finally {
     saving.value = false
   }
+}
+
+// 別人先存了規則：整份替換會把對方的修改蓋掉，所以不送出，請使用者重新載入
+// 看過最新的規則再改（取消就留著自己的修改，可以先抄下來）。
+async function offerReload(err: unknown) {
+  try {
+    await ElMessageBox.confirm(
+      `${errorText(err, '開放規則剛被其他人修改')}。重新載入會顯示最新的規則，你這次還沒儲存的修改會捨棄。`,
+      '規則已被更新',
+      { confirmButtonText: '重新載入', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  await load()
 }
 
 async function generate() {

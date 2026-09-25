@@ -60,6 +60,7 @@ function asset(overrides: Partial<MediaAssetOut> = {}): MediaAssetOut {
     usage_count: 0,
     used_in: [],
     variants: [],
+    version: 1,
     ...overrides,
   }
 }
@@ -209,6 +210,27 @@ describe('素材庫頁', () => {
     expect(patch.mock.calls[0]![0]).toBe('/admin/media/v1')
     expect(body).not.toHaveProperty('crop_focus_x')
     expect(body).toHaveProperty('license_note')
+    expect(body.expected_version).toBe(1)
+  })
+
+  it('別人先改過說明時不蓋掉，確認後載入最新的說明重新編輯', async () => {
+    const get = mockGet([asset({ version: 3 })])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    await wrapper.findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
+    await flushPromises()
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(
+      new ApiError(409, { code: 'MEDIA_VERSION_CONFLICT', message: '這個素材的說明剛被其他人修改，請重新載入後再編輯', current_version: 4 }),
+    )
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    get.mockImplementation(async (path: string) =>
+      (path === '/admin/media/m1' ? asset({ version: 4, alt_text: '別人改的說明' }) : [asset({ version: 4, alt_text: '別人改的說明' })]) as never)
+    await wrapper.findAll('button').find((b) => b.text() === '儲存')!.trigger('click')
+    await flushPromises()
+    expect((patch.mock.calls[0]![1] as Record<string, unknown>).expected_version).toBe(3)
+    expect(String(confirm.mock.calls[0]![0])).toContain('你這次的修改會捨棄')
+    expect(get).toHaveBeenCalledWith('/admin/media/m1')
+    const alt = wrapper.findAll('textarea, input').find((el) => (el.element as HTMLInputElement).value === '別人改的說明')
+    expect(alt).toBeDefined()
   })
 
   it('封存與待清理分頁：待清理只能復原，並顯示永久刪除時間', async () => {

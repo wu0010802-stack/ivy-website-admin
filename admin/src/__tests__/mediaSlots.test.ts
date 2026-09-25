@@ -44,7 +44,7 @@ function asset(overrides: Partial<MediaAssetOut> = {}): MediaAssetOut {
     created_at: '2026-09-20T02:00:00Z', created_by_email: null, archived_at: null, deleted_at: null,
     purge_after: null, replaces_media_id: null, alt_text: '菜園', source_attribution: null, caption: null,
     license_note: null, tags: [], crop_focus_x: null, crop_focus_y: null, processing_error: null,
-    usage_count: 0, used_in: [],
+    usage_count: 0, used_in: [], version: 1,
     variants: [
       { id: 'v1', kind: 'thumbnail', content_type: 'image/webp', width: 480, height: 360 },
       { id: 'v2', kind: 'large', content_type: 'image/webp', width: 1600, height: 1200 },

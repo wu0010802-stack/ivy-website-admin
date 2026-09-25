@@ -274,6 +274,18 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.assign': '指派承辦人',
   'visit_request.create_access_link': '產生家長管理連結',
   'visit_request.revoke_access': '撤銷家長管理連結',
+  'visit_request.contacting': '開始聯絡案件',
+  'visit_request.add_contact_note': '新增聯絡紀錄',
+  'visit_request.confirm': '確認預約',
+  'visit_request.reschedule': '改期',
+  'visit_request.cancel': '取消預約',
+  'visit_request.no_show': '標記未到場',
+  'visit_request.complete': '標記完成參觀',
+  'visit_request.approve_reschedule': '核准家長改期申請',
+  'visit_request.reject_reschedule': '退回家長改期申請',
+  'visit_slot.create': '新增參觀時段',
+  'visit_slot.update': '調整時段名額或開關',
+  'retention_policy.update': '更新個資保存政策',
   'user.link_google': '綁定 Google 登入',
   'user.unlink_google': '解除 Google 登入綁定',
   'user.login_google': 'Google 登入',
@@ -286,6 +298,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_exception.delete': '取消休假日',
   'campus.activate': '重新啟用分校',
   'campus.deactivate': '停用分校',
+  'media.upload': '上傳素材',
+  'media.update': '修改素材說明',
+  'media.replace': '上傳新檔替換素材',
   'media.delete': '刪除素材（移到待清理）',
   'media.restore': '復原刪除的素材',
   'media.archive': '封存素材',
@@ -367,6 +382,20 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   visit_requests: '參觀案件（批次清理）',
   visit_schedule: '開放規則',
   visit_exception: '休假日',
+  visit_slot: '參觀時段',
+  retention_policy: '個資保存政策',
+}
+
+// 個資保存政策會清理的案件類別（後端 retention_service.CATEGORIES）。
+export const RETENTION_CATEGORY_LABELS: Record<string, string> = {
+  cancelled: '已取消',
+  no_show: '未到場',
+  completed: '已完成參觀',
+}
+
+export const RETENTION_TRIGGER_LABELS: Record<string, string> = {
+  manual: '手動執行',
+  scheduled: '定期工作',
 }
 
 export function auditTargetLabel(target: string): string {

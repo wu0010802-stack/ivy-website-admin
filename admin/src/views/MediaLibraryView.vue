@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaPreviewUrl, mediaVariantUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
+import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { canEditSharedContent } from '../router/nav'
@@ -172,6 +173,7 @@ async function submitEdit() {
   const isImage = editingAsset.value.kind === 'image'
   try {
     await api.patch(`/admin/media/${editingAsset.value.id}`, {
+      expected_version: editingAsset.value.version,
       alt_text: editAltText.value || null,
       source_attribution: editSourceAttribution.value || null,
       caption: editCaption.value || null,
@@ -184,11 +186,33 @@ async function submitEdit() {
     ElMessage.success('已儲存')
     editDialogVisible.value = false
     await load()
-  } catch {
-    ElMessage.error('儲存失敗')
+  } catch (err) {
+    if (isVersionConflict(err)) await reloadEditing(err)
+    else ElMessage.error(apiErrorMessage(err, '儲存失敗'))
   } finally {
     saving.value = false
   }
+}
+
+// 別人先改了這個素材的說明：不蓋掉對方，問使用者要不要載入最新的內容重新編輯。
+async function reloadEditing(err: unknown) {
+  const current = editingAsset.value
+  if (!current) return
+  try {
+    await ElMessageBox.confirm(
+      `${apiErrorMessage(err, '這個素材的說明剛被其他人修改')}。重新載入會顯示最新的說明與標籤，你這次的修改會捨棄。`,
+      '素材已被更新',
+      { confirmButtonText: '重新載入', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
+    openEditDialog(await api.get<MediaAssetOut>(`/admin/media/${current.id}`))
+  } catch (loadErr) {
+    ElMessage.error(apiErrorMessage(loadErr, '重新載入失敗'))
+  }
+  await load()
 }
 
 // ---- 用在哪裡、替換 ----

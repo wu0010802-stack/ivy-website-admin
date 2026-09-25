@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
 import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffLabel, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -58,6 +59,7 @@ async function assign(staffId: string | null) {
   try {
     await api.patch<VisitRequestDetailOut>(`/admin/visit-requests/${id.value}/assignee`, {
       assigned_staff_id: staffId || null,
+      expected_version: detail.value.version,
     })
     await refreshDetail()
     ElMessage.success(staffId ? `已指派給 ${staffLabel(staffId, staff.value)}` : '已取消指派')
@@ -117,12 +119,13 @@ async function loadNextPending(campusKey: string) {
 }
 
 function reportError(err: unknown, fallback: string) {
-  if (err instanceof ApiError) {
-    const d = err.detail as { message?: string } | string
-    ElMessage.error(typeof d === 'object' ? (d.message ?? fallback) : d)
-  } else {
-    ElMessage.error(fallback)
+  if (isVersionConflict(err)) {
+    // 別人剛改過承辦人或下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
+    ElMessage.warning(apiErrorMessage(err, '這筆案件剛被其他人修改，已重新載入'))
+    void refreshDetail()
+    return
   }
+  ElMessage.error(apiErrorMessage(err, fallback))
 }
 
 // 已經開始的場次不能再排人（後端也會拒絕），名額滿或關閉的也不列。
@@ -343,6 +346,8 @@ async function addNote() {
     await api.post(`/admin/visit-requests/${id.value}/contact-notes`, {
       note: newNote.value.trim(),
       follow_up_at: followUpAt.value || null,
+      // 改下次聯絡時間會蓋掉案件上的值，要帶版本；只記一筆紀錄不用。
+      ...(followUpAt.value ? { expected_version: detail.value?.version } : {}),
     })
     newNote.value = ''
     followUpAt.value = null

@@ -1,10 +1,11 @@
 import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { api, ApiError } from '../api/client'
+import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
 import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
+import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import { hasCapability } from './usePermissions'
 import { useAuthStore } from '../stores/auth'
 
@@ -304,27 +305,10 @@ export function useContentItem<TPayload extends object>(
   }
 
   function errorMessage(err: unknown, fallback: string): string {
-    if (err instanceof ApiError && err.status === 409) {
-      return '內容已被其他人更新，請重新載入後再試'
-    }
-    if (err instanceof ApiError) {
-      const d = err.detail
-      if (typeof d === 'string') return d
-      // FastAPI 的 422 驗證錯誤是一個陣列（每筆有 loc/msg/type），原本只
-      // 處理字串與 {message}，所有欄位驗證失敗都會退回「儲存失敗」，
-      // 使用者完全看不到是哪個欄位、為什麼不行。
-      if (Array.isArray(d)) {
-        const messages = d
-          .map((e) => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
-          .filter(Boolean)
-          // pydantic 會在訊息前面加 "Value error, "，對使用者沒有意義。
-          .map((msg) => msg.replace(/^Value error,\s*/, ''))
-        if (messages.length) return messages.join('；')
-      }
-      if (d && typeof d === 'object' && 'message' in d) return String((d as { message: unknown }).message)
-      return fallback
-    }
-    return err instanceof Error ? err.message : fallback
+    // 只有「別人先存了」才請使用者重新載入；其他 409（素材未就緒、分校停用、
+    // 內容規則不符…）要顯示後端說的原因，不能一律說成被別人更新。
+    if (isVersionConflict(err)) return '內容已被其他人更新，請重新載入後再試'
+    return apiErrorMessage(err, fallback)
   }
 
   async function save(): Promise<boolean> {
