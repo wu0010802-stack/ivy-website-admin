@@ -16,7 +16,7 @@ import {
   scheduleInvalid,
   scheduleState,
   taipeiToday,
-  webUrlInvalid,
+  webUrlError,
   type NewsMode,
 } from '../composables/newsContent'
 import LengthHint from './LengthHint.vue'
@@ -219,7 +219,7 @@ function onPickMedia(asset: MediaAssetOut) {
       <el-input v-model="event.location" maxlength="80" placeholder="例如：義華校 一樓大廳" />
     </el-form-item>
     <div class="field-row">
-      <el-form-item label="相關連結（選填，例如報名表或活動詳情）" :error="webUrlInvalid(event.link_url) ? '網址要以 https:// 或 http:// 開頭' : ''">
+      <el-form-item label="相關連結（選填，例如報名表或活動詳情）" :error="webUrlError(event.link_url)">
         <el-input v-model="event.link_url" placeholder="https://" />
       </el-form-item>
       <el-form-item label="連結文字">

@@ -21,6 +21,7 @@ import {
   normalizeCampusArticle,
   normalizeEvent,
   scopeLabel,
+  webUrlError,
   webUrlInvalid,
 } from '../composables/newsContent'
 import { useAuthStore } from '../stores/auth'
@@ -90,6 +91,16 @@ describe('消息欄位的預設值與檢查', () => {
     expect(webUrlInvalid('')).toBe(false)
     expect(webUrlInvalid('https://example.com/a')).toBe(false)
     for (const bad of ['example.com', 'mailto:a@b.c', 'javascript:alert(1)']) expect(webUrlInvalid(bad)).toBe(true)
+  })
+
+  it('網址中間有空白（含全形空白）要提示，跟後端與官網同一個規則', () => {
+    expect(webUrlError(' https://example.com/a ')).toBe('')
+    for (const spaced of ['https://a b', 'https://example.com/a\u3000b', 'http://a\u00a0b']) {
+      expect(webUrlInvalid(spaced)).toBe(true)
+      expect(webUrlError(spaced)).toBe('網址中間不能有空白')
+    }
+    expect(webUrlError('example.com')).toBe('網址要以 https:// 或 http:// 開頭')
+    expect(webUrlError('https://')).toBe('網址要以 https:// 或 http:// 開頭')
   })
 
   it('側欄、編輯頁路由與官網位置', () => {
@@ -187,6 +198,28 @@ describe('常見問題', () => {
     expect(wrapper.text()).toContain('和共用題目同一題：本校不顯示那一題')
     expect(wrapper.findAll('.repeat-item')).toHaveLength(2)
     expect(wrapper.text()).toContain('有未儲存的修改')
+  })
+
+  // el-form-item 的錯誤訊息延遲 100ms 才出現（refDebounced）。
+  const formErrorsShown = () => new Promise((resolve) => setTimeout(resolve, 150))
+
+  it('「本校不顯示」的題目切回在官網顯示卻沒有回答時，提示要先填回答', async () => {
+    mockFaq({ items: [{ q: '幾歲入園？', a: '兩歲' }] })
+    const wrapper = await mountAs(CampusFaqView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/content/campus-faq')
+    await wrapper.get('.faq-shared__list').findAll('button').find((button) => button.text() === '本校不顯示')!.trigger('click')
+    expect(wrapper.text()).toContain('移除這題就恢復顯示共用答案')
+    expect(wrapper.text()).not.toContain('要填回答')
+    await wrapper.findAll('.repeat-item')[1]!.get('.el-switch').trigger('click')
+    await formErrorsShown()
+    expect(wrapper.findAll('.repeat-item')[1]!.text()).toContain('在官網顯示的題目要填回答，不顯示請改成停用')
+    // 新增的空白題目兩格都空時先不提示，填了一格才提示另一格。
+    await wrapper.findAll('button').find((button) => button.text() === '新增一題')!.trigger('click')
+    await formErrorsShown()
+    const fresh = () => wrapper.findAll('.repeat-item')[2]!
+    expect(fresh().text()).not.toContain('要填')
+    await fresh().get('textarea').setValue('只有回答')
+    await formErrorsShown()
+    expect(fresh().text()).toContain('在官網顯示的題目要填問題，不顯示請改成停用')
   })
 
   it('本校題目可以是 0 題，唯讀帳號沒有操作按鈕', async () => {

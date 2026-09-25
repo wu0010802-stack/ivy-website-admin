@@ -4,7 +4,7 @@ import { Delete, Picture } from '@element-plus/icons-vue'
 import type { MediaAssetOut, NewsBodyBlock } from '../api/types'
 import { mediaFileUrl } from '../api/client'
 import MediaPickerDialog from './MediaPickerDialog.vue'
-import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, webUrlInvalid } from '../composables/newsContent'
+import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, webUrlError } from '../composables/newsContent'
 
 // 消息內文（規格 3.4）：只有段落、小標、清單、圖片與連結五種區塊，存成結構化
 // 資料，不收任何 HTML；官網逐塊用固定的樣式顯示。
@@ -92,7 +92,7 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
         <el-input v-model="block.label" maxlength="40" placeholder="連結文字，例如：活動相簿" aria-label="連結文字" />
         <div>
           <el-input v-model="block.url" placeholder="https://" aria-label="連結網址" />
-          <span v-if="webUrlInvalid(block.url)" class="field-help is-error">網址要以 https:// 或 http:// 開頭</span>
+          <span v-if="webUrlError(block.url)" class="field-help is-error">{{ webUrlError(block.url) }}</span>
         </div>
       </div>
     </div>

@@ -85,6 +85,15 @@ function isOverride(item: CampusFaqItemPayload): boolean {
   return Boolean(item.q.trim()) && sharedForCampus.value.some((s) => s.q.trim() === item.q.trim())
 }
 
+// 在官網顯示的題目問題與回答都要有（後端同一條規則，存檔會被擋）。「本校不顯示」
+// 產生的題目沒有回答，切回顯示前要先寫回答；兩格都空的新題目等填了一格再提示。
+function blankError(item: CampusFaqItemPayload, field: 'q' | 'a'): string {
+  if (!item.enabled || item[field].trim()) return ''
+  const other = field === 'q' ? item.a : item.q
+  if (!other.trim()) return ''
+  return field === 'q' ? '在官網顯示的題目要填問題，不顯示請改成停用' : '在官網顯示的題目要填回答，不顯示請改成停用'
+}
+
 function addItem() {
   editor.form.value.items.push({ q: '', a: '', enabled: true })
 }
@@ -149,7 +158,7 @@ function addItem() {
             <b>{{ index + 1 }}</b>第 {{ index + 1 }} 題
             <el-tag v-if="!qa.enabled" size="small" type="info">已停用，官網不顯示</el-tag>
             <el-tag v-if="isOverride(qa)" size="small" type="warning">
-              {{ qa.enabled ? '和共用題目同一題：本校顯示這個版本' : '和共用題目同一題：本校不顯示那一題' }}
+              {{ qa.enabled ? '和共用題目同一題：本校顯示這個版本' : '和共用題目同一題：本校不顯示那一題（移除這題就恢復顯示共用答案）' }}
             </el-tag>
           </span>
           <span v-if="!editor.readOnly.value" class="cell-actions">
@@ -161,11 +170,11 @@ function addItem() {
         <el-form-item>
           <el-switch v-model="qa.enabled" active-text="在官網顯示" inactive-text="停用" />
         </el-form-item>
-        <el-form-item label="問題">
+        <el-form-item label="問題" :error="blankError(qa, 'q')">
           <el-input v-model="qa.q" placeholder="例如：幾歲可以入園？" />
           <LengthHint :value="qa.q" rule="faqQuestion" />
         </el-form-item>
-        <el-form-item label="回答">
+        <el-form-item label="回答" :error="blankError(qa, 'a')">
           <el-input v-model="qa.a" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
           <LengthHint :value="qa.a" rule="faqAnswer" />
         </el-form-item>

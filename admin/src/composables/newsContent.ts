@@ -148,6 +148,12 @@ export function webUrlInvalid(url: string): boolean {
   return value !== '' && !/^https?:\/\/\S+$/i.test(value)
 }
 
+/** 連結欄位的錯誤提示（規則同 webUrlInvalid 與後端 _require_web_url）；沒問題回空字串 */
+export function webUrlError(url: string): string {
+  if (!webUrlInvalid(url)) return ''
+  return /^https?:\/\/\S*\s/i.test(url.trim()) ? '網址中間不能有空白' : '網址要以 https:// 或 http:// 開頭'
+}
+
 /** 活動時間：不是全天要有開始時間，結束要晚於開始 */
 export function eventTimeError(event: CampusNewsEventPayload): string {
   if (event.all_day) return ''
