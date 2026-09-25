@@ -4,7 +4,9 @@ import { useContentItem } from '../composables/useContentItem'
 import type { HomeNewsPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
+import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
 import { NEWS_LIMITS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
+import { normalizeHomeFilm } from '../composables/homeFilms'
 
 // 舊版消息沒有適用範圍、內文、推薦與活動時間：載入時換算成新欄位
 // （跟後端讀舊版本的規則相同），再拍快照，才不會一打開就顯示有修改。
@@ -14,12 +16,13 @@ function normalize(payload: HomeNewsPayload): HomeNewsPayload {
     articles: (payload.articles ?? []).map((a) => normalizeArticle(a as never)),
     events: (payload.events ?? []).map((e) => normalizeEvent(e as never)),
     home_display_count: payload.home_display_count ?? null,
+    films: Array.isArray(payload.films) ? payload.films.map((f) => normalizeHomeFilm(f)) : null,
   }
 }
 
 const editor = useContentItem<HomeNewsPayload>(
   'home_news',
-  { sample_note: '', articles: [], events: [], home_display_count: null },
+  { sample_note: '', articles: [], events: [], home_display_count: null, films: null },
   undefined,
   { normalize },
 )
@@ -77,6 +80,19 @@ onMounted(editor.load)
         :max-events="NEWS_LIMITS.homeEvents"
         :read-only="editor.readOnly.value"
       />
+
+      <h3 class="films-section">手機版活動影片</h3>
+      <p class="field-help">手機上「近期活動」的位置改放活動影片輪播（桌機不顯示）。影片靜音循環，只有正中間那支會播放。</p>
+      <HomeFilmsEditor v-model:films="editor.form.value.films" :read-only="editor.readOnly.value" />
     </el-form>
   </ContentEditor>
 </template>
+
+<style scoped>
+.films-section {
+  margin: 24px 0 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+}
+</style>

@@ -175,7 +175,11 @@ describe('首屏按鈕文字已拿掉', () => {
     expect(wrapper.text()).not.toContain('有未儲存的修改')
     await wrapper.findAll('input')[0]!.setValue('新小標')
     const payload = await savedPayload(wrapper, 'home_hero')
-    expect(payload).toEqual({ eyebrow: '新小標', copy_lines: ['一', '二'] })
+    // 素材版位沒選：送 null（＝官網沿用內建影片與照片）。
+    expect(payload).toEqual({
+      eyebrow: '新小標', copy_lines: ['一', '二'],
+      video_desktop: null, video_mobile: null, poster: null, poster_alt: '', fallback_image: null,
+    })
   })
 })
 
@@ -249,7 +253,7 @@ describe('孩子的一天', () => {
       moments: [{ key: 'hello', time: '08:00', label: '早安', caption: '', title: '早安', story: '', question: '', answer: '' }],
     }) as never)
     const wrapper = await mountAs(DayExperienceView, superAdmin(), '/content/day-experience')
-    expect(wrapper.text()).toContain('新增的卡片先以沒有照片的空白相紙顯示')
+    expect(wrapper.text()).toContain('新增的卡片沒選照片時以空白相紙顯示')
     expect(wrapper.text()).not.toContain('多出來的卡片官網不會顯示')
   })
 })

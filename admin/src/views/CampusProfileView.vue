@@ -2,11 +2,14 @@
 import { computed, ref, useTemplateRef } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
-import type { CampusProfilePayload } from '../api/types'
+import type { CampusProfilePayload, FocusPointPayload } from '../api/types'
+import { mediaVariantUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import GlyphHint from '../components/GlyphHint.vue'
+import MediaSlotField from '../components/MediaSlotField.vue'
+import FocusPicker from '../components/FocusPicker.vue'
 import { addressSearchUrl, mapUrlError } from '../composables/siteLinks'
 
 const campus = ref('')
@@ -23,9 +26,50 @@ const editor = useContentItem<CampusProfilePayload>(
     fb_note: '',
     line: '',
     map_url: '',
+    cover: null,
+    card_focus: null,
+    hero_focus: null,
+    line_art: null,
+    line_art_colour: null,
   },
   campus,
 )
+
+// 官網內建的五校封面（沒換封面時也能只調兩個版位的焦點）。
+const BUILTIN_COVERS: Record<string, string> = {
+  yihua: 'yihua-exterior-enhanced-v1',
+  minghua: 'minghua-enhanced-v1',
+  chongde: 'chongde-enhanced-v1',
+  international: 'international-enhanced-v1',
+  renwu: 'renwu-enhanced-v1',
+}
+const builtinCover = computed(() => (BUILTIN_COVERS[campus.value] ? `/assets/${BUILTIN_COVERS[campus.value]}.webp` : ''))
+const builtinLineArt = computed(() => (campus.value ? `/assets/campus-line-art-${campus.value}.webp` : ''))
+const builtinLineArtColour = computed(() => (campus.value ? `/assets/campus-line-art-${campus.value}-colour.webp` : ''))
+// 點焦點用的封面（換了封面用素材的縮圖，沒換用內建照片）。
+const coverSrc = computed(() => {
+  const cover = editor.form.value.cover
+  return cover ? mediaVariantUrl(cover.media_id, 'thumbnail') : builtinCover.value
+})
+// 版位焦點沒設時官網實際用的位置：沒換封面＝內建位置（web fixture 的 panoramaPos／
+// heroPhotoPos，沒有就是元件預設）；換了封面＝封面設定的焦點，再沒有就是元件預設
+// （素材本身的預設焦點這裡不另外查）。
+const BUILTIN_CARD_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 50, y: 12 } }
+const BUILTIN_HERO_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 85, y: 8 } }
+const CARD_DEFAULT: FocusPointPayload = { x: 50, y: 55 }
+const HERO_DEFAULT: FocusPointPayload = { x: 50, y: 50 }
+const coverFocus = computed<FocusPointPayload | null>(() => {
+  const cover = editor.form.value.cover
+  return cover && cover.focus_x != null && cover.focus_y != null ? { x: cover.focus_x, y: cover.focus_y } : null
+})
+const cardFallback = computed(() =>
+  editor.form.value.cover ? (coverFocus.value ?? CARD_DEFAULT) : (BUILTIN_CARD_FOCUS[campus.value] ?? CARD_DEFAULT),
+)
+const heroFallback = computed(() =>
+  editor.form.value.cover ? (coverFocus.value ?? HERO_DEFAULT) : (BUILTIN_HERO_FOCUS[campus.value] ?? HERO_DEFAULT),
+)
+const fallbackLabel = computed(() => (editor.form.value.cover ? '預設位置（封面或素材的焦點）' : '官網原本的位置'))
+
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
 // 「開啟看看」：填了地圖網址就開它，沒填開官網會用的地址搜尋。
@@ -80,6 +124,71 @@ const mapPreviewUrl = computed(() => {
         <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
         <LengthHint :value="editor.form.value.description" rule="campusDescription" />
       </el-form-item>
+
+      <h3 class="form-section">封面照片與建築線稿</h3>
+      <p class="field-help">沒選的沿用官網內建。封面在兩個地方裁成不同比例，可以各自點選要保留的位置；沒換封面也能只調位置。</p>
+      <el-form-item label="封面照片">
+        <MediaSlotField
+          v-model="editor.form.value.cover"
+          :campus-key="campus"
+          builtin="官網內建的校園外觀照"
+          :builtin-src="builtinCover"
+          :focus="false"
+          :disabled="editor.readOnly.value"
+        />
+      </el-form-item>
+      <div class="field-row">
+        <el-form-item label="首頁五校卡片、預約頁的裁切焦點">
+          <FocusPicker
+            v-if="coverSrc"
+            v-model="editor.form.value.card_focus"
+            :src="coverSrc"
+            :fallback="cardFallback"
+            :fallback-label="fallbackLabel"
+            label="首頁五校卡片的裁切焦點"
+            reset-label="改回預設位置"
+            :previews="[{ label: '首頁卡片', ratio: '16 / 9' }, { label: '預約頁', ratio: '4 / 3' }]"
+            :disabled="editor.readOnly.value"
+          />
+        </el-form-item>
+        <el-form-item label="分校頁首屏的裁切焦點">
+          <FocusPicker
+            v-if="coverSrc"
+            v-model="editor.form.value.hero_focus"
+            :src="coverSrc"
+            :fallback="heroFallback"
+            :fallback-label="fallbackLabel"
+            label="分校頁首屏的裁切焦點"
+            reset-label="改回預設位置"
+            :previews="[{ label: '桌機', ratio: '21 / 9' }, { label: '手機', ratio: '3 / 4' }]"
+            :disabled="editor.readOnly.value"
+          />
+        </el-form-item>
+      </div>
+      <div class="field-row">
+        <el-form-item label="建築線稿">
+          <MediaSlotField
+            v-model="editor.form.value.line_art"
+            :campus-key="campus"
+            builtin="官網內建的線稿"
+            :builtin-src="builtinLineArt"
+            :focus="false"
+            :disabled="editor.readOnly.value"
+          />
+          <span class="field-help">首頁五校分頁上的小插圖，建議去背 PNG 或白底、橫式 3:2。</span>
+        </el-form-item>
+        <el-form-item label="建築線稿（上色版）">
+          <MediaSlotField
+            v-model="editor.form.value.line_art_colour"
+            :campus-key="campus"
+            builtin="上面的線稿（換了線稿時）或內建的上色版"
+            :builtin-src="editor.form.value.line_art ? '' : builtinLineArtColour"
+            :focus="false"
+            :disabled="editor.readOnly.value"
+          />
+          <span class="field-help">選到這一校時疊上去的彩色版；沒選時用上面的線稿。</span>
+        </el-form-item>
+      </div>
 
       <h3 class="form-section">社群</h3>
       <el-form-item label="Facebook 粉絲專頁網址">

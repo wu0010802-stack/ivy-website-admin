@@ -12,17 +12,40 @@ export type CampusOut = components['schemas']['CampusOut']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 
+/** 版位的裁切焦點（0–100，左上為 0），後端 FocusPointPayload。 */
+export interface FocusPointPayload {
+  x: number
+  y: number
+}
+
+/**
+ * 內容裡的素材版位（後端 MediaSlotPayload）：素材庫的素材＋這個版位自己的焦點。
+ * 焦點留空（null）＝用素材本身的焦點；整個版位 null＝官網沿用內建素材。
+ */
+export interface MediaSlotPayload {
+  media_id: string
+  focus_x: number | null
+  focus_y: number | null
+}
+
 export interface HomeAboutPayload {
   title: string
   since_label: string
   body_text: string
   caption: string
+  photo?: MediaSlotPayload | null
+  photo_alt?: string
 }
 
 /** 首屏小標與標語。按鈕文字（cta_label）2026-09-23 隨首屏按鈕拿掉，後端忽略舊值。 */
 export interface HomeHeroPayload {
   eyebrow: string
   copy_lines: string[]
+  video_desktop?: MediaSlotPayload | null
+  video_mobile?: MediaSlotPayload | null
+  poster?: MediaSlotPayload | null
+  poster_alt?: string
+  fallback_image?: MediaSlotPayload | null
 }
 
 /** 頁尾連結：站內路徑（/ 開頭）或 https 外部網址 */
@@ -147,12 +170,28 @@ export interface CampusNewsEventPayload {
 
 export type NewsEventPayload = CampusNewsEventPayload & ScopedEntry
 
+/** 首頁手機版「活動影片」的一支（後端 HomeFilmPayload）。 */
+export interface HomeFilmPayload {
+  id: string
+  /** 不顯示，給螢幕閱讀器念 */
+  title: string
+  source: 'file' | 'youtube'
+  video: MediaSlotPayload | null
+  /** 播放片段（秒）；end 為 null＝播到結尾 */
+  start: number
+  end: number | null
+  poster: MediaSlotPayload | null
+  youtube_url: string
+}
+
 export interface HomeNewsPayload {
   sample_note: string
   articles: NewsArticlePayload[]
   events: NewsEventPayload[]
   /** 首頁最多輪播幾則；null＝全部 */
   home_display_count: number | null
+  /** 手機版活動影片；null＝官網沿用內建的四支 */
+  films?: HomeFilmPayload[] | null
 }
 
 export interface CampusNewsPayload {
@@ -195,7 +234,14 @@ export interface DayMomentPayload {
   story: string
   question: string
   answer: string
+  photo?: MediaSlotPayload | null
+  alt?: string
+  /** 官網既有色票；null＝沿用內建卡的色調 */
+  tint?: DayMomentTint | null
 }
+
+export const DAY_MOMENT_TINTS = ['yellow', 'mint', 'peach', 'cream'] as const
+export type DayMomentTint = (typeof DAY_MOMENT_TINTS)[number]
 
 export interface DayExperiencePayload {
   eyebrow: string
@@ -203,6 +249,12 @@ export interface DayExperiencePayload {
   note: string
   source_note: string
   moments: DayMomentPayload[]
+  film_desktop?: MediaSlotPayload | null
+  film_mobile?: MediaSlotPayload | null
+  film_poster?: MediaSlotPayload | null
+  /** null＝沿用官網內建的影片說明 */
+  film_caption_zh?: string | null
+  film_caption_en?: string | null
 }
 
 export interface CampusProfilePayload {
@@ -217,6 +269,13 @@ export interface CampusProfilePayload {
   line: string
   /** Google 地圖網址；空字串＝官網用地址搜尋 */
   map_url: string
+  cover?: MediaSlotPayload | null
+  /** 首頁五校卡片與預約頁的校區照片 */
+  card_focus?: FocusPointPayload | null
+  /** 分校頁首屏 */
+  hero_focus?: FocusPointPayload | null
+  line_art?: MediaSlotPayload | null
+  line_art_colour?: MediaSlotPayload | null
 }
 
 export interface CampusFaqItemPayload {

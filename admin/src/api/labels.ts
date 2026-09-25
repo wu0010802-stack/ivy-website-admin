@@ -146,8 +146,28 @@ export function mediaReferenceState(state: string): StatusMeta {
  * 引用的欄位路徑（後端 registry 的 extract_media_refs）→ 園方看得懂的位置。
  * 例：`articles[1].body[2].image` →「第 2 則消息內文第 3 段的圖片」。
  */
+// 素材版位的欄位路徑（後端 registry 的 `…media_id`）→ 中文。
+const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
+  'video_desktop.media_id': '首屏影片（桌機）',
+  'video_mobile.media_id': '首屏影片（手機）',
+  'poster.media_id': '首屏影片 poster',
+  'fallback_image.media_id': '首屏影片載入失敗替代圖',
+  'photo.media_id': '關於常春藤照片',
+  'film_desktop.media_id': '孩子的一天影片（桌機）',
+  'film_mobile.media_id': '孩子的一天影片（手機）',
+  'film_poster.media_id': '孩子的一天影片 poster',
+  'cover.media_id': '封面照片',
+  'line_art.media_id': '建築線稿',
+  'line_art_colour.media_id': '建築線稿（上色）',
+}
+
 export function mediaFieldPathLabel(path: string): string {
   if (path === 'share_image') return '分享預覽圖'
+  if (MEDIA_SLOT_PATH_LABELS[path]) return MEDIA_SLOT_PATH_LABELS[path]
+  let slot = /^moments\[(\d+)\]\.photo\.media_id$/.exec(path)
+  if (slot) return `孩子的一天第 ${Number(slot[1]) + 1} 張卡片的照片`
+  slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
+  if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
   let m = /^scenes\[(\d+)\]\.image$/.exec(path)
   if (m) return `第 ${Number(m[1]) + 1} 個場景的照片`
   m = /^articles\[(\d+)\]\.image$/.exec(path)
@@ -272,6 +292,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.unarchive': '取消封存素材',
   'media.purge': '清理刪除的素材檔案',
   'media.replace_references': '替換素材並產生草稿',
+  'media.import_site_assets': '匯入官網內建素材',
 }
 
 export function auditActionLabel(action: string): string {
@@ -415,6 +436,24 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   campus_order: '五校順序',
   default_campus: '預設顯示的校區',
   map_url: '地圖連結',
+  video_desktop: '桌機影片',
+  video_mobile: '手機影片',
+  poster: '影片 poster',
+  poster_alt: 'poster 替代文字',
+  fallback_image: '影片載入失敗替代圖',
+  photo: '照片',
+  photo_alt: '照片替代文字',
+  film_desktop: '背景影片（桌機）',
+  film_mobile: '背景影片（手機）',
+  film_poster: '背景影片 poster',
+  film_caption_zh: '影片說明（中文）',
+  film_caption_en: '影片說明（英文）',
+  cover: '封面照片',
+  card_focus: '首頁卡片焦點',
+  hero_focus: '分校頁首屏焦點',
+  line_art: '建築線稿',
+  line_art_colour: '建築線稿（上色）',
+  films: '手機版活動影片',
 }
 
 export function contentFieldLabel(key: string): string {

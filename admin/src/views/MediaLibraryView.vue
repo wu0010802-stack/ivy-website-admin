@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
-import { api, ApiError, mediaFileUrl } from '../api/client'
+import { api, ApiError, mediaPreviewUrl, mediaVariantUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
@@ -16,6 +16,7 @@ import StatusTag from '../components/StatusTag.vue'
 import MediaUploadList from '../components/MediaUploadList.vue'
 import MediaUsagesDrawer from '../components/MediaUsagesDrawer.vue'
 import MediaReplaceDialog from '../components/MediaReplaceDialog.vue'
+import FocusPicker from '../components/FocusPicker.vue'
 
 type ListState = 'active' | 'archived' | 'deleted'
 
@@ -147,10 +148,9 @@ const editSourceAttribution = ref('')
 const editCaption = ref('')
 const editLicense = ref('')
 const editTags = ref<string[]>([])
-const editCropFocusX = ref(0.5)
-const editCropFocusY = ref(0.5)
+// 素材預設焦點（後端存 0–1；FocusPicker 用 0–100）。null＝沒設，官網置中。
+const editFocus = ref<{ x: number; y: number } | null>(null)
 const saving = ref(false)
-const focusStageRef = ref<HTMLDivElement | null>(null)
 
 function openEditDialog(asset: MediaAssetOut) {
   editingAsset.value = asset
@@ -159,17 +159,11 @@ function openEditDialog(asset: MediaAssetOut) {
   editCaption.value = asset.caption ?? ''
   editLicense.value = asset.license_note ?? ''
   editTags.value = [...(asset.tags ?? [])]
-  editCropFocusX.value = asset.crop_focus_x ?? 0.5
-  editCropFocusY.value = asset.crop_focus_y ?? 0.5
+  editFocus.value =
+    asset.crop_focus_x != null && asset.crop_focus_y != null
+      ? { x: Math.round(asset.crop_focus_x * 100), y: Math.round(asset.crop_focus_y * 100) }
+      : null
   editDialogVisible.value = true
-}
-
-function pickFocusFromClick(event: MouseEvent) {
-  const stage = focusStageRef.value
-  if (!stage) return
-  const rect = stage.getBoundingClientRect()
-  editCropFocusX.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-  editCropFocusY.value = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
 }
 
 async function submitEdit() {
@@ -183,7 +177,9 @@ async function submitEdit() {
       caption: editCaption.value || null,
       license_note: editLicense.value || null,
       tags: editTags.value,
-      ...(isImage ? { crop_focus_x: editCropFocusX.value, crop_focus_y: editCropFocusY.value } : {}),
+      ...(isImage
+        ? { crop_focus_x: editFocus.value ? editFocus.value.x / 100 : null, crop_focus_y: editFocus.value ? editFocus.value.y / 100 : null }
+        : {}),
     })
     ElMessage.success('已儲存')
     editDialogVisible.value = false
@@ -324,10 +320,12 @@ onMounted(async () => {
 
       <article v-for="asset in visibleAssets" :key="asset.id" class="media" :data-media-id="asset.id">
         <div class="media__thumb">
-          <img v-if="asset.kind === 'image' && asset.status === 'ready'" :src="mediaFileUrl(asset.id)" :alt="asset.alt_text ?? ''" loading="lazy" />
+          <!-- 列表一律用縮圖（圖片長邊 480、影片自動擷取的畫面），不載原檔。 -->
+          <img v-if="asset.status === 'ready' && mediaPreviewUrl(asset)" :src="mediaPreviewUrl(asset)" :alt="asset.alt_text ?? ''" loading="lazy" />
           <div v-else class="media__placeholder">
             <span>{{ asset.kind === 'video' ? `影片・${formatDuration(asset.duration_seconds)}` : mediaStatus(asset.status).label }}</span>
           </div>
+          <span v-if="asset.kind === 'video' && asset.status === 'ready' && mediaPreviewUrl(asset)" class="media__duration">影片・{{ formatDuration(asset.duration_seconds) }}</span>
           <StatusTag v-if="asset.status !== 'ready'" :meta="mediaStatus(asset.status)" size="small" class="media__status" />
           <span v-if="asset.usage_count > 0" class="media__usage" :title="usedInText(asset)">使用中 {{ asset.usage_count }}</span>
         </div>
@@ -403,12 +401,12 @@ onMounted(async () => {
 
     <el-dialog v-model="editDialogVisible" :title="editingAsset?.kind === 'video' ? '編輯影片說明' : '編輯素材'" width="min(520px, 100%)">
       <el-form v-if="editingAsset" label-position="top">
-        <el-form-item v-if="editingAsset.kind === 'image'" label="裁切焦點">
-          <div ref="focusStageRef" class="focus" @click="pickFocusFromClick">
-            <img :src="mediaFileUrl(editingAsset.id)" alt="" />
-            <span class="focus__pin" :style="{ left: `${editCropFocusX * 100}%`, top: `${editCropFocusY * 100}%` }" />
-          </div>
-          <span class="field-help">點照片上最重要的位置。官網把照片裁成不同比例時，會盡量保留這一點。</span>
+        <el-form-item v-if="editingAsset.kind === 'image'" label="預設裁切焦點">
+          <FocusPicker v-model="editFocus" :src="mediaVariantUrl(editingAsset.id, 'thumbnail')" label="預設裁切焦點" reset-label="清除（置中）" />
+          <span class="field-help">
+            點照片上最重要的位置（也可以用方向鍵）。首屏、關於、孩子的一天、分校封面與消息封面把照片裁成不同比例時，
+            沒有另外設定焦點的版位以這一點為中心；各版位可以在內容頁自己調整，不受這裡影響。校園探索的場景照片不裁切（熱點要對齊整張照片），不套用。
+          </span>
         </el-form-item>
         <p v-else class="field-help">
           {{ formatDuration(editingAsset.duration_seconds) }}<template v-if="editingAsset.width && editingAsset.height">・{{ editingAsset.width }}×{{ editingAsset.height }}</template>・{{ formatFileSize(editingAsset.size_bytes) }}
@@ -589,32 +587,14 @@ onMounted(async () => {
   opacity: 0;
 }
 
-.focus {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border-radius: var(--radius);
-  cursor: crosshair;
-}
-
-.focus img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  pointer-events: none;
-}
-
-.focus__pin {
+.media__duration {
   position: absolute;
-  width: 18px;
-  height: 18px;
-  transform: translate(-50%, -50%);
-  border: 2px solid var(--on-photo);
-  border-radius: 50%;
-  background: var(--brand-gold);
-  box-shadow: 0 0 0 1px var(--on-photo-shadow-strong), 0 0 6px var(--on-photo-shadow-strong);
-  pointer-events: none;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
 }
 </style>

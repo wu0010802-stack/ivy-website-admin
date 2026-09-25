@@ -60,10 +60,11 @@ export function mediaKindOf(file: File): 'image' | 'video' {
 export function precheckFile(
   file: File,
   limits: MediaUploadLimitsOut | null,
-  allowed: 'image' | 'any' = 'any',
+  allowed: 'image' | 'video' | 'any' = 'any',
 ): string | null {
   const kind = mediaKindOf(file)
   if (allowed === 'image' && kind !== 'image') return '這裡只能上傳照片'
+  if (allowed === 'video' && kind !== 'video') return '這裡只能上傳影片（MP4）'
   const types = kind === 'video' ? (limits?.video_types ?? DEFAULT_VIDEO_TYPES) : (limits?.image_types ?? DEFAULT_IMAGE_TYPES)
   // 有些瀏覽器拿不到 type（空字串），交給後端判斷實際內容。
   if (file.type && !types.includes(file.type)) return '格式不支援，只接受 JPG、PNG、WebP 或 MP4'
@@ -88,7 +89,7 @@ export function useMediaUploadQueue(options: {
   campusKey: () => string | null | undefined
   /** 只有一張照片時才帶的圖片說明（多張時到「編輯」各自補） */
   altText?: () => string
-  allowed?: 'image' | 'any'
+  allowed?: 'image' | 'video' | 'any'
 }) {
   const items = ref<UploadItem[]>([])
   const running = ref(false)
