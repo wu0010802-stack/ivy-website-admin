@@ -508,8 +508,9 @@ const titleLines = computed(() => props.moment.title.split('\n'))
           <!-- 紙膠帶黏在相紙上，跟著紙一起翻；背面只露出超出紙緣的那一截 -->
           <span class="print-tape" aria-hidden="true" />
           <div class="print-face print-front" :inert="isFlipped">
-            <figure class="print-figure">
-              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 100vw, 540px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
+            <!-- 後台新增、還沒有照片的卡片：同尺寸的空白相紙（色調跟著卡片），不放破圖。 -->
+            <figure class="print-figure" :class="{ 'is-blank': !moment.photo }">
+              <img v-if="moment.photo" class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 100vw, 540px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
               <time class="print-stamp" :datetime="moment.time">{{ moment.time }}</time>
             </figure>
             <div class="print-foot">

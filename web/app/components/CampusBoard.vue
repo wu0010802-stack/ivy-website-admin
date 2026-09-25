@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { responsiveImage } from '~/utils/responsive-image'
 import { createCarouselClock } from '~/utils/carouselClock'
+import { campusMapUrl } from '~/utils/site-links'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
@@ -258,7 +259,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
       <div class="campus-contact">
         <div class="contact-row">
           <svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>
-          <a :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(current.address)}`" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
+          <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
         <div class="social-row">

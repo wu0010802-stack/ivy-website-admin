@@ -1,6 +1,7 @@
 import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, FaqItem, NewsArticle, NewsBlock, NewsEvent, SiteContent } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { privacyNotice } from './privacy-notice'
+import { siteLink } from './site-links'
 
 export interface LiveHomeAbout {
   title: string
@@ -12,7 +13,17 @@ export interface LiveHomeAbout {
 export interface LiveHomeHero {
   eyebrow: string
   copy_lines: string[]
-  cta_label: string
+  /** 2026-09-23 拿掉首屏按鈕：舊版本才有，官網不讀 */
+  cta_label?: string
+}
+
+export interface LiveSiteLink {
+  label: string
+  href: string
+}
+
+export interface LiveNavLink extends LiveSiteLink {
+  label_en?: string
 }
 
 export interface LiveSiteFooter {
@@ -20,6 +31,8 @@ export interface LiveSiteFooter {
   copyright: string
   bottom_note: string
   campus_list_label: string
+  /** 2026-09-25 新增；沒有（或 null）＝沿用內建頁尾連結 */
+  links?: LiveSiteLink[] | null
 }
 
 export interface LiveSiteMeta {
@@ -33,12 +46,17 @@ export interface LiveSiteMeta {
   admission_title?: string
   admission_description?: string
   allow_indexing?: boolean
+  /** 2026-09-25 新增；沒有（或 null）＝沿用內建主選單 */
+  primary_nav?: LiveNavLink[] | null
 }
 
 export interface LiveHomeCampusBoard {
   section_title: string
   eyebrow: string
   note: string
+  /** 2026-09-25 新增：首頁五校順序與預設顯示的校區 */
+  campus_order?: string[]
+  default_campus?: string
 }
 
 export interface LiveBookingContent {
@@ -144,6 +162,8 @@ export interface LiveCampusProfile {
   facebook: string
   fb_note: string
   line: string
+  /** 2026-09-25 新增：Google 地圖網址，空字串＝用地址搜尋 */
+  map_url?: string
 }
 
 export interface LiveCampusFaq {
@@ -264,9 +284,9 @@ export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: Li
  * `usePublishedSite`（讀已發布內容）跟 `useDraftPreview`（讀最新未發布
  * revision）共用這個函式，差別只在 overlay 資料是從哪支 API 拿的。
  *
- * 仍未搬進 CMS、維持 fixture 靜態資料的部分：探索（tourScenes，含地圖
- * 座標的複雜巢狀結構）、影片／照片素材本身（仍是路徑字串，尚未接媒體
- * 庫）、首頁五校排序與預設校區（結構性設定，不當文字內容編輯）。
+ * 仍未搬進 CMS、維持 fixture 靜態資料的部分：影片／照片素材本身（仍是
+ * 路徑字串，尚未接媒體庫，孩子的一天的照片依卡片 key 對回內建素材）、
+ * 品牌名稱與 Logo（2026-09-19 核可鎖定）。
  */
 export function applyContentOverlay(content: SiteContent, overlay: ContentOverlay): SiteContent {
   const next: SiteContent = {
@@ -295,8 +315,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     next.home.hero = {
       ...next.home.hero,
       eyebrow: hero.eyebrow,
-      copyLines: hero.copy_lines,
-      ctaLabel: hero.cta_label
+      copyLines: hero.copy_lines
     }
   }
 
@@ -307,6 +326,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       copyright: overlay.site_footer.copyright,
       bottomNote: overlay.site_footer.bottom_note,
       campusListLabel: overlay.site_footer.campus_list_label
+    }
+    if (Array.isArray(overlay.site_footer.links)) {
+      next.footer.links = overlay.site_footer.links
+        .filter((link) => link.label?.trim() && siteLink(link.href))
+        .map((link) => ({ label: link.label, href: link.href.trim() }))
     }
   }
 
@@ -326,6 +350,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       admissionDescription: overlay.site_meta.admission_description || undefined,
       allowIndexing: overlay.site_meta.allow_indexing ?? true
     }
+    const nav = (overlay.site_meta.primary_nav ?? [])
+      .filter((item) => item.label?.trim() && siteLink(item.href))
+      .map((item) => ({ label: item.label, labelEn: item.label_en ?? '', href: item.href.trim() }))
+    // 選單至少要有一項：後台存的是空的（或全部無效）就沿用內建選單。
+    if (nav.length) next.siteMeta.primaryNav = nav
   }
 
   if (overlay.home_campus_board) {
@@ -335,6 +364,15 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       sectionTitle: board.section_title,
       eyebrow: board.eyebrow,
       note: board.note
+    }
+    // 順序要剛好是現有校區的排列（後端已驗證五校不重複不缺漏）；對不上就沿用內建順序。
+    const order = board.campus_order ?? []
+    const known = content.home.campusBoard.campusOrder
+    if (order.length === known.length && new Set(order).size === order.length && order.every((key) => known.includes(key))) {
+      next.home.campusBoard.campusOrder = [...order]
+    }
+    if (board.default_campus && known.includes(board.default_campus)) {
+      next.home.campusBoard.defaultCampus = board.default_campus
     }
   }
 
@@ -354,21 +392,25 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
 
   if (overlay.day_experience) {
     const day = overlay.day_experience
-    // 只覆蓋文字欄位；photo/tint/alt 這些跟素材綁定的欄位還沒接媒體庫
-    // （見上方註解），所以疊資料的筆數上限是 fixture 既有的照片卡數量
-    // ——後台多新增的卡片目前不會顯示，避免出現沒有照片的破圖卡片。
-    const mergedCount = Math.min(day.moments.length, next.dayExperience.moments.length)
+    // 卡片清單以後台為準：張數、順序、刪卡都照發布的內容。照片、色調與 alt
+    // 還沒接素材庫（素材版位另一批），依 key 對回官網內建的同一張卡；後台新增、
+    // 內建沒有的卡片沒有照片，色調沿用同位置內建卡的節奏，DayMomentCard 顯示
+    // 無照片的相紙樣式。
+    const builtin = next.dayExperience.moments
+    const byKey = new Map(builtin.map((m) => [m.key, m]))
     next.dayExperience = {
       ...next.dayExperience,
       eyebrow: day.eyebrow,
       eyebrowEn: day.eyebrow_en,
       note: day.note,
       sourceNote: day.source_note,
-      moments: next.dayExperience.moments.map((original, i) => {
-        const m = i < mergedCount ? day.moments[i] : undefined
-        if (!m) return original
+      moments: day.moments.map((m, i) => {
+        const original = byKey.get(m.key)
+        const media = original
+          ? { tint: original.tint, photo: original.photo, alt: original.alt }
+          : { tint: builtin.length ? builtin[i % builtin.length]!.tint : '', photo: '', alt: '' }
         return {
-          ...original,
+          ...media,
           key: m.key,
           time: m.time,
           label: m.label,
@@ -418,7 +460,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         description: profile.description,
         facebook: profile.facebook,
         fbNote: profile.fb_note,
-        line: profile.line || null
+        line: profile.line || null,
+        mapUrl: profile.map_url || undefined
       }
     })
   }

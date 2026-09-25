@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
+import { siteLink } from '~/utils/site-links'
 
 const props = defineProps<{ content: SiteContent }>()
 const campuses = computed(() => props.content.campuses)
+// 後台可編輯的頁尾連結；外部連結（https）另開分頁並標 ↗。
+const links = computed(() => props.content.footer.links.flatMap((item) => {
+  const link = siteLink(item.href)
+  return link ? [{ ...item, ...link }] : []
+}))
 // 園方發布了隱私說明才顯示入口（規格 L130）。
 const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null)
 </script>
@@ -17,7 +23,13 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
         <p>{{ content.footer.tagline }}</p>
       </div>
       <div class="footer-links">
-        <a v-for="link in content.footer.links" :key="link.href" :href="link.href">{{ link.label }}</a>
+        <a
+          v-for="link in links"
+          :key="link.href"
+          :href="link.href"
+          :target="link.external ? '_blank' : undefined"
+          :rel="link.external ? 'noopener noreferrer' : undefined"
+        >{{ link.label }}<template v-if="link.external"> ↗<span class="sr-only">（另開新視窗）</span></template></a>
       </div>
       <div>
         <p class="footer-label">{{ content.footer.campusListLabel }}</p>

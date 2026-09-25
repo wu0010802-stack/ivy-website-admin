@@ -176,7 +176,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     expect(result.booking.ctaLabel).toBe('新按鈕')
   })
 
-  it('day_experience 只覆蓋既有照片卡筆數內的文字，多出來的筆數不套用', () => {
+  it('day_experience 的卡片以後台為準：照 key 帶回內建照片，新卡沒有照片', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {
       day_experience: {
@@ -185,18 +185,20 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
         note: '新說明',
         source_note: '新來源',
         moments: [
-          { key: 'm1-new', time: '07:00', label: '新早晨', caption: 'c1', title: 't1', story: 's1', question: 'q1', answer: 'a1' },
-          { key: 'm2-new', time: '12:00', label: '新中午', caption: 'c2', title: 't2', story: 's2', question: 'q2', answer: 'a2' },
+          { key: 'm2', time: '12:00', label: '新中午', caption: 'c2', title: 't2', story: 's2', question: 'q2', answer: 'a2' },
+          { key: 'm1', time: '07:00', label: '新早晨', caption: 'c1', title: 't1', story: 's1', question: 'q1', answer: 'a1' },
           { key: 'm3-new', time: '18:00', label: '新傍晚', caption: 'c3', title: 't3', story: 's3', question: 'q3', answer: 'a3' }
         ]
       }
     })
     expect(result.dayExperience.eyebrow).toBe('新 eyebrow')
-    expect(result.dayExperience.moments).toHaveLength(2)
-    expect(result.dayExperience.moments[0]?.title).toBe('t1')
-    // 照片欄位（fixture 專屬、還沒接媒體庫）維持原樣，不會被覆蓋成 undefined
-    expect(result.dayExperience.moments[0]?.photo).toBe('fixture-photo-1')
-    expect(result.dayExperience.moments[1]?.title).toBe('t2')
+    expect(result.dayExperience.moments).toHaveLength(3)
+    // 照片欄位（還沒接媒體庫）依 key 對回內建卡，順序調換時照片跟著卡片走
+    expect(result.dayExperience.moments.map((m) => [m.title, m.photo])).toEqual([
+      ['t2', 'fixture-photo-2'],
+      ['t1', 'fixture-photo-1'],
+      ['t3', '']
+    ])
   })
 
   it('campus_profile／campus_faq 依 campus_key 分別套用到對應校區，不影響其他校', () => {

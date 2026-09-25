@@ -3,6 +3,7 @@
 // （pages/preview.vue?page=campus）共用，兩邊畫面才不會漂移。
 import type { Campus } from '~/types/site-content'
 import { responsiveImage } from '~/utils/responsive-image'
+import { campusMapUrl } from '~/utils/site-links'
 
 defineProps<{ campus: Campus }>()
 </script>
@@ -43,7 +44,7 @@ defineProps<{ campus: Campus }>()
           </dl>
           <a
             class="text-link"
-            :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(campus.address)}`"
+            :href="campusMapUrl(campus)"
             target="_blank"
             rel="noopener noreferrer"
           >

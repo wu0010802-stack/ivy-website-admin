@@ -127,6 +127,8 @@ export interface Campus {
   fbNote: string
   _todo?: string | null
   mapQueryAddress: string
+  /** 後台「分校介紹」填的 Google 地圖網址；沒有時用地址組成搜尋連結（utils/site-links.ts） */
+  mapUrl?: string
   tourScenes: TourScene[] | GeneratedTourScenes
   faq: { template: string; items: FaqItem[] }
 }

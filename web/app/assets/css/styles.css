@@ -105,7 +105,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-corner-tip>.print-corner-b{--shade:var(--corner-tip-shade-b);clip-path:polygon(0 -1.5px,0 100%,calc(100% + 1.5px) 100%)}
 .print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(var(--on-dark) / .34) 0,rgb(var(--on-dark) / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
 .print-front{padding:8% 8% 0}
-.print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}
+.print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}.print-figure.is-blank{aspect-ratio:1;background:color-mix(in oklch,var(--print-tint) 45%,var(--line))}
 .print-photo{width:100%;height:auto;aspect-ratio:1;object-position:50% 40%;filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
 .day-print.is-revealed .print-photo{filter:none;opacity:1}
 .print-figure::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,var(--ivy-print-glass-cool),var(--ivy-print-glass-warm) 55%,var(--ivy-print-glass-cool));transition:opacity 3.2s ease .3s}
