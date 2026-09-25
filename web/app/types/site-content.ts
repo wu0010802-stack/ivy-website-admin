@@ -1,3 +1,7 @@
+import type { MediaImage } from '../utils/media-image'
+
+export type { MediaImage }
+
 export interface HeroContent {
   eyebrow: string
   titleParts: {
@@ -14,6 +18,15 @@ export interface HeroContent {
   heroImageAlt: string
   heroVideoSrc: string
   heroVideoPoster: string
+  // 以下由後台素材版位疊上（content-overlay.ts）；沒有＝沿用上面的內建素材。
+  /** 首屏照片（影片載入前與不自動播放時） */
+  heroImageMedia?: MediaImage
+  /** 影片載入失敗時換上的照片；沒有就一直顯示 heroImageMedia／內建照片 */
+  heroFallbackMedia?: MediaImage
+  /** 手機（760px 以下）播的影片；沒有就用 heroVideoSrc 的手機版 */
+  heroVideoSrcMobile?: string
+  heroVideoPosition?: string | null
+  heroVideoPositionMobile?: string | null
 }
 
 export interface AboutContent {
@@ -22,7 +35,7 @@ export interface AboutContent {
   title: string
   watermark: { top: string; bottom: string }
   bodyText: string
-  photos: { image: string; alt: string; role: string }[]
+  photos: { image: string; alt: string; role: string; media?: MediaImage }[]
   caption: string
 }
 
@@ -53,6 +66,8 @@ export interface DayMoment {
   question: string
   answer: string
   _todo?: string
+  /** 後台從素材庫選的照片；有它時不看 photo */
+  photoMedia?: MediaImage
 }
 
 export interface DayExperienceContent {
@@ -64,6 +79,9 @@ export interface DayExperienceContent {
   filmSrc: string
   filmSrcMobile: string
   filmPoster: string
+  filmPosterMedia?: MediaImage
+  filmPosition?: string | null
+  filmPositionMobile?: string | null
   note: string
   sourceNote: string
   moments: DayMoment[]
@@ -83,6 +101,7 @@ export interface TourScene {
   image: string
   intro: string
   spots: TourSpot[]
+  imageMedia?: MediaImage
 }
 
 export interface GeneratedTourScenes {
@@ -115,6 +134,10 @@ export interface Campus {
   address: string
   phone: string
   image: string
+  /** 後台選的封面；panoramaPos／heroPhotoPos 會一起換成後台的焦點 */
+  imageMedia?: MediaImage
+  lineArtMedia?: MediaImage
+  lineArtColourMedia?: MediaImage
   photoPos: string | null
   panoramaPos: string | null
   heroPhotoPos: string | null
@@ -138,7 +161,7 @@ export type NewsBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'heading'; text: string }
   | { type: 'list'; items: string[]; ordered?: boolean }
-  | { type: 'image'; image: string; alt?: string; caption?: string }
+  | { type: 'image'; image: string; alt?: string; caption?: string; imageMedia?: MediaImage }
   | { type: 'link'; label: string; url: string }
 
 export interface NewsArticle {
@@ -157,6 +180,7 @@ export interface NewsArticle {
   featured?: boolean
   image: string
   alt: string
+  imageMedia?: MediaImage
 }
 
 export interface NewsEvent {
@@ -176,6 +200,14 @@ export interface NewsEvent {
   linkLabel?: string
 }
 
+/**
+ * 首頁手機版「活動影片」的一支。標題不顯示，只當螢幕閱讀器的名稱。
+ * 檔案影片播 start～end 秒（end 為 null＝播到結尾再循環）。
+ */
+export type HomeFilm =
+  | { id: string; title: string; type: 'file'; src: string; start: number; end: number | null; poster: string }
+  | { id: string; title: string; type: 'youtube'; youtubeId: string; poster: string }
+
 export interface NewsContent {
   sectionId: string
   note: string
@@ -184,6 +216,8 @@ export interface NewsContent {
   events: NewsEvent[]
   /** 首頁最多輪播幾則；沒有值＝全部 */
   homeCount?: number | null
+  /** 後台設定的手機版活動影片；沒有＝沿用 utils/campusFilms.ts 的內建清單 */
+  films?: HomeFilm[]
 }
 
 export interface BookingField {

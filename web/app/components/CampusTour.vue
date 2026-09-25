@@ -23,7 +23,8 @@ const currentSpot = computed(() => currentScene.value?.spots[spotIndex.value])
 const mainImage = computed(() => responsiveTourImage(
   currentScene.value?.image ?? '',
   '(max-width: 760px) calc(100vw - 40px), (max-width: 1100px) 55vw, 860px',
-  isExpanded.value || zoom.value > 1
+  isExpanded.value || zoom.value > 1,
+  currentScene.value?.imageMedia
 ))
 const thumbnailSizes = '(max-width: 760px) 28vw, (max-width: 1100px) 16vw, 260px'
 
@@ -287,7 +288,7 @@ watch(
                     @click="selectScene(i)"
                     @keydown="onTabKeydown($event, i)"
                   >
-                    <img v-bind="responsiveTourImage(scene.image, thumbnailSizes)" :src="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).src : undefined" :srcset="imageReady ? responsiveTourImage(scene.image, thumbnailSizes).srcset : undefined" alt="" loading="lazy" decoding="async">
+                    <img v-bind="responsiveTourImage(scene.image, thumbnailSizes, false, scene.imageMedia)" :src="imageReady ? responsiveTourImage(scene.image, thumbnailSizes, false, scene.imageMedia).src : undefined" :srcset="imageReady ? responsiveTourImage(scene.image, thumbnailSizes, false, scene.imageMedia).srcset : undefined" alt="" loading="lazy" decoding="async">
                     <span>{{ scene.name }}</span>
                   </button>
                 </div>

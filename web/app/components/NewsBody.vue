@@ -18,7 +18,7 @@ defineProps<{ summary: string; blocks: NewsBlock[] }>()
         <li v-for="(item, i) in block.items" :key="i">{{ item }}</li>
       </component>
       <figure v-else-if="block.type === 'image'">
-        <img v-bind="responsiveTourImage(block.image, '(max-width: 760px) 90vw, 630px')" :alt="block.alt ?? ''" loading="lazy">
+        <img v-bind="responsiveTourImage(block.image, '(max-width: 760px) 90vw, 630px', false, block.imageMedia)" :alt="block.alt ?? ''" loading="lazy">
         <figcaption v-if="block.caption">{{ block.caption }}</figcaption>
       </figure>
       <p v-else-if="block.type === 'link' && safeWebUrl(block.url)">

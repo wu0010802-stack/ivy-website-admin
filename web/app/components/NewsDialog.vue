@@ -66,7 +66,7 @@ function eventBrief(item: NewsEvent) {
     <div class="container">
       <div class="hn-layout">
         <!-- 640px 以下以活動影片取代近期活動（2026-09-23 D），桌機隱藏。 -->
-        <HomeFilms class="hn-films" />
+        <HomeFilms class="hn-films" :films="news.films" />
         <aside class="hn-events" aria-labelledby="upcoming-events-heading">
           <div class="hn-head">
             <span class="hn-kicker"><span lang="en">UPCOMING EVENTS</span><span v-if="isSample" class="hn-sample-tag">示意內容</span></span>
@@ -122,7 +122,8 @@ function eventBrief(item: NewsEvent) {
               <div class="hn-media">
                 <img
                   v-for="(item, layer) in layers" :key="item.id"
-                  v-bind="responsiveTourImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px')"
+                  v-bind="responsiveTourImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px', false, item.imageMedia)"
+                  :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined"
                   :alt="item.alt" :loading="layer ? 'eager' : 'lazy'" :class="{ 'is-incoming': layer > 0 }"
                 >
               </div>
@@ -159,7 +160,7 @@ function eventBrief(item: NewsEvent) {
           </div>
           <div v-else class="hn-list">
             <button v-for="item in articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
-              <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 90vw, 420px')" :alt="item.alt" loading="lazy">
+              <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 90vw, 420px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
               <span class="hn-list-copy">
                 <span class="hn-meta"><span>{{ item.campus }}</span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
                 <strong>{{ item.title }}</strong>
@@ -173,7 +174,7 @@ function eventBrief(item: NewsEvent) {
           <span class="hn-kicker">{{ view.item.campus }} · {{ (view.item as NewsArticle).category }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <span class="hn-meta"><span>{{ view.item.campus }}</span><time :datetime="view.item.date">{{ formatDate(view.item.date) }}</time></span>
-          <img v-bind="responsiveTourImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px')" :alt="(view.item as NewsArticle).alt" loading="lazy">
+          <img v-bind="responsiveTourImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px', false, (view.item as NewsArticle).imageMedia)" :style="(view.item as NewsArticle).imageMedia?.position ? { objectPosition: (view.item as NewsArticle).imageMedia!.position! } : undefined" :alt="(view.item as NewsArticle).alt" loading="lazy">
           <NewsBody v-if="(view.item as NewsArticle).body?.length" :summary="view.item.description" :blocks="(view.item as NewsArticle).body!" />
           <p v-else class="hn-detail-copy">{{ view.item.description }}</p>
           <p v-if="isSample" class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>

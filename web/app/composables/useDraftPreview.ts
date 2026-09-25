@@ -1,6 +1,6 @@
 import type { SiteContent } from '~/types/site-content'
 import type { ContentOverlay } from '~/utils/content-overlay'
-import { previewOverlay, type HiddenNewsEntry } from '~/utils/draft-preview'
+import { previewMedia, previewOverlay, type AdminMediaAsset, type HiddenNewsEntry } from '~/utils/draft-preview'
 
 interface MeResponse {
   csrf_token: string
@@ -110,12 +110,17 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
     }
   }
 
+  // 素材的尺寸、衍生檔與預設焦點（讀不到就只用原檔，畫面照樣出得來）。
+  const media = previewMedia(
+    await $fetch<AdminMediaAsset[]>('/api/website/v1/admin/media').catch(() => [] as AdminMediaAsset[])
+  )
+
   return {
     authorized: true,
     render(date: string) {
       // 消息的上下架日期：官網公開 API 會先過濾，草稿 API 給的是原始內容，
       // 這裡照同一條規則過濾（全站與各校消息都要），預覽看到的才會和上線後一樣。
-      return previewOverlay(content, overlay, date)
+      return previewOverlay(content, overlay, date, media)
     }
   }
 }

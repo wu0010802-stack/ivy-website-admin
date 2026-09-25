@@ -2,7 +2,7 @@
 // 分校頁主體。正式頁（pages/campuses/[key].vue）與私有草稿預覽
 // （pages/preview.vue?page=campus）共用，兩邊畫面才不會漂移。
 import type { Campus } from '~/types/site-content'
-import { responsiveImage } from '~/utils/responsive-image'
+import { campusHeroAttrs } from '~/utils/media-image'
 import { campusMapUrl } from '~/utils/site-links'
 
 defineProps<{ campus: Campus }>()
@@ -14,7 +14,7 @@ defineProps<{ campus: Campus }>()
       <NuxtLink to="/">首頁</NuxtLink> / <a href="/#campuses">五所校園</a> / {{ campus.name }}
     </div>
     <section class="hero campus-hero" :style="{ '--campus-photo-position': campus.heroPhotoPos || 'center' }">
-      <img class="hero-photo" v-bind="responsiveImage(campus.image)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
+      <img class="hero-photo" v-bind="campusHeroAttrs(campus)" :alt="`${campus.name}校園外觀`" loading="eager" fetchpriority="high">
       <div class="hero-shade" />
       <div class="container">
         <span class="eyebrow">常春藤幼兒園 · 高雄{{ campus.district }}</span>

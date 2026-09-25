@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { HOME_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
+import { HOME_HERO_SIZES } from '~/utils/responsive-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { heroImageAttrs, mediaImageAttrs } from '~/utils/media-image'
 import type { HeroContent } from '~/types/site-content'
 import { useHomeReveal } from '~/composables/useHomeReveal'
 
@@ -18,6 +19,16 @@ const showVideo = ref(false)
 const isPlaying = ref(false)
 const heroImgEl = ref<HTMLImageElement | null>(null)
 const videoSrc = ref('')
+const isMobileVideo = ref(false)
+// 影片載入失敗：後台設了替代圖就換上它，沒設就維持首屏照片（跟以前一樣）。
+const videoFailed = ref(false)
+const heroImage = computed(() => {
+  const fallback = videoFailed.value ? props.hero.heroFallbackMedia : undefined
+  return fallback
+    ? { attrs: mediaImageAttrs(fallback, HOME_HERO_SIZES), alt: fallback.alt, position: fallback.position }
+    : { attrs: heroImageAttrs(props.hero), alt: props.hero.heroImageAlt, position: props.hero.heroImageMedia?.position ?? null }
+})
+const videoPosition = computed(() => (isMobileVideo.value ? props.hero.heroVideoPositionMobile : props.hero.heroVideoPosition) ?? null)
 let disposed = false
 let playbackFrame = 0
 let removeImageListener: (() => void) | undefined
@@ -109,6 +120,7 @@ function togglePlay() {
 function onVideoError() {
   wantsPlayback = false
   showVideo.value = false
+  videoFailed.value = true
 }
 
 // 分頁切到背景時暫停，切回來若使用者原本要看就恢復播放——不是單純
@@ -133,7 +145,9 @@ onMounted(() => {
   const startVideo = () => {
     if (disposed) return
     if (!entranceWaited && document.documentElement.dataset.ivyEntrance === 'pending') return waitForEntrance(startVideo)
-    videoSrc.value = backgroundVideoSrc(props.hero.heroVideoSrc, window.matchMedia('(max-width: 760px)').matches)
+    const mobile = window.matchMedia('(max-width: 760px)').matches
+    isMobileVideo.value = mobile
+    videoSrc.value = backgroundVideoSrc(mobile && props.hero.heroVideoSrcMobile ? props.hero.heroVideoSrcMobile : props.hero.heroVideoSrc, mobile)
     showVideo.value = true
     nextTick(() => {
       if (disposed) return
@@ -226,8 +240,9 @@ onUnmounted(() => {
           <figure ref="imageEl" class="studio-hero-image">
             <img
               ref="heroImgEl"
-              v-bind="responsiveImage(hero.heroImage, HOME_HERO_SIZES)"
-              :alt="hero.heroImageAlt"
+              v-bind="heroImage.attrs"
+              :alt="heroImage.alt"
+              :style="heroImage.position ? { objectPosition: heroImage.position } : undefined"
               loading="eager"
               fetchpriority="high"
             >
@@ -236,6 +251,7 @@ onUnmounted(() => {
               id="hero-video"
               ref="videoEl"
               :src="videoSrc"
+              :style="videoPosition ? { objectPosition: videoPosition } : undefined"
               muted
               loop
               playsinline

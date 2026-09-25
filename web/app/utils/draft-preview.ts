@@ -1,5 +1,6 @@
 import type { SiteContent } from '../types/site-content'
 import { applyContentOverlay, type ContentOverlay } from './content-overlay'
+import type { MediaInfoMap, PublicMediaInfo } from './media-image'
 
 // 私有草稿預覽（/preview）的網址參數與消息上下架判斷。
 //
@@ -110,7 +111,7 @@ export function scheduleNewsDraft<T extends Record<string, unknown>>(payload: T,
  * 預覽某一天的內容：全站消息與各校消息都依預覽日期過濾上下架，再疊到
  * fixture 上；另外回傳被藏起來的清單（各校的標上校區）。
  */
-export function previewOverlay(content: SiteContent, overlay: ContentOverlay, date: string): { content: SiteContent; hiddenNews: HiddenNewsEntry[] } {
+export function previewOverlay(content: SiteContent, overlay: ContentOverlay, date: string, media: MediaInfoMap = {}): { content: SiteContent; hiddenNews: HiddenNewsEntry[] } {
   const hiddenNews: HiddenNewsEntry[] = []
   const next: ContentOverlay = { ...overlay }
   if (overlay.home_news) {
@@ -126,5 +127,38 @@ export function previewOverlay(content: SiteContent, overlay: ContentOverlay, da
       return [key, scheduled.payload as never]
     }))
   }
-  return { content: applyContentOverlay(content, next), hiddenNews }
+  return { content: applyContentOverlay(content, next, media), hiddenNews }
+}
+
+/** 後台素材清單（/admin/media 的 MediaAssetOut）裡預覽需要的欄位。 */
+export interface AdminMediaAsset {
+  id: string
+  kind: 'image' | 'video'
+  status: string
+  content_type: string
+  width: number | null
+  height: number | null
+  alt_text: string | null
+  crop_focus_x: number | null
+  crop_focus_y: number | null
+  variants: PublicMediaInfo['variants']
+}
+
+/**
+ * 草稿預覽的素材資訊：後台素材清單換成跟公開 API 一樣的形狀（焦點 0–1 換成
+ * 0–100），預覽的 srcset 與裁切才會跟發布後一致。
+ */
+export function previewMedia(assets: AdminMediaAsset[]): MediaInfoMap {
+  const percent = (value: number | null) => (value == null ? null : Math.round(value * 10000) / 100)
+  return Object.fromEntries(assets.filter((a) => a.status === 'ready').map((a) => [a.id, {
+    id: a.id,
+    kind: a.kind,
+    content_type: a.content_type,
+    width: a.width,
+    height: a.height,
+    alt_text: a.alt_text,
+    focus_x: percent(a.crop_focus_x),
+    focus_y: percent(a.crop_focus_y),
+    variants: a.variants.map((v) => ({ kind: v.kind, width: v.width, height: v.height }))
+  }]))
 }

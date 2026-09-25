@@ -2,6 +2,7 @@
 import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
+import { pickImage } from '~/utils/media-image'
 import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
 
 const props = defineProps<{
@@ -307,7 +308,7 @@ async function onSubmit() {
       <div class="visit-shell">
         <aside v-if="!isPicking && selectedCampus" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
-            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="responsiveImage(selectedCampus.image, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
+            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
@@ -338,7 +339,7 @@ async function onSubmit() {
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="`${campus.name} · ${campus.district}`">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="responsiveImage(campus.image, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ campus.district }}</small></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
@@ -428,7 +429,7 @@ async function onSubmit() {
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
-            <img v-if="selectedCampus" class="visit-result-art" v-bind="responsiveImage(`campus-line-art-${selectedCampus.key}`, '240px')" alt="" decoding="async">
+            <img v-if="selectedCampus" class="visit-result-art" v-bind="pickImage(`campus-line-art-${selectedCampus.key}`, selectedCampus.lineArtMedia, '240px')" alt="" decoding="async">
             <span class="visit-result-status"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>

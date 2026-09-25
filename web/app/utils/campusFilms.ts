@@ -1,14 +1,12 @@
+import type { HomeFilm } from '../types/site-content'
 import { backgroundVideoSrc } from './media-policy'
 import { youtubeId, youtubeThumb } from './filmCarousel'
 
-/** 標題不顯示，只當螢幕閱讀器的名稱。 */
-export type CampusFilm =
-  | { id: string; title: string; type: 'file'; src: string; start: number; end: number; poster: string }
-  | { id: string; title: string; type: 'youtube'; youtubeId: string; poster: string }
+export type CampusFilm = HomeFilm
 
 /**
  * 2026-09-23 手機版「活動影片」第一版：官網既有影片剪段（hero 為學校廣告修復片、day-film-mobile 為舞台表演原檔 960×540）。
- * 後台還沒有影片欄位；要換成園方影片或 YouTube 連結先改這裡，YouTube 用 youtube('<網址>', 標題)。
+ * 2026-09-25 起後台「首頁消息與活動」可以換掉整份清單（NewsContent.films）；還沒設定時官網用這裡的內建清單。
  */
 export const campusFilms: CampusFilm[] = [
   { id: 'run', title: '一起跑向前', type: 'file', src: backgroundVideoSrc('assets/hero-campus.mp4', true), start: 0, end: 9.7, poster: '/assets/campus-film-run.webp' },
