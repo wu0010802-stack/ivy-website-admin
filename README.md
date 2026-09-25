@@ -1,3 +1,14 @@
+## 2026-09-26 開場布幕視覺精修（舞台光、褶子、帷幔接點）
+
+依使用者「布幕可以怎麼優化」的評析全部修改，只動 `web/app/utils/entranceCurtain.ts` 的著色器與幾何。規則寫在 DESIGN.md 同日段落。
+- 帷幔綁點原本有一條硬的直線接縫，改成平滑收褶。
+- 舞台光往兩翼暗下、腳燈更寬更亮；絨布正面壓暗、斜面受光。
+- 褶子間距與深淺加入低頻變化；片頭片框邊緣收窄，拿掉大片光暈。
+- 30th 緞帶改用長焦投影，並減弱褶子造成的明暗，上下緣與文字不再隨褶子起伏；人物校徽不動。
+- 首屏海報五張重產（`entrance-policy.ts` 的 `?v=` 已更新），和新版第一幀的像素差為 1～9/255。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；`npm run test:website` 36 檔 304 項通過。dev server 用 Playwright（Metal）在 1440×900、390×844、1466×690 截校徽、倒數「1」、拉幕 30% 三格，改版前後對照，console 無 shader 錯誤。快照 `versions/before-curtain-polish-20260926-071538/`。Safari／iOS 實機未驗證。部署紀錄見 `deploy/README.md`。
+
 ## 2026-09-26 內頁 hero 手機版 sizes 照實寫（入學資訊、常春藤環境、特色教學）
 
 三頁手機版 hero 是固定 500px 高的照片帶（`admission.css` 760px 以下的 `.adm-hero-photo`），用 `object-fit: cover`。橫幅照片實際顯示寬度是 500 × 寬高比：入學 675px、環境 1049px、特色教學 1245px。原本 `sizes` 一律寫 `100vw`，390 寬手機只選到 800w，有效解析度 0.32–0.68，看起來糊。

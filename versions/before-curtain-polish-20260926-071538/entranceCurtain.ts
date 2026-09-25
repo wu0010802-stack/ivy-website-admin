@@ -44,15 +44,10 @@ vec3 curtainPoint(vec2 uv) {
   float width = 1.0 - pull * 0.87;
   float foldCount = clamp(curtainAspect * 4.8, 3.2, 7.5);
   float phase = u * C_PI * 2.0 * foldCount + 0.48*sin(u*17.0 + seed) + 0.23*sin(u*39.0 + seed);
-  // A slow drift in fold spacing, different per panel, so neither side reads
-  // as an evenly ruled row or a mirror of the other.
-  phase += 0.7*sin(u*6.1 + seed*2.3);
   phase += (1.0-v) * (0.22*sin(u*13.0 + v*3.0 + seed) + wind*0.2);
   // Gathering deepens the folds as the panel bunches toward the wings.
   float amplitude = (0.066 + 0.019*sin(u*19.0 + seed) + 0.012*sin(u*37.0)) * (1.0 + pull*0.55);
   amplitude *= min(1.0, curtainAspect / 0.9);
-  // Some runs of folds hang deeper than their neighbours.
-  amplitude *= 0.85 + 0.3*(0.5+0.5*sin(u*8.3 + seed*0.7));
   // Gathered tight under the rail, the weight lets the folds open toward the hem.
   amplitude *= mix(1.18, 0.78, v);
   // Heavy velvet hangs in rounded bellies separated by narrow, deep valleys.
@@ -88,21 +83,14 @@ varying vec3 clothPosition;
 const float V_PI = 3.14159265359;
 vec3 valancePoint(vec2 uv) {
   float swags = max(2.0, floor(valanceAspect*2.4 + 0.5));
-  float swag = fract(uv.x*swags);
-  float droop = sin(swag*V_PI);
-  // The hem keeps its pointed cusps, but the depth eases to zero slope at each
-  // tie point: a sin() belly there flipped the normals into a hard seam line.
-  float belly = droop*droop;
+  float droop = sin(fract(uv.x*swags)*V_PI);
   float bottom = 0.77 - 0.06*droop;
   float y = mix(bottom, 1.04, uv.y) + valanceLift*${VALANCE_FLY.toFixed(2)};
   float x = (uv.x*2.0-1.0)*valanceAspect*1.02;
-  // Hung just in front of the drapes so its shadow stays a tight band. At each
-  // tie point the cloth is gathered back into a short run of vertical pleats.
-  float tie = min(swag, 1.0-swag);
-  float z = 0.10 + 0.034*belly*sin(uv.y*V_PI)
-          + 0.016*sin((uv.y*6.5 + belly*0.9)*V_PI)*belly
-          + 0.014*sin(uv.x*swags*V_PI*14.0)*pow(1.0-belly,3.0)
-          - 0.018*exp(-pow(tie/0.05,2.0));
+  // Hung just in front of the drapes so its shadow stays a tight band.
+  float z = 0.10 + 0.034*droop*sin(uv.y*V_PI)
+          + 0.016*sin((uv.y*6.5 + droop*0.9)*V_PI)*droop
+          + 0.014*sin(uv.x*swags*V_PI*14.0)*pow(1.0-droop,3.0);
   return vec3(x,y,z);
 }
 `
@@ -113,7 +101,6 @@ const stageLightingPars = /* glsl */`
 uniform vec3 rimColor;
 uniform vec3 footColor;
 uniform float pileDensity;
-uniform float stageWidth;
 float pileHash(float n) { return fract(sin(n)*43758.5453); }
 float pileNoise(vec2 p) {
   vec2 i = floor(p);
@@ -140,22 +127,19 @@ float velvetPile(vec2 uv, float seed) {
 `
 const stageLighting = (seed: string, flies: number, foot: number) => /* glsl */`
   float stageHeight = clamp((clothPosition.y+1.0)*0.5,0.0,1.0);
-  // The wash falls off toward the wings as well as up into the flies.
-  float wings = 1.0-0.3*smoothstep(0.35,1.0,abs(clothPosition.x)/stageWidth);
-  float flies = (1.0-${flies.toFixed(2)}*smoothstep(0.6,1.0,stageHeight))*wings;
+  float flies = 1.0-${flies.toFixed(2)}*smoothstep(0.6,1.0,stageHeight);
   float facing = clamp(abs(normal.z),0.0,1.0);
   float rim = pow(1.0-facing,1.4);
   float pile = velvetPile(clothUv, ${seed});
   float fibre = velvetFibre(clothUv);
   // Crushed velvet: broad, faint patches where the pile lies a different way.
   float crush = pileNoise(clothUv*vec2(7.0,3.0) + ${seed});
-  // Velvet reads dark face-on and glows on the flanks turning away.
-  float velvetCore = mix(0.7,1.0,rim);
+  float velvetCore = mix(0.8,1.0,rim);
   reflectedLight.directDiffuse *= flies*velvetCore;
   reflectedLight.indirectDiffuse *= flies*velvetCore;
-  float footlight = exp(-pow(stageHeight/0.2,2.0));
+  float footlight = exp(-pow(stageHeight/0.16,2.0));
   reflectedLight.indirectDiffuse += diffuseColor.rgb*footColor*footlight*${foot.toFixed(2)};
-  reflectedLight.indirectDiffuse += rimColor*rim*(0.65+0.7*pile)*(0.75+0.5*fibre)*(0.85+0.3*crush)*flies*0.36;
+  reflectedLight.indirectDiffuse += rimColor*rim*(0.65+0.7*pile)*(0.75+0.5*fibre)*(0.85+0.3*crush)*flies*0.3;
 `
 
 // The valance's soft contact shadow on the drapes, computed from its own hem
@@ -212,7 +196,6 @@ type StageUniforms = {
   rimColor: { value: THREE.Color }
   footColor: { value: THREE.Color }
   pileDensity: { value: number }
-  stageWidth: { value: number }
 }
 
 type BraidUniforms = {
@@ -286,11 +269,6 @@ const projectionLighting = /* glsl */`
   // UVs run upwards: (1254 - 495 - 176) / 964 is the crest's source centre.
   vec2 center = vec2(0.0);
   vec2 logoUv = (projected-center)/logoSize + vec2(0.5,583.0/964.0);
-  // The anniversary ribbon throws from the leader's long lens so its straight
-  // edges and lettering do not ripple over each fold. The blend runs up through
-  // the IVY KIDS bar, so there is no step where the two throws meet.
-  float ribbonFlat = 1.0-smoothstep(0.19,0.30,logoUv.y);
-  logoUv = mix(logoUv, (clothPosition.xy*(12.0/(12.0-clothPosition.z))-center)/logoSize + vec2(0.5,583.0/964.0), ribbonFlat);
   vec2 leader = (projected-center)/logoSize.y;
   float radius = length(leader);
   float aa = max(fwidth(radius),0.001);
@@ -301,7 +279,7 @@ const projectionLighting = /* glsl */`
 
   // Emblem: one slide, one light model. A soft follow-spot pool surrounds it,
   // dark ink blocks the lamp, coloured areas replace the cloth with their light.
-  float logoFocus = 0.0016+abs(clothPosition.z)*0.018*(1.0-0.7*ribbonFlat);
+  float logoFocus = 0.0016+abs(clothPosition.z)*0.018;
   vec4 slide = logoTransmission(logoUv)*0.84 + (logoTransmission(logoUv-vec2(logoFocus,0.0))
              + logoTransmission(logoUv+vec2(logoFocus,0.0)) + logoTransmission(logoUv+vec2(0.0,logoFocus))
              + logoTransmission(logoUv-vec2(0.0,logoFocus)))*0.04;
@@ -333,9 +311,7 @@ const projectionLighting = /* glsl */`
   // A soft-edged gate: the lens fades the circle out rather than cutting it,
   // so the rings, not the cloth-warped rim, are the crisp circles.
   float gateOpen = 0.5*leaderIris;
-  float lit = 1.0-smoothstep(gateOpen*0.965,gateOpen*1.015+gateAa,gateRadius);
-  // A narrow lens spill just outside the gate, not a broad glow.
-  float spill = exp(-max(0.0,gateRadius-gateOpen)/0.018)*(1.0-lit)*0.22;
+  float lit = 1.0-smoothstep(gateOpen*0.93,gateOpen*1.04+gateAa,gateRadius);
   float ringOuter = 1.0-smoothstep(0.007,0.007+gateAa+focus*0.3,abs(gateRadius-0.455));
   float ringInner = 1.0-smoothstep(0.004,0.004+gateAa+focus*0.3,abs(gateRadius-0.375));
   float crossLines = 1.0-smoothstep(0.0028,0.0028+gateAa+focus*0.3,min(abs(gate.x),abs(gate.y)));
@@ -384,7 +360,7 @@ const projectionLighting = /* glsl */`
   // Subtle lamp breathing affects the projection only, never the whole viewport.
   float lamp = (1.0+0.006*sin(projectorTime*23.0)+0.004*sin(projectorTime*41.0))
              * (1.0+0.30*leaderFlash+0.28*leaderFlare);
-  float leaderLight = (lit*(tone*(1.0-0.92*emulsion)*(1.0-0.75*dust)*flicker*(0.9+grain*0.2) + scratch*0.22 + sparkle*0.45) + spill*tone)
+  float leaderLight = lit*(tone*(1.0-0.92*emulsion)*(1.0-0.75*dust)*flicker*(0.9+grain*0.2) + scratch*0.22 + sparkle*0.45)
                     * leaderOn*lamp*foldReception;
 
   vec3 lightDirection = normalize(vec3(center,3.2)-clothPosition);
@@ -398,9 +374,6 @@ const projectionLighting = /* glsl */`
   reflectedLight.directDiffuse *= wash;
   reflectedLight.indirectDiffuse *= wash;
   float crestFold = 0.74+0.26*smoothstep(-0.085,0.065,clothPosition.z);
-  // The ribbon keeps only a hint of the fold light, so it reads as one flat band.
-  crestFold = mix(crestFold, 0.92+0.08*smoothstep(-0.085,0.065,clothPosition.z), goldRibbon);
-  float slideIncidence = mix(incidence, 0.88+0.12*incidence, goldRibbon);
   // A little of the dyed cloth tints every projected colour so it sits in the pile.
   vec3 slideLight = slide.rgb*mix(vec3(1.0),clothTint,0.12)*crestOn*crestFold*(0.99+grain*0.02)*1.05;
   // Pools brighten the velvet itself (light times dye) and catch its pile on the
@@ -408,11 +381,11 @@ const projectionLighting = /* glsl */`
   vec3 poolLight = (diffuseColor.rgb*0.95 + rimColor*rim*0.12 + 0.01)*projectionColor*crestOn*(1.0-slide.a);
   // The leader's clear film is brighter than the emblem's pool: a lit gate on the pile.
   vec3 leaderColour = (diffuseColor.rgb*6.0 + rimColor*rim*0.35 + 0.2)*leaderLampColor*leaderLight;
-  reflectedLight.directDiffuse += slideLight*slideIncidence + (poolLight + leaderColour)*incidence;
+  reflectedLight.directDiffuse += (slideLight + poolLight + leaderColour) * incidence;
 `
 
-function velvetUniforms(pileDensity: { value: number }, stageWidth: { value: number }): StageUniforms {
-  return { rimColor: { value: new THREE.Color(velvetPalette.rim) }, footColor: { value: new THREE.Color(velvetPalette.footlight) }, pileDensity, stageWidth }
+function velvetUniforms(pileDensity: { value: number }): StageUniforms {
+  return { rimColor: { value: new THREE.Color(velvetPalette.rim) }, footColor: { value: new THREE.Color(velvetPalette.footlight) }, pileDensity }
 }
 
 function velvetMaterial() {
@@ -466,13 +439,13 @@ function deformMaterial(material: THREE.Material, surface: Surface, uniforms: ob
       colour += braid
     }
     if (shading.stage) {
-      const { seed, flies, foot = 1.0, ...stage } = shading.stage
+      const { seed, flies, foot = 0.8, ...stage } = shading.stage
       Object.assign(shader.uniforms, stage)
       pars += stageLightingPars
       colour += `
         float nap = sin(clothUv.x*93.0 + sin(clothUv.y*17.0))*sin(clothUv.y*137.0);
         float dye = 0.95 + 0.035*sin(clothUv.x*37.0+clothUv.y*9.0) + nap*0.014 + 0.05*velvetPile(clothUv, ${seed})
-                  + 0.04*(velvetFibre(clothUv)-0.5);
+                  + 0.06*(velvetFibre(clothUv)-0.5);
         diffuseColor.rgb *= dye;
       `
       lights += stageLighting(seed, flies, foot)
@@ -492,7 +465,7 @@ function deformMaterial(material: THREE.Material, surface: Surface, uniforms: ob
     if (lights) shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\n${lights}`)
   }
   const key = `${surface.point}-${shading.projection ? 'projection' : shading.braid ? 'braid' : shading.stage ? 'velvet' : 'depth'}`
-  material.customProgramCacheKey = () => `ivy-velvet-a-${key}-20`
+  material.customProgramCacheKey = () => `ivy-velvet-a-${key}-18`
 }
 
 // A silk tassel turned from a profile: a thread-wound head, a bound ruff, then
@@ -705,7 +678,6 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
   const valanceUniforms: ValanceUniforms = { valanceAspect: { value: 1 }, valanceLift: { value: 0 } }
   const drapePile = { value: 200 }
   const valancePile = { value: 400 }
-  const stageWidth = { value: 1 }
   const hemBraid: BraidUniforms = { braidStart: { value: 0.004 }, braidWidth: { value: 0.022 }, braidCycles: { value: 80 } }
   const geometry = new THREE.PlaneGeometry(2, 2, mobile ? 144 : 216, mobile ? 64 : 96)
   const trimGeometry = new THREE.PlaneGeometry(2, 2, mobile ? 144 : 216, 3)
@@ -735,7 +707,7 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     }
     clothUniforms.push(uniforms)
     const cloth = velvetMaterial()
-    deformMaterial(cloth, drapeSurface, uniforms, { stage: { ...velvetUniforms(drapePile, stageWidth), seed: side > 0 ? '11.0' : '3.0', flies: 0.56 }, projection, valanceShadow: valanceUniforms })
+    deformMaterial(cloth, drapeSurface, uniforms, { stage: { ...velvetUniforms(drapePile), seed: side > 0 ? '11.0' : '3.0', flies: 0.56 }, projection, valanceShadow: valanceUniforms })
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
     deformMaterial(depth, drapeSurface, uniforms)
     const panel = new THREE.Mesh(side === 1 ? rightGeometry : geometry, cloth)
@@ -745,7 +717,7 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     scene.add(panel)
     const trim = trimMaterial()
     // The footlight catches the hem braid, so it reads as gold rather than brass.
-    deformMaterial(trim, drapeSurface, uniforms, { braid: hemBraid, stage: { ...velvetUniforms(drapePile, stageWidth), seed: '5.0', flies: 0, foot: 0.35 }, lift: 0.003 })
+    deformMaterial(trim, drapeSurface, uniforms, { braid: hemBraid, stage: { ...velvetUniforms(drapePile), seed: '5.0', flies: 0, foot: 0.35 }, lift: 0.003 })
     const seam = new THREE.Mesh(side === 1 ? rightTrimGeometry : trimGeometry, trim)
     seam.frustumCulled = false
     seam.receiveShadow = true
@@ -764,14 +736,14 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
   for (let i = 0; i < edgeUV.count; i++) edgeUV.setY(i, edgeUV.getY(i) * 0.09)
   geometries.push(drape, edge)
   const pelmetCloth = velvetMaterial()
-  deformMaterial(pelmetCloth, valanceSurface, valanceUniforms, { stage: { ...velvetUniforms(valancePile, stageWidth), seed: '7.0', flies: 0.12 } })
+  deformMaterial(pelmetCloth, valanceSurface, valanceUniforms, { stage: { ...velvetUniforms(valancePile), seed: '7.0', flies: 0.12 } })
   const pelmet = new THREE.Mesh(drape, pelmetCloth)
   pelmet.frustumCulled = false
   // Kept out of the shadow map (VSM renders receivers too); the drapes draw
   // its soft contact shadow themselves.
   scene.add(pelmet)
   const cordTrim = trimMaterial()
-  deformMaterial(cordTrim, valanceSurface, valanceUniforms, { braid: valanceBraid, stage: { ...velvetUniforms(valancePile, stageWidth), seed: '9.0', flies: 0 }, lift: 0.003 })
+  deformMaterial(cordTrim, valanceSurface, valanceUniforms, { braid: valanceBraid, stage: { ...velvetUniforms(valancePile), seed: '9.0', flies: 0 }, lift: 0.003 })
   const cord = new THREE.Mesh(edge, cordTrim)
   cord.frustumCulled = false
   scene.add(cord)
@@ -858,7 +830,6 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     projection.logoSize.value.set(aperture*795/964,aperture)
     clothUniforms.forEach(uniforms => { uniforms.curtainAspect.value = aspect })
     valanceUniforms.valanceAspect.value = aspect
-    stageWidth.value = aspect
     const swags = Math.max(2, Math.floor(aspect*2.4 + 0.5))
     tieXs = Array.from({ length: Math.min(tassels.length, swags - 1) }, (_, k) => ((k + 1)/swags*2 - 1)*aspect*1.02)
     // Keep one braid twist every ~9 CSS px whatever the viewport.
