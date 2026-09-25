@@ -35,12 +35,38 @@ class Rendition:
     height: int
 
 
+# EXIF Orientation 5–8 是轉 90／270 度（含鏡像），轉正後寬高對調。
+_SWAPPED_ORIENTATIONS = {5, 6, 7, 8}
+_EXIF_ORIENTATION = 0x0112
+
+
+def oriented_size(img: Image.Image) -> tuple[int, int]:
+    """依 EXIF 拍攝方向轉正之後的寬高（跟 ImageOps.exif_transpose 同一套判斷）。
+    瀏覽器顯示原檔時會套用拍攝方向，素材記的寬高、衍生檔與官網 srcset 的
+    寬度描述都要用轉正後的尺寸，手機直拍的照片長寬才不會對調。"""
+    width, height = img.size
+    try:
+        orientation = img.getexif().get(_EXIF_ORIENTATION)
+    except Exception:  # noqa: BLE001 - EXIF 壞掉就當沒有方向資訊（exif_transpose 也不會轉）
+        return width, height
+    return (height, width) if orientation in _SWAPPED_ORIENTATIONS else (width, height)
+
+
 def make_webp(source: bytes | Path, max_side: int, quality: int = 80) -> Rendition:
     """縮到長邊不超過 max_side（小圖不放大）。先依 EXIF 轉正：瀏覽器顯示原檔
-    JPEG 時會套用拍攝方向，衍生檔若沒轉正，同一張照片會在官網上躺下來。"""
+    JPEG 時會套用拍攝方向，衍生檔若沒轉正，同一張照片會在官網上躺下來。
+
+    去背 PNG／WebP 保留透明（存成含 alpha 的 WebP）：官網的線稿用 multiply
+    疊色、消息封面等版位也可能放去背圖，丟掉 alpha 的話透明處會變成黑底，
+    而且只有選到縮圖／大圖的螢幕寬度才會黑，同一張圖依寬度顯示不同。"""
     with Image.open(io.BytesIO(source) if isinstance(source, bytes) else source) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+        img = img.convert("RGBA" if img.has_transparency_data else "RGB")
         img.thumbnail((max_side, max_side))
+        # 宣告有 alpha、實際上整張不透明（常見於匯出成 RGBA 的照片）就存成
+        # 一般 WebP，檔案比較小。
+        if img.mode == "RGBA" and img.getchannel("A").getextrema()[0] == 255:
+            img = img.convert("RGB")
         buf = io.BytesIO()
         img.save(buf, format="WEBP", quality=quality)
         return Rendition(buf.getvalue(), img.width, img.height)

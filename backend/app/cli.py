@@ -352,6 +352,71 @@ async def import_site_assets(web_root: Path, *, apply: bool, write_drafts: bool)
         raise SystemExit(1)
 
 
+async def regenerate_media_variants(*, apply: bool, include_all: bool) -> None:
+    """重新產生圖片素材的縮圖與大圖（app/media/regenerate.py）：2026-09-25 以前
+    上傳、縮圖沒有依拍攝方向轉正的圖片，去背圖的衍生檔，缺縮圖或大圖的圖片。
+    預設只列出會處理哪些；--apply 才寫入，每張各自一個交易，失敗的不影響其他張，
+    可以重跑（處理完的不會再列出來）。--all 不管需不需要，全部重新產生。"""
+    from app.media import regenerate
+    from app.media import service as media_service
+    from app.operations import audit_service
+
+    settings = get_settings()
+    storage = media_service.get_storage(settings)
+    factory = await _session_factory()
+    async with factory() as db:
+        candidates = await regenerate.find_candidates(db, include_all=include_all)
+        await db.rollback()
+
+    if not apply:
+        for candidate in candidates:
+            where = CAMPUS_NAMES.get(candidate.campus_key, candidate.campus_key) if candidate.campus_key else "共用"
+            print(f"  {candidate.asset_id}・{where}：{candidate.filename}（{'；'.join(candidate.reasons)}）")
+        print(f"dry-run：共 {len(candidates)} 張圖片需要重新產生縮圖或大圖（未寫入）。加 --apply 才會執行。")
+        return
+
+    done: list[str] = []
+    failed: list[str] = []
+    for candidate in candidates:
+        async with factory() as db:
+            outcome = None
+            try:
+                outcome = await regenerate.regenerate_image_variants(db, storage, candidate.asset_id)
+                await db.commit()
+            except Exception as exc:  # noqa: BLE001 - 一張失敗不中斷整批，最後一起回報
+                await db.rollback()
+                # 已經寫進儲存空間、但沒進資料庫的新衍生檔（commit 失敗）刪掉。
+                for key in outcome.new_keys if outcome else []:
+                    await asyncio.to_thread(storage.delete, key)
+                reason = str(exc) if isinstance(exc, regenerate.RegenerationFailed) else type(exc).__name__
+                failed.append(str(candidate.asset_id))
+                print(f"  [失敗] {candidate.asset_id}：{candidate.filename}（{reason}）", file=sys.stderr)
+                continue
+        # commit 成功才刪舊檔；刪不掉只留下孤兒檔，官網已經改用新的衍生檔。
+        for key in outcome.old_keys:
+            try:
+                await asyncio.to_thread(storage.delete, key)
+            except Exception:  # noqa: BLE001
+                print(f"  舊衍生檔 {key} 刪除失敗，留下孤兒檔。", file=sys.stderr)
+        done.append(str(candidate.asset_id))
+        print(f"  [完成] {candidate.asset_id}：{candidate.filename}")
+
+    if done or failed:
+        async with factory() as db:
+            await audit_service.log_action(
+                db,
+                actor_user_id=None,
+                action="media.regenerate_variants",
+                target_type="media_asset",
+                target_id="variants",
+                metadata={"regenerated": done, "failed": failed, "all": include_all},
+            )
+            await db.commit()
+    print(f"共 {len(candidates)} 張：已重新產生 {len(done)}、失敗 {len(failed)}。")
+    if failed:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -359,7 +424,8 @@ def main() -> None:
             "content-seed-from-fixture <fixture> [--dry-run] [--force]|"
             "initialize-content <fixture> [--dry-run]|process-notifications|"
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
-            "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]>",
+            "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
+            "regenerate-media-variants [--apply] [--all]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -411,6 +477,11 @@ def main() -> None:
         if unknown or ("--apply" in args and "--dry-run" in args):
             raise SystemExit("用法：python -m app.cli import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]")
         asyncio.run(import_site_assets(web_root, apply="--apply" in args, write_drafts="--write-drafts" in args))
+    elif command == "regenerate-media-variants":
+        args = set(sys.argv[2:])
+        if args - {"--apply", "--all", "--dry-run"} or {"--apply", "--dry-run"} <= args:
+            raise SystemExit("用法：python -m app.cli regenerate-media-variants [--apply] [--all]")
+        asyncio.run(regenerate_media_variants(apply="--apply" in args, include_all="--all" in args))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

@@ -97,6 +97,10 @@ class PublicMediaVariantOut(BaseModel):
     kind: VariantKind
     width: int | None
     height: int | None
+    # 衍生檔的版本（記錄 id 的前 12 碼）。公開網址 /variants/{kind} 是長快取，
+    # 重新產生衍生檔（app/media/regenerate.py）會換成新記錄，官網把版本加在
+    # 網址上（?v=），瀏覽器才不會繼續用快取過的舊縮圖。
+    version: str
 
 
 class PublicMediaOut(BaseModel):

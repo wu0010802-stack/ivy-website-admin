@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from pydantic import BaseModel
@@ -34,12 +34,14 @@ class MediaRef:
     """內容裡一處素材引用：素材 id、欄位路徑（例如 `articles[2].body[0].image`）
     與那一項的標題（消息標題、場景名稱），給素材庫的「用在哪裡」與批次替換用。
     `kind` 是這個版位要的素材種類（image／video），存檔時檢查；None＝不檢查
-    （2026-09-25 以前的圖片欄位）。"""
+    （2026-09-25 以前的圖片欄位）。`clip` 是影片只播其中一段時的
+    （開始秒數, 結束秒數或 None），存檔時對照影片長度檢查。"""
 
     media_id: uuid.UUID
     path: str
     label: str | None = None
     kind: str | None = None
+    clip: tuple[float, float | None] | None = None
 
 
 def _media_ref(value: object, path: str, label: object = None) -> MediaRef | None:
@@ -138,7 +140,11 @@ def _extract_home_news_media_refs(payload: dict) -> list[MediaRef]:
     for i, film in enumerate(payload.get("films") or []):
         if isinstance(film, dict):
             prefix = f"films[{i}]."
-            refs.append(_slot_ref(film, "video", "video", prefix, film.get("title")))
+            video = _slot_ref(film, "video", "video", prefix, film.get("title"))
+            if video is not None:
+                end = film.get("end")
+                video = replace(video, clip=(float(film.get("start") or 0), None if end is None else float(end)))
+            refs.append(video)
             refs.append(_slot_ref(film, "poster", "image", prefix, film.get("title")))
     return _refs(refs)
 

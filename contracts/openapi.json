@@ -2881,6 +2881,10 @@
           "kind": {
             "$ref": "#/components/schemas/VariantKind"
           },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
           "width": {
             "anyOf": [
               {
@@ -2896,7 +2900,8 @@
         "required": [
           "kind",
           "width",
-          "height"
+          "height",
+          "version"
         ],
         "title": "PublicMediaVariantOut",
         "type": "object"

@@ -5,6 +5,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from app.media.models import MediaKind
+from app.media.processing import oriented_size
 
 # 單檔大小上限是部署設定（Settings.media_max_image_mb／media_max_video_mb），
 # 由路由在複製上傳檔之前比對（media/routes._receive_upload），這裡只看內容。
@@ -59,6 +60,9 @@ def sniff_and_validate(path: Path, declared_kind: MediaKind) -> tuple[str, int |
                     )
                 img.load()
                 fmt = img.format
+                # 素材記轉正後的寬高：衍生檔依 EXIF 轉正，官網 srcset 裡原檔的
+                # 寬度描述與 <img width/height> 也要跟瀏覽器實際顯示的方向一致。
+                width, height = oriented_size(img)
         except MediaValidationError:
             raise
         except Image.DecompressionBombError as exc:

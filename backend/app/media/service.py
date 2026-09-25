@@ -114,13 +114,17 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def image_renditions(source: bytes | Path, width: int | None, height: int | None) -> list[tuple[VariantKind, Rendition]]:
+    out = [(VariantKind.THUMBNAIL, make_webp(source, THUMBNAIL_SIZE[0]))]
+    if needs_large_rendition(width, height):
+        out.append((VariantKind.LARGE, make_webp(source, LARGE_SIDE, quality=82)))
+    return out
+
+
 def _renditions(kind: MediaKind, source_path: Path, width: int | None, height: int | None) -> list[tuple[VariantKind, Rendition]]:
     if kind == MediaKind.VIDEO:
         return [(VariantKind.POSTER, extract_video_poster(source_path))]
-    out = [(VariantKind.THUMBNAIL, make_webp(source_path, THUMBNAIL_SIZE[0]))]
-    if needs_large_rendition(width, height):
-        out.append((VariantKind.LARGE, make_webp(source_path, LARGE_SIDE, quality=82)))
-    return out
+    return image_renditions(source_path, width, height)
 
 
 def get_storage(settings: Settings) -> MediaStorage:
@@ -307,7 +311,7 @@ async def public_media(db: AsyncSession, media_ids: set[uuid.UUID]) -> dict[str,
             focus_x=_percent(asset.crop_focus_x),
             focus_y=_percent(asset.crop_focus_y),
             variants=[
-                PublicMediaVariantOut(kind=v.kind, width=v.width, height=v.height)
+                PublicMediaVariantOut(kind=v.kind, width=v.width, height=v.height, version=v.id.hex[:12])
                 for v in sorted(asset.variants, key=lambda v: (v.width or 0, v.kind.value))
             ],
         )

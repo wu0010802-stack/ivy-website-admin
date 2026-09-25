@@ -138,11 +138,17 @@ async def _validate_media_references(
     鎖列、確認沒有引用才標記待清理。一般 SELECT 讀到的是對方 commit 前的
     deleted_at，兩邊會同時成功，草稿就引用了待清理的素材（發布後官網破圖）。
     FOR SHARE 跟 FOR UPDATE 互斥：對方先鎖就等它 commit、讀到新的 deleted_at；
-    這裡先鎖，刪除要等這份草稿 commit，之後查引用就會看到它。"""
+    這裡先鎖，刪除要等這份草稿 commit，之後查引用就會看到它。
+
+    影片只播一段（MediaRef.clip）時，開始秒數要小於影片長度、結束秒數不能
+    超過影片長度：結束秒數永遠播不到的話，官網循環會從 0 秒重播整支。影片
+    長度不明（主機沒有 ffprobe）時不檢查。"""
     if not refs:
         return
     result = await db.execute(
-        select(MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind)
+        select(
+            MediaAsset.id, MediaAsset.campus_key, MediaAsset.deleted_at, MediaAsset.kind, MediaAsset.duration_seconds
+        )
         .where(MediaAsset.id.in_({ref.media_id for ref in refs}))
         .order_by(MediaAsset.id)
         .with_for_update(read=True)
@@ -171,6 +177,19 @@ async def _validate_media_references(
                     "field_path": ref.path,
                 },
             )
+        duration = found[media_id].duration_seconds
+        if ref.clip is not None and duration:
+            start, end = ref.clip
+            if start >= duration or (end is not None and end > duration):
+                name = f"「{ref.label}」" if ref.label else "影片片段"
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "code": "MEDIA_CLIP_OUT_OF_RANGE",
+                        "message": f"{name}的影片只有 {duration:g} 秒：開始秒數要小於影片長度，結束秒數不能超過影片長度",
+                        "field_path": ref.path,
+                    },
+                )
 
 
 async def _get_item_with_latest_revision(

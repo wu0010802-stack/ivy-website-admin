@@ -3021,6 +3021,8 @@ export interface components {
             /** Height */
             height: number | null;
             kind: components["schemas"]["VariantKind"];
+            /** Version */
+            version: string;
             /** Width */
             width: number | null;
         };
