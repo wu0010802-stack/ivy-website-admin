@@ -4,6 +4,7 @@ import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { pickImage } from '~/utils/media-image'
 import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { consentOutdated, consentSeenNow, consentView, displayedConsentText, submittedConsentRevision, type ConsentSeen } from '~/utils/visit-consent'
 
 const props = defineProps<{
   booking: BookingContent
@@ -39,9 +40,9 @@ const optionalOpen = ref(false)
 const selectedCampusKey = computed(() => form.campus)
 const { data: bookingConfig, pending: bookingPending, error: bookingError, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
 const action = computed(() => resolveBookingAction(form.campus || null, bookingConfig.value ?? null, Boolean(bookingError.value)))
-// 規格 L196：勾選框顯示的是公開預約設定回傳的那一版同意文字，送單帶同一個
-// 版本 id；讀不到（舊版 API）才退回站台內容的文字。
-const consentText = computed(() => bookingConfig.value?.consent_text || props.booking.consentText)
+// 規格 L196：勾選框顯示的是公開預約設定回傳的那一版同意文字；讀不到（舊版
+// API）才退回站台內容的文字。
+const consentText = computed(() => displayedConsentText(bookingConfig.value, props.booking.consentText))
 const privacyNotice = computed(() => bookingConfig.value?.privacy_notice ?? null)
 
 interface PublicVisitSlot { id: string; slot_date: string; start_time: string; end_time: string; remaining: number }
@@ -183,6 +184,20 @@ async function focusError() {
   errorRef.value?.focus()
 }
 
+// 規格 L130：送單綁定家長勾選當下看到的同意說明版本。勾選時記下版本與內容；
+// 之後任何一條重新載入設定的路徑（預約設定剛更新、重試讀取）拿到內容不同的
+// 同意說明，就取消勾選，請家長重新閱讀。
+const consentSeen = ref<ConsentSeen | null>(null)
+const currentConsentView = computed(() => consentView(bookingConfig.value, props.booking.consentText))
+watch(() => form.consent, (checked) => {
+  consentSeen.value = checked ? consentSeenNow(bookingConfig.value, props.booking.consentText) : null
+})
+watch(currentConsentView, (view) => {
+  if (!form.consent || !consentOutdated(consentSeen.value, view)) return
+  form.consent = false
+  fieldErrors.value.consent = '同意說明剛剛更新了，請閱讀新的說明後重新勾選。'
+})
+
 watch(() => form.campus, () => {
   submitError.value = null
   selectedSlotId.value = ''
@@ -227,7 +242,7 @@ async function onSubmit() {
         preferred_time: form.time || null,
         questions: form.questions || null,
         consent_given: form.consent,
-        consent_revision_id: bookingConfig.value?.consent_revision_id ?? null,
+        consent_revision_id: submittedConsentRevision(consentSeen.value, bookingConfig.value),
         slot_id: bookingConfig.value?.mode === 'slots' ? selectedSlotId.value : undefined
       }
     })
