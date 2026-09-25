@@ -28,6 +28,8 @@ const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const busy = computed(() => saving.value || publishing.value)
 const changes = computed(() => props.editor.changes?.value ?? [])
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
+// 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
+const mobilePreviewUrl = computed(() => (previewUrl.value ? `${previewUrl.value}${previewUrl.value.includes('?') ? '&' : '?'}viewport=mobile` : ''))
 const apiPath = computed(() => props.editor.apiPath?.value ?? '')
 const historyOpen = ref(false)
 const { can } = usePermissions()
@@ -40,7 +42,12 @@ const reviewStatus = computed(() => props.editor.reviewStatus?.value ?? 'draft')
 const reviewNote = computed(() => props.editor.reviewNote?.value ?? null)
 const pendingReview = computed(() => reviewStatus.value === 'pending_review' && !isDirty.value)
 const scheduled = computed(() => (props.editor.schedules?.value ?? []).filter((j) => j.status === 'scheduled'))
-const lastFailed = computed(() => (props.editor.schedules?.value ?? []).find((j) => j.status === 'failed') ?? null)
+// 最近一次到期的排程（清單依排程時間新到舊）；沒有發布（檢查不過）或略過
+// （官網已是較新版本）時寫出原因。之後又成功發布過就不再提。
+const lastUnpublished = computed(() => {
+  const finished = (props.editor.schedules?.value ?? []).find((j) => j.status === 'done' || j.status === 'failed' || j.status === 'skipped')
+  return finished && finished.status !== 'done' ? finished : null
+})
 // 排程清單跟著內容一起換：切校區、重新載入、存檔後都重讀一次。
 watch(
   () => [apiPath.value, props.editor.loading.value] as const,
@@ -143,6 +150,7 @@ async function publishWithConfirm() {
           h('span', { class: 'publish-diff__before' }, c.before),
           h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
           h('span', { class: 'publish-diff__after' }, c.after),
+          c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
         ]))),
         list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
         h('p', { class: 'hint' }, '發布後若要改回，可以從「版本紀錄」還原上一版。'),
@@ -195,6 +203,13 @@ defineExpose({ confirmLeave })
             rel="noopener"
             class="editor__tool"
           >預覽草稿 ↗</a>
+          <a
+            v-if="mobilePreviewUrl && latestRevisionAt && !isPublished"
+            :href="mobilePreviewUrl"
+            target="_blank"
+            rel="noopener"
+            class="editor__tool"
+          >手機版 ↗</a>
           <el-button
             v-if="editor.history && latestRevisionAt"
             text
@@ -207,14 +222,15 @@ defineExpose({ confirmLeave })
           </el-button>
         </div>
       </div>
-      <div v-if="scheduled.length || lastFailed" class="editor__schedules">
+      <div v-if="scheduled.length || lastUnpublished" class="editor__schedules">
         <p v-for="job in scheduled" :key="job.id">
           已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
           <el-button v-if="canPublishRole && !readOnly && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
         </p>
-        <p v-if="lastFailed && !scheduled.length" class="is-failed">
-          {{ formatDateTime(lastFailed.publish_at) }} 的排程沒有發布：{{ lastFailed.error }}
+        <p v-if="lastUnpublished && !scheduled.length" :class="lastUnpublished.status === 'failed' ? 'is-failed' : 'is-skipped'">
+          {{ formatDateTime(lastUnpublished.publish_at) }} 的排程{{ lastUnpublished.status === 'failed' ? '沒有發布' : '已略過' }}：{{ lastUnpublished.error }}
         </p>
+        <router-link to="/releases?tab=schedules" class="editor__schedules-all">查看全站排程</router-link>
       </div>
       <RevisionHistoryDrawer
         v-if="editor.history"
@@ -306,6 +322,8 @@ defineExpose({ confirmLeave })
 .editor__readonly { margin: -8px 0 16px; font-size: 13px; color: var(--ink-2); }
 .editor__schedules p { margin: 0; }
 .editor__schedules .is-failed { color: var(--el-color-danger); }
+.editor__schedules .is-skipped { color: var(--ink-2); }
+.editor__schedules-all { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
 .editor {
   max-width: 720px;
 }

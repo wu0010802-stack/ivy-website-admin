@@ -13,7 +13,8 @@ export interface PublishJob {
   revision_id: string
   revision_version: number
   publish_at: string
-  status: 'scheduled' | 'done' | 'failed' | 'cancelled'
+  /** skipped＝到期時官網已經是較新的版本，沒有蓋回去 */
+  status: 'scheduled' | 'done' | 'failed' | 'skipped' | 'cancelled'
   error: string | null
   created_by_email: string | null
   finished_at: string | null
@@ -25,9 +26,11 @@ export interface FieldChange {
   label: string
   before: string
   after: string
+  /** 清單或巢狀欄位：新增、刪除、修改了哪幾項（例如「新增「親子日」；修改「開學典禮」」） */
+  detail?: string
 }
 
-// 把欄位值壓成一行給確認框看；陣列與物件不逐項比，只講「N 項」。
+// 把欄位值壓成一行給確認框看；物件清單只講「N 項」，逐項差異另外放在 detail。
 export function summarizeValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '（空白）'
   if (Array.isArray(value)) {
@@ -40,11 +43,96 @@ export function summarizeValue(value: unknown): string {
   return text.length > 60 ? `${text.slice(0, 60)}…` : text
 }
 
+// 清單裡的一項用哪個欄位當名字（消息標題、常見問題、場景名…），都沒有就用第幾項。
+const ITEM_NAME_KEYS = ['title', 'name', 'q', 'heading', 'label', 'time', 'date', 'key', 'id'] as const
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function itemName(item: unknown, index: number): string {
+  if (isPlainObject(item)) {
+    for (const key of ITEM_NAME_KEYS) {
+      const value = item[key]
+      if (typeof value === 'string' && value.trim()) {
+        const text = value.trim()
+        return `「${text.length > 20 ? `${text.slice(0, 20)}…` : text}」`
+      }
+    }
+  } else if (typeof item === 'string' && item.trim()) {
+    const text = item.trim()
+    return `「${text.length > 20 ? `${text.slice(0, 20)}…` : text}」`
+  }
+  return `第 ${index + 1} 項`
+}
+
+// 有 id／key 的清單（消息、時刻、場景）用它對應同一項，才分得出「改了」和
+// 「刪了再加」；沒有的依位置對應。
+function itemIdentity(item: unknown, index: number): string {
+  if (isPlainObject(item)) {
+    for (const key of ['id', 'key'] as const) {
+      const value = item[key]
+      if (typeof value === 'string' && value) return `${key}:${value}`
+    }
+  }
+  return `#${index}`
+}
+
+// 「新增「親子日」、第 3 項」：名字有引號就緊接動詞，「第 N 項」前留空白。
+function listNames(verb: string, names: string[]): string {
+  const list = names.length > 3 ? `${names.slice(0, 3).join('、')} 等 ${names.length} 項` : names.join('、')
+  return list.startsWith('「') ? `${verb}${list}` : `${verb} ${list}`
+}
+
+/** 清單或物件欄位的逐項差異摘要；純文字欄位回 undefined。 */
+export function nestedChangeDetail(before: unknown, after: unknown): string | undefined {
+  const beforeList = Array.isArray(before) ? before : before == null ? [] : null
+  const afterList = Array.isArray(after) ? after : after == null ? [] : null
+  if (beforeList && afterList && (Array.isArray(before) || Array.isArray(after))) {
+    const oldById = new Map(beforeList.map((item, index) => [itemIdentity(item, index), { item, index }]))
+    const newIds = new Set(afterList.map((item, index) => itemIdentity(item, index)))
+    const added: string[] = []
+    const changed: string[] = []
+    afterList.forEach((item, index) => {
+      const previous = oldById.get(itemIdentity(item, index))
+      if (!previous) added.push(itemName(item, index))
+      else if (JSON.stringify(previous.item) !== JSON.stringify(item)) changed.push(itemName(item, index))
+    })
+    const removed = beforeList
+      .map((item, index) => ({ item, index }))
+      .filter(({ item, index }) => !newIds.has(itemIdentity(item, index)))
+      .map(({ item, index }) => itemName(item, index))
+    const moved = !added.length && !removed.length && !changed.length && JSON.stringify(before) !== JSON.stringify(after)
+    const parts = [
+      added.length ? listNames('新增', added) : '',
+      removed.length ? listNames('刪除', removed) : '',
+      changed.length ? listNames('修改', changed) : '',
+      moved ? '調整了順序' : '',
+    ].filter(Boolean)
+    return parts.length ? parts.join('；') : undefined
+  }
+  if (isPlainObject(before) || isPlainObject(after)) {
+    const a = isPlainObject(before) ? before : {}
+    const b = isPlainObject(after) ? after : {}
+    const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]))
+      .filter((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key]))
+    return keys.length ? `修改 ${keys.map(contentFieldLabel).join('、')}` : undefined
+  }
+  return undefined
+}
+
 export function diffPayload(before: Record<string, unknown>, after: Record<string, unknown>): FieldChange[] {
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
   return keys
     .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
-    .map((key) => ({ key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }))
+    .map((key) => {
+      const change: FieldChange = { key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }
+      // 字串清單（標語）前後值已經逐字列出，不必再摘要。
+      const plainStrings = [before[key], after[key]].every((v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
+      const detail = plainStrings ? undefined : nestedChangeDetail(before[key], after[key])
+      if (detail) change.detail = detail
+      return change
+    })
 }
 
 /** 版本紀錄列表的一列（後端 ContentRevisionSummaryOut） */
@@ -54,6 +142,15 @@ export interface RevisionSummary {
   created_at: string
   created_by_email: string | null
   is_published: boolean
+  /** 曾經是官網上的版本（包含現在） */
+  ever_published?: boolean
+  /** 最近一次成為官網版本的時間 */
+  last_published_at?: string | null
+  /** draft | pending_review | approved | rejected | superseded */
+  review_status?: string
+  /** 退回原因或核准備註 */
+  review_note?: string | null
+  reviewed_at?: string | null
 }
 
 /** 版本紀錄抽屜需要的動作；ContentEditor 有拿到才顯示「版本紀錄」按鈕 */

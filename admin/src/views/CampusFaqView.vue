@@ -5,6 +5,7 @@ import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusFaqPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
 const MAX_ITEMS = 20
@@ -63,9 +64,11 @@ function move(index: number, delta: number) {
         </div>
         <el-form-item label="問題">
           <el-input v-model="qa.q" placeholder="例如：幾歲可以入園？" />
+          <LengthHint :value="qa.q" rule="faqQuestion" />
         </el-form-item>
         <el-form-item label="回答">
           <el-input v-model="qa.a" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
+          <LengthHint :value="qa.a" rule="faqAnswer" />
         </el-form-item>
       </div>
 

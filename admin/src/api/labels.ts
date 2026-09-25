@@ -198,6 +198,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'content.schedule': '設定排程發布',
   'content.schedule_cancel': '取消排程發布',
   'content.restore': '還原內容舊版',
+  'content.schedule_failed': '排程發布未執行（檢查不通過）',
+  'content.schedule_skipped': '排程發布略過（官網已是較新版本）',
+  'release.restore': '整站還原到某次發布',
   'notification_outbox.retry': '重新寄送通知',
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
@@ -292,6 +295,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   content_item: '內容',
   notification_outbox: '通知寄送',
   site_settings: '全站設定',
+  site_release: '發布紀錄',
   user: '使用者',
   visit_request: '參觀案件',
   visit_requests: '參觀案件（批次清理）',
@@ -374,15 +378,76 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   return '/'
 }
 
-// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁目前
-// 有首頁、入學資訊、分校頁三種；預約文案在預約頁，預覽頁沒有，回空字串。
+// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、
+// 入學資訊、分校頁與預約頁（預約文案：同意文字、個資說明、頁首按鈕）。
 export function contentPreviewPath(kind: string, campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     return campusKey ? `/preview?page=campus&campus=${encodeURIComponent(campusKey)}` : ''
   }
   if (kind === 'admission_content') return '/preview?page=admission'
-  if (kind === 'booking_content') return ''
+  if (kind === 'booking_content') return '/preview?page=visit'
   return '/preview'
+}
+
+/** 內容編輯頁的路由；分校內容帶 ?campus= 讓編輯頁直接切到那一校。 */
+export function contentEditorPath(kind: string, campusKey?: string | null): string {
+  const path = kind === 'admission_content' ? '/content/admission' : `/content/${kind.replace(/_/g, '-')}`
+  return campusKey ? `${path}?campus=${encodeURIComponent(campusKey)}` : path
+}
+
+/** 「首頁大圖標語」或「各校常見問題（義華校）」 */
+export function contentItemLabel(kind: string | null | undefined, campusKey?: string | null): string {
+  const name = kind ? (CONTENT_KIND_LABELS[kind] ?? kind) : '內容'
+  return campusKey ? `${name}（${campusLabel(campusKey)}）` : name
+}
+
+// 內容版本的審核狀態（後端 content/models.py 的 REVIEW_STATUSES）。
+export const REVIEW_STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  pending_review: '待審核',
+  approved: '已核准',
+  rejected: '已退回',
+  superseded: '已被新版取代',
+}
+
+// 排程發布的狀態（後端 PublishJob.status）。
+export const PUBLISH_JOB_STATUS: Record<string, StatusMeta> = {
+  scheduled: { label: '等待發布', tone: 'warning' },
+  done: { label: '已發布', tone: 'success' },
+  failed: { label: '沒有發布', tone: 'danger' },
+  skipped: { label: '已略過', tone: 'info' },
+  cancelled: { label: '已取消', tone: 'info' },
+}
+
+export function publishJobStatus(status: string): StatusMeta {
+  return PUBLISH_JOB_STATUS[status] ?? { label: status, tone: 'info' }
+}
+
+// 發布紀錄的來源（後端 content/models.py 的 ReleaseSource）；舊紀錄為 null。
+export const RELEASE_SOURCE_LABELS: Record<string, string> = {
+  publish: '發布',
+  review: '核准送審並發布',
+  scheduled: '排程發布',
+  restore: '還原舊版並發布',
+  release_restore: '整站還原',
+  initialize: '初始化匯入',
+}
+
+export function releaseSourceLabel(source: string | null | undefined): string {
+  return source ? (RELEASE_SOURCE_LABELS[source] ?? source) : '發布'
+}
+
+// 給個人的站內通知（後端 content/notices.py 的 KINDS）。
+export const USER_NOTIFICATION_LABELS: Record<string, string> = {
+  content_review_submitted: '有內容送審，等你核准',
+  content_review_approved: '你送審的內容已核准並發布',
+  content_review_rejected: '你送審的內容被退回',
+  content_schedule_failed: '排程發布沒有執行',
+  content_schedule_skipped: '排程發布已略過（官網已是較新版本）',
+}
+
+export function userNotificationLabel(kind: string): string {
+  return USER_NOTIFICATION_LABELS[kind] ?? kind
 }
 
 // 內容 kind 的中文名，給編輯頁標題與總覽「待發布」清單用。

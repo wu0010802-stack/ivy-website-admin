@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { SiteFooterPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
 
 const editor = useContentItem<SiteFooterPayload>('site_footer', {
   tagline: '',
@@ -21,6 +22,7 @@ onMounted(editor.load)
     <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標語">
         <el-input v-model="editor.form.value.tagline" />
+        <LengthHint :value="editor.form.value.tagline" rule="footerTagline" />
       </el-form-item>
       <el-form-item label="五校清單標題">
         <el-input v-model="editor.form.value.campus_list_label" placeholder="例如：五校聯絡" />

@@ -31,8 +31,9 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期） */
-  badge?: 'open-requests' | 'reschedule-requests'
+  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期）、
+   * 發布紀錄（給自己的內容通知未讀數） */
+  badge?: 'open-requests' | 'reschedule-requests' | 'content-notices'
 }
 
 export interface NavGroup {
@@ -100,6 +101,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true },
       { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true },
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT },
+      // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
+      // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT },
     ],
   },
   {

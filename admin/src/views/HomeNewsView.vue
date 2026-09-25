@@ -8,6 +8,8 @@ import { CAMPUS_LABELS } from '../api/labels'
 import { mediaFileUrl } from '../api/client'
 import { websiteAssetUrl } from '../config'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
+import { IMAGE_HINTS } from '../composables/contentHints'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 
 // 上限與後端 HomeNewsPayload 相同（content/schemas.py）。
@@ -150,6 +152,7 @@ onMounted(editor.load)
               <span v-else class="news-item__thumb-empty"><el-icon><Picture /></el-icon>選擇照片</span>
             </button>
             <span v-if="article.image && !isMediaId(article.image)" class="hint">官網內建示意照片</span>
+            <span class="field-help">{{ IMAGE_HINTS.news }}</span>
           </div>
           <div>
             <div class="field-row">
@@ -167,12 +170,14 @@ onMounted(editor.load)
             </div>
             <el-form-item label="標題">
               <el-input v-model="article.title" />
+              <LengthHint :value="article.title" rule="newsTitle" />
               <p v-if="missingGlyphs(article.title).length" class="glyph-hint">
                 官網標題字型沒有「{{ missingGlyphs(article.title).join('') }}」，這幾個字會以系統字顯示。可以換個說法，或請工程補字。
               </p>
             </el-form-item>
             <el-form-item label="內文">
               <el-input v-model="article.description" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
+              <LengthHint :value="article.description" rule="newsDescription" />
             </el-form-item>
             <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
               <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
@@ -219,6 +224,7 @@ onMounted(editor.load)
         </div>
         <el-form-item label="活動名稱">
           <el-input v-model="event.title" />
+          <LengthHint :value="event.title" rule="eventTitle" />
           <p v-if="missingGlyphs(event.title).length" class="glyph-hint">
             官網標題字型沒有「{{ missingGlyphs(event.title).join('') }}」，這幾個字會以系統字顯示。
           </p>

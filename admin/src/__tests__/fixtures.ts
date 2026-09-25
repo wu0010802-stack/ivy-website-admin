@@ -6,7 +6,7 @@ const CAMPUS_READ = ['analytics.read', 'campuses.read', 'content.read', 'media.r
 export const ROLE_CAPABILITIES: Record<Role, string[]> = {
   super_admin: [
     ...CAMPUS_READ, 'audit.read_all', 'booking.cross_campus', 'booking.export', 'booking.handle', 'booking.manage',
-    'booking.read', 'campuses.activate', 'campuses.manage', 'content.manage', 'content.publish', 'content.shared',
+    'booking.read', 'campuses.activate', 'campuses.manage', 'content.manage', 'content.publish', 'content.release_restore', 'content.shared',
     'media.manage', 'notifications.manage', 'retention.manage', 'site_settings.manage', 'users.manage',
   ],
   campus_admin: [

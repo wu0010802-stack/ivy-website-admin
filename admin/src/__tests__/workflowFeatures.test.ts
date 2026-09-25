@@ -78,11 +78,11 @@ describe('內容送審與審核', () => {
 })
 
 describe('草稿預覽網址', () => {
-  it('分校內容預覽分校頁，預約文案沒有預覽', () => {
+  it('分校內容預覽分校頁，預約文案預覽預約頁', () => {
     expect(contentPreviewPath('campus_faq', 'renwu')).toBe('/preview?page=campus&campus=renwu')
     expect(contentPreviewPath('admission_content')).toBe('/preview?page=admission')
     expect(contentPreviewPath('home_hero')).toBe('/preview')
-    expect(contentPreviewPath('booking_content')).toBe('')
+    expect(contentPreviewPath('booking_content')).toBe('/preview?page=visit')
   })
 })
 

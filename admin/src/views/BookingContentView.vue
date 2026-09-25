@@ -5,6 +5,7 @@ import { useContentItem } from '../composables/useContentItem'
 import type { BookingContentPayload } from '../api/types'
 import { PRIVACY_SAMPLE_MARKER, PRIVACY_SECTIONS_MAX, privacyHasSample, privacySampleSections } from '../composables/privacyNotice'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
 
 const editor = useContentItem<BookingContentPayload>('booking_content', {
   cta_label: '',
@@ -58,6 +59,7 @@ onMounted(editor.load)
       <div class="field-row">
         <el-form-item label="中文">
           <el-input v-model="editor.form.value.cta_label" placeholder="預約參觀" />
+          <LengthHint :value="editor.form.value.cta_label" rule="bookingCta" />
         </el-form-item>
         <el-form-item label="英文副標">
           <el-input v-model="editor.form.value.cta_label_en" placeholder="Book a visit" />

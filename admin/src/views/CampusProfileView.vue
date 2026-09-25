@@ -4,6 +4,7 @@ import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusProfilePayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
 const campus = ref('')
@@ -57,6 +58,7 @@ const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
       </el-form-item>
       <el-form-item label="詳細介紹">
         <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
+        <LengthHint :value="editor.form.value.description" rule="campusDescription" />
       </el-form-item>
 
       <h3 class="form-section">社群</h3>

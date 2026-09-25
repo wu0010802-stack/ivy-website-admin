@@ -4,6 +4,7 @@ import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { DayExperiencePayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
 
 const MAX_MOMENTS = 12
 
@@ -95,13 +96,16 @@ onMounted(editor.load)
         <div class="field-row">
           <el-form-item label="拍立得標題">
             <el-input v-model="moment.title" />
+            <LengthHint :value="moment.title" rule="momentTitle" />
           </el-form-item>
           <el-form-item label="拍立得說明">
             <el-input v-model="moment.caption" />
+            <LengthHint :value="moment.caption" rule="momentCaption" />
           </el-form-item>
         </div>
         <el-form-item label="翻面後的故事">
           <el-input v-model="moment.story" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+          <LengthHint :value="moment.story" rule="momentStory" />
         </el-form-item>
         <div class="field-row">
           <el-form-item label="家長常問">

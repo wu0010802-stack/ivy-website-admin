@@ -1,4 +1,5 @@
 import { watch, type Ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCampusScope } from './useCampusScope'
 import type { ContentEditorState } from './useContentItem'
 import type ContentEditor from '../components/ContentEditor.vue'
@@ -15,6 +16,11 @@ export function useCampusContent(
   onSwitch?: () => void,
 ) {
   const scope = useCampusScope()
+  // 從總覽、通知或發布紀錄點進來會帶 ?campus=，直接切到那一校（要在自己的範圍內）。
+  const linked = useRoute()?.query.campus
+  if (!campus.value && typeof linked === 'string' && scope.visibleCampusKeys.value.includes(linked)) {
+    campus.value = linked
+  }
   if (!campus.value) campus.value = scope.selected.value
   let reverting = false
 

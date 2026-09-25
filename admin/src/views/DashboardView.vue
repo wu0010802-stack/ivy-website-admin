@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { attentionListPath, campusLabel, campusLabels, CONTENT_KIND_LABELS, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
+import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 
@@ -11,6 +11,35 @@ interface TodayVisit {
   campus_key: string
   start_time: string
   end_time: string
+}
+
+// 最新一版還沒上官網的內容項（從未發布，或發布後又存了新草稿）。
+interface PendingPublishItem {
+  kind: string
+  campus_key: string | null
+  latest_version: number
+  published_version: number | null
+  updated_at: string | null
+}
+
+// 官網上或最新草稿引用的素材已被刪除（missing）或還沒處理好（not_ready）。
+interface MediaIssue {
+  kind: string
+  campus_key: string | null
+  missing: number
+  not_ready: number
+  /** 官網上的版本就有問題（家長看到破圖或備用圖）；否則只有草稿有問題 */
+  live: boolean
+}
+
+// 排程到點沒有發布（檢查不過），而且之後還沒有人發布過這項內容。
+interface FailedPublishJob {
+  id: string
+  kind: string
+  campus_key: string | null
+  revision_version: number
+  publish_at: string
+  error: string | null
 }
 
 interface DashboardSummary {
@@ -24,17 +53,14 @@ interface DashboardSummary {
   pending_follow_up: number
   pending_publish: number
   pending_publish_kinds?: string[]
+  pending_publish_items?: PendingPublishItem[]
+  content_media_issues?: MediaIssue[]
+  failed_publish_jobs?: FailedPublishJob[]
   pending_review?: number
   campuses_without_active_booking: string[]
   // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
   campuses_slots_without_openings?: string[]
   failed_notifications: number
-}
-
-// 內容 kind 與編輯頁路由同形，只差底線與連字號（home_hero → /content/home-hero）。
-function kindPath(kind: string): string {
-  if (kind === 'admission_content') return '/content/admission'
-  return `/content/${kind.replace(/_/g, '-')}`
 }
 
 interface PendingReview { kind: string; campus_key: string | null; revision_id: string; submitted_by_email: string | null }
@@ -89,6 +115,20 @@ const primary = computed(() => {
 })
 const openCount = computed(() => newRequests.value + awaiting.value)
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
+const pendingPublishItems = computed(() => summary.value?.pending_publish_items ?? [])
+const mediaIssues = computed(() => summary.value?.content_media_issues ?? [])
+const failedJobs = computed(() => summary.value?.failed_publish_jobs ?? [])
+
+function mediaIssueText(issue: MediaIssue): string {
+  const parts: string[] = []
+  if (issue.missing) parts.push(`${issue.missing} 個已刪除`)
+  if (issue.not_ready) parts.push(`${issue.not_ready} 個還沒處理好`)
+  return `${issue.live ? '官網上' : '草稿'}${parts.join('、')}`
+}
+
+function pendingPublishText(item: PendingPublishItem): string {
+  return item.published_version === null ? '從未發布' : `官網第 ${item.published_version} 版，最新第 ${item.latest_version} 版`
+}
 
 const hasTodo = computed(() => {
   const s = summary.value
@@ -101,6 +141,8 @@ const hasTodo = computed(() => {
     s.pending_publish > 0 ||
     reviews.value.length > 0 ||
     s.failed_notifications > 0 ||
+    mediaIssues.value.length > 0 ||
+    failedJobs.value.length > 0 ||
     s.campuses_without_active_booking.length > 0 ||
     slotsWithoutOpenings.value.length > 0
   )
@@ -175,26 +217,60 @@ onMounted(load)
               <span class="task__number">{{ summary.failed_notifications }}</span>
               <div><h3>通知寄送失敗</h3><p>自動重試後仍沒送出的 Email 或 LINE 通知。查看失敗原因，修好設定後重新寄送。</p><span class="task__action">查看並重新寄送 →</span></div>
             </router-link>
+            <div v-if="failedJobs.length > 0" class="task task--urgent">
+              <span class="task__number">{{ failedJobs.length }}</span>
+              <div>
+                <h3>排程發布沒有執行</h3>
+                <p>時間到了但檢查沒通過，官網還是舊內容。看過原因、修好後直接發布或重新排程。</p>
+                <ul class="task__rows">
+                  <li v-for="job in failedJobs" :key="job.id">
+                    <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} →</router-link>
+                    <span>{{ formatDateTime(job.publish_at) }}・第 {{ job.revision_version }} 版{{ job.error ? `：${job.error}` : '' }}</span>
+                  </li>
+                </ul>
+                <router-link class="task__action" to="/releases?tab=schedules">查看全站排程 →</router-link>
+              </div>
+            </div>
             <div v-if="reviews.length > 0" class="task">
               <span class="task__number">{{ reviews.length }}</span>
               <div>
                 <h3>內容等你審核</h3>
                 <p>內容編輯送上來的修改，核准後才會出現在官網；需要修改就退回並寫原因。</p>
                 <span class="task__kinds">
-                  <router-link v-for="r in reviews" :key="r.revision_id" :to="kindPath(r.kind)">
-                    {{ CONTENT_KIND_LABELS[r.kind] ?? r.kind }}{{ r.campus_key ? `（${campusLabel(r.campus_key)}）` : '' }} →
+                  <router-link v-for="r in reviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
+                    {{ contentItemLabel(r.kind, r.campus_key) }} →
                   </router-link>
                 </span>
+              </div>
+            </div>
+            <div v-if="mediaIssues.length > 0" class="task">
+              <span class="task__number">{{ mediaIssues.length }}</span>
+              <div>
+                <h3>內容缺少素材或素材還沒處理好</h3>
+                <p>引用的照片或影片已從素材庫刪除，或還在處理、處理失敗。官網上的版本有問題時家長會看到備用圖；草稿有問題則發布不了。請換一張素材。</p>
+                <ul class="task__rows">
+                  <li v-for="issue in mediaIssues" :key="`${issue.kind}-${issue.campus_key ?? ''}`">
+                    <router-link :to="contentEditorPath(issue.kind, issue.campus_key)">{{ contentItemLabel(issue.kind, issue.campus_key) }} →</router-link>
+                    <span :class="{ 'is-live': issue.live }">{{ mediaIssueText(issue) }}</span>
+                  </li>
+                </ul>
+                <router-link class="task__action" to="/media">查看素材庫 →</router-link>
               </div>
             </div>
             <div v-if="summary.pending_publish > 0" class="task">
               <span class="task__number">{{ summary.pending_publish }}</span>
               <div>
                 <h3>草稿尚未公開</h3>
-                <p>這些內容存過草稿，官網顯示的還是舊版。檢查後再發布。</p>
-                <span class="task__kinds">
-                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="kindPath(kind)">
-                    {{ CONTENT_KIND_LABELS[kind] ?? kind }} →
+                <p>這些內容存過草稿，官網顯示的還是舊版或預設文字。檢查後再發布。</p>
+                <ul v-if="pendingPublishItems.length" class="task__rows">
+                  <li v-for="item in pendingPublishItems" :key="`${item.kind}-${item.campus_key ?? ''}`">
+                    <router-link :to="contentEditorPath(item.kind, item.campus_key)">{{ contentItemLabel(item.kind, item.campus_key) }} →</router-link>
+                    <span>{{ pendingPublishText(item) }}<template v-if="item.updated_at">・{{ formatDateTime(item.updated_at) }} 儲存</template></span>
+                  </li>
+                </ul>
+                <span v-else class="task__kinds">
+                  <router-link v-for="kind in summary.pending_publish_kinds" :key="kind" :to="contentEditorPath(kind)">
+                    {{ contentItemLabel(kind) }} →
                   </router-link>
                 </span>
               </div>
@@ -244,6 +320,11 @@ onMounted(load)
 .today__go { color: var(--ink-3); }
 .task__kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
 .task__kinds a { color: var(--el-color-primary); font-weight: 500; font-size: 14px; }
+.task__rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-size: 14px; }
+.task__rows a { color: var(--el-color-primary); font-weight: 500; }
+.task__rows span { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.task__rows span.is-live { color: var(--el-color-danger); }
 .dash__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
 .section__title h2 { font-size: 17px; }
 .task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }

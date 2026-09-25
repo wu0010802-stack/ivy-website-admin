@@ -616,12 +616,15 @@ a.stat:hover {
 .publish-diff__before { color: var(--ink-3); text-decoration: line-through; overflow-wrap: anywhere; }
 .publish-diff__arrow { color: var(--ink-3); }
 .publish-diff__after { color: var(--ink); overflow-wrap: anywhere; }
+/* 清單欄位的逐項摘要（新增、刪除、修改了哪幾項），跨在後三欄下方。 */
+.publish-diff__detail { grid-column: 2 / -1; color: var(--ink-2); overflow-wrap: anywhere; }
 /* 切換預約方式的影響範圍：一行一句，不套欄位差異的四欄格線。 */
 .publish-diff .switch-impact { list-style: disc; padding-left: 18px; }
 .publish-diff .switch-impact li { display: list-item; padding: 3px 0; border-top: 0; font-size: 14px; line-height: 1.6; }
 @media (max-width: 720px) {
   .publish-diff li { grid-template-columns: 1fr; }
   .publish-diff__arrow { display: none; }
+  .publish-diff__detail { grid-column: 1; }
 }
 
 /* 只給螢幕報讀器讀的文字，例如側欄數字後面的「件待處理」。 */

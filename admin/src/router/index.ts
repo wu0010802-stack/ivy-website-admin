@@ -29,6 +29,7 @@ import AuditView from '../views/AuditView.vue'
 import PoliciesView from '../views/PoliciesView.vue'
 import LineNotificationsView from '../views/LineNotificationsView.vue'
 import AccountView from '../views/AccountView.vue'
+import PublishHistoryView from '../views/PublishHistoryView.vue'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
@@ -71,6 +72,7 @@ const router = createRouter({
         page('content/campus-faq', 'campus-faq', CampusFaqView),
         page('content/campus-tour', 'campus-tour', CampusTourView),
         page('media', 'media', MediaLibraryView),
+        page('releases', 'releases', PublishHistoryView),
         page('booking', 'booking', BookingSettingsView),
         page('slots', 'slots', VisitSlotsView),
         page('visit-requests', 'visit-requests', VisitRequestsView),

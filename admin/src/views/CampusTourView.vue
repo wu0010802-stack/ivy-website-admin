@@ -7,6 +7,8 @@ import type { CampusTourPayload, MediaAssetOut, TourScenePayload } from '../api/
 import { websiteAssetUrl } from '../config'
 import { mediaFileUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
+import LengthHint from '../components/LengthHint.vue'
+import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 
@@ -295,9 +297,11 @@ function nudge(i: number, event: KeyboardEvent) {
                     目前使用官網內建素材 <code class="mono">{{ currentScene.image }}</code>
                   </span>
                 </div>
+                <span class="field-help">{{ IMAGE_HINTS.tour }}</span>
               </el-form-item>
               <el-form-item label="場景說明">
                 <el-input v-model="currentScene.intro" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
+                <LengthHint :value="currentScene.intro" rule="tourIntro" />
               </el-form-item>
 
               <template v-if="currentSpot">
@@ -310,6 +314,7 @@ function nudge(i: number, event: KeyboardEvent) {
                 </el-form-item>
                 <el-form-item label="說明文字">
                   <el-input v-model="currentSpot.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
+                  <LengthHint :value="currentSpot.text" rule="tourSpotText" />
                 </el-form-item>
                 <el-form-item label="到園時可以聊聊">
                   <el-input v-model="currentSpot.question" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
