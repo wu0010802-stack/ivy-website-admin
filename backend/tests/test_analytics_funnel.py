@@ -8,11 +8,12 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import JSON, func, select
 
 from app.booking import workflow_service
 from app.booking.models import VisitRequest
 from app.common import timezones
+from app.operations import analytics_service
 from app.operations.models import CTA_ENTRIES, AnalyticsEvent, AnalyticsEventType
 from tests.conftest import set_booking_mode
 
@@ -182,6 +183,32 @@ async def test_funnel_groups_by_source_and_referral(admin_client, public_client,
     assert by_referral["facebook"]["visit_cancelled"] == 1
     assert by_referral["none"]["request_created"] == 1
     assert by_referral["unknown"]["request_created"] == 1
+
+
+@pytest.mark.asyncio
+async def test_server_event_without_request_is_unrecorded_not_unfilled(admin_client, db_session):
+    """B11-R3：沒帶案件的伺服器事件沒有來源快照，referral_sources 存 SQL NULL
+    （不是 JSON 'null'），來源與「從哪裡知道我們」都歸「未記錄」，不能一個是
+    未記錄、一個是「未填寫」。已經存成 JSON 'null' 的也照未記錄算。"""
+    await analytics_service.record_internal_event(
+        db_session, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key="yihua"
+    )
+    db_session.add(AnalyticsEvent(
+        event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key="yihua", created_at=timezones.now_utc(),
+        referral_sources=JSON.NULL,
+    ))
+    await db_session.commit()
+    sql_null = await db_session.scalar(
+        select(func.count()).select_from(AnalyticsEvent).where(AnalyticsEvent.referral_sources.is_(None))
+    )
+    assert sql_null == 1
+
+    funnel = await _funnel(admin_client)
+    assert funnel["counts"]["visit_confirmed"] == 2
+    by_source = {row["source"]: row["counts"]["visit_confirmed"] for row in funnel["by_source"]}
+    by_referral = {row["referral"]: row["counts"]["visit_confirmed"] for row in funnel["by_referral"]}
+    assert by_source == {"unknown": 2}
+    assert by_referral == {"unknown": 2}
 
 
 @pytest.mark.asyncio

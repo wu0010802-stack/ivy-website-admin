@@ -187,10 +187,9 @@ async def get_campus_funnel(db: AsyncSession, campus_key: str, period: FunnelRan
             reason_key = reason or UNKNOWN
             cancelled_by_reason[reason_key] = cancelled_by_reason.get(reason_key, 0) + count
         by_source.setdefault(source or UNKNOWN, _empty(OUTCOME_EVENT_TYPES))[key] += count
-        if referral_json is None:
-            referrals = [UNKNOWN]
-        else:
-            referrals = json.loads(referral_json) or [NO_REFERRAL]
+        # SQL NULL 與 JSON 'null' 都是沒有快照（未記錄）；只有空陣列才是案件沒填。
+        parsed = json.loads(referral_json) if referral_json is not None else None
+        referrals = [UNKNOWN] if parsed is None else parsed or [NO_REFERRAL]
         for referral in referrals:
             by_referral.setdefault(referral, _empty(OUTCOME_EVENT_TYPES))[key] += count
 

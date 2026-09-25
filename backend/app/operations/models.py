@@ -89,7 +89,9 @@ class AnalyticsEvent(Base):
     event_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     entry: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    referral_sources: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # none_as_null：Python 的 None 寫成 SQL NULL（沒有快照），不是 JSON 'null'；
+    # 空陣列才代表案件沒填「從哪裡知道我們」。
+    referral_sources: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 

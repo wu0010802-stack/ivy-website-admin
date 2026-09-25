@@ -11,6 +11,8 @@ def _payload(title="標題", since_label="SINCE 1997", body="內文", caption="�
 async def test_public_site_returns_503_before_any_publish(public_client):
     response = await public_client.get("/api/website/v1/public/site")
     assert response.status_code == 503
+    # 後台全站設定頁靠這個代碼判斷「還沒發布過」，不當成讀取失敗（B11-R4）。
+    assert response.json()["detail"]["code"] == "NO_PUBLISHED_CONTENT"
 
 
 @pytest.mark.asyncio

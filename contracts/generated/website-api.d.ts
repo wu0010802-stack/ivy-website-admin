@@ -8188,6 +8188,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description 官網還沒發布過任何內容（detail.code = NO_PUBLISHED_CONTENT） */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     list_public_slots_api_website_v1_public_slots_get: {

@@ -14993,6 +14993,9 @@
           },
           "304": {
             "description": "內容跟 If-None-Match 帶來的版本相同"
+          },
+          "503": {
+            "description": "官網還沒發布過任何內容（detail.code = NO_PUBLISHED_CONTENT）"
           }
         },
         "summary": "Get Public Site",

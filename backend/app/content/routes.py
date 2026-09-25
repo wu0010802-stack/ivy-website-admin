@@ -518,7 +518,10 @@ def _etag_matches(header: str | None, etag: str) -> bool:
 @router.get(
     "/public/site",
     response_model=PublicSiteOut,
-    responses={304: {"description": "內容跟 If-None-Match 帶來的版本相同"}},
+    responses={
+        304: {"description": "內容跟 If-None-Match 帶來的版本相同"},
+        503: {"description": "官網還沒發布過任何內容（detail.code = NO_PUBLISHED_CONTENT）"},
+    },
 )
 async def get_public_site(
     request: Request,
@@ -529,7 +532,11 @@ async def get_public_site(
     官網與瀏覽器帶 If-None-Match 重新驗證時，沒變就回 304、不再傳整份內容。"""
     release_id, content = await service.get_public_content(db)
     if release_id is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="尚無可用內容")
+        # 帶代碼讓後台分得出「還沒發布過」與服務暫時無法使用（兩者都是 503）。
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "NO_PUBLISHED_CONTENT", "message": "尚無可用內容"},
+        )
     media = await media_service.public_media(db, service.public_media_ids(content))
     body = PublicSiteOut(
         schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content, media=media
