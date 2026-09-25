@@ -141,7 +141,7 @@ async def content_seed_from_fixture(fixture_path: str) -> None:
 
 
 async def process_notifications_once() -> None:
-    """手動跑一輪定期工作（排程發布、逾期占位、依規則補時段、通知、清限流計數）。正式站
+    """手動跑一輪定期工作（排程發布、逾期占位、依規則補時段、提醒、通知、清限流計數）。正式站
     的 API 已經每 60 秒自己跑一次（app/workers/maintenance.py），這個指令
     留給本機、測試與臨時補跑；兩者同時執行時後到者會跳過，不會重複處理。
     寄信未設定時如實印出「未配置」，站內通知照寫、不假裝寄出。"""
@@ -157,12 +157,36 @@ async def process_notifications_once() -> None:
         print(f"已釋放 {result.expired_holds} 筆逾期的時段占位。")
     if result.slots_generated:
         print(f"已依每週規則補上 {result.slots_generated} 場時段。")
+    if result.reminders_enqueued:
+        print(f"已產生 {result.reminders_enqueued} 則提醒（即將參觀、逾期未處理）。")
     if not result.email_configured:
         print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
     print(f"已處理通知：成功 {result.notifications_sent} 筆、失敗 {result.notifications_failed} 筆")
+    if result.notifications_skipped:
+        print(f"另有 {result.notifications_skipped} 則提醒到寄送時已不適用（改期、取消或已處理），未送出。")
     if result.failed_steps:
         print(f"以下步驟失敗，詳見錯誤紀錄：{'、'.join(result.failed_steps)}", file=sys.stderr)
         raise SystemExit(1)
+
+
+async def requeue_notifications(campus_key: str | None, dry_run: bool) -> None:
+    """把寄送失敗（已達自動重試上限）的通知重新排入，下一輪定期工作重送。
+    已送到的管道與收件人會略過，不會重複寫站內通知或重推 LINE。後台「站內
+    通知」頁也可以逐則或整批重新寄送；這個指令給 SMTP 修好後一次補送用。"""
+    from app.notifications import outbox_admin
+
+    factory = await _session_factory()
+    async with factory() as db:
+        scope = {campus_key} if campus_key else None
+        if dry_run:
+            failed = await outbox_admin.list_failed(db, scope, limit=10_000)
+            print(f"寄送失敗的通知共 {len(failed)} 則（dry-run，未重新排入）。")
+            for item in failed:
+                print(f"  - {item['id']} {item['campus_key']} {item['kind']}（{item['error_code'] or '無錯誤碼'}）")
+            return
+        count = await outbox_admin.requeue_all_failed(db, scope, actor_user_id=None, source="cli")
+        await db.commit()
+    print(f"已重新排入 {count} 則寄送失敗的通知，下一輪定期工作（約一分鐘內）會重送。")
 
 
 async def media_copy_to_s3(dry_run: bool) -> None:
@@ -220,7 +244,7 @@ def main() -> None:
         print(
             "用法：python -m app.cli <seed|seed --dry-run|bootstrap-admin|"
             "content-seed-from-fixture|initialize-content|process-notifications|"
-            "media-copy-to-s3 [--dry-run]>",
+            "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -252,6 +276,15 @@ def main() -> None:
         asyncio.run(run_initialize())
     elif command == "process-notifications":
         asyncio.run(process_notifications_once())
+    elif command == "requeue-notifications":
+        args = sys.argv[2:]
+        campus_key = None
+        if "--campus" in args:
+            index = args.index("--campus")
+            if index + 1 >= len(args):
+                raise SystemExit("用法：python -m app.cli requeue-notifications [--campus <key>] [--dry-run]")
+            campus_key = args[index + 1]
+        asyncio.run(requeue_notifications(campus_key, "--dry-run" in args))
     elif command == "media-copy-to-s3":
         asyncio.run(media_copy_to_s3("--dry-run" in sys.argv[2:]))
     else:

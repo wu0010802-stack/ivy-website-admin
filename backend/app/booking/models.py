@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date as date_, datetime, time as time_
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Integer, String, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -325,6 +325,9 @@ class OutboxStatus(str, enum.Enum):
     LEASED = "leased"
     SENT = "sent"
     FAILED = "failed"
+    # 定期工作產生的提醒到寄送當下已不適用（改期、取消、已處理），不寄也
+    # 不算失敗。
+    SKIPPED = "skipped"
 
 
 class OutboxMessage(Base):
@@ -335,6 +338,10 @@ class OutboxMessage(Base):
     供人工重試——不會憑空遺失案件通知。"""
 
     __tablename__ = "outbox_messages"
+    __table_args__ = (
+        Index("uq_outbox_messages_dedupe_key", "dedupe_key", unique=True),
+        Index("ix_outbox_messages_status", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     visit_request_id: Mapped[uuid.UUID] = mapped_column(
@@ -351,5 +358,9 @@ class OutboxMessage(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     leased_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 寄送失敗後由後台或 CLI 重新排入的時間；「太舊不再推播寄信」改從這裡算。
+    requeued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 定期工作的提醒用：同一案件同一種提醒只寫一次（見 notifications/reminders.py）。
+    dedupe_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
 
     visit_request: Mapped[VisitRequest] = relationship(back_populates="outbox_messages")

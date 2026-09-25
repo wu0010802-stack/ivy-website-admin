@@ -15,6 +15,7 @@ from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitRequest, VisitSlot
 from app.campuses.models import Campus
 from app.notifications import line as line_api
+from app.notifications import reminders
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
@@ -29,7 +30,19 @@ _KIND_LABELS = {
     "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
     # 規格 L239、L268：家長線上申請改期只是申請，原時段仍有效，要園方核准。
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
+    # 規格 L268：定期工作產生的提醒（notifications/reminders.py）。
+    reminders.UPCOMING_VISIT_KIND: f"即將參觀（{reminders.whole_hours(reminders.UPCOMING_VISIT_LEAD)} 小時內）",
+    reminders.OVERDUE_KIND: "案件逾期未處理",
 }
+
+
+def notification_label(kind: str, payload: dict | None = None) -> str:
+    """通知的中文標題。逾期未處理另外帶出是哪一種（新需求放太久、占位快到期）。"""
+    label = _KIND_LABELS.get(kind, kind)
+    reason = (payload or {}).get("reason")
+    if kind == reminders.OVERDUE_KIND and reason in reminders.REASON_LABELS:
+        return f"{label}：{reminders.REASON_LABELS[reason]}"
+    return label
 
 _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
 
@@ -223,7 +236,7 @@ async def dispatch_outbox_message(
     created_at: datetime | None = None,
     line: line_api.LineMessagingClient | None = None,
     admin_origin: str | None = None,
-) -> None:
+) -> bool:
     """處理一筆 outbox 訊息：寫站內通知 → 推播校區的 LINE 群組 → 寄信。
     任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
     處理，不會靜默丟失、也不假裝已送出。`line` 為 None 或這校沒有指定
@@ -235,8 +248,14 @@ async def dispatch_outbox_message(
 
     重試時以 notification_deliveries 逐一去重：已經成功寄出的收件人不會
     再收到第二封，站內通知也只會寫一筆——原本整筆重試會讓每一輪都多一
-    則站內通知、且已收到信的人重複收信。"""
-    label = _KIND_LABELS.get(kind, kind)
+    則站內通知、且已收到信的人重複收信。
+
+    `created_at` 是判斷「太舊不再推播寄信」的基準，人工重新排入的訊息由呼叫端
+    傳重新排入的時間。定期工作產生的提醒在這裡先重新判斷是否仍然成立（改期、
+    取消、已處理），不成立就什麼都不送並回傳 False，其他情況回傳 True。"""
+    if kind in reminders.REMINDER_KINDS and not await reminders.still_applies(db, kind, payload):
+        return False
+    label = notification_label(kind, payload)
 
     if not await _already_delivered(db, outbox_message_id, "inbox", campus_key):
         db.add(
@@ -255,7 +274,7 @@ async def dispatch_outbox_message(
         await db.commit()
 
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
-        return
+        return True
 
     if line is not None:
         target = await campus_line_target(db, campus_key)
@@ -270,14 +289,14 @@ async def dispatch_outbox_message(
             await db.commit()
 
     if adapter is None:
-        return
+        return True
     recipients = await get_notification_recipients(db, campus_key)
     pending = [
         user for user in recipients
         if not await _already_delivered(db, outbox_message_id, "email", user.email)
     ]
     if not pending:
-        return
+        return True
     subject, body = await email_content(
         db,
         label=label,
@@ -299,3 +318,4 @@ async def dispatch_outbox_message(
         # 後面其他收件人的失敗回滾掉，否則這個人下一輪會再收一封。
         _record_delivery(db, outbox_message_id, "email", user.email)
         await db.commit()
+    return True

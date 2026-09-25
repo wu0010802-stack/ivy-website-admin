@@ -4,15 +4,54 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import campus_scope, require_scope
+from app.auth.permissions import campus_scope, covers_campus, require_scope
+from app.booking.models import OutboxStatus
+from app.notifications import outbox_admin
 from app.notifications.models import NotificationInboxItem
 
 router = APIRouter(prefix="/api/website/v1", tags=["notifications"])
+
+
+class OutboxDeliveredOut(BaseModel):
+    """這則通知已經送到的管道：站內通知、LINE 群組、已寄出的 Email 人數。
+    重新寄送時這些都會略過，只補還沒送到的。"""
+
+    inbox: bool
+    line: bool
+    email: int
+
+
+class NotificationOutboxOut(BaseModel):
+    id: uuid.UUID
+    campus_key: str
+    visit_request_id: uuid.UUID
+    kind: str
+    # 逾期未處理提醒的細分原因（new_unhandled／hold_expiring），其他通知為 null。
+    reason: str | None
+    status: str
+    attempts: int
+    # 最後一次失敗的例外類別名稱（例如 SMTPServerDisconnected），不含訊息內容。
+    error_code: str | None
+    created_at: datetime
+    next_attempt_at: datetime
+    requeued_at: datetime | None
+    delivered: OutboxDeliveredOut
+
+
+class NotificationRetryBatchRequest(BaseModel):
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=outbox_admin.LIST_LIMIT)
+
+
+class NotificationRetryBatchOut(BaseModel):
+    requeued: int
+    # 已經不是寄送失敗（別人先重送了、或已送出）、找不到或不在你的校區範圍。
+    skipped: int
 
 
 @router.get("/admin/notifications", response_model=list[dict])
@@ -62,3 +101,67 @@ async def mark_notification_read(
     item.read_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(item.id), "read_at": item.read_at.isoformat()}
+
+
+@router.get("/admin/notification-outbox", response_model=list[NotificationOutboxOut])
+async def list_failed_notifications(
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    """寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定
+    校區時列出你負責的所有校區。"""
+    require_scope(current_user, "booking.read")
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        scope: set[str] | None = {campus_key}
+    else:
+        scope = campus_scope(current_user)
+    return await outbox_admin.list_failed(db, scope)
+
+
+@router.post("/admin/notification-outbox/{message_id}/retry", response_model=NotificationOutboxOut)
+async def retry_failed_notification(
+    message_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """把一則寄送失敗的通知重新排入，下一輪定期工作（約一分鐘內）重送。
+    已送到的管道與收件人不會重複送。"""
+    require_scope(current_user, "booking.handle")
+    loaded = await outbox_admin.load_for_update(db, message_id)
+    if loaded is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
+    message, campus_key = loaded
+    require_scope(current_user, "booking.handle", campus_keys=[campus_key])
+    if message.status != OutboxStatus.FAILED.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "INVALID_TRANSITION", "message": "這則通知已經不是寄送失敗狀態，請重新整理"},
+        )
+    await outbox_admin.requeue_with_audit(db, message, campus_key, actor_user_id=current_user.id, source="admin")
+    await db.commit()
+    return await outbox_admin.describe(db, message, campus_key)
+
+
+@router.post("/admin/notification-outbox/retry", response_model=NotificationRetryBatchOut)
+async def retry_failed_notifications(
+    body: NotificationRetryBatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """批次重新排入。只處理仍是寄送失敗、且在你校區範圍內的；其他的算
+    skipped，不整批失敗（清單可能已經被別人處理過）。"""
+    require_scope(current_user, "booking.handle")
+    requeued = skipped = 0
+    for message_id in dict.fromkeys(body.ids):
+        loaded = await outbox_admin.load_for_update(db, message_id)
+        if loaded is None or not covers_campus(current_user, loaded[1]) or loaded[0].status != OutboxStatus.FAILED.value:
+            skipped += 1
+            continue
+        await outbox_admin.requeue_with_audit(
+            db, loaded[0], loaded[1], actor_user_id=current_user.id, source="admin"
+        )
+        requeued += 1
+    await db.commit()
+    return {"requeued": requeued, "skipped": skipped}

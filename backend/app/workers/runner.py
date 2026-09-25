@@ -19,9 +19,11 @@ async def process_outbox_batch(
 ) -> dict[str, int]:
     """認領並處理最多 `limit` 筆到期的 outbox 工作。每筆工作獨立
     commit/rollback，一筆失敗不影響其他筆繼續處理。`adapter` 為 None 時
-    只寫站內通知（部署環境沒設定寄信）。"""
+    只寫站內通知（部署環境沒設定寄信）。到寄送當下已不適用的提醒標成
+    skipped，另外計數。"""
     sent = 0
     failed = 0
+    skipped = 0
     for _ in range(limit):
         message = await lease_service.claim_next(db, worker_id)
         if message is None:
@@ -29,14 +31,16 @@ async def process_outbox_batch(
         await db.commit()  # 先讓 lease 生效，避免同一批裡的下一輪重複認領同一筆
 
         try:
-            await notification_service.dispatch_outbox_message(
+            delivered = await notification_service.dispatch_outbox_message(
                 db,
                 outbox_message_id=message.id,
                 campus_key=message.payload.get("campus_key", ""),
                 kind=message.kind,
                 payload=message.payload,
                 adapter=adapter,
-                created_at=message.created_at,
+                # 人工重新排入的訊息從重新排入的時間算新舊，否則超過 24 小時
+                # 的失敗通知重寄時會被「太舊不再推播寄信」擋掉。
+                created_at=max(message.created_at, message.requeued_at or message.created_at),
                 line=line,
                 admin_origin=admin_origin,
             )
@@ -53,8 +57,14 @@ async def process_outbox_batch(
             failed += 1
             continue
 
+        if not delivered:
+            await lease_service.skip(db, message)
+            await db.commit()
+            skipped += 1
+            continue
+
         await lease_service.ack(db, message)
         await db.commit()
         sent += 1
 
-    return {"sent": sent, "failed": failed}
+    return {"sent": sent, "failed": failed, "skipped": skipped}

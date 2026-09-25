@@ -1,5 +1,5 @@
-"""API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、處理通知
-outbox、清過期限流計數。
+"""API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、產生提醒
+（即將參觀、逾期未處理）、處理通知 outbox、清過期限流計數。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
 部署設定裡都沒有這個 cron——排程發布永遠不會到點上線，後台也收不到任何通知。
@@ -30,6 +30,7 @@ from app.common.ratelimit import purge_expired_counters
 from app.common.timezones import today_local
 from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
+from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
 from app.workers.runner import process_outbox_batch
 
@@ -45,10 +46,12 @@ class CycleResult:
     publish_failed: int = 0
     expired_holds: int = 0
     slots_generated: int = 0
+    reminders_enqueued: int = 0
     email_configured: bool = False
     line_configured: bool = False
     notifications_sent: int = 0
     notifications_failed: int = 0
+    notifications_skipped: int = 0
     rate_limit_rows_purged: int = 0
     failed_steps: list[str] = field(default_factory=list)
 
@@ -60,8 +63,10 @@ class CycleResult:
                 self.publish_failed,
                 self.expired_holds,
                 self.slots_generated,
+                self.reminders_enqueued,
                 self.notifications_sent,
                 self.notifications_failed,
+                self.notifications_skipped,
                 self.rate_limit_rows_purged,
                 self.failed_steps,
             )
@@ -144,6 +149,16 @@ async def _run_steps(
         logger.exception("定期工作：依規則補時段失敗")
         result.failed_steps.append("extend_slots")
 
+    # 到點的提醒（即將參觀、逾期未處理）寫進 outbox，這一輪就會一起送出。
+    # 以 dedupe_key 去重，重跑不會重複寫。
+    try:
+        async with session_factory() as db:
+            result.reminders_enqueued = await reminders.enqueue_due_reminders(db)
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：產生提醒失敗")
+        result.failed_steps.append("reminders")
+
     try:
         adapter = get_email_adapter(settings.notification_email_sink_dir, settings)
         result.email_configured = True
@@ -161,6 +176,7 @@ async def _run_steps(
             )
         result.notifications_sent = outbox["sent"]
         result.notifications_failed = outbox["failed"]
+        result.notifications_skipped = outbox["skipped"]
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：處理通知失敗")
         result.failed_steps.append("outbox")

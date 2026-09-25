@@ -1469,6 +1469,160 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "NotificationOutboxOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivered": {
+            "$ref": "#/components/schemas/OutboxDeliveredOut"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requeued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requeued At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "visit_request_id",
+          "kind",
+          "reason",
+          "status",
+          "attempts",
+          "error_code",
+          "created_at",
+          "next_attempt_at",
+          "requeued_at",
+          "delivered"
+        ],
+        "title": "NotificationOutboxOut",
+        "type": "object"
+      },
+      "NotificationRetryBatchOut": {
+        "properties": {
+          "requeued": {
+            "title": "Requeued",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requeued",
+          "skipped"
+        ],
+        "title": "NotificationRetryBatchOut",
+        "type": "object"
+      },
+      "NotificationRetryBatchRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "NotificationRetryBatchRequest",
+        "type": "object"
+      },
+      "OutboxDeliveredOut": {
+        "description": "這則通知已經送到的管道：站內通知、LINE 群組、已寄出的 Email 人數。\n重新寄送時這些都會略過，只補還沒送到的。",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "integer"
+          },
+          "inbox": {
+            "title": "Inbox",
+            "type": "boolean"
+          },
+          "line": {
+            "title": "Line",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inbox",
+          "line",
+          "email"
+        ],
+        "title": "OutboxDeliveredOut",
+        "type": "object"
+      },
       "ParentAccessLinkCreatedOut": {
         "description": "manage_url 是可以直接給家長的完整網址（公開官網 origin＝\nWEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用\nmanage_url_fragment 自行組網址。兩者都含 token，只回這一次。",
         "properties": {
@@ -7146,6 +7300,244 @@
         "summary": "Replace Media",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox": {
+      "get": {
+        "description": "寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定\n校區時列出你負責的所有校區。",
+        "operationId": "list_failed_notifications_api_website_v1_admin_notification_outbox_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationOutboxOut"
+                  },
+                  "title": "Response List Failed Notifications Api Website V1 Admin Notification Outbox Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Failed Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox/retry": {
+      "post": {
+        "description": "批次重新排入。只處理仍是寄送失敗、且在你校區範圍內的；其他的算\nskipped，不整批失敗（清單可能已經被別人處理過）。",
+        "operationId": "retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationRetryBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationRetryBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notification-outbox/{message_id}/retry": {
+      "post": {
+        "description": "把一則寄送失敗的通知重新排入，下一輪定期工作（約一分鐘內）重送。\n已送到的管道與收件人不會重複送。",
+        "operationId": "retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOutboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Notification",
+        "tags": [
+          "notifications"
         ]
       }
     },

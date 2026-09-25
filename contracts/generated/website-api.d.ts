@@ -500,6 +500,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/notification-outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Failed Notifications
+         * @description 寄送失敗（已達自動重試上限）的通知，最新的在前，最多 200 則。沒指定
+         *     校區時列出你負責的所有校區。
+         */
+        get: operations["list_failed_notifications_api_website_v1_admin_notification_outbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notification-outbox/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failed Notifications
+         * @description 批次重新排入。只處理仍是寄送失敗、且在你校區範圍內的；其他的算
+         *     skipped，不整批失敗（清單可能已經被別人處理過）。
+         */
+        post: operations["retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notification-outbox/{message_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failed Notification
+         * @description 把一則寄送失敗的通知重新排入，下一輪定期工作（約一分鐘內）重送。
+         *     已送到的管道與收件人不會重複送。
+         */
+        post: operations["retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/notifications": {
         parameters: {
             query?: never;
@@ -2072,6 +2135,69 @@ export interface components {
             kind: components["schemas"]["VariantKind"];
             /** Width */
             width: number | null;
+        };
+        /** NotificationOutboxOut */
+        NotificationOutboxOut: {
+            /** Attempts */
+            attempts: number;
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            delivered: components["schemas"]["OutboxDeliveredOut"];
+            /** Error Code */
+            error_code: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Reason */
+            reason: string | null;
+            /** Requeued At */
+            requeued_at: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
+        /** NotificationRetryBatchOut */
+        NotificationRetryBatchOut: {
+            /** Requeued */
+            requeued: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /** NotificationRetryBatchRequest */
+        NotificationRetryBatchRequest: {
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * OutboxDeliveredOut
+         * @description 這則通知已經送到的管道：站內通知、LINE 群組、已寄出的 Email 人數。
+         *     重新寄送時這些都會略過，只補還沒送到的。
+         */
+        OutboxDeliveredOut: {
+            /** Email */
+            email: number;
+            /** Inbox */
+            inbox: boolean;
+            /** Line */
+            line: boolean;
         };
         /**
          * ParentAccessLinkCreatedOut
@@ -4322,6 +4448,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_failed_notifications_api_website_v1_admin_notification_outbox_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOutboxOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_failed_notifications_api_website_v1_admin_notification_outbox_retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRetryBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRetryBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_failed_notification_api_website_v1_admin_notification_outbox__message_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                message_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOutboxOut"];
                 };
             };
             /** @description Validation Error */
