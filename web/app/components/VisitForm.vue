@@ -3,7 +3,7 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { pickImage } from '~/utils/media-image'
-import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 
 const props = defineProps<{
   booking: BookingContent
@@ -252,8 +252,8 @@ async function onSubmit() {
       submitError.value = '這個校區的預約設定剛剛更新了，請確認以下資訊後再送出一次。'
       await refreshBookingConfig()
       await loadSlots()
-    } else if (code === 'SLOT_FULL') {
-      submitError.value = '這個時段名額剛好滿了，請選擇其他時段。'
+    } else if (slotUnavailableMessage(code)) {
+      submitError.value = slotUnavailableMessage(code)!
       await loadSlots()
       selectedSlotId.value = ''
     } else if (code === 'IDEMPOTENCY_CONFLICT') {
@@ -262,10 +262,6 @@ async function onSubmit() {
       idempotencyKey.value = crypto.randomUUID()
       submitError.value =
         '你先前那一次其實已經送出成功了，園所會用第一次填的資料與你聯繫。如果要用修改後的內容再送一筆，請再按一次送出。'
-    } else if (code === 'SLOT_NOT_BOOKABLE') {
-      submitError.value = '這個時段已經無法預約了，請選擇其他時段。'
-      await loadSlots()
-      selectedSlotId.value = ''
     } else if (code === 'RATE_LIMITED') {
       submitError.value = '送出太多次了，請稍後再試一次。'
     } else if (code === 'BOOKING_UNAVAILABLE') {

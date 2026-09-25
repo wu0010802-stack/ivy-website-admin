@@ -57,6 +57,19 @@ export function changeDeadlineRule(hours: number | null | undefined) {
   return hours >= 48 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
 }
 
+// 送單時選的時段已經不能用：API 依原因回不同代碼（已關閉不再冒充「額滿」），
+// 家長看到的說明跟著原因走；都要重新選時段。
+const SLOT_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SLOT_FULL: '這個時段名額剛好滿了，請選擇其他時段。',
+  SLOT_CLOSED: '這個時段剛被園所關閉了，請選擇其他時段。',
+  SLOT_NOT_FOUND: '這個時段已經不存在了，請選擇其他時段。',
+  SLOT_NOT_BOOKABLE: '這個時段已經無法預約了，請選擇其他時段。',
+}
+
+export function slotUnavailableMessage(code: string | null | undefined): string | null {
+  return (code && SLOT_UNAVAILABLE_MESSAGES[code]) || null
+}
+
 export function isValidDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(`${value}T00:00:00Z`)

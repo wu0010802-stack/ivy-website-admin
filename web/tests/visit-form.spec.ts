@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule } from '../app/utils/visit-form'
+import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule, slotUnavailableMessage } from '../app/utils/visit-form'
 
 describe('visit contact input', () => {
   it('accepts phone autofill spacing without changing the API format', () => {
@@ -53,5 +53,19 @@ describe('parent change deadline copy', () => {
     expect(changeDeadlineRule(72)).toBe('參觀前 3 天')
     // 舊版 API 沒回這個欄位時不顯示規則，只顯示截止時間本身。
     expect(changeDeadlineRule(undefined)).toBe('')
+  })
+})
+
+describe('slot unavailable messages', () => {
+  it('tells parents a closed slot is closed rather than full', () => {
+    expect(slotUnavailableMessage('SLOT_CLOSED')).toContain('關閉')
+    expect(slotUnavailableMessage('SLOT_FULL')).toContain('滿')
+    expect(slotUnavailableMessage('SLOT_NOT_FOUND')).toContain('不存在')
+    expect(slotUnavailableMessage('SLOT_NOT_BOOKABLE')).toContain('無法預約')
+  })
+
+  it('leaves other codes to the caller', () => {
+    expect(slotUnavailableMessage('RATE_LIMITED')).toBeNull()
+    expect(slotUnavailableMessage(null)).toBeNull()
   })
 })

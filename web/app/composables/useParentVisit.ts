@@ -126,7 +126,7 @@ export function useParentVisit() {
         visit.value = null
       }
       error.value = '目前已無法線上異動這筆預約，請直接聯絡園所。'
-    } else if (['SLOT_FULL', 'SLOT_NOT_BOOKABLE', 'SLOT_NOT_FOUND', 'SAME_SLOT'].includes(code || '')) {
+    } else if (['SLOT_FULL', 'SLOT_CLOSED', 'SLOT_NOT_BOOKABLE', 'SLOT_NOT_FOUND', 'SAME_SLOT'].includes(code || '')) {
       error.value = '選擇的場次已無法申請，請重新選擇其他場次。'
       await loadSlots()
     } else if (status === 429) error.value = '操作太頻繁，請稍候一分鐘再試。'
