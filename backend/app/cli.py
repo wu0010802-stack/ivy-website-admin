@@ -13,18 +13,12 @@ from sqlalchemy import func, select
 
 from app.auth import service
 from app.auth.models import Role, User
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_NAMES, Campus
 from app.config import get_settings
 from app.db import create_engine, create_session_factory
 from app.workers.maintenance import run_cycle
 
-CAMPUSES = [
-    ("yihua", "義華校"),
-    ("minghua", "明華校"),
-    ("chongde", "崇德校"),
-    ("international", "國際校"),
-    ("renwu", "仁武校"),
-]
+CAMPUSES = list(CAMPUS_NAMES.items())
 
 
 async def _session_factory():
@@ -131,21 +125,30 @@ async def content_seed_from_fixture(fixture_path: str, *, force: bool, dry_run: 
 
 async def initialize_content_command(fixture_path: str, *, dry_run: bool) -> None:
     """驗證所有 payload 後，只補還沒有任何版本的內容項並發布；dry-run 列出會補哪些。"""
-    from app.content.initialize import initialize_content, pending_initialization
+    from app.content.initialize import faq_adoption_candidates, initialize_content, pending_initialization
 
     data = json.loads(Path(fixture_path).read_text(encoding="utf-8"))
     factory = await _session_factory()
     async with factory() as db:
+        adopt = await faq_adoption_candidates(db, data)
+        adopt_note = (
+            f"{'、'.join(adopt)} 的常見問題還是原型匯入的版本，改用全站共用題目"
+            "（拿掉搬進共用的那幾題並發布；題目內容不變，共用題目排在本校題目之前）。"
+        )
         if dry_run:
             pending = await pending_initialization(db, data)
             await db.rollback()
             print(f"dry-run：欄位驗證通過，會初始化並發布 {len(pending)} 筆內容（未寫入）。")
             for kind, campus in pending:
                 print(f"  - {kind}{f'（{campus}）' if campus else ''}")
+            if adopt:
+                print(f"另外：{adopt_note}")
             return
         count = await initialize_content(db, data)
         await db.commit()
         print(f"已初始化並發布 {count} 筆內容；既有草稿及發布版本未變更。")
+        if adopt:
+            print(f"另外：{adopt_note}")
 
 
 async def process_notifications_once() -> None:

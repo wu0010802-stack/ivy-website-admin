@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content import service
-from app.content.models import ContentItem, ReleaseSource
+from app.content.models import ContentItem, ContentRevision, ReleaseSource
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
 
@@ -35,6 +35,35 @@ def _booking_payload(source: dict) -> dict:
     return payload
 
 
+def _qa(items: list[dict]) -> list[tuple[str, str]]:
+    return [(item["q"], item["a"]) for item in items]
+
+
+def shared_faq_source(data: dict) -> list[dict]:
+    """原型五校的常見問題是同一份 generic 模板，只有少數題目帶校名。五校
+    一字不差的題目（依第一校的順序）搬進全站共用題目。"""
+    campuses = data["campuses"]
+    if not campuses:
+        return []
+    others = [set(_qa(c["faq"]["items"])) for c in campuses[1:]]
+    return [
+        item for item in campuses[0]["faq"]["items"]
+        if all((item["q"], item["a"]) in qa for qa in others)
+    ]
+
+
+def _shared_faq_payload(data: dict) -> dict:
+    return {"items": [
+        {"id": f"faq-{index + 1}", "q": item["q"], "a": item["a"], "scope": "global"}
+        for index, item in enumerate(shared_faq_source(data))
+    ]}
+
+
+def _own_faq_items(campus: dict, shared: list[dict]) -> list[dict]:
+    common = set(_qa(shared))
+    return [item for item in campus["faq"]["items"] if (item["q"], item["a"]) not in common]
+
+
 def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     entries = [
         ("home_about", None, _copy_fields(data["home"]["about"], "home_about")),
@@ -49,6 +78,9 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         # 入學資訊頁：舊官網「常春藤入學」四個分頁移植來的內容（2026-09-24）。
         ("admission_content", None, _copy_fields(data["admission"], "admission_content")),
     ]
+    # 五校共用的常見問題（2026-09-25）；各校只留自己的題目，預設顯示共用題。
+    shared_faq = shared_faq_source(data)
+    entries.append(("shared_faq", None, _shared_faq_payload(data)))
     meta = data["siteMeta"]
     entries.append(("site_meta", None, {
         "title": meta["title"], "description": meta["description"],
@@ -59,7 +91,7 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         profile = _copy_fields(campus, "campus_profile")
         profile["line"] = profile["line"] or ""
         entries.append(("campus_profile", campus["key"], profile))
-        entries.append(("campus_faq", campus["key"], {"items": campus["faq"]["items"]}))
+        entries.append(("campus_faq", campus["key"], {"items": _own_faq_items(campus, shared_faq)}))
         # Generated templates remain marked as pending on the public website.
         if isinstance(campus["tourScenes"], list):
             entries.append(("campus_tour", campus["key"], {"scenes": campus["tourScenes"]}))
@@ -88,13 +120,46 @@ async def pending_initialization(db: AsyncSession, data: dict) -> list[tuple[str
     return pending
 
 
+async def faq_adoption_candidates(db: AsyncSession, data: dict) -> list[str]:
+    """已經初始化過的環境（共用題目是後來才有的）：這次補建共用題目時，哪幾校
+    的常見問題可以一起改用共用題目。只挑「官網上的版本就是原型匯入的那份、
+    之後沒有任何新版本」的校區；園方改過或有草稿的一律不動（官網遇到同一題
+    會顯示本校的版本，不會重複）。"""
+    shared_item = await _existing_item(db, "shared_faq", None)
+    if shared_item is not None and shared_item.latest_version > 0:
+        return []
+    candidates = []
+    for campus in data["campuses"]:
+        item = await _existing_item(db, "campus_faq", campus["key"])
+        if item is None or item.latest_version == 0 or item.current_published_revision_id is None:
+            continue
+        published = await db.get(ContentRevision, item.current_published_revision_id)
+        if published is None or published.version != item.latest_version:
+            continue
+        items = published.payload.get("items", [])
+        untouched = (
+            _qa(items) == _qa(campus["faq"]["items"])
+            and all(i.get("enabled", True) for i in items)
+            and published.payload.get("include_shared", True)
+            and published.payload.get("shared_position", "before") == "before"
+        )
+        if untouched:
+            candidates.append(campus["key"])
+    return candidates
+
+
 async def initialize_content(
     db: AsyncSession, data: dict, created_by: uuid.UUID | None = None
 ) -> int:
+    adopt = await faq_adoption_candidates(db, data)
     created = 0
     for kind, campus, payload in initial_payloads(data):
         item = await service.get_or_create_content_item(db, kind, campus)
         if item.latest_version != 0:
+            if kind == "campus_faq" and campus in adopt:
+                # 未改過的原型常見問題：拿掉已搬到共用題目的那幾題（新版本並發布）。
+                revision = await service.create_revision(db, item, payload, item.latest_version, created_by)
+                await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)
             continue
         revision = await service.create_revision(db, item, payload, 0, created_by)
         await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)

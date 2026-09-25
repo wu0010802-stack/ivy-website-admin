@@ -8,6 +8,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
 CAMPUS_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
+# 五校預設名稱（seed 用的名稱，也用來辨認舊版消息裡手打的校區文字）。
+CAMPUS_NAMES = {
+    "yihua": "義華校",
+    "minghua": "明華校",
+    "chongde": "崇德校",
+    "international": "國際校",
+    "renwu": "仁武校",
+}
 
 
 class Campus(Base):

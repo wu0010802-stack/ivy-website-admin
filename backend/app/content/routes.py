@@ -56,6 +56,20 @@ def _get_kind_config(kind: str):
     return config
 
 
+def _campus_key_for(config, campus_key: str | None) -> str | None:
+    """共用內容一律不看 campus_key；分校內容（五校介紹、FAQ、探索、各校消息）
+    一定要指定校區——沒帶的話會被當成一份「共用」的同名內容，發布後官網
+    讀到的形狀就錯了。"""
+    if config.shared_only:
+        return None
+    if not campus_key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "CAMPUS_KEY_REQUIRED", "message": "這項內容是各校各一份，請指定校區"},
+        )
+    return campus_key
+
+
 def _require_read_scope(user: User, campus_key: str | None) -> None:
     """讀取閘門。共用內容（campus_key is None）所有登入角色都看得到；
     校區內容一定要有該校 scope，否則分校管理者可以讀別校的內容與尚未
@@ -175,8 +189,7 @@ async def get_content_item(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -197,8 +210,7 @@ async def create_content_revision(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
@@ -262,8 +274,7 @@ async def list_content_revisions(
 ) -> list[ContentRevisionSummaryOut]:
     """版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。"""
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -314,8 +325,7 @@ async def get_content_revision(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentRevisionOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
@@ -351,8 +361,7 @@ async def restore_content_revision(
     直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿
     再送審），也要通過發布前檢查（例如校園探索熱點待複核）。"""
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
@@ -421,8 +430,7 @@ async def publish_content_item(
     db: AsyncSession = Depends(get_db_session),
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_publish(current_user, item)
@@ -466,8 +474,7 @@ async def get_public_site(
 
 async def _item_for(db: AsyncSession, kind: str, campus_key: str | None):
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     return config, item
 
@@ -637,8 +644,7 @@ async def list_schedules(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublishJobOut]:
     config = _get_kind_config(kind)
-    if config.shared_only:
-        campus_key = None
+    campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()

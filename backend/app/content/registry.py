@@ -10,6 +10,7 @@ from app.content.schemas import (
     AdmissionContentPayload,
     BookingContentPayload,
     CampusFaqPayload,
+    CampusNewsPayload,
     CampusProfilePayload,
     CampusTourPayload,
     DayExperiencePayload,
@@ -20,6 +21,7 @@ from app.content.schemas import (
     LEGACY_DEMO_CONSENT_TEXT,
     PRIVACY_SAMPLE_MARKER,
     SiteFooterPayload,
+    SharedFaqPayload,
     SiteMetaPayload,
     is_scheduled_visible,
 )
@@ -43,8 +45,16 @@ def _extract_campus_tour_media_ids(payload: dict) -> list[uuid.UUID]:
     return _media_ids_from_images(payload.get("scenes", []))
 
 
-def _extract_home_news_media_ids(payload: dict) -> list[uuid.UUID]:
-    return _media_ids_from_images(payload.get("articles", []))
+def _extract_news_media_ids(payload: dict) -> list[uuid.UUID]:
+    """消息封面，加上結構化內文裡的圖片區塊（home_news、campus_news 共用）。"""
+    articles = payload.get("articles", [])
+    blocks = [
+        block
+        for article in articles
+        for block in article.get("body", []) or []
+        if isinstance(block, dict) and block.get("type") == "image"
+    ]
+    return _media_ids_from_images(articles) + _media_ids_from_images(blocks)
 
 
 def _extract_site_meta_media_ids(payload: dict) -> list[uuid.UUID]:
@@ -102,14 +112,29 @@ def _visible_entries(entries: list[dict], today: str) -> list[dict]:
     ]
 
 
-def _public_home_news(payload: dict, today: str) -> dict:
+def _public_news(payload: dict, today: str) -> dict:
     """只把今天該顯示的消息與活動交給官網；尚未上架或已過下架日的留在
-    後台，發布紀錄裡的原始 payload 不動。"""
+    後台，發布紀錄裡的原始 payload 不動（home_news、campus_news 共用）。"""
     return {
         **payload,
         "articles": _visible_entries(payload.get("articles", []), today),
         "events": _visible_entries(payload.get("events", []), today),
     }
+
+
+def _public_shared_faq(payload: dict, today: str) -> dict:
+    # 停用的共用題目不輸出（舊資料沒有 enabled 欄位，視為啟用）。
+    return {**payload, "items": [i for i in payload.get("items", []) if i.get("enabled", True)]}
+
+
+def _public_campus_faq(payload: dict, today: str) -> dict:
+    """停用的本校題目只留問題文字與 enabled=False：官網靠它把同一題的共用
+    題目藏起來（見 CampusFaqPayload），回答不必讓訪客拿到。"""
+    items = [
+        item if item.get("enabled", True) else {"q": item.get("q", ""), "a": "", "enabled": False}
+        for item in payload.get("items", [])
+    ]
+    return {**payload, "items": items}
 
 
 @dataclass(frozen=True)
@@ -147,16 +172,28 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         BookingContentPayload, shared_only=True, publish_blocker=_booking_publish_blocker
     ),
     "day_experience": ContentKindConfig(DayExperiencePayload, shared_only=True),
+    # 2：2026-09-25 起消息與活動的校區改成 scope＋campus_keys（舊版的 campus
+    # 文字在驗證時換算，見 schemas._ScopedEntry），並加上內文、推薦與活動時間。
     "home_news": ContentKindConfig(
         HomeNewsPayload,
         shared_only=True,
-        extract_media_ids=_extract_home_news_media_ids,
-        public_view=_public_home_news,
+        extract_media_ids=_extract_news_media_ids,
+        public_view=_public_news,
+        schema_version=2,
     ),
+    # 全站共用常見問題；各校在 campus_faq 決定要不要顯示、放在哪裡。
+    "shared_faq": ContentKindConfig(SharedFaqPayload, shared_only=True, public_view=_public_shared_faq),
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
-    # 以下三種需要搭配 campus_key，每校各自一份，不是共用內容。
+    # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(CampusProfilePayload, shared_only=False),
-    "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False),
+    "campus_faq": ContentKindConfig(CampusFaqPayload, shared_only=False, public_view=_public_campus_faq),
+    # 各校自己的消息與活動（分校人員只編本校），官網和 home_news 合併顯示。
+    "campus_news": ContentKindConfig(
+        CampusNewsPayload,
+        shared_only=False,
+        extract_media_ids=_extract_news_media_ids,
+        public_view=_public_news,
+    ),
     "campus_tour": ContentKindConfig(
         CampusTourPayload,
         shared_only=False,

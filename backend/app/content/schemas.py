@@ -4,9 +4,11 @@ import uuid
 from datetime import date, datetime
 
 import re
-from typing import Literal
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
 
 # 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
 # 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
@@ -311,18 +313,160 @@ def is_scheduled_visible(entry: dict, today: str) -> bool:
     return True
 
 
-class NewsArticlePayload(_ScheduledPayload):
+# ---------------------------------------------------------------------------
+# 消息與活動（home_news 全站、campus_news 各校）
+# ---------------------------------------------------------------------------
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+# 規格 3.4：消息內文只支援段落、小標、清單、圖片與驗證後連結，存成結構化
+# 資料，官網逐塊用固定的元素顯示，不插入任何使用者 HTML。
+NEWS_BODY_MAX_BLOCKS = 40
+
+
+def _require_web_url(value: str) -> str:
+    """活動與內文的外部連結只收 http／https（不收 mailto、tel：這裡是「報名表、
+    活動詳情」這類網頁連結）。"""
+    candidate = _strip_invisible(value)
+    if candidate == "":
+        return ""
+    if not candidate.lower().startswith(("https://", "http://")) or len(candidate) <= len("https://"):
+        raise ValueError("連結必須是 https:// 或 http:// 開頭的完整網址")
+    return candidate
+
+
+class NewsParagraphBlock(_ContentPayload):
+    type: Literal["paragraph"]
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "段落不能空白"))
+
+
+class NewsHeadingBlock(_ContentPayload):
+    type: Literal["heading"]
+    text: str = Field(max_length=60)
+
+    @field_validator("text")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "小標不能空白"))
+
+
+class NewsListBlock(_ContentPayload):
+    type: Literal["list"]
+    ordered: bool = False
+    items: list[str]
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, value: list[str]) -> list[str]:
+        kept = [_reject_unsafe_scheme(v) for v in value if v.strip()]
+        return _bounded(kept, 1, 20, "清單")
+
+
+class NewsImageBlock(_ContentPayload):
+    type: Literal["image"]
+    # 素材庫媒體 UUID（內文圖片一律從素材庫選，才有引用保護）。
+    image: str
+    alt: str = Field(default="", max_length=200)
+    caption: str = Field(default="", max_length=120)
+
+    @field_validator("image")
+    @classmethod
+    def _image(cls, value: str) -> str:
+        try:
+            return str(uuid.UUID(value))
+        except ValueError as exc:
+            raise ValueError("內文圖片請從素材庫選擇") from exc
+
+    @field_validator("alt", "caption")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
+class NewsLinkBlock(_ContentPayload):
+    type: Literal["link"]
+    label: str = Field(max_length=40)
+    url: str
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "連結文字不能空白"))
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, value: str) -> str:
+        url = _require_web_url(value)
+        if not url:
+            raise ValueError("請填寫連結網址")
+        return url
+
+
+NewsBodyBlock = Annotated[
+    Union[NewsParagraphBlock, NewsHeadingBlock, NewsListBlock, NewsImageBlock, NewsLinkBlock],
+    Field(discriminator="type"),
+]
+
+
+NEWS_SCOPE_GLOBAL = "global"
+NEWS_SCOPE_CAMPUS = "campus"
+
+
+class _ScopedEntry(_ContentPayload):
+    """全站消息的適用範圍（規格 3.4）：global＝全校；campus＝指定校區清單
+    （至少一校、只收五校的 key，依五校固定順序存）。
+
+    2026-09-25 以前的版本只有一個手打的 campus 文字（「義華校」「全校」），
+    讀舊版本時照五校名稱換成 scope：認得的校名換成那一校，其他一律當全校。"""
+
+    scope: Literal["global", "campus"] = NEWS_SCOPE_GLOBAL
+    campus_keys: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_campus_label(cls, data):
+        if isinstance(data, dict) and "scope" not in data and "campus" in data:
+            label = str(data.get("campus") or "").strip()
+            key = next((k for k, name in CAMPUS_NAMES.items() if name == label), None)
+            data = {k: v for k, v in data.items() if k != "campus"}
+            data["scope"] = NEWS_SCOPE_CAMPUS if key else NEWS_SCOPE_GLOBAL
+            data["campus_keys"] = [key] if key else []
+        return data
+
+    @model_validator(mode="after")
+    def _scope_keys(self):
+        if self.scope == NEWS_SCOPE_GLOBAL:
+            self.campus_keys = []
+            return self
+        unknown = [key for key in self.campus_keys if key not in CAMPUS_KEYS]
+        if unknown:
+            raise ValueError(f"不認得的校區：{'、'.join(unknown)}")
+        if not self.campus_keys:
+            raise ValueError("指定校區時至少要選一校")
+        self.campus_keys = [key for key in CAMPUS_KEYS if key in self.campus_keys]
+        return self
+
+
+class _NewsArticleFields(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
-    campus: str
     category: str
     title: str = Field(min_length=1)
+    # 摘要：卡片、清單與沒有內文時的詳細頁都顯示這段（2026-09-25 以前唯一的
+    # 內文欄位，舊資料原樣當摘要）。
     description: str
+    # 結構化內文（見 NewsBodyBlock）；空清單＝詳細頁只顯示摘要。
+    body: list[NewsBodyBlock] = Field(default_factory=list, max_length=NEWS_BODY_MAX_BLOCKS)
     # 同 campus_tour 的場景圖：素材庫媒體 UUID，或舊 fixture 素材代號。
     image: str
     alt: str
 
-    @field_validator("id", "campus", "category", "title", "description", "alt")
+    @field_validator("id", "category", "title", "description", "alt")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -340,14 +484,20 @@ class NewsArticlePayload(_ScheduledPayload):
         return _require_safe_media_ref(value)
 
 
-class NewsEventPayload(_ScheduledPayload):
+class _NewsEventFields(_ScheduledPayload):
     id: str = Field(min_length=1, max_length=64)
     date: str
-    campus: str
     title: str = Field(min_length=1)
     description: str
+    # 規格 3.4：開始／結束時間（或全天）、地點、相關連結。月份仍由日期推導。
+    all_day: bool = True
+    start_time: str | None = None
+    end_time: str | None = None
+    location: str = Field(default="", max_length=80)
+    link_url: str = ""
+    link_label: str = Field(default="", max_length=20)
 
-    @field_validator("id", "campus", "title", "description")
+    @field_validator("id", "title", "description", "location", "link_label")
     @classmethod
     def _no_script_scheme(cls, value: str) -> str:
         return _reject_unsafe_scheme(value)
@@ -356,6 +506,49 @@ class NewsEventPayload(_ScheduledPayload):
     @classmethod
     def _date_iso(cls, value: str) -> str:
         return _require_iso_date(value)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def _time_format(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not _TIME_RE.match(value):
+            raise ValueError("時間格式需為 HH:MM（24 小時制）")
+        return value
+
+    @field_validator("link_url")
+    @classmethod
+    def _link(cls, value: str) -> str:
+        return _require_web_url(value)
+
+    @model_validator(mode="after")
+    def _time_and_link_rules(self):
+        if self.all_day:
+            self.start_time = None
+            self.end_time = None
+        elif self.start_time is None:
+            raise ValueError("不是全天的活動要填開始時間")
+        elif self.end_time is not None and self.end_time <= self.start_time:
+            raise ValueError("結束時間要晚於開始時間")
+        if not self.link_url:
+            self.link_label = ""
+        return self
+
+
+class NewsArticlePayload(_NewsArticleFields, _ScopedEntry):
+    # 首頁推薦（規格 3.1）：有任何推薦的消息時，首頁只輪播推薦的，依後台
+    # 清單順序；完全沒有推薦時照舊依日期新到舊（官網 utils/news-content.ts）。
+    featured: bool = False
+
+
+class NewsEventPayload(_NewsEventFields, _ScopedEntry):
+    pass
+
+
+def _unique_ids(entries: list, what: str) -> None:
+    ids = [entry.id for entry in entries]
+    if len(ids) != len(set(ids)):
+        raise ValueError(f"{what}的 id 不可重複")
 
 
 class HomeNewsPayload(_ContentPayload):
@@ -366,6 +559,8 @@ class HomeNewsPayload(_ContentPayload):
     # 也不要為了過驗證而虛構內容。
     articles: list[NewsArticlePayload]
     events: list[NewsEventPayload]
+    # 首頁最新消息最多輪播幾則（每組 3 則）；None＝全部。
+    home_display_count: int | None = Field(default=None, ge=1, le=30)
 
     @field_validator("sample_note")
     @classmethod
@@ -377,9 +572,7 @@ class HomeNewsPayload(_ContentPayload):
     def _articles_bounded(cls, value: list[NewsArticlePayload]) -> list[NewsArticlePayload]:
         if len(value) > 30:
             raise ValueError("消息最多 30 則")
-        ids = [a.id for a in value]
-        if len(ids) != len(set(ids)):
-            raise ValueError("消息的 id 不可重複")
+        _unique_ids(value, "消息")
         return value
 
     @field_validator("events")
@@ -387,9 +580,40 @@ class HomeNewsPayload(_ContentPayload):
     def _events_bounded(cls, value: list[NewsEventPayload]) -> list[NewsEventPayload]:
         if len(value) > 12:
             raise ValueError("活動最多 12 筆")
-        ids = [e.id for e in value]
-        if len(ids) != len(set(ids)):
-            raise ValueError("活動的 id 不可重複")
+        _unique_ids(value, "活動")
+        return value
+
+
+class CampusNewsArticlePayload(_NewsArticleFields):
+    """分校自己的消息：只屬於這一校（內容項的 campus_key），沒有適用範圍與
+    首頁推薦——跨校與首頁的安排由總部在全站消息決定（規格 3.4）。"""
+
+
+class CampusNewsEventPayload(_NewsEventFields):
+    pass
+
+
+class CampusNewsPayload(_ContentPayload):
+    """各校消息與活動（campus_news），分校管理者與內容編輯只能編自己校。
+    官網把它和全站消息（home_news）合併顯示。"""
+
+    articles: list[CampusNewsArticlePayload] = Field(default_factory=list)
+    events: list[CampusNewsEventPayload] = Field(default_factory=list)
+
+    @field_validator("articles")
+    @classmethod
+    def _articles_bounded(cls, value: list[CampusNewsArticlePayload]) -> list[CampusNewsArticlePayload]:
+        if len(value) > 12:
+            raise ValueError("每校消息最多 12 則")
+        _unique_ids(value, "消息")
+        return value
+
+    @field_validator("events")
+    @classmethod
+    def _events_bounded(cls, value: list[CampusNewsEventPayload]) -> list[CampusNewsEventPayload]:
+        if len(value) > 12:
+            raise ValueError("每校活動最多 12 筆")
+        _unique_ids(value, "活動")
         return value
 
 
@@ -589,6 +813,8 @@ class CampusProfilePayload(_ContentPayload):
 class CampusFaqItemPayload(_ContentPayload):
     q: str
     a: str
+    # 停用的題目留在後台、官網不顯示（規格 3.4：逐題啟用狀態）。
+    enabled: bool = True
 
     @field_validator("q", "a")
     @classmethod
@@ -596,14 +822,58 @@ class CampusFaqItemPayload(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+FAQ_SHARED_POSITIONS = ("before", "after")
+
+
 class CampusFaqPayload(_ContentPayload):
+    """各校常見問題：本校自己的題目，加上要不要顯示全站共用題目與放哪裡。
+
+    本校有一題和共用題目問題文字相同時，這校顯示本校的版本（停用就是這校
+    不顯示那一題），其他校照樣顯示共用的答案（規格 3.2：局部修改不改動其他校）。"""
+
+    # 可以是 0 題：全部用共用題目的校區不必另外寫。
     items: list[CampusFaqItemPayload]
+    include_shared: bool = True
+    shared_position: Literal["before", "after"] = "before"
 
     @field_validator("items")
     @classmethod
     def _items_bounded(cls, value: list[CampusFaqItemPayload]) -> list[CampusFaqItemPayload]:
-        if not (1 <= len(value) <= 20):
-            raise ValueError("items 需為 1 到 20 筆")
+        if len(value) > 20:
+            raise ValueError("本校題目最多 20 題")
+        return value
+
+
+class SharedFaqItemPayload(_ScopedEntry):
+    id: str = Field(min_length=1, max_length=64)
+    q: str
+    a: str
+    enabled: bool = True
+
+    @field_validator("id", "q", "a")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("q", "a")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        return _nonblank(value, "問題與回答都不能空白")
+
+
+class SharedFaqPayload(_ContentPayload):
+    """全站共用常見問題（shared_faq）：總管理者或有「全站共用內容」授權的人編輯。
+    每題可以適用全部分校或指定分校；各校在自己的常見問題決定要不要顯示、
+    放在本校題目之前或之後。"""
+
+    items: list[SharedFaqItemPayload]
+
+    @field_validator("items")
+    @classmethod
+    def _items_bounded(cls, value: list[SharedFaqItemPayload]) -> list[SharedFaqItemPayload]:
+        if len(value) > 20:
+            raise ValueError("共用題目最多 20 題")
+        _unique_ids(value, "共用題目")
         return value
 
 
