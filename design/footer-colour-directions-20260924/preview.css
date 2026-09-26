@@ -86,6 +86,37 @@
   --footer-bg:#dce7eb;--footer-text:#243e45;--footer-muted:#4a6265;--footer-brand:#1f363c;--footer-accent:#35666c;
   --footer-bar-bg:#2e4148;--footer-bar-text:#c9d5d6;--footer-line:transparent;
 }
+/* ── 第三批：R 的變化（晚上加看）。U–W 換主體、底列維持深森林綠；X–Z 主體維持燕麥、換底列 ── */
+/* U 薄荷＋深綠底列：主體取關於區的淡綠家族，從淺綠落到深綠 */
+[data-direction="u"] {
+  --footer-bg:#e3eee5;--footer-text:#24433a;--footer-muted:#50625a;--footer-brand:#1c3a30;--footer-accent:#6e5420;
+  --footer-bar-bg:#24483f;--footer-bar-text:#d9e2d9;--footer-line:transparent;
+}
+/* V 蜂蜜奶油＋深綠底列：比燕麥暖一階、帶一點陽光 */
+[data-direction="v"] {
+  --footer-bg:#f6e8c6;--footer-text:#27433a;--footer-muted:#5d5a44;--footer-brand:#1f3a31;--footer-accent:#7a5216;
+  --footer-bar-bg:#24483f;--footer-bar-text:#d9e2d9;--footer-line:transparent;
+}
+/* W 霧玫瑰＋深綠底列：淡粉與深綠互補，點綴用赤陶褐 */
+[data-direction="w"] {
+  --footer-bg:#f2e2dc;--footer-text:#27433a;--footer-muted:#66544f;--footer-brand:#1f3a31;--footer-accent:#8a3f2c;
+  --footer-bar-bg:#24483f;--footer-bar-text:#d9e2d9;--footer-line:transparent;
+}
+/* X 燕麥＋暖金底列：底列用頁首預約鈕的金，最後一條是亮的 */
+[data-direction="x"] {
+  --footer-bg:#efe8da;--footer-text:#27433a;--footer-muted:#5b6358;--footer-brand:#1f3a31;--footer-accent:#7a5a24;
+  --footer-bar-bg:#ecc25a;--footer-bar-text:#203f32;--footer-line:transparent;
+}
+/* Y 燕麥＋核桃底列：全暖色收尾，比深綠柔 */
+[data-direction="y"] {
+  --footer-bg:#efe8da;--footer-text:#27433a;--footer-muted:#5b6358;--footer-brand:#1f3a31;--footer-accent:#7a5a24;
+  --footer-bar-bg:#3b2e26;--footer-bar-text:#e6dccb;--footer-line:transparent;
+}
+/* Z 燕麥兩階：底列只深一階，沒有深色色塊 */
+[data-direction="z"] {
+  --footer-bg:#efe8da;--footer-text:#27433a;--footer-muted:#5b6358;--footer-brand:#1f3a31;--footer-accent:#7a5a24;
+  --footer-bar-bg:#ded2ba;--footer-bar-text:#3f3a2c;--footer-line:transparent;
+}
 * {box-sizing:border-box}
 body {margin:0;background:var(--footer-bar-bg,var(--footer-bg));color:var(--footer-text);font:1rem/1.8 var(--font);-webkit-font-smoothing:antialiased}
 a {color:inherit;text-decoration:none;-webkit-tap-highlight-color:transparent}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>頁尾文字配色預覽｜常春藤</title>
+  <link rel="stylesheet" href="preview.css">
+  <script>
+    const direction = new URLSearchParams(location.search).get('v');
+    document.documentElement.dataset.direction = ['t0','t1','t2','t3','t4','t5','t6','t7','t8','t9'].includes(direction) ? direction : 't0';
+  </script>
+</head>
+<body>
+  <div class="context"><div class="container">最新消息區結尾（暖白）</div></div>
+  <footer class="footer">
+    <div class="container footer-main">
+      <div class="footer-brand">
+        <a href="#home" class="footer-name">常春藤幼兒園<span lang="en">IVY KINDERGARTEN</span></a>
+        <p>陪伴每一個孩子，長成自己喜歡的樣子。</p>
+      </div>
+      <nav class="footer-links" aria-label="網站導覽">
+        <a href="#about">關於常春藤</a><a href="#campuses">五所校園</a>
+        <a href="#life">孩子的一天</a><a href="#visit">預約參觀</a>
+        <a href="#news">最新消息</a><a href="#admission">入學資訊</a>
+      </nav>
+      <div>
+        <p class="footer-label">我們的大家庭</p>
+        <nav class="footer-campuses" aria-label="五校導覽">
+          <a href="#yihua">義華校</a><a href="#minghua">明華校</a><a href="#chongde">崇德校</a><a href="#international">國際校</a><a href="#renwu">仁武校</a>
+        </nav>
+      </div>
+    </div>
+    <div class="footer-bar">
+      <div class="container footer-bottom">
+        <span>© 2026 常春藤教育機構</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

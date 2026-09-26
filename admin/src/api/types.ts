@@ -190,7 +190,7 @@ export interface HomeNewsPayload {
   events: NewsEventPayload[]
   /** 首頁最多輪播幾則；null＝全部 */
   home_display_count: number | null
-  /** 手機版活動影片；null＝官網沿用內建的四支 */
+  /** 手機版活動影片；null＝官網沿用內建的五支（一段校園影片＋四支義華校 YouTube） */
   films?: HomeFilmPayload[] | null
 }
 
@@ -276,6 +276,9 @@ export interface CampusProfilePayload {
   hero_focus?: FocusPointPayload | null
   line_art?: MediaSlotPayload | null
   line_art_colour?: MediaSlotPayload | null
+  /** 2026-09-25 新增；之前存的版本沒有這兩欄，表單載入時補空字串。 */
+  instagram: string
+  youtube: string
 }
 
 export interface CampusFaqItemPayload {

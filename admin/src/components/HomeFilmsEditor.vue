@@ -7,8 +7,9 @@ import { HOME_FILMS_MAX, filmClipError, filmStartError, filmYoutubeError, newHom
 import MediaSlotField from './MediaSlotField.vue'
 
 /**
- * 首頁手機版「活動影片」清單（home_news.films）。null＝官網沿用內建的四支影片
- * 片段；打開「自訂」才改用這裡的清單（至少一支、最多 HOME_FILMS_MAX 支）。
+ * 首頁手機版「活動影片」清單（home_news.films）。null＝官網沿用內建的五支影片
+ * （一段校園影片＋四支義華校 YouTube，web/app/utils/campusFilms.ts）；打開「自訂」
+ * 才改用這裡的清單（至少一支、最多 HOME_FILMS_MAX 支）。
  * 素材庫影片可以只播其中一段（開始～結束秒數），YouTube 貼影片網址即可。
  */
 const props = defineProps<{
@@ -52,7 +53,7 @@ function move(index: number, delta: number) {
     <el-switch
       :model-value="Array.isArray(films)"
       :disabled="readOnly"
-      active-text="自訂影片清單（關閉時官網沿用內建的四支活動影片片段）"
+      active-text="自訂影片清單（關閉時官網沿用內建的五支活動影片：一段校園影片＋四支義華校 YouTube）"
       @update:model-value="toggle(Boolean($event))"
     />
     <template v-if="films">

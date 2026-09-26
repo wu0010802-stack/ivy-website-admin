@@ -248,6 +248,44 @@ async def test_campus_admin_can_edit_own_campus_profile(minghua_client):
 
 
 @pytest.mark.asyncio
+async def test_campus_profile_instagram_youtube_published(admin_client, public_client):
+    """2026-09-25 新增 IG／YouTube：有值照存照發布；舊版本沒有這兩欄仍可存（上面
+    _campus_profile_payload 就沒帶），存下來補成空字串。"""
+    payload = _campus_profile_payload("義華測試") | {
+        "instagram": "https://www.instagram.com/ivy.kids.school.ig/",
+        "youtube": "https://www.youtube.com/@IvyKidsVideos",
+    }
+    for key, body in (("yihua", payload), ("minghua", _campus_profile_payload("明華測試"))):
+        draft = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_profile/revisions?campus_key={key}",
+            json={"expected_version": 0, "payload": body},
+        )
+        assert draft.status_code == 201, draft.text
+        publish = await admin_client.post(
+            f"/api/website/v1/admin/content-items/campus_profile/publish?campus_key={key}",
+            json={"revision_id": draft.json()["latest_revision"]["id"]},
+        )
+        assert publish.status_code == 200, publish.text
+
+    profiles = (await public_client.get("/api/website/v1/public/site")).json()["content"]["campus_profile"]
+    assert profiles["yihua"]["instagram"] == "https://www.instagram.com/ivy.kids.school.ig/"
+    assert profiles["yihua"]["youtube"] == "https://www.youtube.com/@IvyKidsVideos"
+    assert profiles["minghua"]["instagram"] == ""
+    assert profiles["minghua"]["youtube"] == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["instagram", "youtube"])
+@pytest.mark.parametrize("value", ["javascript:alert(1)", "data:text/html,<script>", "www.instagram.com/x"])
+async def test_campus_profile_social_links_require_safe_url(admin_client, field, value):
+    response = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_profile/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": _campus_profile_payload("義華") | {field: value}},
+    )
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
 async def test_day_experience_moments_bounds_and_duplicate_key_rejected(admin_client):
     def moment(key: str) -> dict:
         return {

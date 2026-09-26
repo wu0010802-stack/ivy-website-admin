@@ -7,11 +7,11 @@ export const ENTRANCE_SESSION_KEY = 'ivy-entrance-a-seen'
 // match wins. Regenerate with design/entrance-curtain-a-velvet-20260922/render-posters.cjs
 // whenever the curtain's look changes, or the cover shows an outdated curtain.
 export const ENTRANCE_POSTERS: ReadonlyArray<readonly [media: string, src: string]> = [
-  ['(min-aspect-ratio: 15/8)', '/assets/entrance-poster-wide.webp?v=284d0e3b'],
-  ['(max-aspect-ratio: 2/3)', '/assets/entrance-poster-phone.webp?v=0c426b53'],
-  ['(max-aspect-ratio: 25/24)', '/assets/entrance-poster-portrait.webp?v=7b04cd78'],
-  ['(max-aspect-ratio: 35/24)', '/assets/entrance-poster-landscape.webp?v=6a5f77f4'],
-  ['all', '/assets/entrance-poster-desktop.webp?v=35a6d775']
+  ['(min-aspect-ratio: 15/8)', '/assets/entrance-poster-wide.webp?v=04d5da0f'],
+  ['(max-aspect-ratio: 2/3)', '/assets/entrance-poster-phone.webp?v=4b1ce1a4'],
+  ['(max-aspect-ratio: 25/24)', '/assets/entrance-poster-portrait.webp?v=48bc69e7'],
+  ['(max-aspect-ratio: 35/24)', '/assets/entrance-poster-landscape.webp?v=aa84c846'],
+  ['all', '/assets/entrance-poster-desktop.webp?v=e0ccbd68']
 ]
 
 // The renderer's own assets. The projection is the original PNG losslessly

@@ -1,0 +1,84 @@
+/* 特色教學頁（/curriculum，2026-09-26）
+   版型沿用入學資訊頁與常春藤環境頁：CurriculumContent.vue 同時掛 admission.css（adm-*），這支只補 admission 沒有的元件。
+   課程名稱有字不在 LINE Seed 子集（統、元文、品培、術、美術、肌肉、六八），卡片標題整組改用內文字型，
+   不讓同一個詞混兩種字型；字型分支（完整字型分片）合併後可改回標題字型。
+   顏色一律走站內 token；透明度用 RGB 三元組（--ink / --on-dark / --shadow-rgb）。 */
+
+/* ---------- hero ---------- */
+.cur-hero-photo{object-position:78% 40%}
+
+/* ---------- 01 四個年段 ---------- */
+.cur-years-link{margin-top:20px;color:var(--ivy-forest)}
+.cur-years-link .icon{width:18px;height:18px}
+.cur-year-list{list-style:none;margin:96px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.cur-year{display:flex;flex-direction:column;padding:26px 24px 24px;border-radius:12px;background:rgb(var(--on-dark)/.55)}
+.cur-year-age{font:400 56px/1 var(--font-date);letter-spacing:-.02em;color:var(--ivy-forest)}
+.cur-year-age sup{margin-left:4px;font:600 var(--fs-sm)/1 var(--font-body);vertical-align:top;position:relative;top:6px}
+.cur-year-name{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:18px}
+.cur-year-name b{font-size:var(--fs-lg);font-weight:700}
+.cur-year-name span{font:400 var(--fs-xs)/1.4 var(--font-date);letter-spacing:.14em;text-transform:uppercase;color:var(--ivy-forest-soft)}
+.cur-year h3{margin-top:10px;font-size:var(--fs-xl);line-height:1.5}
+.cur-year p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85}
+.cur-year small{margin-top:auto;padding-top:16px;font-size:var(--fs-xs);letter-spacing:.04em;color:var(--ivy-forest-soft)}
+
+/* ---------- 02 課程方向：四欄；沒有照片的品德培養橫跨兩格，dense 補位讓兩排剛好排滿 ---------- */
+.cur-direction-grid{list-style:none;margin:64px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row dense;gap:48px 24px}
+.cur-direction img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:16px}
+.cur-direction h3{margin-top:20px;font:700 var(--fs-xl)/1.5 var(--font-body);color:var(--ivy-campus-heading-ink)}
+.cur-direction-sub{margin-top:6px;font-size:var(--fs-sm);font-weight:600;line-height:1.7;color:var(--ivy-campus-heading-accent)}
+.cur-direction p:last-child{margin-top:6px;font-size:var(--fs-sm);line-height:1.85;color:var(--ivy-campus-muted)}
+.cur-direction.is-quote{grid-column:span 2;display:flex;align-items:center;padding:48px 56px;border-radius:16px;background:var(--ivy-forest);color:var(--white)}
+.cur-direction.is-quote h3{order:-1;margin:0;font-size:var(--fs-sm);font-weight:600;letter-spacing:.12em;color:var(--gold)}
+.cur-direction.is-quote .cur-direction-copy{display:flex;flex-direction:column}
+.cur-direction.is-quote .cur-direction-sub{order:0;margin-top:14px;font:700 var(--fs-5xl)/1.25 var(--font-body);letter-spacing:.06em;color:var(--white)}
+.cur-direction.is-quote p:last-child{margin-top:16px;font-size:var(--fs-md);color:var(--ivy-forest-mist)}
+
+/* ---------- 03 五件事：深綠舞台上的拍立得（不翻面） ---------- */
+.cur-daily{padding-bottom:220px}
+.cur-daily-source{display:block;margin-top:10px;font-size:var(--fs-xs);letter-spacing:.04em;color:rgb(var(--on-dark)/.62)}
+.cur-print-list{list-style:none;margin:88px 0 0;padding:0 clamp(0px,2vw,32px);display:flex;flex-wrap:wrap;justify-content:center;gap:72px clamp(28px,4vw,56px)}
+.cur-print{--tilt:-1.8deg;width:calc((100% - 2 * clamp(28px,4vw,56px)) / 3)}
+.cur-print:nth-child(even){--tilt:1.6deg;margin-top:40px}
+.cur-print-face{height:100%;transform:rotate(var(--tilt));transition:transform .6s var(--adm-ease)}
+@media (hover:hover){.cur-print:hover .cur-print-face{transform:rotate(0deg)}}
+.cur-print:nth-child(even) .adm-tape{left:auto;right:28px;transform:rotate(4deg);background:repeating-linear-gradient(135deg,var(--ivy-news-swept-mist) 0 8px,var(--ivy-news-paper-blue) 8px 16px)}
+.cur-print-no{margin-top:20px;font:400 var(--fs-xs)/1 var(--font-date);letter-spacing:.16em;color:var(--ivy-news-muted)}
+.cur-print-face h3{margin-top:8px;font:700 var(--fs-2xl)/1.45 var(--font-body)}
+.cur-print-face p:last-child{margin-top:10px;font-size:var(--fs-sm);line-height:1.85}
+
+/* ---------- 結尾：預約卡從深綠升起 ---------- */
+.cur-visit-sheet{padding:96px 0 104px}
+.cur-visit-sheet .adm-visit{margin-top:0}
+
+/* ---------- 斷點：沿用 admission 的 1100 / 900 / 760 ---------- */
+@media (width<=1100px){
+  .cur-year-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cur-direction-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cur-print{width:calc((100% - clamp(28px,4vw,56px)) / 2)}
+  .cur-print:nth-child(even){margin-top:0}
+  .cur-print:nth-child(4n+2),.cur-print:nth-child(4n+3){margin-top:0}
+}
+@media (width<=900px){
+  .cur-direction.is-quote{padding:40px 36px}
+}
+@media (width<=760px){
+  /* 章節只有 3 項：手機兩欄時最後一項落單，改成橫跨整列，底線才會畫滿 */
+  .adm-chapters li:last-child:nth-child(odd){grid-column:1/-1}
+  .cur-hero-photo{object-position:68% 40%}
+  .cur-year-list{grid-template-columns:1fr;gap:12px;margin-top:48px}
+  .cur-year{display:grid;grid-template-columns:72px minmax(0,1fr);column-gap:16px;padding:20px 18px}
+  .cur-year-age{grid-row:span 5;font-size:44px}
+  .cur-year-name{margin-top:0}
+  .cur-year small{padding-top:10px}
+  .cur-direction-grid{grid-template-columns:1fr;gap:40px;margin-top:48px}
+  .cur-direction.is-quote{grid-column:auto;padding:32px 24px}
+  .cur-direction.is-quote .cur-direction-sub{font-size:var(--fs-4xl)}
+  .cur-daily{padding-bottom:160px}
+  .cur-print-list{margin-top:56px;gap:48px;padding:0 6px}
+  .cur-print{width:100%}
+  .cur-print-face{padding:22px 22px 24px}
+  .cur-visit-sheet{padding:64px 0 72px}
+}
+@media (prefers-reduced-motion:reduce){
+  .cur-print-face{transition:none}
+}

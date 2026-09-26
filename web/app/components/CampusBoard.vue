@@ -266,6 +266,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
           <a v-if="current.line" :href="current.line" aria-label="LINE 好友（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE 好友</a>
           <span v-else><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE · 待園方提供</span>
           <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
+          <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
+          <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
         </div>
       </div>
       <div class="campus-actions">

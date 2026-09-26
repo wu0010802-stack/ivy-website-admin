@@ -1,3 +1,107 @@
+## 2026-09-26 開場布幕視覺精修（舞台光、褶子、帷幔接點）
+
+依使用者「布幕可以怎麼優化」的評析全部修改，只動 `web/app/utils/entranceCurtain.ts` 的著色器與幾何。規則寫在 DESIGN.md 同日段落。
+- 帷幔綁點原本有一條硬的直線接縫，改成平滑收褶。
+- 舞台光往兩翼暗下、腳燈更寬更亮；絨布正面壓暗、斜面受光。
+- 褶子間距與深淺加入低頻變化；片頭片框邊緣收窄，拿掉大片光暈。
+- 30th 緞帶改用長焦投影，並減弱褶子造成的明暗，上下緣與文字不再隨褶子起伏；人物校徽不動。
+- 首屏海報五張重產（`entrance-policy.ts` 的 `?v=` 已更新），和新版第一幀的像素差為 1～9/255。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；`npm run test:website` 36 檔 304 項通過。dev server 用 Playwright（Metal）在 1440×900、390×844、1466×690 截校徽、倒數「1」、拉幕 30% 三格，改版前後對照，console 無 shader 錯誤。快照 `versions/before-curtain-polish-20260926-071538/`。Safari／iOS 實機未驗證。部署紀錄見 `deploy/README.md`。
+
+## 2026-09-26 內頁 hero 手機版 sizes 照實寫（入學資訊、常春藤環境、特色教學）
+
+三頁手機版 hero 是固定 500px 高的照片帶（`admission.css` 760px 以下的 `.adm-hero-photo`），用 `object-fit: cover`。橫幅照片實際顯示寬度是 500 × 寬高比：入學 675px、環境 1049px、特色教學 1245px。原本 `sizes` 一律寫 `100vw`，390 寬手機只選到 800w，有效解析度 0.32–0.68，看起來糊。
+- 改法：`utils/responsive-image.ts` 新增 `pageHeroImage()`／`PAGE_HERO_MOBILE_HEIGHT`，`sizes` 改為 `(max-width: 760px) <500×寬高比>px, 100vw`。三頁的 `<img>` 與 `usePageSeo` 的首屏預載都改用它，兩邊 sizes 一致。761px 以上維持 100vw：實測本來就選到最大候選，這次不變。
+- 實測（390 寬，DPR 1.75／2）：有效解析度入學 0.68／0.59 → 0.91／0.80、環境 0.44／0.38 → 1.07／0.93、特色教學 0.37／0.32 → 0.92／0.80。DPR 3 受原圖尺寸限制（入學 1080、環境 1960、特色教學 2000 寬），只到 0.53–0.62。
+- 代價：手機首屏圖變大，入學 34 → 61 KB、環境 32 → 119 KB、特色教學 28 → 92 KB。每次載入只下載一張首屏圖（預載與 `<img>` 選到同一個候選，已逐一確認）。
+- 測試：新增 `tests/page-hero.spec.ts` 6 項，檢查 sizes 算法、常數與 CSS 高度一致、`<img>` 與預載都用 `pageHeroImage`，以及找不到素材時不丟例外。
+- 驗證：web vitest 39 檔 351 項通過、`nuxt typecheck` 結束碼 0。e2e `old-site-content` 在 390 手機 6 項通過。前後對照截圖在 `output/playwright/page-hero-sizes-20260926/compare.png`。
+- 未量正式站 LCP：以 Lighthouse 慢速 4G 約 1.6 Mbps 粗估，環境頁多出約 87 KB，首屏圖下載時間約多 0.4 秒。部署後應該用線上 Lighthouse 確認。
+
+未 commit、未部署。
+
+## 2026-09-26 特色教學頁 /curriculum、四校校園探索換真實場景、義華家長分享
+
+接續舊官網盤點（ivykidschool.com、ivykids.tw），把可以直接搬的內容做完。
+- **特色教學頁 `/curriculum`**：`pages/curriculum.vue`＋`components/CurriculumContent.vue`＋`assets/css/curriculum.css`，版型照 `/environment`（共用 `admission.css`），內容寫在元件裡，不進後台。
+  - 01 四個年段：機構站「四年八階段」幼幼班到大班的 slogan。年齡寫法同入學資訊頁，有測試比對 `CLASS_BY_OFFSET`。
+  - 02 七個課程方向：機構站課程支柱。品德培養沒有照片，做成橫跨兩格的深綠引言卡。
+  - 03 五件事：義華 ivykids.tw「課程特色」（靜心、教具操作、美術創作、閱讀素養、大肌肉時間），照片與介紹標明取自義華校。
+  - 文案是舊站原文，只修錯字與標點；「做準備準備」改為「做準備」。「《常春藤幼兒園》高雄獨家課程」「大推」拿掉（無法佐證，待園方確認）。
+  - 大標只用 LINE Seed 子集有的字。課程名稱有缺字（統、元文、品培、術、美術、肌肉、六八），卡片標題整組改用內文字型。
+  - 照片 14 張 `cur-*`：首屏是義華首頁輪播原圖（孩子合十），課程照是機構站圓形照片裁內接 4:3。
+  - 選單改為「特色教學、常春藤環境、入學資訊」，頁尾加特色教學，後台 `siteLinks.ts` 預設同步。另接好 SEO、sitemap、llms.txt、頁首膠囊。
+- **四校校園探索**：明華、崇德、國際、仁武的 `tourScenes` 從通用模板換成機構站各校介紹頁的實景，共 11 個場景（`tour-*`，8:5，因為畫面用 `object-fit: fill`）。熱點只寫照片裡看得到的東西。
+  - 校別證據：明華的戶外廣場檔名是「07_明華戶外廣場」；國際校大門鑄著校名；仁武的照片來自「仁武校校園環境」相簿。
+  - 國際校美語商店街的場景說明，引用機構站 About 頁原句。
+  - 義華的校園探索存在後台，要補的花花世界、藝術走廊寫成操作說明 `docs/website-admin/handoff-yihua-tour-20260926.md`。
+- **義華家長分享**：新元件 `CampusTestimonials.vue`，分校頁校園探索後面放 4 支家長分享影片（ivykids.tw 共 16 支）。
+  - 引言是影片標題裡家長說的話。
+  - 海報用影片畫面，裁掉名字字卡與職稱字卡。
+  - 點了才插 `youtube-nocookie`；只在 fixture 有 `testimonials` 的學校出現（目前只有義華）。
+- **修午夜不穩定的測試**：`backend/tests/test_visit_details.py` 的「明天」改成執行當下才計算（09-25 CI run 36157022816 在台北午夜失敗過）。
+- main 的 `media-slots.spec.ts` 比對基準更新。逐欄比對過，差異只有：義華 `testimonials`、四校 `tourScenes`、選單與頁尾多了特色教學。
+
+驗證：
+- web：`nuxt typecheck` 結束碼 0，vitest 38 檔 345 項通過。新增 `curriculum.spec.ts`（SEO／sitemap／llms、年段對入學資訊、圖片）、`campus-old-site-content.spec.ts`（五校無模板、場景 8:5、熱點範圍、家長分享只有義華、海報檔在）。
+- admin：`vue-tsc` 結束碼 0，vitest 33 檔 264 項通過。
+- backend：`test_visit_details`、`test_content_initialize` 共 24 項通過。
+- `contract:check` 一致。
+- e2e：新增 `tests/e2e/old-site-content.spec.ts`，連同活動影片、五校卡社群在 1440／390 共 15 項通過、1 項桌機跳過。
+- Playwright 對 3218 dev（fixture 模式）：
+  - `/curriculum` 1440／1024／390 無 console 錯誤、無破圖、無橫向捲動。
+  - 選單三項在 901／950／1000／1024／1101／1180／1245／1280／1440 都排一行，預約鈕貼齊右緣。
+  - 11 個校園探索場景比例 1.6、熱點位置逐張看過，已調 2 個。
+  - 家長分享 4 張海報載入，點了插 iframe。
+  - 4 支家長分享影片從正式網域嵌入能載入播放器。
+- 截圖在 `output/playwright/curriculum-20260926/`。
+
+未 commit、未部署。
+
+## 2026-09-25 各校 IG／YouTube 改由後台管理，首頁五校卡顯示
+
+接續同日上一段。後台「五校介紹」新增 Instagram、YouTube 兩欄，首頁五校卡跟著顯示。
+- **後端**：`CampusProfilePayload` 加 `instagram`、`youtube`，預設 `""`，所以舊版本照樣通過驗證，也不需要 migration。兩欄跟 FB、LINE 一起走 `_require_safe_url` 允許清單。`initialize.py` 把 null 轉成空字串；種子 `content/site-fixture.json` 補上這兩欄（義華有值，其他四校 null）。
+- **後台**：`CampusProfileView.vue` 在 LINE 下方加兩個欄位；`types.ts`、`labels.ts`（版本比對的欄位名）同步更新。
+- **官網**：`content-overlay.ts` 有這一欄就以後台為準，空字串轉成 null；舊版本沒有這一欄才沿用 fixture。`CampusBoard.vue` 社群列在 Facebook 後面加 Instagram、YouTube，有值才出現。
+- API 契約沒有變動：分校資料在 API 上是泛用的 payload，`contract:check` 一致。
+
+**部署後要做**：到後台「五校介紹 → 義華校」填 IG `https://www.instagram.com/ivy.kids.school.ig/`、YouTube `https://www.youtube.com/@IvyKidsVideos`，然後發布。沒做的話，下一次有人存義華的資料，這兩個連結就會消失（原因見 DESIGN.md 同日段落）。
+
+驗證：
+- backend：全套 500 項通過（獨立測試庫 `ivy_website_social_test` 從零 migrate 到 `9b2b0ebc14ae`）。新增三組測試：IG／YouTube 發布往返（舊版本沒帶也能存）、6 組不安全網址回 422（驗證器拿掉這兩欄時 6 組全部轉紅）、初始化帶入義華的值。
+- web：`nuxt typecheck` 結束碼 0，vitest 31 檔 247 項通過（`content.spec.ts` 新增「以後台為準／舊版本沿用 fixture」兩項，修改前前者是紅的）。
+- admin：`vue-tsc` 結束碼 0，vitest 23 檔 128 項通過（新增 `campusProfileSocials.test.ts`：舊版本載入時補空白，填了會跟著存草稿送出）。
+- 新增 e2e `tests/e2e/campus-board-socials.spec.ts`：義華有 IG／YouTube 連結、明華沒有。1440 和 390 都通過，連同 `home-films.spec.ts` 一起跑 3 項通過、1 項桌機跳過。
+- Playwright 對 3217 dev（fixture 模式）：1440／1024／390 都無橫向溢出、無 console 錯誤，義華四個連結、明華兩個。截圖在 `output/playwright/campus-board-socials-20260925/`。
+
+未 commit、未部署。
+
+## 2026-09-25 義華 IG／YouTube 連結、手機活動影片換成義華 YouTube
+
+盤點兩個舊官網後先做風險最低的兩項。
+1. **義華 IG／YouTube**：`web/server/data/site-fixture.json` 義華的 `instagram`、`youtube` 從 null 填入 `instagram.com/ivy.kids.school.ig`、`youtube.com/@IvyKidsVideos`，兩者都取自 ivykids.tw 頁尾，也已確認帳號存在。正式站以 fixture 為底、再疊後台 `campus_profile`；疊的時候不會覆蓋這兩欄，所以改 fixture 就會上線。後台目前沒有這兩個欄位。其他四校維持「待提供」。
+2. **手機「活動影片」**：`web/app/utils/campusFilms.ts` 保留第一支 `run`，讓它繼續靜音預覽。從 `day-film-mobile` 剪的三段舞台片（孩子的一天的背景片已經在播）換成義華頻道的四支 YouTube：迎財神、果嶺公園放風箏、大班英語演講、IVY 盃校際足球聯賽。四支都是 ivykids.tw 活動頁內嵌的影片，oEmbed 公開可嵌入。頻道封面是綠框大字，不合站上風格，所以 `youtube()` 加了第三個參數 `poster`，海報改用影片畫面（`i.ytimg.com/vi/<id>/maxres3.jpg`，1280×720）縮成 720×405 WebP：`campus-film-{new-year,kite,speech,football}.webp`。舊的 `campus-film-{stage,dance,family}.webp` 已刪。
+3. **修 YouTube 播放鍵**：`HomeFilms.vue` 的 `onViewportClick` 原本用 `event.target.closest()` 判斷點到的是不是當前這張。點播放鍵時，按鈕在冒泡到 viewport 之前就被 Vue 換成 iframe，target 已經脫離 DOM，於是被當成點兩側、翻到下一張，iframe 也跟著被拔掉。改用 `event.composedPath()`。之前清單裡沒有 YouTube 影片，所以這條路徑從沒被觸發過。
+
+注意：「迎財神」（`T3AZm_UiDhY`）從 `http://127.0.0.1` 嵌入會顯示「無法播放這部影片」。同一支從正式站網域、example.com、ivykids.tw 嵌入都正常，另外三支從哪裡嵌入都正常。本機看到這個錯誤不是 bug。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；web vitest 31 檔 245 項通過（`film-carousel.spec.ts` 新增兩項：`poster` 參數、站內海報檔都存在且 id 不重複）。新增 e2e `tests/e2e/home-films.spec.ts`：YouTube 請求攔成空頁，點播放後 iframe 留在原位、圓點不跳走；修正前 mobile-390 連兩次失敗在 iframe 斷言，修正後 mobile-390／375 各兩次通過，桌機按設計跳過。Playwright 對 3217 dev（fixture 模式）：
+- 手機 390：5 個圓點，4 張海報都載入；點右側、左側可以翻頁；無橫向溢出、無 console 錯誤。
+- 手機選單：義華的 IG／FB／YouTube／LINE 四個都是連結。
+- 桌機 1440：`.hn-films` 為 `display:none`，不下載任何 `campus-film`／`ytimg`；膠囊選單中，義華四個都是連結，換到明華回到「待提供」。
+
+截圖在 `output/playwright/social-films-20260925/`。未在實機上點播 YouTube。未 commit、未部署。
+
+## 2026-09-25 常春藤環境頁 /environment，頁首只留分頁
+
+把舊官網「一日常春藤 Environment」（幼兒保育、校園環境、幼兒餐點；一日流程不搬）搬成新頁 `/environment`，版型照入學資訊頁：`pages/environment.vue`＋`components/EnvironmentContent.vue`（共用 `admission.css`，另加 `assets/css/environment.css`）。照片從舊站原圖產生 15 張 `env-*` 母檔，經 `scripts/optimize-site-images.py --only` 產生響應式檔。菜單不抄進網站：營養餐點書按鈕依台北日期開到當月那一頁（`utils/meal-book.ts`）。頁首選單依使用者裁定只留真正的分頁「常春藤環境、入學資訊」（`site-fixture.json`），頁尾加常春藤環境；`/environment` 加進膠囊頁首頁面、選單目前頁標 `aria-current`。SEO、sitemap、llms.txt 加入新頁。設計紀錄與未選方案見 DESIGN.md 同日一節，mock 在 `design/environment-mockup-20260925/`。改前快照 `versions/before-environment-page-20260925-212623/`。
+
+未處理：標題有 21 字不在現行子集，等字型分支 `feature/admin-gaps-fonts-20260925` 合併後補齊；未 commit、未部署。
+
+驗證：Node 22 web vitest 31 檔 244 項通過（新增 `tests/environment.spec.ts` 22 項：餐點書月份與頁碼、台北時區換月、選單只剩兩項、SEO／sitemap／llms.txt、15 張圖都有響應式檔）；`nuxt typecheck` 通過。Playwright 對 3777 dev（fixture 模式）：`/environment` 1440／1024／390 無 console 錯誤與 hydration 警告、無破圖、無橫向捲動，餐點書連結 `#p=19`、按鈕「看 9 月菜單」；首頁、入學資訊、義華分校頁選單都只剩兩項，入學資訊頁標目前頁；桌機捲過後頁首收成膠囊；901–1440px 預約鈕都沒被擠出。
+
 ## 2026-09-24 後台 LINE 登入（登入後自行綁定）
 
 登入頁加入 LINE 登入，與 Google、帳密並存。LINE 的 ID token 沒有 `email_verified`，所以不拿 email 比對、不自動綁定：管理員先用帳密或 Google 登入，點側欄底部自己的 email 進入新的「我的帳號」（`/account`）按「綁定 LINE」，之後就能用 LINE 登入，也可以自行解除。後端新增 `app/auth/line.py`：只要 `openid`，帶 state／nonce／PKCE，用自己的簽章握手 cookie（不和 Google 的 `SessionMiddleware` 共用 `scope["session"]`），ID token 依演算法分別用 Channel secret（HS256）或 LINE JWKS（ES256）驗；綁定時確認是同一位仍啟用的管理員 session，綁定與解除寫入操作紀錄。migration `d41e6c2a9f58` 接在 `b6d1f8e3a524` 後，只新增 `users.line_sub`，部署時由 API 啟動自動套用。`/auth/providers` 移到 `routes.py` 並回傳 `{google, line}`，`UserOut` 加 `line_linked`；Google 與 LINE 共用的 `safe_admin_path` 等抽成 `app/auth/oauth_common.py`（Google 的 `aud` 檢查不變）。LINE Developers 設定、環境變數與驗收清單見 [LINE 登入設定說明](deploy/line-oauth.md)。三個 `WEBSITE_LINE_*` 未設定前入口不會出現。
@@ -7,7 +111,7 @@
 
 使用者問怎麼提示「可以翻面」、要自然。現行暗示都在捲動中或剛進場發生，而且輕掀 31°、偷看 12° 都看不到背面。比稿 `design/flip-hint-natural-20260924/` 兩批六版後選 F，已接進 Nuxt `web/`：每次工作階段第一次來，第一張（01 早安入園）背面朝上貼著，讀者看到它（可見 ≥60%）停留 0.8 秒後自己翻成照片、照片接著顯影；讀者先點也算示範完成，翻開途中被點則讓它翻完、不翻回背面。SSR／無 JS 維持正面，載入當下已在畫面內（錨點、回上一頁）不做；減少動態停在背面等讀者點。首張偷看（元件、WebGL `peek()`、CSS keyframes）移除。新增 `web/app/utils/printOpener.ts` 與 9 項單元測試。規則見 DESIGN.md「F『第一張翻開進場』定案」。
 
-驗證：Node 22 web vitest 26 檔 195 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次、翻開途中點擊會翻完停在照片（WebGL 與 CSS 版）；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。未提交、未部署；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
+驗證：Node 22 web vitest 26 檔 195 項通過；`nuxt typecheck` 0 個 `error TS`（以故意錯誤檔確認有抓錯）。Playwright 對 3161 dev：桌機 WebGL（Metal、假時鐘）載入後第一張背面朝上、第二張不受影響、只露出約 20% 不翻、置中 700ms 仍是背面、之後翻開並顯影、`ivy-day-peek` 寫入、同工作階段重新整理直接正面；強制關 WebGL 的 CSS 版置中約 0.92 秒翻開；手機 390 背面→照片、WebGL 接手、無橫向溢出；減少動態停在背面、點擊切換、重新整理正面；讀者先點不會被再翻一次、翻開途中點擊會翻完停在照片（WebGL 與 CSS 版）；`#day-hello` 直達維持正面。console 只有別處 `visit-looks.css` 的 404（與拍立得無關）。逐格 `output/playwright/flip-opener-20260924/sheet-desktop-open.png`，快照 `versions/before-flip-opener-20260924-204501/`。已經 main CI 部署（`7dd7207`，見 `deploy/README.md`）；Safari／iOS 實機未驗證；vanilla 原型未動（`node --check app.js` 通過，未重打包）。
 
 ## 2026-09-24 首屏調亮：遮罩只墊在文字後面
 

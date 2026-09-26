@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="preview.css">
   <script>
     const direction = new URLSearchParams(location.search).get('v');
-    document.documentElement.dataset.direction = 'adefghijklmnopqrst'.split('').includes(direction) ? direction : 'a';
+    document.documentElement.dataset.direction = 'adefghijklmnopqrstuvwxyz'.split('').includes(direction) ? direction : 'a';
   </script>
 </head>
 <body>
@@ -19,9 +19,9 @@
         <p>陪伴每一個孩子，長成自己喜歡的樣子。</p>
       </div>
       <nav class="footer-links" aria-label="網站導覽">
-        <a href="#about">認識常春藤</a><a href="#campuses">五校介紹</a>
-        <a href="#life">校園生活</a><a href="#visit">預約參觀</a>
-        <a href="#news">最新消息</a>
+        <a href="#about">關於常春藤</a><a href="#campuses">五所校園</a>
+        <a href="#life">孩子的一天</a><a href="#visit">預約參觀</a>
+        <a href="#news">最新消息</a><a href="#admission">入學資訊</a>
       </nav>
       <div>
         <p class="footer-label">我們的大家庭</p>
@@ -33,7 +33,6 @@
     <div class="footer-bar">
       <div class="container footer-bottom">
         <span>© 2026 常春藤教育機構</span>
-        <span>參觀時間與入學資訊，請向各校確認。</span>
       </div>
     </div>
   </footer>

@@ -109,7 +109,9 @@ def test_details_normalize_names_email_and_referral_order():
     {"child_name": "樹" * 65},
     {"parent_name": " \t\u3000"},
     {"child_birthdate": "2022-02-30"},
-    {"child_birthdate": (today_local() + timedelta(days=1)).isoformat()},
+    # 「明天」要在執行當下才算：寫死在 parametrize 會在收集測試時就算好，CI 跑到一半
+    # 跨過台北午夜時「明天」變成今天而不報錯（2026-09-26 run 36157022816 發生過）。
+    {"child_birthdate": lambda: (today_local() + timedelta(days=1)).isoformat()},
     {"email": "parent@"},
     {"email": ""},
     {"referral_sources": ["untrusted_source"]},
@@ -117,6 +119,7 @@ def test_details_normalize_names_email_and_referral_order():
     {"referral_sources": "facebook"},
 ])
 def test_invalid_details_are_rejected(changes):
+    changes = {key: value() if callable(value) else value for key, value in changes.items()}
     with pytest.raises(ValidationError):
         VisitRequestCreate.model_validate(_payload(**changes))
 

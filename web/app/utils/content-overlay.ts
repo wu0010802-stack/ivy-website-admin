@@ -206,6 +206,9 @@ export interface LiveCampusProfile {
   hero_focus?: LiveFocusPoint | null
   line_art?: LiveMediaSlot | null
   line_art_colour?: LiveMediaSlot | null
+  /** 2026-09-25 新增；之前存的版本沒有這兩欄。 */
+  instagram?: string
+  youtube?: string
 }
 
 export interface LiveCampusFaq {
@@ -599,6 +602,9 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         fbNote: profile.fb_note,
         line: profile.line || null,
         mapUrl: profile.map_url || undefined,
+        // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
+        instagram: profile.instagram === undefined ? c.instagram : profile.instagram || null,
+        youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
         ...campusMedia(c, profile, media)
       }
     })

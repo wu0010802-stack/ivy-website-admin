@@ -819,7 +819,7 @@ class HomeNewsPayload(_ContentPayload):
     # 首頁最新消息最多輪播幾則（每組 3 則）；None＝全部。
     home_display_count: int | None = Field(default=None, ge=1, le=30)
     # 首頁手機版「活動影片」清單（2026-09-25 新增）。None＝還沒在後台設定過，
-    # 官網沿用內建的四支影片片段。
+    # 官網沿用內建清單（一段校園影片＋四支義華校 YouTube，見 web/app/utils/campusFilms.ts）。
     films: list[HomeFilmPayload] | None = None
 
     @field_validator("films")
@@ -1117,6 +1117,10 @@ class CampusProfilePayload(_ContentPayload):
     # 首頁五校分頁上的建築線稿（平常）與上色版（選到那一校時疊上去）。
     line_art: MediaSlotPayload | None = None
     line_art_colour: MediaSlotPayload | None = None
+    # 2026-09-25 新增。空字串＝尚未提供；有預設值，2026-09-25 以前存的版本沒有這兩欄
+    # 也照樣通過驗證（web 端遇到舊版本缺欄位時沿用 fixture，見 content-overlay.ts）。
+    instagram: str = ""
+    youtube: str = ""
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod
@@ -1128,11 +1132,11 @@ class CampusProfilePayload(_ContentPayload):
     def _map_url(cls, value: str) -> str:
         return require_map_url(value)
 
-    @field_validator("facebook", "line")
+    @field_validator("facebook", "line", "instagram", "youtube")
     @classmethod
     def _social_links_safe(cls, value: str) -> str:
-        # 這兩個欄位在 web/app/components/CampusBoard.vue 直接綁 :href，
-        # 是 CMS 內容通到公開站 href 的唯一路徑，必須用允許清單。
+        # 社群連結在 CampusBoard.vue、SiteHeader.vue 直接綁 :href，
+        # 是 CMS 內容通到公開站 href 的路徑，必須用允許清單。
         return _require_safe_url(value)
 
 

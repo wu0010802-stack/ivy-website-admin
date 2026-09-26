@@ -132,13 +132,39 @@
       "heroPhotoPos": "85% 8%",
       "intro": "在義華路上，走進孩子的日常。",
       "description": "從戶外廣場、綠色園藝到共創教室，認識孩子每天活動、探索與學習的空間。義華校重視愛與關懷、閱讀素養與生活自理，陪伴孩子練習與世界相處。",
-      "instagram": null,
-      "youtube": null,
+      "instagram": "https://www.instagram.com/ivy.kids.school.ig/",
+      "youtube": "https://www.youtube.com/@IvyKidsVideos",
       "line": "https://lin.ee/gwl8fnA",
       "facebook": "https://www.facebook.com/ivy.kids.fb/",
       "fbNote": "義華校粉絲專頁",
       "_todo": null,
       "mapQueryAddress": "高雄市三民區義華路68號",
+      "testimonials": [
+        {
+          "youtubeId": "oaVMxHvquU0",
+          "quote": "老師把孩子放第一，不是把父母放第一。",
+          "speaker": "樂樂媽咪",
+          "poster": "/assets/story-yihua-oavmxhvquu0.webp"
+        },
+        {
+          "youtubeId": "U5kRPt7By90",
+          "quote": "幼幼班就自己走進去學校的背影，真的很感動。",
+          "speaker": "榕榕媽咪",
+          "poster": "/assets/story-yihua-u5krpt7by90.webp"
+        },
+        {
+          "youtubeId": "7yM201hNUc0",
+          "quote": "學校每日一本故事書，讓我的孩子愛上閱讀。",
+          "speaker": "祈祈爸比",
+          "poster": "/assets/story-yihua-7ym201hnuc0.webp"
+        },
+        {
+          "youtubeId": "B8qR0D4kLMU",
+          "quote": "孩子在進步！學校的用心，奶奶看得見。",
+          "speaker": "函函奶奶",
+          "poster": "/assets/story-yihua-b8qr0d4klmu.webp"
+        }
+      ],
       "tourScenes": [
         {
           "key": "courtyard", "name": "戶外廣場", "image": "campus",
@@ -196,19 +222,73 @@
       "fbNote": "常春藤機構粉絲專頁（明華校粉專待補）",
       "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非明華校自有粉專",
       "mapQueryAddress": "高雄市左營區明華一路176號",
-      "tourScenes": {
-        "_generated": true,
-        "note": "app.js 的 scenesFor(key) 對非義華校自動產生單一場景「校園外觀」，spot 文字為模板字串插入校名／地址，非逐校撰寫的固定資料。",
-        "template": {
-          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
-          "introTemplate": "先從外觀與位置，認識{name}。",
-          "spot": {
-            "name": "認識{name}", "x": 50, "y": 48,
-            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
-            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
-          }
+      "tourScenes": [
+        {
+          "key": "plaza",
+          "name": "戶外廣場",
+          "image": "tour-minghua-plaza",
+          "intro": "走進明華校的戶外廣場，先看看孩子們跑跳玩耍的地方。",
+          "spots": [
+            {
+              "name": "活動地面",
+              "x": 50,
+              "y": 74,
+              "text": "廣場中央是一大片平坦的活動地面，外圍鋪著紅磚步道。",
+              "question": "可以詢問戶外活動的時段，以及下雨天的替代安排。"
+            },
+            {
+              "name": "遊樂設施",
+              "x": 66,
+              "y": 53,
+              "text": "校舍旁可以看見遊樂設施與橘色的溜滑梯。",
+              "question": "參觀時可以了解設施適合的年齡與使用方式。"
+            },
+            {
+              "name": "紅磚校舍",
+              "x": 86,
+              "y": 24,
+              "text": "畫面右側是紅磚校舍，廣場就在校舍前方。",
+              "question": "教室在哪幾層樓、孩子怎麼往返廣場，參觀時可以問問。"
+            },
+            {
+              "name": "大門",
+              "x": 9,
+              "y": 52,
+              "text": "左側的紅色鐵門通往街道，門內種著一排植栽。",
+              "question": "接送動線與出入口管理，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "fountain",
+          "name": "噴水池花園",
+          "image": "tour-minghua-fountain",
+          "intro": "校園裡有一座噴水池，周圍是草地與花盆。",
+          "spots": [
+            {
+              "name": "噴水池",
+              "x": 42,
+              "y": 16,
+              "text": "照片上方是一座石雕噴水池，後方是紅磚圍牆。",
+              "question": "可以詢問孩子到花園活動時，老師怎麼陪伴。"
+            },
+            {
+              "name": "盆栽花卉",
+              "x": 40,
+              "y": 68,
+              "text": "前景的盆栽開滿了粉紅、紫色與白色的花。",
+              "question": "參觀時可以問問孩子有沒有機會一起照顧植物。"
+            },
+            {
+              "name": "草地與步道",
+              "x": 84,
+              "y": 56,
+              "text": "右側是草地與一格一格的石板步道。",
+              "question": "可以了解孩子平常會不會到草地上活動。"
+            }
+          ]
         }
-      },
+      ],
       "faq": {
         "template": "generic-4-item",
         "items": [
@@ -238,19 +318,95 @@
       "fbNote": "常春藤機構粉絲專頁（崇德校粉專待補）",
       "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非崇德校自有粉專",
       "mapQueryAddress": "高雄市左營區崇德路87號",
-      "tourScenes": {
-        "_generated": true,
-        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
-        "template": {
-          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
-          "introTemplate": "先從外觀與位置，認識{name}。",
-          "spot": {
-            "name": "認識{name}", "x": 50, "y": 48,
-            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
-            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
-          }
+      "tourScenes": [
+        {
+          "key": "field",
+          "name": "PU 大操場",
+          "image": "tour-chongde-field",
+          "intro": "崇德校的大操場，綠色草地外圍是紅色 PU 跑道。",
+          "spots": [
+            {
+              "name": "PU 跑道",
+              "x": 30,
+              "y": 76,
+              "text": "紅色 PU 跑道繞著中間的草地，孩子們正在上面奔跑。",
+              "question": "可以詢問體能活動的時段與安排。"
+            },
+            {
+              "name": "木造小屋",
+              "x": 18,
+              "y": 52,
+              "text": "操場另一側可以看見木造小屋與遊戲設施。",
+              "question": "參觀時可以了解孩子在戶外還有哪些活動空間。"
+            },
+            {
+              "name": "綠樹與彩繪牆",
+              "x": 70,
+              "y": 32,
+              "text": "操場邊種著幾棵大樹，圍牆畫上了藍綠色的彩繪。",
+              "question": "可以詢問夏天或雨天時，戶外活動怎麼調整。"
+            }
+          ]
+        },
+        {
+          "key": "library",
+          "name": "寬敞明亮閱讀室",
+          "image": "tour-chongde-library",
+          "intro": "走進閱讀室，看看孩子們的書櫃。",
+          "spots": [
+            {
+              "name": "繪本書櫃",
+              "x": 30,
+              "y": 45,
+              "text": "整面牆的書櫃擺滿了童書，書本封面朝外排列。",
+              "question": "可以詢問孩子多久來一次閱讀室，以及怎麼借書。"
+            },
+            {
+              "name": "閱讀坐墊",
+              "x": 70,
+              "y": 71,
+              "text": "窗邊地上放著幾個圓形坐墊，孩子可以坐下來看書。",
+              "question": "參觀時可以了解閱讀時間怎麼安排。"
+            },
+            {
+              "name": "大窗戶",
+              "x": 88,
+              "y": 35,
+              "text": "右側的大窗戶讓光線照進閱讀室。",
+              "question": "閱讀室的使用方式，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "slide",
+          "name": "歡樂安全溜滑梯",
+          "image": "tour-chongde-slide",
+          "intro": "校舍旁的遊樂區，有兩座城堡造型的溜滑梯。",
+          "spots": [
+            {
+              "name": "城堡塔樓",
+              "x": 52,
+              "y": 22,
+              "text": "溜滑梯頂端做成橘色屋頂的城堡塔樓。",
+              "question": "可以詢問遊樂設施適合的年齡。"
+            },
+            {
+              "name": "紅色溜滑梯",
+              "x": 74,
+              "y": 82,
+              "text": "長長的紅色溜滑梯一路滑到地面。",
+              "question": "參觀時可以了解孩子玩遊樂設施時，老師怎麼照看。"
+            },
+            {
+              "name": "遊樂區地面",
+              "x": 44,
+              "y": 93,
+              "text": "遊樂區的地面鋪著軟墊地板。",
+              "question": "設施的清潔與維護方式，請向園所確認。"
+            }
+          ]
         }
-      },
+      ],
       "faq": {
         "template": "generic-4-item",
         "items": [
@@ -280,19 +436,95 @@
       "fbNote": "常春藤機構粉絲專頁（國際校粉專待補）",
       "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非國際校自有粉專",
       "mapQueryAddress": "高雄市鳥松區球場路59號",
-      "tourScenes": {
-        "_generated": true,
-        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
-        "template": {
-          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
-          "introTemplate": "先從外觀與位置，認識{name}。",
-          "spot": {
-            "name": "認識{name}", "x": 50, "y": 48,
-            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
-            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
-          }
+      "tourScenes": [
+        {
+          "key": "street",
+          "name": "美語商店街",
+          "image": "tour-international-street",
+          "intro": "園內有生動有趣的美語商店街，讓孩子實際模擬，在遊戲中學習。",
+          "spots": [
+            {
+              "name": "醫院",
+              "x": 12,
+              "y": 22,
+              "text": "左側掛著 HOSPITAL 招牌的是醫院，裡面擺了小病床。",
+              "question": "可以詢問孩子在商店街裡怎麼玩、用到哪些美語。"
+            },
+            {
+              "name": "郵局",
+              "x": 58,
+              "y": 32,
+              "text": "正前方是郵局，旁邊放著綠色與紅色的郵筒。",
+              "question": "參觀時可以了解商店街多久使用一次。"
+            },
+            {
+              "name": "消防局",
+              "x": 92,
+              "y": 14,
+              "text": "右側紅磚牆上寫著 FIRE STATION。",
+              "question": "可以詢問角色扮演活動怎麼搭配主題課程。"
+            },
+            {
+              "name": "餐廳",
+              "x": 41,
+              "y": 32,
+              "text": "中間還有 RESTAURANT 等不同的店面。",
+              "question": "商店街的活動安排，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "gate",
+          "name": "校門口",
+          "image": "tour-international-gate",
+          "intro": "從國際校的大門開始認識校園。",
+          "spots": [
+            {
+              "name": "校名門牌",
+              "x": 63,
+              "y": 46,
+              "text": "門柱上掛著「高雄市私立常春藤國際幼兒園」的門牌。",
+              "question": "可以詢問接送時間與出入口管理。"
+            },
+            {
+              "name": "雕花鐵門",
+              "x": 34,
+              "y": 56,
+              "text": "金色雕花鐵門後方是紅磚拱廊。",
+              "question": "參觀當天從哪裡進出，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "playroom",
+          "name": "室內遊戲區",
+          "image": "tour-international-play",
+          "intro": "室內也有可以爬上爬下的遊戲空間。",
+          "spots": [
+            {
+              "name": "球池",
+              "x": 50,
+              "y": 82,
+              "text": "地上鋪滿了彩色的塑膠球。",
+              "question": "可以詢問室內遊戲區的使用時段。"
+            },
+            {
+              "name": "溜滑梯",
+              "x": 60,
+              "y": 52,
+              "text": "攀爬設施旁有一座溜滑梯通往球池。",
+              "question": "參觀時可以了解設施適合的年齡。"
+            },
+            {
+              "name": "攀爬通道",
+              "x": 42,
+              "y": 26,
+              "text": "上方是色彩繽紛的攀爬通道。",
+              "question": "遊戲區的清潔與維護方式，請向園所確認。"
+            }
+          ]
         }
-      },
+      ],
       "faq": {
         "template": "generic-4-item",
         "items": [
@@ -322,19 +554,95 @@
       "fbNote": "常春藤機構粉絲專頁（仁武校粉專待補）",
       "_todo": "LINE 官方帳號待園方提供；FB 目前借用常春藤機構粉絲專頁（ORG_FACEBOOK），非仁武校自有粉專",
       "mapQueryAddress": "高雄市仁武區京吉一路102號",
-      "tourScenes": {
-        "_generated": true,
-        "note": "同明華校，套用 scenesFor(key) 的通用單場景模板。",
-        "template": {
-          "key": "exterior", "name": "校園外觀", "image": "<campus.image>",
-          "introTemplate": "先從外觀與位置，認識{name}。",
-          "spot": {
-            "name": "認識{name}", "x": 50, "y": 48,
-            "textTemplate": "{name}位於{address}。這張照片取自常春藤機構官網，歡迎放大觀察校園外觀。",
-            "question": "室內環境、參觀動線與接送安排，可直接向園所詢問。"
-          }
+      "tourScenes": [
+        {
+          "key": "exterior",
+          "name": "校舍與中庭",
+          "image": "tour-renwu-exterior",
+          "intro": "仁武校的紅磚校舍圍著一片綠色中庭。",
+          "spots": [
+            {
+              "name": "圓頂塔樓",
+              "x": 42,
+              "y": 30,
+              "text": "校舍中央是白色的圓頂塔樓。",
+              "question": "可以詢問各年段的教室分布在哪裡。"
+            },
+            {
+              "name": "綠色中庭",
+              "x": 70,
+              "y": 88,
+              "text": "校舍前方是綠色地面的中庭。",
+              "question": "參觀時可以了解中庭平常怎麼使用。"
+            },
+            {
+              "name": "各層外廊",
+              "x": 14,
+              "y": 50,
+              "text": "左側每一層樓都有外廊。",
+              "question": "孩子上下樓的動線，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "classroom",
+          "name": "教室",
+          "image": "tour-renwu-classroom",
+          "intro": "明亮的教室裡，擺著小桌椅與教具櫃。",
+          "spots": [
+            {
+              "name": "教具櫃",
+              "x": 92,
+              "y": 55,
+              "text": "右側沿牆是一整排木製教具櫃。",
+              "question": "可以詢問教具怎麼搭配課程使用。"
+            },
+            {
+              "name": "小桌椅",
+              "x": 50,
+              "y": 70,
+              "text": "教室中間擺著孩子尺寸的桌椅。",
+              "question": "參觀時可以了解一班大約幾位孩子。"
+            },
+            {
+              "name": "大窗戶",
+              "x": 34,
+              "y": 38,
+              "text": "整排窗戶讓教室採光充足。",
+              "question": "教室的配置與使用方式，請向園所確認。"
+            }
+          ]
+        },
+        {
+          "key": "pond",
+          "name": "生態池",
+          "image": "tour-renwu-pond",
+          "intro": "校園一角的生態池，有疊石造景和水生植物。",
+          "spots": [
+            {
+              "name": "青蛙石雕",
+              "x": 30,
+              "y": 78,
+              "text": "水池邊有一隻石雕青蛙。",
+              "question": "可以詢問孩子怎麼在生態池觀察。"
+            },
+            {
+              "name": "疊石造景",
+              "x": 18,
+              "y": 32,
+              "text": "左側是一座疊石造景。",
+              "question": "參觀時可以了解生態池周圍的安全設計。"
+            },
+            {
+              "name": "水生植物",
+              "x": 83,
+              "y": 62,
+              "text": "水池裡種著水生植物。",
+              "question": "生態池的維護方式，請向園所確認。"
+            }
+          ]
         }
-      },
+      ],
       "faq": {
         "template": "generic-4-item",
         "items": [
@@ -634,7 +942,9 @@
       { "label": "孩子的一天", "href": "/#life" },
       { "label": "預約參觀", "href": "/visit" },
       { "label": "最新消息", "href": "/#latest-news" },
-      { "label": "入學資訊", "href": "/admission" }
+      { "label": "入學資訊", "href": "/admission" },
+      { "label": "常春藤環境", "href": "/environment" },
+      { "label": "特色教學", "href": "/curriculum" }
     ],
     "campusListLabel": "我們的大家庭",
     "copyright": "© 2026 常春藤教育機構",
@@ -652,10 +962,8 @@
     "brandNameEn": "Ivy Educational Institution",
     "logo": "assets/logo.png",
     "primaryNav": [
-      { "label": "關於常春藤", "labelEn": "About Ivy", "href": "/#about" },
-      { "label": "孩子的一天", "labelEn": "A Day at Ivy", "href": "/#life" },
-      { "label": "五所校園", "labelEn": "Our Campuses", "href": "/#campuses" },
-      { "label": "最新消息", "labelEn": "Latest News", "href": "/#latest-news" },
+      { "label": "特色教學", "labelEn": "Curriculum", "href": "/curriculum" },
+      { "label": "常春藤環境", "labelEn": "Environment", "href": "/environment" },
       { "label": "入學資訊", "labelEn": "Admission", "href": "/admission" }
     ],
     "headerPhone": { "number": "07-392-8366", "note": "義華校 · 參觀專線", "_todo": "頁首選單面板固定顯示義華校電話，非全園代表號，其他四校無對應頁首快撥號" },

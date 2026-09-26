@@ -595,3 +595,69 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 使用者選擇不回滾，改做自動 migration 後推 `main` 恢復。`deploy/api-start.py` 啟動時先 `alembic upgrade head` 再唯讀核對；`backend/migrations/env.py` 加 advisory lock；`check_schema.py` 錯誤訊息改成對應新流程；新增 `deploy/tests/test_api_start.py`；規則寫進 [CICD.md](./CICD.md)。
 - 本機驗證見 CICD.md 2026-09-24 段。`d3a8f1c5b742` 只加 `visit_requests.source`（NOT NULL，預設 `web`）、nullable `created_by` 外鍵與承辦人索引。
 - 查到的其他狀態：api／web 仍綁 GitHub repo（原生部署不等 CI）；Railway Postgres PITR 未開；api healthcheck `/api/website/v1/health` 120 秒、restart ON_FAILURE 3 次、單一 replica、無 pre-deploy command。
+- 使用者執行 push：`fef0dc6..6afca86`。Railway 原生部署 api `2be159b5`（commit `6afca86`）容器內 log：`Running upgrade c6e4a2b9d810 -> d3a8f1c5b742`、`Database schema ready: d3a8f1c5b742`、uvicorn 啟動；11:47:15 UTC（台灣 19:47）首頁恢復 200，停站約 23 分鐘。
+- CI run `35994898100` 四個 job 全綠（deploy job 3 分 28 秒）。CD 部署 api `202345f5`：alembic 沒有 `Running upgrade`（已在 head，no-op）、`Database schema ready: d3a8f1c5b742`；web `10b2ed9b` SUCCESS，公開 smoke 通過。`/release.json` snapshot `7d1e277a1b1cae0482f5a51f3013b3daf8658d1c99f2e4099036f799280a2843`、`base_commit` `6afca86`、`web+api`。
+- 另以公開 GET 核對 `/`、`/api/website/v1/health`、`/api/public-site`、`/campuses/yihua`、`/campuses/renwu`、`/visit/yihua`、`/admin/login` 皆 200。未做瀏覽器檢查、未登入後台或寫入業務資料。
+- 待使用者處理：Railway api／web 斷開 GitHub source（否則 migration 不等 CI 就套到正式 DB）；Postgres PITR 是否開啟。
+
+## 2026-09-24 拍立得 F「第一張翻開進場」（main CI 部署）
+
+- 使用者選定 F 後要求提交並部署。feature 提交 `9df9008`（feat；`README.md` 只暫存自己那段，別的 session 未提交的 Google OAuth 段落沒帶）、`2315a5b`（比稿頁）、`0574fce`（快照）。部署前在 main 的 build 實測，發現「自己翻開途中被點會原路翻回背面」，補 `dc8dd79`（fix，途中點擊不算、讓它翻完）。
+- 建 deploy worktree 與 cherry-pick 被 auto 模式判為正式部署擋下，由使用者執行：`/private/tmp/ivy-website-flip-opener-20260924`（`origin/main` `912da33`，等於線上 `base_commit`）cherry-pick 為 `a88e936`、`7dd7207`，無衝突，改動行與原 commit 逐行相同。main 比 feature 多 `paper-budget.ts`（手機 WebGL 名額）與顯影預畫格；F 的狀態留在 DOM，重新掛載由 `flipped`／`developed` 接手，實測相容。
+- worktree 內 Node 22 `nuxt typecheck` 0 錯誤、`vitest` 30 檔 222 項、`nuxt build` 通過；本機 `.output`（fixture）以 `output/playwright/flip-opener-20260924/check.cjs` 跑桌機 WebGL／強制 CSS／手機／減少動態／工作階段／錨點，另以 `midtap.cjs` 驗翻開途中點擊。
+- `push ...:main`（`912da33..7dd7207`）由使用者執行。CI run `36006127423` 全綠（含 deploy job）。`/release.json` snapshot `95a762aa9d0dcfa542c128105d2b707df60a07fb90c80f13e9b6c69bafd77c6a`、`base_commit` `7dd7207`、`created_at` 2026-09-24T13:35:33Z。
+- 線上 Playwright（`output/playwright/flip-opener-prod-20260924/`）：
+  - 桌機 WebGL：載入後第一張背面朝上、第二張不受影響；只露出約 20% 不翻；置中 700ms 仍是背面，之後翻開並顯影；同工作階段重新整理直接正面。
+  - 強制 CSS 版約 0.79 秒翻開；手機 390 背面→照片、無橫向溢出。
+  - 減少動態停在背面、點擊切換；讀者先點停在照片；翻開途中點擊（WebGL／CSS）翻完停在照片，之後再點照常翻面；`#day-hello` 直達維持正面。
+  - 0 page error。Safari／iOS 實機未驗證。
+
+## 2026-09-25 手機活動影片換義華 YouTube、各校 IG／YouTube 進後台（main CI 部署）
+
+- 使用者要求 push 上 main。feature 分支 `feature/social-films-20260925`（從 `5baeb3a` 開）三個提交；push 前 `origin/main` 已到 `a07c852`（admin-gaps 合併，含後台活動影片清單、素材版位、地圖連結），所以從 `a07c852` 開 `deploy/social-films-20260925` cherry-pick：
+  - `8be201d` 活動影片。`campusFilms.ts` 檔頭註解衝突，兩邊都留，內建清單改成「後台沒設定時的預設」。
+  - `dfa4cd4` IG／YouTube。`schemas.py`、`types.ts`、`CampusProfileView.vue`、`content-overlay.ts` 衝突，main 新增的 `map_url`、封面、線稿欄位都保留，IG／YouTube 接在後面，`content-overlay.ts` 的 `...campusMedia()` 維持在最後。後台測試改用 `testUser()`，因為 main 的權限模型下原本的寫法是唯讀。
+  - `17d9b40` 文件，無衝突。
+  - 另補 `709f871`：main 的 `media-slots.spec.ts` 比對基準裡義華 IG／YouTube 是 null，更新這兩欄，其他欄位不變。
+- deploy 分支本機驗證：
+  - backend 727 項通過（`ivy_website_social_test` migrate 到 `c4d8e2f6a913`）。
+  - web `nuxt typecheck` 結束碼 0、vitest 36 檔 304 項。
+  - admin `vue-tsc` 結束碼 0、vitest 33 檔 264 項。
+  - `contract:check` 一致。
+  - e2e `home-films`、`campus-board-socials` 在 1440／390 共 3 項通過、1 項桌機跳過。
+- `push deploy/social-films-20260925:main`（`a07c852..709f871`）。CI run `36154984701` 四個 job 全綠（含 deploy）。`/release.json` snapshot `cbdc204ad6e9693de7e3d0d88a9916e8680da2446441b75d6fbc3202c7b1ac57`、`base_commit` `709f871`、`created_at` 2026-09-25T15:44:54Z。
+- 部署前後正式站 `home_news.films` 都沒設定，所以活動影片走內建清單；義華 `campus_profile` 還是舊版本，沒有 `instagram` 欄位，所以沿用 fixture。
+- 線上 Playwright（`output/playwright/social-films-prod-20260925/`、`campus-board-socials-prod-20260925/`）：
+  - 手機 390：5 個圓點，4 張海報都載入。點「迎財神」播放鍵後 iframe 留在原位，YouTube 播放器載入影片、沒有「無法播放」；點左右兩側會翻頁。
+  - 選單：義華 IG／FB／YouTube／LINE 四個都是連結，明華都是待提供。
+  - 五校卡：1440／1024 排一行、390 排兩行，義華四個連結、明華兩個，無橫向溢出，0 console error。
+  - 桌機不下載活動影片海報。
+- **未做**：後台還沒把義華 IG／YouTube 填進去發布，要由使用者在「五校介紹 → 義華校」完成；原因見 README 同日段落。iOS 實機播放 YouTube 未驗證。
+
+## 2026-09-26 特色教學頁、四校校園探索實景、義華家長分享、內頁 hero 手機 sizes（main CI 部署）
+
+- 使用者要求一起 commit 並 push 上 main。分支 `feature/old-site-content-20260926`，從 `0cdd29a` 開的 sparse worktree（跳過 design/、versions/，見本機磁碟空間問題）。共 4 個提交：
+  - `a9c8595` 午夜不穩定測試
+  - `fd3428f` 舊官網內容
+  - `b1ffc62` hero sizes
+  - `f487409` 文件
+- `responsive-image.ts`、`usePageSeo.ts`、`CurriculumContent.vue` 同時含第 2、3 個提交的改動，第 2 個提交暫用不含 `pageHeroImage` 的中間版本，每個提交都是可運作的狀態。
+- push 前 `origin/main` 仍是 `0cdd29a`，直接 fast-forward（`0cdd29a..f487409`）。沒有 migration。
+- 本機驗證（同一份內容）：
+  - web：`nuxt typecheck` 結束碼 0、vitest 39 檔 351 項。
+  - admin：`vue-tsc` 結束碼 0、vitest 33 檔 264 項。
+  - backend：`test_visit_details`、`test_content_initialize` 24 項。
+  - `contract:check` 一致。
+  - e2e `old-site-content` 在 1440／390 通過。
+- CI run `36200909343` 四個 job 全綠（含 deploy）。`/release.json` snapshot `8d03b6a92c14d1f504de22f76272b1256783584520f81a5a999d67cf645152be`、`base_commit` `f487409`、`created_at` 2026-09-25T23:37:25Z。
+- 線上 Playwright（`output/playwright/old-site-content-prod-20260926/`）：
+  - `/curriculum` 在 1440／1024／390 回應 200：4 個年段、7 個課程方向、5 張拍立得，無破圖、無橫向捲動，桌機選單三項。
+  - 明華 2 個、崇德 3 個、國際 3 個、仁武 3 個場景，沒有模板提示，照片捲到畫面內都載入成功（延遲載入）。
+  - 義華：4 支家長分享，點了之後 YouTube 播放器在正式網域開始播放；其他四校沒有家長分享段落。
+  - 手機 390@2 的三頁 hero：入學選到 `1080w`、環境 `1960w`、特色教學 `2000w`；`<img>` 與預載的 imagesizes 一致，每頁只下載一張首屏圖。
+  - 0 console error。
+- **未做**：
+  - 義華的新場景（花花世界、藝術走廊）要由園方在後台加，見 `docs/website-admin/handoff-yihua-tour-20260926.md`。
+  - 上一批要在後台補義華 IG／YouTube 的步驟仍待處理。
+  - 線上 Lighthouse 未量：hero 手機首屏圖變大，LCP 影響待確認。
+  - Safari／iOS 實機未驗證。

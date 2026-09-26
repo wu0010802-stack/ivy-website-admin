@@ -3,7 +3,7 @@
 // 2026-09-24 改版為首頁版型（mock：design/admission-homestyle-mockup-20260924/）：滿版 hero＋章節索引、
 // 薄荷色帶入學流程、五校式分班對照、拍立得新生準備、消息紙張收退費。內容由後台 admission_content 管理，
 // 區塊大標固定在這裡（標題字型是子集，見 CLAUDE.md「字型子集」）。分班對照依生日規則計算，見 admission-classes.ts。
-import { ADMISSION_HERO_IMAGE, responsiveImage } from '~/utils/responsive-image'
+import { ADMISSION_HERO_IMAGE, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, classPlan, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
 import type { AdmissionContent } from '~/types/site-content'
 
@@ -73,7 +73,7 @@ function flip(index: number, toBack: boolean) {
 <template>
   <main id="main" tabindex="-1" class="adm" data-cta-entry="admission">
     <section class="adm-hero photo-hero" aria-labelledby="admission-title">
-      <img class="adm-hero-photo" v-bind="responsiveImage(ADMISSION_HERO_IMAGE)" alt="孩子早上到校，和老師打招呼" loading="eager" fetchpriority="high">
+      <img class="adm-hero-photo" v-bind="pageHeroImage(ADMISSION_HERO_IMAGE)" alt="孩子早上到校，和老師打招呼" loading="eager" fetchpriority="high">
       <div class="adm-hero-shade" aria-hidden="true" />
       <div class="adm-wrap adm-hero-body">
         <div class="adm-hero-copy">

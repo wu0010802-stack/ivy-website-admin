@@ -2027,7 +2027,7 @@ export interface components {
             /** Campus Key */
             campus_key?: string | null;
             /** Entry */
-            entry?: ("header" | "menu" | "footer" | "home_campus_board" | "campus_hero" | "campus_info" | "campus_contact" | "campus_banner" | "campus_tour" | "admission" | "visit_page" | "visit_manage" | "other") | null;
+            entry?: ("header" | "menu" | "footer" | "home_campus_board" | "campus_hero" | "campus_info" | "campus_contact" | "campus_banner" | "campus_tour" | "admission" | "environment" | "curriculum" | "visit_page" | "visit_manage" | "other") | null;
             /**
              * Event Id
              * Format: uuid
