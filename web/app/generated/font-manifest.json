@@ -1,12 +1,38 @@
 {
-  "critical": {
-    "src": "/assets/fonts/subsets/lineseed-bd-critical-fd1f026e9ac2.woff2",
-    "bytes": 13820,
-    "characters": 53
+  "source": {
+    "url": "https://seed.line.me/src/images/fonts/LINE_Seed_TW.zip",
+    "sha256": "a1992cd9e372f94a3cef52b98cee781639fe8b7f4d1a77e318a133acf857aecd",
+    "version": "Version 1.400"
   },
-  "remaining": {
-    "src": "/assets/fonts/subsets/lineseed-bd-remaining-03ba918a9de5.woff2",
-    "bytes": 149072,
-    "characters": 684
+  "preload": [
+    "/assets/fonts/subsets/lineseed-bd-critical-87586e9e5522.woff2"
+  ],
+  "stylesheet": {
+    "src": "/assets/fonts/subsets/lineseed-extended-d41c1ec799cc.css",
+    "bytes": 193696
+  },
+  "weights": {
+    "700": {
+      "characters": 13915,
+      "slices": 100,
+      "bytes": 3806084,
+      "largest": 52272,
+      "critical": {
+        "src": "/assets/fonts/subsets/lineseed-bd-critical-87586e9e5522.woff2",
+        "bytes": 13852,
+        "characters": 53
+      }
+    },
+    "800": {
+      "characters": 13915,
+      "slices": 100,
+      "bytes": 3733520,
+      "largest": 52460,
+      "critical": {
+        "src": "/assets/fonts/subsets/lineseed-eb-critical-510344d79d58.woff2",
+        "bytes": 13588,
+        "characters": 53
+      }
+    }
   }
 }
