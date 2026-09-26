@@ -1325,7 +1325,7 @@
   "links": [
    {
     "label": "關於常春藤",
-    "href": "/#about"
+    "href": "/about"
    },
    {
     "label": "五所校園",
@@ -1377,6 +1377,11 @@
   "brandNameEn": "Ivy Educational Institution",
   "logo": "assets/logo.png",
   "primaryNav": [
+   {
+    "label": "關於常春藤",
+    "labelEn": "About",
+    "href": "/about"
+   },
    {
     "label": "特色教學",
     "labelEn": "Curriculum",

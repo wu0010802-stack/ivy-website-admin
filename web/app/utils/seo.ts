@@ -38,11 +38,12 @@ export function campusShareImagePath(campus: Campus): string {
   return campus.imageMedia ? campus.imageMedia.src : ogImagePath(campus.image)
 }
 
-/** 公開的單頁（非分校頁）：入學資訊、常春藤環境、特色教學。 */
-export type StaticPage = 'admission' | 'environment' | 'curriculum'
+/** 公開的單頁（非分校頁）：關於常春藤、入學資訊、常春藤環境、特色教學。 */
+export type StaticPage = 'about' | 'admission' | 'environment' | 'curriculum'
 export const ADMISSION_PATH = '/admission'
 export const ENVIRONMENT_PATH = '/environment'
 export const CURRICULUM_PATH = '/curriculum'
+export const ABOUT_PATH = '/about'
 
 /** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
@@ -94,6 +95,24 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '特色教學', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
+}
+
+/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+export function aboutSeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `關於常春藤｜1997 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。'
+  const canonical = origin ? `${origin}${ABOUT_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'AboutPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '關於常春藤', item: canonical }
     ] }
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
@@ -174,7 +193,7 @@ export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xm
 
 export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
 
@@ -196,6 +215,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}${c.faq.items.length ? `；常見問題見 ${campusUrl(c)}#faq` : ''}`),
     ''
   ]
+  out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')

@@ -30,7 +30,7 @@ describe('預約鈕與聯絡連結點擊（B11 #63）', () => {
 
   it('官網標的入口都在白名單裡，點擊時取最近的區塊，不在白名單記 other', () => {
     const files = [
-      'SiteHeader.vue', 'SiteFooter.vue', 'CampusBoard.vue', 'CampusPageMain.vue', 'CampusTour.vue', 'AdmissionContent.vue', 'EnvironmentContent.vue', 'CurriculumContent.vue', 'VisitForm.vue'
+      'SiteHeader.vue', 'SiteFooter.vue', 'CampusBoard.vue', 'CampusPageMain.vue', 'CampusTour.vue', 'AdmissionContent.vue', 'EnvironmentContent.vue', 'CurriculumContent.vue', 'AboutContent.vue', 'VisitForm.vue'
     ].map((name) => read(`../app/components/${name}`)).concat(read('../app/pages/visit/manage.vue'))
     const used = new Set(files.flatMap((text) => [...text.matchAll(/data-cta-entry="([a-z_]+)"/g)].map((m) => m[1]!)))
     expect([...used].filter((entry) => !(CTA_ENTRIES as readonly string[]).includes(entry))).toEqual([])

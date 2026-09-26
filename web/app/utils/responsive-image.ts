@@ -20,6 +20,9 @@ export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
 /** 特色教學頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const CURRICULUM_HERO_IMAGE = 'cur-hero'
 
+/** 關於常春藤頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+export const ABOUT_HERO_IMAGE = 'about-hero'
+
 /**
  * 內頁 hero（入學資訊、常春藤環境、特色教學；admission.css 的 `.adm-hero-photo`）。
  * 760px 以下照片是固定高度的帶（PAGE_HERO_MOBILE_HEIGHT）、object-fit: cover，橫幅照片

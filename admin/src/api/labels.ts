@@ -893,6 +893,7 @@ export const CTA_ENTRY_LABELS: Record<string, string> = {
   admission: '入學資訊頁',
   environment: '常春藤環境頁',
   curriculum: '特色教學頁',
+  about: '關於常春藤頁',
   visit_page: '預約頁',
   visit_manage: '查詢／取消預約頁',
   other: '其他位置',

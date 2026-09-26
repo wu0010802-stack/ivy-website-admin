@@ -49,6 +49,7 @@ CTA_ENTRIES = (
     "admission",
     "environment",
     "curriculum",
+    "about",
     "visit_page",
     "visit_manage",
     "other",
