@@ -1,26 +1,62 @@
-# 標題字型：LINE Seed TW（SIL OFL 1.1）
+# 標題字型：LINE Seed TW（SIL OFL 1.1，`web/` 已是完整字型，2026-09-25 起）
 
-來源 https://seed.line.me/index_tw.html ，LINE 與華康共同製作，可商用。頁尾已註明出處。
+來源 https://seed.line.me/index_tw.html ，LY Corporation 與華康共同製作，可商用。頁尾已註明出處，授權全文
+在 `lineseed-tw-OFL.txt`。
 
-- `lineseed-bd.woff`：Bold（700），子集為 `chars-bd.txt`，即 index.html 與 app.js 出現的所有非 ASCII 字元加 ASCII，供 h1/h2/h3、頁尾品牌名、大字電話使用。
-- `lineseed-eb.woff`：ExtraBold（800），子集為 `chars-eb.txt`，只含 h1 用字（hero 標語、五校名、預約頁標題）。
+**`web/`（正式官網／後台）用的是完整字型**（Bold 700、ExtraBold 800 各 13,915 字），不再是子集；官方
+zip 為 `LINE_Seed_TW.zip`（ver02，Version 1.400），sha256 記在 `web/app/generated/font-manifest.json` 的
+`source.sha256`。OFL 第 3 條不允許修改版（子集、轉檔都算）沿用保留名稱，字型檔內部名稱已改為
+`Ivy Heading TW`，保留著作權／版本／OFL 網址（name ID 0、5、14）；CSS 的 `font-family` 仍叫
+`'LINE Seed TW'`（這是呈現給使用者的樣式名稱，不是字型內部名稱，不影響授權）。
+
+**凍結原型**（根目錄 `index.html`／`app.js`／`styles.css`，`63a0c05` 之後不再修改）仍用舊的 737 字子集
+`lineseed-bd.woff`（Bold）／`lineseed-eb.woff`（ExtraBold）；那 737 字的清單現在只留在
+`scripts/data/lineseed-site-chars.txt`（給 `web/` 的 site 分片用，見下），不再是 `chars-bd.txt`／
+`chars-eb.txt`——後兩者已改成 `web/` 完整字型的 cmap（見下）。原型檔本身不受這次改動影響，也不會再補字。
+
+- `chars-bd.txt`／`chars-eb.txt`：`web/` 完整字型的 cmap 字表（各 13,915 字，內容相同），後台
+  `useTitleFontCoverage` 的缺字提示讀這兩份——因為是完整字型，能提示到的缺字只剩罕見字（Ext-B 區）與
+  emoji，一般中文字不會再缺。
+- `chars-serif.txt`：跟 LINE Seed 無關，是明體（Noto Serif TC）子集聯集，31 字，見下方「分校區塊明體」。
 - 內文維持系統字（PingFang TC / 微軟正黑體 / Noto Sans CJK），引言不用標題字型。
 
-文案新增了子集裡沒有的字時，缺字會退回系統字顯示，不會壞；重新產生子集：
+## 100 片切法與首屏預載（`scripts/subset-critical-fonts.py`）
+
+兩個字重各切成 100 片互斥 `unicode-range` 分片，聯集＝完整字型 cmap（不含空白字元，見下）：
+
+1. **critical**：首屏用字（fixture 首頁主標＋五校名保底 ∪ `web/app/generated/first-screen-chars.json`
+   實際量到的首屏用字），只有首屏真的用到的字重才預載——2026-09-25 現況是 h1 最終被壓成 700
+   （`studio.css` 的 `.studio-hero h1` 被後續規則蓋成 `font-weight:700`），所以**只預載 Bold critical
+   （13,852 bytes）**，ExtraBold 不預載。
+2. **site**：`scripts/data/lineseed-site-chars.txt`（以 `854e410` 為準的 737 字舊子集用字）扣掉
+   critical，依字頻切片，inline 進 `web/app/assets/css/font-subsets.css`。
+3. **其餘**：完整字型剩下的字依 Google Fonts 繁中字頻層級（`scripts/data/noto-sans-tc-frequency-tiers.json`，
+   常用到罕用）排序切片，每片目標約 40 KB、上限 60 KB，寫進帶內容雜湊的
+   `subsets/lineseed-extended-<hash>.css`，由 `web/app/plugins/title-font-slices.client.ts`
+   在瀏覽器執行時掛上（不阻塞渲染，也不讓每頁 HTML 多幾十 KB 的 unicode-range）。
+
+**LINE Seed 的 `@font-face` 只有這兩個來源**：`web/app/assets/css/font-subsets.css`（inline，700
+critical＋site 4 片）與 `web/public/assets/fonts/subsets/lineseed-extended-<hash>.css`（其餘 700 全部
+與全部 800，共約 195 個 `@font-face`）。`styles.css`／任何其他檔案不能再另外宣告 LINE Seed 的
+`@font-face`（`web/tests/title-fonts.spec.ts` 會擋；兩份都留瀏覽器會重複下載同一批字）。
+`web/app/generated/font-manifest.json` 記錄來源、`preload[]`（目前只有 Bold critical）與各字重的片數／
+位元組數，`nuxt.config.ts` 用 `...fontManifest.preload` 預載。
+
+重切指令（需 fontTools 4.63.0＋Brotli；預設讀 `output/fonts-src/LINE_Seed_TW.zip`——`output/` 已
+gitignore，沒有就下載，也可用 `--zip` 指定已下載的檔案）：
 
 ```sh
-pyftsubset LINESeedTW_OTF_Bd.otf --text-file=chars-bd.txt --flavor=woff --no-hinting --desubroutinize --layout-features='*' --output-file=lineseed-bd.woff
+uv run --no-project --with 'fonttools[woff]==4.63.0' python scripts/subset-critical-fonts.py [--zip PATH]
 ```
 
-正式上線改用 WOFF2（需 brotli）可再省約三成，或改用 cn-font-split 依 unicode-range 切片。
+重跑會核對每片 cmap、每字字寬與 halt 值跟官方 OTF 一致，並拿凍結原型的 `assets/fonts/lineseed-bd.woff`／
+`lineseed-eb.woff`（737 字子集，`app.js`／`index.html` 專用，未受這次影響）逐字比對；完成後刪掉
+`subsets/` 裡沒用到的舊雜湊檔。空白字元刻意不放進字形（避免改變既有標題行寬），critical 的
+unicode-range 仍含 `U+20`，讓它成為 CSS 的 first available font（決定行框高度）。
 
-## Nuxt 首屏字型分包（2026-09-22）
-
-`python3 scripts/subset-critical-fonts.py`（需 fontTools 與 Brotli；本機用 `/opt/homebrew/opt/python@3.11/bin/python3.11`）從現有 `lineseed-bd.woff` 產生帶內容 hash 的兩個 WOFF2、`app/generated/font-manifest.json` 及 `app/assets/css/font-subsets.css`。首屏包＝fixture 的首頁主標與五校名稱（保底）∪ `app/generated/first-screen-chars.json`（`node scripts/first-screen-chars.cjs <本機 server>` 對實際 SSR 首頁／五個分校頁／visit 在 320–1440 六種視窗量到的首屏 LINE Seed Bold 用字，含分校頁 h1 標語與桌機首屏露出的下一段標題），2026-09-22 為 53 字／13,788 bytes；其餘 672 字／146,676 bytes 由互斥的 `unicode-range` 按需載入。程式會核對字形聯集與每字字寬，保留原字型全部 725 字；不擴充原本未涵蓋的字形（首屏文案若用到子集外的字會 assert 失敗，原始 OTF 不在本機無法補）。重切後舊 hash 的檔案要手動刪掉。
-
-**LINE Seed Bold 的 `@font-face` 只能有這一份**：`font-subsets.css` 與 `styles.css` 裡整包 `lineseed-bd.woff2` 的宣告合併時必須擇一，兩份都留瀏覽器會同時下載 154 KB 整包與 150 KB remaining（2026-09-22 線上實測，首屏字型總量 171 → 343 KB）。`nuxt.config.ts` 只 preload critical（URL 取自 `font-manifest.json`），remaining 不預載。
-
-Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold。其他字仍可能因頁面下方標題而下載，因此這是減少搶先下載量，不代表全頁只需 6.7 KB 字型。新檔使用一年 immutable 快取；更新文案時可重跑，不必改名稱。CMS 若出現未列入首屏但原本已有的字，會由 remaining 包顯示；原本就缺的字維持系統字 fallback。原始 WOFF、ExtraBold、品牌字型與 OFL 授權保留，凍結原型不受影響。
+**已刪除**：舊的 737 字子集 `lineseed-bd.woff(2)`／`lineseed-eb.woff(2)`（`subsets/lineseed-bd-critical-*`／
+`lineseed-bd-remaining-*`）與 `scripts/optimize-site-fonts.py`。`scripts/check-font-coverage.py` 是給
+凍結原型用的舊工具，不受這次改動影響。
 
 ## 明體改為全站共用（2026-09-23）
 
@@ -29,16 +65,15 @@ Nuxt 只預載首屏包，不再預載整個 Bold 與尚未使用的 ExtraBold�
 - 預約頁大標原本吃系統字 `Songti TC → Noto Serif TC → PMingLiU`，Windows 會落到新細明體；改用自託管子集後各平台一致。改預約頁大標文案時要同步擴充此子集並驗證 cmap。
 - `chars-serif.txt`（2026-09-25）＝三個明體子集 JSON 的 `characters` 聯集，後台「校名」「首頁五校區塊標題」的缺字提示讀這份（`chars-bd.txt`／`chars-eb.txt` 同理）。擴充明體子集時一併更新，`web/tests/site-structure.spec.ts` 會檢查兩邊一致。
 
-## LINE Seed TW 原始檔與標點（2026-09-23 查證）
+## LINE Seed TW 原始檔與標點（2026-09-23 查證；ver02 已於 2026-09-25 取得並換上完整字型，見上）
 
-- 原始檔可從 `https://seed.line.me/src/images/fonts/LINE_Seed_TW.zip` 下載（ver02，OFL 1.1，含 OTF／TTF／WOFF2）；與本目錄 725 字子集逐字比對字寬 0 差異，可直接拿來補字重切。
-- 原始字型的 `halt` 只涵蓋「」『』（），「，」「。」是置中字形（墨色約 0.40–0.59em），換原始檔也無法靠字型收逗號句號。括號的 halt 值：「 XPlacement −320／XAdvance −500、（ −283／−500；`web/app/utils/paperPrints.ts` 的 canvas 標題照這組數值收行首括號，換標題字型時要重查。
+- 原始檔取自 `https://seed.line.me/src/images/fonts/LINE_Seed_TW.zip`（ver02，OFL 1.1，含 OTF／TTF／WOFF2）。2026-09-23 查證時先與當時的 737 字子集逐字比對字寬 0 差異；2026-09-25 已直接用它產出上方的完整字型（100 片切法），這個歷史查證紀錄保留供追溯。
+- 原始字型的 `halt` 只涵蓋「」『』（），「，」「。」是置中字形（墨色約 0.40–0.59em），完整字型也一樣無法靠字型收逗號句號。括號的 halt 值：「 XPlacement −320／XAdvance −500、（ −283／−500；`web/app/utils/paperPrints.ts` 的 canvas 標題照這組數值收行首括號，換標題字型時要重查。
 
-## 入學資訊頁補字（2026-09-24）
+## 入學資訊頁補字（2026-09-24；此節描述的 737 字子集已於 2026-09-25 由上方完整字型取代）
 
-- `lineseed-bd.woff`／`.woff2` 改由 `LINE_Seed_TW.zip`（ver02）的 `LINESeedTW_OTF_Bd.otf` 重切：原 725 字＋入學資訊頁用到的 12 字（二冊囉寶曲月楚註貝退遲部），共 737 字；既有 725 字的字寬逐字比對與舊檔相同。`chars-bd.txt` 同步（新字附在最後），後台缺字提示讀的就是這份。之後的 critical／remaining 切片同樣由 `scripts/subset-critical-fonts.py` 重跑產生，舊 hash 檔已刪。
-- 重切指令（fontTools）：`Subsetter(layout_features=['*'], hinting=False, desubroutinize=True)`，`font.flavor` 設為 `woff`／`woff2` 後存檔（flavor 要設在 TTFont 上，設在 Options 會輸出未壓縮檔）。
-- `noto-serif-tc-500-admission.woff`（8 字：一到參學從步觀開）給入學資訊頁 hero 大標「從參觀到開學，一步一步來。」，「，。來」由 visit 子集提供；來源記在 `noto-serif-tc-500-admission.json`，宣告在 `typography.css`。
+歷史紀錄：`lineseed-bd.woff` 曾在 2026-09-24 從 725 字擴充到 737 字（入學資訊頁新增 12 字：二冊囉寶曲月楚註貝退遲部）。2026-09-25 起 `web/` 已改用完整字型，不再需要逐次擴充子集補字；`chars-bd.txt`／`chars-eb.txt` 已是完整 cmap。凍結原型仍停在 737 字子集（見上），不會再補。
+- `noto-serif-tc-500-admission.woff`（8 字：一到參學從步觀開）給入學資訊頁 hero 大標「從參觀到開學，一步一步來。」，「，。來」由 visit 子集提供；來源記在 `noto-serif-tc-500-admission.json`，宣告在 `typography.css`（明體子集不受這次 LINE Seed 改動影響）。
 
 ## 分校區塊明體（2026-09-22）
 

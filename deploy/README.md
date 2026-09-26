@@ -38,6 +38,12 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
+| api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
+| api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
+| api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
+| api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
+| api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
+| web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
 
@@ -146,6 +152,17 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
    之間新上傳的檔案。
 5. 抽查官網圖片、影片與後台素材庫。volume 先保留一段時間當備份，確認無誤後再卸下。
 
+## `feature/admin-gaps-20260925` 累積變更（尚未部署，2026-09-25／26）
+
+此分支到 `84e9c41`（B10）為止已合併進 `main` 並部署（正式庫在 2026-09-25 已上線狀態那次同步升到 `c4d8e2f6a913`）；`84e9c41` 之後（B11–B14＋B15 這次文件同步）**尚未合併進 `main`、尚未部署**。之後部署這個分支或把它併回 `main` 時要注意：
+
+- **Migration**：目前分支唯一 head 是 `de61f57ec77d`，從 `c4d8e2f6a913` 之後新增的 revision 全部只加欄位／新表／enum 值，皆有 `nullable`／`server_default` 或只新建表，可安全套用在有資料的正式庫；API 啟動時的 `alembic upgrade head` 會自動套用，不需手動介入。其中 `e5b1c7a9d402`（個資匯出逐人授權）會回填「目前啟用中的分校管理者」補上 `booking.export`；`31eb94190b1c` 會在正式站發布一版與官網現有文字相同的 `booking_content`（同意版本追蹤上線用）；其餘（例如 `a8c3e5f7b219` 樂觀鎖版本欄位、B09／B10 的素材封存與衍生檔欄位）都只加欄位，不回填或只回填衍生尺寸。
+- **新環境變數**（見上方環境變數表）：`WEBSITE_SMTP_*`（真實寄信，選填）、`WEBSITE_GOOGLE_*`（後台 Google 登入，選填）、`WEBSITE_LINE_CHANNEL_ID`／`_SECRET`／`_REDIRECT_URI`（後台 LINE 登入，與群組推播是不同 channel）、`WEBSITE_RETENTION_ALLOW_REAL_RUN`（同時控制手動與定期自動清理）、`WEBSITE_MEDIA_MAX_IMAGE_MB`／`_MAX_VIDEO_MB`／`_PURGE_DELAY_DAYS`、`NUXT_MEDIA_MAX_UPLOAD_MB`。全部選填、留空時退回舊行為（不寄真實信、不顯示 Google 登入入口等），不會因為沒設定而報錯。
+- **部署後要跑一次 `initialize-content`**：會建立並發布 `shared_faq`（全站共用常見問題），並把「目前發布版仍是原型匯入、之後沒有新版本」的各校常見問題改用共用題目（先加 `--dry-run` 確認影響範圍）；也會補上之前就存在但還沒發布過的內容項。
+- **CI**：`website.yml` 新增 `e2e` job（`tests/stack/`，postgres service＋系統 Chrome），目前不在 `deploy` 的 `needs` 裡，不會擋部署；第一次在 GitHub runner 跑之前，建議先觀察幾次 feature 分支的結果。
+- **Google／LINE 登入**：三個 `WEBSITE_GOOGLE_*` 都留空就不顯示 Google 登入入口；後台「我的帳號」可自行解除 Google 綁定。這些是選填功能，不影響現有帳密登入。
+- 詳細清單、逐項驗證見 `docs/website-admin/acceptance.md` 底部「2026-09-25／26 小結」。
+
 ## 初次初始化
 
 下列指令會寫資料庫，僅對已明確核准的新官網資料庫執行。2026-09-24 起 API 啟動時會自動 `alembic upgrade head`，第一行只在需要手動介入時用；CMS 初始化與管理員建立仍需另行執行。
@@ -168,7 +185,7 @@ railway ssh --service api --environment production -- python -m app.cli bootstra
 
 **admission_content 上線步驟（2026-09-24）**：不需要 migration。部署後再跑一次上面的 `initialize-content`，只會補建並發布 `admission_content` 這一筆（其餘已有版本不會動）。沒跑之前 `/admission` 顯示程式內建的同一份內容，畫面相同；跑完後由後台「全站與素材 → 入學資訊頁」編輯。頁面上方的提醒（「金額與補助依各校公告…」）在園方確認金額後可於後台清空。
 
-初始五校預約維持 `paused`，搜尋索引關閉。既有通知 adapter 僅供本機測試，未部署寄信 worker；正式寄信需另外接上 provider。
+初始五校預約維持 `paused`，搜尋索引關閉。通知寄送已支援真正的 SMTP adapter（見上方環境變數表的 `WEBSITE_SMTP_*`）；正式站要不要寄真實 email，由使用者決定要不要在 Railway api 設定這幾個變數——沒設定時 outbox 只寫站內通知，不會報錯也不會累積等日後補設定。
 
 ## 更新部署
 

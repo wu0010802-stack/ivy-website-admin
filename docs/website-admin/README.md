@@ -1,4 +1,4 @@
-# 官網後台：本機啟動與測試命令（階段 A–C 起點）
+# 官網後台：本機啟動與測試命令（已上線，A–D 四階段全部實作）
 
 所有 Node 指令需先確保使用 Node 22（本機系統預設是 25.x，不符 `.nvmrc`）：
 
@@ -29,9 +29,12 @@ curl http://127.0.0.1:8000/api/website/v1/health
 ```bash
 uv run python -m app.cli bootstrap-admin   # 互動輸入 email/密碼，密碼不進 log
 uv run python -m app.cli seed --dry-run    # 檢查五校 seed 是否需要補
-uv run python -m app.cli content-seed-from-fixture ../content/site-fixture.json
-  # 一次性：把 fixture 現有 home_about/home_hero/site_footer 文案灌成第一筆已發布內容
+uv run python -m app.cli initialize-content ../content/site-fixture.json --dry-run
+  # 新環境的啟動步驟：驗證後只補「從未發布過」的內容項（現在共 21 筆，含 shared_faq）；
+  # 重跑不覆蓋既有草稿、不多建版本。--dry-run 只列出會補哪些，不寫入。
 ```
+
+`content-seed-from-fixture` 仍存在，但只在 `home_about`／`home_hero`／`site_footer` 都還沒有任何版本時才會執行（有版本就整批拒絕，要覆蓋得加 `--force`），一般啟動請用 `initialize-content`，不要再把 `content-seed-from-fixture` 當標準啟動步驟。
 
 ## 管理後台殼（Vue + Vite，admin/）
 
@@ -101,8 +104,20 @@ uv run python scripts/backup_website.py ./var/backups
 WEBSITE_ENVIRONMENT=test uv run python scripts/restore_website.py ./var/backups/website-db-*.sql
 ```
 
-## 尚未涵蓋
+## 現況（2026-09-25，`feature/admin-gaps-20260925` 分支已完成）
 
-既有素材 dry-run importer、週期時段規則產生器與例外日、內容審核流程與整份內容的排程發布、全站 release 層級還原、全面稽核覆蓋，均待補。
+以下項目原本列在「尚未涵蓋」，已全部補上，細節與測試證據見 `docs/website-admin/acceptance.md` 底部「2026-09-25 小結」：
 
-（2026-09-24 更新：內容 editor、版本紀錄與還原、人工補登、指派承辦人、接待月曆、消息上下架日期已完成，見 `acceptance.md` 最後一節。）
+- 既有素材 dry-run importer（`python -m app.cli import-site-assets`）。
+- 週期時段規則自動往後延展、休假例外日、取消休假重開時段。
+- 內容審核流程（送審／核准／退回，過期待審版自動標記已被取代）與整份內容的排程發布（到期時官網已是更新版本會略過、不蓋回舊內容）。
+- 全站 release 層級的一鍵還原（`content.release_restore`，限總管理者）。
+- 稽核範圍大幅擴大（素材、時段、案件狀態轉換、聯絡紀錄、改期核准／退回等），並有 `test_audit_coverage.py` 靜態檢查擋漏寫。
+- 個資保存政策改為可在後台設定天數並持久化（`retention_policies`），依結案時間起算，有清理紀錄與定期工作開關。
+- 素材庫：引用記錄版本與欄位路徑、批次替換、封存與待清理（不再上傳就立即硬刪檔）、批次上傳、影片 metadata、縮圖／大圖／poster 衍生檔路由、版位裁切焦點（0–100）。
+- 首屏影片／關於照片／孩子的一天照片與影片／分校封面與線稿／手機版活動影片等素材版位已接進 CMS（選填，未設定時官網用內建素材）。
+- 樂觀鎖（`expected_version`）涵蓋時段、案件承辦人與下次聯絡時間、每週規則、全站設定、素材說明；統一錯誤碼（`X-Request-ID`、`SLOT_CLOSED`／`SLOT_NOT_FOUND`／`MEDIA_NOT_READY` 等）。
+- 端到端測試（`tests/stack/`）、無障礙（axe）與鍵盤操作自動化檢查、像素回歸，CI 新增 `e2e` job（不擋部署）。
+- `web/` 標題字型已換上完整 LINE Seed TW（見 `web/public/assets/fonts/README.md`），CMS 開放編輯標題不再受子集缺字限制。
+
+仍待辦（需使用者或業主處理，詳見 acceptance.md 小結的 followups）：簡訊驗證（付費）、正式庫與媒體備份／PITR、斷開 Railway 原生部署、正式站執行 `initialize-content`、SMTP／Google／LINE／S3 正式環境變數、四校正式內容（園方提供）、錯誤格式 envelope 是否要做破壞性變更（待業主裁定）。

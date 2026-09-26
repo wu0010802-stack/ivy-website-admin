@@ -4,30 +4,30 @@
 
 | ID | 階段 | 驗收情境 | 狀態 | 證據 |
 |---|---|---|---|---|
-| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 部分 | 48 項 Playwright e2e（4 視口 × SSR 內容/舊路由）全過；`artifacts/website-baseline/*.png` 人工截圖比對；**未建立**像素級 `toHaveScreenshot` 視覺回歸測試 |
+| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 通過（2026-09-26 更新） | 48 項 Playwright e2e（4 視口 × SSR 內容/舊路由）全過；`tests/stack/keyboard.spec.ts` 檢查官網與後台在 390／1440px 下 `scrollWidth ≤ clientWidth`，並涵蓋選單/膠囊/dialog 的 Tab／Enter／Escape／焦點返回；`tests/stack/visual.spec.ts` 對後台 5 個關鍵頁面建立像素級 `toHaveScreenshot`（macOS 基準，其他平台略過比對） |
 | A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 通過 | `artifacts/prototype-baseline/preview.html`（+ sha256）已備妥；Nuxt localhost 預覽見階段 A 小結；`/preview` 私有草稿殼（見 Task 8 小結）已用 Playwright 驗證未登入拒絕、登入後見草稿、公開站不洩漏 |
 | A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 通過 | `tests/e2e/nuxt-rendering.spec.ts`（五校＋首頁 SSR）、`tests/e2e/legacy-routes.spec.ts`（5 項舊 hash 轉址）皆過；未知校區與未知 visit key 均 404 |
 | A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，`tests/e2e/nuxt-rendering.spec.ts` 6 項通過 |
-| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 部分 | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**未做**系統性的 hydration mismatch 自動化檢查（僅開發/啟動 log 人工觀察未見警告） |
+| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 通過（2026-09-26 更新） | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**`tests/stack/hydration.spec.ts` 已建立系統性檢查**：對 10 個公開頁跑 production build 與 `nuxt dev` 兩種模式，斷言 console 沒有 hydration 訊息與 pageerror，並用竄改 SSR HTML 的方式驗證這個檢查真的抓得到 mismatch（不是空測試） |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（部分缺字為已知限制） | `docs/website-admin/baseline.md` §字型缺字檢查 |
-| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 部分 | 10 種 content kind 有真實 editor：home_about／home_hero／site_footer／site_meta／home_campus_board／booking_content／day_experience（文字，1~12 筆時刻卡）／campus_profile（各校）／campus_faq（各校）／campus_tour（各校，視覺化熱點編輯器，見「校園探索視覺化編輯器小結」）；**消息（news）刻意不做**（跟使用者 `web/` 進行中工作重疊）；影片/照片素材本身仍未接媒體庫（含 campus_tour 的場景圖片，仍是代號字串） |
-| A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py` 正負權限測試 |
-| A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 部分 | 草稿不公開、發布生效、version conflict 已測試（`test_content_release.py`）；單一內容項目的版本紀錄與還原（還原成草稿或直接發布、不帶上其他草稿、樂觀鎖、跨校 404、舊格式 422）見 `test_content_revisions.py`；還原只動內容表，不碰預約資料表。**全站 release 層級的一鍵還原未做** |
-| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分 | 上傳/驗證/引用保護/替換隔離已測試，admin 素材庫 UI（列表/預覽/上傳/刪除）；裁切焦點編輯 UI；**素材庫已真的接上 CMS 內容**（campus_tour 場景圖片，見「素材庫接上媒體選圖小結」），含公開唯讀讀取路由與引用保護真的串接；熱點複核、既有素材 dry-run importer 未做 |
+| A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 通過（2026-09-25 更新） | ContentItem 已有 14 種 kind，涵蓋首頁、五校介紹、一天照片卡（含新增卡與刪卡）、校園探索（視覺化熱點編輯器，可排序）、各校消息與活動（結構化內文）、全站共用常見問題與各校常見問題（逐題啟用）、預約文案、頁尾／網站設定／主選單。影片／照片素材已接媒體庫（見 A04），仍留在 fixture、CMS 沒有對應欄位的只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。詳見各批小結與 `backend/app/content/registry.py` |
+| A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py`、`test_permission_table.py` 正負權限測試；2026-09-25 起改為 capability 表＋逐人授權（`booking.export`／`content.shared`），見 `docs/website-admin/operations.md`「權限」 |
+| A03 | B | 草稿不可公開；發布／指定版本還原正確；預約不跟著回滾 | 通過（2026-09-25／26 更新） | 單一內容項目版本紀錄與還原（`test_content_revisions.py`）之外，**全站 release 層級的一鍵還原已完成**（`POST /admin/releases/{id}/restore`，限總管理者 `content.release_restore`，寫成新的一筆 release、不刪歷史；有更新版本不能還原時逐項列出原因，不整站部分還原）。送審／核准／退回、過期待審版自動標記已被取代，也已完成（見 A15） |
+| A04 | B | 圖片／影片／poster 替換、裁切、引用保護、私有素材、熱點複核 | 部分（2026-09-25／26 更新） | 素材庫已支援：引用記錄版本與欄位路徑（`GET /admin/media/{id}/usages`）、批次替換（先列影響範圍再對每個受影響內容產生新草稿，不自動發布）、封存與待清理（刪除不再立即硬刪檔，定期工作延後清理）、批次上傳（同時最多 2 個）、影片 metadata（時長／寬高／上傳者）、縮圖／大圖／poster 衍生檔路由、版位裁切焦點（0–100，`FocusPicker`）。首屏影片／關於照片／孩子的一天／分校封面與線稿／手機版活動影片等版位已接進 CMS（選填，未設定用內建素材）。既有素材 importer 已做（`import-site-assets`，dry-run 預設）。**熱點複核仍未做**：替換場景圖片後只在 UI 提醒人工重新複核座標，沒有強制流程 |
 | A20 | B | web/admin 共用 OpenAPI 型別，fresh setup、Nuxt build/start、admin build、測試可重現 | 通過 | `npm run contract:generate`／`contract:check` 已建立；`contracts/openapi.json` + `contracts/generated/website-api.d.ts` 已產生並委託 admin 的 `UserOut`/`CampusOut`/`MediaAssetOut`/`MediaVariantOut`/`ContentItemOut` 直接引用生成型別，不再手抄；各 kind 的 payload（home_about 等）因後端收 dict 動態驗證，暫時仍手抄，已註解說明 |
-| A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 部分 | 五種可啟用模式（inquiry/line/phone/external/paused）＋ slots 保留但擋啟用，皆測試；「原案件仍存在」已測（`test_mode_switch_does_not_affect_existing_requests`） |
-| A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 通過 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt `VisitForm.vue` 已接上真實 `POST /public/visit-requests`（含 idempotency key、slots 選位、409/429/422 錯誤處理且失敗不清空欄位），見 Task 8 小結 |
+| A05 | C | 每校六模式切換，缺連結不啟用，原案件仍存在 | 通過（2026-09-25 更新） | 六種模式（inquiry/line/phone/external/paused/**slots**）皆可啟用；啟用條件擴充為欄位類（LINE／電話／外部網址／暫停說明）與資料類（inquiry／slots 需已發布同意文字，slots 另需可訂場次或每週規則），不符回 `BOOKING_MODE_NOT_READY` 並附原因；切換模式前顯示影響範圍（未結案／待確認／已確認案件數等）並要求二次確認；「原案件仍存在」已測 |
+| A07 | C | 表單成功持久化；失敗保留輸入；重送只建一案 | 通過 | 後端 API 側全過（含 10 連線真實併發只建一案）；Nuxt `VisitForm.vue` 接上真實 `POST /public/visit-requests`（idempotency key、slots 選位、同意版本、參觀人數 1–10、409/429/422 錯誤處理且失敗不清空欄位） |
 | A08 | C | 舊 config version 被拒；成功後重播仍回原結果 | 通過 | `test_stale_config_version_rejected_then_switch_to_line`、`test_request_retry_is_same_case` |
-| A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | 部分 | 最後名額真實 PostgreSQL 併發（`test_one_slot_cannot_accept_two_families`）、取消釋放、改期回滾皆已測；「逾期釋放」（占位到期自動作業）屬 Task 9 排程工作，未做 |
-| A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 部分 | 手動建立單次時段＋容量保護、滿額拒絕已測；週期規則產生器、例外日、提前時間/開放天數驗證屬 Task 9 範圍，未做 |
-| A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 通過 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護）；2026-09-24 補上人工補登（phone/line/walk_in/external，idempotency、可當場排時段）、指派承辦人與「我的案件」篩選、接待月曆（`/admin/visit-calendar`，與清單讀同一份資料）、完成參觀，見 `test_visit_manual_and_assign.py` |
-| A06, A16 | C | CTA 一致／SEO | 通過 | 各校 CTA（`BookingCta`／`useCampusBooking`）即時讀 booking-config，paused/line/phone/external/inquiry 五種模式皆用 e2e 驗證；SEO（canonical／OG／robots meta）依 `indexingEnabled`／`siteOrigin` 動態產生，`/visit`／`/preview` 一律 noindex，`robots.txt`／`sitemap.xml` 依索引開關切換，見 Task 8 小結 |
-| A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過 | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領 |
-| A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕 |
-| A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 部分 | 消息／活動的上架、下架日期（公開 API 依台北日期過濾）已測（`test_home_news.py`）；審核流程與整份內容的排程發布仍未做 |
-| A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過 | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資 |
-| A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過 | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練（見 Task 10 小結） |
-| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分 | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容（過程中抓到並修掉 `usePublishedSite` 固定 key 換頁不重抓的快取缺口）；範圍限於目前僅有的 3 個 CMS content kind（home_about/home_hero/site_footer），其餘內容仍是 fixture 靜態資料，無跨 request 私密資料一項未特別測（`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，已用 e2e 驗證） |
+| A09 | D | 最後一格並發只有一組；取消／改期／到期無超收 | 通過（2026-09-25 更新） | 最後名額真實 PostgreSQL 併發（`test_one_slot_cannot_accept_two_families`）、取消釋放、改期回滾皆已測；**占位到期自動釋放已由 API 內建定期工作觸發**（`app/workers/maintenance.py`，production 每 60 秒一輪），不需另外排程；`completed`／`no_show` 也保留已占用名額，不能再排進已開始的場次 |
+| A10 | D | 規則、例外日、提前時間、滿額、手動／自動確認 | 通過（2026-09-25 更新） | 每週規則、休假例外日、依規則自動延展時段（定期工作每天補到最遠開放天數，跳過休假與已開始場次）、取消休假重開時段並補上當天場次、滿額拒絕、容量下限保護皆已測；手動／自動確認（`slots_auto_confirm`）沿用既有機制 |
+| A11 | D | 人工補登、聯絡、承辦、狀態、日曆、匯出同源且有權限 | 通過 | 人工確認/取消/未到場/聯絡紀錄/CSV 匯出（含公式注入防護，且改依畫面篩選匯出）；人工補登（phone/line/walk_in/external，idempotency）、指派承辦人與「我的案件」篩選、接待月曆、完成參觀；2026-09-25 起接待人員可處理案件（`booking.handle`），CSV 匯出改逐人授權（`booking.export`） |
+| A06, A16 | C | CTA 一致／SEO | 部分 | 各校 CTA（`BookingCta`／`useCampusBooking`）即時讀 booking-config；`resolveBookingAction` 六種模式的判斷邏輯有 Vitest 單元測試全覆蓋（`web/tests/booking-action.spec.ts`），但**瀏覽器 e2e 目前只涵蓋 paused 與未知校區**（`tests/e2e/public-site.spec.ts`）＋ `tests/stack/booking-flow.spec.ts` 端到端跑過 slots／inquiry 兩種模式的完整送出流程；line/phone/external 三種模式沒有專門的瀏覽器 e2e，這點原表過度宣稱，此處更正。SEO（canonical／OG／robots meta）依 `indexingEnabled`／`siteOrigin`**及後台「網站標題與電話」的收錄開關（`allow_indexing`，2026-09-26 起才真的生效）**動態產生，`/visit`／`/preview` 一律 noindex，`robots.txt`／`sitemap.xml`／`llms.txt` 依索引條件切換 |
+| A12 | D | 失敗通知可重試、無重複、案件不丟失、worker 可恢復 | 通過（2026-09-25 更新） | `test_notifications.py`：寄送失敗案件保留、重試後成功且只有一份對應通知、達上限標記 failed、worker 租約過期後可被其他 worker 重新認領；**新增後台「站內通知 → 寄送失敗」區塊與 `POST /admin/notification-outbox/{id}/retry`／`/retry`（批次）可人工重試**，以及 CLI `requeue-notifications`；另新增「即將參觀」「逾期未處理」兩種提醒，寄送當下重新判斷是否仍成立 |
+| A13 | D | 家長只讀自己的案件，安全取消／申請改期／token 過期 | 通過 | `test_parent_access.py`：token 換 session、家長間 session 互不可見、自助取消、改期申請待核准前原時段不變、無效 token 拒絕；後台可產生／複製／重新產生／撤銷家長管理連結（`/visit/manage#token=…`），家長取消／改期期限改為各校可設定（1–336 小時，預設 24） |
+| A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 通過（2026-09-25／26 更新） | 消息／活動上下架（`test_home_news.py`）之外，**內容送審／核准／退回已完成**（過期待審版自動標記 `superseded`，送審通知可核准的人、核准或退回通知送審者）；**整份內容排程發布已完成**，到期時若官網已是更新版本會標成「已略過」而不蓋回舊內容，失敗或略過都通知排程者並列在總覽；全站 release 還原見 A03 |
+| A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過（2026-09-25 更新） | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資；成效漏斗新增 `visit_cancelled`（含原因）、日期區間、依來源／「從哪裡知道我們」分組；公開點擊事件改用 `event_id` 去重＋入口代碼白名單 |
+| A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過（2026-09-25／26 更新） | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練；**保存政策已改為後台可設定天數並持久化**（`retention_policies`，依結案時間起算，未結案案件一律不清），有清理紀錄與定期工作自動清理開關（兩個開關都要開才會自動跑） |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-09-25／26 更新） | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容；CMS content kind 已擴充到 14 種（見 A01），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`）；`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，`tests/stack/hydration.spec.ts`（2026-09-26 新增）用竄改 SSR HTML 驗證能抓到 mismatch，並對 10 個公開頁檢查 console 無 hydration 訊息 |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -329,4 +329,50 @@ npx playwright test --project=desktop-1440                       # 27 passed
 - 只能指派給啟用中、具 `booking.manage` 且有該校權限的人員；分校管理者看人員名單時只看得到總管理者與共同校區的同事。
 - 排程靠讀取時過濾，不需要背景工作；草稿預覽 `/preview` 仍顯示全部消息（含尚未上架的）。
 
-未做：全站 release 層級還原、內容審核流程、整份內容的排程發布、每週固定時段規則。
+未做（2026-09-24 當時；**四項已在下方「2026-09-25／26 小結」全部補上，不再是未做**）：全站 release 層級還原、內容審核流程、整份內容的排程發布、每週固定時段規則。
+
+## 2026-09-25／26 小結（`feature/admin-gaps-20260925` 分支，B01–B14 共 14 批＋合併 `main`）
+
+第一輪盤點（`docs.json`）列出的文件落後與缺口，經逐項核對 HEAD 後：多數在本分支的 B01–B12 已補上功能與測試；B13 補完標題字型；B14 補上端到端測試、無障礙與鍵盤自動化、像素回歸；本文件（B15）同步文件現況。以下只列**本分支實際修好的東西**，逐項細節、API／欄位變動見各批次 commit 與下方「本機驗證」；沒看到成功輸出的項目已標未驗證。
+
+### 修了什麼（依主題彙整）
+
+- **權限精修**：新增 `booking.handle`（處理案件：聯絡紀錄、確認排入時段、補登、取消、未到場、完成、後台改期、核准／退回家長改期、產生／撤銷家長連結、通知已讀）；`booking.manage` 收斂為設定面（時段、每週規則、休假日、預約設定、指派承辦人）。個資匯出（`booking.export`）與全站共用內容（`content.shared`）改為總管理者逐人授權，不再是依角色自動給。後台按鈕一律讀 `effective_capabilities`（`usePermissions`），不會出現「按了才 403」。
+- **案件處理完整**：後台改期（接上原子改期 API，擋已開始的時段）、`completed`／`no_show` 保留已占用名額、家長管理連結（產生／複製／重新產生／撤銷，只顯示一次）、案件歷程（操作人／異動前後／原因＋時間軸 UI）、家長線上申請改期（站內通知＋核准／退回）、待人工處理清單（時段關閉或分校停用但家長仍要來）、CSV 匯出改依畫面篩選、送出日期區間篩選、各校可設定家長線上取消／改期期限（1–336 小時）、每週規則自動往後延展＋取消休假重開時段。
+- **預約規則**：家長同意記錄綁定當時發布的文案版本（`consent_revision_id`）、隱私說明本文可在後台編輯並有 dialog、預約模式啟用條件擴充（欄位類＋資料類，不符列出原因）、切換模式前顯示影響範圍並二次確認、參觀人數 1–10（必填）、問題上限改 500 字。
+- **通知**：寄送失敗可在後台或 CLI 人工重新寄送；新增「即將參觀」「逾期未處理」兩種提醒（寄送當下重新判斷是否仍成立）；補齊中文標籤並有靜態測試比對後端稽核動作／通知 kind。
+- **內容管理**：排程發布不會蓋回較新版本（到期時官網已是更新版本會標「已略過」）；送審／核准／退回，過期待審版自動標記已被取代；全站發布紀錄與一鍵還原（限總管理者）；總覽新增待發布清單與缺素材提示；版本紀錄顯示曾上線／審核狀態並列出逐項差異摘要；`content-seed-from-fixture` 加保護與 dry-run，`initialize-content` 加 dry-run。
+- **消息與 FAQ**：消息與活動改結構化內文（五種區塊）、適用範圍（全校／指定校區）、首頁推薦與顯示筆數、活動時間地點與相關連結；各校可編輯自己的消息與活動；新增全站共用常見問題，各校可逐題啟用、覆寫或不顯示。
+- **官網內容細節**：停用分校現在是官網整校下架（404、五校區塊／頁尾／選單／sitemap 不列）；首頁五校順序與預設校區可在後台調整；主選單與頁尾連結可編輯（站內或 https 外部連結）；分校地圖連結可獨立編輯；標題缺字提示擴及所有標題欄位；校園探索場景／熱點可排序並直接輸入座標；孩子的一天新增第 7 張以後的卡片與刪卡會生效；首屏按鈕文字欄位退場。
+- **素材庫**：引用記錄版本與欄位路徑、批次替換（先列影響範圍再產生草稿）、刪除保護涵蓋可還原的舊版本與已排程版本、封存與待清理（延後刪檔，不再上傳就立即硬刪）、批次上傳、影片 metadata、上傳格式收斂（不再收 GIF）、上傳大小上限改為部署設定、縮圖／大圖／poster 衍生檔路由、版位裁切焦點（0–100）、首屏影片等版位進 CMS（選填）、既有素材 dry-run importer。
+- **統計與 SEO**：後台收錄開關真的接上 `robots.txt`／`sitemap.xml`／`llms.txt`；成效漏斗新增取消與取消原因、日期區間、依來源／「從哪裡知道我們」分組；公開點擊事件改用 `event_id` 去重與入口代碼白名單，`environment`／`curriculum` 兩個新頁的預約鈕也補上入口代碼。
+- **稽核與資料治理**：稽核範圍從 4 種擴大到約 30 種動作，並有靜態測試擋漏寫；個資保存政策改為後台可設定天數並持久化（依結案時間起算，未結案一律不清），有清理紀錄與雙開關（部署變數＋後台）；樂觀鎖涵蓋時段、案件承辦人／下次聯絡時間、每週規則、全站設定、素材說明；統一 `X-Request-ID` 與更細的錯誤碼（`SLOT_CLOSED`／`SLOT_NOT_FOUND`／`MEDIA_NOT_READY` 等）；`/public/site` 加 ETag／304。
+- **登入**：後台新增 Google 登入（可解除綁定、成功／失敗寫稽核）；沿用既有 LINE 登入。
+- **字型**：`web/` 標題字型從 737 字子集換成完整 LINE Seed TW（Bold／ExtraBold 各 13,915 字），首屏只預載 Bold critical（13,852 bytes，原 27,860 bytes）；根目錄凍結原型不受影響。
+- **測試基礎設施**：新增 `tests/stack/`（真後端＋真官網＋隔離 DB 的端到端測試：預約全流程、內容送審發布、素材選圖、每週規則、角色限制）、`tests/stack/hydration.spec.ts`、`tests/stack/a11y.spec.ts`（axe，10 公開頁＋13 後台頁）、`tests/stack/keyboard.spec.ts`、`tests/stack/visual.spec.ts`（像素回歸），CI 新增 `e2e` job（不擋部署）。過程中修掉兩個會讓 e2e／CI 失敗的既有問題：`web/app/utils/cta-analytics.ts` 相對路徑引用 `shared/` 讓 production build 失敗（改用 `#shared` 別名）；全新資料庫一次套完 migration 時 `ALTER TYPE ADD VALUE` 新增的 enum 值不能在同一串後續 migration 當常數使用。
+- **合併 `origin/main`**：併入常春藤環境頁、特色教學頁、四校校園探索實景、義華家長分享、各校 IG／YouTube、手機活動影片換義華 YouTube 等其他 session 的工作（合併到 main 的 `3fe0c18`），並補上新頁面的 CTA 入口代碼。
+
+### 本機驗證（各批次實際跑過，彙整自 commit 訊息；本次 B15 為文件批次未重跑全套）
+
+```bash
+# 各批次結束前跑過的指令（詳見各 commit）：
+cd backend && uv run pytest -q -p no:cacheprovider   # 各批次皆全過，B12 結束時計入樂觀鎖／稽核測試
+npm --prefix admin run typecheck && npm --prefix admin run test:unit
+npm --prefix web run typecheck && npm --prefix web run test:unit
+npm run contract:check
+# B14 新增，非每批都跑（8GB RAM，一次一組）：
+npm run e2e:build && npm run test:e2e:stack
+```
+
+本次 B15（文件同步）**沒有重跑上述全套測試**，因為只改了 Markdown、`CLAUDE.md`、`backend/.env.example` 與兩處程式內註解（不影響邏輯）；已對改到的 Python 檔案跑語法檢查（`python -m py_compile`）確認沒有壞掉，並用 `git diff`／`grep` 逐項核對文件描述與目前程式碼（`backend/app/auth/permissions.py`、`backend/app/operations/models.py`、`backend/app/notifications/service.py`、`web/tests/booking-action.spec.ts`、`tests/stack/`、`tests/e2e/` 等）是否一致，而不是直接照抄各批次的自述。
+
+### 仍未做／需要使用者或業主處理
+
+- **熱點複核**（A04）：校園探索場景換照片後只有 UI 提醒，沒有強制複核流程。
+- **A06／A16 的 e2e 覆蓋不足**：line/phone/external 三種預約模式沒有專門的瀏覽器 e2e（見上方表格更正）。
+- **背景轉檔佇列**未做：素材上傳仍在同一個請求內處理完，沒有多尺寸圖／影片轉碼工作表。
+- **錯誤格式 envelope**（規格 L335）維持 `{detail:{code,message}}` 而非整體改格式，這是刻意保留現狀，若要改屬破壞性契約變更，需業主裁定。
+- **LINE 登入未寫稽核**（裁定只要求 Google）；帳密登入本來就沒有登入稽核。
+- **家長端沒有通知管道**：核准／退回改期、園方改期都不會通知家長；家長管理頁看不到退回原因。
+- 需要使用者處理、本分支明確沒做（不可逆或需登入正式環境）：簡訊驗證（付費）、正式庫與媒體備份／PITR（需登入 Railway，可能付費）、斷開 Railway 原生部署、正式站執行 `initialize-content`（會建立並發布 `shared_faq`）、SMTP／Google／LINE／S3 正式環境變數、四校正式內容（園方提供）、CI 的 `e2e` job 是否要擋部署（目前只檢查）。
+- 各批次 followups 累積的細項（例如：接待人員能否標記通知已讀、個資匯出能否授予櫃台、待核准改期不會自己過期、`booking_configs.version` 因為改家長異動期限也會跳號、Google 解除綁定後同 Email 帳號登入會自動重新綁定等）散在各 commit 訊息，尚未整併成單一清單，需要時可以逐一搜尋 commit log。

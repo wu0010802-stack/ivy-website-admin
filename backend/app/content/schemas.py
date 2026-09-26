@@ -12,10 +12,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
 from app.media.schemas import PublicMediaOut
 
-# 階段 B 第一版只實作一種內容 kind（home_about，首頁「關於常春藤」文字）；
-# 其餘內容仍由 Nuxt 端 fixture 提供，尚未搬進這套 typed content 系統。
-# 完整 ContentItem.kind 清單與逐項 editor 屬於 Task 5 剩餘範圍，見
-# docs/website-admin/acceptance.md 的階段 B 小結。
+# 2026-09-25 現況：ContentItem.kind 已有 14 種（home_about／home_hero／
+# site_footer／site_meta／home_campus_board／booking_content／day_experience／
+# home_news／shared_faq／admission_content／campus_profile／campus_faq／
+# campus_news／campus_tour，定義見 registry.py 的 CONTENT_KIND_REGISTRY），
+# 涵蓋官網幾乎所有文字與素材版位；仍留在 Nuxt fixture、CMS 沒有對應欄位的
+# 只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。逐項現況見
+# docs/website-admin/acceptance.md 的 A01 列與各批小結。
 
 _BLOCKED_URL_SCHEMES = ("javascript:", "data:", "vbscript:")
 _ALLOWED_URL_SCHEMES = ("https://", "http://", "mailto:", "tel:")

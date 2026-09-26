@@ -31,13 +31,32 @@ export WEBSITE_SMTP_PASSWORD=...             # 放部署平台的 secret，不�
 export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST 就必填
 ```
 
-每一輪依序做四件事，一步失敗不擋後面的步驟：到期的**排程發布**（每筆自己一個交易，失敗寫在排程上、後台看得到原因）→ 釋放逾期占位 → 處理 outbox（站內通知＋寄信）→ 刪除過期的限流計數。
+每一輪依序做五件事，一步失敗不擋後面的步驟：到期的**排程發布**（每筆自己一個交易，失敗或「官網已經是更新版本」寫在排程上、後台看得到原因）→ 產生**提醒**（即將參觀、逾期未處理，見下）→ 釋放逾期占位 → 處理 outbox（站內通知＋LINE＋寄信）→ 刪除過期的限流計數。
 
 寄信未設定（沒有 SMTP 也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好 SMTP 再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。SMTP 在背景 thread 執行，不會卡住 API 的請求。
 
 LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
 
-失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（通知本身跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。
+失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（一般的案件狀態通知跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。**例外是提醒類通知**（`visit_upcoming`／`visit_request_overdue`）：寄送當下會重新判斷是否仍然成立（改期、取消、已處理、占位已換過或過期），不成立就整筆標成 `status=skipped`，連站內通知都不會建立——這是刻意設計，避免園方在後台看到「參觀已改期／已取消」但通知還說「即將參觀」的過期訊息。
+
+### 通知重新寄送（2026-09-25）
+
+寄送失敗的通知（`status=failed`）可以在後台「站內通知 → 寄送失敗」區塊逐則或全部重新寄送（需 `booking.handle`），只補沒送到的管道與收件人，不會重複站內通知或重推 LINE；也可以用 CLI：
+
+```bash
+python -m app.cli requeue-notifications [--campus <key>] [--dry-run]
+```
+
+人工重新排入的通知不受「超過 24 小時不推播寄信」限制。
+
+### 提醒（2026-09-25）
+
+定期工作每一輪會依下列閾值產生提醒（以 `outbox_messages.dedupe_key` 去重，同一情境只送一次）：
+
+- **即將參觀**（`visit_upcoming`）：已確認的參觀開始前 24 小時內提醒一次；改期後依新時段重新判斷；確認時就已在 24 小時內的不再另外提醒。
+- **逾期未處理**（`visit_request_overdue`）：新需求送出超過 24 小時仍是待處理（只補最近 72 小時內到點的，避免上線第一輪把所有舊案一次推出去）；或待確認占位在 6 小時內到期。
+
+這兩種提醒只送給園方（站內通知、LINE 群組、有 `booking.handle` 的人員 Email），不會通知家長。
 
 ## 備份與還原
 
@@ -54,15 +73,41 @@ WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhos
 
 已對隔離測試 DB + 測試媒體目錄實際演練過（見 `docs/website-admin/acceptance.md` Task 10 小結），備份產出一份 `pg_dump` SQL 與媒體 tarball，還原後 schema 與資料皆正確。**還原前務必確認目標是隔離測試環境，指令本身會拒絕在非 test 環境執行，但仍建議操作前再次手動確認 DSN。**
 
-## 保存政策 / 資料清理
+## 保存政策 / 資料清理（2026-09-26 改為後台可設定並持久化）
 
-- `POST /admin/retention/dry-run?older_than_days=365`：只回報符合條件（已取消/未到場、超過天數）的案件數，不改資料。
-- `POST /admin/retention/run`：預設回 403（`RETENTION_REAL_RUN_DISABLED`），需設定 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true` 才會真的執行匿名化。
-- 清理只會把 `parent_name`/`phone`/`questions` 改成匿名化文字，不動狀態、時段、預約設定，也不影響已經產生的 analytics 統計數字。
+政策存在單列表 `retention_policies`，後台「全站設定 → 個資保存政策」可調整，三個天數各自 30–3650 天、預設都是 365：
 
-## 稽核紀錄
+- `cancelled_days`：用於已取消與未到場案件。
+- `completed_days`：用於已完成案件。
+- `open_overdue_days`：未結案（新需求／聯絡中／待確認／已確認）案件超過這個天數只會**提醒**（`open_overdue_count`），不會被清理——未結案的案件一律不清。
 
-`GET /admin/audit-log?campus_key=` 目前涵蓋：`booking_config.update`、`user.set_active`、`content.publish`、`site_settings.update`。`metadata` 欄位過濾掉 `phone`/`parent_name`/`password`/`email`/`questions` 等欄位，不會把個資寫進稽核紀錄。**尚未涵蓋所有管理操作**（例如素材刪除、使用者新增本身、時段建立/調整目前沒有寫入稽核），這是已知的部分覆蓋範圍，非完整稽核。
+結案時間＝`COALESCE(取消時間, 歷程裡完成/未到場的最新時間, 建立時間)`，不是加新欄位，靠歷程與既有欄位算出來。
+
+- `GET`／`PUT /admin/site-policies/retention`：讀取／更新三個天數與 `auto_run_enabled`（是否讓定期工作每天自動清理一次），回傳試算筆數與 `real_run_allowed`。
+- `POST /admin/retention/dry-run`、`POST /admin/retention/run`：依目前政策天數試算／執行（不再收 `older_than_days` 參數）；`run` 一樣預設回 403（`RETENTION_REAL_RUN_DISABLED`），需設定 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true`。
+- 定期工作要**兩個開關都打開**才會自動清理：部署變數 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true`，以及後台政策頁的「自動清理」；任一沒開就什麼都不做。每個台北日期最多執行一次。
+- `GET /admin/retention-runs`：清理紀錄（人工／排程觸發、天數、各類別筆數、`open_overdue_count`，不存案件 id）。只有真正執行才會留紀錄，dry-run 不留。
+- 清理只會把 `parent_name`/`phone`/`questions` 改成匿名化文字，不動狀態、時段、預約設定，也不影響已經產生的 analytics 統計數字；同時會清掉案件歷程與退回改期申請裡的自由文字原因。
+
+**上線後要做**（需使用者處理）：到後台確認三個天數是否要維持 365；要開自動清理，除了後台開關，還要在 Railway api 服務設定 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true`。
+
+## 權限（2026-09-25 起：處理案件與設定分開、個資匯出逐人授權）
+
+角色的能力表在 `backend/app/auth/permissions.py`，後台按鈕一律讀 `usePermissions()`／`effective_capabilities`（見下），不要在頁面裡另外寫角色判斷。
+
+- **`booking.handle`**（總管理者、分校管理者、**接待人員**）：處理參觀案件——聯絡紀錄、轉聯絡中、確認排入既有時段、人工補登、取消、未到場、完成、後台改期、核准／退回家長改期申請、產生／撤銷家長管理連結、把站內通知標為已讀。可承辦、可被指派為承辦人的資格也看這個。
+- **`booking.manage`**（總管理者、分校管理者）：預約設定、時段新增／容量調整／關閉、每週規則、休假日、指派承辦人——接待人員看得到時段但不能新增或關閉。
+- **`booking.export`**（個資匯出，逐人授權）：不是角色自動有，而是總管理者到「使用者 → 角色與校區」逐人勾選「可以匯出負責校區的家長個資（CSV）」，可授予分校管理者或櫃台；總管理者永遠可以匯出。`GRANTABLE_CAPABILITIES`（`backend/app/auth/models.py`）定義哪個角色可以被授予哪個 capability；改角色時系統會自動清掉新角色不適用的授權。
+- **`content.shared`**（全站共用內容，逐人授權）：總管理者可以授予分校管理者或內容編輯編輯首頁／頁尾／網站設定等共用內容；內容編輯有授權也只能送審，發布仍要分校管理者或總管理者。
+- **`content.release_restore`**（全站一鍵還原）：限總管理者。
+
+後台每個按鈕、輸入框是否顯示／可用，一律依 `UserOut.effective_capabilities`（角色＋逐人授權算出的實際權限）判斷，不會出現「按了才 403」的情況；接待人員看不到時段新增／關閉、預約設定與每週規則，改成唯讀說明。
+
+## 稽核紀錄（2026-09-25／26 大幅擴大範圍）
+
+`GET /admin/audit-log?campus_key=` 現在涵蓋所有後台與登入相關的寫入端點，包含：預約設定（`booking_config.update`）、內容發布／還原／送審／核准／退回／排程（`content.publish`、`content.publish_scheduled`、`content.submit_review`、`content.approve`、`content.reject`、`content.schedule`、`content.schedule_cancel`、`content.restore`、`release.restore`）、使用者（建立、停權、角色與校區、重設/變更密碼）、時段（`visit_slot.create`／`update`）、案件狀態轉換（`confirm`／`contacting`／`cancel`／`no_show`／`complete`／`reschedule`／`add_contact_note`／`approve_reschedule`／`reject_reschedule`）、家長管理連結（產生／撤銷）、素材（上傳、更新、替換、封存、還原、清理、批次替換引用、匯入既有素材）、通知重新寄送、Google 登入成功／失敗與解除綁定、個資保存政策更新等，總共約 30 種動作。
+
+`metadata` 欄位過濾掉 `phone`/`parent_name`/`password`/`email`/`questions` 等欄位，不會把個資寫進稽核紀錄；家長姓名、搜尋字、Google sub 等一律不記或只記代碼。`backend/tests/test_audit_coverage.py` 會靜態掃描所有 `/admin`、`/auth` 寫入端點往下追三層呼叫，沒有寫稽核就讓測試失敗（例外需求要明列理由，例如登入登出、存草稿、標記已讀、dry-run）——新增任何寫入端點請先確認這個測試會不會擋下。中文標籤（`admin/src/api/labels.ts`）也有 `labelCoverage.test.ts` 靜態比對後端的稽核動作／通知 kind／原因代碼，缺中文會讓 admin 測試失敗。
 
 ## 共用型別契約
 
@@ -106,13 +151,25 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 
 `WEBSITE_MEDIA_STORAGE=local`（預設）存 `WEBSITE_MEDIA_ROOT`；`s3` 存 S3 相容物件儲存（Cloudflare R2、AWS S3…），設定與從 volume 搬遷的步驟見 `deploy/README.md`「素材改存 S3」。兩種儲存的讀檔都經 API 串流並支援 Range。本機可用 `uv run python -m app.cli media-copy-to-s3 --dry-run` 預覽搬遷。
 
-## 已知限制（誠實列出）
+上傳只接受 JPG、PNG、WebP、MP4（2026-09-25 起不再收 GIF；既有 GIF 素材照常可用），大小上限 `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150），可一次選多個檔案（同時最多傳兩個）。
 
-- 完整 LINE Seed TW 字型檔仍未取得（外部阻擋，需使用者提供原始檔）。因此品牌名稱與 Logo 在後台鎖定不可改（「網站標題與電話」頁有說明）。
-- 時段規則不會自己產生時段：園方在「時段與容量」按「依規則產生時段」才建立（一次最多 92 天，可重複按）。
-- 稽核紀錄涵蓋預約設定、內容發布／還原／送審／核准／退回／排程、停權、帳號建立、角色與校區變更、重設密碼、案件匯出、指派、人工補登、時段規則、休假日、分校停用、撤銷家長連結，仍非全面覆蓋。
+### 素材封存與清理（2026-09-25 起：刪除不再立即硬刪檔）
+
+- 素材庫分「素材 / 已封存 / 待清理」三個分頁。**刪除只是標記待清理**（`deleted_at`），檔案不會立刻消失，`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7）天後才由定期工作真的刪檔（`purge_media` 步驟，鎖列、commit 後才動磁碟，刪前重查有沒有又被引用）；期間可以在「待清理」分頁復原。
+- 任何一版內容（草稿、官網現在的版本、已排程、**還可以還原的舊版本**）在用的素材不能刪除，只能「封存」（`archive`／`unarchive`，隱藏在選圖器但不刪檔）；「用在哪裡」（`GET /admin/media/{id}/usages`）列出引用它的內容、版本與欄位位置。
+- 替換素材（上傳新檔取代舊檔）會依「用在哪裡」的清單，為每個受影響的內容項各存一份新草稿，**不會自動發布**；校園探索場景換照片後熱點座標可能對不上新照片，要人工重新複核。
+- 影片會記錄時長、寬高與上傳者；圖片除縮圖外，原圖長邊超過 1600 會多存一份大圖，官網與後台都改讀衍生檔（縮圖／大圖／poster），不再載原檔。
+
+## 已知限制（誠實列出，2026-09-25／26 更新）
+
+- `web/` 已改用完整 LINE Seed TW（見 `web/public/assets/fonts/README.md`），CMS 開放編輯標題不再受子集缺字限制。**品牌名稱與 Logo 仍在後台鎖定不可改**，但理由已不是字型子集，而是 2026-09-19 的業主品牌核可（「網站標題與電話」頁有說明）。
+- 時段規則現在會自動往後延展：定期工作每天依每週規則把時段補到「最遠開放天數」，跳過休假日與已開始的場次，冪等、不動已存在或手動調整過的時段；改規則或最遠開放天數後約一分鐘內就會補；要整天停開請設休假日。園方仍可在「時段與容量」手動「依規則產生時段」補特定範圍。
+- 稽核紀錄已涵蓋幾乎所有管理操作（見上「稽核紀錄」），並有靜態測試擋漏寫。
 - 規格 190 的 `age`／`preferred_time` 已改存固定代碼（2026-09-24，migration `a9c4e2f7d316` 轉換既有資料）。API 仍接受舊版官網送的中文標籤並換成代碼；冪等 hash 用中文標籤計算，跨版本重送不會誤判成 409。
 - 公開端點限流的來源桶依賴 web 代理帶上的 `x-website-client-ip`（`web/server/routes/api/website/v1/[...].ts` 已設定並顯式覆寫）。若日後把 api 直接暴露到公網，必須先拿掉 `WEBSITE_TRUSTED_CLIENT_IP_HEADER`，否則這個 header 可被偽造。
-- 共用內容（首頁、頁尾、網站設定、共用素材）預設只有總管理者能改；總管理者可以對分校管理者或內容編輯授予「全站共用內容」（`users.capabilities` 的 `content.shared`）。內容編輯有授權也只能送審；有授權的分校管理者可以發布與審核共用內容。個資匯出仍是依角色，不是逐人授權。
-- 分校停用只停止公開預約（官網顯示暫停、送單回 `BOOKING_UNAVAILABLE`）與該校內容發布；官網首頁五校區塊仍會列出這一校。
+- 共用內容（首頁、頁尾、網站設定、共用素材）預設只有總管理者能改；總管理者可以對分校管理者或內容編輯授予「全站共用內容」（`content.shared`）。內容編輯有授權也只能送審；有授權的分校管理者可以發布與審核共用內容。**個資匯出已改為逐人授權**（見上「權限」一節），不再是依角色自動給。
+- 分校停用現在是**官網整校下架**（2026-09-25 起）：分校頁與預約頁回 404、首頁五校區塊／頁尾／選單／sitemap 不列、公開時段查詢回空清單、只適用該校的全站消息與共用常見問題不輸出；重新啟用後恢復，草稿預覽照常可看。
 - 重設密碼不寄信：總管理者設新密碼後自行告知對方。
+- LINE 登入的成功／失敗還沒寫稽核（裁定只要求 Google）；帳密登入本來就沒有登入稽核。
+- 核准／退回家長改期申請、產生家長管理連結目前沒有稽核紀錄之外的通知；家長不會收到改期核准／退回、園方改期的通知（沒有對家長的通知管道）。
+- 背景轉檔佇列未做：上傳仍在同一個請求內從 processing 變成 ready，大檔上傳期間會佔用一個請求連線。

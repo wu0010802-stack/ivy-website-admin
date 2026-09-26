@@ -45,7 +45,8 @@
 
 ## 字型子集
 
-- 標題字型 LINE Seed TW 只有子集（`assets/fonts/lineseed-bd.woff` 全站用字、`lineseed-eb.woff` h1 用字），**原始 OTF 不在本機無法補字**。寫新的 h1／h2／h3 文案前先用 fontTools 算 cmap 聯集查缺字，缺字會退回 PingFang 很突兀。
+- **只有根目錄凍結原型**（`assets/fonts/lineseed-bd.woff` 全站用字、`lineseed-eb.woff` h1 用字）還是子集（737 字，以 `854e410` 為準），且原型已凍結不再修改，這個子集也不會再補字。
+- **`web/` 已改用完整 LINE Seed TW**（Bold／ExtraBold 各 13,915 字，2026-09-25 起）：官方 zip 取得後由 `scripts/subset-critical-fonts.py` 切成 100 片 unicode-range，只預載首屏用到的 Bold critical，其餘依需要在瀏覽器端載入；細節與重切指令見 `web/public/assets/fonts/README.md`。後台缺字提示（`useTitleFontCoverage` 讀 `chars-bd.txt`／`chars-eb.txt`）因此只剩罕見字（Ext-B 區）與 emoji 會被提示，一般中文字不會再缺。寫新的 h1／h2／h3 文案不必再擔心子集缺字；只有明體（`chars-serif.txt`，五校名等）仍是子集，擴充明體用字才需要走 fontTools。
 - 頁首品牌字分三個 woff：`noto-sans-tc-600-brand.woff`（中文品牌名）、`source-sans-3-400-brand.woff`（英文）、`noto-sans-tc-600-anni.woff`（只有「週年」，用 `unicode-range` 分流）。要補字走 Google Fonts 可變字型 → instancer 定 wght → pyftsubset，**另切新檔、不動既有 brand 子集**。指令在 `assets/fonts/README.md`。
 - `halt`／`palt` 對子集無效，標點收緊只能用負邊距。
 
@@ -90,7 +91,7 @@
 - 排程發布、逾期占位、通知 outbox、清限流計數由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
 - **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相 TRUNCATE。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
 - 根目錄 vanilla 原型已在 `63a0c05` 凍結（階段 A 閘門，使用者同意）；設計迭代一律在 `web/`，不回寫根目錄。`preview.html` 保留為原型離線快照。
-- 標題與品牌字型是子集（見上節），CMS 開放編輯標題前必須先處理，規則在規格 3.1.1。
+- 標題字型：`web/` 已改用完整 LINE Seed TW（見上「字型子集」），CMS 開放編輯標題已不受子集缺字限制；只有根目錄凍結原型與明體（`chars-serif.txt`）仍是子集。品牌字型（頁首品牌名／英文／「週年」）仍各自是獨立子集，補字規則見 `web/public/assets/fonts/README.md`。
 
 ## 委派與回報
 
