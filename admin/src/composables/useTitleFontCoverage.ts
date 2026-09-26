@@ -1,13 +1,14 @@
 import { reactive } from 'vue'
 import { WEBSITE_ASSET_BASE } from '../config'
 
-// 官網標題字都只有子集（規格 3.1.1）：標題欄位用到子集沒有的字，官網那幾個字會
-// 退回系統字，整行看起來不一致。每個子集的字表都是官網公開的
-// /assets/fonts/chars-*.txt（重切子集時跟著更新），後台讀它提示缺字。
+// 官網標題字型不是每個字都有（規格 3.1.1）：標題欄位用到字型沒有的字，官網那幾個字會
+// 退回系統字，整行看起來不一致。每種字型的字表都是官網公開的
+// /assets/fonts/chars-*.txt（重切字型時跟著更新），後台讀它提示缺字。
 //
-// - bd：LINE Seed TW Bold，一般 h2／h3 標題（關於標題、消息與活動標題、拍立得標題、熱點名稱…）
-// - eb：LINE Seed TW ExtraBold，首頁 h1
-// - serif：Noto Serif TC 明體，校名與首頁五校區塊標題（三個明體子集的聯集）
+// - bd：LINE Seed TW Bold，一般 h2／h3 標題（關於標題、消息與活動標題、拍立得標題、熱點名稱…）。
+//   2026-09-25 起是官方完整字型（scripts/subset-critical-fonts.py 切片），只缺罕見字與 emoji。
+// - eb：LINE Seed TW ExtraBold，首頁 h1；完整字型，字表與 bd 相同
+// - serif：Noto Serif TC 明體子集，校名與首頁五校區塊標題（三個明體子集的聯集）
 export type TitleFontSubset = 'bd' | 'eb' | 'serif'
 
 export const TITLE_FONT_FILES: Record<TitleFontSubset, string> = {

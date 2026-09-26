@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { TITLE_FONT_NAMES, useTitleFontCoverage, type TitleFontSubset } from '../composables/useTitleFontCoverage'
 
-// 標題欄位下方的缺字提示（規格 3.1.1）：官網這個位置用的子集字型沒有的字會以
+// 標題欄位下方的缺字提示（規格 3.1.1）：官網這個位置用的字型沒有的字會以
 // 系統字顯示。一個欄位可能同時出現在兩種字型（例如校名：分校頁大標是明體、
 // 聯絡區小標是標題字型），逐個字型列出。只提醒，不擋存檔。
 const props = withDefaults(defineProps<{ value: string | null | undefined; fonts?: TitleFontSubset[] }>(), {

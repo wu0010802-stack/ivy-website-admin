@@ -245,6 +245,20 @@ describe('標題缺字提示', () => {
     expect(missing.text()).toBe('')
   })
 
+  it('讀官網實際字表：LINE Seed 兩個字重是完整字型，只提示字型裡沒有的字；明體仍是子集', async () => {
+    const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
+    mockCharsets(Object.fromEntries(Object.entries(TITLE_FONT_FILES).map(([font, file]) => [font, readFileSync(resolve(fontsDir, file), 'utf8')])))
+    // 「訊」「菜」是舊子集沒有的字；𠮷 是 Ext-B 字，完整字型也沒有
+    const wrapper = mount(GlyphHint, { props: { value: '菜訊𠮷', fonts: ['serif', 'bd', 'eb'] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual([
+      '校名明體字型沒有「菜𠮷」',
+      '官網標題字型沒有「𠮷」',
+      '首頁大標字型沒有「𠮷」',
+    ])
+  })
+
   it('首屏小標在官網用系統字，不提示缺字（避免誤報）', async () => {
     mockCharsets({ bd: '高雄', eb: '高雄', serif: '高雄' })
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_hero', { eyebrow: '高雄五校・1997 創校', copy_lines: ['一', '二'] }) as never)
