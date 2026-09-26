@@ -316,8 +316,9 @@ onBeforeUnmount(() => {
 .film-dot {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 44px;
+  /* 區塊有縮放進場，實測 36×44 只剩 33×40；放大到縮放後仍有 44px。 */
+  width: 48px;
+  height: 48px;
   padding: 0;
   border: 0;
   background: none;

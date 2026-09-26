@@ -77,7 +77,8 @@ defineProps<{ campus: Campus }>()
           <h2 class="section-title">我們在這裡，等你來。</h2>
           <a class="phone-link" :href="`tel:${campus.phone}`">{{ campus.phone }}</a>
           <p>{{ campus.address }}</p>
-          <div>
+          <!-- 手機隱藏：緊接著的預約橫幅已有同一顆按鈕（styles.css 手機去重）。 -->
+          <div class="contact-book">
             <BookingCta :campus-key="campus.key" :label="`預約${campus.name}`" button-class="button primary" />
           </div>
         </div>

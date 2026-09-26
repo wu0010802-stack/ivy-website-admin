@@ -245,16 +245,18 @@
   .visit-aside-info {display:flex;flex-wrap:wrap;align-items:center;gap:0 18px}
   .visit-aside-info p {flex-basis:100%;min-height:0;font-size:var(--fs-xs)}
   .visit-ghost {font-size:30vw;opacity:.4}
-  .visit-page[data-step='1'] .visit-welcome {padding:56px 0 40px}
+  /* 手機第一屏要看得到選校（2026-09-27）：迎賓區收短、照片拿掉，選校卡本身就是照片。 */
+  .visit-page[data-step='1'] .visit-welcome {padding:28px 0 4px}
+  .visit-welcome-photo {display:none}
   .visit-page[data-step='1'] .visit-welcome h1 {font-size:var(--fs-4xl)}
   .visit-lead {margin-top:16px;font-size:var(--fs-md)}
   .visit-lead br {display:none}
   .visit-welcome-inner {row-gap:28px}
   .visit-page[data-step='1'] .visit-content {padding-bottom:56px}
-  .visit-page[data-step='1'] .visit-stage {padding-top:36px}
+  .visit-page[data-step='1'] .visit-stage {padding-top:24px}
   .visit-campus-list {flex-direction:column;gap:12px;margin-top:22px}
   .visit-campus-choice {flex:none}
-  .visit-campus-card {aspect-ratio:auto;height:112px;border-radius:18px}
+  .visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}
   .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:72%;padding:0 18px;background:linear-gradient(to right,rgb(var(--ink) / .8),rgb(var(--ink) / 0))}
   .visit-campus-check {top:50%;translate:0 -50%}
   .visit-optional {margin-block:22px}

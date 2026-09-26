@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import type { EntranceCurtainRenderer } from '~/utils/entranceCurtain'
-import { entranceTimeline, ENTRANCE_DURATION } from '~/utils/entrance-timeline'
+import { COMPACT_DURATION, COMPACT_ENTRANCE_MEDIA, compactEntranceElapsed, entranceTimeline, ENTRANCE_DURATION } from '~/utils/entrance-timeline'
 
 const active = ref(false)
 const ready = ref(false)
@@ -63,7 +63,10 @@ onMounted(async () => {
   motionQuery.addEventListener('change', onPreferenceChange)
   colorsQuery.addEventListener('change', onPreferenceChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
-  watchdog = setTimeout(() => finish(), Math.max(0, ENTRANCE_DURATION + 3600 - elapsed))
+  // 手機走短版：跳過倒數，整段 3.8 秒（entrance-timeline.ts）。
+  const compact = matchMedia(COMPACT_ENTRANCE_MEDIA).matches
+  const duration = compact ? COMPACT_DURATION : ENTRANCE_DURATION
+  watchdog = setTimeout(() => finish(), Math.max(0, duration + 3600 - elapsed))
   loadTimeout = setTimeout(() => finish(), Math.max(0, 2800 - elapsed))
   active.value = true
   await nextTick()
@@ -79,16 +82,18 @@ onMounted(async () => {
     await engine.ready
     if (finished || disposed) return
     clearTimeout(loadTimeout)
-    const remaining = ENTRANCE_DURATION + 3400 - (Date.now() - Number(document.documentElement.dataset.ivyEntranceStarted))
+    const remaining = duration + 3400 - (Date.now() - Number(document.documentElement.dataset.ivyEntranceStarted))
     // Never speed up or truncate the three numbers to recover loading time.
-    if (remaining < ENTRANCE_DURATION) { finish(); return }
+    if (remaining < duration) { finish(); return }
     ready.value = true
     document.documentElement.dataset.ivyEntrance = 'playing'
     const started = performance.now()
     const tick = (now: number) => {
       if (finished || disposed) return
-      progress.value = Math.min(1, (now - started) / ENTRANCE_DURATION)
-      const state = entranceTimeline(now - started)
+      const real = now - started
+      const elapsedOnTimeline = compact ? compactEntranceElapsed(real) : real
+      progress.value = real >= duration ? 1 : Math.min(1, elapsedOnTimeline / ENTRANCE_DURATION)
+      const state = entranceTimeline(elapsedOnTimeline)
       phase.value = state.phase
       countdown.value = state.countdown
       opening.value = state.opening
@@ -149,5 +154,5 @@ onUnmounted(() => {
 .entrance-skip.is-gone { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 240ms ease-out, visibility 0s linear 240ms; }
 .entrance-skip:hover { border-color: var(--entrance-gold); color: var(--entrance-focus); }
 .entrance-skip:focus-visible { outline: 2px solid var(--entrance-focus); outline-offset: 4px; }
-@media (max-width: 640px) { .entrance-skip { right: 16px; top: max(16px, env(safe-area-inset-top)); font-size: 12px; } }
+@media (max-width: 640px) { .entrance-skip { right: 16px; top: max(16px, env(safe-area-inset-top)); font-size: 13px; } }
 </style>

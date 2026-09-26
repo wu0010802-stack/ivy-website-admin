@@ -14,6 +14,7 @@ const trackEl = ref<HTMLElement | null>(null)
 const sectionEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
 const introEl = ref<HTMLElement | null>(null)
+const filmUiEl = ref<HTMLElement | null>(null)
 const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
 // 讀者停在哪張相片，背景就換成那個時段的光（還沒讀到第一張時不加光）。
@@ -62,6 +63,10 @@ function paintFade() {
   })
   const fade = (1 - progress * (1 - QUIET)).toFixed(3)
   if (intro.style.getPropertyValue('--word-fade') !== fade) intro.style.setProperty('--word-fade', fade)
+  // 拍立得蓋到大標以後，圖說與暫停鍵會壓在卡片文字上；手機靠這個狀態讓圖說退場、暫停鍵收成圓鈕。
+  const covered = progress >= 1 ? '1' : '0'
+  const ui = filmUiEl.value
+  if (ui && ui.dataset.covered !== covered) ui.dataset.covered = covered
   activeIndex.value = active
 }
 
@@ -212,7 +217,7 @@ onUnmounted(() => {
           <span class="day-film-light"><span class="is-morning" /><span class="is-noon" /><span class="is-amber" /></span>
           <span class="day-film-shade" />
         </div>
-        <div class="day-film-ui">
+        <div ref="filmUiEl" class="day-film-ui">
           <p class="day-film-caption">
             <span>{{ day.filmCaption.zh }}</span>
             <span lang="en">{{ day.filmCaption.en }}</span>
