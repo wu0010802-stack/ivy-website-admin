@@ -3,9 +3,10 @@
 /* 字型檔名沒有內容雜湊、但 /assets/fonts/** 快取 30 天（nuxt.config.ts routeRules）：URL 帶 ?v=<sha256 前 8 碼>，
    重切子集（補字）後要同步更新這裡與 nuxt.config.ts 的 preload href（兩邊必須完全相同，否則預載會多下載一份）。
    算法：shasum -a 256 web/public/assets/fonts/<檔名> | cut -c1-8
-   LINE Seed TW（700 Bold、800 ExtraBold）不在這裡宣告：完整字型由 scripts/subset-critical-fonts.py 切成
-   unicode-range 分片（檔名帶內容雜湊），首屏 critical 與官網既有用字寫在 font-subsets.css，其餘寫在
-   /assets/fonts/subsets/lineseed-extended-*.css。這裡若再宣告整包，瀏覽器會重複下載（2026-09-22 線上實測）。 */
+   LINE Seed TW 700（Bold）不在這裡宣告：它由 scripts/subset-critical-fonts.py 產生的 font-subsets.css
+   以 critical／remaining 兩段 unicode-range 宣告（檔名帶內容雜湊）。這裡若再宣告整包 lineseed-bd，
+   瀏覽器會把 154 KB 整包和 150 KB remaining 都抓下來（2026-09-22 線上實測），兩者只能擇一。 */
+@font-face{font-family:'LINE Seed TW';font-weight:800;font-display:swap;src:url(/assets/fonts/lineseed-eb.woff2?v=50d2dfc8) format('woff2'),url(/assets/fonts/lineseed-eb.woff?v=2c41f23b) format('woff')}
 /* 頁首品牌字子集（原 brand-fonts.css 的 data URI 版）；來源與授權見 /assets/fonts/README.md */
 @font-face{font-family:'Noto Sans TC';font-style:normal;font-weight:600;font-display:swap;src:url(/assets/fonts/noto-sans-tc-600-brand.woff?v=d220f83c) format('woff')}
 @font-face{font-family:'Noto Sans TC';font-style:normal;font-weight:600;font-display:swap;src:url(/assets/fonts/noto-sans-tc-600-anni.woff?v=aa87059e) format('woff');unicode-range:U+5E74,U+9031}
@@ -37,16 +38,6 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film-video{opacity:0;transition:opacity .8s}
 .day-film-video.is-ready{opacity:1}
 .day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
-/* 時段光：三層色各自只動 opacity（合成層），由 DayExperience 的 data-light 決定哪層亮、亮多少。 */
-.day-film-light{position:absolute;inset:0;mix-blend-mode:soft-light;pointer-events:none}
-.day-film-light>span{position:absolute;inset:0;opacity:0;transition:opacity 1.6s ease}
-.day-film-light>.is-morning{background:var(--ivy-day-light-morning)}
-.day-film-light>.is-noon{background:var(--ivy-day-light-noon)}
-.day-film-light>.is-amber{background:var(--ivy-day-light-amber)}
-.day-film[data-light=morning] .is-morning{opacity:.55}
-.day-film[data-light=noon] .is-noon{opacity:.5}
-.day-film[data-light=afternoon] .is-amber{opacity:.45}
-.day-film[data-light=dusk] .is-amber{opacity:.75}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
 .day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark) / .86)}
 .day-film-caption span[lang]{font-size:.5625rem;letter-spacing:.14em}
@@ -65,9 +56,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print.tint-mint{--print-tint:var(--mint)}
 .day-print.tint-peach{--print-tint:var(--ivy-print-tint)}
 .day-print.tint-cream{--print-tint:var(--cream)}
-/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。
-   --sway 捲動中每幀由 DayMomentCard 直接寫在 .print-card 上；註冊成不繼承，只重算這一個元素，不連整張卡片的子樹一起重算。 */
-@property --sway{syntax:'<angle>';inherits:false;initial-value:0deg}
+/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
 .print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
 .day-print:nth-child(odd) .print-card{grid-column:1;justify-self:start;margin-left:6%}
 .day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}
@@ -116,7 +105,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-corner-tip>.print-corner-b{--shade:var(--corner-tip-shade-b);clip-path:polygon(0 -1.5px,0 100%,calc(100% + 1.5px) 100%)}
 .print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(var(--on-dark) / .34) 0,rgb(var(--on-dark) / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
 .print-front{padding:8% 8% 0}
-.print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}.print-figure.is-blank{aspect-ratio:1;background:color-mix(in oklch,var(--print-tint) 45%,var(--line))}
+.print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}
 .print-photo{width:100%;height:auto;aspect-ratio:1;object-position:50% 40%;filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
 .day-print.is-revealed .print-photo{filter:none;opacity:1}
 .print-figure::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,var(--ivy-print-glass-cool),var(--ivy-print-glass-warm) 55%,var(--ivy-print-glass-cool));transition:opacity 3.2s ease .3s}
@@ -172,7 +161,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-figure::after{opacity:0;transition:none}
  .print-stamp{opacity:.85;transition:none}
  .print{transform:rotateY(var(--flip,0deg));transition:none}
- .print-face,.print-face::before,.day-intro>*,.day-film-video,.day-film-light>span{transition:none}
+ .print-face,.print-face::before,.day-intro>*,.day-film-video{transition:none}
  .print::after{transition:none}
 }
 @media(forced-colors:active){
@@ -180,7 +169,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-turn{color:ButtonText}.print-turn:focus-visible,.print-wrap.is-turning .print-turn:focus-visible{outline-color:Highlight}.print-wrap.is-cornering .print-face{clip-path:none}.print-corner{display:none}
  .day-film-shade{background:Canvas}
  .day-intro .eyebrow{color:CanvasText;text-shadow:none}
- .day-film-poster,.day-film-video,.day-film-light{display:none}
+ .day-film-poster,.day-film-video{display:none}
  .print-photo{filter:none;opacity:1}
  .print-figure::after{display:none}
 }
@@ -265,11 +254,3 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 }
 @media(prefers-reduced-motion:reduce){.campus-stage-photo,.campus-stage-info,.campus-stage-actions,.campus-seg,.campus-stage-btn{transition:none}}
 @media(forced-colors:active){.campus-seg[aria-selected=true]::after{background:Highlight}}
-
-/* 選校 → 預約：首頁五校卡的照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。名字只在 html.campus-morph 期間存在。 */
-.campus-morph [data-campus-morph=source],.campus-morph .visit-aside-photo{view-transition-name:campus-photo}
-.campus-morph .visit-aside-photo img{animation:none}
-::view-transition-group(campus-photo){animation-duration:.7s;animation-timing-function:cubic-bezier(.22,1,.36,1)}
-::view-transition-image-pair(campus-photo){overflow:clip;border-radius:24px}
-::view-transition-old(campus-photo),::view-transition-new(campus-photo){height:100%;object-fit:cover;animation-duration:.45s}
-::view-transition-old(root),::view-transition-new(root){animation-duration:.4s}

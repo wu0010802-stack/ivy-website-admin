@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCurl, curlAngle, curlPoint, setCurl } from '../app/utils/cornerCurl'
+import { CURL_LEVELS, CURL_SAMPLES, createCurl, curlAngle, curlPoint, setCurl } from '../app/utils/cornerCurl'
 
 // 右下角沿 45° 對角線掀起：紙 400×500，y 朝上、原點在紙中心
 const W = 400
@@ -66,4 +66,42 @@ describe('角落彎曲剖面', () => {
     curlPoint(p2, curl, 0.4)
     expect(Math.abs(p1.z - p2.z)).toBeGreaterThan(0.1)
   })
+})
+
+// 2026-09-25 前的 setCurl：每個波紋層級都重算一次 curlAngle。現行版本只算一次基準角度再乘上層級倍率，積分表必須逐值相同。
+function referenceTables(hinge: number, tip: number, ripple: number) {
+  const n = CURL_SAMPLES
+  const sub = 4
+  return Array.from({ length: CURL_LEVELS }, (_, k) => {
+    const m = 1 + ripple * ((2 * k) / (CURL_LEVELS - 1) - 1)
+    const table = { x: new Float32Array(n + 1), z: new Float32Array(n + 1), angle: new Float32Array(n + 1) }
+    let x = 0
+    let z = 0
+    for (let j = 1; j <= n; j++) {
+      for (let q = 0; q < sub; q++) {
+        const th = m * curlAngle(hinge, tip, (j - 1 + (q + 0.5) / sub) / n)
+        x += Math.cos(th) / (n * sub)
+        z += Math.sin(th) / (n * sub)
+      }
+      table.x[j] = x
+      table.z[j] = z
+      table.angle[j] = m * curlAngle(hinge, tip, j / n)
+    }
+    return table
+  })
+}
+
+describe('積分表', () => {
+  for (const [hinge, tip, ripple] of [[1, 0, 0], [2.7, -0.4, 0.12], [0.35, 0.8, 0.3]] as const) {
+    it(`hinge ${hinge}、tip ${tip}、ripple ${ripple}：與逐層重算的舊算法逐值相同`, () => {
+      const curl = createCurl()
+      setCurl(curl, { hinge, tip, nx: 1, ny: 0, ox: 0, oy: 0, reach: 100, ripple })
+      const expected = referenceTables(hinge, tip, ripple)
+      curl.tables.forEach((table, k) => {
+        expect(Array.from(table.x)).toEqual(Array.from(expected[k]!.x))
+        expect(Array.from(table.z)).toEqual(Array.from(expected[k]!.z))
+        expect(Array.from(table.angle)).toEqual(Array.from(expected[k]!.angle))
+      })
+    })
+  }
 })

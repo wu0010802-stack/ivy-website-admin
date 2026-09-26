@@ -170,6 +170,21 @@
 未處理：標題有 21 字不在現行子集，等字型分支 `feature/admin-gaps-fonts-20260925` 合併後補齊；未 commit、未部署。
 
 驗證：Node 22 web vitest 31 檔 244 項通過（新增 `tests/environment.spec.ts` 22 項：餐點書月份與頁碼、台北時區換月、選單只剩兩項、SEO／sitemap／llms.txt、15 張圖都有響應式檔）；`nuxt typecheck` 通過。Playwright 對 3777 dev（fixture 模式）：`/environment` 1440／1024／390 無 console 錯誤與 hydration 警告、無破圖、無橫向捲動，餐點書連結 `#p=19`、按鈕「看 9 月菜單」；首頁、入學資訊、義華分校頁選單都只剩兩項，入學資訊頁標目前頁；桌機捲過後頁首收成膠囊；901–1440px 預約鈕都沒被擠出。
+## 2026-09-25 手機捲動順暢度：拿掉每幀整頁樣式重算與 WebGL 紙的通用法線重算
+
+使用者反映手機版滑動不順。對線上站用 Chrome 手機模擬（390×844、3×、CDP 觸控捲動手勢、CPU 4 倍降速）錄 trace、invalidation tracking 與 CPU profile，找到三個每幀成本來源。只改 `web/`，畫面與行為不變：
+
+- 「關於」簾幕擦除時，`useRelayProgress`（`useCurtain.ts`）每幀把四個變數寫在 `<html>`；自訂屬性會繼承，整頁五百多個元素每幀重算樣式。改成只把 `--relay-day` 寫在唯一讀它的「的一天」（`.t-day`）上，值不變就不寫。`--seam-inset`／`--relay`／`--relay-glow` 只給原型的 relay-glint 研究面板用，Nuxt 沒開這個 class，不再寫。
+- 手機 WebGL 拍立得掛上後，捲動起風每幀要重算整張紙兩面的頂點法線，three 的 `computeVertexNormals()` 佔這段 JS 的四分之一以上。新增 `web/app/utils/gridNormals.ts`，用 typed array 跑同一套運算，結果與 three 逐位元相同。`cornerCurl.ts` 的 `setCurl` 基準轉角改成只算一次（原本七個波紋層級各算一遍），積分表逐值相同。
+- 順風微擺 `--sway` 原本寫在 `li.day-print`，整張卡的子樹每幀跟著重算。改寫在唯一讀它的 `.print-card`，並用 `@property` 註冊成不繼承。
+
+驗證（本機 fixture production build，原版 `origin/main` 對修改版，Chrome 手機模擬）：
+- 「關於」接縫來回滑（4× 降速，3 輪）：樣式重算元素 8.5k–11.7k → 21–66，樣式時間 548–1179 → 25–133 ms，慢幀（>20 ms）16–23 → 2–15。
+- 拍立得區 CSS 版（4×，3 輪）：重算元素 15.7k–19.2k → 5.5k–6.0k，幀距 p50 16.8–33 → 16.7 ms，慢幀 74–89 → 27–46。
+- 拍立得區 WebGL 已掛上（2×，2 輪）：慢幀 12、62 → 3、5，p95 33 → 16.8 ms。1× 兩版都是 60 fps，4× 兩版都飽和。CPU profile：法線 1211 → 292 ms，主執行緒閒置 689 → 1465 ms。
+- 等價：Node 22 web vitest 32 檔 233 項通過（新增 `grid-normals.spec.ts` 5 項逐位元比對 three；`corner-curl.spec.ts` 3 項比對舊積分表；`relay-progress.spec.ts` 3 項），`nuxt typecheck` 0 個 `error TS`。法線測試用 float32 捨入突變確認會轉紅。接縫 321 個捲動位置「的一天」opacity 兩版相同（含中間值）。Chrome 與 WebKit 捲動中 `.print-card` rotate 兩版相同，停下後歸位。WebGL 版靜止截圖兩版逐像素相同。CSS 版截圖曾有差異，隔離後確認是照片點陣化時機的雜訊：同一版重跑也會不同，原版注入同一條 `@property` 仍與原版相同。無 page error。
+
+未處理（另案）：觸控裝置停下 200 ms 後掛上 WebGL 紙時，該幀仍有 100–250 ms 的長任務（2× 降速，兩版相同），剛好接著滑會卡一下。iPhone Safari 實機與 GPU 端（3× DPR WebGL 繪製、畫布複製）都還沒量。腳本與結果在 `output/playwright/mobile-scroll-perf-20260925/`，快照在 `versions/before-mobile-scroll-perf-20260925-070912/`。凍結的 vanilla 原型未改。
 
 ## 2026-09-24 後台 LINE 登入（登入後自行綁定）
 

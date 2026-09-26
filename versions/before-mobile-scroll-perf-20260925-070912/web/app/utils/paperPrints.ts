@@ -19,7 +19,6 @@
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
 import { createCurl, curlPoint, setCurl } from './cornerCurl'
-import { computeIndexedNormals } from './gridNormals'
 import { CORNER_REST, REACH_REFERENCE_WIDTH, WIND_REACH, type CornerPose } from './cornerWind'
 
 type Three = typeof ThreeNS
@@ -862,12 +861,8 @@ export async function mountPaper(
         shaped = true
       }
       pf.needsUpdate = pb.needsUpdate = true
-      // 結果與 geoF/geoB.computeVertexNormals() 逐位元相同，只是不經過 three 的 Vector3（gridNormals.ts）
-      const nf = geoF.attributes.normal!
-      const nb = geoB.attributes.normal!
-      computeIndexedNormals(af, geoF.index!.array, nf.array as Float32Array)
-      computeIndexedNormals(ab, geoB.index!.array, nb.array as Float32Array)
-      nf.needsUpdate = nb.needsUpdate = true
+      geoF.computeVertexNormals()
+      geoB.computeVertexNormals()
     }
 
     let tiltX = 0

@@ -65,12 +65,6 @@ export function createCurl(): Curl {
   return { active: false, nx: 1, ny: 0, ox: 0, oy: 0, reach: 1, ripple: 0, rippleK: 0, rippleW: 0, tables }
 }
 
-const SUBSTEPS = 4
-// 各層只差一個倍率 m：基準轉角每次 setCurl 只算一次（原本七層各算一遍），再乘上 m。
-// 用 Float64Array 保留 curlAngle 的完整精度，積分表與逐層重算時逐值相同（tests/corner-curl.spec.ts）。
-const midAngles = new Float64Array(CURL_SAMPLES * SUBSTEPS)
-const edgeAngles = new Float64Array(CURL_SAMPLES + 1)
-
 /** 換一組彎曲參數並重建積分表（每張每幀約 1.8k 次三角函數）。hinge、tip 都接近 0 時標成不作用。 */
 export function setCurl(curl: Curl, params: CurlParams): void {
   const { hinge, tip } = params
@@ -85,11 +79,7 @@ export function setCurl(curl: Curl, params: CurlParams): void {
   curl.rippleW = params.rippleW ?? 0
   if (!curl.active) return
   const n = CURL_SAMPLES
-  const sub = SUBSTEPS
-  for (let j = 1; j <= n; j++) {
-    for (let q = 0; q < sub; q++) midAngles[(j - 1) * sub + q] = curlAngle(hinge, tip, (j - 1 + (q + 0.5) / sub) / n)
-    edgeAngles[j] = curlAngle(hinge, tip, j / n)
-  }
+  const sub = 4
   for (let k = 0; k < CURL_LEVELS; k++) {
     const m = 1 + curl.ripple * ((2 * k) / (CURL_LEVELS - 1) - 1)
     const table = curl.tables[k]!
@@ -97,13 +87,13 @@ export function setCurl(curl: Curl, params: CurlParams): void {
     let z = 0
     for (let j = 1; j <= n; j++) {
       for (let q = 0; q < sub; q++) {
-        const th = m * midAngles[(j - 1) * sub + q]!
+        const th = m * curlAngle(hinge, tip, (j - 1 + (q + 0.5) / sub) / n)
         x += Math.cos(th) / (n * sub)
         z += Math.sin(th) / (n * sub)
       }
       table.x[j] = x
       table.z[j] = z
-      table.angle[j] = m * edgeAngles[j]!
+      table.angle[j] = m * curlAngle(hinge, tip, j / n)
     }
   }
 }

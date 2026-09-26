@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { pickImage } from '~/utils/media-image'
+import { responsiveImage } from '~/utils/responsive-image'
 import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
@@ -22,7 +22,6 @@ const isSnapping = ref(false)
 const webglReady = ref(false)
 const isCornering = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
-const swayEl = ref<HTMLDivElement | null>(null)
 const wrapEl = ref<HTMLDivElement | null>(null)
 const printEl = ref<HTMLDivElement | null>(null)
 const frontCornerEl = ref<HTMLSpanElement | null>(null)
@@ -128,18 +127,10 @@ function renderCorner(now = performance.now()) {
   else writeCssCorner(pose, side)
 }
 
-// --sway 註冊成不繼承（styles.css），要寫在讀它的 .print-card 本身；值沒變就不寫。
-let sway = ''
-function writeSway(value: string) {
-  if (value === sway) return
-  sway = value
-  swayEl.value?.style.setProperty('--sway', value)
-}
-
 function applyWind(wind: Readonly<WindState>, t: number) {
   windCorner = cornerPose(wind, t, seed)
   renderCorner()
-  writeSway(`${wind.sway.toFixed(3)}deg`)
+  cardEl.value?.style.setProperty('--sway', `${wind.sway.toFixed(3)}deg`)
 }
 
 // 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫。
@@ -153,7 +144,7 @@ function listenWind(on: boolean) {
   stopWind = null
   windCorner = CORNER_REST
   renderCorner()
-  writeSway('0.000deg')
+  cardEl.value?.style.setProperty('--sway', '0deg')
 }
 
 // 翻面起手與進場輕掀的時鐘：跑完就收掉
@@ -504,7 +495,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
     :class="[`tint-${moment.tint}`, { 'is-revealed': isRevealed, 'is-active': active }]"
     :id="`day-${moment.key}`"
   >
-    <div ref="swayEl" class="print-card">
+    <div class="print-card">
       <div
         ref="wrapEl"
         class="print-wrap"
@@ -517,14 +508,8 @@ const titleLines = computed(() => props.moment.title.split('\n'))
           <!-- 紙膠帶黏在相紙上，跟著紙一起翻；背面只露出超出紙緣的那一截 -->
           <span class="print-tape" aria-hidden="true" />
           <div class="print-face print-front" :inert="isFlipped">
-            <!-- 後台新增、還沒有照片的卡片：同尺寸的空白相紙（色調跟著卡片），不放破圖。 -->
-            <figure class="print-figure" :class="{ 'is-blank': !moment.photo && !moment.photoMedia }">
-              <img
-                v-if="moment.photo || moment.photoMedia" class="print-photo"
-                v-bind="pickImage(moment.photo, moment.photoMedia, '(max-width: 760px) 100vw, 540px')"
-                :style="moment.photoMedia?.position ? { objectPosition: moment.photoMedia.position } : undefined"
-                :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async"
-              >
+            <figure class="print-figure">
+              <img class="print-photo" v-bind="responsiveImage(moment.photo, '(max-width: 760px) 100vw, 540px')" :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async">
               <time class="print-stamp" :datetime="moment.time">{{ moment.time }}</time>
             </figure>
             <div class="print-foot">
