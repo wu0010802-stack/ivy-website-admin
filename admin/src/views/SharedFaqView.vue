@@ -57,7 +57,7 @@ onMounted(editor.load)
           </span>
         </div>
         <el-form-item>
-          <el-switch v-model="qa.enabled" active-text="在官網顯示" inactive-text="停用" inline-prompt style="--el-switch-on-color: var(--status-live)" />
+          <el-switch v-model="qa.enabled" active-text="在官網顯示" inactive-text="停用" inline-prompt :aria-label="`第 ${index + 1} 題在官網顯示`" style="--el-switch-on-color: var(--status-live)" />
         </el-form-item>
         <ScopeField :entry="qa" />
         <el-form-item label="問題">

@@ -11,6 +11,8 @@
   --admin-accent-strong: oklch(0.545983 0.129942 242.3933); /* #0277b5 */
   --admin-accent-hover: oklch(0.499982 0.119290 242.7490); /* #0369a1 */
   --status-live: oklch(0.56 0.12 155);
+  /* 淺綠底上的「已上線／已完成」字色（--status-live 在淺底只有 4.4:1）。 */
+  --status-live-ink: oklch(0.5 0.12 150);
   --brand-gold: oklch(0.88 0.14 92);
   --brand-gold-ink: oklch(0.45 0.09 80);
 
@@ -63,7 +65,18 @@
   --el-color-warning-light-7: color-mix(in oklch, var(--el-color-warning), white 70%);
   --el-color-warning-light-8: color-mix(in oklch, var(--el-color-warning), white 82%);
   --el-color-warning-light-9: color-mix(in oklch, var(--el-color-warning), white 91%);
-  --el-color-warning-dark-2: color-mix(in oklch, var(--el-color-warning), black 15%);
+  /* 警示字（缺字提示、期限提醒）直接用 dark-2：混 15% 黑只有 4.1:1，改 25%（白底 5.5:1）。 */
+  --el-color-warning-dark-2: color-mix(in oklch, var(--el-color-warning), black 25%);
+
+  /* 刪除、停用、錯誤字用的紅：Element Plus 預設 #f56c6c 在白底只有 2.9:1，淺紅底的
+     plain 按鈕更低（axe 在各校預約方式頁抓到 2.6:1），改成白底約 5.8:1 的深紅。 */
+  --el-color-danger: oklch(0.53 0.19 27);
+  --el-color-danger-light-3: color-mix(in oklch, var(--el-color-danger), white 30%);
+  --el-color-danger-light-5: color-mix(in oklch, var(--el-color-danger), white 50%);
+  --el-color-danger-light-7: color-mix(in oklch, var(--el-color-danger), white 70%);
+  --el-color-danger-light-8: color-mix(in oklch, var(--el-color-danger), white 82%);
+  --el-color-danger-light-9: color-mix(in oklch, var(--el-color-danger), white 93%);
+  --el-color-danger-dark-2: color-mix(in oklch, var(--el-color-danger), black 15%);
 
   --el-text-color-primary: var(--ink);
   --el-text-color-regular: var(--ink-2);
@@ -343,6 +356,19 @@ a:hover {
   line-height: 1.45;
 }
 
+/* 夾在說明文字裡的連結只靠顏色分辨不夠（WCAG 1.4.1），一律加底線。 */
+.hint a,
+.field-help a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 輸入框字數計數：Element Plus 用 info 灰（#909399，白底 3:1），改用說明文字色。 */
+.el-input__count .el-input__count-inner,
+.el-textarea .el-input__count {
+  color: var(--ink-3);
+}
+
 /* 不經草稿、儲存就上線的設定頁（各校預約方式、全站設定）用這一組：
    把「沒有草稿階段」講在儲存鈕旁邊，也就是真正要做決定的地方。綠點沿用
    ContentEditor 狀態列「官網現在就是這一版」的意思。 */
@@ -425,6 +451,13 @@ a:hover {
 .el-tag--large {
   font-size: 13px;
 }
+
+/* 淺底（light／plain）狀態膠囊的字：Element Plus 直接拿狀態色當字色，淺底上只有
+   2–4:1（axe color-contrast），改用同色系深一階。深色（dark）效果維持白字。 */
+.el-tag--light.el-tag--primary, .el-tag--plain.el-tag--primary { --el-tag-text-color: var(--admin-accent-hover); }
+.el-tag--light.el-tag--success, .el-tag--plain.el-tag--success { --el-tag-text-color: var(--status-live-ink); }
+.el-tag--light.el-tag--warning, .el-tag--plain.el-tag--warning { --el-tag-text-color: var(--el-color-warning-dark-2); }
+.el-tag--light.el-tag--info, .el-tag--plain.el-tag--info { --el-tag-text-color: var(--ink-2); }
 
 /* 描述列表 */
 .el-descriptions {

@@ -349,7 +349,8 @@ onMounted(() => {
 .status-tabs::-webkit-scrollbar { display: none; }
 .status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
 .status-tab:hover { background: var(--surface-2); color: var(--ink); }
-.status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-weight: 600; }
+/* 淺藍底上的字用深一階的操作色：--el-color-primary 在 light-9 底只有 4.4:1。 */
+.status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; }
 .status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-gold); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 .requests-filters__more { display: contents; }
 .more-filters { display: none; }

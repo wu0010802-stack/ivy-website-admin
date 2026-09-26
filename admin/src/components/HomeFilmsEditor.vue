@@ -54,6 +54,7 @@ function move(index: number, delta: number) {
       :model-value="Array.isArray(films)"
       :disabled="readOnly"
       active-text="自訂影片清單（關閉時官網沿用內建的五支活動影片：一段校園影片＋四支義華校 YouTube）"
+      aria-label="自訂影片清單"
       @update:model-value="toggle(Boolean($event))"
     />
     <template v-if="films">

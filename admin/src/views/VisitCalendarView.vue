@@ -77,6 +77,9 @@ const gridDays = computed(() => {
   const start = addDays(first, -weekday)
   return Array.from({ length: 42 }, (_, i) => addDays(start, i))
 })
+// role=grid 的格子要包在 role=row 裡（axe aria-required-children／parent）；列用
+// display: contents，版面仍是同一個 7 欄 grid。
+const gridWeeks = computed(() => Array.from({ length: 6 }, (_, i) => gridDays.value.slice(i * 7, i * 7 + 7)))
 
 const slots = ref<CalendarSlot[]>([])
 const loading = ref(false)
@@ -174,31 +177,35 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
 
     <div class="panel calendar" :aria-busy="loading" v-loading="loading">
       <div class="calendar__grid" role="grid" :aria-label="monthLabel">
-        <div v-for="w in WEEKDAYS" :key="w" class="calendar__weekday" role="columnheader">{{ w }}</div>
-        <button
-          v-for="day in gridDays"
-          :key="day"
-          type="button"
-          role="gridcell"
-          class="calendar__day"
-          :class="{
-            'is-other': day.slice(0, 7) !== month,
-            'is-today': day === today,
-            'is-selected': day === selectedDay,
-            'has-slots': slotsByDay.has(day),
-          }"
-          :aria-selected="day === selectedDay"
-          :aria-label="`${formatDate(day)}，${chipsOf(day).length} 位家長`"
-          @click="selectDay(day)"
-        >
-          <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
-          <span v-for="chip in chipsOf(day).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-status="chip.status">
-            <span class="num">{{ chip.time }}</span> {{ chip.name }}
-          </span>
-          <span v-if="chipsOf(day).length > MAX_CHIPS" class="calendar__more">還有 {{ chipsOf(day).length - MAX_CHIPS }} 位</span>
-          <span v-if="slotsByDay.has(day) && openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 位</span>
-          <span v-if="chipsOf(day).length" class="calendar__dot" aria-hidden="true">{{ chipsOf(day).length }}</span>
-        </button>
+        <div class="calendar__row" role="row">
+          <div v-for="w in WEEKDAYS" :key="w" class="calendar__weekday" role="columnheader">{{ w }}</div>
+        </div>
+        <div v-for="(week, index) in gridWeeks" :key="index" class="calendar__row" role="row">
+          <button
+            v-for="day in week"
+            :key="day"
+            type="button"
+            role="gridcell"
+            class="calendar__day"
+            :class="{
+              'is-other': day.slice(0, 7) !== month,
+              'is-today': day === today,
+              'is-selected': day === selectedDay,
+              'has-slots': slotsByDay.has(day),
+            }"
+            :aria-selected="day === selectedDay"
+            :aria-label="`${formatDate(day)}，${chipsOf(day).length} 位家長`"
+            @click="selectDay(day)"
+          >
+            <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
+            <span v-for="chip in chipsOf(day).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-status="chip.status">
+              <span class="num">{{ chip.time }}</span> {{ chip.name }}
+            </span>
+            <span v-if="chipsOf(day).length > MAX_CHIPS" class="calendar__more">還有 {{ chipsOf(day).length - MAX_CHIPS }} 位</span>
+            <span v-if="slotsByDay.has(day) && openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 位</span>
+            <span v-if="chipsOf(day).length" class="calendar__dot" aria-hidden="true">{{ chipsOf(day).length }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -236,6 +243,7 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
 .calendar__month { min-width: 8em; text-align: center; font-size: 16px; }
 .calendar { overflow: hidden; }
 .calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar__row { display: contents; }
 .calendar__weekday {
   padding: 8px;
   font-size: 12px;

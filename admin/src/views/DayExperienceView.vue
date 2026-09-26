@@ -133,6 +133,7 @@ onMounted(editor.load)
         <el-switch
           :model-value="editor.form.value.film_caption_zh != null"
           active-text="自訂（關閉時沿用官網內建：義華校 · 遊藝表演）"
+          aria-label="自訂影片左下角的說明"
           @update:model-value="toggleCaption(Boolean($event))"
         />
       </el-form-item>

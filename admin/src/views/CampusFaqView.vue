@@ -121,7 +121,7 @@ function addItem() {
         </div>
         <div class="field-row">
           <el-form-item label="是否顯示">
-            <el-switch v-model="editor.form.value.include_shared" active-text="顯示共用題目" inactive-text="不顯示" />
+            <el-switch v-model="editor.form.value.include_shared" active-text="顯示共用題目" inactive-text="不顯示" aria-label="顯示共用題目" />
           </el-form-item>
           <el-form-item label="放在哪裡">
             <el-radio-group v-model="editor.form.value.shared_position" :disabled="!editor.form.value.include_shared">
@@ -168,7 +168,7 @@ function addItem() {
           </span>
         </div>
         <el-form-item>
-          <el-switch v-model="qa.enabled" active-text="在官網顯示" inactive-text="停用" />
+          <el-switch v-model="qa.enabled" active-text="在官網顯示" inactive-text="停用" :aria-label="`第 ${index + 1} 題在官網顯示`" />
         </el-form-item>
         <el-form-item label="問題" :error="blankError(qa, 'q')">
           <el-input v-model="qa.q" placeholder="例如：幾歲可以入園？" />

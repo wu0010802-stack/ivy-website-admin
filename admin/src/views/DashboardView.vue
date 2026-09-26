@@ -208,10 +208,10 @@ onMounted(load)
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
       <dl class="dash__summary" aria-label="營運摘要">
-        <div :class="{ 'is-attention': newRequests > 0 }"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></div>
-        <div :class="{ 'is-attention': awaiting > 0 }"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ summary.next_hold_expires_at ? `最早一筆${formatHoldRemaining(summary.next_hold_expires_at)}` : '查看待確認案件' }}</router-link></div>
-        <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><router-link to="/visit-requests?status=confirmed">查看已確認案件</router-link></div>
-        <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><router-link to="/visit-requests?due=1">查看到期案件</router-link></div>
+        <div :class="{ 'is-attention': newRequests > 0 }"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></dd></div>
+        <div :class="{ 'is-attention': awaiting > 0 }"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ summary.next_hold_expires_at ? `最早一筆${formatHoldRemaining(summary.next_hold_expires_at)}` : '查看待確認案件' }}</router-link></dd></div>
+        <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=confirmed">查看已確認案件</router-link></dd></div>
+        <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?due=1">查看到期案件</router-link></dd></div>
       </dl>
       <section v-if="summary.today_visit_list?.length" class="dash__today" aria-labelledby="today-title">
         <div class="section__title"><h2 id="today-title">今天的參觀</h2><span class="hint">點一筆查看聯絡紀錄與電話</span></div>
@@ -362,6 +362,8 @@ onMounted(load)
 .dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: 28px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .dash__summary dd span { font-size: 13px; font-weight: 400; color: var(--ink-3); }
 .dash__summary > .is-attention dd { color: var(--brand-gold-ink); }
+/* 連結也包在 dd 裡：<dl> 的每組只能有 dt、dd（axe definition-list）。 */
+.dash__summary dd.dash__more { display: block; margin: 0; font-size: 13px; font-weight: 400; line-height: inherit; }
 .dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
 .dash__today { margin-bottom: 28px; }
 .today { list-style: none; margin: 0; padding: 0; }

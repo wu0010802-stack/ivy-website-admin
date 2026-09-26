@@ -251,7 +251,7 @@ async function save() {
             <el-input v-model="form.external_url" placeholder="https://…" />
           </el-form-item>
           <el-form-item v-if="form.mode === 'slots'" label="場次確認方式">
-            <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" />
+            <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" aria-label="送出後自動確認預約" />
             <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link to="/slots">管理此校日期與場次</router-link></p>
           </el-form-item>
           <el-form-item label="家長線上取消／改期期限">
@@ -338,7 +338,8 @@ async function save() {
   margin-left: 8px;
   font-size: 12px;
   font-weight: 400;
-  color: var(--el-color-primary);
+  /* 選中的淺藍底上用深一階的操作色，--el-color-primary 只有 4.4:1。 */
+  color: var(--admin-accent-hover);
 }
 
 .modes__blocked {
