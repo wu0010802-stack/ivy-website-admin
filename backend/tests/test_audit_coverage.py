@@ -14,6 +14,7 @@ import types
 
 import pytest
 
+from app.config import Settings
 from app.main import create_app
 
 _WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -72,7 +73,15 @@ def _writes_audit(func, depth: int = 0, seen: set | None = None) -> bool:
 
 
 def _write_routes() -> list[tuple[str, str, object]]:
-    app = create_app()
+    # 只列路由，不連 DB；傳入測試設定，不依賴環境變數（CI 的 pytest 步驟沒有 WEBSITE_*）。
+    app = create_app(
+        Settings(
+            environment="test",
+            database_url="postgresql+asyncpg://localhost/ivy_website_dev",
+            test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
+            session_secret="test-only-secret-please-rotate",
+        )
+    )
     routes = []
     for route in app.routes:
         methods = (getattr(route, "methods", None) or set()) & _WRITE_METHODS
