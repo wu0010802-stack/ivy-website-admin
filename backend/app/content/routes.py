@@ -431,6 +431,10 @@ async def restore_content_revision(
             },
         ) from exc
 
+    if payload.publish:
+        # 取鎖順序要跟一般發布一樣先站台、後內容項：存草稿會鎖內容項，一般
+        # 發布拿著站台鎖寫 site_release_entries 時要等這把鎖，反過來就死結。
+        await service.lock_site_state(db)
     revision = await _save_draft(
         db, config, kind, item, dict(source.payload), payload.expected_version, current_user
     )

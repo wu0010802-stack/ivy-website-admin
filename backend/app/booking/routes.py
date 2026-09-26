@@ -1000,7 +1000,7 @@ async def create_contact_note(
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
     try:
         await workflow_service.lock_editable(
-            db, visit_request, payload.expected_version if payload.follow_up_at is not None else None
+            db, visit_request, payload.expected_version if payload.changes_follow_up else None
         )
     except workflow_service.VersionConflict as exc:
         await db.rollback()
@@ -1010,6 +1010,7 @@ async def create_contact_note(
         visit_request,
         note=payload.note,
         follow_up_at=payload.follow_up_at,
+        clear_follow_up=payload.clears_follow_up,
         created_by=current_user.id,
     )
     # 聯絡內容是自由文字、常含家長個資，稽核只記「誰在何時記了一筆」與
@@ -1021,7 +1022,11 @@ async def create_contact_note(
         target_type="visit_request",
         target_id=str(visit_request.id),
         campus_key=visit_request.campus_key,
-        metadata={"note_id": str(note.id), "follow_up_set": payload.follow_up_at is not None},
+        metadata={
+            "note_id": str(note.id),
+            "follow_up_set": payload.follow_up_at is not None,
+            **({"follow_up_cleared": True} if payload.clears_follow_up else {}),
+        },
     )
     await db.commit()
     return VisitContactNoteOut.model_validate(note).model_copy(update={"created_by_email": current_user.email})

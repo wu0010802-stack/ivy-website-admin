@@ -20,7 +20,7 @@ const slot = { id: 'slot-1', slot_date: '2099-09-26', start_time: '10:00:00', en
 const base = () => ({
   id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '到期家長', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: '2020-01-01T01:00:00Z',
+  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: '2020-01-01T01:00:00Z', version: 4,
 })
 
 function makePinia() {
@@ -88,7 +88,60 @@ describe('到期待追蹤有來源也有入口', () => {
     await wrapper.find('textarea').setValue('家長說下週再聯絡')
     await wrapper.findAll('button').find(b => b.text() === '新增紀錄')!.trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/contact-notes', { note: '家長說下週再聯絡', follow_up_at: null })
+    // 下次聯絡預先填了案件目前的時間，沒動就只記一筆紀錄、不蓋掉追蹤時間。
+    expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/contact-notes', { note: '家長說下週再聯絡' })
+  })
+
+  it('清空下次聯絡再送出＝不用再追：送 null 並帶版本', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (path.endsWith('/contact-notes')) return [] as never
+      if (path.startsWith('/admin/visit-requests?') || path.startsWith('/admin/slots')) return [] as never
+      return base() as never
+    })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const router = makeRouter()
+    await router.push('/visit-requests/case-a'); await router.isReady()
+    const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
+    wrappers.push(wrapper); await flushPromises()
+    const picker = wrapper.findComponent({ name: 'ElDatePicker' })
+    expect(picker.props('modelValue')).toBe('2020-01-01T09:00:00+08:00')
+    picker.vm.$emit('update:modelValue', null)
+    await wrapper.find('textarea').setValue('家長決定報名別家')
+    await wrapper.findAll('button').find(b => b.text() === '新增紀錄')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/contact-notes', {
+      note: '家長決定報名別家', follow_up_at: null, expected_version: 4,
+    })
+  })
+
+  it('換到下一筆後，上一筆較晚回來的資料不會蓋掉畫面，紀錄寫到畫面上的案件', async () => {
+    let finishA!: (value: unknown) => void
+    let firstA = true
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.endsWith('/contact-notes')) return [] as never
+      if (path.startsWith('/admin/visit-requests?') || path.startsWith('/admin/slots')) return [] as never
+      if (path === '/admin/visit-requests/case-a' && firstA) {
+        firstA = false
+        return new Promise(resolve => { finishA = resolve }) as never
+      }
+      if (path === '/admin/visit-requests/case-b') return { ...base(), id: 'case-b', parent_name: 'B 家長', follow_up_at: null } as never
+      return base() as never
+    })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const router = makeRouter()
+    await router.push('/visit-requests/case-a'); await router.isReady()
+    const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
+    wrappers.push(wrapper); await flushPromises()
+    await router.push('/visit-requests/case-b'); await flushPromises()
+    finishA(base())
+    await flushPromises()
+    expect(wrapper.text()).toContain('B 家長')
+    expect(wrapper.text()).not.toContain('到期家長')
+    await wrapper.find('textarea').setValue('已致電')
+    await wrapper.findAll('button').find(b => b.text() === '新增紀錄')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-b/contact-notes', { note: '已致電' })
   })
 
   it('確認預約後先把「已致電家長」填進紀錄框，並提供下一筆待處理', async () => {

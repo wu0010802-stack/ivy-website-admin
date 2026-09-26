@@ -31,7 +31,8 @@ const rescheduleSlotId = ref('')
 const rescheduleReason = ref('')
 const newNote = ref('')
 // 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
-// 總覽的「到期待追蹤」也才會有來源。
+// 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
+// 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
 const noteInput = ref<{ focus: () => void } | null>(null)
 // 同校還在「待處理」的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
@@ -71,50 +72,77 @@ async function assign(staffId: string | null) {
 }
 const error = ref<string | null>(null)
 
+// 「下一筆待處理」換 id 時元件不重新掛載：換案件就加一，舊案件較晚回來的
+// 回應不能蓋掉畫面（否則畫面是家長 A、送出卻寫到案件 B）。
+let generation = 0
+
+// 日期選擇器用台灣時間的字串（value-format），案件上的是 UTC ISO。
+function toPickerValue(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  return new Date(new Date(iso).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 19) + '+08:00'
+}
+
+function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return !a && !b
+  return new Date(a).getTime() === new Date(b).getTime()
+}
+
 // quiet：動作完成後的重讀不切回骨架畫面，頁面上的狀態（例如剛產生、只顯示
 // 一次的家長連結）才不會因為元件重新掛載而消失。
 async function load(options: { quiet?: boolean } = {}) {
+  const gen = generation
+  const requestId = id.value
   if (!options.quiet) loading.value = true
   error.value = null
   try {
-    detail.value = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${id.value}`)
-    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id.value}/contact-notes`)
-    void loadNextPending(detail.value.campus_key)
+    const loaded = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${requestId}`)
+    const loadedNotes = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${requestId}/contact-notes`)
+    if (gen !== generation) return
+    detail.value = loaded
+    notes.value = loadedNotes
+    if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
+    void loadNextPending(loaded.campus_key)
     // 排入時段（新需求、聯絡中）與改期（已確認）都從同校未來 60 天的時段挑。
-    if (['new', 'contacting', 'confirmed'].includes(detail.value.status)) {
+    let slots: VisitSlotOut[] = []
+    if (['new', 'contacting', 'confirmed'].includes(loaded.status)) {
       const today = new Date().toISOString().slice(0, 10)
       const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      availableSlots.value = await api.get<VisitSlotOut[]>(
-        `/admin/slots?campus_key=${detail.value.campus_key}&date_from=${today}&date_to=${future}`,
+      slots = await api.get<VisitSlotOut[]>(
+        `/admin/slots?campus_key=${loaded.campus_key}&date_from=${today}&date_to=${future}`,
       )
-    } else {
-      availableSlots.value = []
     }
+    if (gen !== generation) return
+    availableSlots.value = slots
   } catch (err) {
+    if (gen !== generation) return
     error.value = err instanceof ApiError && err.status === 404 ? '找不到這筆案件，可能已被移除或不在你的校區範圍。' : '無法讀取案件'
   } finally {
-    loading.value = false
+    if (gen === generation) loading.value = false
   }
 }
 
 // 動作完成後只更新案件本身（含歷程），不切回骨架畫面：家長連結剛產生的
 // 網址還顯示在頁面上，重新掛載就看不到了。
 async function refreshDetail() {
+  const gen = generation
   try {
-    detail.value = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${id.value}`)
+    const loaded = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${id.value}`)
+    if (gen === generation) detail.value = loaded
   } catch {
     /* 下次重新整理再讀 */
   }
 }
 
 async function loadNextPending(campusKey: string) {
+  const gen = generation
   try {
     const params = new URLSearchParams({ status: 'new', campus_key: campusKey, order: 'oldest', page_size: '50' })
     const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
+    if (gen !== generation) return
     const others = Array.isArray(list) ? list.filter((r) => r.id !== id.value) : []
     nextPending.value = others.length ? { id: others[0]!.id, count: others.length } : null
   } catch {
-    nextPending.value = null
+    if (gen === generation) nextPending.value = null
   }
 }
 
@@ -348,22 +376,27 @@ async function markCompleted() {
 }
 
 async function addNote() {
-  if (!newNote.value.trim()) return
+  // 畫面上的案件（detail）才是要寫的那一筆；還在載入下一筆時不送。
+  if (!newNote.value.trim() || !detail.value || detail.value.id !== id.value) return
+  const gen = generation
+  const current = detail.value
+  const nextFollowUp = followUpAt.value || null
+  // 改或清下次聯絡時間會蓋掉案件上的值，要帶版本；沒動就只記一筆紀錄。
+  const followUpChanged = !sameInstant(nextFollowUp, current.follow_up_at)
   busy.value = true
   try {
-    const hadFollowUp = Boolean(followUpAt.value)
-    await api.post(`/admin/visit-requests/${id.value}/contact-notes`, {
+    await api.post(`/admin/visit-requests/${current.id}/contact-notes`, {
       note: newNote.value.trim(),
-      follow_up_at: followUpAt.value || null,
-      // 改下次聯絡時間會蓋掉案件上的值，要帶版本；只記一筆紀錄不用。
-      ...(followUpAt.value ? { expected_version: detail.value?.version } : {}),
+      ...(followUpChanged ? { follow_up_at: nextFollowUp, expected_version: current.version } : {}),
     })
+    if (gen !== generation) return
     newNote.value = ''
-    followUpAt.value = null
-    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${id.value}/contact-notes`)
+    notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${current.id}/contact-notes`)
     // 追蹤時間存在案件上、歷程也多一筆；重讀一次頁首與歷程。
     await refreshDetail()
-    if (hadFollowUp) ElMessage.success('已記下，到時會出現在總覽的「到期待追蹤」')
+    if (gen !== generation) return
+    followUpAt.value = toPickerValue(detail.value?.follow_up_at)
+    if (followUpChanged) ElMessage.success(nextFollowUp ? '已記下，到時會出現在總覽的「到期待追蹤」' : '已清除下次聯絡時間，不會再出現在「到期待追蹤」')
   } catch (err) {
     reportError(err, '新增紀錄失敗')
   } finally {
@@ -401,6 +434,10 @@ onMounted(() => {
 })
 // 「下一筆待處理」是同一個元件換 id，router 不會重新掛載。
 watch(id, () => {
+  generation += 1
+  detail.value = null
+  notes.value = []
+  nextPending.value = null
   newNote.value = ''
   followUpAt.value = null
   selectedSlotId.value = ''
