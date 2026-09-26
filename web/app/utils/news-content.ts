@@ -52,6 +52,34 @@ export function sampleCoverage(list: readonly Pick<NewsArticle, 'sample'>[], sam
   return count === 0 ? 'none' : count === list.length ? 'all' : 'some'
 }
 
+/** 消息列表頁（2026-09-26 開放獨立網址）。 */
+export const NEWS_PATH = '/news'
+
+/**
+ * 單篇消息的網址。各校消息的 id 已加上校區前綴（`yihua:open-day`），和全站消息不會撞號；
+ * 後台 id 可以是任何文字，一律 encodeURIComponent。
+ */
+export function newsPath(id: string): string {
+  return `${NEWS_PATH}/${encodeURIComponent(id)}`
+}
+
+/** 依網址參數找消息（Nuxt 的路由參數已解碼）；找不到回 undefined，頁面回 404。 */
+export function findArticle(articles: readonly NewsArticle[], id: string): NewsArticle | undefined {
+  return articles.find((item) => item.id === id)
+}
+
+/** 可以給搜尋引擎的消息：示意內容不收錄（2026-09-26 使用者裁定）。 */
+export function indexableArticles(articles: readonly NewsArticle[], sampleNote: string): NewsArticle[] {
+  return sortedArticles(articles).filter((item) => !isSampleNews(item, sampleNote))
+}
+
+/** 列表頁的校區篩選：全校消息（campusKeys 空）在每一校都看得到。 */
+export function articlesForCampus(articles: readonly NewsArticle[], campusKey: string | undefined): NewsArticle[] {
+  const list = sortedArticles(articles)
+  if (!campusKey) return list
+  return list.filter((item) => !item.campusKeys?.length || item.campusKeys.includes(campusKey))
+}
+
 /** 只放行 http／https 的完整網址（後端已驗證，這裡再擋一次才綁進 href）。 */
 export function safeWebUrl(url: string | undefined | null): string {
   const value = (url ?? '').trim()

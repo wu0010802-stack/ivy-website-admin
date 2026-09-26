@@ -48,7 +48,7 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-news-head{display:flex;justify-content:space-between;align-items:end;gap:20px}
 /* 兩欄標題都貼齊 78px 標題區底部，「近期活動」才不會比「最新消息」高 9px。 */
 .hn-events>.hn-head{display:flex;flex-direction:column;justify-content:flex-end}
-.home-news .hn-more,.hn-dialog .hn-more{display:inline-flex;align-items:center;gap:20px;min-height:44px;font-size:var(--fs-sm);font-weight:600;border-bottom:1px solid currentColor;white-space:nowrap}
+.home-news .hn-more,.hn-dialog .hn-more{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:20px;min-height:44px;font-size:var(--fs-sm);font-weight:600;border-bottom:1px solid currentColor;white-space:nowrap}
 .hn-arrow{font-size:var(--fs-2xl);line-height:1;flex-shrink:0}
 .hn-event-stack{display:grid;gap:18px;margin-bottom:18px}
 .home-news .hn-event,.hn-dialog .hn-event{display:flex;align-items:center;gap:16px;width:100%;min-height:104px;padding:18px;background:var(--ivy-news-event-1);border-radius:12px}
@@ -66,11 +66,11 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-card-copy{padding-top:20px}.hn-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px 12px;color:var(--hn-muted,var(--ivy-news-muted));font-size:var(--fs-xs);letter-spacing:.025em;margin-bottom:10px}
 .hn-meta>span{color:var(--hn-green,var(--ivy-news-green));font-weight:600}
 .hn-card h3{font-size:var(--fs-xl);line-height:1.6;text-wrap:balance;word-break:keep-all;overflow-wrap:anywhere;letter-spacing:.015em}
-.hn-card h3 button{font:inherit;min-height:44px}
-.hn-card h3 button::after{content:"";position:absolute;inset:0;border-radius:12px}
+.hn-card h3 :is(button,a){display:inline-block;font:inherit;min-height:44px;color:inherit;text-decoration:none}
+.hn-card h3 :is(button,a)::after{content:"";position:absolute;inset:0;border-radius:12px}
 .hn-card:hover h3,.hn-list-row:hover strong{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
 .hn-card:focus-within{outline:3px solid var(--leaf);outline-offset:6px}
-.hn-card button:focus-visible{outline:0}
+.hn-card :is(button,a):focus-visible{outline:0}
 .hn-sample-note{font-size:var(--fs-xs);color:var(--hn-muted);margin-top:32px;max-width:none}
 /* 消息與活動仍是原型示意（sampleNote 有值）時，在兩個區塊標題上方直接標出，不只靠區塊底部的小字（2026-09-24 體檢第 1 項）。 */
 .hn-empty{color:var(--hn-muted);font-size:var(--fs-sm);padding-block:12px}
@@ -108,8 +108,8 @@ body:has(.hn-dialog[open]){overflow:hidden}
   .home-news .hn-card .hn-card-copy{padding-top:0}
   .home-news .hn-card .hn-meta{justify-content:flex-start;gap:2px 12px;margin-bottom:2px}
   .home-news .hn-card h3{font-size:var(--fs-md);line-height:1.6}
-  .home-news .hn-card h3 button{min-height:0}
-  .home-news .hn-card h3 button::after{border-radius:0}
+  .home-news .hn-card h3 :is(button,a){min-height:0}
+  .home-news .hn-card h3 :is(button,a)::after{border-radius:0}
   .home-news .hn-card:focus-within{outline-offset:2px}
   .hn-event-copy strong{font-size:var(--fs-md)}
   .hn-date{width:38px}

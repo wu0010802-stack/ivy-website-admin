@@ -50,6 +50,7 @@ CTA_ENTRIES = (
     "environment",
     "curriculum",
     "about",
+    "news",
     "visit_page",
     "visit_manage",
     "other",
