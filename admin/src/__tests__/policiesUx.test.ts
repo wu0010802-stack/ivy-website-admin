@@ -96,7 +96,8 @@ describe('個資保存政策與全站設定保護', () => {
     await button(wrapper, '儲存政策')!.trigger('click')
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/admin/site-policies/retention', expect.objectContaining({ expected_version: 1, auto_run_enabled: true }))
-    expect(warning).toHaveBeenCalledWith(expect.stringContaining('已載入最新的設定'))
+    // 畫面已經自動重讀：不接後端「請重新載入後再編輯」，免得同一句話前後矛盾。
+    expect(warning).toHaveBeenCalledWith('保存政策剛被其他人修改，已載入最新的設定；你的修改沒有儲存，請確認後再調整')
     // 重新載入後表單回到伺服器上的值，不再是未儲存狀態。
     expect(button(wrapper, '儲存政策')!.attributes('disabled')).toBeDefined()
   })

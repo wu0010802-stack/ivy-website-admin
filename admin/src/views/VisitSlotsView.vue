@@ -42,6 +42,8 @@ const createForm = ref({ slot_date: isoDate(1), start_time: '10:00:00', end_time
 const creating = ref(false)
 
 const errorText = apiErrorMessage
+// 版本衝突時畫面會自動重讀，所以用固定文案，不接後端「請重新載入後再調整」。
+const SLOT_CONFLICT_RELOADED = '這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整'
 
 async function load() {
   const request = requests.begin()
@@ -92,7 +94,7 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number, successText 
   } catch (err) {
     if (isVersionConflict(err)) {
       // 別人剛改過這個時段（或休假日剛把它關掉）：不蓋掉，重新讀最新的。
-      ElMessage.warning(errorText(err, '這個時段剛被其他人修改，已重新載入'))
+      ElMessage.warning(SLOT_CONFLICT_RELOADED)
       await load()
     } else if (err instanceof ApiError && err.status === 409) {
       const detail = err.detail as { message?: string; booked_count?: number }
@@ -139,7 +141,7 @@ async function toggleClosed(slot: VisitSlotOut) {
       await load()
     } catch (err) {
       if (isVersionConflict(err)) {
-        ElMessage.warning(errorText(err, '這個時段剛被其他人修改，已重新載入'))
+        ElMessage.warning(SLOT_CONFLICT_RELOADED)
         await load()
       } else {
         ElMessage.error(errorText(err, '更新失敗'))

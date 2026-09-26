@@ -3,10 +3,10 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia } from 'pinia'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import { useAuthStore } from '../stores/auth'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import type { UserOut } from '../api/types'
 import { testUser } from './fixtures'
 
@@ -93,5 +93,21 @@ describe('案件流程補完', () => {
     // 指派承辦人限校區管理者以上：櫃台只看到文字，沒有下拉選單。
     expect(wrapper.find('#visit-assignee').exists()).toBe(false)
     expect(wrapper.text()).toContain('承辦人未指派')
+  })
+
+  it('改承辦人遇到版本衝突：自動重讀案件，提示不再叫使用者重新載入', async () => {
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(
+      new ApiError(409, { code: 'VISIT_REQUEST_VERSION_CONFLICT', message: '這筆案件的承辦人或下次聯絡時間剛被其他人修改，請重新載入後再操作', current_version: 3 }),
+    )
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const wrapper = await setup({ ...details(), version: 2 })
+    const detailCalls = () => vi.mocked(api.get).mock.calls.filter(([path]) => path === '/admin/visit-requests/local-case').length
+    const before = detailCalls()
+    wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('id') === 'visit-assignee')!.vm.$emit('change', 'staff-b')
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/visit-requests/local-case/assignee', { assigned_staff_id: 'staff-b', expected_version: 2 })
+    expect(warning).toHaveBeenCalledWith('這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
+    expect(String(warning.mock.calls[0]![0])).not.toContain('請重新載入')
+    expect(detailCalls()).toBe(before + 1)
   })
 })

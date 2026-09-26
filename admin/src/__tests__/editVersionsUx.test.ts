@@ -81,7 +81,26 @@ describe('時段：帶版本送出，別人先改過就重新讀取', () => {
     await wrapper.find('.slot-row').findAll('button').find(button => button.text() === '關閉')!.trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { closed: true, expected_version: 4 })
-    expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），請重新載入後再調整')
+    // 畫面已經自動重讀：不接後端「請重新載入後再調整」，免得同一句話前後矛盾。
+    expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整')
+    expect(String(warning.mock.calls[0]![0])).not.toContain('請重新載入')
+    expect(slotCalls()).toBe(before + 1)
+  })
+
+  it('調整名額遇到版本衝突也用「已載入最新」的提示並重讀清單', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 1 } as never
+      return [slot] as never
+    })
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', '這個時段剛被其他人修改（或因休假日關閉），請重新載入後再調整'))
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    const slotCalls = () => get.mock.calls.filter(([path]) => String(path).startsWith('/admin/slots?')).length
+    const before = slotCalls()
+    wrapper.find('.slot-row').findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { capacity: 5, expected_version: 4 })
+    expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整')
     expect(slotCalls()).toBe(before + 1)
   })
 })

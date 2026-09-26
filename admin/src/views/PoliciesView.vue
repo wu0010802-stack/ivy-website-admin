@@ -118,7 +118,8 @@ async function savePolicy() {
     ElMessage.success('已儲存保存政策')
   } catch (err) {
     if (isVersionConflict(err)) {
-      ElMessage.warning(`${apiErrorMessage(err, '保存政策剛被其他人修改')}，已載入最新的設定`)
+      // 畫面會自動重讀，不顯示後端「請重新載入」的訊息，免得前後矛盾。
+      ElMessage.warning('保存政策剛被其他人修改，已載入最新的設定；你的修改沒有儲存，請確認後再調整')
       await loadPolicy()
     } else {
       ElMessage.error(apiErrorMessage(err, '儲存失敗'))

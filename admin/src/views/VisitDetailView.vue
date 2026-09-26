@@ -121,7 +121,8 @@ async function loadNextPending(campusKey: string) {
 function reportError(err: unknown, fallback: string) {
   if (isVersionConflict(err)) {
     // 別人剛改過承辦人或下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
-    ElMessage.warning(apiErrorMessage(err, '這筆案件剛被其他人修改，已重新載入'))
+    // 已經自動重讀，所以不接後端「請重新載入後再操作」的訊息。
+    ElMessage.warning('這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
     void refreshDetail()
     return
   }
