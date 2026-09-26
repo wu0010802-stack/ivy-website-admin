@@ -121,6 +121,10 @@
   --ivy-print-glass-warm: oklch(95% .03 92 / .66);
   --ivy-print-spark: oklch(80% .14 62);
   --ivy-print-spark-glow: oklch(70% .19 52 / .75);
+  /* 背景影片上的時段光（soft-light 疊在影片與壓暗漸層之間）：早上暖黃、中午提亮、午後到傍晚琥珀 */
+  --ivy-day-light-morning: oklch(86% .13 88);
+  --ivy-day-light-noon: oklch(98% .015 95);
+  --ivy-day-light-amber: oklch(72% .15 58);
 
   /* 9. 手機活動影片輪播 ------------------------------------------------------- */
   --ivy-film-band: #acbe9b;

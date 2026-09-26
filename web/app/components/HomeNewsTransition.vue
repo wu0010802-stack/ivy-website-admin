@@ -146,6 +146,9 @@ useNewsTransition(root, previous, paper)
 @media(max-width: 760px) {
   .news-transition { --news-paper-radius: 40px; }
   .news-transition :deep(.home-news) { padding-top: 88px; }
+  /* 手機的五校區塊比一屏高，最底下的「預約參觀Ｘ校」一露出來紙就開始往上蓋，實測幾乎點不到。
+     底部多留一段停留距離：區塊黏住時按鈕停在這段之上，紙要先爬過這段才蓋到它。只在有紙頁轉場時加。 */
+  .news-transition[data-news-motion]:not([data-news-motion="off"]) .news-transition-prior :deep(.campus-panorama) { padding-bottom: calc(40px + 32svh); }
 }
 @media(prefers-reduced-motion: reduce), (forced-colors: active) {
   .news-transition { animation: none !important; --news-paper-tint: 0; }
