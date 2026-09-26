@@ -3,15 +3,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
+from app.auth.models import Role
+from app.booking.history import Actor
+from app.booking.models import VisitRequest
 from app.operations.models import AuditLogEntry
-from tests.conftest import start_visit_slot
+from tests.conftest import _create_user, start_visit_slot
 from tests.test_visit_case_handling import _parent_asks_for
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
@@ -152,6 +158,94 @@ async def test_cancel_and_no_show_are_audited_without_reason_text(admin_client, 
     [no_show] = await _entries(db_session, "visit_request.no_show")
     assert no_show.target_id == no_show_id
     assert no_show.metadata_json == {"from_status": "confirmed", "to_status": "no_show"}
+
+
+async def _while_other_holds_lock(app, case_id: str, change, request):
+    """另一方（家長、同事）在自己的交易裡改了案件、還沒提交時，後台送出同一個
+    轉換；確認後台有等案件列鎖，再讓另一方提交。"""
+    async with app.state.session_factory() as other:
+        case = (
+            await other.execute(
+                select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == uuid.UUID(case_id))
+            )
+        ).scalar_one()
+        await change(other, case)
+        task = asyncio.create_task(request())
+        await asyncio.sleep(0.5)
+        assert not task.done(), "後台轉換沒有等案件列鎖"
+        await other.commit()
+    return await task
+
+
+@pytest.mark.asyncio
+async def test_transition_already_done_by_someone_else_is_not_audited(app, admin_client, db_session):
+    """B12-1：取消、開始聯絡、改期是冪等的。家長或另一位同事剛好同時做了同一件
+    事，這次什麼都沒改；稽核若拿鎖列之前讀到的舊狀態／舊時段比對，會把別人做的
+    事記在這位同事名下。"""
+    from app.booking import workflow_service
+
+    colleague = await _create_user(db_session, "colleague@ivy.example", "colleague-password-123", Role.RECEPTION, ["yihua"])
+    slot_a = await _slot(admin_client)
+    slot_b = await _slot(admin_client, days_ahead=4, start="14:00:00", end="15:00:00")
+
+    # 家長自行取消的同時，園方也按了取消。
+    cancelled_id = await _manual_case(admin_client, "audit-race-cancel")
+    cancel = await _while_other_holds_lock(
+        app,
+        cancelled_id,
+        lambda db, case: workflow_service.cancel(db, case, actor=workflow_service.PARENT),
+        lambda: admin_client.post(f"{BASE}/visit-requests/{cancelled_id}/cancel", json={"reason": FREE_TEXT}),
+    )
+    assert cancel.status_code == 200, cancel.text
+    assert cancel.json()["status"] == "cancelled"
+    assert await _entries(db_session, "visit_request.cancel") == []
+
+    # 同事已經開始聯絡，這次再按一次。
+    contacting_id = await _manual_case(admin_client, "audit-race-contacting")
+    contacting = await _while_other_holds_lock(
+        app,
+        contacting_id,
+        lambda db, case: workflow_service.mark_contacting(db, case, actor=Actor.staff(colleague.id)),
+        lambda: admin_client.post(f"{BASE}/visit-requests/{contacting_id}/contacting"),
+    )
+    assert contacting.status_code == 200, contacting.text
+    assert contacting.json()["status"] == "contacting"
+    assert await _entries(db_session, "visit_request.contacting") == []
+
+    # 同事剛把案件改到 B，這次也選 B：案件沒動，回應要是鎖內讀到的 B。
+    moved_id = await _manual_case(admin_client, "audit-race-reschedule")
+    confirmed = await admin_client.post(f"{BASE}/visit-requests/{moved_id}/confirm", json={"slot_id": slot_a["id"]})
+    assert confirmed.status_code == 200, confirmed.text
+    moved = await _while_other_holds_lock(
+        app,
+        moved_id,
+        lambda db, case: workflow_service.reschedule(
+            db, case, uuid.UUID(slot_b["id"]), actor=Actor.staff(colleague.id)
+        ),
+        lambda: admin_client.post(f"{BASE}/visit-requests/{moved_id}/reschedule", json={"new_slot_id": slot_b["id"]}),
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["slot_id"] == slot_b["id"]
+    assert moved.json()["slot"]["id"] == slot_b["id"]
+    assert await _entries(db_session, "visit_request.reschedule") == []
+
+
+@pytest.mark.asyncio
+async def test_transition_audit_uses_status_read_under_lock(app, admin_client, db_session):
+    """轉換真的發生時，from_status 是鎖內重讀的狀態，不是請求一開始讀到的。"""
+    from app.booking import workflow_service
+
+    colleague = await _create_user(db_session, "colleague@ivy.example", "colleague-password-123", Role.RECEPTION, ["yihua"])
+    case_id = await _manual_case(admin_client, "audit-race-from-status")
+    cancel = await _while_other_holds_lock(
+        app,
+        case_id,
+        lambda db, case: workflow_service.mark_contacting(db, case, actor=Actor.staff(colleague.id)),
+        lambda: admin_client.post(f"{BASE}/visit-requests/{case_id}/cancel"),
+    )
+    assert cancel.status_code == 200, cancel.text
+    [cancelled] = await _entries(db_session, "visit_request.cancel")
+    assert cancelled.metadata_json == {"from_status": "contacting", "to_status": "cancelled", "has_reason": False}
 
 
 @pytest.mark.asyncio

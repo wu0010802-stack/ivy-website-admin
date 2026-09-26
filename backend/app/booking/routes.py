@@ -603,6 +603,25 @@ async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_i
     return visit_request
 
 
+async def _lock_for_transition(db: AsyncSession, user: User, visit_request_id: uuid.UUID) -> VisitRequest:
+    """狀態轉換用：確認可處理案件後鎖住案件列，重讀狀態與時段。
+
+    稽核的「轉換前」狀態／時段要在鎖內讀。取消、開始聯絡、改期是冪等的：
+    家長剛好自行取消、逾期占位被定期工作取消，或另一位同事剛把案件改到
+    同一個時段時，這次什麼都沒改；拿鎖列之前讀到的舊值比對，會把別人做
+    的事記在這位同事名下。workflow_service 內會再鎖一次，同一個交易重複
+    鎖同一列不會等待。"""
+    visit_request = await _get_owned_visit_request(db, user, visit_request_id)
+    require_scope(user, "booking.handle", campus_keys=[visit_request.campus_key])
+    await workflow_service.lock_status(db, visit_request)
+    loaded_slot_id = visit_request.slot.id if visit_request.slot is not None else None
+    if loaded_slot_id != visit_request.slot_id:
+        # 重讀只更新 slot_id；時段物件也換成鎖內讀到的那一場，稽核的舊時段
+        # 與回應顯示的參觀時間才不會停在別人改期之前。
+        await db.refresh(visit_request, attribute_names=["slot"])
+    return visit_request
+
+
 class VisitRequestFilters:
     """案件清單與 CSV 匯出共用的篩選條件。畫面上篩好什麼，匯出的就是那一批；
     原本匯出只看校區，篩好「本週已確認」再匯出會拿到整校案件，多帶出不必要
@@ -1068,8 +1087,7 @@ async def confirm_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     try:
         await workflow_service.confirm_with_slot(
@@ -1108,8 +1126,7 @@ async def cancel_visit_request(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     """本文可省略；有填原因就記在案件歷程。"""
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     reason = payload.reason if payload else None
     try:
@@ -1138,8 +1155,7 @@ async def mark_no_show(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     try:
         await workflow_service.mark_no_show(db, visit_request, actor=Actor.staff(current_user.id))
@@ -1162,8 +1178,7 @@ async def mark_completed(
 ) -> VisitRequestDetailOut:
     """家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。"""
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     try:
         await workflow_service.mark_completed(db, visit_request, actor=Actor.staff(current_user.id))
@@ -1187,8 +1202,8 @@ async def reschedule_visit_request(
 ) -> VisitRequestDetailOut:
     """已確認的案件換時段（規格 L209、L211）：案件 id 不變、歷程記前後
     時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。"""
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
+    # 鎖內讀到的時段；別人剛改到同一場時 reschedule 什麼都不改，這裡也不記。
     old_slot = visit_request.slot
     try:
         await workflow_service.reschedule(
@@ -1239,7 +1254,8 @@ async def _audit_transition(
     db: AsyncSession, user: User, visit_request: VisitRequest, before_status: str, *, action: str, **extra
 ) -> None:
     """狀態轉換的稽核。取消、開始聯絡是冪等的（已是該狀態直接回傳），狀態
-    沒變就不記。action 一律在呼叫端寫字面值（labelCoverage 測試會掃）。"""
+    沒變就不記。before_status 要取自 _lock_for_transition 鎖內重讀的狀態。
+    action 一律在呼叫端寫字面值（labelCoverage 測試會掃）。"""
     if visit_request.status == before_status:
         return
     await audit_service.log_action(
@@ -1273,8 +1289,7 @@ async def mark_contacting(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     try:
         await workflow_service.mark_contacting(db, visit_request, actor=Actor.staff(current_user.id))
