@@ -2,7 +2,6 @@
 import { pickImage } from '~/utils/media-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
-import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
@@ -25,9 +24,6 @@ const reducedMotion = ref(false)
 const optedIn = ref(false)
 const repositioning = shallowRef(new Set<number>())
 const announcement = ref('')
-// 換校時，被選中的分頁線稿由左往右畫出來、畫完再染淡彩；-1 表示目前沒有在畫。
-const drawing = ref(-1)
-let drewOnce = false
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
 const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value)
 const clock = createCarouselClock({
@@ -56,7 +52,6 @@ function select(next: number, automatic = false) {
   // Wrapped, offscreen cards teleport behind the viewport rather than crossing it.
   repositioning.value = new Set(orderedCampuses.value.flatMap((_, i) =>
     i !== selected && i !== index.value && Math.abs(offset(i, selected) - offset(i)) > total / 2 ? [i] : []))
-  if (selected !== index.value) drawing.value = selected
   index.value = selected
   clock.reset()
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
@@ -110,32 +105,6 @@ function onPhotoClick(event: MouseEvent, photo: number) {
   if (photo !== index.value) { event.preventDefault(); select(photo) }
 }
 watch(playing, active => active ? clock.start() : clock.pause())
-// 第一次捲到五校區塊時，先把預設校的線稿畫一次。
-watch(visible, shown => {
-  if (!shown || drewOnce) return
-  drewOnce = true
-  drawing.value = index.value
-})
-// 「預約參觀Ｘ校」：照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。不支援或減少動態時照常換頁。
-// 掛在 click.capture：RouterLink 自己的 click 會先導覽，要在它之前 preventDefault。
-const nuxtApp = useNuxtApp()
-function onBookingClick(event: MouseEvent) {
-  if (!isPlainLeftClick(event) || !canMorphCampusPhoto()) return
-  const card = root.value?.querySelector<HTMLElement>('.photo-card.is-current')
-  if (!card || !current.value) return
-  event.preventDefault()
-  const to = `/visit/${current.value.key}`
-  void morphCampusPhoto(card, async () => {
-    const painted = new Promise<void>(resolve => { const off = nuxtApp.hook('page:finish', () => { off(); resolve() }) })
-    await navigateTo(to)
-    await painted
-    // 新畫面要在頂端截圖；路由自己的捲回頂端排在 page:finish 之後，這裡先捲。
-    window.scrollTo(0, 0)
-  })
-}
-function onTabArtAnimationEnd(event: AnimationEvent, i: number) {
-  if (event.animationName.includes('campus-tab-draw') && drawing.value === i) drawing.value = -1
-}
 watch(orderedCampuses, (list, previous) => {
   const key = previous[index.value]?.key
   select(Math.max(0, list.findIndex(campus => campus.key === key)))
@@ -215,8 +184,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
           type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
-          :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
-          @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
+          :tabindex="i === index ? 0 : -1" aria-controls="campus-stage"
+          @click="select(i)" @keydown="onKey($event, i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
             <img
@@ -302,7 +271,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
         </div>
       </div>
       <div class="campus-actions">
-        <NuxtLink class="booking-link" :to="`/visit/${current.key}`" @click.capture="onBookingClick">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
+        <NuxtLink class="booking-link" :to="`/visit/${current.key}`">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
       </div>
     </div>
     <p class="campus-live" role="status" aria-live="polite">{{ announcement }}</p>
@@ -343,15 +312,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-tabs button:hover .campus-tab-art{--tab-art-brightness:.68}
 /* 淡彩層只有顏色、不含線條，multiply 疊在線稿上，淡入時線條濃淡不變；觸控裝置不載入 */
 .campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:var(--tab-colour-opacity,0);transition:--tab-colour-opacity .35s ease}
-@media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-colour{--tab-colour-opacity:1}}
-/* 換校畫線稿：遮罩的硬邊後面帶 30% 羽化，由左往右掃過；淡彩等線畫完才染上。遮罩位置同樣走註冊過的數值變數
-   （理由同上：不升合成層，multiply 才碰得到底色）。initial-value 為 1，減少動態關掉動畫時就是完整線稿。 */
-@property --tab-draw{syntax:'<number>';inherits:true;initial-value:1}
-.campus-tabs button.is-drawing{animation:campus-tab-draw 1.4s linear both}
-.campus-tabs button.is-drawing .campus-tab-art{-webkit-mask-image:linear-gradient(90deg,#000 calc(var(--tab-draw) * 130% - 30%),transparent calc(var(--tab-draw) * 130%));mask-image:linear-gradient(90deg,#000 calc(var(--tab-draw) * 130% - 30%),transparent calc(var(--tab-draw) * 130%))}
-.campus-tabs button.is-drawing .campus-tab-colour{animation:campus-tab-wash 1.4s ease both}
-@keyframes campus-tab-draw{0%{--tab-draw:0;animation-timing-function:cubic-bezier(.45,.05,.35,1)}64%,100%{--tab-draw:1}}
-@keyframes campus-tab-wash{0%,55%{--tab-colour-opacity:0}100%{--tab-colour-opacity:1}}
+@media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:hover .campus-tab-colour{--tab-colour-opacity:1}}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
 .campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}

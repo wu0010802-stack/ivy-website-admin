@@ -17,6 +17,23 @@
 - 預約鈕點擊統計新增入口 `about`：`web/app/utils/cta-analytics.ts`、`backend/app/operations/models.py`、後台 `labels.ts`、`contracts/` 一起改（欄位是字串，不用 migration）。
 
 驗證：Node 22 web vitest 45 檔 406 項通過（新增 `tests/about.spec.ts`；`media-slots` 比對基準只多選單與頁尾兩處）、`nuxt typecheck` 0 個 `error TS`；`contract:check` 通過；admin `labelCoverage`、`siteStructure` 23 項通過；後端 `test_analytics_funnel.py` 9 項通過（獨立測試庫 `ivy_website_about_test`）。標題用字對 LINE Seed TW 700／800 分片 unicode-range 無缺字。Playwright 對 fixture 模式 dev（:3240）截 1440／1024／390：無水平溢出、無 page error／console error；320 寬標題皆兩行、無標點落單。截圖在 `output/playwright/about-page-20260926/`。Safari／iOS 實機未驗證；未 commit、未部署。
+## 2026-09-26 修正：手機五校「預約參觀Ｘ校」被消息紙頁蓋住、頁尾「孩子的一天」停在簾幕前
+
+- **手機預約鈕**：五校區塊在手機比一屏高，黏住時最底下的預約鈕剛好在視窗底，消息紙頁一開始爬就蓋住它。390×844 每 150px 捲一次，正式站只有一個位置點得到。`HomeNewsTransition.vue` 在 760px 以下、有紙頁轉場時，五校區塊底部加 `32svh` 停留距離：黏住後預約鈕停在畫面中段，紙要先爬過這段才蓋到它。修後 y≈5400–5900（約 600px）都點得到，實際觸控點擊可進預約頁。桌機本來就有 150–300px 可點，不動。
+- **頁尾 `/#life`**：原生錨點落在「關於」簾幕擦除之前，畫面還是關於。新增 `composables/useChapterAnchors.ts`：首頁上連到設了 `after` 的章節（目前只有 `#life`）的同源連結，先照錨點捲、再補到簾幕擦完；帶 `#life` 從其他頁進站也在掛載後補一次。章節指示改走同一條，不再自己處理點擊。`#about`、`#campuses` 等其他錨點不經過這裡。
+
+驗證：`nuxt typecheck` 結束碼 0；`npm run test:website` 46 檔 406 項通過（`home-chapters.spec.ts` 加 `chapterForHref`）。Playwright：1440×900、390×844 在首頁點頁尾「孩子的一天」、再點一次、從 /admission 點進來都停在孩子的一天（讀線元素在 `#life` 內），上一頁正常；手機 `/#about`、`/#campuses` 行為不變；console 無錯誤。
+
+## 2026-09-26 首頁四項效果：孩子的一天時段光、五校線稿畫出、選校→預約照片接續、桌機章節指示（`feature/home-effects-20260926`）
+
+- **時段光**：捲到哪張拍立得，背景影片就疊上那個時段的光（08–10 點暖黃、10–13 點提亮、13–16 點琥珀、16 點後較濃琥珀），1.6 秒淡換。`utils/dayLight.ts` 只看時間戳、不看卡片 tint；三層色只動 opacity、`mix-blend-mode: soft-light` 疊在影片與壓暗漸層之間，色票 `--ivy-day-light-*`。同一格畫面實測平均色偏移約 10–15/255（早上 R+12、中午整體 +11、傍晚 R+15 B−12）。
+- **五校線稿畫出**：換校時被選中的分頁線稿由左往右畫出（遮罩羽化 30%），畫完再染淡彩；第一次捲到五校也畫一次預設校。選中分頁在滑鼠裝置上改為常駐淡彩（原本只有 hover）。遮罩位置走註冊過的 `--tab-draw`，理由同既有的線稿 multiply 註解（不升合成層）。
+- **選校→預約**：五校卡「預約參觀Ｘ校」用 View Transition 把目前那張照片縮放到預約頁側欄的校區照片（手機是 96px 縮圖）。沒開 Nuxt 全站 `experimental.viewTransition`，只有這顆按鈕走 `utils/campusPhotoMorph.ts`；`view-transition-name` 只在 `html.campus-morph` 期間存在。不支援、減少動態、強制色彩、按修飾鍵時照常換頁。
+- **章節指示**：1101px 以上右側一條細線（關於常春藤、孩子的一天、五所校園、最新消息），過首屏才出現；換章時名稱亮 2 秒，滑鼠移上或 Tab 進來才展開全部。判斷用視窗 45% 讀線上實際看得到的元素屬於哪一章（`utils/homeChapters.ts`）——簾幕讓下一段先疊在底下，量 rect 會提早跳章。點「孩子的一天」會捲到關於簾幕擦完的位置（原生 `#life` 錨點停在擦除前，畫面還是關於）。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；`npm run test:website` 46 檔 404 項通過（新增 `day-light.spec.ts`、`home-chapters.spec.ts`）。dev server（fixture）Playwright：1440×900 六張拍立得依序 morning→morning→noon→noon→afternoon→dusk、章節四個錨點跳轉與判斷正確、線稿 120／400／700／1500ms 截圖、照片接續錄影逐幀無白閃；390×844 章節指示隱藏、無水平捲動、照片接續到縮圖；減少動態直接換頁；console 無錯誤。截圖在 `output/playwright/home-effects-20260926/`。快照 `versions/before-home-effects-20260926-223845/`。Safari／iOS 實機未驗證（Safari 18 起才支援同文件 View Transition，舊版照常換頁）。
+
+未 commit、未部署。
 
 ## 2026-09-25／26 官網後台缺口補齊：權限、案件處理、內容審核與排程、素材庫、統計、字型、E2E（`feature/admin-gaps-20260925`，B01–B15，尚未併回 `main`）
 

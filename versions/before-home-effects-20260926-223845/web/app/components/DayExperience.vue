@@ -5,7 +5,6 @@ import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/me
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
 import { readMotionViewport } from '~/utils/motionViewport'
-import { dayLightFor } from '~/utils/dayLight'
 
 const props = defineProps<{ day: DayExperienceContent }>()
 
@@ -16,8 +15,6 @@ const videoEl = ref<HTMLVideoElement | null>(null)
 const introEl = ref<HTMLElement | null>(null)
 const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
-// 讀者停在哪張相片，背景就換成那個時段的光（還沒讀到第一張時不加光）。
-const dayLight = computed(() => dayLightFor(props.day.moments[activeIndex.value]?.time))
 const posterReady = ref(false)
 const posterImage = computed(() => pickImage(props.day.filmPoster, props.day.filmPosterMedia))
 const filmPosition = ref<string | null>(null)
@@ -194,7 +191,7 @@ onUnmounted(() => {
   <div ref="rootEl" class="day-reveal">
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
-        <div class="day-film" :data-light="dayLight" aria-hidden="true">
+        <div class="day-film" aria-hidden="true">
           <img class="day-film-poster" v-bind="posterImage" :style="day.filmPosterMedia?.position ? { objectPosition: day.filmPosterMedia.position } : undefined" loading="lazy" fetchpriority="low" alt="" decoding="async">
           <video
             v-if="showVideo"
@@ -209,7 +206,6 @@ onUnmounted(() => {
             @playing="isVideoReady = true"
             @error="onVideoError"
           />
-          <span class="day-film-light"><span class="is-morning" /><span class="is-noon" /><span class="is-amber" /></span>
           <span class="day-film-shade" />
         </div>
         <div class="day-film-ui">

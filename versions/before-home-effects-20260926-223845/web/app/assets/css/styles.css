@@ -37,16 +37,6 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film-video{opacity:0;transition:opacity .8s}
 .day-film-video.is-ready{opacity:1}
 .day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
-/* 時段光：三層色各自只動 opacity（合成層），由 DayExperience 的 data-light 決定哪層亮、亮多少。 */
-.day-film-light{position:absolute;inset:0;mix-blend-mode:soft-light;pointer-events:none}
-.day-film-light>span{position:absolute;inset:0;opacity:0;transition:opacity 1.6s ease}
-.day-film-light>.is-morning{background:var(--ivy-day-light-morning)}
-.day-film-light>.is-noon{background:var(--ivy-day-light-noon)}
-.day-film-light>.is-amber{background:var(--ivy-day-light-amber)}
-.day-film[data-light=morning] .is-morning{opacity:.55}
-.day-film[data-light=noon] .is-noon{opacity:.5}
-.day-film[data-light=afternoon] .is-amber{opacity:.45}
-.day-film[data-light=dusk] .is-amber{opacity:.75}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
 .day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark) / .86)}
 .day-film-caption span[lang]{font-size:.5625rem;letter-spacing:.14em}
@@ -170,7 +160,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-figure::after{opacity:0;transition:none}
  .print-stamp{opacity:.85;transition:none}
  .print{transform:rotateY(var(--flip,0deg));transition:none}
- .print-face,.print-face::before,.day-intro>*,.day-film-video,.day-film-light>span{transition:none}
+ .print-face,.print-face::before,.day-intro>*,.day-film-video{transition:none}
  .print::after{transition:none}
 }
 @media(forced-colors:active){
@@ -178,7 +168,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-turn{color:ButtonText}.print-turn:focus-visible,.print-wrap.is-turning .print-turn:focus-visible{outline-color:Highlight}.print-wrap.is-cornering .print-face{clip-path:none}.print-corner{display:none}
  .day-film-shade{background:Canvas}
  .day-intro .eyebrow{color:CanvasText;text-shadow:none}
- .day-film-poster,.day-film-video,.day-film-light{display:none}
+ .day-film-poster,.day-film-video{display:none}
  .print-photo{filter:none;opacity:1}
  .print-figure::after{display:none}
 }
@@ -263,11 +253,3 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 }
 @media(prefers-reduced-motion:reduce){.campus-stage-photo,.campus-stage-info,.campus-stage-actions,.campus-seg,.campus-stage-btn{transition:none}}
 @media(forced-colors:active){.campus-seg[aria-selected=true]::after{background:Highlight}}
-
-/* 選校 → 預約：首頁五校卡的照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。名字只在 html.campus-morph 期間存在。 */
-.campus-morph [data-campus-morph=source],.campus-morph .visit-aside-photo{view-transition-name:campus-photo}
-.campus-morph .visit-aside-photo img{animation:none}
-::view-transition-group(campus-photo){animation-duration:.7s;animation-timing-function:cubic-bezier(.22,1,.36,1)}
-::view-transition-image-pair(campus-photo){overflow:clip;border-radius:24px}
-::view-transition-old(campus-photo),::view-transition-new(campus-photo){height:100%;object-fit:cover;animation-duration:.45s}
-::view-transition-old(root),::view-transition-new(root){animation-duration:.4s}
