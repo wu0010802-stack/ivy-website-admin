@@ -20,6 +20,8 @@ export const CTA_ENTRIES = [
   'admission',
   'environment',
   'curriculum',
+  'about',
+  'news',
   'visit_page',
   'visit_manage',
   'other'

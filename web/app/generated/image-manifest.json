@@ -1602,5 +1602,27 @@
         "width": 2000
       }
     ]
+  },
+  "about-hero": {
+    "width": 2000,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/about-hero.webp",
+        "width": 2000
+      }
+    ]
   }
 }

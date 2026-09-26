@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { responsiveTourImage } from '~/utils/tour-image'
-import { eventTimeDetail, homeArticles, isSampleNews, safeWebUrl, sampleCoverage, sortedArticles, taipeiToday, upcomingEvents, type SampleCoverage } from '~/utils/news-content'
+import { eventTimeDetail, homeArticles, isSampleNews, NEWS_PATH, newsPath, safeWebUrl, sampleCoverage, sortedArticles, taipeiToday, upcomingEvents, type SampleCoverage } from '~/utils/news-content'
 import type { NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
 const props = defineProps<{ news: NewsContent }>()
@@ -20,13 +20,14 @@ const events = computed(() => upcomingEvents(props.news.events, today))
 // 混著真實消息時改成逐則標，不讓分校自己發布的消息和活動也被標成範例。
 const isSample = (item: NewsArticle | NewsEvent) => isSampleNews(item, props.news.sampleNote)
 const rotationSample = computed(() => sampleCoverage(rotation.value, props.news.sampleNote))
-const articlesSample = computed(() => sampleCoverage(articles.value, props.news.sampleNote))
 const eventsSample = computed(() => sampleCoverage(events.value, props.news.sampleNote))
 const anySample = computed(() => Boolean(props.news.sampleNote) && [...articles.value, ...events.value].some(isSample))
 const tagged = (item: NewsArticle | NewsEvent, coverage: SampleCoverage) => coverage === 'some' && isSample(item)
 const { slots, page, pages, progress, enabled, playing } = useNewsRotation(() => rotation.value, cardsEl, dialogOpen)
 const pad = (value: number) => String(value).padStart(2, '0')
-const view = ref<{ kind: 'articles' | 'events'; item: NewsArticle | NewsEvent } | { kind: 'list'; list: 'articles' | 'events' } | null>(null)
+// 消息（2026-09-26 起）有自己的網址 /news、/news/<id>，卡片與「所有最新消息」直接連過去；
+// 對話框只剩活動（活動沒有單篇頁）。
+const view = ref<{ kind: 'events'; item: NewsEvent } | { kind: 'list' } | null>(null)
 
 onMounted(() => {
   dialogSupported.value = typeof HTMLDialogElement !== 'undefined'
@@ -37,13 +38,8 @@ function showDialog() {
   dialogOpen.value = Boolean(dialogEl.value?.open)
 }
 
-function openList(list: 'articles' | 'events') {
-  view.value = { kind: 'list', list }
-  showDialog()
-}
-
-function openArticle(item: NewsArticle) {
-  view.value = { kind: 'articles', item }
+function openList() {
+  view.value = { kind: 'list' }
   showDialog()
 }
 
@@ -98,7 +94,7 @@ function eventBrief(item: NewsEvent) {
             </button>
           </div>
           <p v-else class="hn-empty">目前沒有近期活動。</p>
-          <button v-if="events.length" type="button" class="hn-more" aria-haspopup="dialog" @click="openList('events')">
+          <button v-if="events.length" type="button" class="hn-more" aria-haspopup="dialog" @click="openList()">
             所有活動
           </button>
         </aside>
@@ -116,9 +112,7 @@ function eventBrief(item: NewsEvent) {
               >
                 <span>{{ pad(page + 1) }} / {{ pad(pages) }}</span><i><b /></i>
               </span>
-              <button v-if="articles.length" type="button" class="hn-more" aria-haspopup="dialog" @click="openList('articles')">
-                所有最新消息
-              </button>
+              <NuxtLink v-if="articles.length" class="hn-more" :to="NEWS_PATH">所有最新消息</NuxtLink>
             </div>
           </div>
           <p v-if="!articles.length" class="hn-empty">目前沒有新的消息。</p>
@@ -136,7 +130,7 @@ function eventBrief(item: NewsEvent) {
               <div class="hn-copy-stack">
                 <div v-for="(item, layer) in layers" :key="item.id" class="hn-card-copy" :inert="(layers.length > 1 && layer === 0) || undefined">
                   <span class="hn-meta"><span>{{ item.campus }}<span v-if="tagged(item, rotationSample)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
-                  <h3><button type="button" aria-haspopup="dialog" @click="openArticle(item)">{{ item.title }}</button></h3>
+                  <h3><NuxtLink :to="newsPath(item.id)">{{ item.title }}</NuxtLink></h3>
                 </div>
               </div>
             </article>
@@ -155,50 +149,30 @@ function eventBrief(item: NewsEvent) {
       </div>
       <div class="hn-dialog-body">
         <template v-if="view?.kind === 'list'">
-          <h2 id="home-news-dialog-title" tabindex="-1">{{ view.list === 'events' ? '近期活動' : '所有最新消息' }}</h2>
-          <p v-if="(view.list === 'events' ? eventsSample : articlesSample) === 'all'" class="hn-dialog-note">以下為設計示意內容。</p>
-          <div v-if="view.list === 'events'" class="hn-event-stack">
+          <h2 id="home-news-dialog-title" tabindex="-1">近期活動</h2>
+          <p v-if="eventsSample === 'all'" class="hn-dialog-note">以下為設計示意內容。</p>
+          <div class="hn-event-stack">
             <button v-for="item in events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
               <time class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
               <span class="hn-event-copy"><small>{{ item.campus }}<span v-if="tagged(item, eventsSample)" class="hn-sample-tag">示意</span></small><strong>{{ item.title }}</strong><small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small></span>
               <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
-          <div v-else class="hn-list">
-            <button v-for="item in articles" :key="item.id" type="button" class="hn-list-row" @click="openArticle(item)">
-              <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 90vw, 420px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
-              <span class="hn-list-copy">
-                <span class="hn-meta"><span>{{ item.campus }}<span v-if="tagged(item, articlesSample)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></span>
-                <strong>{{ item.title }}</strong>
-                <span class="hn-category">{{ item.category }}</span>
-              </span>
-              <span class="hn-arrow" aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </template>
-        <template v-else-if="view?.kind === 'articles'">
-          <span class="hn-kicker">{{ view.item.campus }} · {{ (view.item as NewsArticle).category }}</span>
-          <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
-          <span class="hn-meta"><span>{{ view.item.campus }}</span><time :datetime="view.item.date">{{ formatDate(view.item.date) }}</time></span>
-          <img v-bind="responsiveTourImage((view.item as NewsArticle).image, '(max-width: 760px) 90vw, 800px', false, (view.item as NewsArticle).imageMedia)" :style="(view.item as NewsArticle).imageMedia?.position ? { objectPosition: (view.item as NewsArticle).imageMedia!.position! } : undefined" :alt="(view.item as NewsArticle).alt" loading="lazy">
-          <NewsBody v-if="(view.item as NewsArticle).body?.length" :summary="view.item.description" :blocks="(view.item as NewsArticle).body!" />
-          <p v-else class="hn-detail-copy">{{ view.item.description }}</p>
-          <p v-if="isSample(view.item)" class="hn-dialog-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
         </template>
         <template v-else-if="view?.kind === 'events'">
           <span class="hn-kicker">{{ view.item.campus }}{{ isSample(view.item) ? ' · 活動示意' : '' }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
           <time class="hn-detail-date" :datetime="view.item.date">{{ formatDate(view.item.date) }}</time>
           <!-- 時間只在園方填了開始時間時寫；全天（含沒有時間欄位的舊活動）只看日期，不替園方寫「全天」。 -->
-          <dl v-if="eventTimeDetail(view.item as NewsEvent) || (view.item as NewsEvent).location" class="hn-event-facts">
-            <div v-if="eventTimeDetail(view.item as NewsEvent)"><dt>時間</dt><dd>{{ eventTimeDetail(view.item as NewsEvent) }}</dd></div>
-            <div v-if="(view.item as NewsEvent).location"><dt>地點</dt><dd>{{ (view.item as NewsEvent).location }}</dd></div>
+          <dl v-if="eventTimeDetail(view.item) || view.item.location" class="hn-event-facts">
+            <div v-if="eventTimeDetail(view.item)"><dt>時間</dt><dd>{{ eventTimeDetail(view.item) }}</dd></div>
+            <div v-if="view.item.location"><dt>地點</dt><dd>{{ view.item.location }}</dd></div>
           </dl>
           <p class="hn-detail-copy">{{ view.item.description }}</p>
           <a
-            v-if="safeWebUrl((view.item as NewsEvent).linkUrl)" class="hn-more hn-event-link"
-            :href="safeWebUrl((view.item as NewsEvent).linkUrl)" target="_blank" rel="noopener noreferrer"
-          >{{ (view.item as NewsEvent).linkLabel || '活動詳情' }}<span aria-hidden="true">↗</span><span class="sr-only">（另開分頁）</span></a>
+            v-if="safeWebUrl(view.item.linkUrl)" class="hn-more hn-event-link"
+            :href="safeWebUrl(view.item.linkUrl)" target="_blank" rel="noopener noreferrer"
+          >{{ view.item.linkLabel || '活動詳情' }}<span aria-hidden="true">↗</span><span class="sr-only">（另開分頁）</span></a>
           <p v-if="isSample(view.item)" class="hn-dialog-note">這是示意活動，並非已公告的活動或開放報名。正式內容將由園方提供。</p>
         </template>
       </div>

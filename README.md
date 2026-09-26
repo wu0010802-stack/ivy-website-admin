@@ -1,3 +1,23 @@
+## 2026-09-26 最新消息開放獨立網址（/news、/news/<id>）
+
+使用者從新分頁方向裡改做 C，並拍板開放獨立消息網址（原本「不在核可範圍」）。這輪只做 C1：網址與頁面，資料用後台現有的全站消息與各校消息；舊站 51 篇義華活動下一輪另做。
+
+- 新增 `pages/news/index.vue`、`pages/news/[id].vue`、`components/NewsIndexContent.vue`、`NewsArticleContent.vue`、`assets/css/news-page.css`；`utils/news-content.ts` 加 `newsPath`、`findArticle`、`indexableArticles`、`articlesForCampus`；`seo.ts` 加 `newsListSeo`、`newsArticleSeo`（NewsArticle＋三層麵包屑），sitemap 列 `/news` 與真實消息、llms.txt 加最新消息。
+- 示意消息（正式站目前全部是）：照常顯示並標「示意」，單篇 noindex、無 canonical、不進 sitemap。
+- 首頁消息卡片與「所有最新消息」改為連結，對話框只剩活動；頁尾「最新消息」改指 `/news`（後台預設連結同步）。預約點擊統計新增入口 `news`（web、backend、admin 標籤、contracts）。
+
+驗證：Node 22 web vitest 46 檔 413 項通過（新增 `tests/news-page.spec.ts` 7 項）、`nuxt typecheck` 0 錯誤（中途抓到一個批次替換打壞 `eventTimeDetail(view.item)`，已修）；`contract:check` 通過；admin 23 項、後端 `test_analytics_funnel.py` 9 項通過。fixture 模式 dev（:3240）開啟索引（`NUXT_PUBLIC_SITE_ORIGIN=https://ivy.example`）實測：`/news` index＋canonical、示意 `/news/garden` noindex 無 canonical、sitemap 不含示意消息、`/news/nope` 404。Playwright 1440／390：無水平溢出、無 page error；首頁卡片連到 `/news/<id>`、「所有最新消息」連到 `/news`、活動仍開對話框；鍵盤在列表 Enter 進單篇。截圖 `output/playwright/news-page-20260926/`。Safari／iOS 實機未驗證；未部署。
+
+## 2026-09-26 新分頁「關於常春藤」（/about）
+
+使用者要探索新分頁可以做什麼，比較五個方向（關於常春藤、常見問題總表、活動與消息、家長分享、五校比較）後選 A。內容全部取自機構站 `ivykidschool.com/about` 原文：沿革（民國 86 年義華路 → 90 明華 → 94 崇德 → 109 國際 → 110 仁武）、全人教育（課綱六大領域與六大核心素養）、首頁「Our Goals」期許。hero 用同一頁的原始照片裁成 2000×803（`about-hero`，`optimize-site-images.py --only about-hero` 只新增 manifest 一項）。舊站「三十多個春夏秋冬」改為「近三十年」；崇德同年的 ESL 美語部先不寫；不綁 30 週年。
+
+- 新增 `web/app/pages/about.vue`、`components/AboutContent.vue`、`assets/css/about.css`；SEO（`aboutSeo`，AboutPage＋麵包屑）、sitemap、llms.txt、預載 hero、頁首膠囊都接上。
+- 主選單第一項加「關於常春藤」，頁尾「關於常春藤」從 `/#about` 改指 `/about`；後台預設連結（`admin/src/composables/siteLinks.ts`）同步。**若正式站後台已經存過主選單或頁尾連結，官網會用後台那份，要到後台「網站設定」手動加上 `/about`。**
+- 預約鈕點擊統計新增入口 `about`：`web/app/utils/cta-analytics.ts`、`backend/app/operations/models.py`、後台 `labels.ts`、`contracts/` 一起改（欄位是字串，不用 migration）。
+
+驗證：Node 22 web vitest 45 檔 406 項通過（新增 `tests/about.spec.ts`；`media-slots` 比對基準只多選單與頁尾兩處）、`nuxt typecheck` 0 個 `error TS`；`contract:check` 通過；admin `labelCoverage`、`siteStructure` 23 項通過；後端 `test_analytics_funnel.py` 9 項通過（獨立測試庫 `ivy_website_about_test`）。標題用字對 LINE Seed TW 700／800 分片 unicode-range 無缺字。Playwright 對 fixture 模式 dev（:3240）截 1440／1024／390：無水平溢出、無 page error／console error；320 寬標題皆兩行、無標點落單。截圖在 `output/playwright/about-page-20260926/`。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-25／26 官網後台缺口補齊：權限、案件處理、內容審核與排程、素材庫、統計、字型、E2E（`feature/admin-gaps-20260925`，B01–B15，尚未併回 `main`）
 
 以 `origin/main`（`912da33`）與已上線的 `ops-hardening`（`d4a8c0b`，定期工作、限流存 PostgreSQL、LINE 群組通知、capability 表、S3）為基準，逐項盤點官網後台的規格缺口與文件落後後分批修補，共 14 個實作批次＋本篇文件同步批次。到 `84e9c41`（B10）已合併進 `main` 並部署；之後的批次尚在此分支，未合併、未部署。細節、API 變動、測試證據見各批 commit 訊息與 `docs/website-admin/acceptance.md` 底部「2026-09-25／26 小結」，逐項驗收表見同檔上方表格。

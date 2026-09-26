@@ -1,4 +1,5 @@
-import type { Campus, SiteContent, SiteMetaContent } from '../types/site-content'
+import { indexableArticles, NEWS_PATH, newsPath } from './news-content'
+import type { Campus, NewsArticle, NewsContent, SiteContent, SiteMetaContent } from '../types/site-content'
 
 /** 固定部署 origin；不從不可信 Host 或 CMS 文字組 canonical。 */
 export function normalizeSiteOrigin(value: string): string {
@@ -38,11 +39,12 @@ export function campusShareImagePath(campus: Campus): string {
   return campus.imageMedia ? campus.imageMedia.src : ogImagePath(campus.image)
 }
 
-/** 公開的單頁（非分校頁）：入學資訊、常春藤環境、特色教學。 */
-export type StaticPage = 'admission' | 'environment' | 'curriculum'
+/** 公開的單頁（非分校頁）：最新消息列表、關於常春藤、入學資訊、常春藤環境、特色教學。 */
+export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum'
 export const ADMISSION_PATH = '/admission'
 export const ENVIRONMENT_PATH = '/environment'
 export const CURRICULUM_PATH = '/curriculum'
+export const ABOUT_PATH = '/about'
 
 /** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
@@ -97,6 +99,65 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
     ] }
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
+}
+
+/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+export function aboutSeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `關於常春藤｜1997 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。'
+  const canonical = origin ? `${origin}${ABOUT_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'AboutPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '關於常春藤', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
+}
+
+/** 最新消息列表頁的 SEO（2026-09-26）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+export function newsListSeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `最新消息｜校園活動與各校公告｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園義華、明華、崇德、國際、仁武五校的最新消息與近期活動。'
+  const canonical = origin ? `${origin}${NEWS_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'CollectionPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '最新消息', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
+}
+
+/**
+ * 單篇消息的 SEO。示意內容（sample）照常顯示但不給搜尋引擎：不輸出 canonical 與
+ * 結構化資料，頁面另加 noindex（見 usePageSeo）。分享圖用消息封面：素材庫圖用原檔，
+ * fixture 代號用響應式最大候選（tour-image）。
+ */
+export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: NewsArticle, sample: boolean, imagePath: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `${article.title}｜${article.campus}｜${site.siteMeta.brandName}`
+  const description = article.description
+  const canonical = origin && !sample ? `${origin}${newsPath(article.id)}` : undefined
+  const image = origin && imagePath ? `${origin}${imagePath}` : undefined
+  const graph: Record<string, unknown>[] = canonical ? [
+    { '@type': 'NewsArticle', '@id': `${canonical}#article`, url: canonical, headline: article.title, description, datePublished: article.date, inLanguage: 'zh-Hant-TW',
+      ...(image ? { image: [image] } : {}), publisher: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/` }, isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '最新消息', item: `${origin}${NEWS_PATH}` },
+      { '@type': 'ListItem', position: 3, name: article.title, item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath, imageAlt: article.alt, graph }
 }
 
 export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
@@ -172,9 +233,11 @@ export function robotsTxt(origin: string, indexable: boolean): string {
 /** 不能收錄時回的 sitemap：合法但沒有任何網址。 */
 export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
-export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[]): string {
+/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁與分校頁。 */
+export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[], news?: Pick<NewsContent, 'articles' | 'sampleNote'>): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`)]
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`),
+    ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
 
@@ -196,9 +259,11 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}${c.faq.items.length ? `；常見問題見 ${campusUrl(c)}#faq` : ''}`),
     ''
   ]
+  out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
+  out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')
   return out.join('\n')
 }

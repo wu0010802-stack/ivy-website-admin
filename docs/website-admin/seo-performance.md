@@ -79,7 +79,7 @@ node scripts/check-public-seo.mjs https://正式網域
 
 每項內容記錄核定人與確認日期，放入既有「分校介紹／FAQ」編輯流程。不要填推測數字。實際聯絡／參觀流程以各校目前 booking mode 為準，送出需求不等於預約成立。
 
-GEO 以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主。本輪不新增 llms.txt、虛構 FAQ rich result 或大量近似關鍵字文章。新聞維持既有 dialog，獨立新聞路由仍不在原核可範圍。
+GEO 以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主。本輪不新增 llms.txt、虛構 FAQ rich result 或大量近似關鍵字文章。新聞原本維持 dialog；2026-09-26 使用者拍板開放獨立網址 `/news`、`/news/<id>`（示意消息 noindex、不進 sitemap），活動仍用 dialog。
 
 參考：[Google AI 搜尋指引](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)、[Core Web Vitals](https://web.dev/articles/vitals)、[Google 商家在地搜尋](https://support.google.com/business/answer/7091)。
 
