@@ -486,6 +486,92 @@ async def test_removing_weekday_and_changing_capacity_follow_new_rules(admin_cli
     assert public == []
 
 
+async def _book_then_cancel(admin_client, public_client, version, slot_id, key):
+    """在時段留一筆已取消的案件：不占名額，但歷史紀錄指著，時段刪不掉。"""
+    made = await public_client.post(
+        f"{API}/public/visit-requests",
+        json=_slot_payload("yihua", version, slot_id, parent_name="林爸爸"),
+        headers={"Idempotency-Key": key},
+    )
+    assert made.status_code == 201, made.text
+    cancelled = await admin_client.post(f"{API}/admin/visit-requests/{made.json()['receipt_id']}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("holiday_first", [True, False])
+async def test_restoring_rules_keeps_holiday_slots_closed(admin_client, public_client, holiday_first):
+    """有取消紀錄的舊時段因改規則停用後，規則改回來時如果當天是休假日，要維持
+    關閉（改記 exception），取消休假才重開；不能無視休假日直接開放預約。"""
+    await _set_rules(admin_client, [WED_MORNING])
+    version = await _enable_slots(admin_client, auto_confirm=True)
+    wed = _next_weekday(2)
+    await _generate(admin_client, wed)
+    by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    await _book_then_cancel(admin_client, public_client, version, by_start["09:30:00"]["id"], f"holiday-{holiday_first}")
+
+    async def add_holiday():
+        resp = await admin_client.post(
+            f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": wed.isoformat()}
+        )
+        assert resp.status_code in (200, 201), resp.text
+        return resp.json()["id"]
+
+    if holiday_first:
+        exc_id = await add_holiday()
+        await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+    else:
+        await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+        exc_id = await add_holiday()
+    assert [(s["start_time"], s["closed_source"]) for s in await _slots_on(admin_client, wed)] == [
+        ("09:30:00", "rule")
+    ]
+
+    back = await _set_rules(admin_client, [WED_MORNING])
+    assert back["slot_sync"]["reopened"] == 0
+    after = await _slots_on(admin_client, wed)
+    assert [(s["start_time"], s["closed"], s["closed_source"]) for s in after] == [("09:30:00", True, "exception")]
+    public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
+    assert public == []
+
+    # 取消休假：09:30 照常重開，並補上其餘兩場。
+    removed = await admin_client.delete(f"{API}/admin/visit-schedule/yihua/exceptions/{exc_id}")
+    assert removed.json() == {"reopened_slots": 1, "created_slots": 2}
+    reopened = await _slots_on(admin_client, wed)
+    assert _times(reopened) == [("09:00", "09:30"), ("09:30", "10:00"), ("10:00", "10:30")]
+    assert not any(s["closed"] for s in reopened)
+
+
+@pytest.mark.asyncio
+async def test_restoring_rules_does_not_reopen_slot_overlapping_booked_slot(admin_client, public_client):
+    """30→45→30 分鐘：45 分鐘規則期間家長排入 09:45–10:30，規則改回 30 分鐘時，
+    停用中的 09:30–10:00 跟它重疊，不能重新開放。"""
+    await _set_rules(admin_client, [WED_MORNING])
+    version = await _enable_slots(admin_client, auto_confirm=True)
+    wed = _next_weekday(2)
+    await _generate(admin_client, wed)
+    by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    await _book_then_cancel(admin_client, public_client, version, by_start["09:30:00"]["id"], "overlap-cancelled")
+
+    await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+    assert (await _generate(admin_client, wed))["created"] == 2
+    by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    booked = await public_client.post(
+        f"{API}/public/visit-requests",
+        json=_slot_payload("yihua", version, by_start["09:45:00"]["id"]),
+        headers={"Idempotency-Key": "overlap-booked"},
+    )
+    assert booked.status_code == 201, booked.text
+
+    back = await _set_rules(admin_client, [WED_MORNING])
+    assert back["slot_sync"] == {"removed": 1, "closed": 0, "reopened": 0, "capacity_updated": 0, "kept_booked": 1}
+    await _generate(admin_client, wed)
+    public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
+    assert _times(public) == [("09:00", "09:30"), ("09:45", "10:30")]
+    retired = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}["09:30:00"]
+    assert (retired["closed"], retired["closed_source"]) == (True, "rule")
+
+
 @pytest.mark.asyncio
 async def test_generate_skips_windows_overlapping_existing_slots(admin_client):
     wed = _next_weekday(2)
