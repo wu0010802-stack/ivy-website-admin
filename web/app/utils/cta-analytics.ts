@@ -1,4 +1,4 @@
-import { campusKeys, publicPage } from '../../shared/telemetry'
+import { campusKeys, publicPage } from '#shared/telemetry'
 
 // 預約鈕與聯絡連結的點擊統計（POST /public/analytics-events）。只送事件類型、
 // 校區、入口代碼與一個隨機 event id：不帶網址、query、hash 或任何家長資料。

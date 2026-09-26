@@ -1,4 +1,4 @@
-import { publicPage, type TelemetryEvent } from '../../shared/telemetry'
+import { publicPage, type TelemetryEvent } from '#shared/telemetry'
 import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
 
 export default defineNuxtPlugin((app) => {
