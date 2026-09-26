@@ -125,6 +125,9 @@ async def sync_rule_slots(
       刪除；有歷史紀錄（例如已取消的案件）刪不掉，改成關閉並記 rule。
     - 符合新規則：之前因規則變更停用的重新打開；名額還是舊規則的值（園方沒
       調過）就改成新規則的名額。休假日關閉的維持關閉，取消休假時照常重開。
+      停用中的時段要重開前再看兩件事：當天是休假日就改記 exception、維持
+      關閉（取消休假時才重開）；跟當天其他還佔時間的時段重疊（例如規則
+      30→45→30 分鐘時，45 分鐘期間家長排入的場次）就維持停用。
 
     新規則多出來的場次不在這裡建，交給下一輪定期工作（呼叫端清掉
     rules_extended_on）。回傳各類處理的場次數；kept_booked 是不符合新規則、
@@ -184,6 +187,7 @@ async def sync_rule_slots(
     )
 
     to_delete: list[uuid.UUID] = []
+    to_reopen: list[tuple[VisitSlot, int]] = []
     for slot in slots:
         key = (slot.slot_date.weekday(), slot.start_time, slot.end_time)
         capacity = new_windows.get(key)
@@ -200,28 +204,68 @@ async def sync_rule_slots(
                 slot.version += 1
                 counts["closed"] += 1
             continue
-        changed = False
         if slot.closed_source == SlotClosedSource.RULE.value:
-            slot.closed = False
-            slot.closed_source = None
-            counts["reopened"] += 1
-            changed = True
-            # 停用期間的名額是更早那一版規則的，一律換成新規則的。
-            if slot.capacity != capacity:
-                slot.capacity = capacity
-                counts["capacity_updated"] += 1
+            # 要等刪除與停用都決定完，才知道當天還有哪些時段佔著時間。
+            to_reopen.append((slot, capacity))
         elif old_windows.get(key) == slot.capacity and slot.capacity != capacity:
             slot.capacity = capacity
             counts["capacity_updated"] += 1
-            changed = True
-        if changed:
             # 園方開著的時段頁拿舊版本存檔時會被擋下重新載入。
             slot.version += 1
     if to_delete:
         await db.execute(delete(VisitSlot).where(VisitSlot.id.in_(to_delete)))
         counts["removed"] = len(to_delete)
     await db.flush()
+    if to_reopen:
+        await _reopen_rule_slots(db, campus_key, to_reopen, counts)
+        await db.flush()
     return counts
+
+
+async def _reopen_rule_slots(
+    db: AsyncSession, campus_key: str, to_reopen: list[tuple[VisitSlot, int]], counts: dict
+) -> None:
+    """重開因規則變更停用、又符合新規則的時段。佔時間的判斷與 _create_from_rules
+    相同：同一天除了規則停用的以外（含園方關閉、休假日關閉、有人排入的）都算。"""
+    days = {slot.slot_date for slot, _ in to_reopen}
+    exception_days = set(
+        (
+            await db.execute(
+                select(VisitException.exception_date).where(
+                    VisitException.campus_key == campus_key, VisitException.exception_date.in_(days)
+                )
+            )
+        ).scalars()
+    )
+    taken: dict[date, list[tuple[time, time]]] = {}
+    existing = await db.execute(
+        select(VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.end_time).where(
+            VisitSlot.campus_key == campus_key,
+            VisitSlot.slot_date.in_(days),
+            VisitSlot.closed_source.is_distinct_from(SlotClosedSource.RULE.value),
+        )
+    )
+    for d, t_start, t_end in existing.all():
+        taken.setdefault(d, []).append((t_start, t_end))
+
+    for slot, capacity in sorted(to_reopen, key=lambda item: (item[0].slot_date, item[0].start_time)):
+        day_taken = taken.setdefault(slot.slot_date, [])
+        if _overlaps(slot.start_time, slot.end_time, day_taken):
+            continue
+        day_taken.append((slot.start_time, slot.end_time))
+        if slot.slot_date in exception_days:
+            # 休假日維持關閉，改成休假來源：取消休假時由 remove_exception 重開。
+            slot.closed_source = SlotClosedSource.EXCEPTION.value
+        else:
+            slot.closed = False
+            slot.closed_source = None
+            counts["reopened"] += 1
+        # 停用期間的名額是更早那一版規則的，一律換成新規則的。
+        if slot.capacity != capacity:
+            slot.capacity = capacity
+            counts["capacity_updated"] += 1
+        # 園方開著的時段頁拿舊版本存檔時會被擋下重新載入。
+        slot.version += 1
 
 
 async def list_exceptions(db: AsyncSession, campus_key: str, *, since: date | None = None) -> list[VisitException]:
