@@ -301,6 +301,20 @@ describe('素材庫頁', () => {
     expect(upload).toHaveBeenCalledTimes(2)
     expect(wrapper.findAll('.uploads__row[data-status="done"]')).toHaveLength(2)
   })
+
+  it('沒有共用權限的校區管理者：上傳預設帶自己的校區，不會送出跨校共用被拒', async () => {
+    mockGet([])
+    const wrapper = await mountAs(MediaLibraryView, testUser('campus_admin', { campus_keys: ['minghua'] }))
+    await wrapper.findAll('button').find((b) => b.text() === '上傳素材')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('共用素材需要「全站共用內容」權限')
+    const upload = vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'm9', campus_key: 'minghua' }) as never)
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'a.jpg', { type: 'image/jpeg' })])
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === '上傳 1 個檔案')!.trigger('click')
+    await flushPromises()
+    expect((upload.mock.calls[0]![1] as FormData).get('campus_key')).toBe('minghua')
+  })
 })
 
 describe('替換素材', () => {
@@ -425,6 +439,31 @@ describe('替換素材', () => {
     expect(wrapper.text()).not.toContain('無法讀取影響範圍')
     expect(wrapper.text()).toContain('第 2 個場景的照片（操場）')
     expect(upload).toHaveBeenCalledTimes(1)
+  })
+  it('關掉 A 的替換視窗後才回來的上傳結果，不會拿去替換 B', async () => {
+    mockGet([], { ...USAGES, media_id: 'asset-b', references: [USAGES.references[0]!] })
+    let finishUpload!: (value: MediaAssetOut) => void
+    const upload = vi.spyOn(api, 'upload').mockImplementation(() => new Promise((resolve) => { finishUpload = resolve }) as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ replacement_id: 'new-a', items: [] } as never)
+    const wrapper = await openReplace(admin(), asset({ id: 'asset-a' }))
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'new-a.png', { type: 'image/png' })])
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === '上傳新檔案')!.trigger('click')
+    expect(upload.mock.calls[0]![0]).toBe('/admin/media/asset-a/replace')
+
+    // 素材庫頁關窗後元件還在，換成 B 再打開。
+    await wrapper.findAll('button').find((button) => button.text() === '取消')!.trigger('click')
+    await wrapper.setProps({ modelValue: false })
+    await wrapper.setProps({ asset: asset({ id: 'asset-b', original_filename: 'b.jpg' }), modelValue: true })
+    finishUpload(asset({ id: 'new-a', replaces_media_id: 'asset-a' }))
+    await flushPromises()
+
+    // A 的新素材照樣進素材庫（通知父層重新載入），但 B 的視窗還停在上傳步驟。
+    expect(wrapper.emitted('done')).toHaveLength(1)
+    expect(wrapper.find('input[type="file"]').exists()).toBe(true)
+    expect(wrapper.find('.replace__item').exists()).toBe(false)
+    expect(buttons(wrapper)).toContain('上傳新檔案')
+    expect(post).not.toHaveBeenCalled()
   })
 })
 

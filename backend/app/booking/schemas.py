@@ -631,10 +631,24 @@ class VisitRequestFullOut(VisitRequestDetailOut):
 
 class VisitContactNoteCreateRequest(BaseModel):
     note: str = Field(min_length=1, max_length=1000)
+    # 帶時間＝改下次聯絡時間；帶 null 且有 expected_version＝「不用再追」，清掉
+    # 案件上的追蹤時間；不帶（或舊版前端只送 null、沒帶版本）＝不動。
     follow_up_at: datetime | None = None
     # 有改下次聯絡時間時必填（會蓋掉案件上的值，要跟改承辦人一樣檢查版本）；
     # 只記一筆聯絡紀錄是新增，不會蓋掉別人的東西，可以省略。
     expected_version: int | None = Field(default=None, ge=1)
+
+    @property
+    def clears_follow_up(self) -> bool:
+        return (
+            "follow_up_at" in self.model_fields_set
+            and self.follow_up_at is None
+            and self.expected_version is not None
+        )
+
+    @property
+    def changes_follow_up(self) -> bool:
+        return self.follow_up_at is not None or self.clears_follow_up
 
     @model_validator(mode="after")
     def _version_needed_for_follow_up(self) -> "VisitContactNoteCreateRequest":

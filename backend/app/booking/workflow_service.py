@@ -397,8 +397,11 @@ async def add_contact_note(
     *,
     note: str,
     follow_up_at: datetime | None,
+    clear_follow_up: bool = False,
     created_by: uuid.UUID,
 ) -> VisitContactNote:
+    """follow_up_at 有值就改成這個時間；clear_follow_up 是「不用再追」，清掉案件
+    上的追蹤時間（總覽的「到期待追蹤」才不會一直留著舊提醒）。兩者都沒有＝不動。"""
     record = VisitContactNote(
         id=uuid.uuid4(),
         visit_request_id=visit_request.id,
@@ -408,19 +411,19 @@ async def add_contact_note(
     )
     db.add(record)
     previous_follow_up = visit_request.follow_up_at
-    if follow_up_at is not None:
+    changed = follow_up_at is not None or clear_follow_up
+    if changed:
         visit_request.follow_up_at = follow_up_at
         if follow_up_at != previous_follow_up:
             visit_request.version += 1
     # 內容本身在聯絡紀錄裡；歷程只記誰記了一筆，改了下次聯絡時間才記前後。
-    changed = follow_up_at is not None
     history.record_event(
         db,
         visit_request.id,
         "contact_logged",
         actor=Actor.staff(created_by),
         before={"follow_up_at": previous_follow_up.isoformat() if previous_follow_up else None} if changed else None,
-        after={"follow_up_at": follow_up_at.isoformat()} if changed else None,
+        after={"follow_up_at": follow_up_at.isoformat() if follow_up_at else None} if changed else None,
     )
     await db.flush()
     return record

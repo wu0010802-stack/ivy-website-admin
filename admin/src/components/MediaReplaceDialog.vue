@@ -109,9 +109,19 @@ const touchesTour = computed(() =>
 
 const accept = computed(() => (props.asset?.kind === 'video' ? 'video/mp4' : 'image/jpeg,image/png,image/webp'))
 
-watch(visible, (open) => {
+// 操作代號：開關視窗或換素材就加一。上傳、讀影響範圍、套用替換 await 回來時
+// 代號變了就不動畫面——父層關窗後元件還在，A 的舊回應不能拿去替換 B。
+// 已經送出的請求照樣完成（上傳的新素材留在素材庫、草稿照樣產生），只是結果
+// 不再交給目前的視窗。
+let operation = 0
+const isCurrent = (token: number) => token === operation
+
+watch([visible, () => props.asset?.id], ([open]) => {
+  operation += 1
   if (!open) return
   step.value = 'upload'
+  busy.value = false
+  usagesLoading.value = false
   file.value = null
   replacement.value = null
   usages.value = null
@@ -127,8 +137,11 @@ async function onFileChange(event: Event) {
   input.value = ''
   error.value = null
   if (!picked || !props.asset) return
+  const token = operation
+  const kind = props.asset.kind
   // 後端以舊素材的種類驗新檔：影片選到照片會被當成「偽裝副檔名」，先在這裡講清楚。
-  const problem = precheckFile(picked, await loadUploadLimits(), props.asset.kind)
+  const problem = precheckFile(picked, await loadUploadLimits(), kind)
+  if (!isCurrent(token)) return
   if (problem) {
     error.value = problem
     file.value = null
@@ -140,15 +153,18 @@ async function onFileChange(event: Event) {
 // 影響範圍每次重新讀都清掉勾選：版本或位置可能已經變了，請使用者重新看過再選。
 async function loadUsages() {
   if (!props.asset) return
+  const token = operation
   usagesLoading.value = true
   usagesError.value = null
   try {
-    usages.value = await api.get<MediaUsagesOut>(`/admin/media/${props.asset.id}/usages`)
+    const loaded = await api.get<MediaUsagesOut>(`/admin/media/${props.asset.id}/usages`)
+    if (!isCurrent(token)) return
+    usages.value = loaded
     selected.value = []
   } catch {
-    usagesError.value = '無法讀取影響範圍。新檔案已經加入素材庫，不用重新上傳，請重新載入。'
+    if (isCurrent(token)) usagesError.value = '無法讀取影響範圍。新檔案已經加入素材庫，不用重新上傳，請重新載入。'
   } finally {
-    usagesLoading.value = false
+    if (isCurrent(token)) usagesLoading.value = false
   }
 }
 
@@ -159,6 +175,7 @@ function toggleAll() {
 async function uploadReplacement() {
   // 已經傳過就不再傳：再按一次會多建一個替換素材、佔用配額。
   if (!props.asset || !file.value || replacement.value) return
+  const token = operation
   busy.value = true
   error.value = null
   try {
@@ -166,6 +183,7 @@ async function uploadReplacement() {
     formData.append('file', file.value)
     const created = await api.upload<MediaAssetOut>(`/admin/media/${props.asset.id}/replace`, formData)
     emit('done')
+    if (!isCurrent(token)) return
     if (created.status !== 'ready') {
       error.value = created.processing_error ?? '新檔案處理失敗，請換一個檔案'
       return
@@ -174,12 +192,12 @@ async function uploadReplacement() {
     replacement.value = created
     step.value = 'impact'
   } catch (err) {
-    error.value = uploadErrorMessage(err)
+    if (isCurrent(token)) error.value = uploadErrorMessage(err)
     return
   } finally {
-    busy.value = false
+    if (isCurrent(token)) busy.value = false
   }
-  await loadUsages()
+  if (isCurrent(token)) await loadUsages()
 }
 
 async function applyReplacement() {
@@ -189,24 +207,28 @@ async function applyReplacement() {
     step.value = 'done'
     return
   }
+  const token = operation
   busy.value = true
   error.value = null
   try {
-    results.value = await api.post<MediaReplaceReferencesOut>(`/admin/media/${props.asset.id}/replace-references`, {
+    const out = await api.post<MediaReplaceReferencesOut>(`/admin/media/${props.asset.id}/replace-references`, {
       replacement_id: replacement.value.id,
       items,
     })
-    step.value = 'done'
-    ElMessage.success(`已產生 ${results.value.items.length} 份草稿`)
+    ElMessage.success(`已產生 ${out.items.length} 份草稿`)
     emit('done')
+    if (!isCurrent(token)) return
+    results.value = out
+    step.value = 'done'
   } catch (err) {
+    if (!isCurrent(token)) return
     const detail = err instanceof ApiError ? (err.detail as { code?: string; message?: string } | null) : null
     error.value = detail?.message ?? '替換失敗，請稍後再試'
     if (detail?.code === 'CONTENT_VERSION_CONFLICT' || detail?.code === 'MEDIA_NOT_REFERENCED') {
       await loadUsages()
     }
   } finally {
-    busy.value = false
+    if (isCurrent(token)) busy.value = false
   }
 }
 </script>

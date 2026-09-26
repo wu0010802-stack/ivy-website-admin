@@ -524,6 +524,43 @@ async def test_visit_request_follow_up_due_filter_and_order(admin_client, public
     oldest = await admin_client.get("/api/website/v1/admin/visit-requests?q=家長&order=oldest")
     assert [r["id"] for r in oldest.json()] == [older, newer]
 
+
+@pytest.mark.asyncio
+async def test_contact_note_can_clear_follow_up(admin_client, public_client):
+    """「不用再追」：送 null 並帶版本會清掉追蹤時間，到期待追蹤不再列出；沒帶
+    版本的 null（舊版前端）只記一筆紀錄、不動追蹤時間。"""
+    request_id = await _submit_inquiry(
+        admin_client, public_client, campus_key="yihua", parent_name="不用追家長", phone="0911000333", key="clear-01"
+    )
+    notes_url = f"/api/website/v1/admin/visit-requests/{request_id}/contact-notes"
+    due_url = "/api/website/v1/admin/visit-requests?follow_up_due=true"
+    set_due = await admin_client.post(
+        notes_url, json={"note": "家長說下週再聯絡", "follow_up_at": "2020-01-01T09:00:00Z", "expected_version": 1}
+    )
+    assert set_due.status_code == 201, set_due.text
+    assert [r["id"] for r in (await admin_client.get(due_url)).json()] == [request_id]
+
+    legacy = await admin_client.post(notes_url, json={"note": "沒接", "follow_up_at": None})
+    assert legacy.status_code == 201, legacy.text
+    detail = (await admin_client.get(f"/api/website/v1/admin/visit-requests/{request_id}")).json()
+    assert detail["follow_up_at"] is not None
+    assert detail["version"] == 2
+
+    stale = await admin_client.post(notes_url, json={"note": "家長決定報名別家", "follow_up_at": None, "expected_version": 1})
+    assert stale.status_code == 409, stale.text
+    cleared = await admin_client.post(
+        notes_url, json={"note": "家長決定報名別家", "follow_up_at": None, "expected_version": 2}
+    )
+    assert cleared.status_code == 201, cleared.text
+    detail = (await admin_client.get(f"/api/website/v1/admin/visit-requests/{request_id}")).json()
+    assert detail["follow_up_at"] is None
+    assert detail["version"] == 3
+    assert (await admin_client.get(due_url)).json() == []
+    assert (await admin_client.get("/api/website/v1/admin/dashboard")).json()["pending_follow_up"] == 0
+    logged = [e for e in detail["history"] if e["event_type"] == "contact_logged"]
+    assert logged[-1]["before"]["follow_up_at"] is not None
+    assert logged[-1]["after"] == {"follow_up_at": None}
+
     bad = await admin_client.get("/api/website/v1/admin/visit-requests?order=random")
     assert bad.status_code == 422
 

@@ -239,6 +239,8 @@ async def initialize_content(
     db: AsyncSession, data: dict, created_by: uuid.UUID | None = None
 ) -> int:
     plan = await faq_initialization_plan(db, data)
+    # 先建版本再發布：站台鎖要在鎖內容項之前拿（見 service.lock_site_state）。
+    await service.lock_site_state(db)
     created = 0
     for kind, campus, payload in initial_payloads(data):
         item = await service.get_or_create_content_item(db, kind, campus)
@@ -299,6 +301,7 @@ async def seed_from_fixture(
         raise SeedRefused(existing)
     if dry_run:
         return plan
+    await service.lock_site_state(db)
     for kind in SEED_KINDS:
         item = await service.get_or_create_content_item(db, kind, None)
         revision = await service.create_revision(db, item, payloads[kind], item.latest_version, created_by)
