@@ -66,7 +66,10 @@ def upgrade() -> None:
             FROM media_assets AS a
             WHERE v.media_id = a.id
               AND a.kind = 'IMAGE'
-              AND v.kind IN ('THUMBNAIL', 'LARGE')
+              -- 轉成 text 再比：新庫一次套完整串 migration 時，LARGE 是同一個交易裡
+              -- c4d8e2f6a913 才加的 enum 值，直接當 enum 常數用會被 PostgreSQL 拒絕
+              -- （unsafe use of new value "LARGE"）。
+              AND v.kind::text IN ('THUMBNAIL', 'LARGE')
               AND (a.sha256 IS NULL OR a.content_type IN ('image/png', 'image/webp', 'image/gif'))
             """
         )
