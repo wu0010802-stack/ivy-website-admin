@@ -18,6 +18,12 @@ const cancelPanel = ref<HTMLElement | null>(null)
 const slotSelect = ref<HTMLSelectElement | null>(null)
 // 停用的分校不在公開內容裡：校名、電話改用預約回應帶的，不改列其他校區。
 const visitCampus = computed(() => parentVisitCampus(visit.value, data.value?.content.campuses))
+// 預約成立才給「加入行事曆／導航」（規格 197）。地址只取公開中的分校資料；停用的分校沒有地址，就只給行事曆。
+const calendarCampus = computed(() => {
+  if (visit.value?.status !== 'confirmed' || !visit.value.slot || !visitCampus.value?.name) return null
+  const published = visitCampus.value.listed ? data.value?.content.campuses.find(campus => campus.key === visitCampus.value!.key) : undefined
+  return { name: visitCampus.value.name, phone: visitCampus.value.phone, address: published?.address ?? null }
+})
 const statusLabels: Record<string, string> = {
   new: '已收到需求', contacting: '園所聯繫中', pending_confirmation: '待園方確認',
   confirmed: '預約成立', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
@@ -129,6 +135,7 @@ async function submitReschedule() {
             </p>
             <p v-if="visit.status === 'pending_confirmation'" class="parent-visit-muted">這個時段尚待園方確認，預約還未成立。</p>
             <p v-else-if="visit.status === 'new' || visit.status === 'contacting'" class="parent-visit-muted">園所會與你聯繫，確認合適的參觀時間。</p>
+            <VisitCalendarActions v-if="calendarCampus && visit.slot" :campus="calendarCampus" :slot="visit.slot" :uid="`visit-${visit.id}@ivy-website`" />
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上異動時間。如需取消或改期，請直接聯絡園所。</p>
             <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上異動截止：{{ deadlineLabel }}（台灣時間{{ deadlineRule ? `，${deadlineRule}` : '' }}）。</p>
 

@@ -107,6 +107,7 @@ onBeforeUnmount(() => { slotsMounted = false; slotRequest++ })
 
 const submitted = ref(false)
 const resultStatus = ref<string | null>(null)
+const receiptId = ref('')
 
 // 三種語意不能混用（規格 197）：inquiry 是「已收到需求」、slots 人工
 // 確認是「待園方確認」、只有自動確認成功才叫「預約成立」。
@@ -258,6 +259,7 @@ async function onSubmit() {
     // 說「預約成立」——規格 197。
     submittedSlot.value = selectedSlot.value ? { ...selectedSlot.value } : null
     resultStatus.value = created?.status ?? null
+    receiptId.value = created?.receipt_id || idempotencyKey.value
     submitted.value = true
     idempotencyKey.value = crypto.randomUUID()
     await nextTick()
@@ -452,6 +454,10 @@ async function onSubmit() {
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
             <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
+            <VisitCalendarActions
+              v-if="resultStatus === 'confirmed' && submittedSlot && selectedCampus"
+              :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"
+            />
             <div class="visit-result-next"><h3>接下來，等園所與你聯繫。</h3><p>需要補充、更正資料或調整安排，請直接聯絡{{ selectedCampus?.name }}。</p><div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><a v-if="selectedCampus?.line" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a></div></div>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>

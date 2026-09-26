@@ -1,3 +1,13 @@
+## 2026-09-26 預約成立後「加入行事曆」與「導航」（`feature/visit-calendar-20260926`）
+
+- 預約完成畫面（送出後 API 回 `confirmed`）與家長管理頁 `/visit/manage`（狀態 `confirmed` 且有時段）多一塊「記下參觀時間」：加入 Google 日曆、下載 `.ics`（iPhone、Outlook）、Google 地圖導航。**只在預約成立時出現**；已收到需求、待園方確認都不出現（規格 197）。
+- `utils/visit-calendar.ts`：時段以台北時間換 UTC；`.ics` 依 RFC 5545 跳脫、CRLF、75 位元組折行，前一天提醒（`TRIGGER:-P1D`），UID 用 `receipt_id`／管理頁用 `visit.id`（改期後同 UID 會更新同一筆）。行程只寫分校、地址、電話，不放孩子與家長資料。導航目的地用地址（分校自訂地圖連結可能是地標頁）；管理頁的地址取公開分校資料，停用的分校沒有地址就只給行事曆。
+- 元件 `VisitCalendarActions.vue`，圖示沿用 sprite 的 `i-calendar-check`、`i-navigation-arrow`。
+
+驗證：`nuxt typecheck` 結束碼 0；`npm run test:website` 45 檔 408 項通過（新增 `visit-calendar.spec.ts`，含「兩處都以 confirmed 為條件」的原始碼檢查）。Playwright 以攔截 API 模擬：1440×900、390×844 的預約完成畫面與管理頁，`confirmed` 都出現、`pending_confirmation` 都不出現；下載的 `.ics` 以 Python `icalendar` 解析，時間 2026-10-07 09:30+08:00、地點、電話、前一天提醒正確；console 無錯誤。截圖在 `output/playwright/visit-calendar-20260926/`。iPhone Safari 下載 `.ics` 後叫出「加入行事曆」未實機驗證；未接真後端跑 `tests/stack`。
+
+未 commit、未部署。
+
 ## 2026-09-25／26 官網後台缺口補齊：權限、案件處理、內容審核與排程、素材庫、統計、字型、E2E（`feature/admin-gaps-20260925`，B01–B15，尚未併回 `main`）
 
 以 `origin/main`（`912da33`）與已上線的 `ops-hardening`（`d4a8c0b`，定期工作、限流存 PostgreSQL、LINE 群組通知、capability 表、S3）為基準，逐項盤點官網後台的規格缺口與文件落後後分批修補，共 14 個實作批次＋本篇文件同步批次。到 `84e9c41`（B10）已合併進 `main` 並部署；之後的批次尚在此分支，未合併、未部署。細節、API 變動、測試證據見各批 commit 訊息與 `docs/website-admin/acceptance.md` 底部「2026-09-25／26 小結」，逐項驗收表見同檔上方表格。
