@@ -1,3 +1,14 @@
+## 2026-09-28 進入特色教學頁：水彩從畫面中央暈開（`feature/curriculum-watercolor-20260928`）
+
+使用者問全站換頁動畫可以做在哪，先看「進入特色教學頁」：mock `design/curriculum-enter-transition-20260928/`（`?vt=0|a|b|c`：現行、A 中央暈開、B 從點擊處、C 刷過去），使用者選 **A**。其他換頁維持 09-26 的裁定：不開全站換頁動畫。
+
+- **做法**：`plugins/curriculum-enter.client.ts` 只在「從其他頁點連結進入 `/curriculum`」時用 View Transition：`beforeResolve` 先拍舊畫面、`page:finish` 後拍新畫面（同 Nuxt 內建做法），逾時 2.5 秒。舊頁是靜止截圖、新頁是 live，特色教學頁自己的顏料會在遮罩裡一起動。三張遮罩（`utils/watercolor.ts` 的 `revealMaskCanvas`）在閒置時間產生、toBlob 編碼；還沒好就直接換頁。頁首在過場期間有名字（`site-header`），原地淡換、不參與暈開。
+- **頁首與頁尾是一般 `<a>`**（整頁載入、不經過路由）：連到 `/curriculum` 而且這次會暈開時才攔下來改走 `router.push`，其他連結照舊整頁載入。
+- **不播**：首次進站、上一頁／下一頁（含 iPhone 左滑返回）、從特色教學離開、其他頁面之間、不支援 View Transitions、減少動態、強制色彩。規則在 `utils/curriculumEnter.ts`。
+- 樣式在 `styles.css`「進入特色教學」，名字與遮罩只在 `html.curriculum-enter` 期間存在。
+
+驗證：`nuxt typecheck` 結束碼 0；`npm run test:website` 53 檔 482 項通過（新增 `curriculum-enter.spec.ts` 11 項）。dev（:3217）Playwright 以 CDP 放慢 5 倍逐格：環境頁首、入學與首頁頁尾、手機膠囊選單卡點進特色教學都有暈開（包 `startViewTransition` 計數＝1），結束後 class 拿掉、選單捲動鎖定解除、無 console／page error；特色教學→環境、上一頁、環境→入學、減少動態皆為 0（減少動態也不產生遮罩）。mock 階段發現：更新 DOM 期間瀏覽器暫停畫面更新，`requestAnimationFrame` 不會觸發，不能拿它等新頁。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-28 特色教學頁改成水彩版、補兒童美術館與教學理念、拿掉預約參觀（`feature/curriculum-watercolor-20260928`）
 
 使用者要一個跟其他分頁不一樣、藝術一點的 canvas 2D 風格。先在 `/environment` 比了三個方向（`design/environment-canvas-directions-20260927/`，A 藤蔭、B 一筆藤、C 水彩），使用者選 C 但要套在 `/curriculum`；mock 在 `design/curriculum-watercolor-mockup-20260928/`，依 mock 改正式頁。內頁共用版型（hero＋薄荷帶＋米底＋深綠舞台）這頁不再使用。

@@ -1,5 +1,15 @@
 # Design
 
+## 進入特色教學頁：水彩中央暈開（2026-09-28 選 A）
+
+使用者問全站換頁動畫可以做在哪、先看「進入特色教學頁」。mock `design/curriculum-enter-transition-20260928/`（`?vt=0|a|b|c`），選 **A 中央暈開**。
+
+- **範圍只有這一條**：從其他頁點連結進入 `/curriculum`。**09-26「不開全站換頁動畫」仍然有效**，其他頁面之間照舊立即切換；要再加別條路徑（例如五校卡→分校頁、消息卡→單篇）要使用者另外同意。
+- **效果**：新頁從畫面中央以三團水彩遮罩滲開（三層略不同中心與速度，邊緣一路在變），0.9 秒、`cubic-bezier(.33,.12,.3,1)`（前段不要太快，否則前三成時間就蓋滿、看不到滲開）。舊頁不淡出；頁首原地淡換不參與暈開。遮罩最後大小依「最遠的角 ÷ 實心核心 0.24」算，確保四角蓋滿。
+- **不播**：首次進站（有開場布幕）、上一頁／下一頁（iPhone 左滑返回時 Safari 自己有動畫）、減少動態、強制色彩、不支援 View Transitions、遮罩還沒在閒置時間產生好。
+- **實作地雷**：主選單與頁尾是一般 `<a>`，要攔點擊改走 `router.push` 才有 SPA 過場（只攔會播的那次）；View Transition 更新 DOM 期間不能用 `requestAnimationFrame` 等新頁（不會觸發，mock 實測卡到逾時）；頁首的 `view-transition-name` 只能在 `html.curriculum-enter` 期間存在。
+- 看過未選：B 從點擊處暈開、C 一大筆水彩刷過去。
+
 ## 特色教學頁水彩版 /curriculum（2026-09-28 定案）
 
 使用者要「跟其他分頁不一樣、藝術一點」的 canvas 2D 風格。三方向比稿在 `design/environment-canvas-directions-20260927/`（`?art=a|b|c`），使用者選 C 水彩、改套在特色教學頁；mock `design/curriculum-watercolor-mockup-20260928/`。

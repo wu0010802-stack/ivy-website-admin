@@ -273,3 +273,15 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 ::view-transition-image-pair(campus-photo){overflow:clip;border-radius:24px}
 ::view-transition-old(campus-photo),::view-transition-new(campus-photo){height:100%;object-fit:cover;animation-duration:.45s}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.4s}
+
+/* 進入特色教學：水彩從畫面中央暈開（plugins/curriculum-enter.client.ts，2026-09-28 選 A）。只在 html.curriculum-enter 期間生效，其他換頁照舊立即切換。
+   頁首有名字 → 不參與 root 的暈開，留在原位淡換；舊頁（截圖）不淡出，新頁（live）帶三層遮罩蓋上來；關掉預設的 plus-lighter 混色，邊緣才不會過曝。
+   三團顏料以略不同的中心與速度長大（第二、三層較小且中心偏移），邊緣形狀一路在變；--cur-enter-x／y／s 由 plugin 依視窗算好。 */
+.curriculum-enter .header{view-transition-name:site-header}
+.curriculum-enter::view-transition-old(root){animation:none}
+.curriculum-enter::view-transition-old(root),.curriculum-enter::view-transition-new(root){mix-blend-mode:normal}
+.curriculum-enter::view-transition-new(root){-webkit-mask-image:var(--cur-enter-blob-1),var(--cur-enter-blob-2),var(--cur-enter-blob-3);mask-image:var(--cur-enter-blob-1),var(--cur-enter-blob-2),var(--cur-enter-blob-3);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:curriculum-bloom .9s cubic-bezier(.33,.12,.3,1) both}
+@keyframes curriculum-bloom{
+  from{-webkit-mask-size:0 0,0 0,0 0;mask-size:0 0,0 0,0 0;-webkit-mask-position:var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y);mask-position:var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y)}
+  to{-webkit-mask-size:var(--cur-enter-s) var(--cur-enter-s),calc(var(--cur-enter-s)*.86) calc(var(--cur-enter-s)*.86),calc(var(--cur-enter-s)*.74) calc(var(--cur-enter-s)*.74);mask-size:var(--cur-enter-s) var(--cur-enter-s),calc(var(--cur-enter-s)*.86) calc(var(--cur-enter-s)*.86),calc(var(--cur-enter-s)*.74) calc(var(--cur-enter-s)*.74);-webkit-mask-position:calc(var(--cur-enter-x) - var(--cur-enter-s)/2) calc(var(--cur-enter-y) - var(--cur-enter-s)/2),calc(var(--cur-enter-x) - var(--cur-enter-s)*.37) calc(var(--cur-enter-y) - var(--cur-enter-s)*.47),calc(var(--cur-enter-x) - var(--cur-enter-s)*.44) calc(var(--cur-enter-y) - var(--cur-enter-s)*.32);mask-position:calc(var(--cur-enter-x) - var(--cur-enter-s)/2) calc(var(--cur-enter-y) - var(--cur-enter-s)/2),calc(var(--cur-enter-x) - var(--cur-enter-s)*.37) calc(var(--cur-enter-y) - var(--cur-enter-s)*.47),calc(var(--cur-enter-x) - var(--cur-enter-s)*.44) calc(var(--cur-enter-y) - var(--cur-enter-s)*.32)}
+}

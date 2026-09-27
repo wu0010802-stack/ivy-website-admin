@@ -161,6 +161,23 @@ export function bloomCanvas() {
   return el
 }
 
+/**
+ * 換頁暈開的遮罩（進入特色教學頁，plugins/curriculum-enter.client.ts）：外圈幾十層很淡的變形多邊形是濕邊，
+ * 中間一塊變形過的實心核心（半徑約 0.29，最窄約 0.25 → utils/curriculumEnter.ts 的 REVEAL_CORE）。
+ * 三張不同種子的遮罩以略不同的速度長大，邊緣形狀一路在變，不像一個圓在放大。
+ */
+export function revealMaskCanvas(seed: number, size = 1024) {
+  const { el, ctx } = canvas(size, size)
+  const random = seededRandom(seed)
+  const base = deform(random, ellipse(random, size / 2, size / 2, size * 0.33, size * 0.33), 2, 0.5)
+  ctx.fillStyle = 'rgb(0 0 0 / .07)'
+  for (let i = 0; i < 28; i++) { tracePolygon(ctx, deform(random, base, 3, 0.3)); ctx.fill() }
+  ctx.fillStyle = 'rgb(0 0 0)'
+  tracePolygon(ctx, deform(random, ellipse(random, size / 2, size / 2, size * 0.29, size * 0.29, 16), 3, 0.18))
+  ctx.fill()
+  return el
+}
+
 /** 冷壓水彩紙的紋理（256px 平鋪，multiply 疊在頁面上）。 */
 export function grainCanvas() {
   const S = 256
