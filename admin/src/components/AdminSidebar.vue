@@ -2,11 +2,12 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import * as Icons from '@element-plus/icons-vue'
-import { canSeeNavItem, NAV_GROUPS } from '../router/nav'
+import { canSeeNavItem, landingPath, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
+import crestMarkUrl from '../assets/brand/ivy-crest-mark.webp'
 
 defineProps<{ mobile?: boolean }>()
 const emit = defineEmits<{ close: []; logout: [] }>()
@@ -68,6 +69,8 @@ watch(activePath, path => {
   if (group) expanded.value[group.key] = true
   query.value = ''
 }, { immediate: true })
+// 點 logo 回到這個角色的起始頁（總管理者是營運總覽，其他角色是第一個看得到的功能）。
+const homePath = computed(() => landingPath(auth.user?.role))
 const userLine = computed(() => {
   const user = auth.user
   if (!user) return ''
@@ -78,8 +81,10 @@ const userLine = computed(() => {
 <template>
   <div class="sidebar">
     <div class="sidebar__brand">
-      <img src="/favicon.svg" alt="" width="32" height="32" />
-      <div><strong>常春藤官網</strong><span>管理後台</span></div>
+      <router-link :to="homePath" class="sidebar__home" title="回到起始頁">
+        <img :src="crestMarkUrl" alt="" width="41" height="44" />
+        <span class="sidebar__brand-text"><strong>常春藤官網</strong><span>管理後台</span></span>
+      </router-link>
       <button v-if="mobile" class="sidebar__close" type="button" aria-label="關閉選單" @click="emit('close')">
         <el-icon><Icons.Close /></el-icon>
       </button>
@@ -158,12 +163,14 @@ const userLine = computed(() => {
   background: var(--sidebar-bg); color: var(--sidebar-ink);
 }
 .sidebar :focus-visible { outline-color: var(--sidebar-active-ink); }
-.sidebar__brand { display: flex; flex-shrink: 0; align-items: center; gap: 12px; min-height: var(--top-h); padding: 0 20px; }
-.sidebar__brand div { display: grid; gap: 2px; }
-.sidebar__brand strong { font-size: 15px; font-weight: 600; }
-.sidebar__brand span { font-size: 12px; color: var(--sidebar-muted); }
-.sidebar__brand img { border-radius: var(--radius); flex-shrink: 0; }
-.sidebar__search { padding: 12px 16px 16px; }
+/* 品牌列與右側頂欄同高、同一條底線，兩邊的橫線接成一條。 */
+.sidebar__brand { display: flex; flex-shrink: 0; align-items: center; gap: 8px; min-height: var(--top-h); padding: 0 12px; border-bottom: 1px solid var(--sidebar-line); }
+.sidebar__home { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 52px; padding: 4px 8px; border-radius: var(--radius); color: var(--sidebar-ink); transition: background-color 150ms var(--ease-out); }
+.sidebar__home img { flex-shrink: 0; width: auto; height: 44px; }
+.sidebar__brand-text { display: grid; gap: 2px; min-width: 0; }
+.sidebar__brand-text strong { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.sidebar__brand-text span { font-size: 12px; color: var(--sidebar-muted); }
+.sidebar__search { padding: 16px 16px 16px; }
 .sidebar__nav { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 20px; overscroll-behavior: contain; }
 .sidebar__group + .sidebar__group { margin-top: 12px; }
 .sidebar__section { margin: 20px 0 4px; padding: 12px 12px 0; border-top: 1px solid var(--sidebar-line); color: var(--sidebar-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
@@ -172,13 +179,11 @@ const userLine = computed(() => {
 .sidebar__group.is-nested .sidebar__group-toggle { padding-left: 20px; }
 .sidebar__group.is-nested .sidebar__link { margin-left: 8px; }
 .sidebar__group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 10px 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-muted); font: inherit; font-size: 13px; cursor: pointer; }
-.sidebar__group-toggle:hover:not(:disabled) { background: var(--sidebar-hover); color: var(--sidebar-ink); }
 .sidebar__group-toggle:disabled { cursor: default; }
 .sidebar__chevron { font-size: 12px; transform: rotate(-90deg); }
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__nav ul { list-style: none; margin: 0; padding: 0; }
 .sidebar__link { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
-.sidebar__link:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); text-decoration: none; }
 .sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__link .el-icon { font-size: 17px; }
 /* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
@@ -186,19 +191,25 @@ const userLine = computed(() => {
 .sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
 .sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
 .sidebar__account { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; margin: -6px; padding: 6px; border-radius: var(--radius); color: var(--sidebar-ink); }
-.sidebar__account:hover { background: var(--sidebar-hover); color: var(--sidebar-ink); text-decoration: none; }
 .sidebar__account.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); }
 .sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__user-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
 .sidebar__user-text span { font-size: 12px; color: var(--sidebar-muted); }
+/* 更改密碼、登出只有圖示，14px 的鑰匙看起來像符號，放大到能一眼認出。 */
+.sidebar__user .el-button .el-icon { font-size: 18px; }
 .sidebar__close { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-ink); cursor: pointer; }
-.sidebar__close:hover { background: var(--sidebar-hover); }
+/* 滑鼠才有 hover 底色；觸控點開抽屜後手指的位置不會留下一塊亮底。 */
+.sidebar__home:hover, .sidebar__link:hover, .sidebar__account:hover { text-decoration: none; }
+@media (hover: hover) {
+  .sidebar__home:hover, .sidebar__link:not(.is-active):hover, .sidebar__account:not(.is-active):hover, .sidebar__close:hover,
+  .sidebar__group-toggle:hover:not(:disabled) { background: var(--sidebar-hover); color: var(--sidebar-ink); }
+}
 @media (forced-colors: active) {
   .sidebar__link.is-active { outline: 2px solid Highlight; outline-offset: -2px; }
 }
 @media (max-width: 900px) {
   .sidebar__link, .sidebar__group-toggle { min-height: 44px; }
-  .sidebar__group-toggle, .sidebar__brand span, .sidebar__user-text span { font-size: 14px; }
+  .sidebar__group-toggle, .sidebar__brand-text span, .sidebar__user-text span { font-size: 14px; }
 }
 </style>

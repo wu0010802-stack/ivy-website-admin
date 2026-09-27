@@ -9,6 +9,7 @@ import ContentEditor from '../components/ContentEditor.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import { useAuthStore } from '../stores/auth'
+import { landingPath } from '../router/nav'
 import { api } from '../api/client'
 import type { ContentEditorState } from '../composables/useContentItem'
 import type { UserOut } from '../api/types'
@@ -50,6 +51,19 @@ describe('後台導覽與編輯操作', () => {
     expect(wrapper.text()).toContain('到期待追蹤')
     expect(wrapper.text()).toContain('校區尚未開放預約')
     expect(wrapper.text()).toContain('仁武')
+  })
+
+  it('側欄 logo 連回該角色的起始頁，編輯者不會被帶到看不到的總覽', async () => {
+    const admin = await setup('/users')
+    const adminBar = mount(AdminSidebar, { global: admin.global, attachTo: document.body })
+    wrappers.push(adminBar)
+    expect(adminBar.get('.sidebar__home').attributes('href')).toBe('/')
+    expect(adminBar.get('.sidebar__home img').attributes('src')).toContain('ivy-crest')
+    const editor = await setup('/media', 'editor')
+    const editorBar = mount(AdminSidebar, { global: editor.global, attachTo: document.body })
+    wrappers.push(editorBar)
+    expect(editorBar.get('.sidebar__home').attributes('href')).toBe(landingPath('editor'))
+    expect(landingPath('editor')).not.toBe('/')
   })
 
   it('搜尋展開相符功能，但不會讓校區管理者看到帳號管理入口', async () => {

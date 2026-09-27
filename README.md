@@ -1,3 +1,15 @@
+## 2026-09-27 官網後台換常春藤 logo、登入頁改版、狀態色對比修正（`feature/admin-ui-20260927`）
+
+使用者要求後台所有 logo 換成常春藤 IVY KIDS 徽章，登入頁比照園務系統（ivy-frontend）的登入頁。徽章取自 `ivy-frontend/public/images/login-logo.png`（城堡版），裁掉透明邊後輸出。
+
+- **logo**：`admin/src/assets/brand/ivy-crest.webp`（登入頁，714×760，131KB）、`ivy-crest-mark.webp`（側欄 44px 高，13KB）；favicon 改 `favicon-32.png`／`favicon-48.png`，新增 `apple-touch-icon.png`（米白底），刪除舊的葉子 `favicon.svg`。徽章自帶天空圓底，深色側欄上 44px 仍認得出，所以全站統一用城堡版。
+- **登入頁**（`LoginView.vue`）：左徽章、右登入卡、底部「常春藤教育機構 ・ 官網後台」與版權；900px 以下改上下排。標題寫「官網後台登入」而不是參考圖的「管理員登入」：兩個系統長得一樣，要靠標題分辨。欄位改「帳號」「密碼」加圖示與必填星號，空白或格式錯誤的提示顯示在該欄下方（`aria-invalid`＋`aria-describedby`，焦點移到第一個錯的欄位）；帳密錯誤、限流、連線問題仍用上方警示。Google／LINE 入口移到登入鈕下方的「或」之後，沒啟用就不顯示。忘記密碼的說明改成「請聯絡總管理者重設」（總管理者可以在使用者頁重設密碼）。參考圖的光暈背景沒有照做：impeccable 判定為裝飾性 spotlight，改純色冷色底。
+- **側欄**：徽章＋「常春藤官網／管理後台」整塊改成連回該角色起始頁的連結（總管理者是營運總覽，編輯者是第一個看得到的內容頁）；品牌列加底線，和右側頂欄的底線接成一條。hover 底色只在 `(hover: hover)` 裝置生效，手機點開抽屜時手指位置不再留一塊亮底。更改密碼、登出圖示從 14px 放大到 18px。
+- **手機頂欄**：選單鈕從 Element Plus 的 `Menu`（四格方塊，像「應用程式」）改成三條線。
+- **狀態色對比**：`--el-color-error`（`el-alert type="error"`、錯誤 toast）原本是預設 `#f56c6c`，後台只調了 danger；`--el-color-success`（48 處 `ElMessage.success`、「核准並發布」實心鈕、使用者頁綠字）與 `--el-color-info` 也是預設色，都不到 3:1。error 對齊 danger 深紅、success 對齊「已上線」深綠 `--status-live-ink`、info 用 `--ink-3`，warning toast 字改 `--el-color-warning-dark-2`；實算淺底上皆 ≥ 5:1。
+
+驗證：Node 22 admin `vue-tsc` 通過、vitest 37 檔 340 項通過（新增登入欄位提示、側欄 logo 連結兩項）；`vite build` 通過，index 的 favicon 路徑帶 `/admin/`。stack e2e（`e2e:build` 後獨立庫 `ivy_website_adminui_e2e_test`）56 項中 55 過，5 張後台畫面基準已在 macOS 重拍；`media.spec.ts` 在整套跑時失敗（API 讀回的 `home_about` 最新版沒有 photo），單獨跑會過，失敗點在內容資料、不在這次改的畫面，未對照 origin/main 確認是否原本就會。Playwright 1440／1280／390／360 截圖：登入頁無水平溢出、錯誤提示與焦點正確；抽屜與側欄正常。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-26 最新消息開放獨立網址（/news、/news/<id>）
 
 使用者從新分頁方向裡改做 C，並拍板開放獨立消息網址（原本「不在核可範圍」）。這輪只做 C1：網址與頁面，資料用後台現有的全站消息與各校消息；舊站 51 篇義華活動下一輪另做。

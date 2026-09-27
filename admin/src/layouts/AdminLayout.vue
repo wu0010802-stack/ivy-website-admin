@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { TopRight, Menu } from '@element-plus/icons-vue'
+import { TopRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -64,7 +64,10 @@ async function handleLogout() {
     <div class="main-col">
       <header class="top">
         <button v-if="isMobile" ref="menuButton" class="top__menu" type="button" aria-label="開啟選單"
-          :aria-expanded="drawerOpen" aria-haspopup="dialog" @click="drawerOpen = true"><el-icon><Menu /></el-icon></button>
+          :aria-expanded="drawerOpen" aria-haspopup="dialog" @click="drawerOpen = true">
+          <!-- 三條線的漢堡圖示；Element Plus 的 Menu 是四格方塊，看起來像「應用程式」。 -->
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+        </button>
         <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
         <a class="top__site" :href="WEBSITE_ASSET_BASE" target="_blank" rel="noopener" title="開的是家長現在看到的版本；還沒發布的草稿不會出現在這裡">查看官網 <el-icon><TopRight /></el-icon></a>
       </header>

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Lock, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError, BASE_URL } from '../api/client'
 import type { AuthProviders } from '../api/types'
+import crestUrl from '../assets/brand/ivy-crest.webp'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -11,6 +13,15 @@ const route = useRoute()
 
 const form = reactive({ email: '', password: '' })
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const FULL_EMAIL_HINT = '請輸入完整的 Email，例如 name@example.com'
+// 欄位問題顯示在該欄下方；帳密錯誤、限流、連線這類整體結果才用上方警示。
+// 驗證刻意維持同步，重複按登入時第二次一定看得到 submitting。
+const fieldErrors = reactive({ email: '', password: '' })
+const emailInput = ref<{ focus: () => void } | null>(null)
+const passwordInput = ref<{ focus: () => void } | null>(null)
+watch(() => form.email, () => { fieldErrors.email = '' })
+watch(() => form.password, () => { fieldErrors.password = '' })
+const year = new Date().getFullYear()
 const oauthErrors: Record<string, string> = {
   cancelled: '已取消 Google 登入，可重新選擇帳號或使用 Email 與密碼。',
   not_allowed: '這個 Google 帳號尚未取得後台權限或無法綁定，請改用帳密登入或聯絡總管理者。',
@@ -67,25 +78,25 @@ onMounted(async () => {
 async function handleSubmit() {
   if (submitting.value) return
   errorMessage.value = null
-  if (!form.email.trim() || !form.password) {
-    errorMessage.value = '請輸入 Email 與密碼'
-    return
-  }
+  const email = form.email.trim()
   // 帳號就是完整 Email；只打「admin」之類的會被後端以 422 擋下，
   // 先在這裡講清楚，不要讓人看到狀態碼。
-  if (!EMAIL_PATTERN.test(form.email.trim())) {
-    errorMessage.value = '請輸入完整的 Email，例如 name@example.com'
+  fieldErrors.email = !email ? '請輸入帳號（Email）' : EMAIL_PATTERN.test(email) ? '' : FULL_EMAIL_HINT
+  fieldErrors.password = form.password ? '' : '請輸入密碼'
+  if (fieldErrors.email || fieldErrors.password) {
+    await nextTick()
+    ;(fieldErrors.email ? emailInput : passwordInput).value?.focus()
     return
   }
   submitting.value = true
   try {
-    await authStore.login(form.email.trim(), form.password)
+    await authStore.login(email, form.password)
     await router.push(returnTo.value)
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       errorMessage.value = '帳號或密碼錯誤'
     } else if (err instanceof ApiError && err.status === 422) {
-      errorMessage.value = '請輸入完整的 Email，例如 name@example.com'
+      fieldErrors.email = FULL_EMAIL_HINT
     } else if (err instanceof ApiError && err.status === 429) {
       errorMessage.value = '嘗試次數過多，請 5 分鐘後再試'
     } else if (err instanceof ApiError) {
@@ -101,119 +112,212 @@ async function handleSubmit() {
 
 <template>
   <div class="login">
-    <div class="login__card">
+    <main class="login__shell">
       <div class="login__brand">
-        <img src="/favicon.svg" alt="" width="40" height="40" />
-        <h1>常春藤官網後台</h1>
-        <p>管理五校官網內容與參觀預約</p>
+        <img :src="crestUrl" alt="常春藤 IVY KIDS" width="714" height="760" class="login__crest" fetchpriority="high" />
       </div>
 
-      <div v-if="googleEnabled || lineEnabled" class="login__oauth">
-        <a v-if="googleEnabled" :href="googleLoginUrl" class="login__google-link">
-          <img src="/google-g.png" alt="" width="20" height="20" />
-          <span>使用 Google 登入</span>
-        </a>
-        <a v-if="lineEnabled" :href="lineLoginUrl" class="login__line-link">
-          <img src="/line-icon.png" alt="" width="44" height="44" />
-          <span>使用 LINE 登入</span>
-        </a>
-        <p>
-          <template v-for="(hint, index) in oauthHints" :key="hint"><br v-if="index" />{{ hint }}</template>
-        </p>
-        <div class="login__divider">或使用 Email 與密碼</div>
-      </div>
+      <section class="login__card" aria-labelledby="login-title">
+        <h1 id="login-title">官網後台登入</h1>
 
-      <el-alert
-        v-if="errorMessage"
-        :title="errorMessage"
-        type="error"
-        :closable="false"
-        show-icon
-        class="login__alert"
-      />
+        <el-alert
+          v-if="errorMessage"
+          :title="errorMessage"
+          type="error"
+          :closable="false"
+          show-icon
+          class="login__alert"
+        />
 
-      <el-form label-position="top" size="large" @submit.prevent="handleSubmit" novalidate>
-        <el-form-item label="Email" for="admin-email">
-          <el-input
-            id="admin-email"
-            name="email"
-            v-model="form.email"
-            type="email"
-            autocomplete="username"
-            required
-            inputmode="email"
-            autofocus
-            :disabled="submitting"
-          />
-        </el-form-item>
-        <el-form-item label="密碼" for="current-password">
-          <el-input
-            id="current-password"
-            name="password"
-            v-model="form.password"
-            type="password"
-            autocomplete="current-password"
-            required
-            show-password
-            :disabled="submitting"
-          />
-        </el-form-item>
-        <el-button type="primary" size="large" native-type="submit" :loading="submitting" class="login__submit">
-          登入
-        </el-button>
-      </el-form>
+        <el-form label-position="top" size="large" class="login__form" @submit.prevent="handleSubmit" novalidate>
+          <el-form-item label="帳號" for="admin-email" required :error="fieldErrors.email" :show-message="false">
+            <el-input
+              ref="emailInput"
+              id="admin-email"
+              name="email"
+              v-model="form.email"
+              type="email"
+              autocomplete="username"
+              required
+              inputmode="email"
+              placeholder="請輸入 Email"
+              :prefix-icon="User"
+              autofocus
+              :disabled="submitting"
+              :aria-invalid="fieldErrors.email ? 'true' : undefined"
+              :aria-describedby="fieldErrors.email ? 'admin-email-error' : undefined"
+            />
+            <p v-if="fieldErrors.email" id="admin-email-error" class="login__field-error">{{ fieldErrors.email }}</p>
+          </el-form-item>
+          <el-form-item label="密碼" for="current-password" required :error="fieldErrors.password" :show-message="false">
+            <el-input
+              ref="passwordInput"
+              id="current-password"
+              name="password"
+              v-model="form.password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="請輸入密碼"
+              :prefix-icon="Lock"
+              show-password
+              :disabled="submitting"
+              :aria-invalid="fieldErrors.password ? 'true' : undefined"
+              :aria-describedby="fieldErrors.password ? 'current-password-error' : undefined"
+            />
+            <p v-if="fieldErrors.password" id="current-password-error" class="login__field-error">{{ fieldErrors.password }}</p>
+          </el-form-item>
+          <el-button type="primary" size="large" native-type="submit" :loading="submitting" class="login__submit">
+            登入
+          </el-button>
+        </el-form>
 
-      <p class="login__foot">忘記密碼請聯絡總管理者，由總管理者替你建立新帳號密碼。</p>
-    </div>
+        <template v-if="googleEnabled || lineEnabled">
+          <div class="login__divider">或</div>
+          <div class="login__oauth">
+            <a v-if="googleEnabled" :href="googleLoginUrl" class="login__google-link">
+              <img src="/google-g.png" alt="" width="20" height="20" />
+              <span>使用 Google 登入</span>
+            </a>
+            <a v-if="lineEnabled" :href="lineLoginUrl" class="login__line-link">
+              <img src="/line-icon.png" alt="" width="48" height="48" />
+              <span>使用 LINE 登入</span>
+            </a>
+            <p>
+              <template v-for="(hint, index) in oauthHints" :key="hint"><br v-if="index" />{{ hint }}</template>
+            </p>
+          </div>
+        </template>
+
+        <p class="login__foot">忘記密碼請聯絡總管理者重設。</p>
+      </section>
+    </main>
+
+    <footer class="login__footer">
+      <p class="login__footer-name">常春藤教育機構 ・ 官網後台</p>
+      <p>© {{ year }} 常春藤教育機構 版權所有</p>
+    </footer>
   </div>
 </template>
 
 <style scoped>
+/* 版型比照園務系統（ivy-frontend）登入頁：左邊去背 logo、右邊登入卡、底部版權。
+   標題寫「官網後台登入」而不是「管理員登入」，兩個系統長得像，靠標題分辨。 */
 .login {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 100svh;
-  padding: 24px 16px;
-  background: var(--sidebar-bg);
+  padding: clamp(32px, 6vw, 72px) 24px 32px;
+  background: var(--login-bg);
 }
 
-.login__card {
-  width: min(400px, 100%);
-  padding: 32px 32px 24px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+.login__shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  align-items: center;
+  gap: clamp(40px, 8vw, 96px);
+  width: min(100%, 980px);
 }
 
 .login__brand {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
+}
+
+.login__crest {
+  width: min(100%, 420px);
+  height: auto;
+  filter: drop-shadow(0 10px 24px var(--login-crest-shadow));
+}
+
+.login__card {
+  padding: 32px 28px 24px;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.login__card h1 {
   margin-bottom: 24px;
+  font-size: 24px;
   text-align: center;
 }
 
-.login__brand img {
-  margin-bottom: 6px;
-}
-
-.login__brand h1 {
-  font-size: 20px;
-}
-
-.login__brand p {
-  font-size: 13px;
-  color: var(--ink-3);
-}
-
 .login__alert {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.login__form :deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+.login__form :deep(.el-form-item__label) {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.login__form :deep(.el-input__wrapper) {
+  min-height: 52px;
+  padding: 0 16px;
+}
+
+.login__form :deep(.el-input__inner) {
+  font-size: 16px;
+}
+
+.login__form :deep(.el-input__prefix) {
+  color: var(--ink-3);
+  font-size: 18px;
+}
+
+/* 錯誤字自己畫：Element Plus 的是絕對定位的 12px（長提示會壓到下一欄標籤），
+   而且延遲約 100ms 才出現。這裡同步顯示、佔位，出現時把下面往下推；
+   el-form-item 只負責紅框（:error）。 */
+.login__field-error {
+  margin: 0;
+  padding-top: 6px;
+  color: var(--el-color-danger);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .login__submit {
   width: 100%;
+  min-height: 52px;
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.login__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 20px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.login__divider::before,
+.login__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.login__oauth {
+  display: grid;
+  gap: 10px;
+}
+
+.login__oauth p {
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
 }
 
 .login__google-link {
@@ -224,29 +328,25 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 12px;
   border: 1px solid var(--google-button-stroke);
   border-radius: var(--radius);
   background: var(--google-button-fill);
   color: var(--google-button-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-decoration: none;
 }
 
 .login__google-link:hover {
   border-color: var(--admin-accent-strong);
+  text-decoration: none;
 }
 
 .login__google-link:focus-visible {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 3px;
-}
-
-.login__oauth {
-  display: grid;
-  gap: 10px;
 }
 
 /* LINE 官方按鈕規範：#06C755 底、白色圖示與文字、8% 黑分隔線，
@@ -258,18 +358,20 @@ async function handleSubmit() {
   --line-button-overlay: transparent;
   display: flex;
   align-items: stretch;
-  min-height: 44px;
+  min-height: 48px;
   overflow: hidden;
   border-radius: var(--radius);
   background: linear-gradient(var(--line-button-overlay), var(--line-button-overlay)), var(--line-button-fill);
   color: var(--line-button-ink);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-decoration: none;
 }
 
 .login__line-link img {
   flex-shrink: 0;
+  width: 48px;
+  height: 48px;
   border-right: 1px solid var(--line-button-separator);
 }
 
@@ -278,11 +380,12 @@ async function handleSubmit() {
   flex: 1;
   place-items: center;
   /* 右側補一個圖示寬，文字才會落在整顆按鈕的正中央，與 Google 對齊。 */
-  padding-right: 44px;
+  padding-right: 48px;
 }
 
 .login__line-link:hover {
   --line-button-overlay: rgb(0 0 0 / 0.1);
+  text-decoration: none;
 }
 
 .login__line-link:active {
@@ -294,40 +397,64 @@ async function handleSubmit() {
   outline-offset: 3px;
 }
 
-.login__oauth p {
-  color: var(--ink-3);
-  font-size: 12px;
-  text-align: center;
-}
-
-.login__divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  /* 上方已有 .login__oauth 的 10px 間距 */
-  margin: 12px 0 22px;
-  color: var(--ink-3);
-  font-size: 12px;
-}
-
-.login__divider::before,
-.login__divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-
 .login__foot {
   margin-top: 20px;
-  font-size: 12px;
   color: var(--ink-3);
+  font-size: 13px;
   text-align: center;
 }
 
-@media (max-width: 480px) {
+.login__footer {
+  position: relative;
+  width: min(100%, 980px);
+  margin-top: clamp(40px, 6vw, 64px);
+  padding-top: 20px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* 兩端淡出的分隔線，畫在偽元素上，不當成文字的底色。 */
+.login__footer::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--line-strong), transparent);
+}
+
+.login__footer-name {
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .login {
+    justify-content: flex-start;
+    padding: 32px 16px 24px;
+  }
+
+  .login__shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    max-width: 440px;
+  }
+
+  .login__crest {
+    width: min(56vw, 220px);
+  }
+}
+
+@media (max-width: 420px) {
   .login__card {
-    padding: 24px 20px 20px;
+    padding: 24px 18px 20px;
+  }
+
+  .login__card h1 {
+    margin-bottom: 20px;
+    font-size: 22px;
   }
 }
 </style>

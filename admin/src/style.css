@@ -48,7 +48,12 @@
   --radius-lg: 12px;
   --shadow-sm: 0 1px 3px oklch(0.2 0.02 255 / 0.05);
   --shadow-md: 0 8px 24px oklch(0.2 0.02 255 / 0.09), 0 2px 4px oklch(0.2 0.02 255 / 0.04);
+  --shadow-card: 0 16px 40px oklch(0.25 0.03 255 / 0.08), 0 2px 6px oklch(0.25 0.03 255 / 0.04);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 登入頁：冷色淺底，去背 logo 直接貼著底色，只靠柔和投影托起來。 */
+  --login-bg: oklch(0.955 0.012 258);
+  --login-crest-shadow: oklch(0.35 0.05 255 / 0.14);
 
   /* Element Plus 主題覆寫 */
   --el-color-primary: var(--admin-accent-strong);
@@ -77,6 +82,27 @@
   --el-color-danger-light-8: color-mix(in oklch, var(--el-color-danger), white 82%);
   --el-color-danger-light-9: color-mix(in oklch, var(--el-color-danger), white 93%);
   --el-color-danger-dark-2: color-mix(in oklch, var(--el-color-danger), black 15%);
+  /* el-alert type="error"、ElMessage.error 走的是 error 這組（預設同樣是 #f56c6c），
+     淺紅底上只有約 2.6:1；對齊上面的深紅。 */
+  --el-color-error: var(--el-color-danger);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+
+  /* 成功（ElMessage.success、「核准並發布」鈕、使用者頁的綠字）預設 #67c23a：白底 2.5:1、
+     白字壓在上面 2.6:1、淺綠底上的提示 2.3:1。改用「已上線」同一個深綠。 */
+  --el-color-success: var(--status-live-ink);
+  --el-color-success-light-3: color-mix(in oklch, var(--el-color-success), white 30%);
+  --el-color-success-light-5: color-mix(in oklch, var(--el-color-success), white 50%);
+  --el-color-success-light-7: color-mix(in oklch, var(--el-color-success), white 70%);
+  --el-color-success-light-8: color-mix(in oklch, var(--el-color-success), white 82%);
+  --el-color-success-light-9: color-mix(in oklch, var(--el-color-success), white 93%);
+  --el-color-success-dark-2: color-mix(in oklch, var(--el-color-success), black 15%);
+  /* 資訊提示（el-alert type="info"、ElMessage.info）的字，預設 #909399 在淺灰底只有 2.8:1。 */
+  --el-color-info: var(--ink-3);
 
   --el-text-color-primary: var(--ink);
   --el-text-color-regular: var(--ink-2);
@@ -570,6 +596,11 @@ a.stat:hover {
 /* 訊息 */
 .el-message {
   border-radius: 999px;
+}
+
+/* 警告 toast 的字預設直接用 warning 橘，淺黃底上約 2:1；改用和警示字一樣的深一階。 */
+.el-message--warning {
+  --el-message-text-color: var(--el-color-warning-dark-2);
 }
 
 /* 減少動態 */
