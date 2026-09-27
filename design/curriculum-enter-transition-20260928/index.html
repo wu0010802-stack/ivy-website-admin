@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant-TW" data-vt="b">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進入特色教學 換頁 mock-up</title>
+<link rel="icon" type="image/png" href="../environment-mockup-20260925/vendor/favicon-48.png">
+<link rel="stylesheet" href="../curriculum-watercolor-mockup-20260928/fonts/fonts.css">
+<link rel="stylesheet" href="vt.css">
+<script>
+  // 比稿參數 ?vt=0|a|b|c（0＝現行立即切換）
+  (function () {
+    var v = (new URLSearchParams(location.search).get('vt') || 'b').toLowerCase()
+    document.documentElement.dataset.vt = /^[0abc]$/.test(v) ? v : 'b'
+  })()
+</script>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><filter id="logo-colour-cutout" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -4.252 -14.304 -1.444 20 0" /></filter></defs>
+  <symbol id="i-calendar-check" viewBox="0 0 256 256"><path fill="currentColor" d="M208 32h-24v-8a8 8 0 0 0-16 0v8H88v-8a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M72 48v8a8 8 0 0 0 16 0v-8h80v8a8 8 0 0 0 16 0v-8h24v32H48V48Zm136 160H48V96h160zm-38.34-85.66a8 8 0 0 1 0 11.32l-48 48a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L116 164.69l42.34-42.35a8 8 0 0 1 11.32 0" /></symbol>
+  <symbol id="i-list" viewBox="0 0 256 256"><path fill="currentColor" d="M224 128a8 8 0 0 1-8 8H40a8 8 0 0 1 0-16h176a8 8 0 0 1 8 8M40 72h176a8 8 0 0 0 0-16H40a8 8 0 0 0 0 16m176 112H40a8 8 0 0 0 0 16h176a8 8 0 0 0 0-16" /></symbol>
+</svg>
+
+<!-- 頁首：換頁時固定不動（正式版會給它 view-transition-name，這裡直接放在 iframe 外面） -->
+<header class="vt-head">
+  <a class="vt-brand" href="#" data-go="environment">
+    <svg viewBox="30 26 124 132" width="46" height="49" aria-hidden="true" focusable="false"><image href="../environment-mockup-20260925/vendor/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg>
+    <span class="vt-brand-copy"><span class="vt-brand-name">常春藤教育機構</span><span class="vt-brand-en" lang="en">Ivy Educational Institution</span></span>
+  </a>
+  <nav class="vt-nav" aria-label="主要導覽">
+    <a href="#" data-go="about-disabled" aria-disabled="true"><span>關於常春藤</span><small lang="en">About</small></a>
+    <a href="#" data-go="curriculum"><span>特色教學</span><small lang="en">Curriculum</small></a>
+    <a href="#" data-go="environment" aria-current="page"><span>常春藤環境</span><small lang="en">Environment</small></a>
+    <a href="#" data-go="about-disabled" aria-disabled="true"><span>入學資訊</span><small lang="en">Admission</small></a>
+  </nav>
+  <a class="vt-book" href="#"><svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg><span>預約參觀<small lang="en">Book a Visit</small></span></a>
+  <button class="vt-menu" type="button" data-go="curriculum" aria-label="開啟選單（mock：直接進特色教學）"><svg class="icon" aria-hidden="true"><use href="#i-list" /></svg></button>
+</header>
+
+<!-- 兩個頁面：環境頁（09-25 靜態 mock）與特色教學水彩版 mock；特色教學每次換頁都重新載入，它自己的顏料與照片暈開也會一起播 -->
+<div class="vt-stage">
+  <iframe class="vt-page is-on" data-page="environment" title="常春藤環境" src="../environment-mockup-20260925/index.html"></iframe>
+  <iframe class="vt-page" data-page="curriculum" title="特色教學"></iframe>
+</div>
+
+<!-- 比稿控制列（mock 專用） -->
+<div class="vt-bar" role="group" aria-label="換頁比稿">
+  <div class="vt-variants">
+    <a href="?vt=0" data-v="0"><b>0</b><span>現行</span></a>
+    <a href="?vt=a" data-v="a"><b>A</b><span>中央暈開</span></a>
+    <a href="?vt=b" data-v="b"><b>B</b><span>從點擊處</span></a>
+    <a href="?vt=c" data-v="c"><b>C</b><span>刷過去</span></a>
+  </div>
+  <label class="vt-slow"><input type="checkbox" id="vt-slow"> 慢動作 ×3</label>
+  <button class="vt-play" type="button" id="vt-play">▶ 重播</button>
+  <p class="vt-note" id="vt-note" aria-live="polite"></p>
+</div>
+
+<script src="vt.js"></script>
+</body>
+</html>
