@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>特色教學 水彩 mock-up</title>
+<link rel="icon" type="image/png" href="../environment-mockup-20260925/vendor/favicon-48.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="cw.css">
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="logo-colour-cutout" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -4.252 -14.304 -1.444 20 0" /></filter>
+  </defs>
+  <symbol id="i-arrow-right" viewBox="0 0 256 256"><path fill="currentColor" d="m221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32" /></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 256 256"><path fill="currentColor" d="m205.66 149.66l-72 72a8 8 0 0 1-11.32 0l-72-72a8 8 0 0 1 11.32-11.32L120 196.69V40a8 8 0 0 1 16 0v156.69l58.34-58.35a8 8 0 0 1 11.32 11.32" /></symbol>
+  <symbol id="i-calendar-check" viewBox="0 0 256 256"><path fill="currentColor" d="M208 32h-24v-8a8 8 0 0 0-16 0v8H88v-8a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M72 48v8a8 8 0 0 0 16 0v-8h80v8a8 8 0 0 0 16 0v-8h24v32H48V48Zm136 160H48V96h160zm-38.34-85.66a8 8 0 0 1 0 11.32l-48 48a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L116 164.69l42.34-42.35a8 8 0 0 1 11.32 0" /></symbol>
+</svg>
+
+<a class="cw-skip" href="#main">跳到主要內容</a>
+
+<!-- 頁首：正式站 SiteHeader 淺色版的靜態複本，只為了看整頁比例 -->
+<header class="cw-head">
+  <div class="cw-head-row">
+    <a class="cw-brand" href="#">
+      <svg class="cw-crest" viewBox="30 26 124 132" width="46" height="49" aria-hidden="true" focusable="false"><image href="../environment-mockup-20260925/vendor/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg>
+      <span class="cw-brand-copy"><span class="cw-brand-name">常春藤教育機構</span><span class="cw-brand-en" lang="en">Ivy Educational Institution</span></span>
+    </a>
+    <nav class="cw-nav" aria-label="主要導覽">
+      <a href="#"><span>關於常春藤</span><small lang="en">About</small></a>
+      <a href="#" aria-current="page"><span>特色教學</span><small lang="en">Curriculum</small></a>
+      <a href="#"><span>常春藤環境</span><small lang="en">Environment</small></a>
+      <a href="#"><span>入學資訊</span><small lang="en">Admission</small></a>
+    </nav>
+    <a class="cw-book" href="#"><svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg><span>預約參觀<small lang="en">Book a Visit</small></span></a>
+  </div>
+</header>
+
+<main id="main" class="cw" tabindex="-1">
+  <!-- 首屏：深色照片遮罩 → 水彩紙，照片撕紙毛邊 -->
+  <section class="cw-hero" aria-labelledby="cw-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap cw-hero-grid">
+      <div class="cw-hero-copy" data-reveal data-wash="sun,.3,.44,.6,.5,.024,42|orange,.04,.96,.12,.1,.03,26">
+        <p class="cw-eyebrow">常春藤幼兒園 · 特色教學</p>
+        <h1 id="cw-title">從<span class="cw-swash"><span class="cw-blot cw-swash-paint" data-blot="orange" aria-hidden="true"></span>動手做</span>開始，<br>愛上學習。</h1>
+        <p class="cw-lede">幼幼班到大班的四個年段、七個課程方向、孩子的作品，還有每天常做的五件事。</p>
+        <p class="cw-notice">照片取自各校日常，實際課程安排以各校說明為準。</p>
+      </div>
+      <figure class="cw-hero-photo cw-frame" data-reveal data-wash="mint,.6,.58,.6,.54,.03,40|sky,.98,.04,.26,.2,.034,30">
+        <img src="media/cur-hero.webp" width="2000" height="803" alt="孩子閉上眼睛，雙手合十靜下心來" fetchpriority="high">
+      </figure>
+    </div>
+    <nav class="cw-wrap cw-index" aria-label="本頁章節">
+      <a href="#years" style="--r:-8deg"><span class="cw-pan" aria-hidden="true"><span class="cw-blot" data-blot="mint"></span><span class="cw-num" lang="en">01</span></span><span class="cw-index-copy"><b>四個年段</b><span>幼幼班到大班</span></span></a>
+      <a href="#directions" style="--r:10deg"><span class="cw-pan" aria-hidden="true"><span class="cw-blot" data-blot="sun"></span><span class="cw-num" lang="en">02</span></span><span class="cw-index-copy"><b>課程方向</b><span>7 個方向</span></span></a>
+      <a href="#gallery" style="--r:-4deg"><span class="cw-pan" aria-hidden="true"><span class="cw-blot" data-blot="orange"></span><span class="cw-num" lang="en">03</span></span><span class="cw-index-copy"><b>兒童美術館</b><span>孩子的作品</span></span></a>
+      <a href="#daily" style="--r:14deg"><span class="cw-pan" aria-hidden="true"><span class="cw-blot" data-blot="sky"></span><span class="cw-num" lang="en">04</span></span><span class="cw-index-copy"><b>五件事</b><span>靜心到大肌肉</span></span></a>
+    </nav>
+  </section>
+
+  <!-- 01 四個年段：四張一樣的卡 → 四團越長越大的顏料 -->
+  <section id="years" class="cw-sec cw-years" aria-labelledby="years-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap">
+      <div class="cw-years-head" data-reveal>
+        <div>
+          <p class="cw-kicker"><span class="cw-num" lang="en">01</span><span lang="en">Four years</span></p>
+          <h2 id="years-title" class="cw-title">從幼幼班到大班，<br>一年一個樣子。</h2>
+          <p class="cw-text">給孩子樂於學習、創造思考、勇敢表現、帶著走的核心素養。</p>
+          <p class="cw-spiral"><span class="cw-blot" data-blot="sky" aria-hidden="true"></span><b>螺旋式課程</b>以螺旋式的方法加深、加廣課程，延伸孩子各項能力。</p>
+          <div class="cw-links">
+            <a class="cw-link" href="#">用生日查孩子讀哪一班<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
+            <a class="cw-link" href="#">課綱六大領域與核心素養<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
+          </div>
+        </div>
+        <figure class="cw-years-photo">
+          <div class="cw-frame" data-wash="sky,.6,.58,.58,.56,.026,36"><img src="media/cur-years.webp" width="1200" height="800" alt="老師張開雙手，和孩子們笑成一團" loading="lazy"></div>
+          <figcaption>老師和孩子們一起笑成一團。</figcaption>
+        </figure>
+      </div>
+      <ol class="cw-year-list" data-reveal>
+        <li class="cw-year" style="--i:0;--s:.6">
+          <span class="cw-year-age" aria-hidden="true"><span class="cw-blot" data-blot="mint"></span><b>2</b><sup>歲</sup></span>
+          <p class="cw-year-name"><b>幼幼班</b><span lang="en">BABY class</span></p>
+          <h3>「老師好愛我」</h3>
+          <p>全方位的保育環境，給孩子安全感及信賴感，這是寶貝第一個團體生活喔。</p>
+          <small>當年 9 月 1 日前滿 2 歲</small>
+        </li>
+        <li class="cw-year" style="--i:1;--s:.72">
+          <span class="cw-year-age" aria-hidden="true"><span class="cw-blot" data-blot="sky"></span><b>3</b><sup>歲</sup></span>
+          <p class="cw-year-name"><b>小班</b><span lang="en">K1 class</span></p>
+          <h3>「我會自己做」</h3>
+          <p>會自己吃飯、會自己整理，會跟好朋友玩，也會跟老師分享，更會自己主動唸好好玩的故事書喔。</p>
+          <small>當年 9 月 1 日前滿 3 歲</small>
+        </li>
+        <li class="cw-year" style="--i:2;--s:.86">
+          <span class="cw-year-age" aria-hidden="true"><span class="cw-blot" data-blot="sun"></span><b>4</b><sup>歲</sup></span>
+          <p class="cw-year-name"><b>中班</b><span lang="en">K2 class</span></p>
+          <h3>「我喜歡學習」</h3>
+          <p>打造扎實的學習基礎，語文、認知、邏輯、創造能力都好厲害喔。</p>
+          <small>當年 9 月 1 日前滿 4 歲</small>
+        </li>
+        <li class="cw-year" style="--i:3;--s:1">
+          <span class="cw-year-age" aria-hidden="true"><span class="cw-blot" data-blot="orange"></span><b>5</b><sup>歲</sup></span>
+          <p class="cw-year-name"><b>大班</b><span lang="en">K3 class</span></p>
+          <h3>「要上小學囉」</h3>
+          <p>打好基礎做準備，我長大了，好期待上小學喔！</p>
+          <small>當年 9 月 1 日前滿 5 歲</small>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 02 課程方向：四欄一樣的卡 → 大小錯落，品德培養改成一片顏料上的引言 -->
+  <section id="directions" class="cw-sec cw-directions" aria-labelledby="directions-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap">
+      <div class="cw-dir-head" data-reveal>
+        <p class="cw-kicker"><span class="cw-num" lang="en">02</span><span lang="en">Curriculum</span></p>
+        <h2 id="directions-title" class="cw-title">每一種學習，<br>都從好奇開始。</h2>
+        <p class="cw-text">從每天的繪本共讀，到音樂、美語、戶外教學與藝術創作。</p>
+      </div>
+      <ul class="cw-dir-grid" data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
+        <li class="cw-dir cw-dir--cognitive" data-reveal>
+          <div class="cw-frame" data-wash="sun,.58,.62,.6,.6"><img src="media/cur-cognitive.webp" width="800" height="600" alt="孩子們圍在桌邊一起翻看繪本" loading="lazy"></div>
+          <div class="cw-dir-copy"><h3>認知課程</h3><p class="cw-dir-sub">每日一繪本親子共讀</p><p>打好學齡前語文基礎，幼小銜接不擔心。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--integrated" data-reveal>
+          <div class="cw-frame" data-wash="mint,.44,.6,.66,.56"><img src="media/cur-integrated.webp" width="800" height="600" alt="孩子抱著比自己還大的足球" loading="lazy" style="object-position:40% 50%"></div>
+          <div class="cw-dir-copy"><h3>統整課程</h3><p class="cw-dir-sub">奧福音樂、感覺統合、主題學習</p><p>完整豐富的統整課程。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--multicultural" data-reveal>
+          <div class="cw-frame" data-wash="sky,.56,.58,.66,.56"><img src="media/cur-multicultural.webp" width="800" height="600" alt="外籍老師在戶外和孩子們說話" loading="lazy" style="object-position:38% 50%"></div>
+          <div class="cw-dir-copy"><h3>多元文化課程</h3><p class="cw-dir-sub">沉浸式美語活動</p><p>孩子勇敢、自信、快樂表現。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--quote" data-reveal>
+          <span class="cw-blot" data-blot="orange" aria-hidden="true"></span>
+          <div class="cw-dir-copy"><h3>品德培養</h3><p class="cw-dir-sub">六歲定八十</p><p>好習慣一生受用無窮。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--autonomy" data-reveal>
+          <div class="cw-frame" data-wash="sun,.46,.6,.62,.6"><img src="media/cur-autonomy.webp" width="800" height="600" alt="兩個孩子在桌上操作教具" loading="lazy"></div>
+          <div class="cw-dir-copy"><h3>自主學習</h3><p class="cw-dir-sub">動手做、做中學</p><p>讓孩子主動學習教具操作。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--activities" data-reveal>
+          <div class="cw-frame" data-wash="mint,.56,.6,.66,.56"><img src="media/cur-activities.webp" width="800" height="600" alt="孩子們在戶外教學時聽解說員說話" loading="lazy" style="object-position:30% 50%"></div>
+          <div class="cw-dir-copy"><h3>課程活動</h3><p class="cw-dir-sub">主題戶外教學</p><p>節慶活動及好玩的親子活動。</p></div>
+        </li>
+        <li class="cw-dir cw-dir--art" data-reveal>
+          <div class="cw-frame" data-wash="orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26"><img src="media/cur-art.webp" width="800" height="600" alt="孩子們一起在大塊布上塗顏色" loading="lazy"></div>
+          <div class="cw-dir-copy"><h3>藝術共創</h3><p class="cw-dir-sub">每個孩子都是與生俱來的藝術家</p><p>給孩子創造思考、解決問題的能力。</p></div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 03 兒童美術館（新）：機構站「常春藤兒童美術館」相簿，接在「藝術共創」後面 -->
+  <section id="gallery" class="cw-sec cw-gallery" aria-labelledby="gallery-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap">
+      <div class="cw-gallery-head" data-reveal>
+        <div>
+          <p class="cw-kicker"><span class="cw-num" lang="en">03</span><span lang="en">Art gallery</span></p>
+          <h2 id="gallery-title" class="cw-title">每一件作品，<br>都從動手做開始。</h2>
+        </div>
+        <p class="cw-text">帆布袋、畫布、黏土到木頭飛機，這裡是孩子們的作品。<small class="cw-source">作品照片取自機構網站「常春藤兒童美術館」。</small></p>
+      </div>
+      <ul class="cw-art-wall" data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="orange,.55,.56,.58,0.54"><img src="media/art-13.webp" width="675" height="900" alt="黃色畫布上，用橘、白、紅色畫的人物和愛心" loading="lazy"></div><span>畫布上的人</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="sky,.5,.56,.58,0.56"><img src="media/art-05.webp" width="900" height="675" alt="塗成藍紫色、黏滿黏土小裝飾的球" loading="lazy"></div><span>黏土球</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="mint,.5,.56,.58,0.54"><img src="media/art-01.webp" width="675" height="900" alt="用紅、藍、綠色點畫的帆布袋" loading="lazy"></div><span>帆布袋</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="sun,.5,.6,.58,0.56"><img src="media/art-09.webp" width="900" height="675" alt="塗成粉紅色的木頭雙翼飛機" loading="lazy"></div><span>木頭飛機</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="mint,.5,.56,.58,0.54"><img src="media/art-20.webp" width="900" height="675" alt="染上粉紅與黃色的 T 恤" loading="lazy"></div><span>染色 T 恤</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="sun,.5,.56,.58,0.54"><img src="media/art-14.webp" width="675" height="900" alt="藍綠色畫布上，用藍色線條和紅色圈圈畫的人" loading="lazy"></div><span>畫布上的人</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="orange,.5,.56,.58,0.54"><img src="media/art-23.webp" width="900" height="675" alt="撕掉膠帶後留下白色線條的粉紅色畫" loading="lazy"></div><span>膠帶留白畫</span></li>
+        <li class="cw-art" data-reveal><div class="cw-frame" data-wash="sky,.5,.6,.58,0.56"><img src="media/art-11.webp" width="900" height="675" alt="點滿藍色與彩色小點的木頭雙翼飛機" loading="lazy"></div><span>木頭飛機</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 04 五件事：深綠舞台的拍立得 → 紙上的五幅畫，各配一種顏料 -->
+  <section id="daily" class="cw-sec cw-daily" aria-labelledby="daily-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap">
+      <div class="cw-daily-head" data-reveal>
+        <div>
+          <p class="cw-kicker"><span class="cw-num" lang="en">04</span><span lang="en">Five things</span></p>
+          <h2 id="daily-title" class="cw-title">五件事，<br>陪孩子慢慢練習。</h2>
+        </div>
+        <p class="cw-text">安靜下來、動手操作、創作、閱讀，再到戶外盡情跑跳。<small class="cw-source">照片與介紹取自義華校。</small></p>
+      </div>
+      <ol class="cw-daily-list" data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
+        <li class="cw-thing" data-reveal>
+          <div class="cw-frame" data-wash="sky,.56,.56,.64,.62"><img src="media/cur-daily-calm.webp" width="800" height="500" alt="孩子們閉上眼睛，雙手合十靜下心來" loading="lazy"></div>
+          <p class="cw-thing-no" lang="en"><span class="cw-blot" data-blot="sky" aria-hidden="true"></span>01</p>
+          <h3>靜心</h3>
+          <p>透過靜心活動，引導孩子穩定情緒、學習自我調節，陪伴寶貝在日常中培養尊重、關懷與自我接納，學會愛自己，也溫柔對待他人。</p>
+        </li>
+        <li class="cw-thing" data-reveal>
+          <div class="cw-frame" data-wash="sun,.46,.6,.64,.6"><img src="media/cur-daily-materials.webp" width="800" height="500" alt="女孩笑著把貓頭鷹積木一個個疊高" loading="lazy"></div>
+          <p class="cw-thing-no" lang="en"><span class="cw-blot" data-blot="sun" aria-hidden="true"></span>02</p>
+          <h3>教具操作</h3>
+          <p>以個別化的自主教具，引導孩子主動探索與學習。堅持動手做、從做中學，老師依孩子的年齡與能力，自行設計合適的教具，讓寶貝在操作中累積知識，一步步建立學習帶來的自信心。</p>
+        </li>
+        <li class="cw-thing" data-reveal>
+          <div class="cw-frame" data-wash="orange,.56,.58,.64,.62"><img src="media/cur-daily-art.webp" width="800" height="500" alt="女孩專心把材料黏到作品上" loading="lazy"></div>
+          <p class="cw-thing-no" lang="en"><span class="cw-blot" data-blot="orange" aria-hidden="true"></span>03</p>
+          <h3>美術創作</h3>
+          <p>配合孩子的發展，提供主題式的完整學習架構，以孩子為本，引導思考與感受，在學習中培養美學素養，讓寶貝愛上探索美感，逐步發展多元的創作能力。</p>
+        </li>
+        <li class="cw-thing" data-reveal>
+          <div class="cw-frame" data-wash="mint,.46,.58,.64,.62"><img src="media/cur-daily-reading.webp" width="800" height="544" alt="兩個女孩靠在一起看繪本" loading="lazy"></div>
+          <p class="cw-thing-no" lang="en"><span class="cw-blot" data-blot="mint" aria-hidden="true"></span>04</p>
+          <h3>閱讀素養</h3>
+          <p>以「親子共讀」拉近親子距離，在溫馨的閱讀時光中，培養寶貝愛閱讀的好習慣，穩定情緒、提升認知能力，為學齡前的學習素養奠定更好的基礎。</p>
+        </li>
+        <li class="cw-thing" data-reveal>
+          <div class="cw-frame" data-wash="leaf,.56,.6,.64,.6"><img src="media/cur-daily-motor.webp" width="800" height="500" alt="男孩在操場上跳過一排跨欄" loading="lazy"></div>
+          <p class="cw-thing-no" lang="en"><span class="cw-blot" data-blot="leaf" aria-hidden="true"></span>05</p>
+          <h3>大肌肉時間</h3>
+          <p>重視寶貝成長中不可或缺的推動力量，透過大量戶外活動與陽光陪伴，讓寶貝盡情與同儕互動、開心放電，在歡笑中學習，在自然中健康成長。</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 結尾：教學理念（義華站「關於常春藤」原文，取代原本的預約參觀） -->
+  <section id="belief" class="cw-sec cw-belief" aria-labelledby="belief-title">
+    <canvas class="cw-wash" aria-hidden="true"></canvas>
+    <div class="cw-wrap cw-belief-body" data-reveal data-wash="sun,.5,.34,.42,.4,.016,44|mint,.14,.66,.18,.3,.02,34|sky,.86,.24,.16,.26,.02,34">
+      <p class="cw-kicker"><span lang="en">Our belief</span></p>
+      <h2 id="belief-title" class="cw-belief-title">我們相信，教育是<br>「生命影響生命」的使命。</h2>
+      <ul class="cw-belief-list">
+        <li><span class="cw-blot" data-blot="orange" aria-hidden="true"></span>重視愛與關懷</li>
+        <li><span class="cw-blot" data-blot="sky" aria-hidden="true"></span>注重閱讀素養</li>
+        <li><span class="cw-blot" data-blot="sun" aria-hidden="true"></span>培養生活自理能力</li>
+        <li><span class="cw-blot" data-blot="mint" aria-hidden="true"></span>養成終生學習的好習慣</li>
+        <li><span class="cw-blot" data-blot="leaf" aria-hidden="true"></span>尊重個別差異，鼓勵自信探索</li>
+      </ul>
+      <p class="cw-belief-close">期許幼兒在成長階段，擁有快樂、健康的環境。<small class="cw-source">取自義華校教學理念。</small></p>
+    </div>
+  </section>
+</main>
+
+<footer class="cw-foot">
+  <div class="cw-wrap cw-foot-grid">
+    <div><p class="cw-foot-name">常春藤幼兒園<span lang="en">IVY KINDERGARTEN</span></p><p>陪伴每一個孩子，長成自己喜歡的樣子。</p></div>
+    <div class="cw-foot-links"><a href="#">關於常春藤</a><a href="#">五所校園</a><a href="#">孩子的一天</a><a href="#">預約參觀</a><a href="#">最新消息</a><a href="#">入學資訊</a><a href="#">常春藤環境</a><a href="#" aria-current="page">特色教學</a></div>
+    <div><p class="cw-foot-label">我們的大家庭</p><p class="cw-foot-campuses"><a href="#">義華校</a><a href="#">明華校</a><a href="#">崇德校</a><a href="#">國際校</a><a href="#">仁武校</a></p></div>
+  </div>
+  <div class="cw-wrap cw-foot-bottom">© 2026 常春藤教育機構</div>
+</footer>
+
+<script src="cw.js"></script>
+</body>
+</html>
