@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "nuxt": "^4.5.2",
+    "roughjs": "^4.6.6",
     "three": "^0.186.0",
     "vue": "^3.5.42",
     "vue-router": "^5.3.1",

@@ -1,3 +1,17 @@
+## 2026-09-28 常春藤環境頁改成 Rough.js 手繪版（`feature/environment-rough-20260928`）
+
+使用者要求用 Rough.js 把 `/environment` 做成跟其他分頁不同、活潑一點的風格。比稿 `design/environment-rough-mockup-20260928/`（A 老師的聯絡簿、B 蠟筆佈告欄，在 `feature/website-admin` 的工作目錄、未追蹤）選了 A＋B 結合的 C，另外裁定：這頁不放預約參觀、多一點其他內容、字型改圓體。規則見 DESIGN.md「常春藤環境頁手繪版」。
+
+- **版面**（`EnvironmentContent.vue`、`environment.css` 整支重寫，不再掛 `admission.css`）：點格紙、01 天藍與 03 黃的手剪色紙、照片貼在彩色底紙上＋紙膠帶、黃色便利貼＋紅筆箭頭、曬衣繩掛五張照顧照片、校園環境「跟著虛線走一圈」、餐點太陽弧線、看完打個勾。原文與照片沿用 09-25 版。
+- **Rough.js**（`roughjs` 4.6.6，MIT）：`utils/rough-sketch.ts` 在瀏覽器畫所有線條，進場描線、捲動畫小路與太陽、滑過抖一下；減少動態時直接畫完。動態 import，只有這頁載入（gzip 約 23 KB）。沒有 JS 時版面與文字照常。
+- **不放預約**：拿掉首屏預約鈕與結尾預約卡，結尾改成往孩子的一天、特色教學、入學資訊的貼紙連結。全站頁首預約鈕不動。
+- **新內容**：第四章「五所校園」讀後台發布的各校校園探索（`campuses[].tourScenes`，目前 14 個場景），分頁切校，標註點畫成便利貼＋箭頭。
+- **字型**：圓體 Chiron GoRound TC 固定字重 400／700／800＋手寫芫荽 Iansui（皆 OFL，自行託管）。`scripts/environment-font-chars.cjs` 在實際頁面量各字重用字，`scripts/subset-environment-fonts.py` 切 critical＋隱藏分頁 tour＋常用字分片（208 檔 8.2 MB）。首次載入本頁字型 4 片約 214 KB，切到其他校再 45 KB；首頁不載入。可變字型每字約 730 bytes，改做固定字重才壓到這個量。
+- **頁首**：`/environment` 移出 `PILL_PAGES`（淺色首屏配實底頁首）。首屏照片改 3:2 相框，新增 `environmentHeroImage()`，`<img>` 與預載共用 sizes。
+- 改版前快照：`versions/before-environment-rough-20260928-011322/`。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-environment-rough-20260928`）：`npm run typecheck` 通過；`vitest` 51 檔 453 項通過（環境頁新增 8 項：不放預約、hero sizes、頁首、校園探索資料、便條排版不重疊、太陽弧與曬衣繩、字型分片、用字覆蓋）；`npm run build` 通過。production server（fixture）Playwright 1440／390：無水平溢出、無 console 錯誤、無 4xx；分頁點選與左右鍵／End 切換正確；四章打勾、太陽點亮、小路隨捲動畫出；`check-layout-stability.mjs` 對 /environment 四種視窗位移 0.00000–0.00006。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-27 官網後台換常春藤 logo、登入頁改版、狀態色對比修正（`feature/admin-ui-20260927`）
 
 使用者要求後台所有 logo 換成常春藤 IVY KIDS 徽章，登入頁比照園務系統（ivy-frontend）的登入頁。徽章取自 `ivy-frontend/public/images/login-logo.png`（城堡版），裁掉透明邊後輸出。

@@ -1,10 +1,16 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
-import type { SiteContent } from '../app/types/site-content'
+import { isGeneratedTourScenes, type SiteContent } from '../app/types/site-content'
 import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
-import { ENVIRONMENT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
+import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
+import { clotheslineY, layoutSpotBoxes, mealArcPoint } from '../app/utils/rough-sketch'
 import manifest from '../app/generated/image-manifest.json'
+import fontManifest from '../app/generated/environment-font-manifest.json'
+
+const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
 const site = fixture as unknown as SiteContent
 
@@ -61,5 +67,113 @@ describe('常春藤環境頁圖片', () => {
   it.each(names)('%s 已產生響應式候選檔', (name) => {
     expect(Object.hasOwn(manifest, name)).toBe(true)
     expect(responsiveImage(name).srcset).toBeTruthy()
+  })
+})
+
+describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', () => {
+  const component = read('../app/components/EnvironmentContent.vue')
+  const template = component.slice(component.indexOf('<template>')).replace(/<!--[\s\S]*?-->/g, '')
+
+  it('這一頁不放預約參觀（2026-09-28 使用者裁定；全站頁首的預約鈕不在這支元件裡）', () => {
+    expect(template).not.toMatch(/預約|\/visit/)
+    expect(component).toContain('data-cta-entry="environment"')
+  })
+
+  it('首屏照片：頁面 <img> 與預載共用 environmentHeroImage()，sizes 依 3:2 相框的裁切放大', () => {
+    const { width, height } = (manifest as Record<string, { width: number; height: number }>)[ENVIRONMENT_HERO_IMAGE]!
+    const factor = Number((width / height / ENVIRONMENT_HERO_ASPECT).toFixed(2))
+    const attrs = environmentHeroImage()
+    expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
+    expect(attrs.srcset).toBeTruthy()
+    expect(component).toContain('const hero = environmentHeroImage()')
+    expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'environment') return environmentHeroImage()")
+    expect(read('../app/assets/css/environment.css')).toMatch(/\.renv-hero-photo>img\{aspect-ratio:3\/2;/)
+  })
+
+  it('頁首用實底：淺色紙底首屏不能配透明白字頁首', () => {
+    const header = read('../app/components/SiteHeader.vue')
+    const pills = header.slice(header.indexOf('const PILL_PAGES'), header.indexOf('\n', header.indexOf('const PILL_PAGES')))
+    expect(pills).not.toContain("'/environment'")
+  })
+
+  it('五所校園讀各校校園探索（fixture 五校都有真正的場景，標註點座標是照片的百分比）', () => {
+    const campuses = (fixture as unknown as SiteContent).campuses
+    const scenes = campuses.flatMap((campus) => (isGeneratedTourScenes(campus.tourScenes) ? [] : campus.tourScenes))
+    expect(campuses.every((campus) => !isGeneratedTourScenes(campus.tourScenes) && campus.tourScenes.length > 0)).toBe(true)
+    for (const scene of scenes) for (const spot of scene.spots) {
+      expect(spot.x).toBeGreaterThanOrEqual(0)
+      expect(spot.x).toBeLessThanOrEqual(100)
+      expect(spot.y).toBeGreaterThanOrEqual(0)
+      expect(spot.y).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('標註便條：點在下半部放上方、太靠上放下方；便條彼此不重疊、不離開照片太遠', () => {
+    const image = { x: 0, y: 0, w: 800, h: 500 }
+    const [above, below] = layoutSpotBoxes(image, [{ x: 50, y: 70, w: 80, h: 28 }, { x: 50, y: 10, w: 80, h: 28 }])
+    expect(above!.y + above!.h).toBeLessThan(0.7 * 500)
+    expect(below!.y).toBeGreaterThan(0.1 * 500)
+    // 國際校美語商店街：郵局與餐廳同高、左右相鄰
+    const boxes = layoutSpotBoxes(image, [{ x: 12, y: 22, w: 60, h: 28 }, { x: 58, y: 32, w: 60, h: 28 }, { x: 92, y: 14, w: 76, h: 28 }, { x: 41, y: 32, w: 60, h: 28 }])
+    for (const [i, a] of boxes.entries()) {
+      expect(a.x).toBeGreaterThanOrEqual(-10)
+      expect(a.x + a.w).toBeLessThanOrEqual(810)
+      for (const b of boxes.slice(i + 1)) {
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+        expect(overlap).toBe(false)
+      }
+    }
+  })
+
+  it('太陽弧兩端等高、中午最高；曬衣繩兩端 8px、中間最低', () => {
+    const [x0, y0] = mealArcPoint(0, 1200)
+    const [x1, y1] = mealArcPoint(1, 1200)
+    const [, noon] = mealArcPoint(0.5, 1200)
+    expect(x0).toBeLessThan(x1)
+    expect(y0).toBe(y1)
+    expect(noon).toBeLessThan(y0)
+    expect(clotheslineY(0, 1000)).toBe(8)
+    expect(clotheslineY(1000, 1000)).toBe(8)
+    expect(clotheslineY(500, 1000)).toBeGreaterThan(clotheslineY(250, 1000))
+  })
+
+  it('字型：圓體 400／700／800 與芫荽各有 critical 分片，大標那片預載，檔案都在 public', () => {
+    const faces = fontManifest.faces as Record<string, { critical: { src: string; characters: number } }>
+    const publicFile = (url: string) => fileURLToPath(new URL(`../public${url}`, import.meta.url))
+    expect(Object.keys(faces).sort()).toEqual(['hand-400', 'round-400', 'round-700', 'round-800'])
+    expect(fontManifest.preload).toEqual([faces['round-800']!.critical.src])
+    const inline = read('../app/assets/css/environment-fonts.css')
+    for (const [key, face] of Object.entries(faces)) {
+      expect(existsSync(publicFile(face.critical.src)), key).toBe(true)
+      expect(inline).toContain(`src:url(${face.critical.src})`)
+    }
+    expect(existsSync(publicFile(fontManifest.stylesheet.src))).toBe(true)
+    for (const weight of [400, 700, 800]) expect(inline).toContain(`font-family:'Chiron GoRound TC';font-weight:${weight};`)
+    expect(inline).toContain("font-family:'Iansui';font-weight:400;")
+  })
+
+  it('一開始畫得到的字都在 critical；隱藏分頁的字在 tour 分片（environment-font-chars.json）', () => {
+    const chars = JSON.parse(read('../app/generated/environment-font-chars.json')).groups as Record<string, string>
+    const inline = read('../app/assets/css/environment-fonts.css')
+    const faces = fontManifest.faces as Record<string, { critical: { characters: number } }>
+    const covered = (family: string, weight: string, kind: string) => {
+      const rule = inline.split('\n').find((line) => line.includes(`font-family:'${family}';font-weight:${weight};`) && line.includes(`-${kind}-`))
+      const ranges = (rule?.match(/unicode-range:([^}]+)/)?.[1] ?? '').split(',').filter(Boolean)
+      return (cp: number) => ranges.some((range) => {
+        const [a, b = a] = range.replace('U+', '').split('-').map((hex) => parseInt(hex, 16))
+        return cp >= a! && cp <= b!
+      })
+    }
+    for (const [key, text] of Object.entries(chars)) {
+      const [code, weight, hidden] = key.split('-')
+      const family = code === 'round' ? 'Chiron GoRound TC' : 'Iansui'
+      expect(faces[`${code}-${weight}`], key).toBeTruthy()
+      const inCritical = covered(family, weight!, 'critical')
+      const inTour = covered(family, weight!, 'tour')
+      for (const char of new Set(text)) {
+        const cp = char.codePointAt(0)!
+        expect(hidden ? inCritical(cp) || inTour(cp) : inCritical(cp), `${key} ${char}`).toBe(true)
+      }
+    }
   })
 })

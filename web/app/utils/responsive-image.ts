@@ -14,8 +14,22 @@ export const HOME_HERO_SIZES = '100vw'
 /** 入學資訊頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const ADMISSION_HERO_IMAGE = 'day-hello'
 
-/** 常春藤環境頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+/** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
+
+/**
+ * 常春藤環境頁（2026-09-28 手繪版）的首屏照片是 3:2 的相框（environment.css 的
+ * `.renv-hero-photo>img`），object-fit: cover；橫幅原圖（1960×934）左右被裁掉，實際要畫的寬度
+ * ＝框寬 × (原圖寬高比 ÷ 1.5)。桌機框寬約 530px（1200 內容寬、兩欄 1.12:1），900px 以下是
+ * 單欄、最寬 560px。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
+ */
+export const ENVIRONMENT_HERO_ASPECT = 3 / 2
+export function environmentHeroImage() {
+  const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_IMAGE] : undefined
+  const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
+  const factor = Number(scale.toFixed(2))
+  return responsiveImage(ENVIRONMENT_HERO_IMAGE, `(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
+}
 
 /** 特色教學頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const CURRICULUM_HERO_IMAGE = 'cur-hero'

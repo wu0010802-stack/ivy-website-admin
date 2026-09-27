@@ -1,0 +1,75 @@
+{
+  "sources": [
+    {
+      "family": "Chiron GoRound TC",
+      "url": "https://github.com/google/fonts/raw/main/ofl/chirongoroundtc/ChironGoRoundTC%5Bwght%5D.ttf",
+      "sha256": "47cd5ff5153799d4c0d05bcc64da849e13b8eb842e46728a66bf2d52c480231f"
+    },
+    {
+      "family": "Iansui",
+      "url": "https://github.com/google/fonts/raw/main/ofl/iansui/Iansui-Regular.ttf",
+      "sha256": "6e6340d80d618a42b48ade9370c34fa37a8210750c6fbc8efe65f23716538a2b"
+    }
+  ],
+  "preload": [
+    "/assets/fonts/environment/round-800-critical-8061eb86f0e7.woff2"
+  ],
+  "stylesheet": {
+    "src": "/assets/fonts/environment/environment-fonts-extended-25f3400764cf.css",
+    "bytes": 168037
+  },
+  "faces": {
+    "round-800": {
+      "family": "Chiron GoRound TC",
+      "weight": 800,
+      "characters": 43,
+      "slices": 1,
+      "bytes": 11308,
+      "largest": 11308,
+      "critical": {
+        "src": "/assets/fonts/environment/round-800-critical-8061eb86f0e7.woff2",
+        "bytes": 11308,
+        "characters": 43
+      }
+    },
+    "round-700": {
+      "family": "Chiron GoRound TC",
+      "weight": 700,
+      "characters": 117,
+      "slices": 1,
+      "bytes": 37508,
+      "largest": 37508,
+      "critical": {
+        "src": "/assets/fonts/environment/round-700-critical-ccbef4936b1c.woff2",
+        "bytes": 37508,
+        "characters": 117
+      }
+    },
+    "round-400": {
+      "family": "Chiron GoRound TC",
+      "weight": 400,
+      "characters": 15438,
+      "slices": 102,
+      "bytes": 4064060,
+      "largest": 118164,
+      "critical": {
+        "src": "/assets/fonts/environment/round-400-critical-3b8a7773e85d.woff2",
+        "bytes": 118164,
+        "characters": 405
+      }
+    },
+    "hand-400": {
+      "family": "Iansui",
+      "weight": 400,
+      "characters": 10832,
+      "slices": 101,
+      "bytes": 3898832,
+      "largest": 52004,
+      "critical": {
+        "src": "/assets/fonts/environment/hand-400-critical-c537ff7110d4.woff2",
+        "bytes": 52004,
+        "characters": 146
+      }
+    }
+  }
+}
