@@ -1,84 +1,236 @@
-/* 特色教學頁（/curriculum，2026-09-26）
-   版型沿用入學資訊頁與常春藤環境頁：CurriculumContent.vue 同時掛 admission.css（adm-*），這支只補 admission 沒有的元件。
-   課程名稱有字不在 LINE Seed 子集（統、元文、品培、術、美術、肌肉、六八），卡片標題整組改用內文字型，
-   不讓同一個詞混兩種字型；字型分支（完整字型分片）合併後可改回標題字型。
-   顏色一律走站內 token；透明度用 RGB 三元組（--ink / --on-dark / --shadow-rgb）。 */
+/* 特色教學頁（/curriculum）水彩版（2026-09-28，使用者選 C；mock：design/curriculum-watercolor-mockup-20260928）
+   整頁是一張冷壓水彩紙：顏料（canvas）在各段染開、照片撕紙毛邊從中間暈開、章節與年齡用顏料團標示。
+   不再共用 admission.css；顏色一律走 tokens.css（顏料色 --ivy-paint-*），canvas 讀的是 -rgb 三元組。
+   水彩層由 composables/useWatercolor.ts 畫；它掛上前（SSR、JS 失敗）畫面是乾淨的紙面與方形照片，內容全部看得到。 */
 
-/* ---------- hero ---------- */
-.cur-hero-photo{object-position:78% 40%}
+.cur {
+  --cur-gutter: 48px;
+  --cur-ease: cubic-bezier(.16, 1, .3, 1);
+  --cur-title: clamp(2rem, 3.8vw, 3.375rem);
+  --cur-accent: var(--ivy-campus-heading-accent);
+  position: relative;
+  isolation: isolate;
+  background: var(--paper);
+  color: var(--text);
+  overflow-x: clip;
+}
+.cur-wrap { width: min(1280px, calc(100% - 2 * var(--cur-gutter))); margin-inline: auto; }
+.cur-num { font-family: var(--font-date); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
+
+/* ---------- 水彩層 ---------- */
+.cur-hero, .cur-sec { position: relative; overflow-x: clip; }
+.cur-wash { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.cur-hero > .cur-wrap, .cur-sec > .cur-wrap { position: relative; z-index: 1; }
+.cur-grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: multiply; opacity: .4; background-size: 256px 256px; }
+/* 顏料團：背景圖由 useWatercolor 依元素大小生成，畫好才淡入 */
+.cur-blot { position: absolute; background: center / 100% 100% no-repeat; pointer-events: none; transition: opacity .8s, transform 1.4s var(--cur-ease); }
+.cur-blot:not(.is-painted) { opacity: 0; transform: scale(.5); }
+/* 照片：撕紙毛邊＋進場從中間暈開 */
+.cur-frame { position: relative; overflow: hidden; }
+.cur-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cur-frame.has-mask {
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%); mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+  transition: -webkit-mask-size 2.2s var(--cur-ease), mask-size 2.2s var(--cur-ease);
+}
+.cur-frame.is-bloomed { --bloom: 520%; }
+/* 進場：useWatercolor 掛上後（.is-live）才藏起還沒捲到的內容，掛上時已在視窗內的直接顯示 */
+.cur.is-live [data-reveal] { transition: opacity 1s var(--cur-ease), transform 1.2s var(--cur-ease); }
+.cur.is-live [data-reveal]:not(.is-in) { opacity: 0; transform: translateY(28px); }
+.cur.is-live [data-reveal]:not(.is-in) .cur-blot { opacity: 0; transform: scale(.4) rotate(-10deg); }
+
+/* ---------- 共用 ---------- */
+.cur-sec { padding-block: clamp(72px, 8.5vw, 124px); }
+.cur-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .2em; text-transform: uppercase; color: var(--leaf); }
+.cur-kicker .cur-num { color: var(--cur-accent); }
+.cur-kicker .cur-num::after { content: ''; display: inline-block; width: 28px; height: 1px; margin-left: 12px; vertical-align: middle; background: currentColor; opacity: .6; }
+.cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
+.cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
+.cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
+.cur-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--green); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 7px; }
+.cur-link .icon { width: 18px; height: 18px; }
+.cur-split-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; }
+.cur-split-head .cur-text { justify-self: end; margin: 0; }
+
+/* ---------- 首屏 ---------- */
+.cur-hero { padding: clamp(24px, 4vw, 56px) 0 clamp(48px, 6vw, 88px); }
+.cur-hero-grid { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: clamp(32px, 5vw, 88px); align-items: center; }
+.cur-eyebrow { margin: 0; font-size: var(--fs-sm); font-weight: 700; letter-spacing: .2em; color: var(--leaf); }
+.cur-hero h1 { margin: .45em 0 .5em; font: 700 clamp(2.25rem, 4.6vw, 4.25rem)/1.24 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; }
+/* 「動手做」底下刷一筆橙色顏料 */
+.cur-swash { position: relative; isolation: isolate; white-space: nowrap; }
+.cur-swash-paint { left: -.3em; right: -.34em; top: .36em; bottom: -.2em; z-index: -1; transform-origin: left center; transition: opacity .6s, transform 1.4s var(--cur-ease) .3s; }
+.cur-swash-paint:not(.is-painted) { transform: scaleX(.2); }
+.cur-lede { max-width: 30em; margin: 0; font-size: clamp(var(--fs-md), 1.3vw, var(--fs-lg)); word-break: keep-all; overflow-wrap: anywhere; }
+.cur-notice { display: flex; align-items: center; gap: 10px; margin: 28px 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.cur-notice::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+.cur-hero-photo { margin: 0; }
+.cur-hero-photo img { height: min(64vh, 600px); min-height: 380px; object-position: 80% 45%; }
+/* 章節索引＝一排顏料盤：每章一團自己的顏料（與該段主色一致），滑過時轉一下、暈大一點 */
+.cur-index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px clamp(16px, 2.4vw, 32px); margin-top: clamp(40px, 5vw, 64px); }
+.cur-index a { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 6px 0; color: inherit; text-decoration: none; }
+.cur-pan { position: relative; isolation: isolate; flex: none; display: grid; place-items: center; width: 78px; height: 78px; color: var(--deep); }
+.cur-pan .cur-blot { inset: -12%; z-index: -1; }
+.cur-pan .cur-blot.is-painted { transform: rotate(var(--tilt, 0deg)); }
+.cur-pan .cur-num { font-size: var(--fs-md); letter-spacing: .04em; }
+.cur-index-copy { display: grid; min-width: 0; }
+.cur-index b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 6px; transition: text-decoration-color .3s; }
+.cur-index-copy span { font-size: var(--fs-sm); color: var(--muted); }
+.cur-index a:is(:hover, :focus-visible) .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
+.cur-index a:is(:hover, :focus-visible) b { text-decoration-color: currentColor; }
 
 /* ---------- 01 四個年段 ---------- */
-.cur-years-link{margin-top:20px;color:var(--ivy-forest)}
-.cur-years-link .icon{width:18px;height:18px}
-.cur-year-list{list-style:none;margin:96px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-.cur-year{display:flex;flex-direction:column;padding:26px 24px 24px;border-radius:12px;background:rgb(var(--on-dark)/.55)}
-.cur-year-age{font:400 56px/1 var(--font-date);letter-spacing:-.02em;color:var(--ivy-forest)}
-.cur-year-age sup{margin-left:4px;font:600 var(--fs-sm)/1 var(--font-body);vertical-align:top;position:relative;top:6px}
-.cur-year-name{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:18px}
-.cur-year-name b{font-size:var(--fs-lg);font-weight:700}
-.cur-year-name span{font:400 var(--fs-xs)/1.4 var(--font-date);letter-spacing:.14em;text-transform:uppercase;color:var(--ivy-forest-soft)}
-.cur-year h3{margin-top:10px;font-size:var(--fs-xl);line-height:1.5}
-.cur-year p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85}
-.cur-year small{margin-top:auto;padding-top:16px;font-size:var(--fs-xs);letter-spacing:.04em;color:var(--ivy-forest-soft)}
+.cur-years-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
+.cur-spiral { position: relative; isolation: isolate; max-width: 30em; margin: 22px 0 0; padding: 18px 22px; font-size: var(--fs-sm); line-height: 1.8; word-break: keep-all; overflow-wrap: anywhere; }
+.cur-spiral .cur-blot { inset: -24px -36px; z-index: -1; }
+.cur-spiral .cur-blot.is-painted { opacity: .55; }
+.cur-spiral b { display: block; margin-bottom: 2px; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--green); }
+.cur-links { display: flex; flex-wrap: wrap; gap: 4px 28px; margin-top: 14px; }
+.cur-years-photo { margin: 0; }
+.cur-years-photo .cur-frame { aspect-ratio: 3 / 2; }
+.cur-years-photo figcaption, .cur-art > span { margin-top: 12px; font-size: var(--fs-sm); color: var(--muted); }
+.cur-year-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 44px); margin: clamp(56px, 7vw, 96px) 0 0; padding: 0; list-style: none; }
+.cur-year { display: flex; flex-direction: column; }
+/* 顏料團貼齊底線往上長（一歲比一歲大），年段名稱才會對在同一條線上 */
+.cur-year-age { --box: 250px; --k: var(--s); position: relative; align-self: flex-start; width: var(--box); height: var(--box); margin: -20px 0 -2px -38px; color: var(--deep); }
+.cur-year-age .cur-blot { left: calc(50% - var(--box) * var(--k) / 2); bottom: 0; width: calc(var(--box) * var(--k)); height: calc(var(--box) * var(--k)); transform-origin: 50% 80%; transition-delay: calc(var(--i) * 240ms); }
+.cur-year-age b, .cur-year-age sup { position: absolute; bottom: calc(var(--box) * var(--k) / 2); }
+.cur-year-age b { left: 50%; font: 700 calc(3.25rem + var(--i) * .75rem)/1 var(--font-head); transform: translate(-60%, 50%); }
+.cur-year-age sup { left: calc(50% + 12px + var(--i) * 4px); font: 700 var(--fs-sm)/1 var(--font-head); transform: translateY(calc(50% - .3em)); }
+.cur-year-name { display: flex; align-items: baseline; gap: 10px; margin: 0; }
+.cur-year-name b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); }
+.cur-year-name span { font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cur-year h3 { margin: 8px 0; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--text); text-spacing-trim: trim-start; }
+.cur-year > p:not(.cur-year-name) { margin: 0; font-size: var(--fs-sm); line-height: 1.85; color: var(--muted); }
+.cur-year small { margin-top: 14px; font-size: var(--fs-xs); color: var(--muted); }
 
-/* ---------- 02 課程方向：四欄；沒有照片的品德培養橫跨兩格，dense 補位讓兩排剛好排滿 ---------- */
-.cur-direction-grid{list-style:none;margin:64px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-flow:row dense;gap:48px 24px}
-.cur-direction img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:16px}
-.cur-direction h3{margin-top:20px;font:700 var(--fs-xl)/1.5 var(--font-body);color:var(--ivy-campus-heading-ink)}
-.cur-direction-sub{margin-top:6px;font-size:var(--fs-sm);font-weight:600;line-height:1.7;color:var(--ivy-campus-heading-accent)}
-.cur-direction p:last-child{margin-top:6px;font-size:var(--fs-sm);line-height:1.85;color:var(--ivy-campus-muted)}
-.cur-direction.is-quote{grid-column:span 2;display:flex;align-items:center;padding:48px 56px;border-radius:16px;background:var(--ivy-forest);color:var(--white)}
-.cur-direction.is-quote h3{order:-1;margin:0;font-size:var(--fs-sm);font-weight:600;letter-spacing:.12em;color:var(--gold)}
-.cur-direction.is-quote .cur-direction-copy{display:flex;flex-direction:column}
-.cur-direction.is-quote .cur-direction-sub{order:0;margin-top:14px;font:700 var(--fs-5xl)/1.25 var(--font-body);letter-spacing:.06em;color:var(--white)}
-.cur-direction.is-quote p:last-child{margin-top:16px;font-size:var(--fs-md);color:var(--ivy-forest-mist)}
+/* ---------- 02 課程方向：大小錯落 ---------- */
+.cur-dir-head { max-width: 40em; }
+.cur-dir-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2.4vw, 32px); row-gap: clamp(56px, 6vw, 88px); margin: clamp(48px, 6vw, 88px) 0 0; padding: 0; list-style: none; }
+.cur-dir { position: relative; }
+.cur-dir .cur-frame { aspect-ratio: 4 / 3; }
+.cur-dir-copy { max-width: 26em; margin-top: 16px; }
+.cur-dir h3 { margin: 0 0 4px; font: 700 var(--fs-xl)/1.45 var(--font-head); color: var(--green); }
+/* 副標壓在照片背後的顏料上：暖褐 --cur-accent 實測只有 3.5–4.2:1，改用內文色（≥ 6:1），層次靠字級與粗細 */
+.cur-dir-sub { margin: 0 0 6px; font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+.cur-dir-copy p:last-child { margin: 0; font-size: var(--fs-sm); line-height: 1.85; color: var(--muted); }
+.cur-dir--cognitive { grid-column: 1 / span 5; }
+.cur-dir--integrated { grid-column: 7 / span 3; margin-top: 14%; }
+.cur-dir--multicultural { grid-column: 10 / span 3; margin-top: 34%; }
+.cur-dir--integrated .cur-frame, .cur-dir--multicultural .cur-frame, .cur-dir--activities .cur-frame { aspect-ratio: 4 / 5; }
+.cur-dir--quote { grid-column: 1 / span 4; align-self: center; display: grid; place-items: center; min-height: 340px; padding: 40px 32px; text-align: center; }
+.cur-dir--quote .cur-blot { inset: -16% -22%; }
+.cur-dir--quote .cur-dir-copy { position: relative; margin: 0; }
+.cur-dir--quote h3 { font-size: var(--fs-sm); letter-spacing: .2em; color: var(--deep); }
+.cur-dir--quote .cur-dir-sub { margin: 8px 0 10px; font: 700 clamp(2.5rem, 4.2vw, 3.75rem)/1.15 var(--font-head); letter-spacing: .04em; color: var(--deep); }
+.cur-dir--quote .cur-dir-copy p:last-child { font-size: var(--fs-md); color: var(--text); }
+.cur-dir--autonomy { grid-column: 6 / span 4; margin-top: -6%; }
+.cur-dir--activities { grid-column: 10 / span 3; margin-top: 10%; }
+.cur-dir--art { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: clamp(24px, 4vw, 64px); align-items: end; }
+.cur-dir--art .cur-frame { aspect-ratio: 16 / 9; }
+.cur-dir--art .cur-dir-copy { margin: 0 0 12px; }
+.cur-dir--art h3 { margin-bottom: 10px; font-size: clamp(var(--fs-3xl), 2.6vw, var(--fs-5xl)); line-height: 1.3; }
+.cur-dir--art .cur-dir-sub { font-size: var(--fs-lg); }
 
-/* ---------- 03 五件事：深綠舞台上的拍立得（不翻面） ---------- */
-.cur-daily{padding-bottom:220px}
-.cur-daily-source{display:block;margin-top:10px;font-size:var(--fs-xs);letter-spacing:.04em;color:rgb(var(--on-dark)/.62)}
-.cur-print-list{list-style:none;margin:88px 0 0;padding:0 clamp(0px,2vw,32px);display:flex;flex-wrap:wrap;justify-content:center;gap:72px clamp(28px,4vw,56px)}
-.cur-print{--tilt:-1.8deg;width:calc((100% - 2 * clamp(28px,4vw,56px)) / 3)}
-.cur-print:nth-child(even){--tilt:1.6deg;margin-top:40px}
-.cur-print-face{height:100%;transform:rotate(var(--tilt));transition:transform .6s var(--adm-ease)}
-@media (hover:hover){.cur-print:hover .cur-print-face{transform:rotate(0deg)}}
-.cur-print:nth-child(even) .adm-tape{left:auto;right:28px;transform:rotate(4deg);background:repeating-linear-gradient(135deg,var(--ivy-news-swept-mist) 0 8px,var(--ivy-news-paper-blue) 8px 16px)}
-.cur-print-no{margin-top:20px;font:400 var(--fs-xs)/1 var(--font-date);letter-spacing:.16em;color:var(--ivy-news-muted)}
-.cur-print-face h3{margin-top:8px;font:700 var(--fs-2xl)/1.45 var(--font-body)}
-.cur-print-face p:last-child{margin-top:10px;font-size:var(--fs-sm);line-height:1.85}
+/* ---------- 03 兒童美術館：沙龍式掛法，作品保留原本比例 ---------- */
+.cur-art-wall { columns: 4; column-gap: clamp(20px, 2.6vw, 36px); margin: clamp(48px, 6vw, 80px) 0 0; padding: 0; list-style: none; }
+.cur-art { break-inside: avoid; margin: 0 0 clamp(28px, 3.4vw, 48px); }
+.cur-art:nth-child(2) { margin-top: 56px; }
+.cur-art:nth-child(4) { margin-top: 24px; }
+.cur-art img { height: auto; }
+.cur-art > span { display: block; margin-top: 10px; letter-spacing: .06em; }
 
-/* ---------- 結尾：預約卡從深綠升起 ---------- */
-.cur-visit-sheet{padding:96px 0 104px}
-.cur-visit-sheet .adm-visit{margin-top:0}
+/* ---------- 04 五件事 ---------- */
+.cur-daily-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: clamp(24px, 3vw, 48px); row-gap: clamp(56px, 6vw, 88px); margin: clamp(48px, 6vw, 88px) 0 0; padding: 0; list-style: none; }
+.cur-thing { grid-column: span 2; }
+.cur-thing:nth-child(2) { margin-top: 48px; }
+.cur-thing:nth-child(4) { grid-column: 2 / span 2; }
+.cur-thing:nth-child(5) { grid-column: 4 / span 2; margin-top: 40px; }
+.cur-thing .cur-frame { aspect-ratio: 8 / 5; }
+.cur-thing-no { position: relative; isolation: isolate; display: grid; place-items: center; width: 44px; height: 44px; margin: 18px 0 4px; font-size: var(--fs-sm); color: var(--deep); }
+.cur-thing-no .cur-blot { inset: -12px; z-index: -1; transition-delay: .5s; }
+.cur-thing h3 { margin: 0 0 8px; font: 700 var(--fs-2xl)/1.4 var(--font-head); color: var(--green); }
+.cur-thing > p:last-child { margin: 0; font-size: var(--fs-sm); line-height: 1.85; color: var(--muted); }
 
-/* ---------- 斷點：沿用 admission 的 1100 / 900 / 760 ---------- */
-@media (width<=1100px){
-  .cur-year-list{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .cur-direction-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .cur-print{width:calc((100% - clamp(28px,4vw,56px)) / 2)}
-  .cur-print:nth-child(even){margin-top:0}
-  .cur-print:nth-child(4n+2),.cur-print:nth-child(4n+3){margin-top:0}
+/* ---------- 結尾：教學理念 ---------- */
+.cur-belief { padding-block: clamp(96px, 11vw, 168px); }
+.cur-belief-body { display: grid; justify-items: center; text-align: center; }
+.cur-belief .cur-kicker { justify-content: center; }
+.cur-belief-title { margin: 0; font: 700 clamp(2rem, 4vw, 3.5rem)/1.35 var(--font-head); letter-spacing: .01em; color: var(--green); text-spacing-trim: trim-start; word-break: keep-all; }
+.cur-belief-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 34px; max-width: 900px; margin: clamp(36px, 4vw, 56px) 0 0; padding: 0; list-style: none; }
+.cur-belief-list li { position: relative; isolation: isolate; padding: 10px 18px; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--deep); }
+.cur-belief-list .cur-blot { inset: -18px -30px; z-index: -1; }
+.cur-belief-list .cur-blot.is-painted { opacity: .8; }
+.cur-belief-list li:nth-child(2) .cur-blot { transition-delay: .15s; }
+.cur-belief-list li:nth-child(3) .cur-blot { transition-delay: .3s; }
+.cur-belief-list li:nth-child(4) .cur-blot { transition-delay: .45s; }
+.cur-belief-list li:nth-child(5) .cur-blot { transition-delay: .6s; }
+.cur-belief-close { margin: clamp(32px, 4vw, 48px) 0 0; font-size: var(--fs-md); }
+
+/* ---------- 斷點：1100 / 900 / 760 ---------- */
+@media (width <= 1100px) {
+  .cur { --cur-gutter: 32px; }
+  .cur-year-list { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 56px; }
+  .cur-dir-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cur-dir { grid-column: auto !important; margin-top: 0 !important; }
+  .cur-dir:nth-child(even) { margin-top: 56px !important; }
+  .cur-dir .cur-frame { aspect-ratio: 4 / 3 !important; }
+  .cur-dir--quote, .cur-dir--art { grid-column: 1 / -1 !important; }
+  .cur-dir--art { grid-template-columns: 1fr; }
+  .cur-art-wall { columns: 3; }
+  .cur-daily-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cur-thing, .cur-thing:nth-child(4), .cur-thing:nth-child(5) { grid-column: auto; }
 }
-@media (width<=900px){
-  .cur-direction.is-quote{padding:40px 36px}
+@media (width <= 900px) {
+  .cur-index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cur-hero-grid, .cur-years-head, .cur-split-head { grid-template-columns: 1fr; }
+  .cur-hero-photo { order: -1; }
+  .cur-hero-photo img { height: auto; min-height: 0; aspect-ratio: 4 / 3; }
+  .cur-split-head .cur-text { justify-self: start; }
 }
-@media (width<=760px){
-  /* 章節只有 3 項：手機兩欄時最後一項落單，改成橫跨整列，底線才會畫滿 */
-  .adm-chapters li:last-child:nth-child(odd){grid-column:1/-1}
-  .cur-hero-photo{object-position:68% 40%}
-  .cur-year-list{grid-template-columns:1fr;gap:12px;margin-top:48px}
-  .cur-year{display:grid;grid-template-columns:72px minmax(0,1fr);column-gap:16px;padding:20px 18px}
-  .cur-year-age{grid-row:span 5;font-size:44px}
-  .cur-year-name{margin-top:0}
-  .cur-year small{padding-top:10px}
-  .cur-direction-grid{grid-template-columns:1fr;gap:40px;margin-top:48px}
-  .cur-direction.is-quote{grid-column:auto;padding:32px 24px}
-  .cur-direction.is-quote .cur-direction-sub{font-size:var(--fs-4xl)}
-  .cur-daily{padding-bottom:160px}
-  .cur-print-list{margin-top:56px;gap:48px;padding:0 6px}
-  .cur-print{width:100%}
-  .cur-print-face{padding:22px 22px 24px}
-  .cur-visit-sheet{padding:64px 0 72px}
+@media (width <= 760px) {
+  .cur { --cur-gutter: 20px; --cur-title: min(var(--fs-4xl), 8.4vw); }
+  .cur-hero h1 { font-size: clamp(1.875rem, 8.6vw, 2.5rem); }
+  .cur-index { column-gap: 12px; }
+  .cur-index a { gap: 10px; }
+  .cur-pan { width: 58px; height: 58px; }
+  .cur-pan .cur-num { font-size: var(--fs-sm); }
+  .cur-index b { font-size: var(--fs-md); }
+  .cur-index-copy span { font-size: var(--fs-xs); }
+  .cur-sec { padding-block: 80px; }
+  .cur-links { flex-direction: column; gap: 0; }
+
+  /* 年段：左邊顏料＋年齡，右邊文字 */
+  .cur-year-list { grid-template-columns: 1fr; row-gap: 36px; }
+  .cur-year { display: grid; grid-template-columns: 96px 1fr; column-gap: 16px; }
+  .cur-year-age { --box: 128px; --k: calc(.66 + var(--s) * .34); grid-row: 1 / span 5; margin: -10px 0 0 -18px; }
+  .cur-year-age b { font-size: calc(2.125rem + var(--i) * .3125rem); }
+  .cur-year-age sup { left: calc(50% + 6px + var(--i) * 3px); font-size: var(--fs-xs); }
+  .cur-year small { margin-top: 8px; }
+
+  /* 課程方向、五件事、美術館：一列橫滑，每張自帶照片與文字；清單本身鋪一片淡顏料 */
+  .cur-dir-grid, .cur-daily-list, .cur-art-wall { display: flex; gap: 16px; columns: auto; margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 20px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
+  .cur-dir-grid::-webkit-scrollbar, .cur-daily-list::-webkit-scrollbar, .cur-art-wall::-webkit-scrollbar { display: none; }
+  .cur-dir, .cur-thing { flex: 0 0 80%; display: block; margin-top: 0 !important; scroll-snap-align: start; }
+  .cur-art-wall { align-items: flex-start; }
+  .cur-art { flex: 0 0 62%; margin: 0 !important; scroll-snap-align: start; }
+  .cur-dir--quote { display: grid; min-height: 0; padding: 28px 20px; align-self: stretch; }
+  .cur-dir--art h3 { font-size: var(--fs-2xl); }
+  .cur-dir--art .cur-dir-copy { margin-top: 16px; }
+  /* 第二行「「生命影響生命」的使命。」12 字：320–390 寬要排得下一行 */
+  .cur-belief-title { font-size: min(var(--fs-3xl), 7vw); }
+  .cur-belief-list { gap: 10px 14px; }
+  .cur-belief-list li { padding: 8px 12px; font-size: var(--fs-md); }
 }
-@media (prefers-reduced-motion:reduce){
-  .cur-print-face{transition:none}
+@media (prefers-reduced-motion: reduce) {
+  .cur.is-live [data-reveal] { transition: opacity .3s linear; }
+  .cur.is-live [data-reveal]:not(.is-in) { transform: none; }
+  .cur-blot, .cur-frame.has-mask, .cur-index b { transition: none; }
+}
+@media (forced-colors: active) {
+  .cur-wash, .cur-grain, .cur-blot { display: none; }
+  .cur-frame.has-mask { -webkit-mask: none; mask: none; }
+  .cur-pan, .cur-thing-no { border: 1px solid CanvasText; border-radius: 50%; }
 }

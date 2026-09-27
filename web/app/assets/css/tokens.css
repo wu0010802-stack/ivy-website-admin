@@ -147,4 +147,12 @@
   /* 12. 內部預覽工具列（/preview，不對家長公開） -------------------------------- */
   --ivy-dev-bar: #2d2d2d;
   --ivy-dev-bar-text: #ffd75e;
+
+  /* 13. 特色教學頁水彩顏料（2026-09-28 定案）：品牌薄荷、天藍、暖黃、橙＋草綠。
+     canvas（composables/useWatercolor.ts）讀 RGB 三元組，一層只疊 1.5–3% 透明度，疊幾十層才看得出顏色。 */
+  --ivy-paint-mint-rgb: 128 194 160;
+  --ivy-paint-sky-rgb: 134 184 222;
+  --ivy-paint-sun-rgb: 246 204 98;
+  --ivy-paint-orange-rgb: 236 150 90;
+  --ivy-paint-leaf-rgb: 108 162 112;
 }

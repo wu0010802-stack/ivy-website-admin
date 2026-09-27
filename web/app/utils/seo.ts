@@ -87,7 +87,7 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
 export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const title = `特色教學｜四個年段、七個課程方向與每天的五件事｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園的特色教學：幼幼班到大班四個年段，認知、統整、多元文化、品德、自主學習、課程活動與藝術共創七個課程方向，以及靜心、教具操作、美術創作、閱讀與大肌肉時間。'
+  const description = '常春藤幼兒園的特色教學：幼幼班到大班四個年段，認知、統整、多元文化、品德、自主學習、課程活動與藝術共創七個課程方向，孩子作品的兒童美術館，以及靜心、教具操作、美術創作、閱讀與大肌肉時間。'
   const canonical = origin ? `${origin}${CURRICULUM_PATH}` : undefined
   const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
@@ -261,7 +261,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
   ]
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
-  out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事。`, '')
+  out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')

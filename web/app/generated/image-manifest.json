@@ -1624,5 +1624,169 @@
         "width": 2000
       }
     ]
+  },
+  "cur-gallery-canvas-yellow": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-clay-ball": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-tote": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-plane-pink": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-tee": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-canvas-blue": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-tape": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-plane-dots": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1600.webp",
+        "width": 1600
+      }
+    ]
   }
 }
