@@ -1,3 +1,17 @@
+## 2026-09-27 首頁 UI/UX 評析後修正（預約鈕、頁尾聯絡、觸控範圍、示意活動日期）
+
+首頁評析後使用者指定處理五項，只動 `web/`：
+
+- 分校卡「預約參觀Ｘ校」：桌機也補上底部停留距離 `calc(60px + 25svh)`（`HomeNewsTransition.vue`，原本只有手機），1440×900 可點的捲動範圍從 260px 變成 700px；底色從低彩度杏色 `--ivy-campus-gold` 改成頁首預約鈕同一個 `--yellow`，字重 600（`CampusBoard.vue`）。
+- 頁尾「我們的大家庭」改成一校一列：校名｜區域｜電話（`tel:` 連結），subgrid 對齊（`SiteFooter.vue`）。
+- 觸控範圍：桌機膠囊三個控制用透明 `::before` 上下各補 2px 到 44px、外觀不變（`studio.css`）；桌機章節指示連結 36→44px（`HomeChapters.vue`）。
+- 示意活動不露出具體日期：日期格改「示意／日期未定」，詳情改「日期未定」，排序仍依原日期（`NewsDialog.vue`）。
+- 評析報的手機 `hn-more`、影片圓點、分校地址 40–41px 是紙頁轉場靜止時的 0.92／0.935 縮放造成的量測值，CSS 本身已是 44px，未改。
+
+驗證：`nuxt typecheck` 通過；web vitest 51 檔 446 項通過。Playwright（fixture 模式 dev）1440／390：逐 20px 捲動以 `elementFromPoint` 量預約鈕可點範圍（桌機 700px、手機 620px）；膠囊上下緣外 1.5px 點得到；頁尾五校三欄對齊；示意活動日期格截圖確認。未部署。
+
+品牌名統一（使用者裁定）：頁尾品牌改成跟頁首一樣的「常春藤教育機構／IVY EDUCATIONAL INSTITUTION」。`footer.brandName` 不走後台疊加，改兩份 fixture（`content/`、`web/server/data/`）即生效；`media-slots.spec.ts` 的基準檔 `overlay-baseline-20260925.json` 同步兩個欄位。LINE Seed 子集的 unicode-range 涵蓋「教育機構」；360px 手機英文一行不溢出。web vitest 51 檔 446 項通過。內文、SEO、預約表單裡的「常春藤幼兒園」（指幼兒園本身）不動。
+
 ## 2026-09-26 最新消息開放獨立網址（/news、/news/<id>）
 
 使用者從新分頁方向裡改做 C，並拍板開放獨立消息網址（原本「不在核可範圍」）。這輪只做 C1：網址與頁面，資料用後台現有的全站消息與各校消息；舊站 51 篇義華活動下一輪另做。

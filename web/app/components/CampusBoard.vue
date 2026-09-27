@@ -444,7 +444,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .social-row a,.social-row span{display:inline-flex;align-items:center;min-height:44px;gap:8px}
 .social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
 .campus-actions{display:flex;align-items:center;justify-content:flex-end}
-.booking-link{display:inline-flex;align-items:center;justify-content:space-between;gap:30px;min-height:54px;padding:14px 24px;border-radius:999px;background:var(--gold);color:var(--deep);font-size:var(--fs-sm);font-weight:500;letter-spacing:.035em;transition:background .2s,color .2s;white-space:nowrap}
+.booking-link{display:inline-flex;align-items:center;justify-content:space-between;gap:30px;min-height:54px;padding:14px 24px;border-radius:999px;background:var(--yellow);color:var(--deep);font-size:var(--fs-sm);font-weight:600;letter-spacing:.035em;transition:background .2s,color .2s;white-space:nowrap}
+/* 2026-09-27：底色從低彩度杏色（--ivy-campus-gold）改用頁首預約鈕同一個金色，首頁唯一帶校區的預約入口要像主要行動。 */
 .booking-link:hover{background:var(--green);color:var(--paper)}
 
 .campus-live{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

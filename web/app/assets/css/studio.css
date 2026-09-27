@@ -855,6 +855,9 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
   transition:background-color .2s ease,color .2s ease;
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--paper);color:var(--deep)}
+/* 桌機膠囊的控制只有 40px 高（手機 --pill-ctrl 已是 44px）：用透明 ::before 上下各補 2px，點擊範圍到 44px、外觀不變（2026-09-27）。 */
+body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle) {position:relative}
+body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle)::before {content:"";position:absolute;inset:-2px 0}
 /* 2026-09-22：B 目錄沿用比例，採中性淺色毛玻璃；實色為不支援與減少透明度備援。 */
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {
   --menu-solid:var(--ivy-menu-solid);--menu-glass:var(--ivy-menu-glass);
