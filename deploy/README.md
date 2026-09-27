@@ -695,3 +695,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 上一批要在後台補義華 IG／YouTube 的步驟仍待處理。
   - 線上 Lighthouse 未量：hero 手機首屏圖變大，LCP 影響待確認。
   - Safari／iOS 實機未驗證。
+
+## 2026-09-27 後台常春藤徽章 logo、登入頁改版、狀態色對比部署
+
+- 使用者要求合進 main 並上線。分支 `feature/admin-ui-20260927`，從 origin/main `0f79741` 開 sparse worktree，1 個提交 `e4dd4e0`；push 前 `origin/main` 仍是 `0f79741`，直接 fast-forward（`0f79741..e4dd4e0`，由使用者執行 push）。只改 `admin/`、README、stack 畫面基準；沒有 migration、沒有 API 或契約變更。
+- 內容：後台 logo（登入頁、側欄、favicon、apple-touch-icon）改用 IVY KIDS 城堡徽章；登入頁比照園務系統版型、標題「官網後台登入」、欄位錯誤顯示在欄位下方；側欄品牌列連回角色起始頁；手機選單鈕改三條線；Element Plus error／success／info 與 warning toast 對齊深色 token。細節見 README 2026-09-27。
+- 本機驗證：admin `vue-tsc` 通過、vitest 37 檔 340 項；stack e2e 56 項 55 過，`media.spec.ts` 整套跑失敗、單獨跑通過（失敗在 `home_about` 內容資料，不在這次改的畫面）；5 張後台畫面基準在 macOS 重拍。
+- CI run `36329989829` 五個 job 全綠（Backend、web、admin、E2E、Deploy Railway production）。`/release.json` snapshot `ca819fb0efc6ecf4050b22b424e5f96b92ff9db93a2922b0717845eb42086782`、`base_commit` `e4dd4e0`、`created_at` 2026-09-27T15:48:01Z。
+- 線上核對：`/admin/favicon-32.png`、`favicon-48.png`、`apple-touch-icon.png` 200 image/png，index 的 icon 連結已換；admin bundle 引用 `ivy-crest-Ci3w_GGc.webp`、`ivy-crest-mark-BJKUxDOr.webp`。Playwright 開正式站 `/admin/login`（1440、390@2）：標題「登入｜常春藤官網後台」、h1「官網後台登入」、徽章載入（naturalWidth 714）、輸入 `admin` 送出顯示欄位下方的 Email 格式提示、無水平溢出、0 console error。
+- **未做**：沒有登入正式站，所以登入後的側欄徽章、抽屜與 toast 顏色只在本機與 CI 驗證；Safari／iOS 實機未驗證。
