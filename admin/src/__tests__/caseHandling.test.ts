@@ -130,6 +130,9 @@ describe('已確認案件的改期（第 13 條）', () => {
 
   it('園方直接改期後重抓側欄的待核准數（家長先前的申請已失效）', async () => {
     const { wrapper, get } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }), [listSlot(later)])
+    // 有家長的改期申請時，手動改期先收起來，主動作是核准或退回。
+    expect(button(wrapper, '改到這個時段')).toBeUndefined()
+    await button(wrapper, '不照申請，改到其他時段…')!.trigger('click')
     confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     wrapper.findAllComponents({ name: 'ElSelect' })[0]!.vm.$emit('update:modelValue', 'slot-b')
@@ -144,7 +147,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }))
     expect(wrapper.text()).toContain('家長申請改期')
     expect(wrapper.text()).toContain('2099/10/03（週六）14:00–15:00')
-    expect(wrapper.text()).toContain('新時段剩 2 位')
+    expect(wrapper.text()).toContain('新時段剩 2 組')
     const confirm = confirmOk()
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
     await button(wrapper, '核准改期')!.trigger('click')

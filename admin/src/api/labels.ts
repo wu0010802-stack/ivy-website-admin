@@ -91,8 +91,9 @@ export function ageLabel(value: string | null | undefined): string {
   return AGE_LABELS[value] ?? value
 }
 
+// 沒填時寫「未填寫」，和明細其他選填欄位一致，不會讓人以為是資料缺漏。
 export function contactTimeLabel(value: string | null | undefined): string {
-  if (!value) return '—'
+  if (!value) return '未填寫'
   return CONTACT_TIME_LABELS[value] ?? value
 }
 
