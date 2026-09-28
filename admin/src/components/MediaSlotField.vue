@@ -10,7 +10,7 @@ import FocusPicker from './FocusPicker.vue'
  * 內容裡的一個素材版位（規格 L90-92、L107-108）：從素材庫選照片或影片，照片
  * 可在這個版位點選自己的裁切焦點（0–100，不影響其他版位）。沒選時官網沿用
  * 內建素材（builtin 說明、builtinSrc 是內建圖的預覽）。選好後 emit picked，
- * 讓頁面順手帶入素材的說明當替代文字；目前版位的素材（載入或換掉時）emit
+ * 讓頁面順手帶入素材的說明當圖片說明；目前版位的素材（載入或換掉時）emit
  * asset，頁面可以拿素材預設焦點、影片長度來提示。
  */
 const props = withDefaults(

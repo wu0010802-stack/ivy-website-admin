@@ -125,14 +125,14 @@ const mapPreviewUrl = computed(() => {
         <el-input v-model="editor.form.value.address" />
       </el-form-item>
       <el-form-item label="地圖連結（選填）" :error="mapUrlError(editor.form.value.map_url) ?? ''">
-        <el-input v-model="editor.form.value.map_url" placeholder="https://maps.app.goo.gl/…" />
+        <el-input v-model="editor.form.value.map_url" inputmode="url" placeholder="https://maps.app.goo.gl/…" />
         <span class="field-help">
           在 Google 地圖找到學校、按「分享」複製連結貼上。留空時官網用上面的地址搜尋；地址搜尋不準時才需要填。
           <a v-if="mapPreviewUrl" :href="mapPreviewUrl" target="_blank" rel="noopener noreferrer">開啟看看 ↗</a>
         </span>
       </el-form-item>
       <el-form-item label="參觀專線">
-        <el-input v-model="editor.form.value.phone" placeholder="07-000-0000" />
+        <el-input v-model="editor.form.value.phone" inputmode="tel" placeholder="07-000-0000" />
       </el-form-item>
       <el-form-item label="一句話簡介">
         <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />

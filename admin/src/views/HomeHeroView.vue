@@ -66,7 +66,7 @@ onMounted(editor.load)
       <el-form-item label="手機影片（選填）">
         <MediaSlotField v-model="editor.form.value.video_mobile" kind="video" builtin="桌機影片（沒選桌機影片時是內建的手機版）" :disabled="editor.readOnly.value" />
       </el-form-item>
-      <el-form-item label="Poster（影片播放前與不自動播放時的照片）">
+      <el-form-item label="影片封面（影片播放前與不自動播放時的照片）">
         <MediaSlotField
           v-model="editor.form.value.poster"
           builtin="官網內建的首屏照片"
@@ -77,12 +77,12 @@ onMounted(editor.load)
         />
         <span class="field-help">這張照片是首頁最先載入的畫面，建議橫式、寬 1920 以上，並跟影片第一個畫面接近。</span>
       </el-form-item>
-      <el-form-item v-if="editor.form.value.poster" label="Poster 替代文字">
+      <el-form-item v-if="editor.form.value.poster" label="影片封面的圖片說明（給看不到照片的人）">
         <el-input v-model="editor.form.value.poster_alt" maxlength="200" placeholder="例如：孩子在戶外草地上奔跑、微笑" />
         <span class="field-help">給看不見畫面的家長與搜尋引擎；留空時用素材庫裡這張照片的說明。</span>
       </el-form-item>
       <el-form-item label="影片載入失敗時的替代圖（選填）">
-        <MediaSlotField v-model="editor.form.value.fallback_image" builtin="Poster" :focus-previews="HERO_PREVIEWS" :disabled="editor.readOnly.value" />
+        <MediaSlotField v-model="editor.form.value.fallback_image" builtin="影片封面" :focus-previews="HERO_PREVIEWS" :disabled="editor.readOnly.value" />
       </el-form-item>
     </el-form>
   </ContentEditor>

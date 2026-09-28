@@ -51,11 +51,11 @@ onMounted(editor.load)
         />
         <span class="field-help">這一區放一張圓角照片，官網裁成 3:2 橫式，建議寬 1200 以上。</span>
       </el-form-item>
-      <el-form-item v-if="editor.form.value.photo" label="照片替代文字">
+      <el-form-item v-if="editor.form.value.photo" label="圖片說明（給看不到照片的人）">
         <el-input v-model="editor.form.value.photo_alt" maxlength="200" placeholder="例如：孩子們笑著圍在長輩身邊" />
         <span class="field-help">給看不見照片的家長；留空時用素材庫裡這張照片的說明。</span>
       </el-form-item>
-      <el-form-item label="照片說明">
+      <el-form-item label="照片下方文字">
         <el-input v-model="editor.form.value.caption" />
         <LengthHint :value="editor.form.value.caption" rule="aboutCaption" />
         <span class="field-help">顯示在孩子照片下方的一句話。</span>

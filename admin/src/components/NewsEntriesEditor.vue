@@ -84,7 +84,7 @@ function onPickMedia(asset: MediaAssetOut) {
   const article = pickingIndex.value === null ? null : props.articles[pickingIndex.value]
   if (!article) return
   article.image = asset.id
-  // 素材庫已經填了替代文字的話直接帶入，園方不用再打一次。
+  // 素材庫已經填了圖片說明的話直接帶入，園方不用再打一次。
   if (!article.alt && asset.alt_text) article.alt = asset.alt_text
 }
 </script>
@@ -157,7 +157,7 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-form-item label="內文（選填，點開消息時顯示在摘要下面）">
           <NewsBodyEditor :blocks="article.body" :campus-key="campusKey" :read-only="readOnly" />
         </el-form-item>
-        <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
+        <el-form-item label="圖片說明（給看不到照片的人）">
           <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
         </el-form-item>
         <div class="field-row">
@@ -220,7 +220,7 @@ function onPickMedia(asset: MediaAssetOut) {
     </el-form-item>
     <div class="field-row">
       <el-form-item label="相關連結（選填，例如報名表或活動詳情）" :error="webUrlError(event.link_url)">
-        <el-input v-model="event.link_url" placeholder="https://" />
+        <el-input v-model="event.link_url" inputmode="url" placeholder="https://" />
       </el-form-item>
       <el-form-item label="連結文字">
         <el-input v-model="event.link_label" maxlength="20" placeholder="活動詳情" :disabled="readOnly || !event.link_url.trim()" />

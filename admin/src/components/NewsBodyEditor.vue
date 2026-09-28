@@ -83,17 +83,27 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
           <span v-else><el-icon><Picture /></el-icon>選擇圖片</span>
         </button>
         <div class="news-body__image-fields">
-          <el-input v-model="block.alt" placeholder="替代文字（描述圖片內容）" aria-label="圖片替代文字" />
-          <el-input v-model="block.caption" maxlength="120" placeholder="圖說（選填）" aria-label="圖說" />
+          <label class="news-body__field">
+            <span>圖片說明（給看不到照片的人）</span>
+            <el-input v-model="block.alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" placeholder="描述圖片內容，例如：孩子在菜園裡澆水" />
+          </label>
+          <label class="news-body__field">
+            <span>照片下方文字（選填）</span>
+            <el-input v-model="block.caption" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" />
+          </label>
           <span v-if="!block.image" class="field-help is-error">請從素材庫選一張圖片</span>
         </div>
       </div>
       <div v-else-if="block.type === 'link'" class="field-row">
-        <el-input v-model="block.label" maxlength="40" placeholder="連結文字，例如：活動相簿" aria-label="連結文字" />
-        <div>
-          <el-input v-model="block.url" placeholder="https://" aria-label="連結網址" />
+        <label class="news-body__field">
+          <span>連結文字</span>
+          <el-input v-model="block.label" maxlength="40" placeholder="例如：活動相簿" />
+        </label>
+        <label class="news-body__field">
+          <span>連結網址</span>
+          <el-input v-model="block.url" inputmode="url" placeholder="https://" />
           <span v-if="webUrlError(block.url)" class="field-help is-error">{{ webUrlError(block.url) }}</span>
-        </div>
+        </label>
       </div>
     </div>
 
@@ -157,6 +167,17 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
   display: grid;
   gap: 6px;
   min-width: 0;
+}
+
+.news-body__field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.news-body__field > span:first-child {
+  font-size: 13px;
+  color: var(--ink-2);
 }
 
 .news-body__thumb {

@@ -86,16 +86,16 @@ function move(index: number, delta: number) {
             <el-form-item label="從第幾秒開始" :error="filmStartError(film, durationOf(film))">
               <el-input-number v-model="film.start" :min="0" :max="3600" :step="0.1" :precision="1" controls-position="right" />
             </el-form-item>
-            <el-form-item label="播到第幾秒（留空＝播到結尾）" :error="filmClipError(film, durationOf(film))">
+            <el-form-item label="播到第幾秒（不填就播到結尾）" :error="filmClipError(film, durationOf(film))">
               <el-input-number v-model="film.end" :min="0.1" :max="3600" :step="0.1" :precision="1" :value-on-clear="null" controls-position="right" />
             </el-form-item>
           </div>
         </template>
         <el-form-item v-else label="YouTube 影片網址" :error="filmYoutubeError(film)">
-          <el-input v-model="film.youtube_url" placeholder="https://youtu.be/…" />
+          <el-input v-model="film.youtube_url" inputmode="url" placeholder="https://youtu.be/…" />
           <span class="field-help">官網先顯示縮圖，家長點了才載入 YouTube。</span>
         </el-form-item>
-        <el-form-item label="封面照片（選填）">
+        <el-form-item label="影片封面（選填）">
           <MediaSlotField
             v-model="film.poster"
             :builtin="film.source === 'youtube' ? 'YouTube 的縮圖' : '影片自動擷取的畫面'"

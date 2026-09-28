@@ -62,7 +62,7 @@ onMounted(editor.load)
       </el-form-item>
       <div class="field-row">
         <el-form-item label="頁首電話">
-          <el-input v-model="editor.form.value.header_phone_number" placeholder="07-000-0000" />
+          <el-input v-model="editor.form.value.header_phone_number" inputmode="tel" placeholder="07-000-0000" />
         </el-form-item>
         <el-form-item label="電話備註">
           <el-input v-model="editor.form.value.header_phone_note" placeholder="例如：週一至週五 9:00–17:00" />
@@ -95,7 +95,7 @@ onMounted(editor.load)
       <h3 class="meta-section">搜尋引擎</h3>
       <el-form-item>
         <el-switch v-model="editor.form.value.allow_indexing" active-text="允許 Google 等搜尋引擎收錄官網" aria-label="允許 Google 等搜尋引擎收錄官網" />
-        <span class="field-help">發布後生效。關閉後各頁、robots.txt 與 sitemap.xml 都會告訴搜尋引擎不要收錄。正式站是否開放收錄另由部署設定決定，這裡只能關、不能強制打開。</span>
+        <span class="field-help">發布後生效。關閉後，官網每一頁都會告訴搜尋引擎不要收錄。網站維護人員也可以從主機另外關閉收錄；那邊關閉時，這裡打開也不會生效。</span>
       </el-form-item>
 
       <h3 class="meta-section">主選單</h3>

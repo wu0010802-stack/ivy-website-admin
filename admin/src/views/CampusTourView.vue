@@ -297,6 +297,7 @@ function nudge(i: number, event: KeyboardEvent) {
               <span v-if="editor.readOnly.value">點圖釘查看每個熱點的說明。</span>
               <span v-else-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
               <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳、方向鍵或右側的座標欄位調整位置。</span>
+              這個畫面的比例（8:5）和官網相同，照片整張放進框裡，熱點在這裡的位置就是官網上的位置。
             </p>
           </div>
 
@@ -328,9 +329,7 @@ function nudge(i: number, event: KeyboardEvent) {
                   <el-button size="small" @click="pickerVisible = true">
                     {{ currentScene.image ? '更換照片' : '從素材庫選擇' }}
                   </el-button>
-                  <span v-if="currentScene.image && !isMediaId(currentScene.image)" class="hint">
-                    目前使用官網內建素材 <code class="mono">{{ currentScene.image }}</code>
-                  </span>
+                  <span v-if="currentScene.image && !isMediaId(currentScene.image)" class="hint">目前用官網內建的照片</span>
                 </div>
                 <span class="field-help">{{ IMAGE_HINTS.tour }}</span>
               </el-form-item>
@@ -472,9 +471,11 @@ function nudge(i: number, event: KeyboardEvent) {
   gap: 24px;
 }
 
+/* 跟官網 .tour-canvas 一樣是 8:5、照片整張拉滿不裁切（web styles.css 的
+   .tour-canvas／.tour-image），熱點的 % 座標才會和官網一一對應。 */
 .tour__stage {
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 8 / 5;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -490,7 +491,7 @@ function nudge(i: number, event: KeyboardEvent) {
 .tour__stage img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: fill;
   pointer-events: none;
   display: block;
 }

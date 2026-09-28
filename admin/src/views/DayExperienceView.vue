@@ -54,7 +54,7 @@ const editor = useContentItem<DayExperiencePayload>(
   },
   undefined,
   {
-    // 2026-09-25 以前的卡片沒有照片、替代文字與色調欄位：補成「沿用內建」，比對變更時才不會多列。
+    // 2026-09-25 以前的卡片沒有照片、圖片說明與色調欄位：補成「沿用內建」，比對變更時才不會多列。
     normalize: (payload) => ({
       ...payload,
       moments: payload.moments.map((m) => ({ ...m, photo: m.photo ?? null, alt: m.alt ?? '', tint: m.tint ?? null })),
@@ -113,14 +113,14 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="form-section">背景影片</h3>
-      <p class="field-help">影片靜音循環、當作背景，沒有字幕。手機版影片沒選時用桌機那支；poster 是影片載入前看到的畫面。</p>
+      <p class="field-help">影片靜音循環、當作背景，沒有字幕。手機版影片沒選時用桌機那支；影片封面是影片載入前看到的畫面。</p>
       <el-form-item label="桌機影片">
         <MediaSlotField v-model="editor.form.value.film_desktop" kind="video" builtin="官網內建的遊藝表演影片" :disabled="editor.readOnly.value" />
       </el-form-item>
       <el-form-item label="手機影片（選填）">
         <MediaSlotField v-model="editor.form.value.film_mobile" kind="video" builtin="桌機影片（沒選桌機影片時是內建的手機版）" :disabled="editor.readOnly.value" />
       </el-form-item>
-      <el-form-item label="Poster">
+      <el-form-item label="影片封面">
         <MediaSlotField
           v-model="editor.form.value.film_poster"
           builtin="官網內建的影片畫面"
@@ -203,7 +203,7 @@ onMounted(editor.load)
             />
           </el-form-item>
           <div>
-            <el-form-item label="照片替代文字">
+            <el-form-item label="圖片說明（給看不到照片的人）">
               <el-input v-model="moment.alt" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
             </el-form-item>
             <el-form-item label="相紙色調">

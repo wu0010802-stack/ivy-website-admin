@@ -69,7 +69,7 @@ onMounted(editor.load)
           placeholder="全部"
           controls-position="right"
         />
-        <span class="field-help">留空＝全部。「所有最新消息」清單不受這個限制。</span>
+        <span class="field-help">不填就輪播全部消息。「所有最新消息」清單不受這個限制。</span>
       </el-form-item>
 
       <NewsEntriesEditor
