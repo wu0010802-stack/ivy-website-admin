@@ -30,7 +30,7 @@
       <div class="brief-copy">
         <p class="brief-kicker">30 週年官網呈現 · 比稿 C · 2026-09-28</p>
         <h1 id="page-title"><span>故事系列，</span><span>四個落點</span></h1>
-        <p class="brief-lede">真人故事系列只用既有的消息後台：系列名填在分類欄，不動後端、資料庫和契約。下面由上到下是四個畫面：首頁最新消息、消息列表、單篇、明華校頁，都照正式站現在的版型畫。切換右邊三種方案，看首頁輪播規則，以及系列真文章不到 3 篇時少了哪些東西。</p>
+        <p class="brief-lede">真人故事系列只用既有的消息後台：系列名填在分類欄，不動後端、資料庫和契約。下面由上到下是四個畫面：首頁最新消息、消息列表、單篇、明華校頁，都照正式站現在的版型畫。用「切換方案」比三種做法：首頁輪播規則，以及系列真文章不到 3 篇時少了哪些東西。</p>
         <ul class="legend" aria-label="圖例">
           <li><span class="lg-ph">虛線框</span>示意：標題、日期、原話都待園方提供</li>
           <li><span class="lg-tag">示意</span>正式站標示意卡片的寫法</li>
@@ -134,7 +134,7 @@
           <div class="hn-cards">
             <!-- 故事卡：建議方案是總編勾推薦的義華篇；置頂方案是自動挑最新一篇（崇德篇） -->
             <article class="hn-card is-story" data-only="manual early">
-              <div class="hn-media"><img src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔、塔身掛著直式招牌，前面是大片草地和遊戲器材"></div>
+              <div class="hn-media"><img class="img-yh" src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔、塔身掛著直式招牌，前面是大片草地和遊戲器材"></div>
               <div class="hn-card-copy">
                 <p class="series-mark"><span class="mark-line" aria-hidden="true"></span><span class="ph">常春藤的故事</span><span class="hn-sample-tag">示意</span></p>
                 <p class="hn-meta hn-meta-story"><span>義華校</span><span aria-hidden="true">·</span><time datetime="2027-01">2027.01.○○</time></p>
@@ -150,14 +150,14 @@
               </div>
             </article>
             <article class="hn-card">
-              <div class="hn-media"><img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位戴眼鏡的大人摟著穿制服的小男孩，兩人笑著看向遠方" loading="lazy"></div>
+              <div class="hn-media"><img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位戴眼鏡的大人摟著穿制服的小男孩，兩人笑著看向遠方"></div>
               <div class="hn-card-copy">
                 <p class="hn-meta"><span>義華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h4><a href="#s2"><span class="ph">草地上的放風箏時光</span></a></h4>
               </div>
             </article>
             <article class="hn-card">
-              <div class="hn-media"><img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹，後方是街邊的大樓" loading="lazy"></div>
+              <div class="hn-media"><img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹，後方是街邊的大樓"></div>
               <div class="hn-card-copy">
                 <p class="hn-meta"><span>明華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h4><a href="#s4"><span class="ph">走進明華校的廣場</span></a></h4>
@@ -169,8 +169,9 @@
     </div>
 
     <aside class="notes" aria-label="畫面 1 註記">
-      <div class="container notes-row">
-        <p class="notes-label"><span class="anno-tag">註記</span>設計說明，不是網站內容</p>
+      <details class="m-fold" open>
+        <summary class="container notes-sum"><span class="anno-tag">註記</span><span>畫面 1 的設計說明，不是網站內容</span></summary>
+        <div class="container">
         <dl class="notes-grid">
           <div class="note"><dt>輪播規則</dt>
             <dd data-only="manual early">維持 2026-09-25 裁定：有勾「首頁推薦」就只播推薦。故事不會自動上首頁，由總編勾選；系列記號讓家長一眼認出是故事。</dd>
@@ -179,7 +180,8 @@
           <div class="note"><dt>系列記號</dt><dd>12×2px 的 --gold 短線接系列名，金色只用在這條線。不編號、不寫「第 N 個故事」，故事卡不寫年數。封面只用確定校別的實拍。</dd></div>
           <div class="note"><dt>手機</dt><dd>640px 以下這裡是正式站的「活動影片」帶，近期活動收起，mock 省略。消息改成 108px 縮圖列表，故事放第一列，系列記號在標題上一行；進度條收起，暫停鍵留著。</dd></div>
         </dl>
-      </div>
+        </div>
+      </details>
     </aside>
   </section>
 
@@ -221,12 +223,13 @@
           <div class="np-series-intro">
             <p class="np-series-label"><span class="mark-line" aria-hidden="true"></span>系列</p>
             <h4 id="s2-series-h"><span class="ph">常春藤的故事</span><span class="hn-sample-tag">示意</span></h4>
-            <p class="np-series-lede">孩子的第一所學校，也是第二個家。<span class="ph">請老師、家長和畢業的孩子，用自己的話說在常春藤的日子。</span></p>
+            <p class="np-series-lede">孩子的第一所學校，也是第二個家。</p>
+            <p class="np-series-lede ph">請老師、家長和畢業的孩子，用自己的話說在常春藤的日子。</p>
             <a class="np-series-all" href="#s3">依順序讀全部<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a>
           </div>
           <ul class="np-series-list">
             <li class="np-series-card">
-              <img src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔，前面是草地和遊戲器材" loading="lazy">
+              <img class="img-yh" src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔，前面是草地和遊戲器材">
               <div class="np-series-copy">
                 <p class="np-meta"><span>義華校<span class="hn-sample-tag">示意</span></span></p>
                 <h5><a href="#s3"><span class="ph">受訪者的一句話，就是這篇的標題。</span></a></h5>
@@ -234,7 +237,7 @@
               </div>
             </li>
             <li class="np-series-card">
-              <img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹" loading="lazy">
+              <img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹">
               <div class="np-series-copy">
                 <p class="np-meta"><span>明華校<span class="hn-sample-tag">示意</span></span></p>
                 <h5><a href="#s4"><span class="ph">標題用家長自己說的一句話。</span></a></h5>
@@ -242,7 +245,7 @@
               </div>
             </li>
             <li class="np-series-card">
-              <img src="../../web/public/assets/tour-chongde-field.webp" width="2000" height="1250" alt="穿綠色制服的孩子們在草地上的紅色跑道奔跑" loading="lazy">
+              <img src="../../web/public/assets/tour-chongde-field.webp" width="2000" height="1250" alt="穿綠色制服的孩子們在草地上的紅色跑道奔跑">
               <div class="np-series-copy">
                 <p class="np-meta"><span>崇德校<span class="hn-sample-tag">示意</span></span></p>
                 <h5><a href="#s2"><span class="ph">標題用畢業生自己說的一句話。</span></a></h5>
@@ -256,7 +259,7 @@
           <h4 id="s2-all">所有消息</h4>
           <ul class="np-list">
             <li class="np-row">
-              <img src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔，前面是草地和遊戲器材" loading="lazy">
+              <img class="img-yh" src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔，前面是草地和遊戲器材">
               <div class="np-row-copy">
                 <p class="np-meta"><span>義華校<span class="hn-sample-tag">示意</span></span><time datetime="2027-01">2027.01.○○</time></p>
                 <h5><a href="#s3"><span class="ph">受訪者的一句話，就是這篇的標題。</span></a></h5>
@@ -265,7 +268,7 @@
               </div>
             </li>
             <li class="np-row">
-              <img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位大人摟著穿制服的小男孩，兩人笑著看向遠方" loading="lazy">
+              <img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位大人摟著穿制服的小男孩，兩人笑著看向遠方">
               <div class="np-row-copy">
                 <p class="np-meta"><span>義華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h5><a href="#s2"><span class="ph">草地上的放風箏時光</span></a></h5>
@@ -273,7 +276,7 @@
               </div>
             </li>
             <li class="np-row">
-              <img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹" loading="lazy">
+              <img src="../../web/public/assets/tour-minghua-plaza.webp" width="2000" height="1250" alt="紅磚校舍前的鋪面廣場，一旁有溜滑梯和一排小樹">
               <div class="np-row-copy">
                 <p class="np-meta"><span>明華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h5><a href="#s4"><span class="ph">走進明華校的廣場</span></a></h5>
@@ -286,8 +289,9 @@
     </div>
 
     <aside class="notes" aria-label="畫面 2 註記">
-      <div class="container notes-row">
-        <p class="notes-label"><span class="anno-tag">註記</span>設計說明，不是網站內容</p>
+      <details class="m-fold" open>
+        <summary class="container notes-sum"><span class="anno-tag">註記</span><span>畫面 2 的設計說明，不是網站內容</span></summary>
+        <div class="container">
         <dl class="notes-grid">
           <div class="note"><dt>出現門檻</dt>
             <dd data-only="manual pinned">系列膠囊和系列帶要系列有 3 篇以上真文章才出現。膠囊前一條 1px 直線，和五校膠囊分開；/news?series=story 的 canonical 維持 /news。</dd>
@@ -296,7 +300,8 @@
           <div class="note"><dt>判斷方式</dt><dd>web 新增 news-series.ts，比對分類欄的固定字串（忽略空白和各種中點），示意項目排除。不動後端、schema、契約。</dd></div>
           <div class="note"><dt>上架</dt><dd>填 show_from、不填 show_until，系列消息不靠下架輪替。近期活動區塊不變，這裡省略；列表只截前三列。</dd></div>
         </dl>
-      </div>
+        </div>
+      </details>
     </aside>
   </section>
 
@@ -318,7 +323,7 @@
           <p class="np-meta"><span>義華校 · <span class="ph">常春藤的故事</span><span class="hn-sample-tag">示意</span></span><time datetime="2027-01">2027.01.○○</time></p>
           <h3 id="s3-title" class="np-article-h1"><span class="ph">受訪者的一句話，<br class="br-m">就是這篇的標題。</span></h3>
           <figure class="np-figure np-figure-cover">
-            <img src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔、塔身掛著直式招牌，前面是大片草地和遊戲器材">
+            <img class="img-yh" src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白牆紅磚的校舍，右邊有兩座尖頂圓塔、塔身掛著直式招牌，前面是大片草地和遊戲器材">
             <figcaption>義華校外觀，招牌是舊稱「常春藤幼稚園」，拍攝年份待園方確認</figcaption>
           </figure>
           <div class="np-body">
@@ -332,7 +337,7 @@
               <p>第二段同樣是本人的話。個人的回憶就寫成個人的回憶，不改寫成機構的史實。</p>
             </blockquote>
             <figure class="np-figure">
-              <img src="../../web/public/assets/day-poster.webp" width="1440" height="810" alt="舞台上穿藍色紗裙的孩子們排成隊形跳舞，台前擺滿彩色氣球" loading="lazy">
+              <img src="../../web/public/assets/day-poster.webp" width="1440" height="810" alt="舞台上穿藍色紗裙的孩子們排成隊形跳舞，台前擺滿彩色氣球">
               <figcaption>義華校遊藝表演（近年）<span class="hn-sample-tag">示意</span></figcaption>
             </figure>
           </div>
@@ -356,8 +361,9 @@
     </div>
 
     <aside class="notes" aria-label="畫面 3 註記">
-      <div class="container notes-row">
-        <p class="notes-label"><span class="anno-tag">註記</span>設計說明，不是網站內容</p>
+      <details class="m-fold" open>
+        <summary class="container notes-sum"><span class="anno-tag">註記</span><span>畫面 3 的設計說明，不是網站內容</span></summary>
+        <div class="container">
         <dl class="notes-grid">
           <div class="note"><dt>內文紀律</dt><dd>沿革句是真的，可以直接用。受訪者原話要本人確認並簽書面同意，同意書編號寫在素材庫 license_note，不對外公開。不代寫引言，不寫畢業生數、師生數。</dd></div>
           <div class="note"><dt>封面</dt><dd>yihua-exterior 原圖 590 寬，置中不放大。招牌是舊稱、年份不明，圖說照實寫「待園方確認」。不用 *-enhanced-v1 或線稿當「當年」的照片。</dd></div>
@@ -366,7 +372,8 @@
             <dd data-only="early">不到 3 篇時不畫，免得只剩一格指向唯一另一篇；要不要跟系列帶同門檻，請業主確認。</dd></div>
           <div class="note"><dt>結尾</dt><dd>「回義華校的消息」「預約義華校參觀」是正式站既有的結尾，照舊保留；預約鈕的金色也是正式站原樣，不是這次新增。</dd></div>
         </dl>
-      </div>
+        </div>
+      </details>
     </aside>
   </section>
 
@@ -404,8 +411,8 @@
         </div>
 
         <aside class="ops-card" aria-labelledby="s4-ops">
-          <p class="ops-tag"><span class="anno-tag">註記</span>給園方的營運卡，不上網站</p>
-          <h3 id="s4-ops">發文節奏<span class="demo-note">建議，示意</span></h3>
+          <details class="m-fold" open>
+          <summary class="ops-sum"><span class="ops-tag"><span class="anno-tag">註記</span>給園方的營運卡，不上網站</span><h3 id="s4-ops">發文節奏<span class="demo-note">建議，示意</span></h3></summary>
           <dl class="ops-list">
             <div><dt>節奏</dt><dd>每月 1 篇，全年最多 12 篇</dd></div>
             <div><dt>開跑</dt><dd>同意書定稿、先存 4 篇（至少 3 校）才開始，第一篇在 2027-01</dd></div>
@@ -421,19 +428,22 @@
             <li><b>機動</b><span>2 篇</span></li>
           </ul>
           <p class="ops-foot">新校不會被義華蓋過；配額是建議，待業主和園方裁定。</p>
+          </details>
         </aside>
       </div>
     </div>
 
     <aside class="notes" aria-label="畫面 4 註記">
-      <div class="container notes-row">
-        <p class="notes-label"><span class="anno-tag">註記</span>設計說明，不是網站內容</p>
+      <details class="m-fold" open>
+        <summary class="container notes-sum"><span class="anno-tag">註記</span><span>畫面 4 的設計說明，不是網站內容</span></summary>
+        <div class="container">
         <dl class="notes-grid">
           <div class="note"><dt>落點</dt><dd>CampusPageMain.vue:59 附近，沿用分校頁 .section。最多 3 篇，一篇都沒有就整段不渲染；三個方案都出現。</dd></div>
           <div class="note"><dt>可以先上</dt><dd>分校消息一律不是示意，分校篇可以比全站篇先上。第一則全站篇要和清空示意消息同一次發布，否則會被標成示意並 noindex。</dd></div>
           <div class="note"><dt>入口</dt><dd>不加主選單第 5 項。入口放在頁尾連結、首頁推薦消息、/about 結尾和這一段。</dd></div>
         </dl>
-      </div>
+        </div>
+      </details>
     </aside>
   </section>
 
@@ -443,28 +453,34 @@
       <h2 id="decide-h">要業主決定的事</h2>
       <div class="decide-grid">
         <article class="decide-card">
-          <h3>系列名</h3>
+          <details class="m-fold" open>
+          <summary><h3>系列名</h3></summary>
           <ul>
             <li class="is-rec"><b>建議</b>「常春藤的故事」：不綁數字，2028 起不必改名，直接轉成常設</li>
             <li>「一路走來」：呼應 /about 01 章</li>
             <li class="is-no">不採「三十個故事」這類綁數字的名字：寫不滿就等於公開食言</li>
           </ul>
+          </details>
         </article>
         <article class="decide-card">
-          <h3>首頁輪播</h3>
+          <details class="m-fold" open>
+          <summary><h3>首頁輪播</h3></summary>
           <ul>
             <li class="is-rec"><b>建議</b>維持 2026-09-25「有推薦只播推薦」，故事靠勾推薦進輪播</li>
             <li>最新故事自動置頂：要推翻 2026-09-25 的裁定</li>
             <li>不論選哪一種，看得見的 44px 暫停鍵都要做</li>
           </ul>
+          </details>
         </article>
         <article class="decide-card">
-          <h3>節奏與人力</h3>
+          <details class="m-fold" open>
+          <summary><h3>節奏與人力</h3></summary>
           <ul>
             <li class="is-rec"><b>建議</b>紙本回憶卡加老師訪談，每月 1 篇、全年最多 12 篇，先存 4 篇再開跑</li>
             <li>兩週一篇、共 30 篇：人力吃緊，一旦停更家長看得見</li>
             <li class="is-no">不開放網站線上投稿：要新資料表、審核佇列和個資政策</li>
           </ul>
+          </details>
         </article>
       </div>
     </div>

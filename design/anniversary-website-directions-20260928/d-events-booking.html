@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>回憶卡與活動預約</title>
+<meta name="description" content="30 週年比稿 D：參與要做到哪裡——紙本回憶卡加消息發布，或另開一面回憶牆；真實開放日直接接回該校的預約參觀。">
+<script>
+  // 依 ?v= 決定畫哪一種參與做法；沒帶或帶錯就用建議的「消息發布」（news）。
+  (function () {
+    var v = new URLSearchParams(location.search).get('v')
+    document.documentElement.dataset.v = (v === 'news' || v === 'wall') ? v : 'news'
+  })()
+</script>
+<link rel="stylesheet" href="shared/site.css">
+<link rel="stylesheet" href="d-events-booking.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要內容</a>
+<div data-chrome="head"></div>
+
+<!-- 本頁另補的 Phosphor Regular 圖示（@phosphor-icons/core 2.1.1 regular，共用 sprite 與 IconSprite.vue 都沒有） -->
+<svg class="d-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <symbol id="i-note-pencil" viewBox="0 0 256 256"><path fill="currentColor" d="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 256 256"><path fill="currentColor" d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></symbol>
+  <symbol id="i-tray" viewBox="0 0 256 256"><path fill="currentColor" d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,16V152h-28.7A15.86,15.86,0,0,0,168,156.69L148.69,176H107.31L88,156.69A15.86,15.86,0,0,0,76.69,152H48V48Zm0,160H48V168H76.69L96,187.31A15.86,15.86,0,0,0,107.31,192h41.38A15.86,15.86,0,0,0,160,187.31L179.31,168H208v40Z"/></symbol>
+  <symbol id="i-identification-card" viewBox="0 0 256 256"><path fill="currentColor" d="M200,112a8,8,0,0,1-8,8H152a8,8,0,0,1,0-16h40A8,8,0,0,1,200,112Zm-8,24H152a8,8,0,0,0,0,16h40a8,8,0,0,0,0-16Zm40-80V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM216,200V56H40V200H216Zm-80.26-34a8,8,0,1,1-15.5,4c-2.63-10.26-13.06-18-24.25-18s-21.61,7.74-24.25,18a8,8,0,1,1-15.5-4,39.84,39.84,0,0,1,17.19-23.34,32,32,0,1,1,45.12,0A39.76,39.76,0,0,1,135.75,166ZM96,136a16,16,0,1,0-16-16A16,16,0,0,0,96,136Z"/></symbol>
+  <symbol id="i-envelope-simple" viewBox="0 0 256 256"><path fill="currentColor" d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM203.43,64,128,133.15,52.57,64ZM216,192H40V74.19l82.59,75.71a8,8,0,0,0,10.82,0L216,74.19V192Z"/></symbol>
+  <symbol id="i-storefront" viewBox="0 0 256 256"><path fill="currentColor" d="M232,96a7.89,7.89,0,0,0-.3-2.2L217.35,43.6A16.07,16.07,0,0,0,202,32H54A16.07,16.07,0,0,0,38.65,43.6L24.31,93.8A7.89,7.89,0,0,0,24,96h0v16a40,40,0,0,0,16,32v72a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V144a40,40,0,0,0,16-32V96ZM54,48H202l11.42,40H42.61Zm50,56h48v8a24,24,0,0,1-48,0Zm-16,0v8a24,24,0,0,1-35.12,21.26,7.88,7.88,0,0,0-1.82-1.06A24,24,0,0,1,40,112v-8ZM200,208H56V151.2a40.57,40.57,0,0,0,8,.8,40,40,0,0,0,32-16,40,40,0,0,0,64,0,40,40,0,0,0,32,16,40.57,40.57,0,0,0,8-.8Zm4.93-75.8a8.08,8.08,0,0,0-1.8,1.05A24,24,0,0,1,168,112v-8h48v8A24,24,0,0,1,204.93,132.2Z"/></symbol>
+</svg>
+
+<main id="main" tabindex="-1">
+
+  <!-- ⓪ 說明帶：比稿說明與做法切換（這一段是說明，不是網站內容） -->
+  <section class="intro" aria-labelledby="page-title">
+    <div class="container intro-grid">
+      <div class="intro-copy">
+        <p class="intro-kicker">比稿 D · 參與：紙本回憶卡與活動接預約</p>
+        <h1 id="page-title">參與，<br>要做到哪裡</h1>
+        <p class="intro-lede">請業主判斷兩件事。一、回憶怎麼收、刊在哪裡：只用紙本回憶卡加消息發布，不需要解除規格；或另開一面回憶牆，要先解除「不新增週年後台」。二、如果有真實的開放日，活動卡可以直接接到該校的預約參觀，不必另做報名。</p>
+        <ul class="legend" aria-label="圖例">
+          <li><span class="lg-ph">虛線框</span>示意文字，不是定稿</li>
+          <li><span class="tag">示意</span>整張卡或整段是示意</li>
+          <li><span class="lg-note">註記</span>藍灰色的是設計說明，不是網站內容</li>
+        </ul>
+      </div>
+      <div class="intro-ctrl">
+        <p class="ctrl-label" id="v-label">選一種參與做法</p>
+        <nav class="switch" aria-labelledby="v-label">
+          <a href="?v=news" data-v="news"><span class="sw-top"><span class="sw-name">消息發布</span><span class="sw-badge">建議</span></span><span class="sw-hint">紙卡＋現有消息後台，不需解除規格</span></a>
+          <a href="?v=wall" data-v="wall"><span class="sw-top"><span class="sw-name">回憶牆</span><span class="sw-badge">對照</span></span><span class="sw-hint">要先解除「不新增週年後台」，新後台 M</span></a>
+        </nav>
+        <div class="asks">
+          <p class="ctrl-label">要園方回答</p>
+          <ol>
+            <li>有沒有真實的開放日或園慶？沒有就不排活動、不寫日期。</li>
+            <li>同意書正式條款與收稿 email。</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <p class="state-line">
+        <b data-only="news">消息發布（建議）</b><span data-only="news">回憶卡收回後，小編整理成一篇篇「回憶選輯」消息（④），由分校管理者對照紙卡核准。只用現有的消息後台，階段一不用寫程式。</span>
+        <b data-only="wall">回憶牆（對照）</b><span data-only="wall">收稿一樣靠紙卡和電話，差別只在刊出的地方換成獨立的回憶牆區塊（④）。要新增 content kind 和後台頁，業主得先解除「不新增週年後台」。</span>
+      </p>
+    </div>
+  </section>
+
+  <div class="np">
+
+    <!-- ① 近期活動：現行卡 vs 建議卡 -->
+    <section class="zone" aria-labelledby="z1-title">
+      <div class="container zone-grid">
+        <div class="zone-main">
+          <p class="zone-tag"><span class="zt-no" aria-hidden="true">1</span><span>近期活動（對照）</span><code>/news</code></p>
+          <h2 id="z1-title" class="z-h">近期活動</h2>
+          <div class="ev-compare">
+            <div class="ev-col">
+              <p class="cmp-label">現行活動卡 · 只能放一個外部連結</p>
+              <article class="np-event" aria-labelledby="ev-now-title">
+                <p class="np-event-date"><b class="ph">○○</b><span>日期未定</span></p>
+                <div class="np-event-copy">
+                  <p class="np-meta"><span>明華校<span class="tag">示意</span></span><span>示意／日期未定</span></p>
+                  <h3 id="ev-now-title"><span class="ph">明華校 · 開放日</span></h3>
+                  <p><span class="ph">（活動說明，由園方提供）</span></p>
+                  <a class="np-event-link" href="#">活動詳情<span aria-hidden="true"> ↗</span><span class="sr-only">（另開分頁）</span></a>
+                </div>
+              </article>
+            </div>
+            <div class="ev-col">
+              <p class="cmp-label">建議活動卡 · 接回明華校的預約參觀</p>
+              <article class="np-event ev-plus" aria-labelledby="ev-plus-title" data-cta-entry="anniversary">
+                <p class="np-event-date"><b class="ph">○○</b><span>日期未定</span></p>
+                <div class="np-event-copy">
+                  <p class="np-meta"><span>明華校<span class="tag">示意</span></span><span>示意／日期未定</span></p>
+                  <h3 id="ev-plus-title"><span class="ph">明華校 · 開放日</span></h3>
+                  <p><span class="ph">（活動說明，由園方提供）</span></p>
+                </div>
+                <div class="ev-actions">
+                  <a class="button primary" href="#"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calendar-check" /></svg>預約參觀明華校</a>
+                  <a class="button outline" href="tel:07-556-6796"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>致電明華校<span class="num">07-556-6796</span></a>
+                </div>
+              </article>
+              <div class="ev-after">
+                <p>參觀時間以園所確認為準。</p>
+                <p class="st-lead"><span class="ph">送出參觀需求後，狀態依序是：</span></p>
+                <ol class="st-list">
+                  <li><span>已收到需求</span></li>
+                  <li><span>待確認</span></li>
+                  <li><span>預約成立</span></li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+        <details class="notes">
+          <summary>現行限制與建議做法</summary>
+          <dl class="note-list">
+            <div><dt>現行</dt><dd>活動只有一個 <code>link_url</code>，只收 http(s) 絕對網址（backend <code>schemas.py:731-734</code>），指不到站內的 <code>/visit/minghua</code>，卡上只能放「活動詳情 ↗」。</dd></div>
+            <div><dt>建議</dt><dd>活動加 <code>visit_campus_key</code>（空白或五校 key 之一；JSON 欄位，不需 migration，要重產契約）。卡內直接放既有 <code>BookingCta</code>，依該校的預約模式自動變成表單、LINE、電話或暫停；這裡畫的是表單模式。</dd></div>
+            <div><dt>字句</dt><dd>主按鈕沿用分校頁的「預約參觀{校名}」（<code>CampusPageMain.vue:24</code>）；次按鈕沿用預約頁的「致電{校名}」（<code>VisitForm.vue:388</code>）。</dd></div>
+            <div><dt>語意</dt><dd>送出只叫「已收到需求」，人工確認時段是「待確認」，園方確認後才叫「預約成立」。不做 RSVP、報名、付款，活動卡上也不收家長的聯絡方式。</dd></div>
+            <div><dt>追蹤</dt><dd>外層 <code>data-cta-entry</code> 設為 <code>anniversary</code>，要一起改 web（<code>cta-analytics.ts:10-28</code>）、backend（<code>operations/models.py:39-57</code>）、admin（<code>labels.ts:883</code>）三處。</dd></div>
+            <div><dt>工時</dt><dd>S，約 1 人日。只在園方確認有真實開放日時才做；在那之前，活動只列時間、地點和「洽各校」電話。沒有真活動就不排、不寫日期、不倒數。</dd></div>
+          </dl>
+        </details>
+      </div>
+    </section>
+
+    <!-- ② 徵集消息單篇（全校消息） -->
+    <section class="zone" aria-labelledby="z2-title">
+      <div class="container zone-grid">
+        <div class="zone-main">
+          <p class="zone-tag"><span class="zt-no" aria-hidden="true">2</span><span>徵集消息單篇</span><code>/news/&lt;id&gt;</code><span>全校消息</span></p>
+          <div class="np-narrow">
+            <nav class="np-crumb" aria-label="麵包屑示範"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
+            <article class="np-article" aria-labelledby="z2-title">
+              <p class="np-meta"><span>全校 · <span class="ph">常春藤的故事</span><span class="tag">示意</span></span><span>示意／日期未定</span></p>
+              <h2 id="z2-title" class="art-title"><span class="ph">徵集常春藤的回憶</span></h2>
+              <figure class="cover-slot">
+                <div class="mini" aria-hidden="true">
+                  <span class="mini-head"><svg class="mini-crest" viewBox="30 26 124 132"><image href="../../web/public/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg><span class="mini-title">常春藤回憶卡</span></span>
+                  <i></i><i></i><i></i>
+                </div>
+                <figcaption><span class="ph">封面：回憶卡印好後拍實物照，這裡先用插圖代替</span><span class="tag">示意</span></figcaption>
+              </figure>
+              <div class="hn-body">
+                <p class="hn-body-lead"><span class="ph">在常春藤度過一段日子的孩子、陪孩子來上學的家長、在這裡教過書的老師，都歡迎把記得的事告訴我們。</span></p>
+                <h3><span class="ph">兩種參與方式</span></h3>
+                <ol class="ways">
+                  <li>
+                    <p class="way-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-storefront" /></svg><b class="ph">到櫃台拿回憶卡</b></p>
+                    <p><span class="ph">到任一校櫃台拿一張回憶卡，寫好交回櫃台。</span></p>
+                  </li>
+                  <li>
+                    <p class="way-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg><b class="ph">打電話請老師記下來</b></p>
+                    <p><span class="ph">打到任一校，老師把你說的記在回憶卡上，再念一次給你確認。</span></p>
+                  </li>
+                </ol>
+                <h3><span class="ph">五校電話</span></h3>
+                <ul class="tels">
+                  <li><a href="tel:07-392-8366"><img src="../../web/public/assets/responsive/yihua-exterior-87edb1595b78-480.webp" width="480" height="316" alt=""><span class="tel-who"><b>義華校</b><small>三民區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-392-8366</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
+                  <li><a href="tel:07-556-6796"><img src="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>明華校</b><small>左營區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-556-6796</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
+                  <li><a href="tel:07-341-6286"><img src="../../web/public/assets/responsive/tour-chongde-field-e920d8d3a9a6-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>崇德校</b><small>左營區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-341-6286</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
+                  <li><a href="tel:07-370-8001"><img src="../../web/public/assets/responsive/tour-international-gate-3425c482c253-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>國際校</b><small>鳥松區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-370-8001</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
+                  <li><a href="tel:07-375-7081"><img src="../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>仁武校</b><small>仁武區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-375-7081</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
+                </ul>
+                <p class="mail"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-envelope-simple" /></svg><span>或寄 email 到 <span class="blank" aria-label="待園方提供的 email"></span>（園方提供）<span class="tag">示意</span></span></p>
+                <div class="privacy">
+                  <h3><span class="ph">隱私與撤下</span></h3>
+                  <ul>
+                    <li><span class="ph">回憶卡背面就是同意書，交回前請勾選。</span></li>
+                    <li><span class="ph">署名可以只寫稱謂，也可以選擇不放照片。</span></li>
+                    <li><span class="ph">刊出後想撤下，打電話給交卡的那一校。</span></li>
+                  </ul>
+                  <p class="privacy-tag"><span class="tag">正式條款待園方提供，示意</span></p>
+                </div>
+              </div>
+            </article>
+            <div class="np-article-foot">
+              <a class="np-back" href="#"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>回消息列表</a>
+              <a class="np-book" href="#">預約校園參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+            </div>
+          </div>
+        </div>
+        <details class="notes">
+          <summary>現在就能發，兩處要小改</summary>
+          <dl class="note-list">
+            <div><dt>後台</dt><dd>消息分類是自由文字，填系列名（示意「常春藤的故事」）；<code>show_from</code> 依台北日期自動上架，不填 <code>show_until</code>。小編（EDITOR）只能送審。</dd></div>
+            <div><dt>管道</dt><dd>收稿只有三種：紙卡、五校各自的電話、園方提供的一個 email。不用義華的 LINE／FB（其他四校沒有，不能拿義華的代填）。</dd></div>
+            <div><dt>撥號列</dt><dd>消息內文的連結區塊只放行 http／https（<code>news-content.ts:84-87</code>），寫不出 <code>tel:</code>。要整列可點撥號，需要 web 小改（例如依分類在單篇頁自動帶五校電話）；不改就用純文字電話發，內容一樣。</dd></div>
+            <div><dt>縮圖</dt><dd>五列縮圖是各校現況照（校園探索素材），只幫家長認出「是哪一校」，不當回憶照片。</dd></div>
+            <div><dt>隱私</dt><dd>網站只放摘要，全文印在卡背，要園方定稿。EXIF／GPS 剝除上線之前，不收家長或校友的手機照片。</dd></div>
+          </dl>
+        </details>
+      </div>
+    </section>
+
+    <!-- ③ 回憶卡實物（平面插圖） -->
+    <section class="zone" aria-labelledby="z3-title">
+      <div class="container zone-grid">
+        <div class="zone-main">
+          <p class="zone-tag"><span class="zt-no" aria-hidden="true">3</span><span>回憶卡實物</span><code>紙本 · 五校櫃台</code></p>
+          <h2 id="z3-title" class="z-h">紙本回憶卡</h2>
+          <div class="desk">
+            <figure class="mcard">
+              <div class="mc-face mc-front">
+                <div class="mc-head">
+                  <svg class="mc-crest" viewBox="30 26 124 132" aria-hidden="true" focusable="false"><image href="../../web/public/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg>
+                  <div class="mc-name"><p class="mc-title">常春藤回憶卡</p><p class="mc-motto">孩子的第一所學校，也是第二個家。</p></div>
+                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-label="編號空白"></span></p>
+                </div>
+                <p class="mc-q"><span class="ph">你記得常春藤的哪一個角落？</span></p>
+                <div class="mc-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                <p class="mc-campus">義華・明華・崇德・國際・仁武</p>
+              </div>
+              <figcaption>正面<span class="tag">示意：卡名、提問、版面</span></figcaption>
+            </figure>
+            <figure class="mcard">
+              <div class="mc-face mc-back">
+                <div class="mc-head mc-head-back">
+                  <p class="mc-title">同意書</p>
+                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-label="編號空白"></span></p>
+                </div>
+                <dl class="mc-consent">
+                  <div><dt>署名</dt><dd><span class="bx" aria-hidden="true"></span>寫我的名字<span class="bx" aria-hidden="true"></span>只寫稱謂</dd></div>
+                  <div><dt>照片</dt><dd><span class="bx" aria-hidden="true"></span>放照片<span class="bx" aria-hidden="true"></span>不放照片</dd></div>
+                  <div><dt>刊登</dt><dd><span class="bx" aria-hidden="true"></span>同意刊在官網</dd></div>
+                  <div><dt>簽名</dt><dd class="sign"><span>簽名<span class="line" aria-hidden="true"></span></span><span>法定代理人簽名<span class="line" aria-hidden="true"></span></span></dd></div>
+                  <div><dt>編號</dt><dd>同意書編號 <span lang="en">No.</span><span class="blank-s" aria-label="編號空白"></span></dd></div>
+                </dl>
+                <p class="mc-foot">刊出後想撤下，打電話給交卡的那一校。</p>
+              </div>
+              <figcaption>背面<span class="tag">正式條款待園方提供，示意</span></figcaption>
+            </figure>
+          </div>
+        </div>
+        <details class="notes">
+          <summary>印刷品的規則</summary>
+          <dl class="note-list">
+            <div><dt>畫法</dt><dd>平面插圖：不疊卡、不傾斜、不用膠帶或手寫字。尺寸、紙材、印量由園方決定。</dd></div>
+            <div><dt>編號</dt><dd>正反面同一個編號。小編上傳素材時寫進素材庫 <code>license_note</code>，不對外公開。</dd></div>
+            <div><dt>欄位</dt><dd>卡上不設電話、email、地址欄位；只有署名方式、照片、刊登同意與簽名。</dd></div>
+            <div><dt>字句</dt><dd>正面印既有的理念句「孩子的第一所學校，也是第二個家。」，不另造標語；提問只放一題。</dd></div>
+          </dl>
+        </details>
+      </div>
+    </section>
+
+    <!-- ④ 依做法切換：回憶選輯消息（news）／回憶牆區塊（wall） -->
+    <section class="zone" data-only="news" aria-labelledby="z4n-title">
+      <div class="container zone-grid">
+        <div class="zone-main">
+          <p class="zone-tag"><span class="zt-no" aria-hidden="true">4</span><span>回憶選輯（建議）</span><code>/news/&lt;id&gt;</code><span>明華校消息</span></p>
+          <div class="np-narrow">
+            <nav class="np-crumb" aria-label="麵包屑示範"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
+            <article class="np-article" aria-labelledby="z4n-title">
+              <p class="np-meta"><span>明華校 · <span class="ph">常春藤的故事</span><span class="tag">示意</span></span><span>示意／日期未定</span></p>
+              <h2 id="z4n-title" class="art-title"><span class="ph">明華校的回憶選輯</span></h2>
+              <img class="np-cover" src="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp" srcset="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp 480w, ../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp 800w, ../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-1200.webp 1200w" sizes="(max-width: 760px) 100vw, 760px" width="1200" height="750" alt="紅磚校舍旁的戶外廣場，青綠色地面，角落有溜滑梯和一排兒童小汽車">
+              <div class="hn-body">
+                <p class="hn-body-lead"><span class="ph">這一篇收的是明華校校友交回的回憶卡，每一則都經本人確認，只校對錯字。</span></p>
+                <blockquote class="memo">
+                  <p><span class="ph">（回憶卡上的原句。只校對錯字，不改寫、不代寫。）</span></p>
+                  <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
+                </blockquote>
+                <blockquote class="memo">
+                  <p><span class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</span></p>
+                  <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
+                </blockquote>
+                <blockquote class="memo">
+                  <p><span class="ph">（很短也可以，一個角落、一首歌都算。）</span></p>
+                  <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
+                </blockquote>
+                <p><span class="ph">想分享你的回憶，可以到任一校櫃台拿一張回憶卡，或打電話請老師記下來。</span></p>
+              </div>
+            </article>
+            <div class="np-article-foot">
+              <a class="np-back" href="#"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>回明華校的消息</a>
+              <a class="np-book" href="#">預約明華校參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+            </div>
+          </div>
+        </div>
+        <details class="notes">
+          <summary>一篇 3–5 則，用分校消息發</summary>
+          <dl class="note-list">
+            <div><dt>篇幅</dt><dd>同一校 3–5 則一篇，署名照卡背勾選（名字或稱謂）。分校消息一律不是示意，可以先上。</dd></div>
+            <div><dt>紀律</dt><dd>只校對錯字，不改寫、不代寫引言；個人回憶不寫成機構史實，也不寫畢業生數、師生數。</dd></div>
+            <div><dt>引言</dt><dd>消息內文目前只有段落、小標、清單、素材圖、連結五種區塊（<code>NewsBody.vue:14-27</code>），沒有引言。要 blockquote 樣式需 web 小改；不改就用「段落＋署名段落」發，內容一樣。</dd></div>
+            <div><dt>封面</dt><dd>明華校現況照（<code>tour-minghua-plaza</code>），不是當年照片。不用 <code>*-enhanced-v1</code>、線稿、建築透視圖，<code>env-space-*</code> 沒標校別也不行。</dd></div>
+            <div><dt>文末</dt><dd>沿用單篇頁既有的「回明華校的消息」與「預約明華校參觀」（<code>NewsArticleContent.vue:26-27</code>）。</dd></div>
+          </dl>
+        </details>
+      </div>
+    </section>
+
+    <section class="zone" data-only="wall" aria-labelledby="z4w-title">
+      <div class="container zone-grid">
+        <div class="zone-main">
+          <p class="zone-tag"><span class="zt-no" aria-hidden="true">4</span><span>回憶牆（對照）</span><code>新區塊 · 放哪一頁待定</code></p>
+          <p class="gate-banner"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shield-check" /></svg><b>需要業主解除「不新增週年後台」才能做</b><span>新 content kind、後台頁與長期維護，工時 M</span></p>
+          <div class="wall">
+            <h2 id="z4w-title" class="art-title"><span class="ph">大家記得的常春藤</span><span class="tag">示意</span></h2>
+            <p class="wall-lede"><span class="ph">回憶卡交回、經本人確認後，刊在這裡。</span></p>
+            <div class="wall-filter">
+              <div class="chips" role="group" aria-label="依身分篩選">
+                <button type="button" data-f="role" data-val="all" aria-pressed="true">全部身分</button>
+                <button type="button" data-f="role" data-val="alumni" aria-pressed="false">校友</button>
+                <button type="button" data-f="role" data-val="parent" aria-pressed="false">家長</button>
+                <button type="button" data-f="role" data-val="teacher" aria-pressed="false">老師</button>
+              </div>
+              <div class="chips" role="group" aria-label="依校區篩選">
+                <button type="button" data-f="campus" data-val="all" aria-pressed="true">全部校區</button>
+                <button type="button" data-f="campus" data-val="yihua" aria-pressed="false">義華校</button>
+                <button type="button" data-f="campus" data-val="minghua" aria-pressed="false">明華校</button>
+                <button type="button" data-f="campus" data-val="chongde" aria-pressed="false">崇德校</button>
+                <button type="button" data-f="campus" data-val="international" aria-pressed="false">國際校</button>
+                <button type="button" data-f="campus" data-val="renwu" aria-pressed="false">仁武校</button>
+              </div>
+              <div class="selects">
+                <label>身分<select data-f="role"><option value="all">全部身分</option><option value="alumni">校友</option><option value="parent">家長</option><option value="teacher">老師</option></select></label>
+                <label>校區<select data-f="campus"><option value="all">全部校區</option><option value="yihua">義華校</option><option value="minghua">明華校</option><option value="chongde">崇德校</option><option value="international">國際校</option><option value="renwu">仁武校</option></select></label>
+              </div>
+            </div>
+            <ul class="wall-list">
+              <li class="wcard" data-role="alumni" data-campus="yihua"><p class="wc-meta"><span class="wc-campus">義華校</span><span>校友</span></p><blockquote><p><span class="ph">（回憶卡上的原句，一兩行也可以。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從義華校畢業的校友</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>家長</span></p><blockquote><p><span class="ph">（家長寫的回憶。署名照卡背勾選，可以只寫稱謂。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子曾在明華校就讀的家長</span></p></li>
+              <li class="wcard" data-role="teacher" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>老師</span></p><blockquote><p><span class="ph">（在這裡教過書的老師，寫下記得的一個畫面。刊出前由本人確認字句，照片依卡背勾選。）</span></p></blockquote><p class="wc-by"><span class="ph">— 曾在崇德校任教的老師</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="international"><p class="wc-meta"><span class="wc-campus">國際校</span><span>家長</span></p><blockquote><p><span class="ph">（短短一句。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子在國際校就讀的家長</span></p></li>
+              <li class="wcard" data-role="alumni" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>校友</span></p><blockquote><p><span class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從明華校畢業的校友</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="yihua"><p class="wc-meta"><span class="wc-campus">義華校</span><span>家長</span></p><blockquote><p><span class="ph">（二代生家庭：自己小時候讀過常春藤，現在孩子也在這裡。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從義華校畢業、孩子也在義華校的家長</span></p></li>
+              <li class="wcard" data-role="alumni" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>校友</span></p><blockquote><p><span class="ph">（較長的一則回憶，大約四、五行。卡片高度跟著內容走，不裁切、不加「看更多」，讓每一則都能完整讀完。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從崇德校畢業的校友</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="renwu"><p class="wc-meta"><span class="wc-campus">仁武校</span><span>家長</span></p><blockquote><p><span class="ph">（家長寫的回憶，不放照片。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子在仁武校就讀的家長</span></p></li>
+              <li class="wcard" data-role="teacher" data-campus="international"><p class="wc-meta"><span class="wc-campus">國際校</span><span>老師</span></p><blockquote><p><span class="ph">（老師的回憶，一段就好。）</span></p></blockquote><p class="wc-by"><span class="ph">— 曾在國際校任教的老師</span></p></li>
+            </ul>
+            <p class="wall-empty" role="status" hidden><span class="ph">這個條件下還沒有回憶。</span></p>
+          </div>
+        </div>
+        <details class="notes">
+          <summary>牆要多出來的東西</summary>
+          <dl class="note-list">
+            <div><dt>規格</dt><dd>要新增 content kind「回憶牆」、後台頁和長期維護（M），業主得先解除規格「不新增週年後台」。</dd></div>
+            <div><dt>後台</dt><dd>每校最多 12 則，儲存時檢查同意書編號；小編輸入、送審，分校管理者對照紙卡核准。</dd></div>
+            <div><dt>收稿</dt><dd>仍然只收紙卡和電話，不做公開線上投稿、即時留言。</dd></div>
+            <div><dt>計數</dt><dd>不顯示則數或校數；篩到沒有卡片時顯示一句空狀態，不補假卡。</dd></div>
+            <div><dt>手機</dt><dd>身分與校區改成原生 select，卡片單欄。</dd></div>
+          </dl>
+        </details>
+      </div>
+    </section>
+
+    <!-- ⑤ 幕後流程（園方內部，不在網站上） -->
+    <section class="zone" aria-labelledby="z5-title">
+      <div class="container">
+        <p class="zone-tag"><span class="zt-no" aria-hidden="true">5</span><span>幕後流程</span><code>園方內部 · 不在網站上</code></p>
+        <div class="board">
+          <h2 id="z5-title">從紙卡到刊出</h2>
+          <ol class="flow">
+            <li>
+              <p class="fl-no">步驟 1</p>
+              <h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-tray" /></svg>紙卡收件</h3>
+              <p>各校櫃台收回憶卡，確認背面已勾選、已簽名；電話口述由老師記在同一張卡上。</p>
+            </li>
+            <li>
+              <p class="fl-no">步驟 2</p>
+              <h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-identification-card" /></svg>素材庫登記</h3>
+              <p>有勾選放照片，就由園方掃描紙本照片上傳素材庫，<code>license_note</code> 寫同意書編號，不對外公開。</p>
+            </li>
+            <li>
+              <p class="fl-no">步驟 3</p>
+              <h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-note-pencil" /></svg>小編送審</h3>
+              <p data-only="news">小編（EDITOR）把同一校的 3–5 張卡整理成一篇「回憶選輯」消息，送審。</p>
+              <p data-only="wall">小編在新的回憶牆後台逐則輸入、填同意書編號，送審。<span class="badge">新後台</span></p>
+            </li>
+            <li>
+              <p class="fl-no">步驟 4</p>
+              <h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shield-check" /></svg>分校管理者核准</h3>
+              <p>對照紙卡確認字句、署名方式和照片勾選都一致，才核准發布。</p>
+            </li>
+          </ol>
+          <p class="undo"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-counter-clockwise" /></svg><b>撤下</b><span>接到該校電話 → 刪除該則 → 當天重新發布 → 在紙卡上註記撤下日期。</span></p>
+          <p class="nope"><b>不做</b><span>公開線上投稿、即時留言牆、線上 RSVP、報名、付款；網站上不顯示則數或校數，也不收家長的聯絡方式。</span></p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div data-chrome="foot"></div>
+<p class="mock-flag">方向 <b>together＋stories</b> · 參與 · 虛線框＝示意</p>
+
+<script src="shared/chrome.js"></script>
+<script src="d-events-booking.js"></script>
+</body>
+</html>
