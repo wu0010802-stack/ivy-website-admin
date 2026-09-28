@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>30 週年官網呈現比稿</title>
+<link rel="icon" type="image/png" href="../../web/public/favicon-48.png">
+<link rel="stylesheet" href="shared/site.css">
+<style>
+  /* 比較頁本身的樣式；顏色只用 tokens */
+  body { background: var(--paper); }
+  .ix-head { background: var(--ivy-forest); color: rgb(var(--on-dark)); padding: 56px 0 48px; }
+  .ix-head small { display: block; font-size: var(--fs-sm); letter-spacing: .12em; opacity: .8; }
+  .ix-head h1 { margin-top: 10px; font-size: clamp(2rem, 4.2vw, var(--fs-6xl)); line-height: 1.25; }
+  .ix-head p { margin-top: 18px; font-size: var(--fs-lg); line-height: 1.9; max-width: 60ch; }
+  .ix-head .ix-note { margin-top: 14px; font-size: var(--fs-sm); opacity: .85; }
+  .ix-head a { color: var(--yellow); text-decoration: underline; text-underline-offset: 3px; }
+
+  .ix-section { padding: 56px 0; }
+  .ix-section + .ix-section { border-top: 1px solid var(--line); }
+  .ix-section h2 { font-size: var(--fs-4xl); color: var(--green); }
+  .ix-section > .container > p { margin-top: 10px; color: var(--muted); }
+
+  .ix-layers { margin-top: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; list-style: none; padding: 0; }
+  .ix-layers li { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .ix-layers b { display: block; font-family: var(--font-head); color: var(--green); font-size: var(--fs-lg); }
+  .ix-layers span { display: block; margin-top: 6px; font-size: var(--fs-sm); line-height: 1.75; color: var(--text); }
+  .ix-layers em { font-style: normal; display: inline-block; margin-top: 10px; font-size: var(--fs-xs); color: var(--muted); }
+
+  .ix-mocks { margin-top: 28px; display: grid; gap: 28px; }
+  .ix-mock { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: start; background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+  .ix-mock h3 { font-size: var(--fs-2xl); color: var(--green); }
+  .ix-mock .ix-kicker { font-size: var(--fs-xs); letter-spacing: .12em; color: var(--leaf); font-weight: 600; }
+  .ix-mock p { margin-top: 10px; font-size: var(--fs-md); line-height: 1.85; }
+  .ix-mock .ix-ask { margin-top: 10px; font-size: var(--fs-sm); color: var(--muted); }
+  .ix-vars { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .ix-vars a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--fs-sm); color: var(--green); background: var(--paper); }
+  .ix-vars a:hover { background: var(--cream); }
+  .ix-vars a[data-rec] { border-color: var(--green); font-weight: 700; }
+  .ix-shots { display: grid; grid-template-columns: minmax(0, 3.2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+  .ix-shots a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--cream); }
+  .ix-shots img { width: 100%; height: auto; }
+  .ix-shots figcaption { margin-top: 6px; font-size: var(--fs-xs); color: var(--muted); }
+
+  .ix-qs { margin-top: 20px; padding-left: 1.4em; display: grid; gap: 10px; }
+  .ix-qs li { line-height: 1.8; }
+  .ix-qs b { color: var(--green); }
+  .ix-qs span { color: var(--muted); font-size: var(--fs-sm); }
+
+  @media (max-width: 1100px) { .ix-layers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .ix-mock { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    .ix-layers { grid-template-columns: 1fr; }
+    .ix-section h2 { font-size: var(--fs-3xl); }
+    .ix-mock { padding: 18px; }
+    .ix-shots { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header class="ix-head">
+  <div class="container">
+    <small>比稿 · 2026-09-28 · 待業主拍板</small>
+    <h1>30 週年，<br>在官網上怎麼呈現？</h1>
+    <p>建議：先把 2027 年每一處說法改準確，再用有書面同意的真人故事證明這三十年。頁首記號與週年專頁，等業主拍板、真內容到位再做。</p>
+    <p class="ix-note">五張 mock 都是靜態比稿，頁首頁尾是正式站的簡化複本；虛線框與「示意」標籤是還沒有真內容的部分。完整說明、評分與待決定事項見同目錄 <a href="README.md">README.md</a>。</p>
+  </div>
+</header>
+
+<main>
+  <section class="ix-section" aria-labelledby="layers-h">
+    <div class="container">
+      <h2 id="layers-h">建議的分層</h2>
+      <p>第 1～3 層都有時間閘或資料門檻，可以提早合進 main，2027 前站上只看得到第 0 層。</p>
+      <ol class="ix-layers">
+        <li><b>0 常設修正</b><span>小標改回「近三十年」、沿革共用檔、foundingDate、分校「創立」列、SEO 補「高雄」、輪播暫停鍵。</span><em>S · 不需裁定</em></li>
+        <li><b>1 時間閘與用語</b><span>台北日期決定上下架；記號走 2027 曆年，句子等創校月日才拿掉「近」；只有義華寫「30 週年」。</span><em>S · 需裁定 · mock B</em></li>
+        <li><b>2 頁首記號（選配）</b><span>文字簽名「30 週年／1997–2027」或不加；膠囊金色小點建議否決。</span><em>S · 需裁定 · mock A</em></li>
+        <li><b>3 真人故事系列</b><span>消息後台，每月 1 篇、全年 ≤12 篇；分校頁「本校的故事」與 /news 系列帶。</span><em>工程 S＋內容營運 · mock C</em></li>
+        <li><b>4 參與</b><span>紙本回憶卡（附書面同意）；真實開放日接既有預約參觀，不做報名。</span><em>0～S · mock D</em></li>
+        <li><b>5 彙整頁（延後）</b><span>2027-06 評估，真故事 ≥6 篇才做常設 /story，/30 轉址。</span><em>M · 條件式 · mock E</em></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="ix-section" aria-labelledby="mocks-h">
+    <div class="container">
+      <h2 id="mocks-h">五張 mock-up</h2>
+      <p>點縮圖看大圖，點變體開 mock；粗框是建議的變體。</p>
+      <div class="ix-mocks" id="mocks"></div>
+    </div>
+  </section>
+
+  <section class="ix-section" aria-labelledby="qs-h">
+    <div class="container">
+      <h2 id="qs-h">要請業主先決定的事</h2>
+      <ol class="ix-qs">
+        <li><b>創校月日與週年期間</b><br><span>建議：記號走 2027 曆年；句子等創校月日才拿掉「近」。</span></li>
+        <li><b>開場布幕已提早一年投出「30th Anniversary」</b><br><span>建議：2026 年內只投校徽、2027-01-01 揭幕（先確認遮掉緞帶仍在授權內）。</span></li>
+        <li><b>週年校徽授權要不要擴大</b><br><span>建議：維持只用在布幕。</span></li>
+        <li><b>頁首要不要加記號、加哪一種</b><br><span>建議：看 mock A，在「文字簽名」與「不加」之間選。</span></li>
+        <li><b>規格「不新增週年後台」怎麼調</b><br><span>建議：開只限 web/ 的週年範圍，不新增 content kind。</span></li>
+        <li><b>「近三十年」規則與正式說法</b><br><span>建議：記號「30 週年」「1997–2027」，句子用國字。</span></li>
+        <li><b>主題標語</b><br><span>建議：不另造，用「孩子的第一所學校，也是第二個家。」</span></li>
+        <li><b>故事來源、節奏、人力</b><br><span>建議：紙本回憶卡＋老師訪談，每月 1 篇。</span></li>
+        <li><b>系列名與首頁輪播</b><br><span>建議：「常春藤的故事」，輪播維持手動推薦並補暫停鍵。</span></li>
+        <li><b>主選單加「30 週年」</b><br><span>建議：不加。</span></li>
+        <li><b>2027 有沒有真實園慶或開放日</b><br><span>由園方回答；有開放日就接既有預約參觀。</span></li>
+        <li><b>要不要做彙整頁</b><br><span>建議：2027-06 評估門檻（看 mock E 兩態）。</span></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<script>
+  // 五張 mock 的資料；縮圖取 shots/ 內建議變體的桌機與手機首屏
+  var MOCKS = [
+    { id: 'a-header-mark', kicker: 'MOCK A · 第 2 層', title: '頁首週年記號', text: '在現行頁首（影片首屏、米白內頁、捲動後膠囊、手機）比較：不加、文字簽名、c 上標小籤、b 第三行、a 印章。', ask: '請決定：頁首要不要加記號、加哪一種；膠囊金色小點是否正式否決。', vars: [['none', '不加（現況）'], ['sign', '文字簽名', 1], ['sign-noto', '30 改 Noto'], ['c', 'c 上標小籤'], ['b', 'b 第三行'], ['a', 'a 印章']] },
+    { id: 'b-weave-facts', kicker: 'MOCK B · 第 0、1 層', title: '就地事實與時間閘三態', text: '同一批現有頁面，在 2026 今天、2027 週年期間、創校月日之後、2028 收回四個日期各長什麼樣。', ask: '請決定：週年期間、「近三十年」怎麼改、分校頁寫法、布幕預熱或嚴格。', vars: [['before', '2026 今天'], ['during', '2027 週年期間', 1], ['full', '創校月日之後'], ['after', '2028 收回']] },
+    { id: 'c-story-series', kicker: 'MOCK C · 第 3 層', title: '真人故事系列', text: '故事系列落在首頁輪播、/news、單篇頁、分校頁的樣子，以及真文章不到 3 篇時什麼都不出現。', ask: '請決定：系列名、首頁輪播規則、發文節奏與人力。', vars: [['manual', '輪播維持手動推薦', 1], ['pinned', '最新故事置頂'], ['early', '不到 3 篇時']] },
+    { id: 'd-events-booking', kicker: 'MOCK D · 第 4 層', title: '參與：回憶卡與活動接預約', text: '紙本回憶卡加消息發布（不需解除規格），對照獨立回憶牆（需解除「不新增週年後台」）；真實開放日直接接該校預約參觀。', ask: '請決定：參與做到哪裡；2027 有沒有真實開放日。', vars: [['news', '回憶以消息發布', 1], ['wall', '對照：回憶牆']] },
+    { id: 'e-story-hub', kicker: 'MOCK E · 第 5 層', title: '彙整頁 /story', text: '比較「只有已知事實」與「有 6 篇真故事＋1 場真實活動」兩種狀態差多少，用來決定上線門檻或乾脆不做。', ask: '請決定：要不要做彙整頁、門檻多少。', vars: [['facts', '只有事實'], ['full', '有故事與活動', 1]] }
+  ]
+  var host = document.getElementById('mocks')
+  MOCKS.forEach(function (m) {
+    var rec = (m.vars.filter(function (v) { return v[2] })[0] || m.vars[0])[0]
+    var vars = m.vars.map(function (v) {
+      return '<a href="' + m.id + '.html?v=' + v[0] + '"' + (v[2] ? ' data-rec' : '') + '>' + v[1] + (v[2] ? '（建議）' : '') + '</a>'
+    }).join('')
+    var d = 'shots/' + m.id + '-' + rec + '-desktop.webp'
+    var p = 'shots/' + m.id + '-' + rec + '-phone.webp'
+    var el = document.createElement('article')
+    el.className = 'ix-mock'
+    el.setAttribute('aria-labelledby', m.id + '-h')
+    el.innerHTML = '<div><span class="ix-kicker">' + m.kicker + '</span><h3 id="' + m.id + '-h">' + m.title + '</h3><p>' + m.text + '</p><p class="ix-ask">' + m.ask + '</p><div class="ix-vars" aria-label="' + m.title + '的變體">' + vars + '</div></div>' +
+      '<div class="ix-shots"><figure style="margin:0"><a href="' + d.replace('-desktop.webp', '-desktop-full.webp') + '"><img src="' + d + '" width="1440" height="900" alt="' + m.title + '，桌機首屏截圖" loading="lazy"></a><figcaption>桌機 1440（點開整頁）</figcaption></figure>' +
+      '<figure style="margin:0"><a href="' + p.replace('-phone.webp', '-phone-full.webp') + '"><img src="' + p + '" width="780" height="1688" alt="' + m.title + '，手機首屏截圖" loading="lazy"></a><figcaption>手機 390</figcaption></figure></div>'
+    host.appendChild(el)
+  })
+</script>
+</body>
+</html>
