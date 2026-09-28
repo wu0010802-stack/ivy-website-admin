@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>頁首記號比稿</title>
+<script>
+/* 讀網址參數：?v= 方案（預設 sign＝建議）、?frame=head|pill 只畫頁首或膠囊（給本頁的 iframe 用）、?force=1 無視寬度門檻強制顯示記號 */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var ok = ['none', 'sign', 'sign-noto', 'c', 'b', 'a'];
+  var v = q.get('v');
+  var d = document.documentElement.dataset;
+  d.v = ok.indexOf(v) > -1 ? v : 'sign';
+  var f = q.get('frame');
+  if (f === 'head' || f === 'pill') d.frame = f;
+  if (q.get('force') === '1') d.force = '1';
+})();
+</script>
+<link rel="stylesheet" href="shared/site.css">
+<link rel="stylesheet" href="a-header-mark.css">
+</head>
+<body>
+
+<p class="mock-flag page-only">方向 mark · 頁首記號比稿 · 虛線框＝示意</p>
+
+<!-- ① 說明列：比稿說明與方案切換（評註，不是網站畫面） -->
+<div class="brief page-only" role="region" aria-labelledby="page-title">
+  <div class="container brief-grid">
+    <div class="brief-head">
+      <p class="brief-kicker">30 週年官網呈現 · 比稿 A · 2026-09-28</p>
+      <h1 id="page-title"><span>頁首 30 週年</span><span>記號比稿</span></h1>
+      <p class="brief-lede">在現行頁首上直接比：影片首屏、米白內頁、捲動後膠囊、手機。字標本體（校徽、中文、英文）一個像素都不動，記號只放在字標右側；不用週年校徽圖，也不加動畫。</p>
+    </div>
+    <nav class="switcher" aria-label="切換方案">
+      <a href="?v=none" data-v="none">不加<small>現況</small></a>
+      <a href="?v=sign" data-v="sign">文字簽名<small>建議</small></a>
+      <a href="?v=sign-noto" data-v="sign-noto">30 改 Noto</a>
+      <a href="?v=c" data-v="c">c 上標小籤</a>
+      <a href="?v=b" data-v="b">b 第三行</a>
+      <a href="?v=a" data-v="a">a 印章</a>
+    </nav>
+    <p class="brief-now"><b>目前方案</b><span id="now-desc"></span></p>
+  </div>
+</div>
+
+<main class="page-only">
+
+  <!-- ② 首頁首屏：影片頁首（以首幀靜態圖代替影片） -->
+  <section class="sec sec-hero" aria-labelledby="h-hero" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-hero"><span class="sec-num" aria-hidden="true">2</span>首頁首屏</h2>
+      <p>1440×620 裁切 · 影片頁首（以首幀靜態圖代替影片）</p>
+    </div>
+    <figure class="stage stage-hero">
+      <div class="vhero"><img src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="戶外運動場上，穿黃色上衣的女孩一邊跑一邊開懷大笑，後方是穿桃紅上衣的大人" width="1080" height="800"></div>
+      <div data-chrome="head" data-over-photo data-mark></div>
+      <div class="hero-copy">
+        <p class="hero-eyebrow">常春藤幼兒園 · 陪高雄孩子近三十年</p>
+        <p class="hero-title"><span class="line">在常春藤<span class="punct">，</span></span><span class="line">每一天都有<span class="grow">新發現<svg viewBox="0 0 200 16" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M3 11 C 48 5, 104 3, 150 6 S 190 9, 197 7"/></svg></span><span class="punct">。</span></span></p>
+        <p class="hero-body"><span>一起讀故事、做作品，也到戶外探索。</span><span>在老師的陪伴下，動手試試，說出自己的想法。</span></p>
+      </div>
+    </figure>
+    <div class="container sec-notes">
+      <p class="note"><span class="note-tag">註記</span><span data-note="hero"></span></p>
+      <p class="note note-phone"><span class="note-tag">手機</span>≤760px 的展開頁首沒有空間：所有方案都不在這裡加記號。桌機 1280px 以下也一樣收起，只靠捲動後的膠囊。</p>
+    </div>
+  </section>
+
+  <!-- ③ 內頁米白頁首 -->
+  <section class="sec sec-paper" aria-labelledby="h-paper" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-paper"><span class="sec-num" aria-hidden="true">3</span>米白內頁頁首</h2>
+      <p>1440×160 · 預約參觀頁（分校頁同一種頁首）</p>
+    </div>
+    <figure class="stage stage-paper">
+      <div data-chrome="head" data-mark data-nav-label="主選單（米白頁首）"></div>
+      <nav class="crumbs" aria-label="麵包屑"><a href="#">首頁</a><span aria-hidden="true">/</span><span aria-current="page">預約校園參觀</span></nav>
+    </figure>
+    <div class="container sec-notes">
+      <p class="note"><span class="note-tag">註記</span><span data-note="paper"></span></p>
+    </div>
+  </section>
+
+  <!-- ④ 捲動後膠囊 -->
+  <section class="sec sec-pill" aria-labelledby="h-pill" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-pill"><span class="sec-num" aria-hidden="true">4</span>捲動後膠囊</h2>
+      <p>首頁捲過 40px 後 · 右上 480×90 裁切，壓在首屏照片上</p>
+    </div>
+    <div class="container pill-grid">
+      <figure class="stage stage-pill">
+        <div class="vhero no-scrim"><img src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="" width="1080" height="800"></div>
+        <div data-pill></div>
+      </figure>
+      <div class="note pill-note"><span class="note-tag">註記</span><ul data-note="pill"></ul></div>
+      <figure class="zoom-fig">
+        <div class="zoom-box" aria-hidden="true" inert>
+          <div class="stage stage-pill">
+            <div class="vhero no-scrim"><img src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="" width="1080" height="800"></div>
+            <div data-pill data-pill-left></div>
+          </div>
+        </div>
+        <figcaption>放大 2 倍看校徽附近</figcaption>
+      </figure>
+      <div class="pill-frames">
+        <figure class="pf pf-390"><div class="frame-scale" data-w="390" data-h="86"><iframe data-frame-src="pill" width="390" height="86" title="手機 390px 寬的膠囊" scrolling="no"></iframe></div><figcaption>手機 390px</figcaption></figure>
+        <figure class="pf"><div class="frame-scale" data-w="320" data-h="86"><iframe data-frame-src="pill" width="320" height="86" title="手機 320px 寬的膠囊" scrolling="no"></iframe></div><figcaption>手機 320px：≤359px 收籤</figcaption></figure>
+      </div>
+      <p class="note pill-pages"><span class="note-tag">出現範圍</span>膠囊籤只出現在首頁、關於、入學、特色教學（會收成膠囊的四頁）；分校頁和預約頁在手機也會收成膠囊，但<b>不出現</b>「30 週年」，免得國際、仁武被讀成 30 年老校。</p>
+    </div>
+  </section>
+
+  <!-- ⑤ 顯示寬度 -->
+  <section class="sec sec-widths" aria-labelledby="h-widths" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-widths"><span class="sec-num" aria-hidden="true">5</span>顯示寬度</h2>
+      <p>每一格是本頁只畫頁首的 iframe，照規則顯示或收起</p>
+    </div>
+    <div class="container">
+      <div class="note widths-rules"><span class="note-tag">規則</span>
+        <ul>
+          <li>≥1281px 顯示頁首記號。</li>
+          <li>1280px 以下只靠膠囊籤，不做多段寬度來回顯示。</li>
+          <li>主選單 ≥5 項時全收。</li>
+          <li>預約鈕在任何寬度都不能被擠出。</li>
+        </ul>
+      </div>
+      <p class="note widths-phone"><span class="note-tag">手機</span>這一區是桌機寬度（1280／1100／901px）的頁首，縮到手機寬度看不清楚，請用桌機開。</p>
+      <div class="widths">
+        <figure class="wf"><figcaption><b>1280px</b><span>記號收起</span></figcaption><div class="frame-scale" data-w="1280" data-h="92"><iframe data-frame-src="head" width="1280" height="92" title="1280px 寬的頁首" scrolling="no"></iframe></div></figure>
+        <figure class="wf"><figcaption><b>1100px</b><span>記號收起</span></figcaption><div class="frame-scale" data-w="1100" data-h="92"><iframe data-frame-src="head" width="1100" height="92" title="1100px 寬的頁首" scrolling="no"></iframe></div></figure>
+        <figure class="wf"><figcaption><b>901px</b><span>記號收起</span></figcaption><div class="frame-scale" data-w="901" data-h="92"><iframe data-frame-src="head" width="901" height="92" title="901px 寬的頁首" scrolling="no"></iframe></div></figure>
+        <figure class="wf wf-force" data-hide-none><figcaption><b>901px</b><span>反例：強制顯示</span><span class="demo-note">示意</span></figcaption><div class="frame-scale" data-w="901" data-h="92"><iframe data-frame-src="head" data-force width="901" height="92" title="901px 寬、強制顯示記號的頁首（反例）" scrolling="no"></iframe></div></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑥ 總表 -->
+  <section class="sec sec-sheet" aria-labelledby="h-sheet" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-sheet"><span class="sec-num" aria-hidden="true">6</span>五種做法總表</h2>
+      <p>每格 560×100 靜態重畫；左欄影片底、右欄米白底。虛線框裡是本頁自己量的數字 <span class="demo-note">方向自測，未複驗</span></p>
+    </div>
+    <div class="container">
+      <div class="sheet" id="sheet">
+        <div class="sheet-head" aria-hidden="true"><span></span><span>影片底（首頁首屏）</span><span>米白底（內頁）</span></div>
+      </div>
+      <p class="sheet-foot">寬度＝品牌連結的實際寬度（不加記號為基準）。對比＝記號每一段文字框內「最亮背景像素」對文字色；影片底只量這張首幀靜態圖加上同一套遮罩，正式要用 ffmpeg 抽整支首屏影片的幀離線量。字標與記號屬於標誌，不受 WCAG 文字對比約束，數字只當方向參考。</p>
+    </div>
+  </section>
+
+  <!-- ⑦ 可及名稱與後續 -->
+  <section class="sec sec-a11y" aria-labelledby="h-a11y" data-hide-noto>
+    <div class="container sec-cap">
+      <h2 id="h-a11y"><span class="sec-num" aria-hidden="true">7</span>可及名稱與後續</h2>
+    </div>
+    <div class="container a11y-grid">
+      <div class="note"><span class="note-tag">可及名稱</span>
+        <p>正式實作沿用 SiteHeader.vue:237 的慣例：品牌連結不寫 aria-label，可見文字直接進名稱，sr-only 只補斷句。記號的「30」「週年」照讀，年份的可見字設 aria-hidden，改由 sr-only 讀「1997 到 2027 年」。</p>
+        <p>本頁的比稿框架（shared/chrome.js）也是同一個慣例，所以這裡的記號已照這個寫法接進連結，可以直接用螢幕閱讀器試聽：整個連結讀成「常春藤教育機構 Ivy Educational Institution，30週年，1997 到 2027 年，回首頁」。</p>
+      </div>
+      <div class="note"><span class="note-tag">後續</span>
+        <ul>
+          <li>只選一種；選「不加」就整層跳過。</li>
+          <li>上下架交給台北日期閘：預設 2027-01-01 換上，2028-01-01 自動收回。</li>
+          <li>不論選哪一種，膠囊校徽右下角的金色「30」小點建議正式否決。</li>
+          <li>定案後改寫 DESIGN.md:687 與 docs/brand/brand-guidelines.md:25。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 30 改 Noto：只放說明卡 -->
+  <section class="sec sec-noto" aria-labelledby="h-noto" data-only-noto>
+    <div class="container sec-cap">
+      <h2 id="h-noto"><span class="sec-num" aria-hidden="true">!</span>「30」改 Noto：需另切子集</h2>
+    </div>
+    <div class="container noto-card">
+      <div class="note">
+        <span class="note-tag">檢查結果</span>
+        <p>這一版想把「30」從 LINE Seed 換成和中文字標同一套的 Noto Sans TC 600。2026-09-28 用 fontTools 讀了三個品牌字檔的字表：</p>
+        <ul>
+          <li><code>noto-sans-tc-600-brand.woff</code>：8 個字元（空白與「常春藤教育機構」）。</li>
+          <li><code>noto-sans-tc-600-anni.woff</code>：2 個字元（「週年」）。</li>
+          <li><code>source-sans-3-400-brand.woff</code> 有 0–9，但那是英文字標的 Source Sans 3，不是 Noto。</li>
+        </ul>
+        <p><b>兩個 Noto 子集都沒有 0–9</b>，所以本頁不畫這一版：拿系統字或別的字型頂替，看到的就不是 Noto 的「30」，比較會失準。</p>
+      </div>
+      <div class="note">
+        <span class="note-tag">要比這一版需要</span>
+        <p>從 Google Fonts 取 Noto Sans TC 可變字型 → instancer 把字重定在 600 → pyftsubset 只切 0–9，<b>另存新檔</b>，用 unicode-range 分流；既有 brand／anni 子集不動（做法見 web/public/assets/fonts/README.md）。切好後本頁補上這一版，其餘和「文字簽名」完全相同。</p>
+      </div>
+      <div class="noto-compare">
+        <figure>
+          <div class="cell on-photo" data-cell="sign" aria-hidden="true"></div>
+          <figcaption>現在的「文字簽名」：「30」用 LINE Seed 800</figcaption>
+        </figure>
+        <figure>
+          <div class="noto-slot"><span class="demo-note">示意</span><span>Noto Sans TC 600 的「30」</span><b>待切子集後再比</b></div>
+          <figcaption>「30 改 Noto」：先空著</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div data-chrome="foot"></div>
+
+<!-- 只畫頁首／膠囊的畫面：給本頁 iframe 用（?frame=head、?frame=pill） -->
+<div class="frame-view" id="frame-head">
+  <div class="stage stage-fhead">
+    <div class="vhero"><img src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="" width="1080" height="800"></div>
+    <div data-chrome="head" data-over-photo data-mark></div>
+  </div>
+</div>
+<div class="frame-view" id="frame-pill">
+  <div class="stage stage-pill">
+    <div class="vhero no-scrim"><img src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="" width="1080" height="800"></div>
+    <div data-pill></div>
+  </div>
+</div>
+
+<script src="a-header-mark.js"></script>
+<script src="shared/chrome.js"></script>
+</body>
+</html>

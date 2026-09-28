@@ -1,0 +1,280 @@
+/* a-header-mark：頁首 30 週年記號比稿（2026-09-28）
+   顏色只引用 web/app/assets/css/tokens.css。網站畫面（stage）照正式站 studio.css 的尺寸重畫；
+   說明與註記（desk）用另一套底色與框線，讓業主分得出「設計」和「評註」。
+   記號只放在 chrome.js 的 data-brand-extra 插槽，字標本體（校徽、中文、英文）不動。
+   品牌字（Noto Sans TC 600 brand／anni 子集、Source Sans 3 400）已由 shared/fonts.css 載入，本檔不重複宣告。 */
+
+/* ── 說明區的底與比稿框架的小修補 ─────────────────────────────────── */
+body {background:var(--ivy-news-note)}
+/* 比稿框架的導覽與頁尾連結補到 44px 觸控高（正式站本來就有） */
+.site-nav a {min-height:44px;align-content:center}
+.site-foot-links a {display:flex;align-items:center;min-height:44px}
+.site-head[data-over-photo] .site-nav {text-shadow:0 1px 3px rgb(var(--ink) / .45)}
+[data-v="none"] [data-hide-none] {display:none}
+[data-v="sign-noto"] [data-hide-noto] {display:none}
+html:not([data-v="sign-noto"]) [data-only-noto] {display:none}
+code {font:400 .95em/1.4 var(--font-en);padding:0 4px;border-radius:4px;background:var(--cream);color:var(--deep)}
+
+/* ── ① 說明列 ─────────────────────────────────────────────────────── */
+.brief {background:var(--cream);border-bottom:1px solid var(--line);padding:28px 0 20px}
+.brief-grid {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px 40px;align-items:start}
+.brief-kicker {font-size:var(--fs-xs);letter-spacing:.12em;color:var(--muted)}
+.brief h1 {margin-top:6px;font-size:var(--fs-3xl);line-height:1.35;color:var(--deep)}
+.brief h1 span + span {margin-left:.3em}
+.brief-lede {margin-top:10px;max-width:46em;font-size:var(--fs-sm);line-height:1.85}
+.switcher {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:600px;padding-top:4px}
+.switcher a {display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--white);color:var(--deep);font-size:var(--fs-sm);font-weight:700;line-height:1.3;white-space:nowrap}
+.switcher a small {font-size:var(--fs-xs);font-weight:400;color:var(--muted)}
+.switcher a:hover {border-color:var(--leaf)}
+.switcher a[aria-current] {background:var(--deep);border-color:var(--deep);color:var(--paper)}
+.switcher a[aria-current] small {color:var(--mint)}
+.brief-now {grid-column:1 / -1;display:flex;align-items:baseline;gap:14px;max-width:none;padding-top:14px;border-top:1px dashed var(--line);font-size:var(--fs-sm);line-height:1.8}
+.brief-now b {flex:none;color:var(--deep)}
+.brief-now .demo-note {margin-left:6px}
+
+/* ── 區塊標題與註記（評註樣式） ─────────────────────────────────────── */
+.sec {padding-top:56px}
+.sec-cap {display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-bottom:16px}
+.sec-cap h2 {display:flex;align-items:center;gap:10px;font-size:var(--fs-xl);line-height:1.4;color:var(--deep)}
+.sec-cap p {max-width:none;font-size:var(--fs-sm);color:var(--muted)}
+.sec-num {display:inline-grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);color:var(--paper);font:700 var(--fs-sm)/1 var(--font-head)}
+.sec-notes {display:grid;gap:10px;margin-top:16px}
+.note {max-width:none;padding:12px 16px 12px 18px;background:var(--white);border:1px solid var(--line);border-left:3px solid var(--leaf);border-radius:8px;font-size:var(--fs-sm);line-height:1.8;color:var(--text)}
+.note-tag {display:inline-block;margin-right:10px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;color:var(--leaf)}
+.note ul {margin:4px 0 0;padding-left:1.2em}
+.note p {max-width:none}
+.note p + p {margin-top:6px}
+.note .demo-note {margin-left:6px}
+.note-phone, .widths-phone {display:none}
+
+/* ── 共用：首屏照片（以 1440×900 首屏的裁切方式重現，遮罩照 studio.css 的三道，改用 token） ── */
+.stage {position:relative;margin:0}
+.vhero {position:absolute;left:0;top:0;z-index:0;width:100%;height:900px}
+.vhero img {width:100%;height:100%;object-fit:cover;object-position:50% 35%}
+.vhero::after {
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(180deg,rgb(var(--shadow-rgb) / .6) 0 76px,rgb(var(--shadow-rgb) / 0)) top / 100% 140px no-repeat,
+    radial-gradient(40% 42% at 24% 49%,rgb(var(--shadow-rgb) / .68),rgb(var(--shadow-rgb) / .6) 55%,rgb(var(--shadow-rgb) / 0)),
+    linear-gradient(90deg,rgb(var(--shadow-rgb) / .23),rgb(var(--shadow-rgb) / .22) 34%,rgb(var(--shadow-rgb) / .17) 42%,rgb(var(--shadow-rgb) / .04) 55%,rgb(var(--shadow-rgb) / 0) 62%);
+}
+/* 膠囊出現時首屏頂部的遮罩帶已收掉，右上角等於原始照片 */
+.vhero.no-scrim::after {display:none}
+
+/* ── ② 首頁首屏 ───────────────────────────────────────────────────── */
+.stage-hero {height:620px;overflow:hidden;background:var(--deep);color:rgb(var(--on-dark))}
+.hero-copy {position:absolute;z-index:1;left:var(--gutter);top:282px}
+.hero-eyebrow {margin-bottom:30px;font:700 var(--fs-sm)/1.8 var(--font-head);letter-spacing:.18em;text-shadow:0 1px 3px rgb(var(--ink) / .45)}
+.hero-title {max-width:none;font:700 clamp(2.75rem,1.5rem + 3vw,3.75rem)/1.32 var(--font-head);letter-spacing:.015em;font-synthesis:none;text-shadow:0 2px 28px rgb(var(--ink) / .35),0 1px 2px rgb(var(--ink) / .35)}
+.hero-title .line {display:block;white-space:nowrap}
+.hero-title .punct {margin-inline-start:-.24em}
+.grow {position:relative;display:inline-block}
+.grow svg {position:absolute;left:0;bottom:-.15em;width:100%;height:.23em;overflow:visible;fill:none;stroke:var(--yellow);stroke-width:2.5;stroke-linecap:round}
+.hero-body {max-width:28em;margin-top:28px;font-size:var(--fs-lg);line-height:1.85;text-shadow:0 1px 3px rgb(var(--ink) / .45)}
+.hero-body span {display:block}
+
+/* ── ③ 米白內頁頁首 ───────────────────────────────────────────────── */
+.stage-paper {background:var(--paper);border-bottom:1px solid var(--line)}
+.crumbs {display:flex;align-items:center;gap:6px;height:70px;padding-left:var(--gutter);font-size:var(--fs-sm);color:var(--muted)}
+.crumbs a {display:inline-flex;align-items:center;min-height:44px;color:var(--text);text-decoration:underline;text-underline-offset:3px}
+
+/* ── 頁首記號（各方案） ───────────────────────────────────────────── */
+/* 顏色依底色：影片上金色只給「30」、其餘白字；米白頁首全用字標色，不用 --green 也不用金色 */
+.site-head[data-over-photo], .on-photo {
+  --anni-num:var(--gold);--anni-word:rgb(var(--on-dark));--anni-year:rgb(var(--on-dark));--anni-rule:rgb(var(--on-dark) / .45);
+  --anni-accent:var(--gold);--anni-accent2:var(--gold);
+}
+.site-head:not([data-over-photo]), .on-paper {
+  --anni-num:var(--ivy-logo-chinese);--anni-word:var(--ivy-logo-chinese);--anni-year:var(--ivy-logo-english);--anni-rule:var(--line);
+  --anni-accent:var(--ivy-logo-chinese);--anni-accent2:var(--ivy-logo-english);
+}
+.anni {--anni-fs:30px;flex:none;font-size:var(--anni-fs);font-synthesis:none;white-space:nowrap}
+.anni b {font-weight:800}
+.anni-num {font-family:var(--font-head);font-weight:800}
+.anni-word {font-family:var(--font-brand);font-weight:600}
+.anni-year {font-family:var(--font-head);font-weight:700}
+
+/* 文字簽名（建議）：1px 細線＋兩行，兩行分別對齊中文與英文字標 */
+.anni-sign {display:flex;align-items:center;gap:.5em;margin-left:6px}
+.anni-rule {display:block;width:1px;height:1.6em;background:var(--anni-rule)}
+.anni-stack {display:grid}
+.anni-top {display:flex;align-items:baseline;gap:.08em;height:1.15em;line-height:1.15em}
+.anni-sign .anni-num {font-size:1.08em;line-height:1.15em;letter-spacing:.01em;color:var(--anni-num)}
+.anni-sign .anni-word {font-size:.6em;line-height:1;color:var(--anni-word)}
+.anni-sign .anni-year {font-size:max(.44em,12px);line-height:.75em;letter-spacing:.05em;color:var(--anni-year)}
+
+/* c 上標小籤（2026-09-18 舊案重畫）：中文校名右上角，影片上鏤空（線框＋字），不填底 */
+.anni-c {align-self:flex-start;display:inline-flex;align-items:baseline;gap:2px;margin:13px 0 0 -4px;padding:3px 9px 4px;border:1.5px solid var(--anni-accent);border-radius:999px;color:var(--anni-accent);font-size:17px;line-height:1}
+.anni-c .anni-word {font-size:.68em}
+
+/* b 第三行（舊案重畫）：英文行下方、與字標同寬；絕對定位，字標不移動 */
+.site-head .brand:has(.anni-b), .cell-brand:has(.anni-b) {position:relative}
+.anni-b {position:absolute;left:68px;top:calc(50% + 28.5px);display:flex;justify-content:space-between;align-items:baseline;width:calc(var(--anni-fs) * 7);font-size:13px;line-height:16px;color:var(--anni-accent2)}
+.anni-b .anni-lead {color:var(--anni-accent)}
+.anni-b .anni-num {font-size:15px}
+.anni-b .anni-word {font-size:12px}
+.anni-b .anni-year {letter-spacing:.06em}
+
+/* a 印章（舊案重畫）：和校徽等高的圓，只用文字＋CSS 圓框，不用週年校徽圖 */
+.anni-a {display:grid;place-content:center;justify-items:center;width:58px;height:58px;margin-left:8px;border:1.5px solid var(--anni-accent);border-radius:50%;color:var(--anni-accent);line-height:1}
+.anni-a .anni-num {font-size:24px;line-height:1}
+.anni-a .anni-word {margin-top:3px;font-size:11px;line-height:1.1}
+
+/* 單一門檻：≥1281px 才顯示；1280 以下只靠膠囊籤。選單 ≥5 項時全收。?force=1 只給反例用 */
+@media (max-width:1280px) {html:not([data-force]) .site-head .anni {display:none}}
+.site-head:has(.site-nav a:nth-child(5)) .anni {display:none}
+@media (max-width:1100px) {.site-head .anni {--anni-fs:24px}}
+
+/* ── ④ 捲動後膠囊（正式站 .header-pill 的重畫） ─────────────────────── */
+.pill-grid {display:grid;grid-template-columns:480px minmax(0,1fr);gap:20px 32px;align-items:start}
+.stage-pill {width:480px;height:90px;overflow:hidden;border-radius:6px;background:var(--deep)}
+.stage-pill .vhero {left:-960px;width:1440px}
+.pill {position:absolute;z-index:1;top:12px;right:80px;display:flex;align-items:center;gap:6px;padding:8px;background:rgb(var(--ink) / .74);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);color:var(--paper);border:1px solid rgb(var(--on-dark) / .28);border-radius:999px;box-shadow:0 18px 40px -14px rgb(var(--ink) / .7),0 2px 8px -2px rgb(var(--ink) / .4)}
+[data-pill-left] .pill {left:16px;right:auto}
+.pill a, .pill button {position:relative}
+/* 控制只有 40px 高：透明 ::before 上下各補 2px，點擊範圍到 44px（照正式站 2026-09-27） */
+.pill a::before, .pill button::before {content:"";position:absolute;inset:-2px 0}
+.pill :focus-visible {outline-color:var(--paper);outline-offset:3px}
+.pill-brand {display:flex;align-items:center;gap:10px;min-height:40px;padding-right:4px;color:var(--paper)}
+.pill.has-anni .pill-brand {padding-right:10px}
+.pill-crest {position:relative;display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--white)}
+.pill-crest .brand-crest {width:28px;height:auto;aspect-ratio:124/132}
+/* 膠囊內的 span 一律明寫 width／height／background（正式站的選擇器會把 span 壓成白條） */
+.pill-anni {display:inline-flex;align-items:baseline;gap:3px;width:auto;height:auto;background:none;white-space:nowrap}
+.pill-anni b {font:800 17px/1 var(--font-head);color:var(--gold)}
+.pill-anni span:not(.sr-only) {width:auto;height:auto;background:none;font:600 13px/1 var(--font-brand);color:var(--paper)}
+.pill-dot {position:absolute;right:-6px;bottom:-5px;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--gold);color:var(--deep);box-shadow:0 0 0 1.5px var(--deep);font:800 9px/1 var(--font-head);letter-spacing:-.02em}
+.pill-divider {display:block;width:1px;height:23px;background:rgb(var(--on-dark) / .22)}
+.pill-menu {display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 12px 0 10px;border:0;border-radius:999px;background:transparent;color:inherit}
+.menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex:none}
+.menu-lines span {display:block;width:20px;height:2px;border-radius:1px;background:currentColor}
+.menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
+.menu-word small {display:block;font:400 .625rem/1.2 var(--font-en);letter-spacing:.02em;color:var(--mint)}
+.pill-book {display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:999px;background:var(--yellow);color:var(--deep);font-size:.875rem;font-weight:600;white-space:nowrap}
+.pill-note ul {margin-top:2px}
+.zoom-fig {margin:0}
+.zoom-box {position:relative;width:480px;height:180px;overflow:hidden;border-radius:6px;background:var(--deep)}
+.zoom-box .stage-pill {position:absolute;left:0;top:0;transform:scale(2);transform-origin:0 0;border-radius:0}
+.zoom-box .stage-pill .vhero {left:-900px}
+.zoom-fig figcaption, .pf figcaption {margin-top:6px;font-size:var(--fs-xs);color:var(--muted)}
+.pill-frames {display:flex;flex-wrap:wrap;gap:16px 24px;align-items:flex-start}
+.pf {margin:0}
+.pill-pages {grid-column:1 / -1}
+.pill-pages b {color:var(--deep)}
+
+/* ── 手機膠囊（照 studio.css ≤900px） ─────────────────────────────── */
+@media (max-width:900px) {
+  .pill {left:16px;right:16px;justify-content:space-between}
+  .pill-brand {min-height:44px;padding-right:8px}
+  .pill-crest {width:40px;height:40px}
+  .pill-crest .brand-crest {width:30px}
+  .pill-divider, .menu-word {display:none}
+  .pill-menu {width:44px;height:44px;margin-left:auto;padding:0 10px}
+  .pill-book {height:44px}
+  .pill a::before, .pill button::before {display:none}
+}
+@media (max-width:359px) {.pill-anni {display:none}}
+
+/* ── 共用：iframe 等比縮放框（JS 算比例） ─────────────────────────── */
+.frame-scale {overflow:hidden;border-radius:6px;background:var(--deep)}
+.frame-scale iframe {display:block;border:0;transform-origin:0 0}
+
+/* ── ⑤ 顯示寬度 ───────────────────────────────────────────────────── */
+.widths-rules {margin-bottom:18px}
+.widths-rules ul {display:flex;flex-wrap:wrap;gap:0 28px;padding-left:1.2em}
+.widths {display:grid;gap:14px}
+.wf {margin:0}
+.wf figcaption {display:flex;align-items:baseline;gap:10px;margin-bottom:6px;font-size:var(--fs-sm);color:var(--muted)}
+.wf figcaption b {font:700 var(--fs-sm)/1.4 var(--font-head);color:var(--deep)}
+.wf-force .frame-scale {outline:1.5px dashed var(--muted);outline-offset:4px}
+
+/* ── ⑥ 總表 ───────────────────────────────────────────────────────── */
+.sheet {display:grid;grid-template-columns:136px 560px 560px;gap:12px}
+.sheet-head {display:contents}
+.sheet-head span {font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;color:var(--muted)}
+.sheet-label {display:grid;align-content:start;gap:6px;padding:10px 0 0 12px;border-left:3px solid var(--line)}
+.sheet-label b {font:700 var(--fs-md)/1.4 var(--font-head);color:var(--deep)}
+.sheet-label small {font-size:var(--fs-xs);color:var(--muted);line-height:1.5}
+.sheet-label .demo-note {justify-self:start}
+.sheet-label.is-current {border-left-color:var(--deep)}
+.sheet-label .now {justify-self:start;padding:0 8px;border-radius:999px;background:var(--deep);color:var(--paper);font-size:var(--fs-xs);line-height:1.8}
+.sheet-cell {margin:0;min-width:0}
+.cell {position:relative;width:100%;max-width:560px;height:100px;overflow:hidden;border-radius:6px;background:var(--paper)}
+.cell.on-paper {box-shadow:inset 0 0 0 1px var(--line)}
+.cell-in {position:absolute;left:0;top:0;width:560px;height:100px;transform-origin:0 0}
+.cell-in .vhero {width:1440px}
+.cell-brand {position:absolute;left:80px;top:0;height:90px}
+.cell-in .brand {display:flex;align-items:center;gap:12px;min-width:0}
+.cell-in .brand-crest {width:56px;height:60px}
+.cell-in .brand-name {font-size:30px;white-space:nowrap}
+.cell-in .brand-en {font-size:18px;white-space:nowrap}
+.cell-in .anni {--anni-fs:30px}
+.on-photo .brand-name, .on-photo .brand-en {color:rgb(var(--on-dark))}
+.cell-rule {position:absolute;left:0;right:0;top:89px;height:1px;background:rgb(var(--on-dark) / .45)}
+.on-paper .cell-rule {background:var(--line)}
+.cell-num {margin-top:6px;padding:6px 10px;border:1px dashed rgb(var(--ink) / .35);border-radius:6px;font-size:.78rem;line-height:1.65;color:var(--text)}
+.cell-num span {display:block}
+.sheet-foot {max-width:none;margin-top:16px;font-size:var(--fs-xs);line-height:1.8;color:var(--muted)}
+
+/* ── ⑦ 可及名稱與後續 ─────────────────────────────────────────────── */
+.a11y-grid {display:grid;grid-template-columns:1.3fr 1fr;gap:12px;padding-bottom:72px}
+
+/* ── 30 改 Noto：說明卡 ───────────────────────────────────────────── */
+.noto-card {display:grid;gap:12px;max-width:1000px;padding-bottom:72px}
+.noto-compare {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:8px}
+.noto-compare figure {margin:0}
+.noto-compare figcaption {margin-top:6px;font-size:var(--fs-xs);color:var(--muted)}
+.noto-slot {display:grid;place-content:center;justify-items:center;gap:2px;height:100px;border:1.5px dashed var(--muted);border-radius:6px;background:var(--white);font-size:var(--fs-sm);color:var(--text);text-align:center}
+.noto-slot b {color:var(--deep)}
+.sec-noto {padding-top:40px}
+
+/* ── 窄桌機與手機 ─────────────────────────────────────────────────── */
+@media (max-width:1300px) {
+  .sheet {grid-template-columns:120px minmax(0,1fr) minmax(0,1fr)}
+}
+@media (max-width:1000px) {
+  .stage-hero {height:auto;background:var(--paper);color:var(--text)}
+  .stage-hero .vhero {position:relative;height:clamp(320px,60svh,620px)}
+  .stage-hero .vhero img {object-position:50% 40%}
+  .stage-hero .vhero::after {background:linear-gradient(180deg,rgb(var(--shadow-rgb) / .6) 0 76px,rgb(var(--shadow-rgb) / 0)) top / 100% 140px no-repeat}
+  .hero-copy {position:static;padding:24px var(--gutter) 36px}
+  .hero-eyebrow, .hero-title, .hero-body {text-shadow:none}
+  .hero-eyebrow {margin-bottom:20px;font-size:var(--fs-xs)}
+  .pill-grid {grid-template-columns:minmax(0,1fr)}
+  .zoom-fig {display:none}
+  .a11y-grid {grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:900px) {
+  .stage-pill {width:100%;height:86px}
+  .stage-pill .vhero {left:0;width:100%;height:506px}
+  .stage-pill .vhero img {object-position:50% 40%}
+}
+@media (max-width:760px) {
+  .brief {padding:20px 0 16px}
+  .brief-grid {grid-template-columns:minmax(0,1fr);gap:14px}
+  .brief h1 {font-size:var(--fs-2xl)}
+  .brief h1 span {display:block}
+  .brief h1 span + span {margin-left:0}
+  .switcher {justify-content:flex-start;max-width:none}
+  .switcher a {padding:0 14px}
+  .brief-now {flex-direction:column;gap:2px}
+  .sec {padding-top:40px}
+  .sec-cap h2 {font-size:var(--fs-lg)}
+  .hero-title {font-size:clamp(1.875rem,9vw,2.125rem)}
+  .hero-body {margin-top:22px;font-size:var(--fs-md)}
+  .note-phone, .widths-phone {display:block}
+  .widths {display:none}
+  .sheet {grid-template-columns:minmax(0,1fr);gap:10px}
+  .sheet-head {display:none}
+  .sheet-label {margin-top:18px;padding:0 0 0 10px}
+  .sheet-cell::before {content:attr(data-bg);display:block;margin-bottom:4px;font-size:var(--fs-xs);color:var(--muted)}
+  .noto-compare {grid-template-columns:minmax(0,1fr)}
+}
+
+/* ── 只畫頁首／膠囊（iframe 內） ────────────────────────────────────── */
+html:not([data-frame]) .frame-view {display:none}
+html[data-frame] body {background:var(--deep);overflow:hidden}
+html[data-frame] .page-only, html[data-frame] .site-foot {display:none}
+html[data-frame="head"] #frame-pill, html[data-frame="pill"] #frame-head {display:none}
+.stage-fhead {height:92px;overflow:hidden;background:var(--deep)}
+#frame-pill .stage-pill {width:100%;height:86px;border-radius:0}
