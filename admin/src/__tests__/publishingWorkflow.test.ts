@@ -468,6 +468,8 @@ describe('建議字數（第 57 條）', () => {
 describe('從總覽或通知帶 ?campus= 進編輯頁', () => {
   it('在自己的範圍內就切到那一校，範圍外的忽略', async () => {
     for (const [query, expected] of [['yihua', 'yihua'], ['minghua', 'renwu']] as const) {
+      // 上一輪選過的校區會記在 sessionStorage（分校內容頁共用），這裡只測網址。
+      sessionStorage.clear()
       const { global } = await setup(`/content/campus-faq?campus=${query}`, testUser('campus_admin', { campus_keys: ['renwu', 'yihua'] }))
       let picked = ''
       const Probe = defineComponent({

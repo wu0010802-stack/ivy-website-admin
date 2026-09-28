@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { campusLabel } from '../api/labels'
+import { campusSelectLabelKey } from '../composables/useCampusContent'
 
 // 校區選單。只有一個可見校區時（校區管理者）改成一個唯讀標籤，不讓人
 // 點開只有一個選項的下拉。`allLabel` 給列表頁「全部校區」用。
+// 放在內容編輯頁的工具列（ContentEditor 提供）時，多校下拉也在框內寫出
+// 「校區」，和單校標籤一致；其他頁面外面已經有 filter-field 標籤，不重複。
 const props = defineProps<{
   modelValue: string
   keys: readonly string[]
@@ -20,6 +23,7 @@ const value = computed({
 })
 
 const single = computed(() => props.keys.length === 1 && !props.allLabel)
+const inlineLabel = inject(campusSelectLabelKey, '')
 </script>
 
 <template>
@@ -36,6 +40,7 @@ const single = computed(() => props.keys.length === 1 && !props.allLabel)
     :disabled="disabled"
     aria-label="校區"
   >
+    <template v-if="inlineLabel" #prefix><span class="campus-single__label">{{ inlineLabel }}</span></template>
     <el-option v-for="key in keys" :key="key" :label="campusLabel(key)" :value="key" />
   </el-select>
 </template>

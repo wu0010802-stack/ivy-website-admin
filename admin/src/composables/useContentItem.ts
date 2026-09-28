@@ -2,7 +2,7 @@ import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
-import { contentFieldLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
+import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
@@ -138,6 +138,21 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
     })
 }
 
+/**
+ * 發布或核准前和官網目前的版本比較的結果。firstPublish＝這項內容從來沒發布過，
+ * 官網顯示的是預設文字，不拿空物件比（否則每個欄位都會被列成差異）。
+ */
+export interface LiveComparison {
+  firstPublish: boolean
+  /** 官網目前的內容 → 要上線的內容（表單）；firstPublish 時為空 */
+  changes: FieldChange[]
+}
+
+/** silent：由「儲存並發布／送審／排程」呼叫，只顯示最後結果那一則 toast */
+export interface SaveOptions {
+  silent?: boolean
+}
+
 /** 版本紀錄列表的一列（後端 ContentRevisionSummaryOut） */
 export interface RevisionSummary {
   id: string
@@ -176,8 +191,16 @@ export interface ContentEditorState {
   isDirty: ComputedRef<boolean>
   neverPublished: ComputedRef<boolean>
   latestRevisionAt: ComputedRef<string | null>
-  /** 未儲存的修改與上次儲存相比動了哪些欄位；ContentEditor 用來在發布前列給人看 */
+  /** 未儲存的修改與上次儲存相比動了哪些欄位；讀不到官網版時發布確認框改列這個 */
   changes?: ComputedRef<FieldChange[]>
+  /** 要上線的內容（表單）和官網目前的版本相比；讀不到官網版回 null。開確認框前才呼叫 */
+  compareWithLive?: () => Promise<LiveComparison | null>
+  /** 確認框標題用的內容名稱，分校內容帶校名，例如「各校常見問題（明華）」 */
+  contextLabel?: ComputedRef<string>
+  /** 最新一版的 id；排程列用來判斷排的是不是目前的草稿 */
+  latestRevisionId?: ComputedRef<string | null>
+  /** 送審之後由誰核准：分校內容是校區管理者，共用內容是總管理者 */
+  approver?: string
   /** 發布後「查看官網」要開的完整網址 */
   publicUrl?: ComputedRef<string>
   /** 目前表單內容；版本紀錄拿來和舊版比較 */
@@ -204,7 +227,7 @@ export interface ContentEditorState {
   acknowledgeSchedule?: (jobId: string) => Promise<boolean>
   history?: RevisionHistoryHandle
   load: () => Promise<void>
-  save: () => Promise<boolean>
+  save: (options?: SaveOptions) => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
   reset: () => void
 }
@@ -268,6 +291,9 @@ export function useContentItem<TPayload extends object>(
     return path ? `${WEBSITE_ASSET_BASE}${path}` : ''
   })
   const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
+  const contextLabel = computed(() => contentItemLabel(kind, unref(campusKey)))
+  // 共用內容（沒有 campusKey）要總管理者或被授權的人核准，分校內容是校區管理者。
+  const approver = campusKey === undefined ? '總管理者' : '校區管理者'
   // 唯讀：分校內容看 content.manage；共用內容（沒有 campusKey）要有「全站
   // 共用內容」權限（總管理者或被授權的人，後端 can_edit_shared_content）。
   // store 在 computed 裡才取，單獨測這個 composable 時不需要 Pinia。
@@ -281,6 +307,7 @@ export function useContentItem<TPayload extends object>(
 
   /** 最新草稿的建立時間（ISO），沒有任何版本時為 null */
   const latestRevisionAt = computed(() => item.value?.latest_revision?.created_at ?? null)
+  const latestRevisionId = computed(() => item.value?.latest_revision?.id ?? null)
 
   /** 有版本但從未發布過 */
   const neverPublished = computed(
@@ -315,7 +342,13 @@ export function useContentItem<TPayload extends object>(
     return apiErrorMessage(err, fallback)
   }
 
-  async function save(): Promise<boolean> {
+  // 「儲存並發布」這類兩段動作：先儲存成功、後一段失敗時，要講清楚草稿已經
+  // 存了，不然使用者會以為什麼都沒留下而重做一次。
+  function afterSaveError(savedFirst: boolean, err: unknown, action: string): string {
+    return savedFirst ? `已存成草稿，但${action}失敗：${errorMessage(err, '請稍後再試')}` : errorMessage(err, `${action}失敗`)
+  }
+
+  async function save(options: SaveOptions = {}): Promise<boolean> {
     if (!item.value) return false
     saving.value = true
     try {
@@ -325,7 +358,7 @@ export function useContentItem<TPayload extends object>(
       })
       isPublished.value = false
       takeSnapshot()
-      ElMessage.success('已儲存草稿，官網尚未更新')
+      if (!options.silent) ElMessage.success('已儲存草稿，官網尚未更新')
       return true
     } catch (err) {
       ElMessage.error(errorMessage(err, '儲存失敗'))
@@ -340,7 +373,7 @@ export function useContentItem<TPayload extends object>(
     return publishRevision(item.value.latest_revision.id)
   }
 
-  async function publishRevision(revisionId: string): Promise<boolean> {
+  async function publishRevision(revisionId: string, savedFirst = false): Promise<boolean> {
     publishing.value = true
     try {
       item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
@@ -361,34 +394,34 @@ export function useContentItem<TPayload extends object>(
       })
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '發布失敗'))
+      ElMessage.error(afterSaveError(savedFirst, err, '發布'))
       return false
     } finally {
       publishing.value = false
     }
   }
 
-  /** 先儲存目前修改再發布；表單沒改就直接發布最新草稿 */
+  /** 先儲存目前修改再發布；表單沒改就直接發布最新草稿。只跳最後結果那一則 toast。 */
   async function saveAndPublish(): Promise<boolean> {
-    if (isDirty.value) {
-      const ok = await save()
-      if (!ok) return false
-    }
-    return publish()
+    const savedFirst = isDirty.value
+    if (savedFirst && !(await save({ silent: true }))) return false
+    if (!item.value?.latest_revision) return false
+    return publishRevision(item.value.latest_revision.id, savedFirst)
   }
 
   async function submitForReview(): Promise<boolean> {
-    if (isDirty.value && !(await save())) return false
+    const savedFirst = isDirty.value
+    if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
     publishing.value = true
     try {
       item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/submit${query()}`, {
         revision_id: item.value.latest_revision.id,
       })
-      ElMessage.success('已送審，校區管理者核准後才會出現在官網')
+      ElMessage.success(`已送審，${approver}核准後才會出現在官網`)
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '送審失敗'))
+      ElMessage.error(afterSaveError(savedFirst, err, '送審'))
       return false
     } finally {
       publishing.value = false
@@ -426,7 +459,8 @@ export function useContentItem<TPayload extends object>(
   }
 
   async function schedule(publishAt: string): Promise<boolean> {
-    if (isDirty.value && !(await save())) return false
+    const savedFirst = isDirty.value
+    if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
     publishing.value = true
     try {
@@ -438,7 +472,7 @@ export function useContentItem<TPayload extends object>(
       ElMessage.success('已排程，時間到會自動發布')
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '排程失敗'))
+      ElMessage.error(afterSaveError(savedFirst, err, '排程'))
       return false
     } finally {
       publishing.value = false
@@ -501,6 +535,31 @@ export function useContentItem<TPayload extends object>(
     },
   }
 
+  // 官網上的版本不會再變（改內容是另存新版），讀過一次就記住，不用每次開確認框都重抓。
+  const livePayloads = new Map<string, unknown>()
+
+  // 發布、核准前才讀官網版（不在載入時多打一次 API）。舊版內容缺少後來新增的
+  // 欄位，要先經過 withDefaults／normalize 才跟表單比，否則會多出「（空白）→
+  // （空白）」這類假差異。
+  async function compareWithLive(): Promise<LiveComparison | null> {
+    const current = item.value
+    if (!current) return null
+    const liveId = current.current_published_revision_id
+    if (!liveId) return { firstPublish: true, changes: [] }
+    try {
+      let payload: unknown = livePayloads.get(liveId)
+      if (payload === undefined) {
+        payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await history.payloadOf(liveId)
+        if (!isPlainObject(payload)) return null
+        livePayloads.set(liveId, payload)
+      }
+      const live = withDefaults(payload) as Record<string, unknown>
+      return { firstPublish: false, changes: diffPayload(live, form.value as Record<string, unknown>) }
+    } catch {
+      return null
+    }
+  }
+
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
@@ -517,10 +576,14 @@ export function useContentItem<TPayload extends object>(
     isPublished,
     isDirty,
     changes,
+    compareWithLive,
+    contextLabel,
+    approver,
     publicUrl,
     previewUrl,
     apiPath,
     latestRevisionAt,
+    latestRevisionId,
     neverPublished,
     history,
     load,
