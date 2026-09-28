@@ -83,7 +83,9 @@ function eventBrief(item: NewsEvent) {
               aria-haspopup="dialog"
               @click="openEvent(item)"
             >
-              <time class="hn-date" :datetime="item.date" :aria-label="item.date">
+              <!-- 示意活動不露出具體日期，免得家長當成已公告的活動照日期到校；排序仍依原日期。 -->
+              <span v-if="isSample(item)" class="hn-date is-sample"><b>示意</b><span>日期未定</span></span>
+              <time v-else class="hn-date" :datetime="item.date" :aria-label="item.date">
                 <b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span>
               </time>
               <span class="hn-event-copy">
@@ -153,7 +155,7 @@ function eventBrief(item: NewsEvent) {
           <p v-if="eventsSample === 'all'" class="hn-dialog-note">以下為設計示意內容。</p>
           <div class="hn-event-stack">
             <button v-for="item in events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
-              <time class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
+              <span v-if="isSample(item)" class="hn-date is-sample"><b>示意</b><span>日期未定</span></span><time v-else class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
               <span class="hn-event-copy"><small>{{ item.campus }}<span v-if="tagged(item, eventsSample)" class="hn-sample-tag">示意</span></small><strong>{{ item.title }}</strong><small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small></span>
               <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
@@ -162,7 +164,8 @@ function eventBrief(item: NewsEvent) {
         <template v-else-if="view?.kind === 'events'">
           <span class="hn-kicker">{{ view.item.campus }}{{ isSample(view.item) ? ' · 活動示意' : '' }}</span>
           <h2 id="home-news-dialog-title" tabindex="-1">{{ view.item.title }}</h2>
-          <time class="hn-detail-date" :datetime="view.item.date">{{ formatDate(view.item.date) }}</time>
+          <p v-if="isSample(view.item)" class="hn-detail-date">日期未定</p>
+          <time v-else class="hn-detail-date" :datetime="view.item.date">{{ formatDate(view.item.date) }}</time>
           <!-- 時間只在園方填了開始時間時寫；全天（含沒有時間欄位的舊活動）只看日期，不替園方寫「全天」。 -->
           <dl v-if="eventTimeDetail(view.item) || view.item.location" class="hn-event-facts">
             <div v-if="eventTimeDetail(view.item)"><dt>時間</dt><dd>{{ eventTimeDetail(view.item) }}</dd></div>
@@ -188,4 +191,8 @@ function eventBrief(item: NewsEvent) {
 .hn-event-facts dt { flex-shrink: 0; color: var(--hn-muted); }
 .hn-event-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .hn-dialog .hn-event-link { margin-top: 20px; gap: 12px; white-space: normal; }
+/* 示意活動的日期格：不放具體日期，改寫「示意／日期未定」，字級收小才塞得進原本的數字格（2026-09-27）。 */
+.hn-date.is-sample { display: grid; place-content: center; gap: 2px; }
+.hn-date.is-sample b { font: 600 var(--fs-md)/1.2 var(--font); letter-spacing: .04em; }
+.hn-date.is-sample > span { font: 400 var(--fs-xs)/1.3 var(--font); letter-spacing: 0; white-space: nowrap; }
 </style>

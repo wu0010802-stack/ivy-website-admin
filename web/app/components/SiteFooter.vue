@@ -33,9 +33,14 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
       </div>
       <div>
         <p class="footer-label">{{ content.footer.campusListLabel }}</p>
-        <div class="footer-campuses" id="footer-campuses">
-          <NuxtLink v-for="c in campuses" :key="c.key" :to="`/campuses/${c.key}`">{{ c.name }}</NuxtLink>
-        </div>
+        <!-- 2026-09-27：每校補區域與參觀專線，家長最常找的聯絡方式在頁尾就拿得到。 -->
+        <ul class="footer-campuses" id="footer-campuses">
+          <li v-for="c in campuses" :key="c.key">
+            <NuxtLink :to="`/campuses/${c.key}`">{{ c.name }}</NuxtLink>
+            <span class="footer-campus-area">{{ c.district }}</span>
+            <a v-if="c.phone" class="footer-campus-phone" :href="`tel:${c.phone}`" :aria-label="`撥打${c.name}電話 ${c.phone}`">{{ c.phone }}</a>
+          </li>
+        </ul>
       </div>
     </div>
     <div v-if="content.footer.copyright || content.footer.bottomNote || privacyNotice" class="container footer-bottom">
@@ -63,6 +68,19 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
 .footer a:focus-visible,
 .footer :deep(.footer-privacy:focus-visible) { outline-color: var(--footer-focus); }
+
+/* 五校一校一列：校名｜區域｜電話三欄對齊（subgrid 讓各列欄寬一致）。 */
+.footer-campuses {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  column-gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.footer-campuses li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+.footer-campus-area { font-size: var(--fs-xs); letter-spacing: .04em; }
+.footer-campuses .footer-campus-phone { justify-self: start; font-family: var(--font-date); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 @media (max-width: 1000px) {
   .footer-main { grid-template-columns: 1fr 1fr; }

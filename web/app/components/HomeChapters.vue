@@ -62,8 +62,8 @@ onBeforeUnmount(() => {
   .home-chapters{position:fixed;right:6px;top:50%;z-index:30;display:block;translate:0 -50%;opacity:0;visibility:hidden;transition:opacity .4s,visibility 0s .4s;--chapter-ink:var(--green);--chapter-soft:rgb(var(--ink) / .28)}
   .home-chapters[data-shown=true]{opacity:1;visibility:visible;transition:opacity .4s}
   .home-chapters[data-tone=dark]{--chapter-ink:var(--paper);--chapter-soft:rgb(var(--on-dark) / .45)}
-  ol{display:grid;gap:2px;margin:0;padding:0;list-style:none}
-  a{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:36px;padding-inline:6px;color:var(--chapter-ink);text-decoration:none}
+  ol{display:grid;gap:0;margin:0;padding:0;list-style:none}
+  a{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:44px;padding-inline:6px;color:var(--chapter-ink);text-decoration:none}
   .chapter-bar{display:block;width:14px;height:2px;border-radius:2px;background:var(--chapter-soft);transition:width .35s cubic-bezier(.22,1,.36,1),background .35s}
   a[aria-current] .chapter-bar{width:30px;background:var(--chapter-ink)}
   a:hover .chapter-bar{background:var(--chapter-ink)}
