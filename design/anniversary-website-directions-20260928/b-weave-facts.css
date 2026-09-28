@@ -45,6 +45,7 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 
 /* 共用頁首的選單連結補足 44px 觸控高度（不改共用檔） */
 .site-nav a { min-height: 44px; align-content: center; }
+.site-head .brand { min-height: 44px; }
 
 /* ── ⓪ 說明帶 ──────────────────────────────────────────────── */
 .intro { background: var(--cream); padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
@@ -259,7 +260,7 @@ details.more[open] > summary::after { transform: rotate(-135deg) translateY(-2px
 .c-more { margin-top: 20px; }
 .c-more > summary { font-weight: 700; color: var(--green); }
 .c-more .c-table { margin-top: 4px; }
-.ld > summary.mini-label { min-height: 32px; margin-bottom: 6px; }
+.ld > summary.mini-label { min-height: 44px; margin-bottom: 0; }
 .foot-omit, .ops-hint { display: none; }
 
 /* ── ⑧ 後台操作表、⑨ 收回清單（說明） ──────────────────────────── */
