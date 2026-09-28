@@ -1,37 +1,17 @@
-import type { Component } from 'vue'
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocationNormalized,
+  type RouteLocationRaw,
+  type RouteRecordRaw,
+  type RouteRecordSingleView,
+} from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+// 登入頁與外框直接打包進入口，打開後台第一眼就要用到；其他頁面點進去時才下載，
+// 不必讓櫃台在手機上先下載一整包用不到的內容編輯頁。
 import AdminLayout from '../layouts/AdminLayout.vue'
 import LoginView from '../views/LoginView.vue'
-import UsersView from '../views/UsersView.vue'
-import HomeAboutView from '../views/HomeAboutView.vue'
-import HomeHeroView from '../views/HomeHeroView.vue'
-import SiteFooterView from '../views/SiteFooterView.vue'
-import SiteMetaView from '../views/SiteMetaView.vue'
-import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
-import BookingContentView from '../views/BookingContentView.vue'
-import DayExperienceView from '../views/DayExperienceView.vue'
-import HomeNewsView from '../views/HomeNewsView.vue'
-import AdmissionContentView from '../views/AdmissionContentView.vue'
-import CampusProfileView from '../views/CampusProfileView.vue'
-import CampusFaqView from '../views/CampusFaqView.vue'
-import CampusNewsView from '../views/CampusNewsView.vue'
-import SharedFaqView from '../views/SharedFaqView.vue'
-import CampusTourView from '../views/CampusTourView.vue'
-import MediaLibraryView from '../views/MediaLibraryView.vue'
-import BookingSettingsView from '../views/BookingSettingsView.vue'
-import VisitSlotsView from '../views/VisitSlotsView.vue'
-import VisitRequestsView from '../views/VisitRequestsView.vue'
-import VisitDetailView from '../views/VisitDetailView.vue'
-import VisitCalendarView from '../views/VisitCalendarView.vue'
-import NotificationsView from '../views/NotificationsView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import AnalyticsView from '../views/AnalyticsView.vue'
-import AuditView from '../views/AuditView.vue'
-import PoliciesView from '../views/PoliciesView.vue'
-import LineNotificationsView from '../views/LineNotificationsView.vue'
-import AccountView from '../views/AccountView.vue'
-import PublishHistoryView from '../views/PublishHistoryView.vue'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
@@ -46,60 +26,61 @@ declare module 'vue-router' {
 
 // 路由標題與角色限制從側欄結構帶入，頁面標題、document.title、側欄
 // 高亮三處共用同一份資料。
-function page(path: string, name: string, component: Component): RouteRecordRaw {
+function page(path: string, name: string, component: RouteRecordSingleView['component']): RouteRecordRaw {
   const item = navItem(name)
   return { path, name, component, meta: { title: item?.title, roles: item?.roles, shared: item?.shared } }
 }
 
-const router = createRouter({
-  history: createWebHistory('/admin/'),
-  routes: [
-    { path: '/login', name: 'login', component: LoginView, meta: { title: '登入' } },
-    {
-      path: '/',
-      component: AdminLayout,
-      children: [
-        page('', 'dashboard', DashboardView),
-        page('users', 'users', UsersView),
-        page('content/home-about', 'home-about', HomeAboutView),
-        page('content/home-hero', 'home-hero', HomeHeroView),
-        page('content/site-footer', 'site-footer', SiteFooterView),
-        page('content/site-meta', 'site-meta', SiteMetaView),
-        page('content/home-campus-board', 'home-campus-board', HomeCampusBoardView),
-        page('content/booking-content', 'booking-content', BookingContentView),
-        page('content/day-experience', 'day-experience', DayExperienceView),
-        page('content/home-news', 'home-news', HomeNewsView),
-        page('content/admission', 'admission-content', AdmissionContentView),
-        page('content/campus-profile', 'campus-profile', CampusProfileView),
-        page('content/campus-faq', 'campus-faq', CampusFaqView),
-        page('content/shared-faq', 'shared-faq', SharedFaqView),
-        page('content/campus-news', 'campus-news', CampusNewsView),
-        page('content/campus-tour', 'campus-tour', CampusTourView),
-        page('media', 'media', MediaLibraryView),
-        page('releases', 'releases', PublishHistoryView),
-        page('booking', 'booking', BookingSettingsView),
-        page('slots', 'slots', VisitSlotsView),
-        page('visit-requests', 'visit-requests', VisitRequestsView),
-        page('visit-calendar', 'visit-calendar', VisitCalendarView),
-        {
-          path: 'visit-requests/:id',
-          name: 'visit-detail',
-          component: VisitDetailView,
-          meta: { title: '案件明細', roles: navItem('visit-requests')?.roles },
-        },
-        page('notifications', 'notifications', NotificationsView),
-        page('analytics', 'analytics', AnalyticsView),
-        page('audit', 'audit', AuditView),
-        page('policies', 'policies', PoliciesView),
-        page('line-notifications', 'line-notifications', LineNotificationsView),
-        // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊。
-        { path: 'account', name: 'account', component: AccountView, meta: { title: '我的帳號' } },
-      ],
-    },
-  ],
-})
+export const routes: RouteRecordRaw[] = [
+  { path: '/login', name: 'login', component: LoginView, meta: { title: '登入' } },
+  {
+    path: '/',
+    component: AdminLayout,
+    children: [
+      page('', 'dashboard', () => import('../views/DashboardView.vue')),
+      page('users', 'users', () => import('../views/UsersView.vue')),
+      page('content/home-about', 'home-about', () => import('../views/HomeAboutView.vue')),
+      page('content/home-hero', 'home-hero', () => import('../views/HomeHeroView.vue')),
+      page('content/site-footer', 'site-footer', () => import('../views/SiteFooterView.vue')),
+      page('content/site-meta', 'site-meta', () => import('../views/SiteMetaView.vue')),
+      page('content/home-campus-board', 'home-campus-board', () => import('../views/HomeCampusBoardView.vue')),
+      page('content/booking-content', 'booking-content', () => import('../views/BookingContentView.vue')),
+      page('content/day-experience', 'day-experience', () => import('../views/DayExperienceView.vue')),
+      page('content/home-news', 'home-news', () => import('../views/HomeNewsView.vue')),
+      page('content/admission', 'admission-content', () => import('../views/AdmissionContentView.vue')),
+      page('content/campus-profile', 'campus-profile', () => import('../views/CampusProfileView.vue')),
+      page('content/campus-faq', 'campus-faq', () => import('../views/CampusFaqView.vue')),
+      page('content/shared-faq', 'shared-faq', () => import('../views/SharedFaqView.vue')),
+      page('content/campus-news', 'campus-news', () => import('../views/CampusNewsView.vue')),
+      page('content/campus-tour', 'campus-tour', () => import('../views/CampusTourView.vue')),
+      page('media', 'media', () => import('../views/MediaLibraryView.vue')),
+      page('releases', 'releases', () => import('../views/PublishHistoryView.vue')),
+      page('booking', 'booking', () => import('../views/BookingSettingsView.vue')),
+      page('slots', 'slots', () => import('../views/VisitSlotsView.vue')),
+      page('visit-requests', 'visit-requests', () => import('../views/VisitRequestsView.vue')),
+      page('visit-calendar', 'visit-calendar', () => import('../views/VisitCalendarView.vue')),
+      {
+        path: 'visit-requests/:id',
+        name: 'visit-detail',
+        component: () => import('../views/VisitDetailView.vue'),
+        meta: { title: '案件明細', roles: navItem('visit-requests')?.roles },
+      },
+      page('notifications', 'notifications', () => import('../views/NotificationsView.vue')),
+      page('analytics', 'analytics', () => import('../views/AnalyticsView.vue')),
+      page('audit', 'audit', () => import('../views/AuditView.vue')),
+      page('policies', 'policies', () => import('../views/PoliciesView.vue')),
+      page('line-notifications', 'line-notifications', () => import('../views/LineNotificationsView.vue')),
+      // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊。
+      { path: 'account', name: 'account', component: () => import('../views/AccountView.vue'), meta: { title: '我的帳號' } },
+      // 舊書籤、打錯字或改過名的網址。原本沒有這條，對不到路由時整頁空白、連側欄
+      // 都沒有；放在外框裡，保留側欄並給一顆回起始頁的按鈕。明確的路徑排序都比它前面。
+      { path: ':pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFoundView.vue'), meta: { title: '找不到頁面' } },
+    ],
+  },
+]
 
-router.beforeEach(async (to) => {
+/** 每次換頁的登入與角色檢查。匯出給測試用同一份規則建 router。 */
+export async function authGuard(to: RouteLocationNormalized): Promise<boolean | RouteLocationRaw> {
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
@@ -118,15 +99,60 @@ router.beforeEach(async (to) => {
   const roles = to.meta.roles
   if (roles && !canSeeNavItem({ name: '', path: to.path, title: '', roles, shared: to.meta.shared }, authStore.user)) {
     const landing = landingPath(authStore.user.role)
-    return to.path === landing ? true : { path: landing }
+    if (to.path === landing) return true
+    // 只有明確連進來的頁面被擋才說明（通知信、同事貼的網址、書籤），AdminLayout
+    // 讀 denied 顯示一次提示。'/' 是預設入口：編輯與唯讀登入後本來就會經過這裡
+    // 被送到起始頁，不算被拒。
+    if (to.path === '/') return { path: landing }
+    return { path: landing, query: { denied: String(to.name ?? '') } }
   }
 
   return true
+}
+
+const router = createRouter({
+  history: createWebHistory('/admin/'),
+  routes,
 })
+
+router.beforeEach(authGuard)
 
 router.afterEach((to, _from, failure) => {
   if (failure) return
   document.title = to.meta.title ? `${to.meta.title}｜常春藤官網後台` : '常春藤官網後台'
+})
+
+// 頁面改成點進去才下載之後，部署會換掉舊的檔名：一直開著後台的人換頁會遇到
+// 「Failed to fetch dynamically imported module」。整頁重新載入要去的網址，拿到
+// 新版就好；同一個網址 10 秒內只重載一次，真的斷線時不會無限重整。
+const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed/i
+const CHUNK_RELOAD_KEY = 'ivy-admin-chunk-reload'
+
+export function reloadAfterChunkError(
+  error: unknown,
+  href: string,
+  navigate: (href: string) => void = url => window.location.assign(url),
+): boolean {
+  if (!(error instanceof Error) || !CHUNK_LOAD_ERROR.test(error.message)) return false
+  let reloadedJustNow: boolean
+  try {
+    const last = JSON.parse(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 'null') as { href?: string; at?: number } | null
+    reloadedJustNow = last?.href === href && Date.now() - (last.at ?? 0) < 10_000
+    if (!reloadedJustNow) sessionStorage.setItem(CHUNK_RELOAD_KEY, JSON.stringify({ href, at: Date.now() }))
+  } catch {
+    // 記不住有沒有重載過（私密視窗、封鎖網站資料）：當成剛重載過，不冒無限重整的險。
+    reloadedJustNow = true
+  }
+  if (reloadedJustNow) {
+    ElMessage.error({ message: '頁面沒有載入成功，請確認網路後重新整理這一頁', duration: 0, showClose: true })
+    return true
+  }
+  navigate(href)
+  return true
+}
+
+router.onError((error, to) => {
+  reloadAfterChunkError(error, router.resolve(to).href)
 })
 
 export default router

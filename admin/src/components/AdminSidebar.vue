@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute } from 'vue-router'
-import * as Icons from '@element-plus/icons-vue'
+import {
+  ArrowDown, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
+  Document as DocumentIcon, EditPen, Files, Grid, HomeFilled, Key, List, Location as LocationIcon,
+  Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
+  SwitchButton, Tickets, Timer, User,
+} from '@element-plus/icons-vue'
 import { canSeeNavItem, landingPath, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -40,7 +45,13 @@ watch(expanded, value => {
     /* 存不了不影響操作 */
   }
 }, { deep: true })
-const icons = Icons as unknown as Record<string, Component>
+// nav.ts 用名稱指定圖示。逐一 import 而不是整包 import *：整包會把兩百多個
+// 用不到的圖示都打包進來。新增側欄項目時要把圖示加進這裡（有測試檢查）。
+const icons: Record<string, Component> = {
+  Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
+  EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Notification: NotificationIcon, Phone, Picture,
+  Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, User,
+}
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)
 const groups = computed(() => NAV_GROUPS.map(group => {
   const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
@@ -86,11 +97,11 @@ const userLine = computed(() => {
         <span class="sidebar__brand-text"><strong>常春藤官網</strong><span>管理後台</span></span>
       </router-link>
       <button v-if="mobile" class="sidebar__close" type="button" aria-label="關閉選單" @click="emit('close')">
-        <el-icon><Icons.Close /></el-icon>
+        <el-icon><Close /></el-icon>
       </button>
     </div>
     <div class="sidebar__search">
-      <el-input v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Icons.Search" clearable />
+      <el-input v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Search" clearable />
     </div>
     <nav class="sidebar__nav" aria-label="主選單">
       <template v-for="block in blocks" :key="block.key">
@@ -100,7 +111,7 @@ const userLine = computed(() => {
           <button type="button" class="sidebar__group-toggle" :disabled="hasQuery" :aria-expanded="hasQuery || expanded[group.key]"
             :aria-controls="`nav-${group.key}`" @click="expanded[group.key] = !expanded[group.key]">
             {{ group.label }}
-            <el-icon class="sidebar__chevron" :class="{ 'is-open': hasQuery || expanded[group.key] }"><Icons.ArrowDown /></el-icon>
+            <el-icon class="sidebar__chevron" :class="{ 'is-open': hasQuery || expanded[group.key] }"><ArrowDown /></el-icon>
           </button>
         </h2>
         <ul v-show="hasQuery || expanded[group.key]" :id="`nav-${group.key}`">
@@ -138,8 +149,8 @@ const userLine = computed(() => {
         <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
         <div class="sidebar__user-text"><strong>{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
       </router-link>
-      <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Icons.Key /></el-icon></el-button>
-      <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><Icons.SwitchButton /></el-icon></el-button>
+      <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Key /></el-icon></el-button>
+      <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><SwitchButton /></el-icon></el-button>
       <ChangePasswordDialog v-model="passwordOpen" />
     </div>
   </div>
@@ -183,7 +194,10 @@ const userLine = computed(() => {
 .sidebar__chevron { font-size: 12px; transform: rotate(-90deg); }
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__nav ul { list-style: none; margin: 0; padding: 0; }
-.sidebar__link { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+/* position:relative：數字裡的報讀文字（.visually-hidden 是絕對定位）要以連結為準、
+   跟著選單一起被捲動區裁切。沒有這行時它以整個側欄為準，下方分組展開後會把短頁面
+   撐高約 400px 的空白。 */
+.sidebar__link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
 .sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__link .el-icon { font-size: 17px; }
 /* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
