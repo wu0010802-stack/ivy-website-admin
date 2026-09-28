@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entranceTimeline, LOGO_DURATION, OPENING_START, ENTRANCE_DURATION } from '../app/utils/entrance-timeline'
+import { COMPACT_DURATION, COMPACT_LOGO, compactEntranceElapsed, entranceTimeline, LOGO_DURATION, OPENING_START, ENTRANCE_DURATION } from '../app/utils/entrance-timeline'
 
 describe('anniversary entrance timeline', () => {
   it('shows the logo alone before the three-second countdown', () => {
@@ -67,5 +67,19 @@ describe('anniversary entrance timeline', () => {
     expect(entranceTimeline(OPENING_START).shadowOpacity).toBe(0.18)
     expect(entranceTimeline(OPENING_START + 1000).shadowOpacity).toBeGreaterThan(entranceTimeline(OPENING_START + 2000).shadowOpacity)
     expect(entranceTimeline(ENTRANCE_DURATION - 400)).toMatchObject({ shadowOpacity: 0, complete: false })
+  })
+  it('gives phones a compact cut that skips the countdown and never shows the leader', () => {
+    expect(COMPACT_DURATION).toBeLessThanOrEqual(4000)
+    expect(compactEntranceElapsed(0)).toBe(0)
+    expect(entranceTimeline(compactEntranceElapsed(COMPACT_LOGO * 0.5))).toMatchObject({ phase: 'logo', iris: 1, logoOpacity: 1 })
+    for (let real = 0; real <= COMPACT_DURATION; real += 25) {
+      const state = entranceTimeline(compactEntranceElapsed(real))
+      expect(state.countdown).toBe(0)
+      expect(state.leaderOpacity).toBe(0)
+      expect(state.flare).toBe(0)
+    }
+    expect(entranceTimeline(compactEntranceElapsed(COMPACT_LOGO)).phase).toBe('opening')
+    expect(compactEntranceElapsed(COMPACT_DURATION)).toBe(ENTRANCE_DURATION)
+    expect(compactEntranceElapsed(NaN)).toBe(0)
   })
 })

@@ -290,7 +290,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
       <div class="campus-contact">
         <div class="contact-row">
           <svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>
-          <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }} ↗</a>
+          <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }}<span class="map-hint" aria-hidden="true">地圖 ↗</span></a>
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
         <div class="social-row">
@@ -439,6 +439,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .contact-row .icon{width:18px;height:18px;color:var(--muted)}
 .contact-row a{display:inline-flex;align-items:center;min-height:44px;overflow-wrap:anywhere}
 .contact-row a:hover{text-decoration:underline;text-underline-offset:5px}
+/* 單一個 ↗ 在手機上看不出是地圖連結；補一段「地圖」字樣（2026-09-27）。 */
+.map-hint{flex-shrink:0;margin-left:8px;font-size:var(--fs-sm);text-decoration:underline;text-underline-offset:4px;white-space:nowrap}
 .phone{font-family:var(--font-latin);font-size:var(--fs-3xl);font-weight:400;letter-spacing:.015em;font-variant-numeric:tabular-nums}
 .social-row{display:flex;align-items:center;gap:8px 20px;color:var(--muted);font-size:var(--fs-sm);margin-top:7px;flex-wrap:wrap}
 .social-row a,.social-row span{display:inline-flex;align-items:center;min-height:44px;gap:8px}

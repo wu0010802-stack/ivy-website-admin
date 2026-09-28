@@ -165,6 +165,11 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .day-film-caption{left:18px;bottom:18px}
  .day-film-caption span[lang]{display:none}
  .day-film-toggle{right:16px;bottom:14px;padding:8px 14px}
+ /* 拍立得蓋上來以後（DayExperience 的 data-covered）：圖說退場、暫停鍵收成 44px 圓鈕，不再壓住卡片上的時間與內文。 */
+ .day-film-caption{transition:opacity .3s ease-out}
+ .day-film-ui[data-covered="1"] .day-film-caption{opacity:0}
+ .day-film-ui[data-covered="1"] .day-film-toggle{width:44px;height:44px;padding:0;justify-content:center;gap:0}
+ .day-film-ui[data-covered="1"] .day-film-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  .day-note{width:calc(100% - 40px);padding-bottom:64px}
 }
 @media(prefers-reduced-motion:reduce){
@@ -273,3 +278,14 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 ::view-transition-image-pair(campus-photo){overflow:clip;border-radius:24px}
 ::view-transition-old(campus-photo),::view-transition-new(campus-photo){height:100%;object-fit:cover;animation-duration:.45s}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.4s}
+/* 手機 UX 整理（2026-09-27）
+   - 分校頁「預約」按鈕去重：頁首膠囊一直都在，頁內只留 hero 與最後的預約橫幅；
+     照片探索底部與「交通與聯絡」那兩顆在手機收掉（桌機版面不變）。
+   - 照片探索的縮放列在手機收起：頁面本來就能兩指縮放，要細看就按「展開檢視」，展開後才出現縮放鍵。
+   - 「孩子的一天」底部說明是三行句子，手機從 12px 提到 13px。 */
+@media(max-width:760px){
+ .contact-book,.tour-footnote a{display:none}
+ .tour-explorer:not(.expanded) .tour-zoom{display:none}
+ .tour-explorer:not(.expanded) .tour-image-tools{padding-block:10px}
+ .day-note{font-size:.8125rem}
+}

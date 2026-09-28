@@ -34,3 +34,21 @@ export function entranceTimeline(elapsedMs: number) {
   const shadowOpacity = 0.18 * (1 - smooth(opening / 0.8))
   return { phase, countdown, opening, projection, iris, logoOpacity, leaderOpacity, leaderIris, sweep, flash, flare, filmFrame: Math.floor(countElapsed / (1000 / 12)), shadowOpacity, complete }
 }
+
+// Phones get a compact cut (2026-09-27): the emblem plays faster, the leader
+// is skipped outright, and the rail opens a little quicker, 8.9 s → 3.8 s.
+// The countdown is never shortened, only left out; desktop keeps the full cut.
+export const COMPACT_ENTRANCE_MEDIA = '(max-width: 760px), (max-height: 500px)'
+export const COMPACT_LOGO = 1500
+export const COMPACT_OPENING = 2300
+export const COMPACT_DURATION = COMPACT_LOGO + COMPACT_OPENING
+// Resume just after the leader's 180 ms dissolve, so the cut never flashes a frame of it.
+const COMPACT_RESUME = OPENING_START + 180
+
+/** Maps wall-clock time of the compact cut onto the full timeline. */
+export function compactEntranceElapsed(realMs: number) {
+  const real = Math.max(0, Number.isFinite(realMs) ? realMs : 0)
+  if (real < COMPACT_LOGO) return real * LOGO_DURATION / COMPACT_LOGO
+  const t = Math.min(1, (real - COMPACT_LOGO) / COMPACT_OPENING)
+  return COMPACT_RESUME + t * (ENTRANCE_DURATION - COMPACT_RESUME)
+}
