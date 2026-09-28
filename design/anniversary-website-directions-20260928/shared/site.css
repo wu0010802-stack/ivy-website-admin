@@ -16,7 +16,8 @@
   --head-h: 90px;
 }
 @media (max-width: 1100px) { :root { --gutter: 48px; } }
-@media (max-width: 760px) { :root { --gutter: 20px; --head-h: 72px; } }
+@media (max-width: 760px) { :root { --gutter: 20px; --head-h: 78px; } }
+@media (max-width: 380px) { :root { --gutter: 16px; } }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-padding-top: 110px; }
@@ -69,23 +70,32 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   .brand-crest { width: 36px; height: 39px; }
   .brand-name { font-size: 18px; white-space: nowrap; }
   .brand-en { font-size: 11px; white-space: nowrap; }
-  .site-book { font-size: 14px; padding: 6px 12px; gap: 8px; white-space: nowrap; }
-  .site-menu { margin-right: -10px; }
+  .brand-en { font-size: 10.8px; }
+  .site-book { font-size: 13px; padding: 6px 12px; gap: 8px; white-space: nowrap; min-height: 52px; }
+  .site-menu { flex: none; width: 44px; height: 44px; margin-right: -4px; }
 }
-@media (max-width: 380px) { .brand-name { font-size: 16px; } .site-book small { display: none; } }
+/* 對齊正式站 320 實測（2026-09-28 dev server）：gutter 16、校徽 24×26、中文 15px、英文 9px、預約鈕 93 寬、選單 44×44 */
+@media (max-width: 380px) {
+  .brand { gap: 6px; }
+  .brand-crest { width: 24px; height: 26px; }
+  .brand-name { font-size: 15px; }
+  .brand-en { font-size: 9px; }
+  .site-book { padding: 6px 10px; gap: 6px; }
+  .site-menu { margin-right: 0; }
+}
 
 /* ── 頁尾（正式站 SiteFooter 的簡化複本） ──────────────────────────── */
-.site-foot { background: var(--ivy-forest); color: rgb(var(--on-dark) / .92); padding: 64px 0 32px; }
+.site-foot { background: var(--ivy-footer-bg); color: var(--ivy-footer-text); padding: 64px 0 32px; }
 .site-foot-grid { display: grid; grid-template-columns: 1.3fr 1fr 1.1fr; gap: 40px; }
-.site-foot-brand b { display: block; font: 700 26px/1.3 var(--font-head); letter-spacing: .08em; color: rgb(var(--on-dark)); }
+.site-foot-brand b { display: block; font: 700 26px/1.3 var(--font-head); letter-spacing: .08em; color: var(--ivy-footer-text); }
 .site-foot-brand small { display: block; margin-top: 10px; font: 600 13px/1.4 var(--font-en); letter-spacing: .14em; text-transform: uppercase; }
 .site-foot-brand p { margin-top: 18px; font-size: var(--fs-sm); }
 .site-foot-links { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; align-content: start; font-size: var(--fs-sm); }
 .site-foot-links a { min-height: 32px; }
 .site-foot-campus { display: grid; gap: 10px; font-size: var(--fs-sm); align-content: start; }
-.site-foot-campus b { color: rgb(var(--on-dark)); }
+.site-foot-campus b { color: var(--ivy-footer-text); }
 .site-foot-campus > span { display: flex; gap: 16px; white-space: nowrap; }
-.site-foot-base { margin-top: 44px; padding-top: 22px; border-top: 1px solid rgb(var(--on-dark) / .22); font-size: var(--fs-xs); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.site-foot-base { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--ivy-footer-line); font-size: var(--fs-xs); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 @media (max-width: 900px) { .site-foot-grid { grid-template-columns: 1fr; gap: 32px; } }
 
 @media (prefers-reduced-motion: reduce) {

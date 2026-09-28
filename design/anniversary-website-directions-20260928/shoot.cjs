@@ -12,7 +12,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'anni-shots-'))
 function save(png, stem) {
   const src = path.join(TMP, stem + '.png')
   fs.writeFileSync(src, png)
-  execFileSync('python3', ['-c', 'import sys;from PIL import Image;Image.open(sys.argv[1]).convert("RGB").save(sys.argv[2],"WEBP",quality=82,method=6)', src, path.join(OUT, stem + '.webp')])
+  // WebP 單邊上限 16383px：太長的整頁截圖先等比縮到上限內
+  execFileSync('python3', ['-c', 'import sys;from PIL import Image;im=Image.open(sys.argv[1]).convert("RGB");k=min(1,16383/im.height);im=im.resize((round(im.width*k),round(im.height*k)),Image.LANCZOS) if k<1 else im;im.save(sys.argv[2],"WEBP",quality=82,method=6)', src, path.join(OUT, stem + '.webp')])
 }
 const { chromium } = require(path.join(__dirname, '../../node_modules/playwright'))
 

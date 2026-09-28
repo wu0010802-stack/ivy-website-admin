@@ -17,6 +17,7 @@
     if (q.get('frame') === 'eyebrow') root.dataset.frame = 'eyebrow'
   })()
 </script>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="shared/site.css">
 <link rel="stylesheet" href="b-weave-facts.css">
 </head>
@@ -97,6 +98,7 @@
       <div class="check320">
         <p class="check-title">320px 實測：首頁與分校小標是否一行</p>
         <iframe class="check-frame" src="?v=during&amp;frame=eyebrow" title="320 像素寬的小標實測（本頁精簡模式）" width="320" height="232"></iframe>
+        <p class="check-self">這個視窗本身就不到 362px：上面的首屏片段和下方 ④ 的分校小標，就是這個寬度的實測結果。</p>
       </div>
     </div>
   </section>
@@ -211,7 +213,7 @@
         </div>
         <div class="c-cards">
           <div class="c-card">
-            <h4>義華校</h4>
+            <h4>來認識義華校</h4>
             <dl>
               <div class="found"><dt>創立</dt><dd><span class="ph">民國 86 年（1997）</span><span class="keep-tag">常設，不隨週年撤</span></dd></div>
               <div><dt>所在地</dt><dd>三民區義華路68號</dd></div>
@@ -220,7 +222,7 @@
             </dl>
           </div>
           <div class="c-card">
-            <h4>仁武校</h4>
+            <h4>來認識仁武校</h4>
             <dl>
               <div class="found"><dt>創立</dt><dd><span class="ph">民國 110 年（2021）</span><span class="keep-tag">常設，不隨週年撤</span></dd></div>
               <div><dt>所在地</dt><dd>仁武區京吉一路102號</dd></div>
@@ -246,7 +248,7 @@
             <dd data-only="during full">期間內只有義華小標前段換成「常春藤 30 週年」；其他四校維持「常春藤幼兒園 · 高雄{區} · YYYY 年成立」，並加測試擋「30」。</dd>
             <dd data-only="after">義華小標前段 1/1 由時間閘換回「常春藤幼兒園」；「· YYYY 年成立」和「創立」列常設保留。</dd>
           </div>
-          <div><dt>320px</dt><dd>小標在 ≤359px 從 14px 收成 12px，仍是一行（見 ① 的實測）；「高雄{區}」不拿掉。</dd></div>
+          <div><dt>320px</dt><dd>手機小標和正式站一樣是 12px、字距 .1em（<code>styles.css</code> 的 <code>.hero .eyebrow</code>），加上「· YYYY 年成立」在 320px 仍是一行（見 ① 的實測）；「高雄{區}」不拿掉，也不必收掉前段。</dd></div>
           <div><dt>寫法</dt><dd>建議「本校 2021 年成立」這種寫法；不寫「本校第 N 年」這種序數：起算方式沒定，可能差一年。</dd></div>
         </dl>
       </details>

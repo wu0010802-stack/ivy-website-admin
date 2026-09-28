@@ -26,7 +26,8 @@ html[data-v="after"] [data-only]:not([data-only~="after"]) { display: none !impo
 del.gone { display: none; }
 html[data-diff="on"] del.gone { display: inline; color: var(--error); text-decoration: line-through 2px; text-decoration-color: var(--error); }
 @media (min-width: 901px) {
-  html[data-diff="on"] .snip-hero del.gone { color: var(--yellow); text-decoration-color: var(--yellow); }
+  /* 照片上的刪除字自帶深底，不和金色底色疊在一起（黃字疊金底看不清） */
+  html[data-diff="on"] .snip-hero del.gone { color: var(--yellow); text-decoration-color: var(--yellow); background: rgb(var(--ink) / .78); border-radius: 2px; }
 }
 html[data-diff="on"] .chg { background: rgb(var(--ivy-gold-glow-rgb) / .38); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 
@@ -43,9 +44,16 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 .skip-link { position: absolute; left: 16px; top: -80px; z-index: 400; padding: 12px 18px; border-radius: 8px; background: var(--deep); color: var(--white); }
 .skip-link:focus { top: 12px; }
 
-/* 共用頁首的選單連結補足 44px 觸控高度（不改共用檔） */
+/* 共用頁首的選單連結補足 44px 觸控高度（不改共用檔）；320px 時選單鈕不被擠窄 */
 .site-nav a { min-height: 44px; align-content: center; }
 .site-head .brand { min-height: 44px; }
+.site-menu { flex: none; }
+
+/* 比稿標記：桌機轉成直向收進左側留白（不蓋註記欄），手機併進底部日期列上緣 */
+@media (min-width: 901px) {
+  /* 不用直排：本機中文字型缺直排字距會疊字，改成整條橫排再轉 -90°，貼在左側 80px（窄桌機 48px）留白裡 */
+  .mock-flag { left: 10px; bottom: 16px; max-width: none; height: 30px; padding: 0 14px; border-radius: 8px; white-space: nowrap; font-size: 11px; line-height: 30px; letter-spacing: .04em; transform-origin: 0 100%; transform: translateX(30px) rotate(-90deg); }
+}
 
 /* ── ⓪ 說明帶 ──────────────────────────────────────────────── */
 .intro { background: var(--cream); padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
@@ -54,7 +62,7 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 .intro h1 { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; font-size: clamp(2.25rem, 3.4vw, 3.25rem); line-height: 1.35; letter-spacing: .015em; color: var(--green); }
 .intro-title { outline: 1.5px dashed rgb(var(--ivy-forest-rgb) / .45); outline-offset: 8px; border-radius: 6px; }
 .intro h1 .demo-note { margin-bottom: 10px; font-family: var(--font); font-weight: 400; color: var(--muted); }
-.intro-lede { margin-top: 28px; max-width: 38em; font-size: var(--fs-lg); line-height: 1.9; }
+.intro-lede { margin-top: 28px; max-width: 38em; font-size: var(--fs-lg); line-height: 1.9; text-wrap: pretty; }
 .legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 24px 0 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--muted); }
 .legend li { display: flex; align-items: center; gap: 8px; }
 .lg-ph { padding: 0 6px; border: 1px dashed currentColor; border-radius: 3px; color: var(--text); }
@@ -117,7 +125,8 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 .hero-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 68% 30%; }
 .snip-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgb(var(--ink) / .74), rgb(var(--ink) / .34) 58%, rgb(var(--ink) / .04)); }
 .hero-copy { display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 0 56px; text-shadow: 0 1px 3px rgb(var(--ink) / .45); }
-.hero-eyebrow { font: 700 var(--fs-sm)/1.8 var(--font-head); letter-spacing: .18em; }
+/* 同正式站 typography.css 的 .studio-hero-copy .eyebrow：內文字型 500、字距 .1em（不是 LINE Seed 粗體） */
+.hero-eyebrow { font: 500 var(--fs-sm)/1.8 var(--font); letter-spacing: .1em; }
 .hero-copy .tags { margin-top: 12px; }
 .hero-h { margin-top: 26px; font-size: 48px; line-height: 1.32; letter-spacing: .015em; }
 .grow { position: relative; display: inline-block; }
@@ -127,7 +136,14 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 /* 320px 實測 iframe */
 .check320 { display: grid; gap: 10px; }
 .check-title { font-size: var(--fs-sm); font-weight: 700; color: var(--note-ink); }
-.check-frame { display: block; width: 320px; max-width: 100%; height: 256px; border: 1px solid var(--note-line); border-radius: 12px; background: var(--paper); }
+/* 框線用 box-shadow，iframe 內部視窗才是整整 320px */
+.check-frame { display: block; width: 320px; max-width: 100%; height: 256px; border: 0; box-shadow: 0 0 0 1px var(--note-line); border-radius: 12px; background: var(--paper); }
+.check-self { display: none; padding: 10px 12px; border-radius: 10px; background: var(--note-bg); color: var(--note-ink); font-size: var(--fs-xs); line-height: 1.6; }
+/* 視窗本身就不到 362px 時，iframe 會被壓窄、量出假的換行；改看上面片段本身 */
+@media (max-width: 361px) {
+  .check-frame { display: none; }
+  .check-self { display: block; }
+}
 
 /* ── ② 首頁「關於」 ───────────────────────────────────────── */
 .snip-belief { isolation: isolate; background: var(--ivy-forest-mist); color: var(--ivy-forest); padding: 72px 56px 80px; }
@@ -197,14 +213,18 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .06); 
 .compare s { text-decoration-thickness: 1.5px; }
 
 /* ── ⑤ 頁尾 ───────────────────────────────────────────────── */
-.snip-foot { background: var(--ivy-forest); }
-.snip-foot .site-foot { padding: 52px 0 26px; }
+/* 正式站頁尾 A：--ivy-footer-bg 深森林綠＋文字全白（tokens.css 第 6 節），共用檔的簡化頁尾用的是 --ivy-forest */
+.snip-foot { background: var(--ivy-footer-bg); }
+.snip-foot .site-foot { padding: 52px 0 26px; background: var(--ivy-footer-bg); color: var(--ivy-footer-text); }
+.snip-foot .site-foot-brand b, .snip-foot .site-foot-campus b { color: var(--ivy-footer-text); }
+.snip-foot .site-foot-base { border-top-color: var(--ivy-footer-line); }
 .foot-in { padding-inline: 40px; }
 .snip-foot .site-foot-links a { display: flex; align-items: center; min-height: 44px; }
 .snip-foot .site-foot-links { gap: 0 28px; }
 .snip-foot .site-foot-base { margin-top: 34px; font-size: var(--fs-xs); }
 .ph-dark { outline-color: rgb(var(--on-dark) / .7); }
-html[data-diff="on"] .snip-foot .chg { background: rgb(var(--ivy-gold-glow-rgb) / .3); }
+/* 頁尾不加金色：差異底色在頁尾改用白色半透明 */
+html[data-diff="on"] .snip-foot .chg { background: rgb(var(--on-dark) / .2); }
 
 /* ── ⑥ 布幕 ───────────────────────────────────────────────── */
 .snip-curtain { padding: 32px; }
@@ -302,6 +322,7 @@ html[data-v="full"] .ops [data-col="full"], html[data-v="after"] .ops [data-col=
 .frame-view { display: none; }
 html[data-frame] body > :not(.frame-view) { display: none !important; }
 html[data-frame] .frame-view { display: grid; gap: 6px; padding: 8px 20px; }
+html[data-frame] body { padding-bottom: 0 !important; }
 .fv-row { padding: 6px 12px 5px; border-radius: 10px; margin-inline: -12px; }
 .fv-home { background: var(--paper); color: var(--text); border: 1px solid var(--line); }
 .fv-campus { background: var(--ivy-forest); }
@@ -315,9 +336,9 @@ html[data-frame] .frame-view { display: grid; gap: 6px; padding: 8px 20px; }
 .fv-result.bad { color: var(--error); }
 .fv-campus .fv-result.bad { color: var(--yellow); }
 
-/* ≤359px：分校小標 14px 收成 12px，保住一行（第 0 層提案「放不下再收前段」的替代做法） */
-@media (max-width: 359px) {
-  .c-eyebrow { font-size: var(--fs-xs); letter-spacing: .06em; }
+/* ≤760px：分校小標和正式站一樣是 12px、字距 .1em（styles.css 的 .hero .eyebrow），不另外收字距 */
+@media (max-width: 760px) {
+  .c-eyebrow { font-size: var(--fs-xs); }
 }
 
 /* ── 桌機窄一點 ─────────────────────────────────────────────── */
@@ -327,12 +348,23 @@ html[data-frame] .frame-view { display: grid; gap: 6px; padding: 8px 20px; }
   .retire { grid-template-columns: 1fr 1fr; }
   .tl-year span { font-size: 32px; }
 }
+/* 901–1100px 的註記欄只有 280px：320px 實測框移到片段下方，iframe 才維持 320 */
+@media (min-width: 901px) and (max-width: 1100px) {
+  .tour-grid > .check320 { grid-column: 2; grid-row: 4; }
+  /* 片段欄太窄，兩個半寬 hero 會把小標擠成兩行（正式站是滿版，不會），改成上下排 */
+  .c-heroes { grid-template-columns: 1fr; }
+  .c-hero { min-height: 340px; }
+  .c-hero + .c-hero { border-left: 0; border-top: 2px solid var(--paper); }
+}
 
 /* ── 手機 ─────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  :root { --dock-h: 68px; }
-  body { padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
-  .mock-flag { bottom: calc(var(--dock-h) + env(safe-area-inset-bottom) + 10px); }
+  :root { --dock-h: 68px; --flag-h: 26px; }
+  body { padding-bottom: calc(var(--dock-h) + var(--flag-h) + env(safe-area-inset-bottom)); }
+  /* Tab 到頁面下半部時，焦點不要停在日期列底下（WCAG 2.4.11） */
+  html { scroll-padding-bottom: calc(var(--dock-h) + var(--flag-h) + 16px + env(safe-area-inset-bottom)); }
+  /* 比稿標記貼在日期列正上方、同底色，當成日期列的第一行，不再浮在片段上 */
+  .mock-flag { left: 0; right: 0; bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); max-width: none; height: var(--flag-h); padding: 0 12px; border-radius: 0; box-shadow: none; border-top: 1px solid rgb(var(--on-dark) / .15); font-size: 11px; line-height: calc(var(--flag-h) - 1px); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .intro { padding: 32px 0 28px; }
   .intro-grid { grid-template-columns: 1fr; gap: 24px; }
@@ -493,6 +525,13 @@ html[data-frame] .frame-view { display: grid; gap: 6px; padding: 8px 20px; }
 }
 
 @media (max-width: 359px) {
+  /* 共用頁首在 320px 會讓字標被預約鈕蓋住；照正式站 320px 的比例縮字標（不改共用檔） */
+  .site-head-row { padding-inline: 16px; gap: 6px; }
+  .site-head .brand { gap: 6px; }
+  .site-head .brand-crest { width: 30px; height: 32px; }
+  .site-head .brand-name { font-size: 14px; letter-spacing: 0; }
+  .site-head .brand-en { font-size: 8.5px; letter-spacing: 0; }
+  .site-head .site-book { padding: 6px 10px; gap: 6px; font-size: 13px; }
   .hero-copy { padding-inline: 16px; }
   .snip-belief, .snip-story { padding-inline: 16px; }
   .dates .d-date { font-size: 10px; }

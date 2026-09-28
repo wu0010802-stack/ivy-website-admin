@@ -206,6 +206,8 @@ html[data-v="early"] .pl[data-off~="early"] .pl-state { color: var(--muted); fon
 .np-series-copy { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; }
 .np-series-card .np-meta { justify-content: flex-start; }
 .np-series-card h5 { font-size: var(--fs-md); line-height: 1.6; text-wrap: balance; overflow-wrap: anywhere; }
+/* 窄卡的標題會折行：虛線框改成整塊矩形，不跟著行尾鋸齒 */
+.np-series-card h5 .ph { display: inline-block; }
 .np-series-card h5 a::after { content: ''; position: absolute; inset: 0; border-radius: 10px; }
 .np-series-card h5 a:focus-visible { outline: 0; }
 .np-series-card:focus-within { outline: 3px solid var(--leaf); outline-offset: 4px; border-radius: 10px; }
@@ -287,7 +289,8 @@ html[data-v="early"] .pl[data-off~="early"] .pl-state { color: var(--muted); fon
 .ops-card { position: relative; }
 .ops-tag { flex-basis: 100%; font-size: var(--fs-xs); color: var(--muted); }
 .ops-card h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 4px; font-size: var(--fs-xl); color: var(--green); }
-.ops-card h3 .demo-note { font-family: var(--font); font-weight: 400; color: var(--muted); }
+/* 共用 .demo-note 有 opacity .8，放在灰底上對比只剩約 3.6:1，這裡拿掉透明度（約 5.5:1） */
+.ops-card h3 .demo-note { font-family: var(--font); font-weight: 400; color: var(--muted); opacity: 1; }
 .ops-list { margin: 16px 0 0; }
 .ops-list > div { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--anno-line); font-size: var(--fs-sm); line-height: 1.7; }
 .ops-list dt { font-weight: 700; color: var(--leaf); }
@@ -342,6 +345,17 @@ html[data-v="early"] .pl[data-off~="early"] .pl-state { color: var(--muted); fon
   .brief { padding: 36px 0 32px; }
   .brief-lede { font-size: var(--fs-md); }
   .brief h1 span { display: block; }
+  /* 手機首屏先給切換方案：說明段落排到切換卡後面（說明段沒有可聚焦元素，Tab 順序不受影響） */
+  .brief-grid { display: flex; flex-direction: column; gap: 0; }
+  .brief-copy { display: contents; }
+  .brief-kicker { order: 1; }
+  .brief h1 { order: 2; }
+  .brief-ctrl { order: 3; margin-top: 24px; }
+  .brief-lede { order: 4; margin-top: 28px; }
+  .legend { order: 5; }
+  /* 左下角比稿標籤在手機縮成一行小字，免得蓋住切換列與內文 */
+  .mock-flag { left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 10px; border-radius: 8px; font-size: 11px; line-height: 1.6; }
+  .site-foot { padding-bottom: 56px; }
   .switcher { grid-template-columns: minmax(0, 1fr); }
   .pl-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cap .demo-note { margin-left: 0; }

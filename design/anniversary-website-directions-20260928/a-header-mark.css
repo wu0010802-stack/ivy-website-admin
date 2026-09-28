@@ -284,3 +284,38 @@ html[data-frame] .page-only, html[data-frame] .site-foot {display:none}
 html[data-frame="head"] #frame-pill, html[data-frame="pill"] #frame-head {display:none}
 .stage-fhead {height:92px;overflow:hidden;background:var(--deep)}
 #frame-pill .stage-pill {width:100%;height:86px;border-radius:0}
+
+/* ── 審稿修正（2026-09-28） ─────────────────────────────────────────── */
+/* 區塊副標：桌機寫裁切尺寸，手機改寫手機版的樣子 */
+.cap-phone {display:none}
+@media (max-width:760px) {.cap-desk {display:none} .cap-phone {display:inline}}
+
+/* 左下固定的比稿標記不要蓋住鍵盤焦點：捲動定位時底部多留一段；手機縮小 */
+html {scroll-padding-bottom:80px}
+@media (max-width:760px) {
+  html {scroll-padding-bottom:56px}
+  .mock-flag {left:8px;bottom:8px;padding:4px 10px;border-radius:8px;font-size:11px;line-height:1.5}
+}
+
+/* 麵包屑「首頁」：透明 ::before 左右各補 8px，點擊範圍到 44px 寬，外觀不變 */
+.crumbs a {position:relative}
+.crumbs a::before {content:"";position:absolute;inset:0 -8px}
+
+/* 比稿框架頁首：品牌連結補到 44px 高、選單鈕不被擠窄；≤380／≤360 照 studio.css:341-346 縮小字標，320 寬時字標不被預約鈕蓋住 */
+.site-head .brand {min-height:44px}
+.site-head .site-menu {flex:none}
+@media (max-width:380px) {
+  .site-head .brand {gap:6px}
+  .site-head .brand-crest {width:28px;height:30px}
+  .site-head .brand-en {font-size:9.6px}
+  .site-head .site-book {padding-inline:10px}
+}
+@media (max-width:360px) {
+  .site-head .brand-name {font-size:15px}
+  .site-head .brand-en {font-size:9px}
+  .site-head .brand-crest {width:24px;height:26px}
+}
+
+/* 預約鈕貼著視窗上緣與右緣，外推的焦點框會被裁掉；改成內縮的深綠框（米色焦點框在金底上也看不清） */
+.site-head .site-book:focus-visible {outline-color:var(--deep);outline-offset:-6px}
+@media (max-width:380px) {.site-head .site-head-row {padding-inline:16px}}

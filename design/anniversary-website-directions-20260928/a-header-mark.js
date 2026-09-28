@@ -35,7 +35,7 @@
     },
     b: {
       name: 'b 第三行', tag: '舊案重畫', redraw: 1,
-      desc: '英文行下方第三行「30 週年 · 1997–2027」，和上兩行同寬。舊方案的「──」改成「·」，年份寫 1997–2027。依 2026-09-18 截圖重畫；膠囊用金色「30」小點。',
+      desc: '英文行下方第三行「30 週年 · 1997–2027」，和上兩行同寬。舊方案「週年」與年份之間的長橫線改成「·」，年份寫 1997–2027。依 2026-09-18 截圖重畫；膠囊用金色「30」小點。',
       hero: '第三行照舊案整行金色。字標不能移動，第三行只能擠在英文行和頁首底線之間（間距見總表；比稿框架頁首高 90px，正式站 92px，差 2px 也一樣擠）。',
       paper: '米白頁首改字標色：「30 週年」用中文色，「· 1997–2027」用英文色。'
     },
@@ -238,9 +238,10 @@
       if (kind === 'none') {
         line1 = '品牌區寬 ' + brand.offsetWidth + 'px（基準）';
       } else if (kind === 'b') {
+        /* 頁首底線在 cell-in 的 y=89；位置除回縮放比例，取到 0.5px，桌機和手機量出來才會一樣 */
         var row = cell.querySelector('.anni-b'), rr = row.getBoundingClientRect();
-        var gap = Math.round(89 - (rr.bottom - o.top) / s);
-        line1 = '寬 +0px · ' + (gap < 0 ? '第三行壓到頁首底線 ' + (-gap) + 'px' : '第三行底距頁首底線 ' + gap + 'px') + ' · 最小字 ' + minFs + 'px';
+        var gap = Math.round((89 - (rr.bottom - o.top) / s) * 2) / 2;
+        line1 = '寬 +0px · ' + (gap < 0 ? '第三行行框和頁首底線重疊 ' + (-gap) + 'px' : '第三行行框距頁首底線 ' + gap + 'px') + ' · 最小字 ' + minFs + 'px';
       } else {
         line1 = '寬 +' + (brand.offsetWidth - base[bg]) + 'px（' + brand.offsetWidth + 'px）· 最小字 ' + minFs + 'px';
       }
