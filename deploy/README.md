@@ -696,6 +696,15 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
   - 線上 Lighthouse 未量：hero 手機首屏圖變大，LCP 影響待確認。
   - Safari／iOS 實機未驗證。
 
+## 2026-09-27 09-25／09-26 在途分支全部併入 main（main CI 部署）
+
+- 使用者要求把適合的分支併入 main。整合分支 `merge/all-branches-20260927`（base `443f53b`）依序合併 `feature/news-page-20260926`（含 `feature/about-page-20260926`）、`feature/home-effects-20260926`、`feature/visit-calendar-20260926`、`fix/media-publish-races-20260926`、`fix/slot-rule-sync-20260926`、`perf/mobile-scroll-20260925`、兩筆漏記的部署紀錄（`docs/deploy-admin-gaps-20260925`、`merge/all-branches-20260925`，依時間插入本檔 09-25 段落）與 `origin/claude/website-storytelling-bilingual-design-uda0iw`（只加 `design/storytelling-a-mockup-20260925/`）。衝突只在 README／DESIGN／本檔的日期段落，保留雙方。都沒有 migration，不需先備份正式 DB。
+- 不併：同標題已在 main 的 `deploy/flip-wind-corner-20260923`、`feature/social-films-20260925`、遠端 `deploy/campus-tab-colour-20260923`、本機 `main` 的 `03fc267`；`feature/admin-seo-analytics-retention-20260925`（收錄開關已由 main 的 `crawlerIndexable` 取代，wip 提交自註不合併）；`merge-attempt1-84de061`；`origin/renovate/configure`（FastAPI 釘版）。
+- 本機驗證（Node 22）：web typecheck 0 錯、vitest 51 檔 446 項；admin typecheck、vitest 37 檔 338 項；backend 獨立測試庫 820 passed＋下列 2 項；`contract:check` 通過；alembic 單一 head `de61f57ec77d`。
+- 第一次 push `443f53b..f05c702`：CI run `36280067098` backend 2 failed（`test_audit_coverage.py` 的 `create_app()` 沒帶設定、CI 的 pytest 步驟不注入 `WEBSITE_*`），deploy skipped。這是 main 自 `443f53b`（run `36245308691`）起就存在的問題，不是合併造成。
+- 修正 `0f79741`（測試改傳入測試設定），push `f05c702..0f79741`。CI run `36280309154` 五個 job 全綠含 deploy，部署 job 公開 smoke 通過。`/release.json` snapshot `9d748148d780ba3baba19bf00622ae830e4141e39c0ed9fe94ab9d9da48b5858`、`base_commit` `0f79741`、`web+api`、`created_at` 2026-09-27T00:07:22Z。
+- 部署後 GET `/`、`/about`、`/news`、`/admission`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200。未做瀏覽器畫面檢查、未登入後台、未寫入業務資料；Safari／iOS 未驗證。
+
 ## 2026-09-27 後台常春藤徽章 logo、登入頁改版、狀態色對比部署
 
 - 使用者要求合進 main 並上線。分支 `feature/admin-ui-20260927`，從 origin/main `0f79741` 開 sparse worktree，1 個提交 `e4dd4e0`；push 前 `origin/main` 仍是 `0f79741`，直接 fast-forward（`0f79741..e4dd4e0`，由使用者執行 push）。只改 `admin/`、README、stack 畫面基準；沒有 migration、沒有 API 或契約變更。
