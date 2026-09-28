@@ -3,13 +3,15 @@
 // 「最遠開放天數」；也可以按「依規則產生時段」立即補一段日期。存規則時，依
 // 規則產生、還沒有人預約的時段會跟著新規則調整（規格 L227）；已有家長排入、
 // 園方手動新增或手動關閉的時段不動。
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Delete, Plus } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
-import { attentionListPath, formatDate, formatWeekday, slotSyncLines, type SlotSyncResult } from '../api/labels'
+import { attentionListPath, formatDate, formatTime, formatWeekday, slotSyncLines, type SlotSyncResult } from '../api/labels'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
+import { useRequestSequence } from '../composables/useRequestSequence'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
 interface RuleRow { weekday: number; start_time: string; end_time: string; slot_minutes: number; capacity: number }
 interface ExceptionRow { id: string; exception_date: string; reason: string | null }
@@ -27,7 +29,9 @@ const advanceDays = ref(60)
 const loading = ref(false)
 const saving = ref(false)
 const generating = ref(false)
+const exceptionBusy = ref(false)
 const error = ref<string | null>(null)
+const requests = useRequestSequence()
 
 function taipeiDate(offsetDays = 0): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date(Date.now() + offsetDays * 86400000))
@@ -39,36 +43,65 @@ const attentionNotice = ref<{ date: string; count: number } | null>(null)
 // 改規則後，不在新規則內但已有家長排入的場次維持原樣（可能還開放新預約），
 // 要園方自己決定：同樣留一個不會自動消失的提醒。
 const keptBooked = ref(0)
-watch(() => props.campusKey, () => { attentionNotice.value = null; keptBooked.value = 0 })
-// 手機上日期區間只顯示一個月，雙月面板約 646px 會超出 390px 螢幕。
+// 存規則後新場次交給定期工作補（約一分鐘），不是馬上出現在清單：說明留在
+// 面板裡，不放三秒就消失的訊息；一分多鐘後再請時段頁背景重讀一次，新場次
+// 不必自己按重新整理就會出現。
+const savedNote = ref('')
+const REFILL_REFRESH_MS = 70_000
+let refillTimer: ReturnType<typeof setTimeout> | undefined
+function clearRefillTimer() {
+  if (refillTimer !== undefined) clearTimeout(refillTimer)
+  refillTimer = undefined
+}
+onBeforeUnmount(clearRefillTimer)
+// 手機上日期區間只顯示一個月，雙月面板約 646px 會超出 390px 螢幕。手機的數字框
+// 改用左右兩側的加減鈕，右側上下疊的小鈕在手機上只有 22px 高、點不準。
 const narrow = useNarrowScreen()
+const controlsPosition = computed(() => (narrow.value ? '' : 'right'))
 
 const errorText = apiErrorMessage
 
+function apply(result: Schedule) {
+  schedule.value = result
+  rules.value = result.rules.map((r) => ({ ...r }))
+  leadHours.value = result.min_lead_hours
+  advanceDays.value = result.max_advance_days
+}
+
 async function load() {
+  const request = requests.begin()
   if (!props.campusKey) return
   loading.value = true
   error.value = null
   try {
     const result = await api.get<Schedule>(`/admin/visit-schedule/${props.campusKey}`)
+    if (!requests.isCurrent(request)) return
     // 回應形狀不對（例如代理回了別的東西）就當讀取失敗，不讓畫面在
     // 計算「有沒有改過」時整個丟例外。
     if (!result || !Array.isArray(result.rules) || !Array.isArray(result.exceptions)) {
       schedule.value = null
+      rules.value = []
       error.value = '無法讀取開放規則'
       return
     }
-    schedule.value = result
-    rules.value = result.rules.map((r) => ({ ...r }))
-    leadHours.value = result.min_lead_hours
-    advanceDays.value = result.max_advance_days
+    apply(result)
   } catch (err) {
-    error.value = errorText(err, '無法讀取開放規則')
+    if (requests.isCurrent(request)) error.value = errorText(err, '無法讀取開放規則')
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
-watch(() => props.campusKey, load, { immediate: true })
+// 換校時先清掉上一校的規則：讀到之前顯示骨架，不讓上一校的規則或「尚未設定」
+// 暫時冒出來，被誤以為規則被清掉了。只採用最後一次讀取的回應。
+watch(() => props.campusKey, () => {
+  schedule.value = null
+  rules.value = []
+  attentionNotice.value = null
+  keptBooked.value = 0
+  savedNote.value = ''
+  clearRefillTimer()
+  void load()
+}, { immediate: true })
 
 const dirty = computed(() => {
   const s = schedule.value
@@ -79,6 +112,42 @@ const dirty = computed(() => {
     JSON.stringify(s.rules.map(({ weekday, start_time, end_time, slot_minutes, capacity }) => ({ weekday, start_time, end_time, slot_minutes, capacity }))) !==
       JSON.stringify(rules.value.map(({ weekday, start_time, end_time, slot_minutes, capacity }) => ({ weekday, start_time, end_time, slot_minutes, capacity })))
   )
+})
+// 規則改了還沒存：切校區（由時段頁呼叫 confirmLeave）、點側欄或關分頁都先確認。
+const { confirmLeave } = useUnsavedChanges(dirty, saving)
+defineExpose({ confirmLeave })
+
+// 每週規則一學期才改幾次，時段清單才是每天要看的：預設收合成一行摘要。
+// 有未儲存的修改時一律展開，不讓修改藏在收合的面板裡。
+const open = ref(false)
+const expanded = computed(() => open.value || dirty.value)
+function toggle() {
+  if (expanded.value && dirty.value) {
+    ElMessage.info('每週規則還沒儲存，儲存後才能收合')
+    return
+  }
+  open.value = !open.value
+}
+
+function timeRange(rule: RuleRow): string {
+  return `${formatTime(rule.start_time)}–${formatTime(rule.end_time)}`
+}
+
+// 收合時的一行摘要：看得出有沒有規則、開哪幾天、家長能約多遠。
+const summary = computed(() => {
+  const s = schedule.value
+  if (!s) return loading.value ? '讀取中…' : error.value ?? ''
+  const parts: string[] = []
+  if (s.rules.length === 0) {
+    parts.push('尚未設定每週規則')
+  } else {
+    const days = [...new Set(s.rules.map((r) => r.weekday))].sort((a, b) => a - b).map((d) => WEEKDAYS[d]).join('、')
+    const ranges = new Set(s.rules.map(timeRange))
+    parts.push(ranges.size === 1 ? `${days} ${timeRange(s.rules[0]!)}` : `${days}，共 ${s.rules.length} 條規則`)
+  }
+  parts.push(`家長可約 ${s.min_lead_hours} 小時後到 ${s.max_advance_days} 天內的場次`)
+  if (s.exceptions.length) parts.push(`休假日 ${s.exceptions.length} 天`)
+  return parts.join('・')
 })
 
 function slotsPerDay(rule: RuleRow): number {
@@ -105,12 +174,21 @@ async function save() {
       max_advance_days: advanceDays.value,
       rules: rules.value,
     })
-    schedule.value = result
-    rules.value = result.rules.map((r) => ({ ...r }))
+    apply(result)
     const changes = slotSyncLines({ ...result.slot_sync, kept_booked: 0 })
-    ElMessage.success(`已儲存開放規則。${changes.length ? `還沒有人預約的時段已跟著調整：${changes.join('、')}。` : ''}系統稍後會依新規則補上 ${result.max_advance_days} 天內的時段；要馬上開放可以按「依規則產生時段」。`)
+    ElMessage.success(`已儲存開放規則。${changes.length ? `還沒有人預約的時段已跟著調整：${changes.join('、')}。` : ''}`)
+    savedNote.value = result.rules.length
+      ? `系統約一分鐘內會依新規則補上 ${result.max_advance_days} 天內的時段，下方清單會自動更新；要馬上開放，請按「依規則產生時段」。`
+      : ''
     keptBooked.value = result.slot_sync?.kept_booked ?? 0
     if (result.slot_sync && changes.length) emit('slots-changed')
+    clearRefillTimer()
+    if (result.rules.length) {
+      refillTimer = setTimeout(() => {
+        refillTimer = undefined
+        emit('slots-changed')
+      }, REFILL_REFRESH_MS)
+    }
   } catch (err) {
     if (isVersionConflict(err)) await offerReload(err)
     else ElMessage.error(errorText(err, '儲存失敗'))
@@ -158,8 +236,23 @@ async function generate() {
   }
 }
 
+// 收合時標題列的「依規則產生時段」：展開後把焦點移到產生時段那一列，
+// 日期區間看得到、可以先改，再按一次才真的產生。
+const generateRow = ref<HTMLElement | null>(null)
+const generateHighlight = ref(false)
+async function openGenerate() {
+  open.value = true
+  await nextTick()
+  const row = generateRow.value
+  if (!row) return
+  row.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  row.querySelector<HTMLButtonElement>('.schedule__generate-button')?.focus()
+  generateHighlight.value = true
+  window.setTimeout(() => { generateHighlight.value = false }, 1600)
+}
+
 async function addException() {
-  if (!newException.value.date) return
+  if (!newException.value.date || exceptionBusy.value) return
   try {
     await ElMessageBox.confirm('這一天的時段會全部關閉，不再接受新預約。已排入的家長不會自動取消，會列入參觀案件的「待人工處理」，請聯絡後改期。', `${formatDate(newException.value.date)} 設為休假？`, {
       confirmButtonText: '設為休假',
@@ -169,6 +262,7 @@ async function addException() {
   } catch {
     return
   }
+  exceptionBusy.value = true
   try {
     const date = newException.value.date
     const result = await api.post<{ closed_slots: number; affected_requests: number }>(`/admin/visit-schedule/${props.campusKey}/exceptions`, {
@@ -182,10 +276,25 @@ async function addException() {
     emit('slots-changed')
   } catch (err) {
     ElMessage.error(errorText(err, '設定失敗'))
+  } finally {
+    exceptionBusy.value = false
   }
 }
 
+// 取消休假會把當天的時段重新開給家長預約（還會依規則補場次），和設為休假
+// 一樣先問一次；小小的文字鈕很容易誤觸。
 async function removeException(row: ExceptionRow) {
+  if (exceptionBusy.value) return
+  try {
+    await ElMessageBox.confirm('當天的時段會重新開放給家長預約，並依每週規則補上缺少的場次；手動關閉的時段維持關閉。', `取消 ${formatDate(row.exception_date)} 的休假？`, {
+      confirmButtonText: '取消休假',
+      cancelButtonText: '先不要',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  exceptionBusy.value = true
   try {
     const result = await api.delete<{ reopened_slots: number; created_slots: number }>(`/admin/visit-schedule/${props.campusKey}/exceptions/${row.id}`)
     const parts = [
@@ -198,6 +307,8 @@ async function removeException(row: ExceptionRow) {
     emit('slots-changed')
   } catch (err) {
     ElMessage.error(errorText(err, '取消失敗'))
+  } finally {
+    exceptionBusy.value = false
   }
 }
 
@@ -209,74 +320,126 @@ function disablePast(date: Date): boolean {
 </script>
 
 <template>
-  <section class="panel schedule" :aria-busy="loading">
-    <div class="panel__head">
-      <h2>每週開放規則</h2>
-      <span class="hint">系統每天依規則把時段補到最遠開放天數；改規則時，還沒有人預約的時段會跟著調整</span>
+  <section class="panel schedule" :aria-busy="loading" aria-labelledby="schedule-title">
+    <div class="panel__head schedule__head">
+      <div class="schedule__heading">
+        <h2 id="schedule-title">每週開放規則</h2>
+        <p class="schedule__summary" :class="{ 'is-error': Boolean(error) }">
+          <span v-if="dirty" class="dirty-note">有未儲存的修改・</span>{{ summary }}
+        </p>
+      </div>
+      <div class="schedule__head-actions">
+        <el-button v-if="error" :loading="loading" @click="load">重新載入</el-button>
+        <el-button v-if="canManage && !expanded && schedule?.rules.length" @click="openGenerate">依規則產生時段…</el-button>
+        <el-button
+          :icon="expanded ? ArrowUp : ArrowDown"
+          :aria-expanded="expanded ? 'true' : 'false'"
+          aria-controls="schedule-body"
+          @click="toggle"
+        >
+          {{ expanded ? '收合' : !canManage ? '查看規則' : schedule && !schedule.rules.length ? '設定每週規則' : '查看與修改' }}
+        </el-button>
+      </div>
     </div>
-    <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
-    <div v-else class="panel__body schedule__body">
-      <div class="schedule__window">
-        <label>最短提前
-          <el-input-number v-model="leadHours" :min="0" :max="336" :disabled="!canManage" size="small" controls-position="right" /> 小時
-        </label>
-        <label>最遠開放
-          <el-input-number v-model="advanceDays" :min="1" :max="365" :disabled="!canManage" size="small" controls-position="right" /> 天
-        </label>
-        <span class="hint">家長只看得到這個範圍內的時段</span>
+    <div v-show="expanded" id="schedule-body">
+      <div v-if="error" class="panel__body schedule__error">
+        <el-alert type="error" :closable="false" show-icon :title="error" description="請按上方「重新載入」再試一次。" />
       </div>
-
-      <p v-if="rules.length === 0" class="hint">還沒有規則。例如「週三 09:30–11:00，每 30 分鐘一場、每場 1 組」。</p>
-      <ul class="rules">
-        <li v-for="(rule, index) in rules" :key="index" class="rules__row">
-          <el-select v-model="rule.weekday" :disabled="!canManage" size="small" style="width: 84px" aria-label="星期">
-            <el-option v-for="(label, day) in WEEKDAYS" :key="day" :label="label" :value="day" />
-          </el-select>
-          <el-time-picker v-model="rule.start_time" value-format="HH:mm:ss" format="HH:mm" :clearable="false" :disabled="!canManage" size="small" style="width: 96px" aria-label="開始時間" />
-          <span>–</span>
-          <el-time-picker v-model="rule.end_time" value-format="HH:mm:ss" format="HH:mm" :clearable="false" :disabled="!canManage" size="small" style="width: 96px" aria-label="結束時間" />
-          <span>每</span>
-          <el-input-number v-model="rule.slot_minutes" :min="10" :max="240" :step="10" :disabled="!canManage" size="small" controls-position="right" style="width: 90px" aria-label="每場分鐘" />
-          <span>分鐘一場，每場</span>
-          <el-input-number v-model="rule.capacity" :min="1" :max="200" :disabled="!canManage" size="small" controls-position="right" style="width: 80px" aria-label="每場名額" />
-          <span>組</span>
-          <span class="hint" :class="{ 'is-bad': slotsPerDay(rule) === 0 }">{{ slotsPerDay(rule) ? `共 ${slotsPerDay(rule)} 場` : '時間不夠一場' }}</span>
-          <el-button v-if="canManage" text :icon="Delete" aria-label="刪除這條規則" @click="rules.splice(index, 1)" />
-        </li>
-      </ul>
-      <div v-if="canManage" class="schedule__actions">
-        <el-button :icon="Plus" size="small" @click="addRule">新增規則</el-button>
-        <el-button type="primary" size="small" :loading="saving" :disabled="!dirty || !rulesValid" @click="save">儲存規則</el-button>
+      <div v-if="!schedule && !error" class="panel__body">
+        <el-skeleton animated :rows="3" />
       </div>
-      <el-alert v-if="keptBooked" type="warning" show-icon :closable="true" class="schedule__attention" title="有已排入家長的場次不在新規則內" @close="keptBooked = 0">
-        <p>{{ keptBooked }} 場不在新規則內，但已有家長排入，維持原樣、仍可能接受新預約。照常接待但不想再收新預約，請在下方時段清單把名額調成已占用的組數；這一場不能接待，就關閉時段後聯絡家長改期。</p>
-      </el-alert>
-
-      <p v-if="schedule?.rules.length" class="hint">{{ schedule.rules_extended_on ? `上次自動補時段：${formatDate(schedule.rules_extended_on)}，補到 ${schedule.max_advance_days} 天內。` : '系統稍後會依規則自動補上時段。' }}整天不開放請設休假日；單一場次不開放可以在時段清單關閉，系統不會把它重新打開。</p>
-
-      <div v-if="canManage" class="schedule__generate">
-        <el-date-picker v-model="genRange" type="daterange" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" :single-panel="narrow" start-placeholder="開始" end-placeholder="結束" size="small" />
-        <el-button size="small" :loading="generating" :disabled="rules.length === 0" @click="generate">依規則產生時段</el-button>
-        <span class="hint">立即補一段日期；可以重複按，已存在的時段不會重複建立</span>
+      <div v-else-if="schedule && !canManage" class="panel__body schedule__body">
+        <!-- 唯讀帳號只列文字，不擺一整排停用的輸入框。 -->
+        <p class="schedule__line">家長可預約：{{ schedule.min_lead_hours }} 小時後到 {{ schedule.max_advance_days }} 天內的場次。</p>
+        <ul v-if="schedule.rules.length" class="rules rules--read">
+          <li v-for="(rule, index) in schedule.rules" :key="index">
+            {{ WEEKDAYS[rule.weekday] }} <span class="num">{{ timeRange(rule) }}</span>，每 {{ rule.slot_minutes }} 分鐘一場、每場 {{ rule.capacity }} 組（共 {{ slotsPerDay(rule) }} 場）
+          </li>
+        </ul>
+        <p v-else class="hint">尚未設定每週規則。</p>
+        <h3 class="schedule__sub">休假日與臨時封鎖</h3>
+        <ul v-if="schedule.exceptions.length" class="exceptions">
+          <li v-for="row in schedule.exceptions" :key="row.id">
+            <span class="num">{{ formatDate(row.exception_date) }}（{{ formatWeekday(row.exception_date) }}）</span>
+            <span>{{ row.reason || '未填原因' }}</span>
+          </li>
+        </ul>
+        <p v-else class="hint">接下來沒有休假日。</p>
+        <p class="hint">修改規則與休假日由校區管理者處理。</p>
       </div>
+      <div v-else-if="schedule" class="panel__body schedule__body">
+        <p class="hint">系統每天依規則把時段補到最遠開放天數；改規則時，還沒有人預約的時段會跟著調整。</p>
+        <div class="schedule__window">
+          <label class="schedule__field"><span class="schedule__label">最短提前</span>
+            <el-input-number v-model="leadHours" :min="0" :max="336" :controls-position="controlsPosition" class="schedule__number" /> 小時
+          </label>
+          <label class="schedule__field"><span class="schedule__label">最遠開放</span>
+            <el-input-number v-model="advanceDays" :min="1" :max="365" :controls-position="controlsPosition" class="schedule__number" /> 天
+          </label>
+          <span class="hint">家長只看得到這個範圍內的時段</span>
+        </div>
 
-      <h3 class="schedule__sub">休假日與臨時封鎖</h3>
-      <el-alert v-if="attentionNotice" type="warning" show-icon :closable="true" class="schedule__attention" title="休假日當天還有家長要來" @close="attentionNotice = null">
-        <p>{{ formatDate(attentionNotice.date) }} 還有 {{ attentionNotice.count }} 組家庭已排入。請聯絡家長後在案件頁處理：已確認的用「改期（換時段）」換到其他場次，待園方確認的先「退回聯絡中」再重新排入；不來了就取消預約。</p>
-        <router-link :to="attentionListPath(campusKey)">查看待人工處理的案件 →</router-link>
-      </el-alert>
-      <ul v-if="schedule?.exceptions.length" class="exceptions">
-        <li v-for="row in schedule.exceptions" :key="row.id">
-          <span class="num">{{ formatDate(row.exception_date) }}（{{ formatWeekday(row.exception_date) }}）</span>
-          <span>{{ row.reason || '未填原因' }}</span>
-          <el-button v-if="canManage" text size="small" @click="removeException(row)">取消休假</el-button>
-        </li>
-      </ul>
-      <p v-else class="hint">接下來沒有休假日。</p>
-      <div v-if="canManage" class="schedule__generate">
-        <el-date-picker v-model="newException.date" type="date" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" size="small" aria-label="休假日期" />
-        <el-input v-model="newException.reason" placeholder="原因，例如：教師研習" maxlength="200" size="small" style="width: 220px" />
-        <el-button size="small" @click="addException">設為休假</el-button>
+        <p v-if="rules.length === 0" class="hint">還沒有規則。例如「週三 09:30–11:00，每 30 分鐘一場、每場 1 組」。</p>
+        <ul class="rules">
+          <li v-for="(rule, index) in rules" :key="index" class="rules__row">
+            <div class="rules__when">
+              <el-select v-model="rule.weekday" class="rules__weekday" aria-label="星期">
+                <el-option v-for="(label, day) in WEEKDAYS" :key="day" :label="label" :value="day" />
+              </el-select>
+              <el-time-picker v-model="rule.start_time" value-format="HH:mm:ss" format="HH:mm" :clearable="false" class="rules__time" aria-label="開始時間" />
+              <span aria-hidden="true">–</span>
+              <el-time-picker v-model="rule.end_time" value-format="HH:mm:ss" format="HH:mm" :clearable="false" class="rules__time" aria-label="結束時間" />
+            </div>
+            <div class="rules__how">
+              <span class="schedule__field"><span class="schedule__label">每場長度</span>
+                <el-input-number v-model="rule.slot_minutes" :min="10" :max="240" :step="10" :controls-position="controlsPosition" class="schedule__number" aria-label="每場分鐘" /> 分鐘
+              </span>
+              <span class="schedule__field"><span class="schedule__label">每場名額</span>
+                <el-input-number v-model="rule.capacity" :min="1" :max="200" :controls-position="controlsPosition" class="schedule__number" aria-label="每場名額" /> 組
+              </span>
+            </div>
+            <div class="rules__foot">
+              <span class="hint" :class="{ 'is-bad': slotsPerDay(rule) === 0 }">{{ slotsPerDay(rule) ? `共 ${slotsPerDay(rule)} 場` : '時間不夠一場' }}</span>
+              <el-button text :icon="Delete" aria-label="刪除這條規則" class="rules__delete" @click="rules.splice(index, 1)" />
+            </div>
+          </li>
+        </ul>
+        <div class="schedule__actions">
+          <el-button :icon="Plus" @click="addRule">新增規則</el-button>
+          <el-button type="primary" :loading="saving" :disabled="!dirty || !rulesValid" @click="save">儲存規則</el-button>
+          <span v-if="dirty" class="dirty-note" role="status">有未儲存的修改</span>
+        </div>
+        <el-alert v-if="savedNote" type="success" show-icon :closable="true" class="schedule__attention" :title="savedNote" @close="savedNote = ''" />
+        <el-alert v-if="keptBooked" type="warning" show-icon :closable="true" class="schedule__attention" title="有已排入家長的場次不在新規則內" @close="keptBooked = 0">
+          <p>{{ keptBooked }} 場不在新規則內，但已有家長排入，維持原樣、仍可能接受新預約。照常接待但不想再收新預約，請在下方時段清單把名額調成已占用的組數；這一場不能接待，就關閉時段後聯絡家長改期。</p>
+        </el-alert>
+
+        <p v-if="schedule.rules.length" class="hint">{{ schedule.rules_extended_on ? `上次自動補時段：${formatDate(schedule.rules_extended_on)}，補到 ${schedule.max_advance_days} 天內。` : '系統稍後會依規則自動補上時段。' }}整天不開放請設休假日；單一場次不開放可以在時段清單關閉，系統不會把它重新打開。</p>
+
+        <div ref="generateRow" class="schedule__row schedule__generate" :class="{ 'is-highlight': generateHighlight }">
+          <el-date-picker v-model="genRange" type="daterange" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" :single-panel="narrow" start-placeholder="開始" end-placeholder="結束" class="schedule__range" aria-label="產生時段的日期區間" />
+          <el-button class="schedule__generate-button" :loading="generating" :disabled="rules.length === 0" @click="generate">依規則產生時段</el-button>
+          <span class="hint">立即補一段日期；可以重複按，已存在的時段不會重複建立</span>
+        </div>
+
+        <h3 class="schedule__sub">休假日與臨時封鎖</h3>
+        <el-alert v-if="attentionNotice" type="warning" show-icon :closable="true" class="schedule__attention" title="休假日當天還有家長要來" @close="attentionNotice = null">
+          <p>{{ formatDate(attentionNotice.date) }} 還有 {{ attentionNotice.count }} 組家庭已排入。請聯絡家長後在案件頁處理：已確認的用「改期（換時段）」換到其他場次，待園方確認的先「退回聯絡中」再重新排入；不來了就取消預約。</p>
+          <router-link :to="attentionListPath(campusKey)">查看待人工處理的案件 →</router-link>
+        </el-alert>
+        <ul v-if="schedule.exceptions.length" class="exceptions">
+          <li v-for="row in schedule.exceptions" :key="row.id">
+            <span class="num">{{ formatDate(row.exception_date) }}（{{ formatWeekday(row.exception_date) }}）</span>
+            <span class="exceptions__reason">{{ row.reason || '未填原因' }}</span>
+            <el-button text :disabled="exceptionBusy" @click="removeException(row)">取消休假</el-button>
+          </li>
+        </ul>
+        <p v-else class="hint">接下來沒有休假日。</p>
+        <div class="schedule__row schedule__exception">
+          <el-date-picker v-model="newException.date" type="date" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" class="schedule__date" aria-label="休假日期" />
+          <el-input v-model="newException.reason" placeholder="原因，例如：教師研習" maxlength="200" class="schedule__reason" aria-label="休假原因" />
+          <el-button :loading="exceptionBusy" @click="addException">設為休假</el-button>
+        </div>
       </div>
     </div>
   </section>
@@ -284,13 +447,54 @@ function disablePast(date: Date): boolean {
 
 <style scoped>
 .schedule { margin-bottom: 16px; }
-.schedule__body { display: grid; gap: 12px; }
-.schedule__window, .schedule__generate, .schedule__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-2); }
-.schedule__window label { display: inline-flex; align-items: center; gap: 6px; }
+.schedule__head { flex-wrap: wrap; align-items: center; }
+.schedule__heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; flex: 1 1 320px; min-width: 0; }
+.schedule__heading h2 { white-space: nowrap; }
+.schedule__summary { min-width: 0; color: var(--ink-2); font-size: 13px; overflow-wrap: anywhere; }
+.schedule__summary.is-error { color: var(--el-color-danger); }
+.schedule__head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.schedule__head-actions .el-button + .el-button { margin-left: 0; }
+/* 單欄格線要明寫 minmax(0,1fr)：日期區間的預設寬度會把整欄撐得比卡片還寬。 */
+.schedule__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.schedule__window, .schedule__row, .schedule__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; font-size: 13px; color: var(--ink-2); }
+.schedule__actions .el-button + .el-button { margin-left: 0; }
+.schedule__field { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.schedule__number { width: 112px; }
+.schedule__line { color: var(--ink-2); }
 .rules, .exceptions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.rules__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
-.exceptions li { display: flex; gap: 12px; align-items: center; font-size: 14px; }
+.rules__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
+.rules__when { display: grid; grid-template-columns: 96px 112px auto 112px; align-items: center; gap: 8px; }
+/* 時間與日期選擇器的根節點在 tooltip 裡，吃不到 scoped 屬性，要從外層用 :deep
+   指定寬度；Element Plus 預設固定 220px，會跟隔壁欄位疊在一起。 */
+.rules__when :deep(.rules__time) { --el-date-editor-width: 100%; width: 100%; }
+.rules__how { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.rules__foot { display: inline-flex; align-items: center; gap: 8px 12px; }
+.rules--read li { color: var(--ink-2); }
+.exceptions li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 14px; }
+.exceptions__reason { min-width: 0; overflow-wrap: anywhere; }
 .is-bad { color: var(--el-color-danger); }
 .schedule__sub { margin: 8px 0 0; font-size: 14px; }
 .schedule__attention p { margin: 0 0 4px; }
+/* 日期區間的根節點是 .el-input__wrapper（預設 flex-grow:1），不收的話會撐滿整列。 */
+.schedule__generate :deep(.schedule__range) { --el-date-editor-width: 300px; flex: 0 1 300px; width: 300px; max-width: 100%; }
+.schedule__exception :deep(.schedule__date) { --el-date-editor-width: 160px; width: 160px; }
+.schedule__reason { flex: 1 1 220px; min-width: 0; max-width: 320px; }
+.schedule__generate { padding: 4px; margin: -4px; border-radius: var(--radius); transition: background-color 400ms var(--ease-out); }
+.schedule__generate.is-highlight { background: var(--el-color-primary-light-9); }
+
+@media (max-width: 720px) {
+  .schedule__heading { flex-basis: 100%; }
+  .schedule__summary { font-size: 14px; }
+  .schedule__head-actions { width: 100%; }
+  .schedule__window, .schedule__row, .schedule__actions, .rules__row { font-size: 14px; }
+  .schedule__number { width: 128px; }
+  /* 手機上星期、開始、結束排一列，其餘欄位各自換行；時鐘圖示讓位給時間。 */
+  .rules__when { width: 100%; grid-template-columns: 84px minmax(0, 1fr) auto minmax(0, 1fr); }
+  .rules__when :deep(.el-input__prefix) { display: none; }
+  /* 「共 N 場」與刪除鈕同一列，不讓刪除鈕自己占一整列。 */
+  .rules__foot { display: flex; width: 100%; justify-content: space-between; }
+  .schedule__generate :deep(.schedule__range),
+  .schedule__exception :deep(.schedule__date) { --el-date-editor-width: 100%; flex: 1 1 100%; width: 100%; }
+  .schedule__reason { width: 100%; max-width: none; flex-basis: 100%; }
+}
 </style>
