@@ -566,7 +566,7 @@ export const RELEASE_SOURCE_LABELS: Record<string, string> = {
   scheduled: '排程發布',
   restore: '還原舊版並發布',
   release_restore: '整站還原',
-  initialize: '初始化匯入',
+  initialize: '網站初始內容',
 }
 
 export function releaseSourceLabel(source: string | null | undefined): string {
