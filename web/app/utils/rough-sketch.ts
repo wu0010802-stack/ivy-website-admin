@@ -3,6 +3,8 @@
 // 點格紙、紅筆圈註與箭頭、蠟筆色紙、照片貼在彩色底紙上、黃色便利貼、貼紙按鈕，線條粗細介於鋼筆與蠟筆之間。
 // 線條全是裝飾（aria-hidden），內容與排版不依賴它；沒有 JS 時頁面照常可讀，只是沒有手繪線。
 // 元素用 data-rough="種類" 指定要畫什麼，data-seed 固定亂數，同一個元素每次重畫形狀一樣（滑過去時換種子「抖一下」）。
+// 2026-09-28 起小路、太陽與小路上的便條可以交給 GSAP 動態層（utils/environment-motion.ts，傳 motion 進來）；
+// 沒傳或 GSAP 載入失敗時，照原本的虛線小路與跟著捲動的太陽。
 import type { Options } from 'roughjs/bin/core'
 import type { RoughSVG } from 'roughjs/bin/svg'
 
@@ -55,23 +57,50 @@ function seeded(seed: number) {
   return () => ((s = (s * 9301 + 49297) % 233280) / 233280) - 0.5
 }
 
+type SketchColor = 'ink' | 'pen' | 'note' | 'tape' | 'yellow' | 'yellowDeep' | 'sky' | 'skyDeep' | 'leaf' | 'leafDeep' | 'peach' | 'peachDeep'
+
+/** 交給動態層的畫具：和這支畫線用的是同一套疊層、座標與顏色。 */
+export interface SketchTools {
+  rough: RoughStatic
+  colors: Record<SketchColor, string>
+  layer: (host: HTMLElement, key: string, bleed?: number, under?: boolean) => { svg: SVGSVGElement; rc: RoughSVG; w: number; h: number }
+  rel: (el: Element, host: Element) => Box
+  /** 這張照片底紙的顏色（和 frame 同一個算法，用原始種子；滑過去重畫時底紙會換色，這裡不跟著變）。 */
+  paperColor: (el: HTMLElement) => string
+}
+
+/** 動態層可以接手的部分；每一項都可以不給，不給就照原本的畫法。 */
+export interface SketchMotion {
+  /** 接手小路（不畫虛線）；每次重畫都會呼叫。 */
+  trail?: (el: HTMLElement, tools: SketchTools) => void
+  /** 接手太陽：p 是這一刻的捲動進度；place(p, spin) 把太陽放到 p、光芒轉 spin 度，回傳剛亮起的圓點。減少動態時不會呼叫。 */
+  sun?: (p: number, place: (p: number, spin?: number) => SVGGElement[]) => void
+  /** 這個元素的進場由動態層負責：這裡不先藏線、不描線。 */
+  owns?: (el: HTMLElement) => boolean
+}
+
 export interface SketchHandle {
   /** 重畫 scope 內的所有線條（分頁切換後呼叫）；進場描線照常。 */
   refresh: (scope?: ParentNode) => void
   destroy: () => void
 }
 
-export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reducedMotion }: { reducedMotion: boolean }): SketchHandle {
+export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reducedMotion, motion }: { reducedMotion: boolean; motion?: SketchMotion }): SketchHandle {
   const style = getComputedStyle(root)
   const token = (name: string) => style.getPropertyValue(name).trim()
   const C = {
     ink: token('--renv-ink'), pen: token('--renv-pen'), note: token('--renv-note'), tape: token('--renv-tape'),
     yellow: token('--renv-yellow'), yellowDeep: token('--renv-yellow-deep'), sky: token('--renv-sky'), skyDeep: token('--renv-sky-deep'),
-    leaf: token('--renv-leaf'), peach: token('--renv-peach'), peachDeep: token('--renv-peach-deep')
-  }
+    leaf: token('--renv-leaf'), leafDeep: token('--renv-leaf-deep'), peach: token('--renv-peach'), peachDeep: token('--renv-peach-deep')
+  } satisfies Record<SketchColor, string>
   const CRAYONS = [C.yellow, C.sky, C.leaf, C.peach]
   // 各章節的色紙（沒列的章節是點格紙底）；照片底紙會避開所在章節的色紙顏色
   const SHEETS: Record<string, [string, string]> = { care: [C.sky, C.skyDeep], meals: [C.yellow, C.yellowDeep] }
+  const paperColor = (el: HTMLElement, seed = Number(el.dataset.seed) || 1) => {
+    const sheet = SHEETS[el.closest('.renv-section')?.id ?? '']?.[0]
+    const palette = CRAYONS.filter((color) => color !== sheet)
+    return palette[seed % palette.length]!
+  }
   const cleanups: (() => void)[] = []
   const on = <K extends keyof WindowEventMap>(target: Window, type: K, fn: (e: WindowEventMap[K]) => void) => {
     target.addEventListener(type, fn, { passive: true })
@@ -162,9 +191,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       const r = seeded(seed)
       const pad = el.matches('.renv-hang-photo') ? 9 : 16
       const pts: Point[] = [[x - pad + r() * 8, y - pad + r() * 8], [x + w + pad + r() * 8, y - pad * 0.6 + r() * 8], [x + w + pad * 1.2 + r() * 8, y + h + pad + r() * 8], [x - pad * 0.8 + r() * 8, y + h + pad * 1.1 + r() * 8]]
-      const sheet = SHEETS[el.closest('.renv-section')?.id ?? '']?.[0]
-      const palette = CRAYONS.filter((color) => color !== sheet)
-      back.append(rb.polygon(pts, { fill: palette[seed % palette.length], fillStyle: 'solid', stroke: 'none', roughness: 2.2, seed }))
+      back.append(rb.polygon(pts, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 2.2, seed }))
       const grain = rb.polygon(pts, { fill: C.ink, fillStyle: 'hachure', hachureGap: 9, fillWeight: 0.6, stroke: C.ink, strokeWidth: 1.6, roughness: 2.4, seed: seed + 1 })
       grain.style.opacity = '0.16'
       back.append(grain)
@@ -249,6 +276,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       svg.style.zIndex = '6'
     },
     trail(el, seed) {
+      if (motion?.trail) { motion.trail(el, tools); return }
       const { svg, rc, w, h } = layer(el, 'trail', 40, true)
       const vertical = innerWidth <= 760
       const stops = [...el.querySelectorAll('.renv-stop-no')].map((n): Point => { const b = rel(n, el); return [b.x + b.w / 2, b.y + b.h / 2] })
@@ -394,19 +422,29 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     if (!trailRect || !trailHost || reducedMotion) return
     trailRect.setAttribute('height', String(Math.max(0, innerHeight * 0.72 - trailHost.getBoundingClientRect().top + 80)))
   }
+  /** 把太陽放到進度 p（光芒轉 spin 度），回傳這一次剛亮起的圓點。 */
+  function placeSun(p: number, spin = 0): SVGGElement[] {
+    if (!sun || !sunPos) return []
+    const [x, y] = sunPos(reducedMotion ? 0.5 : p)
+    const turn = spin ? ` rotate(${spin.toFixed(1)})` : ''
+    // 太陽走在弧線上方一點，不蓋住時間與圓點；窄螢幕縮小貼著直線走
+    sun.setAttribute('transform', innerWidth <= 900 ? `translate(${x} ${y}) scale(.62)${turn}` : `translate(${x} ${y - 44})${turn}`)
+    const lit: SVGGElement[] = []
+    for (const { g, li, t } of dots) {
+      const on = p >= t - 0.02
+      if (on && !g.classList.contains('is-lit')) lit.push(g)
+      g.classList.toggle('is-lit', on)
+      li.classList.toggle('is-lit', on)
+    }
+    return lit
+  }
   function sunScroll() {
     if (!dayHost || !sun || !sunPos) return
     const r = dayHost.getBoundingClientRect()
     const p = reducedMotion ? 1 : Math.min(1, Math.max(0, (innerHeight * 0.85 - r.top) / (r.height + innerHeight * 0.3)))
     dayHost.classList.toggle('is-live', !reducedMotion)
-    const [x, y] = sunPos(reducedMotion ? 0.5 : p)
-    // 太陽走在弧線上方一點，不蓋住時間與圓點；窄螢幕縮小貼著直線走
-    sun.setAttribute('transform', innerWidth <= 900 ? `translate(${x} ${y}) scale(.62)` : `translate(${x} ${y - 44})`)
-    for (const { g, li, t } of dots) {
-      const lit = p >= t - 0.02
-      g.classList.toggle('is-lit', lit)
-      li.classList.toggle('is-lit', lit)
-    }
+    if (motion?.sun && !reducedMotion) motion.sun(p, placeSun)
+    else placeSun(p)
   }
   on(window, 'scroll', () => { trailScroll(); sunScroll() })
 
@@ -441,7 +479,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     const fn = draw[el.dataset.rough ?? '']
     if (!fn || el.closest('[hidden]')) return
     fn(el, (Number(el.dataset.seed) || 1) + (boil.get(el) ?? 0))
-    if (!reducedMotion && !shown.has(el) && ANIMATED.has(el.dataset.rough!)) hide(el)
+    if (!reducedMotion && !shown.has(el) && ANIMATED.has(el.dataset.rough!) && !motion?.owns?.(el)) hide(el)
   }
   function renderAll(scope: ParentNode = root) {
     // 曬衣繩會調整照片高度，先畫；其餘照文件順序（照片框會先排好便條位置，便條才畫箭頭）
@@ -457,7 +495,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   const watch = (scope: ParentNode) => {
     for (const el of hosts(scope)) {
       if (!ANIMATED.has(el.dataset.rough ?? '') || el.closest('[hidden]')) continue
-      if (reducedMotion) shown.add(el)
+      if (reducedMotion || motion?.owns?.(el)) shown.add(el)
       else if (!shown.has(el)) revealIo.observe(el)
     }
   }
@@ -516,6 +554,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   }
   root.addEventListener('load', onLoad, true)
   cleanups.push(() => root.removeEventListener('load', onLoad, true))
+
+  const tools: SketchTools = { rough, colors: C, layer, rel, paperColor: (el) => paperColor(el) }
 
   renderAll()
   watch(root)

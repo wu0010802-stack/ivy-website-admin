@@ -19,6 +19,7 @@
   --renv-sky:oklch(86% .065 228);
   --renv-sky-deep:oklch(76% .09 232);
   --renv-leaf:oklch(83% .09 148);
+  --renv-leaf-deep:oklch(72% .11 148);
   --renv-peach:oklch(88% .07 55);
   --renv-peach-deep:oklch(80% .1 50);
   --renv-shadow:var(--shadow-rgb);
@@ -258,3 +259,12 @@ body:has(.renv){background:var(--ivy-ivory)}
 @media (prefers-reduced-motion:reduce){
   .renv *,.renv *::before,.renv *::after{transition:none !important}
 }
+
+/* 2026-09-28 GSAP 動態層（utils/environment-motion.ts）。比稿 design/environment-gsap-mockup-20260928/。
+   到站彈一下：用獨立的 scale 屬性（--renv-pop 由 GSAP 寫入），和便條原本的 transform:rotate() 疊加、不互相蓋掉。 */
+.renv-trail .renv-stop-no,.renv-trail .renv-note{scale:var(--renv-pop,1)}
+/* 曬衣繩起風：擺角 --renv-swing 由 GSAP 每幀寫入、疊在原本的傾角上。傾角另外註冊成角度（--renv-tilt），
+   hover 扶正時才能平滑過渡；不直接註冊 --rot，@property 是全站生效的，別的元件可能也用 --rot。 */
+@property --renv-tilt{syntax:'<angle>';inherits:false;initial-value:0deg}
+.renv.is-windy .renv-hang-item{--renv-tilt:var(--rot);transform:rotate(calc(var(--renv-tilt) + var(--renv-swing,0deg)));transition:--renv-tilt .6s var(--renv-ease),translate .6s var(--renv-ease)}
+@media (hover:hover){.renv.is-windy .renv-hang-item:hover{--renv-tilt:0deg;translate:0 -4px}}

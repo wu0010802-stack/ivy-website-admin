@@ -7,6 +7,7 @@ import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
 import { clotheslineY, layoutSpotBoxes, mealArcPoint } from '../app/utils/rough-sketch'
+import { ARRIVE, LEAVE, footstepLengths, smoothPath, stepStop, walkAnchors, walkedLength } from '../app/utils/environment-motion'
 import manifest from '../app/generated/image-manifest.json'
 import fontManifest from '../app/generated/environment-font-manifest.json'
 
@@ -175,5 +176,95 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
         expect(hidden ? inCritical(cp) || inTour(cp) : inCritical(cp), `${key} ${char}`).toBe(true)
       }
     }
+  })
+})
+
+describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/environment-gsap-mockup-20260928/ 後同意上線）', () => {
+  const component = read('../app/components/EnvironmentContent.vue')
+  const motion = read('../app/utils/environment-motion.ts')
+  const sketch = read('../app/utils/rough-sketch.ts')
+
+  it('GSAP 只在這頁動態載入：元件與手繪線都沒有靜態 import，動態層本身只 import 型別', () => {
+    for (const source of [component, sketch]) expect(source).not.toMatch(/^import [^\n]*from 'gsap/m)
+    expect(motion).not.toMatch(/^import (?!type )[^\n]*from 'gsap/m)
+    expect(component).toContain("import('gsap')")
+    expect(component).toContain("import('gsap/ScrollTrigger')")
+    expect(component).toContain("import('gsap/MotionPathPlugin')")
+    expect(JSON.parse(read('../package.json')).dependencies.gsap).toBeTruthy()
+  })
+
+  it('GSAP 載入失敗就不用動態層，手繪線照畫（小路退回虛線）', () => {
+    expect(component).toMatch(/\.catch\(\(\) => null\)/)
+    expect(component).toContain('motion: motion ?? undefined')
+    expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools); return }')
+  })
+
+  it('小路提示字跟著改成小腳印', () => {
+    expect(component).toContain('跟著小腳印，走一圈看看')
+    expect(component).not.toContain('跟著虛線')
+  })
+
+  it('不在全站註冊通用名稱的 @property（--rot 別的元件也可能用）', () => {
+    const css = read('../app/assets/css/environment.css')
+    const registered = [...css.matchAll(/@property\s+(--[\w-]+)/g)].map((m) => m[1])
+    expect(registered.length).toBeGreaterThan(0)
+    for (const name of registered) expect(name).toMatch(/^--renv-/)
+  })
+
+  it('路線經過每一個點（Catmull-Rom 每一段的終點就是下一個點）', () => {
+    const points: [number, number][] = [[0, -70], [120, 200], [40, 520], [110, 900]]
+    const d = smoothPath(points)
+    expect(d.startsWith('M0.0,-70.0')).toBe(true)
+    const ends = [...d.matchAll(/C[^C]* (-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
+    expect(ends).toEqual(points.slice(1))
+  })
+
+  describe('捲動 → 走到小路的第幾 px', () => {
+    const vh = 900
+    const top = 3000
+    const stops = [{ cy: 300, length: 350 }, { cy: 800, length: 900 }]
+    const anchors = walkAnchors({ top, height: 1400, vh, stops, total: 1500 })
+    const yAt = (cy: number, line: number) => top + cy - vh * line
+
+    it('錨點 y 一定遞增', () => {
+      for (let i = 1; i < anchors.length; i++) expect(anchors[i]!.y).toBeGreaterThan(anchors[i - 1]!.y)
+    })
+    it('小路頂端還沒捲到視窗 80% 前不出發；底端捲過視窗一半就走完', () => {
+      expect(walkedLength(anchors, top - vh)).toBe(0)
+      expect(walkedLength(anchors, top + 1400)).toBe(1500)
+    })
+    it('號碼捲到視窗 ARRIVE 時剛好走到那一站，一直停到 LEAVE 才離開', () => {
+      expect(ARRIVE).toBeGreaterThan(LEAVE)
+      expect(walkedLength(anchors, yAt(300, ARRIVE))).toBeCloseTo(350)
+      expect(walkedLength(anchors, (yAt(300, ARRIVE) + yAt(300, LEAVE)) / 2)).toBeCloseTo(350)
+      expect(walkedLength(anchors, yAt(300, LEAVE))).toBeCloseTo(350)
+      expect(walkedLength(anchors, yAt(800, ARRIVE))).toBeCloseTo(900)
+    })
+    it('兩站之間線性內插', () => {
+      const mid = (yAt(300, LEAVE) + yAt(800, ARRIVE)) / 2
+      expect(walkedLength(anchors, mid)).toBeCloseTo((350 + 900) / 2)
+    })
+    it('兩站靠太近時錨點仍遞增、不會除以零', () => {
+      const tight = walkAnchors({ top, height: 400, vh, stops: [{ cy: 100, length: 100 }, { cy: 110, length: 130 }], total: 300 })
+      for (let i = 1; i < tight.length; i++) expect(tight[i]!.y).toBeGreaterThan(tight[i - 1]!.y)
+      expect(Number.isFinite(walkedLength(tight, top))).toBe(true)
+    })
+  })
+
+  it('腳印左右輪流、固定步距，站點前後 gap 內不踩', () => {
+    const steps = footstepLengths(1000, 40, [300, 700], 40)
+    steps.forEach((step, i) => { if (i) expect(step.left).toBe(!steps[i - 1]!.left) })
+    for (const { length } of steps) for (const stop of [300, 700]) expect(Math.abs(length - stop)).toBeGreaterThanOrEqual(40)
+    expect(steps[0]!.length).toBe(24)
+    expect(steps.every(({ length }) => (length - 24) % 40 === 0)).toBe(true)
+  })
+
+  it('腳印顏色跟著下一站：還沒走到的第一站，最後一站之後沿用最後一站', () => {
+    const stops = [300, 700, 1100]
+    expect(stepStop(10, stops)).toBe(0)
+    expect(stepStop(300, stops)).toBe(0)
+    expect(stepStop(301.5, stops)).toBe(1)
+    expect(stepStop(1000, stops)).toBe(2)
+    expect(stepStop(1400, stops)).toBe(2)
   })
 })

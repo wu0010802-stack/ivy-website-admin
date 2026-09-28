@@ -12,11 +12,11 @@
     }
   ],
   "preload": [
-    "/assets/fonts/environment/round-800-critical-8061eb86f0e7.woff2"
+    "/assets/fonts/environment/round-800-critical-8a94acd49f80.woff2"
   ],
   "stylesheet": {
-    "src": "/assets/fonts/environment/environment-fonts-extended-25f3400764cf.css",
-    "bytes": 168037
+    "src": "/assets/fonts/environment/environment-fonts-extended-e2807e9431d8.css",
+    "bytes": 168072
   },
   "faces": {
     "round-800": {
@@ -24,11 +24,11 @@
       "weight": 800,
       "characters": 43,
       "slices": 1,
-      "bytes": 11308,
-      "largest": 11308,
+      "bytes": 11304,
+      "largest": 11304,
       "critical": {
-        "src": "/assets/fonts/environment/round-800-critical-8061eb86f0e7.woff2",
-        "bytes": 11308,
+        "src": "/assets/fonts/environment/round-800-critical-8a94acd49f80.woff2",
+        "bytes": 11304,
         "characters": 43
       }
     },
@@ -37,11 +37,11 @@
       "weight": 700,
       "characters": 117,
       "slices": 1,
-      "bytes": 37508,
-      "largest": 37508,
+      "bytes": 37396,
+      "largest": 37396,
       "critical": {
-        "src": "/assets/fonts/environment/round-700-critical-ccbef4936b1c.woff2",
-        "bytes": 37508,
+        "src": "/assets/fonts/environment/round-700-critical-bbe393acd75c.woff2",
+        "bytes": 37396,
         "characters": 117
       }
     },
@@ -50,11 +50,11 @@
       "weight": 400,
       "characters": 15438,
       "slices": 102,
-      "bytes": 4064060,
-      "largest": 118164,
+      "bytes": 4064372,
+      "largest": 118264,
       "critical": {
-        "src": "/assets/fonts/environment/round-400-critical-3b8a7773e85d.woff2",
-        "bytes": 118164,
+        "src": "/assets/fonts/environment/round-400-critical-e1d9932053db.woff2",
+        "bytes": 118264,
         "characters": 405
       }
     },
@@ -63,11 +63,11 @@
       "weight": 400,
       "characters": 10832,
       "slices": 101,
-      "bytes": 3898832,
-      "largest": 52004,
+      "bytes": 3898280,
+      "largest": 52200,
       "critical": {
-        "src": "/assets/fonts/environment/hand-400-critical-c537ff7110d4.woff2",
-        "bytes": 52004,
+        "src": "/assets/fonts/environment/hand-400-critical-e590c771331b.woff2",
+        "bytes": 52200,
         "characters": 146
       }
     }

@@ -5,12 +5,15 @@
 // 第四章「五所校園」直接讀後台發布的各校校園探索（campuses[].tourScenes），文字不在這裡寫死。
 // 2026-09-28 使用者裁定：這一頁不放預約參觀（全站共用的頁首預約鈕除外）。
 // 手繪線條由 utils/rough-sketch.ts 在瀏覽器畫上去，純裝飾；沒有 JS 時版面與文字照常。
+// 2026-09-28 加 GSAP 動態層（utils/environment-motion.ts；比稿 design/environment-gsap-mockup-20260928/）：
+// 小路改成小腳印、曬衣繩起風、太陽帶慣性、換校發牌。GSAP 跟 Rough.js 一樣只在這頁動態載入；載入失敗就照原本的虛線小路。
 import { isGeneratedTourScenes, type Campus, type TourScene } from '~/types/site-content'
 import { environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
 import { attachEnvironmentFontStylesheet, ENVIRONMENT_FONT_PRELOAD } from '~/utils/environment-fonts'
 import type { SketchHandle } from '~/utils/rough-sketch'
+import type { EnvironmentMotion } from '~/utils/environment-motion'
 
 const props = defineProps<{ campuses: Campus[] }>()
 
@@ -74,10 +77,15 @@ const COUNT_WORDS = ['一', '二', '三', '四']
 // ---------- 分頁（WAI-ARIA tabs：左右鍵、Home、End） ----------
 const tabRefs = ref<HTMLButtonElement[]>([])
 async function selectTab(key: string, focus = false) {
+  const changed = key !== activeKey.value
   active.value = key
   await nextTick()
-  if (focus) tabRefs.value.find((tab) => tab.dataset.key === key)?.focus()
+  const tab = tabRefs.value.find((button) => button.dataset.key === key)
+  if (focus) tab?.focus()
   sketch?.refresh(root.value?.querySelector('#campuses') ?? undefined)
+  // 真的換了校，新分頁的照片從校名那格發到桌上（動態層在減少動態時不做）
+  const panel = root.value?.querySelector<HTMLElement>(`#tour-${key}`)
+  if (changed && panel && tab) motion?.deal(panel, tab)
 }
 function onTabKey(event: KeyboardEvent, index: number) {
   const target = ({ ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tours.value.length - 1 } as Record<string, number>)[event.key]
@@ -91,14 +99,22 @@ useHead({ link: ENVIRONMENT_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'f
 
 const root = ref<HTMLElement | null>(null)
 let sketch: SketchHandle | null = null
+let motion: EnvironmentMotion | null = null
 let disposed = false
+// GSAP 三支與動態層一起載入；任何一支失敗就不用動態層（回傳 null），手繪線照常
+const loadMotion = (reducedMotion: boolean) => Promise.all([import('gsap'), import('gsap/ScrollTrigger'), import('gsap/MotionPathPlugin'), import('~/utils/environment-motion')])
+  .then(([{ gsap }, { ScrollTrigger }, { MotionPathPlugin }, { createEnvironmentMotion }]) => createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin }, { reducedMotion }))
+  .catch(() => null)
 onMounted(async () => {
   attachEnvironmentFontStylesheet(document)
-  const [{ default: rough }, { createRoughSketch }] = await Promise.all([import('roughjs'), import('~/utils/rough-sketch')])
-  if (disposed || !root.value) return
-  sketch = createRoughSketch(root.value, rough, { reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches })
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [{ default: rough }, { createRoughSketch }, loaded] = await Promise.all([import('roughjs'), import('~/utils/rough-sketch'), loadMotion(reducedMotion)])
+  if (disposed || !root.value) { loaded?.destroy(); return }
+  motion = loaded
+  sketch = createRoughSketch(root.value, rough, { reducedMotion, motion: motion ?? undefined })
+  motion?.start(root.value)
 })
-onBeforeUnmount(() => { disposed = true; sketch?.destroy() })
+onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
 </script>
 
 <template>
@@ -167,7 +183,7 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy() })
       </div>
     </section>
 
-    <!-- 02 校園環境：跟著虛線走一圈 -->
+    <!-- 02 校園環境：跟著小腳印走一圈 -->
     <section id="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
       <div class="renv-wrap">
         <div class="renv-split-head">
@@ -188,7 +204,7 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy() })
             <p>遊戲幫助寶貝成長發育，發展精細動作、激發想像力、提升手眼協調力，讓寶貝開心、健康、快樂地成長。</p>
           </div>
         </article>
-        <p class="renv-hand renv-trail-hint" aria-hidden="true">跟著虛線，走一圈看看</p>
+        <p class="renv-hand renv-trail-hint" aria-hidden="true">跟著小腳印，走一圈看看</p>
         <ol class="renv-trail" data-rough="trail" data-seed="120">
           <li v-for="(space, i) in SPACES" :key="space.image" class="renv-stop">
             <figure class="renv-stop-photo renv-snap" data-rough="frame" :data-seed="121 + i">
