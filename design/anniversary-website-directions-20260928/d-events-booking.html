@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>回憶卡與活動預約</title>
-<meta name="description" content="30 週年比稿 D：參與要做到哪裡——紙本回憶卡加消息發布，或另開一面回憶牆；真實開放日直接接回該校的預約參觀。">
+<meta name="description" content="週年比稿 D：參與要做到哪裡——紙本回憶卡加消息發布，或另開一面回憶牆；真實開放日直接接回該校的預約參觀。">
 <script>
   // 依 ?v= 決定畫哪一種參與做法；沒帶或帶錯就用建議的「消息發布」（news）。
   (function () {
@@ -117,12 +117,11 @@
         <details class="notes">
           <summary>現行限制與建議做法</summary>
           <dl class="note-list">
-            <div><dt>現行</dt><dd>活動只有一個 <code>link_url</code>，只收 http(s) 絕對網址（backend <code>schemas.py:731-734</code>），指不到站內的 <code>/visit/minghua</code>，卡上只能放「活動詳情 ↗」。</dd></div>
-            <div><dt>建議</dt><dd>活動加 <code>visit_campus_key</code>（空白或五校 key 之一；JSON 欄位，不需 migration，要重產契約）。卡內直接放既有 <code>BookingCta</code>，依該校的預約模式自動變成表單、LINE、電話或暫停；這裡畫的是表單模式。</dd></div>
-            <div><dt>字句</dt><dd>主按鈕沿用分校頁的「預約參觀{校名}」（<code>CampusPageMain.vue:24</code>）；次按鈕沿用預約頁的「致電{校名}」（<code>VisitForm.vue:388</code>）。</dd></div>
-            <div><dt>語意</dt><dd>送出只叫「已收到需求」，人工確認時段是「待確認」，園方確認後才叫「預約成立」。不做 RSVP、報名、付款，活動卡上也不收家長的聯絡方式。</dd></div>
-            <div><dt>追蹤</dt><dd>外層 <code>data-cta-entry</code> 設為 <code>anniversary</code>，要一起改 web（<code>cta-analytics.ts:10-28</code>）、backend（<code>operations/models.py:39-57</code>）、admin（<code>labels.ts:883</code>）三處。</dd></div>
-            <div><dt>工時</dt><dd>S，約 1 人日。只在園方確認有真實開放日時才做；在那之前，活動只列時間、地點和「洽各校」電話。沒有真活動就不排、不寫日期、不倒數。</dd></div>
+            <div><dt>現行</dt><dd><code>link_url</code> 只收 http(s) 絕對網址（<code>schemas.py:731-734</code>），指不到站內 <code>/visit/minghua</code>，只能放「活動詳情 ↗」。</dd></div>
+            <div><dt>建議</dt><dd>活動加 <code>visit_campus_key</code>（JSON 欄位，不需 migration），卡內放既有 <code>BookingCta</code>，依該校預約模式變成表單、LINE、電話或暫停。</dd></div>
+            <div><dt>字句</dt><dd>按鈕沿用分校頁的「預約參觀{校名}」和預約頁的「致電{校名}」。</dd></div>
+            <div><dt>語意</dt><dd>送出只叫「已收到需求」，園方確認後才叫「預約成立」。不做 RSVP、報名、付款。</dd></div>
+            <div><dt>工時</dt><dd>S，約 1 人日（含 CTA 入口 <code>anniversary</code> 三處、重產契約）。沒有真實開放日就不做、不排、不寫日期。</dd></div>
           </dl>
         </details>
       </div>
@@ -146,7 +145,7 @@
                 <figcaption><span class="ph">封面：回憶卡印好後拍實物照，這裡先用插圖代替</span><span class="tag">示意</span></figcaption>
               </figure>
               <div class="hn-body">
-                <p class="hn-body-lead"><span class="ph">在常春藤度過一段日子的孩子、陪孩子來上學的家長、在這裡教過書的老師，都歡迎把記得的事告訴我們。</span></p>
+                <p class="ph hn-body-lead">在常春藤度過一段日子的孩子、陪孩子來上學的家長、在這裡教過書的老師，都歡迎把記得的事告訴我們。</p>
                 <h3><span class="ph">兩種參與方式</span></h3>
                 <ol class="ways">
                   <li>
@@ -155,7 +154,7 @@
                   </li>
                   <li>
                     <p class="way-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg><b class="ph">打電話請老師記下來</b></p>
-                    <p><span class="ph">打到任一校，老師把你說的記在回憶卡上，再念一次給你確認。</span></p>
+                    <p class="ph">打到任一校，老師把你說的記在回憶卡上，再念一次給你確認。</p>
                   </li>
                 </ol>
                 <h3><span class="ph">五校電話</span></h3>
@@ -166,13 +165,13 @@
                   <li><a href="tel:07-370-8001"><img src="../../web/public/assets/responsive/tour-international-gate-3425c482c253-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>國際校</b><small>鳥松區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-370-8001</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
                   <li><a href="tel:07-375-7081"><img src="../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>仁武校</b><small>仁武區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-375-7081</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
                 </ul>
-                <p class="mail"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-envelope-simple" /></svg><span>或寄 email 到 <span class="blank" aria-label="待園方提供的 email"></span>（園方提供）<span class="tag">示意</span></span></p>
+                <p class="mail"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-envelope-simple" /></svg><span>或寄 email 到 <span class="blank" aria-hidden="true"></span><span class="sr-only">（空白）</span><span class="nw">（園方提供）</span><span class="tag">示意</span></span></p>
                 <div class="privacy">
                   <h3><span class="ph">隱私與撤下</span></h3>
-                  <ul>
-                    <li><span class="ph">回憶卡背面就是同意書，交回前請勾選。</span></li>
-                    <li><span class="ph">署名可以只寫稱謂，也可以選擇不放照片。</span></li>
-                    <li><span class="ph">刊出後想撤下，打電話給交卡的那一校。</span></li>
+                  <ul class="ph">
+                    <li>回憶卡背面就是同意書，交回前請勾選。</li>
+                    <li>署名可以只寫稱謂，也可以選擇不放照片。</li>
+                    <li>刊出後想撤下，打電話給交卡的那一校。</li>
                   </ul>
                   <p class="privacy-tag"><span class="tag">正式條款待園方提供，示意</span></p>
                 </div>
@@ -187,11 +186,11 @@
         <details class="notes">
           <summary>現在就能發，兩處要小改</summary>
           <dl class="note-list">
-            <div><dt>後台</dt><dd>消息分類是自由文字，填系列名（示意「常春藤的故事」）；<code>show_from</code> 依台北日期自動上架，不填 <code>show_until</code>。小編（EDITOR）只能送審。</dd></div>
-            <div><dt>管道</dt><dd>收稿只有三種：紙卡、五校各自的電話、園方提供的一個 email。不用義華的 LINE／FB（其他四校沒有，不能拿義華的代填）。</dd></div>
-            <div><dt>撥號列</dt><dd>消息內文的連結區塊只放行 http／https（<code>news-content.ts:84-87</code>），寫不出 <code>tel:</code>。要整列可點撥號，需要 web 小改（例如依分類在單篇頁自動帶五校電話）；不改就用純文字電話發，內容一樣。</dd></div>
-            <div><dt>縮圖</dt><dd>五列縮圖是各校現況照（校園探索素材），只幫家長認出「是哪一校」，不當回憶照片。</dd></div>
-            <div><dt>隱私</dt><dd>網站只放摘要，全文印在卡背，要園方定稿。EXIF／GPS 剝除上線之前，不收家長或校友的手機照片。</dd></div>
+            <div><dt>後台</dt><dd>分類填系列名（示意），<code>show_from</code> 依台北日期自動上架，不填 <code>show_until</code>。</dd></div>
+            <div><dt>管道</dt><dd>只收紙卡、五校各自的電話、園方提供的一個 email；不用義華的 LINE／FB。</dd></div>
+            <div><dt>撥號</dt><dd>內文連結只放行 http(s)（<code>news-content.ts:84-87</code>），整列可撥號要 web 小改；不改就用純文字電話發。</dd></div>
+            <div><dt>縮圖</dt><dd>各校現況照，只幫家長認出是哪一校，不當回憶照片。</dd></div>
+            <div><dt>隱私</dt><dd>網站放摘要、全文印在卡背。EXIF／GPS 剝除上線前，不收手機照片。</dd></div>
           </dl>
         </details>
       </div>
@@ -209,7 +208,7 @@
                 <div class="mc-head">
                   <svg class="mc-crest" viewBox="30 26 124 132" aria-hidden="true" focusable="false"><image href="../../web/public/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg>
                   <div class="mc-name"><p class="mc-title">常春藤回憶卡</p><p class="mc-motto">孩子的第一所學校，也是第二個家。</p></div>
-                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-label="編號空白"></span></p>
+                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-hidden="true"></span><span class="sr-only">（空白）</span></p>
                 </div>
                 <p class="mc-q"><span class="ph">你記得常春藤的哪一個角落？</span></p>
                 <div class="mc-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -221,14 +220,14 @@
               <div class="mc-face mc-back">
                 <div class="mc-head mc-head-back">
                   <p class="mc-title">同意書</p>
-                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-label="編號空白"></span></p>
+                  <p class="mc-no" lang="en">No.<span class="blank-s" aria-hidden="true"></span><span class="sr-only">（空白）</span></p>
                 </div>
                 <dl class="mc-consent">
                   <div><dt>署名</dt><dd><span class="bx" aria-hidden="true"></span>寫我的名字<span class="bx" aria-hidden="true"></span>只寫稱謂</dd></div>
                   <div><dt>照片</dt><dd><span class="bx" aria-hidden="true"></span>放照片<span class="bx" aria-hidden="true"></span>不放照片</dd></div>
                   <div><dt>刊登</dt><dd><span class="bx" aria-hidden="true"></span>同意刊在官網</dd></div>
                   <div><dt>簽名</dt><dd class="sign"><span>簽名<span class="line" aria-hidden="true"></span></span><span>法定代理人簽名<span class="line" aria-hidden="true"></span></span></dd></div>
-                  <div><dt>編號</dt><dd>同意書編號 <span lang="en">No.</span><span class="blank-s" aria-label="編號空白"></span></dd></div>
+                  <div><dt>編號</dt><dd>同意書編號 <span lang="en">No.</span><span class="blank-s" aria-hidden="true"></span><span class="sr-only">（空白）</span></dd></div>
                 </dl>
                 <p class="mc-foot">刊出後想撤下，打電話給交卡的那一校。</p>
               </div>
@@ -260,20 +259,20 @@
               <h2 id="z4n-title" class="art-title"><span class="ph">明華校的回憶選輯</span></h2>
               <img class="np-cover" src="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp" srcset="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp 480w, ../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp 800w, ../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-1200.webp 1200w" sizes="(max-width: 760px) 100vw, 760px" width="1200" height="750" alt="紅磚校舍旁的戶外廣場，青綠色地面，角落有溜滑梯和一排兒童小汽車">
               <div class="hn-body">
-                <p class="hn-body-lead"><span class="ph">這一篇收的是明華校校友交回的回憶卡，每一則都經本人確認，只校對錯字。</span></p>
+                <p class="ph hn-body-lead">這一篇收的是明華校校友交回的回憶卡，每一則都經本人確認，只校對錯字。</p>
                 <blockquote class="memo">
-                  <p><span class="ph">（回憶卡上的原句。只校對錯字，不改寫、不代寫。）</span></p>
+                  <p class="ph">（回憶卡上的原句。只校對錯字，不改寫、不代寫。）</p>
                   <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
                 </blockquote>
                 <blockquote class="memo">
-                  <p><span class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</span></p>
+                  <p class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</p>
                   <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
                 </blockquote>
                 <blockquote class="memo">
                   <p><span class="ph">（很短也可以，一個角落、一首歌都算。）</span></p>
                   <footer><span class="ph">— ○○ 年從明華校畢業的校友</span></footer>
                 </blockquote>
-                <p><span class="ph">想分享你的回憶，可以到任一校櫃台拿一張回憶卡，或打電話請老師記下來。</span></p>
+                <p class="ph">想分享你的回憶，可以到任一校櫃台拿一張回憶卡，或打電話請老師記下來。</p>
               </div>
             </article>
             <div class="np-article-foot">
@@ -285,11 +284,11 @@
         <details class="notes">
           <summary>一篇 3–5 則，用分校消息發</summary>
           <dl class="note-list">
-            <div><dt>篇幅</dt><dd>同一校 3–5 則一篇，署名照卡背勾選（名字或稱謂）。分校消息一律不是示意，可以先上。</dd></div>
-            <div><dt>紀律</dt><dd>只校對錯字，不改寫、不代寫引言；個人回憶不寫成機構史實，也不寫畢業生數、師生數。</dd></div>
-            <div><dt>引言</dt><dd>消息內文目前只有段落、小標、清單、素材圖、連結五種區塊（<code>NewsBody.vue:14-27</code>），沒有引言。要 blockquote 樣式需 web 小改；不改就用「段落＋署名段落」發，內容一樣。</dd></div>
-            <div><dt>封面</dt><dd>明華校現況照（<code>tour-minghua-plaza</code>），不是當年照片。不用 <code>*-enhanced-v1</code>、線稿、建築透視圖，<code>env-space-*</code> 沒標校別也不行。</dd></div>
-            <div><dt>文末</dt><dd>沿用單篇頁既有的「回明華校的消息」與「預約明華校參觀」（<code>NewsArticleContent.vue:26-27</code>）。</dd></div>
+            <div><dt>篇幅</dt><dd>同一校 3–5 則一篇，署名照卡背勾選。分校消息不會被標成示意，可以先上。</dd></div>
+            <div><dt>紀律</dt><dd>只校錯字，不改寫、不代寫引言；個人回憶不寫成機構史實。</dd></div>
+            <div><dt>引言</dt><dd>內文沒有引言區塊（<code>NewsBody.vue:14-27</code>），blockquote 樣式要 web 小改；不改就用「段落＋署名」發。</dd></div>
+            <div><dt>封面</dt><dd>明華校現況照，不是當年照片；不用 <code>*-enhanced-v1</code>、線稿、透視圖。</dd></div>
+            <div><dt>文末</dt><dd>沿用單篇頁既有的兩個連結（<code>NewsArticleContent.vue:26-27</code>）。</dd></div>
           </dl>
         </details>
       </div>
@@ -325,12 +324,12 @@
             </div>
             <ul class="wall-list">
               <li class="wcard" data-role="alumni" data-campus="yihua"><p class="wc-meta"><span class="wc-campus">義華校</span><span>校友</span></p><blockquote><p><span class="ph">（回憶卡上的原句，一兩行也可以。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從義華校畢業的校友</span></p></li>
-              <li class="wcard" data-role="parent" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>家長</span></p><blockquote><p><span class="ph">（家長寫的回憶。署名照卡背勾選，可以只寫稱謂。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子曾在明華校就讀的家長</span></p></li>
-              <li class="wcard" data-role="teacher" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>老師</span></p><blockquote><p><span class="ph">（在這裡教過書的老師，寫下記得的一個畫面。刊出前由本人確認字句，照片依卡背勾選。）</span></p></blockquote><p class="wc-by"><span class="ph">— 曾在崇德校任教的老師</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>家長</span></p><blockquote><p class="ph">（家長寫的回憶。署名照卡背勾選，可以只寫稱謂。）</p></blockquote><p class="wc-by"><span class="ph">— 孩子曾在明華校就讀的家長</span></p></li>
+              <li class="wcard" data-role="teacher" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>老師</span></p><blockquote><p class="ph">（在這裡教過書的老師，寫下記得的一個畫面，刊出前由本人確認。）</p></blockquote><p class="wc-by"><span class="ph">— 曾在崇德校任教的老師</span></p></li>
               <li class="wcard" data-role="parent" data-campus="international"><p class="wc-meta"><span class="wc-campus">國際校</span><span>家長</span></p><blockquote><p><span class="ph">（短短一句。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子在國際校就讀的家長</span></p></li>
-              <li class="wcard" data-role="alumni" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>校友</span></p><blockquote><p><span class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從明華校畢業的校友</span></p></li>
-              <li class="wcard" data-role="parent" data-campus="yihua"><p class="wc-meta"><span class="wc-campus">義華校</span><span>家長</span></p><blockquote><p><span class="ph">（二代生家庭：自己小時候讀過常春藤，現在孩子也在這裡。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從義華校畢業、孩子也在義華校的家長</span></p></li>
-              <li class="wcard" data-role="alumni" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>校友</span></p><blockquote><p><span class="ph">（較長的一則回憶，大約四、五行。卡片高度跟著內容走，不裁切、不加「看更多」，讓每一則都能完整讀完。）</span></p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從崇德校畢業的校友</span></p></li>
+              <li class="wcard" data-role="alumni" data-campus="minghua"><p class="wc-meta"><span class="wc-campus">明華校</span><span>校友</span></p><blockquote><p class="ph">（電話口述的版本：老師記下後念給本人確認，照確認後的字句刊出。）</p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從明華校畢業的校友</span></p></li>
+              <li class="wcard" data-role="parent" data-campus="yihua"><p class="wc-meta"><span class="wc-campus">義華校</span><span>家長</span></p><blockquote><p class="ph">（二代生家庭：自己小時候讀過常春藤，現在孩子也在這裡。）</p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從義華校畢業、孩子也在義華校的家長</span></p></li>
+              <li class="wcard" data-role="alumni" data-campus="chongde"><p class="wc-meta"><span class="wc-campus">崇德校</span><span>校友</span></p><blockquote><p class="ph">（較長的一則，大約四、五行。卡片高度跟著內容走，不裁切，每一則都能讀完。）</p></blockquote><p class="wc-by"><span class="ph">— ○○ 年從崇德校畢業的校友</span></p></li>
               <li class="wcard" data-role="parent" data-campus="renwu"><p class="wc-meta"><span class="wc-campus">仁武校</span><span>家長</span></p><blockquote><p><span class="ph">（家長寫的回憶，不放照片。）</span></p></blockquote><p class="wc-by"><span class="ph">— 孩子在仁武校就讀的家長</span></p></li>
               <li class="wcard" data-role="teacher" data-campus="international"><p class="wc-meta"><span class="wc-campus">國際校</span><span>老師</span></p><blockquote><p><span class="ph">（老師的回憶，一段就好。）</span></p></blockquote><p class="wc-by"><span class="ph">— 曾在國際校任教的老師</span></p></li>
             </ul>
