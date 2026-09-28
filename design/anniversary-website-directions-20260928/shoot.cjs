@@ -2,9 +2,18 @@
 // 先在 repo 根目錄起 python3 -m http.server 8770 --bind 127.0.0.1。
 // 讀同目錄 shots.json：[{ "id": "a-mark", "variants": ["a","b"], "full": true }]，
 // 每頁每個變體拍 1440×900 與 390×844（2x）首屏，full 為 true 時另拍整頁。
-// 輸出 shots/<id>[-<v>]-{desktop,phone}[-full].png；順手檢查 4xx、page error、水平溢出。
+// 輸出 shots/<id>[-<v>]-{desktop,phone}[-full].webp（先拍 PNG 再用 Pillow 轉 WebP q82，ffmpeg 沒有 libwebp）；
+// 順手檢查 4xx、page error、水平溢出。需要 python3 + Pillow。
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
+const { execFileSync } = require('child_process')
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'anni-shots-'))
+function save(png, stem) {
+  const src = path.join(TMP, stem + '.png')
+  fs.writeFileSync(src, png)
+  execFileSync('python3', ['-c', 'import sys;from PIL import Image;Image.open(sys.argv[1]).convert("RGB").save(sys.argv[2],"WEBP",quality=82,method=6)', src, path.join(OUT, stem + '.webp')])
+}
 const { chromium } = require(path.join(__dirname, '../../node_modules/playwright'))
 
 const BASE = process.env.MOCK_BASE || 'http://127.0.0.1:8770/design/anniversary-website-directions-20260928/'
@@ -39,8 +48,8 @@ const VIEWS = [
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
         if (overflow > 0) issues.push('horizontal overflow ' + overflow + 'px')
         const stem = p.id + (v ? '-' + v : '') + '-' + view
-        await page.screenshot({ path: path.join(OUT, stem + '.png') })
-        if (p.full) await page.screenshot({ path: path.join(OUT, stem + '-full.png'), fullPage: true })
+        save(await page.screenshot(), stem)
+        if (p.full) save(await page.screenshot({ fullPage: true }), stem + '-full')
         console.log((issues.length ? 'FAIL ' : 'ok   ') + stem + (issues.length ? '\n     ' + issues.join('\n     ') : ''))
         problems += issues.length
         await ctx.close()
