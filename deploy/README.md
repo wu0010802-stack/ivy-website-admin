@@ -713,3 +713,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - CI run `36329989829` 五個 job 全綠（Backend、web、admin、E2E、Deploy Railway production）。`/release.json` snapshot `ca819fb0efc6ecf4050b22b424e5f96b92ff9db93a2922b0717845eb42086782`、`base_commit` `e4dd4e0`、`created_at` 2026-09-27T15:48:01Z。
 - 線上核對：`/admin/favicon-32.png`、`favicon-48.png`、`apple-touch-icon.png` 200 image/png，index 的 icon 連結已換；admin bundle 引用 `ivy-crest-Ci3w_GGc.webp`、`ivy-crest-mark-BJKUxDOr.webp`。Playwright 開正式站 `/admin/login`（1440、390@2）：標題「登入｜常春藤官網後台」、h1「官網後台登入」、徽章載入（naturalWidth 714）、輸入 `admin` 送出顯示欄位下方的 Email 格式提示、無水平溢出、0 console error。
 - **未做**：沒有登入正式站，所以登入後的側欄徽章、抽屜與 toast 顏色只在本機與 CI 驗證；Safari／iOS 實機未驗證。
+
+## 2026-09-28 09-27／09-28 完成分支全部併入 main（main CI 部署）
+
+- 使用者要求把已完成的分支併入 main。整合分支 `merge/all-branches-20260928`（base `2abf4ec`）依序合併 `merge/all-branches-20260927`（09-27 合併的部署紀錄，當時沒推上 main）、`feature/home-ux-20260927`、`feature/mobile-ux-20260927`、`feature/curriculum-watercolor-20260928`、`feature/environment-gsap-20260928`（含 `feature/environment-rough-20260928`）。
+- 衝突：README／DESIGN／本檔的日期段落保留雙方；`styles.css` 手機 UX 的 `@media` 與特色教學換頁 keyframes 兩段都留；`usePageSeo.ts`、`responsive-image.ts`、`page-hero.spec.ts` 兩邊各自把自己的頁面移出 `pageHeroImage`，合併後環境頁用 `environmentHeroImage()`、特色教學用 `CURRICULUM_HERO_SIZES`，只剩入學與關於走 `pageHeroImage`。另加 `c2feee4`：`watercolor.ts` 與 `rough-sketch.ts` 都匯出 `Box`，Nuxt 自動匯入撞名，水彩那支改名 `WashBox`。
+- 不併：同標題已在 main 的 `deploy/flip-wind-corner-20260923`、`feature/social-films-20260925`、遠端 `deploy/campus-tab-colour-20260923`、本機 `main` 的 `03fc267`；`feature/admin-seo-analytics-retention-20260925`（已由 main 取代）；`merge-attempt1-84de061`；`origin/renovate/configure`（FastAPI 釘版）；未提交的 `feature/entrance-sound-20260927`、`feature/admission-ux-20260928`。沒動 backend／admin／contracts、沒有 migration，不需先備份正式 DB。
+- 本機驗證（Node 22）：web typecheck 0 錯、vitest 53 檔 502 項；`npm run build` 通過（唯一警告是 main 既有的 `studio.css:405` postcss）。fixture production build 以 Playwright 量 1440／390 七頁皆 200、零 console 錯誤與警告，特色教學與環境頁 `<img sizes>` 與預載一致，環境頁腳印桌機 54、手機 59，從環境頁點頁首連結進特色教學有暈開（`startViewTransition` 1 次）。
+- push `2abf4ec..c2feee4`：CI run `36361960741` 五個 job 全綠（Backend、web、admin、E2E、Deploy Railway production）。`/release.json` snapshot `1f5cc05474c0ed2da7c30c8f2498b108c644bbbe2ba1eb8f999779f188cb79f8`、`base_commit` `c2feee4`、`web+api`、`created_at` 2026-09-28T00:36:21Z。
+- 部署後 GET `/`、`/curriculum`、`/environment`、`/admission`、`/about`、`/news`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200；線上同一套 Playwright 檢查結果與本機相同（零錯誤、sizes 一致、腳印 54／59、換頁暈開 1 次）。未登入後台、未寫入業務資料；Safari／iOS 實機未驗證。
