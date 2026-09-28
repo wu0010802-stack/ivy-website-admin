@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage } from '../api/errors'
 import type { BookingConfigOut, BookingReadinessOut } from '../api/types'
 import { BOOKING_MODE_LABELS, campusLabel, configChangeLines, parentDeadlineLabel } from '../api/labels'
 import { asReadiness, impactLines, modeLabel, modeReasons, reasonAction, type ModeReason } from '../composables/bookingReadiness'
@@ -15,6 +17,22 @@ import CampusStatusCard from '../components/CampusStatusCard.vue'
 
 const { visibleCampusKeys, selected: selectedCampus, isSuperAdmin } = useCampusScope()
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+// 時段頁的「到各校預約方式」會帶 ?campus=…：直接編輯那一校。切校時寫回網址。
+const queryCampus = route.query.campus
+if (typeof queryCampus === 'string' && visibleCampusKeys.value.includes(queryCampus)) selectedCampus.value = queryCampus
+watch(selectedCampus, (key) => {
+  if (key && route.query.campus !== key) void router.replace({ query: { ...route.query, campus: key } })
+})
+// 連到時段與容量一律帶目前校區，不會落在預設的第一校、在錯的校區新增時段。
+const slotsPath = computed(() => `/slots?campus=${encodeURIComponent(selectedCampus.value)}`)
+
+// 分校啟用狀態（CampusStatusCard 讀到後回報）。啟用中時「停用分校」放在表單
+// 下方、用分隔線隔開，不比日常要改的預約方式更顯眼；已停用時卡片留在頁首，
+// 因為下面的設定要等重新啟用才生效。
+const campusActive = ref<boolean | null>(null)
+watch(selectedCampus, () => { campusActive.value = null })
 
 type Mode = BookingConfigOut['mode']
 
@@ -77,7 +95,10 @@ function dataReasons(mode: Mode): ModeReason[] {
 const selectedReasons = computed(() => reasonsFor(form.value.mode))
 // 原因後面接的處理連結；進不去那一頁的人改顯示要找誰處理。
 const selectedReasonRows = computed(() =>
-  selectedReasons.value.map((reason) => ({ ...reason, action: reasonAction(reason.code, authStore.user) })),
+  selectedReasons.value.map((reason) => {
+    const action = reasonAction(reason.code, authStore.user)
+    return { ...reason, action: action && 'to' in action && action.to === '/slots' ? { ...action, to: slotsPath.value } : action }
+  }),
 )
 const modeChanged = computed(() => Boolean(config.value) && form.value.mode !== config.value!.mode)
 // 這一頁任何欄位存檔都會讓預約設定的版本加一（含只改家長異動期限），正在
@@ -89,6 +110,16 @@ const deadlineInvalid = computed(() => {
   const hours = form.value.parent_change_deadline_hours
   return !Number.isInteger(hours) || hours < 1 || hours > 336
 })
+
+// 連結會直接變成官網預約鈕的網址，後端只收 https:// 或 http:// 開頭的。常見的是
+// 貼上「lin.ee/xxxx」少了開頭：在欄位旁先講清楚，不要按儲存才跳「更新失敗」。
+function linkFormatError(value: string, example: string): string {
+  const text = value.trim()
+  return text && !/^https?:\/\//i.test(text) ? `連結要以 https:// 開頭，例如 ${example}` : ''
+}
+const lineUrlError = computed(() => linkFormatError(form.value.line_url, 'https://lin.ee/xxxx'))
+const externalUrlError = computed(() => linkFormatError(form.value.external_url, 'https://forms.gle/xxxx'))
+const linkInvalid = computed(() => (form.value.mode === 'line' && Boolean(lineUrlError.value)) || (form.value.mode === 'external' && Boolean(externalUrlError.value)))
 
 async function load(campusKey: string) {
   const request = requests.begin()
@@ -164,7 +195,7 @@ async function confirmModeSwitch(campusKey: string): Promise<boolean> {
 }
 
 async function save() {
-  if (!config.value || selectedReasons.value.length || deadlineInvalid.value || saving.value || loading.value || conflict.value || !isDirty.value) return
+  if (!config.value || selectedReasons.value.length || deadlineInvalid.value || linkInvalid.value || saving.value || loading.value || conflict.value || !isDirty.value) return
   const campusKey = selectedCampus.value
   saving.value = true
   saveError.value = null
@@ -196,10 +227,9 @@ async function save() {
         // 別人剛好改了同意文字或場次：重讀條件，原因也會列在選項下方。
         saveError.value = `還不能使用「${modeLabel(form.value.mode)}」：${(detail.reasons ?? []).map((r) => r.message).join('；') || detail.message}`
         readiness.value = (await fetchReadiness(campusKey)) ?? readiness.value
-      } else if (detail !== null && typeof detail === 'object' && detail.message) {
-        saveError.value = detail.message
       } else {
-        saveError.value = typeof detail === 'string' ? detail : '更新失敗，修改仍保留，請再試一次。'
+        // 422 的格式錯誤是陣列（連結開頭、字數上限…）：換成中文原因，不是只說「請再試一次」。
+        saveError.value = apiErrorMessage(err, '更新失敗，修改仍保留，請再試一次。')
       }
     } else {
       saveError.value = '更新失敗，修改仍保留，請再試一次。'
@@ -219,7 +249,7 @@ async function save() {
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 
-    <CampusStatusCard v-if="isSuperAdmin && selectedCampus" :campus-key="selectedCampus" />
+    <CampusStatusCard v-if="isSuperAdmin && selectedCampus && campusActive === false" :campus-key="selectedCampus" @status="campusActive = $event" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
     <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>
@@ -241,18 +271,18 @@ async function save() {
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item v-if="form.mode === 'line'" label="LINE 官方帳號連結" required>
-            <el-input v-model="form.line_url" placeholder="https://lin.ee/…" />
+          <el-form-item v-if="form.mode === 'line'" label="LINE 官方帳號連結" required :error="lineUrlError">
+            <el-input v-model="form.line_url" placeholder="https://lin.ee/…" inputmode="url" maxlength="500" autocomplete="off" />
           </el-form-item>
           <el-form-item v-if="form.mode === 'phone'" label="洽詢電話" required>
-            <el-input v-model="form.phone" placeholder="07-000-0000" />
+            <el-input v-model="form.phone" placeholder="07-000-0000" inputmode="tel" maxlength="32" autocomplete="off" />
           </el-form-item>
-          <el-form-item v-if="form.mode === 'external'" label="外部預約網址" required>
-            <el-input v-model="form.external_url" placeholder="https://…" />
+          <el-form-item v-if="form.mode === 'external'" label="外部預約網址" required :error="externalUrlError">
+            <el-input v-model="form.external_url" placeholder="https://…" inputmode="url" maxlength="500" autocomplete="off" />
           </el-form-item>
           <el-form-item v-if="form.mode === 'slots'" label="場次確認方式">
             <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" aria-label="送出後自動確認預約" />
-            <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link to="/slots">管理此校日期與場次</router-link></p>
+            <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link :to="slotsPath">管理此校日期與場次</router-link></p>
           </el-form-item>
           <el-form-item label="家長線上取消／改期期限">
             <div class="deadline">
@@ -263,12 +293,12 @@ async function save() {
             <p class="hint">家長用園方給的管理連結取消或申請改期，最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}；之後頁面會請家長直接聯絡園所。</p>
           </el-form-item>
           <el-form-item :label="form.mode === 'paused' ? '暫停說明' : '顯示給家長的說明（選填）'" :required="form.mode === 'paused'">
-            <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />
+            <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="500" show-word-limit :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />
           </el-form-item>
 
           <div class="form-actions">
             <div class="save-row">
-              <el-button type="primary" :loading="saving" :disabled="!isDirty || selectedReasons.length > 0 || deadlineInvalid || conflict" @click="save">
+              <el-button type="primary" :loading="saving" :disabled="!isDirty || selectedReasons.length > 0 || deadlineInvalid || linkInvalid || conflict" @click="save">
                 儲存並套用到官網
               </el-button>
               <span class="live-note">沒有草稿階段，儲存後官網立即套用{{ modeChanged ? '；切換前會先列出影響範圍' : '' }}{{ formsInProgress ? '；正在官網填預約表的家長送出時，會被請確認一次再送（已填內容保留）' : '' }}。</span>
@@ -288,6 +318,12 @@ async function save() {
         </el-form>
       </div>
     </div>
+
+    <!-- 影響整校的動作放在日常設定之後、用分隔線隔開（第四輪：破壞性動作不與主要動作相鄰）。 -->
+    <section v-if="isSuperAdmin && selectedCampus && campusActive !== false" class="campus-zone" aria-labelledby="campus-zone-title">
+      <h2 id="campus-zone-title" class="campus-zone__title">分校狀態</h2>
+      <CampusStatusCard :campus-key="selectedCampus" @status="campusActive = $event" />
+    </section>
   </div>
 </template>
 
@@ -375,6 +411,17 @@ async function save() {
   align-items: center;
   gap: 12px;
   margin-top: 8px;
+}
+
+.campus-zone {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-strong);
+}
+
+.campus-zone__title {
+  margin-bottom: 12px;
+  font-size: 15px;
 }
 @media(max-width:720px) {
   .modes__item { min-height:60px; padding:12px; }

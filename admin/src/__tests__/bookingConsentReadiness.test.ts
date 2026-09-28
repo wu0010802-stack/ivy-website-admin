@@ -173,7 +173,8 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     await wrapper.get('input[type="radio"][value="slots"]').setValue(true)
     await nextTick()
     expect(wrapper.get('.blocked-reasons').text()).toContain('還不能使用「時段預約（家長自選場次）」')
-    expect(wrapper.get('.blocked-reasons a').attributes('href')).toBe('/slots')
+    // 連到時段與容量帶著目前校區，不會落在預設的第一校。
+    expect(wrapper.get('.blocked-reasons a').attributes('href')).toBe('/slots?campus=yihua')
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
     await saveButton(wrapper).trigger('click')
     expect(patch).not.toHaveBeenCalled()
@@ -249,6 +250,40 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     await flushPromises()
     expect(confirm).not.toHaveBeenCalled()
     expect(patch).toHaveBeenCalledOnce()
+  })
+
+  it('連結少了 https:// 先在欄位旁提示；後端的格式錯誤換成原因，不只說請再試一次', async () => {
+    mockBookingApi()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(new ApiError(422, [
+      { loc: ['body', 'line_url'], msg: 'Value error, 連結必須以 https:// 或 http:// 開頭', type: 'value_error' },
+    ]))
+    const wrapper = await mountAt(BookingSettingsView, '/booking')
+    await wrapper.get('input[type="radio"][value="line"]').setValue(true)
+    await nextTick()
+    const input = wrapper.get('input[placeholder="https://lin.ee/…"]')
+    // 手機叫出網址鍵盤，字數上限和後端一樣。
+    expect(input.attributes('inputmode')).toBe('url')
+    expect(input.attributes('maxlength')).toBe('500')
+    await input.setValue('lin.ee/abcd')
+    // 欄位錯誤訊息在 Element Plus 裡延遲 100ms 才顯示。
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(wrapper.text()).toContain('連結要以 https:// 開頭，例如 https://lin.ee/xxxx')
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+    await input.setValue('https://lin.ee/abcd')
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(wrapper.text()).not.toContain('連結要以 https:// 開頭')
+    await saveButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(patch).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('連結必須以 https:// 或 http:// 開頭')
+    expect(wrapper.text()).not.toContain('Value error')
+
+    await wrapper.get('input[type="radio"][value="phone"]').setValue(true)
+    await nextTick()
+    const phone = wrapper.get('input[placeholder="07-000-0000"]')
+    expect(phone.attributes('inputmode')).toBe('tel')
+    expect(phone.attributes('maxlength')).toBe('32')
   })
 
   it('後端擋下時顯示原因並保留輸入', async () => {
