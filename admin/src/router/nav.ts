@@ -34,6 +34,10 @@ export interface NavItem {
   /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期）、
    * 發布紀錄（給自己的內容通知未讀數） */
   badge?: 'open-requests' | 'reschedule-requests' | 'content-notices'
+  /** 側欄搜尋另外比對的說法：員工找功能用的是自己的話（「照片」「名額」「密碼」），
+   * 不一定是功能名。不要放「素材」「分校頁」「使用者」：搜這幾個字時功能名與分組名
+   * 已經給了對的結果，再加會把別組的項目也帶出來。 */
+  keywords?: string[]
 }
 
 export interface NavGroup {
@@ -48,17 +52,17 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'overview',
     label: '總覽',
-    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'HomeFilled', roles: VISITS }],
+    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'HomeFilled', roles: VISITS, keywords: ['總覽', '待辦', '今日參觀', '摘要'] }],
   },
   {
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS },
-      { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS },
-      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS },
-      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS },
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
+      { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '當天參觀'] },
+      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS, keywords: ['場次', '名額', '預約', '參觀時間'] },
+      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
@@ -74,11 +78,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '首頁',
     section: '官網內容',
     items: [
-      { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', roles: ['super_admin'], shared: true },
-      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'], shared: true },
-      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'], shared: true },
-      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'], shared: true },
-      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'], shared: true },
+      { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', roles: ['super_admin'], shared: true, keywords: ['橫幅', '主視覺', '大標'] },
+      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'], shared: true, keywords: ['理念', '介紹'] },
+      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'], shared: true, keywords: ['五校', '校區卡片'] },
+      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'], shared: true, keywords: ['作息', '拍立得'] },
+      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'], shared: true, keywords: ['消息', '活動', '公告'] },
     ],
   },
   {
@@ -86,13 +90,13 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '分校頁',
     section: '官網內容',
     items: [
-      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT },
-      { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare', roles: CONTENT },
+      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
+      { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['FAQ', '問答', 'Q&A'] },
       // 五校共用的常見問題是共用內容：總管理者或有「全站共用內容」授權的人。
-      { name: 'shared-faq', path: '/content/shared-faq', title: '共用常見問題', icon: 'ChatDotSquare', roles: ['super_admin'], shared: true },
+      { name: 'shared-faq', path: '/content/shared-faq', title: '共用常見問題', icon: 'ChatDotSquare', roles: ['super_admin'], shared: true, keywords: ['FAQ', '問答', 'Q&A'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
-      { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT },
-      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT },
+      { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
+      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT, keywords: ['環境照片', '熱點', '導覽'] },
     ],
   },
   {
@@ -100,28 +104,50 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '全站與素材',
     section: '官網內容',
     items: [
-      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true },
-      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true },
-      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true },
-      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true },
-      { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT },
+      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
+      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
+      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },
+      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享'] },
+      { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
-      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT },
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT, keywords: ['發布', '排程', '送審', '審核', '還原', '內容通知'] },
     ],
   },
   {
     key: 'system',
     label: '系統',
     items: [
-      { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine' },
-      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE },
-      { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'] },
-      { name: 'policies', path: '/policies', title: '全站設定', icon: 'Setting', roles: ['super_admin'] },
-      { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'] },
+      { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽'] },
+      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
+      { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
+      { name: 'policies', path: '/policies', title: '全站設定', icon: 'Setting', roles: ['super_admin'], keywords: ['個資', '保存期限', '清理'] },
+      { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'], keywords: ['群組', '推播'] },
     ],
   },
 ]
+
+/** 不在側欄、只在搜尋結果出現的入口。我的帳號平常從側欄底部的使用者區塊進去，
+ * 但想改密碼的人會直接搜「密碼」。不放進 byName／byPath：路由標題另外寫，
+ * 也不限角色。 */
+export const SEARCH_ONLY_GROUP: NavGroup = {
+  key: 'personal',
+  label: '個人',
+  items: [
+    { name: 'account', path: '/account', title: '我的帳號', icon: 'Avatar', keywords: ['密碼', '更改密碼', '登入方式', 'Google', 'LINE 綁定', 'Email'] },
+  ],
+}
+
+/** 搜尋比對前先正規化：全形轉半形（NFKC）、不分大小寫。手機鍵盤預設打小寫，
+ * 「line」也要找得到「LINE 通知」。 */
+export function normalizeSearch(text: string): string {
+  return text.normalize('NFKC').toLowerCase().trim()
+}
+
+/** 這個功能的名稱或關鍵字有沒有包含搜尋字（q 已經正規化過）。 */
+export function navItemMatches(item: NavItem, q: string): boolean {
+  return [item.title, ...(item.keywords ?? [])].some(text => normalizeSearch(text).includes(q))
+}
 
 const byName = new Map<string, NavItem>()
 const byPath = new Map<string, NavItem>()

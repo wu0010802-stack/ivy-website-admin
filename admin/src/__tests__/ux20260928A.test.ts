@@ -8,9 +8,10 @@ import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import LoginView from '../views/LoginView.vue'
+import AccountView from '../views/AccountView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { authGuard, reloadAfterChunkError, routes } from '../router'
-import { landingPath, NAV_GROUPS, safeRedirectPath } from '../router/nav'
+import { landingPath, NAV_GROUPS, safeRedirectPath, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError, setUnauthorizedHandler } from '../api/client'
@@ -461,5 +462,153 @@ describe('登入頁（shell-10／shell-11／jr-login-back）', () => {
     expect(safeRedirectPath('/login')).toBeNull()
     expect(safeRedirectPath('/%2e%2e/x')).toBeNull()
     expect(safeRedirectPath(['/media'])).toBeNull()
+  })
+})
+
+// -------------------------------------------------------------- 側欄搜尋
+describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', () => {
+  async function sidebar(role: UserOut['role'], path = '/media') {
+    const pinia = createPinia()
+    useAuthStore(pinia).user = user(role)
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)*', component: { render: () => h('div') } }] })
+    await router.push(path)
+    await router.isReady()
+    const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] }, attachTo: document.body })
+    wrappers.push(wrapper)
+    const search = async (text: string) => {
+      await wrapper.get('input').setValue(text)
+      return wrapper.findAll('.sidebar__nav a').map(link => link.text())
+    }
+    return { wrapper, router, search }
+  }
+
+  it('搜「預約」帶出參觀案件、接待月曆、時段與容量，不只名稱有預約的兩項', async () => {
+    const { search } = await sidebar('super_admin')
+    const results = await search('預約')
+    expect(results).toEqual(expect.arrayContaining(['參觀案件', '接待月曆', '時段與容量', '各校預約方式', '預約文案']))
+  })
+
+  it('照片、名額、FAQ（全形也可）、小寫 line 都找得到', async () => {
+    const { search } = await sidebar('super_admin')
+    expect(await search('照片')).toContain('素材庫')
+    expect(await search('名額')).toEqual(['時段與容量'])
+    expect(await search('ＦＡＱ')).toEqual(['各校常見問題', '共用常見問題'])
+    expect(await search('line')).toEqual(expect.arrayContaining(['LINE 通知', '我的帳號']))
+  })
+
+  it('我的帳號只在搜尋時出現；搜「密碼」照角色給結果', async () => {
+    const admin = await sidebar('super_admin')
+    expect(admin.wrapper.find('.sidebar__nav a[href="/account"]').exists()).toBe(false)
+    expect(await admin.search('密碼')).toEqual(['使用者', '我的帳號'])
+    expect(admin.wrapper.find('.sidebar__nav a[href="/account"] .el-icon svg').exists()).toBe(true)
+    expect(SEARCH_ONLY_GROUP.items.map(item => item.path)).toEqual(['/account'])
+    const reception = await sidebar('reception')
+    expect(await reception.search('密碼')).toEqual(['我的帳號'])
+    expect(await reception.search('預約')).toEqual(['參觀案件', '接待月曆', '時段與容量'])
+  })
+
+  it('按 Enter 前往第一筆結果，選字中的 Enter 不算', async () => {
+    const { wrapper, router, search } = await sidebar('super_admin')
+    await search('名額')
+    const input = wrapper.get('input')
+    await input.trigger('keydown', { key: 'Enter', isComposing: true })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/media')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/slots')
+    expect(input.element.value).toBe('')
+  })
+})
+
+// ------------------------------------------------------------- 側欄帳號區
+describe('側欄帳號區（v-shell-13／shell-12）', () => {
+  async function sidebar(signedIn: UserOut, mobile = false) {
+    const pinia = createPinia()
+    useAuthStore(pinia).user = signedIn
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)*', component: { render: () => h('div') } }] })
+    await router.push('/media')
+    await router.isReady()
+    const wrapper = mount(AdminSidebar, { props: { mobile }, global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper)
+    return wrapper
+  }
+
+  it.each([
+    ['reception', '櫃台・義華'],
+    ['editor', '編輯・義華'],
+    ['readonly', '唯讀・義華'],
+    ['campus_admin', '校區管理者・義華'],
+    ['super_admin', '總管理者'],
+  ] as const)('%s 顯示「%s」，完整 Email 放在 title', async (role, line) => {
+    const wrapper = await sidebar(user(role))
+    expect(wrapper.get('.sidebar__user-text span').text()).toBe(line)
+    expect(wrapper.get('a.sidebar__account').attributes('title')).toContain('staff@ivy.example')
+  })
+
+  it('手機抽屜的更改密碼與登出直接寫字', async () => {
+    const wrapper = await sidebar(user('reception'), true)
+    const labels = wrapper.findAll('.sidebar__user-actions button').map(button => button.text())
+    expect(labels).toEqual(['更改密碼', '登出'])
+    await wrapper.findAll('.sidebar__user-actions button')[1]!.trigger('click')
+    expect(wrapper.emitted('logout')).toHaveLength(1)
+  })
+})
+
+// ------------------------------------------------------------------ 我的帳號
+describe('我的帳號：密碼與登入方式（v-shell-08／shell-7）', () => {
+  async function account(signedIn: UserOut, providers: { google: boolean; line: boolean }) {
+    vi.spyOn(api, 'get').mockResolvedValue(providers as never)
+    const pinia = createPinia()
+    useAuthStore(pinia).user = signedIn
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)*', component: { render: () => h('div') } }] })
+    await router.push('/account')
+    await router.isReady()
+    const wrapper = mount(AccountView, { global: { plugins: [pinia, router, ElementPlus] }, attachTo: document.body })
+    wrappers.push(wrapper)
+    await flushPromises()
+    return wrapper
+  }
+
+  it('有更改密碼的入口，打開既有的更改密碼對話框', async () => {
+    const wrapper = await account(user('reception'), { google: true, line: true })
+    await wrapper.get('[data-test="change-password"]').trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('.el-dialog__title')?.textContent).toBe('更改密碼')
+  })
+
+  it('寫出角色能做什麼與額外授權（不印代碼）', async () => {
+    const wrapper = await account(user('campus_admin', { capabilities: ['booking.export', 'unknown.code'] }), { google: true, line: true })
+    expect(wrapper.text()).toContain('處理指定校區的內容')
+    expect(wrapper.text()).toContain('額外授權匯出個資')
+    expect(wrapper.text()).not.toContain('unknown.code')
+  })
+
+  it('兩種都沒開放：收成一行，不留「尚未綁定」標籤與 LINE 隱私說明', async () => {
+    const wrapper = await account(user('editor'), { google: false, line: false })
+    expect(wrapper.get('[data-test="password-only"]').text()).toBe('目前只開放 Email 與密碼登入。')
+    expect(wrapper.text()).not.toContain('尚未綁定')
+    expect(wrapper.text()).not.toContain('Google 登入')
+    expect(wrapper.text()).not.toContain('LINE 登入')
+    expect(wrapper.text()).not.toContain('不讀取暱稱')
+  })
+
+  it('只有一種沒開放：那張卡不掛標籤、不寫隱私說明', async () => {
+    const wrapper = await account(user('editor'), { google: true, line: false })
+    const panels = wrapper.findAll('section.panel')
+    const line = panels.find(panel => panel.text().startsWith('LINE 登入'))!
+    expect(line.text()).toContain('LINE 登入尚未啟用')
+    expect(line.find('.el-tag').exists()).toBe(false)
+    expect(line.text()).not.toContain('不讀取暱稱')
+    const google = panels.find(panel => panel.text().startsWith('Google 登入'))!
+    expect(google.get('.el-tag').text()).toBe('尚未綁定')
+    expect(wrapper.find('[data-test="password-only"]').exists()).toBe(false)
+  })
+
+  it('沒開放但已綁定 LINE：保留卡片讓人解除，隱私說明照樣顯示', async () => {
+    const wrapper = await account(user('editor', { line_linked: true }), { google: false, line: false })
+    expect(wrapper.get('[data-test="line-disabled-linked"]').text()).toContain('LINE 登入目前未開放')
+    expect(wrapper.text()).toContain('不讀取暱稱')
+    expect(wrapper.text()).not.toContain('Google 登入')
   })
 })

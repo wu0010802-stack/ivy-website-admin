@@ -139,7 +139,8 @@ describe('我的帳號：LINE 綁定', () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const { wrapper } = await mountAt(AccountView, '/account', staff())
     expect(wrapper.find('[data-test="line-link"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('LINE 登入尚未啟用')
+    // Google 也沒開放時，兩張「尚未啟用」卡片收成密碼區裡的一行（2026-09-28）。
+    expect(wrapper.text()).toContain('目前只開放 Email 與密碼登入')
     const linked = await mountAt(AccountView, '/account', staff({ line_linked: true }))
     expect(linked.wrapper.findComponent({ name: 'ElPopconfirm' }).exists()).toBe(true)
   })
