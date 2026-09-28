@@ -1,6 +1,6 @@
 import type { Campus, NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ABOUT_HERO_IMAGE, ADMISSION_HERO_IMAGE, CURRICULUM_HERO_IMAGE, ENVIRONMENT_HERO_IMAGE, pageHeroImage } from '~/utils/responsive-image'
+import { ABOUT_HERO_IMAGE, ADMISSION_HERO_IMAGE, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, ENVIRONMENT_HERO_IMAGE, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
@@ -30,7 +30,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
     if (!site.value) return undefined
     if (page === 'admission') return pageHeroImage(ADMISSION_HERO_IMAGE)
     if (page === 'environment') return pageHeroImage(ENVIRONMENT_HERO_IMAGE)
-    if (page === 'curriculum') return pageHeroImage(CURRICULUM_HERO_IMAGE)
+    if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)
     if (page === 'about') return pageHeroImage(ABOUT_HERO_IMAGE)
     // 消息頁沒有滿版 hero，不預載。
     if (page === 'news') return undefined

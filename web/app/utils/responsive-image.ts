@@ -17,8 +17,16 @@ export const ADMISSION_HERO_IMAGE = 'day-hello'
 /** 常春藤環境頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
 
-/** 特色教學頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+/** 特色教學頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 CURRICULUM_HERO_SIZES）。 */
 export const CURRICULUM_HERO_IMAGE = 'cur-hero'
+
+/**
+ * 特色教學頁 hero 的 sizes（2026-09-28 水彩版）：照片不再滿版，是右欄的撕紙框、object-fit: cover。
+ * 2000×803 的橫幅被裁成直一點的框，需要的寬度是「框高 × 寬高比 2.49」，不是框寬：
+ * - 901px 以上：框高 min(64vh, 600px)，最多約 1494px 寬 → 1500px。
+ * - 900px 以下：框改成 4:3、寬 = 視窗減左右留白，需要寬度約 1.87 × 框寬 → 187vw（390 寬實際約 695px）。
+ */
+export const CURRICULUM_HERO_SIZES = '(max-width: 900px) 187vw, 1500px'
 
 /** 關於常春藤頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const ABOUT_HERO_IMAGE = 'about-hero'

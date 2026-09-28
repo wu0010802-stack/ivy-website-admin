@@ -1,3 +1,26 @@
+## 2026-09-28 進入特色教學頁：水彩從畫面中央暈開（`feature/curriculum-watercolor-20260928`）
+
+使用者問全站換頁動畫可以做在哪，先看「進入特色教學頁」：mock `design/curriculum-enter-transition-20260928/`（`?vt=0|a|b|c`：現行、A 中央暈開、B 從點擊處、C 刷過去），使用者選 **A**。其他換頁維持 09-26 的裁定：不開全站換頁動畫。
+
+- **做法**：`plugins/curriculum-enter.client.ts` 只在「從其他頁點連結進入 `/curriculum`」時用 View Transition：`beforeResolve` 先拍舊畫面、`page:finish` 後拍新畫面（同 Nuxt 內建做法），逾時 2.5 秒。舊頁是靜止截圖、新頁是 live，特色教學頁自己的顏料會在遮罩裡一起動。三張遮罩（`utils/watercolor.ts` 的 `revealMaskCanvas`）在閒置時間產生、toBlob 編碼；還沒好就直接換頁。頁首在過場期間有名字（`site-header`），原地淡換、不參與暈開。
+- **頁首與頁尾是一般 `<a>`**（整頁載入、不經過路由）：連到 `/curriculum` 而且這次會暈開時才攔下來改走 `router.push`，其他連結照舊整頁載入。
+- **不播**：首次進站、上一頁／下一頁（含 iPhone 左滑返回）、從特色教學離開、其他頁面之間、不支援 View Transitions、減少動態、強制色彩。規則在 `utils/curriculumEnter.ts`。
+- 樣式在 `styles.css`「進入特色教學」，名字與遮罩只在 `html.curriculum-enter` 期間存在。
+
+驗證：`nuxt typecheck` 結束碼 0；`npm run test:website` 53 檔 482 項通過（新增 `curriculum-enter.spec.ts` 11 項）。dev（:3217）Playwright 以 CDP 放慢 5 倍逐格：環境頁首、入學與首頁頁尾、手機膠囊選單卡點進特色教學都有暈開（包 `startViewTransition` 計數＝1），結束後 class 拿掉、選單捲動鎖定解除、無 console／page error；特色教學→環境、上一頁、環境→入學、減少動態皆為 0（減少動態也不產生遮罩）。mock 階段發現：更新 DOM 期間瀏覽器暫停畫面更新，`requestAnimationFrame` 不會觸發，不能拿它等新頁。Safari／iOS 實機未驗證；未 commit、未部署。
+
+## 2026-09-28 特色教學頁改成水彩版、補兒童美術館與教學理念、拿掉預約參觀（`feature/curriculum-watercolor-20260928`）
+
+使用者要一個跟其他分頁不一樣、藝術一點的 canvas 2D 風格。先在 `/environment` 比了三個方向（`design/environment-canvas-directions-20260927/`，A 藤蔭、B 一筆藤、C 水彩），使用者選 C 但要套在 `/curriculum`；mock 在 `design/curriculum-watercolor-mockup-20260928/`，依 mock 改正式頁。內頁共用版型（hero＋薄荷帶＋米底＋深綠舞台）這頁不再使用。
+
+- **版面**：hero 從深色遮罩壓照片改成水彩紙＋右欄撕紙框照片，「動手做」底下刷一筆橙色顏料；章節索引改成四團顏料（與各段主色一致）。01 四個年段：四團顏料一歲比一歲大。02 課程方向：大小錯落，品德培養印在一片橙色顏料上，藝術共創放大收尾。04 五件事：紙上五幅畫各配一種顏料。手機的課程方向、美術館、五件事改一列橫滑，清單本身鋪一片淡顏料。
+- **拿掉**（使用者要求）：結尾的預約參觀卡、hero 的「預約參觀」「先看孩子做什麼」兩顆按鈕。頁首預約鈕全站共用，沒動。
+- **新增內容**（都是舊站原文、有標出處）：03 兒童美術館 8 件作品（機構站「常春藤兒童美術館」相簿原圖 4608×3456，依 EXIF 轉正後長邊 1600，`optimize-site-images.py --only` 只新增 8 項 manifest；字母珠球、有手寫字的膠帶畫不放）；01 補「螺旋式課程」一句（機構站關於頁）與連到 `/about#whole-child` 的連結；結尾改成教學理念（義華站關於頁，「二十七年口碑」「歐式城堡建築」不搬）。SEO 描述與 llms.txt 同步。
+- **水彩層**：`utils/watercolor.ts`（純演算法：可重現亂數、多邊形反覆變形、疊層顏料、撕紙毛邊、紙紋）＋`composables/useWatercolor.ts`（掛到頁面）。顏料色進 `tokens.css` 第 13 節 `--ivy-paint-*-rgb`；`curriculum.css` 不寫色碼。canvas 只在瀏覽器端畫，SSR 輸出的是乾淨紙面與方形照片。減少動態一次畫完不暈開；強制色彩整層不畫。
+- **hero sizes**：照片不再滿版，新增 `CURRICULUM_HERO_SIZES`（`(max-width: 900px) 187vw, 1500px`，依框高 × 寬高比），頁面與預載共用；其他內頁仍用 `pageHeroImage()`。
+
+驗證：Node 22 web `nuxt typecheck` 結束碼 0；`npm run test:website` 52 檔 471 項通過（改寫 `curriculum.spec.ts`、`page-hero.spec.ts`，新增 `watercolor.spec.ts` 10 項）；`tests/e2e/old-site-content.spec.ts` 特色教學頁四個視口通過（對本機 dev :3217）。Playwright 1440／1024／390／320：無水平溢出、無 console／page error；21 張照片遮罩與 21 團顏料都畫出；換頁離開再回來無錯誤。axe（wcag2a／aa、21a／aa）1440 與 390 零違規（修掉手機橫滑清單不能用鍵盤捲的 `scrollable-region-focusable`）。文字對實際渲染背景量對比，全部 ≥ 4.5（課程方向副標原本 3.5–4.2，改內文色）。效能：390 寬、4 倍 CPU 節流，初版掛上時多一個約 840ms 長任務，改成接近視窗才產生、閒置時間 8ms 分塊、toBlob 非同步編碼後，最大長任務 ~200ms，與關掉水彩層的對照組同量級，捲動時無長任務。Safari／iOS 實機（mask-composite、canvas `rgb(r g b / a)` 語法）未驗證；stack e2e（a11y／keyboard／hydration 會掃 `/curriculum`）沒有在本機跑完整套；未 commit、未部署。
+
 ## 2026-09-27 官網後台換常春藤 logo、登入頁改版、狀態色對比修正（`feature/admin-ui-20260927`）
 
 使用者要求後台所有 logo 換成常春藤 IVY KIDS 徽章，登入頁比照園務系統（ivy-frontend）的登入頁。徽章取自 `ivy-frontend/public/images/login-logo.png`（城堡版），裁掉透明邊後輸出。

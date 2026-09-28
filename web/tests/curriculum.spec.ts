@@ -9,7 +9,10 @@ import { CLASS_BY_OFFSET } from '../app/utils/admission-classes'
 import manifest from '../app/generated/image-manifest.json'
 
 const site = fixture as unknown as SiteContent
-const component = readFileSync(fileURLToPath(new URL('../app/components/CurriculumContent.vue', import.meta.url)), 'utf8')
+const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
+const component = read('../app/components/CurriculumContent.vue')
+const css = read('../app/assets/css/curriculum.css')
+const template = component.slice(component.indexOf('<template>'))
 
 describe('特色教學頁入口', () => {
   it('頁首選單與頁尾都有特色教學', () => {
@@ -27,6 +30,12 @@ describe('特色教學頁 SEO', () => {
     expect(sitemapXml('https://ivy.example', [])).toContain('<loc>https://ivy.example/curriculum</loc>')
     expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })).toContain('(https://ivy.example/curriculum)')
   })
+  it('描述與 llms.txt 跟上 2026-09-28 新增的兒童美術館與教學理念', () => {
+    expect(curriculumSeo(site, 'https://ivy.example').description).toContain('兒童美術館')
+    const llms = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })
+    expect(llms).toContain('兒童美術館')
+    expect(llms).toContain('教學理念')
+  })
   it('沒有正式 origin 時不輸出 canonical 與結構化資料', () => {
     const seo = curriculumSeo(site, '')
     expect(seo.canonical).toBeUndefined()
@@ -41,9 +50,46 @@ describe('四個年段與入學資訊頁的分班一致', () => {
   })
 })
 
+describe('特色教學頁的段落（2026-09-28 水彩版）', () => {
+  it('章節依序是四個年段、課程方向、兒童美術館、五件事，最後是教學理念', () => {
+    const ids = [...template.matchAll(/<section id="([a-z-]+)"/g)].map((m) => m[1])
+    expect(ids).toEqual(['years', 'directions', 'gallery', 'daily', 'belief'])
+    const chapters = [...component.matchAll(/\{ id: '([a-z-]+)', no: '(\d\d)'/g)].map((m) => [m[1], m[2]])
+    expect(chapters).toEqual([['years', '01'], ['directions', '02'], ['gallery', '03'], ['daily', '04']])
+  })
+  it('使用者要求拿掉預約參觀：頁面主體沒有預約連結與按鈕（頁首的預約鈕是全站共用，不在這裡）', () => {
+    expect(template).not.toContain('/visit')
+    expect(template).not.toContain('預約')
+  })
+  it('搬來的內容都標出處，義華校的內容不冒充全體', () => {
+    expect(template).toContain('照片與介紹取自義華校')
+    expect(template).toContain('取自義華校教學理念')
+    expect(template).toContain('常春藤兒童美術館')
+  })
+  it('過期或只屬於義華的說法不搬：二十七年口碑、歐式城堡建築、高雄獨家、大推', () => {
+    for (const phrase of ['二十七年', '歐式城堡', '獨家', '大推']) expect(template).not.toContain(phrase)
+  })
+})
+
+describe('水彩樣式只用色票', () => {
+  it('curriculum.css 不寫色碼、rgb／oklch 字面值（顏料色在 tokens.css 的 --ivy-paint-*）', () => {
+    const body = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(body).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+    expect(body).not.toMatch(/\b(rgba?|oklch|hsla?)\(\s*[\d.]/i)
+  })
+  it('強制色彩時顏料層、紙紋與照片遮罩都拿掉', () => {
+    const forced = css.slice(css.indexOf('@media (forced-colors: active)'))
+    expect(forced).toMatch(/\.cur-wash[^{]*\{[^}]*display: none/)
+    expect(forced).toContain('.cur-grain')
+    expect(forced).toMatch(/mask: none/)
+  })
+})
+
 describe('特色教學頁圖片', () => {
+  const gallery = ['cur-gallery-canvas-yellow', 'cur-gallery-clay-ball', 'cur-gallery-tote', 'cur-gallery-plane-pink',
+    'cur-gallery-tee', 'cur-gallery-canvas-blue', 'cur-gallery-tape', 'cur-gallery-plane-dots']
   const names = [CURRICULUM_HERO_IMAGE, 'cur-years', 'cur-cognitive', 'cur-integrated', 'cur-multicultural', 'cur-autonomy', 'cur-activities', 'cur-art',
-    'cur-daily-calm', 'cur-daily-materials', 'cur-daily-art', 'cur-daily-reading', 'cur-daily-motor', 'cur-visit']
+    'cur-daily-calm', 'cur-daily-materials', 'cur-daily-art', 'cur-daily-reading', 'cur-daily-motor', ...gallery]
   it.each(names)('%s 已產生響應式候選檔', (name) => {
     expect(Object.hasOwn(manifest, name)).toBe(true)
     expect(responsiveImage(name).srcset).toBeTruthy()
@@ -51,5 +97,10 @@ describe('特色教學頁圖片', () => {
   it('元件用到的圖都在清單裡', () => {
     const used = new Set([...component.matchAll(/'(cur-[a-z-]+)'/g)].map((m) => m[1]))
     expect([...used].sort()).toEqual(names.filter((n) => n !== CURRICULUM_HERO_IMAGE).sort())
+  })
+  it('美術館作品每張都有描述作品本身的替代文字', () => {
+    const alts = [...component.matchAll(/\{ image: 'cur-gallery-[a-z-]+', label: '[^']+', alt: '([^']+)'/g)].map((m) => m[1])
+    expect(alts).toHaveLength(gallery.length)
+    for (const alt of alts) expect(alt!.length).toBeGreaterThan(6)
   })
 })

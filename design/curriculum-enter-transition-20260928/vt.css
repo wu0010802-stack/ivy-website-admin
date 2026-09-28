@@ -1,0 +1,125 @@
+/* 進入特色教學頁的換頁 mock-up（2026-09-28）
+   用瀏覽器原生 View Transitions：舊頁截圖留在底下，新頁（live）用水彩遮罩暈開蓋上來。
+   遮罩圖由 vt.js 用 canvas 生成（與特色教學頁同一套顏料演算法），存在 :root 的 --vt-* 變數。 */
+:root {
+  --green: oklch(37% .057 157);
+  --deep: oklch(28% .04 162);
+  --gold: oklch(82% .14 84);
+  --text: oklch(31% .025 160);
+  --muted: oklch(45% .025 155);
+  --paper: oklch(99% .008 95);
+  --logo-zh: oklch(41.466% .10216 153.575);
+  --logo-en: oklch(31.943% .11932 279.102);
+  --font: 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-en: 'Source Sans 3', 'Avenir Next', Arial, var(--font);
+  --head-h: 84px;
+  --vt-dur: 900ms;
+  /* 前段不要太快：大部分畫面會在前三成時間就被蓋滿，看不到滲開 */
+  --vt-ease: cubic-bezier(.33, .12, .3, 1);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; background: var(--paper); color: var(--text); font: 400 15px/1.6 var(--font); }
+.icon { width: 1.15em; height: 1.15em; }
+
+/* ---------- 頁首（固定不動） ---------- */
+.vt-head { position: relative; z-index: 5; display: flex; align-items: stretch; gap: 24px; height: var(--head-h); padding-left: clamp(16px, 4.4vw, 64px); background: var(--paper); border-bottom: 1px solid oklch(86% .018 145 / .7); view-transition-name: vt-head; }
+.vt-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.vt-brand-copy { display: grid; }
+.vt-brand-name { font: 600 22px/1.2 var(--font); letter-spacing: .06em; color: var(--logo-zh); }
+.vt-brand-en { font: 400 13px/1.3 var(--font-en); color: var(--logo-en); }
+.vt-nav { display: flex; align-items: center; gap: clamp(20px, 2.6vw, 40px); margin-left: auto; }
+.vt-nav a { position: relative; display: grid; justify-items: center; padding-block: 10px; color: var(--text); text-decoration: none; line-height: 1.35; }
+.vt-nav a[aria-disabled] { opacity: .45; cursor: default; }
+.vt-nav small { font: 400 11px/1.2 var(--font-en); color: var(--muted); }
+.vt-nav a[aria-current]::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: 2px; height: 2px; border-radius: 2px; background: var(--green); }
+.vt-nav a[data-go="curriculum"]:not([aria-current]) span { text-decoration: underline; text-decoration-color: oklch(82% .14 84); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.vt-book { display: flex; align-items: center; gap: 10px; padding: 0 28px; background: var(--gold); color: var(--deep); font-weight: 700; line-height: 1.3; text-decoration: none; border-bottom-left-radius: 24px; }
+.vt-book small { display: block; font: 400 11px/1.2 var(--font-en); }
+.vt-menu { display: none; }
+
+/* ---------- 兩個頁面 ---------- */
+.vt-stage { position: absolute; inset: var(--head-h) 0 0 0; }
+.vt-page { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; visibility: hidden; }
+.vt-page.is-on { visibility: visible; }
+
+/* ---------- 換頁動畫 ----------
+   頁首有自己的名字 → 不參與 root 的動畫，原地不動。
+   舊頁（截圖）不淡出，新頁（live）帶遮罩蓋上來；兩者都關掉預設的 plus-lighter 混色，邊緣才不會過曝。 */
+::view-transition-group(vt-head) { animation: none; }
+::view-transition-old(vt-head) { display: none; }
+::view-transition-new(vt-head) { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { mix-blend-mode: normal; }
+html[data-vt-run="enter"]::view-transition-old(root) { animation: none; }
+html[data-vt-run="enter"][data-vt="a"]::view-transition-new(root),
+html[data-vt-run="enter"][data-vt="b"]::view-transition-new(root) {
+  -webkit-mask-image: var(--vt-blob-1), var(--vt-blob-2), var(--vt-blob-3);
+  mask-image: var(--vt-blob-1), var(--vt-blob-2), var(--vt-blob-3);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  animation: vt-bloom var(--vt-dur) var(--vt-ease) both;
+}
+/* 三團顏料以略不同的中心與速度長大：邊緣形狀一路在變，像顏料在紙上滲開，而不是一個圓放大 */
+@keyframes vt-bloom {
+  from {
+    -webkit-mask-size: 0 0, 0 0, 0 0; mask-size: 0 0, 0 0, 0 0;
+    -webkit-mask-position: var(--vt-x) var(--vt-y), var(--vt-x) var(--vt-y), var(--vt-x) var(--vt-y);
+    mask-position: var(--vt-x) var(--vt-y), var(--vt-x) var(--vt-y), var(--vt-x) var(--vt-y);
+  }
+  to {
+    -webkit-mask-size: var(--vt-s) var(--vt-s), calc(var(--vt-s) * .86) calc(var(--vt-s) * .86), calc(var(--vt-s) * .74) calc(var(--vt-s) * .74);
+    mask-size: var(--vt-s) var(--vt-s), calc(var(--vt-s) * .86) calc(var(--vt-s) * .86), calc(var(--vt-s) * .74) calc(var(--vt-s) * .74);
+    -webkit-mask-position:
+      calc(var(--vt-x) - var(--vt-s) / 2) calc(var(--vt-y) - var(--vt-s) / 2),
+      calc(var(--vt-x) - var(--vt-s) * .43 + var(--vt-s) * .06) calc(var(--vt-y) - var(--vt-s) * .43 - var(--vt-s) * .04),
+      calc(var(--vt-x) - var(--vt-s) * .37 - var(--vt-s) * .07) calc(var(--vt-y) - var(--vt-s) * .37 + var(--vt-s) * .05);
+    mask-position:
+      calc(var(--vt-x) - var(--vt-s) / 2) calc(var(--vt-y) - var(--vt-s) / 2),
+      calc(var(--vt-x) - var(--vt-s) * .43 + var(--vt-s) * .06) calc(var(--vt-y) - var(--vt-s) * .43 - var(--vt-s) * .04),
+      calc(var(--vt-x) - var(--vt-s) * .37 - var(--vt-s) * .07) calc(var(--vt-y) - var(--vt-s) * .37 + var(--vt-s) * .05);
+  }
+}
+/* C：一大筆水彩從左刷到右，前緣是乾筆的毛邊與拖痕 */
+html[data-vt-run="enter"][data-vt="c"]::view-transition-new(root) {
+  -webkit-mask-image: var(--vt-brush); mask-image: var(--vt-brush);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-size: 300% 100%; mask-size: 300% 100%;
+  animation: vt-brush var(--vt-dur) cubic-bezier(.55, .1, .25, 1) both;
+}
+@keyframes vt-brush {
+  from { -webkit-mask-position: calc(var(--vt-w) * -3) 0; mask-position: calc(var(--vt-w) * -3) 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+/* 離開特色教學（回環境頁）：一般的短淡入淡出，只有「進入」才用水彩 */
+html[data-vt-run="leave"]::view-transition-old(root) { animation: vt-fade-out 240ms ease both; }
+html[data-vt-run="leave"]::view-transition-new(root) { animation: vt-fade-in 240ms ease both; }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+
+/* ---------- 比稿控制列 ---------- */
+.vt-bar { position: fixed; left: 50%; bottom: 14px; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; max-width: calc(100% - 24px); padding: 6px 8px; border-radius: 22px; background: oklch(25% .03 160 / .93); color: #fff; font-size: 13px; transform: translateX(-50%); box-shadow: 0 12px 30px -12px rgb(0 0 0 / .45); view-transition-name: vt-bar; }
+::view-transition-group(vt-bar) { animation: none; }
+.vt-variants { display: flex; gap: 2px; }
+.vt-variants a { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; color: inherit; text-decoration: none; white-space: nowrap; }
+.vt-variants a[aria-current] { background: var(--gold); color: var(--deep); font-weight: 700; }
+.vt-slow { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.vt-book span, .vt-slow, .vt-play { white-space: nowrap; }
+.vt-play { min-height: 36px; padding: 0 14px; border: 1px solid oklch(100% 0 0 / .35); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.vt-note { flex-basis: 100%; margin: 0; padding: 0 8px 2px; text-align: center; font-size: 12px; opacity: .8; }
+
+@media (max-width: 900px) {
+  :root { --head-h: 64px; }
+  .vt-nav, .vt-brand-en, .vt-book small { display: none; }
+  .vt-brand-name { font-size: 18px; }
+  .vt-book { margin-left: auto; align-self: center; min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 14px; }
+  .vt-menu { display: grid; place-items: center; align-self: center; width: 44px; height: 44px; margin-right: 10px; border: 0; background: none; color: var(--deep); font-size: 20px; }
+}
+@media (max-width: 560px) {
+  .vt-brand-name { font-size: 16px; white-space: nowrap; }
+  .vt-brand svg { width: 38px; height: 40px; }
+  .vt-bar { flex-wrap: nowrap; gap: 6px; bottom: 10px; padding: 4px 6px; }
+  .vt-variants a { padding: 0 9px; }
+  .vt-variants a b + * { display: none; }
+  .vt-slow { font-size: 12px; }
+  .vt-play { padding: 0 10px; }
+  .vt-note { display: none; }
+}

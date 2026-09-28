@@ -1,0 +1,295 @@
+/* 特色教學 水彩 mock-up（2026-09-28）
+   由 design/environment-canvas-directions-20260927 的 C 方向延伸。色值沿用 web/app/assets/css/tokens.css；
+   顏料四色（--paint-*）是新提案，正式實作時進 tokens.css。 */
+:root {
+  --green: oklch(37% .057 157);
+  --deep: oklch(28% .04 162);
+  --leaf: oklch(48% .075 155);
+  --yellow: oklch(87% .13 88);
+  --gold: oklch(82% .14 84);
+  --gold-ink: oklch(50% .09 72);
+  --text: oklch(31% .025 160);
+  --muted: oklch(45% .025 155);
+  --rule: oklch(86% .018 145);
+  --footer: #24483f;
+  --ink: 17 42 33;
+  --logo-zh: oklch(41.466% .10216 153.575);
+  --logo-en: oklch(31.943% .11932 279.102);
+  --font: 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-head: 'LINE Seed TW', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-en: 'Source Sans 3', 'Avenir Next', Arial, var(--font);
+  --gutter: clamp(16px, 4.4vw, 64px);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  /* 水彩紙與顏料 */
+  --paper: oklch(98.8% .006 95);
+  --paint-mint: oklch(84% .07 162);
+  --paint-sky: oklch(83% .065 228);
+  --paint-sun: oklch(89% .12 90);
+  --paint-orange: oklch(80% .11 58);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--text); font: 400 16px/1.85 var(--font); overflow-x: clip; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; }
+h1, h2, h3 { text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
+.icon { width: 1.1em; height: 1.1em; flex: none; }
+.cw-skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; background: var(--deep); color: var(--paper); border-radius: 8px; }
+.cw-skip:focus { top: 12px; }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.cw-wrap { width: min(1200px, 100% - 2 * var(--gutter)); margin-inline: auto; }
+.cw-num { font-family: var(--font-en); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
+
+/* ---------- 頁首（靜態複本） ---------- */
+.cw-head { position: relative; z-index: 60; }
+.cw-head-row { display: flex; align-items: stretch; gap: 24px; height: 84px; padding-left: var(--gutter); }
+.cw-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.cw-crest { flex: none; }
+.cw-brand-copy { display: grid; }
+.cw-brand-name { font: 600 22px/1.2 var(--font); letter-spacing: .06em; color: var(--logo-zh); }
+.cw-brand-en { font: 400 13px/1.3 var(--font-en); color: var(--logo-en); letter-spacing: .02em; }
+.cw-nav { display: flex; align-items: center; gap: clamp(20px, 2.6vw, 40px); margin-left: auto; }
+.cw-nav a { position: relative; display: grid; justify-items: center; padding-block: 10px; text-decoration: none; font-size: 15px; line-height: 1.35; }
+.cw-nav small { font: 400 11px/1.2 var(--font-en); color: var(--muted); }
+.cw-nav a[aria-current]::after { content: ""; position: absolute; left: 12%; right: 12%; bottom: 2px; height: 2px; border-radius: 2px; background: var(--green); }
+.cw-book { display: flex; align-items: center; gap: 10px; padding: 0 28px; background: var(--gold); color: var(--deep); font-weight: 700; font-size: 15px; line-height: 1.3; text-decoration: none; border-bottom-left-radius: 24px; }
+.cw-book small { display: block; font: 400 11px/1.2 var(--font-en); }
+
+/* ---------- 水彩層 ---------- */
+.cw-hero, .cw-sec { position: relative; overflow-x: clip; }
+.cw-wash { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.cw-hero > .cw-wrap, .cw-sec > .cw-wrap { position: relative; z-index: 1; }
+.cw-grain { position: fixed; inset: 0; z-index: 55; pointer-events: none; mix-blend-mode: multiply; opacity: .4; background-size: 256px 256px; }
+/* 顏料團（背景圖由 cw.js 依元素大小生成） */
+.cw-blot { position: absolute; background: center / 100% 100% no-repeat; pointer-events: none; }
+/* 照片：撕紙毛邊＋進場從中間暈開 */
+.cw-frame { position: relative; overflow: hidden; }
+.cw-frame img { width: 100%; height: 100%; object-fit: cover; }
+.cw-frame.has-mask { -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%); mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%); -webkit-mask-composite: source-in; mask-composite: intersect; transition: -webkit-mask-size 2.2s var(--ease), mask-size 2.2s var(--ease); }
+.cw-frame.is-bloomed { --bloom: 520%; }
+
+/* ---------- 共用 ---------- */
+.cw-sec { padding-block: clamp(72px, 8.5vw, 124px); }
+.cw-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; font: 600 13px/1 var(--font-en); letter-spacing: .2em; text-transform: uppercase; color: var(--leaf); }
+.cw-kicker .cw-num { color: var(--gold-ink); }
+.cw-kicker .cw-num::after { content: ""; display: inline-block; width: 28px; height: 1px; margin-left: 12px; vertical-align: middle; background: currentColor; opacity: .6; }
+.cw-title { margin: 0; font: 700 clamp(32px, 3.8vw, 54px)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; }
+.cw-text { margin: 22px 0 0; max-width: 30em; word-break: keep-all; overflow-wrap: anywhere; }
+.cw-button { display: inline-flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: var(--gold); color: var(--deep); font-weight: 700; text-decoration: none; transition: background .3s, transform .5s var(--ease); }
+.cw-button:hover { background: var(--yellow); transform: translateY(-2px); }
+.cw-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--green); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 7px; }
+
+/* ---------- 首屏 ---------- */
+.cw-hero { padding: clamp(16px, 3vw, 40px) 0 clamp(48px, 6vw, 88px); }
+.cw-hero-grid { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: clamp(32px, 5vw, 88px); align-items: center; }
+.cw-eyebrow { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .2em; color: var(--leaf); }
+.cw-hero h1 { margin: .45em 0 .5em; font: 700 clamp(36px, 4.6vw, 68px)/1.24 var(--font-head); color: var(--green); letter-spacing: .01em; }
+/* 「動手做」底下刷一筆橙色顏料，取代原本的金色底線 */
+.cw-swash { position: relative; isolation: isolate; white-space: nowrap; }
+.cw-swash-paint { left: -.12em; right: -.16em; top: .52em; bottom: -.04em; z-index: -1; opacity: 0; transform: scaleX(.2); transform-origin: left center; transition: opacity .6s, transform 1.4s var(--ease) .3s; }
+.js .is-in .cw-swash-paint, .cw-swash-paint.is-painted { opacity: 1; transform: none; }
+.cw-lede { margin: 0; max-width: 30em; font-size: clamp(16px, 1.3vw, 18px); word-break: keep-all; overflow-wrap: anywhere; }
+.cw-notice { display: flex; align-items: center; gap: 10px; margin: 28px 0 0; font-size: 14px; color: var(--muted); }
+.cw-notice::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+.cw-hero-photo { margin: 0; }
+.cw-hero-photo img { height: min(64vh, 600px); min-height: 380px; object-position: 80% 45%; }
+/* 章節索引＝一排顏料盤：每章一團自己的顏料（跟該段主色一致），滑過時顏料轉一下、暈大一點 */
+.cw-index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px clamp(16px, 2.4vw, 32px); margin-top: clamp(40px, 5vw, 64px); }
+.cw-index a { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 6px 0; text-decoration: none; }
+.cw-pan { position: relative; isolation: isolate; flex: none; display: grid; place-items: center; width: 78px; height: 78px; color: var(--deep); }
+.cw-pan .cw-blot { inset: 0; z-index: -1; transform: rotate(var(--r, 0deg)); transition: transform .9s var(--ease); }
+.cw-pan .cw-num { font-size: 16px; letter-spacing: .04em; }
+.cw-index-copy { display: grid; min-width: 0; }
+.cw-index b { font: 700 19px/1.4 var(--font-head); color: var(--green); text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 6px; transition: text-decoration-color .3s; }
+.cw-index-copy span { font-size: 14px; color: var(--muted); }
+.cw-index a:hover .cw-blot, .cw-index a:focus-visible .cw-blot { transform: rotate(calc(var(--r, 0deg) + 14deg)) scale(1.14); }
+.cw-index a:hover b, .cw-index a:focus-visible b { text-decoration-color: currentColor; }
+
+/* ---------- 01 四個年段 ---------- */
+.cw-years-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
+.cw-links { display: flex; flex-wrap: wrap; gap: 4px 28px; margin-top: 14px; }
+/* 螺旋式課程：一團淡藍顏料墊在小標後面 */
+.cw-spiral { position: relative; isolation: isolate; max-width: 30em; margin: 22px 0 0; padding: 18px 22px; font-size: 15px; line-height: 1.8; word-break: keep-all; overflow-wrap: anywhere; }
+.cw-spiral .cw-blot { inset: -8px -14px; z-index: -1; opacity: .55; }
+.cw-spiral b { display: block; margin-bottom: 2px; font: 700 17px/1.5 var(--font-head); color: var(--green); }
+.cw-years-photo { margin: 0; }
+.cw-years-photo .cw-frame { aspect-ratio: 3 / 2; }
+.cw-years-photo figcaption { margin-top: 12px; font-size: 14px; color: var(--muted); }
+.cw-year-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 44px); margin: clamp(56px, 7vw, 96px) 0 0; padding: 0; list-style: none; align-items: start; }
+.cw-year { display: flex; flex-direction: column; }
+/* 年齡：顏料團一歲比一歲大，數字也跟著長 */
+.cw-year-age { --box: 210px; --k: var(--s); position: relative; align-self: flex-start; width: var(--box); height: var(--box); margin: 0 0 18px -18px; color: var(--deep); }
+.cw-year-age .cw-blot { left: calc(50% - var(--box) * var(--k) / 2); bottom: 0; width: calc(var(--box) * var(--k)); height: calc(var(--box) * var(--k)); opacity: 0; transform: scale(.35) rotate(-10deg); transform-origin: 50% 80%; transition: opacity .8s, transform 1.5s var(--ease); transition-delay: calc(var(--i) * 240ms); }
+.js .is-in .cw-year-age .cw-blot, .cw-year-age .cw-blot.is-painted { opacity: 1; transform: none; }
+.cw-year-age b, .cw-year-age sup { position: absolute; bottom: calc(var(--box) * var(--k) / 2); }
+.cw-year-age b { left: 50%; font: 700 calc(52px + var(--i) * 12px)/1 var(--font-head); transform: translate(-60%, 50%); }
+.cw-year-age sup { left: calc(50% + 12px + var(--i) * 4px); font: 700 15px/1 var(--font-head); transform: translateY(calc(50% - .3em)); }
+.cw-year-name { display: flex; align-items: baseline; gap: 10px; margin: 0; }
+.cw-year-name b { font: 700 20px/1.4 var(--font-head); color: var(--green); }
+.cw-year-name span { font: 600 12px/1 var(--font-en); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cw-year h3 { margin: 8px 0 8px; font: 700 18px/1.5 var(--font-head); color: var(--text); text-spacing-trim: trim-start; }
+.cw-year > p:not(.cw-year-name) { margin: 0; font-size: 15px; line-height: 1.8; color: var(--muted); }
+.cw-year small { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+/* ---------- 02 課程方向 ---------- */
+.cw-dir-head { max-width: 40em; }
+.cw-dir-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(16px, 2.4vw, 32px); row-gap: clamp(56px, 6vw, 88px); margin: clamp(48px, 6vw, 88px) 0 0; padding: 0; list-style: none; }
+.cw-dir { position: relative; margin: 0; }
+.cw-dir .cw-frame { aspect-ratio: 4 / 3; }
+.cw-dir-copy { margin-top: 16px; max-width: 26em; }
+.cw-dir h3 { margin: 0 0 4px; font: 700 20px/1.45 var(--font-head); color: var(--green); }
+.cw-dir-sub { margin: 0 0 6px; font-size: 14px; font-weight: 700; color: var(--gold-ink); }
+.cw-dir-copy p:last-child { margin: 0; font-size: 15px; line-height: 1.8; color: var(--muted); }
+.cw-dir--cognitive { grid-column: 1 / span 5; }
+.cw-dir--integrated { grid-column: 7 / span 3; margin-top: 14%; }
+.cw-dir--integrated .cw-frame, .cw-dir--multicultural .cw-frame, .cw-dir--activities .cw-frame { aspect-ratio: 4 / 5; }
+.cw-dir--multicultural { grid-column: 10 / span 3; margin-top: 34%; }
+.cw-dir--quote { grid-column: 1 / span 4; align-self: center; display: grid; place-items: center; min-height: 340px; padding: 40px 32px; text-align: center; }
+.cw-dir--quote .cw-blot { inset: -6% -10%; opacity: .95; }
+.cw-dir--quote .cw-dir-copy { position: relative; margin: 0; }
+.cw-dir--quote h3 { font-size: 15px; letter-spacing: .2em; color: var(--deep); }
+.cw-dir--quote .cw-dir-sub { margin: 8px 0 10px; font: 700 clamp(40px, 4.2vw, 60px)/1.15 var(--font-head); color: var(--deep); letter-spacing: .04em; }
+.cw-dir--quote .cw-dir-copy p:last-child { color: var(--text); font-size: 16px; }
+.cw-dir--autonomy { grid-column: 6 / span 4; margin-top: -6%; }
+.cw-dir--activities { grid-column: 10 / span 3; margin-top: 10%; }
+.cw-dir--art { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: clamp(24px, 4vw, 64px); align-items: end; margin-top: 2%; }
+.cw-dir--art .cw-frame { aspect-ratio: 16 / 9; }
+.cw-dir--art .cw-dir-copy { margin: 0 0 12px; }
+.cw-dir--art h3 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.3; margin-bottom: 10px; }
+.cw-dir--art .cw-dir-sub { font-size: 17px; }
+
+/* ---------- 03 兒童美術館：沙龍式掛法，作品保留原本比例 ---------- */
+.cw-gallery-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; }
+.cw-gallery-head .cw-text { justify-self: end; margin: 0; }
+.cw-art-wall { columns: 4; column-gap: clamp(20px, 2.6vw, 36px); margin: clamp(48px, 6vw, 80px) 0 0; padding: 0; list-style: none; }
+.cw-art { break-inside: avoid; margin: 0 0 clamp(28px, 3.4vw, 48px); }
+.cw-art:nth-child(2) { margin-top: 56px; }
+.cw-art:nth-child(4) { margin-top: 24px; }
+.cw-art .cw-frame { aspect-ratio: auto; }
+.cw-art img { height: auto; }
+.cw-art > span { display: block; margin-top: 10px; font-size: 13px; letter-spacing: .06em; color: var(--muted); }
+
+/* ---------- 04 五件事 ---------- */
+.cw-daily-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; }
+.cw-daily-head .cw-text { justify-self: end; margin: 0; }
+.cw-source { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.cw-daily-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); column-gap: clamp(24px, 3vw, 48px); row-gap: clamp(56px, 6vw, 88px); margin: clamp(48px, 6vw, 88px) 0 0; padding: 0; list-style: none; }
+.cw-thing { grid-column: span 2; }
+.cw-thing:nth-child(2) { margin-top: 48px; }
+.cw-thing:nth-child(4) { grid-column: 2 / span 2; }
+.cw-thing:nth-child(5) { grid-column: 4 / span 2; margin-top: 40px; }
+.cw-thing .cw-frame { aspect-ratio: 8 / 5; }
+.cw-thing-no { position: relative; display: grid; place-items: center; width: 44px; height: 44px; margin: 18px 0 4px; font-size: 14px; color: var(--deep); }
+.cw-thing-no .cw-blot { inset: -4px; opacity: 0; transform: scale(.5); transition: opacity .6s, transform 1.2s var(--ease) .5s; }
+.js .is-in .cw-thing-no .cw-blot, .cw-thing-no .cw-blot.is-painted { opacity: 1; transform: none; }
+.cw-thing-no { isolation: isolate; }
+.cw-thing-no .cw-blot { z-index: -1; }
+.cw-thing h3 { margin: 0 0 8px; font: 700 22px/1.4 var(--font-head); color: var(--green); }
+.cw-thing > p:last-child { margin: 0; font-size: 15px; line-height: 1.85; color: var(--muted); }
+
+/* ---------- 結尾：教學理念 ---------- */
+.cw-belief { padding-block: clamp(96px, 11vw, 168px); }
+.cw-belief-body { display: grid; justify-items: center; text-align: center; }
+.cw-belief .cw-kicker { justify-content: center; }
+.cw-belief-title { margin: 0; font: 700 clamp(30px, 4vw, 56px)/1.35 var(--font-head); color: var(--green); letter-spacing: .01em; text-spacing-trim: trim-start; }
+.cw-belief-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 34px; max-width: 900px; margin: clamp(36px, 4vw, 56px) 0 0; padding: 0; list-style: none; }
+.cw-belief-list li { position: relative; isolation: isolate; padding: 10px 18px; font: 700 17px/1.5 var(--font-head); color: var(--deep); }
+.cw-belief-list .cw-blot { inset: -6px -14px; z-index: -1; opacity: 0; transform: scale(.5); transition: opacity .7s, transform 1.3s var(--ease); }
+.cw-belief-list li:nth-child(2) .cw-blot { transition-delay: .15s; }
+.cw-belief-list li:nth-child(3) .cw-blot { transition-delay: .3s; }
+.cw-belief-list li:nth-child(4) .cw-blot { transition-delay: .45s; }
+.cw-belief-list li:nth-child(5) .cw-blot { transition-delay: .6s; }
+.js .is-in .cw-belief-list .cw-blot, .cw-belief-list .cw-blot.is-painted { opacity: .8; transform: none; }
+.cw-belief-close { margin: clamp(32px, 4vw, 48px) 0 0; font-size: 16px; }
+
+/* ---------- 預約（已拿掉，保留樣式給正式頁參考） ---------- */
+.cw-visit-grid { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(32px, 5vw, 88px); align-items: center; }
+.cw-visit-photo { margin: 0; aspect-ratio: 4 / 3; }
+.cw-visit-copy > p:not(.cw-kicker) { margin: 22px 0 30px; max-width: 28em; word-break: keep-all; overflow-wrap: anywhere; }
+
+/* ---------- 頁尾（正式站 A 深森林綠的簡化複本） ---------- */
+.cw-foot { position: relative; z-index: 2; background: var(--footer); color: #fff; padding: 64px 0 28px; font-size: 15px; }
+.cw-foot-grid { display: grid; grid-template-columns: 4fr 4fr 4fr; gap: 32px; }
+.cw-foot-name { margin: 0 0 12px; font: 700 22px/1.3 var(--font-head); }
+.cw-foot-name span { display: block; margin-top: 6px; font: 600 12px/1 var(--font-en); letter-spacing: .2em; }
+.cw-foot-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+.cw-foot a { text-decoration: none; }
+.cw-foot-label { margin: 0 0 10px; font-weight: 700; }
+.cw-foot-campuses { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; }
+.cw-foot-bottom { margin-top: 48px; padding-top: 20px; border-top: 1px solid #526d61; font-size: 13px; }
+
+/* ---------- 進場 ---------- */
+.js [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity 1s var(--ease), transform 1.2s var(--ease); }
+.js [data-reveal].is-in { opacity: 1; transform: none; }
+
+/* ---------- 斷點 ---------- */
+@media (max-width: 1100px) {
+  .cw-nav { gap: 22px; }
+  .cw-year-list { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 56px; }
+  .cw-dir-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cw-dir { grid-column: auto !important; margin-top: 0 !important; }
+  .cw-dir:nth-child(even) { margin-top: 56px !important; }
+  .cw-dir .cw-frame { aspect-ratio: 4 / 3 !important; }
+  .cw-dir--quote, .cw-dir--art { grid-column: 1 / -1 !important; }
+  .cw-dir--art { grid-template-columns: 1fr; }
+  .cw-daily-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cw-art-wall { columns: 3; }
+  .cw-thing, .cw-thing:nth-child(4), .cw-thing:nth-child(5) { grid-column: auto; }
+}
+@media (max-width: 900px) {
+  .cw-nav, .cw-brand-en { display: none; }
+  .cw-head-row { height: 68px; padding-right: var(--gutter); align-items: center; }
+  .cw-book { margin-left: auto; min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 14px; }
+  .cw-book small { display: none; }
+  .cw-brand-name { font-size: 18px; }
+  .cw-index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cw-hero-grid, .cw-years-head, .cw-daily-head, .cw-gallery-head, .cw-visit-grid { grid-template-columns: 1fr; }
+  .cw-hero-photo { order: -1; }
+  .cw-hero-photo img { height: auto; min-height: 0; aspect-ratio: 4 / 3; }
+  .cw-daily-head .cw-text, .cw-gallery-head .cw-text { justify-self: start; }
+  .cw-foot-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  body { font-size: 15.5px; }
+  .cw-hero h1 { font-size: clamp(30px, 8.6vw, 40px); }
+  .cw-index { column-gap: 12px; }
+  .cw-index a { gap: 10px; }
+  .cw-pan { width: 58px; height: 58px; }
+  .cw-pan .cw-num { font-size: 14px; }
+  .cw-index b { font-size: 16px; }
+  .cw-index-copy span { font-size: 13px; }
+  .cw-title { font-size: min(34px, 8.4vw); }
+  .cw-sec { padding-block: 80px; }
+
+  /* 年段：左邊顏料＋年齡，右邊文字 */
+  .cw-year-list { grid-template-columns: 1fr; row-gap: 36px; }
+  .cw-year { display: grid; grid-template-columns: 96px 1fr; column-gap: 16px; }
+  .cw-year-age { --box: 108px; --k: calc(.66 + var(--s) * .34); grid-row: 1 / span 5; margin: 0 0 0 -8px; }
+  .cw-year-age b { font-size: calc(34px + var(--i) * 5px); }
+  .cw-year-age sup { left: calc(50% + 6px + var(--i) * 3px); font-size: 12px; }
+  .cw-year small { margin-top: 8px; }
+
+  /* 課程方向、五件事：一列橫滑，每張自帶照片與文字 */
+  .cw-dir-grid, .cw-daily-list { display: flex; gap: 16px; margin-inline: calc(-1 * var(--gutter)); padding: 12px var(--gutter) 20px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .cw-dir-grid::-webkit-scrollbar, .cw-daily-list::-webkit-scrollbar { display: none; }
+  .cw-dir, .cw-thing { flex: 0 0 80%; display: block; margin-top: 0 !important; scroll-snap-align: start; }
+  .cw-dir--quote { display: grid; min-height: 0; padding: 28px 20px; align-self: stretch; }
+  .cw-dir--art h3 { font-size: 22px; }
+  .cw-dir--art .cw-dir-copy { margin-top: 16px; }
+  .cw-art-wall { display: flex; align-items: flex-start; gap: 16px; columns: auto; margin-inline: calc(-1 * var(--gutter)); padding: 12px var(--gutter) 20px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .cw-art-wall::-webkit-scrollbar { display: none; }
+  .cw-art { flex: 0 0 62%; margin: 0 !important; scroll-snap-align: start; }
+  .cw-belief-list { gap: 10px 14px; }
+  .cw-belief-list li { font-size: 15px; padding: 8px 12px; }
+  .cw-links { flex-direction: column; gap: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .js [data-reveal] { transform: none; transition: opacity .3s linear; }
+  .cw-frame.has-mask, .cw-blot { transition: none !important; }
+}
+@media (forced-colors: active) {
+  .cw-wash, .cw-grain, .cw-blot { display: none; }
+  .cw-frame.has-mask { -webkit-mask: none; mask: none; }
+}

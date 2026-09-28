@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-Hant-TW" data-art="a">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>常春藤環境 canvas 比稿</title>
+<link rel="icon" type="image/png" href="../environment-mockup-20260925/vendor/favicon-48.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="ec.css">
+<script>
+  // 比稿參數 ?art=a|b|c，先寫到 <html> 避免閃一下預設樣式
+  (function () {
+    var a = (new URLSearchParams(location.search).get('art') || 'a').toLowerCase()
+    document.documentElement.dataset.art = /^[abc]$/.test(a) ? a : 'a'
+  })()
+</script>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="logo-colour-cutout" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -4.252 -14.304 -1.444 20 0" /></filter>
+    <!-- B：照片裁成常春藤葉形（objectBoundingBox，隨容器縮放） -->
+    <clipPath id="ivy-leaf-clip" clipPathUnits="objectBoundingBox">
+      <path d="M.5 .84C.4 .92 .2 .92 .1 .8C.14 .72 .2 .68 .24 .64C.14 .6 .04 .52 0 .4C.12 .36 .22 .36 .3 .38C.34 .24 .42 .1 .5 0C.58 .1 .66 .24 .7 .38C.78 .36 .88 .36 1 .4C.96 .52 .86 .6 .76 .64C.8 .68 .86 .72 .9 .8C.8 .92 .6 .92 .5 .84Z" />
+    </clipPath>
+  </defs>
+  <symbol id="i-arrow-right" viewBox="0 0 256 256"><path fill="currentColor" d="m221.66 133.66l-72 72a8 8 0 0 1-11.32-11.32L196.69 136H40a8 8 0 0 1 0-16h156.69l-58.35-58.34a8 8 0 0 1 11.32-11.32l72 72a8 8 0 0 1 0 11.32" /></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 256 256"><path fill="currentColor" d="m205.66 149.66l-72 72a8 8 0 0 1-11.32 0l-72-72a8 8 0 0 1 11.32-11.32L120 196.69V40a8 8 0 0 1 16 0v156.69l58.34-58.35a8 8 0 0 1 11.32 11.32" /></symbol>
+  <symbol id="i-arrow-up-right" viewBox="0 0 256 256"><path fill="currentColor" d="M200 64v104a8 8 0 0 1-16 0V83.31L69.66 197.66a8 8 0 0 1-11.32-11.32L172.69 72H88a8 8 0 0 1 0-16h104a8 8 0 0 1 8 8" /></symbol>
+  <symbol id="i-calendar-check" viewBox="0 0 256 256"><path fill="currentColor" d="M208 32h-24v-8a8 8 0 0 0-16 0v8H88v-8a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16M72 48v8a8 8 0 0 0 16 0v-8h80v8a8 8 0 0 0 16 0v-8h24v32H48V48Zm136 160H48V96h160zm-38.34-85.66a8 8 0 0 1 0 11.32l-48 48a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L116 164.69l42.34-42.35a8 8 0 0 1 11.32 0" /></symbol>
+</svg>
+
+<a class="ec-skip" href="#main">跳到主要內容</a>
+
+<!-- 頁首：正式站 SiteHeader 的靜態複本，只為了看整頁比例 -->
+<header class="ec-head">
+  <div class="ec-head-row">
+    <a class="ec-brand" href="#">
+      <svg class="ec-crest" viewBox="30 26 124 132" width="46" height="49" aria-hidden="true" focusable="false"><image href="../environment-mockup-20260925/vendor/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" /></svg>
+      <span class="ec-brand-copy"><span class="ec-brand-name">常春藤教育機構</span><span class="ec-brand-en" lang="en">Ivy Educational Institution</span></span>
+    </a>
+    <nav class="ec-nav" aria-label="主要導覽">
+      <a href="#"><span>關於常春藤</span><small lang="en">About</small></a>
+      <a href="#"><span>特色教學</span><small lang="en">Curriculum</small></a>
+      <a href="#" aria-current="page"><span>常春藤環境</span><small lang="en">Environment</small></a>
+      <a href="#"><span>入學資訊</span><small lang="en">Admission</small></a>
+    </nav>
+    <a class="ec-book" href="#visit"><svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg><span>預約參觀<small lang="en">Book a Visit</small></span></a>
+  </div>
+</header>
+
+<main id="main" class="ec" tabindex="-1">
+  <!-- 首屏 -->
+  <section class="ec-hero" aria-labelledby="ec-title">
+    <div class="ec-wrap ec-hero-grid">
+      <div class="ec-hero-copy" data-reveal>
+        <p class="ec-eyebrow">常春藤幼兒園 · 常春藤環境</p>
+        <h1 id="ec-title">孩子的每一天，<br>都在這裡安心長大。</h1>
+        <p class="ec-lede">保育照顧、校園環境與幼兒餐點，整理在同一頁。</p>
+        <div class="ec-actions">
+          <a class="ec-button" href="#visit">預約參觀<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
+          <a class="ec-link" href="#spaces">先看校園環境<svg class="icon" aria-hidden="true"><use href="#i-arrow-down" /></svg></a>
+        </div>
+        <p class="ec-notice">照片取自各校日常，空間配置各校略有不同。</p>
+      </div>
+      <figure class="ec-hero-photo ec-frame" data-reveal data-vine="-0.05,0.62;-0.04,0.14;0.12,-0.012;0.6,-0.016;1.05,0.08;1.06,0.6;1.05,1.15">
+        <img src="../environment-mockup-20260925/media/hero-hug.webp" width="1520" height="724" alt="兩個孩子在教室裡緊緊抱在一起" fetchpriority="high">
+      </figure>
+    </div>
+    <nav class="ec-wrap ec-index" aria-label="本頁章節">
+      <a href="#care"><span class="ec-num" lang="en">01</span><b>幼兒保育</b><span>五顆心的照顧</span></a>
+      <a href="#spaces"><span class="ec-num" lang="en">02</span><b>校園環境</b><span>7 個孩子的空間</span></a>
+      <a href="#meals"><span class="ec-num" lang="en">03</span><b>幼兒餐點</b><span>9 月菜單</span></a>
+    </nav>
+  </section>
+
+  <!-- 01 幼兒保育：五張一樣的卡 → 清單＋大照片舞台 -->
+  <section id="care" class="ec-sec ec-care" aria-labelledby="care-title">
+    <canvas class="ec-wash" aria-hidden="true"></canvas>
+    <div class="ec-wrap">
+      <div class="ec-care-head" data-reveal>
+        <div>
+          <p class="ec-kicker"><span class="ec-num" lang="en">01</span><span lang="en">Child care</span></p>
+          <h2 id="care-title" class="ec-title">五顆心，<br>照顧每一天。</h2>
+        </div>
+        <div class="ec-care-intro" data-vine="1.07,-0.1;1.07,1.1">
+          <p>專業保育照顧，靠的是五顆心：</p>
+          <p class="ec-hearts"><span>愛心</span><span>細心</span><span>耐心</span><span>貼心</span><span>同理心</span></p>
+          <p>從量體溫、吃蔬果到換衣服、安撫情緒，老師把孩子在學校的每一件小事都放在心上。</p>
+        </div>
+      </div>
+
+      <div class="ec-care-stage" data-reveal>
+        <ol class="ec-care-list">
+          <li class="ec-care-item is-on" data-img="care-01" data-pos="30% 40%" data-alt="老師幫戴著口罩的孩子確認身體狀況">
+            <button type="button" aria-pressed="true" aria-controls="care-view"><span class="ec-num" lang="en">01</span><span class="ec-care-copy"><b>健康把關紀錄</b><span>隨時注意孩子身體狀況，每日定時測量體溫。</span></span></button>
+            <img class="ec-care-thumb" src="../environment-mockup-20260925/media/care-01.webp" width="1200" height="571" alt="" loading="lazy">
+          </li>
+          <li class="ec-care-item" data-img="care-02" data-pos="45% 50%" data-alt="孩子們坐在桌邊用碗吃飯">
+            <button type="button" aria-pressed="false" aria-controls="care-view"><span class="ec-num" lang="en">02</span><span class="ec-care-copy"><b>均衡飲食</b><span>每日兩蔬果，增進免疫、提升孩子的健康。</span></span></button>
+            <img class="ec-care-thumb" src="../environment-mockup-20260925/media/care-02.webp" width="1200" height="571" alt="" loading="lazy">
+          </li>
+          <li class="ec-care-item" data-img="care-04" data-pos="55% 45%" data-alt="老師幫孩子整理衣服">
+            <button type="button" aria-pressed="false" aria-controls="care-view"><span class="ec-num" lang="en">03</span><span class="ec-care-copy"><b>衣物保暖</b><span>隨時注意孩子服裝的保暖與整齊。</span></span></button>
+            <img class="ec-care-thumb" src="../environment-mockup-20260925/media/care-04.webp" width="1200" height="571" alt="" loading="lazy">
+          </li>
+          <li class="ec-care-item" data-img="care-06" data-pos="62% 40%" data-alt="老師蹲下來抱著笑開的孩子">
+            <button type="button" aria-pressed="false" aria-controls="care-view"><span class="ec-num" lang="en">04</span><span class="ec-care-copy"><b>情緒安撫</b><span>穩定、安定孩子的情緒。</span></span></button>
+            <img class="ec-care-thumb" src="../environment-mockup-20260925/media/care-06.webp" width="1200" height="571" alt="" loading="lazy">
+          </li>
+          <li class="ec-care-item" data-img="care-05" data-pos="68% 45%" data-alt="老師擦拭消毒教室門把">
+            <button type="button" aria-pressed="false" aria-controls="care-view"><span class="ec-num" lang="en">05</span><span class="ec-care-copy"><b>定時消毒</b><span>每日定時教室消毒。</span></span></button>
+            <img class="ec-care-thumb" src="../environment-mockup-20260925/media/care-05.webp" width="1200" height="571" alt="" loading="lazy">
+          </li>
+        </ol>
+        <figure id="care-view" class="ec-care-view" aria-live="polite" data-vine="1.04,0.2;1.03,0.85;0.5,1.1">
+          <div class="ec-care-photo ec-frame">
+            <img src="../environment-mockup-20260925/media/care-01.webp" width="1200" height="571" alt="老師幫戴著口罩的孩子確認身體狀況" style="object-position:30% 40%">
+          </div>
+          <figcaption><span class="ec-num" lang="en">01</span>健康把關紀錄</figcaption>
+        </figure>
+      </div>
+
+      <figure class="ec-care-wide" data-reveal data-vine="1.05,0.3;0.6,1.5;-0.6,1.62">
+        <div class="ec-frame"><img src="../environment-mockup-20260925/media/care-hero.webp" width="1200" height="400" alt="老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌" loading="lazy"></div>
+        <figcaption>老師帶著幼幼班的孩子，一起拍手唱歌。</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 02 校園環境：1＋6 張一樣的卡 → 大小錯落的走廊 -->
+  <section id="spaces" class="ec-sec ec-spaces" aria-labelledby="spaces-title">
+    <canvas class="ec-wash" aria-hidden="true"></canvas>
+    <div class="ec-wrap">
+      <div class="ec-spaces-head" data-reveal>
+        <p class="ec-kicker"><span class="ec-num" lang="en">02</span><span lang="en">Our spaces</span></p>
+        <h2 id="spaces-title" class="ec-title">把安全與好奇，<br>放進每個角落。</h2>
+        <p>從教室、教具、衛廁到戶外廣場，每個空間都以孩子的安全與探索為出發點。</p>
+      </div>
+
+      <div class="ec-gallery">
+        <figure class="ec-space ec-space--feature" data-reveal data-vine="-0.04,0.2;-0.05,0.9;0.5,1.1">
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-playground.webp" width="1200" height="800" alt="校園裡色彩繽紛的溜滑梯與遊戲設施" loading="lazy"></div>
+          <figcaption>
+            <span class="ec-space-label">安全歡樂遊樂區</span>
+            <h3>在遊戲裡，<br>慢慢長大。</h3>
+            <p>遊戲幫助寶貝成長發育，發展精細動作、激發想像力、提升手眼協調力，讓寶貝開心、健康、快樂地成長。</p>
+          </figcaption>
+        </figure>
+        <figure class="ec-space ec-space--classroom" data-reveal>
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-classroom.webp" width="1200" height="898" alt="陽光照進木地板教室，牆邊是矮櫃與小桌椅" loading="lazy"></div>
+          <figcaption><span class="ec-num" lang="en">01</span><h3>乾淨溫馨的教室</h3><p>課程統整，全方位主題教學，帶領孩子走出戶外，接觸大自然。</p></figcaption>
+        </figure>
+        <figure class="ec-space ec-space--materials" data-reveal data-vine="1.08,0.1;1.08,1.25">
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-materials.webp" width="928" height="693" alt="教室矮櫃上擺滿各式操作教具" loading="lazy"></div>
+          <figcaption><span class="ec-num" lang="en">02</span><h3>多樣操作教具</h3><p>多樣性教具提升寶貝邏輯思維；多元玩法搭配豐富內容，讓寶貝養成自主學習的好習慣。</p></figcaption>
+        </figure>
+        <figure class="ec-space ec-space--plaza" data-reveal>
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-plaza-minghua.webp" width="1200" height="900" alt="明華校寬敞的戶外廣場" loading="lazy"><span class="ec-tag">明華校</span></div>
+          <figcaption><span class="ec-num" lang="en">03</span><h3>戶外廣場</h3><p>寬敞明亮的大廣場，給予寶貝充足的空間伸展肢體、跑跑跳跳，讓寶貝贏在人生的起跑點！</p></figcaption>
+        </figure>
+        <figure class="ec-space ec-space--corner" data-reveal data-vine="-0.1,0.2;-0.08,1.12">
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-corner.webp" width="900" height="675" alt="教室角落貼著厚軟墊，地上鋪著巧拼" loading="lazy"></div>
+          <figcaption><span class="ec-num" lang="en">04</span><h3>安全角落設計</h3><p>厚軟墊防撞設計，加強角落安全性，寶貝唱唱跳跳好開心。</p></figcaption>
+        </figure>
+        <figure class="ec-space ec-space--restroom" data-reveal>
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-restroom.webp" width="1200" height="800" alt="孩子高度的洗手台，掛著一排小毛巾" loading="lazy"></div>
+          <figcaption><span class="ec-num" lang="en">05</span><h3>套房式衛廁</h3><p>連接教室的套房式衛廁，時刻注意寶貝的安全及如廁狀況；安心環境幫助幼幼寶貝快速戒除尿布好放心！</p></figcaption>
+        </figure>
+        <figure class="ec-space ec-space--animals" data-reveal data-vine="1.06,0.3;0.9,1.1">
+          <div class="ec-frame"><img src="../environment-mockup-20260925/media/env-animals.webp" width="1200" height="800" alt="孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子" loading="lazy"></div>
+          <figcaption><span class="ec-num" lang="en">06</span><h3>可愛動物區</h3><p>可愛動物區激發寶貝主動探索大自然生態的熱情與動力，培養責任心與好奇心。</p></figcaption>
+        </figure>
+      </div>
+
+      <nav class="ec-campuses" aria-labelledby="campus-art-title" data-reveal data-vine="1.03,0.3;1.03,1.2;0.5,1.6">
+        <p id="campus-art-title">五校空間各有不同，<br class="ec-br-m">到分校頁看實景</p>
+        <ul>
+          <li><a href="#"><img src="../environment-mockup-20260925/vendor/line-art-yihua.webp" width="480" height="320" alt="" loading="lazy"><span>義華校</span></a></li>
+          <li><a href="#"><img src="../environment-mockup-20260925/vendor/line-art-minghua.webp" width="480" height="320" alt="" loading="lazy"><span>明華校</span></a></li>
+          <li><a href="#"><img src="../environment-mockup-20260925/vendor/line-art-chongde.webp" width="480" height="320" alt="" loading="lazy"><span>崇德校</span></a></li>
+          <li><a href="#"><img src="../environment-mockup-20260925/vendor/line-art-international.webp" width="480" height="320" alt="" loading="lazy"><span>國際校</span></a></li>
+          <li><a href="#"><img src="../environment-mockup-20260925/vendor/line-art-renwu.webp" width="480" height="320" alt="" loading="lazy"><span>仁武校</span></a></li>
+        </ul>
+      </nav>
+    </div>
+  </section>
+
+  <!-- 03 幼兒餐點：四張時間卡 → 一條 08:30–15:30 的日弧 -->
+  <section id="meals" class="ec-sec ec-meals" aria-labelledby="meals-title">
+    <canvas class="ec-wash" aria-hidden="true"></canvas>
+    <div class="ec-wrap">
+      <div class="ec-meals-head" data-reveal data-vine="-0.06,-0.3;-0.06,1.3">
+        <div>
+          <p class="ec-kicker"><span class="ec-num" lang="en">03</span><span lang="en">Meals</span></p>
+          <h2 id="meals-title" class="ec-title">多一點天然，<br>少一點加工。</h2>
+        </div>
+        <p>每日餐點符合營養標準，廚房每天現煮，讓孩子吃到食物最原始的味道。每個月的菜單，都收在常春藤營養餐點書裡。</p>
+      </div>
+      <div class="ec-meals-grid">
+        <div class="ec-mealbook" data-reveal>
+          <a class="ec-book-cover ec-frame" data-vine="-0.14,0.35;-0.12,0.92" href="#" aria-label="打開營養餐點書的 9 月菜單（另開新視窗）"><img src="../environment-mockup-20260925/media/meal-cover.webp" width="849" height="1200" alt="" loading="lazy"></a>
+          <a class="ec-button" href="#">看 9 月菜單<svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right" /></svg><span class="sr-only">（另開新視窗）</span></a>
+          <p class="ec-book-note">每天的早餐、午餐、點心，<br>都在營養餐點書的 <b>9 月</b>那一頁。</p>
+        </div>
+        <div class="ec-day" data-reveal>
+          <canvas class="ec-day-canvas" aria-hidden="true"></canvas>
+          <ol class="ec-day-stops">
+            <li class="ec-stop is-major" data-t="0.0625"><span class="ec-dot" aria-hidden="true"></span><time>08:30</time><b>早餐</b><small>早餐美語</small><p>營養好吃的早餐，讓孩子有精神、有活力。</p></li>
+            <li class="ec-stop" data-t="0.25"><span class="ec-dot" aria-hidden="true"></span><time>10:00</time><b>香蕉</b><small>每日兩蔬果</small></li>
+            <li class="ec-stop is-major" data-t="0.458"><span class="ec-dot" aria-hidden="true"></span><time>11:40</time><b>午餐</b><small>廚房每天現煮</small><p>最新鮮、最營養的午餐，健健康康長大。</p></li>
+            <li class="ec-stop" data-t="0.53"><span class="ec-dot" aria-hidden="true"></span><time>12:00</time><b>蘋果</b><small>每日兩蔬果</small></li>
+            <li class="ec-stop is-major" data-t="0.9375"><span class="ec-dot" aria-hidden="true"></span><time>15:30</time><b>點心</b><small>西米露、玉米粥</small><p>即便是點心，也是豐盛的正餐。</p></li>
+          </ol>
+          <p class="ec-day-note">每日兩蔬果，增進免疫、提升孩子的健康。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 結尾：預約 -->
+  <section id="visit" class="ec-sec ec-visit" aria-labelledby="visit-title">
+    <canvas class="ec-wash" aria-hidden="true"></canvas>
+    <div class="ec-wrap ec-visit-grid" data-reveal>
+      <figure class="ec-visit-photo ec-frame" data-vine="0.5,-0.06;1.04,0.4"><img src="../environment-mockup-20260925/media/env-classroom.webp" width="1200" height="898" alt="陽光照進木地板教室" loading="lazy"></figure>
+      <div class="ec-visit-copy">
+        <p class="ec-kicker"><span lang="en">Book a visit</span></p>
+        <h2 id="visit-title" class="ec-title">環境好不好，<br>來看一次最清楚。</h2>
+        <p>教室、遊戲區、午睡和用餐的地方，參觀時都可以走一圈。</p>
+        <a class="ec-button" href="#" data-vine="-0.1,0.5;-0.02,0.5">預約校園參觀<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="ec-foot">
+  <div class="ec-wrap ec-foot-grid">
+    <div><p class="ec-foot-name">常春藤幼兒園<span lang="en">IVY KINDERGARTEN</span></p><p>陪伴每一個孩子，長成自己喜歡的樣子。</p></div>
+    <div class="ec-foot-links"><a href="#">關於常春藤</a><a href="#">五所校園</a><a href="#">孩子的一天</a><a href="#">預約參觀</a><a href="#">最新消息</a><a href="#">入學資訊</a><a href="#" aria-current="page">常春藤環境</a><a href="#">特色教學</a></div>
+    <div><p class="ec-foot-label">我們的大家庭</p><p class="ec-foot-campuses"><a href="#">義華校</a><a href="#">明華校</a><a href="#">崇德校</a><a href="#">國際校</a><a href="#">仁武校</a></p></div>
+  </div>
+  <div class="ec-wrap ec-foot-bottom">© 2026 常春藤教育機構</div>
+</footer>
+
+<!-- 比稿切換（mock 專用，正式頁不會有） -->
+<nav class="ec-switch" aria-label="比稿方向">
+  <span>比稿</span>
+  <a href="?art=a" data-art="a"><b>A</b>藤蔭</a>
+  <a href="?art=b" data-art="b"><b>B</b>一筆藤</a>
+  <a href="?art=c" data-art="c"><b>C</b>水彩</a>
+</nav>
+
+<script src="art-a.js"></script>
+<script src="art-b.js"></script>
+<script src="art-c.js"></script>
+<script src="ec.js"></script>
+</body>
+</html>
