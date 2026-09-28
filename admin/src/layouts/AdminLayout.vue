@@ -59,15 +59,22 @@ watch(() => route.query.denied, denied => {
   const { denied: _, ...rest } = route.query
   void router.replace({ query: rest })
 }, { immediate: true })
+// 先換到登入頁，真正的登出在 router 的 beforeEach 裡（見 stores/auth.ts 的
+// logoutPending）：頁面有未儲存的修改時，離頁攔截會先問，選留在這頁就不登出。
 async function handleLogout() {
+  // 連按兩下只算一次：前一次還在等離頁確認或伺服器回應。
+  if (auth.logoutPending) return
+  auth.logoutPending = true
   try {
-    await auth.logout()
+    const failure = await router.push({ name: 'login' })
+    if (failure) return
   } catch {
     ElMessage.error('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
     return
+  } finally {
+    auth.logoutPending = false
   }
   openRequests.reset()
-  router.push({ name: 'login' })
 }
 </script>
 

@@ -150,6 +150,19 @@ export function canOpenPath(path: string, user: { role: string; capabilities?: s
   return item ? canSeeNavItem(item, user) : true
 }
 
+/** 登入頁 ?redirect= 的目的頁：只接受站內的 router 路徑，其他一律回 null
+ * （由呼叫端改用起始頁）。後端的 OAuth 入口也會各自再驗一次。 */
+export function safeRedirectPath(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null
+  const pathname = value.split(/[?#]/)[0] ?? '/'
+  if (
+    /[\\\u0000-\u001f\u007f]/.test(value)
+    || /%|(^|\/)\.{1,2}(\/|$)/.test(pathname)
+    || pathname.replace(/\/+$/, '') === '/login'
+  ) return null
+  return value
+}
+
 /** 登入後的第一頁：該角色看得到的第一個側欄項目（編輯與唯讀沒有營運總覽）。 */
 export function landingPath(role: string | undefined): string {
   for (const group of NAV_GROUPS) {

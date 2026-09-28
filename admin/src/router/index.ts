@@ -12,7 +12,7 @@ import { useAuthStore } from '../stores/auth'
 // 不必讓櫃台在手機上先下載一整包用不到的內容編輯頁。
 import AdminLayout from '../layouts/AdminLayout.vue'
 import LoginView from '../views/LoginView.vue'
-import { canSeeNavItem, landingPath, navItem } from './nav'
+import { canSeeNavItem, landingPath, navItem, safeRedirectPath } from './nav'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -79,21 +79,47 @@ export const routes: RouteRecordRaw[] = [
   },
 ]
 
-/** 每次換頁的登入與角色檢查。匯出給測試用同一份規則建 router。 */
+/**
+ * 每次換頁的登入與角色檢查。匯出給測試用同一份規則建 router。
+ * 被導回登入頁時帶 reason，登入頁據此說明原因：signin＝連結要先登入、
+ * offline＝連不上伺服器（session 可能還有效）、expired＝用到一半逾時（main.ts）。
+ */
 export async function authGuard(to: RouteLocationNormalized): Promise<boolean | RouteLocationRaw> {
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
-    if (authStore.user) return { path: landingPath(authStore.user.role) }
+    if (authStore.user && authStore.logoutPending) {
+      // 按了登出、目前頁面的未儲存攔截也答應了才會走到這裡。登出失敗會丟錯：
+      // 換頁中止、留在原頁，由 AdminLayout 提示再按一次。
+      await authStore.logout()
+      return true
+    }
+    // 從書籤直接開登入頁、或在別的分頁重新登入後重新整理這一頁時，cookie 裡的
+    // session 可能還有效：先試著恢復，不要讓人再登入一次（每次都會多建一個
+    // session）。/auth/me 回 401 時 main.ts 的處理看到沒有登入者就不動作，不會繞圈。
+    if (!authStore.user) {
+      try {
+        await authStore.restoreSession()
+      } catch {
+        /* 連不上伺服器就先顯示登入頁 */
+      }
+    }
+    if (authStore.user) return safeRedirectPath(to.query.redirect) ?? landingPath(authStore.user.role)
     return true
   }
 
+  // 直接開後台首頁不必帶 redirect，也不必說明；其他網址要記住、登入後回來。
+  const redirect = to.fullPath !== '/' ? { redirect: to.fullPath } : {}
   if (!authStore.user) {
-    await authStore.restoreSession()
+    try {
+      await authStore.restoreSession()
+    } catch {
+      return { name: 'login', query: { ...redirect, reason: 'offline' } }
+    }
   }
 
   if (!authStore.user) {
-    return { name: 'login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : undefined }
+    return { name: 'login', query: to.fullPath !== '/' ? { ...redirect, reason: 'signin' } : undefined }
   }
 
   const roles = to.meta.roles
