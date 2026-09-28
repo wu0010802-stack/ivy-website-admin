@@ -56,7 +56,7 @@
 
   // 註記：桌機預設展開成左欄，手機收成「改了什麼」
   var wide = window.matchMedia('(min-width: 901px)')
-  function syncNotes() { document.querySelectorAll('details.notes').forEach(function (d) { d.open = wide.matches }) }
+  function syncNotes() { document.querySelectorAll('details.notes, details.more').forEach(function (d) { d.open = wide.matches }) }
   syncNotes()
   if (wide.addEventListener) wide.addEventListener('change', syncNotes)
 

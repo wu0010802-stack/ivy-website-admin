@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>頁首記號比稿</title>
+<link rel="icon" href="data:,">
 <script>
 /* 讀網址參數：?v= 方案（預設 sign＝建議）、?frame=head|pill 只畫頁首或膠囊（給本頁的 iframe 用）、?force=1 無視寬度門檻強制顯示記號 */
 (function () {
@@ -105,7 +106,7 @@
       </figure>
       <div class="pill-frames">
         <figure class="pf pf-390"><div class="frame-scale" data-w="390" data-h="86"><iframe data-frame-src="pill" width="390" height="86" title="手機 390px 寬的膠囊" scrolling="no"></iframe></div><figcaption>手機 390px</figcaption></figure>
-        <figure class="pf"><div class="frame-scale" data-w="320" data-h="86"><iframe data-frame-src="pill" width="320" height="86" title="手機 320px 寬的膠囊" scrolling="no"></iframe></div><figcaption>手機 320px：≤359px 收籤</figcaption></figure>
+        <figure class="pf"><div class="frame-scale" data-w="320" data-h="86"><iframe data-frame-src="pill" width="320" height="86" title="手機 320px 寬的膠囊" scrolling="no"></iframe></div><figcaption data-cap320>手機 320px：≤359px 收籤</figcaption></figure>
       </div>
       <p class="note pill-pages"><span class="note-tag">出現範圍</span>膠囊籤只出現在首頁、關於、入學、特色教學（會收成膠囊的四頁）；分校頁和預約頁在手機也會收成膠囊，但<b>不出現</b>「30 週年」，免得國際、仁武被讀成 30 年老校。</p>
     </div>
@@ -185,7 +186,7 @@
           <li><code>noto-sans-tc-600-anni.woff</code>：2 個字元（「週年」）。</li>
           <li><code>source-sans-3-400-brand.woff</code> 有 0–9，但那是英文字標的 Source Sans 3，不是 Noto。</li>
         </ul>
-        <p><b>兩個 Noto 子集都沒有 0–9</b>，所以本頁不畫這一版：拿系統字或別的字型頂替，看到的就不是 Noto 的「30」，比較會失準。</p>
+        <p><b>兩個 Noto 子集都沒有 <span class="nw">0–9</span></b>，所以本頁不畫這一版：拿系統字或別的字型頂替，看到的就不是 Noto 的「30」，比較會失準。</p>
       </div>
       <div class="note">
         <span class="note-tag">要比這一版需要</span>
