@@ -451,3 +451,6 @@ html[data-v="early"] .pl[data-off~="early"] .pl-state { color: var(--muted); fon
   .np-filter a[aria-current="page"] { border: 2px solid CanvasText; }
   .hn-progress b { background: CanvasText; }
 }
+
+/* 日期、「（見比稿 B）」不從中間斷行 */
+.nw { white-space: nowrap; }

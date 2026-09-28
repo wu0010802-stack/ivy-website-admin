@@ -28,7 +28,7 @@
   <section class="brief" aria-labelledby="page-title">
     <div class="container brief-grid">
       <div class="brief-copy">
-        <p class="brief-kicker">30 週年官網呈現 · 比稿 C · 2026-09-28</p>
+        <p class="brief-kicker">30 週年官網呈現 · 比稿 C · <span class="nw">2026-09-28</span></p>
         <h1 id="page-title"><span>故事系列，</span><span>四個落點</span></h1>
         <p class="brief-lede">真人故事系列只用既有的消息後台：系列名填在分類欄，不動後端、資料庫和契約。下面由上到下是四個畫面：首頁最新消息、消息列表、單篇、明華校頁，都照正式站現在的版型畫。用「切換方案」比三種做法：首頁輪播規則，以及系列真文章不到 3 篇時少了哪些東西。</p>
         <ul class="legend" aria-label="圖例">
@@ -73,7 +73,7 @@
           <li class="pl"><span class="pl-name">分校頁「本校的故事」</span>
             <span class="pl-state"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>出現</span></li>
           <li class="pl" data-off="early"><span class="pl-name">/about 結尾連結</span>
-            <span class="pl-state" data-only="manual pinned"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg>出現（見比稿 B）</span>
+            <span class="pl-state" data-only="manual pinned"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg><span>出現<span class="nw">（見比稿 B）</span></span></span>
             <span class="pl-state" data-only="early"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-minus"/></svg>不出現</span></li>
         </ul>
       </div>
@@ -150,7 +150,7 @@
               </div>
             </article>
             <article class="hn-card">
-              <div class="hn-media"><img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位戴眼鏡的大人摟著穿制服的小男孩，兩人笑著看向遠方"></div>
+              <div class="hn-media"><img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，戴眼鏡的大人笑著摟住穿綠白上衣的小男孩，後面還有一位大人彎著腰"></div>
               <div class="hn-card-copy">
                 <p class="hn-meta"><span>義華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h4><a href="#s2"><span class="ph">草地上的放風箏時光</span></a></h4>
@@ -268,7 +268,7 @@
               </div>
             </li>
             <li class="np-row">
-              <img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，一位大人摟著穿制服的小男孩，兩人笑著看向遠方">
+              <img src="../../web/public/assets/campus-film-kite.webp" width="720" height="405" alt="草地上的野餐墊旁，大人笑著摟住穿綠白上衣的小男孩">
               <div class="np-row-copy">
                 <p class="np-meta"><span>義華校<span class="hn-sample-tag">示意</span></span><time datetime="2027">2027.○○.○○</time></p>
                 <h5><a href="#s2"><span class="ph">草地上的放風箏時光</span></a></h5>
@@ -383,7 +383,7 @@
       <div class="container cap-row">
         <span class="cap-no">畫面 4</span>
         <h2 id="s4">明華校頁</h2>
-        <span class="cap-route">網址 /campuses/minghua · 聯絡卡之後的一段</span>
+        <span class="cap-route">網址 /campuses/minghua · 校園探索之後的一段</span>
         <span class="demo-note">示意</span>
       </div>
     </div>
@@ -438,7 +438,7 @@
         <summary class="container notes-sum"><span class="anno-tag">註記</span><span>畫面 4 的設計說明，不是網站內容</span></summary>
         <div class="container">
         <dl class="notes-grid">
-          <div class="note"><dt>落點</dt><dd>CampusPageMain.vue:59 附近，沿用分校頁 .section。最多 3 篇，一篇都沒有就整段不渲染；三個方案都出現。</dd></div>
+          <div class="note"><dt>落點</dt><dd>CampusPageMain.vue:59 附近（校園探索之後），沿用分校頁 .section。最多 3 篇，一篇都沒有就整段不渲染；三個方案都出現。這裡畫的是明華累積到 3 篇之後的樣子，比畫面 1、2 晚；系列剛開跑時只有 1 列（見「系列不到 3 篇」）。</dd></div>
           <div class="note"><dt>可以先上</dt><dd>分校消息一律不是示意，分校篇可以比全站篇先上。第一則全站篇要和清空示意消息同一次發布，否則會被標成示意並 noindex。</dd></div>
           <div class="note"><dt>入口</dt><dd>不加主選單第 5 項。入口放在頁尾連結、首頁推薦消息、/about 結尾和這一段。</dd></div>
         </dl>

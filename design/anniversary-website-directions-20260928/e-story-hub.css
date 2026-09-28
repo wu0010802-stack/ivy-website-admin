@@ -27,8 +27,13 @@ html[data-v="full"] [data-only="facts"] { display: none !important; }
 .skip-link:focus { top: 12px; }
 .site-nav a { min-height: 44px; align-content: center; }
 .site-head .brand { min-height: 44px; }
-.site-menu { flex: none; }
-.site-foot-links a { display: flex; align-items: center; min-height: 44px; }  /* 共用頁尾連結只有 32px 高，這頁補到 44px */  /* 320px 時共用頁首的選單鈕會被壓窄，補回 44px */
+.site-menu { flex: none; }  /* 320px 時共用頁首的選單鈕會被壓窄，補回 44px */
+.site-foot-links a { display: flex; align-items: center; min-height: 44px; }  /* 共用頁尾連結只有 32px 高，這頁補到 44px */
+/* 比稿標記：這頁的標記字比較長，共用樣式會折成兩行、在 1440×900 首屏壓到 hero 的預約鈕。
+   只在本頁收成一條細標（桌機一行、手機兩行、字小一階），仍放左下角；shared/ 不動。 */
+.mock-flag { left: 12px; bottom: 12px; max-width: calc(100% - 24px); padding: 4px 12px; border-radius: 8px; line-height: 1.55; }
+@media (min-width: 761px) { .mock-flag { white-space: nowrap; } }
+@media (max-width: 760px) { .mock-flag { padding: 4px 10px; font-size: .6875rem; line-height: 1.5; } }
 a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--leaf); outline-offset: 4px; }
 .sh-stage :focus-visible { outline-color: var(--gold); }
 .nw { white-space: nowrap; }
@@ -73,7 +78,7 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
 .brief-state { margin-top: 10px; font-size: var(--fs-sm); line-height: 1.75; }
 
 /* ── ②③ hero：薄荷帶，左 6／12 字、右 5／12 圓角照片 ───────────────── */
-.sh-hero { position: relative; isolation: isolate; overflow: hidden; padding: 12px 0 112px; background: var(--ivy-forest-mist); color: var(--ivy-forest); }
+.sh-hero { position: relative; isolation: isolate; overflow: hidden; padding: 12px 0 72px; background: var(--ivy-forest-mist); color: var(--ivy-forest); }
 .sh-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; font-size: var(--fs-sm); color: var(--ivy-forest-soft); }
 .sh-crumb a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; margin-inline: -8px; padding-inline: 8px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .sh-crumb [aria-current] .tag { margin-left: 10px; }
@@ -91,7 +96,8 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
 .sh p.sh-anno-hero { max-width: calc((100% - 24px * 11) / 12 * 5 + 24px * 4); margin: 40px 0 0 auto; }
 /* 淡字「1997–2027」：字級上限 --fs-7xl（規則：不做 168px 的年份裝飾字），壓在薄荷帶左下 */
 .sh-ghost { margin: 0; font: 800 var(--fs-7xl)/1 var(--font-head); letter-spacing: .01em; color: var(--ivy-forest-ghost); white-space: nowrap; pointer-events: none; user-select: none; }
-.sh-ghost-d { position: absolute; z-index: -1; left: max(var(--gutter), calc((100% - 1280px) / 2)); bottom: 36px; }
+/* 桌機：淡字貼齊右欄註記的底線，填掉左欄動作列下方的空白，不再單獨浮在色帶最底 */
+.sh-ghost-d { position: absolute; z-index: -1; left: max(var(--gutter), calc((100% - 1280px) / 2)); bottom: 64px; }
 .sh-ghost-m { display: none; }
 
 /* 手機專用：hero 後的五校清單（桌機不畫） */
@@ -166,6 +172,8 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
 /* 系列記號：12×2px 金色短線（金色只用在這麼小的面積） */
 .sh-story-meta .series::before { content: ''; width: 12px; height: 2px; background: var(--gold); }
 .sh-story-meta .tag { margin-left: -6px; }
+/* 系列名、校別、類型都是示意，整排包在同一個虛線框裡 */
+.sh-story-meta .meta-ph { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding: 0 4px; }
 .sh-story h3 { margin-top: 14px; font-size: var(--fs-2xl); line-height: 1.5; color: var(--ivy-news-green); }
 .sh-story-lg h3 { font-size: var(--fs-3xl); }
 .sh-story h3 a::after { content: ''; position: absolute; inset: 0; }
@@ -195,7 +203,8 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
 .sh-ev-date { font-size: var(--fs-sm); font-weight: 700; line-height: 1.6; color: var(--ivy-news-date); }
 .sh-ev-campus { font-size: var(--fs-xs); font-weight: 600; line-height: 1.6; color: var(--ivy-news-green); }
 .sh-ev-copy h4 { margin: 6px 0 0; font: 700 var(--fs-lg)/1.55 var(--font-head); color: var(--ivy-news-green); }
-.sh-ev-where { margin-top: 6px; font-size: var(--fs-sm); line-height: 1.7; color: var(--ivy-news-muted); }
+/* 地址列用 --ivy-news-ink：--ivy-news-muted 疊在 --ivy-news-event-1 上只有 4.3:1，不到 AA */
+.sh-ev-where { margin-top: 6px; font-size: var(--fs-sm); line-height: 1.7; color: var(--ivy-news-ink); }
 .sh-ev-where a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .sh-ev-cta { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; margin-top: 4px; padding: 0 22px; border-radius: 999px; background: var(--ivy-news-green); color: var(--white); font-size: var(--fs-sm); font-weight: 600; }
 @media (hover: hover) { .sh-ev-cta:hover { background: var(--deep); } }
@@ -233,6 +242,9 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
   .sh-hero-copy { grid-column: 1 / span 7; }
   .sh-hero-photo { grid-column: 8 / span 5; }
   .sh p.sh-anno-hero { max-width: none; }
+  /* 900 以下註記改成滿寬，淡字退回註記下方 */
+  .sh-hero { padding-bottom: 112px; }
+  .sh-ghost-d { bottom: 36px; }
   /* 比例尺在 900 以下改成年份文字清單 */
   .sh-ruler { display: none; }
   .sh-yearlist { position: relative; display: grid; gap: 0; margin: 0; padding: 0 0 0 26px; list-style: none; }
@@ -287,7 +299,6 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
   .sh-mlist .anno { margin: 24px 0 0; }
 
   .sh-years { padding: 48px 0 56px; background: var(--ivy-forest-mist); }
-  .sh-years .anno { background: var(--paper); }
 
   .sh-campuses { display: none; }
 
@@ -321,6 +332,8 @@ h1 .tag, .adm-title .tag { vertical-align: .9em; }
   .switch { grid-template-columns: 1fr; }
   .switch a { min-height: 64px; }
   .sh-ghost-m { font-size: var(--fs-4xl); }
+  /* 「孩子的第一所學校，」9 個字在 32px 下超過 288px，逗號會自己掉到第二行 */
+  .sh-stage .adm-title { font-size: var(--fs-3xl); }
   .sh-rows a { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; }
   .sh-rows span { grid-column: 1; grid-row: 2; }
   .sh-rows .icon { grid-column: 2; grid-row: 1 / span 2; }

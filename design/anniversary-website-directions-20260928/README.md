@@ -14,12 +14,20 @@ python3 -m http.server 8770 --bind 127.0.0.1   # 在 repo 根目錄
 
 - 比較頁：<http://127.0.0.1:8770/design/anniversary-website-directions-20260928/>
 - 單張：`<id>.html?v=<變體>`（見下表）；每張頁面上方也有切換列
-- 截圖：`node design/anniversary-website-directions-20260928/shoot.cjs [id …]`，讀 `shots.json`，輸出 `shots/*.webp`（1440×900 與 390×844@2x，另含整頁），同時檢查 4xx、page error、水平溢出
+- 截圖：`node design/anniversary-website-directions-20260928/shoot.cjs [id …]`，讀 `shots.json`，輸出 `shots/*.webp`（首屏 1440×900 與 390×844@2x；整頁縮成 960／390 寬），同時檢查 4xx、page error、水平溢出；需要 python3＋Pillow
 - 共用頁框在 `shared/`：`site.css`（引用 `web/app/assets/css/tokens.css`）、`fonts.css`（正式站 LINE Seed TW 分片與品牌字，相對路徑讀 `web/public`）、`chrome.js`（正式站頁首頁尾的簡化複本）。**mock 裡的頁首頁尾只是框架，不是新設計。**
 
 ## 五張 mock-up
 
-<!-- MOCK-TABLE -->
+| mock | 讓業主判斷什麼 | `?v=`（粗體＝建議） |
+|---|---|---|
+| [A 頁首週年記號](a-header-mark.html) | 在現行頁首（影片首屏、米白內頁、捲動後膠囊、手機、1280／1100／901px）比較五種記號；膠囊金色小點要不要正式否決 | `none` 不加／**`sign`** 文字簽名／`sign-noto` 30 改 Noto／`c` 上標小籤／`b` 第三行／`a` 印章 |
+| [B 就地事實與時間閘三態](b-weave-facts.html) | 同一批現有頁面在 2026 今天、2027 週年期間、創校月日之後、2028 收回各長什麼樣；布幕預熱或嚴格；分校寫「YYYY 年成立」；後台排程表與收回清單 | `before`／**`during`**／`full`／`after`；加 `&diff=1` 把拿掉的「近」標成刪除線 |
+| [C 真人故事系列](c-story-series.html) | 系列落在首頁消息、`/news`、單篇、分校頁的樣子；系列不到 3 篇時什麼都不出現 | **`manual`** 輪播維持手動推薦／`pinned` 最新故事置頂／`early` 不到 3 篇 |
+| [D 參與：回憶卡與活動接預約](d-events-booking.html) | 紙本回憶卡＋消息發布（不需解除規格），對照獨立回憶牆（需解除「不新增週年後台」）；真實開放日直接接該校預約參觀 | **`news`**／`wall` |
+| [E 彙整頁 /story](e-story-hub.html) | 「只有已知事實」與「有 6 篇故事＋1 場活動」差多少，用來定上線門檻或乾脆不做 | `facts`／**`full`** |
+
+每張頁面上方有方案切換、左下角有比稿標籤；藍灰或米色「註記」區塊是設計說明，不是網站內容。
 
 虛線框、`示意` 標籤都是還沒有真內容、或要園方提供的部分；沒有標示意的文字都出自機構站原文或 repo 既有文案。
 
@@ -131,4 +139,20 @@ python3 -m http.server 8770 --bind 127.0.0.1   # 在 repo 根目錄
 2. 方向（5 個獨立角度）→ 評審（家長／品牌／可行性各 1）→ 綜合
 3. mock-up（每張 1 個建置＋1 個對抗式檢查，修正後重拍）
 
-<!-- VERIFY -->
+## 驗證（2026-09-28）
+
+- 每張 mock 由一個 agent 建置、另一個 agent 對抗式檢查並直接修正，共修 10 個 major、30 多個 minor，另有 8 個 minor 保留並列在下方（例：把沒標示意的排程日期改成待業主決定；非義華校頁首不得出現「30」；預約狀態不是同一條流程——表單是「已收到需求」、人工時段是「待園方確認」，確認後才叫「預約成立」；email 收稿註明只收文字，避免家長寄出帶 GPS 的手機照片；固定比稿標籤不再蓋住內容或鍵盤焦點）。
+- `node design/anniversary-website-directions-20260928/shoot.cjs`：17 個變體 × 桌機／手機共 34 組全部 ok（無 4xx、無 page error、無水平溢出）。
+- 另跑 Playwright：17 個變體在 320px 與 1024px 皆無水平溢出、無破圖（1024px 抓到 mock A 的寬度 iframe 撐破版面，已修）；比較頁 1440／390／320 無溢出、10 張縮圖都載入。
+- 顏色字面值：所有 mock 的 html／css／js 在註解外找不到 hex、`rgb(數字`、`rgba(`、`oklch(`、`hsl(`。
+- 週年校徽只出現在 mock B 的仿布幕框內並標「布幕畫面（已授權範圍）」；沒有「30th Anniversary」「30 Years」字樣（比較頁引述現況布幕除外）；沒有用 `*-enhanced-v1`、線稿、建築透視圖當歷史照片。
+- 共用頁框對齊正式站：dev server（fixture 模式）實測手機頁首高 78、320 寬 gutter 16／校徽 24×26／中文 15px／選單 44×44；頁尾用 `--ivy-footer-*`。
+- 未驗證：Safari、Firefox、iOS 實機（mock 用到 `:has()`、`object-view-box`、`backdrop-filter`）；真實螢幕閱讀器；各方向自測的寬度與金字對比數字（頁面上已標「方向自測，未複驗」）。
+
+### 檢查後仍留著、請業主一起看的小事
+
+- mock A：規格要在「預約參觀頁」米白頁首示範記號，但手機膠囊規則又說預約頁不顯示；桌機預約頁要不要也收，和膠囊規則一起決定。b 第三行因「字標不動」而和頁首底線重疊 1.5px，比 09-18 原稿吃虧。
+- mock C：`tour-minghua-plaza.webp` 裁切後看得到街邊看板（含醫美廣告），當消息封面前建議換圖；`early` 狀態首頁故事卡仍保留系列記號，要不要一起拿掉待定。
+- mock D：徵集消息（②）在 `wall` 變體也保留，因為回憶牆仍靠紙卡與電話收稿。
+- mock E：hero 小標「常春藤教育機構 · 高雄五校」由事實組成、未標示意；英文小節標籤照 /about 既有寫法。
+- 各 mock 的固定比稿標籤在極矮的視窗（例如 1024×900 的 mock E）仍可能壓到一小段內容，只影響比稿頁本身。

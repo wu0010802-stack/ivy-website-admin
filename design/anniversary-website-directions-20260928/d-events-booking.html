@@ -12,6 +12,7 @@
     document.documentElement.dataset.v = (v === 'news' || v === 'wall') ? v : 'news'
   })()
 </script>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="shared/site.css">
 <link rel="stylesheet" href="d-events-booking.css">
 </head>
@@ -47,8 +48,8 @@
       <div class="intro-ctrl">
         <p class="ctrl-label" id="v-label">選一種參與做法</p>
         <nav class="switch" aria-labelledby="v-label">
-          <a href="?v=news" data-v="news"><span class="sw-top"><span class="sw-name">消息發布</span><span class="sw-badge">建議</span></span><span class="sw-hint">紙卡＋現有消息後台，不需解除規格</span></a>
-          <a href="?v=wall" data-v="wall"><span class="sw-top"><span class="sw-name">回憶牆</span><span class="sw-badge">對照</span></span><span class="sw-hint">要先解除「不新增週年後台」，新後台 M</span></a>
+          <a href="?v=news" data-v="news"><span class="sw-top"><span class="sw-name">消息發布</span><span class="sw-badge">建議</span></span><span class="sw-hint"><span class="nw">紙卡＋現有消息後台，</span><span class="nw">不需解除規格</span></span></a>
+          <a href="?v=wall" data-v="wall"><span class="sw-top"><span class="sw-name">回憶牆</span><span class="sw-badge">對照</span></span><span class="sw-hint"><span class="nw">要先解除「不新增週年後台」，</span><span class="nw">工時 M</span></span></a>
         </nav>
         <div class="asks">
           <p class="ctrl-label">要園方回答</p>
@@ -61,8 +62,8 @@
     </div>
     <div class="container">
       <p class="state-line">
-        <b data-only="news">消息發布（建議）</b><span data-only="news">回憶卡收回後，小編整理成一篇篇「回憶選輯」消息（④），由分校管理者對照紙卡核准。只用現有的消息後台，階段一不用寫程式。</span>
-        <b data-only="wall">回憶牆（對照）</b><span data-only="wall">收稿一樣靠紙卡和電話，差別只在刊出的地方換成獨立的回憶牆區塊（④）。要新增 content kind 和後台頁，業主得先解除「不新增週年後台」。</span>
+        <b data-only="news">消息發布（建議）</b><span data-only="news">回憶卡收回後，小編整理成一篇篇「回憶選輯」消息（④），由分校管理者對照紙卡核准。現有的消息後台就能發；整列撥號、引言樣式是選配的 web 小改。<a class="jump" href="#zone4-news">跳到④看差別<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a></span>
+        <b data-only="wall">回憶牆（對照）</b><span data-only="wall">收稿一樣靠紙卡和電話，差別只在刊出的地方換成獨立的回憶牆區塊（④）。要新增 content kind 和後台頁，業主得先解除「不新增週年後台」。<a class="jump" href="#zone4-wall">跳到④看差別<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a></span>
       </p>
     </div>
   </section>
@@ -104,12 +105,11 @@
               </article>
               <div class="ev-after">
                 <p>參觀時間以園所確認為準。</p>
-                <p class="st-lead"><span class="ph">送出參觀需求後，狀態依序是：</span></p>
-                <ol class="st-list">
-                  <li><span>已收到需求</span></li>
-                  <li><span>待確認</span></li>
-                  <li><span>預約成立</span></li>
-                </ol>
+                <p class="st-lead ph">送出參觀需求後，依該校的預約方式先顯示其中一種；園方確認後才叫「預約成立」。</p>
+                <ul class="st-modes">
+                  <li><span class="st-mode">留需求、等電話</span><ol class="st-list"><li><span>已收到需求</span></li><li><span>預約成立</span></li></ol></li>
+                  <li><span class="st-mode">選時段、人工確認</span><ol class="st-list"><li><span>待園方確認</span></li><li><span>預約成立</span></li></ol></li>
+                </ul>
               </div>
             </div>
           </div>
@@ -120,7 +120,7 @@
             <div><dt>現行</dt><dd><code>link_url</code> 只收 http(s) 絕對網址（<code>schemas.py:728-731</code>），指不到站內 <code>/visit/minghua</code>，只能放「活動詳情 ↗」。</dd></div>
             <div><dt>建議</dt><dd>活動加 <code>visit_campus_key</code>（JSON 欄位，不需 migration），卡內放既有 <code>BookingCta</code>，依該校預約模式變成表單、LINE、電話或暫停。</dd></div>
             <div><dt>字句</dt><dd>按鈕沿用分校頁的「預約參觀{校名}」和預約頁的「致電{校名}」。</dd></div>
-            <div><dt>語意</dt><dd>送出只叫「已收到需求」，園方確認後才叫「預約成立」。不做 RSVP、報名、付款。</dd></div>
+            <div><dt>語意</dt><dd>三個詞是不同預約方式的結果，不是同一筆的三個步驟：留需求叫「已收到需求」、選時段人工確認叫「待園方確認」，園方確認後才叫「預約成立」（時段自動確認則直接成立；<code>VisitForm.vue:112-133</code>）。不做 RSVP、報名、付款。</dd></div>
             <div><dt>工時</dt><dd>S，約 1 人日（含 CTA 入口 <code>anniversary</code> 三處、重產契約）。沒有真實開放日就不做、不排、不寫日期。</dd></div>
           </dl>
         </details>
@@ -133,7 +133,7 @@
         <div class="zone-main">
           <p class="zone-tag"><span class="zt-no" aria-hidden="true">2</span><span>徵集消息單篇</span><code>/news/&lt;id&gt;</code><span>全校消息</span></p>
           <div class="np-narrow">
-            <nav class="np-crumb" aria-label="麵包屑示範"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
+            <nav class="np-crumb" aria-label="麵包屑示範：徵集單篇"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
             <article class="np-article" aria-labelledby="z2-title">
               <p class="np-meta"><span>全校 · <span class="ph">常春藤的故事</span><span class="tag">示意</span></span><span>示意／日期未定</span></p>
               <h2 id="z2-title" class="art-title"><span class="ph">徵集常春藤的回憶</span></h2>
@@ -167,7 +167,7 @@
                   <li><a href="tel:07-370-8001"><img src="../../web/public/assets/responsive/tour-international-gate-3425c482c253-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>國際校</b><small>鳥松區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-370-8001</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
                   <li><a href="tel:07-375-7081"><img src="../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp" width="480" height="300" alt=""><span class="tel-who"><b>仁武校</b><small>仁武區</small></span><span class="tel-num"><span class="sr-only">撥打電話 </span>07-375-7081</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a></li>
                 </ul>
-                <p class="mail"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-envelope-simple" /></svg><span>或寄 email 到 <span class="blank" aria-hidden="true"></span><span class="sr-only">（空白）</span><span class="nw">（園方提供）</span><span class="tag">示意</span></span></p>
+                <p class="mail"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-envelope-simple" /></svg><span>或寄 email 到 <span class="blank" aria-hidden="true"></span><span class="sr-only">（空白）</span><span class="nw">（園方提供）</span><span class="mail-note">email 只收文字；要放照片，請把紙本照片和回憶卡一起交到櫃台。<span class="tag">示意</span></span></span></p>
                 <div class="privacy ph-box">
                   <h3>隱私與撤下</h3>
                   <ul>
@@ -192,7 +192,7 @@
             <div><dt>管道</dt><dd>只收紙卡、五校各自的電話、園方提供的一個 email；不用義華的 LINE／FB。</dd></div>
             <div><dt>撥號</dt><dd>內文連結只放行 http(s)（<code>news-content.ts:84-87</code>），整列可撥號要 web 小改；不改就用純文字電話發。</dd></div>
             <div><dt>縮圖</dt><dd>各校現況照，只幫家長認出是哪一校，不當回憶照片。</dd></div>
-            <div><dt>隱私</dt><dd>網站放摘要、全文印在卡背。EXIF／GPS 剝除上線前，不收手機照片。</dd></div>
+            <div><dt>隱私</dt><dd>網站放摘要、全文印在卡背。EXIF／GPS 剝除上線前，不收手機照片，所以 email 只收文字、照片走紙本。</dd></div>
           </dl>
         </details>
       </div>
@@ -250,12 +250,12 @@
     </section>
 
     <!-- ④ 依做法切換：回憶選輯消息（news）／回憶牆區塊（wall） -->
-    <section class="zone" data-only="news" aria-labelledby="z4n-title">
+    <section class="zone" id="zone4-news" data-only="news" aria-labelledby="z4n-title">
       <div class="container zone-grid">
         <div class="zone-main">
           <p class="zone-tag"><span class="zt-no" aria-hidden="true">4</span><span>回憶選輯（建議）</span><code>/news/&lt;id&gt;</code><span>明華校消息</span></p>
           <div class="np-narrow">
-            <nav class="np-crumb" aria-label="麵包屑示範"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
+            <nav class="np-crumb" aria-label="麵包屑示範：回憶選輯"><a href="#">首頁</a><span aria-hidden="true">/</span><a href="#">最新消息</a></nav>
             <article class="np-article" aria-labelledby="z4n-title">
               <p class="np-meta"><span>明華校 · <span class="ph">常春藤的故事</span><span class="tag">示意</span></span><span>示意／日期未定</span></p>
               <h2 id="z4n-title" class="art-title"><span class="ph">明華校的回憶選輯</span></h2>
@@ -296,7 +296,7 @@
       </div>
     </section>
 
-    <section class="zone" data-only="wall" aria-labelledby="z4w-title">
+    <section class="zone" id="zone4-wall" data-only="wall" aria-labelledby="z4w-title">
       <div class="container zone-grid">
         <div class="zone-main">
           <p class="zone-tag"><span class="zt-no" aria-hidden="true">4</span><span>回憶牆（對照）</span><code>新區塊 · 放哪一頁待定</code></p>

@@ -32,7 +32,7 @@ code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .07); 
 
 /* 示意：虛線框（行內）＋虛線小膠囊 */
 .ph { outline: 1px dashed rgb(var(--ink) / .55); outline-offset: 3px; border-radius: 3px; }
-p.ph, ul.ph { outline-offset: 5px; }
+p.ph, ul.ph { outline: 0; padding: 8px 12px; border: 1px dashed rgb(var(--ink) / .5); border-radius: 10px; }
 /* 整塊示意：卡片或段落本身就是虛線框，裡面不再逐句框（字多時逐行框線太碎） */
 .np .ph-box { border: 1px dashed rgb(var(--ink) / .5); }
 .tag { display: inline-flex; align-items: center; margin-left: 8px; padding: 0 8px; border: 1px dashed currentColor; border-radius: 999px; font: 400 var(--fs-xs)/1.6 var(--font); letter-spacing: .03em; white-space: nowrap; vertical-align: 2px; }
@@ -50,7 +50,7 @@ p.ph, ul.ph { outline-offset: 5px; }
 .lg-note { padding: 0 8px; border-radius: 4px; background: var(--c-chip); color: var(--white); font-size: var(--fs-xs); line-height: 1.8; }
 
 .ctrl-label { margin-bottom: 10px; font-size: var(--fs-sm); font-weight: 700; color: var(--c-ink); }
-.switch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .switch a { display: grid; align-content: start; gap: 6px; min-height: 96px; padding: 14px 16px; border: 1px solid var(--c-line); border-radius: 14px; background: var(--white); color: var(--c-ink); }
 .sw-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sw-name { font: 700 var(--fs-lg)/1.4 var(--font-head); }
@@ -66,7 +66,9 @@ p.ph, ul.ph { outline-offset: 5px; }
 
 .state-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; max-width: none; margin-top: 32px; padding: 14px 20px; border-left: 3px solid var(--c-chip); border-radius: 0 10px 10px 0; background: var(--white); font-size: var(--fs-md); line-height: 1.8; }
 .state-line b { font-family: var(--font-head); color: var(--c-ink); white-space: nowrap; }
-.state-line span { flex: 1 1 28em; }
+.state-line > span { flex: 1 1 28em; }
+.jump { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-left: 10px; font-weight: 700; color: var(--c-ink); text-decoration: underline; text-underline-offset: 4px; white-space: nowrap; vertical-align: middle; }
+.jump .icon { width: 1em; height: 1em; }
 
 /* ── 網站片段：/news 風格（news-page.css 的 .np 家族） ─────────────── */
 .np { padding: 8px 0 104px; background: var(--ivy-news-paper); color: var(--ivy-news-ink); }
@@ -106,8 +108,12 @@ p.ph, ul.ph { outline-offset: 5px; }
 @media (hover: hover) { .button.primary:hover { background: var(--deep); } .button.outline:hover { background: var(--paper); } }
 .ev-after { margin-top: 14px; padding-left: 4px; font-size: var(--fs-sm); line-height: 1.8; }
 .ev-after > p:first-child { font-weight: 600; color: var(--ivy-news-green); }
-.st-lead { margin-top: 6px; font-size: var(--fs-xs); color: var(--ivy-news-muted); }
-.st-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--fs-xs); line-height: 1.6; }
+.st-lead { margin-top: 8px; font-size: var(--fs-xs); color: var(--ivy-news-muted); }
+.st-lead.ph { width: fit-content; padding: 4px 10px; }
+.st-modes { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.st-modes > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.st-mode { min-width: 9em; font-size: var(--fs-xs); color: var(--ivy-news-muted); }
+.st-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-xs); line-height: 1.6; }
 .st-list li { display: inline-flex; align-items: center; gap: 6px; color: var(--ivy-news-ink); }
 .st-list li > span { padding: 2px 10px; border: 1px solid var(--ivy-news-line); border-radius: 999px; background: var(--ivy-news-dialog); }
 .st-list li + li::before { content: '→' / ''; color: var(--ivy-news-muted); }
@@ -158,6 +164,7 @@ p.ph, ul.ph { outline-offset: 5px; }
 @media (hover: hover) { .tels a:hover { background: var(--ivy-news-note); } .tels a:hover .tel-num { text-decoration: underline; text-underline-offset: 4px; } }
 .mail { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px !important; font-size: var(--fs-md); }
 .mail .icon { width: 1.1em; height: 1.1em; margin-top: .4em; color: var(--ivy-news-green); }
+.mail-note { display: block; margin-top: 4px; font-size: var(--fs-sm); line-height: 1.8; color: var(--ivy-news-muted); }
 .blank { display: inline-block; width: 7em; height: 1.2em; margin: 0 4px; border-bottom: 1px dashed currentColor; vertical-align: -2px; }
 .privacy { margin-top: 28px !important; padding: 4px 22px 18px; border-radius: 12px; background: var(--ivy-news-note); }
 .privacy h3 { margin-top: 16px; font-size: var(--fs-lg); }
@@ -255,6 +262,13 @@ p.ph, ul.ph { outline-offset: 5px; }
 .note-list dd { margin: 0; overflow-wrap: anywhere; }
 .note-list code { background: rgb(var(--on-dark) / .7); }
 
+/* 左下角比稿標籤（共用樣式的覆寫）：手機縮成一行小標籤；761px 以上直放在左側 gutter，不蓋住任何內容 */
+html { scroll-padding-bottom: 48px; }
+.mock-flag { left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 10px; border-radius: 8px; font-size: 11px; line-height: 1.6; }
+@media (min-width: 761px) {
+  .mock-flag { left: 12px; bottom: 16px; max-width: none; height: 26px; padding: 0 12px; line-height: 26px; white-space: nowrap; transform-origin: 0 100%; transform: translateX(26px) rotate(-90deg); }
+}
+
 /* ── 斷點 ──────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .intro-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 40px; }
@@ -276,6 +290,7 @@ p.ph, ul.ph { outline-offset: 5px; }
   .legend { gap: 6px 14px; margin-top: 14px; font-size: var(--fs-xs); }
   .intro-grid { gap: 22px; }
   .switch a { min-height: 84px; padding: 12px 14px; }
+  .sw-hint .nw { white-space: normal; }  /* 手機欄寬窄，說明照常斷行，避免撐寬切換鈕 */
   .asks { margin-top: 12px; padding: 10px 14px; }
   .asks ol { font-size: var(--fs-xs); }
   .state-line { margin-top: 20px; padding: 10px 14px; font-size: var(--fs-sm); line-height: 1.75; }
@@ -359,7 +374,6 @@ p.ph, ul.ph { outline-offset: 5px; }
   .brand-en { font-size: 8.5px; }
   .brand-crest { width: 24px; height: 26px; }
   .site-book { padding-inline: 8px; }
-  .mock-flag { font-size: 11px; padding: 8px 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .button, .chips button { transition: none; } }
 @media (forced-colors: active) { .chips button[aria-pressed="true"], .switch a[aria-current] { border-width: 3px; } }
