@@ -69,10 +69,10 @@ export function parseWash(definition: string | undefined): WashSpec[] {
   })
 }
 
-export interface Box { x: number, y: number, w: number, h: number }
+export interface WashBox { x: number, y: number, w: number, h: number }
 
 /** 元素框（相對段落）→ 顏料的中心與半徑；半徑碰到段落上下緣就收回來，至少留一團看得見的大小。 */
-export function washEllipse(spec: WashSpec, box: Box, sectionHeight: number) {
+export function washEllipse(spec: WashSpec, box: WashBox, sectionHeight: number) {
   const cx = box.x + box.w * spec.fx
   const cy = box.y + box.h * spec.fy
   const rx = Math.max(40, box.w * spec.frx)
