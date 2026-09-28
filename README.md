@@ -1,3 +1,30 @@
+## 2026-09-28 常春藤環境頁加 GSAP 動態層：小腳印、曬衣繩起風、太陽慣性、換校發牌（`feature/environment-gsap-20260928`）
+
+接在 `feature/environment-rough-20260928`（手繪版，尚未併入 main）之上。使用者看過 mock-up `design/environment-gsap-mockup-20260928/`（`feature/website-admin` 工作目錄、未追蹤）並要求把小腳印做得更好看，確認後同意上線。規則見 DESIGN.md「常春藤環境頁 GSAP 動態層」。
+
+- **新增** `web/app/utils/environment-motion.ts`：純函式（`smoothPath`、`walkAnchors`、`walkedLength`、`footstepLengths`、`stepStop`）＋ `createEnvironmentMotion()`。`gsap` 3.15（標準授權、免費但不是 MIT）三支模組只在環境頁動態 import（dev 實測首頁、入學頁不會載入）。
+- **`rough-sketch.ts`**：新增 `SketchMotion`／`SketchTools` 掛鉤（小路、太陽、便條進場可交給動態層）、`paperColor()`、`--renv-leaf-deep` token；不給動態層時行為不變。
+- **`EnvironmentContent.vue`**：動態載入 GSAP（失敗就用原本的虛線小路）、換校時發牌、提示字改「跟著小腳印，走一圈看看」。
+- **`environment.css`**：到站彈跳 `--renv-pop`、曬衣繩擺角 `--renv-swing`／`--renv-tilt`。
+- **字型**：跑 `scripts/environment-font-chars.cjs`＋`subset-environment-fonts.py` 重切（手寫字 critical 多「腳印」、少「虛線」）。切字輸出每次都不一樣（很可能是字型 head 表的時間戳），所以連字沒變的圓體分片也都換了新雜湊，約 200 個檔（8.2 MB）整批替換。
+- 改版前快照：`versions/before-environment-gsap-20260928-075018/`（EnvironmentContent.vue、environment.css、rough-sketch.ts）。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-environment-gsap-20260928`）：`npm run typecheck` 通過；`npm run test:website` 51 檔 465 項通過（環境頁新增 12 項：只動態載入 GSAP、載入失敗退回虛線、提示字、`@property` 命名、路線經過每一點、捲動錨點五項、腳印左右與避站、腳印配色）。fixture 模式 dev server 以 Playwright（Chrome）實測：1440×900 與 390×844 捲過六站，腳印逐站增加（桌機 54、手機 59 個）、便條到站才出現、回捲時腳印收回而便條保留；曬衣繩捲動時擺 3.4°–4.5°、停下後歸零；太陽跳 300px 後 80ms 仍在半路、1.4 秒追上；滑鼠與方向鍵換校都會發牌、結束後無殘留 style；到入學頁再返回無錯誤；減少動態時 54 個腳印全顯示、不起風；擋掉 gsap 模組時退回虛線且無 page error（只在 dev 驗證；production 的 chunk 名是雜湊，攔截規則沒擋到）；提示字「跟著小腳印」以 Iansui critical 分片畫出。`npm run build` 通過，GSAP 為獨立 chunk（gzip：core 27 KB、ScrollTrigger 17 KB、MotionPath 8 KB，動態層 4 KB）；production server（fixture）以不過濾任何 console 訊息的嚴格版重跑上述流程，零錯誤零警告。未驗證：Safari、Firefox、iOS 實機（`color-mix()` 需 Safari 16.2+）、低階手機效能。
+
+## 2026-09-28 常春藤環境頁改成 Rough.js 手繪版（`feature/environment-rough-20260928`）
+
+使用者要求用 Rough.js 把 `/environment` 做成跟其他分頁不同、活潑一點的風格。比稿 `design/environment-rough-mockup-20260928/`（A 老師的聯絡簿、B 蠟筆佈告欄，在 `feature/website-admin` 的工作目錄、未追蹤）選了 A＋B 結合的 C，另外裁定：這頁不放預約參觀、多一點其他內容、字型改圓體。規則見 DESIGN.md「常春藤環境頁手繪版」。
+
+- **版面**（`EnvironmentContent.vue`、`environment.css` 整支重寫，不再掛 `admission.css`）：點格紙、01 天藍與 03 黃的手剪色紙、照片貼在彩色底紙上＋紙膠帶、黃色便利貼＋紅筆箭頭、曬衣繩掛五張照顧照片、校園環境「跟著虛線走一圈」、餐點太陽弧線、看完打個勾。原文與照片沿用 09-25 版。
+- **Rough.js**（`roughjs` 4.6.6，MIT）：`utils/rough-sketch.ts` 在瀏覽器畫所有線條，進場描線、捲動畫小路與太陽、滑過抖一下；減少動態時直接畫完。動態 import，只有這頁載入（gzip 約 23 KB）。沒有 JS 時版面與文字照常。
+- **不放預約**：拿掉首屏預約鈕與結尾預約卡，結尾改成往孩子的一天、特色教學、入學資訊的貼紙連結。全站頁首預約鈕不動。
+- **新內容**：第四章「五所校園」讀後台發布的各校校園探索（`campuses[].tourScenes`，目前 14 個場景），分頁切校，標註點畫成便利貼＋箭頭。
+- **字型**：圓體 Chiron GoRound TC 固定字重 400／700／800＋手寫芫荽 Iansui（皆 OFL，自行託管）。`scripts/environment-font-chars.cjs` 在實際頁面量各字重用字，`scripts/subset-environment-fonts.py` 切 critical＋隱藏分頁 tour＋常用字分片（208 檔 8.2 MB）。首次載入本頁字型 4 片約 214 KB，切到其他校再 45 KB；首頁不載入。可變字型每字約 730 bytes，改做固定字重才壓到這個量。
+- **頁首**：`/environment` 移出 `PILL_PAGES`（淺色首屏配實底頁首）。首屏照片改 3:2 相框，新增 `environmentHeroImage()`，`<img>` 與預載共用 sizes。
+- 改版前快照：`versions/before-environment-rough-20260928-011322/`。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-environment-rough-20260928`）：`npm run typecheck` 通過；`vitest` 51 檔 453 項通過（環境頁新增 8 項：不放預約、hero sizes、頁首、校園探索資料、便條排版不重疊、太陽弧與曬衣繩、字型分片、用字覆蓋）；`npm run build` 通過。production server（fixture）Playwright 1440／390：無水平溢出、無 console 錯誤、無 4xx；分頁點選與左右鍵／End 切換正確；四章打勾、太陽點亮、小路隨捲動畫出；`check-layout-stability.mjs` 對 /environment 四種視窗位移 0.00000–0.00006。Safari／iOS 實機未驗證；未 commit、未部署。
+
 ## 2026-09-28 進入特色教學頁：水彩從畫面中央暈開（`feature/curriculum-watercolor-20260928`）
 
 使用者問全站換頁動畫可以做在哪，先看「進入特色教學頁」：mock `design/curriculum-enter-transition-20260928/`（`?vt=0|a|b|c`：現行、A 中央暈開、B 從點擊處、C 刷過去），使用者選 **A**。其他換頁維持 09-26 的裁定：不開全站換頁動畫。
