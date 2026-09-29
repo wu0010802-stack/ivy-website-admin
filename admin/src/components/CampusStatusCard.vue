@@ -3,7 +3,7 @@
 // 分校網址顯示找不到頁面，首頁五校區塊、選單與頁尾都不再列出這一校，家長也
 // 不能再送出預約（後端 content/service.py 排除停用校區的內容）。歷史案件、
 // 素材與紀錄都保留，進行中的案件不會被取消。
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/client'
@@ -19,28 +19,40 @@ interface CampusStatus {
   open_requests?: number
 }
 
-const props = defineProps<{ campusKey: string }>()
+// focusOnLoad：剛停用或重新啟用後，預約方式頁會把卡片移到頁首或頁尾（換一個新的
+// 卡片）；讀到狀態後把焦點放回主要按鈕，鍵盤與報讀軟體不會掉回頁面最上方。
+const props = defineProps<{ campusKey: string; focusOnLoad?: boolean }>()
 // 讀到的啟用狀態（讀不到是 null）：預約方式頁依此決定卡片放頁首還是頁尾。
-const emit = defineEmits<{ (e: 'status', active: boolean | null): void }>()
+// changed：使用者剛停用或重新啟用成功。
+const emit = defineEmits<{ (e: 'status', active: boolean | null): void; (e: 'changed'): void }>()
 const router = useRouter()
 const campus = ref<CampusStatus | null>(null)
 const loading = ref(false)
 const loadError = ref(false)
 const busy = ref(false)
+const actions = ref<HTMLElement | null>(null)
 let loadVersion = 0
 
-async function load() {
+// retry：按「重新載入」時原因與按鈕留著（按鈕轉圈），不讓整張卡先消失；換校才清掉。
+async function load(retry = false) {
   const version = ++loadVersion
-  campus.value = null
-  loadError.value = false
+  if (!retry) {
+    campus.value = null
+    loadError.value = false
+  }
   if (!props.campusKey) return
   loading.value = true
   try {
     const result = await api.get<CampusStatus>(`/admin/campuses/${props.campusKey}`)
     if (version !== loadVersion) return
     if (!result || typeof result.active !== 'boolean') throw new Error('unexpected campus status')
+    loadError.value = false
     campus.value = result
     emit('status', result.active)
+    if (props.focusOnLoad) {
+      await nextTick()
+      actions.value?.querySelector<HTMLButtonElement>('.campus-status__primary')?.focus()
+    }
   } catch {
     // 讀不到時不要整張卡默默消失：停用與否是大事，留下原因與重試入口。
     if (version === loadVersion) {
@@ -51,7 +63,7 @@ async function load() {
     if (version === loadVersion) loading.value = false
   }
 }
-watch(() => props.campusKey, load, { immediate: true })
+watch(() => props.campusKey, () => load(), { immediate: true })
 
 async function deactivate() {
   const name = `${campusLabel(props.campusKey)}校`
@@ -80,6 +92,7 @@ async function update(active: boolean, reason: string | null) {
     } else {
       ElMessage.success(active ? `已重新啟用，官網恢復顯示${name}，並依原本的預約方式開放` : `已停用，${name}已從官網下架`)
     }
+    emit('changed')
     emit('status', typeof result.active === 'boolean' ? result.active : active)
   } catch (err) {
     ElMessage.error(apiErrorMessage(err, '更新失敗，請再試一次'))
@@ -93,7 +106,7 @@ async function update(active: boolean, reason: string | null) {
   <div v-if="loadError" class="panel campus-status">
     <div class="panel__body campus-status__body">
       <p class="hint">無法讀取分校目前是啟用還是停用。</p>
-      <el-button :loading="loading" @click="load">重新載入</el-button>
+      <el-button :loading="loading" @click="load(true)">重新載入</el-button>
     </div>
   </div>
   <div v-else-if="campus" class="panel campus-status" :class="{ 'is-off': !campus.active }">
@@ -105,10 +118,10 @@ async function update(active: boolean, reason: string | null) {
         </p>
         <p v-else class="hint">停用後這一校會從官網下架：分校頁、首頁五校區塊、選單與頁尾都不再顯示，分校網址會顯示找不到頁面，家長也不能再預約。已收到的案件與內容都會保留，重新啟用後恢復。</p>
       </div>
-      <div class="campus-status__actions">
+      <div ref="actions" class="campus-status__actions">
         <el-button v-if="!campus.active" text @click="router.push(attentionListPath(campus.key))">看待人工處理的案件</el-button>
-        <el-button v-if="campus.active" :loading="busy" type="danger" plain @click="deactivate">停用分校</el-button>
-        <el-button v-else :loading="busy" type="primary" @click="update(true, null)">重新啟用</el-button>
+        <el-button v-if="campus.active" :loading="busy" type="danger" plain class="campus-status__primary" @click="deactivate">停用分校</el-button>
+        <el-button v-else :loading="busy" type="primary" class="campus-status__primary" @click="update(true, null)">重新啟用</el-button>
       </div>
     </div>
   </div>

@@ -19,20 +19,33 @@ const { visibleCampusKeys, selected: selectedCampus, isSuperAdmin } = useCampusS
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-// 時段頁的「到各校預約方式」會帶 ?campus=…：直接編輯那一校。切校時寫回網址。
-const queryCampus = route.query.campus
-if (typeof queryCampus === 'string' && visibleCampusKeys.value.includes(queryCampus)) selectedCampus.value = queryCampus
-watch(selectedCampus, (key) => {
+// 時段頁的「到各校預約方式」會帶 ?campus=…：直接編輯那一校。切校時寫回網址；
+// 之後網址再換校（例如按上一頁）也照選單切校的規則走，和時段頁一致。
+const campusFromQuery = (value: unknown): string => (typeof value === 'string' && visibleCampusKeys.value.includes(value) ? value : '')
+const initialCampus = campusFromQuery(route.query.campus)
+if (initialCampus) selectedCampus.value = initialCampus
+function syncCampusQuery() {
+  const key = selectedCampus.value
   if (key && route.query.campus !== key) void router.replace({ query: { ...route.query, campus: key } })
+}
+watch(selectedCampus, syncCampusQuery)
+watch(() => route.query.campus, (value) => {
+  const key = campusFromQuery(value)
+  if (key && key !== selectedCampus.value) void switchCampus(key)
 })
 // 連到時段與容量一律帶目前校區，不會落在預設的第一校、在錯的校區新增時段。
 const slotsPath = computed(() => `/slots?campus=${encodeURIComponent(selectedCampus.value)}`)
 
-// 分校啟用狀態（CampusStatusCard 讀到後回報）。啟用中時「停用分校」放在表單
-// 下方、用分隔線隔開，不比日常要改的預約方式更顯眼；已停用時卡片留在頁首，
-// 因為下面的設定要等重新啟用才生效。
-const campusActive = ref<boolean | null>(null)
-watch(selectedCampus, () => { campusActive.value = null })
+// 分校啟用狀態（CampusStatusCard 讀到後回報；undefined＝還在讀、null＝讀不到）。
+// 啟用中時「停用分校」放在表單下方、用分隔線隔開，不比日常要改的預約方式更顯眼；
+// 已停用時卡片留在頁首，因為下面的設定要等重新啟用才生效。
+const campusActive = ref<boolean | null | undefined>(undefined)
+// 剛停用或重新啟用：卡片會換到另一個位置，讀到狀態後把焦點放回卡片的按鈕。
+const statusJustChanged = ref(false)
+watch(selectedCampus, () => {
+  campusActive.value = undefined
+  statusJustChanged.value = false
+})
 
 type Mode = BookingConfigOut['mode']
 
@@ -73,11 +86,19 @@ const isDirty = computed(() => Boolean(config.value && snapshot.value) && JSON.s
 const { confirmLeave } = useUnsavedChanges(isDirty, saving)
 
 async function switchCampus(next: string) {
-  if (next === selectedCampus.value || saving.value || confirmingSwitch.value) return
+  if (next === selectedCampus.value || confirmingSwitch.value) return
+  if (saving.value) {
+    // 儲存中不換校；網址已經換成別校時寫回目前這一校。
+    syncCampusQuery()
+    return
+  }
   confirmingSwitch.value = true
   try {
     if (await confirmLeave()) selectedCampus.value = next
-  } finally { confirmingSwitch.value = false }
+  } finally {
+    confirmingSwitch.value = false
+    syncCampusQuery()
+  }
 }
 
 async function reloadLatest() {
@@ -119,7 +140,18 @@ function linkFormatError(value: string, example: string): string {
 }
 const lineUrlError = computed(() => linkFormatError(form.value.line_url, 'https://lin.ee/xxxx'))
 const externalUrlError = computed(() => linkFormatError(form.value.external_url, 'https://forms.gle/xxxx'))
-const linkInvalid = computed(() => (form.value.mode === 'line' && Boolean(lineUrlError.value)) || (form.value.mode === 'external' && Boolean(externalUrlError.value)))
+// 兩個連結都會一起送出，換了方式、欄位藏起來後格式不對一樣會被擋：兩格都檢查。
+// 藏起來的那一格在儲存鈕旁講清楚是哪一格、要怎麼改，不讓錯誤指向看不到的欄位。
+const linkInvalid = computed(() => Boolean(lineUrlError.value || externalUrlError.value))
+const hiddenLinkError = computed(() => {
+  const hidden = [
+    form.value.mode !== 'line' && lineUrlError.value ? 'line' : '',
+    form.value.mode !== 'external' && externalUrlError.value ? 'external' : '',
+  ].filter(Boolean)
+  if (!hidden.length) return ''
+  const names = hidden.map((mode) => `「${BOOKING_MODE_LABELS[mode]}」`).join('與')
+  return `先前在${names}填的連結要以 https:// 開頭，請切回該方式修正或清空後再儲存。`
+})
 
 async function load(campusKey: string) {
   const request = requests.begin()
@@ -249,7 +281,7 @@ async function save() {
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 
-    <CampusStatusCard v-if="isSuperAdmin && selectedCampus && campusActive === false" :campus-key="selectedCampus" @status="campusActive = $event" />
+    <CampusStatusCard v-if="isSuperAdmin && selectedCampus && campusActive === false" :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
     <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>
@@ -314,15 +346,17 @@ async function save() {
               </ul>
             </div>
             <span v-else-if="deadlineInvalid" class="hint" style="color: var(--el-color-danger)">家長線上異動期限請填 1 到 336 小時</span>
+            <span v-if="hiddenLinkError" class="hint" style="color: var(--el-color-danger)" role="status">{{ hiddenLinkError }}</span>
           </div>
         </el-form>
       </div>
     </div>
 
     <!-- 影響整校的動作放在日常設定之後、用分隔線隔開（第四輪：破壞性動作不與主要動作相鄰）。 -->
-    <section v-if="isSuperAdmin && selectedCampus && campusActive !== false" class="campus-zone" aria-labelledby="campus-zone-title">
-      <h2 id="campus-zone-title" class="campus-zone__title">分校狀態</h2>
-      <CampusStatusCard :campus-key="selectedCampus" @status="campusActive = $event" />
+    <!-- 狀態還在讀時不先擺一個沒有內容的標題與分隔線。 -->
+    <section v-if="isSuperAdmin && selectedCampus && campusActive !== false" class="campus-zone" :class="{ 'is-loading': campusActive === undefined }" aria-labelledby="campus-zone-title">
+      <h2 v-if="campusActive !== undefined" id="campus-zone-title" class="campus-zone__title">分校狀態</h2>
+      <CampusStatusCard :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" />
     </section>
   </div>
 </template>
@@ -418,6 +452,8 @@ async function save() {
   padding-top: 24px;
   border-top: 1px solid var(--line-strong);
 }
+
+.campus-zone.is-loading { margin-top: 0; padding-top: 0; border-top: 0; }
 
 .campus-zone__title {
   margin-bottom: 12px;

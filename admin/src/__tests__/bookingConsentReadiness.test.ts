@@ -286,6 +286,51 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     expect(phone.attributes('maxlength')).toBe('32')
   })
 
+  it('換了方式後，藏起來的連結格式不對也先擋下，並說明要切回哪一種方式修正', async () => {
+    mockBookingApi()
+    const patch = vi.spyOn(api, 'patch')
+    const wrapper = await mountAt(BookingSettingsView, '/booking')
+    await wrapper.get('input[type="radio"][value="line"]').setValue(true)
+    await nextTick()
+    await wrapper.get('input[placeholder="https://lin.ee/…"]').setValue('lin.ee/abcd')
+    await wrapper.get('input[type="radio"][value="external"]').setValue(true)
+    await nextTick()
+    await wrapper.get('input[placeholder="https://…"]').setValue('https://forms.gle/abcd')
+    await nextTick()
+    expect(wrapper.find('input[placeholder="https://lin.ee/…"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('先前在「LINE 官方帳號」填的連結要以 https:// 開頭，請切回該方式修正或清空後再儲存')
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+    await saveButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(patch).not.toHaveBeenCalled()
+
+    await wrapper.get('input[type="radio"][value="line"]').setValue(true)
+    await nextTick()
+    await wrapper.get('input[placeholder="https://lin.ee/…"]').setValue('')
+    await wrapper.get('input[type="radio"][value="external"]').setValue(true)
+    await nextTick()
+    expect(wrapper.text()).not.toContain('先前在「LINE 官方帳號」')
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
+  it('網址再換校（例如按上一頁）照選單切校的規則：有未存修改先問，留在這頁就寫回網址', async () => {
+    mockBookingApi()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel')
+    const wrapper = await mountAt(BookingSettingsView, '/booking?campus=yihua')
+    const router = wrapper.vm.$router
+    const select = wrapper.getComponent({ name: 'CampusSelect' })
+    await router.replace({ query: { campus: 'renwu' } })
+    await flushPromises()
+    expect(select.props('modelValue')).toBe('renwu')
+
+    await wrapper.get('textarea').setValue('新說明')
+    await router.replace({ query: { campus: 'yihua' } })
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(select.props('modelValue')).toBe('renwu')
+    expect(router.currentRoute.value.query.campus).toBe('renwu')
+  })
+
   it('後端擋下時顯示原因並保留輸入', async () => {
     mockBookingApi(null)
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
