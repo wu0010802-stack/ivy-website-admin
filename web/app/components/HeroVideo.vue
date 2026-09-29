@@ -276,10 +276,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 2026-09-23 拿掉「看看孩子的一天」按鈕後，這一列只剩手機版的「找校區」。 */
-.studio-actions{display:none}
-@media(max-width:760px){
-  .studio-actions{display:flex}
-  .hero-campus-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:5px}
+/* 2026-09-23 拿掉「看看孩子的一天」按鈕後，這一列只剩「找校區」底線連結；2026-09-29 起桌機也顯示
+   （評析：桌機首頁到五校要捲近 7 屏，使用者同意翻 09-14「首屏不放按鈕」）。仍是文字連結、不是按鈕。 */
+.studio-actions{display:flex}
+.hero-campus-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
+.hero-campus-link:hover{text-decoration-thickness:2px}
+@media(min-width:1001px){
+  .studio-actions{margin-top:20px}
 }
 </style>

@@ -39,7 +39,8 @@
   --visit-muted:var(--ivy-campus-muted);
   --visit-line:var(--ivy-campus-line);
   --visit-soft:var(--ivy-campus-soft);
-  --visit-cta-bg:var(--ivy-campus-gold);
+  /* 2026-09-29：送出鈕從低彩度杏色改頁首同一個金黃（杏色與底色只差 1.64:1，像停用；比照 09-27 首頁分校鈕的裁定）。 */
+  --visit-cta-bg:var(--yellow);
   --visit-cta-fg:var(--ivy-campus-deep);
   --visit-cta-hover-bg:var(--ivy-campus-green);
   --visit-cta-hover-fg:var(--ivy-campus-paper);

@@ -5,7 +5,9 @@ import type { Campus } from '~/types/site-content'
 import { campusHeroAttrs } from '~/utils/media-image'
 import { campusMapUrl } from '~/utils/site-links'
 
-defineProps<{ campus: Campus }>()
+const props = defineProps<{ campus: Campus; campuses?: Campus[] }>()
+// 「交通與聯絡」右欄列出其他校區（2026-09-29 評析：桌機分校頁原本右半欄空著，換校只能靠頁尾或回首頁）。
+const otherCampuses = computed(() => (props.campuses ?? []).filter(item => item.key !== props.campus.key))
 </script>
 
 <template>
@@ -79,9 +81,20 @@ defineProps<{ campus: Campus }>()
           <p>{{ campus.address }}</p>
           <!-- 手機隱藏：緊接著的預約橫幅已有同一顆按鈕（styles.css 手機去重）。 -->
           <div class="contact-book">
-            <BookingCta :campus-key="campus.key" :label="`預約${campus.name}`" button-class="button primary" />
+            <!-- 2026-09-29：和 hero、頁首、預約橫幅同一個金黃色（評析：同一個動作原本有 3 種樣式）。 -->
+            <BookingCta :campus-key="campus.key" :label="`預約${campus.name}`" button-class="button yellow" />
           </div>
         </div>
+        <nav v-if="otherCampuses.length" class="contact-others" aria-labelledby="contact-others-title">
+          <h3 id="contact-others-title">其他校區</h3>
+          <ul>
+            <li v-for="item in otherCampuses" :key="item.key">
+              <NuxtLink class="contact-other-name" :to="`/campuses/${item.key}`">{{ item.name }}</NuxtLink>
+              <span class="contact-other-address">{{ item.address?.replace(/^高雄市/, '') || item.district }}</span>
+              <a v-if="item.phone" class="contact-other-phone" :href="`tel:${item.phone}`" :aria-label="`致電${item.name} ${item.phone}`">{{ item.phone }}</a>
+            </li>
+          </ul>
+        </nav>
       </div>
     </section>
 
@@ -97,3 +110,20 @@ defineProps<{ campus: Campus }>()
     </section>
   </main>
 </template>
+
+<style scoped>
+.contact-others {align-self:end;min-width:0}
+.contact-others h3 {margin-bottom:8px;font-size:var(--fs-lg);color:var(--green)}
+.contact-others ul {margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+.contact-others li {display:grid;grid-template-columns:minmax(5.5em,auto) minmax(0,1fr) auto;align-items:center;gap:0 20px;border-bottom:1px solid var(--line)}
+.contact-other-name {display:inline-flex;align-items:center;min-height:52px;color:var(--green);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.contact-other-name:hover {text-decoration-thickness:2px}
+.contact-other-address {color:var(--muted);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.contact-other-phone {display:inline-flex;align-items:center;min-height:44px;font-variant-numeric:tabular-nums}
+@media(max-width:520px) {
+  .contact-others li {grid-template-columns:minmax(0,1fr) auto;padding-block:6px}
+  .contact-other-name {min-height:44px}
+  .contact-other-address {grid-row:2;grid-column:1;padding-bottom:6px}
+  .contact-other-phone {grid-row:1 / span 2;grid-column:2}
+}
+</style>

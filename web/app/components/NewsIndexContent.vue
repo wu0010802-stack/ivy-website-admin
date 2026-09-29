@@ -46,9 +46,11 @@ const eventFacts = (item: NewsEvent) => [eventTimeDetail(item), item.location ??
         <h2 id="np-events-title">近期活動<span v-if="eventsSample === 'all'" class="hn-sample-tag">示意內容</span></h2>
         <ul class="np-event-list">
           <li v-for="item in events" :key="item.id" class="np-event">
-            <time class="np-event-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
+            <!-- 示意活動不露出具體日期（比照首頁 NewsDialog，2026-09-29 評析發現這頁漏了）；排序仍依原日期。 -->
+            <span v-if="isSample(item)" class="np-event-date is-sample"><b>示意</b><span>日期未定</span></span>
+            <time v-else class="np-event-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
             <div class="np-event-copy">
-              <p class="np-meta"><span>{{ item.campus }}<span v-if="eventsSample === 'some' && isSample(item)" class="hn-sample-tag">示意</span></span><span>{{ formatDate(item.date) }}<template v-if="eventFacts(item)"> · {{ eventFacts(item) }}</template></span></p>
+              <p class="np-meta"><span>{{ item.campus }}<span v-if="eventsSample === 'some' && isSample(item)" class="hn-sample-tag">示意</span></span><span v-if="!isSample(item)">{{ formatDate(item.date) }}<template v-if="eventFacts(item)"> · {{ eventFacts(item) }}</template></span><span v-else-if="eventFacts(item)">{{ eventFacts(item) }}</span></p>
               <h3>{{ item.title }}</h3>
               <p>{{ item.description }}</p>
               <a v-if="safeWebUrl(item.linkUrl)" class="np-event-link" :href="safeWebUrl(item.linkUrl)" target="_blank" rel="noopener noreferrer">{{ item.linkLabel || '活動詳情' }}<span aria-hidden="true"> ↗</span><span class="sr-only">（另開分頁）</span></a>

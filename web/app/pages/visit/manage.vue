@@ -223,7 +223,7 @@ async function submitReschedule() {
 .parent-visit-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .parent-visit-error { color: var(--error); }
 .parent-visit-error:not(:empty), .parent-visit-notice { margin-bottom: 20px; }
-.parent-visit-notice { padding: 16px; background: var(--cream); color: var(--green); border-left: 3px solid var(--leaf); }
+.parent-visit-notice { padding: 16px; background: var(--cream); color: var(--green); border: 1px solid var(--line); border-radius: 4px; }
 .parent-visit-notice a { text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .parent-visit-confirm { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
 .parent-visit-confirm h3 { font-size: 1.2rem; margin-bottom: 12px; }

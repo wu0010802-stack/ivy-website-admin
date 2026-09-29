@@ -20,6 +20,9 @@ const progress = ref(0)
 const visible = ref(false)
 const hidden = ref(true)
 const focused = ref(false)
+// 滑鼠停在下方校名／地址／預約欄時暫停：照片區照舊自動播放（2026-09-22 裁定），但「預約參觀Ｘ校」
+// 不能在游標底下換成別校（2026-09-29 評析實測停 12 秒連結換了 4 次，使用者同意改）。
+const hoveringDetails = ref(false)
 const paused = ref(false)
 const reducedMotion = ref(false)
 const optedIn = ref(false)
@@ -29,7 +32,7 @@ const announcement = ref('')
 const drawing = ref(-1)
 let drewOnce = false
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value)
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !hoveringDetails.value)
 const clock = createCarouselClock({
   duration: 4000,
   onAdvance: () => select(index.value + 1, true),
@@ -281,7 +284,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
         </div>
       </div>
     </div>
-    <div id="campus-stage" class="campus-details content-width" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" tabindex="0">
+    <div
+      id="campus-stage" class="campus-details content-width" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" tabindex="0"
+      @pointerenter="hoveringDetails = $event.pointerType === 'mouse'" @pointerleave="hoveringDetails = false"
+    >
       <div class="campus-identity">
         <span class="campus-district">高雄 · {{ current.district }}</span>
         <h3><NuxtLink :to="`/campuses/${current.key}`">{{ current.name }}</NuxtLink></h3>

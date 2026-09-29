@@ -27,6 +27,9 @@
 .np-event-date{flex:none;width:44px;text-align:center;line-height:1.2}
 .np-event-date b{display:block;font-family:var(--font-head);font-size:30px}
 .np-event-date span{font-size:10px;letter-spacing:.1em}
+.np-event-date.is-sample{width:auto;min-width:44px}
+.np-event-date.is-sample b{font-size:20px;line-height:1.5}
+.np-event-date.is-sample span{font-size:11px;letter-spacing:.04em;white-space:nowrap}
 .np-event-copy{min-width:0}
 .np-event-copy h3{margin-top:6px;font-size:var(--fs-lg);line-height:1.55}
 .np-event-copy > p:not(.np-meta){margin-top:8px;font-size:var(--fs-sm);line-height:1.85}
