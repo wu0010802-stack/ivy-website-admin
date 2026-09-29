@@ -17,9 +17,10 @@ describe('換頁捲動（app/router.options.ts）', () => {
     expect(createHash('sha256').update(source).digest('hex')).toBe(COPIED_FROM)
   })
 
-  it('只多兩處差異：初次載入交給瀏覽器還原、返回首頁等版面穩定', () => {
+  it('只多兩處差異：初次載入與重新整理交給瀏覽器還原、返回首頁等版面穩定', () => {
     const options = read('../app/router.options.ts')
-    expect(options).toContain('if (from === START_LOCATION && !to.hash) return savedPosition ?? false')
+    expect(options).toContain('if (from === START_LOCATION && (!to.hash || _isRestoredLoad())) return savedPosition ?? false')
+    expect(options).toMatch(/entry\?\.type === 'reload' \|\| entry\?\.type === 'back_forward'/)
     expect(options).toContain("const waitForLayout = Boolean(savedPosition) && to.path === '/'")
     // 其餘照預設：同路徑 hash、scrollToTop meta、等 page:loading:end 與換頁過場
     expect(options).toContain("nuxtApp.hooks.hookOnce('page:loading:end'")

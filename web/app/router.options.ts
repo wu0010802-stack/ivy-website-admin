@@ -3,7 +3,8 @@
 // （node_modules/nuxt/dist/pages/runtime/router.options.js：同路徑 hash、scrollToTop meta、
 // 等 page:loading:end 與換頁過場再捲、hash 的 scroll-margin），只改兩處，都標了「差異」：
 //  (a) 初次載入／重新整理（Nuxt 會做第二次 force replace，from 被換成 START_LOCATION）：
-//      預設會算出 {0,0}，瀏覽器原生還原後 300ms 左右又被拉回頁首。沒有 hash 時改成不捲，交給瀏覽器還原。
+//      預設會算出 {0,0}，瀏覽器原生還原後 300ms 左右又被拉回頁首。沒有 hash 時改成不捲，交給瀏覽器還原；
+//      帶 hash 的網址只有第一次進站捲到錨點，重新整理與整頁上一頁／下一頁一樣交給瀏覽器還原到離開時的位置。
 //  (b) SPA 返回首頁：首頁掛載後還在量測簾幕高度，scrollHeight 會先縮再長；太早還原會被夾住，
 //      再被 scroll anchoring 推到頁尾。等高度連續 3 幀不變（最多 1 秒）才還原。
 // 升級 Nuxt 時要拿原檔比對，把預設行為的修正帶進來。
@@ -27,8 +28,9 @@ export default <RouterConfig>{
       return false
     }
     if ((typeof to.meta.scrollToTop === 'function' ? to.meta.scrollToTop(to, from) : to.meta.scrollToTop) === false) return false
-    // 差異 (a)：初次載入沒有 hash 就不捲（首頁在上面的同路徑分支已經是 false）；帶 hash 照預設捲到錨點。
-    if (from === START_LOCATION && !to.hash) return savedPosition ?? false
+    // 差異 (a)：初次載入沒有 hash、或是重新整理／整頁返回就不捲（首頁在上面的同路徑分支已經是 false）；
+    // 第一次帶 hash 進站照預設捲到錨點。
+    if (from === START_LOCATION && (!to.hash || _isRestoredLoad())) return savedPosition ?? false
     if (from === START_LOCATION) return _calculatePosition(to, from, savedPosition, hashScrollBehaviour)
     // 差異 (b)：返回首頁要等版面量完才還原。
     const waitForLayout = Boolean(savedPosition) && to.path === '/'
@@ -70,6 +72,12 @@ function _calculatePosition(to: RouteLocationNormalized, from: RouteLocationNorm
   if (savedPosition) return savedPosition
   if (to.hash) return { el: to.hash, top: _getHashElementScrollMarginTop(to.hash), behavior: isChangingPage(to, from) ? defaultHashScrollBehaviour : 'instant' }
   return { left: 0, top: 0 }
+}
+
+// 差異 (a) 用：這次整頁載入是重新整理或上一頁／下一頁（瀏覽器會自己還原捲動位置）。
+function _isRestoredLoad(): boolean {
+  const entry = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
+  return entry?.type === 'reload' || entry?.type === 'back_forward'
 }
 
 // 差異 (b) 用：每幀讀一次 scrollHeight，連續 3 幀不變或滿 1 秒就放行。

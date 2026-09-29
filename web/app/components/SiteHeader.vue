@@ -171,6 +171,12 @@ function onPillBrandClick(event: MouseEvent) {
   event.preventDefault()
   closeMenu()
   window.scrollTo({ top: 0, behavior: 'auto' })
+  // 鍵盤按 Enter（detail 為 0）：回頂後膠囊會隱藏、焦點掉回 body，下一個 Tab 會跳到頁面中段；
+  // 改交給頁首列看得到的校徽。滑鼠與觸控不移焦點，免得出現焦點框。
+  if (event.detail === 0) {
+    updateHeaderState()
+    nextTick(() => headerTopRef.value?.querySelector<HTMLElement>('.brand')?.focus({ preventScroll: true }))
+  }
 }
 
 let desktopQuery: MediaQueryList | null = null

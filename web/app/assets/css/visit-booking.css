@@ -277,8 +277,8 @@
   .visit-result-list>div {grid-template-columns:82px minmax(0,1fr);gap:12px}
 }
 @media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}.visit-slot-options {grid-template-columns:1fr}}
-/* 橫拿手機（高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
-@media(max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
+/* 橫拿手機（單欄版面 960 以下、高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
+@media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
 @media(forced-colors:active) {
   .visit-campus-choice input:checked+.visit-campus-card {outline:3px solid Highlight;outline-offset:3px}
   .visit-campus-check {border:1px solid CanvasText}

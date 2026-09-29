@@ -172,10 +172,11 @@ async function goNext() {
   if (!selectedCampus.value) {
     campusError.value = '請先選擇想參觀的校區。'
     await nextTick()
-    // 焦點仍給第一張卡，但捲動對準卡片上方的錯誤：直接 focus() 會把卡片頂到頁首正下方，
-    // 錯誤剛好被桌機頁首蓋住。
+    // 焦點仍給第一張卡，但捲動對準這一步的標題：直接 focus() 會把卡片頂到頁首正下方，
+    // 錯誤剛好被桌機頁首蓋住；只捲到錯誤本身，上一行說明又會被頁首切一半。標題、說明、錯誤、第一張卡依序往下排。
     pickerRef.value?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true })
-    campusErrorRef.value?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    const stepTitle = campusErrorRef.value?.parentElement?.querySelector('h2') ?? campusErrorRef.value
+    stepTitle?.scrollIntoView({ block: 'start', behavior: 'instant' })
     return
   }
   step.value = 2
@@ -358,7 +359,7 @@ async function onSubmit() {
           <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。
                不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
           <picture>
-            <source media="(max-width: 760px), (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+            <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
             <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
           </picture>
           <figcaption>在常春藤，遇見成長的下一站。</figcaption>
