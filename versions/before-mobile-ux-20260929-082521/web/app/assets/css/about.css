@@ -1,0 +1,94 @@
+/* 關於常春藤頁（/about，2026-09-26）
+   版型沿用特色教學頁與常春藤環境頁：AboutContent.vue 同時掛 admission.css（adm-*），這支只補 admission 沒有的元件。
+   顏色一律走站內 token；透明度用 RGB 三元組（--ink / --on-dark / --shadow-rgb）。 */
+
+/* ---------- hero：長輩在畫面中間偏右，文字壓在左側孩子上 ---------- */
+.abt-hero-photo{object-position:60% 30%}
+
+/* ---------- 01 一路走來：五校沿革，年份列上一條虛線串起來 ---------- */
+.abt-timeline{position:relative;list-style:none;margin:96px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
+.abt-timeline::before{content:'';position:absolute;top:30px;left:0;right:0;border-top:1.5px dashed var(--trail)}
+.abt-milestone{position:relative;display:flex;flex-direction:column}
+.abt-year{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.abt-year span{padding-right:12px;background:var(--ivy-forest-mist);font:400 44px/1.3 var(--font-date);letter-spacing:-.01em;color:var(--ivy-forest)}
+.abt-year small{font-size:var(--fs-xs);letter-spacing:.08em;color:var(--ivy-forest-soft)}
+.abt-campus{display:flex;flex-direction:column;flex:1;margin-top:20px;padding:12px 12px 20px;border-radius:14px;background:rgb(var(--on-dark)/.55);color:inherit;text-decoration:none;transition:background-color .25s}
+.abt-campus img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:8px}
+.abt-campus h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 6px 0;font-size:var(--fs-xl);line-height:1.4}
+.abt-campus h3 .icon{flex:none;width:18px;height:18px;transition:transform .25s var(--adm-ease)}
+.abt-campus p{margin:6px 6px 0;font-size:var(--fs-sm);line-height:1.8}
+@media (hover:hover){
+  .abt-campus:hover{background:rgb(var(--on-dark)/.85)}
+  .abt-campus:hover h3 .icon{transform:translateX(4px)}
+}
+
+/* ---------- 02 全人教育：六大領域 → 六大核心素養 ---------- */
+.abt-whole-board{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:24px;max-width:1040px;margin:56px auto 0}
+.abt-whole-col{padding:40px 40px 44px;border-radius:24px;background:var(--white);color:var(--ivy-campus-heading-ink)}
+.abt-whole-col.is-goal{background:var(--ivy-forest);color:var(--white)}
+.abt-whole-col h3{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-3xl);line-height:1.35;letter-spacing:.04em}
+.abt-whole-col h3 small{font:600 var(--fs-sm)/1.4 var(--font-body);letter-spacing:.12em;color:var(--ivy-campus-heading-accent)}
+.abt-whole-col.is-goal h3 small{color:var(--gold)}
+.abt-chips{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.abt-chips li{display:flex;align-items:baseline;gap:10px;min-height:52px;padding:12px 16px;border-radius:12px;background:var(--ivy-campus-heading-selected);font-size:var(--fs-md);font-weight:600;line-height:1.5}
+.abt-chips span{font:400 var(--fs-xs)/1 var(--font-date);letter-spacing:.1em;color:var(--ivy-campus-heading-accent)}
+.is-goal .abt-chips li{background:rgb(var(--on-dark)/.1)}
+.is-goal .abt-chips span{color:var(--gold)}
+.abt-whole-arrow{display:grid;place-items:center;color:var(--ivy-campus-heading-accent)}
+.abt-whole-arrow .icon{width:32px;height:32px}
+.abt-whole-note{max-width:40em;margin:40px auto 0;text-align:center;font-size:var(--fs-md);line-height:1.9;color:var(--ivy-campus-muted);text-wrap:balance}
+.abt-whole-note small{display:block;margin-top:8px;font-size:var(--fs-xs);letter-spacing:.06em}
+.abt-whole-more{display:flex;justify-content:center;margin-top:20px}
+.abt-whole-more .adm-text-link{color:var(--ivy-campus-heading-ink)}
+.abt-whole-more .icon{width:18px;height:18px}
+
+/* ---------- 03 我們的期許：深綠舞台上的一段話 ---------- */
+.abt-hope{padding-bottom:240px}
+.abt-hope .adm-title{color:var(--white)}
+.abt-quote{max-width:36em;margin:48px 0 0;padding-left:28px;border-left:2px solid var(--gold)}
+.abt-quote p{font-size:var(--fs-xl);line-height:1.95;color:rgb(var(--on-dark)/.88)}
+.abt-quote p + p{margin-top:16px}
+
+/* ---------- 結尾 ---------- */
+.abt-visit-sheet .adm-visit{margin-top:0}
+
+/* ---------- 斷點：沿用 admission 的 1100 / 900 / 760 ---------- */
+@media (width<=1100px){
+  .abt-timeline{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:48px}
+  .abt-timeline::before{display:none}
+  .abt-year span{background:none;padding:0}
+}
+@media (width<=900px){
+  .abt-whole-board{grid-template-columns:1fr}
+  .abt-whole-arrow{transform:rotate(90deg)}
+}
+@media (width<=760px){
+  /* 章節只有 3 項：手機兩欄時最後一項落單，改成橫跨整列，底線才會畫滿 */
+  .adm-chapters li:last-child:nth-child(odd){grid-column:1/-1}
+  .abt-hero-photo{object-position:58% 30%}
+  /* 手機改成直向時間軸：左邊年份、右邊校園卡，一條直線串起來 */
+  .abt-timeline{grid-template-columns:1fr;gap:28px;margin-top:56px;padding-left:20px}
+  .abt-timeline::before{display:block;top:8px;bottom:8px;left:4px;right:auto;border-top:0;border-left:1.5px dashed var(--trail)}
+  .abt-milestone::before{content:'';position:absolute;top:14px;left:-21px;width:10px;height:10px;border-radius:50%;background:var(--ivy-forest)}
+  .abt-year{flex-direction:row;align-items:baseline;gap:10px}
+  .abt-year span{font-size:32px}
+  .abt-campus{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:14px;margin-top:10px;padding:10px 14px 10px 10px}
+  .abt-campus img{grid-row:span 2;height:100%;aspect-ratio:1}
+  .abt-campus h3{margin:4px 0 0;font-size:var(--fs-lg)}
+  .abt-campus p{margin:4px 0 0}
+  .abt-whole-col{padding:28px 20px 24px}
+  .abt-whole-col h3{font-size:var(--fs-2xl)}
+  .abt-chips{gap:8px}
+  .abt-chips li{min-height:48px;padding:10px 12px;font-size:var(--fs-sm)}
+  .abt-hope{padding-bottom:170px}
+  /* 一行 9 字（含逗號）：320 寬也要放得下，逗號才不會單獨掉到下一行 */
+  .abt-hope .adm-title{font-size:min(var(--adm-title),8.6vw)}
+  .abt-quote{margin-top:32px;padding-left:18px}
+  .abt-quote p{font-size:var(--fs-lg)}
+}
+@media (prefers-reduced-motion:reduce){
+  .abt-campus,.abt-campus h3 .icon{transition:none}
+}
+@media (forced-colors:active){
+  .abt-milestone::before{background:CanvasText}
+}
