@@ -488,6 +488,25 @@ async def publish_content_item(
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_publish(current_user, item)
     revision = await _revision_of(db, item, payload.revision_id)
+    if "expected_published_revision_id" in payload.model_fields_set:
+        # 鎖住內容項再比對，兩個同時按發布的人只有一個會通過。
+        await db.refresh(item, with_for_update=True)
+        if item.current_published_revision_id != payload.expected_published_revision_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "CONTENT_VERSION_CONFLICT",
+                    "message": "官網上的版本已被其他人更新，請重新載入後再發布",
+                },
+            )
+    if revision.review_status == "rejected":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "CONTENT_REVISION_REJECTED",
+                "message": "這一版已被退回，請修改後重新儲存再發布",
+            },
+        )
     try:
         await publish_jobs.check_publishable(db, item, revision)
     except publish_jobs.NotPublishable as exc:

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.notifications import service as notification_service
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.line import LineMessagingClient
 from app.workers import lease_service
+
+logger = logging.getLogger("app.outbox")
 
 
 async def process_outbox_batch(
@@ -48,6 +52,10 @@ async def process_outbox_batch(
             # 先丟掉這一輪還沒提交的工作，再記錄失敗。少了這個 rollback，
             # dispatch 半途寫進去的站內通知會跟著 fail() 一起被 commit，
             # 每重試一次就多一筆重複通知。
+            logger.warning(
+                "通知寄送失敗，稍後重試：outbox=%s kind=%s error=%s",
+                message.id, message.kind, type(exc).__name__,
+            )
             await db.rollback()
             # rollback 會把 message 實例 expire 掉，async 下直接碰屬性會
             # 觸發 lazy load（MissingGreenlet），所以先明確重新載入。

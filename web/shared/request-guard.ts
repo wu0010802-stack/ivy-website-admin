@@ -40,3 +40,21 @@ export function proxyBodyLimit(path: string, maxUploadMb: number = DEFAULT_MEDIA
 export function isMediaUploadPath(path: string): boolean {
   return MEDIA_UPLOAD_PATH.test(path)
 }
+
+const API_PREFIX = '/api/website/v1'
+
+/**
+ * 代理用字串拼接轉送目標，fetch 解析網址時會把 `..`、`%2e%2e` 當成上一層，
+ * `/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json` 就會打到 API 前綴以外的
+ * 端點。轉送前先用同一套 WHATWG 規則正規化，結果不在前綴底下就不轉送。
+ * path 是去掉 `/api/website/v1` 前綴後的路徑（可含查詢字串）。
+ */
+export function escapesApiPrefix(path: string): boolean {
+  let resolved: string
+  try {
+    resolved = new URL(`${API_PREFIX}${path}`, 'http://proxy.invalid').pathname
+  } catch {
+    return true
+  }
+  return resolved !== API_PREFIX && !resolved.startsWith(`${API_PREFIX}/`)
+}

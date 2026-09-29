@@ -3168,6 +3168,18 @@
       },
       "PublishRequest": {
         "properties": {
+          "expected_published_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Published Revision Id"
+          },
           "revision_id": {
             "format": "uuid",
             "title": "Revision Id",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_BODY_LIMIT, MEDIA_UPLOAD_BODY_LIMIT, clientIpFromForwardedFor, isMediaUploadPath, mediaUploadBodyLimit, proxyBodyLimit } from '../shared/request-guard'
+import { DEFAULT_BODY_LIMIT, MEDIA_UPLOAD_BODY_LIMIT, clientIpFromForwardedFor, escapesApiPrefix, isMediaUploadPath, mediaUploadBodyLimit, proxyBodyLimit } from '../shared/request-guard'
 
 describe('訪客 IP 只採信可信代理附加的那一段', () => {
   it('從右邊數可信代理層數，訪客自填的最左段無效', () => {
@@ -36,5 +36,20 @@ describe('素材上傳上限跟著部署設定', () => {
   it('設定值無效時退回預設', () => {
     expect(mediaUploadBodyLimit(Number.NaN)).toBe(MEDIA_UPLOAD_BODY_LIMIT)
     expect(mediaUploadBodyLimit(0)).toBe(MEDIA_UPLOAD_BODY_LIMIT)
+  })
+})
+
+describe('代理不能被 .. 帶出 API 前綴', () => {
+  it('擋下編碼或未編碼的上一層路徑', () => {
+    expect(escapesApiPrefix('/%2e%2e/%2e%2e/%2e%2e/openapi.json')).toBe(true)
+    expect(escapesApiPrefix('/../../../docs')).toBe(true)
+    expect(escapesApiPrefix('/%2E%2E/%2e%2e/%2e%2e/health')).toBe(true)
+  })
+
+  it('正常路徑與前綴內的上一層照常轉送', () => {
+    expect(escapesApiPrefix('/public/site')).toBe(false)
+    expect(escapesApiPrefix('/admin/visit-requests?q=0912345678')).toBe(false)
+    expect(escapesApiPrefix('/public/../health')).toBe(false)
+    expect(escapesApiPrefix('')).toBe(false)
   })
 })
