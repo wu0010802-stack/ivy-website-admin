@@ -155,4 +155,9 @@
   --ivy-paint-sun-rgb: 246 204 98;
   --ivy-paint-orange-rgb: 236 150 90;
   --ivy-paint-leaf-rgb: 108 162 112;
+
+  /* 14. 入學資訊頁「入學護照」（2026-09-28 定案，比稿 design/admission-theme-directions-20260928/ B）。
+     另一種內頁紙沿用 --ivy-news-paper；防偽細紋、欄位框線、選中底色在 admission-passport.css 由這幾個與品牌色 color-mix 出來。 */
+  --ivy-passport-page: oklch(97.2% .01 104);       /* 內頁證件紙：米白混一點薄荷（paper 84%＋mint 16%） */
+  --ivy-passport-red: oklch(51% .17 31);           /* 朱紅印泥：印章、答案裡的班別、條款編號；對兩種內頁紙 ≥ 5.7:1 */
 }

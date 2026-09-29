@@ -1,6 +1,6 @@
 import type { Campus, NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ABOUT_HERO_IMAGE, ADMISSION_HERO_IMAGE, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
+import { ABOUT_HERO_IMAGE, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, pageHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
@@ -28,7 +28,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
   // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue／分校頁 hero-photo）。
   const hero = computed(() => {
     if (!site.value) return undefined
-    if (page === 'admission') return pageHeroImage(ADMISSION_HERO_IMAGE)
+    if (page === 'admission') return admissionHeroImage()
     if (page === 'environment') return environmentHeroImage()
     if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)
     if (page === 'about') return pageHeroImage(ABOUT_HERO_IMAGE)

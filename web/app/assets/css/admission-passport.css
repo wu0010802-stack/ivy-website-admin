@@ -1,0 +1,355 @@
+/* 入學資訊頁「入學護照」（2026-09-28，比稿 design/admission-theme-directions-20260928/b-passport/）。
+   比喻：打開的護照。深綠是封面（只在 hero 外框露出），內頁是兩種證件紙（淡薄荷 --ivy-passport-page、米白 --ivy-news-paper），
+   防偽細紋只當質感（對底紙約 1.1:1）。印章兩種墨：朱紅 --ivy-passport-red、品牌深綠 --green；金色只用在封面燙金字。
+   顏色一律走 tokens.css；這裡的衍生色都是 token 之間的 color-mix，不寫色碼。字型：標題 LINE Seed、內文系統字，
+   印章與寫死的小標用明體 Ivy Passport Serif（Noto Serif TC 自託管分片，assets/css/admission-fonts.css）；
+   會顯示後台文字的小標（二部曲標籤、星期、退費小項）不用明體，避免後台改字時缺字。 */
+
+.ap {
+  --ap-page: var(--ivy-passport-page);
+  --ap-page-alt: var(--ivy-news-paper);
+  --ap-desk: var(--cream);
+  --ap-cover: var(--ivy-forest);
+  --ap-red: var(--ivy-passport-red);
+  --ap-line: color-mix(in oklch, var(--ap-page) 91%, var(--leaf));
+  --ap-line-alt: color-mix(in oklch, var(--ap-page-alt) 91%, var(--leaf));
+  --ap-line-soft: color-mix(in oklch, var(--ap-page-alt) 93%, var(--leaf));
+  --ap-rule: color-mix(in oklch, var(--ap-page) 55%, var(--green));
+  --ap-serif: 'Ivy Passport Serif', 'Noto Serif TC', 'PingFang TC', serif;
+  --ap-ease: cubic-bezier(.16, 1, .3, 1);
+  --ap-gutter: clamp(20px, 5vw, 64px);
+  background: var(--ap-desk);
+  overflow-x: clip;
+}
+.ap h1, .ap h2, .ap h3 { letter-spacing: .02em; word-break: keep-all; overflow-wrap: anywhere; }
+.ap h4, .ap figure, .ap fieldset { margin: 0; }
+.ap p { max-width: none; text-wrap: pretty; }
+.ap ol, .ap ul { margin: 0; padding: 0; list-style: none; }
+.ap fieldset { padding: 0; border: 0; min-width: 0; }
+.ap img { display: block; max-width: 100%; height: auto; }
+.ap .icon { width: 1.1em; height: 1.1em; flex: none; }
+.ap [lang='en'] { font-family: var(--font-date); }
+.ap-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ap-nowrap { white-space: nowrap; }
+.ap-defs { position: absolute; }
+.ap-wrap { width: min(1200px, 100% - 2 * var(--ap-gutter)); margin-inline: auto; }
+
+/* ── 印章（components/PassportStamp.vue）── */
+.ap-stamp { display: block; transform: rotate(var(--rot, 0deg)); mix-blend-mode: multiply; pointer-events: none; }
+.ap-stamp svg { display: block; overflow: visible; }
+.ap-stamp.tone-red { color: var(--ap-red); }
+.ap-stamp.tone-green { color: var(--green); }
+.ap-stamp text { fill: currentColor; font-family: var(--ap-serif); font-weight: 900; }
+.ap-stamp-host { position: relative; }
+
+/* ── 防偽細紋（utils/guilloche.ts）── */
+.ap-rosette, .ap-band { display: block; fill: none; stroke: var(--ap-line); stroke-width: .6; }
+.ap-tint-alt .ap-rosette, .ap-tint-alt .ap-band, .ap-coupon .ap-rosette { stroke: var(--ap-line-alt); }
+.ap-band-host { height: 24px; overflow: hidden; }
+
+/* ── 第 1 頁：打開的護照 ── */
+.ap-hero { padding: 48px 0 72px; }
+.ap-passport { position: relative; width: min(1240px, 100% - 2 * var(--ap-gutter) + 32px); margin-inline: auto; padding: 16px 16px 44px; border-radius: 22px; background: var(--ap-cover); box-shadow: 0 30px 60px -30px rgb(var(--ink) / .45); }
+.ap-spread { display: grid; grid-template-columns: 1fr 1.08fr; overflow: hidden; border-radius: 10px; background: var(--ap-page); }
+.ap-page { position: relative; padding: 28px 40px 44px; }
+/* 書脊：兩頁交界的一道陰影，左頁往右暗、右頁往左暗 */
+.ap-page-photo { background: linear-gradient(90deg, var(--ap-page) 88%, color-mix(in oklch, var(--ap-page) 90%, var(--text)) 100%); }
+.ap-page-title { display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(90deg, color-mix(in oklch, var(--ap-page) 88%, var(--text)) 0, var(--ap-page) 7%); }
+.ap-runhead { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 10px; margin-bottom: 28px; border-bottom: 1px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .12em; color: var(--muted); }
+.ap-photo { position: relative; }
+.ap-photo-frame { padding: 8px; border: 1px solid var(--ap-rule); background: var(--white); }
+.ap-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: 55% 40%; }
+.ap-photo figcaption { margin-top: 12px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-welcome { position: absolute; right: -26px; bottom: 10px; }
+.ap-page-title .ap-rosette-host { position: absolute; right: -170px; top: 40px; width: 560px; pointer-events: none; }
+.ap-page-title > :not(.ap-rosette-host) { position: relative; }
+.ap-eyebrow { font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .16em; color: var(--green); }
+.ap-hero h1 { margin-top: 18px; font-size: clamp(2.375rem, 4vw, 3.5rem); line-height: 1.38; color: var(--deep); }
+.ap-lede { margin-top: 22px; max-width: 26em; font-size: var(--fs-lg); }
+/* 主要行動：像一格要填的欄位框（雙框線），不用金色（金色全站＝預約） */
+.ap-action { align-self: flex-start; display: inline-flex; align-items: center; gap: 18px; min-height: 56px; margin-top: 32px; padding: 0 22px 0 24px; border: 2px solid var(--green); border-radius: 6px; box-shadow: inset 0 0 0 3px var(--ap-page), inset 0 0 0 4px var(--green); background: var(--ap-page); color: var(--green); font-weight: 700; text-decoration: none; transition: background-color .2s var(--ap-ease), color .2s var(--ap-ease), box-shadow .2s var(--ap-ease); }
+.ap-notice { display: flex; gap: 10px; max-width: 30em; margin-top: 26px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-notice::before { content: ''; flex: none; width: 8px; height: 8px; margin-top: .6em; border-radius: 50%; background: var(--ap-red); }
+.ap-cover-mark { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .6em; color: var(--gold); }
+@media (hover: hover) {
+  .ap-action:hover { background: var(--green); color: var(--white); box-shadow: inset 0 0 0 3px var(--green), inset 0 0 0 4px var(--ap-page); }
+}
+
+/* 目錄頁：點線引到頁碼 */
+.ap-toc { width: min(1200px, 100% - 2 * var(--ap-gutter)); margin: 44px auto 0; }
+.ap-toc-title { font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .4em; color: var(--muted); }
+.ap-toc ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); column-gap: 32px; margin-top: 10px; border-top: 1px solid var(--ap-rule); }
+.ap-toc a { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: 'head head head' 'hint leader page'; column-gap: 10px; align-items: baseline; padding: 16px 0 18px; text-decoration: none; color: inherit; }
+.ap-toc-head { grid-area: head; display: flex; align-items: baseline; gap: 10px; }
+.ap-toc-no { font-size: var(--fs-sm); color: var(--ap-red); }
+.ap-toc b { font: 700 var(--fs-lg)/1.5 var(--font-head); }
+.ap-toc-hint { grid-area: hint; font-size: var(--fs-xs); color: var(--muted); }
+.ap-leader { grid-area: leader; align-self: end; height: 1px; margin-bottom: .45em; background-image: radial-gradient(circle, var(--ap-rule) 1px, transparent 1.2px); background-size: 6px 2px; background-repeat: repeat-x; }
+.ap-toc-page { grid-area: page; font: 600 var(--fs-xs)/1.6 var(--ap-serif); color: var(--muted); }
+@media (hover: hover) {
+  .ap-toc a:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+}
+
+/* ── 章節＝內頁 ── */
+.ap-section { position: relative; padding: 0 0 112px; }
+.ap-tint-page { background: var(--ap-page); }
+.ap-tint-alt { background: var(--ap-page-alt); }
+.ap-section .ap-runhead { margin-top: 40px; }
+.ap-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 64px; align-items: end; margin-bottom: 56px; }
+.ap-head h2 { font-size: clamp(2.125rem, 3.2vw, 3rem); line-height: 1.45; color: var(--deep); }
+.ap-head p { max-width: 32em; font-size: var(--fs-md); color: var(--muted); }
+.ap-sub { margin-bottom: 16px; font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .3em; color: var(--muted); }
+
+/* ── 第 2 頁：簽證欄（表格線，不做卡片）── */
+.ap-visas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1.5px solid var(--ap-rule); border-left: 1.5px solid var(--ap-rule); }
+.ap-visa { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 112px; grid-template-rows: auto auto 1fr; column-gap: 12px; min-height: 216px; padding: 20px 20px 24px 24px; border-right: 1.5px solid var(--ap-rule); border-bottom: 1.5px solid var(--ap-rule); }
+.ap-visa-head { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; font-size: var(--fs-xs); }
+.ap-visa-no { font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .12em; color: var(--muted); }
+.ap-visa-when { padding: 0 10px; border: 1px solid var(--ap-rule); border-radius: 999px; font-weight: 600; color: var(--green); }
+.ap-visa h3 { grid-column: 1; font-size: var(--fs-2xl); line-height: 1.4; color: var(--deep); }
+.ap-visa p { grid-column: 1; margin-top: 8px; font-size: var(--fs-sm); line-height: 1.85; }
+.ap-visa-stamp { grid-column: 2; grid-row: 2 / 4; display: grid; place-items: center; align-self: center; min-height: 112px; }
+
+/* ── 第 3 頁：資料頁 ── */
+.ap-datapage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: 'fields stamp' 'slots slots' 'detail detail'; column-gap: 48px; padding: 36px 44px 40px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 12px; background: var(--ap-page-alt); }
+/* 資料頁的細紋只墊在蓋章處後面，不壓到欄位 */
+.ap-datapage > .ap-rosette-host { position: absolute; right: -90px; top: -70px; width: 460px; pointer-events: none; }
+.ap-datapage .ap-rosette { stroke: var(--ap-line-soft); }
+.ap-datapage > :not(.ap-rosette-host) { position: relative; }
+.ap-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 32px; align-content: start; }
+.ap-field label, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-field input { width: 100%; min-height: 54px; padding: 8px 16px; border: 1.5px solid var(--green); border-radius: 6px; background: var(--white); color: var(--text); font: inherit; font-size: var(--fs-lg); }
+.ap-field input:focus-visible { outline: 3px solid var(--ap-red); outline-offset: 3px; }
+.ap-field-static strong { display: block; font: 700 var(--fs-2xl)/1.3 var(--font-head); color: var(--deep); }
+.ap-field-static small { font-size: var(--fs-xs); color: var(--muted); }
+.ap-answer { grid-column: 1 / -1; min-height: 5.5em; padding-top: 16px; border-top: 1px dashed var(--ap-rule); }
+.ap-answer-lead { font: 700 var(--fs-3xl)/1.45 var(--font-head); color: var(--deep); }
+.ap-answer-lead em { font-style: normal; color: var(--ap-red); }
+.ap-answer.empty .ap-answer-lead { font: 400 var(--fs-md)/1.8 var(--font); color: var(--muted); }
+.ap-answer-next { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-answer-next li { display: flex; align-items: center; gap: 8px; }
+.ap-answer-next li::before { content: ''; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
+.ap-stampzone { grid-area: stamp; display: grid; place-items: center; min-height: 260px; }
+.ap-stampzone::before { content: ''; grid-area: 1 / 1; width: 236px; height: 236px; border: 1.5px dashed var(--ap-rule); border-radius: 50%; transition: opacity .3s var(--ap-ease); }
+.ap-stamp-hint { grid-area: 1 / 1; text-align: center; font: 600 var(--fs-sm)/1.7 var(--ap-serif); letter-spacing: .12em; color: var(--muted); transition: opacity .3s var(--ap-ease); }
+.ap-stampzone.stamped::before, .ap-stampzone.stamped .ap-stamp-hint { opacity: 0; }
+.ap-result { grid-area: 1 / 1; z-index: 1; width: 230px; height: 230px; }
+.ap-result .ap-stamp { position: absolute; inset: 0; }
+/* 五格學年度欄位＝成長軌道 */
+.ap-slots { grid-area: slots; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 28px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 8px; background: var(--ap-page-alt); }
+.ap-slot + .ap-slot { border-left: 1.5px solid var(--ap-rule); }
+.ap-slot button { position: relative; display: grid; justify-items: start; gap: 2px; width: 100%; height: 100%; min-height: 138px; padding: 14px 16px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color .2s var(--ap-ease); }
+.ap-slot button[aria-pressed='true'] { background: color-mix(in oklch, var(--ap-page-alt) 80%, var(--mint)); box-shadow: inset 0 -3px 0 var(--green); }
+.ap-slot-no { font: 400 var(--fs-xs) var(--font-date); color: var(--muted); }
+.ap-slot-class { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--deep); }
+.ap-slot-age { font-size: var(--fs-xs); color: var(--muted); }
+.ap-slot-year { display: flex; align-items: baseline; gap: 4px; margin-top: auto; font-size: var(--fs-xs); color: var(--muted); transition: opacity .3s var(--ap-ease); }
+.ap-slot-year b { font: 400 var(--fs-3xl)/1 var(--font-date); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-slots.empty .ap-slot-year { opacity: 0; }
+.ap-slot[data-state='past'] .ap-slot-class { font-weight: 500; color: var(--muted); }
+.ap-slot-mark { position: absolute; right: 10px; top: 10px; width: 58px; height: 58px; }
+.ap-slot-mark .ap-stamp { position: absolute; inset: 0; }
+@media (hover: hover) {
+  .ap-slot button:hover { background: color-mix(in oklch, var(--ap-page-alt) 88%, var(--mint)); }
+}
+.ap-detail { grid-area: detail; margin-top: 28px; }
+.ap-detail-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.ap-detail-head h3 { font-size: var(--fs-3xl); color: var(--deep); }
+.ap-detail-head p { font-size: var(--fs-sm); color: var(--muted); }
+.ap-ranges { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.ap-range { position: relative; padding: 18px 22px; border: 1.5px solid var(--ap-rule); border-radius: 8px; background: var(--white); }
+.ap-range.mine { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.ap-range strong { display: block; margin-top: 4px; font: 400 1.75rem/1.2 var(--font-date); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-range small { display: block; font: 400 var(--fs-sm) var(--font-date); color: var(--muted); }
+.ap-range-mark { position: absolute; right: 12px; top: 10px; }
+.ap-detail-note { margin-top: 14px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-table { margin-top: 28px; }
+.ap-table summary { display: flex; justify-content: center; list-style: none; cursor: pointer; }
+.ap-table summary::-webkit-details-marker { display: none; }
+.ap-table summary:focus-visible { outline: 0; }
+.ap-table summary:focus-visible .ap-pill { outline: 3px solid var(--leaf); outline-offset: 3px; }
+.ap-pill { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px; border: 1.5px solid var(--ap-rule); border-radius: 6px; background: var(--white); font-size: var(--fs-sm); font-weight: 600; }
+.ap-pill .icon { transition: transform .3s var(--ap-ease); }
+.ap-table[open] .ap-pill .icon { transform: rotate(45deg); }
+.ap-table-wrap { margin-top: 20px; padding: 8px 24px 16px; border: 1.5px solid var(--ap-rule); border-radius: 10px; background: var(--white); }
+.ap-table-wrap table { width: 100%; border-collapse: collapse; }
+.ap-table-wrap caption { padding: 14px 0 8px; text-align: left; font-size: var(--fs-sm); color: var(--muted); }
+.ap-table-wrap th, .ap-table-wrap td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ap-table-wrap tbody tr:last-child > * { border-bottom: 0; }
+.ap-table-wrap thead th { font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
+.ap-table-wrap th small { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--muted); }
+.ap-table-wrap tbody th { white-space: nowrap; color: var(--deep); }
+.ap-table-wrap td { padding: 6px; font: 400 var(--fs-md) var(--font-date); font-variant-numeric: tabular-nums; }
+.ap-cell { display: block; padding: 6px 10px; border-radius: 6px; transition: background-color .3s var(--ap-ease); }
+.ap-cell small { display: block; font-size: var(--fs-xs); color: var(--muted); }
+td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-red)); box-shadow: inset 0 0 0 1.5px var(--ap-red); }
+
+/* ── 第 4 頁：新生準備 ── */
+.ap-phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 12px; background: var(--ap-page-alt); }
+.ap-phase { padding: 32px 36px 36px; }
+.ap-phase + .ap-phase { border-left: 1.5px solid var(--ap-rule); }
+.ap-phase-head { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 20px; align-items: center; padding-bottom: 22px; border-bottom: 1px solid var(--ap-rule); }
+.ap-phase-head img { width: 132px; aspect-ratio: 4 / 3; object-fit: cover; padding: 5px; border: 1px solid var(--ap-rule); background: var(--white); }
+/* 二部曲標籤是後台文字：用 LINE Seed，不用明體（明體只切了寫死的字） */
+.ap-phase-tag { display: flex; align-items: center; gap: 10px; font: 700 var(--fs-sm)/1.6 var(--font-head); letter-spacing: .16em; color: var(--ap-red); }
+.ap-phase-tag span { font-size: var(--fs-xs); font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.ap-phase h3 { margin-top: 4px; font-size: var(--fs-2xl); line-height: 1.4; color: var(--deep); }
+.ap-bring { margin-top: 20px; }
+.ap-bring legend { margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-bring label { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 52px; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px dashed var(--ap-rule); cursor: pointer; }
+.ap-bring input { position: absolute; width: 26px; height: 26px; margin: 0; opacity: 0; }
+.ap-box { width: 22px; height: 22px; border: 1.5px solid var(--green); border-radius: 4px; background: var(--white); transition: background-color .2s var(--ap-ease); }
+.ap-bring input:checked + .ap-box { background: var(--green); box-shadow: inset 0 0 0 3px var(--white); }
+.ap-bring input:focus-visible + .ap-box { outline: 3px solid var(--leaf); outline-offset: 3px; }
+.ap-item { font-size: var(--fs-md); }
+.ap-bring input:checked ~ .ap-item { color: var(--muted); }
+.ap-done { width: 52px; height: 46px; }
+.ap-done .ap-stamp { position: absolute; left: 3px; top: 0; }
+.ap-phase h4 { margin-top: 26px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-tips { margin-top: 8px; }
+.ap-tips li { position: relative; padding: 10px 0 10px 34px; font-size: var(--fs-sm); line-height: 1.85; }
+.ap-tips li + li { border-top: 1px solid color-mix(in oklch, var(--ap-page-alt) 70%, var(--ap-rule)); }
+.ap-tip-no { position: absolute; left: 0; top: 11px; display: grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid var(--ap-red); border-radius: 50%; font: 600 var(--fs-xs)/1 var(--font-date); color: var(--ap-red); }
+.ap-week { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 20px 48px; align-items: center; margin-top: 56px; padding: 28px 0; border-block: 1.5px solid var(--ap-rule); }
+.ap-week-head h3 { font-size: var(--fs-2xl); color: var(--deep); }
+.ap-week-head p { margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-days { display: grid; grid-template-columns: repeat(var(--day-count, 5), minmax(0, 1fr)); }
+.ap-days li { display: grid; justify-items: center; gap: 8px; padding: 6px 4px; }
+.ap-days li + li { border-left: 1px dashed var(--ap-rule); }
+/* 星期是後台文字：內文字型粗體 */
+.ap-day { font-size: var(--fs-sm); font-weight: 600; letter-spacing: .1em; }
+.ap-wear { position: relative; }
+.ap-notices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 32px; margin-top: 56px; }
+.ap-notice-page h3 { padding-bottom: 12px; border-bottom: 1px solid var(--ap-rule); font-size: var(--fs-xl); color: var(--deep); }
+.ap-clauses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px dashed var(--ap-rule); font-size: var(--fs-sm); line-height: 1.85; }
+.ap-clause-mark { font: 600 var(--fs-xs)/1.9 var(--ap-serif); color: var(--muted); }
+
+/* ── 第 5 頁：收退費 ── */
+.ap-coupons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+/* 補助券：主體與存根之間一條打孔撕線，上下各一個半圓缺口（mask 只用黑白，與顏色無關） */
+.ap-coupon { --notch: 11px; --stub: 76px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--stub); min-height: 190px; border: 1.5px solid var(--ap-rule); border-radius: 10px; background: var(--white);
+  -webkit-mask: radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 0, transparent 98%, var(--text)) top / 100% 51% no-repeat, radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 100%, transparent 98%, var(--text)) bottom / 100% 51% no-repeat;
+  mask: radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 0, transparent 98%, var(--text)) top / 100% 51% no-repeat, radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 100%, transparent 98%, var(--text)) bottom / 100% 51% no-repeat; }
+.ap-coupon-main { position: relative; display: flex; flex-direction: column; overflow: hidden; padding: 22px 22px 22px 24px; }
+.ap-coupon-main > :not(.ap-rosette-host) { position: relative; }
+.ap-coupon-rosette { position: absolute; right: -60px; bottom: -70px; width: 200px; pointer-events: none; }
+.ap-coupon-by { font-size: var(--fs-xs); color: var(--muted); }
+.ap-coupon-amt { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
+.ap-coupon-amt b { font: 700 var(--fs-5xl)/1 var(--font-head); font-variant-numeric: tabular-nums; color: var(--deep); }
+.ap-coupon-amt span { font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
+.ap-coupon-who { margin-top: auto; padding-top: 14px; font-size: var(--fs-md); font-weight: 700; }
+.ap-coupon-stub { display: grid; place-content: center; justify-items: center; gap: 6px; border-left: 2px dashed var(--ap-rule); background: color-mix(in oklch, var(--white) 70%, var(--ap-page)); }
+.ap-coupon-stub span { writing-mode: vertical-rl; font: 900 var(--fs-lg)/1 var(--ap-serif); letter-spacing: .3em; color: var(--ap-red); }
+.ap-coupon-stub small { writing-mode: vertical-rl; font-size: var(--fs-xs); letter-spacing: .1em; color: var(--muted); }
+.ap-fees-grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 56px; }
+.ap-fees-grid.no-allowance { grid-template-columns: 1fr; }
+.ap-rate { width: 100%; border-collapse: collapse; border: 1.5px solid var(--ap-rule); background: var(--white); }
+.ap-rate caption { padding: 0 0 12px; text-align: left; }
+.ap-rate caption b { display: block; font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--deep); }
+.ap-rate caption small { font-size: var(--fs-xs); color: var(--muted); }
+.ap-rate th, .ap-rate td { padding: 14px 18px; border-bottom: 1px dashed var(--ap-rule); text-align: left; }
+.ap-rate thead th { border-bottom: 1.5px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-rate tbody th { font-weight: 600; }
+.ap-rate td { text-align: right; font-size: var(--fs-sm); color: var(--muted); }
+.ap-rate td b { font: 700 var(--fs-2xl) var(--font-head); font-variant-numeric: tabular-nums; color: var(--deep); }
+.ap-refunds h3 { font-size: var(--fs-xl); color: var(--deep); }
+.ap-refunds > p { margin-top: 4px; font-size: var(--fs-sm); color: var(--muted); }
+.ap-refunds ol { margin-top: 14px; border-top: 1.5px solid var(--ap-rule); }
+.ap-refunds ol > li { border-bottom: 1px solid var(--ap-rule); }
+.ap-refunds summary { display: grid; grid-template-columns: 64px minmax(0, 1fr) 28px; gap: 12px; align-items: center; min-height: 62px; padding: 8px 0; list-style: none; cursor: pointer; }
+.ap-refunds summary::-webkit-details-marker { display: none; }
+.ap-clause-no { font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .08em; color: var(--ap-red); }
+.ap-clause-title { font-weight: 700; }
+.ap-refunds summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
+.ap-refunds details[open] summary .icon { transform: rotate(45deg); }
+.ap-clause-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 28px; padding: 4px 0 22px 76px; font-size: var(--fs-sm); line-height: 1.85; }
+/* 退費小項是後台文字：內文字型粗體 */
+.ap-clause-body h4 { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; color: var(--green); }
+.ap-clause-body ul li { position: relative; padding-left: 14px; }
+.ap-clause-body ul li::before { content: ''; position: absolute; left: 0; top: .8em; width: 5px; height: 5px; border-radius: 50%; background: var(--ap-rule); }
+.ap-clause-note { grid-column: 1 / -1; color: var(--muted); }
+
+/* ── 平板 ── */
+@media (max-width: 1100px) {
+  .ap-page { padding: 24px 28px 36px; }
+  .ap-toc ol { grid-template-columns: 1fr 1fr; }
+  .ap-visas { grid-template-columns: 1fr 1fr; }
+  .ap-datapage { grid-template-columns: minmax(0, 1fr) 260px; column-gap: 28px; padding: 28px; }
+  .ap-fields { grid-template-columns: 1fr; }
+  .ap-coupons { grid-template-columns: 1fr; max-width: 560px; }
+  .ap-fees-grid { grid-template-columns: 1fr; }
+  .ap-week { grid-template-columns: 1fr; }
+}
+/* ── 手機 ── */
+@media (max-width: 760px) {
+  .ap-hero { padding: 20px 0 48px; }
+  .ap-passport { width: calc(100% - 16px); padding: 8px 8px 34px; border-radius: 16px; }
+  .ap-spread { grid-template-columns: 1fr; }
+  .ap-page { padding: 18px 18px 28px; }
+  .ap-page-photo { background: var(--ap-page); }
+  .ap-page-title { background: linear-gradient(180deg, color-mix(in oklch, var(--ap-page) 90%, var(--text)) 0, var(--ap-page) 18px); }
+  .ap-runhead { margin-bottom: 18px; }
+  .ap-welcome { right: -4px; bottom: 26px; }
+  .ap-welcome .ap-stamp svg { width: 104px; height: 104px; }
+  .ap-page-title .ap-rosette-host { right: -220px; top: 60px; width: 420px; }
+  .ap-hero h1 { font-size: clamp(2rem, 9vw, 2.375rem); }
+  .ap-lede { font-size: var(--fs-md); }
+  .ap-action { align-self: stretch; justify-content: space-between; }
+  .ap-cover-mark { bottom: 8px; letter-spacing: .4em; }
+  .ap-toc ol { grid-template-columns: 1fr; }
+  .ap-toc a { padding: 12px 0 14px; border-bottom: 1px solid var(--ap-rule); }
+  .ap-section { padding-bottom: 72px; }
+  .ap-section .ap-runhead { margin-top: 28px; }
+  .ap-head { grid-template-columns: 1fr; margin-bottom: 32px; }
+  .ap-head h2 { font-size: var(--fs-4xl); }
+  .ap-visas { grid-template-columns: 1fr; }
+  .ap-visa { grid-template-columns: minmax(0, 1fr) 88px; min-height: 0; padding: 16px 14px 18px 16px; }
+  .ap-visa-stamp { min-height: 96px; }
+  .ap-visa-stamp .ap-stamp svg { width: 84px; height: 84px; }
+  .ap-datapage { grid-template-columns: 1fr; grid-template-areas: 'fields' 'stamp' 'slots' 'detail'; padding: 20px 16px 24px; }
+  .ap-datapage > .ap-rosette-host { right: -120px; top: 250px; width: 360px; }
+  .ap-answer-lead { font-size: var(--fs-2xl); }
+  .ap-stampzone { min-height: 200px; margin-top: 8px; }
+  .ap-stampzone::before { width: 176px; height: 176px; }
+  .ap-result { width: 172px; height: 172px; }
+  .ap-result .ap-stamp svg { width: 172px; height: 172px; }
+  .ap-slots { margin-top: 16px; }
+  .ap-slot button { min-height: 118px; padding: 10px 4px 12px 8px; }
+  .ap-slot-class { font-size: var(--fs-sm); }
+  .ap-slot-year { flex-direction: column; gap: 0; }
+  .ap-slot-year b { font-size: var(--fs-xl); }
+  /* 「寶貝」小章只落在編號那一列的右側空白，不壓到班名：編號列加高到 26px、小章縮成 32px */
+  .ap-slot-no { height: 26px; }
+  .ap-slot-mark { right: 2px; top: 2px; width: 32px; height: 32px; }
+  .ap-slot-mark .ap-stamp svg { width: 32px; height: 32px; }
+  .ap-ranges { grid-template-columns: 1fr; gap: 10px; }
+  .ap-range { padding: 14px 16px; }
+  .ap-range strong { font-size: var(--fs-xl); }
+  .ap-range-mark { position: static; display: block; margin-top: 8px; }
+  .ap-table-wrap { padding: 4px 8px 8px; }
+  .ap-table-wrap th { padding: 10px 6px; }
+  .ap-table-wrap td { padding: 4px 2px; font-size: var(--fs-sm); }
+  .ap-phases { grid-template-columns: 1fr; }
+  .ap-phase { padding: 22px 18px 26px; }
+  .ap-phase + .ap-phase { border-left: 0; border-top: 1.5px solid var(--ap-rule); }
+  .ap-phase-head { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
+  .ap-phase-head img { width: 96px; }
+  .ap-days li { padding: 4px 0; }
+  .ap-day { font-size: var(--fs-xs); letter-spacing: 0; }
+  .ap-wear .ap-stamp svg { width: 62px; height: 30px; }
+  .ap-notices { gap: 28px; margin-top: 40px; }
+  .ap-clauses li { grid-template-columns: 52px minmax(0, 1fr); }
+  .ap-coupon { --stub: 60px; min-height: 164px; }
+  .ap-coupon-amt b { font-size: var(--fs-4xl); }
+  .ap-fees-grid { gap: 36px; margin-top: 40px; }
+  .ap-refunds summary { grid-template-columns: 52px minmax(0, 1fr) 24px; }
+  .ap-clause-body { padding-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-action, .ap-stampzone::before, .ap-stamp-hint, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-refunds summary .icon { transition: none; }
+}
+@media (forced-colors: active) {
+  .ap-rosette, .ap-band { display: none; }
+  .ap-stamp { mix-blend-mode: normal; }
+  .ap-range.mine, td.mine .ap-cell, .ap-slot button[aria-pressed='true'] { outline: 2px solid Highlight; }
+}
