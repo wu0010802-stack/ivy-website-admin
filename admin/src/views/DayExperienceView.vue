@@ -141,9 +141,8 @@ onMounted(editor.load)
       <el-form-item label="說明文字">
         <el-input v-model="editor.form.value.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
       </el-form-item>
-      <el-form-item label="影片來源標註">
-        <el-input v-model="editor.form.value.source_note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" placeholder="例如：影片攝於義華校，2026 春" />
-      </el-form-item>
+      <!-- 影片來源標註（source_note）是原型程式註解抽成的欄位，官網從來沒有顯示；區塊的來源說明
+           就是上面的「說明文字」。2026-09-29 查證後比照照片補充字：後台不列，舊值照原樣存回。 -->
 
       <h3 class="form-section">背景影片</h3>
       <p class="field-help">影片靜音循環、當作背景，沒有字幕。手機版影片沒選時用桌機那支；影片封面是影片載入前看到的畫面。</p>

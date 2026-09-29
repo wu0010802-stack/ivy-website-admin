@@ -137,7 +137,7 @@ export const SEARCH_ONLY_GROUP: NavGroup = {
   key: 'personal',
   label: '個人',
   items: [
-    { name: 'account', path: '/account', title: '我的帳號', icon: 'Avatar', keywords: ['密碼', '更改密碼', '登入方式', 'Google', 'LINE 綁定', 'Email'] },
+    { name: 'account', path: '/account', title: '我的帳號', icon: 'Avatar', keywords: ['密碼', '更改密碼', '登入方式', 'Google', 'LINE 綁定', 'Email', '顯示名稱', '名字', '名稱'] },
   ],
 }
 

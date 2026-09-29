@@ -273,12 +273,14 @@ describe('孩子的一天：時刻卡排序、時間與新增', () => {
     expect((zh()!.get('input').element as HTMLInputElement).value).toBe('明華校 · 運動會')
   })
 
-  // 2026-09-29 業主裁定：照片補充字官網刻意不顯示，後台不再列；影片來源標註接上官網。
-  it('照片補充字不列出來，影片來源標註不再註明官網沒顯示，也不給補充字字數建議', async () => {
+  // 2026-09-29 業主裁定：照片補充字官網刻意不顯示，後台不再列。影片來源標註查證後同樣從未在官網
+  // 顯示（區塊來源說明是「說明文字」），比照不列。
+  it('照片補充字、影片來源標註不列出來，也不給補充字字數建議', async () => {
     mockDay()
     const wrapper = await mountView(DayExperienceView)
     const labels = wrapper.findAll('.el-form-item__label').map((label) => label.text())
-    expect(labels).toContain('影片來源標註')
+    expect(labels).not.toContain('影片來源標註')
+    expect(labels).toContain('說明文字')
     expect(labels).not.toContain('照片補充字')
     expect(wrapper.find('.unused-note').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')

@@ -113,7 +113,9 @@ describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () =
     })
     const wrapper = await mountView(DayExperienceView)
     expect(labels(wrapper)).not.toContain('照片補充字')
+    expect(labels(wrapper)).not.toContain('影片來源標註')
     expect(wrapper.html()).not.toContain('舊的補充字')
+    expect(wrapper.html()).not.toContain('影片攝於義華校')
 
     await wrapper.findAll('.el-form-item').find((item) => item.find('.el-form-item__label').text() === '說明文字')!.get('textarea').setValue('新的說明')
     await wrapper.findAll('button').find((button) => button.text() === '新增一張時刻卡')!.trigger('click')
