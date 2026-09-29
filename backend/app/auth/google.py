@@ -15,10 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import service
-from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
+from app.auth.deps import SESSION_COOKIE_NAME, get_current_session, get_current_user, get_db_session
+from app.auth.models import Session as AuthSession
 from app.auth.models import User
 from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
+from app.auth.reauth import require_recent_auth
 from app.auth.routes import _set_session_cookie
+from app.auth.schemas import ReauthRequest
 from app.common.ratelimit import client_key, limiter
 from app.operations import audit_service
 
@@ -187,7 +190,9 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
         previous = request.cookies.get(SESSION_COOKIE_NAME)
         if previous:
             await service.revoke_session(db, previous)
-        raw_token, _ = await service.create_session(db, user)
+        raw_token, _ = await service.create_session(
+            db, user, idle=service.session_idle(request.app.state.settings)
+        )
         await audit_service.log_action(
             db, actor_user_id=user.id, action="user.login_google", target_type="user", target_id=str(user.id)
         )
@@ -215,12 +220,20 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
 
 @router.delete("/google/link", status_code=status.HTTP_204_NO_CONTENT)
 async def google_unlink(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)
+    request: Request,
+    payload: ReauthRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會
     重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。
-    解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。"""
+    解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
+    變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。"""
     if current_user.google_sub is not None:
+        await require_recent_auth(
+            request, db, current_user, session, payload.current_password if payload else None
+        )
         current_user.google_sub = None
         await db.flush()
         await audit_service.log_action(

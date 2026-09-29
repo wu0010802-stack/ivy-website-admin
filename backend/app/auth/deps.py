@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.models import Session, User
-from app.auth.service import get_session_by_token
+from app.auth.service import get_session_by_token, refresh_session_expiry, session_idle
 
 SESSION_COOKIE_NAME = "ivy_admin_session"
 CSRF_HEADER_NAME = "x-csrf-token"
@@ -29,6 +29,10 @@ async def get_current_session(
     session = await get_session_by_token(db, session_token)
     if session is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登入")
+    # 閒置逾時是滑動的：有在用就往後推（獨立短交易，不碰請求本身的交易）。
+    await refresh_session_expiry(
+        request.app.state.engine, session, idle=session_idle(request.app.state.settings)
+    )
     return session
 
 

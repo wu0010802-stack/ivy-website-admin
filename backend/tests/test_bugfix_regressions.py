@@ -104,11 +104,13 @@ async def test_created_user_email_is_normalized_to_lowercase(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_wrong_password_attempts_do_not_lock_out_the_real_admin(
+async def test_wrong_password_attempts_lock_password_login_but_not_existing_sessions(
     admin_client, public_client
 ):
-    """原本：限流以 email 為 key 且排在驗證之前，任何人連打 10 次錯密碼
-    就能把指定管理者鎖在門外 5 分鐘。"""
+    """2026-09-22 原本的取捨是「正確密碼一律放行」，結果帳號桶完全擋不到分散
+    來源的暴力破解（稽核 login-account-bucket-no-effect）。2026-09-29 業主裁定：
+    5 分鐘內錯 10 次就鎖該帳號的密碼登入 15 分鐘，鎖定中連正確密碼也拒絕；
+    已登入的 session 與 Google／LINE 登入不受影響（後者見 OAuth 測試）。"""
     for _ in range(12):
         bad = await public_client.post(
             "/api/website/v1/auth/login",
@@ -116,11 +118,12 @@ async def test_wrong_password_attempts_do_not_lock_out_the_real_admin(
         )
         assert bad.status_code in (401, 429)
 
-    ok = await public_client.post(
+    locked = await public_client.post(
         "/api/website/v1/auth/login",
         json={"email": "admin@ivy.example", "password": "super-admin-password-123"},
     )
-    assert ok.status_code == 200, ok.text
+    assert locked.status_code == 429, locked.text
+    assert (await admin_client.get("/api/website/v1/auth/me")).status_code == 200
 
 
 @pytest.mark.asyncio

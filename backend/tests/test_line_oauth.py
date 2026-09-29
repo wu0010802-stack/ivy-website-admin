@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import time
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -12,11 +13,12 @@ import pytest_asyncio
 from itsdangerous import TimestampSigner, URLSafeTimedSerializer
 from joserfc import jwt
 from joserfc.jwk import ECKey, OctKey
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.auth import line as line_module
 from app.auth import service
 from app.auth.models import Role, User
+from app.auth.models import Session as AuthSession
 from app.common import ratelimit
 from app.main import create_app
 from app.operations.models import AuditLogEntry
@@ -167,8 +169,13 @@ def token_requests(provider) -> int:
     return sum(req.url.path == "/oauth2/v2.1/token" for req in provider["requests"])
 
 
+# 登入／登出本身也寫稽核（user.login_*、user.logout）；綁定相關的測試只看綁定動作。
+_SESSION_AUDIT_PREFIXES = ("user.login_", "user.logout")
+
+
 async def _audit_actions(db_session) -> list[str]:
-    return list((await db_session.execute(select(AuditLogEntry.action))).scalars())
+    actions = (await db_session.execute(select(AuditLogEntry.action))).scalars()
+    return [action for action in actions if not action.startswith(_SESSION_AUDIT_PREFIXES)]
 
 
 # ---------------------------------------------------------------- login
@@ -523,5 +530,137 @@ async def test_line_unlink_works_when_line_is_disabled(admin_client, db_session)
     user.line_sub = SUB
     await db_session.commit()
     assert (await admin_client.delete(f"{ROOT}/line/link")).status_code == 204
+    await db_session.refresh(user)
+    assert user.line_sub is None
+
+
+# ---------------------------------------------------------------- 2026-09-29 資安修補
+
+
+async def _age_sessions(db_session, user_id, minutes: int) -> None:
+    await db_session.execute(
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id)
+        .values(created_at=datetime.now(timezone.utc) - timedelta(minutes=minutes))
+    )
+    await db_session.commit()
+
+
+async def _audit_rows(db_session, action: str) -> list[AuditLogEntry]:
+    db_session.expire_all()
+    return list((await db_session.execute(
+        select(AuditLogEntry).where(AuditLogEntry.action == action).order_by(AuditLogEntry.created_at)
+    )).scalars())
+
+
+async def test_line_callback_counts_toward_login_rate_limit(line_client, monkeypatch):
+    """原本：LINE callback 不計來源限流，一個握手 cookie 可以無限次打 LINE token 端點。"""
+    monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_line_test", 300, 3))
+    locations = [
+        (await line_client.get(f"{ROOT}/line/callback", params={"state": "x", "code": "y"})).headers["location"]
+        for _ in range(4)
+    ]
+    assert locations[:3] == ["/admin/login?oauth_error=line_failed"] * 3
+    assert locations[3] == "/admin/login?oauth_error=rate_limited"
+
+
+async def test_line_state_is_single_use_even_if_the_cookie_is_kept(line_client, line_provider, db_session):
+    """原本：伺服器端不記錄 state 用過沒有，攻擊者自己留著握手 cookie 就能重送。"""
+    user = await _create_user(db_session, "staff@ivy.example", "test-password-123", Role.SUPER_ADMIN)
+    user.line_sub = SUB
+    await db_session.commit()
+    state = await start_login(line_client, line_provider)
+    kept = line_client.cookies.get("ivy_line_oauth")
+    assert (await finish(line_client, state)).headers["location"] == "/admin/visit-requests?status=pending"
+    count = token_requests(line_provider)
+
+    line_client.cookies.clear()
+    line_client.cookies.set("ivy_line_oauth", kept, path=line_module.HANDSHAKE_PATH)
+    replay = await finish(line_client, state)
+    assert replay.headers["location"] == "/admin/login?oauth_error=line_failed"
+    assert token_requests(line_provider) == count
+    assert line_client.cookies.get("ivy_admin_session") is None
+
+
+async def test_line_login_success_and_failures_are_audited(line_client, line_provider, db_session):
+    user = await _create_user(db_session, "staff@ivy.example", "test-password-123", Role.SUPER_ADMIN)
+    user_id = user.id
+
+    # 沒有綁定任何後台帳號。
+    state = await start_login(line_client, line_provider)
+    assert (await finish(line_client, state)).headers["location"] == "/admin/login?oauth_error=line_not_allowed"
+    [not_linked] = await _audit_rows(db_session, "user.login_line_failed")
+    assert not_linked.metadata_json == {"reason": "not_linked"}
+    assert not_linked.target_id == "unknown" and not_linked.actor_user_id is None
+
+    # 已綁定但停權。
+    await db_session.execute(update(User).where(User.id == user_id).values(line_sub=SUB, is_active=False))
+    await db_session.commit()
+    state = await start_login(line_client, line_provider)
+    await finish(line_client, state)
+    inactive = (await _audit_rows(db_session, "user.login_line_failed"))[-1]
+    assert inactive.metadata_json == {"reason": "inactive"}
+    assert inactive.target_id == str(user_id) and inactive.actor_user_id == user_id
+
+    # 使用者在 LINE 按取消；沒走過握手的 callback 不寫。
+    state = await start_login(line_client, line_provider)
+    await finish(line_client, state, error="access_denied")
+    await line_client.get(f"{ROOT}/line/callback", params={"state": "x", "code": "y"})
+    rows = await _audit_rows(db_session, "user.login_line_failed")
+    assert [r.metadata_json["reason"] for r in rows] == ["not_linked", "inactive", "cancelled"]
+    failed_metadata = [r.metadata_json for r in rows]
+
+    await db_session.execute(update(User).where(User.id == user_id).values(is_active=True))
+    await db_session.commit()
+    state = await start_login(line_client, line_provider)
+    response = await finish(line_client, state)
+    assert response.headers["location"] == "/admin/visit-requests?status=pending"
+    [success] = await _audit_rows(db_session, "user.login_line")
+    assert success.actor_user_id == user_id and success.target_id == str(user_id)
+    assert SUB not in json.dumps(failed_metadata + [success.metadata_json])
+    # 後台 session cookie 是瀏覽器 session cookie：關掉瀏覽器就沒了。
+    [cookie] = [c for c in response.headers.get_list("set-cookie") if c.startswith("ivy_admin_session=")]
+    assert "max-age" not in cookie.lower() and "expires" not in cookie.lower()
+
+
+async def test_line_login_is_not_blocked_by_the_password_lock(line_client, line_provider, db_session):
+    """業主裁定：帳號鎖只鎖密碼登入，Google／LINE 登入照常。"""
+    user = await _create_user(db_session, "staff@ivy.example", "test-password-123", Role.SUPER_ADMIN)
+    user.line_sub = SUB
+    await db_session.commit()
+    for _ in range(10):
+        await line_client.post(f"{ROOT}/login", json={"email": "staff@ivy.example", "password": "wrong-password-xx"})
+    locked = await line_client.post(f"{ROOT}/login", json={"email": "staff@ivy.example", "password": "test-password-123"})
+    assert locked.status_code == 429
+    state = await start_login(line_client, line_provider)
+    assert (await finish(line_client, state)).headers["location"] == "/admin/visit-requests?status=pending"
+    assert (await line_client.get(f"{ROOT}/me")).status_code == 200
+
+
+async def test_line_link_and_unlink_require_recent_auth(line_client, line_provider, db_session):
+    """原本：拿到一次 session 的人不用密碼就能把自己的 LINE 綁上去，事後重設密碼也趕不走。"""
+    user = await _create_user(db_session, "staff@ivy.example", "test-password-123", Role.SUPER_ADMIN)
+    await password_login(line_client)
+    await _age_sessions(db_session, user.id, minutes=11)
+
+    denied = await line_client.post(f"{ROOT}/line/link")
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "REAUTH_REQUIRED"
+    assert "ivy_line_oauth" not in denied.headers.get("set-cookie", "")
+    wrong = await line_client.post(f"{ROOT}/line/link", json={"current_password": "not-my-password"})
+    assert wrong.status_code == 403 and wrong.json()["detail"]["code"] == "REAUTH_REQUIRED"
+
+    ok = await line_client.post(f"{ROOT}/line/link", json={"current_password": "test-password-123"})
+    assert ok.status_code == 200, ok.text
+    _assert_handshake_cookie(ok)
+    state = _remember(line_provider, ok.json()["authorize_url"])["state"][0]
+    assert (await finish(line_client, state)).headers["location"] == ACCOUNT + "linked"
+
+    denied = await line_client.delete(f"{ROOT}/line/link")
+    assert denied.status_code == 403 and denied.json()["detail"]["code"] == "REAUTH_REQUIRED"
+    await db_session.refresh(user)
+    assert user.line_sub == SUB
+    ok = await line_client.request("DELETE", f"{ROOT}/line/link", json={"current_password": "test-password-123"})
+    assert ok.status_code == 204
     await db_session.refresh(user)
     assert user.line_sub is None

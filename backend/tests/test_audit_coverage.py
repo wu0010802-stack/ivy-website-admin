@@ -22,10 +22,10 @@ _PREFIXES = ("/api/website/v1/admin/", "/api/website/v1/auth/")
 _MAX_DEPTH = 3
 
 # (方法, 路徑) → 為什麼不需要稽核。
+# 2026-09-29：登入（user.login_password／_failed／login_locked）、登出（user.logout）
+# 與 LINE 綁定起點（重新驗證打錯密碼記 user.login_password_failed）都已寫稽核，
+# 從例外清單移除。
 _EXEMPT = {
-    ("POST", "/api/website/v1/auth/login"): "登入建立 session（sessions 表記錄時間與帳號），失敗有限流；不另寫稽核",
-    ("POST", "/api/website/v1/auth/logout"): "只刪自己的 session",
-    ("POST", "/api/website/v1/auth/line/link"): "只產生 LINE 授權網址，真正綁定在 callback 記 user.link_line",
     ("POST", "/api/website/v1/admin/content-items/{kind}/revisions"): (
         "存草稿本身就是一筆 revision（含 created_by 與時間），不影響官網；發布、送審、還原另有稽核"
     ),

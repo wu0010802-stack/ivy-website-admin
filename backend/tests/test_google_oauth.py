@@ -200,7 +200,7 @@ async def test_google_inactive_and_different_subject_rejected(google_client, goo
     assert "oauth_error=not_allowed" in (await finish(google_client, state)).headers["location"]
 
 
-async def test_google_subject_survives_email_change_and_deactivation(google_client, google_provider, db_session):
+async def test_google_subject_survives_email_change_but_not_deactivation(google_client, google_provider, db_session):
     user = await _create_user(db_session, "old@example.org", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
     user.google_sub = "google-person-123"
     await db_session.commit()
@@ -210,6 +210,9 @@ async def test_google_subject_survives_email_change_and_deactivation(google_clie
     await service.set_user_active(db_session, user, False)
     await db_session.commit()
     assert (await google_client.get(f"{ROOT}/me")).status_code == 401
+    # 2026-09-29：停權一併解除外部登入綁定，之後復權不會讓舊的 Google 帳號自動回來。
+    await db_session.refresh(user)
+    assert user.google_sub is None
 
 
 @pytest.mark.parametrize("scenario", ["missing_cookie", "wrong_state", "cancelled", "network"])
@@ -397,3 +400,18 @@ async def test_google_unlink_works_when_google_login_is_disabled(admin_client, d
     assert (await admin_client.delete(f"{ROOT}/google/link")).status_code == 204
     await db_session.refresh(user)
     assert user.google_sub is None
+
+
+async def test_google_login_is_not_blocked_by_the_password_lock(google_client, google_provider, db_session):
+    """業主裁定：帳號鎖只鎖密碼登入，Google 登入照常；後台 session cookie 不帶 max-age。"""
+    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    for _ in range(10):
+        await google_client.post(f"{ROOT}/login", json={"email": "staff@gmail.com", "password": "wrong-password-xx"})
+    locked = await google_client.post(f"{ROOT}/login", json={"email": "staff@gmail.com", "password": "test-password-123"})
+    assert locked.status_code == 429
+    state = await start(google_client, google_provider)
+    response = await finish(google_client, state)
+    assert response.headers["location"] == "/admin/visit-requests?status=pending"
+    [cookie] = [c for c in response.headers.get_list("set-cookie") if c.startswith("ivy_admin_session=")]
+    assert "max-age" not in cookie.lower() and "expires" not in cookie.lower()
+    assert (await google_client.get(f"{ROOT}/me")).status_code == 200

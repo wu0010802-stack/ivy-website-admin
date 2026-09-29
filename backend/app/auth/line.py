@@ -7,6 +7,7 @@ LINE 的 ID token 沒有 email_verified，email 也要另外向 LINE 申請，�
 from __future__ import annotations
 
 import secrets
+import uuid
 from urllib.parse import urlencode
 
 import httpx
@@ -23,12 +24,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
-from app.auth.deps import SESSION_COOKIE_NAME, get_current_user, get_db_session
+from app.auth.deps import SESSION_COOKIE_NAME, get_current_session, get_current_user, get_db_session
+from app.auth.models import Session as AuthSession
 from app.auth.models import User
 from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
+from app.auth.reauth import require_recent_auth
 from app.auth.routes import _set_session_cookie
-from app.auth.schemas import LineLinkStart
-from app.common.ratelimit import client_key, limiter
+from app.auth.schemas import LineLinkStart, ReauthRequest
+from app.common.ratelimit import Limit, client_key, limiter
 from app.config import Settings
 from app.operations import audit_service
 
@@ -41,6 +44,10 @@ ISSUER = "https://access.line.me"
 HANDSHAKE_COOKIE = "ivy_line_oauth"
 HANDSHAKE_PATH = "/api/website/v1/auth/line"
 HANDSHAKE_SALT = "ivy-line-oauth-handshake"
+# 握手的 state 只能用一次：伺服器端記下用過的 state（HMAC 後落地），在握手
+# 有效期內第二次出現就當作無效。只靠 delete_cookie 擋不住自己留著 cookie
+# 重送的人，每次重送都會拿正式的 channel secret 打一次 LINE token 端點。
+STATE_MARKER = Limit("line_oauth_state", OAUTH_TTL_SECONDS + 60, 1)
 
 
 class LineOAuthError(Exception):
@@ -184,13 +191,21 @@ async def line_login(request: Request, redirect: str | None = None) -> Response:
 
 @router.post("/line/link", response_model=LineLinkStart)
 async def line_link_start(
-    request: Request, response: Response, current_user: User = Depends(get_current_user)
+    request: Request,
+    response: Response,
+    payload: ReauthRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db_session),
 ) -> LineLinkStart:
+    """開始綁定：只產生 LINE 授權網址，真正綁定在 callback（記 user.link_line）。
+    變更自己的登入方式要重新驗證（見 app/auth/reauth.py）。"""
     private(response)
     if request.app.state.line_oauth is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="LINE 登入尚未啟用")
     if current_user.line_sub is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="此帳號已綁定 LINE，請先解除綁定")
+    await require_recent_auth(request, db, current_user, session, payload.current_password if payload else None)
     url, sealed = _begin(request, mode="link", user_id=str(current_user.id))
     _set_handshake(response, request.app.state.settings, sealed)
     return LineLinkStart(authorize_url=url)
@@ -198,10 +213,18 @@ async def line_link_start(
 
 @router.delete("/line/link", status_code=status.HTTP_204_NO_CONTENT)
 async def line_unlink(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)
+    request: Request,
+    payload: ReauthRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     # 解除綁定不看 LINE 是否啟用：關掉 LINE 設定後仍要能清掉舊綁定。
+    # 要重新驗證（見 app/auth/reauth.py）；沒有東西可解除時不用。
     if current_user.line_sub is not None:
+        await require_recent_auth(
+            request, db, current_user, session, payload.current_password if payload else None
+        )
         current_user.line_sub = None
         await db.flush()
         await audit_service.log_action(
@@ -215,33 +238,60 @@ async def line_unlink(
 @router.get("/line/callback", response_class=RedirectResponse, status_code=303)
 async def line_callback(request: Request, db: AsyncSession = Depends(get_db_session)) -> Response:
     handshake = _load_handshake(request)
-    response = await _complete(request, db, handshake)
+    try:
+        # 比照 Google：callback 也算一次登入嘗試，計入來源限流。
+        await service.check_login_source_rate_limit(limiter(request), client_key(request))
+    except service.LoginRateLimited:
+        linking = handshake is not None and handshake["mode"] == "link"
+        response = _link_result("failed") if linking else _login_failure("rate_limited")
+    else:
+        response = await _complete(request, db, handshake)
     response.delete_cookie(HANDSHAKE_COOKIE, **_cookie_options(request.app.state.settings))
     return private(response)
+
+
+async def _audit_login_failure(db: AsyncSession, reason: str, user_id: uuid.UUID | None = None) -> None:
+    # 比照 Google：只記已走過 /line/login 握手（有來源限流）、state 也對得上的
+    # 登入嘗試，隨手打 callback 的請求不寫。綁定流程的失敗不是登入失敗，不記。
+    await audit_service.log_action(
+        db,
+        actor_user_id=user_id,
+        action="user.login_line_failed",
+        target_type="user",
+        target_id=str(user_id) if user_id else "unknown",
+        metadata={"reason": reason},
+    )
+    await db.commit()
 
 
 async def _complete(request: Request, db: AsyncSession, handshake: dict | None) -> Response:
     linking = handshake is not None and handshake["mode"] == "link"
 
-    def fail(kind: str) -> Response:
+    async def fail(kind: str, audit_reason: str | None = None) -> Response:
+        if audit_reason and not linking:
+            await _audit_login_failure(db, audit_reason)
         return _link_result(kind) if linking else _login_failure(f"line_{kind}")
 
     client: LineOAuth | None = request.app.state.line_oauth
     if client is None:
-        return fail("unavailable")
+        return await fail("unavailable")
     state = request.query_params.get("state") or ""
     if handshake is None or not secrets.compare_digest(state.encode(), handshake["state"].encode()):
-        return fail("failed")
+        return await fail("failed")
+    if not await limiter(request).consume_marker(STATE_MARKER, handshake["state"]):
+        # 同一個 state 第二次出現（重送握手 cookie）：跟 state 不符一樣處理。
+        return await fail("failed")
     error = request.query_params.get("error")
     if error:
-        return fail("cancelled" if error.lower() == "access_denied" else "failed")
+        cancelled = error.lower() == "access_denied"
+        return await fail("cancelled" if cancelled else "failed", "cancelled" if cancelled else "provider_error")
     code = request.query_params.get("code")
     if not code:
-        return fail("failed")
+        return await fail("failed", "failed")
     try:
         sub = await client.fetch_subject(code, handshake["verifier"], handshake["nonce"])
     except (LineOAuthError, JoseError, httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
-        return fail("failed")
+        return await fail("failed", "failed")
     if linking:
         return await _finish_link(request, db, handshake, sub)
     return await _finish_login(request, db, handshake, sub)
@@ -250,11 +300,16 @@ async def _complete(request: Request, db: AsyncSession, handshake: dict | None) 
 async def _finish_login(request: Request, db: AsyncSession, handshake: dict, sub: str) -> Response:
     user = (await db.execute(select(User).where(User.line_sub == sub))).scalar_one_or_none()
     if user is None or not user.is_active:
+        # LINE 已證明這個人就是綁定的那位，所以停權時 actor 記本人（同 Google）。
+        await _audit_login_failure(db, "not_linked" if user is None else "inactive", user.id if user else None)
         return _login_failure("line_not_allowed")
     previous = request.cookies.get(SESSION_COOKIE_NAME)
     if previous:
         await service.revoke_session(db, previous)
-    raw_token, _ = await service.create_session(db, user)
+    raw_token, _ = await service.create_session(db, user, idle=service.session_idle(request.app.state.settings))
+    await audit_service.log_action(
+        db, actor_user_id=user.id, action="user.login_line", target_type="user", target_id=str(user.id)
+    )
     await db.commit()
     response = RedirectResponse("/admin" + safe_admin_path(handshake.get("return_to")), status_code=303)
     _set_session_cookie(response, request.app.state.settings, raw_token)

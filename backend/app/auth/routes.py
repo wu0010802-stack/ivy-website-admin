@@ -22,6 +22,7 @@ from app.auth.models import Session as AuthSession
 from app.auth.models import BOOKING_EXPORT, CREATABLE_ROLES, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
 from app.auth.permissions import effective_capabilities, require_scope
 from app.auth.oauth_common import private
+from app.auth.reauth import login_rate_limited
 from app.auth.schemas import (
     AuthProviders,
     LoginRequest,
@@ -103,13 +104,14 @@ def _user_out(user: User) -> UserOut:
 
 
 def _set_session_cookie(response: Response, settings: Settings, raw_token: str) -> None:
+    # 不設 max_age／expires：瀏覽器 session cookie，關掉瀏覽器就沒了（共用電腦
+    # 上「關視窗以為已離開」的情境）。伺服器端另有閒置逾時與 12 小時上限。
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=raw_token,
         httponly=True,
         secure=settings.environment == "production",
         samesite="lax",
-        max_age=int(service.SESSION_TTL.total_seconds()),
         path="/",
     )
 
@@ -138,13 +140,18 @@ async def login(
             client_key=ratelimit.client_key(request),
         )
     except service.LoginRateLimited as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="登入嘗試次數過多，請稍後再試"
-        ) from exc
+        raise login_rate_limited(exc) from exc
     except (service.InvalidCredentials, service.AccountInactive) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="帳號或密碼錯誤") from exc
 
-    raw_token, csrf_token = await service.create_session(db, user)
+    # 跟 Google／LINE 登入一樣：這個瀏覽器原本帶的 session 一併撤銷，不留孤兒。
+    previous = request.cookies.get(SESSION_COOKIE_NAME)
+    if previous:
+        await service.revoke_session(db, previous)
+    raw_token, csrf_token = await service.create_session(db, user, idle=service.session_idle(settings))
+    await audit_service.log_action(
+        db, actor_user_id=user.id, action="user.login_password", target_type="user", target_id=str(user.id)
+    )
     await db.commit()
     _set_session_cookie(response, settings, raw_token)
 
@@ -175,6 +182,9 @@ async def logout(
         return
     check_csrf_and_origin(request, session, csrf_header)
     await service.revoke_session(db, session_token)
+    await audit_service.log_action(
+        db, actor_user_id=session.user_id, action="user.logout", target_type="user", target_id=str(session.user_id)
+    )
     await db.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
 
@@ -219,7 +229,7 @@ async def create_user(
     user = User(
         id=uuid.uuid4(),
         email=payload.email,
-        password_hash=service.hash_password(payload.password),
+        password_hash=await service.hash_password_async(payload.password),
         role=payload.role,
         is_active=True,
         capabilities=capabilities,
@@ -266,7 +276,8 @@ async def update_user_active(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個使用者")
     try:
-        await service.set_user_active(db, user, payload.is_active)
+        # 停權會一併解除 LINE／Google 綁定；稽核只記有沒有解除，不記 sub。
+        unlinked = await service.set_user_active(db, user, payload.is_active)
     except service.LastSuperAdminProtected as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="不能停權最後一位總管理者"
@@ -277,7 +288,7 @@ async def update_user_active(
         action="user.set_active",
         target_type="user",
         target_id=str(user_id),
-        metadata={"is_active": payload.is_active},
+        metadata={"is_active": payload.is_active, **unlinked},
     )
     await db.commit()
     return _user_out(user)
@@ -374,10 +385,18 @@ async def reset_user_password(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，
-    對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。"""
+    對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。
+
+    不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
+    撿到總管理者 session 的人就能直接把密碼改成自己知道的。"""
     require_scope(current_user, "users.manage")
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "USE_CHANGE_PASSWORD", "message": "要改自己的密碼，請到「我的帳號」輸入目前的密碼後變更"},
+        )
     user = await _load_user(db, user_id)
-    user.password_hash = service.hash_password(payload.password)
+    user.password_hash = await service.hash_password_async(payload.password)
     revoked = await service.revoke_user_sessions(db, user.id)
     await audit_service.log_action(
         db,
@@ -393,17 +412,25 @@ async def reset_user_password(
 @router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_own_password(
     payload: PasswordChangeRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    """本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。"""
-    if not service.verify_password(payload.current_password, current_user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前的密碼不正確")
+    """本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。
+    目前密碼的驗證跟登入共用帳號鎖（持有 session 的人不能在這裡線上猜密碼）。"""
+    try:
+        await service.verify_current_password(
+            db, current_user, payload.current_password, limiter=ratelimit.limiter(request), context="change_password"
+        )
+    except service.LoginRateLimited as exc:
+        raise login_rate_limited(exc) from exc
+    except service.InvalidCredentials as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前的密碼不正確") from exc
     if payload.current_password == payload.new_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密碼不能跟目前的一樣")
     user = await db.get(User, current_user.id)
-    user.password_hash = service.hash_password(payload.new_password)
+    user.password_hash = await service.hash_password_async(payload.new_password)
     await service.revoke_user_sessions(db, user.id, keep_session_id=session.id)
     await audit_service.log_action(
         db,
@@ -414,6 +441,37 @@ async def change_own_password(
         metadata={},
     )
     await db.commit()
+
+
+@router.post("/admin/users/{user_id}/clear-external-logins", response_model=UserOut)
+async def clear_user_external_logins(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserOut:
+    """總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用時
+    的處置；重設密碼不會動到綁定）。自己的綁定請到「我的帳號」解除，那邊要
+    重新驗證。"""
+    require_scope(current_user, "users.manage")
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "USE_ACCOUNT_PAGE", "message": "要解除自己的綁定，請到「我的帳號」操作"},
+        )
+    user = await _load_user(db, user_id)
+    unlinked = service.clear_external_logins(user)
+    await db.flush()
+    revoked = await service.revoke_user_sessions(db, user.id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="user.clear_external_logins",
+        target_type="user",
+        target_id=str(user_id),
+        metadata={**unlinked, "revoked_sessions": revoked},
+    )
+    await db.commit()
+    return _user_out(user)
 
 
 @router.patch("/admin/users/{user_id}/capabilities", response_model=UserOut)
