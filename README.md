@@ -1,3 +1,7 @@
+## 2026-09-29 常春藤環境頁「五所校園」拿掉照片上的標註箭頭（`feature/env-no-spots-20260929`）
+
+使用者要求拿掉 `/environment` 第四章照片上的標籤與紅筆箭頭（截圖是國際校美語商店街的「餐廳」）。確認範圍後改成整章都不畫（原本 42 個）：刪掉模板的 `.renv-spot`、`utils/rough-sketch.ts` 的 `layoutSpotBoxes`／`placeSpots`／`spot` 繪製、對應 CSS 與單元測試；章節說明「照片與標註」改成「照片」。01、02 章的便利貼＋箭頭與分校頁校園探索的熱點不動。規則見 DESIGN.md「常春藤環境頁手繪版」。
+
 ## 2026-09-29 手機版體驗優化（`claude/mobile-experience-optimization-60rfw2`，PR #13）
 
 使用者要求「優化手機版的體驗」。先分八區在 390×844、360×780、320×568、844×390 以 Playwright 實測審查（77 項發現），每區再由懷疑者重測反駁、對照 DESIGN.md 定案，只做確認成立且不違反定案的項目；分七組、檔案不重疊實作，每組再由獨立審查者重測。只改 `web/`（外加 `scripts/optimize-site-images.py` 的線稿候選）。規則與待業主決定的清單見 DESIGN.md「手機版體驗優化第二輪（2026-09-29）」。改版前快照：`versions/before-mobile-ux-20260929-082521/`。

@@ -6,7 +6,7 @@ import { isGeneratedTourScenes, type SiteContent } from '../app/types/site-conte
 import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
-import { clotheslineY, layoutSpotBoxes, mealArcPoint } from '../app/utils/rough-sketch'
+import { clotheslineY, mealArcPoint } from '../app/utils/rough-sketch'
 import { ARRIVE, LEAVE, footstepLengths, smoothPath, stepStop, walkAnchors, walkedLength } from '../app/utils/environment-motion'
 import manifest from '../app/generated/image-manifest.json'
 import fontManifest from '../app/generated/environment-font-manifest.json'
@@ -106,23 +106,6 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
       expect(spot.x).toBeLessThanOrEqual(100)
       expect(spot.y).toBeGreaterThanOrEqual(0)
       expect(spot.y).toBeLessThanOrEqual(100)
-    }
-  })
-
-  it('標註便條：點在下半部放上方、太靠上放下方；便條彼此不重疊、不離開照片太遠', () => {
-    const image = { x: 0, y: 0, w: 800, h: 500 }
-    const [above, below] = layoutSpotBoxes(image, [{ x: 50, y: 70, w: 80, h: 28 }, { x: 50, y: 10, w: 80, h: 28 }])
-    expect(above!.y + above!.h).toBeLessThan(0.7 * 500)
-    expect(below!.y).toBeGreaterThan(0.1 * 500)
-    // 國際校美語商店街：郵局與餐廳同高、左右相鄰
-    const boxes = layoutSpotBoxes(image, [{ x: 12, y: 22, w: 60, h: 28 }, { x: 58, y: 32, w: 60, h: 28 }, { x: 92, y: 14, w: 76, h: 28 }, { x: 41, y: 32, w: 60, h: 28 }])
-    for (const [i, a] of boxes.entries()) {
-      expect(a.x).toBeGreaterThanOrEqual(-10)
-      expect(a.x + a.w).toBeLessThanOrEqual(810)
-      for (const b of boxes.slice(i + 1)) {
-        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-        expect(overlap).toBe(false)
-      }
     }
   })
 
