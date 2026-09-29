@@ -307,7 +307,7 @@ describe('內容頁的素材版位', () => {
     expect(wrapper.text()).not.toContain('有未儲存的修改')
     expect(wrapper.text()).toContain('目前用原本的照片')
     const alt = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('圖片說明（給看不到照片的人）'))!
-    await alt.get('input').setValue('孩子打招呼')
+    await alt.get('textarea').setValue('孩子打招呼')
     const payload = await savedPayload(wrapper, 'day_experience')
     expect((payload.moments as Record<string, unknown>[])[0]).toMatchObject({ photo: null, alt: '孩子打招呼', tint: null })
     expect(payload.film_caption_zh).toBeNull()

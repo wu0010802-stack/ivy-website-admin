@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, useTemplateRef } from 'vue'
 import { Delete, Picture } from '@element-plus/icons-vue'
 import type { MediaAssetOut, NewsBodyBlock } from '../api/types'
-import { mediaFileUrl } from '../api/client'
 import MediaPickerDialog from './MediaPickerDialog.vue'
-import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, webUrlError } from '../composables/newsContent'
+import { altAfterPick, useMediaThumbs } from '../composables/mediaThumbs'
+import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, revealListItem, webUrlError } from '../composables/newsContent'
 
 // 消息內文（規格 3.4）：只有段落、小標、清單、圖片與連結五種區塊，存成結構化
 // 資料，不收任何 HTML；官網逐塊用固定的樣式顯示。
@@ -16,9 +16,14 @@ const props = defineProps<{
 }>()
 
 const BLOCK_TYPES = Object.keys(BLOCK_LABELS) as NewsBodyBlock['type'][]
+const root = useTemplateRef<HTMLElement>('root')
+// 內文圖片縮圖：載縮圖、讀不到退回原檔，原檔也讀不到就請使用者重選。
+const thumbs = useMediaThumbs()
 
+// 新的區塊加在最後，加完捲過去並聚焦（圖片區塊聚焦「選擇圖片」）。
 function add(type: NewsBodyBlock['type']) {
   props.blocks.push(newBlock(type))
+  void revealListItem(root.value, `[data-list-item="${props.blocks.length - 1}"]`, 'textarea, input:not([type=checkbox]), .news-body__thumb')
 }
 
 function remove(index: number) {
@@ -36,8 +41,10 @@ function pickImage(index: number) {
 function onPick(asset: MediaAssetOut) {
   const block = pickingIndex.value === null ? null : props.blocks[pickingIndex.value]
   if (!block || block.type !== 'image') return
+  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。
+  block.alt = altAfterPick(block.alt, block.image, asset)
   block.image = asset.id
-  if (!block.alt && asset.alt_text) block.alt = asset.alt_text
+  thumbs.forget(asset.id)
 }
 
 function listText(block: Extract<NewsBodyBlock, { type: 'list' }>): string {
@@ -50,11 +57,11 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
 </script>
 
 <template>
-  <div class="news-body">
+  <div ref="root" class="news-body">
     <p v-if="!blocks.length" class="hint news-body__empty">
       沒有內文時，官網的消息詳細頁只顯示摘要。
     </p>
-    <div v-for="(block, index) in blocks" :key="index" class="news-body__block">
+    <div v-for="(block, index) in blocks" :key="index" class="news-body__block" :data-list-item="index">
       <div class="news-body__head">
         <span class="news-body__type">{{ BLOCK_LABELS[block.type] }}</span>
         <span v-if="!readOnly" class="cell-actions">
@@ -78,8 +85,16 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
         <el-checkbox v-model="block.ordered">加上編號（1. 2. 3.）</el-checkbox>
       </template>
       <div v-else-if="block.type === 'image'" class="news-body__image">
-        <button type="button" class="news-body__thumb" :aria-label="block.image ? '更換圖片' : '從素材庫選擇圖片'" :disabled="readOnly" @click="pickImage(index)">
-          <img v-if="block.image" :src="mediaFileUrl(block.image)" alt="" />
+        <button
+          type="button"
+          class="news-body__thumb"
+          :class="{ 'is-broken': block.image && thumbs.isBroken(block.image) }"
+          :aria-label="block.image && thumbs.isBroken(block.image) ? '讀不到這張圖片，請重新選擇' : block.image ? '更換圖片' : '從素材庫選擇圖片'"
+          :disabled="readOnly"
+          @click="pickImage(index)"
+        >
+          <span v-if="block.image && thumbs.isBroken(block.image)" class="news-body__thumb-broken"><el-icon><Picture /></el-icon>讀不到這張圖片，請重新選擇</span>
+          <img v-else-if="block.image" :src="thumbs.src(block.image)" alt="" loading="lazy" @error="thumbs.onError(block.image)" />
           <span v-else><el-icon><Picture /></el-icon>選擇圖片</span>
         </button>
         <div class="news-body__image-fields">
@@ -199,6 +214,17 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.news-body__thumb.is-broken {
+  border-color: var(--el-color-danger);
+}
+
+.news-body__thumb-broken {
+  padding: 8px;
+  color: var(--el-color-danger);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .news-body__add {

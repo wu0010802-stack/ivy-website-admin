@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, shallowRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import type { HomeFilmPayload, MediaAssetOut } from '../api/types'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
+import { revealListItem } from '../composables/newsContent'
 import { HOME_FILMS_MAX, filmClipError, filmStartError, filmYoutubeError, newHomeFilm } from '../composables/homeFilms'
 import MediaSlotField from './MediaSlotField.vue'
 
@@ -31,12 +32,25 @@ function durationOf(film: HomeFilmPayload): number | null {
   return film.video ? (durations.get(film.video.media_id) ?? null) : null
 }
 
+// 關掉「自訂」時把目前的清單記在這個畫面裡，再打開就還原（還沒存檔前誤關，
+// 不會整份清單不見、重開只剩一支空白影片）。離開頁面就不記了。
+const remembered = shallowRef<HomeFilmPayload[] | null>(null)
+
 function toggle(on: boolean) {
-  emit('update:films', on ? [newHomeFilm()] : null)
+  if (on) {
+    emit('update:films', remembered.value?.length ? remembered.value : [newHomeFilm()])
+    remembered.value = null
+    return
+  }
+  remembered.value = props.films?.length ? props.films : null
+  emit('update:films', null)
 }
 
+// 新的一支加在最後，加完捲過去並聚焦影片名稱。
 function add() {
-  props.films?.push(newHomeFilm())
+  if (!props.films) return
+  props.films.push(newHomeFilm())
+  void revealListItem(root.value, `[data-list-item="${props.films.length - 1}"]`)
 }
 
 function remove(index: number) {
@@ -57,8 +71,9 @@ function move(index: number, delta: number) {
       aria-label="自訂影片清單"
       @update:model-value="toggle(Boolean($event))"
     />
+    <span v-if="!films && remembered" class="field-help">剛才的 {{ remembered.length }} 支影片還留著，重新打開「自訂」就會還原（離開這一頁後就不會留）。</span>
     <template v-if="films">
-      <div v-for="(film, index) in films" :key="index" class="repeat-item">
+      <div v-for="(film, index) in films" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b> {{ film.title || '未命名影片' }}</span>
           <span class="films__actions">

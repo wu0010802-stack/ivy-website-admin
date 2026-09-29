@@ -50,7 +50,7 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="footer-section">頁尾連結</h3>
-      <p class="field-help">依這裡的順序排列，最多 {{ FOOTER_LINKS_MAX }} 個。外部網站官網會加 ↗ 並另開分頁。</p>
+      <p class="field-help">依這裡的順序排列，最多 {{ FOOTER_LINKS_MAX }} 個。</p>
       <SiteLinksEditor :links="links" :max="FOOTER_LINKS_MAX" :read-only="editor.readOnly.value" item-name="頁尾連結" />
     </el-form>
   </ContentEditor>

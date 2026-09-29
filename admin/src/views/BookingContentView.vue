@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, useTemplateRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
+import { moveKeepingFocus } from '../composables/moveKeepingFocus'
+import { revealListItem } from '../composables/newsContent'
 import type { BookingContentPayload } from '../api/types'
 import { PRIVACY_SAMPLE_MARKER, PRIVACY_SECTIONS_MAX, privacyHasSample, privacySampleSections } from '../composables/privacyNotice'
 import ContentEditor from '../components/ContentEditor.vue'
@@ -22,8 +24,12 @@ const sections = computed(() => editor.form.value.privacy_sections)
 // 示意段落不能發布（後端也會擋）；提早講，不要等按了發布才知道。
 const hasSample = computed(() => privacyHasSample(editor.form.value))
 
+const sectionsList = useTemplateRef<HTMLElement>('sectionsList')
+
+// 新的一段加在最後（新增鈕在清單下方），加完捲過去並聚焦小標欄。
 function addSection() {
   editor.form.value.privacy_sections.push({ heading: '', body: '' })
+  void revealListItem(sectionsList.value, `[data-list-item="${editor.form.value.privacy_sections.length - 1}"]`)
 }
 
 function removeSection(index: number) {
@@ -31,11 +37,7 @@ function removeSection(index: number) {
 }
 
 function move(index: number, delta: number) {
-  const list = editor.form.value.privacy_sections
-  const target = index + delta
-  if (target < 0 || target >= list.length) return
-  const [item] = list.splice(index, 1)
-  list.splice(target, 0, item!)
+  void moveKeepingFocus(editor.form.value.privacy_sections, index, delta, sectionsList.value)
 }
 
 // 正式條款由園方提供；這裡只給一份標了「【示意】」的骨架方便排版，發布前必須全部換掉。
@@ -50,7 +52,7 @@ onMounted(editor.load)
 <template>
   <ContentEditor :editor="editor">
     <template #lead>
-      預約按鈕、同意條款、隱私說明與頁尾橫幅的文字。各校採用哪種預約方式（表單、LINE、電話）在
+      預約按鈕、同意條款與隱私說明的文字。各校採用哪種預約方式（表單、LINE、電話）在
       <router-link to="/booking">各校預約方式</router-link> 設定。
     </template>
 
@@ -80,12 +82,13 @@ onMounted(editor.load)
         <el-input v-model="editor.form.value.privacy_title" maxlength="40" placeholder="個資使用說明" />
         <span class="field-help">留空時官網顯示「個資使用說明」。</span>
       </el-form-item>
-      <div v-for="(section, index) in sections" :key="index" class="repeat-item">
+      <div ref="sectionsList">
+      <div v-for="(section, index) in sections" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
-          <span class="repeat-item__index"><b>{{ index + 1 }}</b>第 {{ index + 1 }} 段</span>
-          <span v-if="!editor.readOnly.value" class="cell-actions">
-            <el-button text size="small" :disabled="index === 0" @click="move(index, -1)">上移</el-button>
-            <el-button text size="small" :disabled="index === sections.length - 1" @click="move(index, 1)">下移</el-button>
+          <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ section.heading.trim() || `第 ${index + 1} 段` }}</span>
+          <span v-if="!editor.readOnly.value" class="privacy__row-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移第 ${index + 1} 段`" @click="move(index, -1)">上移</el-button>
+            <el-button text size="small" :disabled="index === sections.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移第 ${index + 1} 段`" @click="move(index, 1)">下移</el-button>
             <el-button text size="small" type="danger" :icon="Delete" @click="removeSection(index)">移除</el-button>
           </span>
         </div>
@@ -96,19 +99,26 @@ onMounted(editor.load)
           <el-input v-model="section.body" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
         </el-form-item>
       </div>
+      </div>
       <div v-if="!editor.readOnly.value" class="privacy__actions">
         <el-button :icon="Plus" :disabled="sections.length >= PRIVACY_SECTIONS_MAX" @click="addSection">新增一段</el-button>
         <el-button v-if="!sections.length" @click="insertSample">帶入示意段落</el-button>
         <span v-if="sections.length >= PRIVACY_SECTIONS_MAX" class="hint">最多 {{ PRIVACY_SECTIONS_MAX }} 段</span>
       </div>
 
-      <h3 class="form-section">頁尾預約橫幅</h3>
+      <h3 class="form-section">分校頁底部的預約橫幅</h3>
+      <!-- 官網 CampusPageMain.vue 的橫幅是寫死的文字，沒有讀這三欄（web content-overlay 只轉存）。
+           欄位先保留，等官網接上再拿掉這段說明。 -->
+      <el-alert type="info" :closable="false" show-icon class="banner__notice" title="這三欄目前不會出現在官網">
+        分校頁底部的橫幅現在是固定文字：「親自走一趟，感受〇〇校的日常。」、「帶著孩子，也帶著你想了解的事。我們期待與你相遇。」與「預約校園參觀」按鈕。
+        這裡改了、發布了，官網也不會變；需要改橫幅文字請聯絡網站維護人員。
+      </el-alert>
       <el-form-item label="橫幅標題">
-        <el-input v-model="editor.form.value.banner_title_template" />
-        <span class="field-help">可用 <code>{campus}</code> 代表目前校名，例如「歡迎預約參觀{campus}」。</span>
+        <el-input v-model="editor.form.value.banner_title_template" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
+        <span class="field-help">標題裡的 <code>{campusNameOrIvy}</code> 代表分校的校名，例如「親自走一趟，感受{campusNameOrIvy}的日常。」。</span>
       </el-form-item>
       <el-form-item label="內文">
-        <el-input v-model="editor.form.value.banner_body" />
+        <el-input v-model="editor.form.value.banner_body" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
       </el-form-item>
       <el-form-item label="按鈕文字">
         <el-input v-model="editor.form.value.banner_button_label" />
@@ -133,6 +143,9 @@ onMounted(editor.load)
 
 .privacy__lead { margin: 0 0 12px; }
 .privacy__alert { margin-bottom: 12px; }
+.banner__notice { margin-bottom: 12px; }
 .privacy__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .privacy__actions .el-button + .el-button { margin-left: 0; }
+.privacy__row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.privacy__row-actions .el-button + .el-button { margin-left: 0; }
 </style>

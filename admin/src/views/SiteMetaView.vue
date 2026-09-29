@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
-import { mediaFileUrl } from '../api/client'
+import { altAfterPick, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 import SiteLinksEditor from '../components/SiteLinksEditor.vue'
@@ -38,11 +38,16 @@ const editor = useContentItem<SiteMetaPayload>(
 const nav = computed(() => editor.form.value.primary_nav ?? [])
 
 const pickerVisible = ref(false)
+// 分享圖預覽只有 240px 寬：載縮圖，讀不到退回原檔，都讀不到就請使用者重選。
+const thumbs = useMediaThumbs()
 function onPickShareImage(asset: MediaAssetOut) {
-  editor.form.value.share_image = asset.id
-  if (!editor.form.value.share_image_alt && asset.alt_text) editor.form.value.share_image_alt = asset.alt_text
+  const form = editor.form.value
+  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。
+  form.share_image_alt = altAfterPick(form.share_image_alt, form.share_image, asset)
+  form.share_image = asset.id
+  thumbs.forget(asset.id)
 }
-const shareImageUrl = computed(() => (editor.form.value.share_image ? mediaFileUrl(editor.form.value.share_image) : ''))
+const shareImage = computed(() => editor.form.value.share_image)
 
 onMounted(editor.load)
 </script>
@@ -72,7 +77,8 @@ onMounted(editor.load)
       <h3 class="meta-section">社群分享圖</h3>
       <el-form-item label="分享到 LINE、Facebook 時的預覽圖">
         <div class="share">
-          <img v-if="shareImageUrl" :src="shareImageUrl" alt="" class="share__img" />
+          <span v-if="shareImage && thumbs.isBroken(shareImage)" class="share__img share__broken">讀不到這張照片，請重新選擇</span>
+          <img v-else-if="shareImage" :src="thumbs.src(shareImage)" alt="" class="share__img" loading="lazy" @error="thumbs.onError(shareImage)" />
           <div class="share__actions">
             <el-button size="small" @click="pickerVisible = true">{{ editor.form.value.share_image ? '更換圖片' : '從素材庫選擇' }}</el-button>
             <el-button v-if="editor.form.value.share_image" size="small" text @click="editor.form.value.share_image = ''">改回首頁大圖</el-button>
@@ -81,12 +87,13 @@ onMounted(editor.load)
         <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖；分校頁一律用各校照片。</span>
       </el-form-item>
       <el-form-item v-if="editor.form.value.share_image" label="分享圖說明">
-        <el-input v-model="editor.form.value.share_image_alt" maxlength="200" placeholder="例如：孩子在戶外遊戲場玩耍" />
+        <el-input v-model="editor.form.value.share_image_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子在戶外遊戲場玩耍" />
+        <span class="field-help">描述照片裡看得到的內容；換照片時會換成素材庫裡新照片的說明。</span>
       </el-form-item>
 
       <h3 class="meta-section">入學資訊頁的搜尋結果</h3>
       <el-form-item label="標題">
-        <el-input v-model="editor.form.value.admission_title" maxlength="120" show-word-limit placeholder="留空使用預設：入學資訊｜入學流程、新生須知、收退費與分班｜常春藤教育機構" />
+        <el-input v-model="editor.form.value.admission_title" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" show-word-limit placeholder="留空使用預設：入學資訊｜入學流程、新生須知、收退費與分班｜常春藤教育機構" />
       </el-form-item>
       <el-form-item label="描述">
         <el-input v-model="editor.form.value.admission_description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="300" show-word-limit placeholder="留空使用預設描述" />
@@ -100,7 +107,7 @@ onMounted(editor.load)
 
       <h3 class="meta-section">主選單</h3>
       <p class="field-help">
-        頁首與選單面板的連結，依這裡的順序排列，最多 {{ PRIMARY_NAV_MAX }} 個。站內頁面用 / 開頭的路徑（例如 /admission、/#about）；外部網站官網會加 ↗ 並另開分頁。
+        頁首與選單面板的連結，依這裡的順序排列，最多 {{ PRIMARY_NAV_MAX }} 個。
       </p>
       <SiteLinksEditor :links="nav" with-english :min="1" :max="PRIMARY_NAV_MAX" :read-only="editor.readOnly.value" item-name="選單項目" />
 
@@ -116,6 +123,7 @@ onMounted(editor.load)
 <style scoped>
 .meta-section { margin: 24px 0 8px; font-size: 15px; }
 .share { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.share__img { width: 240px; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.share__img { width: 240px; max-width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.share__broken { display: grid; place-items: center; padding: 8px; border-color: var(--el-color-danger); color: var(--el-color-danger); font-size: 13px; text-align: center; }
 .share__actions { display: flex; gap: 8px; }
 </style>

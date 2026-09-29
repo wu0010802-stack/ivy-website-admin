@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, useTemplateRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { DAY_MOMENT_TINTS, type DayExperiencePayload, type DayMomentPayload, type MediaAssetOut } from '../api/types'
@@ -7,6 +7,10 @@ import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
+import { momentTimeError, normalizeMomentTime } from '../composables/contentHints'
+import { altAfterPick } from '../composables/mediaThumbs'
+import { moveKeepingFocus } from '../composables/moveKeepingFocus'
+import { revealListItem } from '../composables/newsContent'
 
 const MAX_MOMENTS = 12
 
@@ -67,23 +71,47 @@ function builtinPhoto(moment: DayMomentPayload): string {
   return name ? `/assets/${name}.webp` : ''
 }
 
-function onPickMomentPhoto(moment: DayMomentPayload, asset: MediaAssetOut) {
-  if (!moment.alt && asset.alt_text) moment.alt = asset.alt_text
+// 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+function onPickMomentPhoto(moment: DayMomentPayload, asset: MediaAssetOut, previousId: string | null) {
+  moment.alt = altAfterPick(moment.alt, previousId, asset)
 }
 
 // 影片說明：null＝沿用官網內建；打開「自訂」時先帶入內建文字再改，關掉就改回 null。
+// 關掉時把自訂的文字記在這個畫面裡，再打開就還原（誤關不用重打），離開頁面就不記了。
 const BUILTIN_CAPTION = { zh: '義華校 · 遊藝表演', en: 'LITTLE MOMENTS, BIG GROWTH.' }
+let rememberedCaption: { zh: string; en: string | null } | null = null
 function toggleCaption(on: boolean) {
-  editor.form.value.film_caption_zh = on ? BUILTIN_CAPTION.zh : null
-  editor.form.value.film_caption_en = on ? BUILTIN_CAPTION.en : null
+  const form = editor.form.value
+  if (on) {
+    const restore = rememberedCaption ?? BUILTIN_CAPTION
+    form.film_caption_zh = restore.zh
+    form.film_caption_en = restore.en
+    rememberedCaption = null
+    return
+  }
+  if (form.film_caption_zh != null) rememberedCaption = { zh: form.film_caption_zh, en: form.film_caption_en ?? null }
+  form.film_caption_zh = null
+  form.film_caption_en = null
 }
 
+const momentsList = useTemplateRef<HTMLElement>('momentsList')
+
+// 新卡片加在最後（官網照這裡的順序），加完捲過去並聚焦時間欄；要插到中間用上移。
 function addMoment() {
   editor.form.value.moments.push(newMoment())
+  void revealListItem(momentsList.value, `[data-list-item="${editor.form.value.moments.length - 1}"]`)
 }
 
 function removeMoment(index: number) {
   editor.form.value.moments.splice(index, 1)
+}
+
+function moveMoment(index: number, delta: number) {
+  void moveKeepingFocus(editor.form.value.moments, index, delta, momentsList.value)
+}
+
+function momentName(moment: DayMomentPayload, index: number): string {
+  return [moment.time, moment.label].filter(Boolean).join('・') || `第 ${index + 1} 張`
 }
 
 onMounted(editor.load)
@@ -106,10 +134,12 @@ onMounted(editor.load)
         </el-form-item>
       </div>
       <el-form-item label="說明文字">
-        <el-input v-model="editor.form.value.note" />
+        <el-input v-model="editor.form.value.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
       </el-form-item>
       <el-form-item label="影片來源標註">
-        <el-input v-model="editor.form.value.source_note" placeholder="例如：影片攝於義華校，2026 春" />
+        <el-input v-model="editor.form.value.source_note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" placeholder="例如：影片攝於義華校，2026 春" />
+        <!-- 官網 content-overlay 只轉存 sourceNote，沒有元件顯示（2026-09-28 盤點）。 -->
+        <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
       </el-form-item>
 
       <h3 class="form-section">背景影片</h3>
@@ -151,26 +181,34 @@ onMounted(editor.load)
         <span class="hint">{{ editor.form.value.moments.length }} / {{ MAX_MOMENTS }} 張</span>
       </div>
 
-      <div v-for="(moment, index) in editor.form.value.moments" :key="moment.key" class="repeat-item">
+      <p class="field-help moments-lead">
+        官網照這裡的順序排列，可以用上移、下移調整。新增的卡片沒選色調時，依位置輪流套用內建的色調，調整順序後顏色可能跟著換。
+      </p>
+      <div ref="momentsList">
+      <div v-for="(moment, index) in editor.form.value.moments" :key="moment.key" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index">
             <b>{{ index + 1 }}</b>
             {{ moment.time || '時間未填' }}{{ moment.label ? `・${moment.label}` : '' }}
           </span>
-          <el-button
-            text
-            size="small"
-            type="danger"
-            :icon="Delete"
-            :disabled="editor.form.value.moments.length <= 1"
-            @click="removeMoment(index)"
-          >
-            移除
-          </el-button>
+          <span v-if="!editor.readOnly.value" class="moment-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${momentName(moment, index)}」`" @click="moveMoment(index, -1)">上移</el-button>
+            <el-button text size="small" :disabled="index === editor.form.value.moments.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${momentName(moment, index)}」`" @click="moveMoment(index, 1)">下移</el-button>
+            <el-button
+              text
+              size="small"
+              type="danger"
+              :icon="Delete"
+              :disabled="editor.form.value.moments.length <= 1"
+              @click="removeMoment(index)"
+            >
+              移除
+            </el-button>
+          </span>
         </div>
         <div class="field-row">
-          <el-form-item label="時間">
-            <el-input v-model="moment.time" placeholder="08:00" />
+          <el-form-item label="時間（24 小時制）" :error="momentTimeError(moment.time)">
+            <el-input v-model="moment.time" placeholder="例如：08:00" @blur="moment.time = normalizeMomentTime(moment.time)" />
           </el-form-item>
           <el-form-item label="時段名稱">
             <el-input v-model="moment.label" placeholder="例如：早晨" />
@@ -182,9 +220,10 @@ onMounted(editor.load)
             <LengthHint :value="moment.title" rule="momentTitle" />
             <GlyphHint :value="moment.title" />
           </el-form-item>
-          <el-form-item label="拍立得說明">
+          <el-form-item label="照片補充字">
             <el-input v-model="moment.caption" />
-            <LengthHint :value="moment.caption" rule="momentCaption" />
+            <!-- 2026-09-22 起拍立得不顯示照片補充字（DESIGN.md），欄位保留、不再給字數建議。 -->
+            <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
           </el-form-item>
         </div>
         <el-form-item label="翻面後的故事">
@@ -199,12 +238,12 @@ onMounted(editor.load)
               :builtin-src="builtinPhoto(moment)"
               :focus-previews="[{ label: '拍立得', ratio: '1 / 1' }]"
               :disabled="editor.readOnly.value"
-              @picked="onPickMomentPhoto(moment, $event)"
+              @picked="(asset: MediaAssetOut, previousId: string | null) => onPickMomentPhoto(moment, asset, previousId)"
             />
           </el-form-item>
           <div>
             <el-form-item label="圖片說明（給看不到照片的人）">
-              <el-input v-model="moment.alt" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
+              <el-input v-model="moment.alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
             </el-form-item>
             <el-form-item label="相紙色調">
               <el-select
@@ -227,6 +266,7 @@ onMounted(editor.load)
           </el-form-item>
         </div>
       </div>
+      </div>
 
       <el-button :icon="Plus" :disabled="editor.form.value.moments.length >= MAX_MOMENTS" @click="addMoment">
         新增一張時刻卡
@@ -236,6 +276,20 @@ onMounted(editor.load)
 </template>
 
 <style scoped>
+.moments-lead {
+  margin: 0 0 12px;
+}
+
+.moment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.moment-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
 .form-section {
   margin: 20px 0 8px;
   padding-top: 16px;

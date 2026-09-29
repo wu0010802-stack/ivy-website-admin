@@ -5,6 +5,7 @@ import type { HomeHeroPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import LengthHint from '../components/LengthHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
+import { altAfterPick } from '../composables/mediaThumbs'
 
 // 首屏按鈕 2026-09-23 已拿掉（按鈕文字不再編輯）；舊版本的 cta_label 載入時丟掉，
 // 不會出現在「變更了哪些欄位」，存檔也不再送出（後端同樣忽略）。
@@ -34,8 +35,9 @@ const HERO_PREVIEWS = [
   { label: '手機', ratio: '9 / 16' },
 ]
 
-function onPickPoster(asset: MediaAssetOut) {
-  if (!editor.form.value.poster_alt && asset.alt_text) editor.form.value.poster_alt = asset.alt_text
+// 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+function onPickPoster(asset: MediaAssetOut, previousId: string | null) {
+  editor.form.value.poster_alt = altAfterPick(editor.form.value.poster_alt, previousId, asset)
 }
 
 onMounted(editor.load)
@@ -78,8 +80,8 @@ onMounted(editor.load)
         <span class="field-help">這張照片是首頁最先載入的畫面，建議橫式、寬 1920 以上，並跟影片第一個畫面接近。</span>
       </el-form-item>
       <el-form-item v-if="editor.form.value.poster" label="影片封面的圖片說明（給看不到照片的人）">
-        <el-input v-model="editor.form.value.poster_alt" maxlength="200" placeholder="例如：孩子在戶外草地上奔跑、微笑" />
-        <span class="field-help">給看不見畫面的家長與搜尋引擎；留空時用素材庫裡這張照片的說明。</span>
+        <el-input v-model="editor.form.value.poster_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子在戶外草地上奔跑、微笑" />
+        <span class="field-help">給看不見畫面的家長與搜尋引擎；換照片時會換成素材庫裡新照片的說明，留空時官網也用素材庫的說明。</span>
       </el-form-item>
       <el-form-item label="影片載入失敗時的替代圖（選填）">
         <MediaSlotField v-model="editor.form.value.fallback_image" builtin="影片封面" :focus-previews="HERO_PREVIEWS" :disabled="editor.readOnly.value" />

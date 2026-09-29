@@ -59,8 +59,9 @@ onMounted(editor.load)
         <GlyphHint :value="editor.form.value.section_title" :fonts="['serif']" />
       </el-form-item>
       <el-form-item label="說明文字">
-        <el-input v-model="editor.form.value.note" />
-        <LengthHint :value="editor.form.value.note" rule="boardNote" />
+        <el-input v-model="editor.form.value.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
+        <!-- 官網 CampusBoard 只顯示小標與區塊標題，note 只在 content-overlay 轉存（2026-09-28 盤點）。 -->
+        <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
       </el-form-item>
 
       <h3 class="board-section">五校順序</h3>
