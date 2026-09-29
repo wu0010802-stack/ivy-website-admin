@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveAdmissionContent } from '../app/utils/content-overlay'
-import { academicYear, classPlan, classTable, cohortOf, parseBirthday, taipeiYmd } from '../app/utils/admission-classes'
+import { academicYear, classPlan, classRanges, classTable, cohortOf, parseBirthday, taipeiYmd } from '../app/utils/admission-classes'
 import { admissionSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 
 const site = fixture as unknown as SiteContent
@@ -24,6 +24,28 @@ describe('分班對照（舊官網分班表規則）', () => {
   it('還沒到幼幼班、或已上小學，摘要講清楚', () => {
     expect(classPlan({ year: 2024, month: 10, day: 3 }, 115).summary).toBe('寶貝 116 學年度（2027 年 8 月起）可以開始讀幼幼班。')
     expect(classPlan({ year: 2015, month: 1, day: 1 }, 115).summary).toBe('寶貝已到國小年齡囉。')
+  })
+
+  it('成長軌道：讀幼兒園停在今年那一站，還沒入學停幼幼班、已上小學停小一，並列出之後每一年', () => {
+    expect(classPlan({ year: 2022, month: 5, day: 10 }, 115)).toMatchObject({
+      cohort: 110, status: 'enrolled', position: 2,
+      next: ['116 學年度升大班', '117 學年度（2028 年 8 月）上小一']
+    })
+    expect(classPlan({ year: 2024, month: 10, day: 3 }, 115)).toMatchObject({
+      cohort: 113, status: 'young', position: 0, next: ['2027 年 8 月起，之後每年 8 月升一班']
+    })
+    expect(classPlan({ year: 2019, month: 12, day: 31 }, 115)).toMatchObject({ status: 'school', position: 4, next: ['115 學年度讀小一'] })
+    expect(classPlan({ year: 2015, month: 1, day: 1 }, 115)).toMatchObject({ status: 'school', position: 4, next: [] })
+    // 大班那年：之後只剩上小一
+    expect(classPlan({ year: 2020, month: 10, day: 1 }, 115)).toMatchObject({ status: 'enrolled', position: 3, next: ['116 學年度（2027 年 8 月）上小一'] })
+  })
+
+  it('小一也有出生區間（軌道第五站），格式與分班表相同', () => {
+    expect(classRanges(7, [115, 116])).toEqual([
+      { roc: '108/9/2 – 109/9/1', ad: '2019.9.2 – 2020.9.1' },
+      { roc: '109/9/2 – 110/9/1', ad: '2020.9.2 – 2021.9.1' }
+    ])
+    expect(classRanges(6, [115])).toEqual([classTable([115])[3]!.ranges[0]])
   })
 
   it('學年度 8/1 換年，並用台北日期（UTC 7/31 16:00 已是台北 8/1）', () => {

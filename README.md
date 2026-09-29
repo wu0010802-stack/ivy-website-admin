@@ -8,6 +8,11 @@
 - **官網韌性**：SSR 取內容加 8 秒逾時，API 暫時失敗時退回上一份成功內容；內容套用改成逐種類別隔離，一種格式不符只影響那一區。
 - **代理與 API 文件**：同源代理擋下 `..`／`%2e%2e` 跳出 `/api/website/v1`；production 關閉 FastAPI `/docs`、`/redoc`、`/openapi.json`。
 
+## 2026-09-28 入學資訊頁改成「入學護照」（`feature/admission-passport-20260928`）
+
+使用者從三個主題比稿（`design/admission-theme-directions-20260928/`：A 上學路線圖、B 入學護照、C 木頭積木）選 B。入學頁整頁改成一本打開的護照：六格簽證欄捲到就蓋章、輸入生日蓋下「115 學年度・中班」大章、勾必備品蓋「已備」、補助做成補助券；防偽細紋只當紙張質感。同日裁定延續：不放預約參觀、分班用成長軌道邏輯、叮嚀不用翻面。新增 `PassportStamp.vue`、`utils/guilloche.ts`、`utils/passport-stamp.ts`、`utils/admission-motion.ts`（GSAP 只在這頁動態載入）、`admission-passport.css`、`tokens.css` 第 14 節兩個色票；明體 `Ivy Passport Serif`（Noto Serif TC 自託管分片，`scripts/subset-admission-fonts.py`、`scripts/admission-font-chars.cjs`，`web/public/assets/fonts/admission/` 共 3.4MB，頁面只下載用到的片）。改前快照 `versions/before-admission-passport-20260928-234037/`；細節見 DESIGN.md。
+
+驗證：Node 22 `npm --prefix web run typecheck` 通過；`npm run test:website` 55 檔 528 項通過（新增 `admission-passport.spec.ts`、`admission-fonts.spec.ts`，`page-hero.spec.ts` 改成入學頁用 `admissionHeroImage()`）。Playwright 在 dev server（接本機後端）1440／390 實測：hero 照片挑 800w（桌機顯示 483px、手機 304px）；六格簽證章捲到後都蓋上；2022/3/15 → 115 學年度中班、大章與「寶貝」小章在中班、寶貝那屆標出；2025/5/1 → 116 學年度幼幼班；勾兩項蓋兩枚「已備」；明體 600／900 都載入；`main` 內文字對比全數達標；無水平溢出、無 console 錯誤、無 hydration 警告。減少動態：六枚簽證章與歡迎章一載入就在紙上。關掉 JS：標題、6 步、5 條退費、3 張補助券、對照表都在。手機「寶貝」小章不壓到班名。`npm --prefix web run build` 通過：入學頁 chunk 10.6KB（gzip），gsap（27KB）是另一支 chunk，只在沒開減少動態時 `import()`。未驗：iOS／Android 實機、螢幕報讀器、Windows 明體、stack e2e。未 commit、未部署。
 ## 2026-09-28 常春藤環境頁加 GSAP 動態層：小腳印、曬衣繩起風、太陽慣性、換校發牌（`feature/environment-gsap-20260928`）
 
 接在 `feature/environment-rough-20260928`（手繪版，尚未併入 main）之上。使用者看過 mock-up `design/environment-gsap-mockup-20260928/`（`feature/website-admin` 工作目錄、未追蹤）並要求把小腳印做得更好看，確認後同意上線。規則見 DESIGN.md「常春藤環境頁 GSAP 動態層」。
