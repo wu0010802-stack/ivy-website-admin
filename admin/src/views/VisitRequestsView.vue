@@ -344,7 +344,8 @@ onMounted(() => {
         <el-icon aria-hidden="true"><Filter /></el-icon>更多篩選<span v-if="moreFilterCount" class="status-tab__count num">{{ moreFilterCount }}</span>
       </button>
       <div id="requests-more-filters" class="requests-filters__more">
-        <div class="filter-field"><span>校區</span>
+        <!-- 單校時 CampusSelect 自己帶「校區」字樣，外面不再重複一次。 -->
+        <div class="filter-field"><span v-if="multiCampus">校區</span>
         <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="multiCampus ? '全部校區' : undefined" />
         </div>
         <div class="filter-field"><span>排序</span>
@@ -392,8 +393,8 @@ onMounted(() => {
         @row-click="openDetail"
       >
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
-        <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 750px，
-             其餘給家長欄。參觀時間一行約 225px，不要再壓窄，否則大多數列會折成兩行。 -->
+        <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 760px，
+             其餘給家長欄。參觀時間的字約 225px，欄寬 256 留一點餘裕；再壓窄大多數列會折成兩行。 -->
         <el-table-column label="狀態" width="100">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <StatusTag :meta="visitStatus(row.status)" size="small" />
@@ -411,7 +412,7 @@ onMounted(() => {
             <span v-if="row.preferred_time" class="muted cell-sub">方便接電話時段：{{ contactTimeLabel(row.preferred_time) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="參觀時間" width="248">
+        <el-table-column label="參觀時間" width="256">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span v-if="row.slot" class="num">{{ formatSlotWhen(row.slot) }}</span>
             <span v-else class="muted">尚未排定</span>
@@ -488,6 +489,8 @@ onMounted(() => {
 .attention-note p { margin: 0; }
 .filter-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .filter-due { align-self: center; padding-bottom: 6px; }
+/* 單校的唯讀校區標籤跟旁邊的下拉一樣高，底線對齊。 */
+.requests-filters :deep(.campus-single) { min-height: var(--control-h); }
 .cell-sub { display: block; font-size: 12px; line-height: 1.4; }
 /* 「到期待追蹤 09/27 15:00」維持一行，不在日期中間折斷。 */
 .cell-sub--line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
