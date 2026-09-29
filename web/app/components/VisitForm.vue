@@ -36,6 +36,7 @@ const formRef = ref<HTMLFormElement | null>(null)
 const errorRef = ref<HTMLElement | null>(null)
 const resultRef = ref<HTMLElement | null>(null)
 const campusError = ref('')
+const campusErrorRef = ref<HTMLElement | null>(null)
 const fieldErrors = ref<VisitErrors>({})
 const optionalOpen = ref(false)
 
@@ -171,7 +172,10 @@ async function goNext() {
   if (!selectedCampus.value) {
     campusError.value = '請先選擇想參觀的校區。'
     await nextTick()
-    pickerRef.value?.querySelector<HTMLInputElement>('input')?.focus()
+    // 焦點仍給第一張卡，但捲動對準卡片上方的錯誤：直接 focus() 會把卡片頂到頁首正下方，
+    // 錯誤剛好被桌機頁首蓋住。
+    pickerRef.value?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true })
+    campusErrorRef.value?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
     return
   }
   step.value = 2
@@ -392,7 +396,7 @@ async function onSubmit() {
               <h2 id="visit-choose-title">想先認識哪所校園？</h2>
               <p class="visit-step-copy">依照你的生活圈與接送路線選擇。</p>
               <!-- 放在選校清單前面：沒選校按「下一步」會聚焦第一張卡，錯誤要在卡片正上方才看得到。 -->
-              <p id="visit-campus-error" class="visit-field-error" role="alert">{{ campusError }}</p>
+              <p id="visit-campus-error" ref="campusErrorRef" class="visit-field-error" role="alert">{{ campusError }}</p>
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
                 <legend class="sr-only">想參觀的校區</legend>
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
