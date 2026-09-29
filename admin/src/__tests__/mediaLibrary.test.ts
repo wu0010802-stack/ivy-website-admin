@@ -239,6 +239,14 @@ describe('素材庫頁', () => {
     const wrapper = await mountAs(MediaLibraryView, admin())
     const fields = wrapper.findAll('.filter-bar .filter-field > span:first-child').map((span) => span.text())
     expect(fields).toEqual(['搜尋素材', '校區', '標籤', '類型'])
+    // 可清除的下拉選單不能包在 label 裡（按 × 清除後清單會又自己打開），改用 aria-label 對上可見標題。
+    const selects = wrapper.findAll('.filter-bar .el-select')
+    expect(selects).toHaveLength(2)
+    for (const select of selects) expect(select.element.closest('label')).toBeNull()
+    expect(selects.map((s) => s.find('input').attributes('aria-label'))).toEqual(['校區', '標籤'])
+    // 類型只由單選鈕組本身指向標題，不重複念兩次。
+    expect(wrapper.find('.media-kind').attributes('aria-labelledby')).toBe('media-kind-label')
+    expect(wrapper.find('.filter-bar [role="group"]').exists()).toBe(false)
     expect(wrapper.find('.filter-bar').text()).not.toContain('已封存')
     expect(wrapper.find('.media-tabs').text()).toContain('待清理')
     expect(wrapper.find('.list-summary').text()).toContain('2 個素材')
@@ -332,6 +340,29 @@ describe('素材庫頁', () => {
     expect((editDialog().vm as unknown as { visible: boolean }).visible).toBe(false)
   })
 
+  it('編輯素材：改過內容按「取消」也先問，選「先不要」就留著', async () => {
+    mockGet([asset()])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const editDialog = () => wrapper.findAllComponents({ name: 'ElDialog' }).find((d) => d.props('title') === '編輯素材')!
+    await wrapper.findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
+    await flushPromises()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const cancel = () => editDialog().findAll('button').find((b) => b.text() === '取消')!
+    const alt = wrapper.findAll('input').find((el) => (el.element as HTMLInputElement).value === '菜園')!
+    await alt.setValue('孩子在菜園澆水')
+    await cancel().trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect((editDialog().vm as unknown as { visible: boolean }).visible).toBe(true)
+    expect((alt.element as HTMLInputElement).value).toBe('孩子在菜園澆水')
+
+    confirm.mockResolvedValue('confirm' as never)
+    await cancel().trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect((editDialog().vm as unknown as { visible: boolean }).visible).toBe(false)
+  })
+
   it('唯讀帳號只能看用在哪裡，不能編輯、替換、封存或刪除', async () => {
     mockGet([asset()])
     const wrapper = await mountAs(MediaLibraryView, testUser('readonly', { campus_keys: ['yihua'] }))
@@ -392,9 +423,8 @@ describe('素材庫頁', () => {
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/media?state=deleted')
     expect(wrapper.text()).toContain('後永久刪除')
-    const labels = buttons(wrapper)
-    expect(labels).toContain('復原')
-    expect(labels).not.toContain('刪除')
+    // 待清理只能復原：卡片上沒有「更多」（刪除、封存都收在裡面），也沒有用在哪裡。
+    expect(wrapper.find('.media__actions').findAll('button').map((b) => b.text())).toEqual(['復原'])
     const post = vi.spyOn(api, 'post').mockResolvedValue(asset() as never)
     await wrapper.findAll('button').find((b) => b.text() === '復原')!.trigger('click')
     await flushPromises()
@@ -731,7 +761,8 @@ describe('選圖器', () => {
     pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'new.jpg', { type: 'image/jpeg' })])
     await flushPromises()
     expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ id: 'new' })
-    expect(String(warning.mock.calls[0]![0])).toContain('還沒有圖片說明')
+    // 句子長，停留久一點、可以自己關。
+    expect(warning.mock.calls[0]![0]).toMatchObject({ message: expect.stringContaining('還沒有圖片說明'), duration: 8000, showClose: true })
   })
 
   it('選圖器上傳中關不掉', async () => {

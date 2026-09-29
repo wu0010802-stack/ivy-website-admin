@@ -181,7 +181,7 @@ const editTags = ref<string[]>([])
 // 素材預設焦點（後端存 0–1；FocusPicker 用 0–100）。null＝沒設，官網置中。
 const editFocus = ref<{ x: number; y: number } | null>(null)
 const saving = ref(false)
-// 打開時的內容；點到背景、按 Esc 或 X 時比對，有改過就先問，不直接丟掉剛打的字。
+// 打開時的內容；點到背景、按 Esc、X 或「取消」時比對，有改過就先問，不直接丟掉剛打的字。
 let editSnapshot = ''
 const editState = () =>
   JSON.stringify([editAltText.value, editSourceAttribution.value, editCaption.value, editLicense.value, editTags.value, editFocus.value])
@@ -215,6 +215,10 @@ async function beforeCloseEdit(done: () => void) {
     }
   }
   done()
+}
+
+function cancelEdit() {
+  void beforeCloseEdit(() => { editDialogVisible.value = false })
 }
 
 async function submitEdit() {
@@ -297,12 +301,12 @@ function blockedByDraftUsage(asset: MediaAssetOut, action: '封存' | '刪除'):
   return true
 }
 
-type MoreCommand = 'edit' | 'replace' | 'archive' | 'unarchive' | 'delete'
+// 取消封存直接放在卡片上，不在「更多」裡。
+type MoreCommand = 'edit' | 'replace' | 'archive' | 'delete'
 function onMoreCommand(asset: MediaAssetOut, command: MoreCommand) {
   if (command === 'edit') openEditDialog(asset)
   else if (command === 'replace') openReplace(asset)
   else if (command === 'archive') void setArchived(asset, true)
-  else if (command === 'unarchive') void setArchived(asset, false)
   else void removeAsset(asset)
 }
 
@@ -389,18 +393,19 @@ onMounted(async () => {
 
     <div class="filter-bar">
       <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、圖片說明、圖說或標籤" clearable /></label>
-      <label class="filter-field"><span>校區</span>
-        <el-select v-model="campusFilter" placeholder="全部校區" clearable>
+      <!-- 可清除的下拉選單不能包在 label 裡：按 × 清除後，label 會再點一次選單，清單又自己打開。 -->
+      <div class="filter-field"><span>校區</span>
+        <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
           <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
         </el-select>
-      </label>
-      <label v-if="allTags.length" class="filter-field"><span>標籤</span>
-        <el-select v-model="tagFilter" placeholder="全部標籤" clearable filterable>
+      </div>
+      <div v-if="allTags.length" class="filter-field"><span>標籤</span>
+        <el-select v-model="tagFilter" placeholder="全部標籤" clearable filterable aria-label="標籤">
           <el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
         </el-select>
-      </label>
-      <!-- 一組單選鈕不能包在 label 裡（點標題會選到第一個），改用 group 加可見標題。 -->
-      <div class="filter-field" role="group" aria-labelledby="media-kind-label">
+      </div>
+      <!-- 一組單選鈕也不能包在 label 裡（點標題會選到第一個），由單選鈕組本身指向可見標題。 -->
+      <div class="filter-field">
         <span id="media-kind-label">類型</span>
         <el-radio-group v-model="kindFilter" class="media-kind" aria-labelledby="media-kind-label">
           <el-radio-button value="">全部</el-radio-button>
@@ -572,7 +577,7 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button :disabled="saving" @click="editDialogVisible = false">取消</el-button>
+        <el-button :disabled="saving" @click="cancelEdit">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitEdit">儲存</el-button>
       </template>
     </el-dialog>
@@ -745,8 +750,9 @@ onMounted(async () => {
   background: var(--el-color-primary-light-9);
 }
 
-/* 選檔的 input 是透明的，鍵盤移到這裡時要看得出焦點。 */
-.drop:focus-within {
+/* 選檔的 input 是透明的，鍵盤移到這裡時要看得出焦點。
+   只看鍵盤焦點：用滑鼠點開選檔視窗再關掉，焦點會留在 input 上，不該一直框著。 */
+.drop:has(.drop__input:focus-visible) {
   border-color: var(--el-color-primary);
   outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;

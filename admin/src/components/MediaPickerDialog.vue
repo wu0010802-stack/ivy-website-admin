@@ -99,8 +99,16 @@ async function onUploadChange(event: Event) {
   // 只傳一張而且成功：跟以前一樣直接選用。多張時留在選圖器，讓人自己挑。
   if (files.length === 1 && uploaded.length === 1) {
     const [picked] = uploaded
-    if (picked!.alt_text) ElMessage.success('已上傳並選用')
-    else ElMessage.warning(`已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`)
+    if (picked!.alt_text) {
+      ElMessage.success('已上傳並選用')
+    } else {
+      // 句子較長，多留一點時間並可以自己關掉，不會還沒看完就消失。
+      ElMessage.warning({
+        message: `已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`,
+        duration: 8000,
+        showClose: true,
+      })
+    }
     choose(picked!)
     return
   }
