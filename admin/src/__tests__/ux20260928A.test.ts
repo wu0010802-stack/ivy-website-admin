@@ -445,6 +445,27 @@ describe('登入頁（shell-10／shell-11／jr-login-back）', () => {
     expect(wrapper.get('[data-test="login-reason"]').text()).toContain('重新整理')
   })
 
+  it('伺服器恢復後重新整理、session 已失效：拿掉「連不上伺服器」，改成請先登入', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(new ApiError(401, '未登入'))
+    const { router } = appRouter()
+    await router.push('/login?redirect=%2Fmedia&reason=offline')
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/media', reason: 'signin' })
+
+    // 直接開首頁時沒有 redirect，也就不必說明。
+    const plain = appRouter()
+    await plain.router.push('/login?reason=offline')
+    expect(plain.router.currentRoute.value.name).toBe('login')
+    expect(plain.router.currentRoute.value.query).toEqual({})
+  })
+
+  it('還是連不上伺服器時保留 reason=offline', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(new TypeError('Failed to fetch'))
+    const { router } = appRouter()
+    await router.push('/login?redirect=%2Fmedia&reason=offline')
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/media', reason: 'offline' })
+  })
+
   it('restoreSession 只有 401 視為沒登入，斷線要丟出去', async () => {
     setActivePinia(createPinia())
     const auth = useAuthStore()
@@ -518,6 +539,20 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/slots')
     expect(input.element.value).toBe('')
+  })
+
+  it('搜尋框是空的時按 Enter 不換頁', async () => {
+    const { wrapper, router, search } = await sidebar('super_admin')
+    const push = vi.spyOn(router, 'push')
+    const input = wrapper.get('input')
+    await input.trigger('keydown', { key: 'Enter' })
+    // 打了字又清掉（手機鍵盤的「前往」）也一樣。
+    await search('名額')
+    await search('  ')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(push).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.path).toBe('/media')
   })
 })
 

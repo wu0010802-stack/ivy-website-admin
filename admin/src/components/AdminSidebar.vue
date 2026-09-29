@@ -72,9 +72,10 @@ const groups = computed(() => {
 })
 const hasQuery = computed(() => Boolean(normalizedQuery.value))
 // 搜尋框按 Enter 直接前往第一筆結果。中文輸入法選字時按的 Enter 不算
-// （isComposing；Safari 在選字結束那一下是 keyCode 229）。
+// （isComposing；Safari 在選字結束那一下是 keyCode 229）。沒打字時不動作：
+// 否則會跳到側欄第一項，手機清掉搜尋字後按鍵盤的「前往」也會換頁。
 function openFirstResult(event: KeyboardEvent) {
-  if (event.isComposing || event.keyCode === 229) return
+  if (!hasQuery.value || event.isComposing || event.keyCode === 229) return
   const first = groups.value[0]?.items[0]
   if (!first) return
   if (first.path === activePath.value) {

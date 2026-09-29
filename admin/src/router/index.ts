@@ -97,14 +97,22 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
     // 從書籤直接開登入頁、或在別的分頁重新登入後重新整理這一頁時，cookie 裡的
     // session 可能還有效：先試著恢復，不要讓人再登入一次（每次都會多建一個
     // session）。/auth/me 回 401 時 main.ts 的處理看到沒有登入者就不動作，不會繞圈。
+    let reachable = true
     if (!authStore.user) {
       try {
         await authStore.restoreSession()
       } catch {
-        /* 連不上伺服器就先顯示登入頁 */
+        // 連不上伺服器就先顯示登入頁
+        reachable = false
       }
     }
     if (authStore.user) return safeRedirectPath(to.query.redirect) ?? landingPath(authStore.user.role)
+    // 斷線時被導來、之後伺服器恢復了但 session 已經失效（按了「重新整理」）：網址還帶
+    // reason=offline，登入頁會一直說連不上伺服器。改成一般的「請先登入」。
+    if (reachable && to.query.reason === 'offline') {
+      const { reason: _, ...query } = to.query
+      return { name: 'login', query: query.redirect ? { ...query, reason: 'signin' } : query, replace: true }
+    }
     return true
   }
 
@@ -150,8 +158,9 @@ router.afterEach((to, _from, failure) => {
 
 // 頁面改成點進去才下載之後，部署會換掉舊的檔名：一直開著後台的人換頁會遇到
 // 「Failed to fetch dynamically imported module」。整頁重新載入要去的網址，拿到
-// 新版就好；同一個網址 10 秒內只重載一次，真的斷線時不會無限重整。
-const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed/i
+// 新版就好；同一個網址 10 秒內只重載一次，真的斷線時不會無限重整。頁面附帶的樣式檔
+// 載入失敗時 Vite 丟的是「Unable to preload CSS for …」，一樣處理。
+const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed|Unable to preload CSS/i
 const CHUNK_RELOAD_KEY = 'ivy-admin-chunk-reload'
 
 export function reloadAfterChunkError(
