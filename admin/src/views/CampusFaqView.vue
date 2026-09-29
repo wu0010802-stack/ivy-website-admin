@@ -7,6 +7,7 @@ import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusFaqItemPayload, CampusFaqPayload, ContentItemOut, ContentRevisionOut, SharedFaqItemPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
@@ -142,7 +143,7 @@ function move(index: number, delta: number) {
         <h2>全站共用題目</h2>
         <span v-if="sharedState === 'ready'" class="hint">{{ sharedForCampus.length }} 題適用本校</span>
       </div>
-      <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+      <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
         <div class="field-row">
           <el-form-item label="是否顯示">
             <el-switch
@@ -186,7 +187,7 @@ function move(index: number, delta: number) {
       </template>
     </section>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="section__title" style="margin-top: 24px">
         <h2>本校題目</h2>
         <span class="hint">{{ editor.form.value.items.length }} / {{ MAX_ITEMS }} 題</span>

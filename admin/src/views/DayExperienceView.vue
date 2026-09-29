@@ -4,6 +4,7 @@ import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { DAY_MOMENT_TINTS, type DayExperiencePayload, type DayMomentPayload, type MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
@@ -124,7 +125,7 @@ onMounted(editor.load)
       照片、影片沒選的沿用官網內建：原有的六張用原本的照片，<strong>新增的卡片沒選照片時以空白相紙顯示</strong>。
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
         <el-form-item label="小標（中文）">
           <el-input v-model="editor.form.value.eyebrow" placeholder="例如：孩子的一天" />
@@ -243,7 +244,7 @@ onMounted(editor.load)
           </el-form-item>
           <div>
             <el-form-item label="圖片說明（給看不到照片的人）">
-              <el-input v-model="moment.alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
+              <el-input v-model="moment.alt" data-keep-placeholder type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
             </el-form-item>
             <el-form-item label="相紙色調">
               <el-select

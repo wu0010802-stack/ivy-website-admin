@@ -1,0 +1,16 @@
+/* 唯讀帳號看內容：停用欄位的值用正文色，看起來就是「已填的值」；空白欄位的
+   提示字由 readonlyValues.ts 換成「（未填）」，維持說明文字的灰色。只套在
+   v-readonly-values 打開的表單，可編輯時依邏輯停用的欄位照舊是灰的。 */
+.form--readonly-values .el-input.is-disabled,
+.form--readonly-values .el-textarea.is-disabled,
+.form--readonly-values .el-select__wrapper.is-disabled {
+  --el-disabled-text-color: var(--ink);
+  --el-select-disabled-color: var(--ink);
+}
+
+/* 只是查看，不是「不能按」：游標不用禁止符號。 */
+.form--readonly-values .el-input.is-disabled .el-input__wrapper,
+.form--readonly-values .el-input.is-disabled .el-input__inner,
+.form--readonly-values .el-textarea.is-disabled .el-textarea__inner {
+  cursor: default;
+}

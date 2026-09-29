@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { HomeNewsPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
 import { NEWS_LIMITS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
@@ -45,7 +46,7 @@ onMounted(editor.load)
       沒有消息時可以全部刪掉，官網會顯示「目前沒有新的消息」，不需要為了填滿版面放示意內容。
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-alert
         v-if="isSample"
         type="warning"

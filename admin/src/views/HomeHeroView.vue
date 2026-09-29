@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { HomeHeroPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import { altAfterPick } from '../composables/mediaThumbs'
@@ -47,7 +48,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>首頁大圖（影片）旁的小標與標語。標語每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。大標題由官網設計固定，不在這裡修改。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <!-- 小標在官網用系統字（web typography.css 的字體分工），不是標題子集，所以不放缺字提示；
            之後若改回標題字型再加 GlyphHint。 -->
       <el-form-item label="標語上方的小標">

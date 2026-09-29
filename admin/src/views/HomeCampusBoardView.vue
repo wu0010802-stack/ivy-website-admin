@@ -6,6 +6,7 @@ import { campusLabel } from '../api/labels'
 import { CAMPUS_KEYS } from '../composables/newsContent'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import GlyphHint from '../components/GlyphHint.vue'
 import LengthHint from '../components/LengthHint.vue'
 
@@ -49,7 +50,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>首頁五校區塊的標題、五校的排列順序與一進首頁先顯示哪一校。各校的名稱、地址與電話在「五校介紹」修改。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="小標">
         <el-input v-model="editor.form.value.eyebrow" placeholder="例如：CAMPUSES" />
       </el-form-item>

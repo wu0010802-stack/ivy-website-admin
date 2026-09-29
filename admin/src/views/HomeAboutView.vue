@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { HomeAboutPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
@@ -29,7 +30,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>首頁第二屏的理念介紹。標題會用大字顯示，內文分段請用空一行。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標題">
         <el-input v-model="editor.form.value.title" />
         <LengthHint :value="editor.form.value.title" rule="aboutTitle" />

@@ -4,6 +4,7 @@ import { useContentItem } from '../composables/useContentItem'
 import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
 import { altAfterPick, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 import SiteLinksEditor from '../components/SiteLinksEditor.vue'
 import { DEFAULT_PRIMARY_NAV, PRIMARY_NAV_MAX } from '../composables/siteLinks'
@@ -56,7 +57,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、頁首右上角的聯絡電話與主選單。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="網站標題">
         <el-input v-model="editor.form.value.title" maxlength="40" show-word-limit />
         <span class="field-help">會出現在瀏覽器分頁與 Google 搜尋結果標題。</span>
@@ -93,10 +94,10 @@ onMounted(editor.load)
 
       <h3 class="meta-section">入學資訊頁的搜尋結果</h3>
       <el-form-item label="標題">
-        <el-input v-model="editor.form.value.admission_title" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" show-word-limit placeholder="留空使用預設：入學資訊｜入學流程、新生須知、收退費與分班｜常春藤教育機構" />
+        <el-input v-model="editor.form.value.admission_title" data-keep-placeholder type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" show-word-limit placeholder="留空使用預設：入學資訊｜入學流程、新生須知、收退費與分班｜常春藤教育機構" />
       </el-form-item>
       <el-form-item label="描述">
-        <el-input v-model="editor.form.value.admission_description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="300" show-word-limit placeholder="留空使用預設描述" />
+        <el-input v-model="editor.form.value.admission_description" data-keep-placeholder type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="300" show-word-limit placeholder="留空使用預設描述" />
       </el-form-item>
 
       <h3 class="meta-section">搜尋引擎</h3>

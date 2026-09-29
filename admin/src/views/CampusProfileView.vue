@@ -5,6 +5,7 @@ import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusProfilePayload, FocusPointPayload, MediaAssetOut } from '../api/types'
 import { mediaFocusUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import GlyphHint from '../components/GlyphHint.vue'
@@ -111,7 +112,7 @@ const mapPreviewUrl = computed(() => {
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
         <el-form-item label="校名">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />

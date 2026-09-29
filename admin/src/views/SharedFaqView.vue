@@ -4,6 +4,7 @@ import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { SharedFaqItemPayload, SharedFaqPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import ScopeField from '../components/ScopeField.vue'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
@@ -51,7 +52,7 @@ onMounted(editor.load)
       各校在「各校常見問題」決定要不要顯示共用題目、放在本校題目之前或之後。最多 {{ MAX_ITEMS }} 題。
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <p v-if="!editor.form.value.items.length" class="hint">還沒有共用題目，各校分校頁只顯示自己的題目。</p>
       <div ref="list">
       <div v-for="(qa, index) in editor.form.value.items" :key="qa.id" class="repeat-item" :data-list-item="index">

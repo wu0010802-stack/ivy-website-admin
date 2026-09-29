@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusTourPayload, MediaAssetOut, TourScenePayload } from '../api/types'
 import { websiteAssetUrl } from '../config'
 import { mediaFileUrl } from '../api/client'
+import { isMediaId, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -16,19 +18,16 @@ import { moveItem } from '../composables/newsContent'
 
 const MAX_SCENES = 6
 const MAX_SPOTS = 8
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // `image` 同時相容兩種值：素材庫上傳的媒體 UUID（新的、推薦用這個），
 // 跟舊 fixture 素材代號字串（例如 "campus"，還沒被取代的既有內容繼續
 // 用這個顯示，見 backend CampusTourPayload 與 web content-overlay 的
-// 對應相容邏輯）。
-function isMediaId(image: string): boolean {
-  return UUID_PATTERN.test(image)
-}
-
+// 對應相容邏輯）。舞台要對準熱點，載原檔；場景分頁的小圖載縮圖。
 function previewUrl(image: string): string {
   return isMediaId(image) ? mediaFileUrl(image) : websiteAssetUrl(image)
 }
+
+const thumbs = useMediaThumbs()
 
 function newScene(): TourScenePayload {
   // 後端要求每個場景 1～8 個熱點（content/schemas.py 的 _spots_bounded），
@@ -62,16 +61,24 @@ const currentSpot = computed(() =>
 )
 const imageBroken = ref(false)
 
-function addScene() {
+const sceneName = useTemplateRef<HTMLElement>('sceneName')
+
+// 新場景選起來並聚焦場景名稱，先取名再選照片。
+async function addScene() {
   scenes.value.push(newScene())
   sceneIndex.value = scenes.value.length - 1
   spotIndex.value = null
+  imageBroken.value = false
+  await nextTick()
+  sceneName.value?.querySelector('input')?.focus()
 }
 
+// 刪掉之後選旁邊那一個（原本的下一個，刪的是最後一個就選前一個），不跳回第一個。
 function removeScene(i: number) {
   scenes.value.splice(i, 1)
-  sceneIndex.value = 0
+  sceneIndex.value = Math.max(0, Math.min(i, scenes.value.length - 1))
   spotIndex.value = null
+  imageBroken.value = false
 }
 
 // 順序就是陣列順序（官網場景分頁與熱點的 Tab 順序都照它）。移動後選取跟著
@@ -118,6 +125,7 @@ function onPickMedia(asset: MediaAssetOut) {
     if (scene.image && scene.image !== asset.id) scene.spots_reviewed = false
     scene.image = asset.id
   }
+  thumbs.forget(asset.id)
   imageBroken.value = false
 }
 
@@ -239,11 +247,13 @@ function nudge(i: number, event: KeyboardEvent) {
           :aria-selected="i === sceneIndex"
           @click="selectScene(i)"
         >
-          <img v-if="scene.image" :src="previewUrl(scene.image)" alt="" @error="($event.target as HTMLImageElement).style.visibility = 'hidden'" />
+          <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-empty tour__scene-broken" aria-hidden="true">!</span>
+          <img v-else-if="scene.image" :src="thumbs.src(scene.image)" alt="" loading="lazy" @error="thumbs.onError(scene.image)" />
           <span v-else class="tour__scene-empty" aria-hidden="true" />
           <span class="tour__scene-name">{{ scene.name || `場景 ${i + 1}` }}</span>
           <span class="tour__scene-count">{{ scene.spots.length }} 個熱點</span>
           <span v-if="scene.spots_reviewed === false" class="tour__scene-review">熱點待複核</span>
+          <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-review tour__scene-missing">照片讀不到</span>
         </button>
         <button
           v-if="!editor.readOnly.value"
@@ -313,7 +323,7 @@ function nudge(i: number, event: KeyboardEvent) {
               <p>逐一點開圖釘，確認每個熱點還落在對的位置。確認完按下面按鈕再儲存，這個場景才能發布。</p>
               <el-button v-if="!editor.readOnly.value" size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
             </el-alert>
-            <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+            <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
               <h3 class="tour__side-title">
                 場景 {{ sceneIndex + 1 }} / {{ scenes.length }}
                 <span v-if="!editor.readOnly.value && scenes.length > 1" class="tour__order">
@@ -322,7 +332,9 @@ function nudge(i: number, event: KeyboardEvent) {
                 </span>
               </h3>
               <el-form-item label="場景名稱">
-                <el-input v-model="currentScene.name" placeholder="例如：戶外遊戲場" />
+                <div ref="sceneName" class="tour__name">
+                  <el-input v-model="currentScene.name" placeholder="例如：戶外遊戲場" />
+                </div>
               </el-form-item>
               <el-form-item label="照片">
                 <div class="tour__image-row">
@@ -443,6 +455,23 @@ function nudge(i: number, event: KeyboardEvent) {
   border-radius: 4px;
   object-fit: cover;
   background: var(--surface-3);
+}
+
+.tour__scene-broken {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--el-color-danger);
+  color: var(--el-color-danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tour__scene-missing {
+  color: var(--el-color-danger);
+}
+
+.tour__name {
+  width: 100%;
 }
 
 .tour__scene-name {

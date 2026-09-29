@@ -3,15 +3,33 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent } from 'vue'
+import { flushPromises, mount, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
+import { computed, defineComponent, h, ref } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { CONTENT_FIELD_LABELS, mediaFieldPathLabel } from '../api/labels'
-import type { UserOut } from '../api/types'
+import type { HomeFilmPayload, MediaAssetOut, UserOut } from '../api/types'
+import { LENGTH_HINTS, momentTimeError, normalizeMomentTime } from '../composables/contentHints'
+import { newHomeFilm } from '../composables/homeFilms'
+import { altAfterPick } from '../composables/mediaThumbs'
+import { EMPTY_VALUE_TEXT } from '../composables/readonlyValues'
+import { sitePageName } from '../composables/siteLinks'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
+import AdmissionContentView from '../views/AdmissionContentView.vue'
+import BookingContentView from '../views/BookingContentView.vue'
+import CampusFaqView from '../views/CampusFaqView.vue'
+import CampusProfileView from '../views/CampusProfileView.vue'
+import CampusTourView from '../views/CampusTourView.vue'
+import DayExperienceView from '../views/DayExperienceView.vue'
+import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
+import HomeHeroView from '../views/HomeHeroView.vue'
+import HomeNewsView from '../views/HomeNewsView.vue'
+import SharedFaqView from '../views/SharedFaqView.vue'
+import SiteFooterView from '../views/SiteFooterView.vue'
+import SiteMetaView from '../views/SiteMetaView.vue'
+import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -135,5 +153,395 @@ describe('用語：圖片說明、影片封面，不出現工程語', () => {
     expect(labels).toContain('圖片說明（給看不到照片的人）')
     expect(labels).toContain('照片下方文字')
     expect(labels).not.toContain('照片說明')
+  })
+})
+
+// ------------------------------------------------------------------ 共用小工具
+function mountPlain(render: () => ReturnType<typeof h>) {
+  const wrapper = mount(defineComponent({ render }), { attachTo: document.body, global: { plugins: [ElementPlus] } })
+  wrappers.push(wrapper)
+  return wrapper
+}
+
+function button(scope: { findAll: (selector: 'button') => DOMWrapper<HTMLButtonElement>[] }, text: string) {
+  const found = scope.findAll('button').find((b) => b.text() === text)
+  if (!found) throw new Error(`找不到「${text}」按鈕`)
+  return found
+}
+
+// el-form-item 的錯誤訊息延遲約 100ms 才出現。
+const formErrorsShown = () => new Promise((resolve) => setTimeout(resolve, 150))
+
+// jsdom 沒有 scrollIntoView：換成記錄呼叫的假函式，測完拿掉。
+function stubScrollIntoView() {
+  const calls: Element[] = []
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value(this: Element) {
+      calls.push(this)
+    },
+  })
+  return calls
+}
+afterEach(() => {
+  delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+})
+
+function mediaAsset(overrides: Partial<MediaAssetOut> = {}): MediaAssetOut {
+  return {
+    id: 'm1', campus_key: null, kind: 'image', status: 'ready', original_filename: 'garden.jpg',
+    content_type: 'image/jpeg', size_bytes: 2048, width: 2000, height: 1500, duration_seconds: null,
+    created_at: '2026-09-20T02:00:00Z', created_by_email: null, archived_at: null, deleted_at: null,
+    purge_after: null, replaces_media_id: null, alt_text: '菜園', source_attribution: null, caption: null,
+    license_note: null, tags: [], crop_focus_x: null, crop_focus_y: null, processing_error: null,
+    usage_count: 0, used_in: [], version: 1,
+    variants: [{ id: 'v1', kind: 'thumbnail', content_type: 'image/webp', width: 480, height: 360 }],
+    ...overrides,
+  }
+}
+
+const MOMENT = { caption: '', story: '', question: '', answer: '' }
+
+describe('孩子的一天：時刻卡排序、時間與新增', () => {
+  function mockDay(extra: Record<string, unknown> = {}) {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('day_experience', {
+      eyebrow: '', eyebrow_en: '', note: '', source_note: '',
+      moments: [
+        { ...MOMENT, key: 'hello', time: '08:05', label: '早安', title: '早安' },
+        { ...MOMENT, key: 'lunch', time: '12:00', label: '午餐', title: '午餐' },
+      ],
+      ...extra,
+    }) as never)
+  }
+  const times = (wrapper: VueWrapper) => wrapper.findAll('.repeat-item').map((item) => (item.get('input').element as HTMLInputElement).value)
+
+  it('不在選單格上的舊時間（08:05）照原樣顯示；上移／下移後焦點跟著那一張', async () => {
+    mockDay()
+    const wrapper = await mountView(DayExperienceView)
+    expect(times(wrapper)).toEqual(['08:05', '12:00'])
+    await button(wrapper.findAll('.repeat-item')[0]!, '下移').trigger('click')
+    await flushPromises()
+    expect(times(wrapper)).toEqual(['12:00', '08:05'])
+    expect(document.activeElement?.getAttribute('data-move-row')).toBe('1')
+    expect(wrapper.findAll('.repeat-item')[1]!.findAll('button').find((b) => b.text() === '上移')!.attributes('aria-label')).toBe('上移「08:05・早安」')
+  })
+
+  it('時間要是 24 小時制的時:分，失焦時補零、全形轉半形', async () => {
+    mockDay()
+    const wrapper = await mountView(DayExperienceView)
+    const input = () => wrapper.findAll('.repeat-item')[0]!.get('input')
+    await input().setValue('早上')
+    await formErrorsShown()
+    expect(wrapper.findAll('.repeat-item')[0]!.text()).toContain('時間請用 24 小時制')
+    await input().setValue('８：３０')
+    await input().trigger('blur')
+    await formErrorsShown()
+    expect((input().element as HTMLInputElement).value).toBe('08:30')
+    expect(wrapper.findAll('.repeat-item')[0]!.text()).not.toContain('時間請用 24 小時制')
+
+    expect(normalizeMomentTime('8:05')).toBe('08:05')
+    expect(normalizeMomentTime('0805')).toBe('08:05')
+    expect(normalizeMomentTime('早上')).toBe('早上')
+    expect(momentTimeError('')).toBe('')
+    expect(momentTimeError('16:30')).toBe('')
+    expect(momentTimeError('24:00')).not.toBe('')
+  })
+
+  it('新增的卡片捲到畫面裡並聚焦時間欄', async () => {
+    const scrolled = stubScrollIntoView()
+    mockDay()
+    const wrapper = await mountView(DayExperienceView)
+    await button(wrapper, '新增一張時刻卡').trigger('click')
+    await flushPromises()
+    const items = wrapper.findAll('.repeat-item')
+    expect(items).toHaveLength(3)
+    expect(scrolled).toContain(items[2]!.element)
+    expect(document.activeElement).toBe(items[2]!.get('input').element)
+  })
+
+  it('關掉「自訂影片說明」再打開，還原剛才自訂的文字', async () => {
+    mockDay({ film_caption_zh: '明華校 · 運動會', film_caption_en: 'SPORTS DAY' })
+    const wrapper = await mountView(DayExperienceView)
+    const toggle = () => wrapper.findAll('.el-switch').find((s) => s.text().includes('自訂（關閉時'))!
+    const zh = () => wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('中文說明'))
+    expect((zh()!.get('input').element as HTMLInputElement).value).toBe('明華校 · 運動會')
+    await toggle().trigger('click')
+    expect(zh()).toBeUndefined()
+    await toggle().trigger('click')
+    expect((zh()!.get('input').element as HTMLInputElement).value).toBe('明華校 · 運動會')
+  })
+
+  it('官網沒顯示的欄位註明出來，拿掉誤導的字數建議', async () => {
+    mockDay()
+    const wrapper = await mountView(DayExperienceView)
+    const unused = wrapper.findAll('.unused-note').map((note) => note.element.closest('.el-form-item')!.querySelector('.el-form-item__label')!.textContent)
+    expect(unused).toContain('影片來源標註')
+    expect(unused).toContain('照片補充字')
+    expect(LENGTH_HINTS).not.toHaveProperty('momentCaption')
+    expect(LENGTH_HINTS).not.toHaveProperty('boardNote')
+  })
+})
+
+describe('入學資訊：階段與補助可排序，新增鈕在清單下方', () => {
+  it('階段、補助有上移／下移；新增後捲到新的一項', async () => {
+    const scrolled = stubScrollIntoView()
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('admission_content', {
+      notice: '', intro: '', steps: [{ when: '', title: '參觀', text: '' }],
+      phases: [{ tag: '', title: '入園前', items: [], tips: [] }, { tag: '', title: '第一天', items: [], tips: [] }],
+      uniform_week: [], uniform_note: '', pickup_notes: [], registration_notes: [], fee_intro: '',
+      subsidies: [{ amount: '1', unit: '元', who: '大班', by: '' }, { amount: '2', unit: '元', who: '中班', by: '' }],
+      allowance_title: '', allowance: [], allowance_note: '', refunds: [],
+    }) as never)
+    const wrapper = await mountView(AdmissionContentView)
+    const titles = () => wrapper.findAll('.repeat-item__index').map((i) => i.text().replace(/^\d+/, ''))
+    expect(titles()).toEqual(['參觀', '入園前', '第一天', '大班', '中班'])
+    await wrapper.findAll('button').find((b) => b.attributes('aria-label') === '下移「入園前」')!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.attributes('aria-label') === '上移「中班」')!.trigger('click')
+    await flushPromises()
+    expect(titles()).toEqual(['參觀', '第一天', '入園前', '中班', '大班'])
+
+    const add = button(wrapper, '新增一個步驟')
+    const firstStep = wrapper.get('.repeat-item')
+    expect(firstStep.element.compareDocumentPosition(add.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await add.trigger('click')
+    await flushPromises()
+    const newStep = wrapper.findAll('.repeat-item')[1]!
+    expect(newStep.text()).toContain('未命名步驟')
+    expect(scrolled).toContain(newStep.element)
+    expect(document.activeElement).toBe(newStep.get('input').element)
+  })
+})
+
+describe('常見問題', () => {
+  const sharedPayload = {
+    items: [
+      { id: 's1', q: '參觀要預約嗎？', a: '要，請先預約。', enabled: true, scope: 'global', campus_keys: [] },
+      { id: 's2', q: '只給仁武', a: '仁武', enabled: true, scope: 'campus', campus_keys: ['renwu'] },
+    ],
+  }
+
+  it('共用題目讀取中、讀取失敗都不顯示成「沒有共用題目」，失敗可以重新載入', async () => {
+    let failShared: (err: unknown) => void = () => {}
+    let sharedOk = false
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/content-items/shared_faq')) {
+        if (sharedOk) return contentItem('shared_faq', sharedPayload) as never
+        return new Promise((_, reject) => { failShared = reject }) as never
+      }
+      return contentItem('campus_faq', { items: [{ q: '幾歲入園？', a: '兩歲' }] }, 'yihua') as never
+    })
+    const wrapper = await mountView(CampusFaqView, testUser('readonly', { campus_keys: ['yihua'] }))
+    expect(wrapper.text()).toContain('讀取共用題目中')
+    expect(wrapper.text()).not.toContain('目前沒有適用本校的共用題目')
+
+    failShared(new ApiError(503, { detail: 'down' }))
+    await flushPromises()
+    expect(wrapper.text()).toContain('讀不到全站共用題目')
+    expect(wrapper.text()).not.toContain('目前沒有適用本校的共用題目')
+    // 唯讀帳號也能重新載入（清單不在停用的表單裡）。
+    const reload = button(wrapper, '重新載入')
+    expect(reload.attributes('disabled')).toBeUndefined()
+
+    sharedOk = true
+    await reload.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.faq-shared__list').text()).toContain('參觀要預約嗎？')
+    expect(wrapper.text()).toContain('1 題適用本校')
+  })
+
+  it('標頭顯示問題；改寫本校版本後捲到新題目並聚焦回答', async () => {
+    const scrolled = stubScrollIntoView()
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/content-items/shared_faq')) return contentItem('shared_faq', sharedPayload) as never
+      return contentItem('campus_faq', { items: [{ q: '幾歲入園？', a: '兩歲' }] }, 'yihua') as never
+    })
+    const wrapper = await mountView(CampusFaqView, testUser('campus_admin', { campus_keys: ['yihua'] }))
+    expect(wrapper.findAll('.faq-head__q').map((q) => q.text())).toEqual(['幾歲入園？'])
+    await button(wrapper.get('.faq-shared__list'), '改寫本校版本').trigger('click')
+    await flushPromises()
+    const added = wrapper.findAll('.repeat-item')[1]!
+    expect(added.get('.faq-head__q').text()).toBe('參觀要預約嗎？')
+    expect(scrolled).toContain(added.element)
+    expect(document.activeElement).toBe(added.get('textarea').element)
+    expect((added.get('textarea').element as HTMLTextAreaElement).value).toBe('要，請先預約。')
+  })
+
+  it('共用常見問題標頭顯示問題與適用範圍；兩頁的顯示開關同一種樣式', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('shared_faq', sharedPayload) as never)
+    const wrapper = await mountView(SharedFaqView)
+    const heads = wrapper.findAll('.repeat-item__head')
+    expect(heads.map((head) => head.get('.faq-head__q').text())).toEqual(['參觀要預約嗎？', '只給仁武'])
+    expect(heads[0]!.text()).toContain('全校')
+    expect(heads[1]!.text()).toContain('仁武校')
+    const switches = wrapper.findAll('.repeat-item .el-switch')
+    expect(switches).toHaveLength(2)
+    for (const s of switches) {
+      expect(s.classes()).toContain('show-switch')
+      expect(s.find('.el-switch__inner').exists()).toBe(false)
+      expect(s.text()).toContain('在官網顯示')
+    }
+  })
+})
+
+describe('五校介紹：社群網址', () => {
+  it('邊打邊檢查網址；說明與官網一致，不再寫「待補」', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
+      name: '明華校', district: '左營區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
+    }, 'yihua') as never)
+    const wrapper = await mountView(CampusProfileView, testUser('campus_admin', { campus_keys: ['yihua'] }))
+    await wrapper.get('input[placeholder="https://www.facebook.com/…"]').setValue('www.facebook.com/ivy')
+    await wrapper.get('input[placeholder="https://www.instagram.com/…"]').setValue('@ivy.kids')
+    await formErrorsShown()
+    const item = (label: string) => wrapper.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === label)!
+    expect(item('Facebook 粉絲專頁網址').text()).toContain('網址要以 https:// 或 http:// 開頭')
+    expect(item('Instagram 網址').text()).toContain('網址要以 https:// 或 http:// 開頭')
+    expect(item('LINE 官方帳號網址').text()).not.toContain('網址要以')
+    expect(wrapper.text()).not.toContain('待補')
+    expect(item('LINE 官方帳號網址').text()).toContain('待園方提供')
+    expect(item('Facebook 備註').find('.unused-note').exists()).toBe(true)
+    expect(wrapper.get('input[placeholder="https://www.facebook.com/…"]').attributes('inputmode')).toBe('url')
+  })
+})
+
+describe('官網沒顯示的欄位與預約橫幅', () => {
+  it('首頁五校區塊的說明文字改成多行、註明官網沒顯示', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_campus_board', { section_title: '分校資訊', eyebrow: '', note: '很長的說明'.repeat(10) }) as never)
+    const wrapper = await mountView(HomeCampusBoardView)
+    const note = wrapper.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '說明文字')!
+    expect(note.find('textarea').exists()).toBe(true)
+    expect(note.text()).toContain('官網目前沒有顯示這一欄')
+    expect(note.text()).not.toContain('建議')
+  })
+
+  it('預約橫幅註明官網目前是固定文字，變數說明和實際存的值一致', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('booking_content', {
+      cta_label: '', cta_label_en: '', consent_text: '', banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。', banner_body: '', banner_button_label: '',
+      privacy_title: '', privacy_sections: [],
+    }) as never)
+    const wrapper = await mountView(BookingContentView)
+    expect(wrapper.get('.banner__notice').text()).toContain('這三欄目前不會出現在官網')
+    expect(wrapper.text()).toContain('{campusNameOrIvy}')
+    expect(wrapper.text()).not.toContain('{campus}')
+  })
+})
+
+describe('自訂開關與刪除場景', () => {
+  it('關掉「自訂影片清單」再打開，還原剛才的影片', async () => {
+    const films = ref<HomeFilmPayload[] | null>([{ ...newHomeFilm(), title: '一起跑' }, { ...newHomeFilm(), id: 'film-b', title: '運動會' }])
+    const wrapper = mountPlain(() => h(HomeFilmsEditor, { films: films.value, 'onUpdate:films': (v: HomeFilmPayload[] | null) => (films.value = v) }))
+    await wrapper.get('.el-switch').trigger('click')
+    expect(films.value).toBeNull()
+    await flushPromises()
+    expect(wrapper.text()).toContain('剛才的 2 支影片還留著')
+    await wrapper.get('.el-switch').trigger('click')
+    expect(films.value?.map((f) => f.title)).toEqual(['一起跑', '運動會'])
+  })
+
+  it('刪除場景後選旁邊那一個，不跳回第一個', async () => {
+    const scene = (key: string, name: string) => ({ key, name, image: '', intro: '', spots: [{ name: '點', x: 50, y: 50, text: '', question: '' }] })
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_tour', { scenes: [scene('a', '廣場'), scene('b', '教室'), scene('c', '菜園')] }, 'yihua') as never)
+    const wrapper = await mountView(CampusTourView)
+    await wrapper.findAll('.tour__scene-tab')[1]!.trigger('click')
+    await button(wrapper, '刪除「教室」').trigger('click')
+    const active = wrapper.get('.tour__scene-tab.is-active')
+    expect(active.text()).toContain('菜園')
+    expect(wrapper.get('.tour__side-title').text()).toContain('場景 2 / 2')
+    await button(wrapper, '刪除「菜園」').trigger('click')
+    expect(wrapper.get('.tour__scene-tab.is-active').text()).toContain('廣場')
+  })
+})
+
+describe('縮圖與圖片說明', () => {
+  const ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+  it('消息封面載縮圖，讀不到退回原檔，原檔也讀不到時寫出來', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', {
+      sample_note: '', events: [], home_display_count: null,
+      articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: ID, alt: '', scope: 'global', campus_keys: [], featured: false, body: [] }],
+    }) as never)
+    const wrapper = await mountView(HomeNewsView)
+    const img = () => wrapper.find('.news-item__thumb img')
+    expect(img().attributes('src')).toBe(`/api/website/v1/admin/media/${ID}/variants/thumbnail`)
+    expect(img().attributes('loading')).toBe('lazy')
+    await img().trigger('error')
+    expect(img().attributes('src')).toBe(`/api/website/v1/admin/media/${ID}/file`)
+    await img().trigger('error')
+    expect(img().exists()).toBe(false)
+    expect(wrapper.get('.news-item__thumb').text()).toContain('讀不到這張照片，請重新選擇')
+  })
+
+  it('換成另一張照片時換掉舊照片的說明；原本沒有照片時不蓋掉已打的字', () => {
+    expect(altAfterPick('舊照片的說明', 'old', { id: 'new', alt_text: '新照片' })).toBe('新照片')
+    expect(altAfterPick('舊照片的說明', 'old', { id: 'new', alt_text: null })).toBe('')
+    expect(altAfterPick('先打好的說明', null, { id: 'new', alt_text: '素材說明' })).toBe('先打好的說明')
+    expect(altAfterPick('', null, { id: 'new', alt_text: '素材說明' })).toBe('素材說明')
+    expect(altAfterPick('自己改過', 'same', { id: 'same', alt_text: '素材說明' })).toBe('自己改過')
+  })
+
+  it('首屏影片封面換照片，圖片說明跟著換成新照片的說明', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/content-items/home_hero')) {
+        return contentItem('home_hero', { eyebrow: '', copy_lines: ['', ''], poster: { media_id: 'old', focus_x: null, focus_y: null }, poster_alt: '舊照片的說明' }) as never
+      }
+      if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+      if (path === '/admin/media/old') return mediaAsset({ id: 'old', original_filename: 'old.jpg', alt_text: '舊照片的說明' }) as never
+      if (path.startsWith('/admin/media')) return [mediaAsset()] as never
+      return [] as never
+    })
+    const wrapper = await mountView(HomeHeroView)
+    const poster = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('影片封面（'))!
+    await button(poster, '更換照片').trigger('click')
+    await flushPromises()
+    Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('garden.jpg'))!.click()
+    await flushPromises()
+    const alt = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('影片封面的圖片說明'))!
+    expect((alt.get('textarea').element as HTMLTextAreaElement).value).toBe('菜園')
+  })
+})
+
+describe('主選單與頁尾連結', () => {
+  it('連結格式說明只寫一次；每一筆寫出連到官網哪一頁', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('site_footer', { tagline: '', copyright: '', bottom_note: '', campus_list_label: '' }) as never)
+    const wrapper = await mountView(SiteFooterView)
+    expect(wrapper.text().split('站內頁面用 / 開頭的路徑').length - 1).toBe(1)
+    expect(wrapper.text()).toContain('連到：首頁・孩子的一天')
+    expect(wrapper.text()).toContain('連到：入學資訊頁')
+    expect(sitePageName('/campuses/minghua')).toBe('明華校分校頁')
+    expect(sitePageName('/visit/renwu')).toBe('預約參觀仁武校')
+    expect(sitePageName('/somewhere')).toBeNull()
+  })
+})
+
+describe('唯讀帳號看內容', () => {
+  const profile = {
+    name: '明華校', district: '左營區', address: '地址', phone: '07', intro: '', description: '',
+    facebook: 'https://www.facebook.com/ivykid', fb_note: '', line: '', map_url: '', instagram: '', youtube: '',
+  }
+
+  it('值用正文色的樣式（表單加上唯讀樣式），空白欄位顯示（未填）', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', profile, 'yihua') as never)
+    const wrapper = await mountView(CampusProfileView, testUser('readonly', { campus_keys: ['yihua'] }))
+    await flushPromises()
+    const form = wrapper.get('form')
+    expect(form.classes()).toContain('form--readonly-values')
+    const line = wrapper.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === 'LINE 官方帳號網址')!
+    expect(line.get('input').attributes('placeholder')).toBe(EMPTY_VALUE_TEXT)
+    const facebook = wrapper.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === 'Facebook 粉絲專頁網址')!
+    expect((facebook.get('input').element as HTMLInputElement).value).toBe('https://www.facebook.com/ivykid')
+  })
+
+  it('可以編輯的帳號不套用；提示字本身有意思的欄位（留空用預設）保留原提示', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', profile, 'yihua') as never)
+    const editor = await mountView(CampusProfileView, testUser('editor', { campus_keys: ['yihua'] }))
+    expect(editor.get('form').classes()).not.toContain('form--readonly-values')
+    expect(editor.find('input[placeholder="https://lin.ee/…"]').exists()).toBe(true)
+
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: '', share_image_alt: '', admission_title: '', admission_description: '', allow_indexing: true }) as never)
+    const reader = await mountView(SiteMetaView, testUser('readonly', { campus_keys: ['yihua'] }))
+    const admissionTitle = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '標題')!
+    expect(admissionTitle.get('textarea').attributes('placeholder')).toContain('留空使用預設')
+    const phone = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '頁首電話')!
+    expect(phone.get('input').attributes('placeholder')).toBe(EMPTY_VALUE_TEXT)
   })
 })
