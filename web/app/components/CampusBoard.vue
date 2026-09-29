@@ -3,7 +3,7 @@ import { pickImage } from '~/utils/media-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
-import { developSketch, pickLineArt, preloadSketch, sketchRegistration, sketchScale, type DevelopHandle } from '~/utils/campusSketch'
+import { developSketch, paintSketchStill, pickLineArt, preloadSketch, sketchRegistration, sketchScale, type DevelopHandle } from '~/utils/campusSketch'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
@@ -35,9 +35,51 @@ const announcement = ref('')
 const drawing = ref(-1)
 let drewOnce = false
 // 淡彩速寫（2026-09-29，utils/campusSketch.ts）：第一次捲到與手動換校時，大照片先畫成線稿、上水彩，再暈開回照片。
-// 自動輪播照舊滑動、不重播；畫的期間暫停輪播計時。後台換過照片／線稿（對位不上）的學校不畫。
+// 自動輪播不重播（左右預覽改成線稿後只暈開，見下）；畫的期間暫停輪播計時。後台換過照片／線稿（對位不上）的學校不畫。
 const developing = ref(false)
 let develop: DevelopHandle | null = null
+// 左右預覽卡＝靜態線稿（2026-09-29 晚，使用者要求）：原本鄰卡是彩色照片，手動換校滑到中央後才被蓋成線稿，
+// 看起來「彩色→黑白→彩色」。現在不在中央的卡先在 canvas 畫好線稿（paintSketchStill）才進這個集合，
+// 卡片掛 data-art="line" 藏照片；換到中央由 runDevelop 從線稿接手上色。存校名 key，後台換順序不錯位。
+const lineArt = shallowRef(new Set<string>())
+let lineArtStarted = false
+let lineArtSize = ''
+function setLineArt(key: string, on: boolean) {
+  if (lineArt.value.has(key) === on) return
+  const next = new Set(lineArt.value)
+  if (on) next.add(key)
+  else next.delete(key)
+  lineArt.value = next
+}
+async function showLineArt(i: number) {
+  const campus = orderedCampuses.value[i]
+  const registration = campus && sketchRegistration(campus)
+  if (!campus || !registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
+  const card = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]
+  const canvas = card?.querySelector<HTMLCanvasElement>('canvas.sketch-canvas')
+  const sources = sketchSources(i)
+  if (!card || !canvas || !sources) return
+  // 等線稿下載的期間這張可能被換到中央（canvas 歸 runDevelop 用），那就不畫
+  const painted = await paintSketchStill({
+    card, canvas, registration, lineSrc: sources.lineSrc,
+    objectPosition: campus.panoramaPos || 'center 55%',
+    wanted: () => current.value?.key !== campus.key
+  })
+  if (painted) setLineArt(campus.key, true)
+}
+function refreshLineArt() {
+  if (!lineArtStarted) return
+  orderedCampuses.value.forEach((_, i) => { if (i !== index.value) void showLineArt(i) })
+}
+// canvas 依卡片尺寸畫：卡片變大小才重畫（手機網址列伸縮只改視窗高度，卡片不變）
+function refreshLineArtOnResize() {
+  if (!lineArtStarted) return
+  const card = root.value?.querySelector<HTMLElement>('.photo-card')
+  const size = card ? `${card.clientWidth}x${card.clientHeight}` : ''
+  if (size === lineArtSize) return
+  lineArtSize = size
+  refreshLineArt()
+}
 function sketchSources(i: number) {
   const campus = orderedCampuses.value[i]
   const tabArt = root.value?.querySelector<HTMLImageElement>(`[data-campus-tab="${i}"] .campus-tab-art`)
@@ -52,23 +94,29 @@ function preloadCampus(i: number) {
   const sources = sketchSources(i)
   if (sources) void preloadSketch(sources.lineSrc, sources.colourSrc)
 }
-async function runDevelop(i: number) {
+// from：'photo' 從照片畫起（第一次捲到、沒有預覽線稿時）；'sketch' 從預覽線稿接手。wash=false 只暈開（自動輪播）。
+async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = true) {
   develop?.cancel()
   const campus = orderedCampuses.value[i]
   const registration = campus && sketchRegistration(campus)
-  if (!registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
+  // 從預覽線稿接手卻畫不了：直接露出照片
+  const showPhoto = () => { if (campus && index.value === i) setLineArt(campus.key, false) }
+  if (!registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) { showPhoto(); return }
   await nextTick()
   const card = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]
   const img = card?.querySelector('img')
   const canvas = card?.querySelector<HTMLCanvasElement>('canvas.sketch-canvas')
   const sources = sketchSources(i)
-  if (!card || !img || !canvas || !campus || !sources || index.value !== i) return
+  if (!card || !img || !canvas || !campus || !sources || index.value !== i) { showPhoto(); return }
   const handle = developSketch({
-    card, img, canvas, campusKey: campus.key, registration, ...sources,
+    card, img, canvas, campusKey: campus.key, registration, ...sources, from, wash,
     objectPosition: campus.panoramaPos || 'center 55%',
     skyRgb: getComputedStyle(document.documentElement).getPropertyValue('--ivy-paint-sky-rgb').trim()
   })
+  // from 'sketch' 時 developSketch 已同步接手蓋住照片，這時拿掉預覽狀態照片不會閃出來
+  setLineArt(campus.key, false)
   develop = handle
+  // 只暈開（自動輪播）也暫停計時：照片完整露出後才開始算四秒
   developing.value = true
   void handle.done.then(() => {
     if (develop !== handle) return
@@ -121,13 +169,20 @@ function select(next: number, automatic = false) {
   // Wrapped, offscreen cards teleport behind the viewport rather than crossing it.
   repositioning.value = new Set(orderedCampuses.value.flatMap((_, i) =>
     i !== selected && i !== index.value && Math.abs(offset(i, selected) - offset(i)) > total / 2 ? [i] : []))
-  const changed = selected !== index.value
+  const previous = index.value
+  const changed = selected !== previous
   if (changed) drawing.value = selected
   index.value = selected
   clock.reset()
-  if (changed) stopUncovered()
-  if (changed && !automatic) void runDevelop(selected)
-  else if (changed) develop?.cancel()
+  if (changed) {
+    stopUncovered()
+    develop?.cancel()
+    // 離開中央的那張褪回線稿；換進來的是預覽線稿就從線稿接手上色（自動輪播只暈開）。
+    // 還沒有線稿（素材沒載到、後台換過照片）時照舊：手動換校從照片畫起，自動輪播只滑動。
+    void showLineArt(previous)
+    if (lineArt.value.has(orderedCampuses.value[selected]!.key)) void runDevelop(selected, 'sketch', !automatic)
+    else if (!automatic) void runDevelop(selected)
+  }
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
 function onKey(event: KeyboardEvent, from: number) {
@@ -263,7 +318,10 @@ function onTabArtAnimationEnd(event: AnimationEvent, i: number) {
 }
 watch(orderedCampuses, (list, previous) => {
   const key = previous[index.value]?.key
+  // 後台換了照片或線稿：舊的預覽線稿可能對不上，拿掉重畫
+  lineArt.value = new Set()
   select(Math.max(0, list.findIndex(campus => campus.key === key)))
+  refreshLineArt()
 })
 
 let dispose = () => {}
@@ -273,7 +331,10 @@ onMounted(() => {
   const motionChanged = () => {
     reducedMotion.value = media.matches
     optedIn.value = false
-    if (media.matches || forcedColors.matches) finishControlsReveal()
+    if (media.matches || forcedColors.matches) {
+      finishControlsReveal()
+      lineArt.value = new Set()
+    } else refreshLineArt()
   }
   const visibilityChanged = () => { hidden.value = document.hidden }
   motionChanged()
@@ -283,6 +344,9 @@ onMounted(() => {
     if (!entries.some(entry => entry.isIntersecting)) return
     preloadObserver.disconnect()
     preloadCampus(index.value)
+    // 左右預覽卡的線稿也在這時畫好，捲到時鄰卡已經是線稿
+    lineArtStarted = true
+    refreshLineArtOnResize()
   }, { rootMargin: '800px 0px' })
   if (root.value) preloadObserver.observe(root.value)
   const observer = new IntersectionObserver(entries => {
@@ -318,7 +382,10 @@ onMounted(() => {
   const finishOnResize = () => { if (controlsReveal.value === 'entering') finishControlsReveal() }
   media.addEventListener('change', motionChanged)
   forcedColors.addEventListener('change', motionChanged)
+  let lineArtTimer: ReturnType<typeof setTimeout> | undefined
+  const lineArtOnResize = () => { clearTimeout(lineArtTimer); lineArtTimer = setTimeout(refreshLineArtOnResize, 200) }
   window.addEventListener('resize', finishOnResize, { passive: true })
+  window.addEventListener('resize', lineArtOnResize, { passive: true })
   document.addEventListener('visibilitychange', visibilityChanged)
   dispose = () => {
     stopObserving()
@@ -329,6 +396,8 @@ onMounted(() => {
     media.removeEventListener('change', motionChanged)
     forcedColors.removeEventListener('change', motionChanged)
     window.removeEventListener('resize', finishOnResize)
+    window.removeEventListener('resize', lineArtOnResize)
+    clearTimeout(lineArtTimer)
     document.removeEventListener('visibilitychange', visibilityChanged)
   }
 })
@@ -378,7 +447,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           <NuxtLink
             v-for="(campus, i) in orderedCampuses" :key="campus.key"
             class="photo-card" :class="{ 'is-current': i === index, 'is-neighbor': Math.abs(offset(i)) === 1, 'is-repositioning': repositioning.has(i) }"
-            :style="{ '--offset': offset(i) }" :to="`/campuses/${campus.key}`"
+            :style="{ '--offset': offset(i) }" :data-art="lineArt.has(campus.key) ? 'line' : undefined" :to="`/campuses/${campus.key}`"
             :tabindex="i === index ? 0 : -1" :aria-hidden="i !== index" :inert="Math.abs(offset(i)) > 1"
             :aria-label="i === index ? `認識${campus.name}，查看校園介紹` : `選擇${campus.name}`"
             draggable="false" @click.capture="onPhotoClick($event, i)"
@@ -517,6 +586,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .photo-card.is-sketch img{opacity:0;transition:opacity .45s ease}
 .photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1.7s cubic-bezier(.33,.12,.3,1),mask-size 1.7s cubic-bezier(.33,.12,.3,1);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
 .photo-card.is-sketch.is-developed img{--develop:520%}
+/* 左右預覽卡＝靜態線稿（data-art=line，2026-09-29 晚）：canvas 直接露出、照片淡出（離開中央的那張邊滑邊褪回線稿）；
+   換到中央由 campusSketch 掛 is-sketch 接手，上色後照片暈開回來。 */
+.photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}
+.photo-card[data-art=line] img{opacity:0;transition:opacity .6s ease}
 .gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:var(--toolbar-height)}
 .playback-controls{position:relative;grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
 .pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}
@@ -666,6 +739,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 @media(prefers-reduced-motion:reduce){.progress-track>span[data-run]{animation:campus-progress 4s linear forwards paused!important;animation-delay:var(--run-from,0s)!important}.progress-track>span[data-run=playing]{animation-play-state:running!important}}
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
 @media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
-@media(forced-colors:active){.photo-card .sketch-canvas{display:none}.photo-card.is-sketch img{opacity:1;-webkit-mask:none;mask:none}}
+@media(forced-colors:active){.photo-card .sketch-canvas{display:none}.photo-card.is-sketch img,.photo-card[data-art=line] img{opacity:1;-webkit-mask:none;mask:none}}
 
 </style>

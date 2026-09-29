@@ -1,3 +1,12 @@
+## 2026-09-29 首頁五校：左右預覽改成線稿（`feature/sketch-preview-20260929`，尚未部署）
+
+使用者回報首頁五校左右滑時，鄰卡是彩色照片、滑到中央後才被淡彩速寫蓋成黑白線稿再上色（彩色→黑白→彩色）。改成不在中央的卡一律顯示靜態線稿，換到中央才上色：手動換校從線稿直接上水彩再暈開回照片，自動輪播只暈開；離開中央的那張邊滑邊淡回線稿。第一次捲到的淡彩速寫、減少動態／強制色彩（維持照片）不變。規則見 DESIGN.md「首頁水彩」的「左右預覽是線稿」。改版前快照 `versions/before-sketch-preview-20260929-191717/`。
+
+- `web/app/utils/campusSketch.ts`：抽出共用的線稿底圖（`sketchSurface`／`paintPaper`／`paintGrain`），新增 `paintSketchStill`；`developSketch` 加 `from: 'sketch'`（同步接手、跳過描線）與 `wash: false`（只暈開）。
+- `web/app/components/CampusBoard.vue`：`lineArt`（校名 key）→ 卡片 `data-art="line"`；換校時舊卡 `showLineArt`、新卡依有無線稿走 `runDevelop(…, 'sketch', !automatic)`；卡片尺寸變了才重畫線稿；暈開期間也暫停輪播計時。
+
+驗證：web `nuxt typecheck` 通過；vitest 63 檔 658 項通過（含 `home-watercolor.spec.ts` 新增的 5 項）。dev server（fixture）Playwright：1440×900 初始四張鄰卡 `data-art=line`、照片 opacity 0；點右鄰卡 → 線稿抵達、上水彩、照片暈開，舊卡淡回線稿；自動輪播換校只暈開；390×844 觸控拖曳拖進來的是線稿；減少動態與強制色彩五張都是照片；1440→1000 縮放後 canvas 依新卡片尺寸（0.85 倍）重畫；無 pageerror。未驗：Safari／iOS 實機、正式站。
+
 ## 2026-09-29 白箱資安稽核修正（`fix/security-audit-20260929`，尚未部署）
 
 依白箱資安稽核的發現分六個工作包修正（auth、booking、media、platform、ops、web），部署前後的人工步驟與新環境變數見 `deploy/README.md`「2026-09-29 資安稽核修正」。分支已合併 main（`576672c`，PR #13–#17）：PR #14「系統設計審查第一批修正」已先上線其中幾項（限流獨立連線池、`statement_timeout`、圖片 EXIF 無損清理、uvicorn 存取紀錄去查詢字串、production 關閉 API 文件、同源代理擋 `..`、SSR 逾時與退回上一份內容），合併時同一機制只留一份、以 PR #14 的實作為底，本分支較嚴的行為補在上面；下列各項已照合併後的狀態改寫。業主裁定：密碼登入 5 分鐘錯 10 次鎖該帳號密碼登入 15 分鐘（Google／LINE 不受影響）；公開預約內建 Cloudflare Turnstile（兩把 key 都設才啟用）＋每來源／每校上限＋IPv6 /64 聚合；`analytics_events` 不清除，改用全站每分鐘與每日上限。

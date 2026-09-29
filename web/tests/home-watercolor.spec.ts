@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
-import { SKETCH_REGISTRATION, pickLineArt, sketchAlignment, sketchLayout, sketchRegistration } from '../app/utils/campusSketch'
+import { SKETCH_REGISTRATION, developSketch, paintSketchStill, pickLineArt, sketchAlignment, sketchLayout, sketchRegistration } from '../app/utils/campusSketch'
 import { createSeepEdge, seepOffsets } from '../app/composables/useWatercolorSeep'
 
 // 首頁水彩（2026-09-29 定案 A＋B）：五校淡彩速寫、孩子的一天→五校水彩滲接。
@@ -134,5 +134,53 @@ describe('水彩滲接的樣式', () => {
   it('只在簾幕啟用時套遮罩；遮罩只看透明度，不出現顏色字面值（實心層用 #000，同分頁線稿遮罩）', () => {
     expect(block).toContain('.day-reveal[data-motion="on"] .day-experience.is-seep')
     expect(block.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\b(rgba?|oklch|hsla?)\(\s*[\d.]/i)
+  })
+})
+
+describe('左右預覽卡是線稿（2026-09-29 晚）', () => {
+  const board = read('../app/components/CampusBoard.vue')
+  const card = () => {
+    document.body.innerHTML = '<a class="photo-card" data-art="line"><canvas class="sketch-canvas"></canvas><img alt=""></a>'
+    const el = document.querySelector<HTMLElement>('.photo-card')!
+    return { card: el, img: el.querySelector('img')!, canvas: el.querySelector('canvas')! }
+  }
+  const develop = (parts: ReturnType<typeof card>, from: 'photo' | 'sketch') => developSketch({
+    ...parts, campusKey: 'yihua', registration: SKETCH_REGISTRATION.yihua!, lineSrc: '/a.webp', colourSrc: '/b.webp',
+    objectPosition: 'center 55%', skyRgb: '', from, wash: false
+  })
+  it('卡片依 lineArt 掛 data-art="line"：照片淡出、canvas 露出；中央那張不在集合裡', () => {
+    expect(board).toContain(`:data-art="lineArt.has(campus.key) ? 'line' : undefined"`)
+    expect(board).toContain('.photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}')
+    expect(board).toContain('.photo-card[data-art=line] img{opacity:0;')
+    expect(board).toContain("wanted: () => current.value?.key !== campus.key")
+  })
+  it('換到中央：從預覽線稿接手，手動換校上水彩、自動輪播只暈開；離開中央的那張褪回線稿', () => {
+    expect(board).toContain("void runDevelop(selected, 'sketch', !automatic)")
+    expect(board).toContain('void showLineArt(previous)')
+  })
+  it('從線稿接手時同步蓋住照片（is-sketch），呼叫端拿掉 data-art 時照片不會閃出來', () => {
+    const parts = card()
+    const handle = develop(parts, 'sketch')
+    expect(parts.card.classList.contains('is-sketch')).toBe(true)
+    handle.cancel()
+    expect(parts.card.classList.contains('is-sketch')).toBe(false)
+  })
+  it('從照片畫起時素材載好才蓋住（原本的第一次捲到）', () => {
+    const parts = card()
+    const handle = develop(parts, 'photo')
+    expect(parts.card.classList.contains('is-sketch')).toBe(false)
+    handle.cancel()
+  })
+  it('線稿載好時這張已經換到中央：不畫、回傳 false，canvas 留給淡彩速寫', async () => {
+    class LoadedImage { onload: (() => void) | null = null; onerror: (() => void) | null = null; decoding = ''; set src(_: string) { queueMicrotask(() => this.onload?.()) } }
+    vi.stubGlobal('Image', LoadedImage)
+    const parts = card()
+    const getContext = vi.spyOn(parts.canvas, 'getContext')
+    await expect(paintSketchStill({
+      card: parts.card, canvas: parts.canvas, registration: SKETCH_REGISTRATION.yihua!,
+      lineSrc: '/still-a.webp', objectPosition: 'center 55%', wanted: () => false
+    })).resolves.toBe(false)
+    expect(getContext).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })
