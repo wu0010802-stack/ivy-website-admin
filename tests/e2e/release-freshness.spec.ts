@@ -85,7 +85,7 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
     deleteAdminUser()
   })
 
-  test('發布一版新的 hero 文案後，新的 HTTP 請求立刻讀到新內容', async ({ page }) => {
+  test('發布一版新的 hero 文案後，新的 HTTP 請求在快取 TTL（3 秒）內讀到新內容', async ({ page }) => {
     const marker = `E2E-FRESHNESS-${Date.now()}`
 
     const item = await apiContext
@@ -110,10 +110,13 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
     })
     expect(publishRes.status()).toBe(200)
 
-    // 1) 全新的 HTTP 請求（非快取）立刻讀到新內容——這裡用 page.request
-    //    才會走 baseURL（Nuxt 站），不是直接打後端。
-    const homeRes = await page.request.get('/')
-    expect(await homeRes.text()).toContain(marker)
+    // 1) 發布後 TTL（3 秒，web/server/utils/published-site.ts 的
+    //    PUBLISHED_SITE_TTL_MS）內，全新的 HTTP 請求讀到新內容——這裡用
+    //    page.request 才會走 baseURL（Nuxt 站），不是直接打後端。之後的
+    //    goto／reload 時快取已經更新，照常直接斷言。
+    await expect
+      .poll(async () => (await page.request.get('/')).text(), { timeout: 10_000 })
+      .toContain(marker)
 
     // 2) 真的用瀏覽器開新頁再重新整理一次，一樣要是新內容。
     await page.goto('/')

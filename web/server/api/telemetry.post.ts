@@ -1,8 +1,9 @@
 import { validateTelemetry } from '../../shared/telemetry'
+import { createTelemetryQuota, TELEMETRY_QUOTA } from '../utils/telemetry-quota'
 
-// 每程序固定上限，不保存 IP／cookie／訪客識別；僅限制非關鍵觀測日誌量。
-let windowStart = 0
-let accepted = 0
+// 每來源＋全站兩層配額（見 utils/telemetry-quota.ts）。來源計數只在記憶體
+// 保留當前一分鐘，不保存 cookie／訪客識別；僅限制非關鍵觀測日誌量。
+const quota = createTelemetryQuota(TELEMETRY_QUOTA)
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'Cache-Control', 'no-store')
   const config = useRuntimeConfig()
@@ -24,18 +25,17 @@ export default defineEventHandler(async (event) => {
   catch { throw createError({ statusCode: 400 }) }
   const payload = validateTelemetry(body)
   if (!payload) throw createError({ statusCode: 400 })
-  // 配額只計有效事件：先計數再驗證的話，一串無效請求就能把全站的額度
-  // 在一分鐘內用完，真實訪客的瀏覽與效能回報全被擋成 429。
-  const now = Date.now()
-  if (now - windowStart >= 60_000) { windowStart = now; accepted = 0 }
-  if (++accepted > 600) throw createError({ statusCode: 429 })
+  // 配額只計有效事件：先計數再驗證的話，一串無效請求就能把額度在一分鐘
+  // 內用完。以來源分桶：單一來源灌再多，也擠不掉其他訪客的回報。
+  const clientIp = trustedClientIp(event)
+  if (!quota.admit(clientIp)) throw createError({ statusCode: 429 })
   console.info(JSON.stringify({ type: 'website_telemetry', at: new Date().toISOString(), ...payload }))
   // 存進 API 的每日瀏覽量／效能樣本（後台「數據」頁）。訪客 IP 只給 API 做限流，
   // 不入庫；API 不通時照樣回 204，觀測資料不影響瀏覽。
   await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/telemetry`, {
     method: 'POST',
     body: payload,
-    headers: { 'x-website-client-ip': trustedClientIp(event) },
+    headers: { 'x-website-client-ip': clientIp },
     timeout: 2000
   }).catch((error: unknown) => {
     console.warn(JSON.stringify({ type: 'website_telemetry_store_failed', message: error instanceof Error ? error.message : String(error) }))

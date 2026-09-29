@@ -41,8 +41,13 @@ test('內容編輯送審、分校管理者核准後官網才更新', async ({ br
 
   await test.step('官網分校頁出現新內容', async () => {
     const { page } = visitor
-    await page.goto('/campuses/yihua')
-    await expect(page.locator('main')).toContainText(marker)
+    // 官網 SSR 有 3 秒已發布內容快取（web/server/utils/published-site.ts 的
+    // PUBLISHED_SITE_TTL_MS），發布後最多晚 3 秒；toContainText 只重試 DOM、不會
+    // 重新載入，所以整個「載入＋檢查」一起重試。
+    await expect(async () => {
+      await page.goto('/campuses/yihua')
+      await expect(page.locator('main')).toContainText(marker, { timeout: 1_000 })
+    }).toPass({ timeout: 10_000 })
   })
 
   await Promise.all([editor.context.close(), approver.context.close(), visitor.context.close()])

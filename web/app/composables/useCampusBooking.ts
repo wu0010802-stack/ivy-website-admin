@@ -12,6 +12,7 @@ interface PublicBookingConfigResponse {
   consent_revision_id?: string | null
   consent_text?: string | null
   privacy_notice?: { title: string; sections: { heading: string; body: string }[] } | null
+  turnstile_site_key?: string | null
 }
 
 /**
@@ -41,7 +42,9 @@ export function useCampusBooking(campusKey: Ref<string | null> | string | null) 
         // 表單勾選框顯示的就是這一版的同意文字，送單帶同一個版本 id。
         consent_revision_id: response.consent_revision_id ?? null,
         consent_text: response.consent_text ?? null,
-        privacy_notice: privacyNotice(response.privacy_notice?.title, response.privacy_notice?.sections)
+        privacy_notice: privacyNotice(response.privacy_notice?.title, response.privacy_notice?.sections),
+        // 有值時表單要先通過 Turnstile 才能送出（沒設定的部署維持原樣）。
+        turnstile_site_key: response.turnstile_site_key || null
       }
     },
     { watch: [key] }

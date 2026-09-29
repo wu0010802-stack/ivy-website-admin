@@ -14,6 +14,8 @@ export interface BookingConfig {
   consent_text?: string | null
   /** 同一版的隱私說明；沒有正式說明時為 null */
   privacy_notice?: PrivacyNotice | null
+  /** 部署啟用 Cloudflare Turnstile 時的 site key；null 表示送單不需要機器人驗證 */
+  turnstile_site_key?: string | null
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'

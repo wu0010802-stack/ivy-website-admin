@@ -6,6 +6,7 @@ import { pickImage } from '~/utils/media-image'
 import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { consentOutdated, consentSeenNow, consentView, displayedConsentText, submittedConsentRevision, type ConsentSeen } from '~/utils/visit-consent'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
 const props = defineProps<{
   booking: BookingContent
@@ -51,6 +52,68 @@ function trackContactAction(event: MouseEvent) {
 // API）才退回站台內容的文字。
 const consentText = computed(() => displayedConsentText(bookingConfig.value, props.booking.consentText))
 const privacyNotice = computed(() => bookingConfig.value?.privacy_notice ?? null)
+
+// 機器人驗證（Cloudflare Turnstile，使用者 2026-09-29 裁定）：部署設定了
+// site key，公開預約設定才會帶出來；沒有就完全不載入、表單維持原樣。token
+// 只能用一次，送出失敗就重置元件，讓家長重新驗證後再送。
+const turnstileSiteKey = computed(() => bookingConfig.value?.turnstile_site_key ?? null)
+const turnstileRef = ref<HTMLElement | null>(null)
+const turnstileToken = ref('')
+const turnstileLoadError = ref('')
+let turnstileApi: TurnstileApi | null = null
+let turnstileWidgetId: string | null = null
+let turnstileHost: HTMLElement | null = null
+// 正在載入腳本、準備渲染的容器：onMounted 與 watch 可能同時觸發，不能渲染兩次。
+let turnstileMounting: HTMLElement | null = null
+let turnstileActive = false
+
+function removeTurnstile() {
+  if (turnstileApi && turnstileWidgetId) turnstileApi.remove(turnstileWidgetId)
+  turnstileWidgetId = null
+  turnstileHost = null
+  turnstileMounting = null
+  turnstileToken.value = ''
+}
+
+async function mountTurnstile() {
+  const host = turnstileRef.value
+  const sitekey = turnstileSiteKey.value
+  if (!turnstileActive || !host || !sitekey) { removeTurnstile(); return }
+  if (turnstileHost === host || turnstileMounting === host) return
+  removeTurnstile()
+  turnstileMounting = host
+  turnstileLoadError.value = ''
+  try {
+    const api = await loadTurnstile()
+    // 載入期間可能已換校、表單被收起或元件卸載。
+    if (turnstileMounting !== host || !turnstileActive || turnstileRef.value !== host || turnstileSiteKey.value !== sitekey) return
+    turnstileApi = api
+    turnstileWidgetId = api.render(host, {
+      sitekey,
+      language: 'zh-tw',
+      theme: 'light',
+      size: 'flexible',
+      callback: (token) => { turnstileToken.value = token },
+      'expired-callback': () => { turnstileToken.value = '' },
+      'timeout-callback': () => { turnstileToken.value = '' },
+      'error-callback': () => { turnstileToken.value = '' }
+    }) ?? null
+    turnstileHost = host
+  } catch {
+    if (turnstileMounting === host) turnstileLoadError.value = '機器人驗證載入失敗，請重新整理頁面後再送出，或直接聯絡園所。'
+  } finally {
+    if (turnstileMounting === host) turnstileMounting = null
+  }
+}
+
+function resetTurnstile() {
+  turnstileToken.value = ''
+  if (turnstileApi && turnstileWidgetId) turnstileApi.reset(turnstileWidgetId)
+}
+
+onMounted(() => { turnstileActive = true; void mountTurnstile() })
+onBeforeUnmount(() => { turnstileActive = false; removeTurnstile() })
+watch([turnstileRef, turnstileSiteKey], () => { void mountTurnstile() }, { flush: 'post' })
 
 interface PublicVisitSlot { id: string; slot_date: string; start_time: string; end_time: string; remaining: number }
 const availableSlots = ref<PublicVisitSlot[]>([])
@@ -231,6 +294,11 @@ async function onSubmit() {
     formRef.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     return
   }
+  if (turnstileSiteKey.value && !turnstileToken.value) {
+    submitError.value = turnstileLoadError.value || '請先完成下方的機器人驗證，再送出參觀需求。'
+    await focusError()
+    return
+  }
 
   submitting.value = true
   try {
@@ -251,7 +319,8 @@ async function onSubmit() {
         questions: form.questions || null,
         consent_given: form.consent,
         consent_revision_id: submittedConsentRevision(consentSeen.value, bookingConfig.value),
-        slot_id: bookingConfig.value?.mode === 'slots' ? selectedSlotId.value : undefined
+        slot_id: bookingConfig.value?.mode === 'slots' ? selectedSlotId.value : undefined,
+        turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
     // 用 server 回的實際狀態決定文案，不要從 mode 推斷。slots 可以是
@@ -286,6 +355,11 @@ async function onSubmit() {
       idempotencyKey.value = crypto.randomUUID()
       submitError.value =
         '你先前那一次其實已經送出成功了，園所會用第一次填的資料與你聯繫。如果要用修改後的內容再送一筆，請再按一次送出。'
+    } else if (code === 'BOT_CHECK_FAILED') {
+      submitError.value = serverMessage(detail, '請完成機器人驗證後再送出。')
+    } else if (code === 'BOOKING_LIMIT') {
+      // 每個網路的時段占位上限或每校每小時上限；伺服器的訊息會說是哪一種。
+      submitError.value = serverMessage(detail, '目前線上預約人數較多，請稍後再試，或直接來電洽詢園所。')
     } else if (code === 'RATE_LIMITED') {
       submitError.value = '送出太多次了，請稍後再試一次。'
     } else if (code === 'BOOKING_UNAVAILABLE') {
@@ -299,7 +373,9 @@ async function onSubmit() {
     } else {
       submitError.value = '送出失敗，請稍後再試一次；你填寫的內容還保留著。'
     }
-    // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。
+    // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。Turnstile
+    // token 只能用一次（伺服器可能已經驗過），重置元件讓家長重新驗證。
+    resetTurnstile()
     await focusError()
   } finally {
     submitting.value = false
@@ -443,6 +519,10 @@ async function onSubmit() {
                   <p id="visit-consent-error" class="visit-field-error">{{ fieldErrors.consent }}</p>
                 </fieldset>
                 <p v-if="Object.keys(fieldErrors).length" class="sr-only" role="alert">請確認標示的欄位：{{ Object.values(fieldErrors).join(' ') }}</p>
+                <div v-if="turnstileSiteKey" class="visit-turnstile">
+                  <div ref="turnstileRef" class="visit-turnstile-widget" />
+                  <p v-if="turnstileLoadError" class="visit-field-error" role="alert">{{ turnstileLoadError }}</p>
+                </div>
                 <div class="visit-submit-row"><p>送出後，請查看確認結果。<br>參觀時間以園所確認為準。</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
               </form>
             </template>
@@ -468,3 +548,8 @@ async function onSubmit() {
 </template>
 
 <style scoped src="../assets/css/visit-booking.css"></style>
+<style scoped>
+/* Turnstile 的 iframe 由 Cloudflare 插入：先保留元件高度，載入時送出列不跳動。 */
+.visit-turnstile {margin-top:21px}
+.visit-turnstile-widget {min-height:65px;max-width:400px}
+</style>
