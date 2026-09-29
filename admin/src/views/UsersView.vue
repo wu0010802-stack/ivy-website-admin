@@ -571,7 +571,7 @@ onMounted(loadUsers)
 .role-option { padding: 2px 8px 6px; border-radius: var(--radius); }
 .role-option.is-active { background: var(--surface-2); }
 .role-option__desc { margin: 0; padding-left: 22px; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
-.super-admin-alert { margin-top: 8px; }
+.super-admin-alert { margin-top: 8px; line-height: 1.5; }
 
 .campus-field { width: 100%; }
 

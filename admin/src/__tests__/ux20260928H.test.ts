@@ -34,6 +34,8 @@ describe('操作紀錄細節翻成園方看得懂的中文', () => {
       ['campus.deactivate', { before: true, after: false, reason: '暑假整修', open_requests: 2 }, '分校：啟用 → 停用，原因：暑假整修，尚未結案的案件 2 筆'],
       ['media.upload', { kind: 'image', content_type: 'image/jpeg', size_bytes: 204800, status: 'ready' }, '類型：圖片，檔案大小：200 KB，素材狀態：可用'],
       ['visit_slot.update', { slot: slot('2026-10-02', '09:30', '10:30'), before: { capacity: 3, closed: false }, after: { capacity: 5, closed: false } }, '時段：10/02 09:30–10:30，修改：名額：3 位 → 5 位'],
+      ['visit_slot.update', { slot: slot('2026-10-08', '10:00', '11:00'), before: { capacity: 3, closed: false }, after: { capacity: 3, closed: true } }, '時段：10/08 10:00–11:00，修改：時段狀態：開放 → 已關閉'],
+      ['visit_request.add_contact_note', { note_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', follow_up_set: false }, '沒有設定下次聯絡時間'],
       ['retention_policy.update', { before: { cancelled_days: 365, completed_days: 365, open_overdue_days: 180, auto_run_enabled: false }, after: { cancelled_days: 180, completed_days: 365, open_overdue_days: 180, auto_run_enabled: true } }, '修改：已取消、未到場保留：365 天 → 180 天；每天自動清理：關閉 → 開啟'],
       ['content.reject', { kind: 'home_hero', revision_version: 3, note: '標語太長' }, '內容：首頁大圖標語，退回理由：標語太長'],
       ['notification_outbox.retry', { kind: 'visit_request_created', visit_request_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', previous_attempts: 3, previous_error_code: 'TimeoutError', source: 'admin' }, '通知：新的參觀需求，先前嘗試 3 次，上次失敗原因：連線逾時，在後台手動重寄'],

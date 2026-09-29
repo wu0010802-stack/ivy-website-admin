@@ -821,7 +821,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   campus_keys: '負責校區',
   capabilities: '授權',
   capacity: '名額',
-  closed: '時段',
+  closed: '時段狀態',
   cancelled_days: '已取消、未到場保留',
   completed_days: '已完成參觀保留',
   open_overdue_days: '未結案提醒',
@@ -982,7 +982,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),
   has_search: (v) => (v ? '有用搜尋字篩選' : null),
   with_slot: (v) => (v ? '同時排入時段' : '還沒排時段'),
-  follow_up_set: (v) => (v ? '設定了下次聯絡時間' : null),
+  follow_up_set: (v) => (v ? '設定了下次聯絡時間' : '沒有設定下次聯絡時間'),
   follow_up_cleared: (v) => (v ? '清除下次聯絡時間' : null),
   // 開放規則、休假日、產生時段
   rule_count: (v) => `每週規則 ${countOf(v)} 條`,
