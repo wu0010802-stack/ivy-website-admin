@@ -131,13 +131,23 @@ describe('待人工處理的入口', () => {
     expect(wrapper.find('a[href="/visit-requests?attention=1&campus=yihua"]').exists()).toBe(true)
   })
 
-  it('取消休假告訴園方重開與補上幾場', async () => {
+  it('取消休假先確認，再告訴園方重開與補上幾場', async () => {
     const schedule = { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [{ id: 'e1', exception_date: '2099-01-07', reason: '研習' }], rules_extended_on: '2099-01-01' }
     vi.spyOn(api, 'get').mockResolvedValue(schedule as never)
     const del = vi.spyOn(api, 'delete').mockResolvedValue({ reopened_slots: 2, created_slots: 1 } as never)
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
     const success = vi.spyOn(ElMessage, 'success')
     const { wrapper } = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
-    await wrapper.findAll('button').find(button => button.text() === '取消休假')!.trigger('click')
+    const cancelHoliday = () => wrapper.findAll('button').find(button => button.text() === '取消休假')!
+    // 選「先不要」什麼都不改。
+    await cancelHoliday().trigger('click')
+    await flushPromises()
+    expect(del).not.toHaveBeenCalled()
+    const [message, title, options] = confirm.mock.calls[0]!
+    expect(String(title)).toContain('取消 2099/01/07 的休假')
+    expect(String(message)).toContain('當天的時段會重新開放給家長預約')
+    expect(options).toMatchObject({ confirmButtonText: '取消休假', cancelButtonText: '先不要' })
+    await cancelHoliday().trigger('click')
     await flushPromises()
     expect(del).toHaveBeenCalledWith('/admin/visit-schedule/yihua/exceptions/e1')
     expect(String(success.mock.calls.at(-1)![0])).toContain('重新開放 2 場、依規則補上 1 場')
@@ -150,14 +160,17 @@ describe('待人工處理的入口', () => {
       if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [] } as never
       return [slot('booked', { booked_count: 2 }), slot('holiday', { slot_date: '2099-01-07', closed: true, closed_source: 'exception' })] as never
     })
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ action: 'confirm' } as never)
     const patch = vi.spyOn(api, 'patch').mockResolvedValue({} as never)
+    const success = vi.spyOn(ElMessage, 'success')
     const { wrapper } = await mountAt(VisitSlotsView, '/slots')
     expect(wrapper.text()).toContain('休假日關閉')
     const close = wrapper.findAll('.slot-row').find(row => row.text().includes('開放中'))!.findAll('button').find(button => button.text() === '關閉')!
     await close.trigger('click')
     await flushPromises()
+    await wrapper.findAll('.close-slot__actions button').find(button => button.text() === '關閉這一場')!.trigger('click')
+    await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/booked', { closed: true })
+    expect(String(success.mock.calls.at(-1)![0])).toContain('請聯絡已排入的家長改期或取消')
     expect(wrapper.text()).toContain('還有 2 組占用名額')
     expect(wrapper.find('a[href="/visit-requests?attention=1&campus=yihua"]').exists()).toBe(true)
   })
@@ -168,6 +181,101 @@ describe('待人工處理的入口', () => {
     await wrapper.findAll('button').find(button => button.text() === '看待人工處理的案件')!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.fullPath).toBe('/visit-requests?attention=1&campus=yihua')
+  })
+
+  it('停用分校的說明與確認講清楚會從官網下架；讀不到狀態時留下重新載入', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ key: 'yihua', name: '義華', active: true } as never)
+    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
+    const { wrapper } = await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })
+    expect(wrapper.text()).toContain('分校網址會顯示找不到頁面')
+    await wrapper.findAll('button').find(button => button.text() === '停用分校')!.trigger('click')
+    await flushPromises()
+    const [message, , options] = prompt.mock.calls[0]!
+    expect(String(message)).toContain('會從官網下架')
+    expect(String(message)).toContain('首頁五校區塊、選單與頁尾都不再列出')
+    expect(options).toMatchObject({ confirmButtonText: '停用分校', cancelButtonText: '先不要' })
+
+    get.mockRejectedValue(new Error('offline'))
+    const failed = (await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })).wrapper
+    expect(failed.text()).toContain('無法讀取分校目前是啟用還是停用')
+    get.mockResolvedValue({ key: 'yihua', name: '義華', active: true } as never)
+    await failed.findAll('button').find(button => button.text() === '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(failed.text()).toContain('分校啟用中')
+  })
+
+  it('預約方式頁：啟用中的分校狀態放在表單下方，已停用時留在頁首', async () => {
+    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    let active = true
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
+      if (String(path).endsWith('/readiness')) return null as never
+      return config as never
+    })
+    const { wrapper } = await mountAt(BookingSettingsView, '/booking')
+    const on = wrapper.html()
+    expect(on.indexOf('分校啟用中')).toBeGreaterThan(on.indexOf('儲存並套用到官網'))
+    expect(wrapper.find('.campus-zone').exists()).toBe(true)
+
+    active = false
+    const inactive = (await mountAt(BookingSettingsView, '/booking')).wrapper
+    await flushPromises()
+    const off = inactive.html()
+    expect(off.indexOf('分校已停用')).toBeGreaterThan(-1)
+    expect(off.indexOf('分校已停用')).toBeLessThan(off.indexOf('儲存並套用到官網'))
+    expect(inactive.find('.campus-zone').exists()).toBe(false)
+  })
+
+  it('分校狀態還在讀時不先擺空的標題；重新載入時原因留著', async () => {
+    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    let resolveStatus!: (value: unknown) => void
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/campuses/')) return new Promise(resolve => { resolveStatus = resolve }) as never
+      if (String(path).endsWith('/readiness')) return null as never
+      return config as never
+    })
+    const { wrapper } = await mountAt(BookingSettingsView, '/booking')
+    expect(wrapper.find('.campus-zone__title').exists()).toBe(false)
+    resolveStatus({ key: 'yihua', name: '義華', active: true })
+    await flushPromises()
+    expect(wrapper.find('.campus-zone__title').text()).toBe('分校狀態')
+
+    get.mockImplementation(async () => { throw new Error('offline') })
+    const failed = (await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })).wrapper
+    get.mockImplementation(() => new Promise(resolve => { resolveStatus = resolve }) as never)
+    await failed.findAll('button').find(button => button.text() === '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(failed.text()).toContain('無法讀取分校目前是啟用還是停用')
+    resolveStatus({ key: 'yihua', name: '義華', active: true })
+    await flushPromises()
+    expect(failed.text()).toContain('分校啟用中')
+  })
+
+  it('停用分校後卡片移到頁首，焦點落在「重新啟用」，不掉回頁面最上方', async () => {
+    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    let active = true
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
+      if (String(path).endsWith('/readiness')) return null as never
+      return config as never
+    })
+    vi.spyOn(api, 'patch').mockImplementation(async () => { active = false; return { key: 'yihua', name: '義華', active: false, open_requests: 0 } as never })
+    vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '' } as never)
+    vi.spyOn(ElMessage, 'success')
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: [] })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/booking')
+    await router.isReady()
+    const wrapper = mount(BookingSettingsView, { attachTo: document.body, global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '停用分校')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.campus-zone').exists()).toBe(false)
+    const html = wrapper.html()
+    expect(html.indexOf('分校已停用')).toBeLessThan(html.indexOf('儲存並套用到官網'))
+    expect(document.activeElement?.textContent?.trim()).toBe('重新啟用')
   })
 })
 
