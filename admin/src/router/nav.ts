@@ -31,9 +31,10 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期）、
-   * 發布紀錄（給自己的內容通知未讀數） */
-  badge?: 'open-requests' | 'reschedule-requests' | 'content-notices'
+  /** 側欄項目旁的待辦數字。只有參觀案件掛（新需求＋待園方確認）：其他項目不加數字，
+   * 側欄才不會變成通知中心（DESIGN 第五輪，2026-09-29 業主再確認；站內通知、發布紀錄
+   * 的未讀與待核准看各自頁面和總覽）。 */
+  badge?: 'open-requests'
   /** 側欄搜尋另外比對的說法：員工找功能用的是自己的話（「照片」「名額」「密碼」），
    * 不一定是功能名。不要放「素材」「分校頁」「使用者」：搜這幾個字時功能名與分組名
    * 已經給了對的結果，再加會把別組的項目也帶出來。 */
@@ -62,7 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '當天參觀'] },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS, keywords: ['場次', '名額', '預約', '參觀時間'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
@@ -111,7 +112,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
-      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT, keywords: ['發布', '排程', '送審', '審核', '還原', '內容通知'] },
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', roles: CONTENT, keywords: ['發布', '排程', '送審', '審核', '還原', '內容通知'] },
     ],
   },
   {
@@ -121,7 +122,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽'] },
       { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
-      { name: 'policies', path: '/policies', title: '全站設定', icon: 'Setting', roles: ['super_admin'], keywords: ['個資', '保存期限', '清理'] },
+      // 2026-09-29 由「全站設定」改名（內容主要是個資保存，另列官網搜尋與分享的設定）；
+      // 舊名留在關鍵字，習慣搜「全站設定」的人還找得到。
+      { name: 'policies', path: '/policies', title: '個資與搜尋設定', icon: 'Setting', roles: ['super_admin'], keywords: ['全站設定', '個資', '保存期限', '清理'] },
       { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'], keywords: ['群組', '推播'] },
     ],
   },

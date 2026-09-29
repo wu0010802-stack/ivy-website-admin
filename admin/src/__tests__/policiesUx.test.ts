@@ -63,7 +63,7 @@ function button(wrapper: VueWrapper, text: string) {
   return wrapper.findAll('button').find(item => item.text() === text)
 }
 
-describe('個資保存政策與全站設定保護', () => {
+describe('個資與搜尋設定：保存政策的保護', () => {
   it('顯示已儲存的保存天數、下次執行預估與清理紀錄', async () => {
     const { wrapper, get } = await setup()
     expect(get).toHaveBeenCalledWith('/admin/site-policies/retention')
