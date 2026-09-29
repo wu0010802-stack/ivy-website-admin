@@ -169,7 +169,11 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     expect(text).toContain('新標題')
     // 舊版缺的 note 先補預設值才比，不會多出「（空白）→（空白）」。
     expect(text).not.toContain('（空白）')
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', { revision_id: 'r2' })
+    // 發布帶上載入時官網的版本（樂觀鎖，main 的 PR #14）。
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+      revision_id: 'r2',
+      expected_published_revision_id: 'r1',
+    })
   })
 
   it('已存草稿又有新修改：和官網比，已存與未存的修改都算進去；只跳最後一則 toast', async () => {
@@ -192,7 +196,10 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     const [message, , options] = confirm.mock.calls[0]!
     expect(messageText(message)).toContain('會更新 2 個欄位')
     expect(options).toMatchObject({ confirmButtonText: '儲存並發布', cancelButtonText: '先不要' })
-    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', { revision_id: 'r3' })
+    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+      revision_id: 'r3',
+      expected_published_revision_id: 'r1',
+    })
     expect(success).not.toHaveBeenCalledWith('已儲存草稿，官網尚未更新')
   })
 
