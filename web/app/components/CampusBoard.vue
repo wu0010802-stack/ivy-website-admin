@@ -21,6 +21,9 @@ const controlsReveal = ref<'static' | 'pending' | 'entering' | 'shown'>('static'
 const visible = ref(false)
 const hidden = ref(true)
 const focused = ref(false)
+// 滑鼠停在下方校名／地址／預約欄時暫停：照片區照舊自動播放（2026-09-22 裁定），但「預約參觀Ｘ校」
+// 不能在游標底下換成別校（2026-09-29 評析實測停 12 秒連結換了 4 次，使用者同意改）。
+const hoveringDetails = ref(false)
 const paused = ref(false)
 // 手指正在水平拖曳照片（見 onPointerMove）；拖曳中暫停計時，手指底下的照片不會被自動換掉。
 const dragging = ref(false)
@@ -75,7 +78,7 @@ async function runDevelop(i: number) {
   })
 }
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !dragging.value && !developing.value)
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !dragging.value && !developing.value && !hoveringDetails.value)
 // 進度條改由 CSS 動畫走（合成器執行）：原本每 50ms 寫一次 scaleX，停在區塊不動時也每幀重繪、主執行緒一直忙。
 // 計時仍由 carouselClock 負責換校；進度條只在這裡換 key 重建、從 from（0–1）接著播：換校歸零，
 // 手動暫停（進度條滿格）後再開始，則接續暫停前的進度。播放／暫停跟 playing 同一個開關（data-run）。
@@ -416,7 +419,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         </div>
       </div>
     </div>
-    <div id="campus-stage" class="campus-details content-width" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" tabindex="0">
+    <div
+      id="campus-stage" class="campus-details content-width" role="tabpanel" :aria-labelledby="`campus-tab-${current.key}`" tabindex="0"
+      @pointerenter="hoveringDetails = $event.pointerType === 'mouse'" @pointerleave="hoveringDetails = false"
+    >
       <div class="campus-identity">
         <span class="campus-district">高雄 · {{ current.district }}</span>
         <h3><NuxtLink :to="`/campuses/${current.key}`">{{ current.name }}</NuxtLink></h3>

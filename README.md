@@ -62,6 +62,47 @@
 - **官網韌性**：SSR 取內容加 8 秒逾時，API 暫時失敗時退回上一份成功內容；內容套用改成逐種類別隔離，一種格式不符只影響那一區。
 - **代理與 API 文件**：同源代理擋下 `..`／`%2e%2e` 跳出 `/api/website/v1`；production 關閉 FastAPI `/docs`、`/redoc`、`/openapi.json`。
 
+## 2026-09-29 官網 UX 評析後修正（`feature/ux-web-20260929`）
+
+依 09-29 impeccable critique（官網 27／40）修「選校 → 比較 → 預約」主線。使用者同意翻兩條舊裁定：輪播滑鼠停在資訊欄時暫停、桌機首屏也放「找校區」。規則見 DESIGN.md「官網 UX 評析後修正」。
+
+- **首頁五校輪播**（`CampusBoard.vue`）：滑鼠停在下方校名／地址／預約欄時暫停；照片區照舊自動播放。
+- **首屏「找校區」**（`HeroVideo.vue`）：桌機、平板也顯示，仍是底線文字連結。
+- **預約頁**（`VisitForm.vue`、`visit-booking.css`）：
+  - 選校卡的區名改成短地址（去掉「高雄市」）。
+  - 送出結果只有「預約成立」用打勾，待確認與已收到需求改用時鐘。
+  - 送出失敗、送太多次時附上所選校區電話。
+  - 第二步的主要按鈕從杏色 `--ivy-campus-gold` 改成 `--yellow`。
+- **分校頁**（`CampusPageMain.vue`）：
+  - 「交通與聯絡」右欄列出其他四校（校名連到分校頁、短地址、電話）。
+  - 頁內「預約Ｘ校」改成金黃色，和 hero、頁首、橫幅一致。
+  - 正式頁與草稿預覽都傳入 `campuses`。
+- **最新消息頁**（`NewsIndexContent.vue`、`news-page.css`）：示意活動改顯示「示意／日期未定」，比照首頁。合併進 main 時，手機版體驗優化（PR #13）已做了同樣修正，以 main 的寫法（`eventMeta`）為準。
+- **錯誤頁**：新增 `app/error.vue`，取代 Nuxt 預設英文頁。
+  - 404 顯示「找不到這一頁」、五校電話與入口；其他錯誤顯示「網站暫時無法顯示」，只給回首頁與重新整理。
+  - 頁面設 `noindex`；`nuxt.config.ts` 讓 error.vue 不在首頁 prefetch。
+- **家長管理頁**（`useParentVisit.ts`、`visit/manage.vue`）：
+  - 沒帶連結、第一次讀取就 401 時，改用中性說明告訴家長連結從哪來，不再紅字寫「已失效」。
+  - 提示框的 3px 左側色條改成整圈細框。
+- **放大字級**（`studio.css`）：手機頁首品牌字標用 `min(rem, px)` 封頂，比照 logo 不跟根字級放大；預設 16px 時數值不變。品牌可以縮，預約鈕與選單鈕不再被擠出畫面。
+- **沒做**：
+  - 市話可預約：要改 `normalize_phone`，資安 session 正在改同一段。
+  - 受理編號：後台搜尋不比對案件 id，家長報了也查不到。
+  - 「多久內來電」：需要園方給時限。
+  - 個資告知內容：五校 `privacy_notice` 在正式站是空的，要園方在後台填。
+  - 入學流程第 1 格文案：後台內容。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-ux-web-20260929`）：
+- `npx nuxt typecheck` 通過（exit 0）。
+- `npm run test:unit` 55 檔 530 項通過；另新增 `tests/ux-critique-20260929.spec.ts` 12 項、`parent-visit.spec.ts` 2 項。
+- fixture 模式 dev server 以 Playwright（Chrome）在 1440×900 與 390×844 實測：
+  - 輪播：游標停在預約連結 12 秒都維持 `/visit/yihua`，移開 5 秒後換到明華。
+  - 送出鈕底色 `oklch(.87 .13 88)`。
+  - `/no-such-page-xyz` 回 404，標題為「找不到這一頁｜常春藤教育機構」。
+  - 根字級 200% 時首頁、分校頁、入學頁的 `scrollWidth` 都是 390。
+- 截圖在 session scratchpad `web-fix/`。
+- 未驗證：Safari／iOS 實機、正式 build（只跑 dev）、真的送出後的結果頁（用程式確認）。
+
 ## 2026-09-28 入學資訊頁改成「入學護照」（`feature/admission-passport-20260928`）
 
 使用者從三個主題比稿（`design/admission-theme-directions-20260928/`：A 上學路線圖、B 入學護照、C 木頭積木）選 B。入學頁整頁改成一本打開的護照：六格簽證欄捲到就蓋章、輸入生日蓋下「115 學年度・中班」大章、勾必備品蓋「已備」、補助做成補助券；防偽細紋只當紙張質感。同日裁定延續：不放預約參觀、分班用成長軌道邏輯、叮嚀不用翻面。新增 `PassportStamp.vue`、`utils/guilloche.ts`、`utils/passport-stamp.ts`、`utils/admission-motion.ts`（GSAP 只在這頁動態載入）、`admission-passport.css`、`tokens.css` 第 14 節兩個色票；明體 `Ivy Passport Serif`（Noto Serif TC 自託管分片，`scripts/subset-admission-fonts.py`、`scripts/admission-font-chars.cjs`，`web/public/assets/fonts/admission/` 共 3.4MB，頁面只下載用到的片）。改前快照 `versions/before-admission-passport-20260928-234037/`；細節見 DESIGN.md。

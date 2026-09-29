@@ -30,18 +30,27 @@ export function useParentVisit() {
   let revision = 0
   let controller = new AbortController()
 
-  function expire() {
+  // withoutLink：一開始就沒帶連結、也沒有有效登入（直接打網址進來），不是「失效」，
+  // 改用中性說明告訴家長連結從哪來（2026-09-29 評析：原本一進來就紅字寫已失效）。
+  function expire(withoutLink = false) {
     linkToken = null
     visit.value = null
     slots.value = []
     unavailable.value = true
-    error.value = '管理連結已失效或登入時間已到，請使用園所提供的有效連結，或聯絡園所重新取得。'
+    if (withoutLink) {
+      error.value = ''
+      notice.value = '這一頁要從園所傳給你的「管理參觀預約」連結開啟。還沒收到連結，或連結打不開，請直接聯絡園所。'
+    } else {
+      error.value = '管理連結已失效或登入時間已到，請使用園所提供的有效連結，或聯絡園所重新取得。'
+    }
   }
 
   async function reload() {
     if (disposed || loading || busy.value || unavailable.value) return
     loading = true
     const request = revision
+    const usedLink = Boolean(linkToken)
+    const firstLoad = !visit.value
     pending.value = true
     error.value = ''
     try {
@@ -55,7 +64,7 @@ export function useParentVisit() {
       notice.value = record.reschedule_pending ? '已有改期申請待園所確認；核准前原時段仍保留。' : ''
     } catch (cause) {
       if (disposed || request !== revision) return
-      if (failureInfo(cause).status === 401) expire()
+      if (failureInfo(cause).status === 401) expire(!usedLink && firstLoad)
       else {
         visit.value = null
         error.value = failureInfo(cause).status === 429

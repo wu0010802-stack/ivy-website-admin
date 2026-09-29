@@ -145,6 +145,10 @@ const submitRetryHint = ref(false)
 const idempotencyKey = ref(crypto.randomUUID())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
+// 選校卡寫短地址（去掉「高雄市」）：第一步請家長「依生活圈與接送路線選擇」，只給區名比不出來（2026-09-29 評析）。
+const shortAddress = (campus: Campus) => campus.address?.replace(/^高雄市/, '') || campus.district
+// 送出失敗時的退路：直接打給所選校區。
+const callFallback = computed(() => selectedCampus.value?.phone ? `也可以直接致電${selectedCampus.value.name} ${selectedCampus.value.phone}。` : '')
 // 第一步是薄荷色帶的迎賓區＋照片卡選校；第二步與送出後收成一行頁名，左側改放所選校園。
 const isPicking = computed(() => step.value === 1 && !submitted.value)
 // 選項固定（規格 190），不讀 fixture 的中文清單：送出的是代碼。
@@ -323,17 +327,17 @@ async function onSubmit() {
       submitError.value =
         '你先前那一次其實已經送出成功了，園所會用第一次填的資料與你聯繫。如果要用修改後的內容再送一筆，請再按一次送出。'
     } else if (code === 'RATE_LIMITED') {
-      submitError.value = '送出太多次了，請稍後再試一次。'
+      submitError.value = `送出太多次了，請稍後再試一次。${callFallback.value}`
     } else if (code === 'BOOKING_UNAVAILABLE') {
       submitError.value = '這個校區目前不接受線上預約表單，請改用其他聯絡方式。'
       await refreshBookingConfig()
       await loadSlots()
     } else if (err?.response?.status === 429) {
-      submitError.value = '送出太多次了，請稍後再試一次。'
+      submitError.value = `送出太多次了，請稍後再試一次。${callFallback.value}`
     } else if (err?.response?.status === 422) {
       submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
     } else {
-      submitError.value = '送出失敗，請稍後再試一次；你填寫的內容還保留著。'
+      submitError.value = `送出失敗，請稍後再試一次；你填寫的內容還保留著。${callFallback.value}`
       submitRetryHint.value = true
     }
     // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。
@@ -401,10 +405,10 @@ async function onSubmit() {
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
                 <legend class="sr-only">想參觀的校區</legend>
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
-                  <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="`${campus.name} · ${campus.district}`">
+                  <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="`${campus.name}，${campus.address || campus.district}`">
                   <span class="visit-campus-card">
                     <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
-                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ campus.district }}</small></span>
+                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
                 </label>
@@ -493,7 +497,7 @@ async function onSubmit() {
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
             <img v-if="selectedCampus" class="visit-result-art" v-bind="pickImage(`campus-line-art-${selectedCampus.key}`, selectedCampus.lineArtMedia, '240px')" alt="" decoding="async">
-            <span class="visit-result-status"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>{{ resultCopy.eyebrow }}</span>
+            <span class="visit-result-status" :data-status="resultStatus === 'confirmed' ? 'confirmed' : 'waiting'"><svg class="icon" aria-hidden="true"><use :href="resultStatus === 'confirmed' ? '#i-check' : '#i-clock'" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
             <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
