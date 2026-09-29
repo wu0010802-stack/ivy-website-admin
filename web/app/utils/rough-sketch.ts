@@ -390,8 +390,11 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       sun = document.createElementNS(NS, 'g')
       svg.append(sun)
       sunPos = pos
+      sunNarrow = vertical
       dayHost = el
       drawSun(seed)
+      // 新的太陽還沒定位：清掉上一次的進度，下面這次一定會放
+      lastSunP = NaN
       sunScroll()
     }
   }
@@ -402,6 +405,10 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   let dayHost: HTMLElement | null = null
   let sun: SVGGElement | null = null
   let sunPos: ((t: number) => Point) | null = null
+  // 太陽軌跡是不是窄螢幕的直線（sunpath 重畫時決定）；placeSun 每幀用這個，不再讀 innerWidth 強制重排
+  let sunNarrow = false
+  // 上一次捲動算出的太陽進度：值沒變就不再起補間、不寫 transform（畫面外時一直停在 0 或 1）
+  let lastSunP = NaN
   let dots: { g: SVGGElement; li: HTMLElement; t: number }[] = []
 
   function drawSun(seed: number) {
@@ -428,13 +435,16 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     const [x, y] = sunPos(reducedMotion ? 0.5 : p)
     const turn = spin ? ` rotate(${spin.toFixed(1)})` : ''
     // 太陽走在弧線上方一點，不蓋住時間與圓點；窄螢幕縮小貼著直線走
-    sun.setAttribute('transform', innerWidth <= 900 ? `translate(${x} ${y}) scale(.62)${turn}` : `translate(${x} ${y - 44})${turn}`)
+    sun.setAttribute('transform', sunNarrow ? `translate(${x} ${y}) scale(.62)${turn}` : `translate(${x} ${y - 44})${turn}`)
     const lit: SVGGElement[] = []
     for (const { g, li, t } of dots) {
       const on = p >= t - 0.02
-      if (on && !g.classList.contains('is-lit')) lit.push(g)
-      g.classList.toggle('is-lit', on)
-      li.classList.toggle('is-lit', on)
+      // 狀態真的改變才寫 class（sunpath 重畫後圓點是新的、li 沿用舊的，兩個分開比）
+      if (g.classList.contains('is-lit') !== on) {
+        if (on) lit.push(g)
+        g.classList.toggle('is-lit', on)
+      }
+      if (li.classList.contains('is-lit') !== on) li.classList.toggle('is-lit', on)
     }
     return lit
   }
@@ -443,6 +453,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     const r = dayHost.getBoundingClientRect()
     const p = reducedMotion ? 1 : Math.min(1, Math.max(0, (innerHeight * 0.85 - r.top) / (r.height + innerHeight * 0.3)))
     dayHost.classList.toggle('is-live', !reducedMotion)
+    if (p === lastSunP) return
+    lastSunP = p
     if (motion?.sun && !reducedMotion) motion.sun(p, placeSun)
     else placeSun(p)
   }
@@ -545,11 +557,25 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   let frame = 0
   const again = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => renderAll()) }
   let resizeTimer = 0
-  on(window, 'resize', () => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(again, 120) })
+  // 手機網址列伸縮只改視窗高度：線條只依寬度排版，整批重畫結果一樣，卻會卡住主執行緒 1 秒以上（390 寬實測）。
+  // 觸控裝置同寬的高度變動保留本次閱讀基準（DESIGN.md「手機捲動穩定與紙張載入」），只更新依視窗高度算的小路與太陽；
+  // 寬度改變（轉向、桌機縮放）與非觸控裝置照舊整批重畫。寬度用 clientWidth：iOS 雙指縮放時 innerWidth 會變。
+  let lastWidth = document.documentElement.clientWidth
+  const coarse = matchMedia('(pointer: coarse)')
+  on(window, 'resize', () => {
+    const width = document.documentElement.clientWidth
+    if (width === lastWidth && coarse.matches) { trailScroll(); sunScroll(); return }
+    lastWidth = width
+    clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(again, 120)
+  })
   document.fonts?.ready.then(again)
-  // 圖片都帶寬高，晚到不會推動版面；只有後台素材庫的圖可能沒有尺寸，載入後重畫那張照片的框與上面的便條
+  // 圖片都帶寬高，晚到不會推動版面；只有後台素材庫的圖可能沒有尺寸，載入後重畫那張照片的框與上面的便條。
+  // 帶寬高的圖直接略過：換校發牌時 li 還在縮放，這時重畫會量到縮小的尺寸（框與便條擠到照片左上角），捲動中也會一再長任務。
   const onLoad = (e: Event) => {
-    const host = (e.target as Element).tagName === 'IMG' ? (e.target as Element).closest<HTMLElement>('[data-rough]') : null
+    const img = e.target as Element
+    if (img.tagName !== 'IMG' || (img.getAttribute('width') && img.getAttribute('height'))) return
+    const host = img.closest<HTMLElement>('[data-rough]')
     if (host && root.contains(host)) [host, ...hosts(host)].forEach(render)
   }
   root.addEventListener('load', onLoad, true)
