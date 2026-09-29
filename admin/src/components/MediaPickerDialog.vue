@@ -2,9 +2,10 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, mediaPreviewUrl } from '../api/client'
-import type { MediaAssetOut } from '../api/types'
+import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { campusLabel, contentItemLabel } from '../api/labels'
-import { useMediaUploadQueue } from '../composables/mediaUpload'
+import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
+import { useRequestSequence } from '../composables/useRequestSequence'
 import MediaUploadList from './MediaUploadList.vue'
 
 const props = withDefaults(defineProps<{
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
 
 const noun = computed(() => (props.kind === 'video' ? '影片' : '照片'))
 const unit = computed(() => (props.kind === 'video' ? '支' : '張'))
+const altNoun = computed(() => (props.kind === 'video' ? '影片說明' : '圖片說明'))
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -31,6 +33,7 @@ const assets = ref<MediaAssetOut[]>([])
 const loading = ref(false)
 const query = ref('')
 const error = ref<string | null>(null)
+const limits = ref<MediaUploadLimitsOut | null>(null)
 // 選圖器裡上傳的照片一律標記為目前這一校（沒有校區時為共用），可一次選多張。
 const queue = useMediaUploadQueue({ campusKey: () => props.campusKey ?? null, allowed: props.kind })
 
@@ -44,21 +47,29 @@ const visibleAssets = computed(() =>
   ),
 )
 
+// 沒有說明的素材選用後，官網（頁面也沒另外填說明時）就沒有圖片說明：在格子上先標出來。
+const missingAlt = computed(() => visibleAssets.value.some((a) => !a.alt_text))
+
 /** 最新草稿用到這張照片的內容（素材庫可看完整清單）。 */
 function usedInText(asset: MediaAssetOut): string {
   return (asset.used_in ?? []).map((u) => contentItemLabel(u.kind, u.campus_key)).join('、')
 }
 
+// 開窗時的讀取比上傳後的重新讀取晚回來時，不能蓋掉比較新的清單。
+const requests = useRequestSequence()
+
 async function load() {
+  const request = requests.begin()
   loading.value = true
   error.value = null
   try {
     // 只列一般素材：已封存與待清理的不出現在選圖器。
-    assets.value = await api.get<MediaAssetOut[]>('/admin/media')
+    const loaded = await api.get<MediaAssetOut[]>('/admin/media')
+    if (requests.isCurrent(request)) assets.value = loaded
   } catch {
-    error.value = `無法讀取${noun.value}，請重新載入。`
+    if (requests.isCurrent(request)) error.value = `無法讀取${noun.value}，請重新載入。`
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 
@@ -67,6 +78,7 @@ watch(visible, (v) => {
     query.value = ''
     queue.reset()
     load()
+    void loadUploadLimits().then((value) => { limits.value = value })
   }
 })
 
@@ -86,8 +98,10 @@ async function onUploadChange(event: Event) {
   const failed = queue.counts.value.failed
   // 只傳一張而且成功：跟以前一樣直接選用。多張時留在選圖器，讓人自己挑。
   if (files.length === 1 && uploaded.length === 1) {
-    ElMessage.success('已上傳並選用')
-    choose(uploaded[0]!)
+    const [picked] = uploaded
+    if (picked!.alt_text) ElMessage.success('已上傳並選用')
+    else ElMessage.warning(`已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`)
+    choose(picked!)
     return
   }
   if (uploaded.length) await load()
@@ -97,7 +111,15 @@ async function onUploadChange(event: Event) {
 </script>
 
 <template>
-  <el-dialog v-model="visible" :title="`選擇${noun}`" width="min(720px, 100%)">
+  <!-- 上傳中 Esc、X、點背景都關不掉，進度要看得到。 -->
+  <el-dialog
+    v-model="visible"
+    :title="`選擇${noun}`"
+    width="min(720px, 100%)"
+    :close-on-click-modal="!queue.running.value"
+    :close-on-press-escape="!queue.running.value"
+    :show-close="!queue.running.value"
+  >
     <div class="picker__bar">
       <el-input v-model="query" :aria-label="`搜尋${noun}`" placeholder="搜尋檔名或說明" clearable class="picker__search" />
       <label class="el-button" :class="{ 'is-disabled': queue.running.value }">
@@ -107,8 +129,9 @@ async function onUploadChange(event: Event) {
     </div>
     <MediaUploadList :items="queue.items.value" :running="queue.running.value" @remove="queue.remove" />
     <p class="hint picker__hint">
-      顯示跨校共用{{ campusKey ? `與${campusLabel(campusKey)}校` : '' }}的{{ noun }}；這裡上傳的會自動標記為{{ campusKey ? `${campusLabel(campusKey)}校` : '共用' }}素材。
+      顯示跨校共用{{ campusKey ? `與${campusLabel(campusKey)}校` : '' }}的{{ noun }}；這裡上傳的會自動標記為{{ campusKey ? `${campusLabel(campusKey)}校` : '跨校共用' }}素材。<span class="picker__formats">可上傳 {{ uploadKindHint(limits, kind) }}。</span>
     </p>
+    <p v-if="missingAlt" class="picker__alt-note">標示「未填{{ altNoun }}」的{{ noun }}選用後，官網會沒有{{ altNoun }}（頁面上另外填了說明的除外），可以先到素材庫按「編輯」補上。</p>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
     <div v-else v-loading="loading" class="picker__grid">
@@ -116,7 +139,8 @@ async function onUploadChange(event: Event) {
         <img v-if="mediaPreviewUrl(asset)" :src="mediaPreviewUrl(asset)" :alt="asset.alt_text ?? ''" loading="lazy" />
         <span v-else class="picker__placeholder">影片</span>
         <span class="picker__name">{{ asset.original_filename }}</span>
-        <span class="picker__campus">{{ asset.campus_key ? campusLabel(asset.campus_key) : '共用' }}</span>
+        <span class="picker__campus">{{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}</span>
+        <span v-if="!asset.alt_text" class="picker__warn">未填{{ altNoun }}</span>
         <span v-if="usedInText(asset)" class="picker__usage" :title="`用在：${usedInText(asset)}`">用在：{{ usedInText(asset) }}</span>
       </button>
       <el-empty
@@ -150,6 +174,18 @@ async function onUploadChange(event: Event) {
 
 .picker__hint {
   margin-bottom: 12px;
+}
+
+/* 格式與大小整段換行，不會把「（15 MB 內）」拆開。 */
+.picker__formats {
+  display: inline-block;
+}
+
+.picker__alt-note {
+  margin: -6px 0 12px;
+  color: var(--brand-gold-ink);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .picker__grid {
@@ -213,6 +249,12 @@ async function onUploadChange(event: Event) {
   color: var(--ink-3);
 }
 
+.picker__warn {
+  padding: 0 8px;
+  color: var(--brand-gold-ink);
+  font-size: 11px;
+}
+
 .picker__usage {
   padding: 0 8px;
   overflow: hidden;
@@ -224,5 +266,11 @@ async function onUploadChange(event: Event) {
 
 .picker__empty {
   grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .picker__alt-note {
+    font-size: 14px;
+  }
 }
 </style>

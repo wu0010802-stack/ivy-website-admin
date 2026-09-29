@@ -4,15 +4,15 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import MediaLibraryView from '../views/MediaLibraryView.vue'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
 import MediaReplaceDialog from '../components/MediaReplaceDialog.vue'
 import MediaUsagesDrawer from '../components/MediaUsagesDrawer.vue'
 import { api, ApiError } from '../api/client'
-import { formatDuration, mediaFieldPathLabel } from '../api/labels'
+import { formatDuration, formatFileSize, mediaFieldPathLabel } from '../api/labels'
 import type { MediaAssetOut, MediaUsagesOut, UserOut } from '../api/types'
-import { precheckFile, resetUploadLimits, UPLOAD_CONCURRENCY, useMediaUploadQueue } from '../composables/mediaUpload'
+import { precheckFile, resetUploadLimits, UPLOAD_CONCURRENCY, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -116,6 +116,22 @@ function pickFiles(input: VueWrapper['element'] | Element, files: File[]) {
 const admin = () => testUser('super_admin', { email: 'admin@ivy.example' })
 const buttons = (wrapper: VueWrapper) => wrapper.findAll('button').map((b) => b.text())
 
+// 卡片的「更多」選單掛在 body 底下（不在 wrapper 裡），打開後從 document 找選項。
+async function openMore(wrapper: VueWrapper, index = 0) {
+  await wrapper.findAll('button').filter((b) => b.text() === '更多')[index]!.trigger('click')
+  // 選單延後一個計時器才掛上去。
+  await vi.waitFor(() => expect(document.body.querySelector('.media-more-menu .el-dropdown-menu__item')).not.toBeNull())
+  return Array.from(document.body.querySelectorAll<HTMLElement>('.media-more-menu .el-dropdown-menu__item')).map((el) => el.textContent?.trim() ?? '')
+}
+
+async function chooseMore(wrapper: VueWrapper, label: string, index = 0) {
+  await openMore(wrapper, index)
+  const item = Array.from(document.body.querySelectorAll<HTMLElement>('.media-more-menu .el-dropdown-menu__item')).find((el) => el.textContent?.trim() === label)
+  expect(item, `更多選單裡要有「${label}」`).toBeDefined()
+  item!.click()
+  await flushPromises()
+}
+
 describe('素材引用的位置與影片長度', () => {
   it('欄位路徑轉成園方看得懂的位置', () => {
     expect(mediaFieldPathLabel('share_image')).toBe('分享預覽圖')
@@ -137,9 +153,31 @@ describe('多檔上傳佇列', () => {
     expect(precheckFile(new File(['x'], 'a.gif', { type: 'image/gif' }), LIMITS)).toContain('格式不支援')
     const big = new File(['x'], 'big.mp4', { type: 'video/mp4' })
     Object.defineProperty(big, 'size', { value: LIMITS.max_video_bytes + 1 })
-    expect(precheckFile(big, LIMITS)).toContain('150.0 MB')
+    expect(precheckFile(big, LIMITS)).toBe('檔案超過 150 MB')
     expect(precheckFile(new File(['x'], 'v.mp4', { type: 'video/mp4' }), LIMITS, 'image')).toBe('這裡只能上傳照片')
     expect(precheckFile(new File(['x'], 'ok.webp', { type: 'image/webp' }), LIMITS)).toBeNull()
+  })
+
+  it('iPhone 的 HEIC、MOV 被擋下時說明怎麼處理，不只寫格式不支援', () => {
+    const heic = precheckFile(new File(['x'], 'IMG_0001.HEIC', { type: 'image/heic' }), LIMITS)
+    expect(heic).toContain('iPhone 的 HEIC 照片')
+    expect(heic).toContain('存成 JPEG')
+    // Windows 等拿不到 type 的也看副檔名。
+    expect(precheckFile(new File(['x'], 'IMG_0002.heic', { type: '' }), LIMITS, 'image')).toContain('iPhone 的 HEIC 照片')
+    const mov = precheckFile(new File(['x'], 'IMG_0003.MOV', { type: 'video/quicktime' }), LIMITS)
+    expect(mov).toContain('iPhone 的 MOV 影片')
+    expect(mov).toContain('轉成 MP4')
+    expect(mov).not.toContain('最相容')
+    expect(precheckFile(new File(['x'], 'clip.mov', { type: '' }), LIMITS, 'video')).toContain('iPhone 的 MOV 影片')
+    // 部署設定已經接受的格式不擋。
+    expect(precheckFile(new File(['x'], 'a.heic', { type: 'image/heic' }), { ...LIMITS, image_types: [...LIMITS.image_types, 'image/heic'] })).toBeNull()
+  })
+
+  it('檔案大小不寫多餘的「.0」，但 1.5 MB 不四捨五入', () => {
+    expect(uploadKindHint(LIMITS, 'image')).toBe('JPG、PNG 或 WebP（15 MB 內）')
+    expect(uploadKindHint(LIMITS, 'video')).toBe('MP4（150 MB 內）')
+    expect(uploadKindHint(null, 'video')).toBe('MP4')
+    expect(formatFileSize(1.5 * 1024 * 1024)).toBe('1.5 MB')
   })
 
   it('限定影片時擋掉照片；拿不到 type 的檔案照限定的種類檢查大小', () => {
@@ -148,7 +186,7 @@ describe('多檔上傳佇列', () => {
     const big = new File(['x'], 'v.mp4', { type: '' })
     Object.defineProperty(big, 'size', { value: LIMITS.max_image_bytes + 1 })
     expect(precheckFile(big, LIMITS, 'video')).toBeNull()
-    expect(precheckFile(big, LIMITS, 'image')).toContain('15.0 MB')
+    expect(precheckFile(big, LIMITS, 'image')).toBe('檔案超過 15 MB')
   })
 
   it('同時最多上傳兩個，失敗的各自留下原因，不影響其他檔案', async () => {
@@ -196,12 +234,110 @@ describe('素材庫頁', () => {
     expect(text).toContain('第 2、1 版')
   })
 
+  it('篩選有看得到的標籤，筆數放在清單上方；分頁和篩選分開', async () => {
+    mockGet([asset({ tags: ['戶外'] }), asset({ id: 'm2', original_filename: 'b.jpg', campus_key: null })])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const fields = wrapper.findAll('.filter-bar .filter-field > span:first-child').map((span) => span.text())
+    expect(fields).toEqual(['搜尋素材', '校區', '標籤', '類型'])
+    expect(wrapper.find('.filter-bar').text()).not.toContain('已封存')
+    expect(wrapper.find('.media-tabs').text()).toContain('待清理')
+    expect(wrapper.find('.list-summary').text()).toContain('2 個素材')
+    expect(wrapper.text()).toContain('跨校共用')
+
+    await wrapper.find('.media__tag').trigger('click')
+    expect(wrapper.find('.list-summary').text()).toContain('顯示 1 / 2 個素材')
+  })
+
+  it('卡片直接放編輯與用在哪裡；替換、封存、刪除收進「更多」，刪除在最後', async () => {
+    mockGet([asset({ alt_text: null })])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    expect(wrapper.text()).toContain('未填圖片說明')
+    expect(wrapper.text()).not.toContain('替代文字')
+    const actions = wrapper.find('.media__actions').findAll('button').map((b) => b.text())
+    expect(actions).toEqual(['編輯', '用在哪裡', '更多'])
+    expect(await openMore(wrapper)).toEqual(['替換', '封存', '刪除'])
+  })
+
+  it('已封存的素材：卡片放取消封存，「更多」裡是編輯與刪除', async () => {
+    const get = mockGet([])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    get.mockImplementation(async (path: string) =>
+      (path === '/admin/media?state=archived' ? [asset({ archived_at: '2026-09-25T00:00:00Z' })] : path === '/admin/media/upload-limits' ? LIMITS : []) as never)
+    await wrapper.findAll('label.el-radio-button').find((l) => l.text() === '已封存')!.find('input').setValue(true)
+    await flushPromises()
+    expect(wrapper.find('.media__actions').findAll('button').map((b) => b.text())).toEqual(['取消封存', '用在哪裡', '更多'])
+    expect(await openMore(wrapper)).toEqual(['編輯', '刪除'])
+  })
+
+  it('草稿還在用的素材：封存、刪除不送出也不先跳刪除確認，直接說原因並打開用在哪裡', async () => {
+    const get = mockGet([asset({ usage_count: 1, used_in: [{ kind: 'campus_tour', campus_key: 'yihua' }] })])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const info = vi.spyOn(ElMessage, 'info')
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const post = vi.spyOn(api, 'post')
+    const del = vi.spyOn(api, 'delete')
+
+    await chooseMore(wrapper, '刪除')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(del).not.toHaveBeenCalled()
+    expect(info.mock.calls[0]![0]).toContain('先到內容頁換掉才能刪除')
+    expect(get).toHaveBeenCalledWith('/admin/media/m1/usages')
+    expect(wrapper.text()).toContain('第 2 個場景的照片（操場）')
+
+    await chooseMore(wrapper, '封存')
+    expect(post).not.toHaveBeenCalled()
+    expect(info.mock.calls[1]![0]).toContain('先到內容頁換掉才能封存')
+  })
+
+  it('快速切換分頁時，較晚回來的舊分頁清單不會蓋掉目前的分頁', async () => {
+    const get = mockGet([])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const pending = new Map<string, (value: MediaAssetOut[]) => void>()
+    get.mockImplementation((path: string) =>
+      (path === '/admin/media/upload-limits' ? Promise.resolve(LIMITS) : new Promise((resolve) => pending.set(path, resolve))) as never)
+    const tab = (label: string) => wrapper.findAll('label.el-radio-button').find((l) => l.text() === label)!.find('input')
+    await tab('已封存').setValue(true)
+    await tab('待清理').setValue(true)
+    await flushPromises()
+    pending.get('/admin/media?state=deleted')!([asset({ id: 'gone', original_filename: 'gone.jpg', deleted_at: '2026-09-20T02:00:00Z', purge_after: '2026-09-27T02:00:00Z' })])
+    await flushPromises()
+    pending.get('/admin/media?state=archived')!([asset({ id: 'old', original_filename: 'archived.jpg', archived_at: '2026-09-20T02:00:00Z' })])
+    await flushPromises()
+    expect(wrapper.text()).toContain('gone.jpg')
+    expect(wrapper.text()).not.toContain('archived.jpg')
+    expect(wrapper.find('.list-summary').text()).toContain('1 個素材')
+  })
+
+  it('編輯素材：改了說明後按 X 先問要不要放棄，選「先不要」就留著；沒改過直接關', async () => {
+    mockGet([asset()])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const editDialog = () => wrapper.findAllComponents({ name: 'ElDialog' }).find((d) => d.props('title') === '編輯素材')!
+    await wrapper.findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
+    await flushPromises()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const alt = wrapper.findAll('input').find((el) => (el.element as HTMLInputElement).value === '菜園')!
+    await alt.setValue('孩子在菜園澆水')
+    await editDialog().find('.el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(confirm.mock.calls[0]![2]).toMatchObject({ confirmButtonText: '放棄修改', cancelButtonText: '先不要' })
+    expect((editDialog().vm as unknown as { visible: boolean }).visible).toBe(true)
+    expect((alt.element as HTMLInputElement).value).toBe('孩子在菜園澆水')
+
+    await alt.setValue('菜園')
+    await editDialog().find('.el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    // v-model 要等關閉動畫結束才回報，這裡直接看對話框本身是否已經收起。
+    expect((editDialog().vm as unknown as { visible: boolean }).visible).toBe(false)
+  })
+
   it('唯讀帳號只能看用在哪裡，不能編輯、替換、封存或刪除', async () => {
     mockGet([asset()])
     const wrapper = await mountAs(MediaLibraryView, testUser('readonly', { campus_keys: ['yihua'] }))
     const labels = buttons(wrapper)
     expect(labels).toContain('用在哪裡')
-    for (const hidden of ['編輯', '替換', '封存', '刪除']) expect(labels).not.toContain(hidden)
+    for (const hidden of ['編輯', '替換', '封存', '刪除', '更多']) expect(labels).not.toContain(hidden)
   })
 
   it('影片也能編輯說明，卡片顯示長度', async () => {
@@ -271,8 +407,7 @@ describe('素材庫頁', () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     vi.spyOn(api, 'delete').mockRejectedValue(new ApiError(409, { code: 'MEDIA_IN_HISTORY', message: '舊版本還用到這個素材', usages: USAGES }))
     const post = vi.spyOn(api, 'post').mockResolvedValue(asset({ archived_at: '2026-09-25T00:00:00Z' }) as never)
-    await wrapper.findAll('button').find((b) => b.text() === '刪除')!.trigger('click')
-    await flushPromises()
+    await chooseMore(wrapper, '刪除')
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(confirm.mock.calls[0]![0]).toContain('7 天內都可以復原')
     expect(confirm.mock.calls[1]![2]).toMatchObject({ confirmButtonText: '改為封存' })
@@ -300,6 +435,54 @@ describe('素材庫頁', () => {
     await flushPromises()
     expect(upload).toHaveBeenCalledTimes(2)
     expect(wrapper.findAll('.uploads__row[data-status="done"]')).toHaveLength(2)
+  })
+
+  it('還沒選檔案時主要鈕寫「選擇檔案後上傳」；可以留空的校區寫跨校共用', async () => {
+    mockGet([])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    await wrapper.findAll('button').find((b) => b.text() === '上傳素材')!.trigger('click')
+    await flushPromises()
+    const submit = wrapper.findAll('button').find((b) => b.text() === '選擇檔案後上傳')!
+    expect(submit.attributes('disabled')).toBeDefined()
+    expect(buttons(wrapper)).not.toContain('上傳 0 個檔案')
+    expect(wrapper.find('.drop').text()).toContain('15 MB 內')
+    expect(wrapper.find('.drop').text()).not.toContain('.0 MB')
+    const campus = wrapper.findAllComponents({ name: 'ElSelect' }).find((c) => c.props('placeholder') === '跨校共用（每一校都能用）')
+    expect(campus).toBeDefined()
+  })
+
+  it('上傳中關不掉對話框，再按「上傳素材」也不會把剩下的檔案改送到別的校區', async () => {
+    mockGet([])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const uploadDialog = () => wrapper.findAllComponents({ name: 'ElDialog' }).find((d) => d.props('title') === '上傳素材')!
+    await wrapper.findAll('button').find((b) => b.text() === '上傳素材')!.trigger('click')
+    await flushPromises()
+    const finishers: (() => void)[] = []
+    const upload = vi.spyOn(api, 'upload').mockImplementation((_p: string, form: FormData) =>
+      new Promise((resolve) => finishers.push(() => resolve(asset({ id: (form.get('file') as File).name }) as never))) as never)
+    pickFiles(wrapper.find('input[type="file"]').element, ['a.jpg', 'b.jpg', 'c.jpg'].map((n) => new File(['x'], n, { type: 'image/jpeg' })))
+    await flushPromises()
+    const campusSelect = wrapper.findAllComponents({ name: 'ElSelect' }).find((c) => c.props('placeholder') === '跨校共用（每一校都能用）')!
+    campusSelect.vm.$emit('update:modelValue', 'yihua')
+    await flushPromises()
+    expect(uploadDialog().props('closeOnClickModal')).toBe(false)
+    await wrapper.findAll('button').find((b) => b.text() === '上傳 3 個檔案')!.trigger('click')
+    await flushPromises()
+    expect(upload).toHaveBeenCalledTimes(UPLOAD_CONCURRENCY)
+    expect(uploadDialog().props('closeOnPressEscape')).toBe(false)
+    expect(uploadDialog().props('showClose')).toBe(false)
+
+    // 對話框理應關不掉；就算又按了「上傳素材」，也只是把對話框打開。
+    await wrapper.findAll('button').find((b) => b.text() === '上傳素材')!.trigger('click')
+    finishers.shift()!()
+    await flushPromises()
+    finishers.splice(0).forEach((finish) => finish())
+    await flushPromises()
+    finishers.splice(0).forEach((finish) => finish())
+    await flushPromises()
+    expect(upload).toHaveBeenCalledTimes(3)
+    expect(upload.mock.calls.map((call) => (call[1] as FormData).get('campus_key'))).toEqual(['yihua', 'yihua', 'yihua'])
+    expect(uploadDialog().props('showClose')).toBe(true)
   })
 
   it('沒有共用權限的校區管理者：上傳預設帶自己的校區，不會送出跨校共用被拒', async () => {
@@ -527,5 +710,45 @@ describe('選圖器', () => {
     pickFiles(input.element, [new File(['x'], 'one.jpg', { type: 'image/jpeg' })])
     await flushPromises()
     expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ id: 'one' })
+  })
+
+  it('沒有圖片說明的照片在格子上就標出來，並說明選用後官網會沒有圖片說明', async () => {
+    mockGet([asset(), asset({ id: 'bare', original_filename: 'bare.jpg', alt_text: null, campus_key: null })])
+    const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, campusKey: 'yihua' })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    const tiles = wrapper.findAll('.picker__item')
+    expect(tiles.find((t) => t.text().includes('garden.jpg'))!.text()).not.toContain('未填圖片說明')
+    const bare = tiles.find((t) => t.text().includes('bare.jpg'))!
+    expect(bare.text()).toContain('未填圖片說明')
+    expect(bare.text()).toContain('跨校共用')
+    expect(wrapper.find('.picker__alt-note').text()).toContain('官網會沒有圖片說明')
+    expect(wrapper.text()).toContain('15 MB 內')
+
+    // 選圖器裡上傳的照片沒有說明：選用時提醒，不只說成功。
+    const warning = vi.spyOn(ElMessage, 'warning')
+    vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'new', alt_text: null }) as never)
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'new.jpg', { type: 'image/jpeg' })])
+    await flushPromises()
+    expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({ id: 'new' })
+    expect(String(warning.mock.calls[0]![0])).toContain('還沒有圖片說明')
+  })
+
+  it('選圖器上傳中關不掉', async () => {
+    mockGet([])
+    const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, campusKey: 'yihua' })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    let finish!: () => void
+    vi.spyOn(api, 'upload').mockImplementation(() => new Promise((resolve) => { finish = () => resolve(asset() as never) }) as never)
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'a.jpg', { type: 'image/jpeg' })])
+    await flushPromises()
+    const dialog = wrapper.findComponent({ name: 'ElDialog' })
+    expect(dialog.props('closeOnPressEscape')).toBe(false)
+    expect(dialog.props('closeOnClickModal')).toBe(false)
+    expect(dialog.props('showClose')).toBe(false)
+    finish()
+    await flushPromises()
+    expect(dialog.props('showClose')).toBe(true)
   })
 })

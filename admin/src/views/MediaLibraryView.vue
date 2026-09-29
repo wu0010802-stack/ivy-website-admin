@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { ArrowDown, Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
@@ -10,7 +10,8 @@ import { useAuthStore } from '../stores/auth'
 import { canEditSharedContent } from '../router/nav'
 import { usePermissions } from '../composables/usePermissions'
 import { useCampusScope } from '../composables/useCampusScope'
-import { loadUploadLimits, uploadFormatHint, useMediaUploadQueue } from '../composables/mediaUpload'
+import { useRequestSequence } from '../composables/useRequestSequence'
+import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { CAMPUS_KEYS } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
@@ -69,16 +70,28 @@ function filterLabel(key: string): string {
 
 const purgeDays = computed(() => limits.value?.purge_delay_days ?? 7)
 
+const listSummary = computed(() => {
+  if (loading.value) return '正在讀取素材…'
+  if (loadError.value) return '素材尚未載入'
+  return hasFilters.value ? `顯示 ${visibleAssets.value.length} / ${assets.value.length} 個素材` : `${assets.value.length} 個素材`
+})
+
+// 快速切換「素材／已封存／待清理」時，只採用最後一次讀取的回應，
+// 先發出、較晚回來的舊分頁清單不能蓋掉目前的分頁。
+const requests = useRequestSequence()
+
 async function load() {
+  const request = requests.begin()
   loading.value = true
   loadError.value = null
   try {
     const suffix = listState.value === 'active' ? '' : `?state=${listState.value}`
-    assets.value = await api.get<MediaAssetOut[]>(`/admin/media${suffix}`)
+    const loaded = await api.get<MediaAssetOut[]>(`/admin/media${suffix}`)
+    if (requests.isCurrent(request)) assets.value = loaded
   } catch {
-    loadError.value = '無法讀取素材庫，請重新載入。'
+    if (requests.isCurrent(request)) loadError.value = '無法讀取素材庫，請重新載入。'
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 
@@ -115,6 +128,12 @@ function onDrop(event: DragEvent) {
 }
 
 function openUpload() {
+  // 還在上傳（對話框理應關不掉，這裡是保險）：只把對話框打開，不重設校區與說明，
+  // 否則剩下的檔案會用新的校區送出。
+  if (queue.running.value) {
+    uploadDialogVisible.value = true
+    return
+  }
   queue.reset()
   uploadAlt.value = ''
   uploadCampusKey.value = campusFilter.value && campusFilter.value !== '__shared' ? campusFilter.value : ''
@@ -141,6 +160,16 @@ async function submitUpload() {
   }
 }
 
+// 上傳中關分頁或重新整理，剩下的檔案會中斷：交給瀏覽器問一次。
+// （在後台裡換頁不會中斷，上傳中對話框也關不掉。）
+function warnUploadInterrupted(event: BeforeUnloadEvent) {
+  if (!queue.running.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', warnUploadInterrupted))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnUploadInterrupted))
+
 // ---- 編輯說明（圖片與影片都可以） ----
 const editDialogVisible = ref(false)
 const editingAsset = ref<MediaAssetOut | null>(null)
@@ -152,6 +181,10 @@ const editTags = ref<string[]>([])
 // 素材預設焦點（後端存 0–1；FocusPicker 用 0–100）。null＝沒設，官網置中。
 const editFocus = ref<{ x: number; y: number } | null>(null)
 const saving = ref(false)
+// 打開時的內容；點到背景、按 Esc 或 X 時比對，有改過就先問，不直接丟掉剛打的字。
+let editSnapshot = ''
+const editState = () =>
+  JSON.stringify([editAltText.value, editSourceAttribution.value, editCaption.value, editLicense.value, editTags.value, editFocus.value])
 
 function openEditDialog(asset: MediaAssetOut) {
   editingAsset.value = asset
@@ -164,7 +197,24 @@ function openEditDialog(asset: MediaAssetOut) {
     asset.crop_focus_x != null && asset.crop_focus_y != null
       ? { x: Math.round(asset.crop_focus_x * 100), y: Math.round(asset.crop_focus_y * 100) }
       : null
+  editSnapshot = editState()
   editDialogVisible.value = true
+}
+
+async function beforeCloseEdit(done: () => void) {
+  if (saving.value) return
+  if (editState() !== editSnapshot) {
+    try {
+      await ElMessageBox.confirm('剛才修改的說明、標籤或焦點還沒儲存，關掉後會遺失。', '放棄這次的修改？', {
+        confirmButtonText: '放棄修改',
+        cancelButtonText: '先不要',
+        type: 'warning',
+      })
+    } catch {
+      return
+    }
+  }
+  done()
 }
 
 async function submitEdit() {
@@ -237,7 +287,27 @@ function errorDetail(err: unknown): { code?: string; message?: string } {
     : {}
 }
 
+// 卡片已經知道有草稿在用（usage_count 只算各內容的最新草稿），這時封存或刪除
+// 一定會被擋：不送出、也不先跳刪除確認，直接說原因並打開「用在哪裡」。
+// usage_count 為 0 但線上版、排程或舊版本還在用的情況，照舊交給後端判斷。
+function blockedByDraftUsage(asset: MediaAssetOut, action: '封存' | '刪除'): boolean {
+  if (asset.usage_count <= 0) return false
+  ElMessage.info(`還有內容的草稿在用這個素材，先到內容頁換掉才能${action}。`)
+  openUsages(asset)
+  return true
+}
+
+type MoreCommand = 'edit' | 'replace' | 'archive' | 'unarchive' | 'delete'
+function onMoreCommand(asset: MediaAssetOut, command: MoreCommand) {
+  if (command === 'edit') openEditDialog(asset)
+  else if (command === 'replace') openReplace(asset)
+  else if (command === 'archive') void setArchived(asset, true)
+  else if (command === 'unarchive') void setArchived(asset, false)
+  else void removeAsset(asset)
+}
+
 async function setArchived(asset: MediaAssetOut, archived: boolean) {
+  if (archived && blockedByDraftUsage(asset, '封存')) return
   try {
     await api.post(`/admin/media/${asset.id}/${archived ? 'archive' : 'unarchive'}`)
     ElMessage.success(archived ? '已封存，可以在「已封存」找回來' : '已取消封存')
@@ -250,6 +320,7 @@ async function setArchived(asset: MediaAssetOut, archived: boolean) {
 }
 
 async function removeAsset(asset: MediaAssetOut) {
+  if (blockedByDraftUsage(asset, '刪除')) return
   try {
     await ElMessageBox.confirm(
       `刪除後會先移到「待清理」，${purgeDays.value} 天內都可以復原，之後檔案會永久刪除。`,
@@ -307,30 +378,39 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
-    <div class="toolbar">
-      <el-radio-group v-model="listState" aria-label="素材狀態">
-        <el-radio-button value="active">素材</el-radio-button>
-        <el-radio-button value="archived">已封存</el-radio-button>
-        <el-radio-button value="deleted">待清理</el-radio-button>
-      </el-radio-group>
-      <el-input v-model="query" aria-label="搜尋素材" placeholder="搜尋檔名、圖片說明、圖說或標籤" clearable class="media-search" />
-      <el-select v-if="allTags.length" v-model="tagFilter" placeholder="全部標籤" clearable filterable aria-label="標籤" style="width: 140px">
-        <el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
-      </el-select>
-      <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
-        <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
-      </el-select>
-      <el-radio-group v-model="kindFilter" aria-label="素材類型">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="image">圖片</el-radio-button>
-        <el-radio-button value="video">影片</el-radio-button>
-      </el-radio-group>
-      <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
-      <span class="toolbar__spacer" />
-      <span class="hint" role="status">{{ loading ? '載入中…' : `${visibleAssets.length} 個素材` }}</span>
-    </div>
+    <!-- 分頁（切換要看哪一批素材）放在篩選面板上方，和下面的篩選分開。 -->
+    <el-radio-group v-model="listState" class="media-tabs" aria-label="要看的素材">
+      <el-radio-button value="active">素材</el-radio-button>
+      <el-radio-button value="archived">已封存</el-radio-button>
+      <el-radio-button value="deleted">待清理</el-radio-button>
+    </el-radio-group>
     <p v-if="listState === 'deleted'" class="hint state-hint">刪除的素材保留 {{ purgeDays }} 天，時間到了由系統永久刪除檔案；這段期間可以復原。</p>
     <p v-else-if="listState === 'archived'" class="hint state-hint">封存的素材不會出現在選圖器，檔案與舊版本的引用都保留，隨時可以取消封存。</p>
+
+    <div class="filter-bar">
+      <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、圖片說明、圖說或標籤" clearable /></label>
+      <label class="filter-field"><span>校區</span>
+        <el-select v-model="campusFilter" placeholder="全部校區" clearable>
+          <el-option v-for="key in filterKeys" :key="key" :label="filterLabel(key)" :value="key" />
+        </el-select>
+      </label>
+      <label v-if="allTags.length" class="filter-field"><span>標籤</span>
+        <el-select v-model="tagFilter" placeholder="全部標籤" clearable filterable>
+          <el-option v-for="t in allTags" :key="t" :label="t" :value="t" />
+        </el-select>
+      </label>
+      <!-- 一組單選鈕不能包在 label 裡（點標題會選到第一個），改用 group 加可見標題。 -->
+      <div class="filter-field" role="group" aria-labelledby="media-kind-label">
+        <span id="media-kind-label">類型</span>
+        <el-radio-group v-model="kindFilter" class="media-kind" aria-labelledby="media-kind-label">
+          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button value="image">圖片</el-radio-button>
+          <el-radio-button value="video">影片</el-radio-button>
+        </el-radio-group>
+      </div>
+      <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
+    </div>
+    <div class="list-summary" role="status"><span>{{ listSummary }}</span><el-button text :loading="loading" @click="load">重新整理</el-button></div>
 
     <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
     <div v-else v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && visibleAssets.length === 0 }" :aria-busy="loading">
@@ -361,30 +441,56 @@ onMounted(async () => {
           <span class="media__sub" :title="asset.created_by_email ?? ''">上傳：{{ uploaderText(asset) }}</span>
           <span v-if="usedInText(asset)" class="media__sub media__used">用在：{{ usedInText(asset) }}</span>
           <span v-if="asset.deleted_at" class="media__warn">{{ formatDateTime(asset.purge_after) }} 後永久刪除</span>
-          <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填替代文字' : '未填影片說明' }}</span>
+          <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填圖片說明' : '未填影片說明' }}</span>
           <span v-if="asset.tags?.length" class="media__tags">
-            <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" @click="tagFilter = t">{{ t }}</button>
+            <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" :title="`只看標籤「${t}」的素材`" @click="tagFilter = t"><span>{{ t }}</span></button>
           </span>
         </div>
+        <!-- 常用的編輯、用在哪裡直接放；替換、封存、刪除收進「更多」，刪除放最後、和封存隔開。 -->
         <div class="media__actions">
-          <el-button v-if="!asset.deleted_at" size="small" text @click="openUsages(asset)">用在哪裡</el-button>
-          <template v-if="canManageAsset(asset)">
-            <template v-if="asset.deleted_at">
-              <el-button size="small" text type="primary" @click="restoreAsset(asset)">復原</el-button>
-            </template>
-            <template v-else>
-              <el-button v-if="asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
-              <el-button v-if="asset.status === 'ready' && !asset.archived_at" size="small" text @click="openReplace(asset)">替換</el-button>
+          <template v-if="asset.deleted_at">
+            <el-button v-if="canManageAsset(asset)" size="small" text type="primary" @click="restoreAsset(asset)">復原</el-button>
+          </template>
+          <template v-else>
+            <template v-if="canManageAsset(asset)">
               <el-button v-if="asset.archived_at" size="small" text @click="setArchived(asset, false)">取消封存</el-button>
-              <el-button v-else size="small" text @click="setArchived(asset, true)">封存</el-button>
-              <el-button size="small" text type="danger" @click="removeAsset(asset)">刪除</el-button>
+              <el-button v-else-if="asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
             </template>
+            <el-button size="small" text @click="openUsages(asset)">用在哪裡</el-button>
+            <el-dropdown
+              v-if="canManageAsset(asset)"
+              trigger="click"
+              placement="bottom-end"
+              :persistent="false"
+              popper-class="media-more-menu"
+              @command="(command: MoreCommand) => onMoreCommand(asset, command)"
+            >
+              <el-button size="small" text class="media__more" :aria-label="`「${asset.original_filename}」的更多動作`">
+                更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="asset.archived_at && asset.status === 'ready'" command="edit">編輯</el-dropdown-item>
+                  <el-dropdown-item v-if="!asset.archived_at && asset.status === 'ready'" command="replace">替換</el-dropdown-item>
+                  <el-dropdown-item v-if="!asset.archived_at" command="archive">封存</el-dropdown-item>
+                  <el-dropdown-item command="delete" :divided="asset.status === 'ready' || !asset.archived_at" class="media-more__danger">刪除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </div>
       </article>
     </div>
 
-    <el-dialog v-model="uploadDialogVisible" title="上傳素材" width="min(520px, 100%)" :close-on-click-modal="!queue.running.value">
+    <!-- 上傳中 Esc、X、點背景都關不掉（進度要看得到）；選好的檔案也不會因為點到背景就不見。 -->
+    <el-dialog
+      v-model="uploadDialogVisible"
+      title="上傳素材"
+      width="min(520px, 100%)"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!queue.running.value"
+      :show-close="!queue.running.value"
+    >
       <el-form label-position="top" @submit.prevent="submitUpload">
         <el-form-item label="檔案">
           <label
@@ -395,16 +501,21 @@ onMounted(async () => {
             @drop.prevent="onDrop"
           >
             <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" class="drop__input" :disabled="queue.running.value" @change="onFileChange" />
-            <strong>{{ queue.items.value.length ? '再加入檔案' : '拖曳檔案到這裡，或點擊選擇（可一次選多個）' }}</strong>
-            <span class="hint">{{ uploadFormatHint(limits) }}</span>
+            <strong>{{ queue.items.value.length ? '再加入檔案' : '拖曳檔案到這裡，或點擊選擇' }}</strong>
+            <span class="hint">可一次選多個</span>
+            <!-- 照片與影片各自成一段換行，手機上不會把「（15 MB 內）」拆到兩行。 -->
+            <span class="hint drop__formats">
+              <span>照片：{{ uploadKindHint(limits, 'image') }}</span>
+              <span>影片：{{ uploadKindHint(limits, 'video') }}</span>
+            </span>
           </label>
           <MediaUploadList :items="queue.items.value" :running="queue.running.value" @remove="queue.remove" />
         </el-form-item>
         <el-form-item label="校區">
-          <el-select v-model="uploadCampusKey" :placeholder="canUploadShared ? '不指定（每一校都能用）' : '請選擇校區'" :clearable="canUploadShared" :disabled="queue.running.value" style="width: 100%">
+          <el-select v-model="uploadCampusKey" :placeholder="canUploadShared ? '跨校共用（每一校都能用）' : '請選擇校區'" :clearable="canUploadShared" :disabled="queue.running.value" style="width: 100%">
             <el-option v-for="key in uploadCampusOptions" :key="key" :label="campusLabel(key)" :value="key" />
           </el-select>
-          <span class="field-help">{{ canUploadShared ? '留空代表每一校的內容都能選用。' : '共用素材需要「全站共用內容」權限，請選擇你負責的校區。' }}</span>
+          <span class="field-help">{{ canUploadShared ? '留空就是跨校共用，每一校的內容都能選用。' : '跨校共用素材需要「全站共用內容」權限，請選擇你負責的校區。' }}</span>
         </el-form-item>
         <el-form-item v-if="singleImage" label="圖片說明">
           <el-input v-model="uploadAlt" maxlength="500" placeholder="簡短描述照片內容，例如：孩子在戶外沙坑玩耍" />
@@ -419,11 +530,16 @@ onMounted(async () => {
           :loading="queue.running.value"
           :disabled="!pendingCount || (!uploadCampusKey && !canUploadShared)"
           @click="submitUpload"
-        >{{ queue.running.value ? `上傳中（${queue.counts.value.done + queue.counts.value.failed}／${queue.items.value.length}）` : `上傳 ${pendingCount} 個檔案` }}</el-button>
+        >{{ queue.running.value ? `上傳中（${queue.counts.value.done + queue.counts.value.failed}／${queue.items.value.length}）` : pendingCount ? `上傳 ${pendingCount} 個檔案` : '選擇檔案後上傳' }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="editDialogVisible" :title="editingAsset?.kind === 'video' ? '編輯影片說明' : '編輯素材'" width="min(520px, 100%)">
+    <el-dialog
+      v-model="editDialogVisible"
+      :title="editingAsset?.kind === 'video' ? '編輯影片說明' : '編輯素材'"
+      width="min(520px, 100%)"
+      :before-close="beforeCloseEdit"
+    >
       <el-form v-if="editingAsset" label-position="top">
         <el-form-item v-if="editingAsset.kind === 'image'" label="預設裁切焦點">
           <FocusPicker v-model="editFocus" :src="mediaFocusUrl(editingAsset)" label="預設裁切焦點" reset-label="清除（置中）" />
@@ -456,7 +572,7 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button :disabled="saving" @click="editDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitEdit">儲存</el-button>
       </template>
     </el-dialog>
@@ -467,10 +583,20 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.media-tabs { margin-bottom: 12px; }
+/* 類型分段鈕和旁邊的輸入框一樣高，標籤才會對齊。 */
+.media-kind :deep(.el-radio-button__inner) { display: inline-flex; align-items: center; min-height: var(--control-h); }
 .media__tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.media__tag { all: unset; cursor: pointer; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--surface-3); color: var(--ink-2); }
-.media__tag:focus-visible { outline: 2px solid var(--el-color-primary); }
-.media-search { flex: 1 1 220px; max-width: 340px; }
+/* 按鈕本身是點擊範圍，裡面的 span 才是看得到的膠囊；手機把點擊範圍撐到 44px 高。 */
+.media__tag { all: unset; cursor: pointer; display: inline-flex; align-items: center; border-radius: 999px; }
+.media__tag > span { padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--surface-3); color: var(--ink-2); }
+.media__tag:hover > span { color: var(--ink); }
+.media__tag:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 1px; }
+@media (pointer: coarse), (max-width: 720px) {
+  .media__tags { gap: 0 8px; margin-top: 0; }
+  .media__tag { min-height: 44px; }
+  .media__tag > span { padding: 3px 12px; font-size: 13px; line-height: 20px; }
+}
 .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -568,6 +694,25 @@ onMounted(async () => {
   margin-left: 0;
 }
 
+/* 「更多」選單掛在 body 底下，scoped 樣式碰不到，用 popper-class 限定範圍。 */
+:global(.media-more-menu .el-dropdown-menu__item.media-more__danger) {
+  color: var(--el-color-danger);
+}
+
+:global(.media-more-menu .el-dropdown-menu__item.media-more__danger:not(.is-disabled):hover),
+:global(.media-more-menu .el-dropdown-menu__item.media-more__danger:not(.is-disabled):focus) {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  :global(.media-more-menu .el-dropdown-menu__item) {
+    min-height: 44px;
+    min-width: 128px;
+    font-size: 15px;
+  }
+}
+
 .media__used {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -600,8 +745,22 @@ onMounted(async () => {
   background: var(--el-color-primary-light-9);
 }
 
+/* 選檔的 input 是透明的，鍵盤移到這裡時要看得出焦點。 */
+.drop:focus-within {
+  border-color: var(--el-color-primary);
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
 .drop.has-file {
   border-style: solid;
+}
+
+.drop__formats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 12px;
 }
 
 .drop__input {

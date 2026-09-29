@@ -644,10 +644,11 @@ export function formatTime(value: string | null | undefined): string {
   return value.slice(0, 5)
 }
 
+// MB 留一位小數（1.5 MB 不四捨五入成 2 MB），整數時不寫多餘的「.0」。
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
 }
 
 // 星期幾，給時段列表用。
