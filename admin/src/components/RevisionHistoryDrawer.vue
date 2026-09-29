@@ -15,7 +15,9 @@ const props = withDefaults(defineProps<{
   canPublish?: boolean
   /** 唯讀帳號只能看歷史與差異，不給任何還原按鈕。預設可還原。 */
   canRestore?: boolean
-}>(), { canPublish: true, canRestore: true })
+  /** 內容編輯還原成草稿後，要由誰核准才會上線（校區管理者或總管理者） */
+  approver?: string
+}>(), { canPublish: true, canRestore: true, approver: '校區管理者' })
 const open = defineModel<boolean>({ required: true })
 
 const revisions = ref<RevisionSummary[]>([])
@@ -25,6 +27,8 @@ const selected = ref<RevisionSummary | null>(null)
 const selectedChanges = ref<FieldChange[] | null>(null)
 const previewLoading = ref(false)
 const previewError = ref<string | null>(null)
+// 正在還原的是哪一種，按鈕各自顯示處理中。
+const restoring = ref<'draft' | 'publish' | null>(null)
 let previewRequest = 0
 
 const latestVersion = computed(() => revisions.value[0]?.version ?? 0)
@@ -71,11 +75,12 @@ interface RevisionTag { label: string; tone: TagTone }
 // 審核狀態只標有意義的：草稿不標；已核准的版本一定上線過，由「曾上線」表示。
 const REVIEW_TONES: Record<string, TagTone> = { pending_review: 'warning', rejected: 'danger', superseded: 'info' }
 
+// 官網目前的版本就算也是最新一版，也不再標「最新草稿」（同一列不會又是草稿又是官網版）。
 function tagOf(revision: RevisionSummary): RevisionTag[] {
   const tags: RevisionTag[] = []
   if (revision.is_published) tags.push({ label: '官網目前版本', tone: 'success' })
   else if (revision.ever_published) tags.push({ label: '曾上線', tone: 'primary' })
-  if (revision.version === latestVersion.value) tags.push({ label: '最新草稿', tone: 'info' })
+  if (revision.version === latestVersion.value && !revision.is_published) tags.push({ label: '最新草稿', tone: 'info' })
   const review = revision.review_status ?? 'draft'
   if (REVIEW_TONES[review]) tags.push({ label: REVIEW_STATUS_LABELS[review] ?? review, tone: REVIEW_TONES[review] })
   return tags
@@ -94,12 +99,14 @@ function noteOf(revision: RevisionSummary): string {
 
 async function restore(publish: boolean) {
   const revision = selected.value
-  if (!revision) return
+  if (!revision || restoring.value) return
   const when = formatDateTime(revision.created_at)
   const lines = [
     publish
       ? `會把 ${when} 的內容另存成新的一版，並立刻發布到官網。`
-      : `會把 ${when} 的內容另存成新的一版草稿，官網要等你按發布才會更新。`,
+      : props.canPublish
+        ? `會把 ${when} 的內容另存成新的一版草稿，官網要等你按發布才會更新。`
+        : `會把 ${when} 的內容另存成新的一版草稿；要再送審，${props.approver}核准後官網才會更新。`,
     '目前的版本仍會留在紀錄裡，隨時可以再還原回來。',
   ]
   if (props.dirty) lines.push('你還沒儲存的修改會被捨棄。')
@@ -113,8 +120,13 @@ async function restore(publish: boolean) {
   } catch {
     return
   }
-  const ok = await props.history.restore(revision.id, publish)
-  if (ok) open.value = false
+  restoring.value = publish ? 'publish' : 'draft'
+  try {
+    const ok = await props.history.restore(revision.id, publish)
+    if (ok) open.value = false
+  } finally {
+    restoring.value = null
+  }
 }
 </script>
 
@@ -165,8 +177,9 @@ async function restore(publish: boolean) {
               <p v-if="selectedChanges.length > 10" class="hint">還有 {{ selectedChanges.length - 10 }} 個欄位。</p>
             </template>
             <div v-if="canRestore" class="history__actions">
-              <el-button :disabled="busy" @click="restore(false)">還原成草稿</el-button>
-              <el-button v-if="canPublish !== false" type="primary" :disabled="busy" @click="restore(true)">還原並發布</el-button>
+              <!-- 還原成草稿比較保險（官網不會馬上變），給主色；對外的「還原並發布」用一般樣式。 -->
+              <el-button type="primary" :loading="restoring === 'draft'" :disabled="busy || restoring !== null" @click="restore(false)">還原成草稿</el-button>
+              <el-button v-if="canPublish !== false" :loading="restoring === 'publish'" :disabled="busy || restoring !== null" @click="restore(true)">還原並發布</el-button>
             </div>
           </template>
         </div>

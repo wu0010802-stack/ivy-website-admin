@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, provide, ref, useId, watch, type VNode } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime } from '../api/labels'
-import type { ContentEditorState } from '../composables/useContentItem'
+import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
@@ -25,12 +26,22 @@ const isPublished = computed(() => props.editor.isPublished.value)
 const isDirty = computed(() => props.editor.isDirty.value)
 const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
+const latestRevisionId = computed(() => props.editor.latestRevisionId?.value ?? null)
+const liveVersion = computed(() => props.editor.liveVersion?.value ?? null)
 const busy = computed(() => saving.value || publishing.value)
 const changes = computed(() => props.editor.changes?.value ?? [])
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
+const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
 const mobilePreviewUrl = computed(() => (previewUrl.value ? `${previewUrl.value}${previewUrl.value.includes('?') ? '&' : '?'}viewport=mobile` : ''))
 const apiPath = computed(() => props.editor.apiPath?.value ?? '')
+// 確認框標題帶上是哪一項內容（分校內容含校名），例如「發布「各校常見問題（明華）」
+// 到官網？」，避免在錯的校區按下發布。名稱本身已有引號（首頁「關於常春藤」）就不再加。
+const named = computed(() => {
+  const label = props.editor.contextLabel?.value ?? ''
+  return !label || label.includes('「') ? label : `「${label}」`
+})
+const approver = computed(() => props.editor.approver ?? '校區管理者')
 const historyOpen = ref(false)
 const { can } = usePermissions()
 // 內容編輯只能送審；總管理者與分校管理者可以直接發布、排程、審核。
@@ -49,6 +60,10 @@ const lastUnpublished = computed(() => {
   const finished = (props.editor.schedules?.value ?? []).find((j) => j.status === 'done' || j.status === 'failed' || j.status === 'skipped')
   return finished && finished.status !== 'done' && !finished.resolved ? finished : null
 })
+
+// 分校內容頁的校區選單放在這個外殼的工具列：多校下拉也寫出「校區」。
+provide(campusSelectLabelKey, '校區')
+
 const acknowledging = ref(false)
 async function acknowledge(jobId: string) {
   if (!props.editor.acknowledgeSchedule) return
@@ -67,8 +82,62 @@ watch(
   },
   { immediate: true },
 )
+
+// 排程列只講時間與「會發布哪一份」，不寫版本號或帳號。到期時官網已經是排定的
+// 那一版或更新的內容就會略過（後端 skip_reason），所以先看官網再講草稿：
+// 官網就是最新一版，或官網版本不比排定的舊，到時都會略過；排的是較早的草稿時
+// 講明不含之後存的修改，不知道官網是哪一版就不斷言一定會發布。
+function scheduleTarget(job: PublishJob): string {
+  const isLatest = !latestRevisionId.value || job.revision_id === latestRevisionId.value
+  const live = liveVersion.value
+  if (isLatest && isPublished.value) return '這份內容，但官網已經是這一版，到時會略過。'
+  if (live !== null && live === job.revision_version) return '較早儲存的草稿，但這份已經在官網上，到時會略過。'
+  if (isPublished.value || (live !== null && live > job.revision_version)) {
+    return '較早儲存的草稿，但官網已經是更新的內容，到時會略過。'
+  }
+  if (!isLatest) {
+    return live === null && !neverPublished.value
+      ? '較早儲存的草稿（不含之後存的修改）；到時官網若已經是更新的內容就會略過。'
+      : '較早儲存的草稿，不含之後存的修改。'
+  }
+  if (isDirty.value) return '上次儲存的草稿，不含還沒儲存的修改。'
+  return '這份草稿。'
+}
+
+const cancellingId = ref<string | null>(null)
+async function cancelSchedule(job: PublishJob) {
+  if (!props.editor.cancelSchedule || cancellingId.value) return
+  try {
+    await ElMessageBox.confirm(
+      `取消後 ${formatDateTime(job.publish_at)} 不會自動發布，草稿仍會保留。`,
+      named.value ? `取消${named.value}的排程？` : '取消這個排程？',
+      { confirmButtonText: '取消排程', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  cancellingId.value = job.id
+  try {
+    await props.editor.cancelSchedule(job.id)
+  } finally {
+    cancellingId.value = null
+  }
+}
+
 const scheduleOpen = ref(false)
 const scheduleAt = ref<string | null>(null)
+// 「明天 09:00」是最常排的時間，一鍵帶入。
+const scheduleShortcuts = [
+  {
+    text: '明天 09:00',
+    value: () => {
+      const date = new Date()
+      date.setDate(date.getDate() + 1)
+      date.setHours(9, 0, 0, 0)
+      return date
+    },
+  },
+]
 
 function disablePastDay(date: Date): boolean {
   const today = new Date()
@@ -76,15 +145,93 @@ function disablePastDay(date: Date): boolean {
   return date.getTime() < today.getTime()
 }
 
+// 日期選單只擋得住過去的日子；今天已經過去的時間在送出前先擋，不要等存完草稿才被後端退回。
+// 「現在」在開對話框、改時間、按排程時各取一次：選好時間後停在對話框裡等到
+// 時間過了，按下去也會顯示提示，不會沒反應。
+const scheduleNow = ref(Date.now())
+watch([scheduleOpen, scheduleAt], () => {
+  scheduleNow.value = Date.now()
+})
+const scheduleInPast = computed(() => Boolean(scheduleAt.value) && new Date(scheduleAt.value!).getTime() <= scheduleNow.value)
+
 async function submitSchedule() {
-  if (!scheduleAt.value || !props.editor.schedule) return
+  scheduleNow.value = Date.now()
+  if (!scheduleAt.value || !props.editor.schedule || scheduleInPast.value) return
   if (await props.editor.schedule(scheduleAt.value)) scheduleOpen.value = false
+}
+
+// 開確認框前讀官網版比對，這段時間發布鈕顯示處理中，避免連按；表單和儲存也
+// 跟處理中一樣先鎖住（DESIGN：處理中鎖住表單及重複操作）。
+const preparing = ref(false)
+const locked = computed(() => busy.value || preparing.value)
+
+interface ConfirmSummary {
+  intro: string
+  list: FieldChange[]
+}
+
+// 發布、核准是對外動作：按下去官網立刻換掉。確認框列出「官網現在 → 按下去之後」
+// 哪些欄位會變、變成什麼（DESIGN 第四輪：列差異而不是時間戳），已存的草稿、
+// 送審的版本和未儲存的修改都算進去。從沒發布過就說是第一次上線，不拿空白比。
+// 讀不到官網版時退回：有未儲存修改列和上次儲存相比的差異，否則講官網現在是哪一版。
+async function summarizeAgainstLive(verb: string): Promise<ConfirmSummary> {
+  const comparison = props.editor.compareWithLive ? await props.editor.compareWithLive() : null
+  if (comparison?.firstPublish) {
+    return { intro: `這是第一次上線：官網目前顯示預設文字，${verb}後家長就會看到這份內容。`, list: [] }
+  }
+  if (comparison) {
+    return comparison.changes.length
+      ? { intro: `和官網目前的內容相比，會更新 ${comparison.changes.length} 個欄位，${verb}後家長立刻看到：`, list: comparison.changes }
+      : { intro: `內容和官網目前的一樣，${verb}後家長看到的不會改變。`, list: [] }
+  }
+  if (changes.value.length) return { intro: `這次會更新 ${changes.value.length} 個欄位，${verb}後家長立刻看到：`, list: changes.value }
+  const current = isPublished.value
+    ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
+    : neverPublished.value
+      ? '官網目前顯示的是預設文字。'
+      : '官網目前顯示的是上一版。'
+  return { intro: `${current}${verb}後家長立刻看到這一版。`, list: [] }
+}
+
+async function prepareSummary(verb: string): Promise<ConfirmSummary> {
+  preparing.value = true
+  try {
+    return await summarizeAgainstLive(verb)
+  } finally {
+    preparing.value = false
+  }
+}
+
+// 排程到期時官網已經是同一版或更新的內容就會略過，所以現在發布或核准，
+// 已排好的排程到時都不會再發布。
+function scheduleSkipNote(): string {
+  if (!scheduled.value.length) return ''
+  const times = scheduled.value.map((job) => formatDateTime(job.publish_at)).join('、')
+  return `已排定 ${times} 自動發布；現在發布後，這個排程到時會略過。`
+}
+
+function confirmBody(summary: ConfirmSummary, notes: (string | VNode | null)[]) {
+  const list = summary.list
+  return h('div', { class: 'publish-diff' }, [
+    h('p', null, summary.intro),
+    list.length
+      ? h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
+          h('strong', null, c.label),
+          h('span', { class: 'publish-diff__before' }, c.before),
+          h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
+          h('span', { class: 'publish-diff__after' }, c.after),
+          c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
+        ])))
+      : null,
+    list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
+    ...notes.filter((note) => note).map((note) => h('p', { class: 'hint' }, [note!])),
+  ])
 }
 
 async function rejectWithNote() {
   if (!props.editor.review) return
   try {
-    const result = await ElMessageBox.prompt('寫下要修改的地方，編輯打開這一頁就看得到。', '退回這次送審？', {
+    const result = await ElMessageBox.prompt('寫下要修改的地方，編輯打開這一頁就看得到。', `退回${named.value}這次送審？`, {
       confirmButtonText: '退回',
       cancelButtonText: '先不要',
       inputType: 'textarea',
@@ -96,13 +243,17 @@ async function rejectWithNote() {
   }
 }
 
+// 核准者要看得到編輯改了什麼：列出送審的版本和官網的差異，另附草稿預覽。
 async function approve() {
-  if (!props.editor.review) return
+  if (!props.editor.review || preparing.value) return
+  const summary = await prepareSummary('核准')
+  const preview = previewUrl.value ? h('a', { href: previewUrl.value, target: '_blank', rel: 'noopener' }, '預覽送審的內容 ↗') : null
   try {
-    await ElMessageBox.confirm('核准後這一版會立刻發布到官網。', '核准並發布？', {
+    await ElMessageBox.confirm(confirmBody(summary, [scheduleSkipNote(), preview]), `核准並發布${named.value}？`, {
       confirmButtonText: '核准並發布',
       cancelButtonText: '先不要',
       type: 'warning',
+      customClass: summary.list.length ? 'publish-confirm' : undefined,
     })
   } catch {
     return
@@ -110,9 +261,42 @@ async function approve() {
   await props.editor.review('approve')
 }
 
+async function publishWithConfirm() {
+  if (preparing.value) return
+  const summary = await prepareSummary('發布')
+  const message = confirmBody(summary, [scheduleSkipNote(), '發布後若要改回，可以從「版本紀錄」還原上一版。'])
+  try {
+    await ElMessageBox.confirm(message, `發布${named.value}到官網？`, {
+      confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
+      cancelButtonText: '先不要',
+      type: 'warning',
+      customClass: summary.list.length ? 'publish-confirm' : undefined,
+    })
+  } catch {
+    return
+  }
+  await props.editor.saveAndPublish()
+}
+
+// 放棄修改沒辦法復原，先問；和離頁框用同一個詞，不和版本紀錄的「還原」混在一起。
+async function discardEdits() {
+  const count = changes.value.length
+  try {
+    await ElMessageBox.confirm(
+      `${named.value || '這一頁'}還沒儲存的修改會清掉，回到上次儲存的內容，沒辦法復原。`,
+      count ? `放棄 ${count} 個欄位的修改？` : '放棄這些修改？',
+      { confirmButtonText: '放棄修改', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  props.editor.reset()
+}
+
 type Tone = 'success' | 'warning' | 'info'
 
 // 唯讀時只說現況，不寫「修改、送審、儲存」這類這個帳號做不到的動作指示。
+// 內容編輯沒有發布鈕，說明改講送審（核准的人依內容範圍：校區管理者或總管理者）。
 const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
   if (!isDirty.value && reviewStatus.value === 'pending_review') {
     return {
@@ -122,7 +306,7 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
         ? '送審的版本核准後才會出現在官網。'
         : canPublishRole.value
           ? '內容編輯送上來的版本，檢查沒問題就核准發布，需要修改就退回並寫原因。'
-          : '校區管理者核准後才會出現在官網；這段期間可以繼續修改，改完要重新送審。',
+          : `${approver.value}核准後才會出現在官網；這段期間可以繼續修改，改完要重新送審。`,
     }
   }
   if (!isDirty.value && reviewStatus.value === 'rejected') {
@@ -130,17 +314,32 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
     return { tone: 'warning', label: '被退回', detail: reviewNote.value ? `原因：${reviewNote.value}` : fallback }
   }
   if (isDirty.value) {
-    return { tone: 'warning', label: '有未儲存的修改', detail: '儲存草稿後才會保留；發布時會自動先儲存。' }
+    return {
+      tone: 'warning',
+      label: '有未儲存的修改',
+      detail: canPublishRole.value ? '儲存草稿後才會保留；發布時會自動先儲存。' : '儲存草稿後才會保留；送審時會自動先儲存。',
+    }
   }
   if (!latestRevisionAt.value) {
     return {
       tone: 'info',
       label: '尚未建立內容',
-      detail: readOnly.value ? '這份內容還沒有草稿。' : '填好後先儲存草稿；發布後，家長才會看到新內容。',
+      detail: readOnly.value
+        ? '這份內容還沒有草稿。'
+        : canPublishRole.value
+          ? '填好後先儲存草稿；發布後，家長才會看到新內容。'
+          : `填好後先儲存草稿再送審；${approver.value}核准後，家長才會看到新內容。`,
     }
   }
   if (isPublished.value) {
     return { tone: 'success', label: '官網顯示的是這一版', detail: `目前發布的版本儲存於 ${formatDateTime(latestRevisionAt.value)}。` }
+  }
+  if (!readOnly.value && !canPublishRole.value) {
+    return {
+      tone: 'warning',
+      label: '草稿還沒送審',
+      detail: `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}。按「送審」後${approver.value}才看得到，核准後才會出現在官網。`,
+    }
   }
   return {
     tone: 'warning',
@@ -150,45 +349,27 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
       : `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}，官網仍是上一版。`,
   }
 })
+const statusLabelId = useId()
+
+// 狀態列的工具：有未發布的草稿給預覽（表單有修改時講明預覽的是上次儲存的內容），
+// 官網就是這一版時給「查看官網此頁」。
+const showPreview = computed(() => Boolean(previewUrl.value && latestRevisionAt.value && !isPublished.value))
+const showLive = computed(() => Boolean(publicUrl.value && isPublished.value))
+const showHistory = computed(() => Boolean(props.editor.history && latestRevisionAt.value))
 
 const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
 
-// 發布是對外動作：按下去官網立刻換掉。時間戳沒人記得住，改成列出
-// 「哪些欄位會變、變成什麼」再問；沒有未儲存修改時（發布已存的草稿）
-// 至少講清楚官網現在是哪一版。發錯了可以從「版本紀錄」還原。
-async function publishWithConfirm() {
-  const current = isPublished.value
-    ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
-    : neverPublished.value
-      ? '官網目前顯示的是預設文字。'
-      : '官網目前顯示的是上一版。'
-  const list = changes.value
-  const message = list.length
-    ? h('div', { class: 'publish-diff' }, [
-        h('p', null, `這次會更新 ${list.length} 個欄位，發布後家長立刻看到：`),
-        h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
-          h('strong', null, c.label),
-          h('span', { class: 'publish-diff__before' }, c.before),
-          h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
-          h('span', { class: 'publish-diff__after' }, c.after),
-          c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
-        ]))),
-        list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-        h('p', { class: 'hint' }, '發布後若要改回，可以從「版本紀錄」還原上一版。'),
-      ])
-    : `${current}發布後家長立刻看到這一版。若要改回，可以從「版本紀錄」還原上一版。`
-  try {
-    await ElMessageBox.confirm(message, '發布到官網？', {
-      confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
-      cancelButtonText: '先不要',
-      type: 'warning',
-      customClass: list.length ? 'publish-confirm' : undefined,
-    })
-  } catch {
-    return
-  }
-  await props.editor.saveAndPublish()
-}
+// 動作列的主色給「真正的下一步」：有修改先存草稿；草稿存好了，能發布的人
+// 下一步是發布、內容編輯是送審；已上線又沒修改就沒有主色鈕（按鈕保留、改一般
+// 樣式，版面不跳動）。送審待核准時「核准並發布」本身是綠色實心。
+const primaryAction = computed<'save' | 'publish' | 'submit' | null>(() => {
+  if (isDirty.value) return 'save'
+  if (!latestRevisionAt.value || isPublished.value || pendingReview.value) return null
+  return canPublishRole.value ? 'publish' : 'submit'
+})
+const actionNote = computed(() =>
+  canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。',
+)
 
 const { confirmLeave } = useUnsavedChanges(computed(() => !loading.value && !loadError.value && isDirty.value), busy)
 
@@ -210,43 +391,57 @@ defineExpose({ confirmLeave })
     <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
 
     <template v-else>
-      <div class="editor__status" :data-tone="status.tone" role="status">
+      <!-- 狀態列不是即時區（裡面有預覽、版本紀錄等工具）；狀態變了才由下面隱藏的 status 唸一次。 -->
+      <div class="editor__status" :data-tone="status.tone" role="group" :aria-labelledby="statusLabelId">
         <span class="editor__dot" aria-hidden="true" />
-        <div>
-          <strong>{{ status.label }}</strong>
+        <div class="editor__status-text">
+          <strong :id="statusLabelId">{{ status.label }}</strong>
           <span>{{ status.detail }}</span>
         </div>
-        <div class="editor__tools">
-          <a
-            v-if="previewUrl && latestRevisionAt && !isPublished"
-            :href="previewUrl"
-            target="_blank"
-            rel="noopener"
-            class="editor__tool"
-          >預覽草稿 ↗</a>
-          <a
-            v-if="mobilePreviewUrl && latestRevisionAt && !isPublished"
-            :href="mobilePreviewUrl"
-            target="_blank"
-            rel="noopener"
-            class="editor__tool"
-          >手機版 ↗</a>
+        <div v-if="showPreview || showLive || showHistory" class="editor__tools">
+          <template v-if="showPreview">
+            <a
+              :href="previewUrl"
+              target="_blank"
+              rel="noopener"
+              class="editor__tool"
+              :title="isDirty ? '預覽顯示上次儲存的內容，還沒儲存的修改看不到' : undefined"
+            >{{ isDirty ? '預覽已存草稿 ↗' : '預覽草稿 ↗' }}</a>
+            <a
+              :href="mobilePreviewUrl"
+              target="_blank"
+              rel="noopener"
+              class="editor__tool"
+            >手機版 ↗</a>
+          </template>
+          <a v-else-if="showLive" :href="publicUrl" target="_blank" rel="noopener" class="editor__tool">查看官網此頁 ↗</a>
           <el-button
-            v-if="editor.history && latestRevisionAt"
+            v-if="showHistory"
             text
             size="small"
             class="editor__history"
-            :disabled="busy"
+            :disabled="locked"
             @click="historyOpen = true"
           >
             版本紀錄
           </el-button>
         </div>
       </div>
+      <!-- 按下發布、送審之後到結果出來前，報讀「正在處理」，不要一片安靜。 -->
+      <p class="visually-hidden" role="status">{{ busy ? '正在處理，請稍候…' : status.label }}</p>
       <div v-if="scheduled.length || lastUnpublished" class="editor__schedules">
-        <p v-for="job in scheduled" :key="job.id">
-          已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
-          <el-button v-if="canPublishRole && !readOnly && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
+        <p v-for="job in scheduled" :key="job.id" class="editor__schedule">
+          <span>已排定 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 自動發布{{ scheduleTarget(job) }}</span>
+          <el-button
+            v-if="canPublishRole && !readOnly && editor.cancelSchedule"
+            text
+            size="small"
+            :loading="cancellingId === job.id"
+            :disabled="cancellingId !== null"
+            @click="cancelSchedule(job)"
+          >
+            取消排程
+          </el-button>
         </p>
         <p v-if="lastUnpublished && !scheduled.length" :class="lastUnpublished.status === 'failed' ? 'is-failed' : 'is-skipped'">
           {{ formatDateTime(lastUnpublished.publish_at) }} 的排程{{ lastUnpublished.status === 'failed' ? '沒有發布' : '已略過' }}：{{ lastUnpublished.error }}
@@ -270,11 +465,12 @@ defineExpose({ confirmLeave })
         :busy="busy"
         :can-publish="canPublishRole && !readOnly"
         :can-restore="!readOnly"
+        :approver="approver"
       />
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
 
-      <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
+      <div class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
         <div class="panel__body">
           <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
                刪除、拖曳等操作由頁面自己隱藏。 -->
@@ -282,47 +478,52 @@ defineExpose({ confirmLeave })
         </div>
       </div>
 
-      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty }">
-        <div class="editor__actions-state" role="status">
-          <span v-if="busy">正在處理，請稍候…</span>
-          <span v-else-if="isDirty">{{ changes.length ? `改了 ${changes.length} 個欄位，` : '' }}儲存草稿不會更動官網，發布後才會公開。</span>
-          <span v-else>儲存草稿不會更動官網，發布後才會公開。</span>
+      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy }">
+        <!-- 「放棄修改」放在說明這一側，離儲存、發布遠一點（破壞性動作不與主動作相鄰）。 -->
+        <div class="editor__actions-state">
+          <p class="editor__actions-text">
+            <template v-if="busy">正在處理，請稍候…</template>
+            <template v-else>
+              <span v-if="isDirty" class="editor__actions-count">{{ changes.length ? `改了 ${changes.length} 個欄位。` : '有未儲存的修改。' }}</span>
+              <span class="editor__actions-note">{{ actionNote }}</span>
+            </template>
+          </p>
+          <el-button v-if="isDirty" text class="editor__discard" :disabled="locked" @click="discardEdits">放棄修改</el-button>
         </div>
         <div class="editor__buttons">
-        <el-button v-if="isDirty" text :disabled="busy" @click="editor.reset()">還原修改</el-button>
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="busy || !isDirty"
-          @click="editor.save()"
-        >
-          儲存草稿
-        </el-button>
-        <template v-if="!canPublishRole">
           <el-button
-            :loading="publishing"
-            :disabled="busy || !latestRevisionAt && !isDirty || pendingReview"
-            class="editor__publish"
-            @click="editor.submitForReview?.()"
+            :type="primaryAction === 'save' ? 'primary' : 'default'"
+            :loading="saving"
+            :disabled="locked || !isDirty"
+            @click="editor.save()"
           >
-            {{ pendingReview ? '已送審' : isDirty ? '儲存並送審' : '送審' }}
+            儲存草稿
           </el-button>
-        </template>
-        <template v-else-if="pendingReview">
-          <el-button :disabled="busy" @click="rejectWithNote">退回</el-button>
-          <el-button type="success" :loading="publishing" :disabled="busy" @click="approve">核准並發布</el-button>
-        </template>
-        <template v-else>
-          <el-button v-if="editor.schedule" :disabled="busy || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
-          <el-button
-            :loading="publishing"
-            :disabled="busy || !canPublish"
-            class="editor__publish"
-            @click="publishWithConfirm()"
-          >
-            {{ isDirty ? '儲存並發布到官網' : '發布到官網' }}
-          </el-button>
-        </template>
+          <template v-if="!canPublishRole">
+            <el-button
+              :type="primaryAction === 'submit' ? 'primary' : 'default'"
+              :loading="publishing"
+              :disabled="busy || !latestRevisionAt && !isDirty || pendingReview"
+              class="editor__publish"
+              @click="editor.submitForReview?.()"
+            >
+              {{ pendingReview ? '已送審' : isDirty ? '儲存並送審' : '送審' }}
+            </el-button>
+          </template>
+          <template v-else-if="pendingReview">
+            <el-button :disabled="busy || preparing" @click="rejectWithNote">退回</el-button>
+            <el-button type="success" :loading="publishing || preparing" :disabled="busy" @click="approve">核准並發布</el-button>
+          </template>
+          <template v-else>
+            <el-button v-if="editor.schedule" :disabled="busy || preparing || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
+            <el-button
+              :type="primaryAction === 'publish' ? 'primary' : 'default'"
+              :loading="publishing || preparing"
+              :disabled="busy || !canPublish"
+              class="editor__publish"
+              @click="publishWithConfirm()"
+            >{{ isDirty ? '儲存並發布' : '發布' }}<span class="editor__wide-only">到官網</span></el-button>
+          </template>
         </div>
       </div>
     </template>
@@ -336,12 +537,14 @@ defineExpose({ confirmLeave })
         format="YYYY/MM/DD HH:mm"
         :disabled-date="disablePastDay"
         :default-time="new Date(2000, 0, 1, 9, 0, 0)"
+        :shortcuts="scheduleShortcuts"
         placeholder="發布時間（台灣時間）"
         style="width: 100%"
       />
+      <p v-if="scheduleInPast" class="editor__schedule-error" role="alert">這個時間已經過了，請選現在之後的時間。</p>
       <template #footer>
         <el-button @click="scheduleOpen = false">取消</el-button>
-        <el-button type="primary" :loading="publishing" :disabled="!scheduleAt" @click="submitSchedule">{{ isDirty ? '儲存並排程' : '排程' }}</el-button>
+        <el-button type="primary" :loading="publishing" :disabled="!scheduleAt || scheduleInPast" @click="submitSchedule">{{ isDirty ? '儲存並排程' : '排程' }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -354,6 +557,9 @@ defineExpose({ confirmLeave })
 .editor__schedules .is-failed { color: var(--el-color-danger); }
 .editor__schedules .is-skipped { color: var(--ink-2); }
 .editor__schedules-all { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
+.editor__schedule-error { margin: 8px 0 0; font-size: 13px; color: var(--el-color-danger); }
+/* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
+.editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .editor {
   max-width: 720px;
 }
@@ -379,11 +585,12 @@ defineExpose({ confirmLeave })
   line-height: 1.45;
 }
 
-.editor__status > div:not(.editor__tools) {
+.editor__status-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 1;
+  min-width: 0;
 }
 
 .editor__tools {
@@ -403,15 +610,12 @@ defineExpose({ confirmLeave })
   font-weight: 600;
 }
 
-.editor__status div span {
+.editor__status-text span {
   color: var(--ink-3);
 }
 
-.editor__history {
-  margin-left: auto;
-  align-self: center;
-}
-
+/* 狀態點依色調（09-22 定案的色彩語意）：綠＝官網就是這一版，暖黃＝草稿或
+   待注意，灰＝還沒有內容。 */
 .editor__dot {
   flex-shrink: 0;
   width: 8px;
@@ -421,21 +625,11 @@ defineExpose({ confirmLeave })
   background: var(--ink-3);
 }
 
-.editor__status[data-tone='success'] .editor__history {
-  margin-left: auto;
-  align-self: center;
+.editor__status[data-tone='success'] .editor__dot {
+  background: var(--status-live);
 }
 
-.editor__dot {
-  background: var(--el-color-success);
-}
-
-.editor__status[data-tone='warning'] .editor__history {
-  margin-left: auto;
-  align-self: center;
-}
-
-.editor__dot {
+.editor__status[data-tone='warning'] .editor__dot {
   background: var(--brand-gold);
   box-shadow: 0 0 0 1px var(--brand-gold-ink);
 }
@@ -462,24 +656,55 @@ defineExpose({ confirmLeave })
   border-top: 1px solid var(--line);
 }
 
-.editor__actions.is-dirty {
-  border-top-color: var(--line);
-}
-
 .editor__actions .el-button + .el-button {
   margin-left: 0;
 }
 
-.editor__actions-state { font-size: 13px; color: var(--ink-3); }
+.editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: 13px; color: var(--ink-3); }
+.editor__actions-text { margin: 0; }
 .editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
-.editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
+/* 手機：狀態文字佔滿一行，預覽與版本紀錄換到下一行、做成 44px 的次要按鈕；
+   黏底動作列只在有修改或處理中時顯示說明那一行，按鈕排成同一列。 */
 @media (max-width: 720px) {
-  .editor__actions {
-    flex-wrap: wrap;
+  .editor__status { flex-wrap: wrap; }
+  .editor__tools { flex: 1 1 100%; flex-wrap: wrap; gap: 6px; margin-left: 18px; white-space: normal; }
+  .editor__tool,
+  .editor__tools .el-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 14px;
   }
-  .editor__actions-state { font-size: 14px; }
-  .editor__buttons { width: 100%; }
-  .editor__buttons .el-button { flex: 1 0 auto; }
+  .editor__actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 0 max(12px, env(safe-area-inset-bottom));
+  }
+  .editor__actions:not(.is-dirty):not(.is-busy) .editor__actions-state { display: none; }
+  .editor__actions-state { flex-wrap: nowrap; justify-content: space-between; font-size: 14px; }
+  .editor__actions-note { display: none; }
+  .editor__discard { flex-shrink: 0; min-height: 44px; }
+  .editor__buttons { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; margin-left: 0; }
+  .editor__buttons .el-button { min-width: 0; min-height: 44px; padding-inline: 8px; }
+  /* 手機按鈕只寫「發布」，但報讀仍是「發布到官網」。 */
+  .editor__wide-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 </style>
