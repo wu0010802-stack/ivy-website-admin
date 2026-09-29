@@ -23,8 +23,8 @@ test('素材庫上傳照片，在「關於常春藤」選用並發布到官網',
     })
     await dialog.getByPlaceholder('簡短描述照片內容').fill(ALT)
     await dialog.getByRole('button', { name: '上傳 1 個檔案' }).click()
-    await expect(dialog.getByRole('button', { name: '關閉' })).toBeEnabled({ timeout: 30_000 })
-    await dialog.getByRole('button', { name: '關閉' }).click()
+    await expect(dialog.getByRole('button', { name: '關閉', exact: true })).toBeEnabled({ timeout: 30_000 })
+    await dialog.getByRole('button', { name: '關閉', exact: true }).click()
     await expect(page.locator('.media__name', { hasText: FILE_NAME })).toBeVisible()
   })
 

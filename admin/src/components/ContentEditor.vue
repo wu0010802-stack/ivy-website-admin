@@ -521,6 +521,7 @@ defineExpose({ confirmLeave })
               :loading="publishing || preparing"
               :disabled="busy || !canPublish"
               class="editor__publish"
+              :aria-label="isDirty ? '儲存並發布到官網' : '發布到官網'"
               @click="publishWithConfirm()"
             >{{ isDirty ? '儲存並發布' : '發布' }}<span class="editor__wide-only">到官網</span></el-button>
           </template>
@@ -603,6 +604,8 @@ defineExpose({ confirmLeave })
 
 .editor__tool {
   font-size: 13px;
+  /* 狀態列是 surface-3 底：一般操作色只有 4.2:1（axe 抓到），連結用深一階。 */
+  color: var(--admin-accent-hover);
 }
 
 .editor__status strong {
@@ -694,7 +697,8 @@ defineExpose({ confirmLeave })
   .editor__discard { flex-shrink: 0; min-height: 44px; }
   .editor__buttons { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; margin-left: 0; }
   .editor__buttons .el-button { min-width: 0; min-height: 44px; padding-inline: 8px; }
-  /* 手機按鈕只寫「發布」，但報讀仍是「發布到官網」。 */
+  /* 手機按鈕只寫「發布」，但報讀仍是「發布到官網」。報讀名稱另外用 aria-label 寫死：
+     el-button 裡的 span 是 flex，「到官網」會被當成區塊，名稱會多一個空白（「發布 到官網」）。 */
   .editor__wide-only {
     position: absolute;
     width: 1px;
