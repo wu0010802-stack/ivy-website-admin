@@ -119,18 +119,22 @@ const unassignedClicks = computed(() => {
 // 「送出需求」只有家長從官網送出才記，後台補登的案件沒有；確認率與取消率因此只拿
 // 官網表單那一列來算，補登的另外寫件數，不讓補登把比例灌到 100% 以上。
 const webCounts = computed(() => funnel.value?.by_source.find((row) => row.source === 'web')?.counts ?? {})
-const manualCount = (key: string) =>
+const isManualSource = (source: string) => (MANUAL_VISIT_SOURCES as readonly string[]).includes(source)
+const sourceCount = (key: string, match: (source: string) => boolean) =>
   (funnel.value?.by_source ?? [])
-    .filter((row) => (MANUAL_VISIT_SOURCES as readonly string[]).includes(row.source))
+    .filter((row) => match(row.source))
     .reduce((sum, row) => sum + (row.counts[key] ?? 0), 0)
 
+// 舊資料沒有記來源（「未記錄來源」）：不算進官網比例也不算補登，另外寫，總數才對得起來。
 function webShareNote(key: string, describe: (rate: string) => string): string {
   const webCreated = webCounts.value.request_created ?? 0
-  const manual = manualCount(key)
+  const manual = sourceCount(key, isManualSource)
+  const unrecorded = sourceCount(key, (source) => source !== 'web' && !isManualSource(source))
   const rate = percent(webCounts.value[key] ?? 0, webCreated)
   return [
     webCreated ? (rate ? describe(rate) : '含之前送出的需求，不計比例') : '',
     manual ? `另有後台補登 ${manual} 筆` : '',
+    unrecorded ? `另有未記錄來源 ${unrecorded} 筆` : '',
   ].filter(Boolean).join('・')
 }
 
@@ -248,7 +252,7 @@ const entryRows = computed(() =>
           </li>
         </ol>
         <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
-        <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）的件數另外寫。</p>
+        <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。</p>
       </section>
 
       <section class="panel">
@@ -278,7 +282,7 @@ const entryRows = computed(() =>
                   <div><dt>送出需求</dt><dd class="num">{{ row.created }}</dd></div>
                   <div><dt>確認</dt><dd class="num">{{ row.confirmed }}</dd></div>
                   <div><dt>完成</dt><dd class="num">{{ row.completed }}</dd></div>
-                  <div><dt>取消</dt><dd class="num">{{ row.cancelled }}<template v-if="row.cancelRate !== '—'">（{{ row.cancelRate }}）</template></dd></div>
+                  <div><dt>取消</dt><dd class="num">{{ row.cancelled }}<template v-if="row.cancelRate !== '—'">（取消率 {{ row.cancelRate }}）</template></dd></div>
                 </dl>
               </li>
             </ul>

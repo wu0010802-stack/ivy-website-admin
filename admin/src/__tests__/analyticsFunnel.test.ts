@@ -100,6 +100,28 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(wrapper.text()).toContain('不計取消率')
   })
 
+  it('沒有記錄來源的舊資料不算進官網比例也不算補登，另外寫件數；手機小卡寫明取消率', async () => {
+    const { wrapper } = await setup({
+      ...funnel,
+      counts: { ...outcome(8, 7, 3, 3) },
+      by_source: [
+        { source: 'web', counts: outcome(8, 4, 3, 1) },
+        { source: 'phone', counts: outcome(0, 1, 0, 0) },
+        { source: 'unknown', counts: outcome(0, 2, 0, 2) },
+      ],
+    })
+    const rows = wrapper.findAll('.funnel__row').map((row) => row.text())
+    // 確認 7 = 官網 4＋補登 1＋未記錄來源 2。
+    expect(rows[1]).toContain('官網需求的 50%')
+    expect(rows[1]).toContain('另有後台補登 1 筆')
+    expect(rows[1]).toContain('另有未記錄來源 2 筆')
+    expect(rows[3]).toContain('官網需求取消率 13%')
+    expect(rows[3]).not.toContain('後台補登')
+    expect(rows[3]).toContain('另有未記錄來源 2 筆')
+    const webCard = wrapper.findAll('.analytics__record').find((card) => card.text().includes('官網表單'))!
+    expect(webCard.text()).toContain('1（取消率 13%）')
+  })
+
   it('換條件時保留上一次的數字並寫「更新中…」，不整區換成骨架', async () => {
     const { wrapper, get } = await setup()
     let resolve!: (value: unknown) => void
