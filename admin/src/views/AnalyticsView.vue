@@ -291,7 +291,7 @@ const entryRows = computed(() =>
       <section class="panel">
         <div class="panel__head"><h2>預約鈕點擊</h2></div>
         <div class="panel__body">
-          <div class="stat-list">
+          <div class="stat-list analytics__clicks">
             <div v-for="c in clicks" :key="c.label" class="stat">
               <span class="stat__label">{{ c.label }}</span>
               <span class="stat__value">{{ c.value }}</span>
@@ -464,6 +464,13 @@ const entryRows = computed(() =>
 .funnel__note {
   font-size: 12px;
   color: var(--ink-3);
+}
+
+/* 四種點擊排成一列；手機沿用共用的兩欄。 */
+@media (min-width: 721px) {
+  .analytics__clicks {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {

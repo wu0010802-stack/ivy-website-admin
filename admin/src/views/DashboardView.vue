@@ -503,7 +503,7 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
 .task__number { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; font-size: 17px; }
 .task h3 { font-size: 16px; }
 .task p { margin-top: 6px; color: var(--ink-2); max-width: 60ch; line-height: 1.7; }
-.task__action { display: inline-flex; margin-top: 12px; color: var(--el-color-primary); font-weight: 500; }
+.task__action { display: inline-flex; gap: 4px; margin-top: 12px; color: var(--el-color-primary); font-weight: 500; }
 .task__retry { margin-top: 12px; }
 .dash__tasks .section__title { align-items: center; }
 .dash__updated { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 4px; }
@@ -531,7 +531,7 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .dash__summary a, .dash__links small, .dash__date { font-size: 14px; }
   .task { padding: 20px 16px; gap: 12px; }
   /* 草稿、素材、待審裡的內容連結與「查看全站排程」這類連結，手機點擊範圍至少 44px。 */
-  .task__rows a, .task__kinds a, a.task__action { display: inline-flex; align-items: center; min-height: 44px; }
+  .task__rows a, .task__kinds a, a.task__action { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
   .task__rows { gap: 4px; }
   .task__rows li { flex-direction: column; align-items: flex-start; gap: 0; }
   .task__rows li > span { margin-top: -8px; }
