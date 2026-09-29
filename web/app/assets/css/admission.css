@@ -318,12 +318,6 @@
   .adm-visit { margin-top: 64px; }
   .adm-visit-copy { padding: 32px 24px 36px; }
 }
-/* 360 以下（小手機、Android 放大顯示）：一週五格每格只剩約 34px，「運動服」「星期一」會拆字；收窄卡片內距與格距，每格約 46px */
-@media (width < 360px) {
-  .adm-daily-card { padding-inline: 16px; }
-  .adm-week { gap: 4px; }
-  .adm-week li { padding-inline: 0; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .adm-print-inner, .adm-plus, .adm-class-tabs button::after, .adm-control-pill .icon { transition: none; }
