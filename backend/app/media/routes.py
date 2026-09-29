@@ -125,6 +125,13 @@ def _media_error(exc: MediaValidationError) -> HTTPException:
     )
 
 
+def _media_busy() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "MEDIA_BUSY", "message": "同校區還有其他檔案正在處理，請稍後再上傳一次"},
+    )
+
+
 def _quota_exceeded() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -133,6 +140,17 @@ def _quota_exceeded() -> HTTPException:
             "message": "此校區素材空間已滿，請先刪除不用的素材（刪除的素材過了保留天數才會釋出空間）",
         },
     )
+
+
+async def _release_db(db: AsyncSession) -> None:
+    """送檔之前先結束交易、把連線還給連線池。
+
+    get_db_session 的 session 要等整個回應本文送完才關；影片可達 150 MB，送檔期間
+    一直握著一條 idle in transaction 的連線（與素材表的鎖），匿名請求一多就能把
+    連線池耗盡，公開送單、後台登入、限流全部跟著停。這幾支路由只讀不寫，close()
+    結束（回滾）唯讀交易並歸還連線；dependency 之後再 close 一次沒有影響。送檔會
+    用到的屬性都已載好（素材與 variants 用 selectinload 讀進來，close 之後仍可讀）。"""
+    await db.close()
 
 
 async def _file_response(
@@ -406,14 +424,14 @@ async def upload_media(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kind 必須是 image 或 video") from exc
 
-    source_path, size = await _receive_upload(file, _max_bytes(request, declared_kind))
+    # 素材記的大小是去掉拍攝資訊後實際存下的檔案（service 算），不是上傳大小。
+    source_path, _ = await _receive_upload(file, _max_bytes(request, declared_kind))
     storage = service.get_storage(request.app.state.settings)
     try:
         asset = await service.create_media_asset(
             db,
             storage,
             source_path=source_path,
-            size_bytes=size,
             declared_kind=declared_kind,
             original_filename=file.filename or "unnamed",
             campus_key=campus_key,
@@ -425,6 +443,9 @@ async def upload_media(
     except service.MediaQuotaExceeded as exc:
         await db.rollback()
         raise _quota_exceeded() from exc
+    except service.MediaBusy as exc:
+        await db.rollback()
+        raise _media_busy() from exc
     except MediaValidationError as exc:
         await db.rollback()
         raise _media_error(exc) from exc
@@ -619,7 +640,7 @@ async def replace_media(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "MEDIA_DELETED", "message": "這個素材已刪除（待清理），先復原才能替換"},
         )
-    source_path, size = await _receive_upload(file, _max_bytes(request, old_asset.kind))
+    source_path, _ = await _receive_upload(file, _max_bytes(request, old_asset.kind))
     storage = service.get_storage(request.app.state.settings)
     try:
         new_asset = await service.replace_media_asset(
@@ -627,7 +648,6 @@ async def replace_media(
             storage,
             old_asset,
             source_path=source_path,
-            size_bytes=size,
             original_filename=file.filename or "unnamed",
             created_by=current_user.id,
             quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
@@ -635,6 +655,9 @@ async def replace_media(
     except service.MediaQuotaExceeded as exc:
         await db.rollback()
         raise _quota_exceeded() from exc
+    except service.MediaBusy as exc:
+        await db.rollback()
+        raise _media_busy() from exc
     except MediaValidationError as exc:
         await db.rollback()
         raise _media_error(exc) from exc
@@ -662,6 +685,7 @@ async def get_media_file(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     asset = await _get_owned_asset(db, current_user, media_id)
+    await _release_db(db)
     storage = service.get_storage(request.app.state.settings)
     return await _file_response(storage, request, asset, {"Cache-Control": "private, no-store"})
 
@@ -677,6 +701,7 @@ async def get_media_variant(
     """素材庫列表、選圖器用的縮圖與影片 poster（規格 L139）。權限同原檔。
     衍生檔一旦產生就不會變（替換素材是新的 id），可以讓瀏覽器私有快取。"""
     asset = await _get_owned_asset(db, current_user, media_id)
+    await _release_db(db)
     storage = service.get_storage(request.app.state.settings)
     return await _file_response(
         storage, request, _variant(asset, variant), {"Cache-Control": "private, max-age=86400"}
@@ -731,6 +756,7 @@ async def get_public_media_file(
     session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> Response:
     asset, headers = await _public_asset(db, media_id, session_token)
+    await _release_db(db)
     storage = service.get_storage(request.app.state.settings)
     # content_type 來自實際解碼結果（jpeg/png/webp/mp4，另有舊的 gif），
     # _file_response 仍明確關掉瀏覽器的 MIME 嗅探。
@@ -747,5 +773,6 @@ async def get_public_media_variant(
 ) -> Response:
     """官網的縮圖、大圖（srcset）與影片 poster；誰拿得到跟原檔完全相同。"""
     asset, headers = await _public_asset(db, media_id, session_token)
+    await _release_db(db)
     storage = service.get_storage(request.app.state.settings)
     return await _file_response(storage, request, _variant(asset, variant), headers)

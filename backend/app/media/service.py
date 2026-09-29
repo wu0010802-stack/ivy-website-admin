@@ -4,11 +4,14 @@ import asyncio
 import functools
 import hashlib
 import logging
+import os
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,10 +19,12 @@ from app.config import Settings
 from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, SiteState
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.content.registry import MediaRef
+from app.media import metadata as media_metadata
 from app.media import references as media_references
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
 from app.media.schemas import PublicMediaOut, PublicMediaVariantOut
 from app.media.processing import (
+    IMAGE_FORMATS,
     LARGE_SIDE,
     THUMBNAIL_SIZE,
     ProcessingError,
@@ -28,6 +33,7 @@ from app.media.processing import (
     make_webp,
     needs_large_rendition,
     probe_video,
+    run_media_job,
 )
 from app.media.storage import LocalMediaStorage, MediaStorage, S3MediaStorage
 from app.media.validation import MediaValidationError, sniff_and_validate
@@ -57,6 +63,19 @@ class MediaQuotaExceeded(Exception):
     pass
 
 
+class MediaBusy(Exception):
+    """同校（或共用素材）另一個上傳握著配額鎖太久，這次等不到：請稍後重試。"""
+
+
+# 等同校配額鎖的上限。持鎖的上傳在交易內還要寫儲存體與產生衍生檔（影片
+# 150 MB、S3、ffmpeg poster 最長 30 秒，還可能排處理名額），執行期連線預設的
+# lock_timeout（WEBSITE_DB_LOCK_TIMEOUT_MS，10 秒）對這把鎖太短，第二個檔案
+# 會變成 500（稽核 media-quota-lock-timeout-500）。持鎖方閒置在交易中時另受
+# idle_in_transaction_session_timeout 限制，所以等待仍有上限。
+QUOTA_LOCK_TIMEOUT = "120s"
+_LOCK_NOT_AVAILABLE = "55P03"
+
+
 async def _ensure_quota(
     db: AsyncSession, campus_key: str | None, incoming_bytes: int, quota_bytes: int
 ) -> None:
@@ -64,10 +83,17 @@ async def _ensure_quota(
     「還有空間」而一起超過。處理失敗的素材原檔會被刪掉，不計入。"""
     bind = db.get_bind()
     if bind.dialect.name == "postgresql":
-        await db.execute(
-            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-            {"key": f"media-quota:{campus_key or '__shared__'}"},
-        )
+        # SET LOCAL 只到這個交易結束，連線還回池後恢復預設。
+        await db.execute(text(f"SET LOCAL lock_timeout = '{QUOTA_LOCK_TIMEOUT}'"))
+        try:
+            await db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": f"media-quota:{campus_key or '__shared__'}"},
+            )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) == _LOCK_NOT_AVAILABLE:
+                raise MediaBusy() from exc
+            raise
     scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
     used = await db.execute(
         select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(
@@ -114,10 +140,12 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def image_renditions(source: bytes | Path, width: int | None, height: int | None) -> list[tuple[VariantKind, Rendition]]:
-    out = [(VariantKind.THUMBNAIL, make_webp(source, THUMBNAIL_SIZE[0]))]
+def image_renditions(
+    source: bytes | Path, width: int | None, height: int | None, *, formats: tuple[str, ...] = IMAGE_FORMATS
+) -> list[tuple[VariantKind, Rendition]]:
+    out = [(VariantKind.THUMBNAIL, make_webp(source, THUMBNAIL_SIZE[0], formats=formats))]
     if needs_large_rendition(width, height):
-        out.append((VariantKind.LARGE, make_webp(source, LARGE_SIDE, quality=82)))
+        out.append((VariantKind.LARGE, make_webp(source, LARGE_SIDE, quality=82, formats=formats)))
     return out
 
 
@@ -125,6 +153,34 @@ def _renditions(kind: MediaKind, source_path: Path, width: int | None, height: i
     if kind == MediaKind.VIDEO:
         return [(VariantKind.POSTER, extract_video_poster(source_path))]
     return image_renditions(source_path, width, height)
+
+
+def strip_to_temp(source_path: Path, content_type: str) -> tuple[Path, tuple[int, int] | None]:
+    """去掉拍攝資訊的複本寫進新的暫存檔，回傳 (路徑, 圖片實際寬高或 None)；呼叫端
+    負責刪掉。不改 source_path：匯入官網內建素材時它是 repo 裡的檔案。"""
+    fd, name = tempfile.mkstemp(prefix="media-clean-", suffix=_EXTENSION_BY_CONTENT_TYPE[content_type])
+    os.close(fd)
+    clean_path = Path(name)
+    try:
+        size = media_metadata.strip_file(source_path, clean_path, content_type)
+    except BaseException:
+        clean_path.unlink(missing_ok=True)
+        raise
+    return clean_path, size
+
+
+async def stored_sha256(path: Path, kind: MediaKind) -> str:
+    """這個檔案上傳後素材庫會記的 sha256（去掉拍攝資訊之後的位元組）。匯入官網
+    內建素材時用它去重；驗證不過的檔案回原檔雜湊（真的匯入時照樣會被擋下）。"""
+    try:
+        content_type, _, _ = await run_media_job(sniff_and_validate, path, kind)
+        clean_path, _ = await run_media_job(strip_to_temp, path, content_type)
+    except MediaValidationError:
+        return await asyncio.to_thread(file_sha256, path)
+    try:
+        return await asyncio.to_thread(file_sha256, clean_path)
+    finally:
+        clean_path.unlink(missing_ok=True)
 
 
 def get_storage(settings: Settings) -> MediaStorage:
@@ -138,7 +194,6 @@ async def create_media_asset(
     storage: MediaStorage,
     *,
     source_path: Path,
-    size_bytes: int,
     declared_kind: MediaKind,
     original_filename: str,
     campus_key: str | None,
@@ -147,79 +202,91 @@ async def create_media_asset(
     source_attribution: str | None = None,
     quota_bytes: int | None = None,
 ) -> MediaAsset:
-    """驗證 → 存檔 → 產生縮圖／poster → 寫入 metadata。上傳本體已經由路由
-    邊收邊寫進暫存檔（source_path），這裡全程讀檔，影片不會整份進記憶體。
-    仍在請求內完成（沒有背景轉檔佇列：目前只有抽一張 poster，ffmpeg 最長
-    30 秒），但解碼、寫檔、ffprobe 與 ffmpeg 都丟到 thread 執行：API 只有
-    一個 event loop，同步做會讓一次影片上傳卡住所有校區與公開訪客的請求。"""
-    content_type, width, height = await asyncio.to_thread(sniff_and_validate, source_path, declared_kind)
-    sha256 = await asyncio.to_thread(file_sha256, source_path)
-    duration: float | None = None
-    if declared_kind == MediaKind.VIDEO:
-        probe = await asyncio.to_thread(probe_video, source_path)
-        width, height, duration = probe.width, probe.height, probe.duration_seconds
-    if quota_bytes is not None:
-        await _ensure_quota(db, campus_key, size_bytes, quota_bytes)
+    """驗證 → 去除拍攝資訊 → 存檔 → 產生縮圖／poster → 寫入 metadata。上傳本體
+    已經由路由邊收邊寫進暫存檔（source_path），這裡全程讀檔，影片不會整份進記憶體。
 
-    extension = _EXTENSION_BY_CONTENT_TYPE[content_type]
-    storage_key = storage.generate_key(extension)
-    await asyncio.to_thread(storage.write_file, storage_key, source_path)
-    # 從這裡開始儲存空間裡已經有檔案了；後面任何一步失敗都必須把它刪掉，
-    # 否則會累積永遠沒有 DB 記錄指向的孤兒檔。
-    asset = MediaAsset(
-        id=uuid.uuid4(),
-        campus_key=campus_key,
-        kind=declared_kind,
-        status=MediaStatus.PROCESSING,
-        storage_key=storage_key,
-        original_filename=original_filename,
-        content_type=content_type,
-        size_bytes=size_bytes,
-        sha256=sha256,
-        width=width,
-        height=height,
-        duration_seconds=duration,
-        alt_text=alt_text,
-        source_attribution=source_attribution,
-        created_by=created_by,
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(asset)
-    try:
-        await db.flush()
-    except Exception:
-        await asyncio.to_thread(storage.delete, storage_key)
-        raise
+    存進儲存體的是去掉 EXIF／GPS 等拍攝資訊的複本（見 metadata 模組）：原檔會
+    公開在官網上。素材記的大小、sha256、寬高都是這份實際存下的檔案。
 
-    written: list[str] = []
+    仍在請求內完成（沒有背景轉檔佇列：目前只有抽一張 poster，ffmpeg 最長 30 秒），
+    但解碼、去除資訊、ffprobe 與 ffmpeg 都經 run_media_job 丟到 thread，而且整個
+    程序同時最多跑 MEDIA_JOB_CONCURRENCY 件：API 只有一個 event loop 與一個程序，
+    同步做會卡住所有請求，不設上限則並行上傳就能把 API 記憶體吃光。"""
+    content_type, width, height = await run_media_job(sniff_and_validate, source_path, declared_kind)
+    clean_path, clean_size = await run_media_job(strip_to_temp, source_path, content_type)
     try:
-        renditions = await asyncio.to_thread(_renditions, declared_kind, source_path, width, height)
-        for variant_kind, rendition in renditions:
-            variant_key = storage.generate_key(".webp")
-            await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
-            written.append(variant_key)
-            db.add(
-                MediaVariant(
-                    id=uuid.uuid4(),
-                    media_id=asset.id,
-                    kind=variant_kind,
-                    storage_key=variant_key,
-                    content_type="image/webp",
-                    width=rendition.width,
-                    height=rendition.height,
+        size_bytes = clean_path.stat().st_size
+        sha256 = await asyncio.to_thread(file_sha256, clean_path)
+        if clean_size is not None:
+            width, height = clean_size
+        duration: float | None = None
+        if declared_kind == MediaKind.VIDEO:
+            probe = await run_media_job(probe_video, clean_path)
+            width, height, duration = probe.width, probe.height, probe.duration_seconds
+        if quota_bytes is not None:
+            await _ensure_quota(db, campus_key, size_bytes, quota_bytes)
+
+        extension = _EXTENSION_BY_CONTENT_TYPE[content_type]
+        storage_key = storage.generate_key(extension)
+        await asyncio.to_thread(storage.write_file, storage_key, clean_path)
+        # 從這裡開始儲存空間裡已經有檔案了；後面任何一步失敗都必須把它刪掉，
+        # 否則會累積永遠沒有 DB 記錄指向的孤兒檔。
+        asset = MediaAsset(
+            id=uuid.uuid4(),
+            campus_key=campus_key,
+            kind=declared_kind,
+            status=MediaStatus.PROCESSING,
+            storage_key=storage_key,
+            original_filename=original_filename,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            sha256=sha256,
+            width=width,
+            height=height,
+            duration_seconds=duration,
+            alt_text=alt_text,
+            source_attribution=source_attribution,
+            created_by=created_by,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(asset)
+        try:
+            await db.flush()
+        except Exception:
+            await asyncio.to_thread(storage.delete, storage_key)
+            raise
+
+        written: list[str] = []
+        try:
+            renditions = await run_media_job(_renditions, declared_kind, clean_path, width, height)
+            for variant_kind, rendition in renditions:
+                variant_key = storage.generate_key(".webp")
+                await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
+                written.append(variant_key)
+                db.add(
+                    MediaVariant(
+                        id=uuid.uuid4(),
+                        media_id=asset.id,
+                        kind=variant_kind,
+                        storage_key=variant_key,
+                        content_type="image/webp",
+                        width=rendition.width,
+                        height=rendition.height,
+                    )
                 )
-            )
-        asset.status = MediaStatus.READY
-    except ProcessingError as exc:
-        asset.status = MediaStatus.FAILED
-        asset.processing_error = str(exc)[:500]
-        # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
-        # 讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
-        for key in [storage_key, *written]:
-            await asyncio.to_thread(storage.delete, key)
+            asset.status = MediaStatus.READY
+        except ProcessingError as exc:
+            asset.status = MediaStatus.FAILED
+            asset.processing_error = str(exc)[:500]
+            # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
+            # 讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
+            for key in [storage_key, *written]:
+                await asyncio.to_thread(storage.delete, key)
 
-    await db.flush()
-    return asset
+        await db.flush()
+        return asset
+    finally:
+        clean_path.unlink(missing_ok=True)
 
 
 async def find_by_sha256(db: AsyncSession, sha256: str, campus_key: str | None) -> MediaAsset | None:
@@ -477,7 +544,6 @@ async def replace_media_asset(
     old_asset: MediaAsset,
     *,
     source_path: Path,
-    size_bytes: int,
     original_filename: str,
     created_by: uuid.UUID,
     quota_bytes: int | None = None,
@@ -490,7 +556,6 @@ async def replace_media_asset(
         db,
         storage,
         source_path=source_path,
-        size_bytes=size_bytes,
         declared_kind=old_asset.kind,
         original_filename=original_filename,
         campus_key=old_asset.campus_key,

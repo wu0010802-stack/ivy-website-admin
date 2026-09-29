@@ -65,6 +65,9 @@ async def bootstrap_admin() -> None:
         if existing.scalars().first() is not None:
             print(f"{email} 已存在，取消建立。", file=sys.stderr)
             raise SystemExit(1)
+        # 等人輸入密碼前先結束這個唯讀交易：執行期連線帶 idle_in_transaction
+        # 逾時（app/db.py，預設 5 分鐘），輸入超過逾時的話之後的 commit 會失敗。
+        await db.rollback()
 
         password = getpass.getpass("密碼（至少 12 字元，輸入時不顯示）：")
         confirm = getpass.getpass("再輸入一次密碼：")
@@ -417,6 +420,125 @@ async def regenerate_media_variants(*, apply: bool, include_all: bool) -> None:
         raise SystemExit(1)
 
 
+async def strip_media_metadata(*, apply: bool) -> None:
+    """既有素材的原檔去除拍攝資訊（app/media/metadata.py）：2026-09-29 以前上傳的原檔
+    是原樣保存的，EXIF／GPS、影片拍攝地點會跟著公開在官網。預設只列出會處理哪些；
+    --apply 才改寫：去除後的檔案存成新的 storage key、更新素材記錄的大小、sha256
+    與寬高，commit 成功才刪舊檔。每個素材各自一個交易，失敗的不影響其他個；已經
+    乾淨的檔案不動，可以重跑。
+
+    舊素材（sha256 為 NULL）的 sha256 維持 NULL：regenerate-media-variants 靠它認出
+    還沒轉正的舊縮圖，會在重新產生時補上。舊 GIF 不處理。"""
+    import tempfile
+
+    from app.media import metadata as media_metadata
+    from app.media import service as media_service
+    from app.media.models import MediaAsset, MediaStatus
+    from app.media.storage import MediaFileMissing
+    from app.media.validation import MediaValidationError
+    from app.operations import audit_service
+
+    settings = get_settings()
+    storage = media_service.get_storage(settings)
+    factory = await _session_factory()
+    async with factory() as db:
+        rows = (
+            await db.execute(
+                select(MediaAsset.id, MediaAsset.storage_key, MediaAsset.content_type, MediaAsset.original_filename)
+                .where(MediaAsset.status == MediaStatus.READY)
+                .order_by(MediaAsset.created_at, MediaAsset.id)
+            )
+        ).all()
+        await db.rollback()
+
+    stripped: list[str] = []
+    failed: list[str] = []
+    already_clean = missing = skipped = 0
+    with tempfile.TemporaryDirectory(prefix="media-strip-") as tmp:
+        for row in rows:
+            if row.content_type not in media_metadata.STRIPPABLE_CONTENT_TYPES:
+                skipped += 1
+                continue
+            label = f"{row.id}：{row.original_filename}"
+            source = Path(tmp) / f"source{Path(row.storage_key).suffix}"
+            clean_path: Path | None = None
+            try:
+                await asyncio.to_thread(storage.download_file, row.storage_key, source)
+                clean_path, size = await asyncio.to_thread(media_service.strip_to_temp, source, row.content_type)
+                old_sha = await asyncio.to_thread(media_service.file_sha256, source)
+                new_sha = await asyncio.to_thread(media_service.file_sha256, clean_path)
+                if new_sha == old_sha:
+                    already_clean += 1
+                    continue
+                if not apply:
+                    stripped.append(str(row.id))
+                    print(f"  {label}")
+                    continue
+                new_key = storage.generate_key(Path(row.storage_key).suffix)
+                await asyncio.to_thread(storage.write_file, new_key, clean_path)
+                async with factory() as db:
+                    try:
+                        asset = (
+                            await db.execute(select(MediaAsset).where(MediaAsset.id == row.id).with_for_update())
+                        ).scalar_one_or_none()
+                        if asset is None or asset.storage_key != row.storage_key:
+                            raise RuntimeError("素材在處理期間被改動或刪除")
+                        asset.storage_key = new_key
+                        asset.size_bytes = clean_path.stat().st_size
+                        if asset.sha256 is not None:
+                            asset.sha256 = new_sha
+                        if size is not None:
+                            asset.width, asset.height = size
+                        await db.commit()
+                    except Exception:
+                        await db.rollback()
+                        await asyncio.to_thread(storage.delete, new_key)
+                        raise
+            except (MediaFileMissing, FileNotFoundError):
+                missing += 1
+                print(f"  [找不到檔案] {label}", file=sys.stderr)
+                continue
+            except Exception as exc:  # noqa: BLE001 - 一個失敗不中斷整批，最後一起回報
+                failed.append(str(row.id))
+                reason = exc.message if isinstance(exc, MediaValidationError) else type(exc).__name__
+                print(f"  [失敗] {label}（{reason}）", file=sys.stderr)
+                continue
+            finally:
+                source.unlink(missing_ok=True)
+                if clean_path is not None:
+                    clean_path.unlink(missing_ok=True)
+            # commit 成功才刪舊檔；刪不掉只留下孤兒檔，素材已經指向新檔。
+            try:
+                await asyncio.to_thread(storage.delete, row.storage_key)
+            except Exception:  # noqa: BLE001
+                print(f"  舊原檔 {row.storage_key} 刪除失敗，留下孤兒檔。", file=sys.stderr)
+            stripped.append(str(row.id))
+            print(f"  [完成] {label}")
+
+    if apply and (stripped or failed):
+        async with factory() as db:
+            await audit_service.log_action(
+                db,
+                actor_user_id=None,
+                action="media.strip_metadata",
+                target_type="media_asset",
+                target_id="originals",
+                metadata={"stripped": sorted(stripped), "failed": sorted(failed)},
+            )
+            await db.commit()
+    summary = (
+        f"共 {len(rows)} 個素材：{'已去除' if apply else '會去除'} {len(stripped)}、已乾淨 {already_clean}、"
+        f"找不到檔案 {missing}、無法處理 {len(failed)}"
+    )
+    extra = f"；另有 {skipped} 個舊 GIF 等格式不處理" if skipped else ""
+    if apply:
+        print(f"{summary}{extra}。")
+    else:
+        print(f"dry-run：{summary}{extra}（未寫入）。加 --apply 才會執行。")
+    if failed:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -425,7 +547,7 @@ def main() -> None:
             "initialize-content <fixture> [--dry-run]|process-notifications|"
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
-            "regenerate-media-variants [--apply] [--all]>",
+            "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -482,6 +604,11 @@ def main() -> None:
         if args - {"--apply", "--all", "--dry-run"} or {"--apply", "--dry-run"} <= args:
             raise SystemExit("用法：python -m app.cli regenerate-media-variants [--apply] [--all]")
         asyncio.run(regenerate_media_variants(apply="--apply" in args, include_all="--all" in args))
+    elif command == "strip-media-metadata":
+        args = set(sys.argv[2:])
+        if args - {"--apply", "--dry-run"} or {"--apply", "--dry-run"} <= args:
+            raise SystemExit("用法：python -m app.cli strip-media-metadata [--apply]")
+        asyncio.run(strip_media_metadata(apply="--apply" in args))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

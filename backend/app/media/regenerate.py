@@ -14,6 +14,7 @@ srcset、後台點焦點改用原檔），這裡重讀原檔重新產生，寬�
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import io
 import uuid
@@ -25,7 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
-from app.media.processing import needs_large_rendition, oriented_size
+from app.media.processing import (
+    CONTENT_TYPE_BY_FORMAT,
+    LEGACY_CONTENT_TYPE_BY_FORMAT,
+    needs_large_rendition,
+    oriented_size,
+    run_media_job,
+)
 from app.media.service import image_renditions
 from app.media.storage import MediaFileMissing, MediaStorage
 from app.media.validation import MAX_IMAGE_PIXELS
@@ -85,8 +92,23 @@ async def find_candidates(db: AsyncSession, *, include_all: bool = False) -> lis
     return out
 
 
-def _inspect(data: bytes) -> tuple[int, int]:
-    with Image.open(io.BytesIO(data)) as img:
+# 素材庫裡的原檔只依記錄的格式開（Pillow 不試其他解碼器）；2026-09-25 以前收過的
+# GIF 仍要能重新產生衍生檔。
+_STORED_FORMATS = {
+    content_type: (fmt,)
+    for fmt, content_type in {**CONTENT_TYPE_BY_FORMAT, **LEGACY_CONTENT_TYPE_BY_FORMAT}.items()
+}
+
+
+def _formats(content_type: str) -> tuple[str, ...]:
+    formats = _STORED_FORMATS.get(content_type)
+    if formats is None:
+        raise RegenerationFailed(f"不支援的圖片格式：{content_type}")
+    return formats
+
+
+def _inspect(data: bytes, content_type: str) -> tuple[int, int]:
+    with Image.open(io.BytesIO(data), formats=_formats(content_type)) as img:
         width, height = img.size
         if width * height > MAX_IMAGE_PIXELS:
             raise RegenerationFailed(f"圖片像素過多（{width}x{height}）")
@@ -120,8 +142,10 @@ async def regenerate_image_variants(db: AsyncSession, storage: MediaStorage, ass
     except (MediaFileMissing, FileNotFoundError) as exc:
         raise RegenerationFailed("儲存空間裡找不到原檔") from exc
     try:
-        width, height = await asyncio.to_thread(_inspect, data)
-        renditions = await asyncio.to_thread(image_renditions, data, width, height)
+        width, height = await run_media_job(_inspect, data, asset.content_type)
+        renditions = await run_media_job(
+            functools.partial(image_renditions, formats=_formats(asset.content_type)), data, width, height
+        )
     except RegenerationFailed:
         raise
     except Exception as exc:  # noqa: BLE001 - Pillow 對壞檔可能丟各種例外

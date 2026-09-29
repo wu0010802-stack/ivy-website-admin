@@ -208,7 +208,10 @@ async def check_entries(
         if size > max_bytes[entry.kind.value]:
             results.append(ImportResult(entry, "too_large", message=f"{size // (1024 * 1024)} MB 超過上傳上限"))
             continue
-        existing = await media_service.find_by_sha256(db, media_service.file_sha256(entry.path), entry.campus_key)
+        # 素材庫記的是去掉拍攝資訊後的雜湊，去重也要比同一份。
+        existing = await media_service.find_by_sha256(
+            db, await media_service.stored_sha256(entry.path, entry.kind), entry.campus_key
+        )
         if existing is not None:
             results.append(ImportResult(entry, "exists", media_id=existing.id))
         else:
@@ -223,7 +226,9 @@ async def import_entry(
     entry = result.entry
     # 同一次匯入裡可能有內容相同的檔案（例如桌機與手機用同一支影片）：前一個
     # 已經匯入就沿用。
-    existing = await media_service.find_by_sha256(db, media_service.file_sha256(entry.path), entry.campus_key)
+    existing = await media_service.find_by_sha256(
+        db, await media_service.stored_sha256(entry.path, entry.kind), entry.campus_key
+    )
     if existing is not None:
         result.status, result.media_id = "exists", existing.id
         return
@@ -232,7 +237,6 @@ async def import_entry(
             db,
             storage,
             source_path=entry.path,
-            size_bytes=entry.path.stat().st_size,
             declared_kind=entry.kind,
             original_filename=entry.path.name,
             campus_key=entry.campus_key,

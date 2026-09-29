@@ -38,6 +38,7 @@ class MediaStorage(Protocol):
     def write_bytes(self, storage_key: str, data: bytes) -> None: ...
     def write_file(self, storage_key: str, path: Path) -> None: ...
     def read_bytes(self, storage_key: str) -> bytes: ...
+    def download_file(self, storage_key: str, dest: Path) -> None: ...
     def exists(self, storage_key: str) -> bool: ...
     def delete(self, storage_key: str) -> None: ...
     async def file_response(
@@ -70,6 +71,13 @@ class LocalMediaStorage:
 
     def read_bytes(self, storage_key: str) -> bytes:
         return self.path_for(storage_key).read_bytes()
+
+    def download_file(self, storage_key: str, dest: Path) -> None:
+        """複製成本機暫存檔（影片不整份讀進記憶體）；檔案不在丟 MediaFileMissing。"""
+        path = self.path_for(storage_key)
+        if not path.is_file():
+            raise MediaFileMissing(storage_key)
+        shutil.copyfile(path, dest)
 
     def delete(self, storage_key: str) -> None:
         path = self.path_for(storage_key)
@@ -157,6 +165,15 @@ class S3MediaStorage:
             raise
         with obj["Body"] as body:
             return body.read()
+
+    def download_file(self, storage_key: str, dest: Path) -> None:
+        """分段下載成本機暫存檔，不整份讀進記憶體；物件不在丟 MediaFileMissing。"""
+        try:
+            self._client.download_file(self.bucket, self._object_key(storage_key), str(dest))
+        except Exception as exc:
+            if self._is_missing(exc):
+                raise MediaFileMissing(storage_key) from exc
+            raise
 
     def size(self, storage_key: str) -> int | None:
         """物件大小；不存在回 None。"""
