@@ -116,7 +116,7 @@ const missing = computed(() => {
   ].filter(Boolean)
   return [
     empty.length ? `還沒填${empty.join('、')}` : '',
-    phoneDigits.value && !phoneValid.value ? '手機要是 09 開頭的 10 碼' : '',
+    phoneDigits.value && !phoneValid.value ? '手機號碼格式不對' : '',
     form.consent_given ? '' : '還沒勾選同意',
   ].filter(Boolean).join('；')
 })
@@ -317,7 +317,8 @@ async function submit() {
 .manual__consent { white-space: normal; height: auto; align-items: flex-start; }
 .manual__submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
 .manual__missing { flex: 1 1 200px; margin: 0; color: var(--ink-3); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
-.manual__missing:empty { display: none; }
+/* 沒有要說的時候不占寬度，但仍留在頁面上：報讀區被 display: none 拿掉後再出現，報讀軟體常常不念。 */
+.manual__missing:empty { flex-basis: 0; }
 .manual__buttons { display: flex; gap: 8px; margin-left: auto; }
 .manual__buttons .el-button + .el-button { margin-left: 0; }
 @media (max-width: 560px) {

@@ -32,6 +32,8 @@ const rescheduleSlotId = ref('')
 const rescheduleReason = ref('')
 // 家長已經申請改期時，該做的是核准或退回；手動改期先收起來，要用再展開。
 const manualRescheduleOpen = ref(false)
+const rescheduleSelect = ref<{ focus: () => void } | null>(null)
+const rescheduleTitle = ref<HTMLElement | null>(null)
 const newNote = ref('')
 // 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
@@ -109,14 +111,18 @@ async function load(options: { quiet?: boolean } = {}) {
   if (!options.quiet) loading.value = true
   error.value = null
   try {
-    // 案件與聯絡紀錄互不相依，一起送出，手機網路少等一次往返。
-    const [loaded, loadedNotes] = await Promise.all([
+    // 案件與聯絡紀錄互不相依，一起送出，手機網路少等一次往返。兩個都等回來
+    // 再看結果：案件本身讀不到（例如找不到）優先說明，不被聯絡紀錄的錯誤蓋掉。
+    const [caseResult, notesResult] = await Promise.allSettled([
       api.get<VisitRequestFullOut>(`/admin/visit-requests/${requestId}`),
       api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${requestId}/contact-notes`),
     ])
+    if (caseResult.status === 'rejected') throw caseResult.reason
+    if (notesResult.status === 'rejected') throw notesResult.reason
     if (gen !== generation) return
+    const loaded = caseResult.value
     detail.value = loaded
-    notes.value = loadedNotes
+    notes.value = notesResult.value
     if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
     void loadNextCases(loaded.campus_key)
     // 排入時段（新需求、聯絡中）與改期（已確認）都從同校未來 60 天的時段挑。
@@ -171,7 +177,9 @@ async function loadNextCases(campusKey: string) {
     const [held, fresh] = await Promise.all([fetchStatus('pending_confirmation'), fetchStatus('new')])
     if (gen !== generation) return
     const others = (list: unknown) => (Array.isArray(list) ? (list as VisitRequestDetailOut[]) : []).filter((r) => r.id !== id.value)
-    const heldOthers = others(held).sort((a, b) => {
+    // 期限已過、系統還沒來得及取消的待確認（排程約一分鐘跑一次）已經不能確認，不排進下一筆。
+    const now = Date.now()
+    const heldOthers = others(held).filter((r) => holdTime(r) > now).sort((a, b) => {
       const x = holdTime(a)
       const y = holdTime(b)
       return x === y ? 0 : x < y ? -1 : 1
@@ -382,6 +390,15 @@ async function markContacting() {
   }
 }
 
+// 展開手動改期時，按下的連結會被表單換掉；把焦點移進表單（能選時段就放在
+// 時段選單，沒有時段可選就放在標題），鍵盤與報讀軟體才知道表單出現在哪裡。
+async function openManualReschedule() {
+  manualRescheduleOpen.value = true
+  await nextTick()
+  if (rescheduleSlots.value.length > 0 && rescheduleSelect.value) rescheduleSelect.value.focus()
+  else rescheduleTitle.value?.focus()
+}
+
 async function reschedule() {
   const current = detail.value
   const target = rescheduleSlots.value.find((s) => s.id === rescheduleSlotId.value)
@@ -440,9 +457,11 @@ async function decideReschedule(action: RescheduleAction) {
   }
 }
 
-function onRebooked(created: VisitRequestDetailOut) {
+async function onRebooked(created: VisitRequestDetailOut) {
   openRequests.refresh(true)
-  router.push(`/visit-requests/${created.id}`)
+  const failure = await router.push(`/visit-requests/${created.id}`)
+  // 紀錄框還有沒新增的紀錄、使用者選擇留在這頁：新案件已經建好了，告訴他之後去哪裡開。
+  if (failure) ElMessage.info('新案件已建立，記完這筆紀錄後可以到參觀案件列表開啟')
 }
 
 async function markCompleted() {
@@ -507,18 +526,22 @@ function goNext() {
   if (nextQueue.value) router.replace(`/visit-requests/${nextQueue.value.id}`)
 }
 
+// 會列進總覽「到期待追蹤」的案件：與後端同一個定義，已取消、已完成的不算
+// （結案不會清掉下次聯絡時間，所以不能只看時間）。
+const followUpTracked = computed(() => !!detail.value && !['cancelled', 'completed'].includes(detail.value.status))
+
 // 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
 const followUpDue = computed(() => {
   const at = detail.value?.follow_up_at
-  if (!at) return false
-  const open = detail.value?.status !== 'cancelled' && detail.value?.status !== 'completed'
-  return open && new Date(at).getTime() <= Date.now()
+  if (!at || !followUpTracked.value) return false
+  return new Date(at).getTime() <= Date.now()
 })
 
 // 紀錄框旁預填的下次聯絡已經過了：不動就沿用（測試規範），但提醒送出後
-// 這筆仍會留在「到期待追蹤」。已確認的案件也可能是刻意設的提醒，只提示不擋。
+// 這筆仍會留在「到期待追蹤」。已確認的案件也可能是刻意設的提醒，只提示不擋；
+// 已取消、已完成的不會列進去，不提示。
 const followUpPast = computed(() => {
-  if (!followUpAt.value) return false
+  if (!followUpAt.value || !followUpTracked.value) return false
   const at = Date.parse(followUpAt.value)
   return !Number.isNaN(at) && at <= clockNow.value
 })
@@ -676,9 +699,12 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 <el-button :loading="pendingAction === 'note'" :disabled="!newNote.trim() || busy" @click="addNote">新增紀錄</el-button>
                 <span class="hint notes__hint">按 ⌘／Ctrl＋Enter 也能送出</span>
               </div>
-              <p v-if="followUpPast" class="field-help notes__past" role="status">
-                下次聯絡的時間已經過了：不改的話，記完這筆紀錄後案件仍會列在「到期待追蹤」。要再追就選新時間，不用再追就清空。
-              </p>
+              <!-- 報讀區一直留在頁面上，提示出現或消失時報讀軟體才會念出來。 -->
+              <div class="notes__status" role="status">
+                <p v-if="followUpPast" class="field-help notes__past">
+                  下次聯絡的時間已經過了：不改的話，記完這筆紀錄後案件仍會列在「到期待追蹤」。要再追就選新時間，不用再追就清空。
+                </p>
+              </div>
             </div>
           </section>
 
@@ -720,10 +746,13 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               <template v-else-if="detail.status === 'pending_confirmation'">
                 <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
                 <template v-if="detail.hold_expires_at">
-                  <p v-if="holdExpired" class="hold-deadline is-urgent" role="status">
-                    確認期限 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 已過，不能再確認，系統會自動取消這筆並釋出名額。請重新讀取看最新狀態。
-                  </p>
-                  <p v-else class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at, clockNow) }">
+                  <!-- 期限在頁面開著時過了要念出來：報讀區先留在頁面上，只放過期說明，每分鐘變的倒數不放進來。 -->
+                  <div class="hold-status" role="status">
+                    <p v-if="holdExpired" class="hold-deadline is-urgent">
+                      確認期限 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 已過，不能再確認，系統會自動取消這筆並釋出名額。請重新讀取看最新狀態。
+                    </p>
+                  </div>
+                  <p v-if="!holdExpired" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at, clockNow) }">
                     請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at, clockNow) }}），逾期名額會自動釋出。
                   </p>
                 </template>
@@ -753,9 +782,9 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                   <el-button type="primary" :loading="pendingAction === 'complete'" :disabled="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
                   <el-button :loading="pendingAction === 'no_show'" :disabled="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
                 </template>
-                <div v-if="!detail.pending_reschedule || manualRescheduleOpen" class="reschedule">
-                  <p class="reschedule__title">改期（換時段）</p>
-                  <el-select v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
+                <div v-if="!detail.pending_reschedule || manualRescheduleOpen" class="reschedule" role="group" aria-labelledby="visit-reschedule-title">
+                  <p id="visit-reschedule-title" ref="rescheduleTitle" class="reschedule__title" tabindex="-1">改期（換時段）</p>
+                  <el-select ref="rescheduleSelect" v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
                     <el-option v-for="slot in rescheduleSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
                   </el-select>
                   <p v-if="rescheduleSlots.length === 0" class="hint">
@@ -767,7 +796,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                   <p class="hint">案件編號與紀錄不變，原時段名額在同一步釋出；新時段滿了會整筆不改。</p>
                 </div>
                 <div v-else class="reschedule reschedule--collapsed">
-                  <el-button link type="primary" class="reschedule__toggle" @click="manualRescheduleOpen = true">不照申請，改到其他時段…</el-button>
+                  <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">不照申請，改到其他時段…</el-button>
                 </div>
               </template>
 
@@ -871,6 +900,15 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .notes__past {
   margin: 0;
+}
+
+/* 報讀區沒有內容時不占位置：抵掉外層 flex 的間距（不能用 display: none，否則報讀軟體看不到它）。 */
+.notes__status:empty {
+  margin-top: -8px;
+}
+
+.hold-status:empty {
+  margin-top: -12px;
 }
 
 /* 承辦人、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */
@@ -1086,6 +1124,13 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 <style>
 /* 下次聯絡的快捷選項預設排在日曆左側，面板會比手機畫面寬；窄螢幕改排在日曆上方一列。
    選擇面板掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
+/* 觸控裝置（含平板）的快捷選項放大到 44px 高，手指點得到。 */
+@media (pointer: coarse) {
+  .notes__follow-popper .el-picker-panel__shortcut {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 480px) {
   .notes__follow-popper .el-date-picker.has-sidebar {
     width: 322px;

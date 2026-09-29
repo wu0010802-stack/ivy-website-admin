@@ -6,10 +6,10 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, createWebHistory, type RouterHistory } from 'vue-router'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import { visitEventTitle } from '../api/visitHistory'
 import type { VisitHistoryOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -47,7 +47,12 @@ function mockApi(data: Record<string, unknown> | ((path: string) => unknown), li
   })
 }
 
-async function mountDetail(path = '/visit-requests/case-a', history: RouterHistory = createMemoryHistory(), before: string[] = []) {
+async function mountDetail(
+  path = '/visit-requests/case-a',
+  history: RouterHistory = createMemoryHistory(),
+  before: string[] = [],
+  options: { attach?: boolean } = {},
+) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin')
   const router = createRouter({
@@ -61,7 +66,10 @@ async function mountDetail(path = '/visit-requests/case-a', history: RouterHisto
   for (const step of before) await router.push(step)
   await router.push(path)
   await router.isReady()
-  const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
+  const wrapper = mount(
+    { template: '<router-view />' },
+    { attachTo: options.attach ? document.body : undefined, global: { plugins: [pinia, router, ElementPlus] } },
+  )
   wrappers.push(wrapper)
   await flushPromises()
   return { wrapper, router }
@@ -111,6 +119,18 @@ describe('未送出的聯絡紀錄', () => {
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(router.currentRoute.value.fullPath).toBe('/visit-slots')
   })
+
+  it('結案案件重新預約後紀錄框還有字、選擇留在這頁：說明新案件已建立', async () => {
+    mockApi(request({ status: 'completed' }))
+    const { wrapper, router } = await mountDetail()
+    await wrapper.find('textarea').setValue('家長說下個月再來')
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const info = vi.spyOn(ElMessage, 'info')
+    wrapper.findComponent(ManualVisitDialog).vm.$emit('created', request({ id: 'case-new' }))
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/visit-requests/case-a')
+    expect(info).toHaveBeenCalledWith('新案件已建立，記完這筆紀錄後可以到參觀案件列表開啟')
+  })
 })
 
 describe('下一筆：同校待確認在前、再接待處理', () => {
@@ -136,6 +156,21 @@ describe('下一筆：同校待確認在前、再接待處理', () => {
     expect(replace).toHaveBeenCalledWith('/visit-requests/held-early')
     expect(push).not.toHaveBeenCalled()
     expect(router.currentRoute.value.fullPath).toBe('/visit-requests/held-early')
+  })
+
+  it('確認期限已過、系統還沒取消的待確認不排進下一筆', async () => {
+    mockApi((path) => request({ id: path.split('/').pop() }), {
+      held: [
+        request({ id: 'held-expired', status: 'pending_confirmation', hold_expires_at: '2020-01-01T00:00:00Z' }),
+        request({ id: 'held-ok', status: 'pending_confirmation', hold_expires_at: '2099-01-01T00:00:00Z' }),
+      ],
+    })
+    const { wrapper, router } = await mountDetail()
+    const next = wrapper.find('.detail__next')
+    expect(next.text()).toBe('下一筆（待確認 1）')
+    await next.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/visit-requests/held-ok')
   })
 
   it('同校沒有其他待確認或待處理的案件就不顯示', async () => {
@@ -238,6 +273,64 @@ describe('下次聯絡', () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
     expect(wrapper.find('.notes__past').exists()).toBe(false)
+    // 報讀區一直在，提示之後出現時報讀軟體才會念。
+    expect(wrapper.find('.notes__status').attributes('role')).toBe('status')
+  })
+
+  it('已完成、已取消的案件不會列進到期待追蹤：時間過了也不提示', async () => {
+    for (const status of ['completed', 'cancelled']) {
+      mockApi(request({ status, follow_up_at: '2020-01-01T01:00:00Z' }))
+      const { wrapper } = await mountDetail()
+      expect(wrapper.find('textarea').exists()).toBe(true)
+      expect(wrapper.find('.notes__past').exists()).toBe(false)
+      expect(wrapper.find('.detail__follow').classes()).not.toContain('is-due')
+      wrapper.unmount()
+      wrappers.splice(wrappers.indexOf(wrapper), 1)
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('未到場的案件仍會列進到期待追蹤，時間過了照樣提示', async () => {
+    mockApi(request({ status: 'no_show', follow_up_at: '2020-01-01T01:00:00Z' }))
+    const { wrapper } = await mountDetail()
+    expect(wrapper.find('.notes__past').exists()).toBe(true)
+  })
+})
+
+describe('家長申請改期時的手動改期', () => {
+  const slotA = { ...future, id: 'slot-a' }
+  const slotB = { ...future, id: 'slot-b', slot_date: '2099-10-03' }
+  const confirmedWithRequest = () =>
+    request({
+      status: 'confirmed', slot_id: slotA.id, slot: slotA, confirmed_at: '2026-09-22T01:00:00Z',
+      pending_reschedule: {
+        id: 'req-1', visit_request_id: 'case-a', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
+        current_slot: slotA, requested_slot: slotB, requested_slot_remaining: 2, requested_slot_available: true,
+        created_at: '2026-09-24T02:00:00Z',
+      },
+    })
+
+  it('展開後焦點移到新時段選單，不會掉回頁面最上面', async () => {
+    mockApi(confirmedWithRequest(), {}, [{ ...slotB, campus_key: 'yihua', capacity: 2, booked_count: 0, closed: false }])
+    const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
+    const toggle = button(wrapper, '不照申請，改到其他時段…')!
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    await flushPromises()
+    const form = wrapper.find('.reschedule:not(.reschedule--collapsed)')
+    expect(form.exists()).toBe(true)
+    expect(form.attributes('role')).toBe('group')
+    expect(form.element.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement?.tagName).toBe('INPUT')
+  })
+
+  it('沒有其他時段可選時，焦點放在改期標題', async () => {
+    mockApi(confirmedWithRequest(), {}, [])
+    const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
+    await button(wrapper, '不照申請，改到其他時段…')!.trigger('click')
+    await flushPromises()
+    expect(document.activeElement?.classList.contains('reschedule__title')).toBe(true)
+    expect(document.activeElement?.textContent).toBe('改期（換時段）')
   })
 })
 
@@ -293,6 +386,21 @@ describe('讀取與處理中的狀態', () => {
     expect(pending).toContain('/admin/visit-requests/case-a/contact-notes')
   })
 
+  it('聯絡紀錄先失敗、案件晚一點回找不到：仍說明找不到這筆案件', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.endsWith('/contact-notes')) throw new ApiError(500, 'boom')
+      if (path === '/admin/visit-requests/case-a') {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        throw new ApiError(404, 'not found')
+      }
+      return [] as never
+    })
+    const { wrapper } = await mountDetail()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
+    expect(wrapper.text()).toContain('找不到這筆案件')
+  })
+
   it('確認期限的倒數跟著時間更新，過了期限停用確認', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date('2099-01-01T00:00:00Z'))
@@ -307,6 +415,8 @@ describe('讀取與處理中的狀態', () => {
     vi.advanceTimersByTime(60 * 60_000)
     await flushPromises()
     expect(wrapper.find('.hold-deadline').text()).toContain('已過，不能再確認')
+    // 過期說明出現在一開始就在的報讀區裡，報讀軟體才會念出來。
+    expect(wrapper.find('.hold-status[role="status"] .hold-deadline').text()).toContain('已過，不能再確認')
     expect(button(wrapper, '確認已選場次')!.attributes('disabled')).toBeDefined()
   })
 
@@ -356,7 +466,7 @@ describe('補登對話框', () => {
     fill('例如：王媽媽', '王媽媽')
     fill('0912345678', '0912')
     await nextTick()
-    expect(missingText()).toBe('還不能送出：手機要是 09 開頭的 10 碼；還沒勾選同意')
+    expect(missingText()).toBe('還不能送出：手機號碼格式不對；還沒勾選同意')
     fill('0912345678', '0912345678')
     await nextTick()
     expect(missingText()).toBe('還不能送出：還沒勾選同意')
