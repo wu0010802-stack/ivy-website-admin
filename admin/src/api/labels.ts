@@ -91,8 +91,9 @@ export function ageLabel(value: string | null | undefined): string {
   return AGE_LABELS[value] ?? value
 }
 
+// 沒填時寫「未填寫」，和明細其他選填欄位一致，不會讓人以為是資料缺漏。
 export function contactTimeLabel(value: string | null | undefined): string {
-  if (!value) return '—'
+  if (!value) return '未填寫'
   return CONTACT_TIME_LABELS[value] ?? value
 }
 
@@ -150,12 +151,12 @@ export function mediaReferenceState(state: string): StatusMeta {
 const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'video_desktop.media_id': '首屏影片（桌機）',
   'video_mobile.media_id': '首屏影片（手機）',
-  'poster.media_id': '首屏影片 poster',
+  'poster.media_id': '首屏影片封面',
   'fallback_image.media_id': '首屏影片載入失敗替代圖',
   'photo.media_id': '關於常春藤照片',
   'film_desktop.media_id': '孩子的一天影片（桌機）',
   'film_mobile.media_id': '孩子的一天影片（手機）',
-  'film_poster.media_id': '孩子的一天影片 poster',
+  'film_poster.media_id': '孩子的一天影片封面',
   'cover.media_id': '封面照片',
   'line_art.media_id': '建築線稿',
   'line_art_colour.media_id': '建築線稿（上色）',
@@ -403,9 +404,11 @@ export const RETENTION_CATEGORY_LABELS: Record<string, string> = {
   completed: '已完成參觀',
 }
 
+// 清理紀錄與操作紀錄（retention.run 的 trigger）共用；「定期工作」是工程說法，
+// 園方看到的是「每天自動清理」這個開關。
 export const RETENTION_TRIGGER_LABELS: Record<string, string> = {
   manual: '手動執行',
-  scheduled: '定期工作',
+  scheduled: '每天自動清理',
 }
 
 export function auditTargetLabel(target: string): string {
@@ -423,7 +426,7 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   title: '標題',
   since_label: '創校標籤',
   body_text: '內文',
-  caption: '照片說明',
+  caption: '照片下方文字',
   section_title: '區塊標題',
   note: '說明文字',
   campus_list_label: '校區清單標題',
@@ -479,14 +482,14 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   map_url: '地圖連結',
   video_desktop: '桌機影片',
   video_mobile: '手機影片',
-  poster: '影片 poster',
-  poster_alt: 'poster 替代文字',
+  poster: '影片封面',
+  poster_alt: '影片封面的圖片說明',
   fallback_image: '影片載入失敗替代圖',
   photo: '照片',
-  photo_alt: '照片替代文字',
+  photo_alt: '照片的圖片說明',
   film_desktop: '背景影片（桌機）',
   film_mobile: '背景影片（手機）',
-  film_poster: '背景影片 poster',
+  film_poster: '背景影片封面',
   film_caption_zh: '影片說明（中文）',
   film_caption_en: '影片說明（英文）',
   cover: '封面照片',
@@ -566,7 +569,7 @@ export const RELEASE_SOURCE_LABELS: Record<string, string> = {
   scheduled: '排程發布',
   restore: '還原舊版並發布',
   release_restore: '整站還原',
-  initialize: '初始化匯入',
+  initialize: '網站初始內容',
 }
 
 export function releaseSourceLabel(source: string | null | undefined): string {
@@ -644,10 +647,11 @@ export function formatTime(value: string | null | undefined): string {
   return value.slice(0, 5)
 }
 
+// MB 留一位小數（1.5 MB 不四捨五入成 2 MB），整數時不寫多餘的「.0」。
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
 }
 
 // 星期幾，給時段列表用。
@@ -812,11 +816,35 @@ export function grantLabels(codes: readonly unknown[]): string {
   return codes.length ? codes.map((code) => GRANT_LABELS[String(code)] ?? String(code)).join('、') : '無'
 }
 
-// 帳號類稽核（變更角色與校區、新增帳號）的欄位。
-const AUDIT_FIELD_LABELS: Record<string, string> = { role: '角色', campus_keys: '負責校區', capabilities: '授權' }
+// 稽核紀錄修改前後的欄位名：帳號（變更角色與校區、新增帳號）、時段、保存政策
+// 與開放規則。預約設定的欄位沿用 BOOKING_CONFIG_FIELD_LABELS。
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  role: '角色',
+  campus_keys: '負責校區',
+  capabilities: '授權',
+  capacity: '名額',
+  closed: '時段狀態',
+  cancelled_days: '已取消、未到場保留',
+  completed_days: '已完成參觀保留',
+  open_overdue_days: '未結案提醒',
+  auto_run_enabled: '每天自動清理',
+}
+
+// 數字欄位補上單位，不讓人猜「24」是小時還是天。
+const AUDIT_FIELD_UNITS: Record<string, string> = {
+  capacity: '位',
+  cancelled_days: '天',
+  completed_days: '天',
+  open_overdue_days: '天',
+  min_lead_hours: '小時',
+  max_advance_days: '天',
+}
 
 function auditValueLabel(field: string, value: unknown): string {
   if (field === 'role' && typeof value === 'string') return roleLabel(value)
+  if (field === 'closed' && typeof value === 'boolean') return value ? '已關閉' : '開放'
+  if (field === 'auto_run_enabled' && typeof value === 'boolean') return value ? '開啟' : '關閉'
+  if (typeof value === 'number' && AUDIT_FIELD_UNITS[field]) return `${value} ${AUDIT_FIELD_UNITS[field]}`
   if (Array.isArray(value)) {
     if (field === 'capabilities') return grantLabels(value)
     if (!value.length) return '（無）'
@@ -843,29 +871,267 @@ export function auditChangeSummary(metadata: Record<string, unknown> | null | un
   return configChangeLines(before as Record<string, unknown>, after as Record<string, unknown>, auditValueLabel).join('；')
 }
 
-/** 操作紀錄「細節」欄：純值列成「key=值」，帳號與授權相關的陣列轉成中文，
- * 有修改前後的再接「修改：…」。 */
-export function auditMetadataSummary(metadata: Record<string, unknown> | null | undefined): string {
-  // 物件與陣列形式的 before／after 交給 auditChangeSummary；其他物件不攤開。
-  const isPlainList = (value: unknown): value is unknown[] =>
-    Array.isArray(value) && value.every((item) => typeof item === 'string' || typeof item === 'number')
-  const plain = Object.entries(metadata ?? {})
-    .filter(([key, value]) => {
-      if (value === null || value === undefined) return false
-      if (typeof value !== 'object') return true
-      return isPlainList(value) && key !== 'before' && key !== 'after'
-    })
-    .map(([key, value]) => {
-      if (key === 'reason') return `原因=${auditReasonLabel(String(value))}`
-      // 改角色時一併收回的授權（例如分校管理者降為櫃台收回匯出個資）。
-      if (key === 'capabilities_removed' && Array.isArray(value)) return `因改角色收回授權：${grantLabels(value)}`
-      if (Array.isArray(value) || key === 'role') return `${AUDIT_FIELD_LABELS[key] ?? key}：${auditValueLabel(key, value)}`
-      return `${key}=${String(value)}`
-    })
-    .join('，')
-  const changes = auditChangeSummary(metadata)
-  const slotSync = metadata?.slot_sync && typeof metadata.slot_sync === 'object' ? slotSyncLines(metadata.slot_sync as Partial<SlotSyncResult>) : []
-  return [plain, changes ? `修改：${changes}` : '', slotSync.length ? `時段：${slotSync.join('、')}` : ''].filter(Boolean).join('，')
+// ---- 操作紀錄「細節」欄（2026-09-28）----
+// 後端 log_action 的 metadata 一律在這裡翻成園方看得懂的句子：
+// 1. 已知的鍵翻成中文，狀態、內容種類、來源等代碼走既有標籤表；
+// 2. 識別碼與內部版本號刻意不顯示（AUDIT_HIDDEN_METADATA_KEYS）；
+// 3. 沒列到的新鍵不默默丟掉，收進「其他細節」（auditMetadataDetails 的 others）。
+// labelCoverage 測試會掃後端所有 log_action 的 metadata 鍵，新鍵沒歸類就會失敗。
+
+/** 刻意不顯示的鍵：UUID、內部版本號與舊 API 才有的欄位，對園方沒有意義。 */
+export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
+  'note_id',
+  'run_id',
+  'job_id',
+  'revision_version',
+  'version',
+  'replaces_media_id',
+  'replacement_id',
+  'reschedule_request_id',
+  'from_slot_id',
+  'to_slot_id',
+  'requested_slot_id',
+  'related_request_id',
+  'visit_request_id',
+  'restored_from_release_id',
+  'content_type',
+  // 舊的 /admin/site-settings（官網從來不讀，已不再使用）才有的欄位。
+  'privacy_policy_version',
+])
+
+interface AuditSlot { date?: unknown; start?: unknown; end?: unknown }
+
+/** 稽核紀錄裡的時段 {date, start, end} →「10/02 09:30–10:30」。 */
+export function auditSlotLabel(slot: unknown): string {
+  if (!slot || typeof slot !== 'object') return '—'
+  const { date, start, end } = slot as AuditSlot
+  const day = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date.slice(5, 7)}/${date.slice(8, 10)}` : String(date ?? '')
+  return `${day} ${String(start ?? '')}–${String(end ?? '')}`.trim()
+}
+
+function auditWhen(value: unknown): string {
+  if (typeof value !== 'string') return String(value)
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : formatDateTime(value)
+}
+
+function countOf(value: unknown): number {
+  if (Array.isArray(value)) return value.length
+  return typeof value === 'number' ? value : Number(value) || 0
+}
+
+// 內容清單（整站還原、替換素材、匯入內建素材產生的草稿）：{kind, campus_key}。
+function contentItemsLabel(value: unknown): string {
+  if (!Array.isArray(value)) return ''
+  const names = value
+    .filter((item): item is { kind?: unknown; campus_key?: unknown } => Boolean(item) && typeof item === 'object')
+    .map((item) => contentItemLabel(typeof item.kind === 'string' ? item.kind : null, typeof item.campus_key === 'string' ? item.campus_key : null))
+  return Array.from(new Set(names)).join('、')
+}
+
+// 素材說明被改了哪些欄位（media.update 的 fields）。
+const MEDIA_FIELD_LABELS: Record<string, string> = {
+  alt_text: '說明',
+  caption: '圖說',
+  source_attribution: '來源標示',
+  license_note: '授權說明',
+  tags: '標籤',
+  crop_focus_x: '預設裁切焦點',
+  crop_focus_y: '預設裁切焦點',
+}
+
+const OUTBOX_RETRY_SOURCE_LABELS: Record<string, string> = { admin: '在後台手動重寄', cli: '技術人員批次重寄' }
+
+type AuditFormatter = (value: unknown, action: string, metadata: Record<string, unknown>) => string | null
+
+// 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
+// kind、status、source 在不同動作代表不同東西，依 action 分開翻。
+const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
+  // 帳號
+  role: (v) => `角色：${auditValueLabel('role', v)}`,
+  campus_keys: (v) => `負責校區：${auditValueLabel('campus_keys', v)}`,
+  capabilities: (v) => `授權：${auditValueLabel('capabilities', v)}`,
+  // 改角色時一併收回的授權（例如分校管理者降為櫃台收回匯出個資）。
+  capabilities_removed: (v) => (Array.isArray(v) ? `因改角色收回授權：${grantLabels(v)}` : null),
+  is_active: (v) => (v ? '帳號改為啟用' : '帳號改為停用'),
+  revoked_sessions: (v) => (countOf(v) ? `同時登出 ${countOf(v)} 個已登入的裝置` : '對方原本沒有登入中的裝置'),
+  reason: (v) => `原因：${auditReasonLabel(String(v))}`,
+  // 家長管理連結、改期
+  expires_at: (v) => `連結到期：${auditWhen(v)}`,
+  replaced_previous: (v) => (v ? '先前的連結同時失效' : null),
+  has_reason: (v) => (v ? '有填寫原因' : '沒有填寫原因'),
+  // 預約設定（mode／期限是存檔後的值；有修改前後時已經在「修改」裡，不重複）
+  mode: (v) => `預約方式：${bookingConfigValueLabel('mode', v)}`,
+  parent_change_deadline_hours: (v) => `${BOOKING_CONFIG_FIELD_LABELS.parent_change_deadline_hours}：${bookingConfigValueLabel('parent_change_deadline_hours', v)}`,
+  changed: (v, action) => {
+    if (!Array.isArray(v) || !v.length) return null
+    if (action === 'release.restore' || typeof v[0] === 'object') return `還原的內容：${contentItemsLabel(v)}`
+    return `修改：${v.map((field) => BOOKING_CONFIG_FIELD_LABELS[String(field)] ?? String(field)).join('、')}`
+  },
+  // 時段與案件
+  slot: (v) => `時段：${auditSlotLabel(v)}`,
+  row_count: (v) => `匯出 ${countOf(v)} 筆`,
+  status: (v, action) => {
+    if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
+    if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`
+    return `篩選狀態：${visitStatus(String(v)).label}`
+  },
+  source: (v, action) => {
+    if (action === 'notification_outbox.retry') return OUTBOX_RETRY_SOURCE_LABELS[String(v)] ?? '重新寄送'
+    return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
+  },
+  assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : '指定的同事'}`,
+  follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
+  needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),
+  has_search: (v) => (v ? '有用搜尋字篩選' : null),
+  with_slot: (v) => (v ? '同時排入時段' : '還沒排時段'),
+  follow_up_set: (v) => (v ? '設定了下次聯絡時間' : '沒有設定下次聯絡時間'),
+  follow_up_cleared: (v) => (v ? '清除下次聯絡時間' : null),
+  // 開放規則、休假日、產生時段
+  rule_count: (v) => `每週規則 ${countOf(v)} 條`,
+  date: (v) => `日期：${auditWhen(v)}`,
+  closed_slots: (v) => `關閉 ${countOf(v)} 場時段`,
+  affected_requests: (v) => `影響 ${countOf(v)} 筆已排入的案件`,
+  reopened_slots: (v) => `重新開放 ${countOf(v)} 場`,
+  created_slots: (v) => `依規則補上 ${countOf(v)} 場`,
+  created: (v) => `新增 ${countOf(v)} 場`,
+  skipped_existing: (v) => (countOf(v) ? `${countOf(v)} 場已經有了` : null),
+  skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
+  // 分校
+  open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,
+  // 內容
+  kind: (v, action) => {
+    if (action.startsWith('media.')) return `類型：${v === 'video' ? '影片' : v === 'image' ? '圖片' : String(v)}`
+    if (action === 'notification_outbox.retry') return `通知：${notificationKindLabel(String(v))}`
+    return `內容：${contentItemLabel(String(v))}`
+  },
+  restored_from_version: (v) => `還原自第 ${String(v)} 版`,
+  published: (v) => (v ? '同時發布到官網' : '存成草稿'),
+  note: (v) => `退回理由：${String(v)}`,
+  publish_at: (v) => `排程時間：${auditWhen(v)}`,
+  error: (v) => `沒有發布的原因：${String(v)}`,
+  kept_count: (v) => (countOf(v) ? `${countOf(v)} 項維持不變` : null),
+  items: (v) => `產生草稿：${contentItemsLabel(v)}`,
+  drafts: (v) => (Array.isArray(v) && v.length ? `產生草稿：${contentItemsLabel(v)}` : null),
+  // 素材
+  filename: (v) => `檔名：${String(v)}`,
+  size_bytes: (v) => `檔案大小：${formatFileSize(countOf(v))}`,
+  deleted_at: (v) => `刪除時間：${auditWhen(v)}`,
+  fields: (v) => (Array.isArray(v) ? `修改：${Array.from(new Set(v.map((field) => MEDIA_FIELD_LABELS[String(field)] ?? String(field)))).join('、')}` : null),
+  imported: (v) => `匯入 ${countOf(v)} 個`,
+  reused: (v) => (countOf(v) ? `${countOf(v)} 個已在素材庫` : null),
+  failed: (v) => (countOf(v) ? `失敗 ${countOf(v)} 個` : null),
+  regenerated: (v) => `重新產生 ${countOf(v)} 個`,
+  all: (v) => (v ? '全部素材都重做' : null),
+  // 通知重寄
+  previous_attempts: (v) => `先前嘗試 ${countOf(v)} 次`,
+  previous_error_code: (v) => `上次失敗原因：${outboxErrorLabel(String(v))}`,
+  // 舊的全站設定
+  noindex: (v) => `搜尋引擎收錄：${v ? '不允許' : '允許'}`,
+  // 個資清理
+  trigger: (v) => `方式：${RETENTION_TRIGGER_LABELS[String(v)] ?? String(v)}`,
+  days: (v) => {
+    if (!v || typeof v !== 'object') return null
+    const d = v as Record<string, unknown>
+    return `保留天數：取消／未到場 ${String(d.cancelled_days)} 天、完成 ${String(d.completed_days)} 天`
+  },
+  counts: (v) => {
+    if (!v || typeof v !== 'object') return null
+    const c = v as Record<string, unknown>
+    return Object.keys(RETENTION_CATEGORY_LABELS).map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${countOf(c[key])} 筆`).join('、')
+  },
+  total: (v) => `共匿名化 ${countOf(v)} 筆`,
+  open_overdue_count: (v) => (countOf(v) ? `另有 ${countOf(v)} 筆超過天數仍未結案` : null),
+}
+
+// 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。
+const AUDIT_PAIRED_KEYS = ['from_status', 'to_status', 'from_slot', 'to_slot', 'created_from', 'created_to', 'date_from', 'date_to', 'from', 'to'] as const
+
+/** 後台看得懂的 metadata 鍵（有中文寫法，或成對、before／after 另外處理）。 */
+export const AUDIT_METADATA_KEYS = new Set([...Object.keys(AUDIT_METADATA_FORMATTERS), ...AUDIT_PAIRED_KEYS, 'before', 'after', 'slot_sync'])
+
+function pairedLines(m: Record<string, unknown>): string[] {
+  const has = (key: string) => key in m
+  const lines: string[] = []
+  if (has('from_status') || has('to_status')) {
+    const from = m.from_status ? visitStatus(String(m.from_status)).label : ''
+    const to = m.to_status ? visitStatus(String(m.to_status)).label : ''
+    lines.push(from && to ? `狀態：${from} → ${to}` : from ? `原本狀態：${from}` : `狀態改為：${to}`)
+  }
+  if (has('from_slot') || has('to_slot')) {
+    lines.push(`時段：${m.from_slot ? auditSlotLabel(m.from_slot) : '未排時段'} → ${m.to_slot ? auditSlotLabel(m.to_slot) : '未排時段'}`)
+  }
+  if (m.created_from || m.created_to) {
+    lines.push(`篩選送出日期：${m.created_from ? auditWhen(m.created_from) : '不限'} – ${m.created_to ? auditWhen(m.created_to) : '不限'}`)
+  }
+  if (m.date_from || m.date_to) lines.push(`日期：${auditWhen(m.date_from)} – ${auditWhen(m.date_to)}`)
+  // 指派承辦人：from／to 是使用者 id，不顯示 id，只講是指派、更換還是取消。
+  if (has('from') || has('to')) lines.push(!m.to ? '取消指派' : m.from ? '更換承辦人' : '指派給同事')
+  return lines
+}
+
+// before／after 不是物件或清單的情況：分校啟用狀態（布林）、LINE 通知群組（群組代碼）。
+function scalarChangeLine(action: string, before: unknown, after: unknown): string {
+  if (typeof before === 'boolean' || typeof after === 'boolean') {
+    const word = (value: unknown) => (value ? '啟用' : '停用')
+    return `${action.startsWith('campus.') ? '分校' : '狀態'}：${word(before)} → ${word(after)}`
+  }
+  if (action.startsWith('line.')) {
+    if (!after) return 'LINE 通知群組：不再推播'
+    return before ? 'LINE 通知群組：換成另一個群組' : 'LINE 通知群組：已設定'
+  }
+  return `修改：${String(before ?? '（空白）')} → ${String(after ?? '（空白）')}`
+}
+
+function otherDetail(key: string, value: unknown): string {
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value)
+  return `${key}：${text.length > 120 ? `${text.slice(0, 120)}…` : text}`
+}
+
+export interface AuditDetails {
+  /** 翻好的中文細節，一項一句。 */
+  lines: string[]
+  /** 還沒有中文寫法的新鍵，收在「其他細節」裡，不直接攤在表格。 */
+  others: string[]
+}
+
+/** 操作紀錄「細節」欄：已知鍵翻成中文、識別碼不顯示、未知鍵另外收起來。
+ * 有修改前後的再接「修改：…」；before／after 已經講到的欄位，頂層同名鍵
+ * （預約設定存檔後的 mode 等）不再重複。 */
+export function auditMetadataDetails(metadata: Record<string, unknown> | null | undefined, action = ''): AuditDetails {
+  const m = metadata ?? {}
+  const lines: string[] = []
+  const others: string[] = []
+  const after = m.after && typeof m.after === 'object' && !Array.isArray(m.after) ? (m.after as Record<string, unknown>) : null
+  const changes = auditChangeSummary(m)
+  lines.push(...pairedLines(m))
+  // 分校啟用、LINE 群組這類單一值的修改前後是這筆紀錄的重點，放最前面。
+  if (!changes && 'before' in m && 'after' in m && (typeof m.before !== 'object' || typeof m.after !== 'object' || m.before === null || m.after === null)) {
+    lines.push(scalarChangeLine(action, m.before, m.after))
+  }
+  for (const [key, value] of Object.entries(m)) {
+    if (value === null || value === undefined) continue
+    if (AUDIT_HIDDEN_METADATA_KEYS.has(key) || (AUDIT_PAIRED_KEYS as readonly string[]).includes(key)) continue
+    if (key === 'before' || key === 'after' || key === 'slot_sync') continue
+    if (after && key in after) continue
+    // 預約設定的 changed 只是欄位名清單，已經有翻好的修改前後就不再列。
+    if (key === 'changed' && changes && action !== 'release.restore') continue
+    const format = AUDIT_METADATA_FORMATTERS[key]
+    if (!format) {
+      others.push(otherDetail(key, value))
+      continue
+    }
+    const line = format(value, action, m)
+    if (line) lines.push(line)
+  }
+  if (changes) lines.push(`修改：${changes}`)
+  const slotSync = m.slot_sync && typeof m.slot_sync === 'object' ? slotSyncLines(m.slot_sync as Partial<SlotSyncResult>) : []
+  if (slotSync.length) lines.push(`時段：${slotSync.join('、')}`)
+  return { lines, others }
+}
+
+/** 細節的一行摘要（手機卡片、搜尋用）；只含翻好的中文，其他細節不算在內。 */
+export function auditMetadataSummary(metadata: Record<string, unknown> | null | undefined, action = ''): string {
+  return auditMetadataDetails(metadata, action).lines.join('，')
 }
 
 export const REFERRAL_SOURCE_LABELS: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }

@@ -4,13 +4,14 @@ import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import type {
   MediaAssetOut,
+  MediaUploadLimitsOut,
   MediaReferenceOut,
   MediaReplaceReferencesOut,
   MediaReplaceReferencesRequest,
   MediaUsagesOut,
 } from '../api/types'
 import { contentEditorPath, contentItemLabel, mediaFieldPathLabel } from '../api/labels'
-import { precheckFile, loadUploadLimits, uploadErrorMessage } from '../composables/mediaUpload'
+import { precheckFile, loadUploadLimits, uploadErrorMessage, uploadKindHint } from '../composables/mediaUpload'
 
 // 替換素材（規格 L142）：先上傳新檔案成為新素材（舊素材不動），再列出
 // 哪些內容的最新版本用到舊素材、用在哪個位置。「替換預設只改目前版位」：
@@ -41,6 +42,7 @@ const usagesError = ref<string | null>(null)
 const selected = ref<string[]>([])
 const results = ref<MediaReplaceReferencesOut | null>(null)
 const error = ref<string | null>(null)
+const limits = ref<MediaUploadLimitsOut | null>(null)
 
 interface DraftPosition {
   key: string
@@ -129,6 +131,7 @@ watch([visible, () => props.asset?.id], ([open]) => {
   selected.value = []
   results.value = null
   error.value = null
+  void loadUploadLimits().then((value) => { limits.value = value })
 })
 
 async function onFileChange(event: Event) {
@@ -234,7 +237,15 @@ async function applyReplacement() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="替換素材" width="min(560px, 100%)">
+  <!-- 上傳或產生草稿時 Esc、X、點背景都關不掉，避免結果還沒回來就被關掉。 -->
+  <el-dialog
+    v-model="visible"
+    title="替換素材"
+    width="min(560px, 100%)"
+    :close-on-click-modal="!busy"
+    :close-on-press-escape="!busy"
+    :show-close="!busy"
+  >
     <template v-if="asset">
       <el-steps :active="step === 'upload' ? 0 : step === 'impact' ? 1 : 2" finish-status="success" simple class="replace__steps">
         <el-step title="上傳新檔案" />
@@ -247,7 +258,7 @@ async function applyReplacement() {
         <label class="drop" :class="{ 'has-file': file }">
           <input type="file" :accept="accept" class="drop__input" :disabled="busy" @change="onFileChange" />
           <strong>{{ file ? file.name : '點擊選擇新檔案' }}</strong>
-          <span class="hint">{{ asset.kind === 'video' ? 'MP4' : 'JPG、PNG 或 WebP' }}</span>
+          <span class="hint">{{ uploadKindHint(limits, asset.kind) }}</span>
         </label>
       </div>
 
@@ -302,11 +313,11 @@ async function applyReplacement() {
 
     <template #footer>
       <template v-if="step === 'upload'">
-        <el-button @click="visible = false">取消</el-button>
+        <el-button :disabled="busy" @click="visible = false">取消</el-button>
         <el-button type="primary" :loading="busy" :disabled="!file || Boolean(replacement)" @click="uploadReplacement">上傳新檔案</el-button>
       </template>
       <template v-else-if="step === 'impact'">
-        <el-button @click="visible = false">只上傳，先不改內容</el-button>
+        <el-button :disabled="busy" @click="visible = false">只上傳，先不改內容</el-button>
         <el-button
           type="primary"
           :loading="busy"

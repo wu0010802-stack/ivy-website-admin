@@ -3,7 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessageBox } from 'element-plus'
 import NotificationsView from '../views/NotificationsView.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { api } from '../api/client'
@@ -55,6 +55,8 @@ describe('通知操作與回應競態', () => {
     const post = vi.spyOn(api, 'post').mockImplementationOnce(() => first as Promise<never>).mockRejectedValueOnce(new Error('offline'))
     const wrapper = await setup()
     await flushPromises()
+    wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'yihua')
+    await flushPromises()
     const bulk = wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!
     await bulk.trigger('click')
     await bulk.trigger('click')
@@ -68,6 +70,50 @@ describe('通知操作與回應競態', () => {
     expect(post).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('已標記 1 則，1 則失敗')
     expect(wrapper.text()).toContain('2 則通知，1 則未讀')
+  })
+})
+
+describe('站內通知的校區範圍', () => {
+  function mockList(rows: unknown[]) {
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+  }
+
+  it('管多校的人預設看全部校區，摘要寫明範圍與各校未讀數', async () => {
+    const get = mockList([notification('義華家長'), notification('仁武家長', 'renwu'), { ...notification('已讀'), read_at: '2026-09-23T00:00:00Z' }])
+    const wrapper = await setup()
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith('/admin/notifications')
+    expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('')
+    expect(wrapper.getComponent(CampusSelect).props('allLabel')).toBe('全部校區')
+    expect(wrapper.get('.list-summary').text()).toContain('全部校區 · 3 則通知，2 則未讀（義華 1 則、仁武 1 則）')
+    expect(wrapper.text()).toContain('通知清單（全部校區）')
+    expect(wrapper.text()).not.toContain('只列出最新的 100 則')
+  })
+
+  it('全部校區時「全部標記已讀」先列出會動到哪幾校，選先不要就不標', async () => {
+    mockList([notification('a'), notification('b', 'renwu')])
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const wrapper = await setup()
+    await flushPromises()
+    const bulk = () => wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!
+    await bulk().trigger('click')
+    await flushPromises()
+    expect(String(confirm.mock.calls[0]![0])).toContain('義華 1 則、仁武 1 則，共 2 則通知')
+    expect(post).not.toHaveBeenCalled()
+    await bulk().trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('已將全部校區 2 則通知標記為已讀（義華 1 則、仁武 1 則）')
+  })
+
+  it('只管一校的人直接看那一校；清單滿 100 則時說明只列出最新的', async () => {
+    const rows = Array.from({ length: 100 }, (_, index) => notification(`n${index}`))
+    const get = mockList(rows)
+    const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith('/admin/notifications?campus_key=yihua')
+    expect(wrapper.text()).toContain('只列出最新的 100 則通知')
   })
 })
 
@@ -158,7 +204,7 @@ describe('寄送失敗的通知（第 2 條）', () => {
   })
 
   it('站內通知的提醒顯示中文標題', async () => {
-    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('?campus_key=') && String(url).includes('/admin/notifications')
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).startsWith('/admin/notifications')
       ? [{ id: 'n1', campus_key: 'yihua', kind: 'visit_request_overdue', payload: { receipt_id: 'c1', reason: 'new_unhandled' }, created_at: '2026-09-22T00:00:00Z', read_at: null },
          { id: 'n2', campus_key: 'yihua', kind: 'visit_upcoming', payload: { receipt_id: 'c2', slot_id: 's1' }, created_at: '2026-09-22T00:00:00Z', read_at: null }]
       : []) as Promise<never>)

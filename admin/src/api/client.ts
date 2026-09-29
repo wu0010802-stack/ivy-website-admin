@@ -19,6 +19,9 @@ function handleUnauthorized(path: string): void {
   // 登入端點自己回 401 是「帳號密碼錯誤」，不是 session 過期，
   // 不能把使用者從登入頁再導回登入頁並清掉輸入。
   if (path.startsWith('/auth/login')) return
+  // 登出端點回 401 代表 session 本來就失效了，logout() 自己當成已登出、接著
+  // 換到登入頁；這裡再導一次會和那次換頁撞在一起，未儲存的提示也會多問一次。
+  if (path.startsWith('/auth/logout')) return
   unauthorizedHandler?.()
 }
 

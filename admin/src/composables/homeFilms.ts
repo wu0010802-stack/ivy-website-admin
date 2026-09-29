@@ -34,7 +34,7 @@ export function newHomeFilm(): HomeFilmPayload {
 export function filmClipError(film: HomeFilmPayload, duration?: number | null): string {
   if (film.source !== 'file' || film.end == null) return ''
   if (film.end <= film.start) return '結束秒數要大於開始秒數'
-  if (duration && film.end > duration) return `影片只有 ${formatSeconds(duration)} 秒，結束秒數不能超過影片長度（留空＝播到結尾）`
+  if (duration && film.end > duration) return `影片只有 ${formatSeconds(duration)} 秒，結束秒數不能超過影片長度（不填就播到結尾）`
   return ''
 }
 

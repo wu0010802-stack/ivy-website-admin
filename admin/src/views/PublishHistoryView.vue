@@ -168,12 +168,38 @@ function versionChange(change: ReleaseOut['changes'][number]): string {
     : `第 ${change.previous_revision_version} 版 → 第 ${change.revision_version} 版`
 }
 
+// 整站還原預計會換回哪些內容。只看目標之後的發布紀錄（新到舊排，目標之後的
+// 每一筆一定都已載入）：每項內容最新一次變動後的版本是現在官網上的，目標之後
+// 第一次變動前的版本就是目標當時的。之後才第一次上線的（前一版是空的）維持
+// 現狀，換過又換回同一版的也不會變，都不列。
+function restorePreview(target: ReleaseOut): string[] {
+  const index = releases.value.findIndex((r) => r.id === target.id)
+  if (index <= 0) return []
+  const items = new Map<string, { label: string; current: number; atTarget: number | null }>()
+  for (const later of releases.value.slice(0, index)) {
+    for (const change of later.changes) {
+      const seen = items.get(change.content_item_id)
+      if (seen) seen.atTarget = change.previous_revision_version
+      else items.set(change.content_item_id, {
+        label: contentItemLabel(change.kind, change.campus_key),
+        current: change.revision_version,
+        atTarget: change.previous_revision_version,
+      })
+    }
+  }
+  return [...items.values()].filter((item) => item.atTarget !== null && item.atTarget !== item.current).map((item) => item.label)
+}
+
 async function restoreRelease(release: ReleaseOut) {
   if (!canRestore.value || restoringId.value || release.is_current) return
+  const preview = restorePreview(release)
   const lines = [
     `會把官網每一項內容換回 ${formatDateTime(release.created_at)} 那次發布時的版本，存成一筆新的發布紀錄。`,
+    preview.length
+      ? `預計換回 ${preview.length} 項：${preview.slice(0, 8).join('、')}${preview.length > 8 ? ' 等' : ''}。`
+      : '依目前的紀錄，官網內容和那次一樣，預計不會換掉任何內容。',
     '那次之後才第一次上線的內容維持現狀；各頁的草稿、預約設定、時段與案件都不會變。',
-    '原本的紀錄都會保留，之後可以再還原回來。',
+    '實際換回哪些以還原後的訊息為準；原本的紀錄都會保留，之後可以再還原回來。',
   ]
   try {
     await ElMessageBox.confirm(lines.join('\n'), '整站還原到這次發布？', {
@@ -441,6 +467,7 @@ refreshAll()
   .job .el-button { min-height: 44px; }
   .release__head { flex-direction: column; }
   .release__tags { justify-content: flex-start; }
-  .release__actions .el-button { width: 100%; min-height: 44px; }
+  /* 整站還原很少用：手機上維持一般寬度的次要鈕，不做成滿寬、比發布內容還搶眼。 */
+  .release__actions .el-button { min-height: 44px; }
 }
 </style>

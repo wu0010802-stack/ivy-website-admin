@@ -18,6 +18,8 @@ test('每週規則產生時段、切成時段預約後官網看得到場次', as
     await gotoAdmin(page, '/slots', '時段與容量')
     await chooseCampus(page, '崇德')
     const schedule = page.locator('section').filter({ has: page.getByRole('heading', { name: '每週開放規則' }) })
+    // 規則面板平常收成一行摘要（很少改），先展開。
+    await schedule.getByRole('button', { name: '設定每週規則' }).click()
     await schedule.getByRole('button', { name: '新增規則' }).click()
     await schedule.getByRole('button', { name: '儲存規則' }).click()
     await expect(page.getByText(/已儲存開放規則/)).toBeVisible()

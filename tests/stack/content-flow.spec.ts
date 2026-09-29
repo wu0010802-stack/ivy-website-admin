@@ -35,7 +35,8 @@ test('內容編輯送審、分校管理者核准後官網才更新', async ({ br
     await gotoAdmin(page, '/content/campus-profile?campus=yihua', '五校介紹')
     await expect(page.getByRole('textbox', { name: '詳細介紹' })).toHaveValue(description)
     await page.getByRole('button', { name: '核准並發布' }).click()
-    await answerMessageBox(page, '核准並發布？', '核准並發布')
+    // 確認框標題寫出內容與校區，並列出和官網目前版本的差異。
+    await answerMessageBox(page, '核准並發布「五校介紹（義華）」？', '核准並發布')
     await expect(page.getByRole('button', { name: '核准並發布' })).toHaveCount(0)
   })
 

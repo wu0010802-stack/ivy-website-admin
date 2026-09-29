@@ -6,6 +6,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -81,23 +82,24 @@ async def get_or_create_config(
     result = await db.execute(stmt)
     config = result.scalar_one_or_none()
     if config is None:
-        config = BookingConfig(
-            campus_key=campus_key,
-            mode=BookingMode.PAUSED,
-            version=0,
-            slots_auto_confirm=False,
-            updated_at=datetime.now(timezone.utc),
-        )
-        db.add(config)
-        await db.flush()
-        if for_update:
-            # 重新以 FOR UPDATE 鎖住剛建立的列，與其他併發交易序列化。
-            result = await db.execute(
-                select(BookingConfig)
-                .where(BookingConfig.campus_key == campus_key)
-                .with_for_update()
+        # 還沒有設定列的校區，第一次被讀時才建。兩個請求同時第一次讀（例如
+        # 後台時段頁同時讀預約方式與每週規則、官網同頁兩處都讀）時，一般的
+        # INSERT 會讓慢的那個撞主鍵回 500；ON CONFLICT DO NOTHING 讓它等對方
+        # 交易結束後什麼都不做，再讀回同一列。
+        await db.execute(
+            pg_insert(BookingConfig)
+            .values(
+                campus_key=campus_key,
+                mode=BookingMode.PAUSED,
+                version=0,
+                slots_auto_confirm=False,
+                updated_at=datetime.now(timezone.utc),
             )
-            config = result.scalar_one()
+            .on_conflict_do_nothing(index_elements=[BookingConfig.campus_key])
+        )
+        # for_update 時重新以 FOR UPDATE 鎖住這一列，與其他併發交易序列化。
+        result = await db.execute(stmt)
+        config = result.scalar_one()
     return config
 
 

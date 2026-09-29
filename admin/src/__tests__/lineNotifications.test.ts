@@ -75,10 +75,55 @@ describe('LINE 通知設定頁', () => {
     expect(minghua.attributes('disabled')).toBeDefined()
   })
 
-  it('金鑰未設定時提示部署設定，並停用測試訊息', async () => {
+  it('金鑰未設定時用白話提示，設定名稱收在「給技術人員」，並停用測試訊息', async () => {
     const wrapper = await setup(settings({ enabled: false }))
-    expect(wrapper.text()).toContain('WEBSITE_LINE_MESSAGING_CHANNEL_SECRET')
+    expect(wrapper.text()).toContain('LINE 官方帳號還沒連上，目前不會推播到群組')
+    expect(wrapper.get('.el-alert__title').text()).not.toContain('WEBSITE_')
+    const details = wrapper.get('.line-alert details')
+    expect(details.get('summary').text()).toBe('給技術人員')
+    expect(details.text()).toContain('WEBSITE_LINE_MESSAGING_CHANNEL_SECRET')
+    expect(wrapper.text()).toContain('完成上方設定後才能選群組')
     expect(testButtons(wrapper).every(button => button.attributes('disabled') !== undefined)).toBe(true)
+  })
+
+  it('官方帳號被移出群組的校區：列上標出不會推播、顯示群組名稱、不能送測試訊息', async () => {
+    const wrapper = await setup(settings({
+      targets: [
+        { campus_key: 'yihua', campus_name: '義華校', target_id: LEFT },
+        { campus_key: 'minghua', campus_name: '明華校', target_id: GROUP },
+      ],
+    }))
+    expect(wrapper.text()).toContain('義華校的群組已把官方帳號移出，目前收不到 LINE 通知')
+    const [yihua, minghua] = wrapper.findAll('.target-row')
+    expect(yihua!.text()).toContain('群組已離開，目前不會推播')
+    expect(minghua!.text()).not.toContain('群組已離開')
+    const select = wrapper.findAllComponents({ name: 'ElSelect' })[0]!
+    const options = select.findAllComponents({ name: 'ElOption' }).map(option => option.props('label'))
+    expect(options).toContain('舊群組（群組）（已離開）')
+    const [yihuaTest, minghuaTest] = testButtons(wrapper)
+    expect(yihuaTest!.attributes('disabled')).toBeDefined()
+    expect(minghuaTest!.attributes('disabled')).toBeUndefined()
+  })
+
+  it('重新整理保留畫面內容，並告訴對方有沒有偵測到新群組', async () => {
+    const info = vi.spyOn(ElMessage, 'info')
+    const success = vi.spyOn(ElMessage, 'success')
+    const wrapper = await setup(settings({ groups: [] }))
+    const get = vi.mocked(api.get)
+    let resolveRefresh!: (value: LineSettingsOut) => void
+    get.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }) as never)
+    await wrapper.findAll('button').find(button => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    // 重新整理中不換成整頁骨架：原本的內容還在。
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
+    expect(wrapper.text()).toContain('各校通知群組')
+    resolveRefresh(settings())
+    await flushPromises()
+    expect(success).toHaveBeenCalledWith('偵測到 2 個新群組')
+    get.mockResolvedValueOnce(settings())
+    await wrapper.findAll('button').find(button => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('沒有偵測到新群組'))
   })
 
   it('送測試訊息成功與失敗都給可操作的提示', async () => {

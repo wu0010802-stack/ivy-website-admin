@@ -447,14 +447,16 @@ describe('總覽的待發布、素材與排程失敗（第 54、58 條）', () =
     wrappers.push(wrapper)
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('官網第 4 版，最新第 5 版')
-    expect(text).toContain('從未發布')
+    // 不寫版本號：只說有沒有發布過、什麼時候存的（台北時間）。
+    expect(text).toContain('有修改尚未發布・09/25 10:00 儲存')
+    expect(text).toContain('從未發布・09/24 10:00 儲存')
+    expect(text).not.toMatch(/第 \d+ 版/)
     expect(wrapper.find('a[href="/content/campus-faq?campus=renwu"]').exists()).toBe(true)
     expect(text).toContain('內容缺少素材或素材還沒處理好')
     expect(text).toContain('官網上1 個已刪除')
     expect(wrapper.find('a[href="/content/campus-tour?campus=yihua"]').exists()).toBe(true)
     expect(text).toContain('排程發布沒有執行')
-    expect(text).toContain('第 3 版：素材還沒處理好')
+    expect(text).toContain('排定 09/25 09:00 發布的草稿沒有執行：素材還沒處理好')
     expect(text).not.toContain('目前沒有待處理事項')
   })
 })
@@ -473,6 +475,8 @@ describe('建議字數（第 57 條）', () => {
 describe('從總覽或通知帶 ?campus= 進編輯頁', () => {
   it('在自己的範圍內就切到那一校，範圍外的忽略', async () => {
     for (const [query, expected] of [['yihua', 'yihua'], ['minghua', 'renwu']] as const) {
+      // 上一輪選過的校區會記在 sessionStorage（分校內容頁共用），這裡只測網址。
+      sessionStorage.clear()
       const { global } = await setup(`/content/campus-faq?campus=${query}`, testUser('campus_admin', { campus_keys: ['renwu', 'yihua'] }))
       let picked = ''
       const Probe = defineComponent({
