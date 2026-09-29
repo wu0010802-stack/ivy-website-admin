@@ -12,8 +12,13 @@ export interface AdminApi {
 
 const API = '/api/website/v1'
 
+// test runner 會把測試的 use.storageState 套到 request.newContext()：不明寫空狀態的話，
+// 在 test.use({ storageState }) 的檔案裡登入會帶著預存的 cookie，而密碼登入會撤銷
+// 請求帶來的舊 session（2026-09-29 起），預存的登入狀態就跟著失效。
+const EMPTY_STATE = { cookies: [], origins: [] }
+
 export async function adminApi(role: StackRole): Promise<AdminApi> {
-  const context = await request.newContext({ baseURL: WEB_ORIGIN })
+  const context = await request.newContext({ baseURL: WEB_ORIGIN, storageState: EMPTY_STATE })
   const login = await context.post(`${API}/auth/login`, { data: { email: USERS[role].email, password: USERS[role].password } })
   expect(login.status(), await login.text()).toBe(200)
   const { csrf_token: csrf } = (await login.json()) as { csrf_token: string }
@@ -67,7 +72,7 @@ export async function findVisit(api: AdminApi, parentName: string): Promise<Visi
 
 /** 以家長身分從公開 API 送一筆需求（只用來準備資料；送單畫面由 booking-flow 驗證）。 */
 export async function submitPublicRequest(campus: string, parentName: string, phone: string): Promise<void> {
-  const context = await request.newContext({ baseURL: WEB_ORIGIN })
+  const context = await request.newContext({ baseURL: WEB_ORIGIN, storageState: EMPTY_STATE })
   const config = await (await context.get(`${API}/public/booking-config/${campus}`)).json()
   let slotId: string | undefined
   if (config.mode === 'slots') {
