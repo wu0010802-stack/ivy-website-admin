@@ -213,7 +213,7 @@ const mapPreviewUrl = computed(() => {
       </div>
 
       <h3 class="form-section">社群</h3>
-      <p class="field-help">
+      <p v-if="!editor.readOnly.value" class="field-help social-lead">
         貼完整網址（https:// 開頭），在瀏覽器打開該校的頁面、從網址列複製最準。只填這一校自己的帳號，不要填其他校或機構的。
       </p>
       <!-- 網址邊打邊檢查（同消息連結的規則）：存檔時後端只說「網址格式不對」，不知道是哪一欄。 -->
@@ -243,6 +243,10 @@ const mapPreviewUrl = computed(() => {
 </template>
 
 <style scoped>
+.social-lead {
+  margin: 0 0 12px;
+}
+
 .form-section {
   margin: 16px 0 12px;
   padding-top: 16px;

@@ -111,8 +111,7 @@ onMounted(editor.load)
       <!-- 官網 CampusPageMain.vue 的橫幅是寫死的文字，沒有讀這三欄（web content-overlay 只轉存）。
            欄位先保留，等官網接上再拿掉這段說明。 -->
       <el-alert type="info" :closable="false" show-icon class="banner__notice" title="這三欄目前不會出現在官網">
-        分校頁底部的橫幅現在是固定文字：「親自走一趟，感受〇〇校的日常。」、「帶著孩子，也帶著你想了解的事。我們期待與你相遇。」與「預約校園參觀」按鈕。
-        這裡改了、發布了，官網也不會變；需要改橫幅文字請聯絡網站維護人員。
+        分校頁底部的橫幅現在是固定文字：「親自走一趟，感受〇〇校的日常。」、「帶著孩子，也帶著你想了解的事。我們期待與你相遇。」與「預約校園參觀」按鈕。這裡改了、發布了，官網也不會變；需要改橫幅文字請聯絡網站維護人員。
       </el-alert>
       <el-form-item label="橫幅標題">
         <el-input v-model="editor.form.value.banner_title_template" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />

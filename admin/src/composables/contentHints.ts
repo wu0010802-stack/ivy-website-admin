@@ -67,5 +67,6 @@ export function normalizeMomentTime(value: string): string {
 export function momentTimeError(value: string | null | undefined): string {
   const text = (value ?? '').trim()
   if (!text || MOMENT_TIME.test(text)) return ''
-  return '時間請用 24 小時制的「時:分」，例如 08:05、13:30（官網依時間調整背景光線）'
+  // 錯誤訊息在半欄寬的欄位下方，只放得下一行；為什麼要這樣填寫在時刻卡清單的說明裡。
+  return '請用「時:分」，例如 08:05、13:30'
 }

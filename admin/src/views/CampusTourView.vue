@@ -306,8 +306,7 @@ function nudge(i: number, event: KeyboardEvent) {
             <p class="hint tour__stage-hint">
               <span v-if="editor.readOnly.value">點圖釘查看每個熱點的說明。</span>
               <span v-else-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
-              <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳、方向鍵或右側的座標欄位調整位置。</span>
-              這個畫面的比例（8:5）和官網相同，照片整張放進框裡，熱點在這裡的位置就是官網上的位置。
+              <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳、方向鍵或右側的座標欄位調整位置。</span><span>這個畫面的比例（8:5）和官網相同，照片整張放進框裡，熱點在這裡的位置就是官網上的位置。</span>
             </p>
           </div>
 

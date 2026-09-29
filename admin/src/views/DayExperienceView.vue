@@ -183,7 +183,7 @@ onMounted(editor.load)
       </div>
 
       <p class="field-help moments-lead">
-        官網照這裡的順序排列，可以用上移、下移調整。新增的卡片沒選色調時，依位置輪流套用內建的色調，調整順序後顏色可能跟著換。
+        官網照這裡的順序排列，可以用上移、下移調整。時間用 24 小時制（例如 08:05），官網依時間調整背景影片的光線。新增的卡片沒選色調時，依位置輪流套用內建的色調，調整順序後顏色可能跟著換。
       </p>
       <div ref="momentsList">
       <div v-for="(moment, index) in editor.form.value.moments" :key="moment.key" class="repeat-item" :data-list-item="index">
