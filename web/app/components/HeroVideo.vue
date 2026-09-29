@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { HOME_HERO_SIZES } from '~/utils/responsive-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import { heroImageAttrs, mediaImageAttrs } from '~/utils/media-image'
 import type { HeroContent } from '~/types/site-content'
 import { useHomeReveal } from '~/composables/useHomeReveal'
@@ -145,9 +146,12 @@ onMounted(() => {
   const startVideo = () => {
     if (disposed) return
     if (!entranceWaited && document.documentElement.dataset.ivyEntrance === 'pending') return waitForEntrance(startVideo)
-    const mobile = window.matchMedia('(max-width: 760px)').matches
-    isMobileVideo.value = mobile
-    videoSrc.value = backgroundVideoSrc(mobile && props.hero.heroVideoSrcMobile ? props.hero.heroVideoSrcMobile : props.hero.heroVideoSrc, mobile)
+    // 素材與裁切位置依寬度（後台的手機影片可能是直式）；編碼版本依布幕同一個手機定義，
+    // 橫拿手機（高度 ≤500）也拿手機檔，不下載桌機母帶。
+    const narrow = window.matchMedia('(max-width: 760px)').matches
+    const compact = window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches
+    isMobileVideo.value = narrow
+    videoSrc.value = backgroundVideoSrc(narrow && props.hero.heroVideoSrcMobile ? props.hero.heroVideoSrcMobile : props.hero.heroVideoSrc, compact)
     showVideo.value = true
     nextTick(() => {
       if (disposed) return
@@ -159,7 +163,7 @@ onMounted(() => {
   // chunk 與下方 lazy 圖搶頻寬（見 perf-auditor 2026-09-22 盤點）。
   const beginVideo = () => {
     if (disposed) return
-    if (!window.matchMedia('(max-width: 760px)').matches) return startVideo()
+    if (!window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches) return startVideo()
     const idle = () => {
       if (disposed) return
       if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(startVideo, { timeout: 2500 })

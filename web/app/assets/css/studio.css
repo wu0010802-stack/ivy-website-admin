@@ -320,6 +320,16 @@ body:has(:is(.studio-hero,.photo-hero)) .menu-toggle span {background:currentCol
     border-radius:10px;
   }
 }
+/* 檔首 ≤380 區塊的 .header-book{padding-inline:10px} 被上面的 padding:9px 18px 蓋掉，實底頁首在 320 寬會超出容器 12px；
+   在這裡補回。只限 ≤331（332 起內容剛好放得下），340／360／375 外觀不動。 */
+@media(max-width:331px) {
+  .header-book {padding-inline:10px}
+}
+/* 頁面縮放、系統大字或 280 寬時，一排放不下就讓預約鈕與漢堡換到第二行，不再被推出視窗；
+   放得下時仍是一行 78px，外觀不變（2026-09-29）。 */
+@media(max-width:760px) {
+  .header-top {flex-wrap:wrap;height:auto;min-height:78px;row-gap:0}
+}
 @media(hover:hover) {
   .header-book:hover {background:var(--paper);color:var(--deep)}
 }
@@ -477,6 +487,8 @@ body:has(:is(.studio-hero,.photo-hero)) .header-top,
 .studio-hero-copy,.studio-hero-foot,.studio-media {text-shadow:0 1px 3px rgb(var(--ink) / .45)}
 .studio-hero-copy>p {max-width:28em;font-size:var(--fs-lg);font-weight:400;line-height:1.85;margin-top:28px;color:var(--white)}
 .hero-copy-line {display:block}
+/* 手機副文案照標點斷句，360／344 寬不會只剩「法。」孤行；沒有標點的長句靠 anywhere 保底不溢出。 */
+@media(max-width:760px) {.hero-copy-line {word-break:keep-all;overflow-wrap:anywhere}}
 .hero-copy-phrase {white-space:nowrap}
 .studio-hero-foot {font-size:var(--fs-sm);font-weight:500}
 .studio-hero-copy .eyebrow {font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);letter-spacing:.18em;margin-bottom:30px}
@@ -824,8 +836,11 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {
   color:inherit;
   transition:background-color .2s ease;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover,
 body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
+/* hover 只給滑鼠：觸控點過後 :hover 會黏住，關掉選單仍留著展開底色。 */
+@media(hover:hover) {
+  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover {background:var(--pill-hover)}
+}
 /* 900px 以下站內的 .menu-toggle span 會把這個容器本身壓成 1px 高，要擋回來。 */
 body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
 body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines span {
@@ -854,7 +869,9 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
   white-space:nowrap;
   transition:background-color .2s ease,color .2s ease;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--paper);color:var(--deep)}
+@media(hover:hover) {
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--paper);color:var(--deep)}
+}
 /* 桌機膠囊的控制只有 40px 高（手機 --pill-ctrl 已是 44px）：用透明 ::before 上下各補 2px，點擊範圍到 44px、外觀不變（2026-09-27）。 */
 body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle) {position:relative}
 body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle)::before {content:"";position:absolute;inset:-2px 0}
@@ -944,8 +961,10 @@ body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
   line-height:1.4;
 }
 body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a:hover,
 body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a.is-active {background:var(--menu-social-hover)}
+@media(hover:hover) {
+  body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a:hover {background:var(--menu-social-hover)}
+}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
@@ -1067,10 +1086,12 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-peek
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding:0}
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {width:var(--pill-ctrl);height:var(--pill-ctrl);box-shadow:var(--pill-shadow)}
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {background:var(--pill-bg);border:1px solid var(--pill-border);box-shadow:var(--pill-shadow)}
-  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover,
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--deep)}
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {box-shadow:var(--pill-shadow)}
   [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {border-radius:999px;box-shadow:none}
+}
+@media(min-width:901px) and (hover:hover) {
+  [data-pill="bare"] body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover {background:var(--deep)}
 }
 @media(max-width:900px) {
   body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
@@ -1125,8 +1146,11 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-p
 .header.is-pill-nav[data-state="compact"] {border-bottom-color:transparent}
 /* 手機選單開著時背景不捲（SiteHeader 只在 900px 以下加 menu-locked）。 */
 html.menu-locked {overflow:hidden}
-/* 預約頁本身不放「預約參觀」，手機寬度讓給品牌與選單。 */
-@media(max-width:760px) {
+/* 選單卡外的透明遮罩（SiteHeader 只在 900px 以下、選單開著時放）：點卡外只關選單，不點穿到底下。
+   z-index:-1 沉到頁首內容之下、仍蓋在整頁之上（header 是 z-index 40 的堆疊脈絡）；compact 頁首是 pointer-events:none，要明寫 auto。 */
+.menu-scrim {position:fixed;inset:0;z-index:-1;pointer-events:auto}
+/* 預約頁本身不放「預約參觀」，手機寬度讓給品牌與選單；橫拿的手機（矮、觸控）也算手機。 */
+@media(max-width:760px),(max-height:500px) and (pointer:coarse) {
   .header.is-booking :is(.header-book,.pill-book) {display:none}
 }
 

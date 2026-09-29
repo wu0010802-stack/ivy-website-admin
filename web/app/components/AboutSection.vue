@@ -14,6 +14,17 @@ const copy = computed(() => {
 // 2026-09-23 起只放一張圓角照片（原本主照＋小照疊放）；資料仍是陣列，取第一張。
 const photo = computed(() => props.about.photos[0])
 
+// 收合時按鈕上方的長段落被移除，版面會整段往上縮（320 寬時按鈕與段落直接跑出畫面）；
+// DOM 更新後依按鈕原本的位置補捲動，讓它停在點下去的地方。展開是往按鈕上方長，不用補。
+async function toggleCopy(event: MouseEvent) {
+  const button = event.currentTarget as HTMLElement
+  const before = button.getBoundingClientRect().top
+  expanded.value = !expanded.value
+  if (expanded.value) return
+  await nextTick()
+  requestAnimationFrame(() => window.scrollBy({ top: button.getBoundingClientRect().top - before, behavior: 'instant' }))
+}
+
 const rootEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
 const panelEl = ref<HTMLElement | null>(null)
@@ -43,7 +54,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
               <p class="belief-since" lang="en">{{ about.sinceLabel }}</p>
               <h2 id="about-title">{{ about.title }}</h2>
               <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
-              <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="expanded = !expanded">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
+              <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="toggleCopy">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
             </div>
             <figure v-if="photo" class="belief-photo">
               <img

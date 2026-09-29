@@ -318,7 +318,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-gallery button{font:inherit;cursor:pointer;color:inherit}
 .campus-gallery a{color:inherit;text-decoration:none}
 .campus-gallery :is(button,a,[tabindex]):focus-visible{outline:3px solid var(--green);outline-offset:5px}
-.campus-gallery button:hover{color:var(--green)}
+/* 觸控點過會殘留 :hover（sticky hover），輪播換校後舊分頁仍像被選中；hover 樣式只給滑鼠裝置，就地包起來以保留原本的先後順序。 */
+@media(hover:hover){.campus-gallery button:hover{color:var(--green)}}
 
 
 .content-width{width:var(--card-width);margin-inline:auto}
@@ -330,7 +331,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .campus-tabs{--tab-hover-line:var(--ivy-campus-tab-hover-line);display:flex;justify-content:center;width:min(100%,1040px);gap:12px}
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
-.campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}
+@media(hover:hover){.campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}}
 .campus-tab-figure{position:relative;display:block;width:160px;max-width:100%;aspect-ratio:3/2}
 /* 線稿與淡彩層都是白底圖靠 multiply 融進底色。直接對 opacity／filter 做 transition 時，WebKit（iPhone、Safari）會把圖移到
    獨立合成層，multiply 碰不到底色，轉場那 0.2–0.35 秒露出白底長方形（每次自動輪播切換都閃）。改成轉場註冊過的數值變數，
@@ -339,8 +340,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 @property --tab-art-brightness{syntax:'<number>';inherits:false;initial-value:.72}
 @property --tab-colour-opacity{syntax:'<number>';inherits:false;initial-value:0}
 .campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(var(--tab-art-brightness,.72)) contrast(3.2);pointer-events:none;user-select:none;opacity:var(--tab-art-opacity,.75);transition:--tab-art-opacity .2s,--tab-art-brightness .2s}
-.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-art{--tab-art-opacity:1}
-.campus-tabs button:hover .campus-tab-art{--tab-art-brightness:.68}
+.campus-tabs button[aria-selected=true] .campus-tab-art{--tab-art-opacity:1}
+@media(hover:hover){.campus-tabs button:hover .campus-tab-art{--tab-art-opacity:1;--tab-art-brightness:.68}}
 /* 淡彩層只有顏色、不含線條，multiply 疊在線稿上，淡入時線條濃淡不變；觸控裝置不載入 */
 .campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:var(--tab-colour-opacity,0);transition:--tab-colour-opacity .35s ease}
 @media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-colour{--tab-colour-opacity:1}}
@@ -354,7 +355,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 @keyframes campus-tab-wash{0%,55%{--tab-colour-opacity:0}100%{--tab-colour-opacity:1}}
 .campus-tab-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding-inline:14px;white-space:nowrap}
 .campus-tab-label::after{content:'';position:absolute;inset-block-end:-6px;inset-inline-start:50%;width:25px;height:2px;background:transparent;transform:translateX(-50%);transition:background .2s}
-.campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}
+@media(hover:hover){.campus-tabs button:hover .campus-tab-label::after{background:var(--tab-hover-line)}}
 .campus-tabs button[aria-selected=true] .campus-tab-label::after{background:var(--heading-ink)}
 .gallery-media{position:relative;--toolbar-height:94px}
 .controls-reveal-trigger{position:absolute;left:50%;bottom:0;width:1px;height:var(--toolbar-height);pointer-events:none}
@@ -376,7 +377,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .page-dot[aria-pressed=true] .progress-track{width:44px;height:7px;background:var(--line)}
 .progress-track>span{display:block;width:100%;height:100%;transform:scaleX(0);transform-origin:left;background:var(--deep);border-radius:inherit}
 .round-button{display:grid;place-items:center;width:48px;height:48px;flex:none;padding:0;border:1px solid var(--control-border);border-radius:50%;background:var(--control);transition:background .2s}
-.round-button:hover,.page-dot:hover{background:var(--control-hover)}
+@media(hover:hover){.round-button:hover,.page-dot:hover{background:var(--control-hover)}}
 .icon{width:20px;height:20px;display:block;fill:currentColor;flex:none}
 
 /* One small drop rises, settles, then separates into the two controls. */
@@ -465,12 +466,14 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .campus-panorama.campus-gallery{--card-width:calc(100vw - 48px);--card-gap:12px;--radius:24px;padding:38px 0 40px}
   .gallery-heading{gap:12px;margin-bottom:24px}
   .gallery-title{gap:2px;margin-top:14px}
-  .gallery-title h2{font-size:var(--fs-5xl);letter-spacing:.06em}
+  .gallery-title h2{font-size:var(--fs-5xl);letter-spacing:.06em;white-space:normal}
   .gallery-title>span{font-size:var(--fs-lg)}
   .campus-tabs{gap:5px}
   .campus-tabs button{font-size:var(--fs-xs);min-height:92px;padding:6px 2px 9px;gap:2px;letter-spacing:.015em}
   .campus-tab-figure{width:60px;height:40px}
   .campus-tab-label{min-height:28px;padding-inline:5px}
+  /* 文字放大 200% 時校名在自己的分頁裡換行，不溢進隔壁分頁連成一串；預設字級放得下，不會換行。 */
+  .campus-tabs button,.campus-tab-label{white-space:normal;line-height:1.3}
   .campus-tab-label::after{inset-block-end:-4px;width:20px}
   .gallery-track{height:calc(var(--card-width) / 1.5)}
   .gallery-media{--toolbar-height:84px}
@@ -491,7 +494,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .phone{font-size:var(--fs-2xl)}
   .social-row{font-size:var(--fs-sm);gap:8px 20px;margin-top:5px}
   .campus-actions{grid-column:auto;display:block;padding:0}
-  .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm)}
+  .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm);white-space:normal}
 }
 @media(max-width:360px){
   .playback-controls{gap:4px}
