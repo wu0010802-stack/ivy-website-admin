@@ -52,6 +52,15 @@ function close() {
   dialogEl.value?.close()
 }
 
+// 點背景關閉：modal dialog 的背景點擊 target 是 dialog 本身，但點在 dialog 自己的 padding 上也是，
+// 所以用座標判斷是否落在外框之外。不用 closedby="any"（iOS Safari 支援不明）。焦點還原走原本的 close 流程。
+function onDialogClick(event: MouseEvent) {
+  const dialog = dialogEl.value
+  if (!dialog || event.target !== dialog) return
+  const rect = dialog.getBoundingClientRect()
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close()
+}
+
 function formatDate(date: string) {
   return date.replaceAll('-', '.')
 }
@@ -124,7 +133,7 @@ function eventBrief(item: NewsEvent) {
               <div class="hn-media">
                 <img
                   v-for="(item, layer) in layers" :key="item.id"
-                  v-bind="responsiveTourImage(item.image, '(max-width: 640px) 84vw, (max-width: 900px) 30vw, 420px', false, item.imageMedia)"
+                  v-bind="responsiveTourImage(item.image, '(max-width: 640px) 160px, (max-width: 900px) 30vw, 420px', false, item.imageMedia)"
                   :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined"
                   :alt="item.alt" :loading="layer ? 'eager' : 'lazy'" :class="{ 'is-incoming': layer > 0 }"
                 >
@@ -144,7 +153,7 @@ function eventBrief(item: NewsEvent) {
   </section>
 
   <ClientOnly>
-    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title" @close="dialogOpen = false">
+    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title" @close="dialogOpen = false" @click="onDialogClick">
       <div class="hn-dialog-top">
         <span>常春藤 · 校園消息</span>
         <button type="button" aria-label="關閉消息" @click="close">關閉 ×</button>
@@ -157,7 +166,6 @@ function eventBrief(item: NewsEvent) {
             <button v-for="item in events" :key="item.id" type="button" class="hn-event" @click="openEvent(item)">
               <span v-if="isSample(item)" class="hn-date is-sample"><b>示意</b><span>日期未定</span></span><time v-else class="hn-date" :datetime="item.date"><b>{{ item.date.slice(-2) }}</b><span lang="en">{{ item.month }}</span></time>
               <span class="hn-event-copy"><small>{{ item.campus }}<span v-if="tagged(item, eventsSample)" class="hn-sample-tag">示意</span></small><strong>{{ item.title }}</strong><small v-if="eventBrief(item)" class="hn-event-brief">{{ eventBrief(item) }}</small></span>
-              <span class="hn-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
         </template>

@@ -78,7 +78,9 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-dialog{--hn-muted:var(--ivy-news-muted);--hn-green:var(--ivy-news-green);border:1px solid var(--ivy-news-line);border-radius:8px;color:var(--ivy-news-ink);background:var(--ivy-news-dialog);width:min(680px,calc(100% - 36px));max-width:none;max-height:85dvh;padding:24px;font:var(--fs-md)/1.9 var(--font)}
 .hn-dialog::backdrop{background:rgb(var(--ivy-news-backdrop-rgb) / .62)}
 body:has(.hn-dialog[open]){overflow:hidden}
-.hn-dialog-top{display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:var(--fs-xs);border-bottom:1px solid var(--ivy-news-line);margin-bottom:22px;padding-bottom:10px}
+/* 對話框內容超過 85dvh（橫向手機）時由 dialog 自己捲動：頂列黏在上緣，關閉鈕不會捲走。負 margin 與同量 padding
+   把頂列往上延伸蓋住 dialog 的 padding，黏住時上方留白與未捲動時相同；未捲動時的版面不變。 */
+.hn-dialog-top{position:sticky;top:-24px;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:var(--fs-xs);background:var(--ivy-news-dialog);border-bottom:1px solid var(--ivy-news-line);margin-top:-24px;margin-bottom:22px;padding-top:24px;padding-bottom:10px}
 .hn-dialog-top button{min-height:44px;padding-inline:8px}
 .hn-dialog h2{font-size:var(--fs-3xl);line-height:1.6;letter-spacing:.015em;text-wrap:pretty;margin-bottom:16px}
 .hn-dialog-body>img{width:100%;height:auto;max-height:330px;object-fit:cover;margin-block:20px}
@@ -120,6 +122,7 @@ body:has(.hn-dialog[open]){overflow:hidden}
   .hn-card .hn-meta{font-size:var(--fs-xs)}
   .hn-sample-note{font-size:var(--fs-xs);line-height:1.8}
   .hn-dialog{padding:20px}
+  .hn-dialog-top{top:-20px;margin-top:-20px;padding-top:20px}
   .hn-dialog h2{font-size:var(--fs-2xl)}
   .hn-dialog .hn-list-row{gap:12px}
   .hn-list-row>img{width:66px}

@@ -13,14 +13,16 @@ const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.k
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
 const photoViewport = ref<HTMLElement | null>(null)
+const galleryTrack = ref<HTMLElement | null>(null)
 const controlsTrigger = ref<HTMLElement | null>(null)
 const playbackControls = ref<HTMLElement | null>(null)
 const controlsReveal = ref<'static' | 'pending' | 'entering' | 'shown'>('static')
-const progress = ref(0)
 const visible = ref(false)
 const hidden = ref(true)
 const focused = ref(false)
 const paused = ref(false)
+// 手指正在水平拖曳照片（見 onPointerMove）；拖曳中暫停計時，手指底下的照片不會被自動換掉。
+const dragging = ref(false)
 const reducedMotion = ref(false)
 const optedIn = ref(false)
 const repositioning = shallowRef(new Set<number>())
@@ -29,12 +31,28 @@ const announcement = ref('')
 const drawing = ref(-1)
 let drewOnce = false
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value)
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !dragging.value)
+// 進度條改由 CSS 動畫走（合成器執行）：原本每 50ms 寫一次 scaleX，停在區塊不動時也每幀重繪、主執行緒一直忙。
+// 計時仍由 carouselClock 負責換校；進度條只在這裡換 key 重建、從 from（0–1）接著播：換校歸零，
+// 手動暫停（進度條滿格）後再開始，則接續暫停前的進度。播放／暫停跟 playing 同一個開關（data-run）。
+const DURATION = 4000
+const progressRun = shallowRef({ key: 0, from: 0 })
+let lastProgress = 0
 const clock = createCarouselClock({
-  duration: 4000,
+  duration: DURATION,
   onAdvance: () => select(index.value + 1, true),
-  onProgress: value => { progress.value = value }
+  onProgress: value => {
+    lastProgress = value
+    if (value === 0) progressRun.value = { key: progressRun.value.key + 1, from: 0 }
+  }
 })
+watch(canAuto, auto => { if (auto) progressRun.value = { key: progressRun.value.key + 1, from: lastProgress } })
+function progressStyle(i: number) {
+  if (i !== index.value) return undefined
+  if (!canAuto.value) return { transform: 'scaleX(1)' }
+  const { from } = progressRun.value
+  return from ? { '--run-from': `${Math.round(-from * DURATION)}ms` } : undefined
+}
 
 function offset(photo: number, selected = index.value) {
   const total = orderedCampuses.value.length
@@ -88,18 +106,46 @@ function onControlsAnimationEnd(event: AnimationEvent) {
   if (event.target === playbackControls.value && event.pseudoElement === '::before') finishControlsReveal()
 }
 
-let pointerStart: { id: number; x: number; y: number } | null = null
+// axis：手指移動超過 8px 後判定的方向，一次手勢只判定一次。
+let pointerStart: { id: number; x: number; y: number; axis?: 'x' | 'y' } | null = null
 let suppressPhotoClick = false
+// 觸控拖曳時照片跟著手指走：水平意圖確定後，把位移寫到 .gallery-track 的 --drag（五張卡的最小共同祖先，
+// 值沒變就不寫），拖曳中關掉卡片轉場。垂直滑動交給瀏覽器捲頁面（touch-action:pan-y），瀏覽器接手時送 pointercancel。
+// 滑鼠維持放開才判斷；換校門檻仍是放開時水平位移 45px。
+let dragX = 0
+function setDrag(value: number) {
+  if (value === dragX) return
+  dragX = value
+  if (value) galleryTrack.value?.style.setProperty('--drag', `${value}px`)
+  else galleryTrack.value?.style.removeProperty('--drag')
+}
+function endDrag() {
+  pointerStart = null
+  dragging.value = false
+  setDrag(0)
+}
 function onPointerDown(event: PointerEvent) {
   if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
+  endDrag()
   pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY }
   suppressPhotoClick = false
+}
+function onPointerMove(event: PointerEvent) {
+  if (!pointerStart || pointerStart.id !== event.pointerId || event.pointerType === 'mouse') return
+  const dx = event.clientX - pointerStart.x
+  const dy = event.clientY - pointerStart.y
+  if (!pointerStart.axis) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return
+    pointerStart.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    if (pointerStart.axis === 'x') dragging.value = true
+  }
+  if (pointerStart.axis === 'x') setDrag(Math.round(dx))
 }
 function onPointerUp(event: PointerEvent) {
   if (!pointerStart || pointerStart.id !== event.pointerId) return
   const dx = event.clientX - pointerStart.x
   const dy = event.clientY - pointerStart.y
-  pointerStart = null
+  endDrag()
   if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {
     suppressPhotoClick = true
     select(index.value + (dx < 0 ? 1 : -1))
@@ -237,10 +283,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
     <div class="gallery-media">
       <div
         ref="photoViewport" class="gallery-viewport" aria-label="校園照片，可左右滑動"
-        @pointerdown="onPointerDown" @pointerup="onPointerUp" @pointercancel="pointerStart = null"
-        @pointerleave="pointerStart = null" @dragstart.prevent
+        @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="endDrag"
+        @pointerleave="endDrag" @dragstart.prevent
       >
-        <div class="gallery-track">
+        <div ref="galleryTrack" class="gallery-track" :class="{ 'is-dragging': dragging }">
           <NuxtLink
             v-for="(campus, i) in orderedCampuses" :key="campus.key"
             class="photo-card" :class="{ 'is-current': i === index, 'is-neighbor': Math.abs(offset(i)) === 1, 'is-repositioning': repositioning.has(i) }"
@@ -270,7 +316,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
               class="page-dot" type="button" :aria-label="`切換至${campus.name}`"
               :aria-pressed="i === index" aria-controls="campus-stage" @click="select(i)"
             >
-              <span class="progress-track" aria-hidden="true"><span :style="{ transform: `scaleX(${i === index ? (canAuto ? progress : 1) : 0})` }" /></span>
+              <span class="progress-track" aria-hidden="true"><span
+                :key="i === index ? `run-${progressRun.key}` : 'idle'"
+                :data-run="i === index && canAuto ? (playing ? 'playing' : 'paused') : undefined" :style="progressStyle(i)"
+              /></span>
             </button>
           </div>
           <button
@@ -362,12 +411,12 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .gallery-viewport{overflow:hidden;padding-block:4px;touch-action:pan-y;cursor:grab}
 .gallery-viewport:active{cursor:grabbing}
 .gallery-track{position:relative;width:100%;height:clamp(350px,37.5vw,540px)}
-.photo-card{position:absolute;left:calc((100% - var(--card-width))/2);top:0;width:var(--card-width);height:100%;margin:0;border:0;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--selected);transform:translateX(calc(var(--offset)*(100% + var(--card-gap))));transition:transform .8s var(--ease);will-change:transform;cursor:pointer;pointer-events:none}
+.photo-card{position:absolute;left:calc((100% - var(--card-width))/2);top:0;width:var(--card-width);height:100%;margin:0;border:0;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--selected);transform:translateX(calc(var(--offset)*(100% + var(--card-gap)) + var(--drag,0px)));transition:transform .8s var(--ease);will-change:transform;cursor:pointer;pointer-events:none}
 .photo-card img{max-width:none;width:100%;height:100%;display:block;object-fit:cover;user-select:none;pointer-events:none}
 .photo-card:not(.is-current)::after{content:'';position:absolute;inset:0;background:var(--background);opacity:.18;pointer-events:none}
 .photo-card.is-current,.photo-card.is-neighbor{pointer-events:auto}
 .photo-card:focus-visible{outline-offset:-7px}
-.photo-card.is-repositioning{transition:none}
+.photo-card.is-repositioning,.gallery-track.is-dragging .photo-card{transition:none}
 .gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:var(--toolbar-height)}
 .playback-controls{position:relative;grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
 .pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}
@@ -376,6 +425,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .progress-track{display:block;width:6px;height:6px;border-radius:999px;overflow:hidden;background:var(--control-dot)}
 .page-dot[aria-pressed=true] .progress-track{width:44px;height:7px;background:var(--line)}
 .progress-track>span{display:block;width:100%;height:100%;transform:scaleX(0);transform-origin:left;background:var(--deep);border-radius:inherit}
+/* 4s 對應 script 的 DURATION；--run-from 是負的延遲，讓重建的動畫從暫停前的進度接著播。 */
+@keyframes campus-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.progress-track>span[data-run]{animation:campus-progress 4s linear forwards paused;animation-delay:var(--run-from,0s)}
+.progress-track>span[data-run=playing]{animation-play-state:running}
 .round-button{display:grid;place-items:center;width:48px;height:48px;flex:none;padding:0;border:1px solid var(--control-border);border-radius:50%;background:var(--control);transition:background .2s}
 @media(hover:hover){.round-button:hover,.page-dot:hover{background:var(--control-hover)}}
 .icon{width:20px;height:20px;display:block;fill:currentColor;flex:none}
@@ -472,8 +525,9 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .campus-tabs button{font-size:var(--fs-xs);min-height:92px;padding:6px 2px 9px;gap:2px;letter-spacing:.015em}
   .campus-tab-figure{width:60px;height:40px}
   .campus-tab-label{min-height:28px;padding-inline:5px}
-  /* 文字放大 200% 時校名在自己的分頁裡換行，不溢進隔壁分頁連成一串；預設字級放得下，不會換行。 */
-  .campus-tabs button,.campus-tab-label{white-space:normal;line-height:1.3}
+  /* 文字放大 200% 時校名在自己的分頁裡換行，不溢進隔壁分頁連成一串；預設字級放得下，不會換行。
+     行高不另外收緊：改行高會讓預設字級的校名上移約 0.6px。 */
+  .campus-tabs button,.campus-tab-label{white-space:normal}
   .campus-tab-label::after{inset-block-end:-4px;width:20px}
   .gallery-track{height:calc(var(--card-width) / 1.5)}
   .gallery-media{--toolbar-height:84px}
@@ -506,6 +560,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .contact-row{font-size:var(--fs-sm)}
 }
 @media(prefers-reduced-motion:reduce){.campus-gallery *,.campus-gallery *::before,.campus-gallery *::after{transition:none!important;animation:none!important}}
+/* 減少動態時使用者手動開始輪播，進度條照樣前進（改 CSS 動畫前由 JS 逐格寫入，不受上面全面關動畫影響）。 */
+@media(prefers-reduced-motion:reduce){.progress-track>span[data-run]{animation:campus-progress 4s linear forwards paused!important;animation-delay:var(--run-from,0s)!important}.progress-track>span[data-run=playing]{animation-play-state:running!important}}
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
 @media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
 

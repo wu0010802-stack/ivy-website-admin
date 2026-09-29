@@ -63,7 +63,11 @@ function sync() {
     if (!video || film.type !== 'file') return
     if (k === index.value && run) {
       if (!video.getAttribute('src')) video.src = `${film.src}#t=${film.start}`
-      void video.play().catch(() => {})
+      // 瀏覽器拒絕自動播放（iOS 低耗電模式等）時，按鈕改回「播放影片」，不留「暫停」的假活著狀態；
+      // 快速換片時 pause() 打斷 play() 的 AbortError 不算，不能把自動播放的意圖關掉。
+      void video.play().catch((error: DOMException | undefined) => {
+        if (error?.name === 'NotAllowedError' && k === index.value) autoplay.value = false
+      })
     } else if (!video.paused) video.pause()
   })
 }
