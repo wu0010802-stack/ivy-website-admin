@@ -738,3 +738,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 部署期間約每 4 秒打一次 `/`：03:34:08 前後（api 換容器）有一次請求 10 秒逾時，其餘全部 200；web 換版時 `/release.json` 有一次讀不到、`/` 仍 200；03:36:02 起為新版。這次沒有 migration，api 起得快；比取樣間隔短的中斷量不到。
 - 部署後 GET `/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/news`、`/campuses/yihua`、`/campuses/renwu`、`/visit/yihua`、`/api/public-site`、`/admin/login`、`/sitemap.xml`、`/robots.txt` 皆 200。`/api/website/v1/health` 多了 `last_clean_at`、`last_failed_steps`（部署後第一輪定期工作為空陣列）。同源代理跳出前綴：`/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json`（未編碼的 `../` 亦同）部署前 200 回完整 OpenAPI，部署後 404。
 - **未做**：沒有登入後台、沒有在正式站寫入業務資料（送單、點擊、上傳都沒試），所以限流獨立連線池、LINE／email 分開重試、發布樂觀鎖、EXIF 清理只在本機與 CI 驗證。正式 DB 的 PITR／排程備份與素材備份仍待使用者在 Railway 處理。
+
+## 2026-09-29 官網後台全面盤點與修正部署（PR #15，main CI 部署）
+
+- 使用者要求處理完併入 main。PR #15（`claude/backend-ui-ux-optimization-y5ndf4` → main），合併提交 `4c47c45`。改動是 `admin/` 9 區 UI/UX 修正與路由分塊、後端 `booking/service.py` 的 `get_or_create_config` 併發修正（`INSERT … ON CONFLICT DO NOTHING`）、三支 `tests/stack` 的預期與文件；沒有 migration、沒有 API／契約變動、不改寫既有資料，不需先備份正式 DB。盤點與改動細節見 `docs/analysis/2026-09-28-admin-uiux-audit.md`、README 2026-09-28／29 段落。
+- PR 開之前 main 進了 PR #14（發布樂觀鎖），已併進分支並把兩個斷言補上 `expected_published_revision_id`；PR CI（Frontend admin／web、Backend、E2E）四個 job 全綠。
+- main CI run `36517969412` 五個 job 全綠（含 Deploy Railway production，03:52:09–03:55:13）。`/release.json` snapshot `ec0eb4cac6ff0d534e26ace479d80602cb0c3a1fc553d04856bc20a876cf9da7`、`base_commit` `4c47c45`、`web+api`、`created_at` 2026-09-29T03:52:09Z；合併到上線約 18 分鐘。PR #16（`4193292`）的 main run 接在後面（concurrency 在 main 不取消，排隊執行）。
+- 部署後（唯讀、未登入）GET `/`、`/about`、`/admission`、`/news`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200；後台入口 `index-BBJbRF_K.js` 239,085 B（原本單一 JS 約 1.6 MB），入口引用的 30 個頁面分塊逐一 GET 皆 200。
+- **未做**：沒有登入後台、沒有在正式站寫入資料；本容器的 Chromium 不信任出口代理的憑證，沒有關掉 TLS 驗證硬跑，所以正式站畫面沒有在瀏覽器裡看過（同一份 build 在 CI 的 E2E 以 Google Chrome 全過）。Safari／iOS 實機未驗證。
+- **上線後請園方做一次**：校園探索的後台畫布改成和官網相同的 8:5 整張顯示，舊熱點在官網上的位置不變，但後台現在看到的才是官網實際位置；請各校打開「校園探索」複核熱點，偏掉的拖回去再發布。
