@@ -1,6 +1,5 @@
 /**
  * 特色教學頁的水彩（2026-09-28，mock：design/curriculum-watercolor-mockup-20260928）。
- * 2026-09-29 起首頁也用：五校淡彩速寫（utils/campusSketch.ts）、孩子的一天→五校水彩滲接（seepEdgeCanvas）。
  *
  * 一團顏料＝一個基底多邊形反覆「在每條邊的中點往法線方向亂推」，再用很低的透明度疊幾十層；
  * 邊緣因為每層形狀不同而自然暈開，中央層層相疊變深（Tyler Hobbs 的生成式水彩做法）。
@@ -177,68 +176,6 @@ export function revealMaskCanvas(seed: number, size = 1024) {
   tracePolygon(ctx, deform(random, ellipse(random, size / 2, size / 2, size * 0.29, size * 0.29, 16), 3, 0.18))
   ctx.fill()
   return el
-}
-
-/**
- * 首頁「孩子的一天 → 五校」水彩滲接的遮罩帶（2026-09-29 定案，比稿 B）：上段實心、中段一排水彩團的濕邊、下段透明。
- * 遮罩帶跟著捲動往上推，上一段就被「滲」掉，不是一條直線擦過去（composables/useWatercolorSeep.ts）。
- * 寬度畫成 2048，CSS 以 max(100%, 1400px) 置中，手機只取中段，濕邊的尺度不會被壓扁。
- *
- * 一次畫完約幾十 ms，所以拆成產生器：每 yield 一次是一小塊工作，呼叫端在閒置時間裡每塊不超過 8ms 地推進
- * （同 useWatercolor 的做法）。步驟照順序跑，同一個種子畫出同一張圖。
- */
-export function seepEdgeCanvas(seed: number, width = 2048, height = 384) {
-  const job = seepEdgeJob(seed, width, height)
-  while (!job.steps.next().done) { /* 一口氣跑完（測試與不在乎長任務的呼叫端） */ }
-  return job.canvas
-}
-
-export function seepEdgeJob(seed: number, width = 2048, height = 384) {
-  const { el, ctx } = canvas(width, height)
-  return { canvas: el, steps: seepEdgeSteps(ctx, seededRandom(seed), el.width, el.height) }
-}
-
-function* seepEdgeSteps(ctx: CanvasRenderingContext2D, random: () => number, W: number, H: number): Generator<void> {
-  // 濕邊的基線：幾個頻率疊起來的緩慢起伏，振幅約帶高的 ±12%
-  const phases = [random() * 6.3, random() * 6.3, random() * 6.3]
-  const edgeY = (x: number) => H * (0.5
-    + 0.07 * Math.sin(x / W * Math.PI * 2 * 1.3 + phases[0]!)
-    + 0.035 * Math.sin(x / W * Math.PI * 2 * 3.7 + phases[1]!)
-    + 0.02 * Math.sin(x / W * Math.PI * 2 * 9.1 + phases[2]!))
-  // 實心核心：只變形上緣以下那條開放折線（deform 的推量與邊長成正比，封閉多邊形的頂邊太長，會被推進畫面裡破洞）
-  let core: Point[] = Array.from({ length: 33 }, (_, i) => { const x = -W * 0.02 + W * 1.04 * i / 32; return [x, edgeY(x) - H * 0.12] })
-  for (let d = 0; d < 3; d++) {
-    const out: Point[] = []
-    for (let i = 0; i < core.length - 1; i++) {
-      const a = core[i]!, b = core[i + 1]!, len = Math.hypot(b[0] - a[0], b[1] - a[1])
-      out.push(a, [(a[0] + b[0]) / 2 + gauss(random) * 0.2 * len * 0.5, (a[1] + b[1]) / 2 + gauss(random) * 0.2 * len * 0.5])
-    }
-    out.push(core[core.length - 1]!)
-    core = out
-  }
-  ctx.fillStyle = 'rgb(0 0 0)'
-  tracePolygon(ctx, [[-W * 0.02, -2], [W * 1.02, -2], ...core.reverse()])
-  ctx.fill()
-  yield
-  // 濕邊：沿邊緣排一整排顏料團（同 revealMaskCanvas 的做法），圓潤、半透明、深淺不一；
-  // 每團的外圈描幾次邊，顏料乾掉時邊緣積色的「水痕」
-  for (let x = -40; x < W + 40; x += 70 + random() * 60) {
-    const rx = 60 + random() * 110, ry = rx * (0.55 + random() * 0.35)
-    const cy = edgeY(x) + (random() - 0.35) * H * 0.12
-    washPolygons(random, x, cy, rx, ry, 16).forEach((poly, i) => {
-      tracePolygon(ctx, poly)
-      ctx.fillStyle = 'rgb(0 0 0 / .065)'
-      ctx.fill()
-      if (i % 5 === 0) { ctx.strokeStyle = 'rgb(0 0 0 / .12)'; ctx.lineWidth = 1.5; ctx.stroke() }
-    })
-    yield
-  }
-  // 更外圈幾團很淡的回滲（backrun）
-  for (let x = random() * 200; x < W; x += 180 + random() * 220) {
-    const rx = 40 + random() * 70
-    washPolygons(random, x, edgeY(x) + H * 0.14, rx, rx * 0.7, 10).forEach((poly) => { tracePolygon(ctx, poly); ctx.fillStyle = 'rgb(0 0 0 / .045)'; ctx.fill() })
-    yield
-  }
 }
 
 /** 冷壓水彩紙的紋理（256px 平鋪，multiply 疊在頁面上）。 */
