@@ -300,7 +300,9 @@ describe('我的帳號：Google 綁定', () => {
 
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const off = await mountAs(AccountView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/account')
-    expect(off.wrapper.text()).toContain('Google 登入尚未啟用')
+    // Google、LINE 都沒開放：不留兩張「尚未啟用」卡片，收成一行（2026-09-28）。
+    expect(off.wrapper.text()).toContain('目前只開放 Email 與密碼登入')
+    expect(off.wrapper.text()).not.toContain('Google 登入')
   })
 })
 

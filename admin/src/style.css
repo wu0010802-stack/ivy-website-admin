@@ -54,6 +54,16 @@
   /* 登入頁：冷色淺底，去背 logo 直接貼著底色，只靠柔和投影托起來。 */
   --login-bg: oklch(0.955 0.012 258);
   --login-crest-shadow: oklch(0.35 0.05 255 / 0.14);
+  /* 登入頁的 Google／LINE 按鈕：第三方品牌規範色，不跟後台主題，數值照官方規範不可改。
+     LINE 是綠底白字、8% 黑分隔線，hover／press 疊 10%／30% 黑。 */
+  --google-button-fill: #fff;
+  --google-button-stroke: #747775;
+  --google-button-text: #1f1f1f;
+  --line-button-fill: #06c755;
+  --line-button-ink: #fff;
+  --line-button-separator: rgb(0 0 0 / 0.08);
+  --line-button-hover-overlay: rgb(0 0 0 / 0.1);
+  --line-button-press-overlay: rgb(0 0 0 / 0.3);
 
   /* Element Plus 主題覆寫 */
   --el-color-primary: var(--admin-accent-strong);
