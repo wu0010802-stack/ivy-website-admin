@@ -92,6 +92,12 @@ describe('分校頁預約橫幅讀預約文案', () => {
     const preview = read('../app/pages/preview.vue')
     expect(preview).toContain(':campus="previewCampus" :booking="draft.booking"')
     expect(preview).toContain(':banner-campus="previewCampus"')
-    expect(read('../app/components/BookingDraftPreview.vue')).toContain('<CampusVisitBanner v-if="bannerCampus" :campus="bannerCampus" :booking="booking" />')
+    const draftPreview = read('../app/components/BookingDraftPreview.vue')
+    expect(draftPreview).toContain('<CampusVisitBanner v-if="bannerCampus" :campus="bannerCampus" :booking="booking" />')
+    // 橫幅例子的引言不在「同意說明」區塊裡，讀螢幕時不會被當成同意說明的一部分。
+    const consentSection = draftPreview.match(/<section[\s\S]*?<\/section>/)?.[0] ?? ''
+    expect(consentSection).toContain('aria-label="預約表單的同意說明（草稿）"')
+    expect(consentSection).not.toContain('booking-draft__banner-note')
+    expect(draftPreview).toContain('class="booking-draft__note booking-draft__banner-note"')
   })
 })

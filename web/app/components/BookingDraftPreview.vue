@@ -18,9 +18,14 @@ defineProps<{ booking: BookingContent; bannerCampus?: Pick<Campus, 'key' | 'name
         <PrivacyNoticeDialog v-if="booking.privacyNotice" :notice="booking.privacyNotice" label="閱讀個資使用說明" trigger-class="visit-privacy-link" />
         <p v-else class="booking-draft__note">尚未填寫個資使用說明，表單與頁尾不會顯示說明連結。</p>
       </div>
-      <p v-if="bannerCampus" class="booking-draft__note booking-draft__banner-note">分校頁最下方的預約橫幅，以{{ bannerCampus.name }}為例：</p>
     </div>
   </section>
+  <!-- 橫幅例子的引言放在同意說明區塊外面：讀螢幕的人不會把它聽成同意說明的一部分。 -->
+  <div v-if="bannerCampus" class="visit-page booking-draft booking-draft--banner-lead" data-step="2">
+    <div class="container">
+      <p class="booking-draft__note booking-draft__banner-note">分校頁最下方的預約橫幅，以{{ bannerCampus.name }}為例：</p>
+    </div>
+  </div>
   <CampusVisitBanner v-if="bannerCampus" :campus="bannerCampus" :booking="booking" />
 </template>
 
@@ -38,10 +43,12 @@ defineProps<{ booking: BookingContent; bannerCampus?: Pick<Campus, 'key' | 'name
   max-width: 40em;
   margin-top: 24px;
 }
+/* 有橫幅例子時，同意說明與引言之間的 48px、引言與橫幅之間的 24px 都用內距排
+   （用外距會穿出底色，兩塊之間露出一條頁面底色）。 */
 .booking-draft.has-banner {
-  padding-bottom: 24px;
+  padding-bottom: 0;
 }
-.booking-draft__banner-note {
-  margin-top: 48px;
+.booking-draft--banner-lead {
+  padding-block: 48px 24px;
 }
 </style>
