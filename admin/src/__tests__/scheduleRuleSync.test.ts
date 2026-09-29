@@ -92,7 +92,7 @@ describe('改每週規則：還沒有人預約的時段跟著調整', () => {
     expect(slotClosedLabel(null)).toBe('已關閉')
     expect(slotSyncLines({ removed: 0, closed: 0, reopened: 2, capacity_updated: 0, kept_booked: 0 })).toEqual(['重新開放 2 場'])
     expect(auditMetadataSummary({ rule_count: 1, slot_sync: { removed: 3, closed: 0, reopened: 0, capacity_updated: 0, kept_booked: 1 } }))
-      .toBe('rule_count=1，時段：3 場不符合新規則的時段不再開放、1 場已有家長排入，維持原樣')
+      .toBe('每週規則 1 條，時段：3 場不符合新規則的時段不再開放、1 場已有家長排入，維持原樣')
   })
 })
 
