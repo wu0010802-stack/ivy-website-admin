@@ -164,6 +164,23 @@ describe('側欄的待處理數字', () => {
     expect(store.total).toBe(3)
   })
 
+  it('登出（reset）後不接上一位使用者還在路上的彙總，舊請求回來也不改數字', async () => {
+    setActivePinia(createPinia())
+    const store = useOpenRequestsStore()
+    let resolveOld!: (value: unknown) => void
+    const get = vi.spyOn(api, 'get')
+      .mockImplementationOnce(() => new Promise(r => { resolveOld = r }) as never)
+      .mockResolvedValueOnce(summary({ new_requests: 1 }) as never)
+    const old = store.loadSummary()
+    store.reset()
+    const next = await store.loadSummary<ReturnType<typeof summary>>()
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(next.new_requests).toBe(1)
+    resolveOld(summary({ new_requests: 9, awaiting_confirmation: 9 }))
+    await old
+    expect(store.total).toBe(1)
+  })
+
   it('總覽載入的數字直接給側欄，不必另外打一次', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
     const { wrapper } = await mountAt('/')
@@ -177,7 +194,7 @@ describe('側欄的待處理數字', () => {
     const scroll = Element.prototype.scrollIntoView
     Element.prototype.scrollIntoView = () => {}
     onTestFinished(() => { Element.prototype.scrollIntoView = scroll; vi.unstubAllGlobals() })
-    const get =vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1 }) as never)
     const dashboardCalls = () => get.mock.calls.filter(call => call[0] === '/admin/dashboard').length
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })

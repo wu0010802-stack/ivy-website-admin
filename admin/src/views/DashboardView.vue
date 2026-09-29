@@ -71,6 +71,9 @@ interface PendingReview { kind: string; campus_key: string | null; revision_id: 
 const reviews = ref<PendingReview[]>([])
 // 待審清單讀不到時不能當成「沒有待審」：留一列提醒，也不能說「目前沒有待處理事項」。
 const reviewsFailed = ref(false)
+// 待審清單在彙總之後才背景讀：還沒回來、手上也沒有清單時算「還不知道」，
+// 同樣不能先說「目前沒有待處理事項」再變成「內容等你審核」。
+const reviewsLoading = ref(false)
 let reviewsRequest = 0
 
 const authStore = useAuthStore()
@@ -128,8 +131,10 @@ async function loadReviews() {
   if (!((summary.value?.pending_review ?? 0) > 0 && can('content.publish'))) {
     reviews.value = []
     reviewsFailed.value = false
+    reviewsLoading.value = false
     return
   }
+  reviewsLoading.value = true
   try {
     const list = await api.get<PendingReview[]>('/admin/content-reviews')
     if (request !== reviewsRequest) return
@@ -139,8 +144,11 @@ async function loadReviews() {
     if (request !== reviewsRequest) return
     reviews.value = []
     reviewsFailed.value = true
+  } finally {
+    if (request === reviewsRequest) reviewsLoading.value = false
   }
 }
+const reviewsUnknown = computed(() => reviewsLoading.value && reviews.value.length === 0)
 
 // 不固定輪詢最重的彙總查詢：切回這個分頁或視窗時，距離上次讀取超過 30 秒才在背景重讀。
 function onReturn() {
@@ -150,10 +158,24 @@ function onReturn() {
   if (Date.now() - loadedAt.value > STALE_MS) void load({ quiet: true })
 }
 
+// 開著過夜：日期換了，「今天的參觀」與各項件數也要換成新的一天，不能上面寫今天、
+// 下面還是昨天的資料。每換一天只自動重讀一次（讀不到也不每 30 秒重試），不是輪詢；
+// 分頁在背景時不讀，切回來由 onReturn 重讀。
+let dayReloadedFor = ''
+function tick() {
+  clockNow.value = Date.now()
+  if (document.visibilityState === 'hidden') return
+  if (loadedAt.value === null || loading.value || refreshing.value) return
+  const today = taipeiDay(clockNow.value)
+  if (taipeiDay(loadedAt.value) === today || dayReloadedFor === today) return
+  dayReloadedFor = today
+  void load({ quiet: true })
+}
+
 let clock: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   void load()
-  clock = setInterval(() => { clockNow.value = Date.now() }, 30_000)
+  clock = setInterval(tick, 30_000)
   document.addEventListener('visibilitychange', onReturn)
   window.addEventListener('focus', onReturn)
 })
@@ -169,8 +191,19 @@ const clockFormatter = new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minut
 const shortDateTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TAIPEI,
 })
+const dayFormatter = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TAIPEI })
+function taipeiDay(time: number): string {
+  return dayFormatter.format(new Date(time))
+}
 const todayLabel = computed(() => todayFormatter.format(new Date(clockNow.value)))
-const updatedLabel = computed(() => (loadedAt.value === null ? '' : clockFormatter.format(new Date(loadedAt.value))))
+// 資料不是今天讀的（開著過夜、換日後重讀失敗）就連日期一起寫：「更新於 09/29 17:30」。
+const updatedLabel = computed(() => {
+  if (loadedAt.value === null) return ''
+  const loaded = new Date(loadedAt.value)
+  return taipeiDay(loadedAt.value) === taipeiDay(clockNow.value)
+    ? clockFormatter.format(loaded)
+    : shortDateTimeFormatter.format(loaded).replace(/\s+/g, ' ')
+})
 const holdRemaining = computed(() => formatHoldRemaining(summary.value?.next_hold_expires_at, clockNow.value))
 
 // 草稿、排程這類清單只要知道哪一天幾點，不寫年份：「09/28 21:45」。
@@ -295,13 +328,13 @@ const hasTodo = computed(() => {
 </script>
 
 <template>
-  <div class="page dashboard" :aria-busy="loading || refreshing">
+  <div class="page dashboard" :aria-busy="loading">
     <div class="dash__intro">
       <div><p class="dash__date">{{ todayLabel }}</p><h2>今天的工作</h2><p class="dash__lead">{{ lead }}</p></div>
       <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span v-if="primary.count" class="dash__primary-count num">{{ primary.count }}<span class="visually-hidden"> 件</span></span> <span aria-hidden="true">→</span></router-link>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
-      <el-button @click="load">重新載入</el-button>
+      <el-button @click="load()">重新載入</el-button>
     </el-alert>
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
@@ -333,7 +366,8 @@ const hasTodo = computed(() => {
               <el-button text :loading="refreshing" @click="load({ quiet: true })">重新整理</el-button>
             </div>
           </div>
-          <div class="panel dash__task-list" :class="{ 'is-refreshing': refreshing }">
+          <!-- 背景重讀（切回分頁也會發生）只把待辦區標成忙碌，不讓整頁暫時不唸。 -->
+          <div class="panel dash__task-list" :class="{ 'is-refreshing': refreshing }" :aria-busy="refreshing">
             <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()" v-bind="taskAria('attention')">
               <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
               <div><h3 id="task-attention-t">時段已關閉或分校停用，家長還要來</h3><p id="task-attention-d">這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園；那一場其實照常接待的話，重新開放時段並把名額調成已占用的組數。</p><span id="task-attention-a" class="task__action">查看待人工處理的案件 <span aria-hidden="true">→</span></span></div>
@@ -398,7 +432,7 @@ const hasTodo = computed(() => {
               <div>
                 <h3>送審清單讀取失敗</h3>
                 <p>有內容送上來等審核（件數可能包含你無法開啟的內容），但清單沒有讀到，這裡暫時列不出是哪幾項。</p>
-                <el-button class="task__retry" @click="loadReviews">重新載入送審清單</el-button>
+                <el-button class="task__retry" :loading="reviewsLoading" @click="loadReviews()">重新載入送審清單</el-button>
               </div>
             </div>
             <div v-if="visibleReviews.length > 0" class="task">
@@ -445,7 +479,8 @@ const hasTodo = computed(() => {
                 </span>
               </div>
             </div>
-            <div v-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與接待月曆。' }}</p></div>
+            <p v-if="!hasTodo && reviewsUnknown" class="dash__checking">正在讀取送審清單…</p>
+            <div v-else-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與接待月曆。' }}</p></div>
           </div>
         </section>
         <section class="dash__shortcuts" aria-labelledby="shortcuts-title">
@@ -518,6 +553,7 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
 .dash__links small { display: block; margin-top: 4px; color: var(--ink-3); font-size: 13px; }
 .dash__clear { padding: 28px 24px; }
 .dash__clear p { color: var(--ink-3); margin-top: 8px; }
+.dash__checking { padding: 28px 24px; color: var(--ink-3); }
 @media (max-width: 1100px) { .dash__workspace { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
 @media (max-width: 720px) {
   .dash__intro { align-items: flex-start; flex-direction: column; gap: 16px; }
@@ -534,7 +570,9 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .task__rows a, .task__kinds a, a.task__action { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
   .task__rows { gap: 4px; }
   .task__rows li { flex-direction: column; align-items: flex-start; gap: 0; }
+  /* 灰字往上靠，和連結的 44px 點擊範圍重疊 8px；連結疊在上面，重疊那段點下去仍是連結。 */
   .task__rows li > span { margin-top: -8px; }
+  .task__rows a { position: relative; z-index: 1; }
   .task__kinds { gap: 0 20px; margin-top: 4px; }
   a.task__action { margin-top: 4px; }
   .today a { grid-template-columns: auto 1fr auto; gap: 4px 12px; padding: 14px 16px; }

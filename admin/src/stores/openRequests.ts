@@ -24,6 +24,8 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   const myNotices = ref(0)
   let fetchedAt = 0
   let inflight: Promise<OpenRequestCounts> | null = null
+  // 登出（reset）後才回來的舊請求不能算數：數字與總覽彙總（含家長姓名）屬於上一位使用者。
+  let session = 0
 
   const total = computed(() => newRequests.value + awaiting.value)
 
@@ -39,8 +41,9 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   // 讀取失敗會往上拋，總覽要把錯誤顯示出來（側欄的 refresh 自己吞掉）。
   function loadSummary<T extends OpenRequestCounts>(): Promise<T> {
     if (!inflight) {
+      const started = session
       const request = api.get<T>('/admin/dashboard')
-        .then((summary) => { apply(summary); return summary })
+        .then((summary) => { if (started === session) apply(summary); return summary })
         .finally(() => { if (inflight === request) inflight = null })
       inflight = request
     }
@@ -62,6 +65,9 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
     reschedules.value = 0
     myNotices.value = 0
     fetchedAt = 0
+    // 下一位登入的人要重新讀，不接上一個人還在路上的請求。
+    session += 1
+    inflight = null
   }
 
   return { newRequests, awaiting, reschedules, myNotices, total, apply, loadSummary, refresh, reset }
