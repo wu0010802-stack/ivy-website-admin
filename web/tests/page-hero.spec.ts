@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import manifest from '../app/generated/image-manifest.json'
-import { ABOUT_HERO_IMAGE, ADMISSION_HERO_ASPECT, ADMISSION_HERO_IMAGE, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, PAGE_HERO_MOBILE_HEIGHT, pageHeroImage } from '../app/utils/responsive-image'
+import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, ADMISSION_HERO_ASPECT, ADMISSION_HERO_IMAGE, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, PAGE_HERO_MOBILE_HEIGHT, pageHeroImage } from '../app/utils/responsive-image'
 
 // 2026-09-26：內頁 hero 手機版是固定高度的帶、object-fit: cover，sizes 要寫實際顯示寬度。
 // 常春藤環境頁 2026-09-28 改成手繪版，首屏照片不是滿版帶，改用 environmentHeroImage()（見 environment.spec.ts）；
@@ -25,14 +25,12 @@ describe('內頁 hero 的 sizes', () => {
     expect(mobile).toMatch(new RegExp(`\\.adm-hero-photo \\{[^}]*height: clamp\\([^)]*${PAGE_HERO_MOBILE_HEIGHT}px\\)`))
   })
 
-  it('頁面 <img> 與預載都用 pageHeroImage（sizes 不一致會多下載一張）', () => {
-    const seo = read('../app/composables/usePageSeo.ts')
-    for (const name of ['ABOUT']) {
-      expect(seo).toContain(`pageHeroImage(${name}_HERO_IMAGE)`)
-    }
-    for (const [file, name] of [['AboutContent', 'ABOUT']]) {
-      expect(read(`../app/components/${file}.vue`)).toContain(`v-bind="pageHeroImage(${name}_HERO_IMAGE)"`)
-    }
+  // 2026-09-29 立體書版：關於常春藤 hero 不再是滿版照片帶，改成首屏右頁的 4:3 卡紙（object-fit: cover）。
+  it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
+    expect(read('../app/composables/usePageSeo.ts')).toContain('responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)')
+    expect(read('../app/components/AboutContent.vue')).toContain('v-bind="responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)"')
+    // 2000×803 的橫幅裁成 4:3 卡紙，需要的寬度是框寬 × 1.87 左右，不是框寬
+    expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(\(100vw - \d+px\) \* [\d.]+\), \d+px$/)
   })
 
   // 2026-09-28 入學護照版：照片欄 4:3、object-fit: cover，原圖比 4:3 寬時要畫的寬度再乘上比例。

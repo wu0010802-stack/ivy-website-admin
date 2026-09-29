@@ -57,8 +57,17 @@ export const CURRICULUM_HERO_IMAGE = 'cur-hero'
  */
 export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1.87), 1500px'
 
-/** 關於常春藤頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+/** 關於常春藤頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 ABOUT_HERO_SIZES）。 */
 export const ABOUT_HERO_IMAGE = 'about-hero'
+
+/**
+ * 關於常春藤頁 hero 的 sizes（2026-09-29 立體書版）：照片不再滿版，是首屏右頁的一張卡紙（寬 88%、內距 8px），
+ * 框是 4:3、object-fit: cover。2000×803 的橫幅被裁成 4:3，需要的寬度是「框高 × 2.49」≈ 框寬 × 1.87：
+ * - 901px 以上：書最寬 1240px，右頁 620px、左右內距各 64px，卡紙約 433px → 需要約 780px → 800px。
+ * - 900px 以下：跨頁改成上下疊，右頁寬 = 視窗 − 左右留白（16px × 2）− 內距（28px × 2），
+ *   需要寬度約 1.65 × (100vw − 88px)（390 寬約 500px）。
+ */
+export const ABOUT_HERO_SIZES = '(max-width: 900px) calc((100vw - 88px) * 1.65), 800px'
 
 /**
  * 內頁 hero（入學資訊、常春藤環境、特色教學；admission.css 的 `.adm-hero-photo`）。
