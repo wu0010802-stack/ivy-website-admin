@@ -127,7 +127,8 @@ describe('個資保存政策與全站設定保護', () => {
   it('部署設定沒開放真正清理時只能試算', async () => {
     const { wrapper } = await setup(undefined, policy({ real_run_allowed: false }))
     expect(button(wrapper, '立即執行清理')!.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('WEBSITE_RETENTION_ALLOW_REAL_RUN')
+    expect(wrapper.text()).toContain('正式清理需由系統管理員開啟')
+    expect(wrapper.text()).not.toContain('WEBSITE_RETENTION_ALLOW_REAL_RUN')
   })
 
   it('搜尋與分享只顯示官網發布中的 site_meta，連到網站標題與電話修改，不再有會誤導的表單', async () => {

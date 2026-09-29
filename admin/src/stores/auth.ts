@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { ApiError, api, setCsrfToken } from '../api/client'
 import type { UserOut } from '../api/types'
 import { resetVisitStaff } from '../composables/useVisitStaff'
+import { clearVisitNoteDrafts } from '../composables/visitNoteDraft'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
@@ -45,6 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (!(error instanceof ApiError && error.status === 401)) throw error
     }
     clearSession()
+    // 主動登出才清案件草稿；逾時被導回登入（只走 clearSession）要留著讓人接著寫。
+    clearVisitNoteDrafts()
   }
 
   async function restoreSession(): Promise<void> {

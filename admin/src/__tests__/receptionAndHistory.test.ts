@@ -84,9 +84,9 @@ describe('版本紀錄抽屜', () => {
     const handle = history()
     await mountDrawer(handle)
     const text = document.body.textContent ?? ''
-    expect(text).toContain('第 2 版・amy@ivy.example')
+    expect(text).toContain('編輯者：amy@ivy.example')
     expect(text).toContain('官網目前版本')
-    expect(text).toContain('系統匯入或已刪除的帳號')
+    expect(text).toContain('系統或已移除的帳號')
 
     ;[...document.body.querySelectorAll('.history__item')][1]!.dispatchEvent(new Event('click'))
     await flushPromises()
@@ -181,11 +181,11 @@ describe('接待月曆', () => {
     const todayCell = wrapper.find('.calendar__day.is-today')
     expect(todayCell.text()).toContain('10:00')
     expect(todayCell.text()).toContain('林爸爸')
-    expect(todayCell.text()).toContain('可約 2 位')
+    expect(todayCell.text()).toContain('可約 2 組')
 
     // 今天預設就是選取的日期，下方列出名單與電話補登來源。
     const detail = wrapper.find('.calendar__detail')
-    expect(detail.text()).toContain('已排 1／3 位')
+    expect(detail.text()).toContain('已排 1／3 組')
     expect(detail.find('a[href="/visit-requests/v1"]').exists()).toBe(true)
     expect(detail.text()).toContain('電話補登')
   })

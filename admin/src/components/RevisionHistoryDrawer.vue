@@ -58,7 +58,7 @@ async function select(revision: RevisionSummary) {
   try {
     const payload = await props.history.payloadOf(revision.id)
     if (request !== previewRequest) return
-    selectedChanges.value = diffPayload(props.history.savedPayload(), payload)
+    selectedChanges.value = diffPayload(props.history.savedPayload(), payload, props.history.kind)
   } catch {
     if (request === previewRequest) previewError.value = '無法讀取這一版的內容'
   } finally {
@@ -138,14 +138,14 @@ async function restore(publish: boolean) {
           @click="select(revision)"
         >
           <span class="history__when num">{{ formatDateTime(revision.created_at) }}</span>
-          <span class="history__meta">第 {{ revision.version }} 版・{{ revision.created_by_email || '系統匯入或已刪除的帳號' }}</span>
+          <span class="history__meta">編輯者：{{ revision.created_by_email || '系統或已移除的帳號' }}</span>
           <span v-if="noteOf(revision)" class="history__note">{{ noteOf(revision) }}</span>
           <span v-if="tagOf(revision).length" class="history__tags">
             <el-tag v-for="tag in tagOf(revision)" :key="tag.label" size="small" :type="tag.tone" disable-transitions>{{ tag.label }}</el-tag>
           </span>
         </button>
 
-        <div v-if="selected?.id === revision.id" class="history__preview" role="region" :aria-label="`第 ${revision.version} 版`">
+        <div v-if="selected?.id === revision.id" class="history__preview" role="region" :aria-label="`${formatDateTime(revision.created_at)} 儲存的內容`">
           <p v-if="revision.version === latestVersion" class="hint">這就是目前最新儲存的內容，不需要還原。</p>
           <el-skeleton v-else-if="previewLoading" :rows="2" animated />
           <p v-else-if="previewError" class="hint">{{ previewError }}</p>

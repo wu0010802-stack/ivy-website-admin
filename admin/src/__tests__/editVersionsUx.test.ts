@@ -99,9 +99,33 @@ describe('時段：帶版本送出，別人先改過就重新讀取', () => {
     const before = slotCalls()
     wrapper.find('.slot-row').findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
     await flushPromises()
+    // 連按加減先累積在畫面上，停下來 0.6 秒才存一次，旁邊顯示「儲存中…」。
+    expect(patch).not.toHaveBeenCalled()
+    expect(wrapper.find('.slot-row').text()).toContain('儲存中…')
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { capacity: 5, expected_version: 4 })
     expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整')
     expect(slotCalls()).toBe(before + 1)
+  })
+})
+
+describe('時段名額：按完馬上離開頁面', () => {
+  it('還沒送出的名額在離開時立刻存，不會被丟掉', async () => {
+    const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-06', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 0, closed: false, closed_source: null, version: 4 }
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 1 } as never
+      return [slot] as never
+    })
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ ...slot, capacity: 5, version: 5 } as never)
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    wrapper.find('.slot-row').findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
+    await flushPromises()
+    expect(patch).not.toHaveBeenCalled()
+    wrappers.splice(wrappers.indexOf(wrapper), 1)
+    wrapper.unmount()
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { capacity: 5, expected_version: 4 })
   })
 })
 

@@ -1,4 +1,5 @@
 import type { Component } from 'vue'
+import { ElMessage } from 'element-plus'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import AdminLayout from '../layouts/AdminLayout.vue'
@@ -32,6 +33,9 @@ import PoliciesView from '../views/PoliciesView.vue'
 import LineNotificationsView from '../views/LineNotificationsView.vue'
 import AccountView from '../views/AccountView.vue'
 import PublishHistoryView from '../views/PublishHistoryView.vue'
+import NotFoundView from '../views/NotFoundView.vue'
+import { ROLE_LABELS } from '../api/labels'
+import type { Role } from '../api/types'
 import { canSeeNavItem, landingPath, navItem } from './nav'
 
 declare module 'vue-router' {
@@ -94,10 +98,20 @@ const router = createRouter({
         page('line-notifications', 'line-notifications', LineNotificationsView),
         // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊。
         { path: 'account', name: 'account', component: AccountView, meta: { title: '我的帳號' } },
+        // 網址打錯或頁面已移除：留在後台版面內顯示「找不到這個頁面」。
+        { path: ':pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: '找不到頁面' } },
       ],
     },
   ],
 })
+
+// 沒權限的頁面導回起始頁時說明原因，不要讓人以為按了沒反應。
+function deniedMessage(roles: string[], shared: boolean | undefined): string {
+  const names = roles.map((role) => ROLE_LABELS[role as Role] ?? role)
+  const who = names.length > 1 ? `${names.slice(0, -1).join('、')}或${names[names.length - 1]}` : names[0]
+  const extra = shared ? '（或被授權編輯全站共用內容的人）' : ''
+  return `這個功能需要${who}${extra}的權限，你的帳號沒有。需要使用請洽總管理者。`
+}
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
@@ -118,7 +132,9 @@ router.beforeEach(async (to) => {
   const roles = to.meta.roles
   if (roles && !canSeeNavItem({ name: '', path: to.path, title: '', roles, shared: to.meta.shared }, authStore.user)) {
     const landing = landingPath(authStore.user.role)
-    return to.path === landing ? true : { path: landing }
+    if (to.path === landing) return true
+    ElMessage.warning(deniedMessage(roles, to.meta.shared))
+    return { path: landing }
   }
 
   return true

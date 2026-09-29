@@ -56,7 +56,7 @@ async function submit() {
       <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
     </el-form>
     <template #footer>
-      <el-button :disabled="saving" @click="visible = false">取消</el-button>
+      <el-button :disabled="saving" @click="visible = false">先不要</el-button>
       <el-button type="primary" :loading="saving" :disabled="!valid" @click="submit">更新密碼</el-button>
     </template>
   </el-dialog>

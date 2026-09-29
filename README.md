@@ -1,3 +1,25 @@
+## 2026-09-29 官網後台第六輪 UX 修正（`feature/ux-admin-20260929`）
+
+依後台 UX 評析修掉 25 項，使用者同日裁定兩條：後台不再顯示「第 N 版」（改日期時間＋編輯者）、側欄只留參觀案件的數字（未讀通知改放頁首連結與總覽待辦）。規則見 DESIGN.md「官網後台第六輪 UX」。
+
+- **案件處理**：「下一筆」依來源列表或固定優先序（待確認→新需求）；新需求／聯絡中改叫「結案（不需參觀）」、待確認／已確認才叫「取消預約」，說明名額釋出與不會通知家長；聯絡紀錄草稿存 sessionStorage；手機加滿版「撥打」鈕、處理面板 DOM 排第一、只留一個 h1、觸控裝置不彈鍵盤與快捷鍵提示；名額單位統一「組」。
+- **內容**：核准送審版顯示與官網目前版本的欄位差異，差異欄位名依內容種類對應表單（新增 `admin/src/api/contentFieldLabels.ts`）；「替代文字」改「圖片說明」；對話框否定鈕統一「先不要」。
+- **時段**：儲存規則後直接產生時段；名額加減鈕連按只存最後的值並顯示儲存中；關閉有人預約的時段條列後果、主鈕 danger。
+- **其他**：找不到頁面、沒權限導回時說明原因、列表載入中不閃「沒有案件」、手機搜尋框獨占一列、接待月曆待確認加文字標記。
+- 審查後補：
+  - 主動登出清掉所有案件草稿，逾時被導回登入則保留（`composables/visitNoteDraft.ts`，防共用電腦看到上一位的草稿）。
+  - 列表第 2 頁以後點進案件，連每頁筆數一起帶，「下一筆」查的是同一段列表。
+  - 名額按完馬上離開頁面時立刻送出，不丟掉。
+  - 手機「撥打」改次要樣式，不和「確認」搶主按鈕。
+- 沒做：
+  - 接待「指派給我」：指派 API 要 `booking.manage`，要動後端。
+  - 操作紀錄 key=value 白話化、產生密碼的複製鈕：資安 session 正在改同一段。
+
+驗證：
+- Node 22 `npm --prefix admin run typecheck` 通過；`npm --prefix admin run build` 通過（只有既有的 chunk 大小警告）。
+- `vitest run` 38 檔 364 項通過。其中 `siteStructure`／`labelCoverage`／`publishingWorkflow` 要讀 web/ 與 backend/，sparse worktree 暫時 symlink 後才跑得到，跑完已移除。
+Playwright 在桌機 1440×900 與手機 390×844 驗過下一筆、核准差異、結案對話框、草稿復原、找不到頁面、手機撥打鈕與 44px、確認後不聚焦、搜尋框整列、名額連按。
+
 ## 2026-09-28 入學資訊頁改成「入學護照」（`feature/admission-passport-20260928`）
 
 使用者從三個主題比稿（`design/admission-theme-directions-20260928/`：A 上學路線圖、B 入學護照、C 木頭積木）選 B。入學頁整頁改成一本打開的護照：六格簽證欄捲到就蓋章、輸入生日蓋下「115 學年度・中班」大章、勾必備品蓋「已備」、補助做成補助券；防偽細紋只當紙張質感。同日裁定延續：不放預約參觀、分班用成長軌道邏輯、叮嚀不用翻面。新增 `PassportStamp.vue`、`utils/guilloche.ts`、`utils/passport-stamp.ts`、`utils/admission-motion.ts`（GSAP 只在這頁動態載入）、`admission-passport.css`、`tokens.css` 第 14 節兩個色票；明體 `Ivy Passport Serif`（Noto Serif TC 自託管分片，`scripts/subset-admission-fonts.py`、`scripts/admission-font-chars.cjs`，`web/public/assets/fonts/admission/` 共 3.4MB，頁面只下載用到的片）。改前快照 `versions/before-admission-passport-20260928-234037/`；細節見 DESIGN.md。

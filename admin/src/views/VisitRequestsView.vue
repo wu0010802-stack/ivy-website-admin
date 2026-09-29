@@ -168,8 +168,24 @@ function exportCsv() {
   window.open(`${BASE_URL}/admin/visit-requests/export?${filterParams()}`, '_blank')
 }
 
+// 點進案件時把目前的篩選條件與排序帶過去，案件頁的「下一筆」才會照這份列表的
+// 順序走。沒有篩狀態、到期或待人工處理時（例如「全部」）不帶：那份列表夾著已結案
+// 的案件，「下一筆」改用固定的處理優先序。
+function detailTo(id: string) {
+  const actionable = statusFilter.value || dueOnly.value || attentionOnly.value
+  if (!actionable) return `/visit-requests/${id}`
+  const params = filterParams()
+  if (order.value !== 'newest') params.set('order', order.value)
+  // 第 2 頁以後要連每頁筆數一起帶，案件頁才會查到同一段列表（案件頁預設一次抓 50 筆）。
+  if (page.value > 1) {
+    params.set('page', String(page.value))
+    params.set('page_size', String(pageSize))
+  }
+  return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
+}
+
 function openDetail(row: VisitRequestDetailOut) {
-  router.push(`/visit-requests/${row.id}`)
+  router.push(detailTo(row.id))
 }
 
 function onManualCreated(created: VisitRequestDetailOut) {
@@ -261,7 +277,7 @@ onMounted(() => {
         :data="requests"
         v-loading="loading"
         class="el-table--clickable requests-table"
-        :empty-text="emptyText"
+        :empty-text="loading ? '' : emptyText"
         @row-click="openDetail"
       >
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
@@ -275,7 +291,7 @@ onMounted(() => {
         </el-table-column>
         <el-table-column label="家長／孩子" min-width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link>
+            <router-link :to="detailTo(row.id)" @click.stop>{{ row.parent_name }}</router-link>
             <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}</span>
             <span v-if="row.source && row.source !== 'web'" class="cell-sub source">{{ visitSourceLabel(row.source) }}補登</span>
             <span v-if="row.follow_up_at" class="cell-sub num" :class="{ 'is-due': followUpDue(row) }">
@@ -312,7 +328,7 @@ onMounted(() => {
         <el-skeleton v-if="loading" animated :rows="4" class="panel__body" />
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
-            <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
+            <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatDateTime(request.follow_up_at) }}</p>
@@ -394,7 +410,7 @@ onMounted(() => {
   .requests-mobile { display: block; }
   .filter-field { flex: 1 1 130px; min-width: 0; font-size: 14px; }
   /* 搜尋是手機上最常用的入口，給整行才放得下提示文字 */
-  .filter-field--search { flex: 1 1 0; max-width: none; }
+  .filter-field--search { flex: 1 1 100%; max-width: none; }
   .status-tab { min-height: 44px; }
   .more-filters { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 14px; cursor: pointer; }
   .requests-filters__more { display: none; }

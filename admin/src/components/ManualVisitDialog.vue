@@ -220,7 +220,7 @@ async function submit() {
 
       <el-form-item label="直接排入時段（選填）">
         <el-select v-model="form.slot_id" clearable :loading="slotsLoading" placeholder="還沒談好時間就留空" style="width: 100%">
-          <el-option v-for="slot in openSlots" :key="slot.id" :value="slot.id" :label="`${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 位`" />
+          <el-option v-for="slot in openSlots" :key="slot.id" :value="slot.id" :label="`${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 組`" />
         </el-select>
         <span class="field-help">選了時段，送出後案件直接成為「已確認」。</span>
       </el-form-item>
@@ -231,7 +231,7 @@ async function submit() {
     </el-form>
 
     <template #footer>
-      <el-button :disabled="submitting" @click="open = false">取消</el-button>
+      <el-button :disabled="submitting" @click="open = false">先不要</el-button>
       <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
         {{ form.slot_id ? '補登並確認時段' : '補登案件' }}
       </el-button>

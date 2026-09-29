@@ -157,7 +157,7 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-form-item label="內文（選填，點開消息時顯示在摘要下面）">
           <NewsBodyEditor :blocks="article.body" :campus-key="campusKey" :read-only="readOnly" />
         </el-form-item>
-        <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
+        <el-form-item label="照片的圖片說明（給螢幕報讀器，描述照片內容）">
           <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
         </el-form-item>
         <div class="field-row">

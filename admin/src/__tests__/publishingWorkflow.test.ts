@@ -3,7 +3,7 @@
 // 提示、建議字數，以及後端新代碼都有中文標籤。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent, ref } from 'vue'
+import { computed, defineComponent, ref, render } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
@@ -164,6 +164,32 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     expect(mobile.attributes('href')).toBe('https://example.test/preview?page=campus&campus=yihua&viewport=mobile')
   })
 
+  it('核准送審版先列出和官網目前版本的欄位差異，欄位名和表單一致', async () => {
+    const { global } = await setup('/content/campus-profile')
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const review = vi.fn(async () => true)
+    const reviewChanges = vi.fn(async () => diffPayload({ intro: '舊簡介', description: '同' }, { intro: '新簡介', description: '同' }, 'campus_profile'))
+    const wrapper = mount(ContentEditor, {
+      props: { editor: editorState({ reviewStatus: computed(() => 'pending_review'), review, reviewChanges }) },
+      global,
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === '核准並發布')!.trigger('click')
+    await flushPromises()
+    expect(reviewChanges).toHaveBeenCalledOnce()
+    const [message, title, options] = confirm.mock.calls[0]!
+    const body = document.createElement('div')
+    render(message as never, body)
+    expect(title).toBe('核准並發布？')
+    expect(body.textContent).toContain('一句話簡介')
+    expect(body.textContent).toContain('舊簡介')
+    expect(body.textContent).toContain('新簡介')
+    expect(body.textContent).not.toContain('前言')
+    expect(options).toMatchObject({ confirmButtonText: '核准並發布', cancelButtonText: '先不要' })
+    expect(review).not.toHaveBeenCalled()
+  })
+
   it('之後又成功發布過，就不再提舊的失敗', async () => {
     const { global } = await setup('/content/campus-faq')
     const schedules = ref([
@@ -308,9 +334,10 @@ describe('發布紀錄頁（第 56 條）', () => {
     const text = wrapper.text()
     expect(text).toContain('官網目前版本')
     expect(text).toContain('還原成 2026/09/20 10:00 那次發布的內容')
-    expect(text).toContain('第 2 版 → 第 1 版')
+    expect(text).toContain('內容已更新')
+    expect(text).not.toContain('第 2 版')
     expect(text).toContain('核准送審並發布')
-    expect(text).toContain('第一次上線（第 1 版）')
+    expect(text).toContain('第一次上線')
     expect(wrapper.find('a[href="/content/campus-faq?campus=yihua"]').exists()).toBe(true)
     // 目前這一筆沒有還原鈕，其他兩筆有。
     expect(wrapper.findAll('button').filter((b) => b.text() === '整站還原到這次')).toHaveLength(2)
@@ -408,7 +435,7 @@ describe('發布紀錄頁（第 56 條）', () => {
     expect(wrapper.text()).not.toContain('則未讀')
   })
 
-  it('側欄「發布紀錄」旁顯示未讀的內容通知數', async () => {
+  it('未讀的內容通知不掛在側欄，改在頁首連結（2026-09-29 裁定）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ my_unread_notifications: 3 } as never)
     const { global, pinia } = await setup('/', testUser('editor', { campus_keys: ['yihua'] }))
     useOpenRequestsStore(pinia).apply({ my_unread_notifications: 3 })
@@ -416,7 +443,7 @@ describe('發布紀錄頁（第 56 條）', () => {
     wrappers.push(wrapper)
     await flushPromises()
     const link = wrapper.findAll('a').find((a) => a.text().includes('發布紀錄'))!
-    expect(link.find('.sidebar__badge').text()).toContain('3')
+    expect(link.find('.sidebar__badge').exists()).toBe(false)
   })
 })
 
@@ -442,14 +469,14 @@ describe('總覽的待發布、素材與排程失敗（第 54、58 條）', () =
     wrappers.push(wrapper)
     await flushPromises()
     const text = wrapper.text()
-    expect(text).toContain('官網第 4 版，最新第 5 版')
+    expect(text).toContain('官網上還是舊內容')
     expect(text).toContain('從未發布')
     expect(wrapper.find('a[href="/content/campus-faq?campus=renwu"]').exists()).toBe(true)
     expect(text).toContain('內容缺少素材或素材還沒處理好')
     expect(text).toContain('官網上1 個已刪除')
     expect(wrapper.find('a[href="/content/campus-tour?campus=yihua"]').exists()).toBe(true)
     expect(text).toContain('排程發布沒有執行')
-    expect(text).toContain('第 3 版：素材還沒處理好')
+    expect(text).toContain('2026/09/25 09:00：素材還沒處理好')
     expect(text).not.toContain('目前沒有待處理事項')
   })
 })

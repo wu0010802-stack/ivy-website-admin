@@ -189,11 +189,12 @@ describe('素材庫頁', () => {
     expect(get).toHaveBeenCalledWith('/admin/media/m1/usages')
     const text = wrapper.text()
     expect(text).toContain('第 2 個場景的照片（操場）')
-    expect(text).toContain('第 3 版')
+    expect(text).not.toContain('第 3 版')
     expect(text).toContain('官網上')
     expect(text).toContain('第 1 則消息內文第 3 段的圖片')
     expect(text).toContain('只在舊版本')
-    expect(text).toContain('第 2、1 版')
+    expect(text).toContain('2 個舊版本')
+    expect(text).not.toContain('第 2、1 版')
   })
 
   it('唯讀帳號只能看用在哪裡，不能編輯、替換、封存或刪除', async () => {
@@ -364,7 +365,8 @@ describe('替換素材', () => {
       replacement_id: 'm2',
       items: [{ content_item_id: 'tour', expected_version: 3, field_paths: ['scenes[1].image'] }],
     })
-    expect(wrapper.text()).toContain('第 4 版・第 2 個場景的照片')
+    expect(wrapper.text()).toContain('第 2 個場景的照片')
+    expect(wrapper.text()).not.toContain('第 4 版')
   })
 
   it('同一則消息的封面與內文可以只換封面；全選只選能編輯的位置', async () => {
@@ -452,7 +454,7 @@ describe('替換素材', () => {
     expect(upload.mock.calls[0]![0]).toBe('/admin/media/asset-a/replace')
 
     // 素材庫頁關窗後元件還在，換成 B 再打開。
-    await wrapper.findAll('button').find((button) => button.text() === '取消')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '先不要')!.trigger('click')
     await wrapper.setProps({ modelValue: false })
     await wrapper.setProps({ asset: asset({ id: 'asset-b', original_filename: 'b.jpg' }), modelValue: true })
     finishUpload(asset({ id: 'new-a', replaces_media_id: 'asset-a' }))

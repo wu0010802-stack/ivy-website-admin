@@ -261,7 +261,7 @@ async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAct
 }
 
 function requestedSlotNote(row: RescheduleRequestOut): string {
-  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 位` : '已額滿、關閉或已開始，無法核准'
+  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 組` : '已額滿、關閉或已開始，無法核准'
 }
 </script>
 

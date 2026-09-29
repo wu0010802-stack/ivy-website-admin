@@ -361,7 +361,7 @@ onMounted(async () => {
           <span class="media__sub" :title="asset.created_by_email ?? ''">上傳：{{ uploaderText(asset) }}</span>
           <span v-if="usedInText(asset)" class="media__sub media__used">用在：{{ usedInText(asset) }}</span>
           <span v-if="asset.deleted_at" class="media__warn">{{ formatDateTime(asset.purge_after) }} 後永久刪除</span>
-          <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填替代文字' : '未填影片說明' }}</span>
+          <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填圖片說明' : '未填影片說明' }}</span>
           <span v-if="asset.tags?.length" class="media__tags">
             <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" @click="tagFilter = t">{{ t }}</button>
           </span>
@@ -413,7 +413,7 @@ onMounted(async () => {
         <p v-else-if="queue.items.value.length > 1" class="field-help">一次上傳多個檔案時，圖片說明請在上傳後按「編輯」各自補上。</p>
       </el-form>
       <template #footer>
-        <el-button :disabled="queue.running.value" @click="uploadDialogVisible = false">{{ queue.counts.value.done ? '關閉' : '取消' }}</el-button>
+        <el-button :disabled="queue.running.value" @click="uploadDialogVisible = false">{{ queue.counts.value.done ? '關閉' : '先不要' }}</el-button>
         <el-button
           type="primary"
           :loading="queue.running.value"
@@ -456,7 +456,7 @@ onMounted(async () => {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button @click="editDialogVisible = false">先不要</el-button>
         <el-button type="primary" :loading="saving" @click="submitEdit">儲存</el-button>
       </template>
     </el-dialog>

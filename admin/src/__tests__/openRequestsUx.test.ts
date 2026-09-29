@@ -63,21 +63,25 @@ describe('總覽看得到還沒處理的參觀案件', () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 3, awaiting_confirmation: 2, next_hold_expires_at: expires }) as never)
     const { wrapper } = await mountAt('/')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
-    expect(wrapper.text()).toContain('時段預約等園方確認')
-    expect(wrapper.text()).toContain('新的參觀需求還沒聯絡')
+    // 四格已經有的數字不在待辦裡重複（2026-09-29）：待辦只講四格以外的事。
+    expect(wrapper.text()).not.toContain('時段預約等園方確認')
+    expect(wrapper.text()).not.toContain('新的參觀需求還沒聯絡')
+    expect(wrapper.text()).toContain('除了上面的參觀案件，沒有其他待辦')
     expect(wrapper.text()).toContain('最早一筆還剩 5 小時')
     const hrefs = wrapper.findAll('a').map(a => a.attributes('href'))
     expect(hrefs).toContain('/visit-requests?status=new&order=oldest')
     expect(hrefs).toContain('/visit-requests?status=pending_confirmation&order=oldest')
-    // 主按鈕只帶去最急的那批（待確認），數字也只算那一批，不是 3＋2。
-    expect(wrapper.find('.dash__primary').text()).toContain('確認時段預約2')
+    // 主按鈕只帶去最急的那批（待確認），數字留給上面四格，不在按鈕上重複。
+    expect(wrapper.find('.dash__primary').text()).toContain('確認時段預約')
+    expect(wrapper.find('.dash__primary').text()).not.toContain('2')
     expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=pending_confirmation&order=oldest')
   })
 
   it('只有新需求時，主按鈕帶去新需求且數字相同', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 4 }) as never)
     const { wrapper } = await mountAt('/')
-    expect(wrapper.find('.dash__primary').text()).toContain('聯絡新需求4')
+    expect(wrapper.find('.dash__primary').text()).toContain('聯絡新需求')
+    expect(wrapper.find('.dash__primary').text()).not.toContain('4')
     expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=new&order=oldest')
   })
 
@@ -147,7 +151,7 @@ describe('側欄的待處理數字', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
     const { wrapper } = await mountAt('/')
     expect(get).toHaveBeenCalledOnce()
-    expect(wrapper.text()).toContain('確認時段預約1')
+    expect(wrapper.text()).toContain('確認時段預約')
   })
 })
 

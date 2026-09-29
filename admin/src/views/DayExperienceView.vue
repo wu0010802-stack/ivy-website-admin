@@ -120,7 +120,7 @@ onMounted(editor.load)
       <el-form-item label="手機影片（選填）">
         <MediaSlotField v-model="editor.form.value.film_mobile" kind="video" builtin="桌機影片（沒選桌機影片時是內建的手機版）" :disabled="editor.readOnly.value" />
       </el-form-item>
-      <el-form-item label="Poster">
+      <el-form-item label="影片封面照片">
         <MediaSlotField
           v-model="editor.form.value.film_poster"
           builtin="官網內建的影片畫面"
@@ -203,7 +203,7 @@ onMounted(editor.load)
             />
           </el-form-item>
           <div>
-            <el-form-item label="照片替代文字">
+            <el-form-item label="照片的圖片說明">
               <el-input v-model="moment.alt" maxlength="200" placeholder="留空時用原本的說明或素材庫的說明" />
             </el-form-item>
             <el-form-item label="相紙色調">

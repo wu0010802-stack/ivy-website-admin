@@ -3,7 +3,7 @@ import { computed, h, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime } from '../api/labels'
-import type { ContentEditorState } from '../composables/useContentItem'
+import type { ContentEditorState, FieldChange } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
@@ -84,7 +84,7 @@ async function submitSchedule() {
 async function rejectWithNote() {
   if (!props.editor.review) return
   try {
-    const result = await ElMessageBox.prompt('寫下要修改的地方，編輯打開這一頁就看得到。', '退回這次送審？', {
+    const result = await ElMessageBox.prompt('寫下要修改的地方，內容編輯打開這一頁就看得到。', '退回這次送審？', {
       confirmButtonText: '退回',
       cancelButtonText: '先不要',
       inputType: 'textarea',
@@ -96,13 +96,41 @@ async function rejectWithNote() {
   }
 }
 
+// 發布與核准共用的差異清單：欄位中文名、原值 → 新值，最多列 8 個。
+function diffMessage(list: FieldChange[], intro: string, footer: string) {
+  return h('div', { class: 'publish-diff' }, [
+    h('p', null, intro),
+    h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
+      h('strong', null, c.label),
+      h('span', { class: 'publish-diff__before' }, c.before),
+      h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
+      h('span', { class: 'publish-diff__after' }, c.after),
+      c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
+    ]))),
+    list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
+    h('p', { class: 'hint' }, footer),
+  ])
+}
+
+// 核准就是發布：先列出「送審的版本和官網現在的版本」差在哪，看過再按。
+// 讀不到差異時退回一句話確認，不擋住核准。
 async function approve() {
   if (!props.editor.review) return
+  let list: FieldChange[] = []
   try {
-    await ElMessageBox.confirm('核准後這一版會立刻發布到官網。', '核准並發布？', {
+    list = (await props.editor.reviewChanges?.()) ?? []
+  } catch {
+    list = []
+  }
+  const message = list.length
+    ? diffMessage(list, `送審的版本和官網目前的版本有 ${list.length} 個欄位不同，核准後家長立刻看到：`, '核准後若要改回，可以從「版本紀錄」還原上一版。')
+    : '核准後這一版會立刻發布到官網。'
+  try {
+    await ElMessageBox.confirm(message, '核准並發布？', {
       confirmButtonText: '核准並發布',
       cancelButtonText: '先不要',
       type: 'warning',
+      customClass: list.length ? 'publish-confirm' : undefined,
     })
   } catch {
     return
@@ -164,18 +192,7 @@ async function publishWithConfirm() {
       : '官網目前顯示的是上一版。'
   const list = changes.value
   const message = list.length
-    ? h('div', { class: 'publish-diff' }, [
-        h('p', null, `這次會更新 ${list.length} 個欄位，發布後家長立刻看到：`),
-        h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
-          h('strong', null, c.label),
-          h('span', { class: 'publish-diff__before' }, c.before),
-          h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
-          h('span', { class: 'publish-diff__after' }, c.after),
-          c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
-        ]))),
-        list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-        h('p', { class: 'hint' }, '發布後若要改回，可以從「版本紀錄」還原上一版。'),
-      ])
+    ? diffMessage(list, `這次會更新 ${list.length} 個欄位，發布後家長立刻看到：`, '發布後若要改回，可以從「版本紀錄」還原上一版。')
     : `${current}發布後家長立刻看到這一版。若要改回，可以從「版本紀錄」還原上一版。`
   try {
     await ElMessageBox.confirm(message, '發布到官網？', {
@@ -245,7 +262,7 @@ defineExpose({ confirmLeave })
       </div>
       <div v-if="scheduled.length || lastUnpublished" class="editor__schedules">
         <p v-for="job in scheduled" :key="job.id">
-          已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
+          已排程 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 發布排程時選定的內容<template v-if="job.created_by_email">（{{ job.created_by_email }}）</template>
           <el-button v-if="canPublishRole && !readOnly && editor.cancelSchedule" text size="small" @click="editor.cancelSchedule!(job.id)">取消排程</el-button>
         </p>
         <p v-if="lastUnpublished && !scheduled.length" :class="lastUnpublished.status === 'failed' ? 'is-failed' : 'is-skipped'">
@@ -340,7 +357,7 @@ defineExpose({ confirmLeave })
         style="width: 100%"
       />
       <template #footer>
-        <el-button @click="scheduleOpen = false">取消</el-button>
+        <el-button @click="scheduleOpen = false">先不要</el-button>
         <el-button type="primary" :loading="publishing" :disabled="!scheduleAt" @click="submitSchedule">{{ isDirty ? '儲存並排程' : '排程' }}</el-button>
       </template>
     </el-dialog>

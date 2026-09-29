@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
@@ -111,6 +111,47 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number, successText 
   } finally { busyId.value = null }
 }
 
+// 名額加減鈕：連按幾下先累積在畫面上，停下來 0.6 秒才存一次最後的數字，
+// 存的時候旁邊顯示「儲存中…」。原本每按一下就送出並停用輸入框，連按三下只會存到第一下。
+const capDraft = ref<Record<string, number>>({})
+const capTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+// 按完馬上離開頁面：還沒存的名額立刻送出，不要默默丟掉。
+onBeforeUnmount(() => {
+  for (const id of Object.keys(capTimers)) {
+    clearTimeout(capTimers[id])
+    if (capDraft.value[id] !== undefined) void flushCapacity(id)
+  }
+})
+function clearCapDraft(id: string, value: number) {
+  if (capDraft.value[id] !== value) return
+  const { [id]: _done, ...rest } = capDraft.value
+  capDraft.value = rest
+}
+function onCapacityInput(slot: VisitSlotOut, value: number | undefined) {
+  if (value === undefined || !Number.isInteger(value)) return
+  if (value === slot.capacity) {
+    const { [slot.id]: _same, ...rest } = capDraft.value
+    capDraft.value = rest
+    clearTimeout(capTimers[slot.id])
+    return
+  }
+  capDraft.value = { ...capDraft.value, [slot.id]: value }
+  clearTimeout(capTimers[slot.id])
+  capTimers[slot.id] = setTimeout(() => void flushCapacity(slot.id), 600)
+}
+async function flushCapacity(id: string) {
+  // 別的時段正在存或畫面正在重讀：稍後再試，不丟掉這次調整。
+  if (busyId.value || loading.value) {
+    capTimers[id] = setTimeout(() => void flushCapacity(id), 300)
+    return
+  }
+  const slot = slots.value.find((s) => s.id === id)
+  const value = capDraft.value[id]
+  if (!slot || value === undefined) return
+  await updateCapacity(slot, value)
+  clearCapDraft(id, value)
+}
+
 // 關閉＝這一場不接待：已排入的家長會列入「待人工處理」，要聯絡改期或取消。
 // 園方常常只是不想再收人、已排入的照常來（規格 L227 關閉時段停止新申請），
 // 這時把名額調成已占用的組數就好，案件不會被列成要改期。
@@ -120,9 +161,15 @@ async function toggleClosed(slot: VisitSlotOut) {
   if (closing && slot.booked_count > 0) {
     try {
       await ElMessageBox.confirm(
-        `這個時段已有 ${slot.booked_count} 組占用名額。已排入的家長照常來、只是不再接受新預約，請選「只停止新預約」，名額會改成 ${slot.booked_count} 組。這一場不能接待才選「關閉時段」：既有案件不會自動取消，會列入參觀案件的「待人工處理」，請聯絡家長改期或取消。`,
+        h('div', { class: 'close-slot-confirm' }, [
+          h('p', null, `這個時段已有 ${slot.booked_count} 組占用名額，請選要怎麼處理：`),
+          h('ul', null, [
+            h('li', null, [h('strong', null, '只停止新預約：'), `已排入的家長照常來，名額改成 ${slot.booked_count} 組，不再收新預約。`]),
+            h('li', null, [h('strong', null, '關閉時段：'), '這一場不接待。既有案件不會自動取消，會列入參觀案件的「待人工處理」，請聯絡家長改期或取消。']),
+          ]),
+        ]),
         '關閉時段？',
-        { confirmButtonText: '關閉時段', cancelButtonText: '只停止新預約', distinguishCancelAndClose: true, type: 'warning' },
+        { confirmButtonText: '關閉時段', cancelButtonText: '只停止新預約', confirmButtonClass: 'el-button--danger', distinguishCancelAndClose: true, type: 'warning' },
       )
     } catch (action) {
       if (action !== 'cancel') return
@@ -251,15 +298,16 @@ function openCreate() {
               <span class="cap__count num">{{ row.booked_count }}</span>
               <span class="muted">/</span>
               <el-input-number
-                :model-value="row.capacity"
+                :model-value="capDraft[row.id] ?? row.capacity"
                 :min="row.booked_count"
                 :max="200"
                 size="small"
                 controls-position="right"
-                aria-label="名額"
-                :disabled="!canManage || Boolean(busyId) || isPast(row)"
-                @change="(v: number | undefined) => v !== undefined && updateCapacity(row, v)"
+                :aria-label="`${formatDate(row.slot_date)} ${formatTime(row.start_time)} 接待名額（組），調整後自動儲存`"
+                :disabled="!canManage || (Boolean(busyId) && capDraft[row.id] === undefined) || isPast(row)"
+                @change="(v: number | undefined) => onCapacityInput(row, v)"
               />
+              <span v-if="capDraft[row.id] !== undefined" class="cap__state" role="status">儲存中…</span>
               <span class="cap__bar" aria-hidden="true">
                 <span class="cap__fill" :class="{ 'is-full': fillRatio(row) >= 1 }" :style="{ width: `${fillRatio(row) * 100}%` }" />
               </span>
@@ -290,13 +338,13 @@ function openCreate() {
               </div>
               <div class="slot-row__body">
                 <span class="slot-row__booked">已占用 <b class="num">{{ slot.booked_count }}</b> 組</span>
-                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || Boolean(busyId) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /></label>
+                <label class="slot-row__cap"><span>名額</span><el-input-number :model-value="capDraft[slot.id] ?? slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || (Boolean(busyId) && capDraft[slot.id] === undefined) || isPast(slot)" :aria-label="`${formatDate(slot.slot_date)} ${formatTime(slot.start_time)} 接待名額，調整後立即儲存`" @change="(v: number | undefined) => onCapacityInput(slot, v)" /><span v-if="capDraft[slot.id] !== undefined" class="cap__state" role="status">儲存中…</span></label>
                 <el-button v-if="canManage && !isPast(slot)" :loading="busyId === slot.id" :disabled="Boolean(busyId)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
               </div>
             </li>
           </ul>
         </section>
-        <p v-if="canManage" class="hint slot-days__note">名額調整後立即儲存。</p>
+        <p v-if="canManage" class="hint slot-days__note">名額調整後自動儲存，連按加減會存最後的數字。</p>
       </div>
       </template>
     </div>
@@ -321,7 +369,7 @@ function openCreate() {
         <p v-if="createForm.start_time >= createForm.end_time" class="hint" style="color: var(--el-color-danger)">結束時間要晚於開始時間。</p>
       </el-form>
       <template #footer>
-        <el-button :disabled="creating" @click="createDialogVisible = false">取消</el-button>
+        <el-button :disabled="creating" @click="createDialogVisible = false">先不要</el-button>
         <el-button type="primary" :loading="creating" :disabled="!createValid" @click="submitCreate">建立</el-button>
       </template>
     </el-dialog>
@@ -329,6 +377,7 @@ function openCreate() {
 </template>
 
 <style scoped>
+.cap__state { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 .slots-readonly { margin: -8px 0 16px; }
 .slots-attention { margin-bottom: 16px; }
 .slots-attention p { margin: 0 0 4px; }
@@ -385,4 +434,10 @@ function openCreate() {
 .cap__fill.is-full {
   background: var(--el-color-warning);
 }
+</style>
+
+<style>
+/* 對話框掛在 body 底下，scoped 樣式管不到。 */
+.close-slot-confirm p { margin: 0 0 8px; }
+.close-slot-confirm ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 </style>

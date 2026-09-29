@@ -264,7 +264,7 @@ onMounted(loadUsers)
     <el-alert v-if="!isSuperAdmin" title="只有總管理者可以管理使用者" type="warning" :closable="false" show-icon />
 
     <template v-else>
-      <PageHeader lead="總管理者管理全部五校；其他角色只看得到被指定的校區。編輯改內容但不能發布、櫃台只處理參觀案件、唯讀只能查看。">
+      <PageHeader lead="總管理者管理全部五校；其他角色只看得到被指定的校區。內容編輯改內容但不能發布、櫃台只處理參觀案件、唯讀只能查看。">
         <template #actions>
           <el-button type="primary" :icon="Plus" :disabled="operationBusy || loading" @click="openCreateDialog">新增使用者</el-button>
         </template>
@@ -358,7 +358,7 @@ onMounted(loadUsers)
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button :disabled="creating" @click="dialogVisible = false">取消</el-button>
+          <el-button :disabled="creating" @click="dialogVisible = false">先不要</el-button>
           <el-button type="primary" :loading="creating" :disabled="!formValid" @click="submitCreate">建立帳號</el-button>
         </template>
       </el-dialog>
@@ -387,7 +387,7 @@ onMounted(loadUsers)
           </el-form-item>
         </el-form>
         <template #footer>
-          <el-button :disabled="savingScope" @click="scopeDialogVisible = false">取消</el-button>
+          <el-button :disabled="savingScope" @click="scopeDialogVisible = false">先不要</el-button>
           <el-button type="primary" :loading="savingScope" :disabled="scopeRole !== 'super_admin' && scopeSelection.length === 0" @click="submitScope">儲存</el-button>
         </template>
       </el-dialog>
@@ -399,7 +399,7 @@ onMounted(loadUsers)
           <el-button @click="generateResetPassword">產生密碼</el-button>
         </div>
         <template #footer>
-          <el-button :disabled="resetting" @click="resetVisible = false">取消</el-button>
+          <el-button :disabled="resetting" @click="resetVisible = false">先不要</el-button>
           <el-button type="primary" :loading="resetting" :disabled="resetPassword.length < 12" @click="submitReset">重設密碼</el-button>
         </template>
       </el-dialog>

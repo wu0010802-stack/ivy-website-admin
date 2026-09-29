@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -29,14 +30,18 @@ const selectedSlotId = ref('')
 // 已確認案件改期：選新場次、原因選填（記在案件歷程）。
 const rescheduleSlotId = ref('')
 const rescheduleReason = ref('')
-const newNote = ref('')
+// 聯絡紀錄草稿：被打斷時存在這個分頁，回到同一筆帶回（composables/visitNoteDraft.ts）。
+const newNote = ref(readVisitNoteDraft(route.params.id as string))
+watch(newNote, (text) => writeVisitNoteDraft(id.value, text))
 // 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
 // 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
 const noteInput = ref<{ focus: () => void } | null>(null)
-// 同校還在「待處理」的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
-const nextPending = ref<{ id: string; count: number } | null>(null)
+// 下一筆要處理的案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
+// 從列表點進來時跟著那份列表的條件與順序；沒有來源時固定先「待園方確認」
+// （占位會逾期釋出）、再「新需求」，各自最早送出的在前。
+const nextPending = ref<{ id: string; count: number; label: string } | null>(null)
 const busy = ref(false)
 const rebookOpen = ref(false)
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
@@ -133,14 +138,56 @@ async function refreshDetail() {
   }
 }
 
+// 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
+const LIST_KEYS = ['campus_key', 'status', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+function sourceListParams(): URLSearchParams | null {
+  const raw = route.query.list
+  if (typeof raw !== 'string' || !raw) return null
+  const incoming = new URLSearchParams(raw)
+  const params = new URLSearchParams()
+  for (const key of LIST_KEYS) {
+    const value = incoming.get(key)
+    if (value) params.set(key, value)
+  }
+  // 從列表第 1 頁來就一次抓 50 筆；第 2 頁以後照列表的頁碼與每頁筆數抓同一段。
+  if (!params.has('page_size')) params.set('page_size', '50')
+  return params
+}
+
+const NEXT_LABELS: Record<string, string> = { pending_confirmation: '下一筆待確認', new: '下一筆新需求' }
+// 目前這筆在來源列表的第幾位；處理完離開列表（例如狀態變了）後，
+// 接手它位置的那一筆就是下一筆。
+let queuePosition = 0
+
+async function fetchList(params: URLSearchParams): Promise<VisitRequestDetailOut[]> {
+  const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
+  return Array.isArray(list) ? list : []
+}
+
 async function loadNextPending(campusKey: string) {
   const gen = generation
   try {
-    const params = new URLSearchParams({ status: 'new', campus_key: campusKey, order: 'oldest', page_size: '50' })
-    const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
-    if (gen !== generation) return
-    const others = Array.isArray(list) ? list.filter((r) => r.id !== id.value) : []
-    nextPending.value = others.length ? { id: others[0]!.id, count: others.length } : null
+    const source = sourceListParams()
+    if (source) {
+      const rows = await fetchList(source)
+      if (gen !== generation) return
+      const index = rows.findIndex((r) => r.id === id.value)
+      const others = rows.filter((r) => r.id !== id.value)
+      if (index >= 0) queuePosition = index
+      const next = index >= 0 ? (rows[index + 1] ?? others[0]) : others[Math.min(queuePosition, others.length - 1)]
+      nextPending.value = next ? { id: next.id, count: others.length, label: NEXT_LABELS[next.status] ?? '下一筆' } : null
+      return
+    }
+    for (const status of ['pending_confirmation', 'new']) {
+      const rows = await fetchList(new URLSearchParams({ status, campus_key: campusKey, order: 'oldest', page_size: '50' }))
+      if (gen !== generation) return
+      const others = rows.filter((r) => r.id !== id.value)
+      if (others.length) {
+        nextPending.value = { id: others[0]!.id, count: others.length, label: NEXT_LABELS[status]! }
+        return
+      }
+    }
+    nextPending.value = null
   } catch {
     if (gen === generation) nextPending.value = null
   }
@@ -165,7 +212,7 @@ const rescheduleSlots = computed(() => openSlots.value.filter((s) => s.id !== de
 
 function slotLabel(slot: VisitSlotOut): string {
   const left = slot.capacity - slot.booked_count
-  return `${formatSlotWhen(slot)}，剩 ${left} 位`
+  return `${formatSlotWhen(slot)}，剩 ${left} 組`
 }
 
 async function confirm() {
@@ -197,8 +244,7 @@ async function confirm() {
     // 確認完的下一步幾乎都是打電話告知家長：把紀錄框先填好、游標放進去，
     // 講完電話按 Enter 就記下，不用再想要寫什麼。
     if (!newNote.value.trim()) newNote.value = `已致電家長，告知參觀時間 ${formatSlotWhen(slot)}。`
-    await nextTick()
-    noteInput.value?.focus()
+    await focusNoteOrShowTop()
   } catch (err) {
     reportError(err, '確認失敗')
   } finally {
@@ -206,16 +252,29 @@ async function confirm() {
   }
 }
 
+// 還只是需求（新需求、聯絡中）沒有排定時段，叫「結案（不需參觀）」；
+// 待確認與已確認占著名額，才叫「取消預約」。兩者都走同一支取消 API。
+// 系統只通知園方同事（站內通知與 LINE 群組），不會通知家長。
+const isRequestOnly = computed(() => detail.value?.status === 'new' || detail.value?.status === 'contacting')
+
 async function cancel() {
   let reason: string | null = null
+  const closing = isRequestOnly.value
   try {
-    const result = await ElMessageBox.prompt('取消後家長需要重新送出需求才能再預約。', '取消這筆預約？', {
-      confirmButtonText: '取消預約',
-      cancelButtonText: '先不要',
-      inputPlaceholder: '取消原因（選填，會記在案件歷程）',
-      inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
-      type: 'warning',
-    })
+    const result = await ElMessageBox.prompt(
+      closing
+        ? '這筆需求會結案，不再出現在待處理。系統不會通知家長，需要的話請另外聯絡。家長之後想再約，請用頁面上的「重新預約」另建新案。'
+        : '這一場占用的名額會立即釋出，其他家長可以預約。系統不會通知家長，請另外聯絡。家長之後想再約，請用頁面上的「重新預約」另建新案。',
+      closing ? '結案這筆需求？' : '取消這筆預約？',
+      {
+        confirmButtonText: closing ? '結案' : '取消預約',
+        confirmButtonClass: 'el-button--danger',
+        cancelButtonText: '先不要',
+        inputPlaceholder: closing ? '結案原因（選填，會記在案件歷程）' : '取消原因（選填，會記在案件歷程）',
+        inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
+        type: 'warning',
+      },
+    )
     const value = (result as { value?: string }).value ?? ''
     reason = value.trim() || null
   } catch {
@@ -224,11 +283,11 @@ async function cancel() {
   busy.value = true
   try {
     await api.post(`/admin/visit-requests/${id.value}/cancel`, { reason })
-    ElMessage.success('已取消')
+    ElMessage.success(closing ? '已結案' : '已取消')
     openRequests.refresh(true)
     await load({ quiet: true })
   } catch (err) {
-    reportError(err, '取消失敗')
+    reportError(err, closing ? '結案失敗' : '取消失敗')
   } finally {
     busy.value = false
   }
@@ -269,6 +328,14 @@ const visitStarted = computed(() => {
   return slot ? slotStarted(slot, clockNow.value) : false
 })
 
+// 桌機游標直接進紀錄框；觸控裝置聚焦會彈出鍵盤，還把頁面捲到紀錄框、
+// 狀態標籤跑出畫面，所以只把頁面捲回頂端，狀態與「處理」面板都看得到。
+async function focusNoteOrShowTop() {
+  await nextTick()
+  if (window.matchMedia?.('(pointer: coarse)').matches) window.scrollTo({ top: 0 })
+  else noteInput.value?.focus()
+}
+
 async function markContacting() {
   const returning = detail.value?.status === 'pending_confirmation'
   if (returning) {
@@ -288,10 +355,7 @@ async function markContacting() {
     ElMessage.success(returning ? '已退回聯絡中，名額已釋出' : '已標為聯絡中')
     openRequests.refresh(true)
     await load({ quiet: true })
-    if (!returning) {
-      await nextTick()
-      noteInput.value?.focus()
-    }
+    if (!returning) await focusNoteOrShowTop()
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
@@ -410,7 +474,9 @@ function goBack() {
 }
 
 function goNext() {
-  if (nextPending.value) router.push(`/visit-requests/${nextPending.value.id}`)
+  if (!nextPending.value) return
+  const list = route.query.list
+  void router.push({ path: `/visit-requests/${nextPending.value.id}`, query: typeof list === 'string' && list ? { list } : undefined })
 }
 
 // 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
@@ -438,7 +504,7 @@ watch(id, () => {
   detail.value = null
   notes.value = []
   nextPending.value = null
-  newNote.value = ''
+  newNote.value = readVisitNoteDraft(id.value)
   followUpAt.value = null
   selectedSlotId.value = ''
   rescheduleSlotId.value = ''
@@ -457,7 +523,7 @@ const linkApplicable = computed(() =>
     <div class="detail__nav">
       <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">參觀案件</el-button>
       <el-button v-if="nextPending" text class="detail__next" @click="goNext">
-        下一筆待處理（還有 {{ nextPending.count }} 件）<el-icon><ArrowRight /></el-icon>
+        {{ nextPending.label }}（還有 {{ nextPending.count }} 件）<el-icon><ArrowRight /></el-icon>
       </el-button>
     </div>
 
@@ -467,7 +533,7 @@ const linkApplicable = computed(() =>
     <template v-else-if="detail">
       <div class="detail__head">
         <div>
-          <h1 class="detail__title">{{ detail.parent_name }}</h1>
+          <h2 class="detail__title">{{ detail.parent_name }}</h2>
           <p class="hint">
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
             {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（{{ staffLabel(detail.created_by, staff) }} 登錄）</template>
@@ -484,12 +550,117 @@ const linkApplicable = computed(() =>
       </div>
 
       <div class="detail__grid">
+        <aside class="detail__side" aria-label="處理案件">
+          <div class="panel">
+            <div class="panel__head"><h2>處理</h2></div>
+            <div class="panel__body detail__actions">
+              <a v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)" :href="`tel:${detail.phone}`" class="detail__call">
+                撥打 <span class="num">{{ detail.phone }}</span>
+              </a>
+              <p v-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
+              <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
+                <el-button v-if="detail.status === 'new'" :loading="busy" style="width: 100%" @click="markContacting">開始聯絡（標為聯絡中）</el-button>
+                <p class="hint">與家長確認時間後，選一個時段排入，預約才算成立。</p>
+                <el-select v-model="selectedSlotId" placeholder="選擇參觀時段" :disabled="openSlots.length === 0" style="width: 100%">
+                  <el-option v-for="slot in openSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
+                </el-select>
+                <p v-if="openSlots.length === 0" class="hint">
+                  <template v-if="canManage">未來 60 天沒有可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
+                  <template v-else>未來 60 天沒有可用時段，請校區管理者到「時段與容量」新增。</template>
+                </p>
+                <el-button type="primary" :loading="busy" :disabled="!selectedSlotId" style="width: 100%" @click="confirm">
+                  確認並排入時段
+                </el-button>
+              </template>
+
+              <template v-else-if="detail.status === 'pending_confirmation'">
+                <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
+                <p v-if="detail.hold_expires_at" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at) }">
+                  請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at) }}），逾期名額會自動釋出。
+                </p>
+                <el-button type="primary" :loading="busy" :disabled="!detail.slot" style="width: 100%" @click="confirm">確認已選場次</el-button>
+                <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markContacting">家長要改時間：退回聯絡中</el-button>
+              </template>
+
+              <template v-else-if="detail.status === 'confirmed'">
+                <div v-if="detail.pending_reschedule" class="reschedule-request" role="group" aria-label="家長的改期申請">
+                  <p class="reschedule-request__title">家長申請改期<span class="num">（{{ formatDateTime(detail.pending_reschedule.created_at) }}）</span></p>
+                  <p class="reschedule-request__slots">
+                    {{ formatSlotWhen(detail.pending_reschedule.current_slot) }}<br />→ <strong>{{ formatSlotWhen(detail.pending_reschedule.requested_slot) }}</strong>
+                  </p>
+                  <p class="hint">
+                    {{ detail.pending_reschedule.requested_slot_available
+                      ? `新時段剩 ${detail.pending_reschedule.requested_slot_remaining} 組。原時段在核准前仍有效。`
+                      : '新時段已額滿、關閉或已開始，無法核准；請退回並聯絡家長另約。' }}
+                  </p>
+                  <div class="reschedule-request__actions">
+                    <el-button type="primary" :loading="busy" :disabled="!detail.pending_reschedule.requested_slot_available" @click="decideReschedule('approve')">核准改期</el-button>
+                    <el-button :loading="busy" @click="decideReschedule('reject')">退回申請</el-button>
+                  </div>
+                </div>
+                <p class="hint">{{ visitStarted ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀時段開始後可以標記完成或未到場；家長事先說不來，請用下方的「取消預約」。' }}</p>
+                <template v-if="visitStarted">
+                  <el-button type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
+                  <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
+                </template>
+                <div class="reschedule">
+                  <p class="reschedule__title">改期（換時段）</p>
+                  <el-select v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
+                    <el-option v-for="slot in rescheduleSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
+                  </el-select>
+                  <p v-if="rescheduleSlots.length === 0" class="hint">
+                    <template v-if="canManage">未來 60 天沒有其他可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
+                    <template v-else>未來 60 天沒有其他可用時段，請校區管理者到「時段與容量」新增。</template>
+                  </p>
+                  <el-input v-model="rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
+                  <el-button :loading="busy" :disabled="!rescheduleSlotId" style="width: 100%; margin-left: 0" @click="reschedule">改到這個時段</el-button>
+                  <p class="hint">案件編號與紀錄不變，原時段名額在同一步釋出；新時段滿了會整筆不改。</p>
+                </div>
+              </template>
+
+              <template v-else>
+                <p class="hint">這筆案件已結案。家長想再約，請另建新案，舊案會保留原紀錄。</p>
+                <el-button :loading="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
+              </template>
+            </div>
+            <div class="detail__assignee">
+              <label for="visit-assignee">承辦人</label>
+              <el-select
+                v-if="canManage"
+                id="visit-assignee"
+                :model-value="detail.assigned_staff_id ?? ''"
+                :loading="assigning"
+                :disabled="assigning"
+                placeholder="未指派"
+                clearable
+                style="width: 100%"
+                @change="(value: string) => assign(value || null)"
+              >
+                <el-option
+                  v-if="detail.assigned_staff_id && !assignable.some((s) => s.id === detail!.assigned_staff_id)"
+                  :value="detail.assigned_staff_id"
+                  :label="staffLabel(detail.assigned_staff_id, staff)"
+                  disabled
+                />
+                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="s.email" />
+              </el-select>
+              <span v-else>{{ staffLabel(detail.assigned_staff_id, staff) }}</span>
+            </div>
+            <div
+              v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
+              class="detail__danger"
+            >
+              <span class="hint">{{ isRequestOnly ? '不需要參觀了？' : '家長不來了？' }}</span>
+              <el-button text type="danger" :loading="busy" class="detail__cancel" @click="cancel">{{ isRequestOnly ? '結案（不需參觀）' : '取消預約' }}</el-button>
+            </div>
+          </div>
+        </aside>
         <div class="detail__main">
           <div class="panel">
             <div class="panel__head"><h2>家長填寫的資料</h2></div>
             <el-descriptions :column="1" border label-width="120" class="detail__desc">
               <el-descriptions-item label="電話">
-                <a :href="`tel:${detail.phone}`" class="num">{{ detail.phone }}</a>
+                <a :href="`tel:${detail.phone}`" class="num detail__phone">{{ detail.phone }}</a>
               </el-descriptions-item>
               <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
@@ -551,7 +722,8 @@ const linkApplicable = computed(() =>
                     :disabled-date="disablePast"
                     :default-time="new Date(2000, 0, 1, 10, 0, 0)"
                     clearable
-                    style="width: 160px"
+                    :automatic-dropdown="false"
+                    class="notes__date"
                   />
                 </label>
                 <el-button :loading="busy" :disabled="!newNote.trim()" @click="addNote">新增紀錄</el-button>
@@ -566,108 +738,6 @@ const linkApplicable = computed(() =>
           </section>
         </div>
 
-        <aside class="detail__side">
-          <div class="panel">
-            <div class="panel__head"><h2>處理</h2></div>
-            <div class="panel__body detail__actions">
-              <p v-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
-              <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
-                <el-button v-if="detail.status === 'new'" :loading="busy" style="width: 100%" @click="markContacting">開始聯絡（標為聯絡中）</el-button>
-                <p class="hint">與家長確認時間後，選一個時段排入，預約才算成立。</p>
-                <el-select v-model="selectedSlotId" placeholder="選擇參觀時段" :disabled="openSlots.length === 0" style="width: 100%">
-                  <el-option v-for="slot in openSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
-                </el-select>
-                <p v-if="openSlots.length === 0" class="hint">
-                  <template v-if="canManage">未來 60 天沒有可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
-                  <template v-else>未來 60 天沒有可用時段，請校區管理者到「時段與容量」新增。</template>
-                </p>
-                <el-button type="primary" :loading="busy" :disabled="!selectedSlotId" style="width: 100%" @click="confirm">
-                  確認並排入時段
-                </el-button>
-              </template>
-
-              <template v-else-if="detail.status === 'pending_confirmation'">
-                <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
-                <p v-if="detail.hold_expires_at" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at) }">
-                  請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at) }}），逾期名額會自動釋出。
-                </p>
-                <el-button type="primary" :loading="busy" :disabled="!detail.slot" style="width: 100%" @click="confirm">確認已選場次</el-button>
-                <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markContacting">家長要改時間：退回聯絡中</el-button>
-              </template>
-
-              <template v-else-if="detail.status === 'confirmed'">
-                <div v-if="detail.pending_reschedule" class="reschedule-request" role="group" aria-label="家長的改期申請">
-                  <p class="reschedule-request__title">家長申請改期<span class="num">（{{ formatDateTime(detail.pending_reschedule.created_at) }}）</span></p>
-                  <p class="reschedule-request__slots">
-                    {{ formatSlotWhen(detail.pending_reschedule.current_slot) }}<br />→ <strong>{{ formatSlotWhen(detail.pending_reschedule.requested_slot) }}</strong>
-                  </p>
-                  <p class="hint">
-                    {{ detail.pending_reschedule.requested_slot_available
-                      ? `新時段剩 ${detail.pending_reschedule.requested_slot_remaining} 位。原時段在核准前仍有效。`
-                      : '新時段已額滿、關閉或已開始，無法核准；請退回並聯絡家長另約。' }}
-                  </p>
-                  <div class="reschedule-request__actions">
-                    <el-button type="primary" :loading="busy" :disabled="!detail.pending_reschedule.requested_slot_available" @click="decideReschedule('approve')">核准改期</el-button>
-                    <el-button :loading="busy" @click="decideReschedule('reject')">退回申請</el-button>
-                  </div>
-                </div>
-                <p class="hint">{{ visitStarted ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀時段開始後可以標記完成或未到場；家長事先說不來，請用下方的「取消預約」。' }}</p>
-                <template v-if="visitStarted">
-                  <el-button type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
-                  <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
-                </template>
-                <div class="reschedule">
-                  <p class="reschedule__title">改期（換時段）</p>
-                  <el-select v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
-                    <el-option v-for="slot in rescheduleSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
-                  </el-select>
-                  <p v-if="rescheduleSlots.length === 0" class="hint">
-                    <template v-if="canManage">未來 60 天沒有其他可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
-                    <template v-else>未來 60 天沒有其他可用時段，請校區管理者到「時段與容量」新增。</template>
-                  </p>
-                  <el-input v-model="rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
-                  <el-button :loading="busy" :disabled="!rescheduleSlotId" style="width: 100%; margin-left: 0" @click="reschedule">改到這個時段</el-button>
-                  <p class="hint">案件編號與紀錄不變，原時段名額在同一步釋出；新時段滿了會整筆不改。</p>
-                </div>
-              </template>
-
-              <template v-else>
-                <p class="hint">這筆案件已結案。家長想再約，請另建新案，舊案會保留原紀錄。</p>
-                <el-button :loading="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
-              </template>
-            </div>
-            <div class="detail__assignee">
-              <label for="visit-assignee">承辦人</label>
-              <el-select
-                v-if="canManage"
-                id="visit-assignee"
-                :model-value="detail.assigned_staff_id ?? ''"
-                :loading="assigning"
-                :disabled="assigning"
-                placeholder="未指派"
-                clearable
-                style="width: 100%"
-                @change="(value: string) => assign(value || null)"
-              >
-                <el-option
-                  v-if="detail.assigned_staff_id && !assignable.some((s) => s.id === detail!.assigned_staff_id)"
-                  :value="detail.assigned_staff_id"
-                  :label="staffLabel(detail.assigned_staff_id, staff)"
-                  disabled
-                />
-                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="s.email" />
-              </el-select>
-              <span v-else>{{ staffLabel(detail.assigned_staff_id, staff) }}</span>
-            </div>
-            <div
-              v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
-              class="detail__danger"
-            >
-              <span class="hint">家長不來了？</span>
-              <el-button text type="danger" :loading="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
-            </div>
-          </div>
-        </aside>
       </div>
       <ManualVisitDialog v-model="rebookOpen" :campus-keys="visibleCampusKeys" :related-from="detail" @created="onRebooked" />
     </template>
@@ -766,9 +836,16 @@ const linkApplicable = computed(() =>
 .detail__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-areas: 'main side';
   gap: 24px;
   align-items: start;
 }
+
+.detail__main { grid-area: main; min-width: 0; }
+.detail__side { grid-area: side; }
+
+.detail__call { display: none; }
+.notes__date { width: 160px; }
 
 .detail__pre {
   white-space: pre-wrap;
@@ -877,14 +954,33 @@ const linkApplicable = computed(() =>
   margin-right: -8px;
 }
 
+/* 觸控裝置：電話連結與下次聯絡都要有 44px 的點擊範圍。 */
+@media (pointer: coarse) {
+  .detail__phone { display: inline-flex; align-items: center; min-height: 44px; }
+  .notes__date { --el-component-size: 44px; }
+}
+
+/* 沒有實體鍵盤的裝置不提示快捷鍵。 */
+@media (hover: none), (pointer: coarse) {
+  .notes__hint { display: none; }
+}
+
 @media (max-width: 900px) {
+  /* 處理面板在 DOM 裡本來就排第一，視覺與 Tab 順序一致。 */
   .detail__grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'side' 'main';
   }
 
   .detail__side {
     position: static;
-    order: -1;
   }
+
+  /* 次要樣式：同一個面板裡的實心主按鈕留給「確認」這類狀態動作，撥號不搶主位。 */
+  .detail__call { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border: 1px solid var(--el-color-primary); border-radius: var(--radius); background: var(--surface); color: var(--el-color-primary); font-size: 16px; font-weight: 600; }
+  .detail__call:hover { text-decoration: none; }
+  .notes__follow { display: flex; width: 100%; }
+  .notes__date { flex: 1; width: auto; min-width: 0; }
+  .notes__date :deep(.el-input__wrapper) { min-height: 44px; }
 }
 </style>

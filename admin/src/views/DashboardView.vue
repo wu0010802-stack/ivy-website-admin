@@ -51,6 +51,7 @@ interface DashboardSummary {
   awaiting_confirmation?: number
   next_hold_expires_at?: string | null
   pending_reschedule_requests?: number
+  my_unread_notifications?: number
   needs_attention?: number
   pending_follow_up: number
   pending_publish: number
@@ -116,6 +117,7 @@ const todayLabel = new Intl.DateTimeFormat('zh-TW', {
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
 const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
+const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
 // 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
 const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 // 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
@@ -154,7 +156,7 @@ const shortcuts = computed(() =>
   [
     canManageBooking.value
       ? { to: '/slots', title: '安排參觀時段', hint: '開放時間與可接待人數' }
-      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約人數' },
+      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約組數' },
     { to: '/visit-calendar', title: '查看接待月曆', hint: '每天有誰要來參觀' },
     { to: '/content/home-hero', title: '更新首頁文字', hint: '調整家長進站看到的標語' },
     { to: '/content/campus-profile', title: '修改各校資料', hint: '校園介紹與聯絡方式' },
@@ -171,17 +173,16 @@ function mediaIssueText(issue: MediaIssue): string {
 }
 
 function pendingPublishText(item: PendingPublishItem): string {
-  return item.published_version === null ? '從未發布' : `官網第 ${item.published_version} 版，最新第 ${item.latest_version} 版`
+  return item.published_version === null ? '從未發布' : '官網上還是舊內容'
 }
 
 const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
-    openCount.value > 0 ||
     reschedules.value > 0 ||
     needsAttention.value > 0 ||
-    s.pending_follow_up > 0 ||
+    myNotices.value > 0 ||
     pendingPublishCount.value > 0 ||
     visibleReviews.value.length > 0 ||
     s.failed_notifications > 0 ||
@@ -200,7 +201,7 @@ onMounted(load)
   <div class="page dashboard">
     <div class="dash__intro">
       <div><p class="dash__date">{{ todayLabel }}</p><h2>今天的工作</h2><p class="dash__lead">先確認參觀安排，再處理家長需求與官網更新。</p></div>
-      <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span v-if="primary.count" class="dash__primary-count num">{{ primary.count }}<span class="visually-hidden"> 件</span></span> <span aria-hidden="true">→</span></router-link>
+      <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span aria-hidden="true">→</span></router-link>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
       <el-button @click="load">重新載入</el-button>
@@ -234,21 +235,13 @@ onMounted(load)
               <span class="task__number">{{ needsAttention }}</span>
               <div><h3>時段已關閉或分校停用，家長還要來</h3><p>這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園；那一場其實照常接待的話，重新開放時段並把名額調成已占用的組數。</p><span class="task__action">查看待人工處理的案件 →</span></div>
             </router-link>
-            <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest">
-              <span class="task__number">{{ awaiting }}</span>
-              <div><h3>時段預約等園方確認</h3><p>家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span class="task__action">從最早送出的開始確認 →</span></div>
-            </router-link>
             <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications">
               <span class="task__number">{{ reschedules }}</span>
               <div><h3>家長申請改期，等你核准</h3><p>家長用管理連結申請換場次；核准前原時段仍有效。核准或退回後請告知家長。</p><span class="task__action">查看改期申請 →</span></div>
             </router-link>
-            <router-link v-if="newRequests > 0" class="task" to="/visit-requests?status=new&order=oldest">
-              <span class="task__number">{{ newRequests }}</span>
-              <div><h3>新的參觀需求還沒聯絡</h3><p>家長送出後在等園方回電。聯絡後記一筆紀錄，談好時間就排入時段。</p><span class="task__action">從最早送出的開始聯絡 →</span></div>
-            </router-link>
-            <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1">
-              <span class="task__number">{{ summary.pending_follow_up }}</span>
-              <div><h3>案件已到追蹤時間</h3><p>之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span class="task__action">查看到期案件 →</span></div>
+            <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases">
+              <span class="task__number">{{ myNotices }}</span>
+              <div><h3>有內容通知還沒看</h3><p>送審、核准或退回，以及排程沒有發布的通知。退回的會寫明原因。</p><span class="task__action">查看內容通知 →</span></div>
             </router-link>
             <router-link v-if="campusesWithoutBooking.length && canOpen('/booking')" class="task" to="/booking">
               <span class="task__number">{{ campusesWithoutBooking.length }}</span>
@@ -283,7 +276,7 @@ onMounted(load)
                 <ul class="task__rows">
                   <li v-for="job in failedJobs" :key="job.id">
                     <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} →</router-link>
-                    <span>{{ formatDateTime(job.publish_at) }}・第 {{ job.revision_version }} 版{{ job.error ? `：${job.error}` : '' }}</span>
+                    <span>{{ formatDateTime(job.publish_at) }}{{ job.error ? `：${job.error}` : '' }}</span>
                   </li>
                 </ul>
                 <router-link v-if="canOpen('/releases')" class="task__action" to="/releases?tab=schedules">查看全站排程 →</router-link>
@@ -333,7 +326,7 @@ onMounted(load)
                 </span>
               </div>
             </div>
-            <div v-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與接待月曆。' }}</p></div>
+            <div v-if="!hasTodo" class="dash__clear"><h3>{{ openCount > 0 || summary.pending_follow_up > 0 ? '除了上面的參觀案件，沒有其他待辦' : '目前沒有待處理事項' }}</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與接待月曆。' }}</p></div>
           </div>
         </section>
         <section class="dash__shortcuts" aria-labelledby="shortcuts-title">
@@ -352,8 +345,7 @@ onMounted(load)
 .dash__date { color: var(--ink-3); font-size: 13px; margin-bottom: 8px; }
 .dash__intro h2 { font-size: 24px; letter-spacing: -.02em; }
 .dash__lead { margin-top: 8px; color: var(--ink-2); }
-.dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
-.dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: 13px; font-weight: 600; line-height: 22px; text-align: center; }
+.dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
 .dash__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
 .dash__summary > div { min-width: 0; padding: 20px; }

@@ -83,7 +83,7 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
           <span v-else><el-icon><Picture /></el-icon>選擇圖片</span>
         </button>
         <div class="news-body__image-fields">
-          <el-input v-model="block.alt" placeholder="替代文字（描述圖片內容）" aria-label="圖片替代文字" />
+          <el-input v-model="block.alt" placeholder="圖片說明（描述圖片內容）" aria-label="圖片說明" />
           <el-input v-model="block.caption" maxlength="120" placeholder="圖說（選填）" aria-label="圖說" />
           <span v-if="!block.image" class="field-help is-error">請從素材庫選一張圖片</span>
         </div>

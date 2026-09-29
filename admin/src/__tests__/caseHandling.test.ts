@@ -144,7 +144,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }))
     expect(wrapper.text()).toContain('家長申請改期')
     expect(wrapper.text()).toContain('2099/10/03（週六）14:00–15:00')
-    expect(wrapper.text()).toContain('新時段剩 2 位')
+    expect(wrapper.text()).toContain('新時段剩 2 組')
     const confirm = confirmOk()
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
     await button(wrapper, '核准改期')!.trigger('click')
@@ -303,7 +303,7 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     expect(text).toContain('陳媽媽')
     expect(text).toContain('2099/10/01（週四）10:00–11:00')
     expect(text).toContain('2099/10/03（週六）14:00–15:00')
-    expect(text).toContain('剩 2 位')
+    expect(text).toContain('剩 2 組')
     expect(text).toContain('家長申請改期（待園方核准）')
     expect(wrapper.findAll('a').some(a => a.attributes('href') === '/visit-requests/case-a')).toBe(true)
 
@@ -337,7 +337,7 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     expect(wrapper.find('section.reschedule').text()).toContain('陳媽媽')
   })
 
-  it('側欄的站內通知旁顯示待核准改期數，總覽列出待辦', async () => {
+  it('側欄的站內通知旁不掛數字，總覽列出待辦', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: DashboardView }, { path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
@@ -354,8 +354,8 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
 
     const sidebar = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(sidebar); await flushPromises()
-    const badge = sidebar.findAll('.sidebar__badge').find(b => b.element.closest('a')!.getAttribute('href') === '/notifications')!
-    expect(badge.text()).toBe('3 件改期待核准')
+    // 2026-09-29 裁定：側欄只留參觀案件的數字，改期申請改放頁首連結與總覽待辦。
+    expect(sidebar.findAll('.sidebar__badge').find(b => b.element.closest('a')!.getAttribute('href') === '/notifications')).toBeUndefined()
   })
 })
 

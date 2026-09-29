@@ -253,7 +253,7 @@ onMounted(() => {
               <el-switch v-model="form.auto_run_enabled" :disabled="busy" active-text="開啟" inactive-text="關閉" aria-label="每天自動清理" />
               <span class="field-help">
                 開啟後，系統每天（台灣時間）依上面的天數自動匿名化一次，並記在清理紀錄。
-                <template v-if="!policy.real_run_allowed">目前部署設定沒有開放真正清理（WEBSITE_RETENTION_ALLOW_REAL_RUN），開啟也不會執行，需請系統管理者調整。</template>
+                <template v-if="!policy.real_run_allowed">目前系統還沒有開放正式清理，開啟也不會執行；正式清理需由系統管理員開啟。</template>
               </span>
             </el-form-item>
             <div class="retention-form__actions">

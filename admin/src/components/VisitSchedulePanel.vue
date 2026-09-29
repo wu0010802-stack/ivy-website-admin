@@ -108,9 +108,29 @@ async function save() {
     schedule.value = result
     rules.value = result.rules.map((r) => ({ ...r }))
     const changes = slotSyncLines({ ...result.slot_sync, kept_booked: 0 })
-    ElMessage.success(`已儲存開放規則。${changes.length ? `還沒有人預約的時段已跟著調整：${changes.join('、')}。` : ''}系統稍後會依新規則補上 ${result.max_advance_days} 天內的時段；要馬上開放可以按「依規則產生時段」。`)
     keptBooked.value = result.slot_sync?.kept_booked ?? 0
-    if (result.slot_sync && changes.length) emit('slots-changed')
+    // 存完規則直接依新規則產生時段（冪等：已存在、已關閉或同時段重疊的場次不動，
+    // 不會蓋掉調整過的名額），存了就看得到；失敗不影響已存好的規則。
+    let generatedText = ''
+    let generateFailed = false
+    let created = 0
+    try {
+      const generated = await api.post<{ created: number }>(`/admin/visit-schedule/${props.campusKey}/generate`, {
+        date_from: taipeiDate(),
+        date_to: taipeiDate(Math.min(result.max_advance_days, 92)),
+      })
+      created = generated.created
+      generatedText = `已依新規則補上時段，新增 ${created} 場。`
+    } catch {
+      generateFailed = true
+    }
+    const adjusted = changes.length ? `還沒有人預約的時段已跟著調整：${changes.join('、')}。` : ''
+    if (generateFailed) {
+      ElMessage.warning(`已儲存開放規則。${adjusted}但時段還沒補上，請按下方的「依規則產生時段」。`)
+    } else {
+      ElMessage.success(`已儲存開放規則。${adjusted}${generatedText}`)
+    }
+    if (created > 0 || (result.slot_sync && changes.length)) emit('slots-changed')
   } catch (err) {
     if (isVersionConflict(err)) await offerReload(err)
     else ElMessage.error(errorText(err, '儲存失敗'))
@@ -252,7 +272,7 @@ function disablePast(date: Date): boolean {
         <p>{{ keptBooked }} 場不在新規則內，但已有家長排入，維持原樣、仍可能接受新預約。照常接待但不想再收新預約，請在下方時段清單把名額調成已占用的組數；這一場不能接待，就關閉時段後聯絡家長改期。</p>
       </el-alert>
 
-      <p v-if="schedule?.rules.length" class="hint">{{ schedule.rules_extended_on ? `上次自動補時段：${formatDate(schedule.rules_extended_on)}，補到 ${schedule.max_advance_days} 天內。` : '系統稍後會依規則自動補上時段。' }}整天不開放請設休假日；單一場次不開放可以在時段清單關閉，系統不會把它重新打開。</p>
+      <p v-if="schedule?.rules.length" class="hint">{{ schedule.rules_extended_on ? `上次自動補時段：${formatDate(schedule.rules_extended_on)}，補到 ${schedule.max_advance_days} 天內。` : '儲存規則時會直接補上時段，之後系統每天自動補。' }}整天不開放請設休假日；單一場次不開放可以在時段清單關閉，系統不會把它重新打開。</p>
 
       <div v-if="canManage" class="schedule__generate">
         <el-date-picker v-model="genRange" type="daterange" value-format="YYYY-MM-DD" :clearable="false" :disabled-date="disablePast" :single-panel="narrow" start-placeholder="開始" end-placeholder="結束" size="small" />

@@ -2,7 +2,7 @@
 // 日期區間面板、存預約設定會讓填表中的家長重新確認。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent } from 'vue'
+import { computed, defineComponent, render } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
@@ -55,6 +55,8 @@ describe('改每週規則：還沒有人預約的時段跟著調整', () => {
       slot_sync: { removed: 2, closed: 1, reopened: 0, capacity_updated: 1, kept_booked: 1 },
     }) as never)
     const success = vi.spyOn(ElMessage, 'success')
+    // 存完規則直接依新規則產生時段（冪等），存了就看得到。
+    const generate = vi.spyOn(api, 'post').mockResolvedValue({ created: 6, skipped_existing: 0, skipped_exception_days: 0 } as never)
     const wrapper = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
     wrapper.findAllComponents({ name: 'ElInputNumber' }).find(item => item.find('input[aria-label="每場分鐘"]').exists())!.vm.$emit('update:modelValue', 45)
     await flushPromises()
@@ -64,6 +66,9 @@ describe('改每週規則：還沒有人預約的時段跟著調整', () => {
     const message = String(success.mock.calls.at(-1)![0])
     expect(message).toContain('還沒有人預約的時段已跟著調整：3 場不符合新規則的時段不再開放、1 場名額改成新規則')
     expect(message).not.toContain('已存在的不會變動')
+    expect(generate).toHaveBeenCalledWith('/admin/visit-schedule/yihua/generate', expect.objectContaining({ date_from: expect.any(String), date_to: expect.any(String) }))
+    expect(message).toContain('已依新規則補上時段，新增 6 場')
+    expect(message).not.toContain('系統稍後')
     expect(wrapper.emitted('slots-changed')).toBeTruthy()
     expect(wrapper.text()).toContain('1 場不在新規則內，但已有家長排入')
     expect(wrapper.text()).toContain('把名額調成已占用的組數')
@@ -76,6 +81,7 @@ describe('改每週規則：還沒有人預約的時段跟著調整', () => {
       min_lead_hours: 48, version: 5, slot_sync: { removed: 0, closed: 0, reopened: 0, capacity_updated: 0, kept_booked: 0 },
     }) as never)
     const success = vi.spyOn(ElMessage, 'success')
+    vi.spyOn(api, 'post').mockResolvedValue({ created: 0, skipped_existing: 4, skipped_exception_days: 0 } as never)
     const wrapper = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
     wrapper.findAllComponents({ name: 'ElInputNumber' })[0]!.vm.$emit('update:modelValue', 48)
     await flushPromises()
@@ -118,8 +124,12 @@ describe('時段清單：只想停止新預約不用關閉時段', () => {
     await close.trigger('click')
     await flushPromises()
     const [text, , options] = confirm.mock.calls[0]!
-    expect(String(text)).toContain('名額會改成 2 組')
-    expect(options).toMatchObject({ confirmButtonText: '關閉時段', cancelButtonText: '只停止新預約', distinguishCancelAndClose: true })
+    // 三種後果條列，不擠在一段話裡；破壞性的「關閉時段」用 danger 樣式。
+    const body = document.createElement('div')
+    render(text as never, body)
+    expect(body.querySelectorAll('li')).toHaveLength(2)
+    expect(body.textContent).toContain('名額改成 2 組')
+    expect(options).toMatchObject({ confirmButtonText: '關閉時段', cancelButtonText: '只停止新預約', confirmButtonClass: 'el-button--danger', distinguishCancelAndClose: true })
     expect(patch).toHaveBeenCalledWith('/admin/slots/booked', { capacity: 2, expected_version: 2 })
     expect(patch).not.toHaveBeenCalledWith('/admin/slots/booked', expect.objectContaining({ closed: true }))
     expect(String(success.mock.calls.at(-1)![0])).toContain('已排入的家長照常參觀')

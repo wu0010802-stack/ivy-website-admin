@@ -194,15 +194,15 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
               'has-slots': slotsByDay.has(day),
             }"
             :aria-selected="day === selectedDay"
-            :aria-label="`${formatDate(day)}，${chipsOf(day).length} 位家長`"
+            :aria-label="`${formatDate(day)}，${chipsOf(day).length} 組`"
             @click="selectDay(day)"
           >
             <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
             <span v-for="chip in chipsOf(day).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-status="chip.status">
-              <span class="num">{{ chip.time }}</span> {{ chip.name }}
+              <strong v-if="chip.status === 'pending_confirmation'" class="calendar__flag">待確認</strong><span v-else class="visually-hidden">已確認 </span><span class="num">{{ chip.time }}</span> {{ chip.name }}
             </span>
-            <span v-if="chipsOf(day).length > MAX_CHIPS" class="calendar__more">還有 {{ chipsOf(day).length - MAX_CHIPS }} 位</span>
-            <span v-if="slotsByDay.has(day) && openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 位</span>
+            <span v-if="chipsOf(day).length > MAX_CHIPS" class="calendar__more">還有 {{ chipsOf(day).length - MAX_CHIPS }} 組</span>
+            <span v-if="slotsByDay.has(day) && openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 組</span>
             <span v-if="chipsOf(day).length" class="calendar__dot" aria-hidden="true">{{ chipsOf(day).length }}</span>
           </button>
         </div>
@@ -219,7 +219,7 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
       <div v-for="slot in selectedSlots" :key="slot.id" class="panel calendar__slot">
         <div class="panel__head">
           <h3 class="num">{{ formatTime(slot.start_time) }}–{{ formatTime(slot.end_time) }}<template v-if="showCampus">・{{ campusLabel(slot.campus_key) }}</template></h3>
-          <span class="hint">{{ slot.closed ? '已關閉' : `已排 ${slot.booked_count}／${slot.capacity} 位` }}</span>
+          <span class="hint">{{ slot.closed ? '已關閉' : `已排 ${slot.booked_count}／${slot.capacity} 組` }}</span>
         </div>
         <ul v-if="slot.visits.length" class="calendar__visits">
           <li v-for="visit in slot.visits" :key="visit.id">
@@ -295,6 +295,7 @@ const showCampus = computed(() => !campusFilter.value && visibleCampusKeys.value
   text-overflow: ellipsis;
 }
 .calendar__chip[data-status='pending_confirmation'] { background: var(--el-color-warning-light-9); }
+.calendar__flag { margin-right: 4px; padding: 0 4px; border: 1px solid var(--brand-gold-ink); border-radius: 4px; color: var(--brand-gold-ink); font-size: 11px; font-weight: 600; }
 .calendar__chip[data-status='completed'],
 .calendar__chip[data-status='no_show'] { background: var(--surface-3); color: var(--ink-3); }
 .calendar__more, .calendar__seats { font-size: 12px; color: var(--ink-3); }

@@ -31,9 +31,9 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字：參觀案件（新需求＋待園方確認）、站內通知（待核准改期）、
-   * 發布紀錄（給自己的內容通知未讀數） */
-  badge?: 'open-requests' | 'reschedule-requests' | 'content-notices'
+  /** 側欄項目旁的待辦數字：只有參觀案件（新需求＋待園方確認）；
+   * 未讀通知放在頁首與總覽待辦（2026-09-29 裁定） */
+  badge?: 'open-requests'
 }
 
 export interface NavGroup {
@@ -58,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS },
       { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', badge: 'reschedule-requests', roles: VISITS },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS },
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
@@ -107,7 +107,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
-      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', badge: 'content-notices', roles: CONTENT },
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', roles: CONTENT },
     ],
   },
   {

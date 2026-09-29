@@ -290,7 +290,7 @@ async function applyReplacement() {
           <ul class="replace__results">
             <li v-for="row in results.items" :key="row.content_item_id">
               <router-link :to="contentEditorPath(row.kind, row.campus_key)">{{ contentItemLabel(row.kind, row.campus_key) }}</router-link>
-              <span class="hint">第 {{ row.version }} 版・{{ row.field_paths.map(mediaFieldPathLabel).join('、') }}</span>
+              <span class="hint">{{ row.field_paths.map(mediaFieldPathLabel).join('、') }}</span>
             </li>
           </ul>
         </template>
@@ -302,7 +302,7 @@ async function applyReplacement() {
 
     <template #footer>
       <template v-if="step === 'upload'">
-        <el-button @click="visible = false">取消</el-button>
+        <el-button @click="visible = false">先不要</el-button>
         <el-button type="primary" :loading="busy" :disabled="!file || Boolean(replacement)" @click="uploadReplacement">上傳新檔案</el-button>
       </template>
       <template v-else-if="step === 'impact'">

@@ -22,7 +22,7 @@ export function campusLabels(keys: readonly string[]): string {
 export const ROLE_LABELS: Record<Role, string> = {
   super_admin: '總管理者',
   campus_admin: '校區管理者',
-  editor: '編輯',
+  editor: '內容編輯',
   reception: '櫃台',
   readonly: '唯讀',
 }
@@ -479,14 +479,14 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   map_url: '地圖連結',
   video_desktop: '桌機影片',
   video_mobile: '手機影片',
-  poster: '影片 poster',
-  poster_alt: 'poster 替代文字',
+  poster: '影片封面照片',
+  poster_alt: '影片封面的圖片說明',
   fallback_image: '影片載入失敗替代圖',
   photo: '照片',
-  photo_alt: '照片替代文字',
+  photo_alt: '照片的圖片說明',
   film_desktop: '背景影片（桌機）',
   film_mobile: '背景影片（手機）',
-  film_poster: '背景影片 poster',
+  film_poster: '背景影片封面照片',
   film_caption_zh: '影片說明（中文）',
   film_caption_en: '影片說明（英文）',
   cover: '封面照片',
@@ -759,7 +759,7 @@ export function consentRecordLabel(detail: {
   if (detail.consent_given === false) return '未同意'
   const when = detail.consent_accepted_at ? `・${formatDateTime(detail.consent_accepted_at)}` : ''
   if (detail.consent_revision_id) {
-    const version = detail.consent_revision_version ? `預約文案第 ${detail.consent_revision_version} 版` : '版本已無法查到'
+    const version = detail.consent_revision_version ? '當時的預約文案' : '當時的預約文案已無法查到'
     return `家長勾選同意（${version}）${when}`
   }
   if (detail.source && detail.source !== 'web') return `人員說明後代為勾選${when}`

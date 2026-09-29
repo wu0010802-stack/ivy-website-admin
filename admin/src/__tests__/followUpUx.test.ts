@@ -158,7 +158,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await router.push('/visit-requests/case-a'); await router.isReady()
     const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.text()).toContain('下一筆待處理（還有 1 件）')
+    expect(wrapper.text()).toContain('下一筆待確認（還有 1 件）')
     wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', slot.id)
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '確認並排入時段')!.trigger('click')

@@ -121,7 +121,6 @@ defineExpose({ load })
               <li v-for="ref in group.refs" :key="`${ref.revision_id}:${ref.field_path}`" class="usages__ref">
                 <span>{{ mediaFieldPathLabel(ref.field_path) }}<template v-if="ref.label">（{{ ref.label }}）</template></span>
                 <span class="usages__meta">
-                  第 {{ ref.version }} 版
                   <StatusTag v-for="state in ref.states" :key="state" :meta="mediaReferenceState(state)" size="small" />
                   <template v-if="ref.publish_at">・{{ formatDateTime(ref.publish_at) }} 上線</template>
                 </span>
@@ -136,7 +135,7 @@ defineExpose({ load })
           <ul class="usages__refs">
             <li v-for="row in usages.history" :key="row.content_item_id" class="usages__ref">
               <span>{{ contentItemLabel(row.kind, row.campus_key) }}</span>
-              <span class="usages__meta">第 {{ row.versions.join('、') }} 版</span>
+              <span class="usages__meta">{{ row.versions.length }} 個舊版本</span>
             </li>
           </ul>
         </section>
