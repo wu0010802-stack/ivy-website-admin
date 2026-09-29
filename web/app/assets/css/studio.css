@@ -49,7 +49,6 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 /* 兩欄標題都貼齊 78px 標題區底部，「近期活動」才不會比「最新消息」高 9px。 */
 .hn-events>.hn-head{display:flex;flex-direction:column;justify-content:flex-end}
 .home-news .hn-more,.hn-dialog .hn-more{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:20px;min-height:44px;font-size:var(--fs-sm);font-weight:600;border-bottom:1px solid currentColor;white-space:nowrap}
-.hn-arrow{font-size:var(--fs-2xl);line-height:1;flex-shrink:0}
 .hn-event-stack{display:grid;gap:18px;margin-bottom:18px}
 .home-news .hn-event,.hn-dialog .hn-event{display:flex;align-items:center;gap:16px;width:100%;min-height:104px;padding:18px;background:var(--ivy-news-event-1);border-radius:12px}
 .hn-event:nth-child(2){background:var(--ivy-news-event-2)}.hn-event:nth-child(3){background:var(--ivy-news-event-3)}
@@ -58,7 +57,7 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-date>span{font-size:10px;letter-spacing:.1em}
 .hn-event-copy{flex:1;min-width:0}.hn-event-copy small{display:block;font-size:var(--fs-xs);margin-bottom:4px}
 .hn-event-copy strong{display:block;font-family:var(--font-head);font-size:var(--fs-md);line-height:1.5}
-.hn-event>.hn-arrow{font-size:var(--fs-lg)}.hn-event:hover{outline:1px solid var(--ivy-news-event-outline);outline-offset:-1px}
+.hn-event:hover{outline:1px solid var(--ivy-news-event-outline);outline-offset:-1px}
 .home-news .hn-films{display:none}
 .hn-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;align-items:start}
 .hn-card{position:relative;min-width:0;border-radius:12px}

@@ -23,11 +23,8 @@
 /* Route navigation must settle immediately, including after viewport changes. */
 html{scroll-behavior:auto}
 @media(max-width:760px){.hero:not(.campus-hero) .hero-photo{object-position:80% center}.hero:not(.campus-hero) .hero-shade{background:linear-gradient(90deg,rgb(var(--ink) / .82),rgb(var(--ink) / .27))}}
-/* 分校 hero 手機（2026-09-29）
-   - 12px 金色小標排在照片上方的天空與雲上：只在小標後面墊一團 --ink 光暈（跟著文字走，左濃右淡），不加深整片遮罩。
-     量法同「首屏調亮」（文字透明截圖、每行取最亮背景像素）：五校 320／360／390 小標最亮像素 2.41→5.08、p5 2.91→5.67，hero 平均 L* 38.8→37.4。
-   - 上面 @media(max-width:760px) 的 .hero .container padding 改成跟 rem 走：預設字級仍是 0／72px，文字放大時小標不貼頂、圖說不壓到按鈕。 */
-@media(max-width:760px){.campus-hero .eyebrow{position:relative;width:fit-content}.campus-hero .eyebrow::before{content:'';position:absolute;inset:-44px -140px -44px -20px;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 100% 50% at 0 50%,rgb(var(--ink) / .56),rgb(var(--ink) / .52) 58%,rgb(var(--ink) / .28) 78%,rgb(var(--ink) / .1) 90%,rgb(var(--ink) / 0))}}
+/* 分校 hero 手機（2026-09-29）：上面 @media(max-width:760px) 的 .hero .container padding 改成跟 rem 走，
+   預設字級仍是 0／72px，文字放大時小標不貼頂、圖說不壓到按鈕。 */
 @media(min-width:761px) and (max-width:1000px){.visit-layout{grid-template-columns:1fr;gap:36px}.visit-intro{position:static}.visit-intro h1 br{display:none}.visit-intro h1{font-size:var(--fs-4xl)}.visit-intro p br{display:none}.visit-intro p{max-width:none}.form-panel{padding:36px}}
 /* Before app.js renders, keep the footer below the fold so first paint does not shift (CLS). No-JS keeps the plain header/footer/noscript order. */
 html.js main:empty{min-height:100svh}
