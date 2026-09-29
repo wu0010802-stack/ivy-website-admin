@@ -174,7 +174,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - **Google／LINE 登入**：三個 `WEBSITE_GOOGLE_*` 都留空就不顯示 Google 登入入口；後台「我的帳號」可自行解除 Google 綁定。這些是選填功能，不影響現有帳密登入。
 - 詳細清單、逐項驗證見 `docs/website-admin/acceptance.md` 底部「2026-09-25／26 小結」。
 
-## 2026-09-29 資安稽核修正：部署前後人工步驟（尚未部署）
+## 2026-09-29 資安稽核修正：部署前後人工步驟（已於 2026-09-29 部署，部署後步驟待做）
 
 白箱資安稽核的修正在分支 `fix/security-audit-20260929`（已合併 main `576672c`，含已上線的 PR #13–#17；與 PR #14 重複的機制只留一份，下面「這次改了什麼」照合併後的狀態寫）。併進 `main` 就會正式部署；**api 掛 volume，Railway 先停舊容器再起新容器，新版啟動失敗＝停站**（見 2026-09-24 PR #9），所以「部署前」每一項都要先確認。
 
@@ -869,3 +869,13 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 部署後（唯讀、未登入，curl）GET `/`、`/about`、`/admission`、`/curriculum`、`/environment`、`/news`、`/news/garden`、`/campuses/yihua`、`/campuses/minghua`、`/campuses/renwu`、`/visit`、`/visit/yihua`、`/visit/manage`、`/admin/login`、`/sitemap.xml`、`/robots.txt`、`/api/website/v1/health` 皆 200。抽查新改動：`/campuses/minghua` 頁首預約鈕 `href="/visit/minghua"`；分校頁「查看地圖與路線」兩處；「LINE 聯絡義華校」只出現在義華，其他四校 0 筆；`/news` 示意活動顯示「日期未定」；頁面樣式含 `.menu-scrim`；`/visit` 迎賓照片的 `<source media>` 是新條件（760 以下，或 960 以下的橫拿手機）。
 - **未做**：正式站畫面沒有在瀏覽器裡看（本容器的 Chromium 不信任出口代理的憑證，沒有關掉 TLS 驗證硬跑）；同一份 build 在 CI 的 E2E 全過，上線前也在本機 production build（fixture）做過桌機像素比對與手機回歸。iPhone Safari／Android 實機未驗證；沒有在正式站寫入資料。
 - 待業主決定的項目（分校輪播暫停、布幕點一下結束、分校頁選單顯示當校、分頁校名字級、消息標題句號孤行、分校 hero 對比、需實機的三項）見 DESIGN.md「手機版體驗優化第二輪（2026-09-29）」。
+
+## 2026-09-29 白箱資安稽核修正部署（`fix/security-audit-20260929`，main CI 部署）
+
+- 使用者要求推上 main。分支先兩度併入 main（`576672c`、`cdac49e`），與 PR #14 重複的機制只留一份；以 fast-forward 推上 main。推之前用正式 api 的實際 `WEBSITE_*` 跑新的 `Settings` 驗證（值不落地、只看通過與否）：`SETTINGS_OK`（production、admin origin 為 https）。migration `e4c1a7f3b862` 只新增欄位與表，依規則未強制先備份。
+- 第一次 main CI run `36559914931`（`a4b48e9`）：E2E 23 個後台測試失敗，deploy 被擋下（正式站維持 `cdac49e`）。原因是 e2e 的 `adminApi` 在 `test.use({ storageState })` 的檔案裡登入時，繼承了預存的 super_admin cookie，而本次起密碼登入會撤銷請求帶來的舊 session；修測試工具（`tests/stack/api.ts` 明寫空的 storageState，`4cc93c2`），正式行為不變。
+- 第二次 run `36562527040`（`4cc93c2`）：E2E 全過，後端 1 個併發測試失敗（1000 passed）。是真實的競態：同一把 Idempotency-Key 的重送在不上鎖的重播查詢時錯過另一個尚未 commit 的請求，走到手機桶預檢被回 429。修正：四個上限分支擋下前再查一次重播（`d151dd1`），另加確定性回歸測試；本機併發測試連跑 25 次 0 失敗。
+- 第三次 run `36565006263`（`d151dd1`）五個 job 全綠，Deploy Railway production 約 4 分鐘。`/release.json` snapshot `cdb0623824ab042a7f80d20e37007730507031d17c2c58af4f49a9114ed32fb7`、`base_commit` `d151dd1`、`web+api`、`created_at` 2026-09-29T12:16:49Z。push 後到 CI 失敗期間正式站一直是 `cdac49e`，可見 Railway 沒有在 push 當下原生部署（部署前第 3 點成立）。
+- 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常；`/admin/`、`/admin/login` 帶嚴格 CSP（`script-src 'self'`）、`X-Frame-Options: SAMEORIGIN`、`nosniff`、`no-store`；Playwright（Chrome）載入 `/admin/login` 桌機與手機 0 筆 CSP 違規、登入表單正常；代理 `/api/website/v1/%2e%2e/…/openapi.json`、`/public/..%2f..%2fhealth`、`/public/telemetry` 皆 404；`/assets/day-film-mobile.mp4` Range 回 206；`/public/booking-config/yihua` 的 `turnstile_site_key` 為 null（未設 key，表單不變）。
+- **未做（見上方「2026-09-29 資安稽核修正」的部署後步驟）**：既有素材 `strip-media-metadata`（需先備份，本人以 `railway ssh` 執行）、Turnstile key、各校 LINE 群組貼驗證碼、告知同仁新規則、DB 角色拆分與 PITR；正式站沒有登入或寫入資料，iOS Safari 與 Google／LINE 登入往返未在正式站實測。
+

@@ -1,4 +1,4 @@
-## 2026-09-29 白箱資安稽核修正（`fix/security-audit-20260929`，尚未部署）
+## 2026-09-29 白箱資安稽核修正（`fix/security-audit-20260929`，2026-09-29 經 main CI 部署）
 
 依白箱資安稽核的發現分六個工作包修正（auth、booking、media、platform、ops、web），部署前後的人工步驟與新環境變數見 `deploy/README.md`「2026-09-29 資安稽核修正」。分支已合併 main（`576672c`，PR #13–#17）：PR #14「系統設計審查第一批修正」已先上線其中幾項（限流獨立連線池、`statement_timeout`、圖片 EXIF 無損清理、uvicorn 存取紀錄去查詢字串、production 關閉 API 文件、同源代理擋 `..`、SSR 逾時與退回上一份內容），合併時同一機制只留一份、以 PR #14 的實作為底，本分支較嚴的行為補在上面；下列各項已照合併後的狀態改寫。業主裁定：密碼登入 5 分鐘錯 10 次鎖該帳號密碼登入 15 分鐘（Google／LINE 不受影響）；公開預約內建 Cloudflare Turnstile（兩把 key 都設才啟用）＋每來源／每校上限＋IPv6 /64 聚合；`analytics_events` 不清除，改用全站每分鐘與每日上限。
 
