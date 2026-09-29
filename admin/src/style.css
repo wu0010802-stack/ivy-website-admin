@@ -616,6 +616,9 @@ a.stat:hover {
   .el-button { min-width: 44px; }
   /* 手機橫放（寬度超過 720px）時輸入框也要 16px，iOS 聚焦才不會自動放大畫面。 */
   .el-input__inner, .el-textarea__inner, .el-select__wrapper { font-size: 16px; }
+  /* 會自動長高的文字框（一行起跳）跟旁邊 44px 的輸入框一樣高：16px×1.5 行高＋上下各 10px。
+     自動長高是照這裡的內距量出來的，多行時也會跟著算。 */
+  .el-textarea__inner { padding-block: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

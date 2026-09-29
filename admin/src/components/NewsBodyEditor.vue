@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { ref, useId, useTemplateRef } from 'vue'
 import { Delete, Picture } from '@element-plus/icons-vue'
 import type { MediaAssetOut, NewsBodyBlock } from '../api/types'
 import MediaPickerDialog from './MediaPickerDialog.vue'
@@ -17,6 +17,8 @@ const props = defineProps<{
 
 const BLOCK_TYPES = Object.keys(BLOCK_LABELS) as NewsBodyBlock['type'][]
 const root = useTemplateRef<HTMLElement>('root')
+// 連結網址錯誤訊息的 id（同一頁可能有好幾個內文編輯器）。
+const uid = useId()
 // 內文圖片縮圖：載縮圖、讀不到退回原檔，原檔也讀不到就請使用者重選。
 const thumbs = useMediaThumbs()
 
@@ -89,11 +91,11 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
           type="button"
           class="news-body__thumb"
           :class="{ 'is-broken': block.image && thumbs.isBroken(block.image) }"
-          :aria-label="block.image && thumbs.isBroken(block.image) ? '讀不到這張圖片，請重新選擇' : block.image ? '更換圖片' : '從素材庫選擇圖片'"
+          :aria-label="block.image && thumbs.isBroken(block.image) ? '讀不到這張照片，請重新選擇' : block.image ? '更換圖片' : '從素材庫選擇圖片'"
           :disabled="readOnly"
           @click="pickImage(index)"
         >
-          <span v-if="block.image && thumbs.isBroken(block.image)" class="news-body__thumb-broken"><el-icon><Picture /></el-icon>讀不到這張圖片，請重新選擇</span>
+          <span v-if="block.image && thumbs.isBroken(block.image)" class="news-body__thumb-broken"><el-icon><Picture /></el-icon>讀不到這張照片，請重新選擇</span>
           <img v-else-if="block.image" :src="thumbs.src(block.image)" alt="" loading="lazy" @error="thumbs.onError(block.image)" />
           <span v-else><el-icon><Picture /></el-icon>選擇圖片</span>
         </button>
@@ -114,11 +116,18 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
           <span>連結文字</span>
           <el-input v-model="block.label" maxlength="40" placeholder="例如：活動相簿" />
         </label>
-        <label class="news-body__field">
-          <span>連結網址</span>
-          <el-input v-model="block.url" inputmode="url" placeholder="https://" />
-          <span v-if="webUrlError(block.url)" class="field-help is-error">{{ webUrlError(block.url) }}</span>
-        </label>
+        <!-- 錯誤訊息放在 label 外面、用 aria-describedby 連回輸入框，才不會變成欄位名稱的一部分。 -->
+        <div class="news-body__field">
+          <label class="news-body__field">
+            <span>連結網址</span>
+            <el-input
+              v-model="block.url" inputmode="url" placeholder="https://"
+              :aria-invalid="webUrlError(block.url) ? 'true' : undefined"
+              :aria-describedby="webUrlError(block.url) ? `${uid}-url-${index}` : undefined"
+            />
+          </label>
+          <span v-if="webUrlError(block.url)" :id="`${uid}-url-${index}`" class="field-help is-error">{{ webUrlError(block.url) }}</span>
+        </div>
       </div>
     </div>
 

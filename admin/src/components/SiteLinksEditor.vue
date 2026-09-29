@@ -35,7 +35,7 @@ function add() {
 // 連結欄下方的說明：外部網站、對得到的官網頁面名稱，或（格式有錯時）不顯示。
 function destination(href: string): string {
   if (siteLinkError(href)) return ''
-  if (isExternalLink(href)) return '外部網站，官網會加 ↗ 並另開分頁'
+  if (isExternalLink(href)) return '外部網站'
   const page = sitePageName(href)
   return page ? `連到：${page}` : ''
 }

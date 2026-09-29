@@ -165,7 +165,9 @@ function move(index: number, delta: number) {
       <!-- 共用題目清單不是表單內容：放在表單外，唯讀帳號也能按「重新載入」。 -->
       <p v-if="sharedState === 'loading'" class="hint" role="status">讀取共用題目中…</p>
       <el-alert v-else-if="sharedState === 'error'" type="error" :closable="false" show-icon title="讀不到全站共用題目" class="faq-shared__error">
-        <p class="faq-shared__error-text">{{ sharedError }}讀到之前，看不出哪些共用題目會出現在本校頁面。</p>
+        <!-- 伺服器的錯誤訊息常常沒有句號，分兩段才不會跟下一句黏在一起。 -->
+        <p class="faq-shared__error-text">{{ sharedError }}</p>
+        <p class="faq-shared__error-text">讀到之前，看不出哪些共用題目會出現在本校頁面。</p>
         <el-button size="small" @click="loadShared">重新載入</el-button>
       </el-alert>
       <template v-else>

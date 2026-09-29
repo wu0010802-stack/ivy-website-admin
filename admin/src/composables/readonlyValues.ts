@@ -35,6 +35,8 @@ function restore(root: HTMLElement) {
 const observers = new WeakMap<HTMLElement, MutationObserver>()
 
 function sync(el: HTMLElement, on: boolean) {
+  // 可編輯的頁面每打一個字都會重畫：沒標過就不用掃欄位還原。
+  if (!on && !el.classList.contains(CLASS_NAME)) return
   el.classList.toggle(CLASS_NAME, on)
   if (on) {
     markEmpty(el)

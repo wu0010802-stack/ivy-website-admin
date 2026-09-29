@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent, h, ref } from 'vue'
+import { computed, defineComponent, h, nextTick, ref, withDirectives } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
@@ -14,7 +14,7 @@ import type { HomeFilmPayload, MediaAssetOut, UserOut } from '../api/types'
 import { LENGTH_HINTS, momentTimeError, normalizeMomentTime } from '../composables/contentHints'
 import { newHomeFilm } from '../composables/homeFilms'
 import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
-import { EMPTY_VALUE_TEXT } from '../composables/readonlyValues'
+import { EMPTY_VALUE_TEXT, vReadonlyValues } from '../composables/readonlyValues'
 import { sitePageName } from '../composables/siteLinks'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import AdmissionContentView from '../views/AdmissionContentView.vue'
@@ -31,6 +31,7 @@ import SharedFaqView from '../views/SharedFaqView.vue'
 import SiteFooterView from '../views/SiteFooterView.vue'
 import SiteMetaView from '../views/SiteMetaView.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
+import NewsBodyEditor from '../components/NewsBodyEditor.vue'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -338,6 +339,8 @@ describe('常見問題', () => {
     failShared(new ApiError(503, { detail: 'down' }))
     await flushPromises()
     expect(wrapper.text()).toContain('讀不到全站共用題目')
+    // 錯誤訊息（伺服器給的常常沒有句號）跟下一句分兩段，不會黏成一句。
+    expect(wrapper.findAll('.faq-shared__error-text').map((p) => p.text())).toEqual(['可能是網路不穩，請稍後重新載入。', '讀到之前，看不出哪些共用題目會出現在本校頁面。'])
     expect(wrapper.text()).not.toContain('目前沒有適用本校的共用題目')
     // 唯讀帳號也能重新載入（清單不在停用的表單裡）。
     const reload = button(wrapper, '重新載入')
@@ -597,6 +600,18 @@ describe('縮圖與圖片說明', () => {
   })
 })
 
+describe('消息內文的連結網址', () => {
+  it('格式錯誤的訊息不夾在欄位名稱裡，用 aria-describedby 連回輸入框', () => {
+    const wrapper = mountPlain(() => h(NewsBodyEditor, { blocks: [{ type: 'link', label: '相簿', url: 'ftp://x' }] }))
+    const input = wrapper.get('input[inputmode="url"]')
+    const label = input.element.closest('label')!
+    expect(label.textContent).not.toContain('網址要以')
+    const described = input.attributes('aria-describedby')!
+    expect(document.getElementById(described)?.textContent).toBe('網址要以 https:// 或 http:// 開頭')
+    expect(input.attributes('aria-invalid')).toBe('true')
+  })
+})
+
 describe('主選單與頁尾連結', () => {
   it('連結格式說明只寫一次；每一筆寫出連到官網哪一頁', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('site_footer', { tagline: '', copyright: '', bottom_note: '', campus_list_label: '' }) as never)
@@ -640,5 +655,20 @@ describe('唯讀帳號看內容', () => {
     expect(admissionTitle.get('textarea').attributes('placeholder')).toContain('留空使用預設')
     const phone = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '頁首電話')!
     expect(phone.get('input').attributes('placeholder')).toBe(EMPTY_VALUE_TEXT)
+  })
+
+  it('切回可編輯時換回原本的提示字；一直可編輯時每次重畫不用掃欄位', async () => {
+    const on = ref(true)
+    const text = ref('')
+    const wrapper = mountPlain(() => withDirectives(h('div', [h('input', { class: 'el-input__inner', placeholder: 'https://', value: text.value })]), [[vReadonlyValues, on.value]]))
+    const input = () => wrapper.get('input').element as HTMLInputElement
+    expect(input().placeholder).toBe(EMPTY_VALUE_TEXT)
+    on.value = false
+    await nextTick()
+    expect(input().placeholder).toBe('https://')
+    const scan = vi.spyOn(wrapper.element as HTMLElement, 'querySelectorAll')
+    text.value = '打字'
+    await nextTick()
+    expect(scan).not.toHaveBeenCalled()
   })
 })

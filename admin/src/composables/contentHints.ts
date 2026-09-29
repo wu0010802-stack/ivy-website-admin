@@ -12,7 +12,7 @@ export const LENGTH_HINTS = {
   heroEyebrow: { max: 20, why: '手機上會換成兩行' },
   aboutTitle: { max: 16, why: '標題在手機上會超過兩行' },
   aboutBody: { max: 300, why: '段落太長，家長不容易讀完' },
-  aboutCaption: { max: 30, why: '照片說明會換成多行' },
+  aboutCaption: { max: 30, why: '照片下方文字會換成多行' },
   footerTagline: { max: 30, why: '頁尾標語會換成多行' },
   boardTitle: { max: 12, why: '標題在手機上會換行' },
   campusDescription: { max: 200, why: '分校頁開頭的介紹太長' },
