@@ -126,6 +126,29 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     expect(wrapper.find('.requests-mobile .requests-empty').text()).toContain('沒有「待處理」的案件')
   })
 
+  it('按「下一頁」翻到的空頁是真的到底了：講明沒有更多、可回上一頁，不跳回第一頁來回繞', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (!path.startsWith('/admin/visit-requests?')) return [] as never
+      const page = new URLSearchParams(path.split('?')[1]).get('page')
+      return (page === '1' ? Array.from({ length: 20 }, (_, i) => request({ id: `case-${i}` })) : []) as never
+    })
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new')
+    await wrapper.findAll('button').find(button => button.text() === '下一頁')!.trigger('click')
+    await flushPromises()
+    expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['1', '2'])
+    expect(router.currentRoute.value.query).toEqual({ status: 'new', page: '2' })
+    const empty = wrapper.get('.requests-mobile .requests-empty')
+    expect(empty.text()).toContain('後面沒有更多案件了')
+    expect(empty.text()).toContain('前面的頁數還有案件')
+    expect(empty.text()).not.toContain('沒有「待處理」的案件')
+    expect(empty.text()).not.toContain('清除篩選')
+
+    await empty.findAll('button').find(button => button.text() === '回上一頁')!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(wrapper.findAll('.request-list li')).toHaveLength(20)
+  })
+
   it('側欄或總覽連結改了網址就套用新條件；點進案件時不會清掉條件重查', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new')

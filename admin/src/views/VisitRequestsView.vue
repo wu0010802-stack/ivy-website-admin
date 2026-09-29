@@ -187,10 +187,20 @@ function filterParams(): URLSearchParams {
 // 上一次讀清單的時間：切回分頁時據此判斷要不要重抓。
 let loadedAt = 0
 
+// 按「下一頁」翻到的空頁是真的到底了（上一頁剛好 20 件）：講明沒有更多，不跳回第一頁，
+// 否則「下一頁」又能按，會在兩頁之間來回。
+let pagedForward = false
+function nextPage() {
+  pagedForward = true
+  page.value += 1
+}
+
 // quiet：切回分頁時的背景重抓，保留目前的清單、不閃載入狀態；失敗就維持原樣。
 async function load(options: { quiet?: boolean } = {}) {
   const version = ++loadVersion
   loadedAt = Date.now()
+  const byNextButton = pagedForward
+  pagedForward = false
   syncUrl()
   if (!options.quiet) {
     loading.value = true
@@ -207,7 +217,7 @@ async function load(options: { quiet?: boolean } = {}) {
     if (version !== loadVersion) return
     // 網址記著頁數：處理完第 2 頁最後一件再返回、或切回分頁時案件已移走，那一頁會是空的，
     // 但前面幾頁還有案件。不能說「沒有待處理的案件」，回第一頁重查（頁數監聽會重抓並改網址）。
-    if (!result.length && page.value > 1) {
+    if (!result.length && page.value > 1 && !byNextButton) {
       fallingBack = true
       page.value = 1
       return
@@ -316,6 +326,7 @@ function onManualCreated(created: VisitRequestDetailOut) {
 }
 
 const emptyText = computed(() => {
+  if (page.value > 1) return '後面沒有更多案件了'
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
   if (attentionOnly.value) return '沒有待人工處理的案件'
   if (dueOnly.value) return '沒有到期待追蹤的案件'
@@ -406,7 +417,8 @@ onMounted(() => {
         :empty-text="emptyText"
         @row-click="openDetail"
       >
-        <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
+        <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
+        <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
         <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 760px，
              其餘給家長欄。參觀時間的字約 225px，欄寬 256 留一點餘裕；再壓窄大多數列會折成兩行。 -->
         <el-table-column label="狀態" width="100">
@@ -464,13 +476,13 @@ onMounted(() => {
             <span class="hint">{{ formatShortDateTime(request.created_at) }} 送出</span>
           </li>
         </ul>
-        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後，可在這裡聯絡並安排參觀。' }}</p><el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
+        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後，可在這裡聯絡並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
       </div>
 
       <div class="pager" v-if="page > 1 || hasNext">
         <el-button size="small" :disabled="page <= 1 || loading" @click="page -= 1">上一頁</el-button>
         <span class="hint">第 {{ page }} 頁</span>
-        <el-button size="small" :disabled="!hasNext || loading" @click="page += 1">下一頁</el-button>
+        <el-button size="small" :disabled="!hasNext || loading" @click="nextPage">下一頁</el-button>
       </div>
     </div>
 
