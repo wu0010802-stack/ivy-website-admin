@@ -106,10 +106,10 @@ onMounted(async () => {
       <template v-else>
         <SiteHeader :content="draft" />
         <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" />
-        <CampusPageMain v-else-if="page === 'campus' && previewCampus" :campus="previewCampus" />
+        <CampusPageMain v-else-if="page === 'campus' && previewCampus" :campus="previewCampus" :booking="draft.booking" />
         <main v-else-if="page === 'visit'" id="main" tabindex="-1">
           <div class="container breadcrumb"><NuxtLink to="/">首頁</NuxtLink> / 預約校園參觀</div>
-          <BookingDraftPreview :booking="draft.booking" />
+          <BookingDraftPreview :booking="draft.booking" :banner-campus="previewCampus" />
         </main>
         <main v-else id="main" tabindex="-1">
           <HeroVideo :hero="draft.home.hero" />

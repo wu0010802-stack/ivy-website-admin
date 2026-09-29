@@ -2,10 +2,12 @@
 // 分校頁主體。正式頁（pages/campuses/[key].vue）與私有草稿預覽
 // （pages/preview.vue?page=campus）共用，兩邊畫面才不會漂移。
 import type { Campus } from '~/types/site-content'
+import type { CampusBannerSource } from '~/utils/campus-banner'
 import { campusHeroAttrs } from '~/utils/media-image'
 import { campusMapUrl } from '~/utils/site-links'
 
-defineProps<{ campus: Campus }>()
+// booking：已發布（預覽時是草稿）的預約文案，底部橫幅的三句從這裡讀。
+defineProps<{ campus: Campus; booking: CampusBannerSource }>()
 </script>
 
 <template>
@@ -90,15 +92,6 @@ defineProps<{ campus: Campus }>()
       </div>
     </section>
 
-    <section class="visit-banner" data-cta-entry="campus_banner">
-      <div class="container">
-        <div>
-          <span class="eyebrow">預約參觀</span>
-          <h2 class="section-title">親自走一趟，感受{{ campus.name }}的日常。</h2>
-          <p>帶著孩子，也帶著你想了解的事。我們期待與你相遇。</p>
-        </div>
-        <BookingCta :campus-key="campus.key" label="預約校園參觀" button-class="button yellow" />
-      </div>
-    </section>
+    <CampusVisitBanner :campus="campus" :booking="booking" />
   </main>
 </template>
