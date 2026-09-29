@@ -5,12 +5,14 @@ import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusProfilePayload, FocusPointPayload, MediaAssetOut } from '../api/types'
 import { mediaFocusUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import FocusPicker from '../components/FocusPicker.vue'
 import { addressSearchUrl, mapUrlError } from '../composables/siteLinks'
+import { webUrlError } from '../composables/newsContent'
 
 const campus = ref('')
 const editor = useContentItem<CampusProfilePayload>(
@@ -105,12 +107,12 @@ const mapPreviewUrl = computed(() => {
     :editor="editor"
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
-    <template #lead>各校在首頁五校區塊、分校頁與頁尾顯示的基本資料。留空的社群連結官網會顯示「待補」。</template>
+    <template #lead>各校在首頁五校區塊、分校頁與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
     <template #toolbar>
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
         <el-form-item label="校名">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
@@ -125,14 +127,14 @@ const mapPreviewUrl = computed(() => {
         <el-input v-model="editor.form.value.address" />
       </el-form-item>
       <el-form-item label="地圖連結（選填）" :error="mapUrlError(editor.form.value.map_url) ?? ''">
-        <el-input v-model="editor.form.value.map_url" placeholder="https://maps.app.goo.gl/…" />
+        <el-input v-model="editor.form.value.map_url" inputmode="url" placeholder="https://maps.app.goo.gl/…" />
         <span class="field-help">
           在 Google 地圖找到學校、按「分享」複製連結貼上。留空時官網用上面的地址搜尋；地址搜尋不準時才需要填。
           <a v-if="mapPreviewUrl" :href="mapPreviewUrl" target="_blank" rel="noopener noreferrer">開啟看看 ↗</a>
         </span>
       </el-form-item>
       <el-form-item label="參觀專線">
-        <el-input v-model="editor.form.value.phone" placeholder="07-000-0000" />
+        <el-input v-model="editor.form.value.phone" inputmode="tel" placeholder="07-000-0000" />
       </el-form-item>
       <el-form-item label="一句話簡介">
         <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />
@@ -211,28 +213,40 @@ const mapPreviewUrl = computed(() => {
       </div>
 
       <h3 class="form-section">社群</h3>
-      <el-form-item label="Facebook 粉絲專頁網址">
-        <el-input v-model="editor.form.value.facebook" placeholder="https://www.facebook.com/…" />
+      <p v-if="!editor.readOnly.value" class="field-help social-lead">
+        貼完整網址（https:// 開頭），在瀏覽器打開該校的頁面、從網址列複製最準。只填這一校自己的帳號，不要填其他校或機構的。
+      </p>
+      <!-- 網址邊打邊檢查（同消息連結的規則）：存檔時後端只說「網址格式不對」，不知道是哪一欄。 -->
+      <el-form-item label="Facebook 粉絲專頁網址" :error="webUrlError(editor.form.value.facebook)">
+        <el-input v-model="editor.form.value.facebook" inputmode="url" placeholder="https://www.facebook.com/…" />
+        <span class="field-help">留空時首頁五校卡不顯示 Facebook；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
       <el-form-item label="Facebook 備註">
         <el-input v-model="editor.form.value.fb_note" placeholder="例如：活動照片與公告" />
+        <!-- 官網 content-overlay 只轉存 fbNote，沒有元件顯示（2026-09-28 盤點）。 -->
+        <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
       </el-form-item>
-      <el-form-item label="LINE 官方帳號網址">
-        <el-input v-model="editor.form.value.line" placeholder="https://lin.ee/…" />
-        <span class="field-help">留空代表這一校尚未提供，官網會顯示待補，不會帶入其他校的帳號。</span>
+      <el-form-item label="LINE 官方帳號網址" :error="webUrlError(editor.form.value.line)">
+        <el-input v-model="editor.form.value.line" inputmode="url" placeholder="https://lin.ee/…" />
+        <span class="field-help">留空代表這一校尚未提供：首頁五校卡寫「LINE · 待園方提供」，頁首選單列出這一校的社群時標「待提供」；不會帶入其他校的帳號。</span>
       </el-form-item>
-      <el-form-item label="Instagram 網址">
-        <el-input v-model="editor.form.value.instagram" placeholder="https://www.instagram.com/…" />
+      <el-form-item label="Instagram 網址" :error="webUrlError(editor.form.value.instagram)">
+        <el-input v-model="editor.form.value.instagram" inputmode="url" placeholder="https://www.instagram.com/…" />
+        <span class="field-help">留空時首頁五校卡不顯示 Instagram；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
-      <el-form-item label="YouTube 頻道網址">
-        <el-input v-model="editor.form.value.youtube" placeholder="https://www.youtube.com/@…" />
-        <span class="field-help">IG、YouTube 留空也一樣顯示待補。只填這一校自己的帳號，不要填其他校或機構的。</span>
+      <el-form-item label="YouTube 頻道網址" :error="webUrlError(editor.form.value.youtube)">
+        <el-input v-model="editor.form.value.youtube" inputmode="url" placeholder="https://www.youtube.com/@…" />
+        <span class="field-help">留空時首頁五校卡不顯示 YouTube；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
     </el-form>
   </ContentEditor>
 </template>
 
 <style scoped>
+.social-lead {
+  margin: 0 0 12px;
+}
+
 .form-section {
   margin: 16px 0 12px;
   padding-top: 16px;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { campusLabel, formatDateTime, formatSlotWhen, notificationLabel, outboxErrorLabel } from '../api/labels'
 import type { NotificationOutboxOut, NotificationOutboxPageOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
@@ -20,7 +20,16 @@ interface NotificationOut {
   read_at: string | null
 }
 
-const { visibleCampusKeys, selected: campusFilter } = useCampusScope()
+// 管多校的人預設看「全部校區」（''），和下面寄送失敗、改期申請的範圍一致，不必
+// 切五次才看完；只管一校的人直接是那一校。
+const { visibleCampusKeys, selected: campusFilter } = useCampusScope({ autoSelect: false })
+const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
+watch(visibleCampusKeys, (keys) => {
+  if (keys.length === 1) campusFilter.value = keys[0]!
+  else if (campusFilter.value && !keys.includes(campusFilter.value)) campusFilter.value = ''
+}, { immediate: true })
+// 後端一次最多回最新的 100 則（notifications/routes.py）。
+const NOTIFICATION_LIMIT = 100
 const { can } = usePermissions()
 // 核准／退回改期與重新寄送要能處理案件（booking.handle，含櫃台）；沒有的人
 // 只看清單，不顯示一按就被拒絕的按鈕。
@@ -31,6 +40,9 @@ const canMarkRead = computed(() => can('booking.manage'))
 const openRequests = useOpenRequestsStore()
 
 const notifications = ref<NotificationOut[]>([])
+// 畫面上的清單是哪個篩選讀回來的（全部校區是 ''）：標記已讀時比對這個快照，
+// 切換篩選途中不會寫回舊清單。
+const loadedFilter = ref<string | null>(null)
 const loading = ref(false)
 const onlyUnread = ref(false)
 const busyId = ref<string | null>(null)
@@ -102,13 +114,16 @@ async function load() {
   const version = ++loadVersion
   const campus = campusFilter.value
   notifications.value = []
+  loadedFilter.value = null
   loadError.value = ''
-  if (!campus) { loading.value = false; return }
+  if (visibleCampusKeys.value.length === 0) { loading.value = false; return }
   loading.value = true
   try {
-    const n = await api.get<NotificationOut[]>(`/admin/notifications?campus_key=${encodeURIComponent(campus)}`)
+    // 不帶校區＝你負責的全部校區（後端依權限範圍過濾）。
+    const n = await api.get<NotificationOut[]>(campus ? `/admin/notifications?campus_key=${encodeURIComponent(campus)}` : '/admin/notifications')
     if (!alive || version !== loadVersion || campus !== campusFilter.value) return
     notifications.value = n
+    loadedFilter.value = campus
   } catch {
     if (alive && version === loadVersion) loadError.value = '無法讀取通知，請重試。'
   } finally {
@@ -117,7 +132,7 @@ async function load() {
 }
 
 function changeCampus(value: string) {
-  if (!operationBusy.value) campusFilter.value = value
+  if (!operationBusy.value) campusFilter.value = value ?? ''
 }
 watch(campusFilter, () => { operationResult.value = ''; void load() }, { immediate: true })
 onBeforeUnmount(() => { alive = false; loadVersion++ })
@@ -126,6 +141,15 @@ const visibleNotifications = computed(() =>
   onlyUnread.value ? notifications.value.filter((n) => !n.read_at) : notifications.value,
 )
 const unreadCount = computed(() => notifications.value.filter((n) => !n.read_at).length)
+const scopeLabel = computed(() => (campusFilter.value ? campusLabel(campusFilter.value) : '全部校區'))
+// 「義華 3 則、仁武 1 則」：全部校區時講清楚未讀在哪幾校。
+function countByCampus(rows: NotificationOut[]): string {
+  const counts = new Map<string, number>()
+  for (const row of rows) counts.set(row.campus_key, (counts.get(row.campus_key) ?? 0) + 1)
+  return [...counts].map(([key, count]) => `${campusLabel(key)} ${count} 則`).join('、')
+}
+const unreadBreakdown = computed(() => (campusFilter.value ? '' : countByCampus(notifications.value.filter((n) => !n.read_at))))
+const listCapped = computed(() => notifications.value.length >= NOTIFICATION_LIMIT)
 
 // outbox 的 payload 用 receipt_id 放案件編號（舊版前端讀 visit_request_id，
 // 永遠找不到，「查看案件」連結從來沒出現過）。
@@ -142,11 +166,15 @@ function summary(n: NotificationOut): string {
   return parts.join('・')
 }
 
+function listMatches(campus: string): boolean {
+  return loadedFilter.value === campus && campusFilter.value === campus
+}
+
 async function markRead(n: NotificationOut) {
-  if (!canMarkRead.value || operationBusy.value || loading.value || n.read_at || n.campus_key !== campusFilter.value) return
+  const campus = campusFilter.value
+  if (!canMarkRead.value || operationBusy.value || loading.value || n.read_at || !listMatches(campus) || (campus && n.campus_key !== campus)) return
   busyId.value = n.id
   operationResult.value = ''
-  const campus = campusFilter.value
   try {
     await api.post(`/admin/notifications/${n.id}/read`)
     if (alive && campus === campusFilter.value) n.read_at = new Date().toISOString()
@@ -160,8 +188,23 @@ async function markRead(n: NotificationOut) {
 async function markAllRead() {
   if (!canMarkRead.value || operationBusy.value || loading.value || loadError.value) return
   const campus = campusFilter.value
-  const unread = notifications.value.filter((n) => !n.read_at && n.campus_key === campus)
+  if (!listMatches(campus)) return
+  const unread = notifications.value.filter((n) => !n.read_at && (!campus || n.campus_key === campus))
   if (!unread.length) return
+  const scope = campus ? campusLabel(campus) : countByCampus(unread)
+  // 已讀是同校共用的狀態；全部校區時一次會動到好幾校，先講清楚是哪幾校。
+  if (!campus) {
+    try {
+      await ElMessageBox.confirm(
+        `會把 ${scope}，共 ${unread.length} 則通知標記為已讀${listCapped.value ? `（只含列出的最新 ${NOTIFICATION_LIMIT} 則）` : ''}。已讀是同校共用的狀態，這幾校的同事也會看到已讀。`,
+        '全部校區標記已讀？',
+        { confirmButtonText: '標記已讀', cancelButtonText: '先不要', type: 'warning' },
+      )
+    } catch {
+      return
+    }
+    if (!alive || operationBusy.value || !listMatches(campus)) return
+  }
   bulkBusy.value = true
   bulkProgress.value = 0
   bulkTotal.value = unread.length
@@ -180,7 +223,7 @@ async function markAllRead() {
       operationFailed.value = failed > 0
       operationResult.value = failed
         ? `已標記 ${bulkProgress.value - failed} 則，${failed} 則失敗。失敗通知仍保留未讀，可再次操作。`
-        : `已將 ${bulkProgress.value} 則通知標記為已讀。`
+        : campus ? `已將${scope}的 ${bulkProgress.value} 則通知標記為已讀。` : `已將全部校區 ${bulkProgress.value} 則通知標記為已讀（${scope}）。`
     }
   } finally { bulkBusy.value = false }
 }
@@ -260,8 +303,9 @@ async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAct
   } finally { busyId.value = null }
 }
 
+// 名額以組家庭計（一組三人只占一個名額），和時段頁、官網一樣寫「組」。
 function requestedSlotNote(row: RescheduleRequestOut): string {
-  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 位` : '已額滿、關閉或已開始，無法核准'
+  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 組` : '已額滿、關閉或已開始，無法核准'
 }
 </script>
 
@@ -270,8 +314,8 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
     <PageHeader lead="家長送出需求、申請改期、案件確認與取消，以及即將參觀、逾期未處理的提醒。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。" />
 
     <div class="filter-bar">
-      <label class="filter-field"><span>校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
-      <el-checkbox v-model="onlyUnread">只看未讀（{{ unreadCount }}）</el-checkbox>
+      <label class="filter-field"><span>通知校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :all-label="multiCampus ? '全部校區' : undefined" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
+      <el-checkbox v-model="onlyUnread" class="unread-toggle">只看未讀（{{ unreadCount }}）</el-checkbox>
       <span class="toolbar__spacer" />
       <el-button v-if="canMarkRead" text :disabled="operationBusy || loading || !!loadError || unreadCount === 0" :loading="bulkBusy" @click="markAllRead">{{ bulkBusy ? `標記中 ${bulkProgress} / ${bulkTotal}` : '全部標記已讀' }}</el-button>
     </div>
@@ -280,7 +324,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
     <template v-else>
       <div class="list-summary" aria-live="polite">
-        <span>{{ campusLabel(campusFilter) }} · {{ loading ? '讀取中…' : loadError ? '尚未載入' : `${notifications.length} 則通知，${unreadCount} 則未讀` }}</span>
+        <span>{{ scopeLabel }} · {{ loading ? '讀取中…' : loadError ? '尚未載入' : `${notifications.length} 則通知，${unreadCount} 則未讀${unreadBreakdown ? `（${unreadBreakdown}）` : ''}` }}</span>
         <el-button :disabled="operationBusy || loading" @click="refreshAll">重新整理</el-button>
       </div>
       <el-alert v-if="operationResult" :title="operationResult" :type="operationFailed ? 'warning' : 'success'" show-icon :closable="false" class="inline-error" />
@@ -305,7 +349,8 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <el-table-column label="失敗原因" min-width="170">
             <template #default="{ row }: { row: NotificationOutboxOut }">
               {{ outboxErrorLabel(row.error_code) }}
-              <span v-if="row.error_code" class="slot-note">{{ row.error_code }}・已試 {{ row.attempts }} 次</span>
+              <!-- 英文錯誤碼只給技術人員對 log，放在滑鼠提示裡。 -->
+              <span v-if="row.error_code" class="slot-note" :title="row.error_code">已試 {{ row.attempts }} 次</span>
             </template>
           </el-table-column>
           <el-table-column label="已送到" min-width="150">
@@ -395,8 +440,12 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
       </el-alert>
       <div v-if="loading" class="panel loading-state" role="status">正在讀取通知…</div>
       <template v-else-if="!loadError">
-      <div class="panel">
-        <el-empty v-if="visibleNotifications.length === 0" :description="onlyUnread ? '沒有未讀通知' : '這個校區還沒有通知'">
+      <section class="panel" aria-labelledby="notification-list-title">
+        <div class="panel__head">
+          <h2 id="notification-list-title">通知清單（{{ scopeLabel }}）</h2>
+        </div>
+        <p v-if="listCapped" class="section-lead">只列出最新的 {{ NOTIFICATION_LIMIT }} 則通知，更早的沒有列出；「全部標記已讀」也只處理列出的這些。</p>
+        <el-empty v-if="visibleNotifications.length === 0" :image-size="72" :description="onlyUnread ? '沒有未讀通知' : campusFilter ? '這個校區還沒有通知' : '還沒有通知'">
           <el-button v-if="onlyUnread" @click="onlyUnread = false">查看全部通知</el-button>
         </el-empty>
         <template v-else>
@@ -443,7 +492,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           </li>
         </ul>
         </template>
-      </div>
+      </section>
       </template>
     </template>
   </div>
@@ -469,6 +518,11 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
 @media (max-width: 720px) {
   .section-lead { padding: 12px 16px; }
+}
+
+/* el-checkbox 預設只有 32px 高，手機上撐到 44px 才點得準。 */
+@media (max-width: 720px), (pointer: coarse) {
+  .unread-toggle { --el-checkbox-height: 44px; min-height: 44px; }
 }
 
 .reschedule {

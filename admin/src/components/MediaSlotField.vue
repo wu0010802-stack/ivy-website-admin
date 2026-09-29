@@ -9,9 +9,12 @@ import FocusPicker from './FocusPicker.vue'
 /**
  * 內容裡的一個素材版位（規格 L90-92、L107-108）：從素材庫選照片或影片，照片
  * 可在這個版位點選自己的裁切焦點（0–100，不影響其他版位）。沒選時官網沿用
- * 內建素材（builtin 說明、builtinSrc 是內建圖的預覽）。選好後 emit picked，
- * 讓頁面順手帶入素材的說明當替代文字；目前版位的素材（載入或換掉時）emit
- * asset，頁面可以拿素材預設焦點、影片長度來提示。
+ * 內建素材（builtin 說明、builtinSrc 是內建圖的預覽）。選好後 emit picked（附上
+ * 選之前的素材 id），讓頁面帶入素材的說明當圖片說明、換照片時換掉舊照片的說明
+ * （composables/mediaThumbs 的 altAfterPick）；按「改回官網內建」時 emit cleared，
+ * 頁面清掉那張照片的圖片說明（不然再選別張、或官網改顯示內建照片時，說明還在
+ * 描述已經拿掉的照片）。目前版位的素材（載入或換掉時）emit asset，頁面可以拿
+ * 素材預設焦點、影片長度來提示。
  */
 const props = withDefaults(
   defineProps<{
@@ -31,7 +34,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: MediaSlotPayload | null]
-  picked: [asset: MediaAssetOut]
+  picked: [asset: MediaAssetOut, previousId: string | null]
+  cleared: []
   asset: [asset: MediaAssetOut | null]
 }>()
 
@@ -81,11 +85,17 @@ const assetFocus = computed<FocusPointPayload | null>(() => {
 })
 
 function choose(picked: MediaAssetOut) {
+  const previousId = props.modelValue?.media_id ?? null
   asset.value = picked
   cache.set(picked.id, Promise.resolve(picked))
   // 換了素材，舊照片上點的焦點不再適用。
   emit('update:modelValue', { media_id: picked.id, focus_x: null, focus_y: null })
-  emit('picked', picked)
+  emit('picked', picked, previousId)
+}
+
+function clearSlot() {
+  emit('update:modelValue', null)
+  emit('cleared')
 }
 
 function setFocus(point: FocusPointPayload | null) {
@@ -112,7 +122,7 @@ function setFocus(point: FocusPointPayload | null) {
         <span v-else class="field-help">目前用{{ builtin }}</span>
         <div v-if="!disabled" class="slot__actions">
           <el-button size="small" @click="pickerVisible = true">{{ modelValue ? `更換${noun}` : `從素材庫選${noun}` }}</el-button>
-          <el-button v-if="modelValue" size="small" text @click="emit('update:modelValue', null)">改回官網內建</el-button>
+          <el-button v-if="modelValue" size="small" text @click="clearSlot">改回官網內建</el-button>
         </div>
       </div>
     </div>

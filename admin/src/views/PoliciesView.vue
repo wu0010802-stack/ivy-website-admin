@@ -53,6 +53,8 @@ const form = ref<RetentionForm>({ cancelled_days: 365, completed_days: 365, open
 const policyError = ref<string | null>(null)
 const preview = ref<RetentionReportOut | null>(null)
 const runs = ref<RetentionRunOut[]>([])
+// 讀取中不顯示「還沒有清理紀錄」，免得網路慢時誤以為從沒清理過。
+const runsLoading = ref(true)
 const runsError = ref(false)
 const saving = ref(false)
 const running = ref(false)
@@ -69,6 +71,24 @@ const dirty = computed(() => {
   )
 })
 useUnsavedChanges(dirty, busy)
+
+// 只切「每天自動清理」、天數沒動時，下方試算仍然是準的，照常顯示。
+const daysDirty = computed(() => {
+  const p = policy.value
+  if (!p) return false
+  return (
+    p.cancelled_days !== form.value.cancelled_days ||
+    p.completed_days !== form.value.completed_days ||
+    p.open_overdue_days !== form.value.open_overdue_days
+  )
+})
+
+// 天數旁的換算，讓人不用自己除：365 →「約 1 年」、180 →「約 6 個月」。
+function daysHint(days: number | null | undefined): string {
+  if (!days) return ''
+  if (days >= 365 && days % 365 === 0) return `約 ${days / 365} 年`
+  return `約 ${Math.max(1, Math.round(days / 30.4))} 個月`
+}
 
 function applyPolicy(result: RetentionPolicyOut) {
   policy.value = result
@@ -95,6 +115,7 @@ async function loadPolicy() {
 }
 
 async function loadRuns() {
+  runsLoading.value = true
   runsError.value = false
   try {
     const result = await api.get<RetentionRunOut[]>('/admin/retention-runs?limit=30')
@@ -102,11 +123,55 @@ async function loadRuns() {
     runs.value = result
   } catch {
     runsError.value = true
+  } finally {
+    runsLoading.value = false
+  }
+}
+
+// 台灣日期（YYYY-MM-DD），和後端判斷「今天自動清理跑過沒」用同一個時區。
+const taipeiDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' })
+
+// 開啟每天自動清理，或開著時縮短保留天數：儲存後系統最快一分鐘內就會依新
+// 設定匿名化，無法復原，要跟「立即執行清理」一樣先確認。試算只能依已儲存的
+// 天數算，天數改過時不能說成「將處理 N 筆」。
+async function confirmAutoCleanup(): Promise<boolean> {
+  const p = policy.value
+  if (!p || !form.value.auto_run_enabled) return true
+  const shortened = form.value.cancelled_days < p.cancelled_days || form.value.completed_days < p.completed_days
+  const lengthened = form.value.cancelled_days > p.cancelled_days || form.value.completed_days > p.completed_days
+  const enabling = !p.auto_run_enabled
+  if (!enabling && !shortened) return true
+  const report = preview.value
+  let count: string
+  if (!report) count = '目前算不出會處理幾筆，確切筆數儲存後才知道。'
+  else if (!shortened && !lengthened) count = `依目前天數會匿名化 ${report.total} 筆（${countLines(report)}）。`
+  else if (shortened && !lengthened) count = `依舊天數有 ${report.total} 筆，縮短後會更多，確切筆數儲存後才知道。`
+  else if (lengthened && !shortened) count = `依舊天數有 ${report.total} 筆，延長後會比較少，確切筆數儲存後才知道。`
+  else count = `依舊天數有 ${report.total} 筆，改天數後筆數會變，確切筆數儲存後才知道。`
+  let when: string
+  if (!p.real_run_allowed) when = '目前系統還沒開放真正清理，儲存後還不會執行；等技術人員開放後，每天會自動執行一次。'
+  else if (p.last_scheduled_on === taipeiDate.format(new Date())) when = '今天已經自動清理過，明天起依新設定每天執行一次。'
+  else when = '儲存後約一分鐘內就會執行第一次，之後每天一次。'
+  try {
+    await ElMessageBox.confirm(
+      `${when}${count}到期案件的姓名、電話、孩子資料、問題與聯絡紀錄會改成匿名文字，無法復原。`,
+      enabling ? '確定開啟每天自動清理？' : '確定縮短保留天數？',
+      {
+        confirmButtonText: enabling ? '開啟自動清理' : '縮短保留天數',
+        cancelButtonText: '先不要',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      },
+    )
+    return true
+  } catch {
+    return false
   }
 }
 
 async function savePolicy() {
   if (!policy.value || !dirty.value || saving.value) return
+  if (!(await confirmAutoCleanup())) return
   saving.value = true
   try {
     applyPolicy(
@@ -144,6 +209,17 @@ async function refreshPreview(): Promise<boolean> {
 const canRun = computed(
   () => Boolean(policy.value?.real_run_allowed && preview.value && preview.value.total > 0 && !dirty.value),
 )
+
+// 「立即執行清理」為什麼按不了：寫在灰框裡、緊貼按鈕，不讓停用鈕看起來像壞掉。
+// 系統沒開放真正清理時，自動清理也一樣不會執行，合成一句講。
+const runBlockedReason = computed(() => {
+  const p = policy.value
+  if (!p) return ''
+  if (!p.real_run_allowed) return '目前系統還沒開放真正清理，只能試算筆數；每天自動清理也要等技術人員開放後才會開始。政策可以先設定好。'
+  if (dirty.value) return '有修改還沒儲存，先儲存政策才能執行清理。'
+  if (preview.value && preview.value.total === 0) return '目前沒有到期的案件，不需要清理。'
+  return ''
+})
 
 function countLines(report: { counts: Partial<Record<string, number>> }): string {
   return CATEGORY_KEYS.map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${report.counts[key] ?? 0} 筆`).join('、')
@@ -189,7 +265,103 @@ onMounted(() => {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="個資保存政策與清理紀錄，以及官網搜尋與分享設定的總覽。保存政策只有總管理者可以設定與執行。" />
+    <PageHeader lead="個資保存政策與清理紀錄，只有總管理者可以設定與執行。頁底另列官網搜尋與分享目前的設定，方便核對。" />
+
+    <section class="panel retention-panel">
+      <div class="panel__head"><h2>個資保存政策</h2></div>
+      <div class="panel__body">
+        <p class="page-lead">
+          已結案的參觀案件，家長個資保留多久。保存期限從結案時間（取消、完成或標記未到場的時間）起算；到期的案件會把姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字，案件本身與統計數字保留。還沒結案的案件（新案、聯絡中、待確認、已確認）不論多久都不會清理。
+        </p>
+        <el-alert v-if="policyError" type="error" :closable="false" show-icon :title="policyError"><el-button @click="loadPolicy">重新載入</el-button></el-alert>
+        <el-skeleton v-else-if="!policy" animated :rows="4" />
+        <template v-else>
+          <el-form label-position="top" class="retention-form" @submit.prevent>
+            <el-form-item label="已取消、未到場">
+              <div class="days-field">
+                <span>結案後保留</span>
+                <el-input-number v-model="form.cancelled_days" :min="30" :max="3650" :step="30" :disabled="busy" aria-label="已取消、未到場：結案後保留幾天" />
+                <span>天<span class="days-field__hint">（{{ daysHint(form.cancelled_days) }}）</span></span>
+              </div>
+            </el-form-item>
+            <el-form-item label="已完成參觀">
+              <div class="days-field">
+                <span>完成後保留</span>
+                <el-input-number v-model="form.completed_days" :min="30" :max="3650" :step="30" :disabled="busy" aria-label="已完成參觀：完成後保留幾天" />
+                <span>天<span class="days-field__hint">（{{ daysHint(form.completed_days) }}）</span></span>
+              </div>
+            </el-form-item>
+            <el-form-item label="未結案提醒">
+              <div class="days-field">
+                <span>送出超過</span>
+                <el-input-number v-model="form.open_overdue_days" :min="30" :max="3650" :step="30" :disabled="busy" aria-label="未結案提醒：送出超過幾天仍未結案" />
+                <span>天仍未結案<span class="days-field__hint">（{{ daysHint(form.open_overdue_days) }}）</span></span>
+              </div>
+              <span class="field-help">這些案件不會被清理，只在下方列出件數，提醒先到參觀案件結案（取消、完成或未到場）。</span>
+            </el-form-item>
+            <el-form-item label="每天自動清理">
+              <el-switch v-model="form.auto_run_enabled" :disabled="busy" active-text="開啟" inactive-text="關閉" aria-label="每天自動清理" />
+              <span class="field-help">開啟後，系統每天（台灣時間）依上面的天數自動匿名化一次，並記在清理紀錄。開啟或縮短天數時，儲存前會再確認一次。</span>
+            </el-form-item>
+            <div class="retention-form__actions">
+              <el-button type="primary" :loading="saving" :disabled="!dirty || running" @click="savePolicy">儲存政策</el-button>
+              <span v-if="policy.updated_at" class="field-help">
+                上次修改 {{ formatDateTime(policy.updated_at) }}<template v-if="policy.updated_by_email">・{{ policy.updated_by_email }}</template>
+              </span>
+            </div>
+          </el-form>
+
+          <div class="retention__result">
+            <div class="retention__preview">
+              <p v-if="daysDirty">天數還沒儲存，儲存後才會重新試算。</p>
+              <template v-else-if="preview">
+                <p>依目前的政策，現在執行會處理 <strong class="num">{{ preview.total }}</strong> 筆：</p>
+                <ul class="retention__counts">
+                  <li v-for="key in CATEGORY_KEYS" :key="key">{{ RETENTION_CATEGORY_LABELS[key] }} <strong class="num">{{ preview.counts[key] ?? 0 }}</strong> 筆</li>
+                </ul>
+                <p v-if="preview.open_overdue_count > 0" class="retention__overdue">
+                  另有 <strong class="num">{{ preview.open_overdue_count }}</strong> 筆送出超過 {{ policy.open_overdue_days }} 天仍未結案，不會被清理，請先到<router-link to="/visit-requests">參觀案件</router-link>處理。
+                </p>
+              </template>
+              <p v-if="policy.last_scheduled_on" class="field-help">上次自動清理：{{ formatDate(policy.last_scheduled_on) }}</p>
+            </div>
+            <div class="retention__run">
+              <el-button
+                type="danger"
+                plain
+                :loading="running"
+                :disabled="!canRun || saving"
+                :aria-describedby="runBlockedReason ? 'retention-run-reason' : undefined"
+                @click="runRetention"
+              >
+                立即執行清理
+              </el-button>
+              <p v-if="runBlockedReason" id="retention-run-reason" class="field-help retention__blocked">{{ runBlockedReason }}</p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>清理紀錄</h2></div>
+      <div class="panel__body">
+        <el-alert v-if="runsError" type="error" :closable="false" show-icon title="無法讀取清理紀錄"><el-button @click="loadRuns">重新載入</el-button></el-alert>
+        <el-skeleton v-else-if="runsLoading" class="retention-runs__loading" animated :rows="3" />
+        <p v-else-if="runs.length === 0" class="field-help">還沒有清理紀錄。手動或每天自動清理之後，會記在這裡。</p>
+        <ol v-else class="retention-runs">
+          <li v-for="run in runs" :key="run.id" class="retention-runs__item">
+            <div class="retention-runs__head">
+              <strong>{{ formatDateTime(run.created_at) }}</strong>
+              <span>{{ RETENTION_TRIGGER_LABELS[run.trigger] ?? run.trigger }}<template v-if="run.actor_email">・{{ run.actor_email }}</template></span>
+              <span class="retention-runs__real">已匿名化 {{ run.total }} 筆</span>
+            </div>
+            <p class="field-help">{{ countLines(run) }}<template v-if="run.open_overdue_count">；當時另有 {{ run.open_overdue_count }} 筆超過天數仍未結案</template></p>
+            <p class="field-help">保留天數：{{ runDays(run) }}</p>
+          </li>
+        </ol>
+      </div>
+    </section>
 
     <section class="panel">
       <div class="panel__head"><h2>搜尋與分享</h2></div>
@@ -208,7 +380,7 @@ onMounted(() => {
               <dt>搜尋引擎收錄</dt>
               <dd>
                 <strong>{{ allowIndexing ? '允許收錄' : '不允許收錄' }}</strong>
-                <span class="field-help">要同時符合兩個條件官網才會被收錄：部署設定開啟正式索引，而且這裡是允許收錄。任一個關閉，各頁、robots.txt 與 sitemap.xml 都會請搜尋引擎不要收錄。</span>
+                <span class="field-help">允許收錄時，Google 等搜尋引擎才找得到官網；正式站也要由技術人員開放收錄，兩邊都開才會生效。任一邊沒開，官網各頁都會請搜尋引擎不要收錄。</span>
               </dd>
             </div>
             <div>
@@ -221,94 +393,11 @@ onMounted(() => {
             </div>
             <div>
               <dt>家長同意的版本</dt>
-              <dd>家長送出參觀需求時，案件會記錄當時發布中的<router-link to="/content/booking-content">預約文案</router-link>同意說明版本，在案件明細可以看到。</dd>
+              <dd><span>家長送出參觀需求時，案件會記錄當時發布中的<router-link to="/content/booking-content">預約文案</router-link>同意說明版本，在案件明細可以看到。</span></dd>
             </div>
           </dl>
           <p v-if="!siteMeta" class="field-help">官網還沒發布過網站標題與電話，目前沿用內建設定。</p>
         </template>
-      </div>
-    </section>
-
-    <section class="panel retention-panel">
-      <div class="panel__head"><h2>個資保存政策</h2></div>
-      <div class="panel__body">
-        <p class="page-lead">
-          已結案的參觀案件，家長個資保留多久。保存期限從結案時間（取消、完成或標記未到場的時間）起算；到期的案件會把姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字，案件本身與統計數字保留。還沒結案的案件（新案、聯絡中、待確認、已確認）不論多久都不會清理。
-        </p>
-        <el-alert v-if="policyError" type="error" :closable="false" show-icon :title="policyError"><el-button @click="loadPolicy">重新載入</el-button></el-alert>
-        <el-skeleton v-else-if="!policy" animated :rows="4" />
-        <template v-else>
-          <el-form label-position="top" class="retention-form" @submit.prevent>
-            <el-form-item label="已取消、未到場：結案後保留天數">
-              <el-input-number v-model="form.cancelled_days" :min="30" :max="3650" :step="30" :disabled="busy" />
-            </el-form-item>
-            <el-form-item label="已完成參觀：完成後保留天數">
-              <el-input-number v-model="form.completed_days" :min="30" :max="3650" :step="30" :disabled="busy" />
-            </el-form-item>
-            <el-form-item label="未結案提醒：送出超過幾天仍未結案">
-              <el-input-number v-model="form.open_overdue_days" :min="30" :max="3650" :step="30" :disabled="busy" />
-              <span class="field-help">這些案件不會被清理，只在下方列出件數，提醒先到參觀案件結案（取消、完成或未到場）。</span>
-            </el-form-item>
-            <el-form-item label="每天自動清理">
-              <el-switch v-model="form.auto_run_enabled" :disabled="busy" active-text="開啟" inactive-text="關閉" aria-label="每天自動清理" />
-              <span class="field-help">
-                開啟後，系統每天（台灣時間）依上面的天數自動匿名化一次，並記在清理紀錄。
-                <template v-if="!policy.real_run_allowed">目前部署設定沒有開放真正清理（WEBSITE_RETENTION_ALLOW_REAL_RUN），開啟也不會執行，需請系統管理者調整。</template>
-              </span>
-            </el-form-item>
-            <div class="retention-form__actions">
-              <el-button type="primary" :loading="saving" :disabled="!dirty || running" @click="savePolicy">儲存政策</el-button>
-              <span v-if="policy.updated_at" class="field-help">
-                上次修改 {{ formatDateTime(policy.updated_at) }}<template v-if="policy.updated_by_email">・{{ policy.updated_by_email }}</template>
-              </span>
-            </div>
-          </el-form>
-
-          <div class="retention__result">
-            <div class="retention__preview">
-              <p v-if="dirty">天數還沒儲存，儲存後才會重新試算。</p>
-              <template v-else-if="preview">
-                <p>依目前的政策，現在執行會處理 <strong class="num">{{ preview.total }}</strong> 筆：</p>
-                <ul class="retention__counts">
-                  <li v-for="key in CATEGORY_KEYS" :key="key">{{ RETENTION_CATEGORY_LABELS[key] }} <strong class="num">{{ preview.counts[key] ?? 0 }}</strong> 筆</li>
-                </ul>
-                <p v-if="preview.open_overdue_count > 0" class="retention__overdue">
-                  另有 <strong class="num">{{ preview.open_overdue_count }}</strong> 筆送出超過 {{ policy.open_overdue_days }} 天仍未結案，不會被清理，請先到<router-link to="/visit-requests">參觀案件</router-link>處理。
-                </p>
-              </template>
-              <p v-if="policy.last_scheduled_on" class="field-help">定期工作上次執行：{{ formatDate(policy.last_scheduled_on) }}</p>
-            </div>
-            <el-button
-              type="danger"
-              plain
-              :loading="running"
-              :disabled="!canRun || saving"
-              @click="runRetention"
-            >
-              立即執行清理
-            </el-button>
-          </div>
-          <p v-if="!policy.real_run_allowed" class="field-help">部署設定沒有開放真正清理，目前只能試算。</p>
-        </template>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel__head"><h2>清理紀錄</h2></div>
-      <div class="panel__body">
-        <el-alert v-if="runsError" type="error" :closable="false" show-icon title="無法讀取清理紀錄"><el-button @click="loadRuns">重新載入</el-button></el-alert>
-        <p v-else-if="runs.length === 0" class="field-help">還沒有清理紀錄。手動或每天自動清理之後，會記在這裡。</p>
-        <ol v-else class="retention-runs">
-          <li v-for="run in runs" :key="run.id" class="retention-runs__item">
-            <div class="retention-runs__head">
-              <strong>{{ formatDateTime(run.created_at) }}</strong>
-              <span>{{ RETENTION_TRIGGER_LABELS[run.trigger] ?? run.trigger }}<template v-if="run.actor_email">・{{ run.actor_email }}</template></span>
-              <span class="retention-runs__real">已匿名化 {{ run.total }} 筆</span>
-            </div>
-            <p class="field-help">{{ countLines(run) }}<template v-if="run.open_overdue_count">；當時另有 {{ run.open_overdue_count }} 筆超過天數仍未結案</template></p>
-            <p class="field-help">保留天數：{{ runDays(run) }}</p>
-          </li>
-        </ol>
       </div>
     </section>
   </div>
@@ -358,6 +447,18 @@ onMounted(() => {
   gap: 4px;
 }
 
+/* 「結案後保留 [365] 天（約 1 年）」：數字前後帶單位，窄螢幕照樣換行。 */
+.days-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.days-field__hint {
+  color: var(--ink-3);
+}
+
 .retention-form__actions {
   display: flex;
   flex-wrap: wrap;
@@ -384,6 +485,25 @@ onMounted(() => {
 
 .retention__preview p {
   margin: 0 0 4px;
+}
+
+/* 停用原因緊貼在按鈕下方、同一個灰框裡。 */
+.retention__run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.retention__blocked {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .retention__run {
+    max-width: none;
+  }
 }
 
 .retention__counts {

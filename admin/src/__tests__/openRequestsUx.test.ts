@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
@@ -9,6 +9,7 @@ import DashboardView from '../views/DashboardView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import AdminSidebar from '../components/AdminSidebar.vue'
+import AdminLayout from '../layouts/AdminLayout.vue'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { api } from '../api/client'
 import { formatHoldRemaining, holdIsUrgent } from '../api/labels'
@@ -87,6 +88,26 @@ describe('總覽看得到還沒處理的參觀案件', () => {
     expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=pending_confirmation&order=oldest')
   })
 
+  it('主按鈕依序：待確認 → 家長還要來 → 改期申請 → 新需求 → 到期追蹤，字講的是點進去那一批', async () => {
+    const cases: [Record<string, number>, string, string][] = [
+      [{ awaiting_confirmation: 1, needs_attention: 2 }, '確認時段預約1', '/visit-requests?status=pending_confirmation&order=oldest'],
+      [{ needs_attention: 2, pending_reschedule_requests: 3, new_requests: 4, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1'],
+      [{ pending_reschedule_requests: 3, new_requests: 4, pending_follow_up: 5 }, '核准改期申請3', '/notifications'],
+      [{ new_requests: 4, pending_follow_up: 5 }, '聯絡新需求4', '/visit-requests?status=new&order=oldest'],
+      [{ pending_follow_up: 5 }, '追蹤到期案件5', '/visit-requests?due=1'],
+    ]
+    for (const [changes, label, href] of cases) {
+      vi.spyOn(api, 'get').mockResolvedValue(summary(changes) as never)
+      const { wrapper } = await mountAt('/')
+      const primary = wrapper.find('.dash__primary')
+      expect(primary.text()).toContain(label)
+      expect(primary.attributes('href')).toBe(href)
+      // 主按鈕帶去的那一批，待辦清單裡也有同一個入口。
+      expect(wrapper.findAll('a.task').map(a => a.attributes('href'))).toContain(href)
+      wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
+    }
+  })
+
   it('舊版 API 沒有新欄位時仍正常顯示', async () => {
     const { new_requests: _n, awaiting_confirmation: _a, next_hold_expires_at: _h, ...legacy } = summary()
     vi.spyOn(api, 'get').mockResolvedValue(legacy as never)
@@ -143,11 +164,59 @@ describe('側欄的待處理數字', () => {
     expect(store.total).toBe(3)
   })
 
+  it('登出（reset）後不接上一位使用者還在路上的彙總，舊請求回來也不改數字', async () => {
+    setActivePinia(createPinia())
+    const store = useOpenRequestsStore()
+    let resolveOld!: (value: unknown) => void
+    const get = vi.spyOn(api, 'get')
+      .mockImplementationOnce(() => new Promise(r => { resolveOld = r }) as never)
+      .mockResolvedValueOnce(summary({ new_requests: 1 }) as never)
+    const old = store.loadSummary()
+    store.reset()
+    const next = await store.loadSummary<ReturnType<typeof summary>>()
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(next.new_requests).toBe(1)
+    resolveOld(summary({ new_requests: 9, awaiting_confirmation: 9 }))
+    await old
+    expect(store.total).toBe(1)
+  })
+
   it('總覽載入的數字直接給側欄，不必另外打一次', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
     const { wrapper } = await mountAt('/')
     expect(get).toHaveBeenCalledOnce()
     expect(wrapper.text()).toContain('確認時段預約1')
+  })
+
+  it('連同外殼一起掛上時，進一次總覽只打一次 /admin/dashboard', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    // jsdom 沒有 scrollIntoView（外殼換頁時把主要內容捲回頂端）。
+    const scroll = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = () => {}
+    onTestFinished(() => { Element.prototype.scrollIntoView = scroll; vi.unstubAllGlobals() })
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1 }) as never)
+    const dashboardCalls = () => get.mock.calls.filter(call => call[0] === '/admin/dashboard').length
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{
+        path: '/', component: AdminLayout, children: [
+          { path: '', component: DashboardView },
+          { path: ':rest(.*)', component: defineComponent({ template: '<div />' }) },
+        ],
+      }],
+    })
+    await router.push('/'); await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper); await flushPromises()
+    expect(dashboardCalls()).toBe(1)
+    expect(wrapper.text()).toContain('聯絡新需求1')
+    // 換到別頁（側欄數字 30 秒內不重抓），再回總覽：總覽自己讀一次，也只有一次。
+    await router.push('/media'); await flushPromises()
+    expect(dashboardCalls()).toBe(1)
+    await router.push('/'); await flushPromises()
+    expect(dashboardCalls()).toBe(2)
   })
 })
 

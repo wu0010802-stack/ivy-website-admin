@@ -47,9 +47,35 @@ export function resetUploadLimits(): void {
   limitsCache = null
 }
 
-export function uploadFormatHint(limits: MediaUploadLimitsOut | null): string {
-  if (!limits) return 'JPG、PNG、WebP 或 MP4'
-  return `JPG、PNG、WebP（${formatFileSize(limits.max_image_bytes)} 內）或 MP4（${formatFileSize(limits.max_video_bytes)} 內）`
+/** 某一類素材可以上傳的格式與大小（素材庫上傳框照片、影片各列一行；替換、選圖器只列一類）。 */
+export function uploadKindHint(limits: MediaUploadLimitsOut | null, kind: 'image' | 'video'): string {
+  if (kind === 'video') return limits ? `MP4（${formatFileSize(limits.max_video_bytes)} 內）` : 'MP4'
+  return limits ? `JPG、PNG 或 WebP（${formatFileSize(limits.max_image_bytes)} 內）` : 'JPG、PNG 或 WebP'
+}
+
+// iPhone 預設的 HEIC 照片與 MOV 影片官網都不收。從 Mac 拖放、AirDrop 或複製出來的
+// 檔案最常碰到，只寫「格式不支援」園方不知道怎麼辦，所以直接說要怎麼轉。
+// （iPhone 瀏覽器從相簿選照片時通常會自動轉成 JPG，選檔框因此不加 heic。）
+const IPHONE_FORMATS = {
+  heic: {
+    type: 'image/heic',
+    matches: (file: File) => /^image\/hei[cf](-sequence)?$/.test(file.type) || /\.hei[cf]$/i.test(file.name),
+    message: '這是 iPhone 的 HEIC 照片，官網只接受 JPG、PNG、WebP。請在 Mac 用「預覽程式」打開，選「檔案 → 輸出」存成 JPEG 再上傳；也可以用 iPhone 的瀏覽器直接上傳，會自動轉成 JPG。',
+  },
+  mov: {
+    type: 'video/quicktime',
+    matches: (file: File) => file.type === 'video/quicktime' || /\.mov$/i.test(file.name),
+    message: '這是 iPhone 的 MOV 影片，官網只接受 MP4。請先轉成 MP4 再上傳。',
+  },
+} as const
+
+/** HEIC／MOV 被擋下時的處理方式；不是這兩種（或部署設定已經接受）回 null。 */
+export function iphoneFormatHint(file: File, limits: MediaUploadLimitsOut | null): string | null {
+  const accepted = [...(limits?.image_types ?? DEFAULT_IMAGE_TYPES), ...(limits?.video_types ?? DEFAULT_VIDEO_TYPES)]
+  for (const format of Object.values(IPHONE_FORMATS)) {
+    if (format.matches(file) && !accepted.includes(format.type)) return format.message
+  }
+  return null
 }
 
 export function mediaKindOf(file: File): 'image' | 'video' {
@@ -71,6 +97,8 @@ export function precheckFile(
   const kind = uploadKindOf(file, allowed)
   if (allowed === 'image' && kind !== 'image') return '這裡只能上傳照片'
   if (allowed === 'video' && kind !== 'video') return '這裡只能上傳影片（MP4）'
+  const iphone = iphoneFormatHint(file, limits)
+  if (iphone) return iphone
   const types = kind === 'video' ? (limits?.video_types ?? DEFAULT_VIDEO_TYPES) : (limits?.image_types ?? DEFAULT_IMAGE_TYPES)
   // 有些瀏覽器拿不到 type（空字串），交給後端判斷實際內容。
   if (file.type && !types.includes(file.type)) return '格式不支援，只接受 JPG、PNG、WebP 或 MP4'

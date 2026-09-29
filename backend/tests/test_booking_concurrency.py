@@ -145,3 +145,34 @@ async def test_one_slot_cannot_accept_two_families(
         f"/api/website/v1/admin/slots?campus_key=yihua&date_from={slot_date}&date_to={slot_date}"
     )
     assert check.json()[0]["booked_count"] == 1
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("for_update", [False, True])
+async def test_concurrent_first_reads_create_booking_config_once(app, for_update):
+    """還沒有設定列的校區同時被讀第一次（後台時段頁同時讀預約方式與每週規則、
+    官網同一頁兩處都讀）：慢的那個不可以撞主鍵回 500，要等對方交易結束後讀回同一列。
+
+    固定順序重現競爭：A 建好列但還沒 commit；B 此時第一次讀，看不到 A 的列而去
+    INSERT，會卡在 A 的鎖上；A commit 後 B 必須正常拿到這一列。"""
+    from sqlalchemy import func, select
+
+    from app.booking import service
+    from app.booking.models import BookingConfig, BookingMode
+
+    async with app.state.session_factory() as first, app.state.session_factory() as second:
+        await service.get_or_create_config(first, "chongde", for_update=for_update)
+        racing = asyncio.create_task(service.get_or_create_config(second, "chongde", for_update=for_update))
+        await asyncio.sleep(0.3)
+        assert not racing.done(), "第二個交易應該等第一個交易結束，不能先回來"
+        await first.commit()
+        config = await asyncio.wait_for(racing, timeout=10)
+        assert config.mode == BookingMode.PAUSED
+        await second.commit()
+
+    async with app.state.session_factory() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(BookingConfig).where(BookingConfig.campus_key == "chongde")
+        )
+    assert count == 1

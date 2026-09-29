@@ -8,6 +8,13 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
   const csrfToken = ref<string | null>(null)
   const isLoading = ref(false)
+  /**
+   * 按下登出時先換到登入頁、不先打 API：頁面有未儲存的修改時，離頁攔截會先問
+   * 「放棄修改？」。選留在這頁就什麼都不做，仍是登入狀態；答應了，router 的
+   * beforeEach 看到這個旗標才真的呼叫 logout()。原本先登出再換頁，選留在這頁
+   * 會卡在已登出、側欄帳號區消失、之後每次儲存都 401 的頁面。
+   */
+  const logoutPending = ref(false)
 
   async function login(email: string, password: string): Promise<void> {
     isLoading.value = true
@@ -47,6 +54,11 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
+  /**
+   * 用 cookie 裡的 session 恢復登入。只有 401 代表真的沒登入；斷線、API 重啟
+   * （代理回 502／503）時把錯誤丟出去，讓 router 說「連不上伺服器」，不要當成
+   * 已登出——session 其實還有效，重新整理就能回到原本的頁面。
+   */
   async function restoreSession(): Promise<void> {
     isLoading.value = true
     try {
@@ -54,14 +66,15 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = result.user
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
-    } catch {
+    } catch (error) {
       user.value = null
       csrfToken.value = null
       setCsrfToken(null)
+      if (!(error instanceof ApiError && error.status === 401)) throw error
     } finally {
       isLoading.value = false
     }
   }
 
-  return { user, csrfToken, isLoading, login, logout, restoreSession, clearSession }
+  return { user, csrfToken, isLoading, logoutPending, login, logout, restoreSession, clearSession }
 })

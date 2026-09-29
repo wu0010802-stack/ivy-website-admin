@@ -1,9 +1,32 @@
+## 2026-09-28／29 官網後台全面盤點與修正（`claude/backend-ui-ux-optimization-y5ndf4`）
+
+使用者問後台 UI/UX 可以怎麼優化，之後要求處理完併入 `main`。先全面盤點再修：程式碼分 9 區逐檔讀，加上在拋棄式測試庫（`ivy_website_uxaudit_test`，5 種角色、15 筆各狀態案件、時段、草稿／送審／排程內容與素材）實際拍桌機 1440 與手機 390 共 97 張截圖；每條發現都經另一輪讀碼、實測反駁，程式碼 148 條、畫面 58 條通過（合併重複後約 110 個問題）。報告與未處理清單在 `docs/analysis/2026-09-28-admin-uiux-audit.md`，定下的規則寫進 DESIGN.md「官網後台全面盤點與修正（2026-09-28）」。改動在 `admin/`，外加一個後端併發修正與三支 `tests/stack` 的預期；沒有動 API、契約或 migration。修改前快照：`versions/before-admin-uiux-audit-20260928-214000/`。
+
+- **會誤導的錯**：正式站頁首「查看官網」原本 `href=""` 開回後台，改開官網首頁；內容狀態點不論狀態都是黃色，改依狀態上色；校園探索後台畫布 4:3 裁切、官網 8:5 整張，熱點會偏，改成和官網相同；案件表格在 1280／1440 寬切掉送出時間，改成放得下；手機每週規則跑版；側欄讀屏文字把短頁撐高 400px；網址打錯整頁空白（新增找不到頁面）；確認率可超過 100%。
+- **資料與不可逆動作**：開啟個資自動清理、縮短天數先確認並寫筆數；案件明細未送出的聯絡紀錄離頁先問；補登對話框誤關先問、送出列固定；每週規則未儲存攔截；關閉時段改三選一、取消休假要確認；「還原修改」改「放棄修改」並確認；自訂開關關掉會記住原值；使用中的素材不送封存刪除；上傳中不能關；「停用分校」移到表單下方並寫清下架後果。
+- **發布判斷**：發布與核准確認框改和官網目前版本逐欄比對（先存草稿再發布、核准送審也看得到），標題寫出內容與校區；分校內容的校區寫進網址；動作列主色給真正的下一步；不再疊兩則矛盾 toast；排程列不寫版本號與 email。
+- **櫃台動線**：「下一筆」先待園方確認再待處理；列表篩選與頁數寫進網址、返回鍵回列表；切回分頁時靜默更新列表與總覽；手機明細頂部撥電話鈕；家長申請改期時手動改期收合；新需求改叫「取消這筆需求」；「方便接電話時段」、名額「組」統一；月曆點日期捲到名單並加圖例；名額調整只更新那一列；站內通知可看全部校區；總覽主按鈕涵蓋待人工處理與到期追蹤。
+- **找得到、看得懂**：側欄搜尋加同義詞；登入頁說明被導回的原因、書籤開登入頁直接恢復；我的帳號可改密碼；操作紀錄細節翻成中文並依日期分段；使用者頁新密碼可複製、升總管理者再確認；「替代文字」「Poster」、內建素材代碼、版本號等工程語改掉；成效統計速度表改白話、手機表格改小卡。
+- **手機與效能**：內容頁狀態列與黏底動作列在手機變薄（111／184 → 69／121px）；觸控裝置輸入框一律 16px、電話網址叫出對應鍵盤；素材卡動作收進「更多」；編輯頁改載縮圖；路由改點進去才下載，單一 JS 1.6 MB（gzip 494 KB）拆成 65 個檔、主檔 923 KB（gzip 297 KB）。
+- **合併時補的兩處**：外殼拿掉 `?denied=` 與分校內容頁寫 `?campus=` 會互相蓋掉，改成跟著網址變化再拿一次；「發布到官網」鈕的報讀名稱因 el-button 內層 flex 變成「發布 到官網」，改用 `aria-label` 寫死。狀態列連結在新底色上只有 4.2:1（axe 抓到），改用深一階操作色。
+- **後端併發修正**：還沒有預約設定列的校區同時被讀第一次（時段頁現在同時讀預約方式與每週規則；官網同頁兩處也會）時，`get_or_create_config` 慢的那個撞主鍵回 500。改成 `INSERT … ON CONFLICT DO NOTHING` 再讀回；`test_booking_concurrency.py` 新增固定順序重現的測試（改前紅、改後綠）。端到端的 `media.spec.ts` 原本要搶在上傳成功自動關窗前按「關閉」，改成等對話框關掉。
+
+驗證（Node 22）：`npm --prefix admin run typecheck` 通過；後台 vitest 44 檔 595 項通過（原 37 檔 340 項）；`vite build` 通過。拋棄式測試庫重拍 97 張截圖：0 個 JS 錯誤、兩種寬度都沒有水平溢出，短頁高度回到視窗高。發布與核准確認框在實際資料上列出和官網的逐欄差異。`tests/stack` 端到端在本機以預裝 Chromium（CI 用 Google Chrome）跑：56 項全過（修正前本機先抓到 5 項：兩頁 axe 對比、三支測試預期舊用語或收合前的面板，外加上述後端併發與上傳關窗的時序問題）。未驗證：Safari／iOS 實機、正式站、真實 LINE／Email 通知。
+## 2026-09-29 系統設計審查後的第一批修正（`claude/system-design-review-rdqjzh`）
+
+- **連線池自我死鎖**：限流原本向請求同一個連線池借第二條連線，約 15 個同時進來的公開點擊或送單就讓池子互等到逾時、全站 503。限流改用 `backend/app/db.py` 的獨立小池；主池明寫 10+10、等候 10 秒、`statement_timeout` 30 秒（素材配額鎖另放寬）。
+- **LINE 失敗擋住 email**：LINE 推播例外改成先把信寄完再拋出重試，重試只補 LINE。
+- **發布樂觀鎖**：`POST .../publish` 可帶 `expected_published_revision_id`，與官網現行版不符回 409；後台一律帶上。被退回的版本不能直接發布（`CONTENT_REVISION_REJECTED`）。
+- **圖片原檔去中繼資料**：上傳時無損拿掉 EXIF（GPS、機型、時間）、XMP、IPTC、註解，只留拍攝方向（`backend/app/media/metadata.py`）。已上傳的舊素材尚未處理。
+- **可觀測性**：`/health` 的 `background_jobs` 多 `last_clean_at`、`last_failed_steps`；API 啟動設定 logging（app.* INFO 不再被丟），uvicorn 存取紀錄拿掉查詢字串（後台搜尋的電話不進平台日誌）；通知寄送失敗記 WARNING。
+- **官網韌性**：SSR 取內容加 8 秒逾時，API 暫時失敗時退回上一份成功內容；內容套用改成逐種類別隔離，一種格式不符只影響那一區。
+- **代理與 API 文件**：同源代理擋下 `..`／`%2e%2e` 跳出 `/api/website/v1`；production 關閉 FastAPI `/docs`、`/redoc`、`/openapi.json`。
+
 ## 2026-09-28 入學資訊頁改成「入學護照」（`feature/admission-passport-20260928`）
 
 使用者從三個主題比稿（`design/admission-theme-directions-20260928/`：A 上學路線圖、B 入學護照、C 木頭積木）選 B。入學頁整頁改成一本打開的護照：六格簽證欄捲到就蓋章、輸入生日蓋下「115 學年度・中班」大章、勾必備品蓋「已備」、補助做成補助券；防偽細紋只當紙張質感。同日裁定延續：不放預約參觀、分班用成長軌道邏輯、叮嚀不用翻面。新增 `PassportStamp.vue`、`utils/guilloche.ts`、`utils/passport-stamp.ts`、`utils/admission-motion.ts`（GSAP 只在這頁動態載入）、`admission-passport.css`、`tokens.css` 第 14 節兩個色票；明體 `Ivy Passport Serif`（Noto Serif TC 自託管分片，`scripts/subset-admission-fonts.py`、`scripts/admission-font-chars.cjs`，`web/public/assets/fonts/admission/` 共 3.4MB，頁面只下載用到的片）。改前快照 `versions/before-admission-passport-20260928-234037/`；細節見 DESIGN.md。
 
 驗證：Node 22 `npm --prefix web run typecheck` 通過；`npm run test:website` 55 檔 528 項通過（新增 `admission-passport.spec.ts`、`admission-fonts.spec.ts`，`page-hero.spec.ts` 改成入學頁用 `admissionHeroImage()`）。Playwright 在 dev server（接本機後端）1440／390 實測：hero 照片挑 800w（桌機顯示 483px、手機 304px）；六格簽證章捲到後都蓋上；2022/3/15 → 115 學年度中班、大章與「寶貝」小章在中班、寶貝那屆標出；2025/5/1 → 116 學年度幼幼班；勾兩項蓋兩枚「已備」；明體 600／900 都載入；`main` 內文字對比全數達標；無水平溢出、無 console 錯誤、無 hydration 警告。減少動態：六枚簽證章與歡迎章一載入就在紙上。關掉 JS：標題、6 步、5 條退費、3 張補助券、對照表都在。手機「寶貝」小章不壓到班名。`npm --prefix web run build` 通過：入學頁 chunk 10.6KB（gzip），gsap（27KB）是另一支 chunk，只在沒開減少動態時 `import()`。未驗：iOS／Android 實機、螢幕報讀器、Windows 明體、stack e2e。未 commit、未部署。
-
 ## 2026-09-28 常春藤環境頁加 GSAP 動態層：小腳印、曬衣繩起風、太陽慣性、換校發牌（`feature/environment-gsap-20260928`）
 
 接在 `feature/environment-rough-20260928`（手繪版，尚未併入 main）之上。使用者看過 mock-up `design/environment-gsap-mockup-20260928/`（`feature/website-admin` 工作目錄、未追蹤）並要求把小腳印做得更好看，確認後同意上線。規則見 DESIGN.md「常春藤環境頁 GSAP 動態層」。

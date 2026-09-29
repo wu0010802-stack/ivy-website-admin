@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { SiteFooterPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import SiteLinksEditor from '../components/SiteLinksEditor.vue'
 import { DEFAULT_FOOTER_LINKS, FOOTER_LINKS_MAX } from '../composables/siteLinks'
@@ -34,7 +35,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>官網每一頁最底下的文字與連結。五校清單與聯絡方式來自「五校介紹」；品牌名稱依 2026-09-19 核可固定，不在這裡修改。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標語">
         <el-input v-model="editor.form.value.tagline" />
         <LengthHint :value="editor.form.value.tagline" rule="footerTagline" />
@@ -50,7 +51,7 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="footer-section">頁尾連結</h3>
-      <p class="field-help">依這裡的順序排列，最多 {{ FOOTER_LINKS_MAX }} 個。外部網站官網會加 ↗ 並另開分頁。</p>
+      <p class="field-help">依這裡的順序排列，最多 {{ FOOTER_LINKS_MAX }} 個。</p>
       <SiteLinksEditor :links="links" :max="FOOTER_LINKS_MAX" :read-only="editor.readOnly.value" item-name="頁尾連結" />
     </el-form>
   </ContentEditor>

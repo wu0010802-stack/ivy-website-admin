@@ -300,7 +300,9 @@ describe('我的帳號：Google 綁定', () => {
 
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const off = await mountAs(AccountView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/account')
-    expect(off.wrapper.text()).toContain('Google 登入尚未啟用')
+    // Google、LINE 都沒開放：不留兩張「尚未啟用」卡片，收成一行（2026-09-28）。
+    expect(off.wrapper.text()).toContain('目前只開放 Email 與密碼登入')
+    expect(off.wrapper.text()).not.toContain('Google 登入')
   })
 })
 
@@ -395,8 +397,8 @@ describe('操作紀錄看得出授權變更', () => {
     expect(setRole).toContain('角色：校區管理者 → 櫃台')
     expect(setRole).toContain('負責校區：義華 → 義華、仁武')
     expect(auditMetadataSummary({ role: 'reception', campus_keys: ['yihua'], capabilities: [] })).toBe('角色：櫃台，負責校區：義華，授權：無')
-    // 原本就顯示的純值不受影響。
-    expect(auditMetadataSummary({ before: true, after: false, reason: 'inactive' })).toBe('before=true，after=false，原因=帳號已停用')
+    // 布林的修改前後（分校啟用狀態）也翻成中文，不再出現 before=true 這種原始鍵值。
+    expect(auditMetadataSummary({ before: true, after: false, reason: 'inactive' })).toBe('狀態：啟用 → 停用，原因：帳號已停用')
   })
 
   it('操作紀錄頁顯示授權變更的內容', async () => {

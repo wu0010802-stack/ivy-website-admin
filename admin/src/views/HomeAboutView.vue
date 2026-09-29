@@ -3,9 +3,11 @@ import { onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { HomeAboutPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 
 const editor = useContentItem<HomeAboutPayload>('home_about', {
   title: '',
@@ -16,8 +18,11 @@ const editor = useContentItem<HomeAboutPayload>('home_about', {
   photo_alt: '',
 })
 
-function onPickPhoto(asset: MediaAssetOut) {
-  if (!editor.form.value.photo_alt && asset.alt_text) editor.form.value.photo_alt = asset.alt_text
+// 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+// 說明欄只在選了照片時出現，沒照片時留著的字不會是先打好的（是舊版本改回內建後
+// 留下的），一樣換掉。改回官網內建時清掉說明。
+function onPickPhoto(asset: MediaAssetOut, previousId: string | null) {
+  editor.form.value.photo_alt = altAfterPick(editor.form.value.photo_alt, previousId ?? BUILTIN_PHOTO, asset)
 }
 
 onMounted(editor.load)
@@ -27,7 +32,7 @@ onMounted(editor.load)
   <ContentEditor :editor="editor">
     <template #lead>首頁第二屏的理念介紹。標題會用大字顯示，內文分段請用空一行。</template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="標題">
         <el-input v-model="editor.form.value.title" />
         <LengthHint :value="editor.form.value.title" rule="aboutTitle" />
@@ -48,17 +53,18 @@ onMounted(editor.load)
           :focus-previews="[{ label: '官網裁切（3:2）', ratio: '3 / 2' }]"
           :disabled="editor.readOnly.value"
           @picked="onPickPhoto"
+          @cleared="editor.form.value.photo_alt = ''"
         />
         <span class="field-help">這一區放一張圓角照片，官網裁成 3:2 橫式，建議寬 1200 以上。</span>
       </el-form-item>
-      <el-form-item v-if="editor.form.value.photo" label="照片替代文字">
-        <el-input v-model="editor.form.value.photo_alt" maxlength="200" placeholder="例如：孩子們笑著圍在長輩身邊" />
-        <span class="field-help">給看不見照片的家長；留空時用素材庫裡這張照片的說明。</span>
+      <el-form-item v-if="editor.form.value.photo" label="圖片說明（給看不到照片的人）">
+        <el-input v-model="editor.form.value.photo_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子們笑著圍在長輩身邊" />
+        <span class="field-help">給看不見照片的家長，官網不會顯示出來；換照片時會換成素材庫裡新照片的說明，留空時官網也用素材庫的說明。</span>
       </el-form-item>
-      <el-form-item label="照片說明">
+      <el-form-item label="照片下方文字">
         <el-input v-model="editor.form.value.caption" />
         <LengthHint :value="editor.form.value.caption" rule="aboutCaption" />
-        <span class="field-help">顯示在孩子照片下方的一句話。</span>
+        <span class="field-help">顯示在孩子照片下方、家長看得到的一句話。</span>
       </el-form-item>
     </el-form>
   </ContentEditor>
