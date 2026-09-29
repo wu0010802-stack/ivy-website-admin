@@ -37,7 +37,7 @@ const runs = [
   { id: 'r2', created_at: '2026-09-24T01:00:00Z', trigger: 'manual', actor_email: 'admin@ivy.example', days, counts: { cancelled: 4, no_show: 1, completed: 0 }, total: 5, open_overdue_count: 2 },
 ]
 
-async function setup(firstError?: Error, currentPolicy = policy()) {
+async function setup(firstError?: Error, currentPolicy = policy(), runsResponse: () => Promise<unknown> = async () => runs) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
@@ -46,7 +46,7 @@ async function setup(firstError?: Error, currentPolicy = policy()) {
   let siteError = firstError
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url.startsWith('/admin/site-policies/retention')) return currentPolicy
-    if (url.startsWith('/admin/retention-runs')) return runs
+    if (url.startsWith('/admin/retention-runs')) return runsResponse()
     if (siteError) {
       const error = siteError
       siteError = undefined
@@ -77,7 +77,8 @@ describe('個資保存政策與全站設定保護', () => {
     expect(preview).toMatch(/另有\s*4\s*筆送出超過 180 天仍未結案，不會被清理/)
     expect(wrapper.find('.retention__overdue a[href="/visit-requests"]').exists()).toBe(true)
     const history = wrapper.get('.retention-runs').text()
-    expect(history).toContain('定期工作')
+    expect(history).toContain('每天自動清理')
+    expect(history).not.toContain('定期工作')
     expect(history).toContain('已匿名化 3 筆')
     expect(history).toContain('手動執行・admin@ivy.example')
     expect(history).toContain('已匿名化 5 筆')
@@ -90,6 +91,8 @@ describe('個資保存政策與全站設定保護', () => {
     const put = vi.spyOn(api, 'put')
       .mockRejectedValueOnce(new ApiError(409, { code: 'RETENTION_POLICY_VERSION_CONFLICT', message: '保存政策剛被其他人修改，請重新載入後再編輯' }))
     const warning = vi.spyOn(ElMessage, 'warning')
+    // 開啟自動清理會先確認（下一項測試細看確認內容）。
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     expect(button(wrapper, '儲存政策')!.attributes('disabled')).toBeDefined()
     await wrapper.get('.retention-form .el-switch').trigger('click')
     await flushPromises()
@@ -124,10 +127,121 @@ describe('個資保存政策與全站設定保護', () => {
     expect(wrapper.find('.retention__overdue').exists()).toBe(false)
   })
 
-  it('部署設定沒開放真正清理時只能試算', async () => {
+  it('系統沒開放真正清理時只能試算：原因只講一次、寫在按鈕旁，不出現設定名稱，開關仍可先設定', async () => {
     const { wrapper } = await setup(undefined, policy({ real_run_allowed: false }))
-    expect(button(wrapper, '立即執行清理')!.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('WEBSITE_RETENTION_ALLOW_REAL_RUN')
+    const run = button(wrapper, '立即執行清理')!
+    expect(run.attributes('disabled')).toBeDefined()
+    const reason = wrapper.get('.retention__result .retention__blocked')
+    expect(reason.text()).toContain('還沒開放真正清理')
+    expect(run.attributes('aria-describedby')).toBe(reason.attributes('id'))
+    expect(wrapper.text().match(/還沒開放真正清理/g)).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('WEBSITE_RETENTION_ALLOW_REAL_RUN')
+    expect(wrapper.text()).not.toContain('部署設定')
+    expect(wrapper.text()).not.toContain('定期工作')
+    expect(wrapper.get('.retention-form .el-switch').classes()).not.toContain('is-disabled')
+  })
+
+  it('立即執行清理按不了時說明原因：有未儲存的修改、沒有到期案件', async () => {
+    const { wrapper } = await setup()
+    expect(wrapper.find('.retention__blocked').exists()).toBe(false)
+    await wrapper.get('.retention-form .el-switch').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.retention__blocked').text()).toContain('先儲存政策')
+    const empty = { ...report, counts: { cancelled: 0, no_show: 0, completed: 0 }, total: 0, open_overdue_count: 0 }
+    const second = await setup(undefined, policy({ preview: empty }))
+    expect(second.wrapper.get('.retention__blocked').text()).toContain('沒有到期的案件')
+  })
+
+  it('天數欄帶單位與換算', async () => {
+    const { wrapper } = await setup()
+    const fields = wrapper.findAll('.days-field').map(field => field.text())
+    expect(fields[0]).toMatch(/結案後保留\s*天（約 1 年）/)
+    expect(fields[1]).toContain('天（約 2 年）')
+    expect(fields[2]).toContain('天仍未結案（約 6 個月）')
+  })
+
+  it('開啟每天自動清理要先確認，寫出依目前天數會清掉幾筆；只切開關時照常顯示試算', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const put = vi.spyOn(api, 'put').mockResolvedValue(policy({ auto_run_enabled: true, version: 2 }) as never)
+    const { wrapper } = await setup()
+    await wrapper.get('.retention-form .el-switch').trigger('click')
+    await flushPromises()
+    // 天數沒動：試算仍然準，不顯示「天數還沒儲存」。
+    const preview = wrapper.get('.retention__preview').text()
+    expect(preview).not.toContain('天數還沒儲存')
+    expect(preview).toMatch(/現在執行會處理\s*3\s*筆/)
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
+    const [message, title, options] = confirm.mock.calls[0]! as unknown as [string, string, Record<string, string>]
+    expect(title).toBe('確定開啟每天自動清理？')
+    expect(message).toContain('約一分鐘內就會執行第一次')
+    expect(message).toContain('依目前天數會匿名化 3 筆（已取消 2 筆、未到場 0 筆、已完成參觀 1 筆）')
+    expect(message).toContain('無法復原')
+    expect(options).toMatchObject({ confirmButtonText: '開啟自動清理', cancelButtonText: '先不要', confirmButtonClass: 'el-button--danger' })
+    expect(put).toHaveBeenCalledOnce()
+  })
+
+  it('自動清理開著時縮短天數：確認框寫依舊天數的筆數、縮短後會更多；按先不要就不儲存', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const put = vi.spyOn(api, 'put')
+    const { wrapper } = await setup(undefined, policy({ auto_run_enabled: true }))
+    const days = wrapper.findAllComponents({ name: 'ElInputNumber' })[0]!
+    days.vm.$emit('update:modelValue', 180)
+    await flushPromises()
+    expect(wrapper.get('.retention__preview').text()).toContain('天數還沒儲存')
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
+    const [message, title] = confirm.mock.calls[0]! as unknown as [string, string]
+    expect(title).toBe('確定縮短保留天數？')
+    expect(message).toContain('依舊天數有 3 筆，縮短後會更多，確切筆數儲存後才知道')
+    expect(message).not.toContain('將匿名化')
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('延長天數、關閉自動清理或自動清理沒開時改天數，不必確認', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const put = vi.spyOn(api, 'put').mockResolvedValue(policy() as never)
+    const on = await setup(undefined, policy({ auto_run_enabled: true }))
+    on.wrapper.findAllComponents({ name: 'ElInputNumber' })[1]!.vm.$emit('update:modelValue', 1095)
+    await flushPromises()
+    await button(on.wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    const off = await setup()
+    off.wrapper.findAllComponents({ name: 'ElInputNumber' })[0]!.vm.$emit('update:modelValue', 60)
+    await flushPromises()
+    await button(off.wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledTimes(2)
+  })
+
+  it('系統還沒開放真正清理時開啟自動清理，確認框說明儲存後還不會執行', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const { wrapper } = await setup(undefined, policy({ real_run_allowed: false }))
+    await wrapper.get('.retention-form .el-switch').trigger('click')
+    await flushPromises()
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(String(confirm.mock.calls[0]![0])).toContain('儲存後還不會執行')
+  })
+
+  it('清理紀錄讀取中顯示骨架，不先閃出「還沒有清理紀錄」', async () => {
+    let resolveRuns: (value: unknown) => void = () => {}
+    const { wrapper } = await setup(undefined, policy(), () => new Promise(resolve => { resolveRuns = resolve }))
+    expect(wrapper.text()).not.toContain('還沒有清理紀錄')
+    expect(wrapper.find('.retention-runs__loading').exists()).toBe(true)
+    resolveRuns([])
+    await flushPromises()
+    expect(wrapper.find('.retention-runs__loading').exists()).toBe(false)
+    expect(wrapper.text()).toContain('還沒有清理紀錄')
+  })
+
+  it('可以設定的保存政策排在最前面，唯讀的搜尋與分享摘要在頁底', async () => {
+    const { wrapper } = await setup()
+    const headings = wrapper.findAll('.panel__head h2').map(h => h.text())
+    expect(headings).toEqual(['個資保存政策', '清理紀錄', '搜尋與分享'])
   })
 
   it('搜尋與分享只顯示官網發布中的 site_meta，連到網站標題與電話修改，不再有會誤導的表單', async () => {
@@ -139,7 +253,10 @@ describe('個資保存政策與全站設定保護', () => {
     expect(summary).toContain('不允許收錄')
     expect(summary).toContain('網站說明')
     expect(summary).toContain('沿用首頁大圖')
-    expect(summary).toContain('robots.txt 與 sitemap.xml')
+    // 不給園方看 robots.txt、sitemap.xml 這類工程語。
+    expect(summary).toContain('搜尋引擎')
+    expect(summary).not.toContain('robots.txt')
+    expect(summary).not.toContain('sitemap')
     expect(wrapper.find('a[href="/content/site-meta"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)
     // 沒有可以在這裡儲存的欄位，也不再宣稱「儲存後官網立即生效」。

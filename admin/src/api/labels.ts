@@ -403,9 +403,11 @@ export const RETENTION_CATEGORY_LABELS: Record<string, string> = {
   completed: '已完成參觀',
 }
 
+// 清理紀錄與操作紀錄（retention.run 的 trigger）共用；「定期工作」是工程說法，
+// 園方看到的是「每天自動清理」這個開關。
 export const RETENTION_TRIGGER_LABELS: Record<string, string> = {
   manual: '手動執行',
-  scheduled: '定期工作',
+  scheduled: '每天自動清理',
 }
 
 export function auditTargetLabel(target: string): string {
