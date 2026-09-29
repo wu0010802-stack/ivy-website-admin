@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -32,12 +33,16 @@ from app.notifications.line_routes import router as line_router
 from app.notifications.routes import router as notifications_router
 from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
-from app.db import create_engine, create_session_factory
+from app.db import create_engine, create_rate_limit_engine, create_session_factory
 from app.workers.maintenance import MaintenanceLoop
 
 logger = logging.getLogger("app")
 
 _INTERNAL_ERROR = {"code": "INTERNAL_ERROR", "message": "系統發生未預期的錯誤，請稍後再試"}
+
+# 後台與登入的回應（家長個資清單、CSV 匯出、一次性家長連結、session 資訊）
+# 不能留在瀏覽器或中間快取；路由自己設了 Cache-Control（例如素材縮圖）就尊重。
+_NO_STORE_PREFIXES = ("/api/website/v1/admin/", "/api/website/v1/auth/")
 
 
 def _error_body(detail, request_id: str | None) -> dict:
@@ -127,15 +132,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             if app.state.maintenance is not None:
                 await app.state.maintenance.stop()
+            await app.state.rate_limit_engine.dispose()
+            await app.state.engine.dispose()
 
-    app = FastAPI(title="Ivy Website Admin API", version="0.1.0", lifespan=lifespan)
+    # 正式站不開 API 文件：API 雖沒有公開 domain，但 web 同源代理若被
+    # dot-segment（%2e%2e）繞到 API 根目錄，就能拿到整份後台 schema。
+    # 契約匯出（scripts/export_openapi.py）直接呼叫 app.openapi()，不受影響。
+    docs_enabled = settings.environment != "production"
+    app = FastAPI(
+        title="Ivy Website Admin API",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
     app.state.maintenance = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
         app.state.engine
     )
-    app.state.rate_limiter = RateLimiter(app.state.engine, settings.session_secret)
+    # 限流用獨立的小連線池，不和請求 session 搶連線（見 app/db.py）。
+    app.state.rate_limit_engine = create_rate_limit_engine(settings)
+    app.state.rate_limiter = RateLimiter(app.state.rate_limit_engine, settings.session_secret)
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
     # 最後加的在最外層：本文太大被擋下的 413 也帶得到 request id。
@@ -146,10 +166,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.middleware("http")
     async def parent_access_privacy_headers(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/api/website/v1/public/visit-manage/"):
+        path = request.url.path
+        if path.startswith("/api/website/v1/public/visit-manage/"):
             response.headers["Cache-Control"] = "private, no-store"
             response.headers["Referrer-Policy"] = "no-referrer"
             response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        elif path.startswith(_NO_STORE_PREFIXES) and "cache-control" not in response.headers:
+            response.headers["Cache-Control"] = "private, no-store"
         return response
 
     @app.get("/api/website/v1/health")
@@ -188,12 +211,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
+def _configure_logging() -> None:
+    """讓 `app.*` 的 INFO（access log、4xx 摘要、定期工作結果）真的印出來。
+
+    uvicorn 只設定自己的 logger；沒有這段時 `app` 只剩 Python 預設的
+    lastResort（WARNING 以上），正式站關掉 uvicorn access log 之後就完全
+    看不到請求紀錄。只在真的啟動服務時呼叫，測試不受影響。"""
+    app_logger = logging.getLogger("app")
+    if app_logger.handlers:
+        return
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    # INFO 走 stdout、WARNING 以上走 stderr（和原本 lastResort 一樣），
+    # 平台 log 的嚴重度分類才不會把每一行 access log 都當成錯誤。
+    info = logging.StreamHandler(sys.stdout)
+    info.setLevel(logging.INFO)
+    info.addFilter(lambda record: record.levelno < logging.WARNING)
+    problems = logging.StreamHandler(sys.stderr)
+    problems.setLevel(logging.WARNING)
+    for handler in (info, problems):
+        handler.setFormatter(formatter)
+        app_logger.addHandler(handler)
+    app_logger.setLevel(logging.INFO)
+    app_logger.propagate = False
+
+
 def _build_default_app() -> FastAPI | None:
     """僅供 `uvicorn app.main:app` 使用。測試以 conftest 設定
     WEBSITE_SKIP_DEFAULT_APP=1，避免純 import 因缺環境變數而失敗；
     正常啟動時設定錯誤仍會如實拋出，訊息不含密碼。"""
     if os.environ.get("WEBSITE_SKIP_DEFAULT_APP") == "1":
         return None
+    _configure_logging()
     return create_app()
 
 

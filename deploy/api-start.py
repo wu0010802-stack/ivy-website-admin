@@ -6,6 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+# This image only runs the production API (deploy/README.md sets
+# WEBSITE_ENVIRONMENT=production). Settings default to "development" when the
+# variable is missing, which silently drops Secure cookies and production checks,
+# so refuse to start instead of migrating or serving in that state.
+if not os.environ.get("WEBSITE_ENVIRONMENT", "").strip():
+    raise SystemExit("WEBSITE_ENVIRONMENT must be set (production) before starting the API.")
+
 # WEBSITE_MEDIA_STORAGE=s3 keeps media in object storage, so the API no longer
 # needs (or is tied to) the Railway volume. Local storage still requires it.
 uses_volume = os.environ.get("WEBSITE_MEDIA_STORAGE", "local").strip().lower() != "s3"
@@ -38,4 +45,9 @@ if uses_volume:
 # the API does not start. Keep the total under the 120 s Railway healthcheck.
 subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True, timeout=90)
 subprocess.run([sys.executable, "/app/check-schema.py"], check=True, timeout=40)
-os.execvp("uvicorn", ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000")])
+# uvicorn's access log includes the query string (admin searches carry parent
+# names and phone numbers). The app logs its own access line without it
+# (app/common/request_id.py), so the built-in one stays off.
+os.execvp("uvicorn", [
+    "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000"), "--no-access-log",
+])

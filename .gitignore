@@ -40,6 +40,9 @@ __pycache__/
 # npm run e2e:build 照 deploy/web.Dockerfile 把後台 build 複製進官網再 build
 /web/public/admin/
 /backend/.pytest_cache/
+# 本機素材（含兒童照片）與通知信 sink（含家長個資）；.dockerignore 早已排除 **/var
+/backend/var/
+var/
 /backend/__pycache__/
 /backend/*.egg-info/
 /contracts/generated/.website-api.check.d.ts

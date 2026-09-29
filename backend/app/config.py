@@ -12,6 +12,10 @@ Environment = Literal["development", "test", "production"]
 # 既有園務系統資料庫，官網一律不得連線。
 _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 
+# 一看就是範例或佔位的 session secret 字眼（.env.example 的值就是公開的）。
+# production 用這種值等於任何人都能簽出 OAuth 握手 cookie、算出限流 HMAC key。
+_PLACEHOLDER_SECRET_MARKERS = ("change-me", "changeme", "change_me", "example", "placeholder")
+
 
 class Settings(BaseSettings):
     """官網後台設定。所有欄位一律來自環境變數，不寫死秘密或預設密碼。"""
@@ -72,6 +76,31 @@ class Settings(BaseSettings):
     media_max_video_mb: int = Field(default=150, ge=1, le=2048)
     # 刪除的素材先標記待清理，過這麼多天才由定期工作真的刪檔，期間可以復原。
     media_purge_delay_days: int = Field(default=7, ge=1, le=90)
+    # migration 專用連線（schema owner）。沒設定時沿用 database_url；設定後
+    # 執行期的 database_url 可以改成只有 DML 權限的角色，見 deploy/README.md。
+    migration_database_url: str | None = Field(default=None, repr=False)
+    # 連線池。公開送單、限流、素材讀檔共用同一個池時，池太小或等待太久會讓
+    # 匿名併發拖垮整個 API；lock／idle-in-transaction 逾時是最後一道防線。
+    db_pool_size: int = Field(default=10, ge=1, le=50)
+    db_max_overflow: int = Field(default=10, ge=0, le=50)
+    db_pool_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    db_lock_timeout_ms: int = Field(default=10_000, ge=0, le=600_000)
+    db_idle_in_transaction_timeout_ms: int = Field(default=300_000, ge=0, le=3_600_000)
+    # 後台 session：閒置超過這麼久就失效（另有 12 小時絕對上限）。
+    session_idle_minutes: int = Field(default=120, ge=5, le=720)
+    # Cloudflare Turnstile（公開預約的機器人驗證）。兩個都設定才啟用；
+    # 沒設定時公開送單不要求驗證，其他防線（限流、占位上限）照常。
+    turnstile_site_key: str | None = None
+    turnstile_secret_key: str | None = Field(default=None, repr=False)
+    # 公開預約的濫用上限（全部以伺服器端計數，超過回 429）。
+    booking_slot_holds_per_source_per_day: int = Field(default=5, ge=1, le=1000)
+    booking_submissions_per_campus_per_hour: int = Field(default=30, ge=1, le=10_000)
+    # 公開 telemetry／點擊事件的全站上限：資料照留、不清除，改用上限封住
+    # 單日可以被灌進來的列數。超過時安靜丟棄（仍回 204）。
+    telemetry_global_per_minute: int = Field(default=600, ge=1, le=100_000)
+    telemetry_daily_cap: int = Field(default=20_000, ge=1, le=10_000_000)
+    analytics_clicks_global_per_minute: int = Field(default=120, ge=1, le=100_000)
+    analytics_clicks_daily_cap: int = Field(default=5_000, ge=1, le=10_000_000)
 
     @field_validator(
         "google_client_id", "google_client_secret", "google_redirect_uri",
@@ -90,7 +119,10 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS 必須是 0（關閉）或 10–3600 秒")
         return value
 
-    @field_validator("line_messaging_channel_secret", "line_messaging_access_token")
+    @field_validator(
+        "line_messaging_channel_secret", "line_messaging_access_token",
+        "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
+    )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
         if value is None:
@@ -141,6 +173,16 @@ class Settings(BaseSettings):
         return 60 if self.environment == "production" else 0
 
     @property
+    def turnstile_enabled(self) -> bool:
+        return bool(self.turnstile_site_key and self.turnstile_secret_key)
+
+    def active_migration_database_url(self) -> str:
+        """alembic 用的連線：test 環境一律用測試庫；其他環境優先用 migration 專用連線。"""
+        if self.environment == "test":
+            return self.active_database_url()
+        return self.migration_database_url or self.database_url
+
+    @property
     def google_oauth_enabled(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret and self.google_redirect_uri)
 
@@ -148,7 +190,7 @@ class Settings(BaseSettings):
     def line_oauth_enabled(self) -> bool:
         return bool(self.line_channel_id and self.line_channel_secret and self.line_redirect_uri)
 
-    @field_validator("database_url", "test_database_url")
+    @field_validator("database_url", "test_database_url", "migration_database_url")
     @classmethod
     def _reject_shared_business_database(cls, value: str | None) -> str | None:
         if value is None:
@@ -199,6 +241,8 @@ class Settings(BaseSettings):
                 raise ValueError("WEBSITE_S3_ENDPOINT_URL 必須是不含帳密與路徑的網址")
             if self.environment == "production" and endpoint.scheme != "https":
                 raise ValueError("production 環境的 WEBSITE_S3_ENDPOINT_URL 必須使用 HTTPS")
+        if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
+            raise ValueError("Turnstile 必須同時設定 WEBSITE_TURNSTILE_SITE_KEY 與 WEBSITE_TURNSTILE_SECRET_KEY")
         if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):
             raise ValueError(
                 "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
@@ -208,7 +252,27 @@ class Settings(BaseSettings):
         if self.smtp_host and self.environment == "production" and self.smtp_security == "none":
             # 通知信含員工信箱與案件編號，正式環境不走明文 SMTP。
             raise ValueError("production 環境寄信必須使用 starttls 或 ssl")
+        if self.environment == "production":
+            self._check_production_safety()
         return self
+
+    def _check_production_safety(self) -> None:
+        """production 的安全前提不能靠「記得設定」：admin_origin 空白時後台
+        Origin 檢查與 OAuth 同源檢查會整段跳過；session secret 用公開的範例值
+        等於沒有秘密。放在所有其他檢查之後，既有的錯誤訊息維持優先。
+        長度下限維持 16（正式站實際長度未知，提高下限可能讓部署起不來）。"""
+        origin = urlsplit(self.admin_origin or "")
+        if (
+            origin.scheme != "https" or not origin.hostname
+            or origin.username or origin.password
+            or origin.path not in ("", "/") or origin.query or origin.fragment
+        ):
+            raise ValueError(
+                "production 必須設定 WEBSITE_ADMIN_ORIGIN，且是不含路徑的 HTTPS 網址（例如 https://後台網域）"
+            )
+        lowered = self.session_secret.lower()
+        if any(marker in lowered for marker in _PLACEHOLDER_SECRET_MARKERS):
+            raise ValueError("production 的 WEBSITE_SESSION_SECRET 不能使用範例或佔位值，請改成隨機產生的秘密")
 
     def _check_oauth_provider(
         self, label: str, slug: str, credential_names: str,

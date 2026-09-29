@@ -49,7 +49,9 @@ def main() -> int:
         return 1
 
     settings = get_settings()
-    database_url = settings.active_database_url()
+    # 用 schema owner（migration 專用連線）備份：執行期改用只有 DML 權限的
+    # 角色後，它不一定讀得到每個物件；沒設定時兩者相同。
+    database_url = settings.active_migration_database_url()
 
     output_dir = Path(sys.argv[1])
     # 備份含家長與孩子個資：目錄只給擁有者（0700），檔案 0600，不依賴

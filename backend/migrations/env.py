@@ -29,12 +29,18 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.active_database_url())
+# migration 用自己的連線（WEBSITE_MIGRATION_DATABASE_URL，schema owner），
+# 沒設定時沿用 WEBSITE_DATABASE_URL；執行期因此可以改用只有 DML 權限的角色。
+# 這裡另建 engine，不經過 app.db.create_engine：執行期的 lock_timeout／
+# idle_in_transaction 逾時不能套到 migration，改表等鎖逾時會讓部署失敗。
+migration_url = settings.active_migration_database_url()
+# ConfigParser 會把 % 當插值語法；密碼經 URL 編碼（%40 等）時要跳脫。
+config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.active_database_url(),
+        url=migration_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

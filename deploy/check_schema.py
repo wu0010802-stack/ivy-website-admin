@@ -21,7 +21,8 @@ async def check() -> None:
     from app.config import get_settings
 
     expected = ScriptDirectory.from_config(Config("alembic.ini")).get_heads()
-    engine = create_async_engine(get_settings().active_database_url(), poolclass=NullPool)
+    # 和 alembic 用同一組連線核對：執行期角色（只有 DML 權限）不必能讀 alembic_version。
+    engine = create_async_engine(get_settings().active_migration_database_url(), poolclass=NullPool)
     try:
         async with engine.connect() as connection:
             # PostgreSQL enforces that this check cannot change application data.

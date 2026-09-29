@@ -48,14 +48,41 @@ class ApiStartStorageTests(unittest.TestCase):
         return calls
 
     def test_s3_storage_starts_without_volume(self):
-        calls = self.run_start({"WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"})
+        calls = self.run_start({"WEBSITE_ENVIRONMENT": "production", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"})
         self.assertEqual(len(calls), 3)
         self.assertIn("uvicorn", calls[-1])
 
     def test_local_storage_still_requires_volume(self):
         with self.assertRaises(SystemExit) as ctx:
-            self.run_start({"PORT": "8000"})
+            self.run_start({"WEBSITE_ENVIRONMENT": "production", "PORT": "8000"})
         self.assertIn("/data volume", str(ctx.exception))
+
+
+class ApiStartSafetyTests(unittest.TestCase):
+    """2026-09-29 資安稽核：映像只給正式站用，漏設環境就不啟動；uvicorn 的
+    access log 會連 query string（後台搜尋的家長姓名／手機）一起記，關掉。"""
+
+    run_start = ApiStartStorageTests.run_start
+
+    def test_refuses_to_start_without_environment(self):
+        for env in ({"WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"},
+                    {"WEBSITE_ENVIRONMENT": "  ", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"}):
+            with self.assertRaises(SystemExit) as ctx:
+                self.run_start(env)
+            self.assertIn("WEBSITE_ENVIRONMENT", str(ctx.exception))
+
+    def test_refuses_before_migrating(self):
+        calls = []
+        with mock.patch.dict(os.environ, {"WEBSITE_MEDIA_STORAGE": "s3"}, clear=True), \
+                mock.patch("subprocess.run", side_effect=lambda *a, **k: calls.append(a[0])), \
+                mock.patch("os.execvp", side_effect=lambda *a: calls.append(a[1])):
+            with self.assertRaises(SystemExit):
+                runpy.run_path(str(START_PATH))
+        self.assertEqual(calls, [])
+
+    def test_uvicorn_access_log_is_disabled(self):
+        calls = self.run_start({"WEBSITE_ENVIRONMENT": "production", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"})
+        self.assertIn("--no-access-log", calls[-1])
 
 
 if __name__ == "__main__":

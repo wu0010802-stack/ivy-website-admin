@@ -1,4 +1,6 @@
-FROM node:22-alpine AS build
+# base image 以 multi-arch index digest 釘版（2026-09-29 讀自 Docker Hub）；tag 留給人看。
+# 更新：換 tag 或定期吃安全更新時，重新讀 digest 後兩個一起改（步驟見 deploy/README.md）。
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
 WORKDIR /src
 ENV NUXT_WEBSITE_ENV=production NUXT_PUBLIC_CONTENT_MODE=live NUXT_PUBLIC_INDEXING_ENABLED=false
 COPY web/package.json web/package-lock.json ./web/
@@ -11,7 +13,7 @@ RUN cd admin && VITE_WEBSITE_ASSET_BASE= npm run build
 COPY web ./web
 RUN cp -R admin/dist web/public/admin && cd web && npm run build
 
-FROM node:22-alpine
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 NUXT_ADMIN_DIST_DIR=/app/.output/public/admin
 COPY --from=build --chown=node:node /src/web/.output ./.output

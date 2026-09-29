@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 from app.auth.models import Role, User
 from app.booking.access_models import ParentSession
 from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, VisitRequest, VisitRequestStatus
-from app.media.models import MediaAsset, MediaStatus
+from app.media.models import MediaAsset
 from app.operations import retention_service
 from app.operations.models import RetentionRunTrigger
 from tests.conftest import _create_user, _logged_in_client, set_booking_mode, start_visit_slot
@@ -391,17 +391,22 @@ async def test_anonymous_media_upload_rejected_before_reading_body(public_client
 
 
 @pytest.mark.asyncio
-async def test_failed_video_processing_removes_original(app, admin_client, db_session):
+async def test_failed_video_processing_removes_original(app, admin_client, db_session, tmp_path):
+    # 用這個測試專屬的素材目錄，才能斷言「什麼檔案都沒留下」（共用目錄有別的測試在寫）。
+    app.state.settings.media_root = str(tmp_path)
     fake_mp4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 2048
     resp = await admin_client.post(
         "/api/website/v1/admin/media",
         data={"kind": "video", "campus_key": "yihua"},
         files={"file": ("fake.mp4", fake_mp4, "video/mp4")},
     )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["status"] == MediaStatus.FAILED.value
-    asset = (await db_session.execute(select(MediaAsset).where(MediaAsset.id == uuid.UUID(resp.json()["id"])))).scalar_one()
-    assert not (Path(app.state.settings.media_root) / asset.storage_key).exists()
+    # 2026-09-29 資安稽核起，上傳時就先重新封裝去除拍攝資訊（位置等），壞檔在
+    # 這一步就以 MEDIA_INVALID 擋下；原本是先收下、處理失敗才標 FAILED。
+    # 不變的要求：失敗的上傳不留下原檔，也不留下素材列。
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"]["code"] == "MEDIA_INVALID"
+    assert (await db_session.execute(select(func.count()).select_from(MediaAsset))).scalar_one() == 0
+    assert [p for p in tmp_path.rglob("*") if p.is_file()] == []
 
 
 @pytest.mark.asyncio

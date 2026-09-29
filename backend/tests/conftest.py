@@ -129,11 +129,12 @@ async def _clean_tables(app):
 def _reset_process_caches():
     """限流計數在 rate_limit_counters，由 _clean_tables 每個測試清空；這裡
     只重置仍留在 process 記憶體內、會跨測試累積的節流與快取。"""
-    from app.operations import traffic_service
+    from app.operations import public_caps, traffic_service
     from app.media import service as media_service
 
     traffic_service._last_purge = None
     media_service._release_media_cache = None
+    public_caps._last_logged.clear()
     yield
 
 

@@ -41,7 +41,8 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run test:unit -- --maxWorkers=2 --minWorkers=1
+      # admin 用 vitest 4（2026-09-29 升級，移除了 --minWorkers），web 仍是 vitest 3；只帶兩邊都認得的旗標。
+      - run: npm run test:unit -- --maxWorkers=2
       - run: npm run build
         env:
           NUXT_WEBSITE_ENV: production
@@ -55,7 +56,8 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        # 以 digest 釘版（2026-09-29 讀自 Docker Hub 的 multi-arch index）；tag 留給人看。
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ci-only-password
@@ -85,6 +87,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
       - run: uv sync --frozen
+        working-directory: backend
+      # 執行期相依套件的已知漏洞（PyPI／OSV 公告，稽核 pillow-outdated-native-decoder-memcorrupt
+      # 的後續）：Pillow 這類原生解碼器一有新公告就在這裡擋下部署。確定不影響、又還沒有
+      # 修正版時，才加 --ignore-vuln <ID> 並在這裡註明原因。開發用套件（pytest 等）不檢查。
+      - name: Audit runtime Python dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt -o "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit@2.10.1 --disable-pip -r "$RUNNER_TEMP/requirements.txt"
         working-directory: backend
       - name: Migrate disposable CI database
         run: uv run --frozen alembic upgrade head
@@ -119,7 +129,8 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:16
+        # 以 digest 釘版（2026-09-29 讀自 Docker Hub 的 multi-arch index）；tag 留給人看。
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ci-only-password
