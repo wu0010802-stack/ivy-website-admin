@@ -7,6 +7,7 @@ import pytest
 
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.operations import retention_service
+from tests.conftest import freeze_rate_limit_clock
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -74,7 +75,8 @@ async def test_click_events_do_not_change_request_created_count(
 
 
 @pytest.mark.asyncio
-async def test_click_event_rate_limited(public_client):
+async def test_click_event_rate_limited(app, public_client):
+    freeze_rate_limit_clock(app)
     last_status = None
     for _ in range(25):
         resp = await public_client.post(

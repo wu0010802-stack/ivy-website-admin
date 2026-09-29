@@ -6,7 +6,7 @@ import uuid
 import httpx
 import pytest
 
-from tests.conftest import set_booking_mode
+from tests.conftest import set_booking_mode, freeze_rate_limit_clock
 
 
 # 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
@@ -247,7 +247,8 @@ async def test_parent_change_deadline_is_enforced_by_api(admin_client, public_cl
 
 
 @pytest.mark.asyncio
-async def test_parent_token_exchange_has_rate_limit(public_client):
+async def test_parent_token_exchange_has_rate_limit(app, public_client):
+    freeze_rate_limit_clock(app)
     results = [await public_client.post('/api/website/v1/public/visit-manage/exchange', json={'token': 'invalid'}) for _ in range(31)]
     assert results[-1].status_code == 429
     assert 'retry-after' in results[-1].headers

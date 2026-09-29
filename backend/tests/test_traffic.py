@@ -10,6 +10,7 @@ from sqlalchemy import func, select, text
 from app.common.timezones import today_local
 from app.operations import traffic_service
 from app.operations.models import PageViewDaily, WebVitalSample
+from tests.conftest import freeze_rate_limit_clock
 
 URL = "/api/website/v1/public/telemetry"
 
@@ -64,7 +65,8 @@ async def test_vital_updates_same_sample_and_ignores_visit_click(public_client, 
 
 
 @pytest.mark.asyncio
-async def test_rate_limited_per_source(public_client):
+async def test_rate_limited_per_source(app, public_client):
+    freeze_rate_limit_clock(app)
     for _ in range(120):
         assert (await public_client.post(URL, json=_view())).status_code == 204
     blocked = await public_client.post(URL, json=_view())
