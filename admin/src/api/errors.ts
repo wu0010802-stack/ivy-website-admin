@@ -67,3 +67,15 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err.status >= 500 && detail.request_id) return `${message}（錯誤編號 ${detail.request_id.slice(0, 8)}）`
   return message
 }
+
+/** 422 裡指到某個欄位（loc 含欄位名）的訊息，寫在那一欄下方用；沒有就回空字串。 */
+export function apiFieldError(err: unknown, field: string): string {
+  if (!(err instanceof ApiError) || err.status !== 422 || !Array.isArray(err.detail)) return ''
+  return err.detail
+    .filter((e): e is { loc: unknown[]; msg: unknown } => {
+      const loc = (e as { loc?: unknown } | null)?.loc
+      return Array.isArray(loc) && loc.includes(field)
+    })
+    .map((e) => String(e.msg).replace(/^Value error,\s*/, ''))
+    .join('；')
+}

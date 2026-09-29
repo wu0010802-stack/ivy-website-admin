@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
-import { campusLabel, formatDate, formatTime, formatWeekday, staffLabel, visitSourceLabel, visitStatus } from '../api/labels'
+import { campusLabel, formatDate, formatTime, formatWeekday, staffEmailById, staffLabelById, visitSourceLabel, visitStatus } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { useVisitStaff } from '../composables/useVisitStaff'
@@ -292,7 +292,7 @@ const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: 
             <router-link :to="`/visit-requests/${visit.id}`" class="calendar__visit-name">{{ visit.parent_name }}</router-link>
             <span class="muted calendar__visit-child">{{ visit.child_name || '孩子姓名未填寫' }}<template v-if="visit.party_size"> · {{ visit.party_size }} 人參觀</template></span>
             <a class="num calendar__visit-phone" :href="`tel:${visit.phone}`">{{ visit.phone }}</a>
-            <span class="muted calendar__visit-staff">承辦：{{ staffLabel(visit.assigned_staff_id, staff) }}<template v-if="visit.source !== 'web'"> · {{ visitSourceLabel(visit.source) }}補登</template></span>
+            <span class="muted calendar__visit-staff" :title="staffEmailById(visit.assigned_staff_id, staff) || undefined">承辦：{{ staffLabelById(visit.assigned_staff_id, staff) }}<template v-if="visit.source !== 'web'"> · {{ visitSourceLabel(visit.source) }}補登</template></span>
             <StatusTag :meta="visitStatus(visit.status)" size="small" />
           </li>
         </ul>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { formatDateTime, REVIEW_STATUS_LABELS, type TagTone } from '../api/labels'
+import { formatDateTime, REVIEW_STATUS_LABELS, staffEmail, staffLabel, staffOf, type TagTone } from '../api/labels'
 import { diffPayload, type FieldChange, type RevisionHistoryHandle, type RevisionSummary } from '../composables/useContentItem'
 
 // 版本紀錄：列出最近幾次儲存，點一版看「還原後哪些欄位會變」，再選要
@@ -150,7 +150,7 @@ async function restore(publish: boolean) {
           @click="select(revision)"
         >
           <span class="history__when num">{{ formatDateTime(revision.created_at) }}</span>
-          <span class="history__meta">第 {{ revision.version }} 版・{{ revision.created_by_email || '系統匯入或已刪除的帳號' }}</span>
+          <span class="history__meta" :title="staffEmail(staffOf(revision, 'created_by')) || undefined">第 {{ revision.version }} 版・{{ staffLabel(staffOf(revision, 'created_by'), '系統匯入或已刪除的帳號') }}</span>
           <span v-if="noteOf(revision)" class="history__note">{{ noteOf(revision) }}</span>
           <span v-if="tagOf(revision).length" class="history__tags">
             <el-tag v-for="tag in tagOf(revision)" :key="tag.label" size="small" :type="tag.tone" disable-transitions>{{ tag.label }}</el-tag>

@@ -1,22 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, formatDateTime, type AuditDetails } from '../api/labels'
+import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, formatDateTime, type AuditDetails, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
+import type { AuditLogEntryOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
-interface AuditEntry {
-  id: string
-  actor_user_id: string | null
-  action: string
-  target_type: string
-  target_id: string
-  campus_key: string | null
-  metadata: Record<string, unknown>
-  created_at: string
-}
+type AuditEntry = AuditLogEntryOut
 
 // 後端 list_recent 一次只回最近 100 筆（backend/app/operations/audit_service.py）。
 const AUDIT_LIMIT = 100
@@ -42,11 +34,34 @@ function campusText(entry: AuditEntry): string {
   return entry.campus_key ? campusLabel(entry.campus_key) : '全站'
 }
 
+// 誰做的：讀取時由後端 join 帳號查出來（紀錄本身不存名字與 Email）。沒有操作者
+// 是排程發布、每天清理這類系統自己做的事；有 id 卻查不到是帳號已刪除。
+function actorText(entry: AuditEntry): string {
+  return staffLabel(staffOf(entry, 'actor'), entry.actor_user_id ? '已移除的帳號' : '系統')
+}
+function actorEmail(entry: AuditEntry): string {
+  return staffEmail(staffOf(entry, 'actor'))
+}
+
+// 對哪個帳號（新增帳號、重設密碼、改角色……）：後端給對方的顯示名稱，沒有時
+// 給 Email；Email 和其他地方一樣只寫 @ 前面那段，完整的放在 title。
+const EMAIL_LIKE = /^[^\s@]+@[^\s@]+$/
+function targetPerson(entry: AuditEntry): StaffPerson | null {
+  const label = entry.target_label?.trim()
+  if (!label) return null
+  return EMAIL_LIKE.test(label) ? { email: label } : { display_name: label }
+}
+function targetText(entry: AuditEntry): string {
+  const person = targetPerson(entry)
+  return person ? staffLabel(person) : ''
+}
+
 const visibleEntries = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
   return entries.value.filter(entry => {
     const { lines, others } = details(entry)
-    return [auditActionLabel(entry.action), auditTargetLabel(entry.target_type), ...lines, ...others, campusText(entry)].join(' ').toLocaleLowerCase().includes(keyword)
+    const who = [actorText(entry), actorEmail(entry), targetText(entry), staffEmail(targetPerson(entry))]
+    return [auditActionLabel(entry.action), auditTargetLabel(entry.target_type), ...who, ...lines, ...others, campusText(entry)].join(' ').toLocaleLowerCase().includes(keyword)
   })
 })
 
@@ -110,7 +125,7 @@ onMounted(() => {
 
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
-      <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、內容類型或細節" clearable /></label>
+      <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
     </div>
     <div class="list-summary" role="status">
       <span>{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : `顯示 ${visibleEntries.length} / ${entries.length} 筆已載入紀錄・只載入最近 ${AUDIT_LIMIT} 筆，更早的不會列出` }}</span>
@@ -130,10 +145,15 @@ onMounted(() => {
             <el-table-column label="時間" width="90">
               <template #default="{ row }: { row: AuditEntry }"><span class="num">{{ entryTime(row) }}</span></template>
             </el-table-column>
+            <el-table-column label="操作者" min-width="110">
+              <template #default="{ row }: { row: AuditEntry }">
+                <span class="audit-actor" :class="{ muted: !row.actor_user_id }" :title="actorEmail(row) || undefined" data-test="audit-actor">{{ actorText(row) }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" min-width="200">
               <template #default="{ row }: { row: AuditEntry }">
                 <strong>{{ auditActionLabel(row.action) }}</strong>
-                <span class="muted">・{{ auditTargetLabel(row.target_type) }}</span>
+                <span class="muted">・{{ auditTargetLabel(row.target_type) }}<template v-if="targetText(row)">「<span :title="staffEmail(targetPerson(row)) || undefined" data-test="audit-target">{{ targetText(row) }}</span>」</template></span>
               </template>
             </el-table-column>
             <el-table-column label="校區" width="90">
@@ -154,7 +174,8 @@ onMounted(() => {
               <div class="record-heading"><strong>{{ auditActionLabel(entry.action) }}</strong><el-tag type="info">{{ campusText(entry) }}</el-tag></div>
               <dl class="record-meta">
                 <dt>時間</dt><dd class="num">{{ entryTime(entry) }}</dd>
-                <dt>操作項目</dt><dd>{{ auditTargetLabel(entry.target_type) }}</dd>
+                <dt>操作者</dt><dd :class="{ muted: !entry.actor_user_id }" :title="actorEmail(entry) || undefined" data-test="audit-actor-mobile">{{ actorText(entry) }}</dd>
+                <dt>操作項目</dt><dd>{{ auditTargetLabel(entry.target_type) }}<template v-if="targetText(entry)">「<span :title="staffEmail(targetPerson(entry)) || undefined">{{ targetText(entry) }}</span>」</template></dd>
                 <dt>細節</dt>
                 <dd>
                   {{ detailText(entry) || '—' }}
@@ -198,9 +219,14 @@ onMounted(() => {
   font-weight: 400;
 }
 
-.audit-detail {
+.audit-detail,
+.audit-actor {
   color: var(--ink-2);
   overflow-wrap: anywhere;
+}
+
+.audit-actor.muted {
+  color: var(--ink-3);
 }
 
 .audit-others {

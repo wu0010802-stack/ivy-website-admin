@@ -10,7 +10,7 @@ import {
 import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { campusLabels, roleLabel } from '../api/labels'
+import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import crestMarkUrl from '../assets/brand/ivy-crest-mark.webp'
 
@@ -107,6 +107,10 @@ watch(activePath, path => {
 }, { immediate: true })
 // 點 logo 回到這個角色的起始頁（總管理者是營運總覽，其他角色是第一個看得到的功能）。
 const homePath = computed(() => landingPath(auth.user?.role))
+// 帳號區寫同事看到的名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
+// 頭像取名字第一個字；表情符號這類兩個 UTF-16 單位的字不能切半，用 Array.from。
+const userName = computed(() => staffLabel(auth.user, ''))
+const userInitial = computed(() => Array.from(userName.value)[0] ?? '')
 // 有指定校區的角色都帶校區（櫃台・義華、編輯・仁武），共用電腦或跨校支援時一眼
 // 看得出是哪一校的帳號，和「我的帳號」頁一致。總管理者管全部校區，不帶。
 const userLine = computed(() => {
@@ -174,9 +178,9 @@ const userLine = computed(() => {
     <div v-if="auth.user" class="sidebar__user" :class="{ 'is-mobile': mobile }">
       <router-link to="/account" class="sidebar__account" :class="{ 'is-active': route.path === '/account' }"
         :aria-current="route.path === '/account' ? 'page' : undefined"
-        :aria-label="`我的帳號：${auth.user.email}`" :title="`${auth.user.email}（${userLine}）`">
-        <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
-        <div class="sidebar__user-text"><strong>{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
+        :aria-label="`我的帳號：${staffWithEmail(auth.user)}`" :title="`${auth.user.email}（${userLine}）`">
+        <span class="sidebar__avatar" aria-hidden="true">{{ userInitial.toUpperCase() }}</span>
+        <div class="sidebar__user-text"><strong>{{ userName }}</strong><span>{{ userLine }}</span></div>
       </router-link>
       <!-- 手機抽屜：觸控沒有 tooltip，圖示旁直接寫字。 -->
       <div v-if="mobile" class="sidebar__user-actions">

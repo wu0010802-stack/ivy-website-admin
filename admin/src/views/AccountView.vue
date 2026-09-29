@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import PageHeader from '../components/PageHeader.vue'
 import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
+import DisplayNameField from '../components/DisplayNameField.vue'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage, apiFieldError } from '../api/errors'
 import { startLineLink } from '../api/oauth'
-import { campusLabels, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel } from '../api/labels'
-import type { AuthProviders } from '../api/types'
+import { campusLabels, displayNameError, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel, staffLabel } from '../api/labels'
+import type { AuthProviders, DisplayNameUpdateRequest, UserOut } from '../api/types'
+import { renameVisitStaff } from '../composables/useVisitStaff'
 import { useAuthStore } from '../stores/auth'
 
 type Notice = { type: 'success' | 'info' | 'warning' | 'error'; text: string }
@@ -46,6 +50,47 @@ const result = route.query.line_link
 const notice = ref<Notice | null>(
   typeof result === 'string' && Object.hasOwn(LINK_RESULTS, result) ? LINK_RESULTS[result] ?? null : null,
 )
+
+// ---- 顯示名稱：同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字 ----
+// 本人隨時可以改（PATCH /auth/me），留空＝不設定，畫面改用 Email @ 前面那段。
+const nameDraft = ref(auth.user?.display_name ?? '')
+const nameSaving = ref(false)
+const nameServerError = ref('')
+const nameInput = ref<{ focus: () => void } | null>(null)
+const savedName = computed(() => auth.user?.display_name ?? null)
+const nameDirty = computed(() => (nameDraft.value.trim() || null) !== savedName.value)
+watch(nameDraft, () => { nameServerError.value = '' })
+// 登入狀態重新讀取後名字變了（例如總管理者剛替你改過）：沒有正在修改時跟著換。
+watch(savedName, (value, previous) => {
+  if (!nameSaving.value && (nameDraft.value.trim() || null) === (previous ?? null)) nameDraft.value = value ?? ''
+})
+
+async function saveName() {
+  if (!auth.user || nameSaving.value || !nameDirty.value) return
+  if (displayNameError(nameDraft.value)) {
+    nameInput.value?.focus()
+    return
+  }
+  nameSaving.value = true
+  try {
+    const body: DisplayNameUpdateRequest = { display_name: nameDraft.value.trim() || null }
+    const updated = await api.patch<UserOut>('/auth/me', body)
+    auth.user = { ...auth.user, ...updated }
+    nameDraft.value = updated.display_name ?? ''
+    renameVisitStaff(updated.id, updated.display_name ?? null)
+    ElMessage.success(updated.display_name ? `已更新顯示名稱，同事會看到「${updated.display_name}」` : `已清除顯示名稱，同事會看到「${staffLabel(updated)}」`)
+  } catch (err) {
+    const fieldError = apiFieldError(err, 'display_name')
+    if (fieldError) {
+      nameServerError.value = fieldError
+      nameInput.value?.focus()
+    } else {
+      ElMessage.error(apiErrorMessage(err, '顯示名稱沒有更新，請再試一次'))
+    }
+  } finally {
+    nameSaving.value = false
+  }
+}
 
 function setLineLinked(linked: boolean) {
   if (auth.user) auth.user = { ...auth.user, line_linked: linked }
@@ -127,7 +172,7 @@ async function unlink() {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="查看自己的帳號資料，並更改密碼、設定登入方式。" />
+    <PageHeader lead="查看自己的帳號資料，設定同事看到的名字，並更改密碼、設定登入方式。" />
 
     <el-alert v-if="notice" :type="notice.type" :title="notice.text" :closable="false" show-icon class="account__notice" />
 
@@ -145,6 +190,22 @@ async function unlink() {
             <div v-if="grants.length"><dt>額外授權</dt><dd>{{ grants.join('、') }}</dd></div>
           </dl>
           <p class="field-help">Email、角色與校區由總管理者在「使用者」設定。</p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="account-name-title">
+        <div class="panel__head"><h2 id="account-name-title">顯示名稱</h2></div>
+        <div class="panel__body">
+          <el-form label-position="top" class="account__name" :disabled="nameSaving" @submit.prevent="saveName">
+            <DisplayNameField
+              ref="nameInput"
+              v-model="nameDraft"
+              input-id="account-display-name"
+              :server-error="nameServerError"
+              help="同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字，建議用園裡平常叫的稱呼。留空就用 Email @ 前面那段。"
+            />
+            <el-button type="primary" :loading="nameSaving" :disabled="!nameDirty" data-test="save-display-name" @click="saveName">儲存名稱</el-button>
+          </el-form>
         </div>
       </section>
 
@@ -257,6 +318,18 @@ async function unlink() {
 .account__facts dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.account__name {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.account__name :deep(.el-form-item) {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 8px;
 }
 
 .account__role-desc {

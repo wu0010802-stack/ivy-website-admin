@@ -124,7 +124,8 @@ describe('操作紀錄頁', () => {
   it('桌機表格的校區欄沒有校區時寫「全站」，細節不用等寬字、不截斷', async () => {
     const wrapper = await mountAudit(entries)
     const cells = wrapper.findAll('.data-table .el-table__body tr').map(row => row.findAll('td').map(td => td.text()))
-    expect(cells.map(row => row[2])).toEqual(['義華', '全站', '全站'])
+    // 第二欄是 2026-09-28 業主裁定加的「操作者」，校區在第四欄。
+    expect(cells.map(row => row[3])).toEqual(['義華', '全站', '全站'])
     expect(wrapper.find('.data-table .mono').exists()).toBe(false)
     expect(wrapper.find('.data-table .el-tooltip').exists()).toBe(false)
     const text = wrapper.text()

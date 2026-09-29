@@ -13,6 +13,13 @@ export function resetVisitStaff(): void {
   pending = null
 }
 
+/** 改了某人的顯示名稱（自己在「我的帳號」或總管理者在「使用者」頁）：已讀好的
+ * 名單跟著換，案件頁不必重新整理就看得到新名字。名單還沒讀過就不用管。 */
+export function renameVisitStaff(userId: string, displayName: string | null): void {
+  const found = staff.value.find((s) => s.id === userId)
+  if (found) found.display_name = displayName
+}
+
 export function useVisitStaff() {
   function load(force = false): Promise<void> {
     if (pending && !force) return pending

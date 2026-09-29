@@ -18,6 +18,8 @@ export interface PublishJob {
   status: 'scheduled' | 'done' | 'failed' | 'skipped' | 'cancelled'
   error: string | null
   created_by_email: string | null
+  /** 排程的人設定的顯示名稱（沒設定為 null）；編輯頁的排程列刻意不寫是誰排的 */
+  created_by_display_name?: string | null
   finished_at: string | null
   /** 沒有發布（failed／skipped）的排程已經處理過：有人按了「知道了」，或官網之後換過這項內容的版本 */
   resolved?: boolean
@@ -159,6 +161,8 @@ export interface RevisionSummary {
   version: number
   created_at: string
   created_by_email: string | null
+  /** 儲存這一版的人設定的顯示名稱；畫面一律經 staffLabel 顯示 */
+  created_by_display_name?: string | null
   is_published: boolean
   /** 曾經是官網上的版本（包含現在） */
   ever_published?: boolean
