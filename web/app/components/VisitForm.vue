@@ -30,6 +30,7 @@ const form = reactive({
 
 const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
 const stageRef = ref<HTMLElement | null>(null)
+const asideRef = ref<HTMLElement | null>(null)
 const pickerRef = ref<HTMLElement | null>(null)
 const formRef = ref<HTMLFormElement | null>(null)
 const errorRef = ref<HTMLElement | null>(null)
@@ -134,6 +135,10 @@ const resultCopy = computed(() => {
 })
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
+// 連線或伺服器失敗時，錯誤在表單頂端、送出鈕在一千多 px 以下：鈕旁再補一行（視覺用，
+// 頂端的 role=alert 已經朗讀過）。只給「原封不動再按一次」就好的失敗，稍後再試、
+// 其實已送出等情況不顯示。
+const submitRetryHint = ref(false)
 // 同一次填寫用同一個 idempotency key；重送（例如網路重試）會安全地
 // 回到同一筆案件，不會建立第二筆。只有成功後才換新的 key。
 const idempotencyKey = ref(crypto.randomUUID())
@@ -148,7 +153,11 @@ const nextLabel = computed(() => bookingPending.value ? '正在確認參觀方�
 async function focusStage() {
   await nextTick()
   stageRef.value?.focus({ preventScroll: true })
-  stageRef.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  // 960px 以下側欄收成表單上方一條：捲到側欄（它沒有 scroll-margin，只讓出 html 的
+  // scroll-padding），所選校區與「更換校區」才不會卡在頁首膠囊底下；.visit-stage 的
+  // scroll-margin 再疊上去會多捲一段、把側欄捲走。桌機兩欄照舊捲 stage。
+  const target = !isPicking.value && asideRef.value && matchMedia('(max-width: 960px)').matches ? asideRef.value : stageRef.value
+  target?.scrollIntoView({ block: 'start', behavior: 'instant' })
 }
 
 async function retryBookingConfig() {
@@ -173,7 +182,10 @@ async function changeCampus() {
   if (submitting.value) return
   step.value = 1
   await focusStage()
-  pickerRef.value?.querySelector<HTMLInputElement>('input:checked')?.focus({ preventScroll: true })
+  const checked = pickerRef.value?.querySelector<HTMLInputElement>('input:checked')
+  checked?.focus({ preventScroll: true })
+  // 矮螢幕（320x568）捲到 stage 頂端後，已選的卡（例如第三張）還在畫面下方：補捲到看得見為止。
+  checked?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
 }
 
 function clearFieldError(field: VisitField) {
@@ -185,6 +197,21 @@ function checkField(field: VisitField) {
   const message = validateVisitContact(form)[field]
   if (message) fieldErrors.value[field] = message
   else clearFieldError(field)
+}
+
+// 手機鍵盤的「前往／Enter」會隱式送出表單，還沒填的欄位一次全變紅：觸控裝置上改成
+// 跳到下一欄（最後一欄就收起鍵盤），只有按「送出參觀需求」才送出。桌機鍵盤維持
+// Enter 送出。注音、倉頡選字也用 Enter 確認，組字中（Safari 的 keyCode 229）不攔。
+function onEnterKey(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229 || !matchMedia('(pointer: coarse)').matches) return
+  const target = event.target
+  if (!(target instanceof HTMLInputElement) || !['text', 'tel', 'email', 'date'].includes(target.type)) return
+  event.preventDefault()
+  const fields = [...(formRef.value?.querySelectorAll<HTMLElement>('input:not([type=radio]):not([type=checkbox]),select,textarea') ?? [])]
+    .filter(el => el.offsetParent && !el.closest('details:not([open])'))
+  const next = fields[fields.indexOf(target) + 1]
+  if (next) next.focus()
+  else target.blur()
 }
 
 async function focusError() {
@@ -217,6 +244,7 @@ watch(() => form.campus, () => {
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
   submitError.value = null
+  submitRetryHint.value = false
   form.parentName = form.parentName.trim()
   form.childName = form.childName.trim()
   form.email = form.email.trim()
@@ -263,7 +291,10 @@ async function onSubmit() {
     submitted.value = true
     idempotencyKey.value = crypto.randomUUID()
     await nextTick()
-    resultRef.value?.focus()
+    // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
+    // 比照 focusStage，先不捲動地聚焦，再把頂端對齊到頁首下方（.visit-result 手機不另加 scroll-margin）。
+    resultRef.value?.focus({ preventScroll: true })
+    resultRef.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
   } catch (err: any) {
     const detail = err?.data?.detail
     const code = typeof detail === 'object' ? detail.code : null
@@ -298,6 +329,7 @@ async function onSubmit() {
       submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
     } else {
       submitError.value = '送出失敗，請稍後再試一次；你填寫的內容還保留著。'
+      submitRetryHint.value = true
     }
     // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。
     await focusError()
@@ -319,14 +351,19 @@ async function onSubmit() {
           <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
-          <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
+          <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。
+               不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
+          <picture>
+            <source media="(max-width: 760px), (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+            <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
+          </picture>
           <figcaption>在常春藤，遇見成長的下一站。</figcaption>
         </figure>
       </div>
     </header>
     <div class="container visit-content">
       <div class="visit-shell">
-        <aside v-if="!isPicking && selectedCampus" class="visit-campus-aside" aria-label="所選校園">
+        <aside v-if="!isPicking && selectedCampus" ref="asideRef" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
             <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
             <span class="visit-aside-caption">
@@ -354,6 +391,8 @@ async function onSubmit() {
             <section v-if="step === 1" class="visit-pick-step" aria-labelledby="visit-choose-title">
               <h2 id="visit-choose-title">想先認識哪所校園？</h2>
               <p class="visit-step-copy">依照你的生活圈與接送路線選擇。</p>
+              <!-- 放在選校清單前面：沒選校按「下一步」會聚焦第一張卡，錯誤要在卡片正上方才看得到。 -->
+              <p id="visit-campus-error" class="visit-field-error" role="alert">{{ campusError }}</p>
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
                 <legend class="sr-only">想參觀的校區</legend>
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
@@ -366,7 +405,6 @@ async function onSubmit() {
                 </label>
               </fieldset>
               <p v-if="!campuses.length" class="visit-status" role="status">目前沒有可供選擇的校區，請稍後再來查看。</p>
-              <p id="visit-campus-error" class="visit-field-error" role="alert">{{ campusError }}</p>
               <div class="visit-next-row">
                 <p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}` : '選好校園後，查看參觀方式。' }}</p>
                 <button class="button primary visit-next" type="button" :disabled="bookingPending || !campuses.length" :aria-busy="bookingPending" @click="goNext">{{ nextLabel }}<span v-if="!bookingPending" aria-hidden="true">→</span></button>
@@ -391,7 +429,7 @@ async function onSubmit() {
                 <div class="visit-contact-foot"><p>想先看看校園環境？</p><NuxtLink class="visit-inline-link" :to="`/campuses/${selectedCampus.key}`">認識{{ selectedCampus.name }}</NuxtLink></div>
               </section>
 
-              <form v-else ref="formRef" class="booking-form visit-contact-form" novalidate :aria-busy="submitting" @submit.prevent="onSubmit">
+              <form v-else ref="formRef" class="booking-form visit-contact-form" novalidate :aria-busy="submitting" @submit.prevent="onSubmit" @keydown.enter="onEnterKey">
                 <h2>填寫參觀資料</h2>
                 <p class="visit-step-copy">讓{{ selectedCampus.name }}先認識孩子，也為這次見面做好準備。</p>
                 <p v-if="action.message" class="visit-config-note">{{ action.message }}</p>
@@ -415,7 +453,7 @@ async function onSubmit() {
                   <section class="visit-form-section" aria-labelledby="visit-child-title">
                     <h3 id="visit-child-title">孩子資料</h3>
                     <div class="visit-field-grid">
-                      <div class="visit-field"><label for="child-name">孩子姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" required placeholder="請填寫孩子姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkField('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
+                      <div class="visit-field"><label for="child-name">孩子姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" enterkeyhint="next" required placeholder="請填寫孩子姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkField('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
                       <div class="visit-field"><label for="child-birthdate">孩子出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkField('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依孩子生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
                     </div>
                   </section>
@@ -423,10 +461,10 @@ async function onSubmit() {
                   <section class="visit-form-section" aria-labelledby="visit-parent-title">
                     <h3 id="visit-parent-title">家長聯絡方式</h3>
                     <div class="visit-field-grid">
-                      <div class="visit-field"><label for="parent-name">家長稱呼<small>必填</small></label><input id="parent-name" v-model="form.parentName" name="parentName" autocomplete="section-parent name" maxlength="40" required placeholder="例如：陳媽媽" :aria-invalid="Boolean(fieldErrors.parentName)" aria-describedby="visit-name-error" @blur="checkField('parentName')" @input="clearFieldError('parentName')"><p id="visit-name-error" class="visit-field-error">{{ fieldErrors.parentName }}</p></div>
-                      <div class="visit-field"><label for="parent-phone">聯絡電話<small>必填</small></label><input id="parent-phone" v-model="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="section-parent tel-national" maxlength="16" required pattern="09[0-9]{8}" placeholder="09xxxxxxxx" :aria-invalid="Boolean(fieldErrors.phone)" aria-describedby="phone-hint visit-phone-error" @blur="checkField('phone')" @input="clearFieldError('phone')"><small id="phone-hint" class="visit-field-hint">09 開頭的 10 碼手機號碼</small><p id="visit-phone-error" class="visit-field-error">{{ fieldErrors.phone }}</p></div>
+                      <div class="visit-field"><label for="parent-name">家長稱呼<small>必填</small></label><input id="parent-name" v-model="form.parentName" name="parentName" autocomplete="section-parent name" maxlength="40" enterkeyhint="next" required placeholder="例如：陳媽媽" :aria-invalid="Boolean(fieldErrors.parentName)" aria-describedby="visit-name-error" @blur="checkField('parentName')" @input="clearFieldError('parentName')"><p id="visit-name-error" class="visit-field-error">{{ fieldErrors.parentName }}</p></div>
+                      <div class="visit-field"><label for="parent-phone">聯絡電話<small>必填</small></label><input id="parent-phone" v-model="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="section-parent tel-national" maxlength="16" enterkeyhint="next" required pattern="09[0-9]{8}" placeholder="09xxxxxxxx" :aria-invalid="Boolean(fieldErrors.phone)" aria-describedby="phone-hint visit-phone-error" @blur="checkField('phone')" @input="clearFieldError('phone')"><small id="phone-hint" class="visit-field-hint">09 開頭的 10 碼手機號碼</small><p id="visit-phone-error" class="visit-field-error">{{ fieldErrors.phone }}</p></div>
                       <div class="visit-field"><label for="party-size">參觀人數<small>必填</small></label><select id="party-size" v-model="form.partySize" name="partySize" required :aria-invalid="Boolean(fieldErrors.partySize)" aria-describedby="visit-party-hint visit-party-error" @change="checkField('partySize')"><option value="">請選擇</option><option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :value="String(size)">{{ size }} 位</option></select><small id="visit-party-hint" class="visit-field-hint">含大人與孩子，方便園所準備接待。</small><p id="visit-party-error" class="visit-field-error">{{ fieldErrors.partySize }}</p></div>
-                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>選填</small></label><input id="parent-email" v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-error" @blur="checkField('email')" @input="clearFieldError('email')"><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
+                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>選填</small></label><input id="parent-email" v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" enterkeyhint="done" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-error" @blur="checkField('email')" @input="clearFieldError('email')"><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
                     </div>
                   </section>
 
@@ -443,7 +481,7 @@ async function onSubmit() {
                   <p id="visit-consent-error" class="visit-field-error">{{ fieldErrors.consent }}</p>
                 </fieldset>
                 <p v-if="Object.keys(fieldErrors).length" class="sr-only" role="alert">請確認標示的欄位：{{ Object.values(fieldErrors).join(' ') }}</p>
-                <div class="visit-submit-row"><p>送出後，請查看確認結果。<br>參觀時間以園所確認為準。</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
+                <div class="visit-submit-row"><p>送出後，請查看確認結果。<br>參觀時間以園所確認為準。</p><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">送出沒有成功，可以直接再按一次。</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
               </form>
             </template>
           </template>

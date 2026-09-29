@@ -167,7 +167,8 @@
 .visit-optional summary {list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;font-size:var(--fs-md);color:var(--visit-ink)}
 .visit-optional summary::-webkit-details-marker {display:none}
 .visit-optional summary>span {display:flex;align-items:center;gap:17px;font-size:var(--fs-xs);color:var(--visit-muted)}
-.visit-expand-mark {display:block;width:20px;height:24px;background:transparent;font-size:var(--fs-xl);line-height:24px;font-weight:400;color:var(--visit-ink)}
+/* 用 em：100% 時同為 20×24；文字放大 200% 時框跟著變大，「＋」不會凸出右緣撐出橫向捲動。 */
+.visit-expand-mark {display:block;width:1em;height:1.2em;background:transparent;font-size:var(--fs-xl);line-height:1.2;font-weight:400;color:var(--visit-ink)}
 .visit-optional[open] .visit-expand-mark {transform:rotate(45deg)}
 .visit-optional .visit-field-grid {margin-top:8px;padding-bottom:24px}
 .visit-consent {display:flex;align-items:flex-start;gap:11px;min-height:48px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted);cursor:pointer}
@@ -177,6 +178,8 @@
 .visit-form-fields:disabled {opacity:.7}
 .visit-submit-row {border-top:1px solid var(--visit-line);padding-top:22px;margin-top:21px;display:flex;align-items:center;justify-content:space-between;gap:18px}
 .visit-submit-row>p {font-size:var(--fs-sm);line-height:1.8;color:var(--visit-muted)}
+/* 送出失敗時送出鈕旁的補充提示（VisitForm submitRetryHint）：桌機緊靠在鈕左邊。 */
+.visit-submit-row>.visit-submit-retry {margin-left:auto;color:var(--error);text-align:right}
 .visit-submit-row .button {white-space:nowrap}
 .visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9}
 .visit-loading {padding-block:40px;min-height:180px}
@@ -229,10 +232,13 @@
   .visit-aside-info {margin:0;padding:0;border:0}
   .visit-campus-choice {flex:0 1 calc((100% - 32px) / 3)}
   .visit-welcome-inner {grid-template-columns:1fr;row-gap:40px}
+  /* 送出結果不再疊 scroll-margin：html 的 scroll-padding 已經讓出頁首，疊上去狀態與標題會被推到畫面下緣。 */
+  .visit-result {scroll-margin-top:0}
 }
 @media(max-width:760px) {
   .visit-page {padding-bottom:56px}
-  .visit-stage,.visit-result {scroll-margin-top:98px}
+  .visit-stage {scroll-margin-top:98px}
+  .visit-result {scroll-margin-top:0}
   .visit-stage h2 {font-size:var(--fs-2xl)}
   .visit-step-copy {font-size:var(--fs-sm)}
   .visit-next-row {flex-direction:column;align-items:stretch;gap:12px}
@@ -262,13 +268,16 @@
   .visit-optional {margin-block:22px}
   .visit-submit-row {flex-direction:column-reverse;align-items:stretch;gap:13px;padding-top:22px;margin-top:16px}
   .visit-submit-row>p {font-size:var(--fs-xs);text-align:center}
+  .visit-submit-row>.visit-submit-retry {order:1;margin:0;font-size:var(--fs-sm);text-align:center}
   .visit-contact-actions {align-items:stretch;flex-direction:column;gap:12px}
   .visit-contact-actions .button {width:100%;min-height:52px}
   .visit-contact-actions .visit-inline-link {align-self:flex-start}
   .visit-contact-foot {margin-top:28px}
   .visit-result-list>div {grid-template-columns:82px minmax(0,1fr);gap:12px}
 }
-@media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}}
+@media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}.visit-slot-options {grid-template-columns:1fr}}
+/* 橫拿手機（高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
+@media(max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
 @media(forced-colors:active) {
   .visit-campus-choice input:checked+.visit-campus-card {outline:3px solid Highlight;outline-offset:3px}
   .visit-campus-check {border:1px solid CanvasText}

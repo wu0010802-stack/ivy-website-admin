@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { NewsArticle, SiteContent } from '../app/types/site-content'
@@ -67,5 +69,24 @@ describe('示意消息不給搜尋引擎（2026-09-26 裁定）', () => {
     expect(newsListSeo(site, 'https://ivy.example').canonical).toBe('https://ivy.example/news')
     expect(newsListSeo(site, '').graph).toEqual([])
     expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })).toContain('(https://ivy.example/news)')
+  })
+})
+
+describe('列表頁的示意活動與標題斷行（2026-09-29 手機審查）', () => {
+  const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
+  const index = read('../app/components/NewsIndexContent.vue')
+  const css = read('../app/assets/css/news-page.css')
+
+  it('示意活動寫「示意／日期未定」，meta 不列日期；真實活動照舊顯示日期（同首頁對話框 09-27 規則）', () => {
+    expect(index).toContain('<span v-if="isSample(item)" class="np-event-date is-sample"><b>示意</b><span>日期未定</span></span>')
+    expect(index).toMatch(/<time v-else class="np-event-date" :datetime="item\.date">/)
+    expect(index).toContain("[isSample(item) ? '' : formatDate(item.date), eventFacts(item)]")
+    // 中文字不用英文月份的 10px
+    expect(css).toMatch(/\.np-event-date\.is-sample span\{font-size:var\(--fs-xs\)/)
+  })
+
+  it('列表標題與單篇 h1 沿用全域 balance，不用 pretty、不加 keep-all', () => {
+    expect(css).not.toMatch(/text-wrap:\s*pretty/)
+    expect(css).not.toMatch(/word-break:\s*keep-all/)
   })
 })
