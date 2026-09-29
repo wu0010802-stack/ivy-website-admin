@@ -17,26 +17,7 @@ const NS = 'http://www.w3.org/2000/svg'
 // 筆觸（mock C 的 medium 筆）
 const PEN = { rough: 1.7, bow: 1.3, line: 2, frame: 2.2, hand: 2.4 }
 // 會「一筆一筆畫出來」的種類；其餘（色紙、膠帶、按鈕、小路、太陽）直接出現
-const ANIMATED = new Set(['frame', 'heart', 'circle', 'highlight', 'note', 'spot', 'stop', 'clothesline', 'check', 'bookarrow'])
-
-/** 標註便條的位置：預設放在標註點上方，點太靠上就放下方；和前面的便條重疊就換邊，還是重疊就往下推。 */
-export function layoutSpotBoxes(image: Box, spots: { x: number; y: number; w: number; h: number }[]): Box[] {
-  const gap = Math.max(34, image.h * 0.17)
-  const placed: Box[] = []
-  const hit = (a: Box) => placed.some((b) => a.x < b.x + b.w + 6 && b.x < a.x + a.w + 6 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4)
-  for (const spot of spots) {
-    const sx = image.x + (spot.x / 100) * image.w
-    const sy = image.y + (spot.y / 100) * image.h
-    const x = Math.min(Math.max(sx - spot.w / 2, image.x - 10), image.x + image.w - spot.w + 10)
-    const at = (above: boolean): Box => ({ x, y: above ? sy - gap - spot.h : sy + gap, w: spot.w, h: spot.h })
-    let box = at(spot.y >= 34)
-    if (hit(box)) box = at(spot.y < 34)
-    while (hit(box) && box.y < image.y + image.h) box = { ...box, y: box.y + spot.h + 6 }
-    box = { ...box, y: Math.min(Math.max(box.y, image.y - spot.h * 0.6), image.y + image.h - spot.h * 0.4) }
-    placed.push(box)
-  }
-  return placed
-}
+const ANIMATED = new Set(['frame', 'heart', 'circle', 'highlight', 'note', 'stop', 'clothesline', 'check', 'bookarrow'])
 
 /** 餐點的太陽弧（桌機）：t＝0 早餐、1 點心；兩端低、中午最高。 */
 export function mealArcPoint(t: number, width: number): Point {
@@ -165,22 +146,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     svg.style.zIndex = '3'
   }
 
-  function placeSpots(fig: HTMLElement) {
-    const img = fig.querySelector<HTMLImageElement>(':scope > img')
-    const spots = [...fig.querySelectorAll<HTMLElement>(':scope > .renv-spot')]
-    if (!img || !spots.length) return
-    const boxes = layoutSpotBoxes(rel(img, fig), spots.map((el) => ({ x: Number(el.dataset.x), y: Number(el.dataset.y), w: el.offsetWidth, h: el.offsetHeight })))
-    spots.forEach((el, i) => {
-      el.style.left = `${boxes[i]!.x}px`
-      el.style.top = `${boxes[i]!.y}px`
-      el.style.setProperty('--r', `${i % 2 ? 2.5 : -2.5}deg`)
-      el.classList.add('is-placed')
-    })
-  }
-
   const draw: Record<string, (el: HTMLElement, seed: number) => void> = {
     frame(el, seed) {
-      placeSpots(el)
       const img = el.querySelector(':scope > img')
       const { svg, rc } = layer(el, 'frame', 18)
       // 照片沒有白邊，直接貼在一張蠟筆底紙上；框只框照片本身，圖說留在底紙外
@@ -240,12 +207,6 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       svg.append(rc.rectangle(0, 0, w, h, { stroke: C.ink, strokeWidth: PEN.frame * 0.7, roughness: 1.4, seed }))
       const [tx = 0, ty = 0] = (el.dataset.to ?? '').split(',').map(Number)
       arrowTo(el, tx, ty, seed)
-    },
-    spot(el, seed) {
-      // 校園探索的標註點：位置在 frame 那一步排好，這裡只畫便條外框和箭頭
-      const { svg, rc, w, h } = layer(el, 'note', 8)
-      svg.append(rc.rectangle(0, 0, w, h, { stroke: C.ink, strokeWidth: PEN.frame * 0.6, roughness: 1.4, seed }))
-      arrowTo(el, Number(el.dataset.x) / 100, Number(el.dataset.y) / 100, seed)
     },
     tab(el, seed) {
       const { svg, rc, w, h } = layer(el, 'tab', 12, true)
@@ -467,7 +428,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
 
   function strokes(el: HTMLElement) {
     const svgs: (SVGSVGElement | null)[] = [...el.querySelectorAll<SVGSVGElement>(':scope > svg.rough')]
-    if (el.dataset.rough === 'note' || el.dataset.rough === 'spot') svgs.push(el.parentElement!.querySelector<SVGSVGElement>(`:scope > svg.rough[data-key="arrow-${el.dataset.seed}"]`))
+    if (el.dataset.rough === 'note') svgs.push(el.parentElement!.querySelector<SVGSVGElement>(`:scope > svg.rough[data-key="arrow-${el.dataset.seed}"]`))
     if (el.dataset.rough === 'bookarrow') svgs.push(el.parentElement!.querySelector<SVGSVGElement>(':scope > svg.rough[data-key="bookarrow"]'))
     return svgs.filter((s): s is SVGSVGElement => !!s).flatMap((s) => [...s.querySelectorAll('path')])
   }

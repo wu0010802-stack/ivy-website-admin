@@ -3,6 +3,7 @@
 // design/environment-rough-mockup-20260928/），跟其他分頁刻意不同：點格紙、蠟筆色紙、Rough.js 手繪線、圓體字。
 // 內容：幼兒保育、校園環境、幼兒餐點三章沿用 2026-09-25 從舊官網搬來的原文（只修錯字與標點）；
 // 第四章「五所校園」直接讀後台發布的各校校園探索（campuses[].tourScenes），文字不在這裡寫死。
+// 2026-09-29 使用者裁定：第四章照片上不畫標註點的便條與箭頭（分校頁校園探索的熱點照舊）。
 // 2026-09-28 使用者裁定：這一頁不放預約參觀（全站共用的頁首預約鈕除外）。
 // 手繪線條由 utils/rough-sketch.ts 在瀏覽器畫上去，純裝飾；沒有 JS 時版面與文字照常。
 // 2026-09-28 加 GSAP 動態層（utils/environment-motion.ts；比稿 design/environment-gsap-mockup-20260928/）：
@@ -259,7 +260,7 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
         <div class="renv-split-head">
           <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="401" data-chapter-check="campuses" aria-hidden="true" /><span lang="en">{{ chapterNo('campuses') }}</span>五所校園</p>
           <h2 id="tour-title" class="renv-title">每一所校園，<br>都有自己的角落。</h2>
-          <p class="renv-text">空間配置各校不同。下面的照片與標註取自各分校頁的校園探索，挑一所學校看看。</p>
+          <p class="renv-text">空間配置各校不同。下面的照片取自各分校頁的校園探索，挑一所學校看看。</p>
         </div>
         <p class="renv-hand renv-tour-hint" aria-hidden="true">挑一所學校，翻開來看</p>
         <div class="renv-tour-tabs" role="tablist" aria-label="選一所校園">
@@ -299,7 +300,6 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
               <figure class="renv-scene-photo renv-snap" data-rough="frame" :data-seed="600 + t * 60 + s * 21">
                 <img v-bind="sceneImage(scene, s === 0 && tour.scenes.length !== 2)" :alt="`${tour.campus.name}的${scene.name}`" loading="lazy" decoding="async">
                 <span class="renv-tape" :class="s % 2 ? 'is-tr' : 'is-tl'" data-rough="tape" :data-seed="601 + t * 60 + s * 21" />
-                <span v-for="(spot, p) in scene.spots" :key="spot.name" class="renv-spot" aria-hidden="true" data-rough="spot" :data-x="spot.x" :data-y="spot.y" :data-seed="610 + t * 60 + s * 21 + p">{{ spot.name }}</span>
               </figure>
               <div class="renv-scene-copy">
                 <h3 class="renv-scene-name" data-rough="tagfill" :data-seed="602 + t * 60 + s * 21">{{ scene.name }}</h3>
