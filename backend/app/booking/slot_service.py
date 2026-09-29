@@ -153,6 +153,19 @@ async def count_booked(db: AsyncSession, slot_id: uuid.UUID) -> int:
     return result.scalar_one()
 
 
+async def count_booked_by_slot(db: AsyncSession, slot_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """多個時段的已占名額一次查完（沒有占用的時段不在結果裡）。公開時段查詢
+    原本每個時段各查一次，匿名者一個請求就能換到上百次查詢。"""
+    if not slot_ids:
+        return {}
+    result = await db.execute(
+        select(VisitRequest.slot_id, func.count())
+        .where(VisitRequest.slot_id.in_(slot_ids), occupying_condition())
+        .group_by(VisitRequest.slot_id)
+    )
+    return dict(result.all())
+
+
 async def count_bookable_slots(db: AsyncSession, campus_key: str, config, now: datetime | None = None) -> int:
     """官網現在列得出來、訂得到的場次數：與公開時段查詢同一個判斷（開放中、
     在該校的最短提前與最遠開放區間內、還有名額）。啟用 slots 的條件與總覽的

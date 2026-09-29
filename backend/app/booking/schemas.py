@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
@@ -75,6 +75,22 @@ def normalize_phone(value: str) -> str:
     if not _PHONE_PATTERN.fullmatch(normalized):
         raise ValueError("手機號碼格式錯誤，需為 09 開頭的 10 碼數字")
     return normalized
+
+
+# 自由文字不收控制字元（換行、歸位、TAB 除外）。PostgreSQL 的 text 不收 NUL，
+# 原本會一路打到 INSERT 才炸成 500，錯誤紀錄還帶出整筆送單的綁定參數；
+# 其他控制字元沒有正當用途，一併擋在 schema，回 422。
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def has_control_chars(value: str) -> bool:
+    return _CONTROL_CHARS_RE.search(value) is not None
+
+
+def _reject_control_chars(value):
+    if isinstance(value, str) and has_control_chars(value):
+        raise ValueError("內容含有不允許的控制字元")
+    return value
 
 
 _ALLOWED_LINK_SCHEMES = ("https://", "http://")
@@ -205,6 +221,9 @@ class PublicBookingConfigOut(BaseModel):
     consent_text: str | None = None
     # 同一版的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
     privacy_notice: PrivacyNoticeOut | None = None
+    # Cloudflare Turnstile 的 site key。部署有設定 Turnstile 時才有值，官網
+    # 據此顯示驗證元件並在送單時帶 turnstile_token；None＝不需要驗證。
+    turnstile_site_key: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -228,6 +247,11 @@ class _VisitRequestFields(BaseModel):
     # 規格 L194：參觀人數 1–10。補登沒問到可以不填；官網新送的需求必填（見 VisitRequestCreate）。
     party_size: int | None = Field(default=None, ge=1, le=10)
     consent_given: bool
+
+    @field_validator("campus_key", "parent_name", "child_name", "questions")
+    @classmethod
+    def _no_control_chars(cls, value):
+        return _reject_control_chars(value)
 
     @field_validator("age", mode="before")
     @classmethod
@@ -286,8 +310,11 @@ class VisitRequestCreate(_VisitRequestFields):
     # 需求重試時（當時表單沒有人數）仍能回到原案件。
     # 家長看到的同意說明版本（公開預約設定的 consent_revision_id）。沒帶或
     # 已不是發布中的內容回 409 CONSENT_VERSION_CHANGED，前端重新載入後請家長
-    # 重新閱讀、勾選。不算進 idempotency 的 payload hash，見 service._hash_payload。
+    # 重新閱讀、勾選。不算進 idempotency 的 payload hash，見 service._canonical_payload。
     consent_revision_id: uuid.UUID | None = None
+    # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
+    # 時必帶）。不是家長填的內容，不算進 payload hash。
+    turnstile_token: str | None = Field(default=None, max_length=2048)
 
 
 
@@ -304,6 +331,11 @@ class VisitRequestManualCreate(_VisitRequestFields):
     note: str | None = Field(default=None, max_length=1000)
     # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
     related_request_id: uuid.UUID | None = None
+
+    @field_validator("note")
+    @classmethod
+    def _note_no_control_chars(cls, value: str | None) -> str | None:
+        return _reject_control_chars(value)
 
 
 class VisitRequestAssignRequest(BaseModel):
@@ -546,7 +578,7 @@ class VisitRequestConfirmRequest(BaseModel):
 
 
 # 人員填的原因（選填），記在案件歷程；匿名化時清掉。
-ReasonText = Annotated[str | None, Field(max_length=500)]
+ReasonText = Annotated[str | None, Field(max_length=500), AfterValidator(_reject_control_chars)]
 
 
 class VisitRequestRescheduleRequest(BaseModel):
@@ -637,6 +669,11 @@ class VisitContactNoteCreateRequest(BaseModel):
     # 有改下次聯絡時間時必填（會蓋掉案件上的值，要跟改承辦人一樣檢查版本）；
     # 只記一筆聯絡紀錄是新增，不會蓋掉別人的東西，可以省略。
     expected_version: int | None = Field(default=None, ge=1)
+
+    @field_validator("note")
+    @classmethod
+    def _note_no_control_chars(cls, value: str) -> str:
+        return _reject_control_chars(value)
 
     @property
     def clears_follow_up(self) -> bool:

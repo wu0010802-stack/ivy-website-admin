@@ -13,11 +13,12 @@ WEBSITE_RETENTION_ALLOW_REAL_RUN=true，定期工作另外要政策開啟自動�
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Text, cast, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +28,9 @@ from app.common.timezones import now_utc
 from app.operations.models import DEFAULT_RETENTION_DAYS, RetentionPolicy, RetentionRun, RetentionRunTrigger
 
 ANONYMIZED_NOTE = "（已依保存政策匿名化）"
+# 匿名化後的 idempotency_key（欄位 NOT NULL 且與 campus_key 唯一，不能清成
+# NULL）：換成不含原值、每筆唯一的固定格式。公開送單拒收這個前綴。
+ANONYMIZED_IDEMPOTENCY_PREFIX = "anonymized:"
 
 # 各類的代碼（retention_runs.counts 的鍵，API 與後台共用）。
 CANCELLED = VisitRequestStatus.CANCELLED.value
@@ -164,6 +168,11 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
     visit_request.email = None
     visit_request.referral_sources = []
     visit_request.questions = None
+    # payload_hash 是家長填寫內容的雜湊，舊資料是裸 SHA-256：稱呼＋手機這類
+    # 低熵內容可以暴力還原。冪等比對只在送單當下有意義，結案到匿名化早就用
+    # 不到，換成隨機值；idempotency_key 一起換掉。
+    visit_request.payload_hash = secrets.token_hex(32)
+    visit_request.idempotency_key = f"{ANONYMIZED_IDEMPOTENCY_PREFIX}{visit_request.id}"
     # 聯絡紀錄是接待人員寫的自由文字，常會記下姓名、電話或家庭狀況；
     # 不清掉的話案件標成已匿名化，個資卻還留在關聯表裡。保留列與時間
     # （聯絡歷程次數仍可統計），只換掉內容。
@@ -231,7 +240,24 @@ async def run_sweep(
 
 
 async def _backfill_anonymized(db: AsyncSession) -> None:
-    """回補：舊版匿名化沒有清聯絡紀錄與原因，已標記的案件不會再被選為候選。"""
+    """回補：舊版匿名化沒有清聯絡紀錄與原因，也沒有換掉 payload_hash 與
+    idempotency_key；已標記的案件不會再被選為候選。只改還沒換過 key 的列，
+    重跑不會再動已清過的。"""
+    await db.execute(
+        update(VisitRequest)
+        .where(
+            VisitRequest.anonymized_at.is_not(None),
+            VisitRequest.idempotency_key.not_like(f"{ANONYMIZED_IDEMPOTENCY_PREFIX}%"),
+        )
+        .values(
+            # 兩段隨機 UUID 的 md5 接成 64 個十六進位字元，與原內容無關。
+            payload_hash=func.concat(
+                func.md5(cast(func.gen_random_uuid(), Text)), func.md5(cast(func.gen_random_uuid(), Text))
+            ),
+            idempotency_key=func.concat(ANONYMIZED_IDEMPOTENCY_PREFIX, cast(VisitRequest.id, Text)),
+        )
+        .execution_options(synchronize_session=False)
+    )
     anonymized = select(VisitRequest.id).where(VisitRequest.anonymized_at.is_not(None))
     await db.execute(
         update(VisitContactNote)

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from app.booking.models import (
     VisitRequest,
     VisitRequestSource,
     VisitRequestStatus,
+    VisitSlot,
 )
 from app.booking.exceptions import SlotClosed, SlotFull, SlotNotFound
 from app.booking.outbox import enqueue_outbox
@@ -49,6 +51,14 @@ class IdempotencyConflict(Exception):
 
 class PartySizeRequired(Exception):
     """官網新送的需求沒有參觀人數（規格 L194）。對應 422。"""
+
+
+class PhoneSubmissionLimit(Exception):
+    """同一校同一支手機在窗口內建立的案件已達上限。對應 429 RATE_LIMITED。"""
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__("phone submission limit")
 
 
 # 稽核紀錄記「修改前後」的完整設定（規格 L181）。都是分校公開資訊，沒有家長個資。
@@ -138,7 +148,16 @@ async def update_config(
     return config
 
 
-def _hash_payload(payload: dict) -> str:
+# payload hash 的專用金鑰由 session secret 衍生（不直接拿 session secret 當
+# HMAC 金鑰，兩種用途互不影響）。
+_PAYLOAD_HASH_PURPOSE = b"ivy-website:visit-request-payload-hash:v1"
+
+
+def payload_hash_key(secret: str) -> bytes:
+    return hmac.new(secret.encode("utf-8"), _PAYLOAD_HASH_PURPOSE, hashlib.sha256).digest()
+
+
+def _canonical_payload(payload: dict) -> bytes:
     # 新 schema 的選填預設值不能改變舊 payload 的 hash。只排除這次新增的
     # 空欄位，保留既有 age/preferred_time/questions/slot_id 的序列化規則。
     canonical_payload = payload.copy()
@@ -147,9 +166,11 @@ def _hash_payload(payload: dict) -> str:
     for field in ("child_name", "child_birthdate", "email", "referral_sources", "party_size"):
         if canonical_payload.get(field) in (None, []):
             canonical_payload.pop(field, None)
-    # 同意說明版本不是家長填的資料：重送時只要內容相同就是同一筆，案件記的是
-    # 第一次成功送出時的版本。呼叫端應該另外傳，這裡保險再排除一次。
+    # 同意說明版本與 Turnstile token 不是家長填的資料：重送時只要內容相同就是
+    # 同一筆，案件記的是第一次成功送出時的版本；token 每次都不同。呼叫端應該
+    # 另外傳，這裡保險再排除一次。
     canonical_payload.pop("consent_revision_id", None)
+    canonical_payload.pop("turnstile_token", None)
     # 2026-09-24 起方便聯絡時段存代碼，但更新前的官網送的是中文標籤，已存的
     # hash 也是用標籤算的。hash 一律換回標籤再算，跨版本的重送（同一個
     # Idempotency-Key）才會認得是同一筆，不會誤判成不同內容回 409。
@@ -157,46 +178,64 @@ def _hash_payload(payload: dict) -> str:
     time_code = canonical_payload.get("preferred_time")
     if time_code in CONTACT_TIME_LABELS:
         canonical_payload["preferred_time"] = CONTACT_TIME_LABELS[time_code]
-    canonical = json.dumps(canonical_payload, sort_keys=True, ensure_ascii=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return json.dumps(canonical_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
 
 
-async def submit_visit_request(
-    db: AsyncSession,
-    *,
-    campus_key: str,
-    idempotency_key: str,
-    payload: dict,
-    config_version: int,
-    consent_revision_id: uuid.UUID | None = None,
-) -> tuple[VisitRequest, bool]:
-    """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
-    payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
+def _payload_hash(payload: dict, key: bytes) -> str:
+    """2026-09-29 起存 HMAC-SHA256。裸 SHA-256 在匿名化之後仍能用低熵的稱呼
+    ＋手機暴力還原（稽核 payload-hash-survives-anonymization）。"""
+    return hmac.new(key, _canonical_payload(payload), hashlib.sha256).hexdigest()
 
-    consent_revision_id 是家長看到的同意說明版本，新建案件時要是目前發布中
-    的內容（consent.accept_submitted），否則丟 consent.ConsentVersionChanged；
-    重播不檢查——已成功建立的案件先回原結果（規格 L183）。"""
-    payload_hash = _hash_payload(payload)
 
-    # 先查是否為重播請求，避免對已存在的案件重新走一次驗證/寫入。
+def _legacy_payload_hash(payload: dict) -> str:
+    """2026-09-29 以前存的裸 SHA-256。只用來比對：部署前建立的案件，部署
+    當下的重送（同一個 Idempotency-Key）仍要認得是同一筆。"""
+    return hashlib.sha256(_canonical_payload(payload)).hexdigest()
+
+
+def _same_payload(stored_hash: str, payload: dict, key: bytes) -> bool:
+    return hmac.compare_digest(stored_hash, _payload_hash(payload, key)) or hmac.compare_digest(
+        stored_hash, _legacy_payload_hash(payload)
+    )
+
+
+async def _find_by_idempotency_key(db: AsyncSession, campus_key: str, idempotency_key: str) -> VisitRequest | None:
     result = await db.execute(
         select(VisitRequest).where(
             VisitRequest.campus_key == campus_key,
             VisitRequest.idempotency_key == idempotency_key,
         )
     )
-    existing = result.scalar_one_or_none()
-    if existing is not None:
-        if existing.payload_hash != payload_hash:
-            raise IdempotencyConflict()
-        return existing, False
+    return result.scalar_one_or_none()
 
-    # 鎖住這個校區的設定列，確保驗證期間不會跟「園方剛好改設定」的
-    # 交易交錯——同一份鎖也保護了 config_version 重驗的正確性。
-    result = await db.execute(
-        select(BookingConfig).where(BookingConfig.campus_key == campus_key).with_for_update()
-    )
-    config = result.scalar_one_or_none()
+
+async def find_replay(
+    db: AsyncSession, *, campus_key: str, idempotency_key: str, payload: dict, hash_key: bytes
+) -> VisitRequest | None:
+    """不上鎖的重播查詢：同 key 同內容回既有案件，同 key 不同內容丟
+    IdempotencyConflict，查無回 None。公開送單在限流、機器人驗證與上限之前
+    先查，重送不吃額度、也不再驗一次 Turnstile（token 只能用一次）。"""
+    existing = await _find_by_idempotency_key(db, campus_key, idempotency_key)
+    if existing is None:
+        return None
+    if not _same_payload(existing.payload_hash, payload, hash_key):
+        raise IdempotencyConflict()
+    return existing
+
+
+async def _validate_submission(
+    db: AsyncSession,
+    config: BookingConfig | None,
+    *,
+    campus_key: str,
+    payload: dict,
+    config_version: int,
+    consent_revision_id: uuid.UUID | None,
+    now: datetime,
+    lock_slot: bool,
+) -> tuple[uuid.UUID, VisitSlot | None]:
+    """送單的業務檢查（預檢與上鎖建立共用，錯誤順序一致）。回傳要存進案件的
+    同意說明版本，以及 slots 模式下要占用的時段。lock_slot=True 時鎖住時段列。"""
     if config is None:
         raise BookingUnavailable()
 
@@ -214,27 +253,133 @@ async def submit_visit_request(
     except consent.ConsentUnavailable as exc:
         raise BookingUnavailable() from exc
 
+    if config.mode != BookingMode.SLOTS:
+        return accepted_consent, None
+
     slot_id = payload.get("slot_id")
+    if not slot_id:
+        raise BookingUnavailable()
+    if lock_slot:
+        slot = await slot_service.get_slot_for_update(db, uuid.UUID(slot_id))
+    else:
+        slot = await db.get(VisitSlot, uuid.UUID(slot_id))
+    if slot is None or slot.campus_key != campus_key:
+        raise SlotNotFound()
+    if slot.closed:
+        raise SlotClosed()
+    # 時間窗與公開查詢用同一份判斷：已過去或不在開放區間的時段不能被
+    # 預約，否則名額會被永久佔住、也永遠不會有人來。
+    if not slot_service.is_publicly_bookable(slot, now, **slot_service.window_for(config)):
+        raise slot_service.SlotNotBookable()
+    booked = await slot_service.count_booked(db, slot.id)
+    if booked >= slot.capacity:
+        raise SlotFull()
+    return accepted_consent, slot
+
+
+async def precheck_submission(
+    db: AsyncSession,
+    *,
+    campus_key: str,
+    payload: dict,
+    config_version: int,
+    consent_revision_id: uuid.UUID | None,
+) -> bool:
+    """不上鎖的預檢：與上鎖建立同一份檢查、丟同樣的例外。註定失敗的送單
+    （設定已變、同意說明已改、時段已滿…）在機器人驗證與上限計數之前就擋掉，
+    不會白白用掉 Turnstile token 或上限額度。上鎖建立時會再驗一次。
+
+    回傳這筆送單會不會占用時段名額（slots 模式）。"""
+    config = await db.get(BookingConfig, campus_key)
+    _, slot = await _validate_submission(
+        db,
+        config,
+        campus_key=campus_key,
+        payload=payload,
+        config_version=config_version,
+        consent_revision_id=consent_revision_id,
+        now=now_utc(),
+        lock_slot=False,
+    )
+    return slot is not None
+
+
+async def submit_visit_request(
+    db: AsyncSession,
+    *,
+    campus_key: str,
+    idempotency_key: str,
+    payload: dict,
+    config_version: int,
+    hash_key: bytes,
+    consent_revision_id: uuid.UUID | None = None,
+    phone_limit: tuple[int, timedelta] | None = None,
+) -> tuple[VisitRequest, bool]:
+    """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
+    payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
+
+    phone_limit=(上限, 窗口)：同校同一支手機在窗口內最多建立幾筆，超過丟
+    PhoneSubmissionLimit。在校區設定列鎖內用請求自己的連線計數，同一校的送單
+    在這裡排隊，併發送單不會一起越過上限（稽核 phone-bucket-lost-atomicity），
+    也不必在鎖內呼叫限流器；重播在上鎖前就返回，不佔額度。
+
+    consent_revision_id 是家長看到的同意說明版本，新建案件時要是目前發布中
+    的內容（consent.accept_submitted），否則丟 consent.ConsentVersionChanged；
+    重播不檢查——已成功建立的案件先回原結果（規格 L183）。
+
+    這裡會鎖住校區設定列直到呼叫端 commit：鎖住期間呼叫端不得再呼叫限流器
+    （它另開連線；見 routes.create_visit_request）。"""
+    # 先查是否為重播請求，避免對已存在的案件重新走一次驗證/寫入。
+    existing = await find_replay(
+        db, campus_key=campus_key, idempotency_key=idempotency_key, payload=payload, hash_key=hash_key
+    )
+    if existing is not None:
+        return existing, False
+
+    # 鎖住這個校區的設定列，確保驗證期間不會跟「園方剛好改設定」的
+    # 交易交錯——同一份鎖也保護了 config_version 重驗的正確性。
+    result = await db.execute(
+        select(BookingConfig).where(BookingConfig.campus_key == campus_key).with_for_update()
+    )
+    config = result.scalar_one_or_none()
+    now = now_utc()
+    accepted_consent, slot = await _validate_submission(
+        db,
+        config,
+        campus_key=campus_key,
+        payload=payload,
+        config_version=config_version,
+        consent_revision_id=consent_revision_id,
+        now=now,
+        lock_slot=True,
+    )
+    if phone_limit is not None:
+        max_per_phone, window = phone_limit
+        recent = await db.scalar(
+            select(func.count())
+            .select_from(VisitRequest)
+            .where(
+                VisitRequest.campus_key == campus_key,
+                VisitRequest.phone == payload["phone"],
+                VisitRequest.created_at > now - window,
+            )
+        )
+        if recent >= max_per_phone:
+            # 同一把 key 的併發重送：前一個請求可能剛在這把鎖裡建好案件（它就是
+            # 那第 N 筆）。先當重播回原結果，不能回 429。
+            existing = await find_replay(
+                db, campus_key=campus_key, idempotency_key=idempotency_key, payload=payload, hash_key=hash_key
+            )
+            if existing is not None:
+                return existing, False
+            raise PhoneSubmissionLimit(int(window.total_seconds()))
+
     status = VisitRequestStatus.NEW.value
     confirmed_at = None
     hold_expires_at = None
-    now = now_utc()
+    slot_id = str(slot.id) if slot is not None else None
 
-    if config.mode == BookingMode.SLOTS:
-        if not slot_id:
-            raise BookingUnavailable()
-        slot = await slot_service.get_slot_for_update(db, uuid.UUID(slot_id))
-        if slot is None or slot.campus_key != campus_key:
-            raise SlotNotFound()
-        if slot.closed:
-            raise SlotClosed()
-        # 時間窗與公開查詢用同一份判斷：已過去或不在開放區間的時段不能被
-        # 預約，否則名額會被永久佔住、也永遠不會有人來。
-        if not slot_service.is_publicly_bookable(slot, now, **slot_service.window_for(config)):
-            raise slot_service.SlotNotBookable()
-        booked = await slot_service.count_booked(db, slot.id)
-        if booked >= slot.capacity:
-            raise SlotFull()
+    if slot is not None:
         if config.slots_auto_confirm:
             status = VisitRequestStatus.CONFIRMED.value
             confirmed_at = now
@@ -246,9 +391,8 @@ async def submit_visit_request(
             hold_expires_at = min(
                 now + HOLD_TTL, slot_start_utc(slot.slot_date, slot.start_time)
             )
-    else:
-        slot_id = None
 
+    payload_hash = _payload_hash(payload, hash_key)
     visit_request = VisitRequest(
         id=uuid.uuid4(),
         campus_key=campus_key,
@@ -287,16 +431,10 @@ async def submit_visit_request(
         # 約束擋掉了其中一個，這裡把它當成一次安全重播處理，而不是讓
         # 例外往外炸掉、回應 500。
         await db.rollback()
-        result = await db.execute(
-            select(VisitRequest).where(
-                VisitRequest.campus_key == campus_key,
-                VisitRequest.idempotency_key == idempotency_key,
-            )
-        )
-        existing = result.scalar_one_or_none()
+        existing = await _find_by_idempotency_key(db, campus_key, idempotency_key)
         if existing is None:
             raise
-        if existing.payload_hash != payload_hash:
+        if not _same_payload(existing.payload_hash, payload, hash_key):
             raise IdempotencyConflict() from None
         return existing, False
 
@@ -342,7 +480,9 @@ async def submit_visit_request(
 
 
 # 後台補登與官網表單共用 (campus_key, idempotency_key) 唯一鍵；加前綴分開
-# 兩個命名空間，家長端送來的 key 永遠不會撞到或重播出人員補登的案件。
+# 兩個命名空間，家長端送來的 key 永遠不會撞到或重播出人員補登的案件。公開
+# 端點拒收以保留前綴開頭的 key（routes.create_visit_request），這個不變式才
+# 真的成立。
 MANUAL_IDEMPOTENCY_PREFIX = "admin:"
 
 
@@ -354,6 +494,7 @@ async def create_manual_visit_request(
     payload: dict,
     source: VisitRequestSource,
     created_by: uuid.UUID,
+    hash_key: bytes,
 ) -> tuple[VisitRequest, bool]:
     """人員補登一筆案件，狀態一律從 new 開始（要排時段由呼叫端接著走
     confirm_with_slot，容量規則與一般確認完全相同）。不看預約模式、不寫
@@ -362,20 +503,10 @@ async def create_manual_visit_request(
 
     回傳 (visit_request, is_new)；同一個 key 重送回原案件，不重複建立。"""
     key = f"{MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}"
-    payload_hash = _hash_payload(payload)
+    payload_hash = _payload_hash(payload, hash_key)
 
-    async def _find_existing() -> VisitRequest | None:
-        result = await db.execute(
-            select(VisitRequest).where(
-                VisitRequest.campus_key == campus_key, VisitRequest.idempotency_key == key
-            )
-        )
-        return result.scalar_one_or_none()
-
-    existing = await _find_existing()
+    existing = await find_replay(db, campus_key=campus_key, idempotency_key=key, payload=payload, hash_key=hash_key)
     if existing is not None:
-        if existing.payload_hash != payload_hash:
-            raise IdempotencyConflict()
         return existing, False
 
     config = await get_or_create_config(db, campus_key)
@@ -416,11 +547,11 @@ async def create_manual_visit_request(
     except IntegrityError:
         # 同一張補登表單連點兩次、兩個請求同時通過上面的查詢。
         await db.rollback()
-        existing = await _find_existing()
+        existing = await find_replay(
+            db, campus_key=campus_key, idempotency_key=key, payload=payload, hash_key=hash_key
+        )
         if existing is None:
             raise
-        if existing.payload_hash != payload_hash:
-            raise IdempotencyConflict() from None
         return existing, False
 
     history.record_event(

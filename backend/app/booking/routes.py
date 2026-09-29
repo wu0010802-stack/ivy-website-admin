@@ -2,23 +2,26 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
+import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import attention, consent, presenters, readiness, service, slot_service, workflow_service
+from app.booking import attention, consent, presenters, readiness, service, slot_service, turnstile, workflow_service
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
 from app.common import ratelimit
-from app.common.timezones import local_day_bounds_utc
-from app.operations import audit_service
+from app.common.timezones import local_day_bounds_utc, today_local
+from app.operations import audit_service, retention_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
@@ -55,10 +58,13 @@ from app.booking.schemas import (
     VisitSlotOut,
     VisitSlotUpdateRequest,
     VisitStaffOut,
+    has_control_chars,
 )
 from app.campuses.models import Campus
 
 router = APIRouter(prefix="/api/website/v1", tags=["booking"])
+
+logger = logging.getLogger("app.booking")
 
 # 規格 199：公開提交要有限流，超過回 429。沒有限流的話，任何人都能無限
 # 灌入含家長姓名與手機的案件，同時對每一筆觸發園方通知。
@@ -72,6 +78,23 @@ router = APIRouter(prefix="/api/website/v1", tags=["booking"])
 #   共用一個桶也不會誤傷正常流量。
 SUBMIT_LIMIT_BY_PHONE = ratelimit.Limit("visit_submit_phone", window_seconds=600, max_per_window=5)
 SUBMIT_LIMIT_BY_CLIENT = ratelimit.Limit("visit_submit_client", window_seconds=600, max_per_window=60)
+# 公開時段查詢：官網只在換校區時查一次，一分鐘 60 次對正常家長綽綽有餘。
+PUBLIC_SLOTS_LIMIT = ratelimit.Limit("public_slots_client", window_seconds=60, max_per_window=60)
+
+# 公開送單的濫用上限（稽核 slot-hoarding-no-bot-protection）。上限值來自設定
+# （WEBSITE_BOOKING_*），bucket 固定：
+# - 每個來源 24 小時內最多占幾個時段名額（slots 模式；inquiry 不占名額不算）。
+# - 每校每小時最多收幾筆官網送單（全部模式），灌單時的斷路器。觸發時整校
+#   的家長都會被擋（429 BOOKING_LIMIT），所以前面再加一道：
+# - 同一來源對同一校每小時最多幾筆（全部模式）。沒有這道時，一個匿名 IP 在
+#   inquiry 模式換手機號碼就能用光每校額度、讓整校停收（稽核
+#   campus-cap-single-source-dos）；現在單一來源最多用掉預設每校額度（30）的 1/6。
+SLOT_HOLD_BUCKET = "visit_slot_hold_source"
+CAMPUS_SUBMIT_BUCKET = "visit_submit_campus"
+SUBMIT_LIMIT_BY_SOURCE_CAMPUS = ratelimit.Limit("visit_submit_source_campus", window_seconds=3600, max_per_window=5)
+
+# 公開端點不收的 Idempotency-Key 前綴：後台補登與匿名化後的案件用。
+RESERVED_IDEMPOTENCY_PREFIXES = (service.MANUAL_IDEMPOTENCY_PREFIX, retention_service.ANONYMIZED_IDEMPOTENCY_PREFIX)
 
 
 @router.get("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
@@ -189,8 +212,12 @@ async def get_booking_readiness(
 @router.get("/public/booking-config/{campus_key}", response_model=PublicBookingConfigOut)
 async def get_public_booking_config(
     campus_key: str,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> PublicBookingConfigOut:
+    # 含控制字元（例如 %00）的 key 不可能是校區；不擋的話 PostgreSQL 拒收 NUL，變成 500。
+    if has_control_chars(campus_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
     result = await db.execute(select(Campus).where(Campus.key == campus_key))
     campus = result.scalar_one_or_none()
     if campus is None:
@@ -200,6 +227,9 @@ async def get_public_booking_config(
     published = await consent.current_consent(db)
     await db.commit()
     out = PublicBookingConfigOut.model_validate(config)
+    settings = request.app.state.settings
+    if settings.turnstile_enabled:
+        out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})
     if published is not None:
         out = out.model_copy(update={
             "consent_revision_id": published.revision_id,
@@ -234,6 +264,74 @@ async def get_public_booking_config(
     return out
 
 
+def _rate_limited(exc: ratelimit.RateLimited, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={"code": code, "message": message},
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
+# 預檢與上鎖建立丟的例外相同，對應的回應也相同。
+_SUBMIT_ERRORS = (
+    service.IdempotencyConflict,
+    service.BookingConfigVersionChanged,
+    service.BookingUnavailable,
+    service.PartySizeRequired,
+    service.PhoneSubmissionLimit,
+    consent.ConsentVersionChanged,
+    workflow_service.SlotFull,
+    slot_service.SlotNotBookable,
+)
+
+
+def _submit_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, service.IdempotencyConflict):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "IDEMPOTENCY_CONFLICT", "message": "同樣的識別碼已用不同內容送出過"},
+        )
+    if isinstance(exc, service.BookingConfigVersionChanged):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "BOOKING_CONFIG_CHANGED", "message": "預約設定已變更，請重新整理頁面"},
+        )
+    if isinstance(exc, service.BookingUnavailable):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
+        )
+    if isinstance(exc, service.PhoneSubmissionLimit):
+        return HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "送出次數過多，請稍後再試"},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        )
+    if isinstance(exc, service.PartySizeRequired):
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[{"loc": ["body", "party_size"], "msg": "請選擇參觀人數", "type": "missing"}],
+        )
+    if isinstance(exc, consent.ConsentVersionChanged):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CONSENT_VERSION_CHANGED", "message": "同意說明已更新，請重新閱讀並勾選後再送出"},
+        )
+    if isinstance(exc, workflow_service.SlotFull):
+        return slot_unavailable(exc, suffix="，請選擇其他時段")
+    if isinstance(exc, slot_service.SlotNotBookable):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "SLOT_NOT_BOOKABLE", "message": exc.message},
+        )
+    raise TypeError(f"未對應的送單例外：{type(exc).__name__}")
+
+
+def _trusted_client_ip_header(request: Request) -> str | None:
+    """代理（Nuxt server route）帶進來的訪客 IP header；沒設定或沒帶為 None。"""
+    return ratelimit.trusted_client_ip(request)
+
+
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
 async def create_visit_request(
     payload: VisitRequestCreate,
@@ -244,14 +342,33 @@ async def create_visit_request(
     idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=128),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestOut:
-    try:
-        await ratelimit.limiter(request).check(SUBMIT_LIMIT_BY_CLIENT, ratelimit.client_key(request))
-    except ratelimit.RateLimited as exc:
+    """公開送單。順序（稽核 visit-submit-pool-starvation、slot-hoarding）：
+
+    1. schema 驗證（含保留的 Idempotency-Key 前綴）→ 2. 來源限流 →
+    3. 不上鎖的重播查詢（重送直接回原結果，不驗 Turnstile、不吃額度）→
+    4. 不上鎖的預檢 → 5. Turnstile → 6. 手機桶預檢、占位、每來源每校與每校
+    上限 → 7. 鎖住校區設定列、在鎖內（用請求自己的連線）核對同一支手機近 10
+    分鐘建立的筆數後建立案件 → commit 後才記手機桶。
+
+    限流器每次操作都另開連線。握著 booking_configs 列鎖（以及請求自己的
+    連線）時再向連線池要連線，匿名併發就能讓鎖與連線池互等、卡死整個
+    API；所以 3–6 做完先結束讀取交易、歸還連線，7 之後到 commit 前完全
+    不碰限流器。"""
+    if idempotency_key.startswith(RESERVED_IDEMPOTENCY_PREFIXES):
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"code": "RATE_LIMITED", "message": "送出次數過多，請稍後再試"},
-            headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=[{
+                "loc": ["header", "Idempotency-Key"],
+                "msg": "Idempotency-Key 不可使用保留的前綴",
+                "type": "value_error",
+            }],
+        )
+
+    limiter = ratelimit.limiter(request)
+    try:
+        await limiter.check(SUBMIT_LIMIT_BY_CLIENT, ratelimit.client_key(request))
+    except ratelimit.RateLimited as exc:
+        raise _rate_limited(exc, "RATE_LIMITED", "送出次數過多，請稍後再試") from exc
 
     result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
     campus = result.scalar_one_or_none()
@@ -264,8 +381,95 @@ async def create_visit_request(
             detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
         )
 
-    body = payload.model_dump(mode="json", exclude={"campus_key", "config_version", "consent_revision_id"})
+    settings = request.app.state.settings
+    hash_key = service.payload_hash_key(settings.session_secret)
+    body = payload.model_dump(
+        mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
+    )
 
+    try:
+        replay = await service.find_replay(
+            db, campus_key=payload.campus_key, idempotency_key=idempotency_key, payload=body, hash_key=hash_key
+        )
+        if replay is not None:
+            response.status_code = status.HTTP_200_OK
+            return VisitRequestOut(receipt_id=replay.id, status=replay.status, created_at=replay.created_at)
+        holds_slot = await service.precheck_submission(
+            db,
+            campus_key=payload.campus_key,
+            payload=body,
+            config_version=payload.config_version,
+            consent_revision_id=payload.consent_revision_id,
+        )
+    except _SUBMIT_ERRORS as exc:
+        await db.rollback()
+        raise _submit_error(exc) from exc
+    # 結束讀取交易、歸還連線；之後的 Turnstile（最長 5 秒）與限流都不佔用
+    # 請求的連線。expunge 讓上鎖建立時重新讀到最新的設定、時段與同意說明，
+    # 而不是沿用 identity map 裡這次預檢讀到的舊值。
+    await db.rollback()
+    db.expunge_all()
+
+    trusted_ip_header = _trusted_client_ip_header(request)
+    try:
+        await turnstile.verify(
+            settings,
+            payload.turnstile_token,
+            turnstile.visitor_ip(trusted_ip_header),
+            transport=getattr(request.app.state, "turnstile_transport", None),
+        )
+    except turnstile.BotCheckFailed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "BOT_CHECK_FAILED", "message": "請完成機器人驗證後再送出"},
+        ) from exc
+
+    # 手機桶只對「真的新建了一筆」計數：這裡只看不記（早一點擋掉明顯超量的），
+    # commit 之後才記。不能在這裡就原子地扣：同一個 Idempotency-Key 的併發重送
+    # （使用者連點、前端逾時重送）都還查不到既有案件，會一起把額度扣光而收到
+    # 429，而不是拿回同一張收據。併發時的上限由鎖內的筆數核對保證（見
+    # service.submit_visit_request 的 phone_limit）。
+    phone_key = f"{payload.campus_key}:{payload.phone}"
+    if await limiter.is_limited(SUBMIT_LIMIT_BY_PHONE, phone_key):
+        # is_limited 不回剩餘秒數，Retry-After 給整個窗口（保守上限）。
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "送出次數過多，請稍後再試"},
+            headers={"Retry-After": str(SUBMIT_LIMIT_BY_PHONE.window_seconds)},
+        )
+    # 占位與每校上限用「檢查＋累加」一次完成（同時灌進來也不會一起越過上限）。
+    # 預檢擋掉的送單不會走到這裡；預檢之後才在鎖內失敗的（剛好被搶走最後
+    # 一個名額）仍算一次，可以接受。
+    # 每來源的上限只在代理有帶訪客 IP 時套用：沒有這個 header 時 client_key
+    # 退回代理的位址，全站會共用同一個桶，一天只能約 N 組家長。正式環境 API
+    # 只經代理對外（deploy/README.md），header 一定在。
+    if holds_slot and trusted_ip_header:
+        hold_limit = ratelimit.Limit(SLOT_HOLD_BUCKET, 24 * 3600, settings.booking_slot_holds_per_source_per_day)
+        try:
+            await limiter.check(hold_limit, ratelimit.client_key(request))
+        except ratelimit.RateLimited as exc:
+            raise _rate_limited(
+                exc, "BOOKING_LIMIT", "這個網路近 24 小時送出的時段預約已達上限，請稍後再試，或直接來電洽詢園所"
+            ) from exc
+    if trusted_ip_header:
+        try:
+            await limiter.check(
+                SUBMIT_LIMIT_BY_SOURCE_CAMPUS, f"{ratelimit.client_key(request)}:{payload.campus_key}"
+            )
+        except ratelimit.RateLimited as exc:
+            raise _rate_limited(
+                exc, "BOOKING_LIMIT", "這個網路近一小時送出的預約次數過多，請稍後再試，或直接來電洽詢園所"
+            ) from exc
+    campus_limit = ratelimit.Limit(CAMPUS_SUBMIT_BUCKET, 3600, settings.booking_submissions_per_campus_per_hour)
+    try:
+        await limiter.check(campus_limit, payload.campus_key)
+    except ratelimit.RateLimited as exc:
+        logger.warning("校區 %s 官網送單達每小時上限，暫停收件 %s 秒", payload.campus_key, exc.retry_after_seconds)
+        raise _rate_limited(
+            exc, "BOOKING_LIMIT", "這個校區目前線上預約人數較多，請稍後再試，或直接來電洽詢園所"
+        ) from exc
+
+    # 從這裡到 commit 都握著校區設定列鎖：不得再呼叫限流器。
     try:
         visit_request, is_new = await service.submit_visit_request(
             db,
@@ -273,62 +477,23 @@ async def create_visit_request(
             idempotency_key=idempotency_key,
             payload=body,
             config_version=payload.config_version,
+            hash_key=hash_key,
             consent_revision_id=payload.consent_revision_id,
+            phone_limit=(
+                SUBMIT_LIMIT_BY_PHONE.max_per_window, timedelta(seconds=SUBMIT_LIMIT_BY_PHONE.window_seconds)
+            ),
         )
-    except service.IdempotencyConflict as exc:
+    except _SUBMIT_ERRORS as exc:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "IDEMPOTENCY_CONFLICT", "message": "同樣的識別碼已用不同內容送出過"},
-        ) from exc
-    except service.BookingConfigVersionChanged as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "BOOKING_CONFIG_CHANGED", "message": "預約設定已變更，請重新整理頁面"},
-        ) from exc
-    except service.BookingUnavailable as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
-        ) from exc
-    except service.PartySizeRequired as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=[{"loc": ["body", "party_size"], "msg": "請選擇參觀人數", "type": "missing"}],
-        ) from exc
-    except consent.ConsentVersionChanged as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "CONSENT_VERSION_CHANGED", "message": "同意說明已更新，請重新閱讀並勾選後再送出"},
-        ) from exc
-    except workflow_service.SlotFull as exc:
-        await db.rollback()
-        raise slot_unavailable(exc, suffix="，請選擇其他時段") from exc
-    except slot_service.SlotNotBookable as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "SLOT_NOT_BOOKABLE", "message": exc.message},
-        ) from exc
+        raise _submit_error(exc) from exc
+    await db.commit()
 
-    # 手機桶只對「真的新建了一筆」計數。冪等重播（前端逾時重送、使用者
-    # 連點）本來就不會多建案件，把它算進限流會讓正常的重試被擋成 429。
     if is_new:
         try:
-            await ratelimit.limiter(request).check(SUBMIT_LIMIT_BY_PHONE, f"{payload.campus_key}:{payload.phone}")
-        except ratelimit.RateLimited as exc:
-            await db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail={"code": "RATE_LIMITED", "message": "送出次數過多，請稍後再試"},
-                headers={"Retry-After": str(exc.retry_after_seconds)},
-            ) from exc
-
-    await db.commit()
+            await limiter.record(SUBMIT_LIMIT_BY_PHONE, phone_key)
+        except SQLAlchemyError:
+            # 案件已經建立：記不到限流次數不該讓家長看到失敗、再送一次。
+            logger.warning("公開送單的手機限流計數寫入失敗", exc_info=True)
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return VisitRequestOut(
         receipt_id=visit_request.id, status=visit_request.status, created_at=visit_request.created_at
@@ -546,10 +711,19 @@ async def get_visit_calendar(
 @router.get("/public/slots", response_model=list[PublicVisitSlotOut])
 async def list_public_slots(
     campus_key: str,
+    request: Request,
     date_from: date = Query(...),
     date_to: date = Query(...),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublicVisitSlotOut]:
+    # 匿名可呼叫、每次最多讀 62 天的時段：每個來源限流（在碰請求連線之前）。
+    try:
+        await ratelimit.limiter(request).check(PUBLIC_SLOTS_LIMIT, ratelimit.client_key(request))
+    except ratelimit.RateLimited as exc:
+        raise _rate_limited(exc, "RATE_LIMITED", "查詢太頻繁，請稍後再試") from exc
+    # 含控制字元的 key 不可能是校區（PostgreSQL 拒收 NUL 會變成 500），與查無校區一樣回空清單。
+    if has_control_chars(campus_key):
+        return []
     # 停用的分校不開放公開預約（規格 3.2）：公開設定回 paused，這裡也不列時段。
     campus = await db.get(Campus, campus_key)
     if campus is not None and not campus.active:
@@ -563,14 +737,14 @@ async def list_public_slots(
         ) from exc
     config = await db.get(BookingConfig, campus_key)
     window = slot_service.window_for(config)
+    # 與送單共用同一份判斷（closed／已過去／未達最短提前時間／
+    # 超過最遠開放天數），避免公開頁列出根本訂不了的時段。
+    bookable = [slot for slot in slots if slot_service.is_publicly_bookable(slot, **window)]
+    # 已占名額一次查完（原本每個時段各查一次）。
+    booked_by_slot = await slot_service.count_booked_by_slot(db, [slot.id for slot in bookable])
     result = []
-    for slot in slots:
-        # 與送單共用同一份判斷（closed／已過去／未達最短提前時間／
-        # 超過最遠開放天數），避免公開頁列出根本訂不了的時段。
-        if not slot_service.is_publicly_bookable(slot, **window):
-            continue
-        booked = await slot_service.count_booked(db, slot.id)
-        remaining = max(slot.capacity - booked, 0)
+    for slot in bookable:
+        remaining = max(slot.capacity - booked_by_slot.get(slot.id, 0), 0)
         if remaining <= 0:
             continue
         result.append(
@@ -747,6 +921,9 @@ EXPORT_COLUMNS = (
 )
 
 
+_SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
+
+
 @router.get("/admin/visit-requests/export")
 async def export_visit_requests(
     filters: VisitRequestFilters = Depends(),
@@ -811,7 +988,19 @@ async def export_visit_requests(
         metadata={"row_count": exported, **filters.audit_metadata()},
     )
     await db.commit()
-    return Response(content=buffer.getvalue(), media_type="text/csv")
+    # 一律當附件下載，且不進瀏覽器快取：共用櫃台電腦上，含全校家長姓名與
+    # 手機的 CSV 不能留在磁碟快取或上一頁紀錄裡（稽核 admin-booking-api-no-store-missing）。
+    # 檔名只放安全字元，篩選值不直接進 header。
+    campus_part = filters.campus_key if filters.campus_key and _SAFE_FILENAME_PART.fullmatch(filters.campus_key) else "all"
+    filename = f"visit-requests-{campus_part}-{today_local():%Y%m%d}.csv"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post(
@@ -822,6 +1011,7 @@ async def export_visit_requests(
 async def create_manual_visit_request(
     payload: VisitRequestManualCreate,
     response: Response,
+    request: Request,
     idempotency_key: str = Header(alias="Idempotency-Key", min_length=1, max_length=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -853,6 +1043,7 @@ async def create_manual_visit_request(
             payload=body,
             source=VisitRequestSource(payload.source),
             created_by=current_user.id,
+            hash_key=service.payload_hash_key(request.app.state.settings.session_secret),
         )
     except service.IdempotencyConflict as exc:
         await db.rollback()

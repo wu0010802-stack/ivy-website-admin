@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.booking.models import OutboxMessage, VisitRequest
 from app.booking.schemas import VisitRequestCreate
-from app.booking.service import _hash_payload
+from app.booking.service import _legacy_payload_hash
 from app.common.timezones import today_local
 from app.operations import audit_service, retention_service
 from app.operations.models import RetentionRunTrigger
@@ -70,9 +70,9 @@ async def _create_details(admin_client, public_client, key="visit-details-01", *
 
 
 def test_new_optional_defaults_preserve_legacy_payload_hash():
-    # 與送單路由相同：同意說明版本另外傳，不在 payload 裡。
+    # 與送單路由相同：同意說明版本與 Turnstile token 另外傳，不在 payload 裡。
     body = VisitRequestCreate.model_validate(_payload()).model_dump(
-        mode="json", exclude={"campus_key", "config_version", "consent_revision_id"}
+        mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
     )
     # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。
     legacy_body = {key: value for key, value in body.items() if key not in _DETAIL_FIELDS | {"party_size"}}
@@ -82,13 +82,13 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     legacy_hash = hashlib.sha256(
         json.dumps(legacy_body, sort_keys=True, ensure_ascii=True).encode("utf-8")
     ).hexdigest()
-    assert _hash_payload(body) == legacy_hash
+    assert _legacy_payload_hash(body) == legacy_hash
     assert body["referral_sources"] == []  # hashing must not mutate submitted data
-    assert _hash_payload({**body, "child_name": "小樹"}) != legacy_hash
+    assert _legacy_payload_hash({**body, "child_name": "小樹"}) != legacy_hash
     # 人數是家長填的內容：同一把 key 改了人數就是不同的送單。
-    assert _hash_payload({**body, "party_size": 3}) != _hash_payload({**body, "party_size": 2})
+    assert _legacy_payload_hash({**body, "party_size": 3}) != _legacy_payload_hash({**body, "party_size": 2})
     # 同意說明版本不是家長填的資料，不影響 hash。
-    assert _hash_payload({**body, "consent_revision_id": "x"}) == legacy_hash
+    assert _legacy_payload_hash({**body, "consent_revision_id": "x"}) == legacy_hash
 
 
 def test_details_normalize_names_email_and_referral_order():
