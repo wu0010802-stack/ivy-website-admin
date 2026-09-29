@@ -44,6 +44,11 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
+| api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
+| api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
+| api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
+| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設） |
+| api | `WEBSITE_SESSION_IDLE_MINUTES`（120）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、`WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`（600）／`_DAILY_CAP`（20000）、`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`（120）／`_DAILY_CAP`（5000）（皆選填） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
 
@@ -121,7 +126,11 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 2. Webhook URL 設為 `https://<官網網域>/api/website/v1/line/webhook`（後台「LINE 通知」頁
    也會顯示），開啟 Use webhook。webhook 驗 `X-Line-Signature`，簽章不符一律 401。
 3. LINE Official Account Manager：允許加入群組，關閉自動回應。
-4. 把官方帳號拉進各校員工群組 → 後台「系統 → LINE 通知」替每校選群組 → 送測試訊息。
+4. 把官方帳號拉進各校員工群組。
+5. 後台「系統 → LINE 通知」按「產生驗證碼」，把驗證碼貼到要綁定的群組（10 分鐘內有效、
+   只能用一次），回後台按「重新整理」，群組顯示「已驗證」後再替該校選群組 → 送測試訊息。
+   2026-09-29 起未驗證的群組不能被選為新的推播目標（任何人都能把官方帳號拉進自己取名的
+   群組）；修補前已綁定的群組照常推播，但建議找時間也貼一次驗證碼。
 
 群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
 帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
@@ -162,6 +171,101 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - **CI**：`website.yml` 新增 `e2e` job（`tests/stack/`，postgres service＋系統 Chrome），目前不在 `deploy` 的 `needs` 裡，不會擋部署；第一次在 GitHub runner 跑之前，建議先觀察幾次 feature 分支的結果。
 - **Google／LINE 登入**：三個 `WEBSITE_GOOGLE_*` 都留空就不顯示 Google 登入入口；後台「我的帳號」可自行解除 Google 綁定。這些是選填功能，不影響現有帳密登入。
 - 詳細清單、逐項驗證見 `docs/website-admin/acceptance.md` 底部「2026-09-25／26 小結」。
+
+## 2026-09-29 資安稽核修正：部署前後人工步驟（尚未部署）
+
+白箱資安稽核的修正在分支 `fix/security-audit-20260929`。併進 `main` 就會正式部署；**api 掛 volume，Railway 先停舊容器再起新容器，新版啟動失敗＝停站**（見 2026-09-24 PR #9），所以「部署前」每一項都要先確認。
+
+### 部署前（必做）
+
+1. **核對 api 變數，新增的啟動檢查任一不符 API 就起不來**：
+   - `WEBSITE_ENVIRONMENT` 有值（正式站 `production`）。沒設時 `deploy/api-start.py` 在跑 migration 前就結束。
+   - `WEBSITE_ADMIN_ORIGIN` 是不含路徑的 `https://` 網址（本檔記載為 `https://web-production-04caa.up.railway.app`）。
+   - `WEBSITE_SESSION_SECRET` 不含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`（不分大小寫）；長度下限仍是 16，沒有提高。
+   在自己的終端機跑（只印環境、origin 與秘密的長度，不印秘密本身）：
+
+   ```sh
+   railway variables --service api --environment production --kv | python3 -c 'import re,sys; v=dict(l.rstrip("\n").split("=",1) for l in sys.stdin if "=" in l); s=v.get("WEBSITE_SESSION_SECRET",""); print("ENVIRONMENT", v.get("WEBSITE_ENVIRONMENT")); print("ADMIN_ORIGIN", v.get("WEBSITE_ADMIN_ORIGIN")); print("SESSION_SECRET length", len(s), "PLACEHOLDER!" if re.search("change-?me|change_me|example|placeholder", s, re.I) else "ok")'
+   ```
+
+   秘密不合格時先換（`python3 -c "import secrets;print(secrets.token_urlsafe(32))"`，在 Railway 網頁貼上）。換 session secret 會讓所有後台登入與限流計數失效，是預期行為。
+2. **Migration**：本次附一支新的 additive migration `e4c1a7f3b862`（LINE 群組驗證：`line_groups.verified_at` 可為 NULL＋新表 `line_group_verification_codes`，不回填、不改寫既有資料，與上一版程式相容）。API 啟動時自動套用；依「改寫資料才強制先備份」的規則不強制先備份，但本次一併開 PITR（見下）後再部署最安全。
+3. **確認 api／web 已斷開 Railway 的 GitHub 原生 autodeploy**（Settings → Source）。CICD.md 記錄 2026-09-24 時仍綁著：沒斷的話 `main` push 當下 Railway 就直接部署（不等 CI），migration 會在 CI 跑完前套到正式 DB。
+
+### 這次改了什麼（部署相關）
+
+- **uvicorn access log 關閉**（`--no-access-log`）：它會把 query string 一起記，後台案件搜尋的 `?q=` 常是家長姓名或手機。改由 API 自己每個請求記一行 `app.access`：方法、路徑（不含 query string、控制字元已跳脫）、狀態、耗時、request id。`app.*` 的 INFO 走 stdout、WARNING 以上走 stderr。
+- **production 關閉 `/docs`、`/redoc`、`/openapi.json`**。契約匯出（`backend/scripts/export_openapi.py`、`npm run contract:check`）直接呼叫 `app.openapi()`，不受影響；CI smoke 不用這幾個路徑。
+- **後台與登入回應 `Cache-Control: private, no-store`**：`/api/website/v1/admin/*` 與 `/api/website/v1/auth/*` 一律加上，路由自己已設的（素材縮圖 `private, max-age=86400`、OAuth 的 `no-store`）不覆寫。
+- **連線池**：請求池依 `WEBSITE_DB_*` 設定；限流另用獨立小池（2＋3 條、等 3 秒），不再和送單請求互等。限流池拿不到連線時，放行判斷一律當作超限（回 429，Retry-After 5 秒），事後記帳只記 warning。每條執行期連線帶 `lock_timeout`（10 秒）與 `idle_in_transaction_session_timeout`（5 分鐘）；alembic 自建 engine，不套用。SQLAlchemy 例外不再把綁定參數（家長個資）寫進 log。
+- **限流鍵 IPv6 聚合到 /64**（IPv4 不變、IPv4-mapped 視同 IPv4）。上線後既有 IPv6 訪客的限流計數等於歸零一次。
+- **base image 以 digest 釘版**（`deploy/api.Dockerfile`、`deploy/web.Dockerfile`，CI 的 `postgres:16` service 也是）。更新方式：讀 Docker Hub 的 multi-arch index digest 後把 `tag@sha256:…` 一起換掉：
+
+  ```sh
+  repo=library/python tag=3.12-slim   # 或 library/node 22-alpine、library/postgres 16
+  token=$(curl -fsS "https://auth.docker.io/token?service=registry.docker.io&scope=repository:$repo:pull" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+  curl -fsSI -H "Authorization: Bearer $token" -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" "https://registry-1.docker.io/v2/$repo/manifests/$tag" | grep -i docker-content-digest
+  ```
+
+  釘版後不會自動吃到上游安全更新，至少每月更新一次（或設定 Renovate／Dependabot 的 docker 更新）。
+- **`.gitignore` 排除 `backend/var/`、`var/`**（本機素材與 mail sink 含兒童照片、家長個資）。
+- **後台登入**：session 改成閒置逾時（`WEBSITE_SESSION_IDLE_MINUTES`，預設 120 分鐘，可設 5–720；有活動自動延長），登入滿 12 小時一律失效；`ivy_admin_session` 改成瀏覽器 session cookie（不帶 Max-Age，關瀏覽器就清掉）。上線前發出的 12 小時 session 第一次使用時就拉回閒置窗口，不需額外處理。密碼登入：同一帳號 5 分鐘內錯 10 次，**該帳號的密碼登入暫停 15 分鐘**（連正確密碼也擋、不跑 bcrypt；同時灌進來的一批請求最多驗 10 次，排隊中開始鎖定的一樣擋），Google／LINE 登入與已登入的 session 不受影響；失敗與開始鎖定都寫稽核。驗密碼時同時最多 4 件、排隊最多 16 件，再多直接 429；查完帳號就歸還 DB 連線，登入洪泛不會佔住主連線池。429 的 `detail.code` 分成 `LOGIN_LOCKED`（帳號鎖定中，Retry-After 900 秒）與 `LOGIN_RATE_LIMITED`（來源限流、排隊已滿、限流池忙碌），後台依此顯示不同訊息。session 延長時拿不到第二條連線就這次不延長，不讓請求 500。後台在有鍵盤／滑鼠輸入時每 10 分鐘最多打一次 `/auth/me` 延長閒置期限；有未儲存修改的頁面收到 401 時不導頁，改請本人在新分頁重新登入後回原頁按「我已重新登入」再儲存。綁定／解除 LINE、解除 Google 時，登入超過 10 分鐘要輸入目前的密碼（後台會跳出輸入框）。總管理者可在「使用者」替別人「解除綁定並登出」；停權也會一併解除 Google／LINE 綁定。密碼欄位一律最多 128 字（超過回 422）；新設定的密碼另限 UTF-8 最多 72 bytes（英數字 72 個、中文約 24 字，bcrypt 超過的部分不會生效）。
+- **公開預約**：每個來源 24 小時內最多占 5 個時段（`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`，只算時段模式）、同一來源對同一校每小時最多 5 筆（所有模式，含不占時段的 inquiry）、每校每小時最多 30 筆官網送單（`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`，所有模式），超過回 429 `BOOKING_LIMIT`。**每校上限是灌單時的斷路器，觸發時會連真實家長一起擋**（API log 有「官網送單達每小時上限」warning）；有前面的每來源上限，單一來源最多用掉預設額度的 1/6。同一支手機每 10 分鐘 5 筆另在校區設定列鎖內核對已建立的筆數（併發送單不會一起越過；同一把 Idempotency-Key 的併發重送仍拿回同一張收據）。**每來源上限靠 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 與官網代理帶的 `x-website-client-ip` 分辨來源**（IPv6 以 /64 計），代理沒帶這個 header 時不套用，以免全站共用同一個桶。台灣行動網路常見 CGNAT，有家長反映「這個網路近 24 小時送出的時段預約已達上限」時調高前者。`GET /public/slots` 每來源每分鐘 60 次。新建案件的 payload hash 改用 HMAC；匿名化會一併清掉 hash 與 Idempotency-Key。後台 CSV 匯出改成下載檔案（`Content-Disposition: attachment`）。
+- **Cloudflare Turnstile（公開預約的機器人驗證，選填）**：`WEBSITE_TURNSTILE_SITE_KEY` 與 `WEBSITE_TURNSTILE_SECRET_KEY` 兩個都設才啟用，只設一個 API 拒絕啟動。**要等官網的 Turnstile 元件上線（本次部署）後才能設**：順序反過來，所有官網送單都會被擋成 400 `BOT_CHECK_FAILED`。步驟：本次部署上線 → Cloudflare 後台建立 Turnstile widget（hostname 填正式網域，換自訂網域時要一起加）→ Railway api service 設兩個變數（secret 只放 Railway 變數，不進 repo）→ 用真的瀏覽器送一筆預約確認元件出現且能送出 → **查 api log 確認這筆送單沒有 `Turnstile` 開頭的 warning／error**（secret 設錯時 Cloudflare 回 `invalid-input-secret`，API 為了不讓整站停收仍會放行，只記一筆 error，光看「送得出去」驗不出來）。web service 不需要新變數（site key 由預約設定 API 帶出）。只有 Cloudflare 本身故障（連線錯誤、逾時、5xx、`internal-error`）時 API 放行並記 warning；其他 4xx、回應不是 JSON、驗證沒過一律 400 `BOT_CHECK_FAILED`。不比對 siteverify 回傳的 hostname：能產生 token 的網域由 Cloudflare widget 的 hostname 清單管制（換自訂網域時記得加）。日後若收緊公開站 CSP，`script-src`、`frame-src`、`connect-src` 都要放行 `https://challenges.cloudflare.com`。
+- **公開 telemetry／CTA 點擊**：資料照留、不清除（業主裁定），改用全站上限封住寫入量：telemetry 每分鐘 600、每日 20,000（瀏覽量與 Web Vitals 合計），點擊每分鐘 120、每日 5,000，每日以 UTC 日界線（台北 08:00）計、每天各自計數（前一天灌滿不影響隔天）。全站每日上限之前另有每來源每日上限（telemetry 500、點擊 200，代理有帶訪客 IP 才套用），少數來源用不光全站額度。超過時安靜丟棄、仍回 204，但每個窗口第一次開始丟棄時 API log 會記一筆 warning（`公開事件…上限已滿`）；看到這筆代表後台「數據」頁那段時間少算。可用 `WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`／`WEBSITE_TELEMETRY_DAILY_CAP`／`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`／`WEBSITE_ANALYTICS_CLICKS_DAILY_CAP` 調整，請對照後台「數據」頁的實際流量。官網代理對 `/api/website/v1/public/telemetry` 一律回 404（只接受經 `/api/telemetry` 轉送）。
+- **LINE 群組驗證**：新增 migration `e4c1a7f3b862`（見部署前第 2 點）。部署後既有群組的 `verified_at` 都是 NULL，已綁定的校區照常推播；要改到另一個群組時，先在那個群組貼後台產生的驗證碼（見上方「LINE 群組推播」第 5 步）。
+- **素材**：Pillow 升到 12.3.0；上傳與替換時，原檔在寫進儲存體前先去除拍攝資訊（EXIF／GPS、XMP、IPTC，影片的地點與建立時間），Pillow 與 ffmpeg 只解讀白名單格式，處理並行數限制為 2，送檔前先釋放 DB 連線。同校（共用素材全站一把）的配額鎖最多等 120 秒，不受一般的 10 秒 `lock_timeout` 限制；等不到回 409 `MEDIA_BUSY`（請稍後重傳），不是 500。**既有素材要在部署後手動處理一次**，見下方「部署後」。
+- **官網（web）**：資安標頭改在 nitro request hook 套用（涵蓋靜態資源與後台入口 `/admin/`），後台頁面加上嚴格 CSP（`script-src 'self'`）；API 代理拒絕 `.`／`..` 區段、編碼斜線與控制字元（400），素材改走有背壓的串流並在客戶端斷線時中止上游；`/assets/**/*.mp4` 改成串流並支援 Range；公開站資料加 3 秒程序內快取（ETag 重新驗證），發布後最多 3 秒才出現在官網。這層快取只保護正常的 SSR／換頁：通用 API 代理的 `GET /api/website/v1/public/site` 與 `GET /api/public-site`（CI smoke 在用）仍每次叫後端重組內容，刻意洪泛要靠後端快取才擋得住，列為後續工作。後台 CSP 是後台頁面本身的縱深防禦；稽核 `admin-same-origin-as-public-site`（公開頁 XSS 可同源呼叫後台 API）**仍未關閉**，要等後台移到獨立 origin 或公開站導入 nonce 型 `script-src`。
+- **保持不變**：`/api/website/v1/health` 仍回 `environment`、`fixture_enabled`、定期工作時間，`/release.json` 仍含 commit SHA——CI 部署後的 smoke（`deploy/railway_ci.py`）靠這些欄位確認 production／live，所以不收斂（稽核 `public-release-health-metadata` 列為 info、可接受）。
+
+### 新環境變數（全部選填，沒設定就維持舊行為）
+
+見上方環境變數表：`WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（兩個一起設才啟用，只設一個會拒絕啟動；要等官網元件上線後才能設）、`WEBSITE_MIGRATION_DATABASE_URL`、`WEBSITE_DB_*`、`WEBSITE_SESSION_IDLE_MINUTES`（120，5–720）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5，需代理帶 trusted client IP header 才套用）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、telemetry 與點擊的全站上限（600／20000／120／5000）。範例與預設值在 `backend/.env.example`。
+
+### 部署後（必做）
+
+1. **既有素材去除拍攝資訊**（2026-09-29 以前上傳的原檔是原樣保存的，EXIF／GPS、影片拍攝地點會跟著公開）。依「改寫資料先備份」的規則，**先備份正式 DB 與媒體 volume（或 S3 bucket）**，再在 Railway api 服務執行（auto 模式會擋 `railway ssh`，請自己在終端機跑）：
+
+   ```sh
+   python -m app.cli strip-media-metadata          # dry-run：只列出會處理哪些、各項數量
+   python -m app.cli strip-media-metadata --apply  # 確認數量後才真的改寫
+   ```
+
+   `--apply` 把去除後的檔案存成新的 storage key、在同一個交易更新素材記錄，commit 成功才刪舊檔；可重跑（已乾淨的不動）。把兩次輸出的各項數量記到下方部署紀錄。已被瀏覽器或 CDN 快取的舊原檔清不掉（公開原檔帶一年的 `immutable` 快取，網址不變）；前面若有 Cloudflare 之類的 CDN，`--apply` 後手動 purge `/api/website/v1/public/media/*/file`。
+2. **影片方向**：正式映像的 ffmpeg 版本與本機不同，用一支手機直拍的影片上傳一次，確認官網播放方向與 poster 正常。
+3. **後台 CSP 與 Range**：用真的瀏覽器打開 `/admin/` 看 console 沒有 CSP 違規，Google／LINE 登入、素材上傳預覽、影片預覽正常；iOS Safari 播放首頁與孩子的一天影片。
+4. **LINE 群組**：把正在用的各校員工群組各貼一次驗證碼，後台清單就能分辨哪些群組是別人拉官方帳號進去的。
+5. **告知園方同仁**：密碼錯 10 次該帳號的密碼登入暫停 15 分鐘（可改用 Google／LINE）；綁定或解除 LINE／Google 時，登入超過 10 分鐘要輸入目前的密碼；後台閒置 2 小時要重新登入。
+
+### 建立只有 DML 權限的執行期角色（建議，未執行）
+
+目前 API 執行期與 migration 共用 `WEBSITE_DATABASE_URL`，執行期因此有 DDL 權限；若沿用 Railway Postgres 範本，角色很可能是 superuser `postgres`。拆開後，任何 SQL injection 都只剩資料層權限。**需要本人登入 Railway 操作，以下不會自動執行。**
+
+1. 以目前的 owner 連線（`WEBSITE_DATABASE_URL` 那組）進官網 DB，建立執行期角色（密碼用隨機英數字，連線字串就不必 URL 編碼）：
+
+   ```sql
+   CREATE ROLE website_app LOGIN PASSWORD '<隨機英數字>' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+   GRANT CONNECT ON DATABASE <官網資料庫名稱> TO website_app;
+   GRANT USAGE ON SCHEMA public TO website_app;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO website_app;
+   GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO website_app;
+   -- 之後 migration（由 owner 執行）新建的表與序列自動授權
+   ALTER DEFAULT PRIVILEGES FOR ROLE <owner 角色> IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO website_app;
+   ALTER DEFAULT PRIVILEGES FOR ROLE <owner 角色> IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO website_app;
+   ```
+
+2. Railway api 變數：`WEBSITE_MIGRATION_DATABASE_URL` 設成原本的 owner 連線（`postgresql+asyncpg://…`），`WEBSITE_DATABASE_URL` 改成 `website_app` 的連線。alembic、啟動時的 schema 核對與 `backend/scripts/backup_website.py` 用 migration 連線，API 請求與定期工作用執行期連線。
+3. 部署後確認：後台登入、公開送單、素材上傳各一次成功；`SELECT rolsuper FROM pg_roles WHERE rolname = current_user` 在執行期連線回 `false`。
+4. 進一步（選做）：owner 本身也改成非 superuser（新建 `website_owner`，把 public schema 內所有表、序列、enum 型別與 `alembic_version` 的 owner 轉過去，再讓 `WEBSITE_MIGRATION_DATABASE_URL` 用它）。這步要逐一 `ALTER … OWNER TO`，請先在測試庫演練。
+
+### 基礎設施待辦（需本人在 Railway／Cloudflare 操作）
+
+- **備份不在同一個故障域**：開啟 Railway Postgres 的備份／PITR（`CICD.md` 記載目前未開）；另外定期把加密後的 `pg_dump` 與素材 volume 同步到異地（例如私有 R2 bucket、只給寫入權的金鑰），並做一次還原演練。現有 `/var/lib/postgresql/data/ivy-website-backups/*.dump` 和 DB 在同一顆 volume，volume 壞掉會一起消失。
+- **拆 DB 角色**：見上一節。
+- **Railway edge 的 `%2e%2e` 與 IPv6**：用 `curl --path-as-is 'https://web-production-04caa.up.railway.app/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json'` 確認 edge 是否原樣轉送（API 端已在 production 關掉文件；web 代理「先解析再驗證前綴」屬 web 端的修正範圍）；並確認 Railway 是否接受 IPv6 進站，以及 `X-Forwarded-For` 裡的 IPv6 形式（決定 /64 聚合是否生效）。
+- **GitHub 原生 autodeploy**：確認 api、web 兩個服務都已斷開（見部署前第 3 點）。
+- **Postgres 是否開了公開 TCP proxy**：Railway Postgres 服務 → Settings → Networking，若有 TCP Proxy（`*.proxy.rlwy.net`）且沒有在用就移除；要留就確保密碼強度並只給必要的人。
+- **Railway CLI 供應鏈**：CD 仍以 `npm install --global @railway/cli@$RAILWAY_CLI_VERSION` 安裝（版本固定，但沒有 lockfile 的 integrity，安裝腳本會另外下載 binary）。之後改成下載官方 release binary 並核對 SHA-256，或放進有 lockfile 的 `package.json` 以 `npm ci` 安裝。
 
 ## 初次初始化
 

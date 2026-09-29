@@ -27,7 +27,7 @@
 | A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 通過（2026-09-25／26 更新） | 消息／活動上下架（`test_home_news.py`）之外，**內容送審／核准／退回已完成**（過期待審版自動標記 `superseded`，送審通知可核准的人、核准或退回通知送審者）；**整份內容排程發布已完成**，到期時若官網已是更新版本會標成「已略過」而不蓋回舊內容，失敗或略過都通知排程者並列在總覽；全站 release 還原見 A03 |
 | A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過（2026-09-25 更新） | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資；成效漏斗新增 `visit_cancelled`（含原因）、日期區間、依來源／「從哪裡知道我們」分組；公開點擊事件改用 `event_id` 去重＋入口代碼白名單 |
 | A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過（2026-09-25／26 更新） | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練；**保存政策已改為後台可設定天數並持久化**（`retention_policies`，依結案時間起算，未結案案件一律不清），有清理紀錄與定期工作自動清理開關（兩個開關都要開才會自動跑） |
-| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-09-25／26 更新） | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容；CMS content kind 已擴充到 14 種（見 A01），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`）；`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，`tests/stack/hydration.spec.ts`（2026-09-26 新增）用竄改 SSR HTML 驗證能抓到 mismatch，並對 10 個公開頁檢查 console 無 hydration 訊息 |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-09-25／26 更新） | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容；CMS content kind 已擴充到 14 種（見 A01），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`）；`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，`tests/stack/hydration.spec.ts`（2026-09-26 新增）用竄改 SSR HTML 驗證能抓到 mismatch，並對 10 個公開頁檢查 console 無 hydration 訊息；2026-09-29 起官網 SSR 有 3 秒程序內快取（`web/server/utils/published-site.ts` 的 `PUBLISHED_SITE_TTL_MS`），發布後最多 3 秒出現在官網，`release-freshness.spec.ts` 與 `tests/stack/content-flow.spec.ts` 改成在 TTL 內重新載入輪詢 |
 
 ## 階段 A 小結（2026-09-19）
 
