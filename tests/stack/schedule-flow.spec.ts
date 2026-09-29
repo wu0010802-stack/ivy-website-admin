@@ -40,7 +40,11 @@ test('每週規則產生時段、切成時段預約後官網看得到場次', as
     await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
     const date = page.getByLabel('預約日期')
     await expect(date.locator('option')).not.toHaveCount(1)
-    await date.selectOption({ index: 1 })
+    // index 0 是「請選擇參觀日期」。第一個日期可能就是明天：台北 09:30–11:00 之間跑，
+    // 明天早場離現在不到 min_lead_hours（預設 24 小時）會被藏起來，場次數跟著跑的時間變。
+    // 改選第二個日期（下一週同一天），三場一定都在預約窗內。
+    await expect(date.locator('option')).not.toHaveCount(2)
+    await date.selectOption({ index: 2 })
     // 預設規則是 09:30–11:00、每場 30 分鐘：一天三場。
     await expect(page.locator('.visit-slot-options input[type="radio"]')).toHaveCount(3)
     await expect(page.locator('.visit-slot-options')).toContainText('09:30')
