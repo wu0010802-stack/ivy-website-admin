@@ -230,6 +230,11 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     expect(await editor.publish()).toBe(true)
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules?campus_key=yihua')
+    // 樂觀鎖：帶上載入時官網的版本，別人之後發布過就會被後端 409 擋下。
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+      revision_id: 'r2',
+      expected_published_revision_id: 'r1',
+    })
 
     get.mockClear()
     expect(await editor.acknowledgeSchedule('j1')).toBe(true)

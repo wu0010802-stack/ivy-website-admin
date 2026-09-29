@@ -354,6 +354,37 @@ async def test_outbox_retries_failed_push_with_same_retry_key(line_app, fake_lin
     assert {d.recipient_key for d in deliveries} == {GROUP}
 
 
+async def test_line_failure_does_not_block_email(line_app, fake_line, recording_mail_adapter):
+    """LINE 月額度用完（429）、token 失效之類的失敗，email 仍要照寄；整筆
+    重試時只補推 LINE，已寄出的人不會再收到第二封。"""
+    admin, public = await _setup_case(line_app)
+    try:
+        async with line_app.state.session_factory() as db:
+            await _expired_hold(admin, public, db, "line-quota")
+        fake_line.push_status = [429] * 20
+        first = await _run_outbox(line_app, fake_line, recording_mail_adapter)
+        assert first["failed"] >= 1
+        sent_once = len(recording_mail_adapter.sent)
+        assert sent_once >= 1, "LINE 失敗不能讓 email 一封都沒寄"
+
+        async with line_app.state.session_factory() as db:
+            from sqlalchemy import update
+
+            from app.booking.models import OutboxMessage
+
+            await db.execute(update(OutboxMessage).values(next_attempt_at=OutboxMessage.created_at))
+            await db.commit()
+        fake_line.push_status = []
+        second = await _run_outbox(line_app, fake_line, recording_mail_adapter)
+        assert second["failed"] == 0
+    finally:
+        await admin.aclose()
+        await public.aclose()
+
+    assert len(recording_mail_adapter.sent) == sent_once, "重試只補 LINE，不重寄 email"
+    assert len(fake_line.pushes) >= 1
+
+
 async def test_outbox_skips_line_when_campus_has_no_group(line_app, fake_line):
     admin, public = await _setup_case(line_app, assign=False)
     try:

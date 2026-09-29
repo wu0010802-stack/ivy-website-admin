@@ -162,3 +162,14 @@ async def test_inactive_campus_content_cannot_publish(admin_client):
     # 分校停用有自己的錯誤碼，不再跟素材未就緒、內容規則混成 CONTENT_NOT_READY。
     assert blocked.json()["detail"]["code"] == "CAMPUS_INACTIVE"
     await admin_client.patch("/api/website/v1/admin/campuses/yihua/status", json={"active": True})
+
+
+@pytest.mark.asyncio
+async def test_rejected_revision_cannot_be_published(editor_client, yihua_admin, public_client):
+    rev = await _draft(editor_client, q="未確認的電話")
+    await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev["id"]})
+    await yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "電話未確認"})
+
+    published = await yihua_admin.post(f"{FAQ}/publish{Q}", json={"revision_id": rev["id"]})
+    assert published.status_code == 409
+    assert published.json()["detail"]["code"] == "CONTENT_REVISION_REJECTED"
