@@ -154,11 +154,17 @@ const hasNext = computed(() => requests.value.length === pageSize)
 
 // 家長報的電話常帶空格、連字號或國碼（0912-345-678、+886 912 345 678），資料庫存的是
 // 10 碼純數字；搜尋字看起來像電話就先去掉符號再查，匯出也一樣。
+// 還在打國碼或前幾碼（+886、+88、09-）時照原字查：只剩「0」「88」會查出幾乎每一筆。
 function searchTerm(): string {
   const text = search.value.trim()
-  if (!/^[\d\s()+-]+$/.test(text) || !/\d/.test(text)) return text
+  if (!/^[\d\s()+-]+$/.test(text)) return text
   const digits = text.replace(/\D/g, '')
-  return text.startsWith('+886') ? `0${digits.slice(3).replace(/^0/, '')}` : digits
+  // 國碼可能帶「+」或沒帶（886912345678）；沒帶的要夠長才算，免得把號碼片段當國碼。
+  if (text.startsWith('+886') || (digits.startsWith('886') && digits.length >= 11)) {
+    const local = digits.slice(3).replace(/^0/, '')
+    return local.length >= 3 ? `0${local}` : text
+  }
+  return digits.length >= 4 ? digits : text
 }
 
 // 清單與 CSV 匯出送同一組篩選條件：畫面上篩好什麼，匯出的就是那一批。
@@ -190,23 +196,31 @@ async function load(options: { quiet?: boolean } = {}) {
     loading.value = true
     error.value = null
   }
+  // 這一頁已經空了、改查第一頁：載入狀態留給接手的那次查詢收尾，中間不閃「沒有案件」。
+  let fallingBack = false
   try {
     const params = filterParams()
     params.set('page', String(page.value))
     params.set('page_size', String(pageSize))
     if (order.value !== 'newest') params.set('order', order.value)
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
-    if (version === loadVersion) {
-      requests.value = result
-      error.value = null
+    if (version !== loadVersion) return
+    // 網址記著頁數：處理完第 2 頁最後一件再返回、或切回分頁時案件已移走，那一頁會是空的，
+    // 但前面幾頁還有案件。不能說「沒有待處理的案件」，回第一頁重查（頁數監聽會重抓並改網址）。
+    if (!result.length && page.value > 1) {
+      fallingBack = true
+      page.value = 1
+      return
     }
+    requests.value = result
+    error.value = null
   } catch {
     if (version === loadVersion && !options.quiet) {
       error.value = '無法讀取案件列表，請重新載入。'
       requests.value = []
     }
   } finally {
-    if (version === loadVersion) loading.value = false
+    if (version === loadVersion && !fallingBack) loading.value = false
   }
 }
 
@@ -492,8 +506,9 @@ onMounted(() => {
 /* 單校的唯讀校區標籤跟旁邊的下拉一樣高，底線對齊。 */
 .requests-filters :deep(.campus-single) { min-height: var(--control-h); }
 .cell-sub { display: block; font-size: 12px; line-height: 1.4; }
-/* 「到期待追蹤 09/27 15:00」維持一行，不在日期中間折斷。 */
-.cell-sub--line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* 「到期待追蹤 09/27 15:00」在家長欄最窄時也是一行；跨年多了年份放不下時只在空白處換行，
+   不在日期中間折斷，也不截掉時間。 */
+.cell-sub--line { word-break: keep-all; }
 /* 跨年的送出時間在空白處換行（日期／時間各一行），不在數字中間斷開。 */
 .date-cell { word-break: keep-all; }
 .cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }

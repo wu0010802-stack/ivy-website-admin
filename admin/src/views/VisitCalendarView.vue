@@ -168,11 +168,13 @@ function pendingCount(day: string): number {
   return chipsOf(day).filter((chip) => chip.status === 'pending_confirmation').length
 }
 
+// 朗讀文字取代格子內容，格內的「可約 N 組」也要講到。
 function dayLabel(day: string): string {
   const total = chipsOf(day).length
   const pending = pendingCount(day)
-  if (!total) return `${formatDate(day)}，沒有排入的家長`
-  return `${formatDate(day)}，${total} 組${pending ? `，其中 ${pending} 組待園方確認` : ''}`
+  const seats = openSeats(day)
+  const booked = total ? `排入 ${total} 組${pending ? `，其中 ${pending} 組待園方確認` : ''}` : '沒有排入的家長'
+  return `${formatDate(day)}，${booked}${seats ? `，可約 ${seats} 組` : ''}`
 }
 
 function shiftMonth(delta: number) {
@@ -188,16 +190,18 @@ function goToday() {
 }
 
 // 當天名單在月曆下方，桌機 1440×900 也在首屏以下：點了日期若名單不在畫面裡，
-// 捲到名單標題，不然看起來像沒反應。名單已經看得到就不動，方便連續比較不同日期。
+// 捲到名單標題，不然看起來像沒反應。名單標題在畫面上半多一點（手機上只露出標題與
+// 第一個時段）也算看不到；已經看得到就不動，方便連續比較不同日期。
+// 用鍵盤選日期（click 的 detail 為 0）不捲：焦點還在日期格上，捲走就看不到自己在哪。
 const detailHeading = ref<HTMLElement | null>(null)
-async function selectDay(day: string) {
+async function selectDay(day: string, event?: MouseEvent) {
   selectedDay.value = day
   if (day.slice(0, 7) !== month.value) month.value = day.slice(0, 7)
   await nextTick()
   const heading = detailHeading.value
-  if (!heading) return
-  const { top, bottom } = heading.getBoundingClientRect()
-  if (top < 0 || bottom > window.innerHeight - 80) {
+  if (!heading || event?.detail === 0) return
+  const { top } = heading.getBoundingClientRect()
+  if (top < 0 || top > window.innerHeight * 0.6) {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     heading.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
   }
@@ -230,7 +234,7 @@ const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: 
       <li><span class="calendar__swatch" data-status="completed" aria-hidden="true" />已完成或未到場</li>
       <li class="calendar__legend-mobile"><span class="calendar__dot" aria-hidden="true">3</span>排入的組數</li>
       <li class="calendar__legend-mobile"><span class="calendar__dot is-pending" aria-hidden="true">3</span>其中有待園方確認</li>
-      <li class="calendar__legend-mobile"><span class="calendar__legend-date num" aria-hidden="true">15</span>有開放時段</li>
+      <li class="calendar__legend-mobile"><span class="calendar__legend-date num" aria-hidden="true">15</span>還有名額可約</li>
     </ul>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">
@@ -253,18 +257,18 @@ const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: 
               'is-other': day.slice(0, 7) !== month,
               'is-today': day === today,
               'is-selected': day === selectedDay,
-              'has-slots': slotsByDay.has(day),
+              'has-seats': openSeats(day) > 0,
             }"
             :aria-selected="day === selectedDay"
             :aria-label="dayLabel(day)"
-            @click="selectDay(day)"
+            @click="selectDay(day, $event)"
           >
             <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
             <span v-for="chip in chipsOf(day).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-status="chip.status">
               <span class="num">{{ chip.time }}</span> <span v-if="showCampus" class="calendar__chip-campus">{{ campusLabel(chip.campus) }}</span> {{ chip.name }}
             </span>
             <span v-if="chipsOf(day).length > MAX_CHIPS" class="calendar__more">還有 {{ chipsOf(day).length - MAX_CHIPS }} 組</span>
-            <span v-if="slotsByDay.has(day) && openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 組</span>
+            <span v-if="openSeats(day) > 0" class="calendar__seats">可約 {{ openSeats(day) }} 組</span>
             <span v-if="chipsOf(day).length" class="calendar__dot" :class="{ 'is-pending': pendingCount(day) > 0 }" aria-hidden="true">{{ chipsOf(day).length }}</span>
           </button>
         </div>
@@ -398,7 +402,8 @@ const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: 
   .calendar__legend li.calendar__legend-mobile { display: inline-flex; }
   .calendar__day { min-height: 52px; align-items: center; padding: 4px 2px; }
   .calendar__chip, .calendar__more, .calendar__seats { display: none; }
-  .calendar__day.has-slots .calendar__date { text-decoration: underline; text-underline-offset: 3px; }
+  /* 底線＝桌機格內的「可約 N 組」：已關閉（含休假日）或已結束的時段不算。 */
+  .calendar__day.has-seats .calendar__date { text-decoration: underline; text-underline-offset: 3px; }
   .calendar__dot {
     display: inline-grid;
     place-items: center;
@@ -414,7 +419,8 @@ const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: 
   .calendar__dot.is-pending { background: var(--brand-gold); color: var(--ink); font-weight: 600; }
   /* 每筆：家長＋狀態、可撥號的電話、灰字的孩子與承辦。 */
   .calendar__visits li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name status' 'phone phone' 'child child' 'staff staff'; gap: 0 12px; }
-  .calendar__visit-name { grid-area: name; }
+  /* 點家長進案件是這裡最主要的動作，觸控範圍跟電話一樣 44px。 */
+  .calendar__visit-name { grid-area: name; display: inline-flex; align-items: center; min-height: 44px; justify-self: start; }
   .calendar__visits li > .el-tag { grid-area: status; justify-self: end; }
   .calendar__visit-phone { grid-area: phone; display: inline-flex; align-items: center; min-height: 44px; justify-self: start; }
   .calendar__visit-child { grid-area: child; }

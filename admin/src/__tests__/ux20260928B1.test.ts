@@ -51,7 +51,7 @@ const request = (changes: Record<string, unknown> = {}) => ({
 
 describe('案件列表：篩選與頁數跟網址雙向同步', () => {
   it('網址上的條件（含搜尋、來源、送出日期與頁數）掛載時全部讀回來', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue([request()] as never)
     const { wrapper } = await mountAt(VisitRequestsView,
       '/visit-requests?status=new&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&assignee=me&order=oldest&page=3&campus=renwu')
     expect(listCalls(get)).toHaveLength(1)
@@ -104,6 +104,28 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     expect(router.currentRoute.value.query).toEqual({})
   })
 
+  it('網址記著的那一頁已經空了（處理完最後一件再返回）就回第一頁重查，不說「沒有待處理的案件」', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (!path.startsWith('/admin/visit-requests?')) return [] as never
+      return (new URLSearchParams(path.split('?')[1]).get('page') === '1' ? [request()] : []) as never
+    })
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '1'])
+    expect(lastListQuery(get).get('status')).toBe('new')
+    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(wrapper.text()).toContain('王媽媽')
+    expect(wrapper.text()).not.toContain('沒有「待處理」的案件')
+    expect(wrapper.find('.pager').exists()).toBe(false)
+  })
+
+  it('第一頁也沒有案件才顯示空狀態', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    expect(listCalls(get)).toHaveLength(2)
+    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(wrapper.find('.requests-mobile .requests-empty').text()).toContain('沒有「待處理」的案件')
+  })
+
   it('側欄或總覽連結改了網址就套用新條件；點進案件時不會清掉條件重查', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new')
@@ -126,7 +148,13 @@ describe('案件列表：電話搜尋與欄位', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests')
     const input = wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]')
-    for (const [typed, sent] of [['0912-345 678', '0912345678'], ['+886 912-345-678', '0912345678'], ['(02) 2345-6789', '0223456789'], ['王 小明', '王 小明']]) {
+    for (const [typed, sent] of [
+      ['0912-345 678', '0912345678'], ['+886 912-345-678', '0912345678'], ['(02) 2345-6789', '0223456789'], ['王 小明', '王 小明'],
+      // 沒帶「+」的國碼、國碼後多打的 0 都換回 09 開頭。
+      ['886912345678', '0912345678'], ['+886 0912 345 678', '0912345678'],
+      // 還在打國碼或前幾碼時照原字查，不會縮成「0」「88」查出幾乎每一筆。
+      ['+886', '+886'], ['+88', '+88'], ['09-1', '09-1'], ['8869', '8869'],
+    ]) {
       await input.setValue(typed)
       await new Promise(resolve => setTimeout(resolve, 350))
       await flushPromises()
@@ -156,6 +184,7 @@ describe('案件列表：電話搜尋與欄位', () => {
     expect(cards[0]!.text()).toContain('義華校 · 小安 · 承辦：未指派 · 電話補登')
     expect(cards[0]!.text()).toContain('方便接電話時段：平日上午')
     expect(cards[0]!.text()).toContain('09/28 21:41 送出')
+    expect(cards[1]!.text()).not.toContain('方便接電話')
   })
 
   it('只負責一校的櫃台：沒有校區欄，校區篩選是唯讀標籤，網址帶別校也不會拿去查', async () => {
@@ -203,6 +232,28 @@ describe('案件列表：切回分頁時更新', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('新來的家長')
   })
+
+  it('切回來時正在看的那一頁已經空了，回第一頁，不說沒有案件', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-28T09:00:00+08:00'))
+    let listRequests = 0
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (!path.startsWith('/admin/visit-requests?')) return { new_requests: 0, awaiting_confirmation: 0 } as never
+      listRequests++
+      if (listRequests === 1) return [request({ id: 'case-old', parent_name: '第二頁的家長' })] as never
+      return (new URLSearchParams(path.split('?')[1]).get('page') === '1' ? [request({ id: 'case-first', parent_name: '第一頁的家長' })] : []) as never
+    })
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    expect(wrapper.text()).toContain('第二頁的家長')
+
+    vi.setSystemTime(new Date('2026-09-28T09:01:05+08:00'))
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '2', '1'])
+    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(wrapper.text()).toContain('第一頁的家長')
+    expect(wrapper.text()).not.toContain('沒有「待處理」的案件')
+  })
 })
 
 describe('接待月曆', () => {
@@ -220,12 +271,13 @@ describe('接待月曆', () => {
     ] as never)
     const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
     const legend = wrapper.get('.calendar__legend').text()
-    for (const label of ['待園方確認', '已確認', '已完成或未到場', '有開放時段']) expect(legend).toContain(label)
+    for (const label of ['待園方確認', '已確認', '已完成或未到場', '還有名額可約']) expect(legend).toContain(label)
 
     const day24 = wrapper.findAll('.calendar__day').find(cell => cell.attributes('aria-label')?.startsWith('2026/09/24'))!
     const day25 = wrapper.findAll('.calendar__day').find(cell => cell.attributes('aria-label')?.startsWith('2026/09/25'))!
-    expect(day24.attributes('aria-label')).toBe('2026/09/24，2 組，其中 1 組待園方確認')
-    expect(day25.attributes('aria-label')).toBe('2026/09/25，1 組')
+    // 朗讀文字取代格子內容，格內的「可約 N 組」也要講到。
+    expect(day24.attributes('aria-label')).toBe('2026/09/24，排入 2 組，其中 1 組待園方確認，可約 1 組')
+    expect(day25.attributes('aria-label')).toBe('2026/09/25，排入 1 組，可約 2 組')
     expect(day24.get('.calendar__dot').classes()).toContain('is-pending')
     expect(day25.get('.calendar__dot').classes()).not.toContain('is-pending')
     expect(day24.text()).toContain('可約 1 組')
@@ -245,6 +297,23 @@ describe('接待月曆', () => {
     const cell = (date: string) => wrapper.findAll('.calendar__day').find(day => day.attributes('aria-label')?.startsWith(date))!
     expect(cell('2026/09/24').text()).toContain('可約 2 組')
     expect(cell('2026/09/23').text()).not.toContain('可約')
+  })
+
+  it('手機的日期底線只標還有名額可約的日子：休假日關閉、已結束、已額滿的都不算', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-24T09:00:00+08:00'))
+    vi.spyOn(api, 'get').mockResolvedValue([
+      slot({ id: 'open' }),
+      slot({ id: 'holiday', slot_date: '2026-09-25', closed: true }),
+      slot({ id: 'past', slot_date: '2026-09-23' }),
+      slot({ id: 'full', slot_date: '2026-09-26', capacity: 1, booked_count: 1, visits: [visit('v1', 'confirmed', '王小姐')] }),
+    ] as never)
+    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
+    const cell = (date: string) => wrapper.findAll('.calendar__day').find(day => day.attributes('aria-label')?.startsWith(date))!
+    expect(cell('2026/09/24').classes()).toContain('has-seats')
+    for (const date of ['2026/09/25', '2026/09/23', '2026/09/26', '2026/09/27']) expect(cell(date).classes()).not.toContain('has-seats')
+    expect(cell('2026/09/25').attributes('aria-label')).toBe('2026/09/25，沒有排入的家長')
+    expect(cell('2026/09/26').attributes('aria-label')).toBe('2026/09/26，排入 1 組')
   })
 
   it('?campus= 帶進來就看那一校，切校寫回網址', async () => {
@@ -271,7 +340,7 @@ describe('接待月曆', () => {
     expect(wrapper.find('.campus-single').text()).toContain('義華')
   })
 
-  it('點日期後名單不在畫面裡就捲過去；已經看得到就不動', async () => {
+  it('點日期後名單不在畫面裡（或只露出標題）就捲過去；已經看得到、或用鍵盤選日期就不動', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
     const heading = wrapper.get('.calendar__detail h2').element as HTMLElement
@@ -279,15 +348,28 @@ describe('接待月曆', () => {
     heading.scrollIntoView = scroll
     const rect = (top: number) => vi.spyOn(heading, 'getBoundingClientRect').mockReturnValue({ top, bottom: top + 24 } as DOMRect)
     const days = wrapper.findAll('.calendar__day')
+    // 滑鼠或手指點的 click 帶 detail 1（test-utils 的 trigger 設不了 detail，直接送事件）。
+    const tap = async (index: number) => { days[index]!.element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); await flushPromises() }
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844)
 
     rect(940)
-    await days[10]!.trigger('click')
-    await flushPromises()
+    await tap(10)
     expect(scroll).toHaveBeenCalledOnce()
 
+    // 390×844 手機：標題在 649px，下面只露出第一個時段，名單其實還在底下。
+    rect(649)
+    await tap(12)
+    expect(scroll).toHaveBeenCalledTimes(2)
+
     rect(300)
-    await days[11]!.trigger('click')
+    await tap(11)
+    expect(scroll).toHaveBeenCalledTimes(2)
+
+    // 鍵盤（Enter／空白鍵觸發的 click，detail 為 0）：焦點留在日期格上，畫面不捲走。
+    rect(940)
+    await days[13]!.trigger('click')
     await flushPromises()
-    expect(scroll).toHaveBeenCalledOnce()
+    expect(scroll).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.calendar__detail h2').text()).toContain(days[13]!.attributes('aria-label')!.slice(0, 10))
   })
 })
