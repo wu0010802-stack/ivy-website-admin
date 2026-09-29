@@ -15,6 +15,7 @@ import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
 import { usePermissions } from '../composables/usePermissions'
 import { useAuthStore } from '../stores/auth'
 import { canOpenPath } from '../router/nav'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
 
 const route = useRoute()
 const router = useRouter()
@@ -47,9 +48,13 @@ const error = ref<string | null>(null)
 const busyIds = ref<string[]>([])
 const anyBusy = computed(() => busyIds.value.length > 0)
 const isBusy = (id: string) => busyIds.value.includes(id)
-// 儲存失敗時名額框可能還停在剛按的數字（值沒變就不會重畫）：遞增這個數字讓它
-// 重新顯示實際名額。
-const capacityResets = ref(0)
+// 儲存失敗時名額框可能還停在剛按的數字（值沒變就不會重畫）：遞增那一列的數字
+// 讓它重新顯示實際名額。只重畫失敗的那一列，別列正在輸入的數字與焦點不受影響。
+const capacityResets = ref<Record<string, number>>({})
+const capacityKey = (id: string) => `${id}-${capacityResets.value[id] ?? 0}`
+function resetCapacityInput(id: string) {
+  capacityResets.value = { ...capacityResets.value, [id]: (capacityResets.value[id] ?? 0) + 1 }
+}
 const requests = useRequestSequence()
 const rangeInvalid = computed(() => dateFrom.value > dateTo.value)
 const availableSlots = computed(() => slots.value.filter(slot => !slot.closed && !isPast(slot) && slot.booked_count < slot.capacity).length)
@@ -104,6 +109,9 @@ const reload = () => load({ background: true })
 // 切校前先問面板裡有沒有沒存的每週規則，拒絕就留在原校。
 const schedulePanel = ref<InstanceType<typeof VisitSchedulePanel> | null>(null)
 const switchingCampus = ref(false)
+// 名額、關閉、新增時段或面板的產生時段／休假日還在路上時不換校：回應會落在新選的
+// 那一校。校區選單與網址帶的 ?campus=（例如按上一頁）都照這一組條件。
+const campusLocked = computed(() => anyBusy.value || creating.value || createDialogVisible.value || switchingCampus.value || Boolean(schedulePanel.value?.busy))
 function syncCampusQuery() {
   const key = selectedCampus.value
   if (!key || route.query.campus === key) return
@@ -111,6 +119,11 @@ function syncCampusQuery() {
 }
 async function switchCampus(next: string) {
   if (!next || next === selectedCampus.value || switchingCampus.value) return
+  if (campusLocked.value) {
+    // 網址已經換成別校：寫回目前這一校，重新整理時不會落在沒切過去的校區。
+    syncCampusQuery()
+    return
+  }
   switchingCampus.value = true
   try {
     if (!schedulePanel.value || (await schedulePanel.value.confirmLeave())) selectedCampus.value = next
@@ -240,7 +253,7 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number, successText 
     if (isSlotOf(updated, slot.id)) replaceSlot(updated)
     else await reload()
   } catch (err) {
-    capacityResets.value++
+    resetCapacityInput(slot.id)
     if (isVersionConflict(err)) {
       // 別人剛改過這個時段（或休假日剛把它關掉）：不蓋掉，重新讀最新的。
       ElMessage.warning(SLOT_CONFLICT_RELOADED)
@@ -265,6 +278,24 @@ async function updateCapacity(slot: VisitSlotOut, capacity: number, successText 
 const closeTarget = ref<VisitSlotOut | null>(null)
 const closeDialogOpen = ref(false)
 const closeTargetFull = computed(() => Boolean(closeTarget.value && closeTarget.value.capacity === closeTarget.value.booked_count))
+// 桌機橫排：先不要、關閉這一場、只停止新預約（主要動作在右）。手機直向排，最常用
+// 的「只停止新預約」在最上面；按鈕的先後直接照畫面排，Tab 順序跟看到的一樣。
+type CloseChoice = { key: 'cancel' | 'close' | 'stop'; label: string; type?: 'primary' | 'danger'; plain?: boolean }
+const narrow = useNarrowScreen()
+const closeChoices = computed<CloseChoice[]>(() => {
+  const target = closeTarget.value
+  const choices: CloseChoice[] = [
+    { key: 'cancel', label: '先不要' },
+    { key: 'close', label: '關閉這一場', type: 'danger', plain: true },
+  ]
+  if (target && !closeTargetFull.value) choices.push({ key: 'stop', label: `只停止新預約（名額改為 ${target.booked_count} 組）`, type: 'primary' })
+  return narrow.value ? choices.reverse() : choices
+})
+function chooseCloseAction(key: CloseChoice['key']) {
+  if (key === 'stop') void chooseStopNew()
+  else if (key === 'close') void chooseClose()
+  else closeDialogOpen.value = false
+}
 
 async function toggleClosed(slot: VisitSlotOut) {
   if (!canManage.value || isBusy(slot.id) || loading.value) return
@@ -384,7 +415,7 @@ function openCreate() {
 
     <!-- 校區管整頁（規則與清單）；日期只篩下面的時段清單，放在清單正上方。 -->
     <div class="toolbar filter-bar slots-scope">
-      <label class="filter-field"><span>校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="anyBusy || creating || createDialogVisible || switchingCampus" @update:model-value="switchCampus" /></label>
+      <label class="filter-field"><span>校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="campusLocked" @update:model-value="switchCampus" /></label>
       <p v-if="!modeNotice && slotsModeNote" class="hint slots-mode-note">{{ slotsModeNote }}</p>
     </div>
 
@@ -436,7 +467,7 @@ function openCreate() {
               <span class="cap__count num">{{ row.booked_count }}</span>
               <span class="muted">/</span>
               <el-input-number
-                :key="`${row.id}-${capacityResets}`"
+                :key="capacityKey(row.id)"
                 :model-value="row.capacity"
                 :min="row.booked_count"
                 :max="200"
@@ -476,7 +507,7 @@ function openCreate() {
               </div>
               <div class="slot-row__body">
                 <span class="slot-row__booked">已占用 <b class="num">{{ slot.booked_count }}</b> 組</span>
-                <label class="slot-row__cap"><span>名額</span><el-input-number :key="`${slot.id}-${capacityResets}`" :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || isBusy(slot.id) || isPast(slot)" :aria-label="capacityLabel(slot)" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /><span>組</span></label>
+                <label class="slot-row__cap"><span>名額</span><el-input-number :key="capacityKey(slot.id)" :model-value="slot.capacity" :min="slot.booked_count" :max="200" :disabled="!canManage || isBusy(slot.id) || isPast(slot)" :aria-label="capacityLabel(slot)" @change="(v: number | undefined) => v !== undefined && updateCapacity(slot, v)" /><span>組</span></label>
                 <el-button v-if="canManage && !isPast(slot)" :loading="isBusy(slot.id)" :disabled="isBusy(slot.id)" @click="toggleClosed(slot)">{{ slot.closed ? '重新開放' : '關閉' }}</el-button>
               </div>
             </li>
@@ -501,9 +532,7 @@ function openCreate() {
       </template>
       <template #footer>
         <div class="close-slot__actions">
-          <el-button @click="closeDialogOpen = false">先不要</el-button>
-          <el-button type="danger" plain @click="chooseClose">關閉這一場</el-button>
-          <el-button v-if="closeTarget && !closeTargetFull" type="primary" @click="chooseStopNew">只停止新預約（名額改為 {{ closeTarget.booked_count }} 組）</el-button>
+          <el-button v-for="choice in closeChoices" :key="choice.key" :type="choice.type" :plain="choice.plain" @click="chooseCloseAction(choice.key)">{{ choice.label }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -619,8 +648,8 @@ function openCreate() {
 .close-slot__actions .el-button + .el-button { margin-left: 0; }
 
 @media (max-width: 720px) {
-  /* 手機上三個選項直向排，最常用的「只停止新預約」在最上面。 */
-  .close-slot__actions { flex-direction: column-reverse; align-items: stretch; width: 100%; }
+  /* 手機上三個選項直向排；順序由 closeChoices 照畫面排好，不用 column-reverse。 */
+  .close-slot__actions { flex-direction: column; align-items: stretch; width: 100%; }
   .close-slot__actions .el-button { width: 100%; white-space: normal; height: auto; }
 }
 </style>

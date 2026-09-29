@@ -115,7 +115,10 @@ const dirty = computed(() => {
 })
 // 規則改了還沒存：切校區（由時段頁呼叫 confirmLeave）、點側欄或關分頁都先確認。
 const { confirmLeave } = useUnsavedChanges(dirty, saving)
-defineExpose({ confirmLeave })
+// 存規則、產生時段、設或取消休假還在路上：時段頁先不讓換校，回應才不會顯示在
+// 新選的那一校。
+const busy = computed(() => saving.value || generating.value || exceptionBusy.value)
+defineExpose({ confirmLeave, busy })
 
 // 每週規則一學期才改幾次，時段清單才是每天要看的：預設收合成一行摘要。
 // 有未儲存的修改時一律展開，不讓修改藏在收合的面板裡。

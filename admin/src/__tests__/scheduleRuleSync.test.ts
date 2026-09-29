@@ -234,6 +234,15 @@ describe('時段清單：只想停止新預約不用關閉時段', () => {
     expect(wrapper.text()).not.toContain('關閉的時段還有家長排入')
   })
 
+  it('手機上三個選項由上而下：只停止新預約、關閉這一場、先不要（按鈕先後與畫面一致）', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(max-width: 720px)', media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    mockSlots()
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    await closeButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(choiceButtons(wrapper).map(button => button.text())).toEqual(['只停止新預約（名額改為 2 組）', '關閉這一場', '先不要'])
+  })
+
   it('選「先不要」什麼都不改', async () => {
     mockSlots()
     const patch = vi.spyOn(api, 'patch').mockResolvedValue({} as never)
@@ -288,6 +297,66 @@ describe('時段清單：只想停止新預約不用關閉時段', () => {
     pending!([slot('a', {})])
     await flushPromises()
     expect(wrapper.findAll('.slot-row')).toHaveLength(1)
+  })
+
+  it('名額儲存失敗只重畫那一列的名額框，別列正在輸入的不受影響', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return schedule({ rules: [] }) as never
+      if (String(path).startsWith('/admin/booking-config/')) return { campus_key: 'yihua', mode: 'slots', slots_auto_confirm: false } as never
+      return [slot('a', {}), slot('b', { start_time: '14:00:00', end_time: '15:00:00' })] as never
+    })
+    vi.spyOn(api, 'patch').mockRejectedValue(new Error('offline'))
+    vi.spyOn(ElMessage, 'error')
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    const inputs = () => wrapper.findAll('.slot-row').map(row => row.find('.el-input-number input').element)
+    const [firstBefore, secondBefore] = inputs()
+    wrapper.findAll('.slot-row')[0]!.findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
+    await flushPromises()
+    const [firstAfter, secondAfter] = inputs()
+    expect(firstAfter).not.toBe(firstBefore)
+    expect(secondAfter).toBe(secondBefore)
+  })
+
+  it('名額還在儲存時，網址換校（例如按上一頁）不換校並寫回目前這一校', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return schedule({ rules: [] }) as never
+      if (String(path).startsWith('/admin/booking-config/')) return { campus_key: 'yihua', mode: 'slots', slots_auto_confirm: false } as never
+      return [slot('a', {})] as never
+    })
+    let resolvePatch!: (value: unknown) => void
+    vi.spyOn(api, 'patch').mockImplementation(() => new Promise(resolve => { resolvePatch = resolve }) as never)
+    const wrapper = await mountAt(VisitSlotsView, '/slots?campus=yihua')
+    const select = wrapper.getComponent({ name: 'CampusSelect' })
+    wrapper.find('.slot-row').findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
+    await flushPromises()
+    expect(select.props('disabled')).toBe(true)
+    await wrapper.vm.$router.replace({ query: { campus: 'renwu' } })
+    await flushPromises()
+    expect(select.props('modelValue')).toBe('yihua')
+    expect(wrapper.vm.$router.currentRoute.value.query.campus).toBe('yihua')
+    resolvePatch(slot('a', { capacity: 5, version: 3 }))
+    await flushPromises()
+    expect(select.props('disabled')).toBe(false)
+  })
+
+  it('面板正在設休假日時校區選單先停用', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return schedule() as never
+      return [] as never
+    })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    let resolvePost!: (value: unknown) => void
+    vi.spyOn(api, 'post').mockImplementation(() => new Promise(resolve => { resolvePost = resolve }) as never)
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    const select = wrapper.getComponent({ name: 'CampusSelect' })
+    expect(select.props('disabled')).toBe(false)
+    await wrapper.findAll('button').find(button => button.text() === '查看與修改')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '設為休假')!.trigger('click')
+    await flushPromises()
+    expect(select.props('disabled')).toBe(true)
+    resolvePost({ closed_slots: 0, affected_requests: 0 })
+    await flushPromises()
+    expect(select.props('disabled')).toBe(false)
   })
 
   it('第一次讀失敗後按「重新載入」：讀取中顯示骨架，不閃成「尚未安排參觀時段」', async () => {
