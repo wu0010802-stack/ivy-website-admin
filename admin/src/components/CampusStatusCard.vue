@@ -51,7 +51,9 @@ async function load(retry = false) {
     emit('status', result.active)
     if (props.focusOnLoad) {
       await nextTick()
-      actions.value?.querySelector<HTMLButtonElement>('.campus-status__primary')?.focus()
+      // 先把整張卡捲到畫面中間（直接 focus 只捲到按鈕剛好露出，會被固定的頁首蓋住）。
+      actions.value?.closest<HTMLElement>('.campus-status')?.scrollIntoView?.({ block: 'center' })
+      actions.value?.querySelector<HTMLButtonElement>('.campus-status__primary')?.focus({ preventScroll: true })
     }
   } catch {
     // 讀不到時不要整張卡默默消失：停用與否是大事，留下原因與重試入口。
