@@ -374,7 +374,7 @@ describe('預約文案：隱私說明本文', () => {
   })
 })
 
-describe('總覽、案件明細、補登與全站設定', () => {
+describe('總覽、案件明細、補登、個資與搜尋設定', () => {
   it('開放選時段卻沒有場次的校區列入待辦', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/dashboard') {
@@ -443,7 +443,7 @@ describe('總覽、案件明細、補登與全站設定', () => {
     expect(post.mock.calls[0]![1]).toMatchObject({ party_size: 3 })
   })
 
-  it('全站設定頁說明家長同意記錄的是預約文案的版本，不再有沒作用的隱私政策版本欄位', async () => {
+  it('個資與搜尋設定頁說明家長同意記錄的是預約文案的版本，不再有沒作用的隱私政策版本欄位', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ content: { site_meta: { description: '', share_image: '', allow_indexing: true } } } as never)
     const wrapper = await mountAt(PoliciesView, '/policies')
     expect(wrapper.text()).toContain('案件會記錄當時發布中的')

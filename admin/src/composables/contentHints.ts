@@ -26,6 +26,11 @@ export const LENGTH_HINTS = {
   tourIntro: { max: 80, why: '場景說明會蓋住照片' },
   tourSpotText: { max: 80, why: '熱點說明框會超出照片' },
   bookingCta: { max: 6, why: '頁首按鈕放不下' },
+  // 分校頁底部的預約橫幅：手機標題 24px、一行約 14 字；內文 14px、一行約 25 字。
+  // 標題以換成校名之後的字數計（見 bannerTitlePreview）。
+  bannerTitle: { max: 24, why: '標題在手機上會超過兩行' },
+  bannerBody: { max: 50, why: '內文在手機上會超過兩行' },
+  bannerButton: { max: 10, why: '按鈕太寬，桌機上旁邊的標題會被擠窄' },
 } as const satisfies Record<string, LengthHintRule>
 
 export type LengthHintKey = keyof typeof LENGTH_HINTS
@@ -40,6 +45,24 @@ export function lengthHintText(value: string | null | undefined, rule: LengthHin
   if (count === 0) return { text: `建議 ${rule.max} 字內`, over: false }
   if (count <= rule.max) return { text: `${count} 字・建議 ${rule.max} 字內`, over: false }
   return { text: `${count} 字，超過建議的 ${rule.max} 字：${rule.why}`, over: true }
+}
+
+// 分校頁底部的預約橫幅（預約文案）：標題裡的 {campusNameOrIvy} 是校名的位置，官網每個
+// 分校頁換成自己的校名（園方手打的 {campus} 也算）；欄位留空時官網沿用原本的三句話。
+// 規則跟官網分校頁的橫幅一致，後台用來預覽，不讓園方自己打大括號。
+export const BANNER_CAMPUS_TOKEN = '{campusNameOrIvy}'
+const BANNER_CAMPUS_PATTERN = /\{(?:campusNameOrIvy|campus)\}/g
+export const BANNER_DEFAULTS = {
+  title: `親自走一趟，感受${BANNER_CAMPUS_TOKEN}的日常。`,
+  body: '帶著孩子，也帶著你想了解的事。我們期待與你相遇。',
+  button: '預約校園參觀',
+} as const
+
+/** 某一校的分校頁實際顯示的橫幅標題；留空時是原本的標題。 */
+export function bannerTitlePreview(template: string | null | undefined, campusName: string): string {
+  const text = template?.trim() || BANNER_DEFAULTS.title
+  // 用函式替換：校名裡若有 `$&` 之類的字，字串替換會當成特殊樣式。
+  return text.replace(BANNER_CAMPUS_PATTERN, () => campusName)
 }
 
 // 官網實際裁切的比例（web 的 CSS aspect-ratio）；照片都以 object-fit: cover

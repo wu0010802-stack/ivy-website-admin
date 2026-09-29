@@ -16,7 +16,6 @@ import {
 } from '../api/labels'
 import type { PublishJobListOut, ReleaseOut, ReleasePageOut, ReleaseRestoreOut, UserNotificationOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
-import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -26,7 +25,6 @@ import StatusTag from '../components/StatusTag.vue'
 const route = useRoute()
 const router = useRouter()
 const { can } = usePermissions()
-const openRequests = useOpenRequestsStore()
 const canRestore = computed(() => can('content.release_restore'))
 
 type Tab = 'releases' | 'schedules'
@@ -88,7 +86,6 @@ async function markNoticeRead(n: UserNotificationOut) {
   try {
     const updated = await api.post<UserNotificationOut>(`/admin/my-notifications/${n.id}/read`)
     n.read_at = updated.read_at ?? new Date().toISOString()
-    openRequests.myNotices = Math.max(0, openRequests.myNotices - 1)
   } catch {
     if (alive) ElMessage.error('標記失敗，請重試')
   } finally {
@@ -103,7 +100,6 @@ async function markAllNoticesRead() {
     await api.post('/admin/my-notifications/read-all')
     const now = new Date().toISOString()
     for (const n of notices.value) if (!n.read_at) n.read_at = now
-    openRequests.myNotices = 0
   } catch {
     if (alive) ElMessage.error('標記失敗，請重試')
   } finally {

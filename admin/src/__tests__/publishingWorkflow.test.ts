@@ -391,11 +391,10 @@ describe('發布紀錄頁（第 56 條）', () => {
     expect(del).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules/j1?campus_key=yihua')
   })
 
-  it('給自己的通知：顯示退回原因與連結，標記已讀後側欄數字跟著減', async () => {
+  it('給自己的通知：顯示退回原因與連結，標記已讀後未讀數跟著減', async () => {
     mockPublishingApi({ notices: [notice('n1'), notice('n2', { kind: 'content_schedule_failed', note: null, error: '素材還沒處理好', publish_at: '2026-09-25T01:00:00Z', actor_email: null, read_at: '2026-09-25T03:00:00Z' })] })
     const post = vi.spyOn(api, 'post').mockResolvedValue({ ...notice('n1'), read_at: '2026-09-25T04:00:00Z' } as never)
-    const { global, pinia } = await setup('/releases', testUser('editor', { campus_keys: ['yihua'] }))
-    useOpenRequestsStore(pinia).apply({ my_unread_notifications: 1 })
+    const { global } = await setup('/releases', testUser('editor', { campus_keys: ['yihua'] }))
     const wrapper = mount(PublishHistoryView, { global })
     wrappers.push(wrapper)
     await flushPromises()
@@ -409,19 +408,19 @@ describe('發布紀錄頁（第 56 條）', () => {
     await button(wrapper, '標記已讀').trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/my-notifications/n1/read')
-    expect(useOpenRequestsStore(pinia).myNotices).toBe(0)
     expect(wrapper.text()).not.toContain('則未讀')
   })
 
-  it('側欄「發布紀錄」旁顯示未讀的內容通知數', async () => {
+  it('側欄「發布紀錄」不掛數字：未讀的內容通知看這一頁（側欄只有參觀案件掛數字）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ my_unread_notifications: 3 } as never)
     const { global, pinia } = await setup('/', testUser('editor', { campus_keys: ['yihua'] }))
-    useOpenRequestsStore(pinia).apply({ my_unread_notifications: 3 })
+    useOpenRequestsStore(pinia).apply({ my_unread_notifications: 3 } as never)
     const wrapper = mount(AdminSidebar, { global })
     wrappers.push(wrapper)
     await flushPromises()
     const link = wrapper.findAll('a').find((a) => a.text().includes('發布紀錄'))!
-    expect(link.find('.sidebar__badge').text()).toContain('3')
+    expect(link.text()).toBe('發布紀錄')
+    expect(wrapper.find('.sidebar__badge').exists()).toBe(false)
   })
 })
 
