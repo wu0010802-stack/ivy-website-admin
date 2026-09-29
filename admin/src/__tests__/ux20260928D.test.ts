@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent, h, ref, type VNode } from 'vue'
 import { createPinia } from 'pinia'
-import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
+import { createMemoryHistory, createRouter, isNavigationFailure, matchedRouteKey, NavigationFailureType } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import ContentEditor from '../components/ContentEditor.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -400,12 +400,40 @@ describe('分校內容的校區留在網址並記住', () => {
     expect(faq.campus.value).toBe('minghua')
   })
 
-  it('有未儲存修改又選擇留下：校區和網址都撥回原本的', async () => {
+  it('有未儲存修改又選擇留下：取消這次換頁，校區和網址都不動、也不多一筆上一頁紀錄', async () => {
     const { global, router } = await setup('/content/campus-faq?campus=renwu')
-    const page = probe(global, true, async () => false)
+    const confirmLeave = vi.fn(async () => false)
+    const page = probe(global, true, confirmLeave)
     await flushPromises()
     expect(page.campus.value).toBe('renwu')
+    const replace = vi.spyOn(router, 'replace')
+    const result = await router.push('/content/campus-faq?campus=minghua')
+    await flushPromises()
+    expect(isNavigationFailure(result, NavigationFailureType.aborted)).toBe(true)
+    expect(confirmLeave).toHaveBeenCalledOnce()
+    expect(replace).not.toHaveBeenCalled()
+    expect(page.campus.value).toBe('renwu')
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=renwu')
+  })
+
+  it('有未儲存修改但同意放棄：只問一次就換校', async () => {
+    const { global, router } = await setup('/content/campus-faq?campus=renwu')
+    const confirmLeave = vi.fn(async () => true)
+    const page = probe(global, true, confirmLeave)
+    await flushPromises()
     await router.push('/content/campus-faq?campus=minghua')
+    await flushPromises()
+    expect(confirmLeave).toHaveBeenCalledOnce()
+    expect(page.campus.value).toBe('minghua')
+    expect(page.load).toHaveBeenCalledTimes(2)
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=minghua')
+  })
+
+  it('從側欄再點同一頁（網址沒帶校區）：畫面停在目前的校區，網址補回 ?campus=', async () => {
+    const { global, router } = await setup('/content/campus-faq?campus=renwu')
+    const page = probe(global)
+    await flushPromises()
+    await router.push('/content/campus-faq')
     await flushPromises()
     expect(page.campus.value).toBe('renwu')
     expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=renwu')
@@ -455,9 +483,76 @@ describe('排程說明', () => {
     await flushPromises()
     expect(cancelSchedule).toHaveBeenCalledWith('j1')
 
+    // 之後又存了新草稿、還不知道官網是哪一版：講明不含之後的修改，不斷言一定會發布。
     latestId.value = 'r3'
     await flushPromises()
-    expect(line()).toContain('自動發布較早儲存的草稿；之後又存了新草稿，排程仍會發布較舊的內容。')
+    expect(line()).toContain('自動發布較早儲存的草稿（不含之後存的修改）；到時官網若已經是更新的內容就會略過。')
+  })
+
+  // 後端 skip_reason：到期時官網已經是排定的那一版或更新的內容就略過，排程列要先看官網。
+  it('先看官網是哪一版：已是這一版或更新就講到時會略過，官網較舊才講會發布較早的草稿', async () => {
+    const { global } = await setup()
+    const line = (overrides: Partial<ContentEditorState>) =>
+      mountShell(global, editorState({ schedules: ref([scheduledJob()]), loadSchedules: async () => {}, ...overrides })).get('.editor__schedules').text()
+    const newer = { latestRevisionId: computed(() => 'r3') }
+
+    // 排 r2 之後發布了 r3：官網就是最新一版，排程到時會略過（不能說會發布較舊的內容）。
+    const publishedNewer = line({ ...newer, isPublished: ref(true), liveVersion: computed(() => 3) })
+    expect(publishedNewer).toContain('已排定 2026/10/01 09:00 自動發布較早儲存的草稿，但官網已經是更新的內容，到時會略過。')
+    expect(publishedNewer).not.toContain('仍會發布')
+    expect(line({ latestRevisionId: computed(() => 'r2'), isPublished: ref(true) })).toContain('自動發布這份內容，但官網已經是這一版，到時會略過。')
+    // 排 r2、發布 r3、又存了 r4 草稿：官網 r3 比排定的新，一樣會略過。
+    expect(line({ latestRevisionId: computed(() => 'r4'), liveVersion: computed(() => 3) })).toContain('較早儲存的草稿，但官網已經是更新的內容，到時會略過。')
+    // 排 r2 之後直接發布了 r2、又存了 r3：排定的那一份已經在官網上。
+    expect(line({ ...newer, liveVersion: computed(() => 2) })).toContain('較早儲存的草稿，但這份已經在官網上，到時會略過。')
+    // 官網還是比排定的舊（r1），或從沒發布過：到時會發布較早的草稿。
+    expect(line({ ...newer, liveVersion: computed(() => 1) })).toContain('自動發布較早儲存的草稿，不含之後存的修改。')
+    expect(line({ ...newer, neverPublished: computed(() => true) })).toContain('自動發布較早儲存的草稿，不含之後存的修改。')
+    expect(line({ latestRevisionId: computed(() => 'r2'), liveVersion: computed(() => 1), isDirty: computed(() => true) })).toContain('自動發布上次儲存的草稿，不含還沒儲存的修改。')
+  })
+
+  it('真的載入時：排的不是最新一版、官網也不是最新一版，才另外讀官網那一版的版本號', async () => {
+    const { global } = await setup()
+    // 排 r2、發布 r3、又存了 r4：官網 r3 不是最新一版，要讀它才知道比排定的新。
+    const item = faqItem({ latest_version: 4, current_published_revision_id: 'r3' }, { id: 'r4', version: 4, payload: { title: '草稿', note: '' } })
+    const get = vi.spyOn(api, 'get').mockImplementation(((path: string) => {
+      if (path.includes('/schedules')) return Promise.resolve([scheduledJob()])
+      if (path.includes('/revisions/r3')) return Promise.resolve({ id: 'r3', version: 3, payload: { title: '官網', note: '' } })
+      return Promise.resolve(item)
+    }) as typeof api.get)
+    const { wrapper, editor } = mountPage(global)
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r3?campus_key=yihua')
+    expect(editor().liveVersion.value).toBe(3)
+    expect(wrapper.get('.editor__schedules').text()).toContain('較早儲存的草稿，但官網已經是更新的內容，到時會略過。')
+
+    // 讀過的官網版不重抓：開發布確認框比對時直接用。
+    get.mockClear()
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    await button(wrapper, '發布到官網').trigger('click')
+    await flushPromises()
+    expect(get.mock.calls.some(([path]) => String(path).includes('/revisions/'))).toBe(false)
+  })
+
+  it('排 r2 後在這頁發布 r3：排程列改講到時會略過，和發布前的提醒一致', async () => {
+    const { global } = await setup()
+    const item = faqItem({ latest_version: 3, current_published_revision_id: 'r1' }, { id: 'r3', version: 3, payload: { title: '新標題', note: '' } })
+    const get = mockContentApi(item, { r1: { title: '舊標題', note: '' } }, [scheduledJob()])
+    vi.spyOn(api, 'post').mockResolvedValue({ ...item, current_published_revision_id: 'r3' } as never)
+    const confirm = confirmYes()
+    const { wrapper } = mountPage(global)
+    await flushPromises()
+    // 官網 r1 讀不到版號（mock 沒給）：不斷言一定會發布。
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
+    expect(wrapper.get('.editor__schedules').text()).toContain('到時官網若已經是更新的內容就會略過')
+
+    await button(wrapper, '發布到官網').trigger('click')
+    await flushPromises()
+    expect(messageText(confirm.mock.calls[0]![0])).toContain('現在發布後，這個排程到時會略過。')
+    const text = wrapper.get('.editor__schedules').text()
+    expect(wrapper.get('.editor__status').text()).toContain('官網顯示的是這一版')
+    expect(text).toContain('較早儲存的草稿，但官網已經是更新的內容，到時會略過。')
+    expect(text).not.toContain('仍會發布')
   })
 
   it('排程對話框先擋已經過去的時間，並提供「明天 09:00」', async () => {
@@ -474,6 +569,26 @@ describe('排程說明', () => {
     expect(bodyButton('排程').disabled).toBe(true)
     expect(schedule).not.toHaveBeenCalled()
   })
+
+  it('選好時間後停在對話框裡等到時間過了：按「排程」會顯示提示，不會沒反應', async () => {
+    const { global } = await setup()
+    const schedule = vi.fn(async () => true)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-10-01T08:58:00+08:00').getTime())
+    const wrapper = mountShell(global, editorState({ schedule }))
+    await button(wrapper, '排程發布').trigger('click')
+    await flushPromises()
+    wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', '2026-10-01T09:00:00+08:00')
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('這個時間已經過了')
+    expect(bodyButton('排程').disabled).toBe(false)
+
+    now.mockReturnValue(new Date('2026-10-01T09:01:00+08:00').getTime())
+    bodyButton('排程').click()
+    await flushPromises()
+    expect(schedule).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('這個時間已經過了')
+    expect(bodyButton('排程').disabled).toBe(true)
+  })
 })
 
 describe('預覽入口與報讀', () => {
@@ -489,11 +604,41 @@ describe('預覽入口與報讀', () => {
 
   it('狀態列不是即時區；只有隱藏的 status 唸狀態名稱，欄位數不當即時區', async () => {
     const { global } = await setup()
-    const wrapper = mountShell(global, editorState({ isDirty: computed(() => true) }))
+    const publishing = ref(false)
+    const wrapper = mountShell(global, editorState({ isDirty: computed(() => true), publishing }))
     expect(wrapper.get('.editor__status').attributes('role')).toBe('group')
     expect(wrapper.get('.editor__status').attributes('aria-labelledby')).toBe(wrapper.get('.editor__status strong').attributes('id'))
     expect(wrapper.get('.visually-hidden[role="status"]').text()).toBe('有未儲存的修改')
     expect(wrapper.get('.editor__actions-state').attributes('role')).toBeUndefined()
+    // 按下發布之後到結果出來前，報讀「正在處理」。
+    publishing.value = true
+    await flushPromises()
+    expect(wrapper.get('.visually-hidden[role="status"]').text()).toBe('正在處理，請稍候…')
+  })
+
+  it('手機按鈕只寫「發布」，報讀仍是「發布到官網」（不是 display: none）', () => {
+    const mobile = editorSource.slice(editorSource.indexOf('@media (max-width: 720px)'))
+    const rule = mobile.match(/\.editor__wide-only \{([^}]*)\}/)![1]!
+    expect(rule).not.toContain('display: none')
+    expect(rule).toContain('clip-path: inset(50%)')
+  })
+
+  it('開確認框前讀官網版的那段時間，表單與儲存草稿也先鎖住', async () => {
+    const { global } = await setup()
+    let finish!: (value: null) => void
+    const compareWithLive = vi.fn(() => new Promise<null>((resolve) => { finish = resolve }))
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const wrapper = mountShell(global, editorState({ isDirty: computed(() => true), compareWithLive }))
+    expect(wrapper.get('.editor__body').attributes('inert')).toBeUndefined()
+    await button(wrapper, '儲存並發布到官網').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.editor__body').attributes('inert')).toBeDefined()
+    expect(button(wrapper, '儲存草稿').attributes('disabled')).toBeDefined()
+    expect(button(wrapper, '放棄修改').attributes('disabled')).toBeDefined()
+    finish(null)
+    await flushPromises()
+    expect(wrapper.get('.editor__body').attributes('inert')).toBeUndefined()
+    expect(button(wrapper, '儲存草稿').attributes('disabled')).toBeUndefined()
   })
 })
 

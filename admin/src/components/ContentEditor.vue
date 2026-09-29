@@ -5,7 +5,7 @@ import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime } from '../api/labels'
 import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
-import { campusSelectLabelKey } from '../composables/useCampusContent'
+import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
@@ -27,6 +27,7 @@ const isDirty = computed(() => props.editor.isDirty.value)
 const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const latestRevisionId = computed(() => props.editor.latestRevisionId?.value ?? null)
+const liveVersion = computed(() => props.editor.liveVersion?.value ?? null)
 const busy = computed(() => saving.value || publishing.value)
 const changes = computed(() => props.editor.changes?.value ?? [])
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
@@ -82,13 +83,23 @@ watch(
   { immediate: true },
 )
 
-// 排程列只講時間與「會發布哪一份」，不寫版本號或帳號。排好之後又存了新草稿，
-// 排程仍會發布排的那一版；官網已經是最新內容時，到時會略過（後端 skip_reason）。
+// 排程列只講時間與「會發布哪一份」，不寫版本號或帳號。到期時官網已經是排定的
+// 那一版或更新的內容就會略過（後端 skip_reason），所以先看官網再講草稿：
+// 官網就是最新一版，或官網版本不比排定的舊，到時都會略過；排的是較早的草稿時
+// 講明不含之後存的修改，不知道官網是哪一版就不斷言一定會發布。
 function scheduleTarget(job: PublishJob): string {
-  if (latestRevisionId.value && job.revision_id !== latestRevisionId.value) {
-    return '較早儲存的草稿；之後又存了新草稿，排程仍會發布較舊的內容。'
+  const isLatest = !latestRevisionId.value || job.revision_id === latestRevisionId.value
+  const live = liveVersion.value
+  if (isLatest && isPublished.value) return '這份內容，但官網已經是這一版，到時會略過。'
+  if (live !== null && live === job.revision_version) return '較早儲存的草稿，但這份已經在官網上，到時會略過。'
+  if (isPublished.value || (live !== null && live > job.revision_version)) {
+    return '較早儲存的草稿，但官網已經是更新的內容，到時會略過。'
   }
-  if (isPublished.value) return '這份內容，但官網已經是這一版，到時會略過。'
+  if (!isLatest) {
+    return live === null && !neverPublished.value
+      ? '較早儲存的草稿（不含之後存的修改）；到時官網若已經是更新的內容就會略過。'
+      : '較早儲存的草稿，不含之後存的修改。'
+  }
   if (isDirty.value) return '上次儲存的草稿，不含還沒儲存的修改。'
   return '這份草稿。'
 }
@@ -135,18 +146,24 @@ function disablePastDay(date: Date): boolean {
 }
 
 // 日期選單只擋得住過去的日子；今天已經過去的時間在送出前先擋，不要等存完草稿才被後端退回。
-function isPast(value: string | null): boolean {
-  return Boolean(value) && new Date(value!).getTime() <= Date.now()
-}
-const scheduleInPast = computed(() => isPast(scheduleAt.value))
+// 「現在」在開對話框、改時間、按排程時各取一次：選好時間後停在對話框裡等到
+// 時間過了，按下去也會顯示提示，不會沒反應。
+const scheduleNow = ref(Date.now())
+watch([scheduleOpen, scheduleAt], () => {
+  scheduleNow.value = Date.now()
+})
+const scheduleInPast = computed(() => Boolean(scheduleAt.value) && new Date(scheduleAt.value!).getTime() <= scheduleNow.value)
 
 async function submitSchedule() {
-  if (!scheduleAt.value || !props.editor.schedule || isPast(scheduleAt.value)) return
+  scheduleNow.value = Date.now()
+  if (!scheduleAt.value || !props.editor.schedule || scheduleInPast.value) return
   if (await props.editor.schedule(scheduleAt.value)) scheduleOpen.value = false
 }
 
-// 開確認框前讀官網版比對，這段時間發布鈕顯示處理中，避免連按。
+// 開確認框前讀官網版比對，這段時間發布鈕顯示處理中，避免連按；表單和儲存也
+// 跟處理中一樣先鎖住（DESIGN：處理中鎖住表單及重複操作）。
 const preparing = ref(false)
+const locked = computed(() => busy.value || preparing.value)
 
 interface ConfirmSummary {
   intro: string
@@ -403,14 +420,15 @@ defineExpose({ confirmLeave })
             text
             size="small"
             class="editor__history"
-            :disabled="busy"
+            :disabled="locked"
             @click="historyOpen = true"
           >
             版本紀錄
           </el-button>
         </div>
       </div>
-      <p class="visually-hidden" role="status">{{ status.label }}</p>
+      <!-- 按下發布、送審之後到結果出來前，報讀「正在處理」，不要一片安靜。 -->
+      <p class="visually-hidden" role="status">{{ busy ? '正在處理，請稍候…' : status.label }}</p>
       <div v-if="scheduled.length || lastUnpublished" class="editor__schedules">
         <p v-for="job in scheduled" :key="job.id" class="editor__schedule">
           <span>已排定 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 自動發布{{ scheduleTarget(job) }}</span>
@@ -452,7 +470,7 @@ defineExpose({ confirmLeave })
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
 
-      <div class="editor__body panel" :inert="busy || undefined" :aria-busy="busy">
+      <div class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
         <div class="panel__body">
           <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
                刪除、拖曳等操作由頁面自己隱藏。 -->
@@ -470,13 +488,13 @@ defineExpose({ confirmLeave })
               <span class="editor__actions-note">{{ actionNote }}</span>
             </template>
           </p>
-          <el-button v-if="isDirty" text class="editor__discard" :disabled="busy" @click="discardEdits">放棄修改</el-button>
+          <el-button v-if="isDirty" text class="editor__discard" :disabled="locked" @click="discardEdits">放棄修改</el-button>
         </div>
         <div class="editor__buttons">
           <el-button
             :type="primaryAction === 'save' ? 'primary' : 'default'"
             :loading="saving"
-            :disabled="busy || !isDirty"
+            :disabled="locked || !isDirty"
             @click="editor.save()"
           >
             儲存草稿
@@ -676,6 +694,17 @@ defineExpose({ confirmLeave })
   .editor__discard { flex-shrink: 0; min-height: 44px; }
   .editor__buttons { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; margin-left: 0; }
   .editor__buttons .el-button { min-width: 0; min-height: 44px; padding-inline: 8px; }
-  .editor__wide-only { display: none; }
+  /* 手機按鈕只寫「發布」，但報讀仍是「發布到官網」。 */
+  .editor__wide-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 </style>

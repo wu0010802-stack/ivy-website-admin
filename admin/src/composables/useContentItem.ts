@@ -1,4 +1,4 @@
-import { computed, h, ref, unref, type ComputedRef, type Ref } from 'vue'
+import { computed, h, ref, unref, watch, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
@@ -199,6 +199,11 @@ export interface ContentEditorState {
   contextLabel?: ComputedRef<string>
   /** 最新一版的 id；排程列用來判斷排的是不是目前的草稿 */
   latestRevisionId?: ComputedRef<string | null>
+  /**
+   * 官網目前那一版的版本號（只在程式裡比較，不顯示）；排程列用來判斷排定的版本
+   * 到時會不會略過。從沒發布過，或官網不是最新一版又還沒讀到時是 null。
+   */
+  liveVersion?: ComputedRef<number | null>
   /** 送審之後由誰核准：分校內容是校區管理者，共用內容是總管理者 */
   approver?: string
   /** 發布後「查看官網」要開的完整網址 */
@@ -313,6 +318,29 @@ export function useContentItem<TPayload extends object>(
   const neverPublished = computed(
     () => Boolean(item.value) && !item.value?.current_published_revision_id,
   )
+
+  // 看過的版本號（版本 id → 第幾版）：最新一版每次載入、儲存都會帶回來，官網版
+  // 不是最新一版時另外讀。版本內容不會再變，記住就不用重抓。
+  const knownVersions = ref<Record<string, number>>({})
+  function rememberVersion(id: string | undefined, version: unknown) {
+    if (id && typeof version === 'number' && knownVersions.value[id] !== version) {
+      knownVersions.value = { ...knownVersions.value, [id]: version }
+    }
+  }
+  watch(
+    () => item.value?.latest_revision,
+    (latest) => rememberVersion(latest?.id, latest?.version),
+    { flush: 'sync' },
+  )
+
+  // 官網目前是第幾版：官網就是最新一版時直接用最新版號，否則看排程清單或讀過的
+  // 官網版；還不知道時是 null（排程列就不斷言排程會不會略過）。
+  const liveVersion = computed<number | null>(() => {
+    const liveId = item.value?.current_published_revision_id
+    if (!liveId) return null
+    const fromJob = schedules.value.find((job) => job.revision_id === liveId)
+    return knownVersions.value[liveId] ?? fromJob?.revision_version ?? null
+  })
 
   async function load() {
     const request = requests.begin()
@@ -456,6 +484,24 @@ export function useContentItem<TPayload extends object>(
     } catch {
       schedules.value = []
     }
+    // 不擋住排程、取消排程後的提示；讀到版號後排程列自己會更新。
+    void learnLiveVersion()
+  }
+
+  // 排程列要知道官網現在是第幾版，才講得出排定的版本到時會不會略過（後端
+  // skip_reason：官網已是同一版或更新就略過）。只有「排的不是最新一版、官網
+  // 也不是最新一版」而且還不知道官網版號時，才另外讀一次官網版。
+  async function learnLiveVersion(): Promise<void> {
+    const current = item.value
+    const liveId = current?.current_published_revision_id
+    if (!current || !liveId || liveVersion.value !== null) return
+    const latestId = current.latest_revision?.id
+    if (!schedules.value.some((job) => job.status === 'scheduled' && job.revision_id !== latestId)) return
+    try {
+      await readLiveRevision(liveId)
+    } catch {
+      /* 讀不到：排程列改講「官網若已是更新的內容就會略過」 */
+    }
   }
 
   async function schedule(publishAt: string): Promise<boolean> {
@@ -502,13 +548,19 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
+  // 讀一個版本的內容；順便記下它是第幾版（排程列比較用）。
+  async function readRevision(revisionId: string): Promise<{ payload: Record<string, unknown>; version?: number }> {
+    const revision = await api.get<{ payload: Record<string, unknown>; version?: number }>(
+      `/admin/content-items/${kind}/revisions/${revisionId}${query()}`,
+    )
+    rememberVersion(revisionId, revision?.version)
+    return revision
+  }
+
   const history: RevisionHistoryHandle = {
     list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
     async payloadOf(revisionId) {
-      const revision = await api.get<{ payload: Record<string, unknown> }>(
-        `/admin/content-items/${kind}/revisions/${revisionId}${query()}`,
-      )
-      return revision.payload
+      return (await readRevision(revisionId)).payload
     },
     savedPayload: () => (item.value?.latest_revision?.payload as Record<string, unknown> | undefined) ?? {},
     async restore(revisionId, publishNow) {
@@ -538,6 +590,13 @@ export function useContentItem<TPayload extends object>(
   // 官網上的版本不會再變（改內容是另存新版），讀過一次就記住，不用每次開確認框都重抓。
   const livePayloads = new Map<string, unknown>()
 
+  // 讀官網那一版（不是最新一版時）：內容給確認框比對，版本號給排程列。
+  async function readLiveRevision(liveId: string): Promise<unknown> {
+    const payload = (await readRevision(liveId))?.payload
+    if (isPlainObject(payload)) livePayloads.set(liveId, payload)
+    return payload
+  }
+
   // 發布、核准前才讀官網版（不在載入時多打一次 API）。舊版內容缺少後來新增的
   // 欄位，要先經過 withDefaults／normalize 才跟表單比，否則會多出「（空白）→
   // （空白）」這類假差異。
@@ -549,7 +608,7 @@ export function useContentItem<TPayload extends object>(
     try {
       let payload: unknown = livePayloads.get(liveId)
       if (payload === undefined) {
-        payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await history.payloadOf(liveId)
+        payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await readLiveRevision(liveId)
         if (!isPlainObject(payload)) return null
         livePayloads.set(liveId, payload)
       }
@@ -584,6 +643,7 @@ export function useContentItem<TPayload extends object>(
     apiPath,
     latestRevisionAt,
     latestRevisionId,
+    liveVersion,
     neverPublished,
     history,
     load,

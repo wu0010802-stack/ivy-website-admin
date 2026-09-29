@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { campusLabel } from '../api/labels'
-import { campusSelectLabelKey } from '../composables/useCampusContent'
+import { campusSelectLabelKey } from './campusSelectLabel'
 
 // 校區選單。只有一個可見校區時（校區管理者）改成一個唯讀標籤，不讓人
 // 點開只有一個選項的下拉。`allLabel` 給列表頁「全部校區」用。

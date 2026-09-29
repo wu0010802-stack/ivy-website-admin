@@ -1,16 +1,10 @@
-import { watch, type InjectionKey, type Ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { watch, type Ref } from 'vue'
+import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { useCampusScope } from './useCampusScope'
 import type { ContentEditorState } from './useContentItem'
 import type ContentEditor from '../components/ContentEditor.vue'
 
 type EditorShell = InstanceType<typeof ContentEditor>
-
-/**
- * ContentEditor 提供給工具列裡的 CampusSelect：多校下拉也在框內寫出「校區」，
- * 分校內容頁一眼看得出現在改的是哪一校（單校時本來就有這個標籤）。
- */
-export const campusSelectLabelKey: InjectionKey<string> = Symbol('campusSelectLabel')
 
 // 分校內容頁共用「上次編輯的校區」：在五校介紹改完仁武，換到常見問題也還是
 // 仁武，不會每頁都跳回第一校。只記在這個分頁（sessionStorage）；私密模式等
@@ -61,6 +55,8 @@ export function useCampusContent(
   }
   if (!campus.value) campus.value = scope.selected.value
   let reverting = false
+  // 從網址換校前已經問過「放棄修改？」並同意：切換時不再問第二次。
+  let confirmedSwitch: string | null = null
 
   function syncQuery(key: string) {
     if (!router || !key || !onThisPage() || route.query.campus === key) return
@@ -72,12 +68,15 @@ export function useCampusContent(
     async (next, prev) => {
       if (reverting) {
         reverting = false
-        // 從網址換校但使用者選擇留下：網址也撥回原本的校區。
+        // 備援：網址已經換了（沒經過下面的離頁攔截）但使用者選擇留下，網址也撥回。
         syncQuery(campus.value)
         return
       }
       if (!next) return
-      if (prev && editor.isDirty.value) {
+      // 只認網址真的換到這一校的那次（換頁被其他原因取消就照常再問）。
+      const confirmed = confirmedSwitch === next && route?.query.campus === next
+      confirmedSwitch = null
+      if (prev && editor.isDirty.value && !confirmed) {
         const ok = await shell.value?.confirmLeave()
         if (!ok) {
           reverting = true
@@ -95,11 +94,26 @@ export function useCampusContent(
   )
 
   // 已經在這一頁時再點帶 ?campus= 的連結（例如通知），元件不會重建，跟著網址換校。
+  // 有未儲存的修改要先問；選擇留下就取消這次換頁，網址和上一頁紀錄都不動。
   if (route) {
+    onBeforeRouteUpdate(async (to) => {
+      const value = to.query.campus
+      if (to.path !== ownPath || !inScope(value) || value === campus.value || !editor.isDirty.value) return true
+      if (!(await shell.value?.confirmLeave())) return false
+      confirmedSwitch = value
+      return true
+    })
     watch(
       () => route.query.campus,
       (value) => {
-        if (onThisPage() && inScope(value) && value !== campus.value) campus.value = value
+        if (!onThisPage()) return
+        if (inScope(value)) {
+          if (value !== campus.value) campus.value = value
+          return
+        }
+        // 從側欄再點同一頁（網址沒帶校區）或帶了看不到的校區：畫面仍停在目前的
+        // 校區，網址補回來，重新整理或分享才不會跳校。
+        syncQuery(campus.value)
       },
     )
   }
