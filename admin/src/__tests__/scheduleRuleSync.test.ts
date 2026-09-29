@@ -289,6 +289,33 @@ describe('時段清單：只想停止新預約不用關閉時段', () => {
     await flushPromises()
     expect(wrapper.findAll('.slot-row')).toHaveLength(1)
   })
+
+  it('第一次讀失敗後按「重新載入」：讀取中顯示骨架，不閃成「尚未安排參觀時段」', async () => {
+    let slotCalls = 0
+    let resolveRetry!: (value: unknown) => void
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).startsWith('/admin/visit-schedule/')) return schedule({ rules: [] }) as never
+      if (String(path).startsWith('/admin/slots?')) {
+        slotCalls += 1
+        if (slotCalls === 1) throw new Error('network down')
+        return new Promise(resolve => { resolveRetry = resolve }) as never
+      }
+      return [] as never
+    })
+    const wrapper = await mountAt(VisitSlotsView, '/slots')
+    expect(wrapper.find('.inline-error').exists()).toBe(true)
+    await wrapper.find('.inline-error').findAll('button').find(button => button.text() === '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(slotCalls).toBe(2)
+    expect(wrapper.find('.list-skeleton').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('這段期間尚未安排參觀時段')
+    expect(wrapper.text()).not.toContain('新增第一個時段')
+    expect(wrapper.text()).not.toContain('期間內 0 場')
+    resolveRetry([slot('a', {})])
+    await flushPromises()
+    expect(wrapper.find('.list-skeleton').exists()).toBe(false)
+    expect(wrapper.findAll('.slot-row')).toHaveLength(1)
+  })
 })
 
 describe('新增時段：一次開好幾場、建在清單範圍外也看得到', () => {

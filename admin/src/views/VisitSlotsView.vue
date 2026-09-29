@@ -38,8 +38,8 @@ function isoDate(offsetDays = 0): string {
 const dateFrom = ref(isoDate())
 const dateTo = ref(isoDate(30))
 const slots = ref<VisitSlotOut[]>([])
-// loading＝換校或換日期後第一次讀（顯示骨架）；refreshing＝背景重讀，舊的列留在
-// 畫面上，只讓「重新整理」轉圈，頁面高度與捲動位置不跳。
+// loading＝換校或換日期後第一次讀、或清單還是空的（顯示骨架）；refreshing＝背景
+// 重讀，舊的列留在畫面上，只讓「重新整理」轉圈，頁面高度與捲動位置不跳。
 const loading = ref(false)
 const refreshing = ref(false)
 const error = ref<string | null>(null)
@@ -75,7 +75,9 @@ async function load(options: { background?: boolean } = {}) {
     refreshing.value = false
     return
   }
-  if (options.background) {
+  // 背景重讀只在畫面上已有列時才用：第一次讀失敗後按「重新載入」、或面板的
+  // 定時重讀剛好在清單還空著時觸發，照樣顯示骨架，不閃成「尚未安排參觀時段」。
+  if (options.background && slots.value.length > 0) {
     refreshing.value = true
   } else {
     slots.value = []
