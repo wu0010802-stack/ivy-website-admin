@@ -30,6 +30,24 @@ describe('parent visit management', () => {
     expect(fetch.mock.calls[2]?.[0]).toMatch(/\/me$/)
   })
 
+  it('opening the page without any link explains where to get one instead of saying it expired', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(failure(401)))
+    const state = useParentVisit()
+    await state.initialize()
+    expect(state.unavailable.value).toBe(true)
+    expect(state.error.value).toBe('')
+    expect(state.notice.value).toContain('園所傳給你的')
+    expect(state.notice.value).not.toContain('失效')
+  })
+
+  it('an explicit link that fails still says the link is no longer valid', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(failure(401, 'TOKEN_INVALID')))
+    const state = useParentVisit()
+    await state.initialize('expired-link')
+    expect(state.error.value).toContain('失效')
+    expect(state.notice.value).toBe('')
+  })
+
   it('does not fall back to a different existing session for an invalid explicit link', async () => {
     const fetch = vi.fn().mockRejectedValue(failure(401, 'TOKEN_INVALID'))
     vi.stubGlobal('$fetch', fetch)

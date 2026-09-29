@@ -356,6 +356,19 @@ body:has(:is(.studio-hero,.photo-hero)) .header:not(.is-scrolled) .brand {--bran
 @media(max-width:360px) {
   .brand {--brand-type:.9375rem;--brand-crest-size:1.5rem}
 }
+/* 2026-09-29 放大字級（低視力，根字級 200%）：頁首品牌是字標，比照 logo 不跟著根字級放大（預設 16px 時與上面數值相同）；
+   品牌可以先縮、預約鈕與選單鈕不可被擠出畫面（評析實測右緣推到 603px）。 */
+@media(max-width:760px) {
+  .brand {--brand-type:min(1.125rem,18px);--brand-crest-size:min(2.25rem,36px);min-inline-size:0;flex-shrink:1}
+  .brand-copy {min-inline-size:0;overflow:hidden}
+  .header-actions {flex-shrink:0}
+}
+@media(max-width:380px) {
+  .brand {--brand-type:min(1rem,16px);--brand-crest-size:min(1.75rem,28px)}
+}
+@media(max-width:360px) {
+  .brand {--brand-type:min(.9375rem,15px);--brand-crest-size:min(1.5rem,24px)}
+}
 body:has(:is(.studio-hero,.photo-hero)) .header :focus-visible,
 .studio-hero :focus-visible {outline-color:var(--paper)}
 body:has(:is(.studio-hero,.photo-hero)) .nav-inner a[aria-current] {

@@ -69,11 +69,8 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-tape.is-top{top:-17px;left:50%;transform:translateX(-50%) rotate(-4deg)}
 
 /* 黃色便利貼＋紅筆箭頭（箭頭由 JS 從便條畫到照片裡的細節） */
-.renv-note,.renv-spot{position:absolute;z-index:4;font-family:var(--renv-hand);line-height:1.4;white-space:nowrap;color:var(--renv-ink);background:var(--renv-yellow);transform:rotate(var(--r,-3deg));box-shadow:0 6px 14px -8px rgb(var(--renv-shadow)/.45)}
+.renv-note{position:absolute;z-index:4;font-family:var(--renv-hand);line-height:1.4;white-space:nowrap;color:var(--renv-ink);background:var(--renv-yellow);transform:rotate(var(--r,-3deg));box-shadow:0 6px 14px -8px rgb(var(--renv-shadow)/.45)}
 .renv-note{padding:5px 14px 6px;font-size:var(--fs-lg)}
-/* 校園探索的標註便條由 JS 依標註點座標排位置；排好之前（或沒有 JS）不顯示 */
-.renv-spot{top:0;left:0;padding:3px 10px 4px;font-size:var(--fs-sm)}
-.renv-spot:not(.is-placed){visibility:hidden}
 
 /* ---------- 首屏 ---------- */
 .renv-hero{padding:clamp(48px,6vw,96px) 0 clamp(64px,7vw,104px)}
@@ -201,7 +198,6 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-scenes:not(.is-2) .renv-scene:first-of-type .renv-scene-copy{margin-top:0}
 .renv-scene-name{display:inline-block;isolation:isolate;padding:4px 16px 6px;font-family:var(--renv-hand);font-weight:400;font-size:1.5rem;line-height:1.35;transform:rotate(-1.5deg)}
 .renv-scene-copy p{margin-top:16px;max-width:26em;font-size:var(--fs-md);line-height:1.9;color:var(--renv-ink-soft)}
-.renv-scenes:not(.is-2) .renv-scene:first-of-type .renv-spot{font-size:var(--fs-md)}
 
 /* ---------- 結尾：接下來可以看（不放預約） ---------- */
 .renv-next{padding-block:clamp(40px,5vw,72px) clamp(96px,9vw,136px)}

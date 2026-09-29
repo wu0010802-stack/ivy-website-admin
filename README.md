@@ -19,6 +19,21 @@
 
 合併 main 後的整合驗證（Node 22.23.2、測試庫 `ivy_website_secfix_base_test` 重建並 `alembic upgrade head`）：沒有殘留衝突標記；`alembic heads` 只有 `e4c1a7f3b862`；backend 全套 1001 passed（合併前本分支 987）；`deploy/check_schema.py` 通過；`deploy/tests` 20 項通過；`contract:check` 一致；web `nuxt typecheck` 通過且沒有 Duplicated imports、vitest 62 檔 630 項；admin vitest 46 檔 628 項、`vue-tsc -b && vite build` 通過；production `Settings`＋`create_app` 成功、沒有 `/docs`／`/openapi.json`，主池 10＋10、限流池 3＋2。web 的 `proxy-guard.spec.ts` 已併入 `request-guard.spec.ts`。未驗：stack e2e、瀏覽器實測、正式站。已 commit 於本機分支、未部署。
 
+## 2026-09-29 關於常春藤頁改成立體書（`feature/about-popup-20260929`）
+
+使用者看完五批 /about 比稿後選 J 立體書（`design/about-style-directions-20260929/j-popup.*`），要求不特別強調 2005 → 2020 相隔十五年。規則見 DESIGN.md「關於常春藤頁改成『立體書』」。改版前快照：`versions/before-about-popup-20260929-*/`（在 Desktop 工作目錄）。
+
+- **版面**：整頁是攤在淡綠桌面上的立體繪本，每段一個跨頁（左頁文字、右頁照片卡紙）；桌機捲到時右頁從闔上翻開、卡紙站起來。首屏不翻。
+- **01 一路走來**：右頁拉紙條，五站等距，拉過哪一站那一校站起來；翻開時紙條自己示範拉到底。鍵盤可操作（slider）。
+- **02 全人教育**：紙轉盤，拖著轉或按「轉一格」，窗口顯示一個領域。**03 我們的期許**：折起來的紙房子。結尾五校書籤。
+- **技術**：新增依賴 `motion`（motion.dev；production build 的動態 chunk 約 45 KB gz），只在這頁動態載入；動態在 `web/app/utils/about-popup.ts`；`about.css` 改寫為 `abk-*`，不再掛 `admission.css`；首屏照片改 `ABOUT_HERO_SIZES`（頁面與預載共用）。頁面內容不放預約參觀（頁首預約鈕照舊）。
+
+驗證（Node 22）：`npm --prefix web run typecheck` 通過；`npm run test:website` 57 檔通過（`about.spec.ts` 新增紙條、轉盤、無 JS 狀態、無預約連結等測試；`page-hero.spec.ts` 改驗 `ABOUT_HERO_SIZES`）。fixture 模式 dev server 以 Playwright 實測 1440、1024、768、390、360、320：無水平溢出、無 console 錯誤；翻頁、卡紙彈起、紙條示範、紙條鍵盤（Home＋→×2 = 2005 崇德校）、轉盤（轉兩格 = 語文）、系統減少動態都正常；標題各寬度都是兩行。fixture 模式 `nuxt build` 通過（三個 postcss 警告都是既有的首頁 hero calc）。未驗證：Safari／iOS 實機（3D 翻頁、`container` 單位、`mask` 兩層）、低階手機、stack e2e（交給 CI）。
+
+## 2026-09-29 常春藤環境頁「五所校園」拿掉照片上的標註箭頭（`feature/env-no-spots-20260929`）
+
+使用者要求拿掉 `/environment` 第四章照片上的標籤與紅筆箭頭（截圖是國際校美語商店街的「餐廳」）。確認範圍後改成整章都不畫（原本 42 個）：刪掉模板的 `.renv-spot`、`utils/rough-sketch.ts` 的 `layoutSpotBoxes`／`placeSpots`／`spot` 繪製、對應 CSS 與單元測試；章節說明「照片與標註」改成「照片」。01、02 章的便利貼＋箭頭與分校頁校園探索的熱點不動。規則見 DESIGN.md「常春藤環境頁手繪版」。
+
 ## 2026-09-29 手機版體驗優化（`claude/mobile-experience-optimization-60rfw2`，PR #13）
 
 使用者要求「優化手機版的體驗」。先分八區在 390×844、360×780、320×568、844×390 以 Playwright 實測審查（77 項發現），每區再由懷疑者重測反駁、對照 DESIGN.md 定案，只做確認成立且不違反定案的項目；分七組、檔案不重疊實作，每組再由獨立審查者重測。只改 `web/`（外加 `scripts/optimize-site-images.py` 的線稿候選）。規則與待業主決定的清單見 DESIGN.md「手機版體驗優化第二輪（2026-09-29）」。改版前快照：`versions/before-mobile-ux-20260929-082521/`。
@@ -68,6 +83,47 @@
 - **可觀測性**：`/health` 的 `background_jobs` 多 `last_clean_at`、`last_failed_steps`；API 啟動設定 logging（app.* INFO 不再被丟），uvicorn 存取紀錄拿掉查詢字串（後台搜尋的電話不進平台日誌）；通知寄送失敗記 WARNING。
 - **官網韌性**：SSR 取內容加 8 秒逾時，API 暫時失敗時退回上一份成功內容；內容套用改成逐種類別隔離，一種格式不符只影響那一區。
 - **代理與 API 文件**：同源代理擋下 `..`／`%2e%2e` 跳出 `/api/website/v1`；production 關閉 FastAPI `/docs`、`/redoc`、`/openapi.json`。
+
+## 2026-09-29 官網 UX 評析後修正（`feature/ux-web-20260929`）
+
+依 09-29 impeccable critique（官網 27／40）修「選校 → 比較 → 預約」主線。使用者同意翻兩條舊裁定：輪播滑鼠停在資訊欄時暫停、桌機首屏也放「找校區」。規則見 DESIGN.md「官網 UX 評析後修正」。
+
+- **首頁五校輪播**（`CampusBoard.vue`）：滑鼠停在下方校名／地址／預約欄時暫停；照片區照舊自動播放。
+- **首屏「找校區」**（`HeroVideo.vue`）：桌機、平板也顯示，仍是底線文字連結。
+- **預約頁**（`VisitForm.vue`、`visit-booking.css`）：
+  - 選校卡的區名改成短地址（去掉「高雄市」）。
+  - 送出結果只有「預約成立」用打勾，待確認與已收到需求改用時鐘。
+  - 送出失敗、送太多次時附上所選校區電話。
+  - 第二步的主要按鈕從杏色 `--ivy-campus-gold` 改成 `--yellow`。
+- **分校頁**（`CampusPageMain.vue`）：
+  - 「交通與聯絡」右欄列出其他四校（校名連到分校頁、短地址、電話）。
+  - 頁內「預約Ｘ校」改成金黃色，和 hero、頁首、橫幅一致。
+  - 正式頁與草稿預覽都傳入 `campuses`。
+- **最新消息頁**（`NewsIndexContent.vue`、`news-page.css`）：示意活動改顯示「示意／日期未定」，比照首頁。合併進 main 時，手機版體驗優化（PR #13）已做了同樣修正，以 main 的寫法（`eventMeta`）為準。
+- **錯誤頁**：新增 `app/error.vue`，取代 Nuxt 預設英文頁。
+  - 404 顯示「找不到這一頁」、五校電話與入口；其他錯誤顯示「網站暫時無法顯示」，只給回首頁與重新整理。
+  - 頁面設 `noindex`；`nuxt.config.ts` 讓 error.vue 不在首頁 prefetch。
+- **家長管理頁**（`useParentVisit.ts`、`visit/manage.vue`）：
+  - 沒帶連結、第一次讀取就 401 時，改用中性說明告訴家長連結從哪來，不再紅字寫「已失效」。
+  - 提示框的 3px 左側色條改成整圈細框。
+- **放大字級**（`studio.css`）：手機頁首品牌字標用 `min(rem, px)` 封頂，比照 logo 不跟根字級放大；預設 16px 時數值不變。品牌可以縮，預約鈕與選單鈕不再被擠出畫面。
+- **沒做**：
+  - 市話可預約：要改 `normalize_phone`，資安 session 正在改同一段。
+  - 受理編號：後台搜尋不比對案件 id，家長報了也查不到。
+  - 「多久內來電」：需要園方給時限。
+  - 個資告知內容：五校 `privacy_notice` 在正式站是空的，要園方在後台填。
+  - 入學流程第 1 格文案：後台內容。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-ux-web-20260929`）：
+- `npx nuxt typecheck` 通過（exit 0）。
+- `npm run test:unit` 55 檔 530 項通過；另新增 `tests/ux-critique-20260929.spec.ts` 12 項、`parent-visit.spec.ts` 2 項。
+- fixture 模式 dev server 以 Playwright（Chrome）在 1440×900 與 390×844 實測：
+  - 輪播：游標停在預約連結 12 秒都維持 `/visit/yihua`，移開 5 秒後換到明華。
+  - 送出鈕底色 `oklch(.87 .13 88)`。
+  - `/no-such-page-xyz` 回 404，標題為「找不到這一頁｜常春藤教育機構」。
+  - 根字級 200% 時首頁、分校頁、入學頁的 `scrollWidth` 都是 390。
+- 截圖在 session scratchpad `web-fix/`。
+- 未驗證：Safari／iOS 實機、正式 build（只跑 dev）、真的送出後的結果頁（用程式確認）。
 
 ## 2026-09-28 入學資訊頁改成「入學護照」（`feature/admission-passport-20260928`）
 
