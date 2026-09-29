@@ -1326,6 +1326,10 @@ class ContentItemOut(BaseModel):
 
 class PublishRequest(BaseModel):
     revision_id: uuid.UUID
+    # 樂觀鎖：送出時畫面上看到的「官網目前版本」（沒有發布過就明確傳 null）。
+    # 有帶就必須等於目前發布的版本，否則回 409，擱置的舊分頁不能把別人剛
+    # 發布的新版換回舊版。沒帶（舊版後台、CLI）維持原本行為。
+    expected_published_revision_id: uuid.UUID | None = None
 
 
 class ContentRevisionSummaryOut(BaseModel):

@@ -10,7 +10,7 @@
 // 真正的訪客 IP 放進一個自家 header，api 端以
 // WEBSITE_TRUSTED_CLIENT_IP_HEADER 讀取（見 deploy/README.md）。訪客 IP 由
 // trustedClientIp 從 X-Forwarded-For 右邊取，不採信訪客可自填的最左段。
-import { isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
+import { escapesApiPrefix, isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
 
 const CLIENT_IP_HEADER = 'x-website-client-ip'
 const PAYLOAD_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -18,6 +18,7 @@ const PAYLOAD_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 export default defineEventHandler((event) => {
   const config = useRuntimeConfig()
   const path = event.path.replace(/^\/api\/website\/v1/, '')
+  if (escapesApiPrefix(path)) throw createError({ statusCode: 404 })
   const clientIp = trustedClientIp(event)
 
   // 本文上限要在讀取之前擋：proxyRequest 預設會把整個本文讀進記憶體再

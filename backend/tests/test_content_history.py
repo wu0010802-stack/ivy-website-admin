@@ -97,3 +97,30 @@ async def test_editor_cannot_restore_and_publish_in_one_step(editor_client):
         f"{faq}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1}
     )
     assert draft_only.status_code == 201, draft_only.text
+
+
+@pytest.mark.asyncio
+async def test_publish_from_stale_tab_conflicts_instead_of_reverting(admin_client, public_client):
+    """擱置的分頁拿著載入當下的「官網目前版本」按發布：別人已經發布了較新的
+    版本，就要 409，不能靜默把官網換回舊版。"""
+    v1 = await _save(admin_client, 0, "第一版")
+    first = await admin_client.post(
+        f"{API}/publish", json={"revision_id": v1["id"], "expected_published_revision_id": None}
+    )
+    assert first.status_code == 200, first.text
+    v2 = await _save(admin_client, 1, "第二版")
+    await admin_client.post(f"{API}/publish", json={"revision_id": v2["id"], "expected_published_revision_id": v1["id"]})
+
+    stale = await admin_client.post(
+        f"{API}/publish", json={"revision_id": v1["id"], "expected_published_revision_id": v1["id"]}
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["code"] == "CONTENT_VERSION_CONFLICT"
+    site = await public_client.get("/api/website/v1/public/site")
+    assert site.json()["content"]["home_about"]["title"] == "第二版"
+
+    # 看到的是最新狀態時，照樣可以發布舊版回滾。
+    rollback = await admin_client.post(
+        f"{API}/publish", json={"revision_id": v1["id"], "expected_published_revision_id": v2["id"]}
+    )
+    assert rollback.status_code == 200

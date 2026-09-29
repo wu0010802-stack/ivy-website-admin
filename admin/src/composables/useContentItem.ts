@@ -345,6 +345,9 @@ export function useContentItem<TPayload extends object>(
     try {
       item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
         revision_id: revisionId,
+        // 樂觀鎖：畫面載入時官網的版本。別人之後發布過就回 409，請使用者重新載入，
+        // 擱置的分頁不會把較新的官網內容靜默換回舊版。
+        expected_published_revision_id: item.value?.current_published_revision_id ?? null,
       })
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       // 官網換了版本，之前沒有發布的排程就算處理過了，提示跟著更新。

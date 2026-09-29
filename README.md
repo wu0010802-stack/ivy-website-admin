@@ -1,3 +1,13 @@
+## 2026-09-29 系統設計審查後的第一批修正（`claude/system-design-review-rdqjzh`）
+
+- **連線池自我死鎖**：限流原本向請求同一個連線池借第二條連線，約 15 個同時進來的公開點擊或送單就讓池子互等到逾時、全站 503。限流改用 `backend/app/db.py` 的獨立小池；主池明寫 10+10、等候 10 秒、`statement_timeout` 30 秒（素材配額鎖另放寬）。
+- **LINE 失敗擋住 email**：LINE 推播例外改成先把信寄完再拋出重試，重試只補 LINE。
+- **發布樂觀鎖**：`POST .../publish` 可帶 `expected_published_revision_id`，與官網現行版不符回 409；後台一律帶上。被退回的版本不能直接發布（`CONTENT_REVISION_REJECTED`）。
+- **圖片原檔去中繼資料**：上傳時無損拿掉 EXIF（GPS、機型、時間）、XMP、IPTC、註解，只留拍攝方向（`backend/app/media/metadata.py`）。已上傳的舊素材尚未處理。
+- **可觀測性**：`/health` 的 `background_jobs` 多 `last_clean_at`、`last_failed_steps`；API 啟動設定 logging（app.* INFO 不再被丟），uvicorn 存取紀錄拿掉查詢字串（後台搜尋的電話不進平台日誌）；通知寄送失敗記 WARNING。
+- **官網韌性**：SSR 取內容加 8 秒逾時，API 暫時失敗時退回上一份成功內容；內容套用改成逐種類別隔離，一種格式不符只影響那一區。
+- **代理與 API 文件**：同源代理擋下 `..`／`%2e%2e` 跳出 `/api/website/v1`；production 關閉 FastAPI `/docs`、`/redoc`、`/openapi.json`。
+
 ## 2026-09-28 常春藤環境頁加 GSAP 動態層：小腳印、曬衣繩起風、太陽慣性、換校發牌（`feature/environment-gsap-20260928`）
 
 接在 `feature/environment-rough-20260928`（手繪版，尚未併入 main）之上。使用者看過 mock-up `design/environment-gsap-mockup-20260928/`（`feature/website-admin` 工作目錄、未追蹤）並要求把小腳印做得更好看，確認後同意上線。規則見 DESIGN.md「常春藤環境頁 GSAP 動態層」。

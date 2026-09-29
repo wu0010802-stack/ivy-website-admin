@@ -11,6 +11,9 @@
 預設每 60 秒一輪，本機與測試預設關閉。`WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`
 可覆寫（0＝關閉，否則 10–3600 秒）。部署後打 `/api/website/v1/health`，
 `background_jobs.enabled` 為 true、`last_completed_at` 持續更新就代表有在跑。
+`last_completed_at` 只代表「有跑完一輪」，步驟失敗也會更新；要判斷是否正常，看
+`last_failed_steps` 是否為空、`last_clean_at`（最近一次每一步都成功）是否持續更新
+（2026-09-29 起）。外部監控請以這兩個欄位判斷，失敗步驟也會在 log 記一行 WARNING。
 
 同一時間全域只會跑一輪（PostgreSQL advisory lock），多個 worker／副本或同時手動
 執行 CLI 都不會重複處理。手動補跑或本機測試：
@@ -35,7 +38,7 @@ export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST
 
 寄信未設定（沒有 SMTP 也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好 SMTP 再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。SMTP 在背景 thread 執行，不會卡住 API 的請求。
 
-LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
+LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。LINE 推播失敗（月額度用完、token 失效、bot 被移出群組、逾時）不會擋住 email：信照寄，整筆再以失敗重試，重試時只補推 LINE（2026-09-29 起；之前 LINE 一失敗 email 就一封都不寄）。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
 
 失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（一般的案件狀態通知跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。**例外是提醒類通知**（`visit_upcoming`／`visit_request_overdue`）：寄送當下會重新判斷是否仍然成立（改期、取消、已處理、占位已換過或過期），不成立就整筆標成 `status=skipped`，連站內通知都不會建立——這是刻意設計，避免園方在後台看到「參觀已改期／已取消」但通知還說「即將參觀」的過期訊息。
 
