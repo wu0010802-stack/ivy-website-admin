@@ -36,7 +36,10 @@ function memoryStorage(): Storage {
     get length() { return store.size },
   }
 }
+// 整個檔案共用一份，每個測試結束時清空（見 afterEach），不在個別測試裡 stubGlobal：
+// restoreAllMocks 不會還原 stubGlobal，換掉的物件會一路留到後面的測試。
 if (typeof (globalThis.localStorage as Storage | undefined)?.getItem !== 'function') vi.stubGlobal('localStorage', memoryStorage())
+if (typeof (globalThis.sessionStorage as Storage | undefined)?.getItem !== 'function') vi.stubGlobal('sessionStorage', memoryStorage())
 
 beforeAll(() => {
   // AdminLayout 用 matchMedia 判斷手機版、換頁時捲回頂端；jsdom 兩個都沒有。
@@ -54,6 +57,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   setUnauthorizedHandler(null)
   localStorage.clear()
+  sessionStorage.clear()
   document.body.innerHTML = ''
 })
 
@@ -93,6 +97,8 @@ describe('頁首「查看官網」（shell-1）', () => {
     // 「草稿不會出現」原本只在 title，觸控與報讀器都讀不到。
     const note = wrapper.get(`#${link.attributes('aria-describedby')}`)
     expect(note.text()).toContain('草稿不會出現')
+    // 滑鼠提示與報讀說明同一句，報讀器不會念兩種說法。
+    expect(link.attributes('title')).toBe(note.text())
   })
 })
 
@@ -130,7 +136,11 @@ describe('網址不存在時（shell-3）', () => {
     const wrapper = mount(NotFoundView, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper)
     expect(wrapper.text()).toContain('找不到這個頁面')
-    await wrapper.get('[data-test="not-found-home"]').trigger('click')
+    // 是連結不是按鈕：可以中鍵開新分頁，報讀器念「連結」。
+    const home = wrapper.get('[data-test="not-found-home"]')
+    expect(home.element.tagName).toBe('A')
+    expect(home.attributes('href')).toBe(landingPath('editor'))
+    await home.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe(landingPath('editor'))
   })
@@ -183,7 +193,6 @@ describe('頁面點進去才下載（shell-9／cc-8）', () => {
   })
 
   it('部署換掉舊檔時整頁重載一次；10 秒內同一頁再失敗就請使用者自己重新整理', () => {
-    vi.stubGlobal('sessionStorage', memoryStorage())
     const navigate = vi.fn()
     const error = vi.spyOn(ElMessage, 'error').mockReturnValue(undefined as never)
     const chunkError = new TypeError('Failed to fetch dynamically imported module: https://x/admin/assets/UsersView-abc.js')
@@ -193,6 +202,13 @@ describe('頁面點進去才下載（shell-9／cc-8）', () => {
     expect(reloadAfterChunkError(chunkError, '/admin/users', navigate)).toBe(true)
     expect(navigate).toHaveBeenCalledTimes(1)
     expect(error).toHaveBeenCalledTimes(1)
+  })
+
+  it('頁面的樣式檔載入失敗（Vite 的 Unable to preload CSS）也重載', () => {
+    const navigate = vi.fn()
+    const cssError = new Error('Unable to preload CSS for https://x/admin/assets/UsersView-abc.css')
+    expect(reloadAfterChunkError(cssError, '/admin/users', navigate)).toBe(true)
+    expect(navigate).toHaveBeenCalledWith('/admin/users')
   })
 
   it('每個側欄項目都有圖示（圖示改成逐一 import）', async () => {
@@ -344,6 +360,22 @@ describe('登出前先問未儲存的修改（shell-2b）', () => {
     expect(auth.user).not.toBeNull()
     expect(router.currentRoute.value.path).toBe('/content/home-about')
     expect(error).toHaveBeenCalledWith(expect.stringContaining('請再按一次登出'))
+  })
+
+  it('登出還沒回應時點了別的連結：登出完成後仍回到登入頁，不停在沒有登入者的頁面', async () => {
+    vi.spyOn(api, 'get').mockRejectedValue(new ApiError(401, '未登入'))
+    let finishLogout!: () => void
+    vi.spyOn(api, 'post').mockReturnValue(new Promise<never>(resolve => { finishLogout = () => resolve(undefined as never) }))
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const { wrapper, router, auth } = await mountShell()
+    await wrapper.get('button[aria-label="登出"]').trigger('click')
+    await flushPromises()
+    await router.push('/media')
+    expect(router.currentRoute.value.path).toBe('/media')
+    finishLogout()
+    await flushPromises()
+    expect(auth.user).toBeNull()
+    expect(router.currentRoute.value.name).toBe('login')
   })
 
   it('登出端點回 401（session 早就失效）不再觸發全域導向', async () => {
@@ -517,10 +549,21 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     expect(await search('line')).toEqual(expect.arrayContaining(['LINE 通知', '我的帳號']))
   })
 
+  it('完全相同的說法排第一，按 Enter 開的就是它；同分維持側欄順序', async () => {
+    const { wrapper, router, search } = await sidebar('super_admin')
+    expect(await search('預約')).toEqual(['參觀案件', '接待月曆', '時段與容量', '各校預約方式', '預約文案'])
+    expect(await search('line')).toEqual(['LINE 通知', '我的帳號'])
+    await search('密碼')
+    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/account')
+  })
+
   it('我的帳號只在搜尋時出現；搜「密碼」照角色給結果', async () => {
     const admin = await sidebar('super_admin')
     expect(admin.wrapper.find('.sidebar__nav a[href="/account"]').exists()).toBe(false)
-    expect(await admin.search('密碼')).toEqual(['使用者', '我的帳號'])
+    // 「密碼」跟我的帳號的關鍵字完全相同，排在「使用者」（重設密碼）前面。
+    expect(await admin.search('密碼')).toEqual(['我的帳號', '使用者'])
     expect(admin.wrapper.find('.sidebar__nav a[href="/account"] .el-icon svg').exists()).toBe(true)
     expect(SEARCH_ONLY_GROUP.items.map(item => item.path)).toEqual(['/account'])
     const reception = await sidebar('reception')

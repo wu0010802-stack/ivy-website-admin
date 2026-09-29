@@ -144,9 +144,13 @@ export function normalizeSearch(text: string): string {
   return text.normalize('NFKC').toLowerCase().trim()
 }
 
-/** 這個功能的名稱或關鍵字有沒有包含搜尋字（q 已經正規化過）。 */
-export function navItemMatches(item: NavItem, q: string): boolean {
-  return [item.title, ...(item.keywords ?? [])].some(text => normalizeSearch(text).includes(q))
+/** 這個功能的名稱或關鍵字跟搜尋字（q 已經正規化過）有多接近：2＝完全相同、
+ * 1＝包含、0＝對不上。完全相同的排前面：搜「密碼」時第一筆（按 Enter 開的那筆）
+ * 要是自己的「我的帳號」，不是關鍵字「重設密碼」的「使用者」。 */
+export function navItemMatchScore(item: NavItem, q: string): number {
+  const texts = [item.title, ...(item.keywords ?? [])].map(normalizeSearch)
+  if (texts.includes(q)) return 2
+  return texts.some(text => text.includes(q)) ? 1 : 0
 }
 
 const byName = new Map<string, NavItem>()

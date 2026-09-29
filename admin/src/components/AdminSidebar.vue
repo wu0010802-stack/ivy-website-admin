@@ -7,7 +7,7 @@ import {
   Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
-import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatches, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
+import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
@@ -58,17 +58,22 @@ const normalizedQuery = computed(() => normalizeSearch(query.value))
 const groups = computed(() => {
   const q = normalizedQuery.value
   // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
-  return (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
+  const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
     const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
-    if (!q) return { ...group, items: allowed }
+    if (!q) return { ...group, items: allowed, score: 0 }
     // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
     // 搜「預約」要帶出參觀案件、時段與容量，不只名稱裡有「預約」的兩項。
-    const hits = allowed.filter(item => navItemMatches(item, q))
-    if (hits.length) return { ...group, items: hits }
+    const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
+    if (hits.length) {
+      hits.sort((a, b) => b.score - a.score)
+      return { ...group, items: hits.map(hit => hit.item), score: hits[0]!.score }
+    }
     // 這組沒有功能中才看分組或區段名，讓搜「參觀預約」能看到整組。
     const byGroup = [group.label, group.section ?? ''].some(label => label && normalizeSearch(label).includes(q))
-    return { ...group, items: byGroup ? allowed : [] }
+    return { ...group, items: byGroup ? allowed : [], score: 0 }
   }).filter(group => group.items.length)
+  // 最接近的一組排前面（sort 是穩定排序，同分維持側欄原本的順序）。
+  return q ? results.sort((a, b) => b.score - a.score) : results
 })
 const hasQuery = computed(() => Boolean(normalizedQuery.value))
 // 搜尋框按 Enter 直接前往第一筆結果。中文輸入法選字時按的 Enter 不算

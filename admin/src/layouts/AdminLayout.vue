@@ -22,6 +22,7 @@ const pageTitle = computed(() => route.meta.title ?? '')
 // 官網首頁。正式站的 base 是空字串（後台和官網同網域），直接拿 base 當 href 會變成
 // href=""，新分頁開的是目前這頁後台，所以一定要接上「/」。
 const websiteHome = `${WEBSITE_ASSET_BASE.replace(/\/+$/, '')}/`
+const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
 // 內容分成首頁／分校頁／全站三個子組，麵包屑顯示共用的「官網內容」，
 // 沒有區段的分組才用自己的名稱。
 const groupLabel = computed(() => {
@@ -67,7 +68,13 @@ async function handleLogout() {
   auth.logoutPending = true
   try {
     const failure = await router.push({ name: 'login' })
-    if (failure) return
+    if (failure) {
+      // 選了留在這頁：仍是登入狀態，什麼都不做。
+      if (auth.user) return
+      // 網路慢、登出還沒回應時點了別的連結：換頁取消了，但登出已經完成。不能留在
+      // 沒有登入者的頁面上（之後的 401 都不會導回登入頁），補一次換到登入頁。
+      void router.replace({ name: 'login' })
+    }
   } catch {
     ElMessage.error('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
     return
@@ -95,9 +102,9 @@ async function handleLogout() {
         </button>
         <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
         <a class="top__site" :href="websiteHome" target="_blank" rel="noopener" aria-describedby="top-site-note"
-          title="開的是家長現在看到的版本；還沒發布的草稿不會出現在這裡">查看官網 <el-icon><TopRight /></el-icon></a>
-        <!-- title 在觸控裝置看不到，報讀器改讀這一句。 -->
-        <span id="top-site-note" class="visually-hidden">另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現</span>
+          :title="websiteNote">查看官網 <el-icon><TopRight /></el-icon></a>
+        <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
+        <span id="top-site-note" class="visually-hidden">{{ websiteNote }}</span>
       </header>
       <main id="main" ref="main" class="main" tabindex="-1"><router-view /></main>
     </div>

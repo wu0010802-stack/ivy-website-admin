@@ -152,7 +152,7 @@ async function unlink() {
       <section class="panel">
         <div class="panel__head"><h2>密碼</h2></div>
         <div class="panel__body account__line">
-          <p>用 Email 與密碼登入後台。更改後，其他裝置上的登入會被登出，這個分頁維持登入。</p>
+          <p>用 Email 與密碼登入後台。更改後，其他電腦與手機上的登入會被登出，正在用的這個瀏覽器維持登入。</p>
           <el-button type="primary" plain data-test="change-password" @click="passwordOpen = true">更改密碼</el-button>
           <p class="field-help">忘記密碼請聯絡總管理者重設。</p>
           <p v-if="bothUnavailable" class="field-help" data-test="password-only">目前只開放 Email 與密碼登入。</p>
@@ -185,10 +185,11 @@ async function unlink() {
                 <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
               </template>
             </el-popconfirm>
-            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，再用 Google 登入一次即可。</p>
+            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，登出後再用 Google 登入一次即可。</p>
           </template>
           <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
-          <p v-else-if="googleEnabled">在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
+          <!-- 登入中開登入頁會直接回到後台（router 恢復 session），所以要先登出。 -->
+          <p v-else-if="googleEnabled">登出後在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
           <p v-else>Google 登入尚未啟用。</p>
         </div>
       </section>
