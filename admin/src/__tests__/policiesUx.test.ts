@@ -80,7 +80,10 @@ describe('個資保存政策與全站設定保護', () => {
     expect(history).toContain('每天自動清理')
     expect(history).not.toContain('定期工作')
     expect(history).toContain('已匿名化 3 筆')
-    expect(history).toContain('手動執行・admin@ivy.example')
+    // 執行的人寫名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
+    expect(history).toContain('手動執行・admin')
+    expect(history).not.toContain('admin@ivy.example')
+    expect(wrapper.find('.retention-runs [title="admin@ivy.example"]').exists()).toBe(true)
     expect(history).toContain('已匿名化 5 筆')
     expect(history).toContain('當時另有 2 筆超過天數仍未結案')
     expect(history).not.toContain('試算')

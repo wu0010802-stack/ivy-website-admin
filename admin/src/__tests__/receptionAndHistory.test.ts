@@ -8,7 +8,7 @@ import RevisionHistoryDrawer from '../components/RevisionHistoryDrawer.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import VisitCalendarView from '../views/VisitCalendarView.vue'
 import { api } from '../api/client'
-import { staffLabel, visitSourceLabel } from '../api/labels'
+import { staffLabelById, visitSourceLabel } from '../api/labels'
 import { NAV_GROUPS } from '../router/nav'
 import type { RevisionHistoryHandle } from '../composables/useContentItem'
 import { resetVisitStaff } from '../composables/useVisitStaff'
@@ -44,9 +44,9 @@ describe('標籤與側欄', () => {
 
   it('承辦人顯示 email 帳號名，未指派與已移除分開講', () => {
     const staff = [{ id: 'u1', email: 'amy@ivy.example' }]
-    expect(staffLabel('u1', staff)).toBe('amy')
-    expect(staffLabel(null, staff)).toBe('未指派')
-    expect(staffLabel('gone', staff)).toBe('已移除的帳號')
+    expect(staffLabelById('u1', staff)).toBe('amy')
+    expect(staffLabelById(null, staff)).toBe('未指派')
+    expect(staffLabelById('gone', staff)).toBe('已移除的帳號')
   })
 
   it('來源標籤', () => {
@@ -85,7 +85,10 @@ describe('版本紀錄抽屜', () => {
     const handle = history()
     await mountDrawer(handle)
     const text = document.body.textContent ?? ''
-    expect(text).toContain('第 2 版・amy@ivy.example')
+    // 儲存的人寫名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
+    expect(text).toContain('第 2 版・amy')
+    expect(text).not.toContain('amy@ivy.example')
+    expect(document.body.querySelector('.history__meta[title="amy@ivy.example"]')).not.toBeNull()
     expect(text).toContain('官網目前版本')
     expect(text).toContain('系統匯入或已刪除的帳號')
 

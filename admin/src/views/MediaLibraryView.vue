@@ -5,7 +5,7 @@ import { ArrowDown, Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
-import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus } from '../api/labels'
+import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus, staffEmail, staffLabel, staffOf } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { canEditSharedContent } from '../router/nav'
 import { usePermissions } from '../composables/usePermissions'
@@ -103,8 +103,7 @@ function usedInText(asset: MediaAssetOut): string {
 }
 
 function uploaderText(asset: MediaAssetOut): string {
-  const who = asset.created_by_email ? asset.created_by_email.split('@')[0] : '已移除的帳號'
-  return `${who}・${formatDate(asset.created_at)}`
+  return `${staffLabel(staffOf(asset, 'created_by'))}・${formatDate(asset.created_at)}`
 }
 
 // ---- 上傳（可一次多檔，逐檔送出，同時最多兩個） ----
@@ -443,7 +442,7 @@ onMounted(async () => {
           <span class="media__sub">
             {{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}・{{ formatFileSize(asset.size_bytes) }}<template v-if="asset.width && asset.height">・{{ asset.width }}×{{ asset.height }}</template>
           </span>
-          <span class="media__sub" :title="asset.created_by_email ?? ''">上傳：{{ uploaderText(asset) }}</span>
+          <span class="media__sub" :title="staffEmail(staffOf(asset, 'created_by')) || undefined">上傳：{{ uploaderText(asset) }}</span>
           <span v-if="usedInText(asset)" class="media__sub media__used">用在：{{ usedInText(asset) }}</span>
           <span v-if="asset.deleted_at" class="media__warn">{{ formatDateTime(asset.purge_after) }} 後永久刪除</span>
           <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填圖片說明' : '未填影片說明' }}</span>

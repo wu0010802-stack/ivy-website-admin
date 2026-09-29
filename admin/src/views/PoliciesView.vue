@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { RetentionPolicyOut, RetentionReportOut, RetentionRunOut } from '../api/types'
-import { RETENTION_CATEGORY_LABELS, RETENTION_TRIGGER_LABELS, formatDate, formatDateTime } from '../api/labels'
+import { RETENTION_CATEGORY_LABELS, RETENTION_TRIGGER_LABELS, formatDate, formatDateTime, staffEmail, staffLabel, staffOf } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
@@ -306,7 +306,7 @@ onMounted(() => {
             <div class="retention-form__actions">
               <el-button type="primary" :loading="saving" :disabled="!dirty || running" @click="savePolicy">儲存政策</el-button>
               <span v-if="policy.updated_at" class="field-help">
-                上次修改 {{ formatDateTime(policy.updated_at) }}<template v-if="policy.updated_by_email">・{{ policy.updated_by_email }}</template>
+                上次修改 {{ formatDateTime(policy.updated_at) }}<template v-if="policy.updated_by_email || policy.updated_by_display_name">・<span :title="staffEmail(staffOf(policy, 'updated_by')) || undefined">{{ staffLabel(staffOf(policy, 'updated_by')) }}</span></template>
               </span>
             </div>
           </el-form>
@@ -353,7 +353,7 @@ onMounted(() => {
           <li v-for="run in runs" :key="run.id" class="retention-runs__item">
             <div class="retention-runs__head">
               <strong>{{ formatDateTime(run.created_at) }}</strong>
-              <span>{{ RETENTION_TRIGGER_LABELS[run.trigger] ?? run.trigger }}<template v-if="run.actor_email">・{{ run.actor_email }}</template></span>
+              <span :title="staffEmail(staffOf(run, 'actor')) || undefined">{{ RETENTION_TRIGGER_LABELS[run.trigger] ?? run.trigger }}<template v-if="run.actor_email || run.actor_display_name">・{{ staffLabel(staffOf(run, 'actor')) }}</template></span>
               <span class="retention-runs__real">已匿名化 {{ run.total }} 筆</span>
             </div>
             <p class="field-help">{{ countLines(run) }}<template v-if="run.open_overdue_count">；當時另有 {{ run.open_overdue_count }} 筆超過天數仍未結案</template></p>

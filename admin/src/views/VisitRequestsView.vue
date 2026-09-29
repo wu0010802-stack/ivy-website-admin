@@ -4,7 +4,7 @@ import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffLabel, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
@@ -450,7 +450,7 @@ onMounted(() => {
         </el-table-column>
         <el-table-column label="承辦人" width="110" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <span :class="{ muted: !row.assigned_staff_id }">{{ staffLabel(row.assigned_staff_id, staff) }}</span>
+            <span :class="{ muted: !row.assigned_staff_id }" :title="staffEmailById(row.assigned_staff_id, staff) || undefined">{{ staffLabelById(row.assigned_staff_id, staff) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="送出時間" width="112">
@@ -468,7 +468,7 @@ onMounted(() => {
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
-            <p><template v-if="multiCampus">{{ campusLabel(request.campus_key) }}校 · </template>{{ request.child_name || '孩子姓名未填寫' }} · 承辦：{{ staffLabel(request.assigned_staff_id, staff) }}<template v-if="manualSource(request)"> · {{ manualSource(request) }}</template></p>
+            <p><template v-if="multiCampus">{{ campusLabel(request.campus_key) }}校 · </template>{{ request.child_name || '孩子姓名未填寫' }} · 承辦：{{ staffLabelById(request.assigned_staff_id, staff) }}<template v-if="manualSource(request)"> · {{ manualSource(request) }}</template></p>
             <div class="request-list__contact">
               <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
               <span v-if="request.preferred_time" class="request-list__time">方便接電話時段：{{ contactTimeLabel(request.preferred_time) }}</span>

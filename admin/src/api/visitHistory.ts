@@ -4,7 +4,10 @@ import type { VisitHistoryOut } from './types'
 import {
   formatDateTime,
   formatSlotWhen,
+  type StaffPerson,
   staffLabel,
+  staffLabelById,
+  staffOf,
   visitEventLabel,
   VISIT_EVENT_SOURCE_LABELS,
   visitSourceLabel,
@@ -44,10 +47,11 @@ export function visitEventTitle(event: VisitHistoryOut): string {
   return visitEventLabel(event.event_type)
 }
 
-/** 誰做的。後台人員顯示帳號 @ 前面那段；帳號刪除後顯示「已移除的帳號」。 */
+/** 誰做的。後台人員顯示同事的名字（沒有顯示名稱時是 Email @ 前面那段）；
+ * 帳號刪除後顯示「已移除的帳號」。 */
 export function visitEventActor(event: VisitHistoryOut): string {
   if (event.source === 'staff') {
-    if (event.actor_email) return event.actor_email.split('@')[0]!
+    if (event.actor_email || event.actor_display_name) return staffLabel(staffOf(event, 'actor'))
     return event.actor_user_id ? '已移除的帳號' : VISIT_EVENT_SOURCE_LABELS.staff!
   }
   return event.source ? (VISIT_EVENT_SOURCE_LABELS[event.source] ?? event.source) : ''
@@ -56,7 +60,7 @@ export function visitEventActor(event: VisitHistoryOut): string {
 /** 異動前後，一行一件事。 */
 export function visitEventChanges(
   event: VisitHistoryOut,
-  staff: readonly { id: string; email: string }[] = [],
+  staff: readonly (StaffPerson & { id: string })[] = [],
 ): string[] {
   const { before, after } = event
   const lines: string[] = []
@@ -86,7 +90,7 @@ export function visitEventChanges(
   if (requested) lines.push(`申請的時段 ${formatSlotWhen(requested)}`)
 
   if (after && 'assigned_staff_id' in after) {
-    lines.push(`${staffLabel(text(before, 'assigned_staff_id'), staff)} → ${staffLabel(text(after, 'assigned_staff_id'), staff)}`)
+    lines.push(`${staffLabelById(text(before, 'assigned_staff_id'), staff)} → ${staffLabelById(text(after, 'assigned_staff_id'), staff)}`)
   }
   const followUp = text(after, 'follow_up_at')
   if (followUp) lines.push(`下次聯絡 ${formatDateTime(followUp)}`)
