@@ -254,6 +254,8 @@ describe('接待月曆', () => {
     expect(new URLSearchParams(calendarCalls().at(-1)!.split('?')[1]).get('campus_key')).toBe('renwu')
     const select = wrapper.findComponent({ name: 'CampusSelect' }).findComponent({ name: 'ElSelect' })
     expect(select.props('modelValue')).toBe('renwu')
+    // 這天沒有時段時，連到時段頁也帶著正在看的那一校。
+    expect(wrapper.get('.calendar__detail a').attributes('href')).toBe('/slots?campus=renwu')
     select.vm.$emit('update:modelValue', 'minghua')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ campus: 'minghua' })

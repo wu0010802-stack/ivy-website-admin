@@ -205,6 +205,8 @@ async function selectDay(day: string) {
 
 const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? [])
 const showCampus = computed(() => !campusFilter.value && multiCampus.value)
+// 正在看某一校時，連到時段頁也帶著那一校。
+const slotsLink = computed(() => (campusFilter.value ? { path: '/slots', query: { campus: campusFilter.value } } : '/slots'))
 </script>
 
 <template>
@@ -274,7 +276,7 @@ const showCampus = computed(() => !campusFilter.value && multiCampus.value)
         <h2 ref="detailHeading">{{ formatDate(selectedDay) }}（{{ formatWeekday(selectedDay) }}）</h2>
       </div>
       <p v-if="selectedSlots.length === 0" class="hint">
-        這天沒有參觀時段。要開放時段請到 <router-link to="/slots">時段與容量</router-link>。
+        這天沒有參觀時段。要開放時段請到 <router-link :to="slotsLink">時段與容量</router-link>。
       </p>
       <div v-for="slot in selectedSlots" :key="slot.id" class="panel calendar__slot">
         <div class="panel__head">
@@ -302,7 +304,7 @@ const showCampus = computed(() => !campusFilter.value && multiCampus.value)
 .calendar__legend li { display: inline-flex; align-items: center; gap: 6px; }
 /* 桌機看格內色塊，手機只剩數字點：兩邊各列自己看得到的那幾種。 */
 .calendar__legend li.calendar__legend-mobile { display: none; }
-.calendar__swatch { flex-shrink: 0; width: 16px; height: 14px; border-radius: 3px; }
+.calendar__swatch { flex-shrink: 0; width: 20px; height: 14px; border-radius: 3px; }
 .calendar__legend-date { font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .calendar__nav { display: flex; align-items: center; gap: 8px; }
 .calendar__nav .el-button + .el-button { margin-left: 0; }
