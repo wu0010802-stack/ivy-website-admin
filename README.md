@@ -1,3 +1,14 @@
+## 2026-09-29 關於常春藤頁改成立體書（`feature/about-popup-20260929`）
+
+使用者看完五批 /about 比稿後選 J 立體書（`design/about-style-directions-20260929/j-popup.*`），要求不特別強調 2005 → 2020 相隔十五年。規則見 DESIGN.md「關於常春藤頁改成『立體書』」。改版前快照：`versions/before-about-popup-20260929-*/`（在 Desktop 工作目錄）。
+
+- **版面**：整頁是攤在淡綠桌面上的立體繪本，每段一個跨頁（左頁文字、右頁照片卡紙）；桌機捲到時右頁從闔上翻開、卡紙站起來。首屏不翻。
+- **01 一路走來**：右頁拉紙條，五站等距，拉過哪一站那一校站起來；翻開時紙條自己示範拉到底。鍵盤可操作（slider）。
+- **02 全人教育**：紙轉盤，拖著轉或按「轉一格」，窗口顯示一個領域。**03 我們的期許**：折起來的紙房子。結尾五校書籤。
+- **技術**：新增依賴 `motion`（motion.dev；production build 的動態 chunk 約 45 KB gz），只在這頁動態載入；動態在 `web/app/utils/about-popup.ts`；`about.css` 改寫為 `abk-*`，不再掛 `admission.css`；首屏照片改 `ABOUT_HERO_SIZES`（頁面與預載共用）。頁面內容不放預約參觀（頁首預約鈕照舊）。
+
+驗證（Node 22）：`npm --prefix web run typecheck` 通過；`npm run test:website` 57 檔通過（`about.spec.ts` 新增紙條、轉盤、無 JS 狀態、無預約連結等測試；`page-hero.spec.ts` 改驗 `ABOUT_HERO_SIZES`）。fixture 模式 dev server 以 Playwright 實測 1440、1024、768、390、360、320：無水平溢出、無 console 錯誤；翻頁、卡紙彈起、紙條示範、紙條鍵盤（Home＋→×2 = 2005 崇德校）、轉盤（轉兩格 = 語文）、系統減少動態都正常；標題各寬度都是兩行。fixture 模式 `nuxt build` 通過（三個 postcss 警告都是既有的首頁 hero calc）。未驗證：Safari／iOS 實機（3D 翻頁、`container` 單位、`mask` 兩層）、低階手機、stack e2e（交給 CI）。
+
 ## 2026-09-29 手機版體驗優化（`claude/mobile-experience-optimization-60rfw2`，PR #13）
 
 使用者要求「優化手機版的體驗」。先分八區在 390×844、360×780、320×568、844×390 以 Playwright 實測審查（77 項發現），每區再由懷疑者重測反駁、對照 DESIGN.md 定案，只做確認成立且不違反定案的項目；分七組、檔案不重疊實作，每組再由獨立審查者重測。只改 `web/`（外加 `scripts/optimize-site-images.py` 的線稿候選）。規則與待業主決定的清單見 DESIGN.md「手機版體驗優化第二輪（2026-09-29）」。改版前快照：`versions/before-mobile-ux-20260929-082521/`。

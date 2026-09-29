@@ -1,94 +1,151 @@
-/* 關於常春藤頁（/about，2026-09-26）
-   版型沿用特色教學頁與常春藤環境頁：AboutContent.vue 同時掛 admission.css（adm-*），這支只補 admission 沒有的元件。
-   顏色一律走站內 token；透明度用 RGB 三元組（--ink / --on-dark / --shadow-rgb）。 */
+/* 關於常春藤頁（/about）立體書版（2026-09-29，使用者選定 J：design/about-style-directions-20260929/j-popup.*）
+   整頁是一本攤在淡綠桌面上的立體繪本：每段一個跨頁，左頁文字、右頁照片卡紙；卡紙是品牌色。
+   動態（翻頁 --open、卡紙 --up、紙條 --pull、轉盤 --rot）由 utils/about-popup.ts 寫進 CSS 變數；
+   沒有 JS 時預設 --open:1、--up:1、--pull:0，書是攤開的、卡紙是站好的。
+   顏色一律走站內 token；透明度用 RGB 三元組（--ink）。不再共用 admission.css。 */
 
-/* ---------- hero：長輩在畫面中間偏右，文字壓在左側孩子上 ---------- */
-.abt-hero-photo{object-position:60% 30%}
+.abk{
+  --abk-table:var(--ivy-forest-mist);
+  --abk-page:var(--white);
+  --abk-gutter:clamp(16px,4vw,48px);
+  --abk-ease:cubic-bezier(.22,1,.36,1);
+  position:relative;
+  padding-bottom:clamp(40px,6vw,88px);
+  background:var(--abk-table);
+  color:var(--text);
+  overflow-x:clip;
+}
+.abk h1,.abk h2{color:var(--ivy-forest)}
+.abk-kicker{font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;color:var(--leaf)}
+.abk-kicker b{margin-right:12px;font:600 var(--fs-sm)/1 var(--font-date)}
+.abk-title{margin-top:16px;font-size:clamp(2rem,1.3rem + 2vw,3rem);line-height:1.28}
+.abk-text{margin-top:20px;max-width:34em;font-size:var(--fs-lg);line-height:1.95;color:var(--muted)}
 
-/* ---------- 01 一路走來：五校沿革，年份列上一條虛線串起來 ---------- */
-.abt-timeline{position:relative;list-style:none;margin:96px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:24px}
-.abt-timeline::before{content:'';position:absolute;top:30px;left:0;right:0;border-top:1.5px dashed var(--trail)}
-.abt-milestone{position:relative;display:flex;flex-direction:column}
-.abt-year{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
-.abt-year span{padding-right:12px;background:var(--ivy-forest-mist);font:400 44px/1.3 var(--font-date);letter-spacing:-.01em;color:var(--ivy-forest)}
-.abt-year small{font-size:var(--fs-xs);letter-spacing:.08em;color:var(--ivy-forest-soft)}
-.abt-campus{display:flex;flex-direction:column;flex:1;margin-top:20px;padding:12px 12px 20px;border-radius:14px;background:rgb(var(--on-dark)/.55);color:inherit;text-decoration:none;transition:background-color .25s}
-.abt-campus img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:8px}
-.abt-campus h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 6px 0;font-size:var(--fs-xl);line-height:1.4}
-.abt-campus h3 .icon{flex:none;width:18px;height:18px;transition:transform .25s var(--adm-ease)}
-.abt-campus p{margin:6px 6px 0;font-size:var(--fs-sm);line-height:1.8}
-@media (hover:hover){
-  .abt-campus:hover{background:rgb(var(--on-dark)/.85)}
-  .abt-campus:hover h3 .icon{transform:translateX(4px)}
+/* ---------- 跨頁 ---------- */
+.abk-spread{position:relative;display:grid;grid-template-columns:1fr 1fr;width:min(100% - 2 * var(--abk-gutter),1240px);margin:clamp(40px,6vw,88px) auto 0;perspective:2200px;transform-style:preserve-3d;box-shadow:0 40px 60px -40px rgb(var(--ink)/.45)}
+/* 書頁厚度：底下幾層紙邊 */
+.abk-spread::after{content:'';position:absolute;left:0;right:0;bottom:-10px;z-index:-1;height:12px;border-radius:0 0 10px 10px;background:repeating-linear-gradient(180deg,var(--abk-page) 0 2px,var(--line) 2px 3px)}
+.abk-page{position:relative;min-height:min(78svh,720px);padding:clamp(28px,4vw,64px)}
+.abk-page.is-left{border-radius:10px 0 0 10px;background:linear-gradient(90deg,var(--abk-page) 88%,rgb(var(--ink)/.07))}
+.abk-page.is-right{border-radius:0 10px 10px 0;background:linear-gradient(90deg,rgb(var(--ink)/.08),var(--abk-page) 12%);transform-origin:0 50%;transform:rotateY(calc((1 - var(--open,1)) * -178deg))}
+.abk-no{position:absolute;bottom:18px;font:600 var(--fs-xs)/1 var(--font-date);letter-spacing:.14em;color:var(--muted)}
+.is-left>.abk-no{left:28px}
+.is-right>.abk-no{right:28px}
+
+/* ---------- 卡紙：--up 0 平躺 → 1 站好（彈簧會超過 1，往前晃一下） ---------- */
+.abk-stage{position:relative;height:100%;min-height:inherit;perspective:1100px}
+.abk-pop{position:absolute;left:var(--x);bottom:var(--y);z-index:var(--z,1);width:var(--w);margin:0}
+.abk-card{position:relative;padding:8px 8px 10px;border-radius:3px;background:var(--c,var(--yellow));transform-origin:50% 100%;transform:rotateX(calc((1 - var(--up,1)) * 86deg));box-shadow:0 1px 0 rgb(var(--ink)/.12)}
+.abk-card img,.abk-blank{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:2px}
+/* 分校停用或下架：那一年仍在沿革裡，卡紙留白、不放照片 */
+.abk-blank{background:rgb(var(--ink)/.06)}
+.abk-card>b{position:absolute;top:-14px;left:10px;padding:2px 10px;border-radius:3px;background:var(--abk-page);font:700 var(--fs-md)/1.4 var(--font-date);color:var(--ivy-forest);box-shadow:0 2px 4px rgb(var(--ink)/.18)}
+.abk-card>i{display:block;margin-top:6px;font-style:normal;font-weight:700;font-size:var(--fs-sm);text-align:center;color:var(--ivy-forest)}
+.abk-card figcaption{margin-top:8px;font-weight:700;font-size:var(--fs-sm);text-align:center;color:var(--ivy-forest)}
+/* 站起來的影子 */
+.abk-pop::after{content:'';position:absolute;left:4%;right:4%;bottom:-6px;z-index:-1;height:16px;border-radius:50%;background:radial-gradient(rgb(var(--ink)/.28),transparent 70%);opacity:calc(var(--up,1) * .9);transform:scaleY(calc(.4 + var(--up,1) * .6))}
+/* 卡紙底下那一截折進書頁的紙 */
+.abk-fold{position:absolute;left:18%;right:18%;bottom:-10px;height:10px;background:var(--c,var(--yellow));filter:brightness(.88);transform-origin:50% 0;transform:rotateX(calc(var(--up,1) * 80deg))}
+
+/* ---------- 首屏 ---------- */
+.abk-hero{margin-top:clamp(24px,4vw,56px)}
+.abk-hero .abk-page{min-height:min(80svh,740px)}
+.abk-hero h1{margin-top:22px;font-size:clamp(2.4rem,1.4rem + 2.6vw,4rem);line-height:1.2}
+.abk-lede{margin-top:24px;max-width:30em;font-size:var(--fs-lg);line-height:1.95;color:var(--muted)}
+.abk-ribbon{position:absolute;top:-8px;right:48px;width:26px;height:120px;background:var(--studio-orange);clip-path:polygon(0 0,100% 0,100% 100%,50% 86%,0 100%)}
+.abk-hint{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:24px;font-size:var(--fs-sm);font-weight:700;color:var(--leaf);text-decoration:none}
+.abk-hint .icon{width:1.1em;height:1.1em}
+.abk-pop.is-hero img{object-position:58% 40%}
+
+/* ---------- 01 一路走來：左頁沿革、右頁拉紙條 ---------- */
+.abk-list{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:14px}
+.abk-list li{display:grid;grid-template-columns:96px 1fr;gap:14px;align-items:baseline}
+.abk-year{display:grid;gap:2px}
+.abk-year span{font:600 1.4rem/1 var(--font-date);color:var(--ivy-forest)}
+.abk-year small{font-size:var(--fs-xs);letter-spacing:.06em;color:var(--muted)}
+.abk-campus{display:inline-flex;align-items:center;gap:6px;min-height:32px;font-weight:700;color:var(--green);text-decoration:none}
+.abk-campus .icon{width:16px;height:16px;transition:transform .25s var(--abk-ease)}
+@media (hover:hover){.abk-campus:hover{text-decoration:underline;text-underline-offset:5px}.abk-campus:hover .icon{transform:translateX(3px)}}
+.abk-list p{font-size:var(--fs-sm);line-height:1.8;color:var(--muted)}
+.abk-story .abk-stage{min-height:calc(100% - 120px)}
+.abk-pull{position:absolute;left:clamp(20px,3vw,48px);right:clamp(20px,3vw,48px);bottom:56px;z-index:20;height:64px;container-type:inline-size}
+.abk-track{position:absolute;left:0;right:0;top:26px;height:12px;border-radius:6px;background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px);box-shadow:inset 0 1px 2px rgb(var(--ink)/.2)}
+.abk-tick{position:absolute;top:-24px;left:calc(var(--t) * 100%);transform:translateX(-50%);font:700 var(--fs-xs)/1 var(--font-date);color:var(--muted)}
+.abk-tick::after{content:'';position:absolute;left:50%;top:18px;width:2px;height:18px;background:var(--line)}
+.abk-tab{position:absolute;left:0;top:10px;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 16px;border:0;border-radius:4px 22px 22px 4px;background:var(--studio-orange);color:var(--white);font:800 var(--fs-sm)/1 var(--font);box-shadow:0 4px 10px rgb(var(--ink)/.25);cursor:grab;touch-action:none;transform:translateX(calc(var(--pull,0) * (100cqw - 100%)))}
+.abk-tab b{font:700 var(--fs-md)/1 var(--font-date)}
+.abk-tab:active{cursor:grabbing}
+.abk-tab:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:3px}
+
+/* ---------- 02 全人教育：紙轉盤 ---------- */
+.abk-lists{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+.abk-lists h3{font-size:var(--fs-xs);font-weight:600;letter-spacing:.12em;color:var(--muted)}
+.abk-lists ol{list-style:none;margin:6px 0 0;padding:0}
+.abk-lists li{padding:6px 0;border-bottom:1px dashed var(--line);font-weight:700;font-size:var(--fs-md);color:var(--ivy-forest)}
+.abk-fine{margin-top:16px;max-width:36em;font-size:var(--fs-sm);line-height:1.8;color:var(--muted)}
+.abk-fine small{display:block;margin-top:4px;font-size:var(--fs-xs)}
+.abk-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:16px;font-weight:700;color:var(--green);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
+.abk-link .icon{width:18px;height:18px}
+.abk-wheel-wrap{display:grid;align-content:center;justify-items:center;gap:14px;height:100%;min-height:inherit}
+.abk-wheel{position:relative;width:min(92%,480px);aspect-ratio:1;container-type:inline-size;touch-action:none;cursor:grab}
+.abk-wheel:active{cursor:grabbing}
+.abk-disc{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from -30deg,rgb(var(--ivy-paint-orange-rgb)) 0 60deg,rgb(var(--ivy-paint-sky-rgb)) 0 120deg,rgb(var(--ivy-paint-sun-rgb)) 0 180deg,rgb(var(--ivy-paint-leaf-rgb)) 0 240deg,rgb(var(--ivy-paint-mint-rgb)) 0 300deg,var(--trail) 0 360deg);box-shadow:0 10px 24px -10px rgb(var(--ink)/.4);transform:rotate(var(--rot,0deg))}
+.abk-disc span{position:absolute;left:50%;top:50%;width:0;height:0;transform:rotate(calc(var(--i) * 60deg))}
+.abk-disc b{position:absolute;left:0;top:-48.5cqw;width:max-content;transform:translateX(-50%);white-space:pre-line;font:800 4.2cqw/1.2 var(--font-head);text-align:center;color:var(--ivy-forest)}
+/* 蓋在轉盤上的卡紙：整片蓋住，只在頂端外圈挖一個扇形窗（圓心附近不挖） */
+.abk-cover{position:absolute;inset:-3%;display:grid;place-content:center;justify-items:center;gap:10px;border-radius:50%;background:var(--cream);box-shadow:0 6px 16px rgb(var(--ink)/.25);-webkit-mask:conic-gradient(from -26deg,transparent 0 52deg,rgb(var(--ink)) 0),radial-gradient(circle,rgb(var(--ink)) 0 36%,transparent 36.5%);mask:conic-gradient(from -26deg,transparent 0 52deg,rgb(var(--ink)) 0),radial-gradient(circle,rgb(var(--ink)) 0 36%,transparent 36.5%);pointer-events:none}
+.abk-cover b{font:800 9cqw/1 var(--font-head);color:var(--ivy-forest)}
+.abk-cover small{font-size:var(--fs-sm);font-weight:700;color:var(--muted)}
+.abk-wheel-out{min-height:1.6em;font-weight:800;font-size:var(--fs-lg);color:var(--ivy-forest)}
+.abk-turn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 20px;border:0;border-radius:99px;background:var(--ivy-forest);color:var(--white);font:700 var(--fs-md)/1 var(--font);cursor:pointer;box-shadow:0 3px 0 rgb(var(--ink)/.5)}
+.abk-turn .icon{width:18px;height:18px}
+.abk-turn:active{transform:translateY(2px);box-shadow:0 1px 0 rgb(var(--ink)/.5)}
+
+/* ---------- 03 我們的期許：紙房子 ---------- */
+.abk-quote{margin:24px 0 0;padding-left:20px;border-left:4px solid var(--yellow)}
+.abk-quote p{font-size:var(--fs-lg);line-height:2;color:var(--text)}
+.abk-quote p+p{margin-top:12px}
+.abk-house .abk-card,.abk-tree .abk-card{padding:0;background:transparent;box-shadow:none}
+.abk-roof{width:100%;aspect-ratio:2.2/1;background:var(--studio-orange);clip-path:polygon(50% 0,100% 100%,0 100%)}
+.abk-wall{position:relative;margin:-2px 8% 0;padding:14px 12% 0;aspect-ratio:1.25/1;background:var(--yellow)}
+.abk-wall img{border:6px solid var(--abk-page)}
+.abk-door{position:absolute;left:50%;bottom:0;width:18%;height:28%;border-radius:40px 40px 0 0;background:var(--leaf);transform:translateX(-50%)}
+.abk-tree i{display:block;width:100%;aspect-ratio:.8;background:var(--c);clip-path:polygon(50% 0,92% 70%,60% 70%,60% 100%,40% 100%,40% 70%,8% 70%)}
+
+/* ---------- 結尾：五校書籤 ---------- */
+.abk-outro{width:min(100% - 2 * var(--abk-gutter),1240px);margin:clamp(56px,7vw,96px) auto 0}
+.abk-outro h2{font-size:clamp(1.5rem,1.2rem + 1vw,2rem)}
+.abk-marks{list-style:none;display:flex;flex-wrap:wrap;gap:14px;margin:22px 0 0;padding:0}
+.abk-marks a{display:grid;place-items:center;width:112px;height:150px;padding-bottom:22px;background:var(--c);color:var(--ivy-forest);font-weight:800;text-decoration:none;clip-path:polygon(0 0,100% 0,100% 100%,50% 85%,0 100%);transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
+@media (hover:hover){.abk-marks a:hover{transform:translateY(-8px)}}
+.abk-marks a:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:3px}
+
+/* ---------- 900px 以下：跨頁改成上下兩頁，不翻頁（卡紙照樣站起來） ---------- */
+@media (max-width:900px){
+  .abk-spread{grid-template-columns:minmax(0,1fr);perspective:none}
+  .abk-page{min-height:0}
+  .abk-page.is-left{border-radius:10px 10px 0 0;background:var(--abk-page)}
+  .abk-page.is-right{border-radius:0 0 10px 10px;background:linear-gradient(180deg,rgb(var(--ink)/.06),var(--abk-page) 8%);transform:none}
+  .abk-hero .abk-page{min-height:0}
+  .abk-hero h1{font-size:clamp(2rem,8.6vw,2.4rem)}
+  /* 最長一行「孩子的第一所學校，」9 字：字級跟著頁面內寬縮（視窗 − 留白 16×2 − 內距 28×2），320 寬也不會把標點擠成一行 */
+  .abk-title{font-size:min(2rem,calc((100vw - 88px) / 9.4))}
+  .abk-ribbon{right:14px;height:84px}
+  .abk-stage{min-height:400px}
+  .abk-hero .abk-stage{min-height:340px}
+  .abk-story .abk-stage{min-height:480px}
+  .abk-hope .abk-stage{min-height:440px}
+  .abk-list li{grid-template-columns:80px 1fr}
+  .abk-wheel-wrap{min-height:0;padding-block:8px 28px}
+}
+@media (max-width:420px){
+  .abk-lists{grid-template-columns:minmax(0,1fr)}
 }
 
-/* ---------- 02 全人教育：六大領域 → 六大核心素養 ---------- */
-.abt-whole-board{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:24px;max-width:1040px;margin:56px auto 0}
-.abt-whole-col{padding:40px 40px 44px;border-radius:24px;background:var(--white);color:var(--ivy-campus-heading-ink)}
-.abt-whole-col.is-goal{background:var(--ivy-forest);color:var(--white)}
-.abt-whole-col h3{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-3xl);line-height:1.35;letter-spacing:.04em}
-.abt-whole-col h3 small{font:600 var(--fs-sm)/1.4 var(--font-body);letter-spacing:.12em;color:var(--ivy-campus-heading-accent)}
-.abt-whole-col.is-goal h3 small{color:var(--gold)}
-.abt-chips{list-style:none;margin:28px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.abt-chips li{display:flex;align-items:baseline;gap:10px;min-height:52px;padding:12px 16px;border-radius:12px;background:var(--ivy-campus-heading-selected);font-size:var(--fs-md);font-weight:600;line-height:1.5}
-.abt-chips span{font:400 var(--fs-xs)/1 var(--font-date);letter-spacing:.1em;color:var(--ivy-campus-heading-accent)}
-.is-goal .abt-chips li{background:rgb(var(--on-dark)/.1)}
-.is-goal .abt-chips span{color:var(--gold)}
-.abt-whole-arrow{display:grid;place-items:center;color:var(--ivy-campus-heading-accent)}
-.abt-whole-arrow .icon{width:32px;height:32px}
-.abt-whole-note{max-width:40em;margin:40px auto 0;text-align:center;font-size:var(--fs-md);line-height:1.9;color:var(--ivy-campus-muted);text-wrap:balance}
-.abt-whole-note small{display:block;margin-top:8px;font-size:var(--fs-xs);letter-spacing:.06em}
-.abt-whole-more{display:flex;justify-content:center;margin-top:20px}
-.abt-whole-more .adm-text-link{color:var(--ivy-campus-heading-ink)}
-.abt-whole-more .icon{width:18px;height:18px}
-
-/* ---------- 03 我們的期許：深綠舞台上的一段話 ---------- */
-.abt-hope{padding-bottom:240px}
-.abt-hope .adm-title{color:var(--white)}
-.abt-quote{max-width:36em;margin:48px 0 0;padding-left:28px;border-left:2px solid var(--gold)}
-.abt-quote p{font-size:var(--fs-xl);line-height:1.95;color:rgb(var(--on-dark)/.88)}
-.abt-quote p + p{margin-top:16px}
-
-/* ---------- 結尾 ---------- */
-.abt-visit-sheet .adm-visit{margin-top:0}
-
-/* ---------- 斷點：沿用 admission 的 1100 / 900 / 760 ---------- */
-@media (width<=1100px){
-  .abt-timeline{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:48px}
-  .abt-timeline::before{display:none}
-  .abt-year span{background:none;padding:0}
-}
-@media (width<=900px){
-  .abt-whole-board{grid-template-columns:1fr}
-  .abt-whole-arrow{transform:rotate(90deg)}
-}
-@media (width<=760px){
-  /* 章節只有 3 項：手機兩欄時最後一項落單，改成橫跨整列，底線才會畫滿 */
-  .adm-chapters li:last-child:nth-child(odd){grid-column:1/-1}
-  .abt-hero-photo{object-position:58% 30%}
-  /* 手機改成直向時間軸：左邊年份、右邊校園卡，一條直線串起來 */
-  .abt-timeline{grid-template-columns:1fr;gap:28px;margin-top:56px;padding-left:20px}
-  .abt-timeline::before{display:block;top:8px;bottom:8px;left:4px;right:auto;border-top:0;border-left:1.5px dashed var(--trail)}
-  .abt-milestone::before{content:'';position:absolute;top:14px;left:-21px;width:10px;height:10px;border-radius:50%;background:var(--ivy-forest)}
-  .abt-year{flex-direction:row;align-items:baseline;gap:10px}
-  .abt-year span{font-size:32px}
-  .abt-campus{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:14px;margin-top:10px;padding:10px 14px 10px 10px}
-  .abt-campus img{grid-row:span 2;height:100%;aspect-ratio:1}
-  .abt-campus h3{margin:4px 0 0;font-size:var(--fs-lg)}
-  .abt-campus p{margin:4px 0 0}
-  .abt-whole-col{padding:28px 20px 24px}
-  .abt-whole-col h3{font-size:var(--fs-2xl)}
-  .abt-chips{gap:8px}
-  .abt-chips li{min-height:48px;padding:10px 12px;font-size:var(--fs-sm)}
-  .abt-hope{padding-bottom:170px}
-  /* 一行 9 字（含逗號）：320 寬也要放得下，逗號才不會單獨掉到下一行 */
-  .abt-hope .adm-title{font-size:min(var(--adm-title),8.6vw)}
-  .abt-quote{margin-top:32px;padding-left:18px}
-  .abt-quote p{font-size:var(--fs-lg)}
-}
 @media (prefers-reduced-motion:reduce){
-  .abt-campus,.abt-campus h3 .icon{transition:none}
+  .abk-campus .icon,.abk-marks a{transition:none}
 }
 @media (forced-colors:active){
-  .abt-milestone::before{background:CanvasText}
+  .abk-page.is-right{transform:none}
+  .abk-card{transform:none}
 }

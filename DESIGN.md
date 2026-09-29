@@ -1,5 +1,19 @@
 # Design
 
+## 關於常春藤頁改成「立體書」（2026-09-29 定案 J）
+
+使用者看了五批 /about 比稿後選 J 立體書（`design/about-style-directions-20260929/j-popup.*`），並要求「不用特別強調相隔 15 年」。取代下方 09-26「關於常春藤頁」的版型（內容與文案規則照舊）。改版前快照：`versions/before-about-popup-20260929-*/`。
+
+- **版型**：整頁是攤在淡綠桌面（`--ivy-forest-mist`）上的立體繪本；每段一個跨頁，左頁文字、右頁照片卡紙（卡紙底色輪流用 `--yellow`／`--studio-blue`／`--studio-sage`／`--mint`／`--studio-orange`）。首屏 → 01 一路走來 → 02 全人教育 → 03 我們的期許 → 五校書籤。不再共用 `admission.css`，樣式全在 `about.css`（`abk-` 前綴）。
+- **互動**：01 右頁下方拉紙條，五站**等距**（不照年份比例、畫面不寫「相隔十五年」），拉過哪一站那一校的卡紙就站起來、放手彈到最近一站；紙條是 `role="slider"`，方向鍵一站一格、Home／End。02 紙轉盤（volvelle），拖著轉、放手彈到最近一格，窗口的領域用 `aria-live` 念出；「轉一格」按鈕。03 紙房子與兩棵樹折起來，窗戶是 `about-together`。
+- **Motion 只用在這一頁**：`motion`（motion.dev）在 `AboutContent.vue` 的 `onMounted` 動態 import，動態邏輯在 `utils/about-popup.ts`（只 import 型別）。其他頁不因這頁改用 Motion。載入失敗就維持攤開的靜態書。
+- **沒有 JS 也看得到**：CSS 預設 `--open:1`、`--up:1`（書攤開、卡紙站好）。JS 掛上時已在視窗內的跨頁直接維持攤開，不闔上再翻（避免閃一下）；首屏跨頁（`data-spread="static"`）永遠不翻。翻頁只在 901px 以上（右頁以書脊為軸 `rotateY`，`scroll()` 寫 `--open`）；900px 以下跨頁改上下疊、不翻，卡紙照樣站起來。減少動態：攤開、卡紙站好、紙條在最後一站。強制色彩：不掛動態、不變形。
+- **分校資料**：校名、照片、連結跟後台發布的分校資料走；分校下架時那一年仍在沿革與紙條上，卡紙留白（`.abk-blank`），不放照片與連結，書籤也不出現。
+- **首屏照片**：右頁 4:3 卡紙，`ABOUT_HERO_SIZES`（頁面與 `usePageSeo` 預載共用），取代滿版帶的 `pageHeroImage()`。
+- **手機標題一行最多 8 字的規則照舊**：章節標題最長一行「孩子的第一所學校，」9 字，900px 以下字級改 `min(2rem, (100vw − 88px) / 9.4)`，320 寬也是兩行。
+- **頁面內容不放預約參觀**：同常春藤環境、特色教學；頁首全站共用的預約鈕照舊，`data-cta-entry="about"` 保留。
+- **比稿看過沒選**（不要再主動提）：09-27 藤／直書／路線圖；09-28 p5 年輪／積木／十字繡／相聚；09-29 A 五盞燈（three.js）、B 一字成家（MorphSVG）、D 光影（WebGL）、E 吊飾、F 彈珠台、G 泡泡、「常春藤的遊戲間」整頁、水彩畫冊（課程水彩 × 環境手繪）、H 家庭放映機（OGL）、I 孔版印刷（PixiJS）。工作檔在 `design/about-*-20260929/`。
+
 ## 手機版體驗優化第二輪（2026-09-29）
 
 使用者要求「優化手機版的體驗」。先分八區（首頁上／中／下、分校頁、預約流程、內容分頁、全站、載入效能）在 390×844、360×780、320×568、844×390 實測審查，每區再由懷疑者重測反駁；與既有定案衝突的項目不改，列在本節最後給業主決定。只改 `web/`；桌機外觀不變，刻意的例外在下面標「全寬度」。改版前快照 `versions/before-mobile-ux-20260929-082521/`。
@@ -60,7 +74,7 @@
 - **實作**：印章是 `components/PassportStamp.vue`（SVG、aria-hidden，版面在 `utils/passport-stamp.ts`，兩個濾鏡 `#ap-ink`／`#ap-bleed` 定義在頁面開頭）；細紋是 `utils/guilloche.ts`（萬花尺玫瑰紋與波浪帶，hero 那組上萬個點，只在瀏覽器端依寬度算，不進 SSR）；蓋章動作 `utils/admission-motion.ts`：GSAP 只在這頁 `import('gsap')` 動態載入，印章由 `<Transition :css="false">` 掛上／拿掉時呼叫壓下／拿起；捲動觸發用 IntersectionObserver（不載 ScrollTrigger）。減少動態、GSAP 載入失敗時印章直接在紙上；沒有 JS 時沒有印章與細紋，文字、表格、手風琴照常（SSR 已輸出）。
 - **字型**：印章與寫死的小標用明體 `Ivy Passport Serif`（Noto Serif TC 靜態 OTF，notofonts／noto-cjk，OFL 1.1、無 Reserved Font Name）。`scripts/admission-font-chars.cjs` 量頁面用字、`scripts/subset-admission-fonts.py` 切片（比照環境頁流程；CFF 沒有 glyf，分片大小用 charstring 長度估）：900（印章，會顯示後台的步驟名與穿著）critical 54KB＋字頻分片共 3.27MB；600 只切寫死小標的 critical 57KB。**會顯示後台文字的小標（二部曲標籤、星期、退費小項）不用明體**，後台改字不會缺字。改了頁面文案要重跑這兩支。
 - **hero 照片**：護照左頁 4:3 照片欄，`admissionHeroImage()` 的 sizes 照實際欄寬寫（桌機 495px、760px 以下 `calc((100vw - 86px) * 1.01)`），頁面 `<img>` 與 `usePageSeo` 預載共用；不再用 `.photo-hero`，頁首是一般實底（桌機捲動後照舊收膠囊）。
-- `admission.css` 仍被關於常春藤頁使用，這次沒動；入學頁的樣式全部在 `admission-passport.css`（`ap-` 前綴，變數掛在 `.ap` 底下）。
+- `admission.css` 仍被關於常春藤頁使用，這次沒動（2026-09-29 關於頁改立體書後已沒有頁面使用，檔案與 `pageHeroImage()` 待清）；入學頁的樣式全部在 `admission-passport.css`（`ap-` 前綴，變數掛在 `.ap` 底下）。
 
 ## 常春藤環境頁 GSAP 動態層（2026-09-28，疊在下一節的手繪版上）
 
@@ -138,6 +152,8 @@
 - 版面用消息區的 `--ivy-news-*` token，不做滿版 hero；列表整列可點但只有標題是連結。
 
 ## 關於常春藤頁（2026-09-26）
+
+> 2026-09-29 版型由上方「立體書」取代；以下的內容與文案規則仍有效。
 
 使用者從五個新分頁方向裡選 A「關於常春藤／品牌故事」，照建議做：導覽放第一項、沿革不提崇德同年的 ESL 美語部。第一版，還沒比稿。
 
