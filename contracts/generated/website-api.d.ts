@@ -1153,6 +1153,26 @@ export interface paths {
         patch: operations["update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/users/{user_id}/display-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update User Display Name
+         * @description 總管理者替同事填或改顯示名稱（也可以清掉，畫面改用 Email）。
+         */
+        patch: operations["update_user_display_name_api_website_v1_admin_users__user_id__display_name_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/users/{user_id}/password": {
         parameters: {
             query?: never;
@@ -1762,7 +1782,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Me
+         * @description 本人改自己的顯示名稱；任何登入的後台帳號都可以。和其他寫入一樣要過
+         *     CSRF／Origin 檢查（get_current_user）。
+         */
+        patch: operations["update_me_api_website_v1_auth_me_patch"];
         trace?: never;
     };
     "/api/website/v1/auth/providers": {
@@ -2062,6 +2087,43 @@ export interface components {
             unassigned_clicks?: {
                 [key: string]: number;
             } | null;
+        };
+        /**
+         * AuditLogEntryOut
+         * @description 操作紀錄一筆。actor_*、target_label 是讀取當下 join users 查出來的，
+         *     不存在稽核表裡（metadata 不放同事的 email 或名字）。
+         */
+        AuditLogEntryOut: {
+            /** Action */
+            action: string;
+            /** Actor Display Name */
+            actor_display_name: string | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** Campus Key */
+            campus_key: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Target Id */
+            target_id: string;
+            /** Target Label */
+            target_label: string | null;
+            /** Target Type */
+            target_type: string;
         };
         /** AuthProviders */
         AuthProviders: {
@@ -2373,6 +2435,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email: string | null;
             /** Ever Published */
@@ -2402,6 +2466,15 @@ export interface components {
             schema_version: number;
             /** Version */
             version: number;
+        };
+        /**
+         * DisplayNameUpdateRequest
+         * @description 總管理者改同事的顯示名稱，或本人改自己的。一定要帶這個鍵：傳 null 或
+         *     空白是清掉（畫面改用 Email），不會因為漏帶欄位就被清空。
+         */
+        DisplayNameUpdateRequest: {
+            /** Display Name */
+            display_name: string | null;
         };
         /** FunnelEntryOut */
         FunnelEntryOut: {
@@ -2525,6 +2598,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email?: string | null;
             /** Crop Focus X */
@@ -2943,6 +3018,8 @@ export interface components {
             revision_id: string;
             /** Submitted At */
             submitted_at: string | null;
+            /** Submitted By Display Name */
+            submitted_by_display_name?: string | null;
             /** Submitted By Email */
             submitted_by_email: string | null;
             /** Version */
@@ -3083,6 +3160,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email: string | null;
             /** Error */
@@ -3113,6 +3192,8 @@ export interface components {
         };
         /** PublishJobOut */
         PublishJobOut: {
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email: string | null;
             /** Error */
@@ -3184,6 +3265,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email: string | null;
             /**
@@ -3312,6 +3395,8 @@ export interface components {
             real_run_allowed: boolean;
             /** Updated At */
             updated_at: string | null;
+            /** Updated By Display Name */
+            updated_by_display_name?: string | null;
             /** Updated By Email */
             updated_by_email: string | null;
             /** Version */
@@ -3345,6 +3430,8 @@ export interface components {
         };
         /** RetentionRunOut */
         RetentionRunOut: {
+            /** Actor Display Name */
+            actor_display_name?: string | null;
             /** Actor Email */
             actor_email: string | null;
             counts: components["schemas"]["RetentionCountsOut"];
@@ -3468,6 +3555,8 @@ export interface components {
             campus_keys?: string[];
             /** Capabilities */
             capabilities?: string[];
+            /** Display Name */
+            display_name?: string | null;
             /**
              * Email
              * Format: email
@@ -3482,6 +3571,8 @@ export interface components {
          * @description 給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。
          */
         UserNotificationOut: {
+            /** Actor Display Name */
+            actor_display_name?: string | null;
             /** Actor Email */
             actor_email: string | null;
             /** Campus Key */
@@ -3522,6 +3613,8 @@ export interface components {
             campus_keys: string[];
             /** Capabilities */
             capabilities?: string[];
+            /** Display Name */
+            display_name?: string | null;
             /** Effective Capabilities */
             effective_capabilities: string[];
             /** Email */
@@ -3591,6 +3684,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by?: string | null;
+            /** Created By Display Name */
+            created_by_display_name?: string | null;
             /** Created By Email */
             created_by_email?: string | null;
             /**
@@ -3660,6 +3755,8 @@ export interface components {
          *     或下次聯絡時間，不含家長個資。
          */
         VisitHistoryOut: {
+            /** Actor Display Name */
+            actor_display_name?: string | null;
             /** Actor Email */
             actor_email: string | null;
             /** Actor User Id */
@@ -4178,6 +4275,8 @@ export interface components {
         VisitStaffOut: {
             /** Campus Keys */
             campus_keys: string[];
+            /** Display Name */
+            display_name?: string | null;
             /** Email */
             email: string;
             /**
@@ -4296,9 +4395,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AuditLogEntryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -6720,6 +6817,45 @@ export interface operations {
             };
         };
     };
+    update_user_display_name_api_website_v1_admin_users__user_id__display_name_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayNameUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_user_password_api_website_v1_admin_users__user_id__password_post: {
         parameters: {
             query?: never;
@@ -7981,6 +8117,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_api_website_v1_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayNameUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
                 };
             };
             /** @description Validation Error */

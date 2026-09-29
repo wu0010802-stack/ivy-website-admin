@@ -53,7 +53,7 @@ async def list_publish_jobs(
     """全站排程：還沒到期的依時間先後全部列出，已結束的列最近 50 筆（新的在前）。"""
     require_scope(current_user, "content.read")
     base = (
-        select(PublishJob, ContentItem, ContentRevision.version, User.email)
+        select(PublishJob, ContentItem, ContentRevision.version, User.email, User.display_name)
         .join(ContentItem, ContentItem.id == PublishJob.content_item_id)
         .join(ContentRevision, ContentRevision.id == PublishJob.revision_id)
         .outerjoin(User, User.id == PublishJob.created_by)
@@ -80,11 +80,12 @@ async def list_publish_jobs(
             status=job.status,
             error=job.error,
             created_by_email=email,
+            created_by_display_name=display_name,
             created_at=job.created_at,
             finished_at=job.finished_at,
             can_cancel=job.status == "scheduled" and notices.user_can_publish(current_user, item),
         )
-        for job, item, version, email in [*upcoming.all(), *finished.all()]
+        for job, item, version, email, display_name in [*upcoming.all(), *finished.all()]
     ]
 
 
@@ -92,7 +93,7 @@ async def _release_page(
     db: AsyncSession, user: User, *, limit: int, before: datetime | None
 ) -> ReleasePageOut:
     stmt = (
-        select(SiteRelease, User.email)
+        select(SiteRelease, User.email, User.display_name)
         .outerjoin(User, User.id == SiteRelease.created_by)
         .order_by(SiteRelease.created_at.desc(), SiteRelease.id.desc())
         .limit(limit + 1)
@@ -101,7 +102,7 @@ async def _release_page(
         stmt = stmt.where(SiteRelease.created_at < before)
     rows = (await db.execute(stmt)).all()
     page, predecessor = rows[:limit], rows[limit:]
-    release_ids = [release.id for release, _ in rows]
+    release_ids = [release.id for release, _, _ in rows]
 
     entries: dict[uuid.UUID, dict[uuid.UUID, tuple]] = {rid: {} for rid in release_ids}
     if release_ids:
@@ -125,7 +126,7 @@ async def _release_page(
     current_id = state.current_release_id if state else None
     scoped = campus_scope(user) is not None
     items: list[ReleaseOut] = []
-    for index, (release, email) in enumerate(page):
+    for index, (release, email, display_name) in enumerate(page):
         previous_id = rows[index + 1][0].id if index + 1 < len(rows) else None
         previous = entries.get(previous_id, {}) if previous_id else {}
         changes = [
@@ -149,6 +150,7 @@ async def _release_page(
                 id=release.id,
                 created_at=release.created_at,
                 created_by_email=email,
+                created_by_display_name=display_name,
                 source=release.source,
                 restored_from_release_id=release.restored_from_release_id,
                 is_current=release.id == current_id,

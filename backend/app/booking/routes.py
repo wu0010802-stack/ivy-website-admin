@@ -946,6 +946,7 @@ async def list_visit_staff(
             VisitStaffOut(
                 id=user.id,
                 email=user.email,
+                display_name=user.display_name,
                 role=user.role.value,
                 campus_keys=keys,
                 is_active=user.is_active,
@@ -974,14 +975,16 @@ async def list_contact_notes(
 ) -> list[VisitContactNoteOut]:
     await _get_owned_visit_request(db, current_user, visit_request_id)
     result = await db.execute(
-        select(VisitContactNote, User.email)
+        select(VisitContactNote, User.email, User.display_name)
         .outerjoin(User, User.id == VisitContactNote.created_by)
         .where(VisitContactNote.visit_request_id == visit_request_id)
         .order_by(VisitContactNote.created_at.desc())
     )
     return [
-        VisitContactNoteOut.model_validate(note).model_copy(update={"created_by_email": email})
-        for note, email in result.all()
+        VisitContactNoteOut.model_validate(note).model_copy(
+            update={"created_by_email": email, "created_by_display_name": display_name}
+        )
+        for note, email, display_name in result.all()
     ]
 
 
@@ -1029,7 +1032,9 @@ async def create_contact_note(
         },
     )
     await db.commit()
-    return VisitContactNoteOut.model_validate(note).model_copy(update={"created_by_email": current_user.email})
+    return VisitContactNoteOut.model_validate(note).model_copy(
+        update={"created_by_email": current_user.email, "created_by_display_name": current_user.display_name}
+    )
 
 
 @router.patch("/admin/visit-requests/{visit_request_id}/assignee", response_model=VisitRequestDetailOut)

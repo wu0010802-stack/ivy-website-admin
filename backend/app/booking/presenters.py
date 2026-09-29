@@ -57,9 +57,9 @@ async def reschedule_request_outs(
 
 
 async def visit_history(db: AsyncSession, visit_request_id: uuid.UUID) -> list[VisitHistoryOut]:
-    """由舊到新；操作人帶 email，帳號刪除後 actor_user_id 會被清成 NULL。"""
+    """由舊到新；操作人帶 email 與顯示名稱，帳號刪除後 actor_user_id 會被清成 NULL。"""
     result = await db.execute(
-        select(VisitRequestEvent, User.email)
+        select(VisitRequestEvent, User.email, User.display_name)
         .outerjoin(User, User.id == VisitRequestEvent.actor_user_id)
         .where(VisitRequestEvent.visit_request_id == visit_request_id)
         .order_by(VisitRequestEvent.created_at, VisitRequestEvent.id)
@@ -71,12 +71,13 @@ async def visit_history(db: AsyncSession, visit_request_id: uuid.UUID) -> list[V
             source=event.source,
             actor_user_id=event.actor_user_id,
             actor_email=email,
+            actor_display_name=display_name,
             before=event.before,
             after=event.after,
             reason=event.reason,
             created_at=event.created_at,
         )
-        for event, email in result.all()
+        for event, email, display_name in result.all()
     ]
 
 
