@@ -3,6 +3,7 @@ import { pickImage } from '~/utils/media-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
+import { developSketch, pickLineArt, preloadSketch, sketchRegistration, sketchScale, type DevelopHandle } from '~/utils/campusSketch'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
@@ -28,8 +29,51 @@ const announcement = ref('')
 // 換校時，被選中的分頁線稿由左往右畫出來、畫完再染淡彩；-1 表示目前沒有在畫。
 const drawing = ref(-1)
 let drewOnce = false
+// 淡彩速寫（2026-09-29，utils/campusSketch.ts）：第一次捲到與手動換校時，大照片先畫成線稿、上水彩，再暈開回照片。
+// 自動輪播照舊滑動、不重播；畫的期間暫停輪播計時。後台換過照片／線稿（對位不上）的學校不畫。
+const developing = ref(false)
+let develop: DevelopHandle | null = null
+function sketchSources(i: number) {
+  const campus = orderedCampuses.value[i]
+  const tabArt = root.value?.querySelector<HTMLImageElement>(`[data-campus-tab="${i}"] .campus-tab-art`)
+  const card = root.value?.querySelector<HTMLElement>('.photo-card')
+  if (!campus || !tabArt) return null
+  const needed = (card?.clientWidth ?? 1200) * sketchScale() * 1.1
+  return { lineSrc: pickLineArt(tabArt.srcset, tabArt.src, needed), colourSrc: `/assets/campus-line-art-${campus.key}-colour.webp` }
+}
+function preloadCampus(i: number) {
+  const campus = orderedCampuses.value[i]
+  if (reducedMotion.value || !campus || !sketchRegistration(campus)) return
+  const sources = sketchSources(i)
+  if (sources) void preloadSketch(sources.lineSrc, sources.colourSrc)
+}
+async function runDevelop(i: number) {
+  develop?.cancel()
+  const campus = orderedCampuses.value[i]
+  const registration = campus && sketchRegistration(campus)
+  if (!registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
+  await nextTick()
+  const card = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]
+  const img = card?.querySelector('img')
+  const canvas = card?.querySelector<HTMLCanvasElement>('canvas.sketch-canvas')
+  const sources = sketchSources(i)
+  if (!card || !img || !canvas || !campus || !sources || index.value !== i) return
+  const handle = developSketch({
+    card, img, canvas, campusKey: campus.key, registration, ...sources,
+    objectPosition: campus.panoramaPos || 'center 55%',
+    skyRgb: getComputedStyle(document.documentElement).getPropertyValue('--ivy-paint-sky-rgb').trim()
+  })
+  develop = handle
+  developing.value = true
+  void handle.done.then(() => {
+    if (develop !== handle) return
+    develop = null
+    developing.value = false
+    clock.reset()
+  })
+}
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value)
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !developing.value)
 const clock = createCarouselClock({
   duration: 4000,
   onAdvance: () => select(index.value + 1, true),
@@ -56,9 +100,13 @@ function select(next: number, automatic = false) {
   // Wrapped, offscreen cards teleport behind the viewport rather than crossing it.
   repositioning.value = new Set(orderedCampuses.value.flatMap((_, i) =>
     i !== selected && i !== index.value && Math.abs(offset(i, selected) - offset(i)) > total / 2 ? [i] : []))
-  if (selected !== index.value) drawing.value = selected
+  const changed = selected !== index.value
+  if (changed) drawing.value = selected
   index.value = selected
   clock.reset()
+  if (changed) stopUncovered()
+  if (changed && !automatic) void runDevelop(selected)
+  else if (changed) develop?.cancel()
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
 function onKey(event: KeyboardEvent, from: number) {
@@ -115,7 +163,35 @@ watch(visible, shown => {
   if (!shown || drewOnce) return
   drewOnce = true
   drawing.value = index.value
+  developWhenUncovered()
 })
+// 五校區塊在「孩子的一天」簾幕底下就已經算進視窗（IntersectionObserver 不管遮擋），
+// 大照片要等水彩滲接真的露出照片中央才開始畫，不然家長看到時已經畫完一半。
+let stopUncovered = () => {}
+function developWhenUncovered() {
+  const uncovered = () => {
+    const viewport = photoViewport.value
+    if (!viewport) return false
+    const r = viewport.getBoundingClientRect()
+    const x = r.left + r.width / 2, y = r.top + r.height / 2
+    if (y < 0 || y > window.innerHeight) return false
+    const hit = document.elementFromPoint(x, y)
+    return Boolean(hit && viewport.contains(hit))
+  }
+  const start = () => { stopUncovered(); void runDevelop(index.value) }
+  if (uncovered()) { start(); return }
+  let frame = 0
+  const onScroll = () => {
+    if (frame) return
+    frame = requestAnimationFrame(() => { frame = 0; if (uncovered()) start() })
+  }
+  window.addEventListener('scroll', onScroll, { passive: true })
+  stopUncovered = () => {
+    cancelAnimationFrame(frame)
+    window.removeEventListener('scroll', onScroll)
+    stopUncovered = () => {}
+  }
+}
 // 「預約參觀Ｘ校」：照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。不支援或減少動態時照常換頁。
 // 掛在 click.capture：RouterLink 自己的 click 會先導覽，要在它之前 preventDefault。
 const nuxtApp = useNuxtApp()
@@ -153,6 +229,13 @@ onMounted(() => {
   const visibilityChanged = () => { hidden.value = document.hidden }
   motionChanged()
   visibilityChanged()
+  // 淡彩速寫：區塊離視窗 800px 內就先載目前這一校的線稿與淡彩層（捲到時不必等下載）；沒捲到的人不下載
+  const preloadObserver = new IntersectionObserver(entries => {
+    if (!entries.some(entry => entry.isIntersecting)) return
+    preloadObserver.disconnect()
+    preloadCampus(index.value)
+  }, { rootMargin: '800px 0px' })
+  if (root.value) preloadObserver.observe(root.value)
   const observer = new IntersectionObserver(entries => {
     const entry = entries[entries.length - 1]
     visible.value = Boolean(entry && entry.isIntersecting && entry.intersectionRatio >= .35)
@@ -191,6 +274,7 @@ onMounted(() => {
   dispose = () => {
     stopObserving()
     stopControlsObserving()
+    preloadObserver.disconnect()
     observer.disconnect()
     controlsObserver.disconnect()
     media.removeEventListener('change', motionChanged)
@@ -199,7 +283,7 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', visibilityChanged)
   }
 })
-onBeforeUnmount(() => { dispose(); clock.destroy() })
+onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.cancel() })
 </script>
 
 <template>
@@ -217,6 +301,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
           type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
           @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
+          @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
             <img
@@ -249,6 +334,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
             :aria-label="i === index ? `認識${campus.name}，查看校園介紹` : `選擇${campus.name}`"
             draggable="false" @click.capture="onPhotoClick($event, i)"
           >
+            <canvas v-if="sketchRegistration(campus)" class="sketch-canvas" aria-hidden="true" />
             <img
               v-bind="cardImage(campus, i)"
               :alt="i === index ? `${campus.name}校園外觀` : ''"
@@ -367,6 +453,14 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 .photo-card.is-current,.photo-card.is-neighbor{pointer-events:auto}
 .photo-card:focus-visible{outline-offset:-7px}
 .photo-card.is-repositioning{transition:none}
+/* 淡彩速寫（utils/campusSketch.ts）：canvas 墊在照片下面；畫的時候照片淡出，最後照片以水彩團遮罩從中央暈開回來。
+   卡片有 transform（自成堆疊環境），canvas 用 z-index:-1 壓在照片底下，照片本身不必定位，
+   非當前卡的淡化遮罩（::after）才不會被照片蓋掉。 */
+.photo-card .sketch-canvas{position:absolute;inset:0;z-index:-1;width:100%;height:100%;opacity:0;pointer-events:none;transition:opacity .4s}
+.photo-card.is-sketch .sketch-canvas{opacity:1;transition:none}
+.photo-card.is-sketch img{opacity:0;transition:opacity .45s ease}
+.photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1.7s cubic-bezier(.33,.12,.3,1),mask-size 1.7s cubic-bezier(.33,.12,.3,1);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
+.photo-card.is-sketch.is-developed img{--develop:520%}
 .gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:var(--toolbar-height)}
 .playback-controls{position:relative;grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
 .pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}
@@ -505,5 +599,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
 @media(prefers-reduced-motion:reduce){.campus-gallery *,.campus-gallery *::before,.campus-gallery *::after{transition:none!important;animation:none!important}}
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
 @media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
+@media(forced-colors:active){.photo-card .sketch-canvas{display:none}.photo-card.is-sketch img{opacity:1;-webkit-mask:none;mask:none}}
 
 </style>

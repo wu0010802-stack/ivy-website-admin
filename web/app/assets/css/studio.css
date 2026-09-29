@@ -550,6 +550,20 @@ body:has(:is(.studio-hero,.photo-hero)) .header-top,
 .day-reveal[data-motion="on"] .day-reveal-track {height:calc(var(--day-own,100svh) + var(--day-distance))}
 .day-reveal[data-motion="on"] .day-experience {position:sticky;top:var(--day-stick,0px);z-index:2}
 .day-reveal[data-motion="on"] .campus-panorama {position:relative;z-index:1;margin-top:calc(-1 * var(--reveal-height,100svh))}
+/* 水彩滲接（2026-09-29 定案）：孩子的一天→五校的擦除邊是水彩濕邊往上滲（composables/useWatercolorSeep.ts）。
+   三層遮罩聯集：上方實心 ＋ 兩張濕邊帶（第二張橫向漂移、上下錯位）。帶子以 max(100%,1400px) 置中，手機只取中段。 */
+@property --day-seep-y {syntax:'<length>';inherits:false;initial-value:0px}
+@property --day-seep-bx {syntax:'<length>';inherits:false;initial-value:0px}
+@property --day-seep-by {syntax:'<length>';inherits:false;initial-value:0px}
+.day-reveal[data-motion="on"] .day-experience.is-seep {
+  -webkit-mask-image:linear-gradient(#000,#000),var(--day-seep-a),var(--day-seep-b);mask-image:linear-gradient(#000,#000),var(--day-seep-a),var(--day-seep-b);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-size:100% max(0px,calc(var(--day-seep-y) + 2px)),max(100%,1400px) var(--day-seep-h,260px),max(112%,1560px) var(--day-seep-h,260px);
+  mask-size:100% max(0px,calc(var(--day-seep-y) + 2px)),max(100%,1400px) var(--day-seep-h,260px),max(112%,1560px) var(--day-seep-h,260px);
+  -webkit-mask-position:0 0,50% var(--day-seep-y),calc(50% + var(--day-seep-bx)) calc(var(--day-seep-y) + var(--day-seep-by));
+  mask-position:0 0,50% var(--day-seep-y),calc(50% + var(--day-seep-bx)) calc(var(--day-seep-y) + var(--day-seep-by));
+  -webkit-mask-composite:source-over;mask-composite:add;
+}
 .home-reveal[data-motion="native"] .home-reveal-track {
   view-timeline:--home-reveal block;
   /* 有效 scrollport 高度固定為閱讀基準，網址列收合不改變原生動畫進度。

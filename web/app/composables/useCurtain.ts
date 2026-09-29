@@ -13,13 +13,16 @@
 import { readMotionViewport, type MotionViewport } from '../utils/motionViewport'
 
 type CurtainProgress = ((progress: number | null, screen: number) => void) & { measure?: () => void }
+/** 換掉直線 clip-path 的擦除邊（day 簾幕的水彩滲接，composables/useWatercolorSeep.ts）。回傳 true 表示已自行處理這一幀（含 clip-path，useCurtain 不再寫）。 */
+export type CurtainEdge = (panel: HTMLElement, progress: number | null, screen: number) => boolean
 
 export function useCurtain(
   rootRef: Ref<HTMLElement | null>,
   trackRef: Ref<HTMLElement | null>,
   panelRef: Ref<HTMLElement | null>,
   prefix: string,
-  onProgress?: CurtainProgress
+  onProgress?: CurtainProgress,
+  edge?: Ref<CurtainEdge | null>
 ) {
   let disposed = false
   let frame = 0
@@ -46,6 +49,7 @@ export function useCurtain(
       if (lastProgress === null) return
       lastProgress = null
       panel.style.clipPath = ''
+      edge?.value?.(panel, null, screen)
       panel.inert = false
       onProgress?.(null, screen)
       return
@@ -53,7 +57,8 @@ export function useCurtain(
     const progress = clamp((window.scrollY - start) / distance)
     if (progress === lastProgress) return
     lastProgress = progress
-    panel.style.clipPath = `inset(0 0 ${(progress * screen).toFixed(1)}px 0)`
+    // edge 接手時由它自己寫 clip-path（遮罩底下仍要裁掉，否則被遮掉的地方還會吃到點擊）
+    if (!edge?.value?.(panel, progress, screen)) panel.style.clipPath = `inset(0 0 ${(progress * screen).toFixed(1)}px 0)`
     if (panel.inert !== (progress >= 0.995)) panel.inert = progress >= 0.995
     onProgress?.(progress, screen)
   }
@@ -98,6 +103,8 @@ export function useCurtain(
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', onResize, { passive: true })
     reduceQuery.addEventListener('change', measure)
+    // 擦除邊的遮罩圖非同步產生，好了之後補畫目前這一幀
+    if (edge) watch(edge, () => { lastProgress = undefined; schedule() })
     if (panelRef.value) {
       panelObserver = new ResizeObserver(scheduleMeasure)
       panelObserver.observe(panelRef.value)

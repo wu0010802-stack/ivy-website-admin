@@ -26,7 +26,9 @@ const filmPosition = ref<string | null>(null)
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
 // 個元素上才會跟 vanilla 的疊層判斷一致。
-useCurtain(rootEl, trackEl, sectionEl, 'day')
+// 擦除邊是水彩濕邊往上滲（2026-09-29，composables/useWatercolorSeep.ts）
+const seepEdge = useWatercolorSeep()
+useCurtain(rootEl, trackEl, sectionEl, 'day', undefined, seepEdge)
 const showVideo = ref(false)
 const isPlaying = ref(false)
 // 首次播放後才淡入；暫停時仍保留影片畫面，不退回封面。

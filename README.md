@@ -1,3 +1,13 @@
+## 2026-09-29 首頁水彩：五校淡彩速寫＋孩子的一天→五校水彩滲接（`feature/home-watercolor-20260929`）
+
+使用者最喜歡 /curriculum 的水彩畫面、效果與換頁接續，要在首頁呈現、但不要跟 curriculum 一樣。三個方向（A 五校淡彩速寫、B 孩子的一天→五校水彩滲接、C 最新消息水彩紙）中 A、B 在首頁做比稿（`?wc=a|b`，定案後已移除），使用者看過後兩個都上。取代 DESIGN.md「水彩層只在 /curriculum」；規則見 DESIGN.md「首頁水彩」。
+
+- **A**：五校大照片第一次露出與手動換校時，先畫成鉛筆線稿、水彩從建築中央滲開上色、再從中央暈開回照片；自動輪播不播。線稿對照片的對位表在 `utils/campusSketch.ts`（後台換了照片／線稿就不畫）。
+- **B**：孩子的一天→五校的簾幕擦除邊改成水彩濕邊往上滲（兩張遮罩帶聯集、閒置時分塊產生），濕邊以下另用 clip-path 裁掉，露出來的五校才點得到。
+- 新增 `utils/campusSketch.ts`、`composables/useWatercolorSeep.ts`、`tests/home-watercolor.spec.ts`；改 `utils/watercolor.ts`（`seepEdgeCanvas`／`seepEdgeJob`）、`useCurtain.ts`（`edge` 參數）、`CampusBoard.vue`、`DayExperience.vue`、`studio.css`。改前快照 `versions/before-home-watercolor-20260929-112031/`。
+
+驗證（Node 22、worktree `/private/tmp/ivy-website-home-watercolor-20260929`、fixture 模式）：`npm --prefix web run typecheck` 通過；`npm run test:website` 56 檔 542 項通過（新增 14 項：對位與素材、後台換圖不畫、cover 換算、srcset 挑圖、濕邊位置、只寫 panel、值沒變不重寫、停用再啟用、中途減少動態、clip-path、`@property` 命名）；`npm --prefix web run build` 通過（postcss 對 hero `--motion-vh` 的 Lexical 警告是 main 既有的）。Playwright 在 dev 與 production server、Chrome 與 WebKit、1440 與 390 實測：A 依序線稿→上色→照片暈開、國際校換校對位對得上、素材載好才淡出照片、照片中央露出才開始畫；B 濕邊隨捲動上滲，進度 40% 起已露出的五校分頁點得到；減少動態兩者都不播（簾幕回正常排列）；無 console 錯誤。效能（headless Chrome）：390 寬 4 倍 CPU 降速捲過簾幕 p50 16.7ms、p95 19–20ms（原版 p95 24–30ms），1440 寬 p95 約 18ms。未驗：iOS／Android 實機、Firefox、螢幕報讀器、stack e2e。未 commit、未部署。
+
 ## 2026-09-28／29 官網後台全面盤點與修正（`claude/backend-ui-ux-optimization-y5ndf4`）
 
 使用者問後台 UI/UX 可以怎麼優化，之後要求處理完併入 `main`。先全面盤點再修：程式碼分 9 區逐檔讀，加上在拋棄式測試庫（`ivy_website_uxaudit_test`，5 種角色、15 筆各狀態案件、時段、草稿／送審／排程內容與素材）實際拍桌機 1440 與手機 390 共 97 張截圖；每條發現都經另一輪讀碼、實測反駁，程式碼 148 條、畫面 58 條通過（合併重複後約 110 個問題）。報告與未處理清單在 `docs/analysis/2026-09-28-admin-uiux-audit.md`，定下的規則寫進 DESIGN.md「官網後台全面盤點與修正（2026-09-28）」。改動在 `admin/`，外加一個後端併發修正與三支 `tests/stack` 的預期；沒有動 API、契約或 migration。修改前快照：`versions/before-admin-uiux-audit-20260928-214000/`。
