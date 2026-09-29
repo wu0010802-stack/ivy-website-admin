@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
-import { altAfterPick, useMediaThumbs } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 import MediaPickerDialog from '../components/MediaPickerDialog.vue'
@@ -43,10 +43,16 @@ const pickerVisible = ref(false)
 const thumbs = useMediaThumbs()
 function onPickShareImage(asset: MediaAssetOut) {
   const form = editor.form.value
-  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。
-  form.share_image_alt = altAfterPick(form.share_image_alt, form.share_image, asset)
+  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。說明欄
+  // 只在設了分享圖時出現，沒設時留著的字是舊版本改回首頁大圖後留下的，一樣換掉。
+  form.share_image_alt = altAfterPick(form.share_image_alt, form.share_image || BUILTIN_PHOTO, asset)
   form.share_image = asset.id
   thumbs.forget(asset.id)
+}
+// 改回首頁大圖：分享圖說明描述的是拿掉的那張，一起清掉（官網改用首頁大圖的說明）。
+function clearShareImage() {
+  editor.form.value.share_image = ''
+  editor.form.value.share_image_alt = ''
 }
 const shareImage = computed(() => editor.form.value.share_image)
 
@@ -82,7 +88,7 @@ onMounted(editor.load)
           <img v-else-if="shareImage" :src="thumbs.src(shareImage)" alt="" class="share__img" loading="lazy" @error="thumbs.onError(shareImage)" />
           <div class="share__actions">
             <el-button size="small" @click="pickerVisible = true">{{ editor.form.value.share_image ? '更換圖片' : '從素材庫選擇' }}</el-button>
-            <el-button v-if="editor.form.value.share_image" size="small" text @click="editor.form.value.share_image = ''">改回首頁大圖</el-button>
+            <el-button v-if="editor.form.value.share_image" size="small" text @click="clearShareImage">改回首頁大圖</el-button>
           </div>
         </div>
         <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖；分校頁一律用各校照片。</span>

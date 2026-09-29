@@ -9,7 +9,7 @@ import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import { momentTimeError, normalizeMomentTime } from '../composables/contentHints'
-import { altAfterPick } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import { revealListItem } from '../composables/newsContent'
 
@@ -73,8 +73,11 @@ function builtinPhoto(moment: DayMomentPayload): string {
 }
 
 // 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+// 原有六張卡沒選照片時官網顯示原本的照片，說明欄打的字描述的是那張，選了素材庫
+// 的照片也要換掉；新增的卡片沒有內建照片，先打好的說明才留給這次選的照片。
+// 改回官網內建時清掉說明（官網改用原本照片的說明），不讓拿掉的照片的說明留著。
 function onPickMomentPhoto(moment: DayMomentPayload, asset: MediaAssetOut, previousId: string | null) {
-  moment.alt = altAfterPick(moment.alt, previousId, asset)
+  moment.alt = altAfterPick(moment.alt, previousId ?? (builtinPhoto(moment) ? BUILTIN_PHOTO : null), asset)
 }
 
 // 影片說明：null＝沿用官網內建；打開「自訂」時先帶入內建文字再改，關掉就改回 null。
@@ -240,6 +243,7 @@ onMounted(editor.load)
               :focus-previews="[{ label: '拍立得', ratio: '1 / 1' }]"
               :disabled="editor.readOnly.value"
               @picked="(asset: MediaAssetOut, previousId: string | null) => onPickMomentPhoto(moment, asset, previousId)"
+              @cleared="moment.alt = ''"
             />
           </el-form-item>
           <div>

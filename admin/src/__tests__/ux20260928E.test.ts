@@ -13,7 +13,7 @@ import { CONTENT_FIELD_LABELS, mediaFieldPathLabel } from '../api/labels'
 import type { HomeFilmPayload, MediaAssetOut, UserOut } from '../api/types'
 import { LENGTH_HINTS, momentTimeError, normalizeMomentTime } from '../composables/contentHints'
 import { newHomeFilm } from '../composables/homeFilms'
-import { altAfterPick } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 import { EMPTY_VALUE_TEXT } from '../composables/readonlyValues'
 import { sitePageName } from '../composables/siteLinks'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
@@ -23,6 +23,7 @@ import CampusFaqView from '../views/CampusFaqView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import CampusTourView from '../views/CampusTourView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
+import HomeAboutView from '../views/HomeAboutView.vue'
 import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
 import HomeHeroView from '../views/HomeHeroView.vue'
 import HomeNewsView from '../views/HomeNewsView.vue'
@@ -144,7 +145,6 @@ describe('用語：圖片說明、影片封面，不出現工程語', () => {
   })
 
   it('首頁關於：圖片說明與照片下方文字是兩個分得開的欄位', async () => {
-    const { default: HomeAboutView } = await import('../views/HomeAboutView.vue')
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_about', {
       title: '標題', since_label: '', body_text: '', caption: '一句話', photo: { media_id: 'm1', focus_x: null, focus_y: null }, photo_alt: '',
     }) as never)
@@ -477,6 +477,103 @@ describe('縮圖與圖片說明', () => {
     expect(altAfterPick('先打好的說明', null, { id: 'new', alt_text: '素材說明' })).toBe('先打好的說明')
     expect(altAfterPick('', null, { id: 'new', alt_text: '素材說明' })).toBe('素材說明')
     expect(altAfterPick('自己改過', 'same', { id: 'same', alt_text: '素材說明' })).toBe('自己改過')
+    // 選之前官網顯示內建照片：說明描述的是內建照片，換成新照片的說明。
+    expect(altAfterPick('內建照片的說明', BUILTIN_PHOTO, { id: 'new', alt_text: '素材說明' })).toBe('素材說明')
+    expect(altAfterPick('內建照片的說明', BUILTIN_PHOTO, { id: 'new', alt_text: null })).toBe('')
+  })
+
+  // 選圖器關掉後還留在畫面上（隱藏）；只點目前打開的那一個。
+  function pickInOpenDialog(filename: string) {
+    const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).filter(
+      (b) => b.textContent?.includes(filename) && (b.closest<HTMLElement>('.el-overlay')?.style.display ?? '') !== 'none',
+    )
+    expect(items).toHaveLength(1)
+    items[0]!.click()
+  }
+
+  function mockMedia(item: ReturnType<typeof contentItem>, library: MediaAssetOut[], known: MediaAssetOut[] = []) {
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/content-items/')) return item as never
+      if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+      const one = known.find((a) => path === `/admin/media/${a.id}`)
+      if (one) return one as never
+      if (path.startsWith('/admin/media')) return library as never
+      return [] as never
+    })
+  }
+
+  const formItem = (wrapper: VueWrapper, label: string) =>
+    wrapper.findAll('.el-form-item').find((item) => item.find('.el-form-item__label').exists() && item.get('.el-form-item__label').text() === label)
+
+  it('首頁關於：改回官網內建再選別張，不會帶回原本那張照片的說明', async () => {
+    mockMedia(
+      contentItem('home_about', { title: '', since_label: '', body_text: '', caption: '', photo: { media_id: 'old', focus_x: null, focus_y: null }, photo_alt: 'A 照片的說明' }),
+      [mediaAsset({ alt_text: '' })],
+      [mediaAsset({ id: 'old', original_filename: 'old.jpg', alt_text: 'A 照片的說明' })],
+    )
+    const wrapper = await mountView(HomeAboutView)
+    await button(formItem(wrapper, '照片')!, '改回官網內建').trigger('click')
+    expect(formItem(wrapper, '圖片說明（給看不到照片的人）')).toBeUndefined()
+    await button(formItem(wrapper, '照片')!, '從素材庫選照片').trigger('click')
+    await flushPromises()
+    pickInOpenDialog('garden.jpg')
+    await flushPromises()
+    expect((formItem(wrapper, '圖片說明（給看不到照片的人）')!.get('textarea').element as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('首頁關於：舊版本改回內建後留下的說明，選照片時換成新照片的說明', async () => {
+    mockMedia(
+      contentItem('home_about', { title: '', since_label: '', body_text: '', caption: '', photo: null, photo_alt: '舊版本留下的說明' }),
+      [mediaAsset()],
+    )
+    const wrapper = await mountView(HomeAboutView)
+    await button(formItem(wrapper, '照片')!, '從素材庫選照片').trigger('click')
+    await flushPromises()
+    pickInOpenDialog('garden.jpg')
+    await flushPromises()
+    expect((formItem(wrapper, '圖片說明（給看不到照片的人）')!.get('textarea').element as HTMLTextAreaElement).value).toBe('菜園')
+  })
+
+  it('孩子的一天：原有卡片的說明描述內建照片，選了照片就換掉；新卡片先打好的說明留著；改回內建清掉說明', async () => {
+    const moment = (key: string, alt: string) => ({
+      key, time: '08:00', label: key, caption: '', title: '', story: '', question: '', answer: '', photo: null, alt, tint: null,
+    })
+    mockMedia(
+      contentItem('day_experience', { eyebrow: '', eyebrow_en: '', note: '', source_note: '', moments: [moment('hello', '內建照片的說明'), moment('moment-1', '先打好的說明')] }),
+      [mediaAsset()],
+    )
+    const wrapper = await mountView(DayExperienceView)
+    const cards = () => wrapper.findAll('.repeat-item')
+    const altOf = (index: number) => (cards()[index]!.findAll('textarea').find((t) => t.element.closest('.el-form-item')?.textContent?.startsWith('圖片說明'))!.element as HTMLTextAreaElement).value
+
+    await button(cards()[0]!, '從素材庫選照片').trigger('click')
+    await flushPromises()
+    pickInOpenDialog('garden.jpg')
+    await flushPromises()
+    expect(altOf(0)).toBe('菜園')
+
+    await button(cards()[1]!, '從素材庫選照片').trigger('click')
+    await flushPromises()
+    pickInOpenDialog('garden.jpg')
+    await flushPromises()
+    expect(altOf(1)).toBe('先打好的說明')
+
+    await button(cards()[0]!, '改回官網內建').trigger('click')
+    expect(altOf(0)).toBe('')
+  })
+
+  it('分享圖：改回首頁大圖時清掉說明，再選別張用新照片的說明', async () => {
+    mockMedia(
+      contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: 'old', share_image_alt: 'A 照片的說明', admission_title: '', admission_description: '', allow_indexing: true, primary_nav: [] }),
+      [mediaAsset({ alt_text: null })],
+    )
+    const wrapper = await mountView(SiteMetaView)
+    await button(wrapper, '改回首頁大圖').trigger('click')
+    await button(wrapper, '從素材庫選擇').trigger('click')
+    await flushPromises()
+    pickInOpenDialog('garden.jpg')
+    await flushPromises()
+    expect((formItem(wrapper, '分享圖說明')!.get('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
   it('首屏影片封面換照片，圖片說明跟著換成新照片的說明', async () => {

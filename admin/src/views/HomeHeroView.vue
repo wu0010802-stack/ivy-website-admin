@@ -6,7 +6,7 @@ import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
-import { altAfterPick } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 
 // 首屏按鈕 2026-09-23 已拿掉（按鈕文字不再編輯）；舊版本的 cta_label 載入時丟掉，
 // 不會出現在「變更了哪些欄位」，存檔也不再送出（後端同樣忽略）。
@@ -37,8 +37,10 @@ const HERO_PREVIEWS = [
 ]
 
 // 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+// 說明欄只在選了照片時出現，沒照片時留著的字不會是先打好的（是舊版本改回內建後
+// 留下的），一樣換掉。改回官網內建時清掉說明。
 function onPickPoster(asset: MediaAssetOut, previousId: string | null) {
-  editor.form.value.poster_alt = altAfterPick(editor.form.value.poster_alt, previousId, asset)
+  editor.form.value.poster_alt = altAfterPick(editor.form.value.poster_alt, previousId ?? BUILTIN_PHOTO, asset)
 }
 
 onMounted(editor.load)
@@ -77,6 +79,7 @@ onMounted(editor.load)
           :focus-previews="HERO_PREVIEWS"
           :disabled="editor.readOnly.value"
           @picked="onPickPoster"
+          @cleared="editor.form.value.poster_alt = ''"
         />
         <span class="field-help">這張照片是首頁最先載入的畫面，建議橫式、寬 1920 以上，並跟影片第一個畫面接近。</span>
       </el-form-item>

@@ -7,7 +7,7 @@ import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
-import { altAfterPick } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 
 const editor = useContentItem<HomeAboutPayload>('home_about', {
   title: '',
@@ -19,8 +19,10 @@ const editor = useContentItem<HomeAboutPayload>('home_about', {
 })
 
 // 帶入素材庫的說明；換成另一張時換成新照片的說明（沒填就清空），不留舊照片的。
+// 說明欄只在選了照片時出現，沒照片時留著的字不會是先打好的（是舊版本改回內建後
+// 留下的），一樣換掉。改回官網內建時清掉說明。
 function onPickPhoto(asset: MediaAssetOut, previousId: string | null) {
-  editor.form.value.photo_alt = altAfterPick(editor.form.value.photo_alt, previousId, asset)
+  editor.form.value.photo_alt = altAfterPick(editor.form.value.photo_alt, previousId ?? BUILTIN_PHOTO, asset)
 }
 
 onMounted(editor.load)
@@ -51,6 +53,7 @@ onMounted(editor.load)
           :focus-previews="[{ label: '官網裁切（3:2）', ratio: '3 / 2' }]"
           :disabled="editor.readOnly.value"
           @picked="onPickPhoto"
+          @cleared="editor.form.value.photo_alt = ''"
         />
         <span class="field-help">這一區放一張圓角照片，官網裁成 3:2 橫式，建議寬 1200 以上。</span>
       </el-form-item>

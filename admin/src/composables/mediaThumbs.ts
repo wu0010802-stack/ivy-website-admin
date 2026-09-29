@@ -45,9 +45,17 @@ export function useMediaThumbs() {
 }
 
 /**
+ * 選之前官網顯示的是內建照片（版位沒選素材）：圖片說明若有字，描述的是內建照片，
+ * 或是改回內建前那張照片留下來的，都不是新照片的說明。給 altAfterPick 當
+ * previousId 用，例如孩子的一天原有六張卡、說明欄只在選了照片才出現的版位。
+ */
+export const BUILTIN_PHOTO = 'builtin'
+
+/**
  * 選了照片之後圖片說明該是什麼。換成另一張照片時一律換成新照片在素材庫的說明
- * （素材庫沒填就清空），舊照片的說明不能留著描述錯的圖；原本沒有照片、或重選
- * 同一張時，只在說明還空著時帶入。previousId 是選之前的照片（沒有為空）。
+ * （素材庫沒填就清空），舊照片（或內建照片，BUILTIN_PHOTO）的說明不能留著描述
+ * 錯的圖；原本沒有照片、或重選同一張時，只在說明還空著時帶入。previousId 是
+ * 選之前說明在描述的照片（沒有為空：說明是先打好、要給這次選的照片用的）。
  */
 export function altAfterPick(currentAlt: string | null | undefined, previousId: string | null | undefined, asset: Pick<MediaAssetOut, 'id' | 'alt_text'>): string {
   const assetAlt = asset.alt_text ?? ''
