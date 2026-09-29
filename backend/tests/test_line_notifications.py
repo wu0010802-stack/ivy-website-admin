@@ -18,7 +18,7 @@ from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client, _test_settings, parent_client, publish_booking_consent
+from tests.conftest import _create_user, _logged_in_client, _test_settings, parent_client, publish_booking_consent, freeze_rate_limit_clock
 from tests.test_maintenance import _expired_hold
 
 SECRET = "line-channel-secret-for-tests"
@@ -259,6 +259,7 @@ async def test_test_push_sends_to_assigned_group(line_app, fake_line):
 
 
 async def test_test_push_is_rate_limited(line_app):
+    freeze_rate_limit_clock(line_app)
     await _webhook(line_app, [_event("join")])
     client = await _super_admin(line_app)
     try:
