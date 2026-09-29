@@ -4,6 +4,7 @@ import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusNewsPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import CampusSelect from '../components/CampusSelect.vue'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
 import { NEWS_LIMITS, normalizeCampusArticle, normalizeCampusEvent } from '../composables/newsContent'
@@ -37,7 +38,7 @@ const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <NewsEntriesEditor
         :articles="editor.form.value.articles"
         :events="editor.form.value.events"

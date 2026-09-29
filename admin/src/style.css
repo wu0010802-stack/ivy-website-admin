@@ -392,6 +392,13 @@ a:hover {
   line-height: 1.45;
 }
 
+/* 欄位下方的字數、缺字與說明各佔一行：el-form-item__content 是 flex-wrap，
+   不撐滿的話兩段意思不同的提示會接成一句（例如「23 字・建議 30 字內顯示在…」）。 */
+.el-form-item__content > .field-help,
+.el-form-item__content > .glyph-hint {
+  flex-basis: 100%;
+}
+
 /* 夾在說明文字裡的連結只靠顏色分辨不夠（WCAG 1.4.1），一律加底線。 */
 .hint a,
 .field-help a {
@@ -617,6 +624,11 @@ a.stat:hover {
 @media (pointer: coarse) {
   :root { --control-h: 44px; }
   .el-button { min-width: 44px; }
+  /* 手機橫放（寬度超過 720px）時輸入框也要 16px，iOS 聚焦才不會自動放大畫面。 */
+  .el-input__inner, .el-textarea__inner, .el-select__wrapper { font-size: 16px; }
+  /* 會自動長高的文字框（一行起跳）跟旁邊 44px 的輸入框一樣高：16px×1.5 行高＋上下各 10px。
+     自動長高是照這裡的內距量出來的，多行時也會跟著算。 */
+  .el-textarea__inner { padding-block: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
