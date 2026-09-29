@@ -24,6 +24,7 @@ const editor = useContentItem<HomeCampusBoardPayload>(
   {
     section_title: '',
     eyebrow: '',
+    // 說明文字：官網不顯示、後台不列。載入時舊內容的值會蓋過這個空字串，存檔照原樣送回。
     note: '',
     campus_order: [...CAMPUS_KEYS],
     default_campus: CAMPUS_KEYS[0]!,
@@ -59,11 +60,8 @@ onMounted(editor.load)
         <LengthHint :value="editor.form.value.section_title" rule="boardTitle" />
         <GlyphHint :value="editor.form.value.section_title" :fonts="['serif']" />
       </el-form-item>
-      <el-form-item label="說明文字">
-        <el-input v-model="editor.form.value.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
-        <!-- 官網 CampusBoard 只顯示小標與區塊標題，note 只在 content-overlay 轉存（2026-09-28 盤點）。 -->
-        <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
-      </el-form-item>
+      <!-- 說明文字（note）官網五校區塊不顯示，2026-09-29 業主同意後台不再列這一欄；
+           舊內容的值留在表單裡照原樣存回，不清掉。 -->
 
       <h3 class="board-section">五校順序</h3>
       <p class="field-help">首頁輪播、左右切換都照這個順序。停用的分校官網會自動略過。</p>
