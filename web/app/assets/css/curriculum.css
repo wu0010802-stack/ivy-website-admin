@@ -58,7 +58,7 @@
 .cur-hero { padding: clamp(24px, 4vw, 56px) 0 clamp(48px, 6vw, 88px); }
 .cur-hero-grid { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: clamp(32px, 5vw, 88px); align-items: center; }
 .cur-eyebrow { margin: 0; font-size: var(--fs-sm); font-weight: 700; letter-spacing: .2em; color: var(--leaf); }
-.cur-hero h1 { margin: .45em 0 .5em; font: 700 clamp(2.25rem, 4.6vw, 4.25rem)/1.24 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; }
+.cur-hero h1 { margin: .45em 0 .5em; font: 700 clamp(2.25rem, 4.6vw, 4.25rem)/1.24 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; }
 /* 「動手做」底下刷一筆橙色顏料 */
 .cur-swash { position: relative; isolation: isolate; white-space: nowrap; }
 .cur-swash-paint { left: -.3em; right: -.34em; top: .36em; bottom: -.2em; z-index: -1; transform-origin: left center; transition: opacity .6s, transform 1.4s var(--cur-ease) .3s; }
@@ -185,7 +185,8 @@
 }
 @media (width <= 900px) {
   .cur-index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cur-hero-grid, .cur-years-head, .cur-split-head { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr)：文字放大到 200% 時欄寬不被標題撐開（1fr 的最小值是 min-content，會連導言一起被裁） */
+  .cur-hero-grid, .cur-years-head, .cur-split-head { grid-template-columns: minmax(0, 1fr); }
   .cur-hero-photo { order: -1; }
   .cur-hero-photo img { height: auto; min-height: 0; aspect-ratio: 4 / 3; }
   .cur-split-head .cur-text { justify-self: start; }
@@ -223,6 +224,16 @@
   .cur-belief-title { font-size: min(var(--fs-3xl), 7vw); }
   .cur-belief-list { gap: 10px 14px; }
   .cur-belief-list li { padding: 8px 12px; font-size: var(--fs-md); }
+}
+/* 橫拿手機（高度 ≤500，沿用開場布幕判斷橫向手機的先例）：4:3 照片撐滿寬度會把標題推到兩個畫面以後，改回左字右圖 */
+@media (width <= 900px) and (max-height: 500px) and (orientation: landscape) {
+  .cur-hero-grid { grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: 32px; }
+  .cur-hero-photo { order: 0; }
+  .cur-hero-photo img { aspect-ratio: auto; height: 70svh; min-height: 0; }
+}
+/* 360 以下：章節索引兩欄時文字欄只剩約 66px，「兒童美術館」「幼幼班到大班」會拆行；改成一欄 */
+@media (width < 360px) {
+  .cur-index { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cur.is-live [data-reveal] { transition: opacity .3s linear; }

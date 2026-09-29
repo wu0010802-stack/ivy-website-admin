@@ -38,16 +38,20 @@ export const CURRICULUM_HERO_IMAGE = 'cur-hero'
  * 特色教學頁 hero 的 sizes（2026-09-28 水彩版）：照片不再滿版，是右欄的撕紙框、object-fit: cover。
  * 2000×803 的橫幅被裁成直一點的框，需要的寬度是「框高 × 寬高比 2.49」，不是框寬：
  * - 901px 以上：框高 min(64vh, 600px)，最多約 1494px 寬 → 1500px。
- * - 900px 以下：框改成 4:3、寬 = 視窗減左右留白，需要寬度約 1.87 × 框寬 → 187vw（390 寬實際約 695px）。
+ * - 900px 以下：框改成 4:3、寬 = 視窗減左右留白（20px × 2），需要寬度約 1.87 × 框寬 → calc((100vw - 40px) * 1.87)
+ *   （390 寬約 655px）。2026-09-29 以前寫 187vw（以視窗寬算），340–370 寬的 DPR2 手機會多抓一級 2000w；
+ *   761–900 寬的留白較寬、橫拿手機的照片改在右欄，這個寫法只會高估、不會變糊。
  */
-export const CURRICULUM_HERO_SIZES = '(max-width: 900px) 187vw, 1500px'
+export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1.87), 1500px'
 
 /** 關於常春藤頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
 export const ABOUT_HERO_IMAGE = 'about-hero'
 
 /**
  * 內頁 hero（入學資訊、常春藤環境、特色教學；admission.css 的 `.adm-hero-photo`）。
- * 760px 以下照片是固定高度的帶（PAGE_HERO_MOBILE_HEIGHT）、object-fit: cover，橫幅照片
+ * 760px 以下照片是一條帶、object-fit: cover，高度 clamp(300px, 56svh, 500px)：跟著視窗高度縮，
+ * 最高 500px（PAGE_HERO_MOBILE_HEIGHT，2026-09-29 以前固定 500px）。sizes 照最高的帶算，矮螢幕
+ * 只會多下載一點、不會變糊。橫幅照片
  * 實際顯示寬度 = 高度 × 寬高比（2000×803 是 1245px），遠大於 100vw。sizes 照實寫，手機
  * 才會挑到夠大的候選；2026-09-26 以前一律 100vw，390 寬手機只拿 800w，有效解析度只有
  * 0.3–0.7（實測）。761px 以上照片鋪滿 hero，維持 100vw（實測已選到最大候選）。

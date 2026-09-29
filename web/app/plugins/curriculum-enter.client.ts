@@ -21,22 +21,29 @@ export default defineNuxtPlugin((nuxtApp) => {
   const root = document.documentElement
   const router = useRouter()
 
-  // 遮罩：app 掛上後在閒置時間產生三張，toBlob 非同步編碼；還沒好之前的導覽直接換頁
+  // 遮罩：app 掛上後在閒置時間產生三張，toBlob 非同步編碼；三張都好才設定，還沒好之前的導覽直接換頁。
+  // 一次閒置只畫一張、編好再排下一張：1024² 的 canvas 是同步畫的，三張擠在同一次閒置，4 倍降速時是一個 230–540ms 的長任務（分開後每張約 60–80ms，實測）。
   let masksReady = false
-  const makeMasks = async () => {
-    if (masksReady || matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(forced-colors: active)').matches) return
-    const urls = await Promise.all([11, 23, 37].map((seed) => new Promise<string | null>((resolve) => {
-      revealMaskCanvas(seed).toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : null))
-    })))
-    if (urls.some((url) => !url)) return
-    urls.forEach((url, i) => root.style.setProperty(`--cur-enter-blob-${i + 1}`, `url(${url})`))
-    masksReady = true
+  const MASK_SEEDS = [11, 23, 37]
+  const whenIdle = (fn: () => void, fallbackDelay: number) => {
+    if (window.requestIdleCallback) window.requestIdleCallback(fn, { timeout: 4000 })
+    else setTimeout(fn, fallbackDelay)
   }
-  nuxtApp.hook('app:mounted', () => {
-    const run = () => { void makeMasks() }
-    if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 })
-    else setTimeout(run, 1500)
-  })
+  const makeMasks = () => {
+    if (masksReady || matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(forced-colors: active)').matches) return
+    const urls: string[] = []
+    const step = () => {
+      revealMaskCanvas(MASK_SEEDS[urls.length]!).toBlob((blob) => {
+        if (!blob) return
+        urls.push(URL.createObjectURL(blob))
+        if (urls.length < MASK_SEEDS.length) { whenIdle(step, 100); return }
+        urls.forEach((url, i) => root.style.setProperty(`--cur-enter-blob-${i + 1}`, `url(${url})`))
+        masksReady = true
+      })
+    }
+    step()
+  }
+  nuxtApp.hook('app:mounted', () => whenIdle(makeMasks, 1500))
 
   // 上一頁／下一頁不播：vue-router 的 popstate 處理是非同步的，這裡的旗標會在守衛執行前立起來
   let popstate = false

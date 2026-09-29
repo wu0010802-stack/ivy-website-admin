@@ -86,7 +86,8 @@ describe('列表頁的示意活動與標題斷行（2026-09-29 手機審查）',
   })
 
   it('列表標題與單篇 h1 沿用全域 balance，不用 pretty、不加 keep-all', () => {
-    expect(css).not.toMatch(/text-wrap:\s*pretty/)
-    expect(css).not.toMatch(/word-break:\s*keep-all/)
+    const rules = css.match(/^\.(?:np-row h3|np-article h1)\{[^}]*\}/gm) ?? []
+    expect(rules).toHaveLength(2)
+    for (const rule of rules) expect(rule).not.toMatch(/text-wrap|word-break/)
   })
 })

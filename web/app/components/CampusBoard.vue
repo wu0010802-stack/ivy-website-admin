@@ -559,6 +559,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy() })
   .campus-tab-label{padding-inline:3px}
   .contact-row{font-size:var(--fs-sm)}
 }
+/* 288 以下分頁只剩 43px，校名連左右 3px 內距放不下，改成可換行後會斷成兩行；內距看不見，拿掉就維持一行。 */
+@media(max-width:300px){.campus-tab-label{padding-inline:0}}
 @media(prefers-reduced-motion:reduce){.campus-gallery *,.campus-gallery *::before,.campus-gallery *::after{transition:none!important;animation:none!important}}
 /* 減少動態時使用者手動開始輪播，進度條照樣前進（改 CSS 動畫前由 JS 逐格寫入，不受上面全面關動畫影響）。 */
 @media(prefers-reduced-motion:reduce){.progress-track>span[data-run]{animation:campus-progress 4s linear forwards paused!important;animation-delay:var(--run-from,0s)!important}.progress-track>span[data-run=playing]{animation-play-state:running!important}}

@@ -178,8 +178,9 @@
 .visit-form-fields:disabled {opacity:.7}
 .visit-submit-row {border-top:1px solid var(--visit-line);padding-top:22px;margin-top:21px;display:flex;align-items:center;justify-content:space-between;gap:18px}
 .visit-submit-row>p {font-size:var(--fs-sm);line-height:1.8;color:var(--visit-muted)}
-/* 送出失敗時送出鈕旁的補充提示（VisitForm submitRetryHint）：桌機緊靠在鈕左邊。 */
-.visit-submit-row>.visit-submit-retry {margin-left:auto;color:var(--error);text-align:right}
+/* 送出失敗時送出鈕旁的補充提示（VisitForm submitRetryHint）：桌機靠右貼在鈕左邊，只吃剩下的寬度——
+   961–1100 兩欄最窄時由它自己折行，不去擠左邊的說明（否則說明被擠成四行）。 */
+.visit-submit-row>.visit-submit-retry {flex:1 1 0;color:var(--error);text-align:right}
 .visit-submit-row .button {white-space:nowrap}
 .visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9}
 .visit-loading {padding-block:40px;min-height:180px}
@@ -268,7 +269,7 @@
   .visit-optional {margin-block:22px}
   .visit-submit-row {flex-direction:column-reverse;align-items:stretch;gap:13px;padding-top:22px;margin-top:16px}
   .visit-submit-row>p {font-size:var(--fs-xs);text-align:center}
-  .visit-submit-row>.visit-submit-retry {order:1;margin:0;font-size:var(--fs-sm);text-align:center}
+  .visit-submit-row>.visit-submit-retry {order:1;flex:none;font-size:var(--fs-sm);text-align:center}
   .visit-contact-actions {align-items:stretch;flex-direction:column;gap:12px}
   .visit-contact-actions .button {width:100%;min-height:52px}
   .visit-contact-actions .visit-inline-link {align-self:flex-start}

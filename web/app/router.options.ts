@@ -73,7 +73,8 @@ function _calculatePosition(to: RouteLocationNormalized, from: RouteLocationNorm
 }
 
 // 差異 (b) 用：每幀讀一次 scrollHeight，連續 3 幀不變或滿 1 秒就放行。
-// 等待時捲動位置還在頁首，scroll anchoring 不會作用；還原之後保留 anchoring，晚到的圖片才不會把畫面推走。
+// 不必暫關 overflow-anchor：等待期間捲動位置就算被 anchoring 移動，接著的還原也會用絕對位置蓋掉；
+// 還原之後保留 anchoring，晚到的圖片才不會把畫面推走。
 function _waitForStableHeight(): Promise<void> {
   return new Promise((resolve) => {
     const started = performance.now()

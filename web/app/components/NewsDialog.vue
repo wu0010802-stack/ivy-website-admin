@@ -53,12 +53,21 @@ function close() {
 }
 
 // 點背景關閉：modal dialog 的背景點擊 target 是 dialog 本身，但點在 dialog 自己的 padding 上也是，
-// 所以用座標判斷是否落在外框之外。不用 closedby="any"（iOS Safari 支援不明）。焦點還原走原本的 close 流程。
-function onDialogClick(event: MouseEvent) {
+// 所以用座標判斷是否落在外框之外。按下時也要在外框外：從內文拖曳選字、放開在背景上，click 同樣落在 dialog，不能因此關掉。
+// 不用 closedby="any"（iOS Safari 支援不明）。焦點還原走原本的 close 流程。
+let pressedOutside = false
+function outsideDialog(event: MouseEvent) {
   const dialog = dialogEl.value
-  if (!dialog || event.target !== dialog) return
+  if (!dialog || event.target !== dialog) return false
   const rect = dialog.getBoundingClientRect()
-  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close()
+  return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+}
+function onDialogPointerDown(event: PointerEvent) {
+  pressedOutside = outsideDialog(event)
+}
+function onDialogClick(event: MouseEvent) {
+  if (pressedOutside && outsideDialog(event)) close()
+  pressedOutside = false
 }
 
 function formatDate(date: string) {
@@ -153,7 +162,7 @@ function eventBrief(item: NewsEvent) {
   </section>
 
   <ClientOnly>
-    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title" @close="dialogOpen = false" @click="onDialogClick">
+    <dialog v-if="dialogSupported" ref="dialogEl" id="home-news-dialog" class="hn-dialog" aria-labelledby="home-news-dialog-title" @close="dialogOpen = false" @pointerdown="onDialogPointerDown" @click="onDialogClick">
       <div class="hn-dialog-top">
         <span>常春藤 · 校園消息</span>
         <button type="button" aria-label="關閉消息" @click="close">關閉 ×</button>
