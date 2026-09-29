@@ -1,3 +1,6 @@
+/// <reference types="node" />
+// 這支測試讀原始碼檔案（node:fs／__dirname）。vitest 2 的型別會順帶引入 Node 型別，
+// vitest 4 不會；app 的 tsconfig 只開 vite/client，所以在這裡明確引用。
 // 官網結構類內容的後台編輯（2026-09-25 缺口 B08）：主選單與頁尾連結、首頁五校
 // 順序、分校地圖網址、標題缺字提示、校園探索排序與座標、孩子的一天、首屏按鈕。
 import { readFileSync } from 'node:fs'

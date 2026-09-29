@@ -1242,6 +1242,18 @@
           "target_id": {
             "title": "Target Id",
             "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
           }
         },
         "required": [
@@ -1250,7 +1262,8 @@
           "name",
           "first_seen_at",
           "last_seen_at",
-          "left_at"
+          "left_at",
+          "verified_at"
         ],
         "title": "LineGroupOut",
         "type": "object"
@@ -1309,6 +1322,25 @@
         "title": "LineSettingsOut",
         "type": "object"
       },
+      "LineVerificationCodeOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "expires_at"
+        ],
+        "title": "LineVerificationCodeOut",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -1317,6 +1349,7 @@
             "type": "string"
           },
           "password": {
+            "maxLength": 128,
             "title": "Password",
             "type": "string"
           }
@@ -2535,11 +2568,12 @@
         "description": "本人改密碼，要先輸入目前的密碼。",
         "properties": {
           "current_password": {
+            "maxLength": 128,
             "title": "Current Password",
             "type": "string"
           },
           "new_password": {
-            "maxLength": 200,
+            "maxLength": 128,
             "minLength": 12,
             "title": "New Password",
             "type": "string"
@@ -2556,7 +2590,7 @@
         "description": "總管理者替別人重設密碼。",
         "properties": {
           "password": {
-            "maxLength": 200,
+            "maxLength": 128,
             "minLength": 12,
             "title": "Password",
             "type": "string"
@@ -2758,6 +2792,17 @@
           "slots_auto_confirm": {
             "title": "Slots Auto Confirm",
             "type": "boolean"
+          },
+          "turnstile_site_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnstile Site Key"
           },
           "version": {
             "title": "Version",
@@ -3178,6 +3223,25 @@
           "revision_id"
         ],
         "title": "PublishRequest",
+        "type": "object"
+      },
+      "ReauthRequest": {
+        "description": "變更自己的登入方式（綁定／解除 LINE、解除 Google）前的重新驗證。\nsession 建立 10 分鐘內可以不帶；超過就要帶目前的密碼。",
+        "properties": {
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
+          }
+        },
+        "title": "ReauthRequest",
         "type": "object"
       },
       "ReleaseChangeOut": {
@@ -3993,6 +4057,7 @@
             "type": "string"
           },
           "password": {
+            "maxLength": 128,
             "minLength": 12,
             "title": "Password",
             "type": "string"
@@ -4830,6 +4895,18 @@
               }
             ],
             "title": "Slot Id"
+          },
+          "turnstile_token": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnstile Token"
           }
         },
         "required": [
@@ -8552,6 +8629,72 @@
         ]
       }
     },
+    "/api/website/v1/admin/line/verification-codes": {
+      "post": {
+        "description": "產生一次性驗證碼。把它貼到要綁定的 LINE 群組，webhook 收到後把那個群組\n標記為已驗證，之後才能選為校區推播目標。10 分鐘內有效、只能用一次。",
+        "operationId": "create_line_verification_code_api_website_v1_admin_line_verification_codes_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineVerificationCodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Line Verification Code",
+        "tags": [
+          "line"
+        ]
+      }
+    },
     "/api/website/v1/admin/media": {
       "get": {
         "operationId": "list_media_api_website_v1_admin_media_get",
@@ -11864,9 +12007,85 @@
         ]
       }
     },
+    "/api/website/v1/admin/users/{user_id}/clear-external-logins": {
+      "post": {
+        "description": "總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用時\n的處置；重設密碼不會動到綁定）。自己的綁定請到「我的帳號」解除，那邊要\n重新驗證。",
+        "operationId": "clear_user_external_logins_api_website_v1_admin_users__user_id__clear_external_logins_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear User External Logins",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/website/v1/admin/users/{user_id}/password": {
       "post": {
-        "description": "總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，\n對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。",
+        "description": "總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，\n對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。\n\n不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，\n撿到總管理者 session 的人就能直接把密碼改成自己知道的。",
         "operationId": "reset_user_password_api_website_v1_admin_users__user_id__password_post",
         "parameters": [
           {
@@ -14210,7 +14429,7 @@
     },
     "/api/website/v1/auth/change-password": {
       "post": {
-        "description": "本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。",
+        "description": "本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。\n目前密碼的驗證跟登入共用帳號鎖（持有 session 的人不能在這裡線上猜密碼）。",
         "operationId": "change_own_password_api_website_v1_auth_change_password_post",
         "parameters": [
           {
@@ -14293,7 +14512,7 @@
     },
     "/api/website/v1/auth/google/link": {
       "delete": {
-        "description": "本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會\n重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。\n解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。",
+        "description": "本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會\n重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。\n解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。\n變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。",
         "operationId": "google_unlink_api_website_v1_auth_google_link_delete",
         "parameters": [
           {
@@ -14329,6 +14548,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -14443,6 +14679,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -14464,6 +14717,7 @@
         ]
       },
       "post": {
+        "description": "開始綁定：只產生 LINE 授權網址，真正綁定在 callback（記 user.link_line）。\n變更自己的登入方式要重新驗證（見 app/auth/reauth.py）。",
         "operationId": "line_link_start_api_website_v1_auth_line_link_post",
         "parameters": [
           {
@@ -14499,6 +14753,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -15361,6 +15632,7 @@
     },
     "/api/website/v1/public/visit-requests": {
       "post": {
+        "description": "公開送單。順序（稽核 visit-submit-pool-starvation、slot-hoarding）：\n\n1. schema 驗證（含保留的 Idempotency-Key 前綴）→ 2. 來源限流 →\n3. 不上鎖的重播查詢（重送直接回原結果，不驗 Turnstile、不吃額度）→\n4. 不上鎖的預檢 → 5. Turnstile → 6. 手機桶預檢、占位、每來源每校與每校\n上限 → 7. 鎖住校區設定列、在鎖內（用請求自己的連線）核對同一支手機近 10\n分鐘建立的筆數後建立案件 → commit 後才記手機桶。\n\n限流器每次操作都另開連線。握著 booking_configs 列鎖（以及請求自己的\n連線）時再向連線池要連線，匿名併發就能讓鎖與連線池互等、卡死整個\nAPI；所以 3–6 做完先結束讀取交易、歸還連線，7 之後到 commit 前完全\n不碰限流器。",
         "operationId": "create_visit_request_api_website_v1_public_visit_requests_post",
         "parameters": [
           {

@@ -26,7 +26,7 @@ npm run build
 ## 介面驗證（2026-09-21 第二輪）
 
 - `AdminSidebar.vue` 共用桌機與手機導覽；搜尋結果先經角色限制，分組收合不影響路由授權。手機外殼由 `AdminLayout.vue` 的 Element Plus drawer 管理焦點與關閉。
-- `adminUx.test.ts` 驗證搜尋的權限與分組、內容處理中鎖定、案件篩選過時回應。低記憶體環境使用 `npm run test:unit -- --maxWorkers=1 --minWorkers=1`。
+- `adminUx.test.ts` 驗證搜尋的權限與分組、內容處理中鎖定、案件篩選過時回應。低記憶體環境使用 `npm run test:unit -- --maxWorkers=1`（2026-09-29 起 vitest 4，已沒有 `--minWorkers`）。
 - 本機官網若使用其他埠，可在未版控的 `.env.local` 設定 `VITE_WEBSITE_ASSET_BASE`；例如此輪官網運行於 `http://localhost:3010`。
 - 瀏覽器實測：桌機總覽、390px 手機總覽／編輯／案件／素材搜尋、320px 上傳對話框、1024px 編輯與取消離開。沒有執行發布、儲存、上傳或預約寫入；有資料清單與其他瀏覽器留待後續驗收。
 

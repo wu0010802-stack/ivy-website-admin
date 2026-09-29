@@ -451,6 +451,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line/verification-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Line Verification Code
+         * @description 產生一次性驗證碼。把它貼到要綁定的 LINE 群組，webhook 收到後把那個群組
+         *     標記為已驗證，之後才能選為校區推播目標。10 分鐘內有效、只能用一次。
+         */
+        post: operations["create_line_verification_code_api_website_v1_admin_line_verification_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/media": {
         parameters: {
             query?: never;
@@ -1153,6 +1174,28 @@ export interface paths {
         patch: operations["update_user_capabilities_api_website_v1_admin_users__user_id__capabilities_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/users/{user_id}/clear-external-logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear User External Logins
+         * @description 總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用時
+         *     的處置；重設密碼不會動到綁定）。自己的綁定請到「我的帳號」解除，那邊要
+         *     重新驗證。
+         */
+        post: operations["clear_user_external_logins_api_website_v1_admin_users__user_id__clear_external_logins_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/users/{user_id}/password": {
         parameters: {
             query?: never;
@@ -1166,6 +1209,9 @@ export interface paths {
          * Reset User Password
          * @description 總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，
          *     對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。
+         *
+         *     不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
+         *     撿到總管理者 session 的人就能直接把密碼改成自己知道的。
          */
         post: operations["reset_user_password_api_website_v1_admin_users__user_id__password_post"];
         delete?: never;
@@ -1593,6 +1639,7 @@ export interface paths {
         /**
          * Change Own Password
          * @description 本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。
+         *     目前密碼的驗證跟登入共用帳號鎖（持有 session 的人不能在這裡線上猜密碼）。
          */
         post: operations["change_own_password_api_website_v1_auth_change_password_post"];
         delete?: never;
@@ -1633,6 +1680,7 @@ export interface paths {
          * @description 本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會
          *     重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。
          *     解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
+         *     變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。
          */
         delete: operations["google_unlink_api_website_v1_auth_google_link_delete"];
         options?: never;
@@ -1683,7 +1731,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Line Link Start */
+        /**
+         * Line Link Start
+         * @description 開始綁定：只產生 LINE 授權網址，真正綁定在 callback（記 user.link_line）。
+         *     變更自己的登入方式要重新驗證（見 app/auth/reauth.py）。
+         */
         post: operations["line_link_start_api_website_v1_auth_line_link_post"];
         /** Line Unlink */
         delete: operations["line_unlink_api_website_v1_auth_line_link_delete"];
@@ -2006,7 +2058,21 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Visit Request */
+        /**
+         * Create Visit Request
+         * @description 公開送單。順序（稽核 visit-submit-pool-starvation、slot-hoarding）：
+         *
+         *     1. schema 驗證（含保留的 Idempotency-Key 前綴）→ 2. 來源限流 →
+         *     3. 不上鎖的重播查詢（重送直接回原結果，不驗 Turnstile、不吃額度）→
+         *     4. 不上鎖的預檢 → 5. Turnstile → 6. 手機桶預檢、占位、每來源每校與每校
+         *     上限 → 7. 鎖住校區設定列、在鎖內（用請求自己的連線）核對同一支手機近 10
+         *     分鐘建立的筆數後建立案件 → commit 後才記手機桶。
+         *
+         *     限流器每次操作都另開連線。握著 booking_configs 列鎖（以及請求自己的
+         *     連線）時再向連線池要連線，匿名併發就能讓鎖與連線池互等、卡死整個
+         *     API；所以 3–6 做完先結束讀取交易、歸還連線，7 之後到 commit 前完全
+         *     不碰限流器。
+         */
         post: operations["create_visit_request_api_website_v1_public_visit_requests_post"];
         delete?: never;
         options?: never;
@@ -2469,6 +2535,8 @@ export interface components {
             source_type: string;
             /** Target Id */
             target_id: string;
+            /** Verified At */
+            verified_at: string | null;
         };
         /** LineLinkStart */
         LineLinkStart: {
@@ -2485,6 +2553,16 @@ export interface components {
             targets: components["schemas"]["LineCampusTargetOut"][];
             /** Webhook Url */
             webhook_url: string | null;
+        };
+        /** LineVerificationCodeOut */
+        LineVerificationCodeOut: {
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -2985,6 +3063,8 @@ export interface components {
             privacy_notice?: components["schemas"]["PrivacyNoticeOut"] | null;
             /** Slots Auto Confirm */
             slots_auto_confirm: boolean;
+            /** Turnstile Site Key */
+            turnstile_site_key?: string | null;
             /** Version */
             version: number;
         };
@@ -3151,6 +3231,15 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+        };
+        /**
+         * ReauthRequest
+         * @description 變更自己的登入方式（綁定／解除 LINE、解除 Google）前的重新驗證。
+         *     session 建立 10 分鐘內可以不帶；超過就要帶目前的密碼。
+         */
+        ReauthRequest: {
+            /** Current Password */
+            current_password?: string | null;
         };
         /** ReleaseChangeOut */
         ReleaseChangeOut: {
@@ -3739,6 +3828,8 @@ export interface components {
             referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
             /** Slot Id */
             slot_id?: string | null;
+            /** Turnstile Token */
+            turnstile_token?: string | null;
         };
         /** VisitRequestDetailOut */
         VisitRequestDetailOut: {
@@ -5191,6 +5282,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_line_verification_code_api_website_v1_admin_line_verification_codes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineVerificationCodeOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -6718,6 +6842,41 @@ export interface operations {
             };
         };
     };
+    clear_user_external_logins_api_website_v1_admin_users__user_id__clear_external_logins_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_user_password_api_website_v1_admin_users__user_id__password_post: {
         parameters: {
             query?: never;
@@ -7735,7 +7894,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -7813,7 +7976,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7846,7 +8013,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

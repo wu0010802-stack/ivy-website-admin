@@ -4,7 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Lock, User } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError, BASE_URL } from '../api/client'
+import { loginLimitedMessage } from '../api/errors'
 import type { AuthProviders } from '../api/types'
+import { SESSION_EXPIRED_QUERY } from '../router/unauthorized'
 import crestUrl from '../assets/brand/ivy-crest.webp'
 
 const authStore = useAuthStore()
@@ -37,6 +39,11 @@ const errorMessage = ref<string | null>(
   typeof route.query.oauth_error === 'string' && Object.hasOwn(oauthErrors, route.query.oauth_error)
     ? oauthErrors[route.query.oauth_error] ?? null : null,
 )
+// 用到一半收到 401 被導回來（閒置逾時等），說明為什麼要重新登入；
+// OAuth 錯誤優先顯示，重新送出登入時收掉。
+const sessionNotice = ref<string | null>(
+  route.query[SESSION_EXPIRED_QUERY] === '1' && !errorMessage.value ? '閒置過久或登入已失效，請重新登入。' : null,
+)
 const submitting = ref(false)
 const googleEnabled = ref(false)
 const lineEnabled = ref(false)
@@ -63,6 +70,24 @@ const oauthHints = computed(() => {
   return [googleEnabled.value ? '請使用已開通後台權限的 Google 帳號' : 'LINE 要先用帳密登入，在「我的帳號」綁定後才能使用']
 })
 
+// 密碼最多 128 字（後端 schemas 的 max_length），超過回 422：多半是貼錯內容。
+const PASSWORD_TOO_LONG = '密碼太長（最多 128 字），請確認沒有貼錯內容'
+
+/** 422 的 detail 是 FastAPI 的欄位錯誤陣列；回傳第一個出錯的本文欄位名稱。 */
+function invalidField(detail: unknown): string | null {
+  if (!Array.isArray(detail)) return null
+  const loc = (detail[0] as { loc?: unknown } | undefined)?.loc
+  return Array.isArray(loc) && typeof loc[loc.length - 1] === 'string' ? (loc[loc.length - 1] as string) : null
+}
+
+// 同一個帳號 5 分鐘內密碼錯 10 次，密碼登入暫停 15 分鐘（2026-09-29 業主裁定）；
+// Google／LINE 登入不受帳號鎖影響，有開放的才提示改用。來源限流／系統忙碌的
+// 429 另有文案（loginLimitedMessage），不提示改用。
+function limitedMessage(err: unknown): string {
+  const alternatives = [googleEnabled.value && 'Google', lineEnabled.value && 'LINE'].filter(Boolean).join('／')
+  return loginLimitedMessage(err, { verb: '登入', alternative: alternatives ? `可改用 ${alternatives} 登入` : undefined })
+}
+
 onMounted(async () => {
   try {
     const providers = await api.get<AuthProviders>('/auth/providers')
@@ -78,6 +103,7 @@ onMounted(async () => {
 async function handleSubmit() {
   if (submitting.value) return
   errorMessage.value = null
+  sessionNotice.value = null
   const email = form.email.trim()
   // 帳號就是完整 Email；只打「admin」之類的會被後端以 422 擋下，
   // 先在這裡講清楚，不要讓人看到狀態碼。
@@ -95,10 +121,14 @@ async function handleSubmit() {
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       errorMessage.value = '帳號或密碼錯誤'
+    } else if (err instanceof ApiError && err.status === 422 && invalidField(err.detail) === 'password') {
+      fieldErrors.password = PASSWORD_TOO_LONG
+      await nextTick()
+      passwordInput.value?.focus()
     } else if (err instanceof ApiError && err.status === 422) {
       fieldErrors.email = FULL_EMAIL_HINT
     } else if (err instanceof ApiError && err.status === 429) {
-      errorMessage.value = '嘗試次數過多，請 5 分鐘後再試'
+      errorMessage.value = limitedMessage(err)
     } else if (err instanceof ApiError) {
       errorMessage.value = `登入失敗（${err.status}）`
     } else {
@@ -127,6 +157,15 @@ async function handleSubmit() {
           :closable="false"
           show-icon
           class="login__alert"
+        />
+        <el-alert
+          v-else-if="sessionNotice"
+          :title="sessionNotice"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="login__alert"
+          data-test="session-expired"
         />
 
         <el-form label-position="top" size="large" class="login__form" @submit.prevent="handleSubmit" novalidate>

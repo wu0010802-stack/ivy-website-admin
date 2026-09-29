@@ -3,6 +3,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage, loginLimitedMessage } from '../api/errors'
+import { PASSWORD_MAX_CHARS, passwordHint, passwordOk } from '../composables/passwordRules'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: boolean): void }>()
@@ -22,7 +24,15 @@ watch(visible, (open) => {
 })
 
 const mismatch = computed(() => Boolean(form.confirm) && form.next !== form.confirm)
-const valid = computed(() => Boolean(form.current) && form.next.length >= 12 && form.next === form.confirm)
+const valid = computed(() => Boolean(form.current) && passwordOk(form.next) && form.next === form.confirm)
+
+function failureText(err: unknown): string {
+  // 目前的密碼跟登入共用帳號鎖（5 分鐘內錯 10 次，密碼驗證暫停 15 分鐘）。
+  if (err instanceof ApiError && err.status === 429) return loginLimitedMessage(err, { verb: '驗證' })
+  if (err instanceof ApiError && typeof err.detail === 'string') return err.detail
+  // 422 欄位錯誤（例如新密碼超過 72 bytes 的 password_too_long，訊息是中文）。
+  return apiErrorMessage(err, '更新失敗，請稍後再試')
+}
 
 async function submit() {
   if (!valid.value) return
@@ -33,7 +43,7 @@ async function submit() {
     visible.value = false
     ElMessage.success('密碼已更新，其他裝置已登出')
   } catch (err) {
-    error.value = err instanceof ApiError && typeof err.detail === 'string' ? err.detail : '更新失敗，請稍後再試'
+    error.value = failureText(err)
   } finally {
     saving.value = false
   }
@@ -44,14 +54,14 @@ async function submit() {
   <el-dialog v-model="visible" title="更改密碼" width="400px" append-to-body :close-on-click-modal="!saving">
     <el-form label-position="top" :disabled="saving" @submit.prevent="submit">
       <el-form-item label="目前的密碼">
-        <el-input v-model="form.current" type="password" show-password autocomplete="current-password" />
+        <el-input v-model="form.current" type="password" show-password autocomplete="current-password" :maxlength="PASSWORD_MAX_CHARS" />
       </el-form-item>
       <el-form-item label="新密碼">
-        <el-input v-model="form.next" type="password" show-password autocomplete="new-password" />
-        <span class="field-help">至少 12 字元（目前 {{ form.next.length }} 字）。</span>
+        <el-input v-model="form.next" type="password" show-password autocomplete="new-password" :maxlength="PASSWORD_MAX_CHARS" />
+        <span class="field-help" data-test="new-password-hint">{{ passwordHint(form.next) }}</span>
       </el-form-item>
       <el-form-item label="再輸入一次新密碼" :error="mismatch ? '兩次輸入的新密碼不一樣' : ''">
-        <el-input v-model="form.confirm" type="password" show-password autocomplete="new-password" @keydown.enter="submit" />
+        <el-input v-model="form.confirm" type="password" show-password autocomplete="new-password" :maxlength="PASSWORD_MAX_CHARS" @keydown.enter="submit" />
       </el-form-item>
       <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
     </el-form>

@@ -112,7 +112,8 @@ export const api = {
     request<T>(path, { method: 'POST', body, mutating: true, headers: options.headers }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body, mutating: true }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body, mutating: true }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE', mutating: true }),
+  // DELETE 也可以帶 JSON 本文（例如解除綁定時的 current_password）；Nuxt 代理會照轉。
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body, mutating: true }),
   upload: <T>(path: string, formData: FormData) => upload<T>(path, 'POST', formData),
 }
 

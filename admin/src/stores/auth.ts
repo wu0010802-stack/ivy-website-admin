@@ -63,5 +63,22 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, csrfToken, isLoading, login, logout, restoreSession, clearSession }
+  /**
+   * 重新取得登入狀態，但失敗時不清本地狀態（頁面上可能還有未儲存的修改）。
+   * 閒置延長（sessionKeepAlive）與「登入已逾時、我已重新登入」用：成功時換上
+   * 這個 session 的 CSRF token（在別的分頁重新登入後，新 session 的 token 不同）。
+   */
+  async function refreshSession(): Promise<boolean> {
+    try {
+      const result = await api.get<{ csrf_token: string; user: UserOut }>('/auth/me')
+      user.value = result.user
+      csrfToken.value = result.csrf_token
+      setCsrfToken(result.csrf_token)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  return { user, csrfToken, isLoading, login, logout, restoreSession, refreshSession, clearSession }
 })

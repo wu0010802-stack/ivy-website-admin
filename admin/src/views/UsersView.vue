@@ -8,6 +8,8 @@ import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
 import { campusLabel, campusLabels, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
+import { apiErrorMessage } from '../api/errors'
+import { passwordHint, passwordOk } from '../composables/passwordRules'
 import { useRequestSequence } from '../composables/useRequestSequence'
 
 const authStore = useAuthStore()
@@ -33,8 +35,11 @@ const resetPassword = ref('')
 const resetVisible = ref(false)
 const resetting = ref(false)
 const togglingId = ref<string | null>(null)
+const clearingId = ref<string | null>(null)
 
-const operationBusy = computed(() => creating.value || savingScope.value || resetting.value || Boolean(togglingId.value))
+const operationBusy = computed(
+  () => creating.value || savingScope.value || resetting.value || Boolean(togglingId.value) || Boolean(clearingId.value),
+)
 const visibleUsers = computed(() => sortedUsers.value.filter(user => {
   const text = [user.email, roleLabel(user.role), user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys)].join(' ').toLocaleLowerCase()
   return text.includes(search.value.trim().toLocaleLowerCase()) && (!status.value || (status.value === 'active') === user.is_active)
@@ -73,7 +78,7 @@ function sameGrants(a: readonly string[], b: readonly string[]): boolean {
 const formValid = computed(
   () =>
     form.email.includes('@') &&
-    form.password.length >= 12 &&
+    passwordOk(form.password) &&
     (form.role === 'super_admin' || form.campus_keys.length > 0),
 )
 
@@ -104,6 +109,8 @@ function errorText(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     const detail = err.detail
     if (typeof detail === 'string') return detail
+    // 422 欄位錯誤陣列（例如新密碼超過 72 bytes 的 password_too_long，訊息是中文）。
+    if (Array.isArray(detail)) return apiErrorMessage(err, fallback)
     if (detail && typeof detail === 'object' && 'message' in detail) {
       return String((detail as { message: unknown }).message)
     }
@@ -232,16 +239,35 @@ function generateResetPassword() {
 }
 
 async function submitReset() {
-  if (!resetTarget.value || resetPassword.value.length < 12) return
+  if (!resetTarget.value || !passwordOk(resetPassword.value)) return
   resetting.value = true
   try {
     await api.post(`/admin/users/${resetTarget.value.id}/password`, { password: resetPassword.value })
     resetVisible.value = false
     ElMessage.success(`已重設 ${resetTarget.value.email} 的密碼，對方所有裝置都已登出。請把新密碼告訴對方。`)
   } catch (err) {
+    // 自己的那一列沒有「重設密碼」（UserActions 的 v-if="!self"）；後端對自己重設
+    // 回 409 USE_CHANGE_PASSWORD 時，訊息本身就指向「我的帳號」。
     ElMessage.error(errorText(err, '重設密碼失敗'))
   } finally {
     resetting.value = false
+  }
+}
+
+// 別人的帳號疑似被盜用時：清掉 LINE／Google 綁定並撤銷對方所有 session。自己的
+// 綁定要到「我的帳號」解除（需要重新驗證），後端對自己呼叫回 409 USE_ACCOUNT_PAGE。
+async function clearExternalLogins(target: UserOut) {
+  if (operationBusy.value || isSelf(target)) return
+  clearingId.value = target.id
+  try {
+    const updated = await api.post<UserOut>(`/admin/users/${target.id}/clear-external-logins`)
+    const idx = users.value.findIndex((u) => u.id === updated.id)
+    if (idx !== -1) users.value[idx] = updated
+    ElMessage.success(`已解除 ${updated.email} 的 Google／LINE 綁定，對方所有裝置都已登出。`)
+  } catch (err) {
+    ElMessage.error(errorText(err, '解除綁定失敗'))
+  } finally {
+    clearingId.value = null
   }
 }
 
@@ -309,7 +335,7 @@ onMounted(loadUsers)
           </el-table-column>
           <el-table-column label="操作" width="330" align="right">
             <template #default="{ row }: { row: UserOut }">
-              <UserActions :user="row" :self="isSelf(row)" :busy="operationBusy" :pending="togglingId === row.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" />
+              <UserActions :user="row" :self="isSelf(row)" :busy="operationBusy" :pending="togglingId === row.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" @clear-logins="clearExternalLogins" />
             </template>
           </el-table-column>
         </el-table>
@@ -317,7 +343,7 @@ onMounted(loadUsers)
           <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
             <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
             <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd></dl>
-            <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" /></div>
+            <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" @clear-logins="clearExternalLogins" /></div>
           </li>
         </ul>
         </template>
@@ -333,8 +359,8 @@ onMounted(loadUsers)
               <el-input v-model="form.password" :type="passwordVisible ? 'text' : 'password'" :show-password="!passwordVisible" autocomplete="new-password" />
               <el-button @click="generatePassword">產生密碼</el-button>
             </div>
-            <span class="field-help" :class="{ 'is-ok': form.password.length >= 12 }">
-              至少 12 字元（目前 {{ form.password.length }} 字）。建立後請把密碼抄給對方，這裡不會再顯示。
+            <span class="field-help" :class="{ 'is-ok': passwordOk(form.password) }">
+              {{ passwordHint(form.password) }}建立後請把密碼抄給對方，這裡不會再顯示。
             </span>
           </el-form-item>
           <el-form-item label="角色">
@@ -395,12 +421,13 @@ onMounted(loadUsers)
       <el-dialog v-model="resetVisible" :title="`重設 ${resetTarget?.email ?? ''} 的密碼`" width="440px" :show-close="!resetting" :close-on-click-modal="!resetting">
         <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信，請用電話或當面把新密碼告訴對方。</p>
         <div class="password-row">
-          <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="至少 12 字元" />
+          <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="12 字以上" />
           <el-button @click="generateResetPassword">產生密碼</el-button>
         </div>
+        <span class="field-help" :class="{ 'is-ok': passwordOk(resetPassword) }">{{ passwordHint(resetPassword) }}</span>
         <template #footer>
           <el-button :disabled="resetting" @click="resetVisible = false">取消</el-button>
-          <el-button type="primary" :loading="resetting" :disabled="resetPassword.length < 12" @click="submitReset">重設密碼</el-button>
+          <el-button type="primary" :loading="resetting" :disabled="!passwordOk(resetPassword)" @click="submitReset">重設密碼</el-button>
         </template>
       </el-dialog>
     </template>

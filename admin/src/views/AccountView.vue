@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import { api, ApiError } from '../api/client'
-import { startLineLink } from '../api/oauth'
+import { loginLimitedMessage } from '../api/errors'
+import { reauthRequiredMessage, startLineLink, type ReauthBody } from '../api/oauth'
 import { campusLabels, roleLabel } from '../api/labels'
 import type { AuthProviders } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -29,6 +31,77 @@ const providersLoaded = ref(false)
 const linking = ref(false)
 const unlinking = ref(false)
 const googleUnlinking = ref(false)
+// 本人更改密碼（與側欄鑰匙鈕同一個對話框）。後端對「重設自己的密碼」回
+// 409 USE_CHANGE_PASSWORD 時，訊息會請人到這一頁來改。
+const passwordOpen = ref(false)
+
+// 變更自己的登入方式（綁定／解除 LINE、解除 Google）前的重新驗證：登入超過
+// 10 分鐘時後端回 403 REAUTH_REQUIRED，這裡請本人輸入目前的密碼再送一次。
+// 只用 Google／LINE 登入、不知道密碼的人，重新登入後 10 分鐘內再操作即可。
+type ReauthAction = 'link' | 'unlink-line' | 'unlink-google'
+const REAUTH_LOCKED_ALTERNATIVE = '也可以登出後用 Google／LINE 重新登入，10 分鐘內再回來操作'
+const reauth = reactive({
+  open: false,
+  action: null as ReauthAction | null,
+  message: '',
+  password: '',
+  error: '',
+  submitting: false,
+})
+const reauthInput = ref<{ focus: () => void } | null>(null)
+
+async function openReauth(action: ReauthAction, message: string) {
+  reauth.action = action
+  reauth.message = message
+  reauth.password = ''
+  reauth.error = ''
+  reauth.open = true
+  await nextTick()
+  reauthInput.value?.focus()
+}
+
+function closeReauth() {
+  reauth.open = false
+  reauth.password = ''
+  reauth.error = ''
+}
+
+/** 需要重新驗證（403）或帳號鎖定中（429）時處理掉並回 true；其他錯誤交回呼叫端。 */
+function handleReauthError(action: ReauthAction, err: unknown, withPassword: boolean): boolean {
+  const message = reauthRequiredMessage(err)
+  if (message) {
+    // 已經帶了密碼還是 403：密碼不對，留在對話框讓本人重打。
+    if (withPassword && reauth.open) reauth.error = message
+    else void openReauth(action, message)
+    return true
+  }
+  if (err instanceof ApiError && err.status === 429) {
+    closeReauth()
+    notice.value = { type: 'error', text: loginLimitedMessage(err, { verb: '驗證', alternative: REAUTH_LOCKED_ALTERNATIVE }) }
+    return true
+  }
+  return false
+}
+
+async function submitReauth() {
+  if (reauth.submitting || !reauth.action) return
+  if (!reauth.password) {
+    reauth.error = '請輸入目前的密碼。'
+    return
+  }
+  const body: ReauthBody = { current_password: reauth.password }
+  // 密碼只用這一次，不留在畫面狀態裡。
+  reauth.password = ''
+  reauth.error = ''
+  reauth.submitting = true
+  try {
+    if (reauth.action === 'link') await link(body)
+    else if (reauth.action === 'unlink-line') await unlink(body)
+    else await unlinkGoogle(body)
+  } finally {
+    reauth.submitting = false
+  }
+}
 
 const result = route.query.line_link
 const notice = ref<Notice | null>(
@@ -61,15 +134,18 @@ onMounted(async () => {
   }
 })
 
-async function link() {
+async function link(body?: ReauthBody) {
   if (linking.value) return
   linking.value = true
   notice.value = null
   try {
     // 成功會整頁前往 LINE，按鈕維持 loading 直到離開。
-    await startLineLink()
+    await startLineLink(body)
+    closeReauth()
   } catch (err) {
     linking.value = false
+    if (handleReauthError('link', err, body !== undefined)) return
+    closeReauth()
     if (err instanceof ApiError && err.status === 409) {
       setLineLinked(true)
       notice.value = { type: 'warning', text: '這個帳號已經綁定 LINE（可能是在其他分頁完成的）。要換成其他 LINE 請先解除綁定。' }
@@ -82,31 +158,39 @@ async function link() {
   }
 }
 
-async function unlinkGoogle() {
+async function unlinkGoogle(body?: ReauthBody) {
   if (googleUnlinking.value) return
   googleUnlinking.value = true
   notice.value = null
   try {
-    await api.delete('/auth/google/link')
+    await (body ? api.delete('/auth/google/link', body) : api.delete('/auth/google/link'))
+    closeReauth()
     setGoogleLinked(false)
     notice.value = { type: 'success', text: '已解除 Google 綁定。之後用同一個 Email 的 Google 帳號登入時，會重新綁定。' }
-  } catch {
-    notice.value = { type: 'error', text: '解除綁定失敗，請稍後再試。' }
+  } catch (err) {
+    if (!handleReauthError('unlink-google', err, body !== undefined)) {
+      closeReauth()
+      notice.value = { type: 'error', text: '解除綁定失敗，請稍後再試。' }
+    }
   } finally {
     googleUnlinking.value = false
   }
 }
 
-async function unlink() {
+async function unlink(body?: ReauthBody) {
   if (unlinking.value) return
   unlinking.value = true
   notice.value = null
   try {
-    await api.delete('/auth/line/link')
+    await (body ? api.delete('/auth/line/link', body) : api.delete('/auth/line/link'))
+    closeReauth()
     setLineLinked(false)
     notice.value = { type: 'success', text: '已解除 LINE 綁定，之後無法再用這個 LINE 登入。' }
-  } catch {
-    notice.value = { type: 'error', text: '解除綁定失敗，請稍後再試。' }
+  } catch (err) {
+    if (!handleReauthError('unlink-line', err, body !== undefined)) {
+      closeReauth()
+      notice.value = { type: 'error', text: '解除綁定失敗，請稍後再試。' }
+    }
   } finally {
     unlinking.value = false
   }
@@ -133,6 +217,15 @@ async function unlink() {
       </section>
 
       <section class="panel">
+        <div class="panel__head"><h2>密碼</h2></div>
+        <div class="panel__body account__line">
+          <p>更改密碼要先輸入目前的密碼；成功後其他裝置會登出，這個分頁保留登入。</p>
+          <el-button data-test="change-password" @click="passwordOpen = true">更改密碼</el-button>
+          <p class="field-help">忘記目前的密碼，請聯絡總管理者重設。</p>
+        </div>
+      </section>
+
+      <section class="panel">
         <div class="panel__head account__line-head">
           <h2>Google 登入</h2>
           <el-tag :type="auth.user.google_linked ? 'success' : 'info'" disable-transitions>
@@ -151,7 +244,7 @@ async function unlink() {
               cancel-button-text="先不要"
               confirm-button-type="danger"
               :width="300"
-              @confirm="unlinkGoogle"
+              @confirm="unlinkGoogle()"
             >
               <template #reference>
                 <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
@@ -183,7 +276,7 @@ async function unlink() {
               cancel-button-text="先不要"
               confirm-button-type="danger"
               :width="280"
-              @confirm="unlink"
+              @confirm="unlink()"
             >
               <template #reference>
                 <el-button type="danger" plain :loading="unlinking">解除綁定</el-button>
@@ -193,13 +286,47 @@ async function unlink() {
           <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
           <template v-else-if="lineEnabled">
             <p>綁定後可以在登入頁用 LINE 直接登入，Email 與密碼仍然可以用。按下後會前往 LINE 確認身分，完成後回到這一頁。</p>
-            <el-button type="primary" data-test="line-link" :loading="linking" @click="link">綁定 LINE</el-button>
+            <el-button type="primary" data-test="line-link" :loading="linking" @click="link()">綁定 LINE</el-button>
           </template>
           <p v-else>LINE 登入尚未啟用，啟用後這裡會出現綁定按鈕。</p>
           <p class="field-help">後台只記錄 LINE 提供的帳號識別碼，不讀取暱稱、大頭貼或 Email。</p>
         </div>
       </section>
     </template>
+
+    <el-dialog
+      v-model="reauth.open"
+      title="確認是你本人"
+      width="min(420px, 100%)"
+      :show-close="!reauth.submitting"
+      :close-on-click-modal="!reauth.submitting"
+      :close-on-press-escape="!reauth.submitting"
+      @closed="closeReauth"
+    >
+      <form class="account__reauth" data-test="reauth-form" @submit.prevent="submitReauth">
+        <p>{{ reauth.message }}</p>
+        <label class="account__reauth-field">
+          <span>目前的密碼</span>
+          <el-input
+            ref="reauthInput"
+            v-model="reauth.password"
+            type="password"
+            show-password
+            autocomplete="current-password"
+            maxlength="128"
+            :disabled="reauth.submitting"
+            data-test="reauth-password"
+          />
+        </label>
+        <p v-if="reauth.error" class="account__reauth-error" role="alert" data-test="reauth-error">{{ reauth.error }}</p>
+        <p class="field-help">只用 Google 或 LINE 登入、不知道密碼的話：先登出，再用 Google／LINE 重新登入，10 分鐘內回到這一頁操作就不用輸入密碼。</p>
+      </form>
+      <template #footer>
+        <el-button :disabled="reauth.submitting" @click="closeReauth">取消</el-button>
+        <el-button type="primary" data-test="reauth-submit" :loading="reauth.submitting" @click="submitReauth">確認</el-button>
+      </template>
+    </el-dialog>
+    <ChangePasswordDialog v-model="passwordOpen" />
   </div>
 </template>
 
@@ -243,5 +370,23 @@ async function unlink() {
 
 .account__line p {
   margin: 0;
+}
+
+.account__reauth {
+  display: grid;
+  gap: 12px;
+}
+
+.account__reauth p {
+  margin: 0;
+}
+
+.account__reauth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.account__reauth-error {
+  color: var(--el-color-danger);
 }
 </style>

@@ -59,3 +59,48 @@ describe('登入頁的帳號格式', () => {
     expect(wrapper.text()).not.toContain('422')
   })
 })
+
+describe('密碼登入的帳號鎖與超長密碼（2026-09-29）', () => {
+  it('429 說明這個帳號的密碼登入暫停 15 分鐘，並提示有開放的 Google／LINE', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: true, line: true })
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError(429, { code: 'LOGIN_LOCKED', message: '密碼錯誤次數過多，這個帳號的密碼登入暫停 15 分鐘' }))
+    const wrapper = await mountLogin()
+    await flushPromises()
+    await submit(wrapper, 'staff@ivy.example', 'wrong-password-xx')
+    expect(wrapper.text()).toContain('這個帳號的密碼登入暫停 15 分鐘，可改用 Google／LINE 登入')
+    expect(wrapper.text()).not.toContain('5 分鐘後再試')
+  })
+
+  it('沒有開放 Google／LINE 時不提示改用', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError(429, { code: 'LOGIN_LOCKED', message: '密碼錯誤次數過多，這個帳號的密碼登入暫停 15 分鐘' }))
+    const wrapper = await mountLogin()
+    await flushPromises()
+    await submit(wrapper, 'staff@ivy.example', 'wrong-password-xx')
+    expect(wrapper.text()).toContain('密碼登入暫停 15 分鐘，請稍後再試')
+    expect(wrapper.text()).not.toContain('改用')
+  })
+
+  it('來源限流或系統忙碌（LOGIN_RATE_LIMITED）不講成帳號鎖 15 分鐘，也不建議改用 Google／LINE', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: true, line: true })
+    vi.spyOn(api, 'post').mockRejectedValue(
+      new ApiError(429, { code: 'LOGIN_RATE_LIMITED', message: '嘗試太頻繁或系統忙碌，請稍候再試' }),
+    )
+    const wrapper = await mountLogin()
+    await flushPromises()
+    await submit(wrapper, 'staff@ivy.example', 'wrong-password-xx')
+    expect(wrapper.text()).toContain('嘗試太頻繁或系統忙碌，請稍候再試')
+    expect(wrapper.text()).not.toContain('15 分鐘')
+    expect(wrapper.text()).not.toContain('改用')
+  })
+
+  it('密碼超過上限的 422 標在密碼欄，不誤報成 Email 格式', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(
+      new ApiError(422, [{ loc: ['body', 'password'], msg: 'String should have at most 128 characters' }]),
+    )
+    const wrapper = await mountLogin()
+    await submit(wrapper, 'staff@ivy.example', 'x'.repeat(200))
+    expect(wrapper.get('#current-password-error').text()).toContain('密碼太長')
+    expect(wrapper.find('#admin-email-error').exists()).toBe(false)
+  })
+})

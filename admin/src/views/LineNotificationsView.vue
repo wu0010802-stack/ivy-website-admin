@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'
+import { apiErrorMessage } from '../api/errors'
 import { formatDateTime } from '../api/labels'
-import type { LineGroupOut, LineSettingsOut } from '../api/types'
+import type { LineCampusTargetOut, LineGroupOut, LineSettingsOut, LineVerificationCodeOut } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
 
 const data = ref<LineSettingsOut | null>(null)
@@ -12,6 +13,9 @@ const loadError = ref<string | null>(null)
 // 各校各自的處理中狀態：改 A 校時不該鎖住 B 校的按鈕。
 const saving = ref<Record<string, boolean>>({})
 const testing = ref<Record<string, boolean>>({})
+// 群組驗證碼：只在產生當下回傳一次，重新整理頁面就看不到了（10 分鐘內有效）。
+const verification = ref<LineVerificationCodeOut | null>(null)
+const generating = ref(false)
 
 const activeGroups = computed(() => (data.value?.groups ?? []).filter(group => !group.left_at))
 
@@ -21,13 +25,43 @@ function groupLabel(group: LineGroupOut): string {
   return group.name ? `${group.name}（${kind}）` : `未命名${kind}（…${group.target_id.slice(-6)}）`
 }
 
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    const detail = err.detail as { message?: string } | string | null
-    if (detail && typeof detail === 'object' && detail.message) return detail.message
-    if (err.status === 403) return '只有總管理者可以設定 LINE 通知'
+// 任何人都能把官方帳號拉進自己取名的群組；貼過後台驗證碼的群組才能被選為新的
+// 推播目標。這校目前已綁定的群組照常可選（修補前綁好的沒有驗證紀錄）。
+function optionLabel(group: LineGroupOut): string {
+  return group.verified_at ? groupLabel(group) : `${groupLabel(group)}・未驗證`
+}
+
+function optionDisabled(group: LineGroupOut, target: LineCampusTargetOut): boolean {
+  return !group.verified_at && group.target_id !== target.target_id
+}
+
+async function generateCode() {
+  if (generating.value) return
+  generating.value = true
+  try {
+    verification.value = await api.post<LineVerificationCodeOut>('/admin/line/verification-codes')
+  } catch (err) {
+    ElMessage.error(errorMessage(err, '驗證碼產生失敗，請稍後再試'))
+  } finally {
+    generating.value = false
   }
-  return fallback
+}
+
+async function copyCode() {
+  if (!verification.value) return
+  try {
+    await navigator.clipboard.writeText(verification.value.code)
+    ElMessage.success('已複製驗證碼，請貼到要綁定的 LINE 群組')
+  } catch {
+    ElMessage.warning('無法自動複製，請手動選取驗證碼')
+  }
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  // 403 的字串 detail（例如「權限不足」）不直接顯示，改說明誰能設定；其他照共用規則
+  // （message → 錯誤碼對照 → fallback，系統錯誤附錯誤編號）。
+  if (err instanceof ApiError && err.status === 403) return '只有總管理者可以設定 LINE 通知'
+  return apiErrorMessage(err, fallback)
 }
 
 async function load() {
@@ -116,7 +150,8 @@ onMounted(load)
             </li>
             <li>在 LINE Official Account Manager 允許官方帳號加入群組，並關閉自動回應訊息。</li>
             <li>把官方帳號拉進各校的員工群組，回到這頁按「重新整理」，下方就會出現該群組。</li>
-            <li>替每校選擇群組，按「送測試訊息」確認群組真的收到。</li>
+            <li>按下方「產生驗證碼」，把驗證碼貼到要綁定的群組，再按「重新整理」，群組會標示為「已驗證」。</li>
+            <li>替每校選擇已驗證的群組，按「送測試訊息」確認群組真的收到。</li>
           </ol>
           <p class="field-help">推播會使用官方帳號每月的訊息則數。</p>
         </div>
@@ -142,7 +177,13 @@ onMounted(load)
               @change="(value: string) => assign(target.campus_key, target.campus_name, value || null)"
             >
               <el-option label="不推播" value="" />
-              <el-option v-for="group in activeGroups" :key="group.target_id" :label="groupLabel(group)" :value="group.target_id" />
+              <el-option
+                v-for="group in activeGroups"
+                :key="group.target_id"
+                :label="optionLabel(group)"
+                :value="group.target_id"
+                :disabled="optionDisabled(group, target)"
+              />
             </el-select>
             <el-button
               :loading="testing[target.campus_key]"
@@ -158,6 +199,21 @@ onMounted(load)
       <section class="panel">
         <div class="panel__head"><h2>官方帳號所在的群組</h2></div>
         <div class="panel__body">
+          <div class="verify">
+            <p class="verify__lead">
+              任何人都能把官方帳號拉進自己取名的群組。要選為推播目標的群組，先在群組裡貼一次後台產生的驗證碼，證明群組裡有看得到後台的人。
+            </p>
+            <el-button :loading="generating" :disabled="!data.enabled" data-test="line-generate-code" @click="generateCode">產生驗證碼</el-button>
+            <div v-if="verification" class="verify__code" data-test="line-verification-code" role="status">
+              <code>{{ verification.code }}</code>
+              <span class="group-list__meta">{{ formatDateTime(verification.expires_at) }} 前有效</span>
+              <p class="field-help">把驗證碼貼到要綁定的 LINE 群組，10 分鐘內有效、只能用一次。貼完後按「重新整理」。</p>
+              <div class="verify__actions">
+                <el-button size="small" @click="copyCode">複製驗證碼</el-button>
+                <el-button size="small" type="primary" :loading="loading" @click="load">重新整理</el-button>
+              </div>
+            </div>
+          </div>
           <p v-if="data.groups.length === 0" class="field-help empty">還沒有偵測到任何群組。</p>
           <ul v-else class="group-list">
             <li v-for="group in data.groups" :key="group.target_id" class="group-list__item">
@@ -166,8 +222,12 @@ onMounted(load)
                 <span class="group-list__meta">第一次偵測 {{ formatDateTime(group.first_seen_at) }}</span>
               </div>
               <div class="group-list__status">
-                <el-tag v-if="group.left_at" type="info">已離開</el-tag>
-                <el-tag v-else type="success">在群組中</el-tag>
+                <span class="group-list__tags">
+                  <el-tag v-if="group.left_at" type="info">已離開</el-tag>
+                  <el-tag v-else type="success">在群組中</el-tag>
+                  <el-tag v-if="group.verified_at" type="success" effect="plain">已驗證</el-tag>
+                  <el-tag v-else type="warning" effect="plain">未驗證</el-tag>
+                </span>
                 <span v-if="group.left_at" class="group-list__meta">{{ formatDateTime(group.left_at) }}</span>
               </div>
             </li>
@@ -272,5 +332,51 @@ onMounted(load)
 .group-list__meta {
   color: var(--ink-3);
   font-size: 13px;
+}
+
+.group-list__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.verify {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.verify__lead {
+  margin: 0;
+}
+
+.verify__code {
+  display: grid;
+  gap: 6px;
+}
+
+.verify__code code {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+}
+
+.verify__code .field-help {
+  margin: 0;
+}
+
+.verify__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verify__actions .el-button + .el-button {
+  margin-left: 0;
 }
 </style>

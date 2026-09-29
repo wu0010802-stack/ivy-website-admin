@@ -62,6 +62,20 @@ describe('依 effective_capabilities 判斷權限', () => {
     }
     expect(auditReasonLabel('unsupported_account')).toBe('不是 Gmail 或 Google Workspace 帳號')
   })
+
+  it('登入、登出、帳號鎖與解除外部綁定的稽核動作有中文（2026-09-29）', () => {
+    expect(AUDIT_ACTION_LABELS['user.login_password']).toBe('帳密登入')
+    expect(AUDIT_ACTION_LABELS['user.login_password_failed']).toBe('帳密登入失敗')
+    expect(AUDIT_ACTION_LABELS['user.login_locked']).toBe('帳號密碼登入暫停（連續錯誤）')
+    expect(AUDIT_ACTION_LABELS['user.login_line']).toBe('LINE 登入')
+    expect(AUDIT_ACTION_LABELS['user.login_line_failed']).toBe('LINE 登入失敗')
+    expect(AUDIT_ACTION_LABELS['user.logout']).toBe('登出')
+    expect(AUDIT_ACTION_LABELS['user.clear_external_logins']).toBe('解除外部登入綁定')
+    expect(auditMetadataSummary({ reason: 'wrong_password', context: 'reauth' })).toBe(
+      '原因=密碼錯誤，發生在=變更登入方式前確認密碼',
+    )
+    expect(auditReasonLabel('not_linked')).toBe('沒有綁定這個 LINE 的後台帳號')
+  })
 })
 
 describe('時段與容量', () => {

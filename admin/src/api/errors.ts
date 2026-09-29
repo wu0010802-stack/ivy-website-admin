@@ -23,6 +23,9 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   VISIT_SCHEDULE_VERSION_CONFLICT: '開放規則剛被其他人修改，請重新載入後再編輯',
   MEDIA_VERSION_CONFLICT: '這個素材的說明剛被其他人修改，請重新載入後再編輯',
   RETENTION_POLICY_VERSION_CONFLICT: '保存政策剛被其他人修改，請重新載入後再編輯',
+  LINE_NOT_CONFIGURED: '尚未設定 LINE 官方帳號的 Messaging API 金鑰',
+  LINE_GROUP_UNAVAILABLE: '官方帳號不在這個群組裡，請重新把它拉進群組',
+  LINE_GROUP_UNVERIFIED: '這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 
@@ -66,4 +69,19 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   // 系統錯誤附上錯誤編號（前 8 碼就夠對 log），其他錯誤是使用者自己能處理的。
   if (err.status >= 500 && detail.request_id) return `${message}（錯誤編號 ${detail.request_id.slice(0, 8)}）`
   return message
+}
+
+/** 密碼登入／驗證被擋（429）但不是帳號鎖：來源限流、排隊已滿、系統忙碌。 */
+export const LOGIN_BUSY_MESSAGE = '嘗試太頻繁或系統忙碌，請稍候再試。'
+
+/**
+ * 密碼登入、改密碼、重新驗證共用的 429 文案（後端 reauth.login_rate_limited）。
+ * 只有 LOGIN_LOCKED 才是「這個帳號的密碼暫停 15 分鐘」；LOGIN_RATE_LIMITED（來源
+ * 限流、排隊已滿、限流連線池忙碌）幾秒到幾分鐘就恢復，而且 Google／LINE 登入
+ * 也會被同一個來源限流擋，不能講成帳號被鎖或建議改用。
+ * verb 是「登入」或「驗證」；alternative 是鎖定時的替代做法（沒有就請稍後再試）。
+ */
+export function loginLimitedMessage(err: unknown, options: { verb: '登入' | '驗證'; alternative?: string }): string {
+  if (apiErrorCode(err) !== 'LOGIN_LOCKED') return LOGIN_BUSY_MESSAGE
+  return `密碼錯誤次數過多，這個帳號的密碼${options.verb}暫停 15 分鐘，${options.alternative ?? '請稍後再試'}。`
 }

@@ -165,6 +165,72 @@ describe('我的帳號：LINE 綁定', () => {
   })
 })
 
+describe('我的帳號：變更登入方式前的重新驗證（2026-09-29）', () => {
+  const REAUTH = new ApiError(403, { code: 'REAUTH_REQUIRED', message: '為了安全，請輸入目前的密碼（或重新登入後 10 分鐘內）再變更登入方式' })
+
+  function passwordInput(wrapper: VueWrapper) {
+    const found = wrapper.get('[data-test="reauth-password"]')
+    return found.element.tagName === 'INPUT' ? found : found.get('input')
+  }
+
+  async function confirmWithPassword(wrapper: VueWrapper, password: string) {
+    await passwordInput(wrapper).setValue(password)
+    await wrapper.get('[data-test="reauth-submit"]').trigger('click')
+    await flushPromises()
+  }
+
+  it('綁定 LINE 收到 REAUTH_REQUIRED 時請本人輸入目前的密碼，帶密碼重送', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: true })
+    const post = vi.spyOn(api, 'post').mockRejectedValueOnce(REAUTH).mockResolvedValueOnce({ authorize_url: AUTHORIZE })
+    const assign = vi.spyOn(browser, 'assign').mockImplementation(() => {})
+    const { wrapper } = await mountAt(AccountView, '/account', staff())
+    await wrapper.get('[data-test="line-link"]').trigger('click')
+    await flushPromises()
+    expect(assign).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('為了安全，請輸入目前的密碼')
+    expect(wrapper.text()).toContain('重新登入，10 分鐘內')
+    await confirmWithPassword(wrapper, 'staff-password-123')
+    expect(post).toHaveBeenLastCalledWith('/auth/line/link', { current_password: 'staff-password-123' })
+    expect(assign).toHaveBeenCalledWith(AUTHORIZE)
+  })
+
+  it('密碼錯誤時留在對話框顯示後端訊息，改對後解除 LINE 綁定', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: true })
+    const remove = vi
+      .spyOn(api, 'delete')
+      .mockRejectedValueOnce(REAUTH)
+      .mockRejectedValueOnce(new ApiError(403, { code: 'REAUTH_REQUIRED', message: '目前的密碼不正確' }))
+      .mockResolvedValueOnce(undefined)
+    const { wrapper, auth } = await mountAt(AccountView, '/account', staff({ line_linked: true }))
+    await wrapper.getComponent({ name: 'ElPopconfirm' }).vm.$emit('confirm', new MouseEvent('click'))
+    await flushPromises()
+    expect(remove).toHaveBeenCalledWith('/auth/line/link')
+    await confirmWithPassword(wrapper, 'wrong-password-xx')
+    expect(wrapper.get('[data-test="reauth-error"]').text()).toBe('目前的密碼不正確')
+    expect(auth.user?.line_linked).toBe(true)
+    await confirmWithPassword(wrapper, 'staff-password-123')
+    expect(remove).toHaveBeenLastCalledWith('/auth/line/link', { current_password: 'staff-password-123' })
+    expect(auth.user?.line_linked).toBe(false)
+    expect(wrapper.text()).toContain('已解除 LINE 綁定')
+  })
+
+  it('解除 Google 綁定一樣要重新驗證；帳號鎖定中（429）說明暫停 15 分鐘與替代做法', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ google: true, line: false })
+    const remove = vi
+      .spyOn(api, 'delete')
+      .mockRejectedValueOnce(REAUTH)
+      .mockRejectedValueOnce(new ApiError(429, { code: 'LOGIN_LOCKED', message: '密碼錯誤次數過多，這個帳號的密碼登入暫停 15 分鐘' }))
+    const { wrapper, auth } = await mountAt(AccountView, '/account', staff({ google_linked: true }))
+    await wrapper.get('[data-test="google-unlink"]').trigger('click')
+    await wrapper.getComponent({ name: 'ElPopconfirm' }).vm.$emit('confirm', new MouseEvent('click'))
+    await flushPromises()
+    await confirmWithPassword(wrapper, 'wrong-password-xx')
+    expect(remove).toHaveBeenLastCalledWith('/auth/google/link', { current_password: 'wrong-password-xx' })
+    expect(wrapper.text()).toContain('密碼驗證暫停 15 分鐘')
+    expect(auth.user?.google_linked).toBe(true)
+  })
+})
+
 describe('側欄的帳號入口', () => {
   it('使用者區塊連到我的帳號，所在頁時標示為目前頁面', async () => {
     const { wrapper } = await mountAt(AdminSidebar as unknown as typeof LoginView, '/account', staff())

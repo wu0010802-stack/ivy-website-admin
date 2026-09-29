@@ -270,6 +270,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'site_settings.update': '更新全站設定',
   'line.campus_target.update': '更新 LINE 通知群組',
   'line.test_push': '送出 LINE 測試訊息',
+  'line.verification_code.create': '產生 LINE 群組驗證碼',
+  'line.group.verify': 'LINE 群組完成驗證',
   'user.create': '新增帳號',
   'user.set_active': '變更帳號啟用狀態',
   'user.set_scope': '變更負責校區',
@@ -300,6 +302,13 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.login_google_failed': 'Google 登入失敗',
   'user.link_line': '綁定 LINE 登入',
   'user.unlink_line': '解除 LINE 登入綁定',
+  'user.login_password': '帳密登入',
+  'user.login_password_failed': '帳密登入失敗',
+  'user.login_locked': '帳號密碼登入暫停（連續錯誤）',
+  'user.login_line': 'LINE 登入',
+  'user.login_line_failed': 'LINE 登入失敗',
+  'user.logout': '登出',
+  'user.clear_external_logins': '解除外部登入綁定',
   'visit_schedule.update': '更新每週開放規則',
   'visit_slots.generate': '依規則產生時段',
   'visit_exception.create': '設定休假日',
@@ -317,16 +326,19 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.replace_references': '替換素材並產生草稿',
   'media.import_site_assets': '匯入官網內建素材',
   'media.regenerate_variants': '重新產生素材縮圖與大圖',
+  'media.strip_metadata': '去除素材原檔的拍攝資訊',
 }
 
 export function auditActionLabel(action: string): string {
   return AUDIT_ACTION_LABELS[action] ?? action
 }
 
-// 稽核紀錄 metadata 裡的 reason 代碼（目前是 Google 登入失敗的原因）。
+// 稽核紀錄 metadata 裡的 reason 代碼（Google／LINE／帳密登入失敗的原因等）。
 export const AUDIT_REASON_LABELS: Record<string, string> = {
   cancelled: '使用者取消',
-  provider_error: 'Google 回傳錯誤',
+  provider_error: '登入服務（Google／LINE）回傳錯誤',
+  wrong_password: '密碼錯誤',
+  not_linked: '沒有綁定這個 LINE 的後台帳號',
   failed: '驗證未完成或逾時',
   unverified_email: 'Google 帳號 Email 未驗證',
   unsupported_account: '不是 Gmail 或 Google Workspace 帳號',
@@ -342,6 +354,13 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
 
 export function auditReasonLabel(reason: string): string {
   return AUDIT_REASON_LABELS[reason] ?? reason
+}
+
+// 帳密登入失敗發生在哪裡（user.login_password_failed 的 metadata.context）。
+export const AUDIT_CONTEXT_LABELS: Record<string, string> = {
+  login: '登入頁',
+  reauth: '變更登入方式前確認密碼',
+  change_password: '變更自己的密碼',
 }
 
 // 案件歷程（後端 visit_request_events.event_type）。
@@ -394,6 +413,8 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   visit_exception: '休假日',
   visit_slot: '參觀時段',
   retention_policy: '個資保存政策',
+  line_group: 'LINE 群組',
+  line_verification_code: 'LINE 群組驗證碼',
 }
 
 // 個資保存政策會清理的案件類別（後端 retention_service.CATEGORIES）。
@@ -857,6 +878,7 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
     })
     .map(([key, value]) => {
       if (key === 'reason') return `原因=${auditReasonLabel(String(value))}`
+      if (key === 'context') return `發生在=${AUDIT_CONTEXT_LABELS[String(value)] ?? String(value)}`
       // 改角色時一併收回的授權（例如分校管理者降為櫃台收回匯出個資）。
       if (key === 'capabilities_removed' && Array.isArray(value)) return `因改角色收回授權：${grantLabels(value)}`
       if (Array.isArray(value) || key === 'role') return `${AUDIT_FIELD_LABELS[key] ?? key}：${auditValueLabel(key, value)}`

@@ -7,6 +7,7 @@ import ElementPlus from 'element-plus'
 import CampusTourView from '../views/CampusTourView.vue'
 import { ApiError, api, setUnauthorizedHandler } from '../api/client'
 import { landingPath, NAV_GROUPS, navItem } from '../router/nav'
+import { redirectToLoginOnUnauthorized } from '../router/unauthorized'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -72,13 +73,8 @@ describe('全域 401 處理', () => {
     await router.push('/media')
     await router.isReady()
 
-    setUnauthorizedHandler(() => {
-      if (!authStore.user) return
-      authStore.clearSession()
-      const current = router.currentRoute.value
-      if (current.name === 'login') return
-      void router.replace({ name: 'login', query: { redirect: current.fullPath } })
-    })
+    // 跟 main.ts 註冊的是同一個處理函式。
+    setUnauthorizedHandler(redirectToLoginOnUnauthorized(router))
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ detail: '未登入' }), { status: 401 }) as never,
