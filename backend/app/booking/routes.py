@@ -424,6 +424,26 @@ async def create_visit_request(
             detail={"code": "BOT_CHECK_FAILED", "message": "請完成機器人驗證後再送出"},
         ) from exc
 
+    async def _late_replay() -> VisitRequestOut | None:
+        # 同一把 key 的併發重送：開頭不上鎖的重播查詢時，另一個請求還沒 commit；
+        # 等走到下面的上限時那筆已經建立、額度也記上了。擋下前再查一次，已經建立
+        # 就回原收據（200），連點的家長不會看到「送出次數過多」。
+        try:
+            replay = await service.find_replay(
+                db, campus_key=payload.campus_key, idempotency_key=idempotency_key, payload=body, hash_key=hash_key
+            )
+        except _SUBMIT_ERRORS as exc:
+            await db.rollback()
+            raise _submit_error(exc) from exc
+        # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
+        out = None if replay is None else VisitRequestOut(
+            receipt_id=replay.id, status=replay.status, created_at=replay.created_at
+        )
+        await db.rollback()
+        if out is not None:
+            response.status_code = status.HTTP_200_OK
+        return out
+
     # 手機桶只對「真的新建了一筆」計數：這裡只看不記（早一點擋掉明顯超量的），
     # commit 之後才記。不能在這裡就原子地扣：同一個 Idempotency-Key 的併發重送
     # （使用者連點、前端逾時重送）都還查不到既有案件，會一起把額度扣光而收到
@@ -431,6 +451,8 @@ async def create_visit_request(
     # service.submit_visit_request 的 phone_limit）。
     phone_key = f"{payload.campus_key}:{payload.phone}"
     if await limiter.is_limited(SUBMIT_LIMIT_BY_PHONE, phone_key):
+        if (late := await _late_replay()) is not None:
+            return late
         # is_limited 不回剩餘秒數，Retry-After 給整個窗口（保守上限）。
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -448,6 +470,8 @@ async def create_visit_request(
         try:
             await limiter.check(hold_limit, ratelimit.client_key(request))
         except ratelimit.RateLimited as exc:
+            if (late := await _late_replay()) is not None:
+                return late
             raise _rate_limited(
                 exc, "BOOKING_LIMIT", "這個網路近 24 小時送出的時段預約已達上限，請稍後再試，或直接來電洽詢園所"
             ) from exc
@@ -457,6 +481,8 @@ async def create_visit_request(
                 SUBMIT_LIMIT_BY_SOURCE_CAMPUS, f"{ratelimit.client_key(request)}:{payload.campus_key}"
             )
         except ratelimit.RateLimited as exc:
+            if (late := await _late_replay()) is not None:
+                return late
             raise _rate_limited(
                 exc, "BOOKING_LIMIT", "這個網路近一小時送出的預約次數過多，請稍後再試，或直接來電洽詢園所"
             ) from exc
@@ -464,6 +490,8 @@ async def create_visit_request(
     try:
         await limiter.check(campus_limit, payload.campus_key)
     except ratelimit.RateLimited as exc:
+        if (late := await _late_replay()) is not None:
+            return late
         logger.warning("校區 %s 官網送單達每小時上限，暫停收件 %s 秒", payload.campus_key, exc.retry_after_seconds)
         raise _rate_limited(
             exc, "BOOKING_LIMIT", "這個校區目前線上預約人數較多，請稍後再試，或直接來電洽詢園所"

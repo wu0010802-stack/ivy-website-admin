@@ -513,6 +513,40 @@ async def test_concurrent_retry_of_the_last_allowed_submission_is_a_replay(app, 
     assert len({r.json()["receipt_id"] for r in responses}) == 1
 
 
+@pytest.mark.asyncio
+async def test_retry_that_missed_the_first_replay_lookup_is_not_rate_limited(
+    app, admin_client, public_client, monkeypatch
+):
+    """上面那個併發情境的確定性版本（CI run 36562527040 曾撞到）：重送做第一次
+    不上鎖的重播查詢時，另一個請求還沒 commit；等它走到手機桶預檢，那筆已經建立、
+    手機額度也記滿了。擋下前要再查一次重播，回原收據（200），不是 429。"""
+    version = await _enable(admin_client, "inquiry")
+    for i in range(4):
+        response = await public_client.post(
+            SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": f"miss-{i}"}
+        )
+        assert response.status_code == 201, response.text
+    created = await public_client.post(
+        SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
+    )
+    assert created.status_code == 201, created.text
+
+    real_find_replay = service.find_replay
+    calls = 0
+
+    async def first_lookup_misses(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return None if calls == 1 else await real_find_replay(*args, **kwargs)
+
+    monkeypatch.setattr(service, "find_replay", first_lookup_misses)
+    retry = await public_client.post(
+        SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
+    )
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["receipt_id"] == created.json()["receipt_id"]
+
+
 # ------------------------------------------------------------ public slots
 @pytest.mark.asyncio
 async def test_public_slots_uses_constant_number_of_queries(app, admin_client, public_client):
