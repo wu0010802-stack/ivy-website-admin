@@ -27,6 +27,10 @@
 .np-event-date{flex:none;width:44px;text-align:center;line-height:1.2}
 .np-event-date b{display:block;font-family:var(--font-head);font-size:30px}
 .np-event-date span{font-size:10px;letter-spacing:.1em}
+/* 示意活動的日期格寫「示意／日期未定」（2026-09-29，比照 NewsDialog）：中文不用上面 10px 的英文月份字級。 */
+.np-event-date.is-sample{width:auto;min-width:44px;display:grid;align-content:start;gap:2px}
+.np-event-date.is-sample b{font:600 var(--fs-md)/1.2 var(--font);letter-spacing:.04em}
+.np-event-date.is-sample span{font-size:var(--fs-xs);letter-spacing:0;white-space:nowrap}
 .np-event-copy{min-width:0}
 .np-event-copy h3{margin-top:6px;font-size:var(--fs-lg);line-height:1.55}
 .np-event-copy > p:not(.np-meta){margin-top:8px;font-size:var(--fs-sm);line-height:1.85}
@@ -39,7 +43,9 @@
 .np-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;font-size:var(--fs-xs);letter-spacing:.025em;color:var(--ivy-news-muted)}
 .np-meta > span:first-child{font-weight:600;color:var(--ivy-news-green)}
 .np-row-copy .np-meta{justify-content:flex-start}
-.np-row h3{margin-top:8px;font-size:var(--fs-xl);line-height:1.6;text-wrap:pretty}
+/* 列表標題與單篇 h1 沿用全域 h1–h3 的 text-wrap:balance：pretty 在手機會留單字孤行（「…種進生活 / 裡。」）；
+   也不加 keep-all，沒有中間標點的標題會把句號擠到下一行（2026-09-29）。 */
+.np-row h3{margin-top:8px;font-size:var(--fs-xl);line-height:1.6}
 /* 整列可點：連結的點擊範圍撐滿整列，但只有標題是連結文字（讀屏只念一次）。 */
 .np-row h3 a{color:inherit;text-decoration:none}
 .np-row h3 a::after{content:'';position:absolute;inset:0}
@@ -53,7 +59,7 @@
 
 /* ---------- 單篇頁 ---------- */
 .np-article{margin-top:32px}
-.np-article h1{margin-top:12px;font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.5;letter-spacing:.015em;text-wrap:pretty;color:var(--ivy-news-green)}
+.np-article h1{margin-top:12px;font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.5;letter-spacing:.015em;color:var(--ivy-news-green)}
 .np-article .np-sample-note{margin-top:20px}
 .np-cover{display:block;width:100%;height:auto;max-height:480px;margin-top:28px;object-fit:cover;border-radius:12px}
 .np-article-copy{margin-top:28px;font-size:var(--fs-md);line-height:2}

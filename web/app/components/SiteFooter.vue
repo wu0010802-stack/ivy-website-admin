@@ -89,6 +89,9 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
 
 @media (max-width: 760px) {
   .footer-links { grid-column: 1 / -1; }
+  /* 手機改 flex 換行（2026-09-29）：字放大到一列放不下時，電話自己換到下一行，不會溢出深綠底。
+     五校校名、區域都是三個字，一般字級下看起來仍是三欄對齊。 */
+  .footer-campuses li { display: flex; flex-wrap: wrap; align-items: center; column-gap: 16px; }
 }
 
 @media (forced-colors: active) {

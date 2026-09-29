@@ -30,12 +30,30 @@ function schedule() {
   if (!frame) frame = requestAnimationFrame(measure)
 }
 
+// 指示只在 1101px 以上顯示（CSS 同一個斷點）；更窄時連捲動監聽都不掛，手機捲動不跑 elementFromPoint。
+// 視窗跨過斷點靠 change 事件重新綁定。
+let wide: MediaQueryList | null = null
+function bind() {
+  window.removeEventListener('scroll', schedule)
+  window.removeEventListener('resize', schedule)
+  if (wide?.matches) {
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule, { passive: true })
+    schedule()
+  } else {
+    cancelAnimationFrame(frame)
+    frame = 0
+    shown.value = false
+  }
+}
+
 onMounted(() => {
-  window.addEventListener('scroll', schedule, { passive: true })
-  window.addEventListener('resize', schedule, { passive: true })
-  schedule()
+  wide = window.matchMedia('(min-width: 1101px)')
+  wide.addEventListener('change', bind)
+  bind()
 })
 onBeforeUnmount(() => {
+  wide?.removeEventListener('change', bind)
   window.removeEventListener('scroll', schedule)
   window.removeEventListener('resize', schedule)
   cancelAnimationFrame(frame)

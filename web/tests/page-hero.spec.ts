@@ -18,10 +18,11 @@ describe('內頁 hero 的 sizes', () => {
     expect(attrs.srcset).toBeTruthy()
   })
 
-  it('常數與 admission.css 760px 以下的照片高度一致', () => {
+  // 2026-09-29：手機照片帶改成 clamp(300px, 56svh, 500px)，矮螢幕首屏才看得到標題；常數是上限，sizes 照最高的帶算
+  it('常數與 admission.css 760px 以下的照片高度上限一致', () => {
     const css = read('../app/assets/css/admission.css')
     const mobile = css.slice(css.indexOf('@media (max-width: 760px)'))
-    expect(mobile).toMatch(new RegExp(`\\.adm-hero-photo \\{[^}]*height: ${PAGE_HERO_MOBILE_HEIGHT}px`))
+    expect(mobile).toMatch(new RegExp(`\\.adm-hero-photo \\{[^}]*height: clamp\\([^)]*${PAGE_HERO_MOBILE_HEIGHT}px\\)`))
   })
 
   it('頁面 <img> 與預載都用 pageHeroImage（sizes 不一致會多下載一張）', () => {
@@ -51,7 +52,7 @@ describe('內頁 hero 的 sizes', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)')
     expect(read('../app/components/CurriculumContent.vue')).toContain('v-bind="responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)"')
     // 橫幅照片（2000×803）被裁成直一點的框，需要的寬度是「框高 × 寬高比」，不是框寬
-    expect(CURRICULUM_HERO_SIZES).toMatch(/^\(max-width: 900px\) \d+vw, \d+px$/)
+    expect(CURRICULUM_HERO_SIZES).toMatch(/^\(max-width: 900px\) (\d+vw|calc\(\(100vw - \d+px\) \* [\d.]+\)), \d+px$/)
   })
 
   it('找不到素材時退回 100vw、不丟例外', () => {

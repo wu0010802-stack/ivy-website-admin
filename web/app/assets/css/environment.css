@@ -256,6 +256,13 @@ body:has(.renv){background:var(--ivy-ivory)}
   .renv-book{padding-left:4%}
   .renv-book-note{font-size:var(--fs-md)}
 }
+/* 360 以下（小手機、Android 放大顯示）：標題第二行 9 個字，「大。」會被擠成獨立一行（下限用 rem，放大字級時仍會變大）；
+   書封與便條只隔約 4px，紅筆箭頭縮成一小段、蓋在書封的「9 月」上，只藏這支裝飾箭頭
+   （用 visibility 不用 display:none：描線進場要量 path 長度，不渲染的 path 在部分瀏覽器量不到） */
+@media (width<360px){
+  .renv-hero h1{font-size:clamp(1.5rem,8.8vw,2.05rem)}
+  .renv-book>svg.rough[data-key="bookarrow"]{visibility:hidden}
+}
 @media (prefers-reduced-motion:reduce){
   .renv *,.renv *::before,.renv *::after{transition:none !important}
 }
