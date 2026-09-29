@@ -137,6 +137,6 @@ describe('孩子年齡、方便聯絡時段顯示', () => {
     expect(contactTimeLabel('weekday_afternoon')).toBe('平日下午')
     expect(ageLabel('under_2')).toBe('2 歲以下')
     expect(contactTimeLabel('平日上午')).toBe('平日上午')
-    expect(contactTimeLabel(null)).toBe('—')
+    expect(contactTimeLabel(null)).toBe('未填寫')
   })
 })

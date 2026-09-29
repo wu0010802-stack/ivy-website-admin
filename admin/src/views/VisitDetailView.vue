@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Phone } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
 import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffLabel, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
+import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
 import StatusTag from '../components/StatusTag.vue'
@@ -29,15 +30,23 @@ const selectedSlotId = ref('')
 // 已確認案件改期：選新場次、原因選填（記在案件歷程）。
 const rescheduleSlotId = ref('')
 const rescheduleReason = ref('')
+// 家長已經申請改期時，該做的是核准或退回；手動改期先收起來，要用再展開。
+const manualRescheduleOpen = ref(false)
+const rescheduleSelect = ref<{ focus: () => void } | null>(null)
+const rescheduleTitle = ref<HTMLElement | null>(null)
 const newNote = ref('')
 // 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
 // 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
 const noteInput = ref<{ focus: () => void } | null>(null)
-// 同校還在「待處理」的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
-const nextPending = ref<{ id: string; count: number } | null>(null)
-const busy = ref(false)
+// 同校還沒處理完的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
+const nextQueue = ref<{ id: string; held: number; fresh: number; heldMore: boolean; freshMore: boolean } | null>(null)
+// 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
+// 不會讓人以為自己按到了別顆。
+type DetailAction = 'contacting' | 'confirm' | 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note' | RescheduleAction
+const pendingAction = ref<DetailAction | null>(null)
+const busy = computed(() => pendingAction.value !== null)
 const rebookOpen = ref(false)
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 const loading = ref(true)
@@ -53,6 +62,13 @@ const assignable = computed(() =>
   ),
 )
 const assigning = ref(false)
+
+// 打好還沒按「新增紀錄」的聯絡紀錄：返回、下一筆、側欄換頁前都先問，
+// 不然同事接手時看不到這段聯絡過程。處理中（例如正在新增紀錄）先請使用者稍候。
+const noteDirty = computed(() => canHandle.value && newNote.value.trim() !== '')
+const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
+// 「下一筆」只換 :id，不會觸發離頁守衛，要另外攔。
+onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? confirmLeave() : true))
 
 async function assign(staffId: string | null) {
   if (!detail.value) return
@@ -72,7 +88,7 @@ async function assign(staffId: string | null) {
 }
 const error = ref<string | null>(null)
 
-// 「下一筆待處理」換 id 時元件不重新掛載：換案件就加一，舊案件較晚回來的
+// 「下一筆」換 id 時元件不重新掛載：換案件就加一，舊案件較晚回來的
 // 回應不能蓋掉畫面（否則畫面是家長 A、送出卻寫到案件 B）。
 let generation = 0
 
@@ -95,13 +111,20 @@ async function load(options: { quiet?: boolean } = {}) {
   if (!options.quiet) loading.value = true
   error.value = null
   try {
-    const loaded = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${requestId}`)
-    const loadedNotes = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${requestId}/contact-notes`)
+    // 案件與聯絡紀錄互不相依，一起送出，手機網路少等一次往返。兩個都等回來
+    // 再看結果：案件本身讀不到（例如找不到）優先說明，不被聯絡紀錄的錯誤蓋掉。
+    const [caseResult, notesResult] = await Promise.allSettled([
+      api.get<VisitRequestFullOut>(`/admin/visit-requests/${requestId}`),
+      api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${requestId}/contact-notes`),
+    ])
+    if (caseResult.status === 'rejected') throw caseResult.reason
+    if (notesResult.status === 'rejected') throw notesResult.reason
     if (gen !== generation) return
+    const loaded = caseResult.value
     detail.value = loaded
-    notes.value = loadedNotes
+    notes.value = notesResult.value
     if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
-    void loadNextPending(loaded.campus_key)
+    void loadNextCases(loaded.campus_key)
     // 排入時段（新需求、聯絡中）與改期（已確認）都從同校未來 60 天的時段挑。
     let slots: VisitSlotOut[] = []
     if (['new', 'contacting', 'confirmed'].includes(loaded.status)) {
@@ -133,18 +156,66 @@ async function refreshDetail() {
   }
 }
 
-async function loadNextPending(campusKey: string) {
+// 下一筆的清單上限；回傳剛好這麼多筆時，件數寫「N+」，不假裝是全部。
+const NEXT_LIMIT = 100
+
+// 確認期限：沒有期限的排在最後。
+function holdTime(request: VisitRequestDetailOut): number {
+  const at = request.hold_expires_at ? Date.parse(request.hold_expires_at) : Number.NaN
+  return Number.isNaN(at) ? Number.POSITIVE_INFINITY : at
+}
+
+// 下一筆的順序：待園方確認有期限（逾期名額會釋出），排在前面、期限最早的先；
+// 再來是待處理，最早送出的先。後端列表只能依送出時間排序，確認期限在這裡排。
+async function loadNextCases(campusKey: string) {
   const gen = generation
+  const fetchStatus = (status: string) =>
+    api.get<VisitRequestDetailOut[]>(
+      `/admin/visit-requests?${new URLSearchParams({ status, campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
+    )
   try {
-    const params = new URLSearchParams({ status: 'new', campus_key: campusKey, order: 'oldest', page_size: '50' })
-    const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
+    const [held, fresh] = await Promise.all([fetchStatus('pending_confirmation'), fetchStatus('new')])
     if (gen !== generation) return
-    const others = Array.isArray(list) ? list.filter((r) => r.id !== id.value) : []
-    nextPending.value = others.length ? { id: others[0]!.id, count: others.length } : null
+    const others = (list: unknown) => (Array.isArray(list) ? (list as VisitRequestDetailOut[]) : []).filter((r) => r.id !== id.value)
+    // 期限已過、系統還沒來得及取消的待確認（排程約一分鐘跑一次）已經不能確認，不排進下一筆。
+    const now = Date.now()
+    const heldOthers = others(held).filter((r) => holdTime(r) > now).sort((a, b) => {
+      const x = holdTime(a)
+      const y = holdTime(b)
+      return x === y ? 0 : x < y ? -1 : 1
+    })
+    const freshOthers = others(fresh)
+    const first = heldOthers[0] ?? freshOthers[0]
+    nextQueue.value = first
+      ? {
+          id: first.id,
+          held: heldOthers.length,
+          fresh: freshOthers.length,
+          heldMore: Array.isArray(held) && held.length >= NEXT_LIMIT,
+          freshMore: Array.isArray(fresh) && fresh.length >= NEXT_LIMIT,
+        }
+      : null
   } catch {
-    if (gen === generation) nextPending.value = null
+    if (gen === generation) nextQueue.value = null
   }
 }
+
+// 按鈕上寫清楚算的是什麼：同校、待確認幾件、待處理幾件（不含這一筆）。
+const nextLabel = computed(() => {
+  const q = nextQueue.value
+  if (!q) return ''
+  const parts = [
+    q.held ? `待確認 ${q.held}${q.heldMore ? '+' : ''}` : '',
+    q.fresh ? `待處理 ${q.fresh}${q.freshMore ? '+' : ''}` : '',
+  ].filter(Boolean)
+  return `下一筆（${parts.join('・')}）`
+})
+
+const nextTitle = computed(() => {
+  const q = nextQueue.value
+  if (!q || !detail.value) return ''
+  return `${campusLabel(detail.value.campus_key)}還有待園方確認 ${q.held} 件、待處理 ${q.fresh} 件（不含這一筆）；確認期限最早的排最前面`
+})
 
 function reportError(err: unknown, fallback: string) {
   if (isVersionConflict(err)) {
@@ -163,9 +234,10 @@ const openSlots = computed(() =>
 )
 const rescheduleSlots = computed(() => openSlots.value.filter((s) => s.id !== detail.value?.slot_id))
 
+// 名額以「組家庭」計，一組幾個人都只占一個名額。
 function slotLabel(slot: VisitSlotOut): string {
   const left = slot.capacity - slot.booked_count
-  return `${formatSlotWhen(slot)}，剩 ${left} 位`
+  return `${formatSlotWhen(slot)}，剩 ${left} 組`
 }
 
 async function confirm() {
@@ -188,7 +260,7 @@ async function confirm() {
   } catch {
     return
   }
-  busy.value = true
+  pendingAction.value = 'confirm'
   try {
     await api.post(`/admin/visit-requests/${id.value}/confirm`, { slot_id: slot.id })
     ElMessage.success(`已確認，參觀時間 ${formatSlotWhen(slot)}。記得告知家長。`)
@@ -202,26 +274,36 @@ async function confirm() {
   } catch (err) {
     reportError(err, '確認失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
+// 還沒排時段（待處理、聯絡中）只是「參觀需求」，不叫預約；只有排了場次的才是
+// 「取消預約」。案件狀態、按鈕、對話框與歷程用同一組詞。
+const cancelsRequest = computed(() => detail.value?.status === 'new' || detail.value?.status === 'contacting')
+
 async function cancel() {
+  const request = cancelsRequest.value
+  const released = detail.value?.status === 'pending_confirmation' ? '家長選的場次名額會釋出。' : detail.value?.status === 'confirmed' ? '原參觀時段的名額會釋出。' : ''
   let reason: string | null = null
   try {
-    const result = await ElMessageBox.prompt('取消後家長需要重新送出需求才能再預約。', '取消這筆預約？', {
-      confirmButtonText: '取消預約',
-      cancelButtonText: '先不要',
-      inputPlaceholder: '取消原因（選填，會記在案件歷程）',
-      inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
-      type: 'warning',
-    })
+    const result = await ElMessageBox.prompt(
+      `${released}案件會結案；家長之後想再約，可以在這一頁用「重新預約（另建新案）」接續，不必請家長重新送出。`,
+      request ? '取消這筆參觀需求？' : '取消這筆預約？',
+      {
+        confirmButtonText: request ? '取消需求' : '取消預約',
+        cancelButtonText: '先不要',
+        inputPlaceholder: '取消原因（選填，會記在案件歷程）',
+        inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
+        type: 'warning',
+      },
+    )
     const value = (result as { value?: string }).value ?? ''
     reason = value.trim() || null
   } catch {
     return
   }
-  busy.value = true
+  pendingAction.value = 'cancel'
   try {
     await api.post(`/admin/visit-requests/${id.value}/cancel`, { reason })
     ElMessage.success('已取消')
@@ -230,7 +312,7 @@ async function cancel() {
   } catch (err) {
     reportError(err, '取消失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
@@ -244,7 +326,7 @@ async function markNoShow() {
   } catch {
     return
   }
-  busy.value = true
+  pendingAction.value = 'no_show'
   try {
     await api.post(`/admin/visit-requests/${id.value}/no-show`)
     ElMessage.success('已標記未到場')
@@ -254,19 +336,28 @@ async function markNoShow() {
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
 // 參觀時段開始後才出現「完成參觀」與「標記未到場」（後端也會拒絕）：兩者都會
 // 保留這一場的名額，提早按下去未來那一場就永遠排不進人；家長事先說不來要取消。
-// 櫃台常開著案件頁等家長來，時間每 30 秒重算一次，場次一開始按鈕就出現。
+// 櫃台常開著案件頁等家長來，時間每 30 秒重算一次，場次一開始按鈕就出現；
+// 待確認的「還剩多久」、下次聯絡是否已過也跟著這個時鐘更新。
 const clockNow = ref(Date.now())
 const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
 onBeforeUnmount(() => window.clearInterval(clock))
 const visitStarted = computed(() => {
   const slot = detail.value?.slot
   return slot ? slotStarted(slot, clockNow.value) : false
+})
+
+// 待確認的占位過了期限：後端不會再接受確認，系統排程會自動取消並釋出名額。
+const holdExpired = computed(() => {
+  const at = detail.value?.status === 'pending_confirmation' ? detail.value.hold_expires_at : null
+  if (!at) return false
+  const expires = Date.parse(at)
+  return !Number.isNaN(expires) && expires <= clockNow.value
 })
 
 async function markContacting() {
@@ -282,7 +373,7 @@ async function markContacting() {
       return
     }
   }
-  busy.value = true
+  pendingAction.value = 'contacting'
   try {
     await api.post(`/admin/visit-requests/${id.value}/contacting`)
     ElMessage.success(returning ? '已退回聯絡中，名額已釋出' : '已標為聯絡中')
@@ -295,8 +386,17 @@ async function markContacting() {
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
+}
+
+// 展開手動改期時，按下的連結會被表單換掉；把焦點移進表單（能選時段就放在
+// 時段選單，沒有時段可選就放在標題），鍵盤與報讀軟體才知道表單出現在哪裡。
+async function openManualReschedule() {
+  manualRescheduleOpen.value = true
+  await nextTick()
+  if (rescheduleSlots.value.length > 0 && rescheduleSelect.value) rescheduleSelect.value.focus()
+  else rescheduleTitle.value?.focus()
 }
 
 async function reschedule() {
@@ -315,7 +415,7 @@ async function reschedule() {
   } catch {
     return
   }
-  busy.value = true
+  pendingAction.value = 'reschedule'
   try {
     await api.post(`/admin/visit-requests/${id.value}/reschedule`, {
       new_slot_id: target.id,
@@ -324,6 +424,7 @@ async function reschedule() {
     ElMessage.success(`已改到 ${formatSlotWhen(target)}。記得告知家長。`)
     rescheduleSlotId.value = ''
     rescheduleReason.value = ''
+    manualRescheduleOpen.value = false
     // 家長先前的改期申請在直接改期時失效，側欄的待核准數要一起更新。
     openRequests.refresh(true)
     await load({ quiet: true })
@@ -333,7 +434,7 @@ async function reschedule() {
     // 名額或時段可能剛被別人用掉，重讀一次讓選單反映現況。
     await load({ quiet: true })
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
@@ -342,7 +443,7 @@ async function decideReschedule(action: RescheduleAction) {
   if (!request) return
   const decision = await confirmRescheduleDecision(request, action)
   if (!decision) return
-  busy.value = true
+  pendingAction.value = action
   try {
     await submitRescheduleDecision(request.id, action, decision.reason)
     ElMessage.success(action === 'approve' ? `已核准，改到 ${formatSlotWhen(request.requested_slot)}。記得告知家長。` : '已退回改期申請，家長維持原時段')
@@ -352,17 +453,19 @@ async function decideReschedule(action: RescheduleAction) {
     reportError(err, '操作失敗')
     await load({ quiet: true })
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
-function onRebooked(created: VisitRequestDetailOut) {
+async function onRebooked(created: VisitRequestDetailOut) {
   openRequests.refresh(true)
-  router.push(`/visit-requests/${created.id}`)
+  const failure = await router.push(`/visit-requests/${created.id}`)
+  // 紀錄框還有沒新增的紀錄、使用者選擇留在這頁：新案件已經建好了，告訴他之後去哪裡開。
+  if (failure) ElMessage.info('新案件已建立，記完這筆紀錄後可以到參觀案件列表開啟')
 }
 
 async function markCompleted() {
-  busy.value = true
+  pendingAction.value = 'complete'
   try {
     await api.post(`/admin/visit-requests/${id.value}/complete`)
     ElMessage.success('已標記完成參觀')
@@ -371,19 +474,19 @@ async function markCompleted() {
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
 async function addNote() {
   // 畫面上的案件（detail）才是要寫的那一筆；還在載入下一筆時不送。
-  if (!newNote.value.trim() || !detail.value || detail.value.id !== id.value) return
+  if (!newNote.value.trim() || !detail.value || detail.value.id !== id.value || busy.value) return
   const gen = generation
   const current = detail.value
   const nextFollowUp = followUpAt.value || null
   // 改或清下次聯絡時間會蓋掉案件上的值，要帶版本；沒動就只記一筆紀錄。
   const followUpChanged = !sameInstant(nextFollowUp, current.follow_up_at)
-  busy.value = true
+  pendingAction.value = 'note'
   try {
     await api.post(`/admin/visit-requests/${current.id}/contact-notes`, {
       note: newNote.value.trim(),
@@ -400,25 +503,47 @@ async function addNote() {
   } catch (err) {
     reportError(err, '新增紀錄失敗')
   } finally {
-    busy.value = false
+    pendingAction.value = null
   }
 }
 
+// 上一頁是案件列表（保留篩選與捲動位置）才用瀏覽器返回；從通知連結、登入頁
+// 或別的頁面進來時，返回會回到不相干的地方，改成直接開案件列表。
+function cameFromVisitList(): boolean {
+  const back = (router.options.history.state as { back?: unknown } | null)?.back
+  if (typeof back !== 'string') return false
+  const path = back.split(/[?#]/)[0]!.replace(/\/+$/, '')
+  return path === '/visit-requests'
+}
+
 function goBack() {
-  if (window.history.length > 1) router.back()
+  if (cameFromVisitList()) router.back()
   else router.push('/visit-requests')
 }
 
+// 用 replace：一筆接一筆處理完，按返回直接回列表，不必一筆筆倒退。
 function goNext() {
-  if (nextPending.value) router.push(`/visit-requests/${nextPending.value.id}`)
+  if (nextQueue.value) router.replace(`/visit-requests/${nextQueue.value.id}`)
 }
+
+// 會列進總覽「到期待追蹤」的案件：與後端同一個定義，已取消、已完成的不算
+// （結案不會清掉下次聯絡時間，所以不能只看時間）。
+const followUpTracked = computed(() => !!detail.value && !['cancelled', 'completed'].includes(detail.value.status))
 
 // 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
 const followUpDue = computed(() => {
   const at = detail.value?.follow_up_at
-  if (!at) return false
-  const open = detail.value?.status !== 'cancelled' && detail.value?.status !== 'completed'
-  return open && new Date(at).getTime() <= Date.now()
+  if (!at || !followUpTracked.value) return false
+  return new Date(at).getTime() <= Date.now()
+})
+
+// 紀錄框旁預填的下次聯絡已經過了：不動就沿用（測試規範），但提醒送出後
+// 這筆仍會留在「到期待追蹤」。已確認的案件也可能是刻意設的提醒，只提示不擋；
+// 已取消、已完成的不會列進去，不提示。
+const followUpPast = computed(() => {
+  if (!followUpAt.value || !followUpTracked.value) return false
+  const at = Date.parse(followUpAt.value)
+  return !Number.isNaN(at) && at <= clockNow.value
 })
 
 // 日期選擇器不給過去的時間：「下次聯絡」記在昨天沒有意義。
@@ -428,21 +553,37 @@ function disablePast(date: Date): boolean {
   return date.getTime() < today.getTime()
 }
 
+// 家長常說「明天再打」「過幾天」「下週」：一鍵帶入，時間都放上午 10 點。
+function daysLaterAtTen(days: number): Date {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  date.setHours(10, 0, 0, 0)
+  return date
+}
+
+const followUpShortcuts = [
+  { text: '明天 10:00', value: () => daysLaterAtTen(1) },
+  { text: '3 天後', value: () => daysLaterAtTen(3) },
+  // 週日按「下週一」是明天；週一按是七天後。
+  { text: '下週一', value: () => daysLaterAtTen((8 - new Date().getDay()) % 7 || 7) },
+]
+
 onMounted(() => {
   load()
   void loadStaff()
 })
-// 「下一筆待處理」是同一個元件換 id，router 不會重新掛載。
+// 「下一筆」是同一個元件換 id，router 不會重新掛載。
 watch(id, () => {
   generation += 1
   detail.value = null
   notes.value = []
-  nextPending.value = null
+  nextQueue.value = null
   newNote.value = ''
   followUpAt.value = null
   selectedSlotId.value = ''
   rescheduleSlotId.value = ''
   rescheduleReason.value = ''
+  manualRescheduleOpen.value = false
   load()
 })
 
@@ -450,14 +591,17 @@ watch(id, () => {
 const linkApplicable = computed(() =>
   ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.value?.status ?? ''),
 )
+
+// 官網送出的才是家長自己填的；園方補登的是櫃台代填。
+const isWebCase = computed(() => !detail.value?.source || detail.value.source === 'web')
 </script>
 
 <template>
   <div class="page detail">
     <div class="detail__nav">
       <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">參觀案件</el-button>
-      <el-button v-if="nextPending" text class="detail__next" @click="goNext">
-        下一筆待處理（還有 {{ nextPending.count }} 件）<el-icon><ArrowRight /></el-icon>
+      <el-button v-if="nextQueue" text class="detail__next" :title="nextTitle" @click="goNext">
+        {{ nextLabel }}<el-icon><ArrowRight /></el-icon>
       </el-button>
     </div>
 
@@ -482,24 +626,28 @@ const linkApplicable = computed(() =>
         </div>
         <StatusTag :meta="visitStatus(detail.status)" size="large" />
       </div>
+      <!-- 手機處理面板排在最前面，電話會被擠到下面；打電話是處理案件的第一步，頁首直接給一顆撥號鈕。 -->
+      <el-button tag="a" :href="`tel:${detail.phone}`" type="primary" plain :icon="Phone" class="detail__call">
+        撥電話給家長 {{ detail.phone }}
+      </el-button>
 
       <div class="detail__grid">
         <div class="detail__main">
           <div class="panel">
-            <div class="panel__head"><h2>家長填寫的資料</h2></div>
-            <el-descriptions :column="1" border label-width="120" class="detail__desc">
+            <div class="panel__head"><h2>{{ isWebCase ? '家長填寫的資料' : '案件資料' }}</h2></div>
+            <el-descriptions :column="1" border label-width="128" class="detail__desc">
               <el-descriptions-item label="電話">
-                <a :href="`tel:${detail.phone}`" class="num">{{ detail.phone }}</a>
+                <a :href="`tel:${detail.phone}`" class="num detail__link">{{ detail.phone }}</a>
               </el-descriptions-item>
               <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
-              <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
-              <el-descriptions-item label="參觀人數">{{ partySizeLabel(detail.party_size) }}</el-descriptions-item>
+              <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`" class="detail__link">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
+              <el-descriptions-item label="參觀人數">{{ detail.party_size ? partySizeLabel(detail.party_size) : '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ ageLabel(detail.age) }}</el-descriptions-item>
-              <el-descriptions-item label="接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
+              <el-descriptions-item label="方便接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
               <el-descriptions-item label="想了解的事">
-                <span class="detail__pre">{{ detail.questions || '—' }}</span>
+                <span class="detail__pre">{{ detail.questions || '未填寫' }}</span>
               </el-descriptions-item>
               <el-descriptions-item label="同意紀錄">{{ consentRecordLabel(detail) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.confirmed_at" label="確認時間">{{ formatDateTime(detail.confirmed_at) }}</el-descriptions-item>
@@ -507,15 +655,7 @@ const linkApplicable = computed(() =>
             </el-descriptions>
           </div>
 
-          <ParentAccessLinkPanel
-            v-if="linkApplicable"
-            :visit-id="detail.id"
-            :access-link="detail.access_link"
-            :can-handle="canHandle"
-            :deadline-hours="detail.parent_change_deadline_hours"
-            @changed="refreshDetail"
-          />
-
+          <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面。 -->
           <section class="section">
             <div class="section__title"><h2>聯絡紀錄</h2></div>
             <ol class="notes" v-if="notes.length > 0">
@@ -550,15 +690,32 @@ const linkApplicable = computed(() =>
                     placeholder="不用再追"
                     :disabled-date="disablePast"
                     :default-time="new Date(2000, 0, 1, 10, 0, 0)"
+                    :shortcuts="followUpShortcuts"
+                    popper-class="notes__follow-popper"
                     clearable
                     style="width: 160px"
                   />
                 </label>
-                <el-button :loading="busy" :disabled="!newNote.trim()" @click="addNote">新增紀錄</el-button>
+                <el-button :loading="pendingAction === 'note'" :disabled="!newNote.trim() || busy" @click="addNote">新增紀錄</el-button>
                 <span class="hint notes__hint">按 ⌘／Ctrl＋Enter 也能送出</span>
+              </div>
+              <!-- 報讀區一直留在頁面上，提示出現或消失時報讀軟體才會念出來。 -->
+              <div class="notes__status" role="status">
+                <p v-if="followUpPast" class="field-help notes__past">
+                  下次聯絡的時間已經過了：不改的話，記完這筆紀錄後案件仍會列在「到期待追蹤」。要再追就選新時間，不用再追就清空。
+                </p>
               </div>
             </div>
           </section>
+
+          <ParentAccessLinkPanel
+            v-if="linkApplicable"
+            :visit-id="detail.id"
+            :access-link="detail.access_link"
+            :can-handle="canHandle"
+            :deadline-hours="detail.parent_change_deadline_hours"
+            @changed="refreshDetail"
+          />
 
           <section class="section">
             <div class="section__title"><h2>案件歷程</h2><span class="hint">誰在什麼時候改了什麼</span></div>
@@ -572,7 +729,7 @@ const linkApplicable = computed(() =>
             <div class="panel__body detail__actions">
               <p v-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
               <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
-                <el-button v-if="detail.status === 'new'" :loading="busy" style="width: 100%" @click="markContacting">開始聯絡（標為聯絡中）</el-button>
+                <el-button v-if="detail.status === 'new'" :loading="pendingAction === 'contacting'" :disabled="busy" style="width: 100%" @click="markContacting">開始聯絡（標為聯絡中）</el-button>
                 <p class="hint">與家長確認時間後，選一個時段排入，預約才算成立。</p>
                 <el-select v-model="selectedSlotId" placeholder="選擇參觀時段" :disabled="openSlots.length === 0" style="width: 100%">
                   <el-option v-for="slot in openSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
@@ -581,18 +738,27 @@ const linkApplicable = computed(() =>
                   <template v-if="canManage">未來 60 天沒有可用時段。先到 <router-link to="/slots">時段與容量</router-link> 新增。</template>
                   <template v-else>未來 60 天沒有可用時段，請校區管理者到「時段與容量」新增。</template>
                 </p>
-                <el-button type="primary" :loading="busy" :disabled="!selectedSlotId" style="width: 100%" @click="confirm">
+                <el-button type="primary" :loading="pendingAction === 'confirm'" :disabled="!selectedSlotId || busy" style="width: 100%" @click="confirm">
                   確認並排入時段
                 </el-button>
               </template>
 
               <template v-else-if="detail.status === 'pending_confirmation'">
                 <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
-                <p v-if="detail.hold_expires_at" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at) }">
-                  請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at) }}），逾期名額會自動釋出。
-                </p>
-                <el-button type="primary" :loading="busy" :disabled="!detail.slot" style="width: 100%" @click="confirm">確認已選場次</el-button>
-                <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markContacting">家長要改時間：退回聯絡中</el-button>
+                <template v-if="detail.hold_expires_at">
+                  <!-- 期限在頁面開著時過了要念出來：報讀區先留在頁面上，只放過期說明，每分鐘變的倒數不放進來。 -->
+                  <div class="hold-status" role="status">
+                    <p v-if="holdExpired" class="hold-deadline is-urgent">
+                      確認期限 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 已過，不能再確認，系統會自動取消這筆並釋出名額。請重新讀取看最新狀態。
+                    </p>
+                  </div>
+                  <p v-if="!holdExpired" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at, clockNow) }">
+                    請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at, clockNow) }}），逾期名額會自動釋出。
+                  </p>
+                </template>
+                <el-button v-if="holdExpired" :disabled="busy" style="width: 100%" @click="load({ quiet: true })">重新讀取案件</el-button>
+                <el-button type="primary" :loading="pendingAction === 'confirm'" :disabled="!detail.slot || holdExpired || busy" style="width: 100%; margin-left: 0" @click="confirm">確認已選場次</el-button>
+                <el-button :loading="pendingAction === 'contacting'" :disabled="busy" style="width: 100%; margin-left: 0" @click="markContacting">家長要改時間：退回聯絡中</el-button>
               </template>
 
               <template v-else-if="detail.status === 'confirmed'">
@@ -603,22 +769,22 @@ const linkApplicable = computed(() =>
                   </p>
                   <p class="hint">
                     {{ detail.pending_reschedule.requested_slot_available
-                      ? `新時段剩 ${detail.pending_reschedule.requested_slot_remaining} 位。原時段在核准前仍有效。`
+                      ? `新時段剩 ${detail.pending_reschedule.requested_slot_remaining} 組。原時段在核准前仍有效。`
                       : '新時段已額滿、關閉或已開始，無法核准；請退回並聯絡家長另約。' }}
                   </p>
                   <div class="reschedule-request__actions">
-                    <el-button type="primary" :loading="busy" :disabled="!detail.pending_reschedule.requested_slot_available" @click="decideReschedule('approve')">核准改期</el-button>
-                    <el-button :loading="busy" @click="decideReschedule('reject')">退回申請</el-button>
+                    <el-button type="primary" :loading="pendingAction === 'approve'" :disabled="!detail.pending_reschedule.requested_slot_available || busy" @click="decideReschedule('approve')">核准改期</el-button>
+                    <el-button :loading="pendingAction === 'reject'" :disabled="busy" @click="decideReschedule('reject')">退回申請</el-button>
                   </div>
                 </div>
                 <p class="hint">{{ visitStarted ? '家長來參觀後標記完成；沒有出現請標記未到場。' : '參觀時段開始後可以標記完成或未到場；家長事先說不來，請用下方的「取消預約」。' }}</p>
                 <template v-if="visitStarted">
-                  <el-button type="primary" :loading="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
-                  <el-button :loading="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
+                  <el-button type="primary" :loading="pendingAction === 'complete'" :disabled="busy" style="width: 100%" @click="markCompleted">完成參觀</el-button>
+                  <el-button :loading="pendingAction === 'no_show'" :disabled="busy" style="width: 100%; margin-left: 0" @click="markNoShow">標記未到場</el-button>
                 </template>
-                <div class="reschedule">
-                  <p class="reschedule__title">改期（換時段）</p>
-                  <el-select v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
+                <div v-if="!detail.pending_reschedule || manualRescheduleOpen" class="reschedule" role="group" aria-labelledby="visit-reschedule-title">
+                  <p id="visit-reschedule-title" ref="rescheduleTitle" class="reschedule__title" tabindex="-1">改期（換時段）</p>
+                  <el-select ref="rescheduleSelect" v-model="rescheduleSlotId" placeholder="選擇新的參觀時段" :disabled="rescheduleSlots.length === 0" aria-label="改期的新時段" style="width: 100%">
                     <el-option v-for="slot in rescheduleSlots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id" />
                   </el-select>
                   <p v-if="rescheduleSlots.length === 0" class="hint">
@@ -626,14 +792,17 @@ const linkApplicable = computed(() =>
                     <template v-else>未來 60 天沒有其他可用時段，請校區管理者到「時段與容量」新增。</template>
                   </p>
                   <el-input v-model="rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
-                  <el-button :loading="busy" :disabled="!rescheduleSlotId" style="width: 100%; margin-left: 0" @click="reschedule">改到這個時段</el-button>
+                  <el-button :loading="pendingAction === 'reschedule'" :disabled="!rescheduleSlotId || busy" style="width: 100%; margin-left: 0" @click="reschedule">改到這個時段</el-button>
                   <p class="hint">案件編號與紀錄不變，原時段名額在同一步釋出；新時段滿了會整筆不改。</p>
+                </div>
+                <div v-else class="reschedule reschedule--collapsed">
+                  <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">不照申請，改到其他時段…</el-button>
                 </div>
               </template>
 
               <template v-else>
                 <p class="hint">這筆案件已結案。家長想再約，請另建新案，舊案會保留原紀錄。</p>
-                <el-button :loading="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
+                <el-button :disabled="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
               </template>
             </div>
             <div class="detail__assignee">
@@ -664,7 +833,7 @@ const linkApplicable = computed(() =>
               class="detail__danger"
             >
               <span class="hint">家長不來了？</span>
-              <el-button text type="danger" :loading="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
+              <el-button text type="danger" :loading="pendingAction === 'cancel'" :disabled="busy" class="detail__cancel" @click="cancel">{{ cancelsRequest ? '取消這筆需求' : '取消預約' }}</el-button>
             </div>
           </div>
         </aside>
@@ -705,6 +874,11 @@ const linkApplicable = computed(() =>
   font-weight: 600;
 }
 
+/* 桌機的電話在資料表第一列、旁邊就是滑鼠；撥號鈕只在手機版面出現。 */
+.detail__call {
+  display: none;
+}
+
 .notes__row {
   display: flex;
   flex-wrap: wrap;
@@ -724,10 +898,24 @@ const linkApplicable = computed(() =>
   font-size: 12px;
 }
 
+.notes__past {
+  margin: 0;
+}
+
+/* 報讀區沒有內容時不占位置：抵掉外層 flex 的間距（不能用 display: none，否則報讀軟體看不到它）。 */
+.notes__status:empty {
+  margin-top: -8px;
+}
+
+.hold-status:empty {
+  margin-top: -12px;
+}
+
+/* 承辦人、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */
 .detail__assignee {
   display: grid;
   gap: 6px;
-  padding: 12px 16px;
+  padding: 16px 24px;
   border-top: 1px solid var(--line);
   font-size: 13px;
   color: var(--ink-2);
@@ -740,7 +928,7 @@ const linkApplicable = computed(() =>
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-  padding: 10px 16px 6px;
+  padding: 10px 24px 6px;
   border-top: 1px solid var(--line);
 }
 
@@ -814,6 +1002,10 @@ const linkApplicable = computed(() =>
   border-top: 1px solid var(--line);
 }
 
+.reschedule--collapsed {
+  justify-items: start;
+}
+
 .reschedule-request {
   padding: 12px;
   border: 1px solid var(--el-color-warning-light-5);
@@ -841,8 +1033,10 @@ const linkApplicable = computed(() =>
   color: var(--ink-2);
 }
 
+/* 新時段整段一行，不會把「10:00–」和「11:00」拆到兩行。 */
 .reschedule-request__slots strong {
   color: var(--ink);
+  white-space: nowrap;
 }
 
 .reschedule-request__actions {
@@ -877,6 +1071,19 @@ const linkApplicable = computed(() =>
   margin-right: -8px;
 }
 
+/* 觸控裝置沒有 ⌘／Ctrl 鍵，不顯示快捷鍵提示；電話、Email 連結放大到 44px 好點。 */
+@media (hover: none), (pointer: coarse) {
+  .notes__hint {
+    display: none;
+  }
+
+  .detail__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 900px) {
   .detail__grid {
     grid-template-columns: minmax(0, 1fr);
@@ -885,6 +1092,68 @@ const linkApplicable = computed(() =>
   .detail__side {
     position: static;
     order: -1;
+  }
+
+  .detail__call {
+    display: inline-flex;
+    width: 100%;
+    min-height: 44px;
+    margin: -8px 0 16px;
+  }
+
+  /* 下一筆的件數比較長，窄螢幕允許換行，不擠出畫面。 */
+  .detail__next {
+    min-width: 0;
+    height: auto;
+    white-space: normal;
+    text-align: right;
+  }
+}
+
+@media (max-width: 720px) {
+  .detail__assignee {
+    padding: 12px 16px;
+  }
+
+  .detail__danger {
+    padding: 10px 16px 6px;
+  }
+}
+</style>
+
+<style>
+/* 下次聯絡的快捷選項預設排在日曆左側，面板會比手機畫面寬；窄螢幕改排在日曆上方一列。
+   選擇面板掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
+/* 觸控裝置（含平板）的快捷選項放大到 44px 高，手指點得到。 */
+@media (pointer: coarse) {
+  .notes__follow-popper .el-picker-panel__shortcut {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .notes__follow-popper .el-date-picker.has-sidebar {
+    width: 322px;
+  }
+
+  .notes__follow-popper .el-picker-panel__sidebar {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+    padding: 4px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--el-datepicker-inner-border-color);
+  }
+
+  .notes__follow-popper .el-picker-panel__shortcut {
+    width: auto;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .notes__follow-popper .el-picker-panel__sidebar + .el-picker-panel__body {
+    margin-left: 0;
   }
 }
 </style>
