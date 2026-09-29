@@ -183,12 +183,13 @@ def _visible_campus_keys(user: User) -> list[str] | None:
     return None if scope is None else sorted(scope)
 
 
-async def _creator_emails(db: AsyncSession, assets: list[MediaAsset]) -> dict[uuid.UUID, str]:
+async def _creators(db: AsyncSession, assets: list[MediaAsset]) -> dict[uuid.UUID, tuple[str, str | None]]:
+    """上傳者的 email 與顯示名稱；帳號刪除後查不到，畫面寫「已移除的帳號」。"""
     ids = {asset.created_by for asset in assets if asset.created_by is not None}
     if not ids:
         return {}
-    result = await db.execute(select(User.id, User.email).where(User.id.in_(ids)))
-    return dict(result.all())
+    result = await db.execute(select(User.id, User.email, User.display_name).where(User.id.in_(ids)))
+    return {user_id: (email, display_name) for user_id, email, display_name in result.all()}
 
 
 def _used_in(asset: MediaAsset) -> list[MediaUsedInOut]:
@@ -200,10 +201,14 @@ def _used_in(asset: MediaAsset) -> list[MediaUsedInOut]:
     return [MediaUsedInOut(kind=kind, campus_key=campus_key) for kind, campus_key in seen]
 
 
-def _out(asset: MediaAsset, settings: Settings, emails: dict[uuid.UUID, str] | None = None) -> MediaAssetOut:
+def _out(
+    asset: MediaAsset, settings: Settings, creators: dict[uuid.UUID, tuple[str, str | None]] | None = None
+) -> MediaAssetOut:
     purge_after = (
         asset.deleted_at + timedelta(days=settings.media_purge_delay_days) if asset.deleted_at else None
     )
+    # 沒有 created_by（系統匯入）或帳號已刪除時兩個都是 None。
+    creator_email, creator_name = (creators or {}).get(asset.created_by, (None, None))
     return MediaAssetOut(
         id=asset.id,
         campus_key=asset.campus_key,
@@ -216,7 +221,8 @@ def _out(asset: MediaAsset, settings: Settings, emails: dict[uuid.UUID, str] | N
         height=asset.height,
         duration_seconds=asset.duration_seconds,
         created_at=asset.created_at,
-        created_by_email=(emails or {}).get(asset.created_by) if asset.created_by else None,
+        created_by_email=creator_email,
+        created_by_display_name=creator_name,
         archived_at=asset.archived_at,
         deleted_at=asset.deleted_at,
         purge_after=purge_after,
@@ -237,7 +243,7 @@ def _out(asset: MediaAsset, settings: Settings, emails: dict[uuid.UUID, str] | N
 
 
 async def _asset_out(db: AsyncSession, request: Request, asset: MediaAsset) -> MediaAssetOut:
-    return _out(asset, request.app.state.settings, await _creator_emails(db, [asset]))
+    return _out(asset, request.app.state.settings, await _creators(db, [asset]))
 
 
 def _can_edit_content(user: User, campus_key: str | None) -> bool:
@@ -367,9 +373,9 @@ async def list_media(
             or needle in (a.caption or "").lower()
             or any(needle in t.lower() for t in (a.tags or []))
         ]
-    emails = await _creator_emails(db, assets)
+    creators = await _creators(db, assets)
     settings = request.app.state.settings
-    return [_out(a, settings, emails) for a in assets]
+    return [_out(a, settings, creators) for a in assets]
 
 
 @router.get("/upload-limits", response_model=MediaUploadLimitsOut)

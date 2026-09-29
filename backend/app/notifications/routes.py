@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
@@ -126,6 +126,8 @@ class UserNotificationOut(BaseModel):
     publish_at: datetime | None
     # 做這個動作的人（送審者、審核者）；排程由系統執行時為 null。
     actor_email: str | None
+    # 那個人現在的顯示名稱（讀取時依 actor_email 查）；沒填或帳號已刪除時為 null。
+    actor_display_name: str | None = None
     created_at: datetime
     read_at: datetime | None
 
@@ -138,9 +140,27 @@ class UserNotificationReadAllOut(BaseModel):
 MY_NOTIFICATIONS_LIMIT = 100
 
 
-def _user_notification_out(item: UserNotification) -> UserNotificationOut:
+def _actor_email(item: UserNotification) -> str | None:
+    value = (item.payload or {}).get("actor_email")
+    return value if isinstance(value, str) else None
+
+
+async def _actor_names(db: AsyncSession, items: list[UserNotification]) -> dict[str, str | None]:
+    """通知裡只記當時操作者的 email；顯示名稱讀取時再查（lower(email) 有唯一
+    索引），同事改名後舊通知也跟著顯示新名字。key 是小寫 email。"""
+    emails = {email.lower() for item in items if (email := _actor_email(item))}
+    if not emails:
+        return {}
+    result = await db.execute(
+        select(func.lower(User.email), User.display_name).where(func.lower(User.email).in_(emails))
+    )
+    return dict(result.all())
+
+
+def _user_notification_out(item: UserNotification, names: dict[str, str | None]) -> UserNotificationOut:
     payload = item.payload or {}
     publish_at = payload.get("publish_at")
+    actor_email = _actor_email(item)
     return UserNotificationOut(
         id=item.id,
         kind=item.kind,
@@ -150,7 +170,8 @@ def _user_notification_out(item: UserNotification) -> UserNotificationOut:
         note=payload.get("note"),
         error=payload.get("error"),
         publish_at=datetime.fromisoformat(publish_at) if isinstance(publish_at, str) else None,
-        actor_email=payload.get("actor_email"),
+        actor_email=actor_email,
+        actor_display_name=names.get(actor_email.lower()) if actor_email else None,
         created_at=item.created_at,
         read_at=item.read_at,
     )
@@ -168,7 +189,9 @@ async def list_my_notifications(
         .order_by(UserNotification.created_at.desc())
         .limit(MY_NOTIFICATIONS_LIMIT)
     )
-    return [_user_notification_out(item) for item in result.scalars()]
+    items = list(result.scalars())
+    names = await _actor_names(db, items)
+    return [_user_notification_out(item, names) for item in items]
 
 
 @router.post("/admin/my-notifications/{notification_id}/read", response_model=UserNotificationOut)
@@ -184,7 +207,7 @@ async def mark_my_notification_read(
     if item.read_at is None:
         item.read_at = datetime.now(timezone.utc)
         await db.commit()
-    return _user_notification_out(item)
+    return _user_notification_out(item, await _actor_names(db, [item]))
 
 
 @router.post("/admin/my-notifications/read-all", response_model=UserNotificationReadAllOut)

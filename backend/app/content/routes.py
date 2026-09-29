@@ -338,7 +338,7 @@ async def list_content_revisions(
     last_published = {rid: at for rid, at in published.all()}
 
     rows = await db.execute(
-        select(ContentRevision, User.email)
+        select(ContentRevision, User.email, User.display_name)
         .outerjoin(User, User.id == ContentRevision.created_by)
         .where(ContentRevision.content_item_id == item.id)
         .order_by(ContentRevision.version.desc())
@@ -350,6 +350,7 @@ async def list_content_revisions(
             version=rev.version,
             created_at=rev.created_at,
             created_by_email=email,
+            created_by_display_name=display_name,
             is_published=rev.id == item.current_published_revision_id,
             ever_published=rev.id in last_published,
             last_published_at=last_published.get(rev.id),
@@ -358,7 +359,7 @@ async def list_content_revisions(
             reviewed_at=rev.reviewed_at,
             schema_version=rev.schema_version,
         )
-        for rev, email in rows.all()
+        for rev, email, display_name in rows.all()
     ]
 
 
@@ -697,14 +698,14 @@ async def list_pending_reviews(
     """待審核清單：只列目前使用者有權發布的內容。"""
     require_scope(current_user, "content.read")
     rows = await db.execute(
-        select(ContentRevision, ContentItem, User.email)
+        select(ContentRevision, ContentItem, User.email, User.display_name)
         .join(ContentItem, ContentItem.id == ContentRevision.content_item_id)
         .outerjoin(User, User.id == ContentRevision.submitted_by)
         .where(ContentRevision.review_status == "pending_review")
         .order_by(ContentRevision.submitted_at)
     )
     out = []
-    for rev, item, email in rows.all():
+    for rev, item, email, display_name in rows.all():
         if not publish_jobs.user_can_publish(current_user, item):
             continue
         out.append(
@@ -715,6 +716,7 @@ async def list_pending_reviews(
                 version=rev.version,
                 submitted_at=rev.submitted_at,
                 submitted_by_email=email,
+                submitted_by_display_name=display_name,
             )
         )
     return out
@@ -736,6 +738,7 @@ async def _job_out(db: AsyncSession, job: PublishJob, item: ContentItem) -> Publ
         status=job.status,
         error=job.error,
         created_by_email=creator.email if creator else None,
+        created_by_display_name=creator.display_name if creator else None,
         finished_at=job.finished_at,
         resolved=publish_jobs.is_resolved(job, item),
     )
