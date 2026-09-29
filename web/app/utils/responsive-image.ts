@@ -11,7 +11,7 @@ interface ImageInfo { width: number; height: number; candidates: { src: string; 
  */
 export const HOME_HERO_SIZES = '100vw'
 
-/** 入學資訊頁 hero（滿版，sizes 同為 100vw）；頁面 <img> 與 usePageSeo 預載共用。 */
+/** 入學資訊頁首屏照片；2026-09-28 入學護照版起不是滿版，見 admissionHeroImage()。 */
 export const ADMISSION_HERO_IMAGE = 'day-hello'
 
 /** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
@@ -29,6 +29,19 @@ export function environmentHeroImage() {
   const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
   const factor = Number(scale.toFixed(2))
   return responsiveImage(ENVIRONMENT_HERO_IMAGE, `(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
+}
+
+/**
+ * 入學資訊頁（2026-09-28 入學護照版）的首屏照片是護照左頁的 4:3 照片欄（admission-passport.css 的
+ * `.ap-photo img`），object-fit: cover；原圖比 4:3 寬時左右被裁，要畫的寬度＝欄寬 × (原圖寬高比 ÷ 4/3)。
+ * 桌機欄寬約 480px（護照最寬 1240、左右頁 1:1.08、頁內留白 40、相框 8＋1）；760px 以下護照只剩一頁，
+ * 欄寬＝視窗 − 86px（外框 8×2、頁內 18×2、相框 9×2、護照左右留白 8×2）。頁面 <img> 與 usePageSeo 的預載共用。
+ */
+export const ADMISSION_HERO_ASPECT = 4 / 3
+export function admissionHeroImage() {
+  const info = Object.hasOwn(manifest, ADMISSION_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ADMISSION_HERO_IMAGE] : undefined
+  const factor = Number((info ? Math.max(1, info.width / info.height / ADMISSION_HERO_ASPECT) : 1).toFixed(2))
+  return responsiveImage(ADMISSION_HERO_IMAGE, `(max-width: 760px) calc((100vw - 86px) * ${factor}), ${Math.round(490 * factor)}px`)
 }
 
 /** 特色教學頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 CURRICULUM_HERO_SIZES）。 */

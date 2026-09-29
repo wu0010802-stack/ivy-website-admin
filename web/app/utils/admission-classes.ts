@@ -40,19 +40,32 @@ export function parseBirthday(value: string): YMD | null {
 export interface ClassRange { roc: string; ad: string }
 export interface ClassTableRow { name: string; ranges: ClassRange[] }
 
-/** 各班在指定學年度的出生區間（民國與西元並列）。 */
+/** 某一班（offset＝學年度減屆別，3 幼幼班～7 小一）在指定學年度的出生區間，民國與西元並列。 */
+export function classRanges(offset: number, years: number[]): ClassRange[] {
+  return years.map((y) => {
+    const start = y - offset
+    return { roc: `${start}/9/2 – ${start + 1}/9/1`, ad: `${start + 1911}.9.2 – ${start + 1912}.9.1` }
+  })
+}
+
+/** 各班在指定學年度的出生區間（幼幼班～大班）。 */
 export function classTable(years: number[]): ClassTableRow[] {
-  return KINDERGARTEN_OFFSETS.map((offset) => ({
-    name: CLASS_BY_OFFSET[offset]!,
-    ranges: years.map((y) => {
-      const start = y - offset
-      return { roc: `${start}/9/2 – ${start + 1}/9/1`, ad: `${start + 1911}.9.2 – ${start + 1912}.9.1` }
-    })
-  }))
+  return KINDERGARTEN_OFFSETS.map((offset) => ({ name: CLASS_BY_OFFSET[offset]!, ranges: classRanges(offset, years) }))
 }
 
 export interface ClassPlanRow { year: number; name: string; current: boolean; past: boolean }
-export interface ClassPlan { summary: string; rows: ClassPlanRow[] }
+/** enrolled：今年在幼兒園；young：還沒到幼幼班；school：已到國小年齡。 */
+export type ClassStatus = 'enrolled' | 'young' | 'school'
+export interface ClassPlan {
+  summary: string
+  rows: ClassPlanRow[]
+  cohort: number
+  status: ClassStatus
+  /** 成長軌道上的站（rows 的索引）：讀幼兒園停今年那一站，還沒入學停幼幼班，已上小學停小一。 */
+  position: number
+  /** 摘要之後的每一年，例如「116 學年度升大班」。 */
+  next: string[]
+}
 
 /** 依生日列出幼幼班到小一每一年的班級，並寫一句摘要。 */
 export function classPlan(birth: YMD, currentYear: number): ClassPlan {
@@ -63,10 +76,19 @@ export function classPlan(birth: YMD, currentYear: number): ClassPlan {
     current: cohort + offset === currentYear,
     past: cohort + offset < currentYear
   }))
-  const now = rows.find((row) => row.current)
+  const index = rows.findIndex((row) => row.current)
+  const now = rows[index]
   let summary: string
   if (now) summary = `${currentYear} 學年度，寶貝就讀${now.name}。`
   else if (cohort + 3 > currentYear) summary = `寶貝 ${cohort + 3} 學年度（${cohort + 3 + 1911} 年 8 月起）可以開始讀幼幼班。`
   else summary = '寶貝已到國小年齡囉。'
-  return { summary, rows }
+
+  const status: ClassStatus = index >= 0 && index < KINDERGARTEN_OFFSETS.length ? 'enrolled' : cohort + 3 > currentYear ? 'young' : 'school'
+  let next: string[]
+  if (status === 'enrolled') {
+    next = rows.slice(index + 1).map((row) => row === rows.at(-1) ? `${row.year} 學年度（${row.year + 1911} 年 8 月）上小一` : `${row.year} 學年度升${row.name}`)
+  } else if (status === 'young') next = [`${cohort + 3 + 1911} 年 8 月起，之後每年 8 月升一班`]
+  else next = now ? [`${currentYear} 學年度讀小一`] : []
+  const position = status === 'enrolled' ? index : status === 'young' ? 0 : rows.length - 1
+  return { summary, rows, cohort, status, position, next }
 }

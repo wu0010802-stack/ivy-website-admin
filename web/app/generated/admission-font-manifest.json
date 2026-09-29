@@ -1,0 +1,51 @@
+{
+  "sources": [
+    {
+      "weight": 600,
+      "style": "SemiBold",
+      "url": "https://github.com/notofonts/noto-cjk/raw/main/Serif/SubsetOTF/TC/NotoSerifTC-SemiBold.otf",
+      "sha256": "e59aa64fa67b08efd000372cba5c4902424e50efef962084377c02c80f5ad593"
+    },
+    {
+      "weight": 900,
+      "style": "Black",
+      "url": "https://github.com/notofonts/noto-cjk/raw/main/Serif/SubsetOTF/TC/NotoSerifTC-Black.otf",
+      "sha256": "55c68df309e702cdb56b9ffd6b8185468afc0cb070aa9c2f14099de0cae64d12"
+    }
+  ],
+  "preload": [
+    "/assets/fonts/admission/serif-900-critical-116dde8a342f.woff2"
+  ],
+  "stylesheet": {
+    "src": "/assets/fonts/admission/admission-fonts-extended-f5f283a5e2a4.css",
+    "bytes": 81704
+  },
+  "faces": {
+    "serif-900": {
+      "family": "Ivy Passport Serif",
+      "weight": 900,
+      "characters": 13221,
+      "slices": 83,
+      "bytes": 3269964,
+      "largest": 55112,
+      "critical": {
+        "src": "/assets/fonts/admission/serif-900-critical-116dde8a342f.woff2",
+        "bytes": 54472,
+        "characters": 175
+      }
+    },
+    "serif-600": {
+      "family": "Ivy Passport Serif",
+      "weight": 600,
+      "characters": 183,
+      "slices": 1,
+      "bytes": 56780,
+      "largest": 56780,
+      "critical": {
+        "src": "/assets/fonts/admission/serif-600-critical-1bb9b9a1cc2a.woff2",
+        "bytes": 56780,
+        "characters": 183
+      }
+    }
+  }
+}

@@ -1,5 +1,18 @@
 # Design
 
+## 入學資訊頁改成「入學護照」（2026-09-28）
+
+使用者要入學頁像特色教學（水彩）、常春藤環境（手繪＋GSAP）一樣，用 JS 視覺套件做出跟其他分頁不一樣的風格。比稿在 `design/admission-theme-directions-20260928/`（在 `feature/website-admin` 工作目錄、未追蹤）：A 上學路線圖（GSAP DrawSVG）、B 入學護照（生成式防偽細紋＋GSAP 蓋章）、C 木頭積木（three.js），使用者選 **B**。A、C 看過未選：A 跟環境頁的「小路」意象相近，C 最重（直接進站要多載 three 約 189KB）。
+
+- **比喻**：整頁是一本打開的護照，每走一步蓋一個章。深綠只在 hero 外框露出當封面，內頁兩種證件紙（`--ivy-passport-page` 淡薄荷、`--ivy-news-paper` 米白）；印章兩種墨（朱紅 `--ivy-passport-red`、品牌深綠），金色只用在封面燙金字。新顏色寫在 `tokens.css` 第 14 節，細紋、框線、選中底色在 `admission-passport.css` 用 token 之間的 color-mix 混出來。
+- **結構**：第 1 頁 hero 跨頁（左頁 `day-hello` 照片欄＋「歡迎入學」章、右頁大標與「查寶貝讀哪一班」、下方目錄點線引到頁碼）→ 第 2 頁六格簽證欄（捲進視窗依序蓋章，單數格朱紅方章、雙數格深綠圓章、最後一步顏色反過來）→ 第 3 頁資料頁（成長軌道：生日 → 大章「115 學年度・中班」＋一句話答案 → 五格學年度欄位、寶貝那格蓋「寶貝」小章 → 點格看出生區間、寶貝那屆蓋「寶貝的生日在這」；完整對照表收合）→ 第 4 頁新生準備（勾必備品蓋「已備」章、叮嚀直接列出、每天穿什麼是一週五枚橢圓章、接送／註冊是編號條款）→ 第 5 頁收退費（有撕線的補助券、育兒津貼費率表、退費「第 N 條」）。
+- **沿用同日裁定**：不放預約參觀（預約入口只留頁首金色鈕）；分班邏輯＝成長軌道（`admission-classes.ts` 的 `classPlan()` 回傳 `status`／`position`／`next`、`classRanges()` 給小一格）；叮嚀不用翻面。hero 主要行動改成護照的「雙框欄位框」按鈕（不是金色，也取代 A 版時的白框幽靈鈕）。
+- **印章字不寫「核定」「錄取」**，只寫「分班對照」「預計入學」，避免家長以為名額已確定（測試會擋）。印章數量要守住：一格一章、一個答案一個大章、勾選才蓋；不要再加郵戳、條碼、機讀區之類的護照道具。
+- **實作**：印章是 `components/PassportStamp.vue`（SVG、aria-hidden，版面在 `utils/passport-stamp.ts`，兩個濾鏡 `#ap-ink`／`#ap-bleed` 定義在頁面開頭）；細紋是 `utils/guilloche.ts`（萬花尺玫瑰紋與波浪帶，hero 那組上萬個點，只在瀏覽器端依寬度算，不進 SSR）；蓋章動作 `utils/admission-motion.ts`：GSAP 只在這頁 `import('gsap')` 動態載入，印章由 `<Transition :css="false">` 掛上／拿掉時呼叫壓下／拿起；捲動觸發用 IntersectionObserver（不載 ScrollTrigger）。減少動態、GSAP 載入失敗時印章直接在紙上；沒有 JS 時沒有印章與細紋，文字、表格、手風琴照常（SSR 已輸出）。
+- **字型**：印章與寫死的小標用明體 `Ivy Passport Serif`（Noto Serif TC 靜態 OTF，notofonts／noto-cjk，OFL 1.1、無 Reserved Font Name）。`scripts/admission-font-chars.cjs` 量頁面用字、`scripts/subset-admission-fonts.py` 切片（比照環境頁流程；CFF 沒有 glyf，分片大小用 charstring 長度估）：900（印章，會顯示後台的步驟名與穿著）critical 54KB＋字頻分片共 3.27MB；600 只切寫死小標的 critical 57KB。**會顯示後台文字的小標（二部曲標籤、星期、退費小項）不用明體**，後台改字不會缺字。改了頁面文案要重跑這兩支。
+- **hero 照片**：護照左頁 4:3 照片欄，`admissionHeroImage()` 的 sizes 照實際欄寬寫（桌機 495px、760px 以下 `calc((100vw - 86px) * 1.01)`），頁面 `<img>` 與 `usePageSeo` 預載共用；不再用 `.photo-hero`，頁首是一般實底（桌機捲動後照舊收膠囊）。
+- `admission.css` 仍被關於常春藤頁使用，這次沒動；入學頁的樣式全部在 `admission-passport.css`（`ap-` 前綴，變數掛在 `.ap` 底下）。
+
 ## 常春藤環境頁 GSAP 動態層（2026-09-28，疊在下一節的手繪版上）
 
 使用者問 GSAP 可以用在官網哪裡，選了 `/environment` 先看 mock-up（`design/environment-gsap-mockup-20260928/`，在 `feature/website-admin` 工作目錄、未追蹤），看完要求把小腳印做得更好看，確認後同意上線。實作在 `utils/environment-motion.ts`，透過 `rough-sketch.ts` 的 `SketchMotion` 掛鉤接手小路、太陽與小路上的便條。**此節取代下一節「互動」裡的「虛線小路捲到哪畫到哪」與「太陽沿弧線」兩項。**
