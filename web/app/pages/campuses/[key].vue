@@ -18,7 +18,7 @@ usePageSeo(computed(() => data.value?.content), campus)
 <template>
   <div v-if="data && campus">
     <SiteHeader :content="data.content" />
-    <CampusPageMain :campus="campus" />
+    <CampusPageMain :campus="campus" :booking="data.content.booking" />
     <SiteFooter :content="data.content" />
   </div>
 </template>
