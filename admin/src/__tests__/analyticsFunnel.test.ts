@@ -43,13 +43,13 @@ const funnel: AnalyticsFunnelOut = {
   unassigned_clicks: clicks(7),
 }
 
-async function setup() {
+async function setup(data: AnalyticsFunnelOut = funnel) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/analytics')
   await router.isReady()
-  const get = vi.spyOn(api, 'get').mockResolvedValue(funnel as never)
+  const get = vi.spyOn(api, 'get').mockResolvedValue(data as never)
   const wrapper = mount(AnalyticsView, {
     global: {
       plugins: [pinia, router, ElementPlus],
@@ -69,8 +69,67 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     const rows = wrapper.findAll('.funnel__row').map((row) => row.text())
     expect(rows[3]).toContain('已取消')
     expect(rows[3]).toContain('3')
-    expect(rows[3]).toContain('取消率 30%')
+    // 取消率只拿官網表單那一列算（2 ÷ 8），電話補登的取消另外寫。
+    expect(rows[3]).toContain('官網需求取消率 25%')
+    expect(rows[3]).toContain('另有後台補登 1 筆')
     expect(wrapper.text()).toContain('家長自行取消 1・園方取消 1・待確認逾期 1')
+    expect(wrapper.find('.analytics__section-title').text()).toBe('各校預約（開站至今）')
+  })
+
+  it('確認率只算官網表單的需求，補登另外寫；比例不會超過 100%', async () => {
+    const { wrapper } = await setup({
+      ...funnel,
+      counts: { ...outcome(2, 5, 6, 3) },
+      by_source: [
+        { source: 'web', counts: outcome(2, 2, 3, 3) },
+        { source: 'phone', counts: outcome(0, 2, 2, 0) },
+        { source: 'line', counts: outcome(0, 1, 1, 0) },
+      ],
+    })
+    const rows = wrapper.findAll('.funnel__row').map((row) => row.text())
+    expect(rows[1]).toContain('官網需求的 100%')
+    expect(rows[1]).toContain('另有後台補登 3 筆')
+    // 完成比確認多、官網的取消比送出多（含更早送出的需求）：不給比例。
+    expect(rows[2]).toContain('含之前確認的預約，不計比例')
+    expect(rows[3]).toContain('含之前送出的需求，不計比例')
+    const percents = [...wrapper.text().matchAll(/(\d+)%/g)].map((match) => Number(match[1]))
+    expect(percents.every((value) => value <= 100)).toBe(true)
+    const bySource = wrapper.findAll('.analytics__table')[0]!.findAll('tbody tr').map((row) => row.text())
+    expect(bySource[0]).toContain('官網表單')
+    expect(bySource[0]).not.toContain('%')
+    expect(wrapper.text()).toContain('不計取消率')
+  })
+
+  it('換條件時保留上一次的數字並寫「更新中…」，不整區換成骨架', async () => {
+    const { wrapper, get } = await setup()
+    let resolve!: (value: unknown) => void
+    get.mockImplementationOnce(() => new Promise((r) => { resolve = r }) as never)
+    await wrapper.findAll('button').find((button) => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
+    expect(wrapper.findAll('.funnel__row')).toHaveLength(4)
+    expect(wrapper.find('.analytics__results').classes()).toContain('is-updating')
+    expect(wrapper.text()).toContain('更新中…')
+    resolve(funnel)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('更新中…')
+  })
+
+  it('自訂區間不能選未來日期，超過 400 天先在前端擋下', async () => {
+    const { wrapper, get } = await setup()
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '期間' || item.attributes('aria-label') === '期間')!
+    select.vm.$emit('update:modelValue', 'custom')
+    await flushPromises()
+    const picker = wrapper.findComponent({ name: 'ElDatePicker' })
+    const disabled = picker.props('disabledDate') as (date: Date) => boolean
+    const [y, m, d] = taipeiToday().split('-').map(Number)
+    expect(disabled(new Date(y!, m! - 1, d!))).toBe(false)
+    expect(disabled(new Date(y!, m! - 1, d! + 1))).toBe(true)
+    const calls = get.mock.calls.length
+    picker.vm.$emit('update:modelValue', ['2024-01-01', '2026-06-30'])
+    await flushPromises()
+    expect(get.mock.calls.length).toBe(calls)
+    expect(wrapper.text()).toContain('自訂區間最長 400 天')
   })
 
   it('切換期間時送台北日期的 from／to', async () => {
