@@ -47,16 +47,26 @@ watch(() => route.path, async () => {
 })
 // 從通知信、同事貼的網址進了沒有權限的頁面，會被送回起始頁（router 帶 denied）。
 // 說一聲是權限的關係，不要讓人以為連結壞了；說完把 denied 從網址拿掉，重新整理
-// 不會再跳一次。
-watch(() => route.query.denied, denied => {
-  if (denied == null) return
-  const name = Array.isArray(denied) ? denied[0] : denied
-  const title = router.getRoutes().find(record => record.name === name)?.meta.title
-  ElMessage.warning({
-    message: `你的帳號沒有${title ? `「${title}」` : '這個頁面'}的權限，已回到起始頁；需要的話請洽總管理者`,
-    duration: 6000,
-    showClose: true,
-  })
+// 不會再跳一次。起始頁自己也可能同時改網址（分校內容頁會帶上 ?campus=），那次
+// replace 會蓋掉這裡的、把 denied 帶回來，所以跟著 fullPath 看：還在就再拿一次，
+// 提示只說一次。
+let announcedDenied: string | null = null
+watch(() => route.fullPath, () => {
+  const denied = route.query.denied
+  if (denied == null) {
+    announcedDenied = null
+    return
+  }
+  const name = (Array.isArray(denied) ? denied[0] : denied) ?? ''
+  if (announcedDenied !== name) {
+    announcedDenied = name
+    const title = router.getRoutes().find(record => record.name === name)?.meta.title
+    ElMessage.warning({
+      message: `你的帳號沒有${title ? `「${title}」` : '這個頁面'}的權限，已回到起始頁；需要的話請洽總管理者`,
+      duration: 6000,
+      showClose: true,
+    })
+  }
   const { denied: _, ...rest } = route.query
   void router.replace({ query: rest })
 }, { immediate: true })
