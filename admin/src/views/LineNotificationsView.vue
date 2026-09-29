@@ -6,14 +6,27 @@ import { formatDateTime } from '../api/labels'
 import type { LineGroupOut, LineSettingsOut } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
 
+type LineTarget = LineSettingsOut['targets'][number]
+
 const data = ref<LineSettingsOut | null>(null)
+// loading＝第一次載入（顯示骨架）；refreshing＝已經有內容時重新整理，內容留在
+// 畫面上，才看得出新群組有沒有出現。
 const loading = ref(true)
+const refreshing = ref(false)
 const loadError = ref<string | null>(null)
 // 各校各自的處理中狀態：改 A 校時不該鎖住 B 校的按鈕。
 const saving = ref<Record<string, boolean>>({})
 const testing = ref<Record<string, boolean>>({})
 
 const activeGroups = computed(() => (data.value?.groups ?? []).filter(group => !group.left_at))
+
+// 官方帳號被移出群組後，校區仍指著那個群組，但後端會直接略過推播：要在那一列
+// 講清楚，下拉選單也要顯示看得懂的群組名稱，不是一串 LINE ID。
+function leftGroup(target: LineTarget): LineGroupOut | null {
+  if (!target.target_id) return null
+  return (data.value?.groups ?? []).find(group => group.target_id === target.target_id && group.left_at) ?? null
+}
+const leftTargets = computed(() => (data.value?.targets ?? []).filter(target => leftGroup(target)))
 
 function groupLabel(group: LineGroupOut): string {
   const kind = group.source_type === 'room' ? '多人聊天室' : '群組'
@@ -30,15 +43,26 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback
 }
 
-async function load() {
-  loading.value = true
+async function load(options: { announce?: boolean } = {}) {
+  const first = !data.value
+  const knownGroups = new Set(activeGroups.value.map(group => group.target_id))
+  if (first) loading.value = true
+  else refreshing.value = true
   loadError.value = null
   try {
     data.value = await api.get<LineSettingsOut>('/admin/line')
+    // 第 3 步「拉進群組後按重新整理」：直接告訴對方有沒有偵測到新群組。
+    if (options.announce) {
+      const added = activeGroups.value.filter(group => !knownGroups.has(group.target_id)).length
+      if (added) ElMessage.success(`偵測到 ${added} 個新群組`)
+      else ElMessage.info('沒有偵測到新群組。確認官方帳號已經加入群組後，再按一次重新整理。')
+    }
   } catch {
-    loadError.value = '無法讀取 LINE 通知設定，請重新載入。'
+    if (first) loadError.value = '無法讀取 LINE 通知設定，請重新載入。'
+    else ElMessage.error('重新整理失敗，畫面上是先前讀到的設定，請再試一次。')
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -47,7 +71,7 @@ async function assign(campusKey: string, campusName: string, targetId: string | 
   saving.value = { ...saving.value, [campusKey]: true }
   try {
     data.value = await api.put<LineSettingsOut>(`/admin/line/campus-targets/${campusKey}`, { target_id: targetId })
-    ElMessage.success(targetId ? `已設定${campusName}的通知群組` : `${campusName}已停止 LINE 通知`)
+    ElMessage.success(targetId ? `已設定${campusName}的通知群組，請按「送測試訊息」確認群組收得到` : `${campusName}已停止 LINE 通知`)
   } catch (err) {
     ElMessage.error(errorMessage(err, '更新失敗'))
     await load()
@@ -79,30 +103,29 @@ async function copyWebhook() {
   }
 }
 
-onMounted(load)
+onMounted(() => load())
 </script>
 
 <template>
   <div class="page page--narrow">
     <PageHeader lead="參觀案件的通知除了站內通知與 email，也可以推到各校員工的 LINE 群組。群組訊息只有類型、校區與案件編號，不含家長或孩子資料。" />
 
-    <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError">
-      <el-button @click="load">重新載入</el-button>
+    <el-alert v-if="loadError && !data" type="error" :closable="false" show-icon :title="loadError">
+      <el-button :loading="loading" @click="load()">重新載入</el-button>
     </el-alert>
-    <el-skeleton v-else-if="loading" animated :rows="6" />
+    <el-skeleton v-else-if="loading && !data" animated :rows="6" />
 
     <template v-else-if="data">
       <section class="panel">
         <div class="panel__head"><h2>官方帳號連線</h2></div>
         <div class="panel__body">
-          <el-alert
-            v-if="!data.enabled"
-            type="warning"
-            :closable="false"
-            show-icon
-            title="尚未設定 LINE 官方帳號的 Messaging API 金鑰"
-            description="需要在部署平台設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN，設定前不會推播。"
-          />
+          <el-alert v-if="!data.enabled" type="warning" :closable="false" show-icon class="line-alert" title="LINE 官方帳號還沒連上，目前不會推播到群組">
+            <p>需要請技術人員在部署平台設定官方帳號的金鑰；設定好之後，這裡會顯示「已設定」。</p>
+            <details class="tech-details">
+              <summary>給技術人員</summary>
+              <p>在部署平台設定 <code>WEBSITE_LINE_MESSAGING_CHANNEL_SECRET</code> 與 <code>WEBSITE_LINE_MESSAGING_ACCESS_TOKEN</code>（LINE Developers → Messaging API 的 Channel secret 與 Channel access token），設定前不會推播。</p>
+            </details>
+          </el-alert>
           <p v-else class="status-line"><el-tag type="success">已設定</el-tag> 官方帳號的金鑰已設定，可以推播。</p>
 
           <ol class="steps">
@@ -110,9 +133,15 @@ onMounted(load)
               在 LINE Developers 的 Messaging API 設定貼上 Webhook 網址，並開啟「Use webhook」：
               <span v-if="data.webhook_url" class="webhook">
                 <code>{{ data.webhook_url }}</code>
-                <el-button size="small" @click="copyWebhook">複製</el-button>
+                <el-button @click="copyWebhook">複製</el-button>
               </span>
-              <span v-else class="field-help">（部署設定缺少 WEBSITE_ADMIN_ORIGIN，無法產生網址）</span>
+              <template v-else>
+                <span class="field-help">（網址還無法產生，請技術人員檢查部署設定）</span>
+                <details class="tech-details">
+                  <summary>給技術人員</summary>
+                  <p>部署設定缺少 <code>WEBSITE_ADMIN_ORIGIN</code>，無法產生 Webhook 網址。</p>
+                </details>
+              </template>
             </li>
             <li>在 LINE Official Account Manager 允許官方帳號加入群組，並關閉自動回應訊息。</li>
             <li>把官方帳號拉進各校的員工群組，回到這頁按「重新整理」，下方就會出現該群組。</li>
@@ -125,9 +154,19 @@ onMounted(load)
       <section class="panel">
         <div class="panel__head">
           <h2>各校通知群組</h2>
-          <el-button size="small" :loading="loading" @click="load">重新整理</el-button>
+          <el-button :loading="refreshing" @click="load({ announce: true })">重新整理</el-button>
         </div>
         <div class="panel__body">
+          <p v-if="!data.enabled" class="field-help empty">完成上方設定後才能選群組；下面先列出各校目前的設定。</p>
+          <el-alert
+            v-if="leftTargets.length"
+            type="warning"
+            show-icon
+            :closable="false"
+            class="left-alert"
+            :title="`${leftTargets.map(target => target.campus_name).join('、')}的群組已把官方帳號移出，目前收不到 LINE 通知`"
+            description="請重新把官方帳號拉進原本的群組，或替這些校區改選其他群組。站內通知與 Email 不受影響。"
+          />
           <p v-if="activeGroups.length === 0" class="field-help empty">
             官方帳號目前不在任何群組裡。把它拉進群組後按「重新整理」。
           </p>
@@ -142,15 +181,17 @@ onMounted(load)
               @change="(value: string) => assign(target.campus_key, target.campus_name, value || null)"
             >
               <el-option label="不推播" value="" />
+              <el-option v-if="leftGroup(target)" :label="`${groupLabel(leftGroup(target)!)}（已離開）`" :value="target.target_id!" disabled />
               <el-option v-for="group in activeGroups" :key="group.target_id" :label="groupLabel(group)" :value="group.target_id" />
             </el-select>
             <el-button
               :loading="testing[target.campus_key]"
-              :disabled="!data.enabled || !target.target_id"
+              :disabled="!data.enabled || !target.target_id || Boolean(leftGroup(target))"
               @click="sendTest(target.campus_key, target.campus_name)"
             >
               送測試訊息
             </el-button>
+            <el-tag v-if="leftGroup(target)" type="warning" class="target-row__left">群組已離開，目前不會推播</el-tag>
           </div>
         </div>
       </section>
@@ -180,6 +221,64 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* 長字串（金鑰名稱、網址）在手機上要能斷行，不被警示框右緣裁掉。 */
+.line-alert :deep(.el-alert__content) {
+  min-width: 0;
+}
+
+.line-alert :deep(.el-alert__title),
+.line-alert p,
+.tech-details code {
+  overflow-wrap: anywhere;
+}
+
+.line-alert p {
+  margin: 4px 0 0;
+}
+
+.tech-details {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.tech-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 500;
+  list-style: none;
+}
+
+.tech-details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* inline-flex 會吃掉瀏覽器預設的三角形：自己補一個，看得出可以展開。 */
+.tech-details summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-block: 5px solid transparent;
+  border-inline-start: 6px solid currentColor;
+  transition: transform 150ms var(--ease-out);
+}
+
+.tech-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .tech-details summary { min-height: 44px; }
+}
+
+.left-alert {
+  margin-bottom: 12px;
+}
+
 .status-line {
   display: flex;
   align-items: center;

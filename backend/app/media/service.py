@@ -30,6 +30,7 @@ from app.media.processing import (
     probe_video,
 )
 from app.media.storage import LocalMediaStorage, MediaStorage, S3MediaStorage
+from app.media.metadata import MetadataStripError, strip_private_metadata
 from app.media.validation import MediaValidationError, sniff_and_validate
 from app.operations import audit_service
 
@@ -64,6 +65,9 @@ async def _ensure_quota(
     「還有空間」而一起超過。處理失敗的素材原檔會被刪掉，不計入。"""
     bind = db.get_bind()
     if bind.dialect.name == "postgresql":
+        # 前一筆上傳可能還在鎖內寫檔、跑 ffmpeg，排隊可以超過連線預設的
+        # statement_timeout（db.py）；這條交易只屬於後台上傳，放寬到 5 分鐘。
+        await db.execute(text("SET LOCAL statement_timeout = '300s'"))
         await db.execute(
             text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
             {"key": f"media-quota:{campus_key or '__shared__'}"},
@@ -153,6 +157,14 @@ async def create_media_asset(
     30 秒），但解碼、寫檔、ffprobe 與 ffmpeg 都丟到 thread 執行：API 只有
     一個 event loop，同步做會讓一次影片上傳卡住所有校區與公開訪客的請求。"""
     content_type, width, height = await asyncio.to_thread(sniff_and_validate, source_path, declared_kind)
+    if declared_kind == MediaKind.IMAGE:
+        # 原檔會公開供應（img src、og:image），先拿掉 GPS、機型、XMP 等中繼
+        # 資料，只留拍攝方向；像素不重新編碼。見 media/metadata.py。
+        try:
+            await asyncio.to_thread(strip_private_metadata, source_path, content_type)
+        except MetadataStripError as exc:
+            raise MediaValidationError("MEDIA_INVALID", "圖片結構無法辨識，請重新匯出後再上傳") from exc
+        size_bytes = source_path.stat().st_size
     sha256 = await asyncio.to_thread(file_sha256, source_path)
     duration: float | None = None
     if declared_kind == MediaKind.VIDEO:

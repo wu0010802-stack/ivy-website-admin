@@ -35,6 +35,12 @@ export function visitEventTitle(event: VisitHistoryOut): string {
     if (source && source !== 'web') return `${visitSourceLabel(source)}補登`
     return event.source === 'parent' ? '家長從官網送出' : visitEventLabel('created')
   }
+  // 還沒排時段（待處理、聯絡中）就取消的是「參觀需求」，不叫預約；和明細的
+  // 「取消這筆需求」同一個詞。舊事件沒有記原狀態時照舊寫「取消預約」。
+  if (event.event_type === 'cancelled') {
+    const from = text(event.before, 'status')
+    if (from === 'new' || from === 'contacting') return '取消需求'
+  }
   return visitEventLabel(event.event_type)
 }
 

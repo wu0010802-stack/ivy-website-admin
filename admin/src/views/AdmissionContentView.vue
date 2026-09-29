@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, useTemplateRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
-import type { AdmissionContentPayload, AdmissionRefundPayload } from '../api/types'
+import { moveKeepingFocus } from '../composables/moveKeepingFocus'
+import { revealListItem } from '../composables/newsContent'
+import type { AdmissionContentPayload, AdmissionPhasePayload, AdmissionRefundPayload, AdmissionStepPayload, AdmissionSubsidyPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
+import { vReadonlyValues } from '../composables/readonlyValues'
 import { WEBSITE_ASSET_BASE } from '../config'
 
 // 上限與後端 AdmissionContentPayload 相同（content/schemas.py）。
@@ -39,11 +42,33 @@ function fromLines(value: string): string[] {
 function remove<T>(list: T[], index: number) {
   list.splice(index, 1)
 }
-function move<T>(list: T[], index: number, delta: number) {
-  const target = index + delta
-  if (target < 0 || target >= list.length) return
-  const [item] = list.splice(index, 1)
-  list.splice(target, 0, item!)
+
+// 四份可排序的清單各有自己的外框：上移／下移後焦點只在同一份清單裡找按鈕。
+const stepsList = useTemplateRef<HTMLElement>('stepsList')
+const phasesList = useTemplateRef<HTMLElement>('phasesList')
+const subsidiesList = useTemplateRef<HTMLElement>('subsidiesList')
+const refundsList = useTemplateRef<HTMLElement>('refundsList')
+
+function move<T>(list: T[], index: number, delta: number, root: HTMLElement | null) {
+  void moveKeepingFocus(list, index, delta, root)
+}
+
+// 新增的一項加在清單最後（新增鈕也在清單下方），加完捲過去並聚焦第一個欄位。
+function add<T>(list: T[], item: T, root: HTMLElement | null) {
+  list.push(item)
+  void revealListItem(root, `[data-list-item="${list.length - 1}"]`)
+}
+
+function newStep(): AdmissionStepPayload {
+  return { when: '', title: '', text: '' }
+}
+
+function newPhase(): AdmissionPhasePayload {
+  return { tag: '', title: '', items: [], tips: [] }
+}
+
+function newSubsidy(): AdmissionSubsidyPayload {
+  return { amount: '', unit: '元／學期', who: '', by: '' }
 }
 
 function newRefund(): AdmissionRefundPayload {
@@ -62,7 +87,7 @@ onMounted(editor.load)
       儲存草稿後可以先<a :href="draftPreviewUrl" target="_blank" rel="noopener">開草稿預覽 ↗</a>看效果（只有登入的管理者看得到）。
     </template>
 
-    <el-form label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+    <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <el-form-item label="頁面提醒（顯示在頁面上方；清空就不顯示）">
         <el-input v-model="form.notice" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="例如：金額與補助依各校公告及最新政策為準" />
       </el-form-item>
@@ -75,13 +100,13 @@ onMounted(editor.load)
         <h2>入學流程</h2>
         <span class="hint">{{ form.steps.length }} / {{ MAX_STEPS }} 步</span>
       </div>
-      <el-button :icon="Plus" :disabled="form.steps.length >= MAX_STEPS" @click="form.steps.push({ when: '', title: '', text: '' })">新增一個步驟</el-button>
-      <div v-for="(step, index) in form.steps" :key="index" class="repeat-item">
+      <div ref="stepsList">
+      <div v-for="(step, index) in form.steps" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ step.title || '未命名步驟' }}</span>
-          <span>
-            <el-button text size="small" :disabled="index === 0" @click="move(form.steps, index, -1)">上移</el-button>
-            <el-button text size="small" :disabled="index === form.steps.length - 1" @click="move(form.steps, index, 1)">下移</el-button>
+          <span class="list-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${step.title || `第 ${index + 1} 步`}」`" @click="move(form.steps, index, -1, stepsList)">上移</el-button>
+            <el-button text size="small" :disabled="index === form.steps.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${step.title || `第 ${index + 1} 步`}」`" @click="move(form.steps, index, 1, stepsList)">下移</el-button>
             <el-button text size="small" type="danger" :icon="Delete" :disabled="form.steps.length <= 1" @click="remove(form.steps, index)">移除</el-button>
           </span>
         </div>
@@ -100,17 +125,23 @@ onMounted(editor.load)
           <el-input v-model="step.text" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
         </el-form-item>
       </div>
+      </div>
+      <el-button :icon="Plus" :disabled="form.steps.length >= MAX_STEPS" @click="add(form.steps, newStep(), stepsList)">新增一個步驟</el-button>
 
       <!-- 新生入園須知 -->
       <div class="section__title" style="margin-top: 28px">
         <h2>新生入園須知</h2>
         <span class="hint">{{ form.phases.length }} / {{ MAX_PHASES }} 個階段</span>
       </div>
-      <el-button :icon="Plus" :disabled="form.phases.length >= MAX_PHASES" @click="form.phases.push({ tag: '', title: '', items: [], tips: [] })">新增一個階段</el-button>
-      <div v-for="(phase, index) in form.phases" :key="index" class="repeat-item">
+      <div ref="phasesList">
+      <div v-for="(phase, index) in form.phases" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ phase.title || '未命名階段' }}</span>
-          <el-button text size="small" type="danger" :icon="Delete" @click="remove(form.phases, index)">移除</el-button>
+          <span class="list-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${phase.title || `第 ${index + 1} 個階段`}」`" @click="move(form.phases, index, -1, phasesList)">上移</el-button>
+            <el-button text size="small" :disabled="index === form.phases.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${phase.title || `第 ${index + 1} 個階段`}」`" @click="move(form.phases, index, 1, phasesList)">下移</el-button>
+            <el-button text size="small" type="danger" :icon="Delete" @click="remove(form.phases, index)">移除</el-button>
+          </span>
         </div>
         <div class="field-row">
           <el-form-item label="小標">
@@ -130,6 +161,8 @@ onMounted(editor.load)
           <el-input :model-value="toLines(phase.tips)" type="textarea" :autosize="{ minRows: 3, maxRows: 14 }" @update:model-value="phase.tips = fromLines($event)" />
         </el-form-item>
       </div>
+      </div>
+      <el-button :icon="Plus" :disabled="form.phases.length >= MAX_PHASES" @click="add(form.phases, newPhase(), phasesList)">新增一個階段</el-button>
 
       <h3 class="sub-title">每天穿什麼</h3>
       <el-form-item label="說明">
@@ -163,10 +196,15 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="sub-title">補助 <span class="hint">{{ form.subsidies.length }} / {{ MAX_SUBSIDIES }}</span></h3>
-      <div v-for="(s, index) in form.subsidies" :key="index" class="repeat-item">
+      <div ref="subsidiesList">
+      <div v-for="(s, index) in form.subsidies" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ s.who || '未命名補助' }}</span>
-          <el-button text size="small" type="danger" :icon="Delete" @click="remove(form.subsidies, index)">移除</el-button>
+          <span class="list-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${s.who || `第 ${index + 1} 項補助`}」`" @click="move(form.subsidies, index, -1, subsidiesList)">上移</el-button>
+            <el-button text size="small" :disabled="index === form.subsidies.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${s.who || `第 ${index + 1} 項補助`}」`" @click="move(form.subsidies, index, 1, subsidiesList)">下移</el-button>
+            <el-button text size="small" type="danger" :icon="Delete" @click="remove(form.subsidies, index)">移除</el-button>
+          </span>
         </div>
         <div class="field-row">
           <el-form-item label="對象"><el-input v-model="s.who" placeholder="例如：大班學費" /></el-form-item>
@@ -175,7 +213,8 @@ onMounted(editor.load)
         </div>
         <el-form-item label="補助單位與條件"><el-input v-model="s.by" placeholder="例如：教育部補助" /></el-form-item>
       </div>
-      <el-button :icon="Plus" :disabled="form.subsidies.length >= MAX_SUBSIDIES" @click="form.subsidies.push({ amount: '', unit: '元／學期', who: '', by: '' })">新增一項補助</el-button>
+      </div>
+      <el-button :icon="Plus" :disabled="form.subsidies.length >= MAX_SUBSIDIES" @click="add(form.subsidies, newSubsidy(), subsidiesList)">新增一項補助</el-button>
 
       <h3 class="sub-title">育兒津貼</h3>
       <div class="field-row">
@@ -193,12 +232,13 @@ onMounted(editor.load)
       <p class="hint">金額單位固定顯示「元／月」。全部刪掉的話官網不顯示這一區。</p>
 
       <h3 class="sub-title">退費規定 <span class="hint">{{ form.refunds.length }} / {{ MAX_REFUNDS }} 種情況</span></h3>
-      <div v-for="(refund, index) in form.refunds" :key="index" class="repeat-item">
+      <div ref="refundsList">
+      <div v-for="(refund, index) in form.refunds" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ refund.title || '未命名情況' }}</span>
-          <span>
-            <el-button text size="small" :disabled="index === 0" @click="move(form.refunds, index, -1)">上移</el-button>
-            <el-button text size="small" :disabled="index === form.refunds.length - 1" @click="move(form.refunds, index, 1)">下移</el-button>
+          <span class="list-actions">
+            <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${refund.title || `第 ${index + 1} 種情況`}」`" @click="move(form.refunds, index, -1, refundsList)">上移</el-button>
+            <el-button text size="small" :disabled="index === form.refunds.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${refund.title || `第 ${index + 1} 種情況`}」`" @click="move(form.refunds, index, 1, refundsList)">下移</el-button>
             <el-button text size="small" type="danger" :icon="Delete" @click="remove(form.refunds, index)">移除</el-button>
           </span>
         </div>
@@ -218,15 +258,26 @@ onMounted(editor.load)
         </div>
         <el-button size="small" :icon="Plus" :disabled="refund.groups.length >= MAX_GROUPS" @click="refund.groups.push({ label: '', lines: [] })">新增一組項目</el-button>
         <el-form-item label="備註（選填）" style="margin-top: 12px">
-          <el-input v-model="refund.note" />
+          <el-input v-model="refund.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
         </el-form-item>
       </div>
-      <el-button :icon="Plus" :disabled="form.refunds.length >= MAX_REFUNDS" @click="form.refunds.push(newRefund())">新增一種情況</el-button>
+      </div>
+      <el-button :icon="Plus" :disabled="form.refunds.length >= MAX_REFUNDS" @click="add(form.refunds, newRefund(), refundsList)">新增一種情況</el-button>
     </el-form>
   </ContentEditor>
 </template>
 
 <style scoped>
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.list-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
 .sub-title {
   margin: 24px 0 12px;
   font-size: 15px;

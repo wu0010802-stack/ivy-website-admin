@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.auth.models import Role, User
+from tests.conftest import freeze_rate_limit_clock
 
 
 @pytest.mark.asyncio
@@ -188,6 +189,7 @@ async def test_login_rate_limited_after_repeated_failures(app, db_session):
     await _create_user(
         db_session, "ratelimit@ivy.example", "ratelimit-correct-password-123", Role.SUPER_ADMIN
     )
+    freeze_rate_limit_clock(app)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         last_status = None

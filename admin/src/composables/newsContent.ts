@@ -1,6 +1,7 @@
 // 消息與活動（全站 home_news、各校 campus_news）與共用常見問題編輯頁共用的
 // 欄位預設值、舊資料換算與檢查。規則與後端 content/schemas.py 相同，前端先
 // 提示，真正的驗證仍在後端。
+import { nextTick } from 'vue'
 import { CAMPUS_LABELS } from '../api/labels'
 import type {
   CampusNewsArticlePayload,
@@ -179,4 +180,21 @@ export function moveItem<T>(list: T[], index: number, delta: number): void {
   if (target < 0 || target >= list.length) return
   const [item] = list.splice(index, 1)
   list.splice(target, 0, item!)
+}
+
+// 新增後要聚焦的第一個欄位：文字欄位優先，略過勾選框、單選與停用的欄位。
+const FIRST_FIELD = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([disabled]), textarea:not([disabled])'
+
+/**
+ * 按了「新增」之後：等新的一項畫出來，把它捲到畫面中間並聚焦第一個欄位（或
+ * field 指定的元素）。清單很長時新的一項可能在畫面外，不這樣做看起來像沒反應。
+ * 用 selector 在 root 裡找那一項，例如 `[data-list-item="3"]`。
+ */
+export async function revealListItem(root: ParentNode | null | undefined, selector: string, field = FIRST_FIELD): Promise<void> {
+  await nextTick()
+  const item = root?.querySelector<HTMLElement>(selector)
+  if (!item) return
+  const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  item.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+  item.querySelector<HTMLElement>(field)?.focus({ preventScroll: true })
 }

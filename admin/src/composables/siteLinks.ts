@@ -1,3 +1,4 @@
+import { CAMPUS_LABELS } from '../api/labels'
 import type { NavLinkPayload, SiteLinkPayload } from '../api/types'
 
 // 主選單、頁尾連結與分校地圖網址的前端檢查。規則和後端 content/schemas.py
@@ -48,6 +49,33 @@ export function siteLinkError(href: string): string | null {
     }
   }
   return '連結要是站內路徑（/ 開頭，例如 /admission、/#about）或 https:// 開頭的外部網址'
+}
+
+// 官網常用頁面的中文名（web/app/pages 與首頁各區塊的錨點 id：about、life、
+// campuses、latest-news）。連結欄下方用它說明這個路徑會開到哪一頁，看不懂
+// 「/#life」的人也知道連到哪裡；對不到的路徑不顯示，不代表一定錯。
+const SITE_PAGE_NAMES: Record<string, string> = {
+  '/': '首頁',
+  '/#about': '首頁・關於常春藤',
+  '/#life': '首頁・孩子的一天',
+  '/#campuses': '首頁・五所校園',
+  '/#latest-news': '首頁・最新消息',
+  '/about': '關於常春藤頁',
+  '/curriculum': '特色教學頁',
+  '/environment': '常春藤環境頁',
+  '/admission': '入學資訊頁',
+  '/visit': '預約參觀頁',
+  '/news': '所有最新消息',
+}
+
+/** 站內路徑對應的官網頁面名稱，例如「/#life」→「首頁・孩子的一天」；對不到回 null。 */
+export function sitePageName(href: string): string | null {
+  const value = href.trim().replace(/(.)\/$/, '$1')
+  if (SITE_PAGE_NAMES[value]) return SITE_PAGE_NAMES[value]
+  const campus = /^\/(campuses|visit)\/([a-z]+)$/.exec(value)
+  const name = campus ? CAMPUS_LABELS[campus[2]!] : undefined
+  if (campus && name) return campus[1] === 'campuses' ? `${name}校分校頁` : `預約參觀${name}校`
+  return null
 }
 
 export function labelEnError(value: string): string | null {

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import { api, ApiError } from '../api/client'
 import { startLineLink } from '../api/oauth'
-import { campusLabels, roleLabel } from '../api/labels'
+import { campusLabels, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel } from '../api/labels'
 import type { AuthProviders } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 
@@ -29,6 +30,17 @@ const providersLoaded = ref(false)
 const linking = ref(false)
 const unlinking = ref(false)
 const googleUnlinking = ref(false)
+const passwordOpen = ref(false)
+// Google 與 LINE 都沒開放時，兩張「尚未啟用」的卡片佔掉主要版面、讀起來像自己漏做
+// 了什麼，收成密碼區裡的一行。已綁定的那張照樣顯示，讓人可以解除。
+const bothUnavailable = computed(() => providersLoaded.value && !googleEnabled.value && !lineEnabled.value)
+const showGoogle = computed(() => Boolean(auth.user?.google_linked) || !bothUnavailable.value)
+const showLine = computed(() => Boolean(auth.user?.line_linked) || !bothUnavailable.value)
+const roleDescription = computed(() => (auth.user ? (ROLE_DESCRIPTIONS as Record<string, string>)[auth.user.role] ?? '' : ''))
+// 總管理者逐人給的額外授權；只列認得的，不把代碼印出來。
+const grants = computed(() => (auth.user?.capabilities ?? [])
+  .filter(code => Object.hasOwn(GRANT_LABELS, code))
+  .map(code => GRANT_LABELS[code]))
 
 const result = route.query.line_link
 const notice = ref<Notice | null>(
@@ -115,7 +127,7 @@ async function unlink() {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="查看自己的帳號資料，並設定登入方式。" />
+    <PageHeader lead="查看自己的帳號資料，並更改密碼、設定登入方式。" />
 
     <el-alert v-if="notice" :type="notice.type" :title="notice.text" :closable="false" show-icon class="account__notice" />
 
@@ -125,17 +137,33 @@ async function unlink() {
         <div class="panel__body">
           <dl class="account__facts">
             <div><dt>Email</dt><dd>{{ auth.user.email }}</dd></div>
-            <div><dt>角色</dt><dd>{{ roleLabel(auth.user.role) }}</dd></div>
+            <div>
+              <dt>角色</dt>
+              <dd>{{ roleLabel(auth.user.role) }}<span v-if="roleDescription" class="account__role-desc">{{ roleDescription }}</span></dd>
+            </div>
             <div v-if="auth.user.role !== 'super_admin'"><dt>負責校區</dt><dd>{{ campusLabels(auth.user.campus_keys) || '尚未指定' }}</dd></div>
+            <div v-if="grants.length"><dt>額外授權</dt><dd>{{ grants.join('、') }}</dd></div>
           </dl>
           <p class="field-help">Email、角色與校區由總管理者在「使用者」設定。</p>
         </div>
       </section>
 
+      <!-- 員工進「我的帳號」最常是要改密碼；側欄的鑰匙圖示保留，這裡是看得懂的入口。 -->
       <section class="panel">
+        <div class="panel__head"><h2>密碼</h2></div>
+        <div class="panel__body account__line">
+          <p>用 Email 與密碼登入後台。更改後，其他電腦與手機上的登入會被登出，正在用的這個瀏覽器維持登入。</p>
+          <el-button type="primary" plain data-test="change-password" @click="passwordOpen = true">更改密碼</el-button>
+          <p class="field-help">忘記密碼請聯絡總管理者重設。</p>
+          <p v-if="bothUnavailable" class="field-help" data-test="password-only">目前只開放 Email 與密碼登入。</p>
+        </div>
+      </section>
+
+      <section v-if="showGoogle" class="panel">
         <div class="panel__head account__line-head">
           <h2>Google 登入</h2>
-          <el-tag :type="auth.user.google_linked ? 'success' : 'info'" disable-transitions>
+          <!-- 沒開放又沒綁定時不掛標籤：「尚未綁定」會讓人以為要自己去綁。 -->
+          <el-tag v-if="auth.user.google_linked || googleEnabled" :type="auth.user.google_linked ? 'success' : 'info'" disable-transitions>
             {{ auth.user.google_linked ? '已綁定' : '尚未綁定' }}
           </el-tag>
         </div>
@@ -157,18 +185,19 @@ async function unlink() {
                 <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
               </template>
             </el-popconfirm>
-            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，再用 Google 登入一次即可。</p>
+            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，登出後再用 Google 登入一次即可。</p>
           </template>
           <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
-          <p v-else-if="googleEnabled">在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
+          <!-- 登入中開登入頁會直接回到後台（router 恢復 session），所以要先登出。 -->
+          <p v-else-if="googleEnabled">登出後在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
           <p v-else>Google 登入尚未啟用。</p>
         </div>
       </section>
 
-      <section class="panel">
+      <section v-if="showLine" class="panel">
         <div class="panel__head account__line-head">
           <h2>LINE 登入</h2>
-          <el-tag :type="auth.user.line_linked ? 'success' : 'info'" disable-transitions>
+          <el-tag v-if="auth.user.line_linked || lineEnabled" :type="auth.user.line_linked ? 'success' : 'info'" disable-transitions>
             {{ auth.user.line_linked ? '已綁定' : '尚未綁定' }}
           </el-tag>
         </div>
@@ -196,9 +225,10 @@ async function unlink() {
             <el-button type="primary" data-test="line-link" :loading="linking" @click="link">綁定 LINE</el-button>
           </template>
           <p v-else>LINE 登入尚未啟用，啟用後這裡會出現綁定按鈕。</p>
-          <p class="field-help">後台只記錄 LINE 提供的帳號識別碼，不讀取暱稱、大頭貼或 Email。</p>
+          <p v-if="lineEnabled || auth.user.line_linked" class="field-help">後台只記錄 LINE 提供的帳號識別碼，不讀取暱稱、大頭貼或 Email。</p>
         </div>
       </section>
+      <ChangePasswordDialog v-model="passwordOpen" />
     </template>
   </div>
 </template>
@@ -227,6 +257,14 @@ async function unlink() {
 .account__facts dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.account__role-desc {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .account__line-head {

@@ -3146,6 +3146,8 @@ export interface components {
         };
         /** PublishRequest */
         PublishRequest: {
+            /** Expected Published Revision Id */
+            expected_published_revision_id?: string | null;
             /**
              * Revision Id
              * Format: uuid
