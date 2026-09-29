@@ -361,7 +361,6 @@ export type VisitRequestManualCreate = components['schemas']['VisitRequestManual
 export type VisitStaffOut = components['schemas']['VisitStaffOut']
 export type LineSettingsOut = components['schemas']['LineSettingsOut']
 export type LineGroupOut = components['schemas']['LineGroupOut']
-export type LineCampusTargetOut = components['schemas']['LineCampusTargetOut']
 export type LineVerificationCodeOut = components['schemas']['LineVerificationCodeOut']
 export type PublishJobListOut = components['schemas']['PublishJobListOut']
 export type ReleaseOut = components['schemas']['ReleaseOut']

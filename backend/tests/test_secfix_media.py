@@ -1,6 +1,8 @@
 """資安修正（media 套件，2026-09-29 白箱稽核）：
 
-- 原檔去除拍攝資訊（EXIF／GPS、XMP、IPTC、註解、影片 udta/meta），保留 ICC 與影片旋轉。
+- 原檔去除拍攝資訊（EXIF／GPS、XMP、IPTC、註解、其他 APPn 與附加資料、影片 udta/meta），
+  保留 ICC、影片旋轉與圖片拍攝方向（PR #14 的無損做法：只留一段只有方向的 EXIF，像素不動；
+  PR #14 本身的測試在 test_media_metadata.py）。
 - Pillow 只開 JPEG／PNG／WebP，白名單在解碼之前生效；記憶體不足收斂成既有錯誤。
 - ffprobe／ffmpeg 限定 mov demuxer 與 file protocol。
 - 解碼、轉檔、抽幀有程序層級的並行上限；poster 影格先看尺寸再解碼。
@@ -21,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from PIL import ExifTags, Image, ImageChops, ImageCms, ImageOps, ImageStat, PngImagePlugin
+from PIL import ExifTags, Image, ImageCms, ImageOps, PngImagePlugin
 from sqlalchemy import select
 from starlette.responses import StreamingResponse
 
@@ -164,12 +166,6 @@ async def _stored(client, db_session, body: dict) -> bytes:
     return stored
 
 
-def _close_to(a: Image.Image, b: Image.Image) -> bool:
-    assert a.size == b.size
-    diff = ImageStat.Stat(ImageChops.difference(a.convert("RGB"), b.convert("RGB"))).mean
-    return max(diff) < 4
-
-
 # ---------------------------------------------------------------------------
 # Pillow：白名單在解碼之前生效
 # ---------------------------------------------------------------------------
@@ -252,18 +248,27 @@ async def test_jpeg_metadata_stripped_losslessly(admin_client, db_session):
     assert (body["width"], body["height"]) == (64, 48)
 
 
+def _assert_only_orientation(clean: Image.Image, orientation: int) -> None:
+    exif = clean.getexif()
+    assert dict(exif) == {ExifTags.Base.Orientation: orientation}
+    assert not exif.get_ifd(ExifTags.IFD.GPSInfo)
+
+
 @pytest.mark.asyncio
-async def test_rotated_jpeg_is_reencoded_upright_without_exif(admin_client, db_session):
+async def test_rotated_jpeg_keeps_only_orientation_losslessly(admin_client, db_session):
     original = _jpeg_with_metadata((64, 48), orientation=6)
     body = await _upload(admin_client, original, "phone.jpg", "image/jpeg")
     stored = await _stored(admin_client, db_session, body)
-    for marker in GPS_MARKERS:
+    for marker in GPS_MARKERS[1:]:
         assert marker not in stored, marker
+    assert stored.count(b"Exif\x00\x00") == 1
     with Image.open(io.BytesIO(stored)) as clean, Image.open(io.BytesIO(original)) as source:
-        assert clean.size == (48, 64)
-        assert clean.getexif().get(ExifTags.Base.Orientation) is None
+        assert clean.size == (64, 48)
+        _assert_only_orientation(clean, 6)
         assert clean.info.get("icc_profile") == SRGB
-        assert _close_to(clean, ImageOps.exif_transpose(source))
+        assert clean.tobytes() == source.tobytes()
+        assert ImageOps.exif_transpose(clean).size == (48, 64)
+    # 素材記轉正後的寬高（瀏覽器依方向轉正原檔）。
     assert (body["width"], body["height"]) == (48, 64)
 
 
@@ -283,14 +288,19 @@ async def test_png_metadata_chunks_dropped(admin_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_rotated_png_is_reencoded_upright(admin_client, db_session):
+async def test_rotated_png_keeps_only_orientation_losslessly(admin_client, db_session):
     original = _png_with_metadata((64, 48), orientation=6)
     body = await _upload(admin_client, original, "phone.png", "image/png")
     stored = await _stored(admin_client, db_session, body)
-    assert not {b"eXIf", b"tEXt", b"zTXt", b"iTXt", b"tIME"} & set(_png_chunks(stored))
+    chunks = _png_chunks(stored)
+    assert chunks.count(b"eXIf") == 1
+    assert not {b"tEXt", b"zTXt", b"iTXt", b"tIME", b"prVt"} & set(chunks)
+    for marker in GPS_MARKERS[1:]:
+        assert marker not in stored, marker
     with Image.open(io.BytesIO(stored)) as clean, Image.open(io.BytesIO(original)) as source:
-        assert clean.size == (48, 64)
-        assert clean.tobytes() == ImageOps.exif_transpose(source).tobytes()
+        assert clean.size == (64, 48)
+        assert clean.tobytes() == source.tobytes()
+        _assert_only_orientation(clean, 6)
     assert (body["width"], body["height"]) == (48, 64)
 
 
@@ -313,29 +323,59 @@ async def test_webp_exif_and_xmp_dropped_and_flags_fixed(admin_client, db_sessio
 
 
 @pytest.mark.asyncio
-async def test_rotated_webp_is_reencoded_upright(admin_client, db_session):
+async def test_rotated_webp_keeps_only_orientation_losslessly(admin_client, db_session):
     original = _webp_with_metadata((64, 48), orientation=6)
     body = await _upload(admin_client, original, "phone.webp", "image/webp")
     stored = await _stored(admin_client, db_session, body)
-    assert b"EXIF" not in _webp_chunks(stored)
+    chunks = _webp_chunks(stored)
+    assert chunks.count(b"EXIF") == 1 and b"XMP " not in chunks
+    flags = stored[20]
+    assert flags & 0x08 and not flags & 0x04
+    for marker in GPS_MARKERS[1:]:
+        assert marker not in stored, marker
     with Image.open(io.BytesIO(stored)) as clean, Image.open(io.BytesIO(original)) as source:
-        assert clean.size == (48, 64)
-        assert clean.tobytes() == ImageOps.exif_transpose(source).tobytes()
+        assert clean.size == (64, 48)
+        assert clean.tobytes() == source.tobytes()
+        _assert_only_orientation(clean, 6)
     assert (body["width"], body["height"]) == (48, 64)
 
 
-def test_strip_is_idempotent_and_leaves_clean_files_untouched():
+def test_progressive_jpeg_metadata_between_scans_is_dropped(tmp_path):
+    """多次掃描的 JPEG：SOS 之後不能整段照抄，掃描之間的 COM／APPn 也要過濾。"""
+    buf = io.BytesIO()
+    _pattern((64, 48)).save(buf, "JPEG", quality=90, progressive=True)
+    data = buf.getvalue()
+    second_sos = data.index(b"\xff\xda", data.index(b"\xff\xda") + 2)
+    tagged = data[:second_sos] + _jpeg_segment(0xFE, b"GPS-BETWEEN-SCANS") + _jpeg_segment(0xE5, b"GPS-APP5") + data[second_sos:]
+    src, dst = tmp_path / "in.jpg", tmp_path / "out.jpg"
+    src.write_bytes(tagged)
+    assert metadata.strip_file(src, dst, "image/jpeg") == (64, 48)
+    stored = dst.read_bytes()
+    assert b"GPS-BETWEEN-SCANS" not in stored and b"GPS-APP5" not in stored
+    assert stored == data
+    with Image.open(io.BytesIO(stored)) as clean, Image.open(io.BytesIO(data)) as source:
+        assert clean.tobytes() == source.tobytes()
+
+
+def test_strip_is_idempotent_and_leaves_clean_files_untouched(tmp_path):
+    def strip(data: bytes, content_type: str) -> tuple[bytes, tuple[int, int] | None]:
+        src, dst = tmp_path / "src", tmp_path / "dst"
+        src.write_bytes(data)
+        size = metadata.strip_file(src, dst, content_type)
+        return dst.read_bytes(), size
+
     for data, content_type in (
         (_jpeg_with_metadata(), "image/jpeg"),
         (_jpeg_with_metadata(orientation=8), "image/jpeg"),
         (_png_with_metadata(), "image/png"),
+        (_png_with_metadata(orientation=5), "image/png"),
         (_webp_with_metadata(orientation=3), "image/webp"),
     ):
-        once, _ = metadata.strip_image_bytes(data, content_type)
-        twice, _ = metadata.strip_image_bytes(once, content_type)
-        assert once == twice, content_type
+        once, size = strip(data, content_type)
+        twice, size_again = strip(once, content_type)
+        assert once == twice and size == size_again, content_type
     plain = (FIXTURES / "test.jpg").read_bytes()
-    assert metadata.strip_image_bytes(plain, "image/jpeg") == (plain, (100, 80))
+    assert strip(plain, "image/jpeg") == (plain, (100, 80))
 
 
 def _make_tagged_video(tmp_path: Path) -> tuple[Path, bool]:
@@ -591,8 +631,13 @@ async def test_strip_media_metadata_cli_dry_run_apply_and_rerun(app, db_session,
         assert row.storage_key != keys[asset_id]
         assert not storage.exists(keys[asset_id])  # 舊檔在 commit 之後刪掉
         stored = storage.read_bytes(row.storage_key)
-        assert b"Exif\x00\x00" not in stored and b"Kaohsiung" not in stored and b"TRAILER" not in stored
+        for marker in GPS_MARKERS[1:]:
+            assert marker not in stored, marker
         assert row.size_bytes == len(stored)
+    # 沒有方向的不留 EXIF；有方向的只留方向（像素不動，轉正交給瀏覽器與衍生檔）。
+    assert b"Exif\x00\x00" not in storage.read_bytes(rows[tagged.id].storage_key)
+    with Image.open(io.BytesIO(storage.read_bytes(rows[legacy.id].storage_key))) as legacy_clean:
+        _assert_only_orientation(legacy_clean, 6)
     assert rows[tagged.id].sha256 == hashlib.sha256(storage.read_bytes(rows[tagged.id].storage_key)).hexdigest()
     assert rows[legacy.id].sha256 is None
     assert (rows[legacy.id].width, rows[legacy.id].height) == (48, 64)
@@ -650,12 +695,30 @@ async def _media_app_with_lock_timeout(db_session, lock_timeout_ms: int):
     return app, client
 
 
+def test_quota_statement_timeout_outlasts_the_lock_wait():
+    """等配額鎖的語句同時受 lock_timeout 與 statement_timeout 限制；statement_timeout
+    較短時會先到，回的是 500 而不是 409 MEDIA_BUSY。"""
+
+    def seconds(value: str) -> int:
+        assert value.endswith("s") and not value.endswith("ms"), value
+        return int(value[:-1])
+
+    assert seconds(service.QUOTA_STATEMENT_TIMEOUT) > seconds(service.QUOTA_LOCK_TIMEOUT)
+    # PR #14 讓同校後面的上傳最多排隊 5 分鐘；等鎖上限不能比它早放棄。
+    assert seconds(service.QUOTA_LOCK_TIMEOUT) >= 300
+
+
 @pytest.mark.asyncio
-async def test_quota_lock_wait_outlasts_the_default_lock_timeout(db_session):
-    """持鎖的上傳在交易內還要寫檔、產生衍生檔，常超過一般的 lock_timeout；原本
-    第二個上傳等不到鎖就變成 500。現在等配額鎖另有上限（120 秒），排得到就成功。"""
+async def test_quota_lock_wait_outlasts_the_default_lock_timeout(db_session, monkeypatch):
+    """持鎖的上傳在交易內還要寫檔、產生衍生檔，常超過一般的 lock_timeout 與
+    statement_timeout（PR #14）；原本第二個上傳等不到鎖就變成 500。現在等配額鎖
+    另有上限（300 秒，與 PR #14 相同），排得到就成功。"""
     from sqlalchemy import text
 
+    from app import db as app_db
+
+    # 連線預設的兩個逾時都比排隊時間短，SET LOCAL 要兩個都放寬。
+    monkeypatch.setattr(app_db, "STATEMENT_TIMEOUT_MS", 300)
     app, client = await _media_app_with_lock_timeout(db_session, lock_timeout_ms=200)
     data = (FIXTURES / "test.jpg").read_bytes()
     conn = await db_session.connection()
@@ -670,7 +733,7 @@ async def test_quota_lock_wait_outlasts_the_default_lock_timeout(db_session):
         )).scalar_one():
             assert time.monotonic() < deadline, "上傳沒有開始等配額鎖"
             await asyncio.sleep(0.05)
-        await asyncio.sleep(0.6)  # 超過這個 app 的 lock_timeout（200 ms）
+        await asyncio.sleep(0.6)  # 超過這個 app 的 lock_timeout（200 ms）與 statement_timeout（300 ms）
         await conn.execute(text("SELECT pg_advisory_unlock(hashtext('media-quota:yihua'))"))
         response = await upload
     finally:

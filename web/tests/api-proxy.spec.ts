@@ -69,7 +69,7 @@ afterEach(async () => {
   })))
 })
 
-describe('路徑跳脫一律 400，後端收不到（稽核 proxy-dot-segment-*）', () => {
+describe('路徑跳脫一律 404，後端收不到（稽核 proxy-dot-segment-*）', () => {
   it.each([
     '/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json',
     '/api/website/v1/../../../docs',
@@ -79,7 +79,7 @@ describe('路徑跳脫一律 400，後端收不到（稽核 proxy-dot-segment-*�
     '/api/website/v1/x/.%09./public/telemetry',
   ])('%s', async (path) => {
     const response = await rawRequest(proxyPort, path)
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(404)
     expect(upstreamHits).toEqual([])
   })
 

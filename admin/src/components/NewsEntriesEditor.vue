@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import { Delete, Picture, Plus } from '@element-plus/icons-vue'
 import type { CampusNewsArticlePayload, CampusNewsEventPayload, MediaAssetOut, NewsArticlePayload, NewsEventPayload } from '../api/types'
-import { mediaFileUrl } from '../api/client'
-import { websiteAssetUrl } from '../config'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { IMAGE_HINTS } from '../composables/contentHints'
+import { altAfterPick, isMediaId, useMediaThumbs } from '../composables/mediaThumbs'
+import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import {
   eventTimeError,
-  moveItem,
   newArticle,
   newCampusArticle,
   newCampusEvent,
   newEvent,
+  revealListItem,
   scheduleInvalid,
   scheduleState,
   taipeiToday,
@@ -36,33 +36,36 @@ const props = defineProps<{
   readOnly?: boolean
 }>()
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const missingGlyphs = useTitleFontCoverage()
 const today = taipeiToday()
 const isGlobal = computed(() => props.mode === 'global')
 const featuredCount = computed(() => props.articles.filter((a) => (a as NewsArticlePayload).featured).length)
 
-function isMediaId(image: string): boolean {
-  return UUID_PATTERN.test(image)
-}
-
-// 同校園探索：素材庫 UUID 走後台媒體 API；舊示意消息的代號走官網靜態素材。
-function previewUrl(image: string): string {
-  return isMediaId(image) ? mediaFileUrl(image) : websiteAssetUrl(image)
-}
+// 封面縮圖：素材庫照片載縮圖（讀不到退回原檔），舊示意消息的代號走官網靜態素材；
+// 都讀不到時在框裡寫出來，不是只剩一個空白框。
+const thumbs = useMediaThumbs()
 
 function asGlobal<T>(entry: T): T & NewsArticlePayload & NewsEventPayload {
   return entry as T & NewsArticlePayload & NewsEventPayload
 }
 
+const articlesList = useTemplateRef<HTMLElement>('articlesList')
+const eventsList = useTemplateRef<HTMLElement>('eventsList')
+
 // 新增的放最上面：官網依日期排序（推薦的消息依這裡的順序），這裡只是讓剛加的
-// 那則不用捲到底才找得到。
+// 那則不用捲到底才找得到。加完捲過去並聚焦標題（日期已預填今天）。
 function addArticle() {
   props.articles.unshift(isGlobal.value ? newArticle() : newCampusArticle())
+  void revealListItem(articlesList.value, '[data-list-item="0"]', '.news-item__title input')
 }
 
 function addEvent() {
   props.events.unshift(isGlobal.value ? newEvent() : newCampusEvent())
+  void revealListItem(eventsList.value, '[data-list-item="0"]', '.news-event__title input')
+}
+
+function moveArticle(index: number, delta: number) {
+  void moveKeepingFocus(props.articles, index, delta, articlesList.value)
 }
 
 function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
@@ -83,9 +86,10 @@ function pickImage(index: number) {
 function onPickMedia(asset: MediaAssetOut) {
   const article = pickingIndex.value === null ? null : props.articles[pickingIndex.value]
   if (!article) return
+  // 素材庫已經填了圖片說明的話直接帶入，園方不用再打一次；換成另一張時換成新照片的說明。
+  article.alt = altAfterPick(article.alt, article.image, asset)
   article.image = asset.id
-  // 素材庫已經填了替代文字的話直接帶入，園方不用再打一次。
-  if (!article.alt && asset.alt_text) article.alt = asset.alt_text
+  thumbs.forget(asset.id)
 }
 </script>
 
@@ -102,7 +106,8 @@ function onPickMedia(asset: MediaAssetOut) {
   <el-button v-if="!readOnly" :icon="Plus" :disabled="articles.length >= maxArticles" @click="addArticle">新增一則消息</el-button>
   <p v-if="!articles.length" class="hint news-empty">目前沒有消息。</p>
 
-  <div v-for="(article, index) in articles" :key="article.id" class="repeat-item news-item">
+  <div ref="articlesList">
+  <div v-for="(article, index) in articles" :key="article.id" class="repeat-item news-item" :data-list-item="index">
     <div class="repeat-item__head">
       <span class="repeat-item__index">
         <b>{{ index + 1 }}</b>
@@ -112,15 +117,25 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-tag v-else-if="scheduleState(article, today) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
       </span>
       <span v-if="!readOnly" class="cell-actions">
-        <el-button text size="small" :disabled="index === 0" @click="moveItem(articles, index, -1)">上移</el-button>
-        <el-button text size="small" :disabled="index === articles.length - 1" @click="moveItem(articles, index, 1)">下移</el-button>
+        <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${article.title || `第 ${index + 1} 則消息`}」`" @click="moveArticle(index, -1)">上移</el-button>
+        <el-button text size="small" :disabled="index === articles.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${article.title || `第 ${index + 1} 則消息`}」`" @click="moveArticle(index, 1)">下移</el-button>
         <el-button text size="small" type="danger" :icon="Delete" @click="articles.splice(index, 1)">移除</el-button>
       </span>
     </div>
     <div class="news-item__grid">
       <div class="news-item__photo">
-        <button type="button" class="news-item__thumb" :disabled="readOnly" :aria-label="article.image ? '更換照片' : '從素材庫選擇照片'" @click="pickImage(index)">
-          <img v-if="article.image" :src="previewUrl(article.image)" alt="" @error="($event.target as HTMLImageElement).style.visibility = 'hidden'" />
+        <button
+          type="button"
+          class="news-item__thumb"
+          :class="{ 'is-broken': article.image && thumbs.isBroken(article.image) }"
+          :disabled="readOnly"
+          :aria-label="article.image && thumbs.isBroken(article.image) ? '讀不到這張照片，請重新選擇' : article.image ? '更換照片' : '從素材庫選擇照片'"
+          @click="pickImage(index)"
+        >
+          <span v-if="article.image && thumbs.isBroken(article.image)" class="news-item__thumb-empty news-item__thumb-broken">
+            <el-icon><Picture /></el-icon>讀不到這張照片，請重新選擇
+          </span>
+          <img v-else-if="article.image" :src="thumbs.src(article.image)" alt="" loading="lazy" @error="thumbs.onError(article.image)" />
           <span v-else class="news-item__thumb-empty"><el-icon><Picture /></el-icon>選擇照片</span>
         </button>
         <span v-if="article.image && !isMediaId(article.image)" class="hint">官網內建示意照片</span>
@@ -144,7 +159,7 @@ function onPickMedia(asset: MediaAssetOut) {
           </el-form-item>
         </template>
         <el-form-item label="標題">
-          <el-input v-model="article.title" />
+          <el-input v-model="article.title" class="news-item__title" />
           <LengthHint :value="article.title" rule="newsTitle" />
           <p v-if="missingGlyphs(article.title).length" class="glyph-hint">
             官網標題字型沒有「{{ missingGlyphs(article.title).join('') }}」，這幾個字會以系統字顯示。可以換個說法，或請工程補字。
@@ -157,8 +172,9 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-form-item label="內文（選填，點開消息時顯示在摘要下面）">
           <NewsBodyEditor :blocks="article.body" :campus-key="campusKey" :read-only="readOnly" />
         </el-form-item>
-        <el-form-item label="照片替代文字（給螢幕報讀器，描述照片內容）">
-          <el-input v-model="article.alt" placeholder="例如：孩子在菜園裡澆水" />
+        <el-form-item label="圖片說明（給看不到照片的人）">
+          <el-input v-model="article.alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" placeholder="例如：孩子在菜園裡澆水" />
+          <span class="field-help">描述照片裡看得到的內容；換照片時會換成素材庫裡新照片的說明。</span>
         </el-form-item>
         <div class="field-row">
           <el-form-item label="上架日期（選填）">
@@ -171,6 +187,7 @@ function onPickMedia(asset: MediaAssetOut) {
       </div>
     </div>
   </div>
+  </div>
 
   <div class="section__title" style="margin-top: 28px">
     <h2>近期活動</h2>
@@ -179,7 +196,8 @@ function onPickMedia(asset: MediaAssetOut) {
   <el-button v-if="!readOnly" :icon="Plus" :disabled="events.length >= maxEvents" @click="addEvent">新增一筆活動</el-button>
   <p v-if="!events.length" class="hint news-empty">目前沒有活動。</p>
 
-  <div v-for="(event, index) in events" :key="event.id" class="repeat-item">
+  <div ref="eventsList">
+  <div v-for="(event, index) in events" :key="event.id" class="repeat-item" :data-list-item="index">
     <div class="repeat-item__head">
       <span class="repeat-item__index">
         <b>{{ index + 1 }}</b>
@@ -206,7 +224,7 @@ function onPickMedia(asset: MediaAssetOut) {
     </div>
     <ScopeField v-if="isGlobal" :entry="asGlobal(event)" />
     <el-form-item label="活動名稱">
-      <el-input v-model="event.title" />
+      <el-input v-model="event.title" class="news-event__title" />
       <LengthHint :value="event.title" rule="eventTitle" />
       <p v-if="missingGlyphs(event.title).length" class="glyph-hint">
         官網標題字型沒有「{{ missingGlyphs(event.title).join('') }}」，這幾個字會以系統字顯示。
@@ -220,7 +238,7 @@ function onPickMedia(asset: MediaAssetOut) {
     </el-form-item>
     <div class="field-row">
       <el-form-item label="相關連結（選填，例如報名表或活動詳情）" :error="webUrlError(event.link_url)">
-        <el-input v-model="event.link_url" placeholder="https://" />
+        <el-input v-model="event.link_url" inputmode="url" placeholder="https://" />
       </el-form-item>
       <el-form-item label="連結文字">
         <el-input v-model="event.link_label" maxlength="20" placeholder="活動詳情" :disabled="readOnly || !event.link_url.trim()" />
@@ -234,6 +252,7 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-date-picker v-model="event.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="活動日過後自動下架" clearable style="width: 100%" />
       </el-form-item>
     </div>
+  </div>
   </div>
 
   <MediaPickerDialog v-model="pickerVisible" :campus-key="campusKey" @select="onPickMedia" />
@@ -300,6 +319,18 @@ function onPickMedia(asset: MediaAssetOut) {
   height: 100%;
   color: var(--ink-2);
   font-size: 13px;
+}
+
+/* 素材讀不到：比照版位的失效提示，用錯誤色把框和字標出來。 */
+.news-item__thumb.is-broken {
+  border-color: var(--el-color-danger);
+}
+
+.news-item__thumb-broken {
+  padding: 8px;
+  color: var(--el-color-danger);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .event-time {

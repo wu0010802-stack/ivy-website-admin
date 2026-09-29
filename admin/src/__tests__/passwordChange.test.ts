@@ -115,6 +115,9 @@ describe('我的帳號：更改密碼入口', () => {
     const wrapper = mount(AccountView, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper)
     await flushPromises()
+    // 合併 main（PR #15 也加了「密碼」區）後只留一個入口、一個對話框。
+    expect(wrapper.findAll('[data-test="change-password"]')).toHaveLength(1)
+    expect(wrapper.findAllComponents(ChangePasswordDialog)).toHaveLength(1)
     const dialog = wrapper.getComponent(ChangePasswordDialog)
     expect(dialog.props('modelValue')).toBe(false)
     await wrapper.get('[data-test="change-password"]').trigger('click')

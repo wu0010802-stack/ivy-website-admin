@@ -72,8 +72,16 @@ describe('依 effective_capabilities 判斷權限', () => {
     expect(AUDIT_ACTION_LABELS['user.logout']).toBe('登出')
     expect(AUDIT_ACTION_LABELS['user.clear_external_logins']).toBe('解除外部登入綁定')
     expect(auditMetadataSummary({ reason: 'wrong_password', context: 'reauth' })).toBe(
-      '原因=密碼錯誤，發生在=變更登入方式前確認密碼',
+      '原因：密碼錯誤，發生在：變更登入方式前確認密碼',
     )
+    // 合併 main（PR #15 的中文細節欄）後，新的 metadata 鍵也有中文寫法。
+    expect(auditMetadataSummary({ lock_minutes: 15, failed_attempts: 10 }, 'user.login_locked')).toBe('密碼登入暫停 15 分鐘，密碼錯誤達 10 次')
+    expect(auditMetadataSummary({ line_unlinked: true, google_unlinked: false, revoked_sessions: 2 }, 'user.clear_external_logins')).toBe(
+      '解除 LINE 登入綁定，同時登出 2 個已登入的裝置',
+    )
+    expect(auditMetadataSummary({ verification_code_id: 'x', source_type: 'room' }, 'line.group.verify')).toBe('類型：多人聊天室')
+    expect(auditMetadataSummary({ expires_at: '2026-09-29T04:10:00Z' }, 'line.verification_code.create')).toMatch(/^驗證碼到期：/)
+    expect(auditMetadataSummary({ stripped: ['a', 'b'], failed: [] }, 'media.strip_metadata')).toBe('去除拍攝資訊 2 個')
     expect(auditReasonLabel('not_linked')).toBe('沒有綁定這個 LINE 的後台帳號')
   })
 })
@@ -314,7 +322,9 @@ describe('我的帳號：Google 綁定', () => {
 
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const off = await mountAs(AccountView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/account')
-    expect(off.wrapper.text()).toContain('Google 登入尚未啟用')
+    // Google、LINE 都沒開放：不留兩張「尚未啟用」卡片，收成一行（2026-09-28）。
+    expect(off.wrapper.text()).toContain('目前只開放 Email 與密碼登入')
+    expect(off.wrapper.text()).not.toContain('Google 登入')
   })
 })
 
@@ -409,8 +419,8 @@ describe('操作紀錄看得出授權變更', () => {
     expect(setRole).toContain('角色：校區管理者 → 櫃台')
     expect(setRole).toContain('負責校區：義華 → 義華、仁武')
     expect(auditMetadataSummary({ role: 'reception', campus_keys: ['yihua'], capabilities: [] })).toBe('角色：櫃台，負責校區：義華，授權：無')
-    // 原本就顯示的純值不受影響。
-    expect(auditMetadataSummary({ before: true, after: false, reason: 'inactive' })).toBe('before=true，after=false，原因=帳號已停用')
+    // 布林的修改前後（分校啟用狀態）也翻成中文，不再出現 before=true 這種原始鍵值。
+    expect(auditMetadataSummary({ before: true, after: false, reason: 'inactive' })).toBe('狀態：啟用 → 停用，原因：帳號已停用')
   })
 
   it('操作紀錄頁顯示授權變更的內容', async () => {

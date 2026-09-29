@@ -151,6 +151,8 @@ function openExpanded() {
 
 function onDialogClose() {
   isExpanded.value = false
+  // 手機頁內收起縮放鍵（styles.css 同一個 760px 斷點），關閉時把縮放歸 1，照片才不會停在放大、又沒有鍵可以還原；桌機保留縮放。
+  if (window.matchMedia('(max-width: 760px)').matches) setZoom(1)
   nextTick(() => expandBtnEl.value?.focus({ preventScroll: true }))
 }
 
@@ -247,6 +249,7 @@ watch(
                       :key="spot.name"
                       type="button"
                       class="tour-pin"
+                      :class="{ 'label-above': spot.y > 70 }"
                       :style="{ left: spot.x + '%', top: spot.y + '%' }"
                       :aria-pressed="i === spotIndex"
                       :aria-label="`${i + 1}：${spot.name}`"

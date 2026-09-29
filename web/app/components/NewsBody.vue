@@ -44,8 +44,11 @@ defineProps<{ summary: string; blocks: NewsBlock[] }>()
 .hn-body ul { list-style: disc; }
 .hn-body ol { list-style: decimal; }
 .hn-body li + li { margin-top: 4px; }
-.hn-body figure { margin-block: 20px; }
+/* 明寫 margin-inline:0：瀏覽器預設 figure 左右各 40px，內文圖會比文字欄窄、也對不齊。 */
+.hn-body figure { margin: 20px 0; }
 .hn-body img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: cover; border-radius: 3px; }
 .hn-body figcaption { margin-top: 8px; font-size: var(--fs-xs); color: var(--hn-muted); }
-.hn-body a { color: var(--hn-green); text-decoration: underline; text-underline-offset: 4px; overflow-wrap: anywhere; }
+/* .hn-body 裡的連結只有獨立一段的 link 區塊（報名表等行動）：padding-block 撐出 44px 點擊高度，
+   inline 的 padding 不撐高行框，版面不動。 */
+.hn-body a { padding-block: 13px; color: var(--hn-green); text-decoration: underline; text-underline-offset: 4px; overflow-wrap: anywhere; }
 </style>

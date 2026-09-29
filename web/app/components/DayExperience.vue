@@ -2,6 +2,7 @@
 import { pickImage } from '~/utils/media-image'
 import { noscriptImage } from '~/utils/noscript-image'
 import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
 import { readMotionViewport } from '~/utils/motionViewport'
@@ -26,7 +27,9 @@ const filmPosition = ref<string | null>(null)
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
 // AboutSection.vue 的 useCurtain 呼叫一樣：clip-path／疊層要套在同一
 // 個元素上才會跟 vanilla 的疊層判斷一致。
-useCurtain(rootEl, trackEl, sectionEl, 'day')
+// 擦除邊是水彩濕邊往上滲（2026-09-29，composables/useWatercolorSeep.ts）
+const seepEdge = useWatercolorSeep()
+useCurtain(rootEl, trackEl, sectionEl, 'day', undefined, seepEdge)
 const showVideo = ref(false)
 const isPlaying = ref(false)
 // 首次播放後才淡入；暫停時仍保留影片畫面，不退回封面。
@@ -63,8 +66,9 @@ function paintFade() {
   })
   const fade = (1 - progress * (1 - QUIET)).toFixed(3)
   if (intro.style.getPropertyValue('--word-fade') !== fade) intro.style.setProperty('--word-fade', fade)
-  // 拍立得蓋到大標以後，圖說與暫停鍵會壓在卡片文字上；手機靠這個狀態讓圖說退場、暫停鍵收成圓鈕。
-  const covered = progress >= 1 ? '1' : '0'
+  // 第一張拍立得升到底部控制列（暫停鍵底緣離閱讀高度底部 14px，見 styles.css）就算蓋到：
+  // 手機靠這個狀態讓圖說退場、暫停鍵收成圓鈕，不等卡片蓋到大標才讓位（progress >= 1 已包含在內）。
+  const covered = top < readingHeight - 14 ? '1' : '0'
   const ui = filmUiEl.value
   if (ui && ui.dataset.covered !== covered) ui.dataset.covered = covered
   activeIndex.value = active
@@ -107,9 +111,11 @@ function applyFilm() {
     return
   }
   if (!video.getAttribute('src')) {
-    const isMobile = window.matchMedia('(max-width: 760px)').matches
-    video.src = backgroundVideoSrc(isMobile ? props.day.filmSrcMobile : props.day.filmSrc, isMobile)
-    filmPosition.value = (isMobile ? props.day.filmPositionMobile : props.day.filmPosition) ?? null
+    // 素材與裁切位置依寬度；編碼版本依布幕的手機定義，橫拿手機也拿手機檔（與 HeroVideo 同一套）。
+    const narrow = window.matchMedia('(max-width: 760px)').matches
+    const compact = window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches
+    video.src = backgroundVideoSrc(narrow ? props.day.filmSrcMobile : props.day.filmSrc, compact)
+    filmPosition.value = (narrow ? props.day.filmPositionMobile : props.day.filmPosition) ?? null
   }
   if (!video.paused) { isPlaying.value = true; return }
   video
@@ -200,7 +206,16 @@ onUnmounted(() => {
     <div ref="trackEl" class="day-reveal-track">
       <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" :data-light="dayLight" aria-hidden="true">
-          <img class="day-film-poster" v-bind="posterImage" :style="day.filmPosterMedia?.position ? { objectPosition: day.filmPosterMedia.position } : undefined" loading="lazy" fetchpriority="low" alt="" decoding="async">
+          <!-- 簾幕讓封面的初始位置落在 lazy 預載範圍內；src 等 applyFilm 判定讀者捲到內容（posterReady）才給，沒有 JS 時由 noscript 顯示。 -->
+          <img
+            class="day-film-poster day-poster-deferred"
+            v-bind="posterImage"
+            :src="posterReady ? posterImage.src : undefined"
+            :srcset="posterReady ? posterImage.srcset : undefined"
+            :style="day.filmPosterMedia?.position ? { objectPosition: day.filmPosterMedia.position } : undefined"
+            loading="lazy" fetchpriority="low" alt="" decoding="async"
+          >
+          <noscript v-html="noscriptImage(posterImage, 'day-film-poster', '')" />
           <video
             v-if="showVideo"
             ref="videoEl"
@@ -223,7 +238,7 @@ onUnmounted(() => {
             <span lang="en">{{ day.filmCaption.en }}</span>
           </p>
           <button v-if="showVideo" class="day-film-toggle" type="button" :aria-pressed="isPlaying" @click="toggleFilm">
-            <span class="day-film-mark" aria-hidden="true">{{ isPlaying ? '❙❙' : '▶' }}</span>
+            <svg class="icon day-film-mark" aria-hidden="true"><use :href="isPlaying ? '#i-pause' : '#i-play'" /></svg>
             <span class="day-film-state">{{ isPlaying ? '暫停背景' : '播放背景' }}</span>
           </button>
         </div>

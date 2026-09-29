@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +20,8 @@ from app.notifications import line as line_api
 from app.notifications import reminders
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
+
+logger = logging.getLogger("app.notifications")
 
 _KIND_LABELS = {
     "visit_request_created": "新的參觀需求",
@@ -276,27 +280,62 @@ async def dispatch_outbox_message(
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return True
 
+    line_error: Exception | None = None
     if line is not None:
         target = await campus_line_target(db, campus_key)
         if target and not await _already_delivered(db, outbox_message_id, "line", target):
             receipt_id = payload.get("receipt_id")
-            await line.push_text(
-                target,
-                line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin),
-                key=line_api.retry_key(outbox_message_id, target),
-            )
-            _record_delivery(db, outbox_message_id, "line", target)
-            await db.commit()
+            try:
+                await line.push_text(
+                    target,
+                    line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin),
+                    key=line_api.retry_key(outbox_message_id, target),
+                )
+            except (line_api.LinePushError, httpx.HTTPError) as exc:
+                # LINE 失敗（月額度用完 429、token 失效 401、bot 被移出群組 400、
+                # 逾時）不能擋住 email：先把信寄完，最後再拋出讓整筆重試。重試時
+                # 已寄出的收件人由 notification_deliveries 去重，只會補推 LINE。
+                logger.warning(
+                    "LINE 推播失敗，仍繼續寄信：outbox=%s campus=%s error=%s",
+                    outbox_message_id, campus_key, exc,
+                )
+                line_error = exc
+            else:
+                _record_delivery(db, outbox_message_id, "line", target)
+                await db.commit()
 
-    if adapter is None:
-        return True
+    if adapter is not None:
+        await _send_pending_emails(
+            db,
+            adapter,
+            outbox_message_id=outbox_message_id,
+            campus_key=campus_key,
+            label=label,
+            payload=payload,
+            admin_origin=admin_origin,
+        )
+    if line_error is not None:
+        raise line_error
+    return True
+
+
+async def _send_pending_emails(
+    db: AsyncSession,
+    adapter: EmailAdapter,
+    *,
+    outbox_message_id: uuid.UUID,
+    campus_key: str,
+    label: str,
+    payload: dict,
+    admin_origin: str | None,
+) -> None:
     recipients = await get_notification_recipients(db, campus_key)
     pending = [
         user for user in recipients
         if not await _already_delivered(db, outbox_message_id, "email", user.email)
     ]
     if not pending:
-        return True
+        return
     subject, body = await email_content(
         db,
         label=label,
@@ -318,4 +357,3 @@ async def dispatch_outbox_message(
         # 後面其他收件人的失敗回滾掉，否則這個人下一輪會再收一封。
         _record_delivery(db, outbox_message_id, "email", user.email)
         await db.commit()
-    return True

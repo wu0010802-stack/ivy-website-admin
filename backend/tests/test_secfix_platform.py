@@ -1,6 +1,10 @@
 """2026-09-29 資安稽核修正（platform）：連線池與限流隔離、DB 例外不落個資、
 IPv6 限流聚合、access log 不含 query string、production 關閉 API 文件、
-後台／登入回應 no-store、production 設定檢查、migration 專用連線。"""
+後台／登入回應 no-store、production 設定檢查、migration 專用連線。
+
+限流獨立小池、uvicorn 存取紀錄去查詢字串、production 關閉 API 文件在
+PR #14（系統設計審查第一批修正）已先上線，這裡的測試改成驗同一套實作
+（app/db.py、app/logging_config.py）上本分支補強的行為。"""
 
 from __future__ import annotations
 
@@ -24,6 +28,7 @@ from starlette.requests import Request
 from app.common import ratelimit
 from app.common.ratelimit import Limit, RateLimited, RateLimiter
 from app.config import Settings
+from app import db as app_db
 from app.db import create_engine, create_session_factory
 from app.main import create_app
 
@@ -58,9 +63,9 @@ async def test_rate_limiter_uses_its_own_small_pool(app):
     assert engine is not app.state.engine
     assert app.state.rate_limiter._engine is engine
     pool = engine.pool
-    assert pool.size() == 2
-    assert pool._max_overflow == 3
-    assert pool._timeout == 3
+    assert pool.size() == app_db.RATE_LIMIT_POOL_SIZE == 3
+    assert pool._max_overflow == app_db.RATE_LIMIT_MAX_OVERFLOW == 2
+    assert pool._timeout == app_db.RATE_LIMIT_POOL_TIMEOUT_SECONDS == 5
 
 
 async def test_request_pool_follows_settings(app):
@@ -160,14 +165,17 @@ async def test_lifespan_disposes_request_and_rate_limit_engines(app):
 
 
 _TIMEOUTS_SQL = text(
-    "SELECT name, setting FROM pg_settings WHERE name IN ('lock_timeout', 'idle_in_transaction_session_timeout')"
+    "SELECT name, setting FROM pg_settings WHERE name IN "
+    "('statement_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout')"
 )
 
 
 async def test_engines_set_lock_and_idle_in_transaction_timeouts(app):
+    """lock／idle 逾時跟 PR #14 的 statement_timeout 一起帶在每條執行期連線上。"""
     settings = app.state.settings
     assert settings.db_lock_timeout_ms > 0 and settings.db_idle_in_transaction_timeout_ms > 0
     expected = {
+        "statement_timeout": str(app_db.STATEMENT_TIMEOUT_MS),
         "lock_timeout": str(settings.db_lock_timeout_ms),
         "idle_in_transaction_session_timeout": str(settings.db_idle_in_transaction_timeout_ms),
     }
@@ -179,16 +187,18 @@ async def test_engines_set_lock_and_idle_in_transaction_timeouts(app):
 async def test_zero_timeouts_are_left_to_the_server_default(app):
     from app.db import _server_settings
 
+    statement = str(app_db.STATEMENT_TIMEOUT_MS)
     zero = _with(app, db_lock_timeout_ms=0, db_idle_in_transaction_timeout_ms=0)
-    assert _server_settings(zero) == {}
+    assert _server_settings(zero) == {"statement_timeout": statement}
     assert _server_settings(_with(app, db_lock_timeout_ms=0)) == {
+        "statement_timeout": statement,
         "idle_in_transaction_session_timeout": str(app.state.settings.db_idle_in_transaction_timeout_ms),
     }
     engine = create_engine(zero)
     try:
         async with engine.connect() as conn:
             assert dict((await conn.execute(_TIMEOUTS_SQL)).all()) == {
-                "lock_timeout": "0", "idle_in_transaction_session_timeout": "0",
+                "statement_timeout": statement, "lock_timeout": "0", "idle_in_transaction_session_timeout": "0",
             }
     finally:
         await engine.dispose()
@@ -260,90 +270,66 @@ def test_client_key_non_ip_values_stay_bounded():
 
 
 # ------------------------------------------------------------------ access log
+#
+# 存取紀錄只有 uvicorn 這一份（deploy/api-start.py 不再 --no-access-log），查詢字串
+# 由 app/logging_config.py 的 StripQueryString 拿掉（PR #14）；過濾器本身的單元
+# 測試在 test_logging_config.py，這裡驗正式啟動時真的裝上、而且對 uvicorn 實際
+# 產生的路徑也成立。
 
 
-async def test_access_log_has_no_query_string(public_client, caplog):
-    caplog.set_level(logging.INFO, logger="app.access")
-    response = await public_client.get(
-        f"{API}/health?q=0912345678&email=parent@example.com",
-        headers={"X-Request-ID": "trace-secfix-access-1"},
+def _uvicorn_access_record(scope: dict) -> logging.LogRecord:
+    from uvicorn.protocols.utils import get_path_with_query_string
+
+    return logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 0, '%s - "%s %s HTTP/%s" %d',
+        ("10.0.0.1:5000", "GET", get_path_with_query_string(scope), "1.1", 404), None,
     )
-    assert response.status_code == 200
-    access = [r.getMessage() for r in caplog.records if r.name == "app.access"]
-    assert len(access) == 1, access
-    line = access[0]
-    assert "GET" in line and f"{API}/health" in line and "200" in line
-    assert "trace-secfix-access-1" in line
-    assert "ms" in line
+
+
+def test_access_log_has_no_query_string_and_no_forged_lines():
+    from app.logging_config import StripQueryString
+
+    record = _uvicorn_access_record({
+        "path": f"{API}/admin/visit-requests\nforged line", "query_string": b"q=0912345678&email=parent@example.com",
+    })
+    assert StripQueryString().filter(record)
+    line = record.getMessage()
+    assert f"{API}/admin/visit-requests" in line and '" 404' in line
+    # uvicorn 先 percent-encode 路徑，控制字元進不了 log。
+    assert "\n" not in line and "%0A" in line
     assert "0912345678" not in line and "parent@example.com" not in line and "?" not in line
 
 
-async def test_access_log_escapes_control_characters_in_path(public_client, caplog):
-    caplog.set_level(logging.INFO, logger="app.access")
-    response = await public_client.get(f"{API}/nope%0Aforged%20line")
-    assert response.status_code == 404
-    [line] = [r.getMessage() for r in caplog.records if r.name == "app.access"]
-    assert "\n" not in line
-    assert "404" in line
+def test_server_logging_installs_query_filter_and_splits_stdout_stderr(capsys):
+    """uvicorn 只設定自己的 logger；不另外設定時 app.* 的 INFO 會被 Python 預設的
+    lastResort（WARNING 以上）吞掉。INFO 走 stdout、WARNING 以上走 stderr，平台
+    log 的嚴重度分類才不會把每一行 INFO 都當成錯誤。"""
+    from app.logging_config import StripQueryString, configure_logging
 
-
-async def test_access_log_records_unhandled_errors_as_500(app, caplog):
-    @app.get(f"{API}/_secfix_boom")
-    async def _boom() -> dict:
-        raise RuntimeError("boom")
-
-    caplog.set_level(logging.INFO, logger="app.access")
-    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get(f"{API}/_secfix_boom")
-    assert response.status_code == 500
-    [line] = [r.getMessage() for r in caplog.records if r.name == "app.access"]
-    assert " 500 " in line
-
-
-def test_server_logging_prints_app_info_to_stdout_and_problems_to_stderr(capsys):
-    """uvicorn 只設定自己的 logger；不另外設定時 app.access 的 INFO 會被
-    Python 預設的 lastResort（WARNING 以上）吞掉，關掉 uvicorn access log 後
-    正式站就完全沒有請求紀錄。"""
-    from app.main import _configure_logging
-
-    app_logger = logging.getLogger("app")
-    saved = (list(app_logger.handlers), app_logger.level, app_logger.propagate)
-    app_logger.handlers.clear()
+    root = logging.getLogger()
+    access = logging.getLogger("uvicorn.access")
+    saved = (list(root.handlers), root.level, list(access.filters))
+    root.handlers.clear()
     try:
-        _configure_logging()
-        _configure_logging()  # 重複呼叫不會重複加 handler
-        assert len(app_logger.handlers) == 2
-        logging.getLogger("app.access").info("GET /api/website/v1/health 200 1.0ms request_id=secfix")
+        configure_logging()
+        configure_logging()  # 重複呼叫不會重複加 handler 或過濾器
+        assert len(root.handlers) == 2
+        assert sum(isinstance(f, StripQueryString) for f in access.filters) == 1
+        logging.getLogger("app.workers").info("secfix-info")
         logging.getLogger("app").error("secfix-problem")
         out, err = capsys.readouterr()
-        assert "app.access GET /api/website/v1/health 200" in out and "secfix-problem" not in out
-        assert "secfix-problem" in err and "app.access" not in err
+        assert "secfix-info" in out and "secfix-problem" not in out
+        assert "secfix-problem" in err and "secfix-info" not in err
     finally:
-        app_logger.handlers[:] = saved[0]
-        app_logger.setLevel(saved[1])
-        app_logger.propagate = saved[2]
+        root.handlers[:] = saved[0]
+        root.setLevel(saved[1])
+        access.filters[:] = saved[2]
 
 
 # ------------------------------------------------------------------ production：API 文件
-
-
-async def test_production_disables_openapi_and_docs():
-    prod = create_app(_prod_settings())
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=prod), base_url="http://test") as client:
-            for path in ("/openapi.json", "/docs", "/redoc", "/docs/oauth2-redirect"):
-                assert (await client.get(path)).status_code == 404, path
-            assert (await client.get(f"{API}/health")).status_code == 200
-        # 契約匯出直接呼叫 app.openapi()，不受關閉的路由影響。
-        assert "/api/website/v1/health" in prod.openapi()["paths"]
-    finally:
-        await prod.state.engine.dispose()
-        await prod.state.rate_limit_engine.dispose()
-
-
-async def test_non_production_keeps_openapi(public_client):
-    assert (await public_client.get("/openapi.json")).status_code == 200
+#
+# PR #14 已先關閉；測試合併進 test_logging_config.py::test_api_docs_are_off_in_production
+# （另外補上 HTTP 層的 404 與 /docs/oauth2-redirect）。
 
 
 # ------------------------------------------------------------------ no-store

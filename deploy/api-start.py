@@ -45,9 +45,6 @@ if uses_volume:
 # the API does not start. Keep the total under the 120 s Railway healthcheck.
 subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True, timeout=90)
 subprocess.run([sys.executable, "/app/check-schema.py"], check=True, timeout=40)
-# uvicorn's access log includes the query string (admin searches carry parent
-# names and phone numbers). The app logs its own access line without it
-# (app/common/request_id.py), so the built-in one stays off.
-os.execvp("uvicorn", [
-    "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000"), "--no-access-log",
-])
+# uvicorn's access log is the only access log. Its query string (admin searches
+# carry parent names and phone numbers) is stripped by app/logging_config.py.
+os.execvp("uvicorn", ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8000")])

@@ -380,6 +380,18 @@ export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: Li
  * 完全相同。`media` 是公開 API 給的素材資訊（尺寸、衍生檔、預設焦點）。
  * 仍在 fixture 的：品牌名稱與 Logo（2026-09-19 核可鎖定）。
  */
+/**
+ * 每一種內容各自套用：某一種 payload 形狀不符（舊版 schema、欄位改名漏寫相容碼）
+ * 只讓那一區退回內建內容並記錄，不能讓整份內容丟例外、全站 503。
+ */
+function guard(kind: string, apply: () => void): void {
+  try {
+    apply()
+  } catch (error) {
+    console.error(`[content-overlay] ${kind} 的內容格式不符，這一區改用內建內容`, error)
+  }
+}
+
 export function applyContentOverlay(content: SiteContent, overlay: ContentOverlay, media: MediaInfoMap = {}): SiteContent {
   const next: SiteContent = {
     ...content,
@@ -391,282 +403,306 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     campuses: content.campuses.map((c) => ({ ...c, faq: { ...c.faq } }))
   }
 
-  if (overlay.home_about) {
-    const about = overlay.home_about
-    next.home.about = {
-      ...next.home.about,
-      title: about.title,
-      sinceLabel: about.since_label,
-      bodyText: about.body_text,
-      caption: about.caption
+  guard('home_about', () => {
+    if (overlay.home_about) {
+      const about = overlay.home_about
+      next.home.about = {
+        ...next.home.about,
+        title: about.title,
+        sinceLabel: about.since_label,
+        bodyText: about.body_text,
+        caption: about.caption
+      }
+      const photo = slotImage(about.photo, media)
+      if (photo) {
+        const [first, ...rest] = next.home.about.photos
+        next.home.about.photos = [
+          { image: '', role: first?.role ?? 'portrait', alt: about.photo_alt || photo.alt, media: photo },
+          ...rest
+        ]
+      }
     }
-    const photo = slotImage(about.photo, media)
-    if (photo) {
-      const [first, ...rest] = next.home.about.photos
-      next.home.about.photos = [
-        { image: '', role: first?.role ?? 'portrait', alt: about.photo_alt || photo.alt, media: photo },
-        ...rest
-      ]
-    }
-  }
+  })
 
-  if (overlay.home_hero) {
-    const hero = overlay.home_hero
-    next.home.hero = {
-      ...next.home.hero,
-      eyebrow: hero.eyebrow,
-      copyLines: hero.copy_lines
+  guard('home_hero', () => {
+    if (overlay.home_hero) {
+      const hero = overlay.home_hero
+      next.home.hero = {
+        ...next.home.hero,
+        eyebrow: hero.eyebrow,
+        copyLines: hero.copy_lines
+      }
+      const poster = slotImage(hero.poster, media)
+      if (poster) {
+        next.home.hero.heroImageMedia = poster
+        next.home.hero.heroImageAlt = hero.poster_alt || poster.alt
+      }
+      const fallback = slotImage(hero.fallback_image, media)
+      if (fallback) next.home.hero.heroFallbackMedia = { ...fallback, alt: fallback.alt || next.home.hero.heroImageAlt }
+      const desktop = slotVideoSrc(hero.video_desktop)
+      const mobile = slotVideoSrc(hero.video_mobile)
+      if (desktop && hero.video_desktop) {
+        next.home.hero.heroVideoSrc = desktop
+        next.home.hero.heroVideoPosition = slotPosition(hero.video_desktop, media[hero.video_desktop.media_id])
+      }
+      // 手機沒設就用桌機那支（規格 L141 允許沿用同一支影片）。
+      const mobileSlot = mobile ? hero.video_mobile : desktop ? hero.video_desktop : null
+      if (mobileSlot) {
+        next.home.hero.heroVideoSrcMobile = slotVideoSrc(mobileSlot)
+        next.home.hero.heroVideoPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
+      }
     }
-    const poster = slotImage(hero.poster, media)
-    if (poster) {
-      next.home.hero.heroImageMedia = poster
-      next.home.hero.heroImageAlt = hero.poster_alt || poster.alt
-    }
-    const fallback = slotImage(hero.fallback_image, media)
-    if (fallback) next.home.hero.heroFallbackMedia = { ...fallback, alt: fallback.alt || next.home.hero.heroImageAlt }
-    const desktop = slotVideoSrc(hero.video_desktop)
-    const mobile = slotVideoSrc(hero.video_mobile)
-    if (desktop && hero.video_desktop) {
-      next.home.hero.heroVideoSrc = desktop
-      next.home.hero.heroVideoPosition = slotPosition(hero.video_desktop, media[hero.video_desktop.media_id])
-    }
-    // 手機沒設就用桌機那支（規格 L141 允許沿用同一支影片）。
-    const mobileSlot = mobile ? hero.video_mobile : desktop ? hero.video_desktop : null
-    if (mobileSlot) {
-      next.home.hero.heroVideoSrcMobile = slotVideoSrc(mobileSlot)
-      next.home.hero.heroVideoPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
-    }
-  }
+  })
 
-  if (overlay.site_footer) {
-    next.footer = {
-      ...next.footer,
-      tagline: overlay.site_footer.tagline,
-      copyright: overlay.site_footer.copyright,
-      bottomNote: overlay.site_footer.bottom_note,
-      campusListLabel: overlay.site_footer.campus_list_label
+  guard('site_footer', () => {
+    if (overlay.site_footer) {
+      next.footer = {
+        ...next.footer,
+        tagline: overlay.site_footer.tagline,
+        copyright: overlay.site_footer.copyright,
+        bottomNote: overlay.site_footer.bottom_note,
+        campusListLabel: overlay.site_footer.campus_list_label
+      }
+      if (Array.isArray(overlay.site_footer.links)) {
+        next.footer.links = overlay.site_footer.links
+          .filter((link) => link.label?.trim() && siteLink(link.href))
+          .map((link) => ({ label: link.label, href: link.href.trim() }))
+      }
     }
-    if (Array.isArray(overlay.site_footer.links)) {
-      next.footer.links = overlay.site_footer.links
-        .filter((link) => link.label?.trim() && siteLink(link.href))
-        .map((link) => ({ label: link.label, href: link.href.trim() }))
-    }
-  }
+  })
 
-  if (overlay.site_meta) {
-    next.siteMeta = {
-      ...next.siteMeta,
-      title: overlay.site_meta.title,
-      description: overlay.site_meta.description,
-      headerPhone: {
-        ...next.siteMeta.headerPhone,
-        number: overlay.site_meta.header_phone_number,
-        note: overlay.site_meta.header_phone_note
-      },
-      shareImage: overlay.site_meta.share_image || undefined,
-      shareImageAlt: overlay.site_meta.share_image_alt || undefined,
-      admissionTitle: overlay.site_meta.admission_title || undefined,
-      admissionDescription: overlay.site_meta.admission_description || undefined,
-      allowIndexing: overlay.site_meta.allow_indexing ?? true
+  guard('site_meta', () => {
+    if (overlay.site_meta) {
+      next.siteMeta = {
+        ...next.siteMeta,
+        title: overlay.site_meta.title,
+        description: overlay.site_meta.description,
+        headerPhone: {
+          ...next.siteMeta.headerPhone,
+          number: overlay.site_meta.header_phone_number,
+          note: overlay.site_meta.header_phone_note
+        },
+        shareImage: overlay.site_meta.share_image || undefined,
+        shareImageAlt: overlay.site_meta.share_image_alt || undefined,
+        admissionTitle: overlay.site_meta.admission_title || undefined,
+        admissionDescription: overlay.site_meta.admission_description || undefined,
+        allowIndexing: overlay.site_meta.allow_indexing ?? true
+      }
+      const nav = (overlay.site_meta.primary_nav ?? [])
+        .filter((item) => item.label?.trim() && siteLink(item.href))
+        .map((item) => ({ label: item.label, labelEn: item.label_en ?? '', href: item.href.trim() }))
+      // 選單至少要有一項：後台存的是空的（或全部無效）就沿用內建選單。
+      if (nav.length) next.siteMeta.primaryNav = nav
     }
-    const nav = (overlay.site_meta.primary_nav ?? [])
-      .filter((item) => item.label?.trim() && siteLink(item.href))
-      .map((item) => ({ label: item.label, labelEn: item.label_en ?? '', href: item.href.trim() }))
-    // 選單至少要有一項：後台存的是空的（或全部無效）就沿用內建選單。
-    if (nav.length) next.siteMeta.primaryNav = nav
-  }
+  })
 
-  if (overlay.home_campus_board) {
-    const board = overlay.home_campus_board
-    next.home.campusBoard = {
-      ...next.home.campusBoard,
-      sectionTitle: board.section_title,
-      eyebrow: board.eyebrow,
-      note: board.note
+  guard('home_campus_board', () => {
+    if (overlay.home_campus_board) {
+      const board = overlay.home_campus_board
+      next.home.campusBoard = {
+        ...next.home.campusBoard,
+        sectionTitle: board.section_title,
+        eyebrow: board.eyebrow,
+        note: board.note
+      }
+      // 順序要剛好是現有校區的排列（後端已驗證五校不重複不缺漏）；對不上就沿用內建順序。
+      const order = board.campus_order ?? []
+      const known = content.home.campusBoard.campusOrder
+      if (order.length === known.length && new Set(order).size === order.length && order.every((key) => known.includes(key))) {
+        next.home.campusBoard.campusOrder = [...order]
+      }
+      if (board.default_campus && known.includes(board.default_campus)) {
+        next.home.campusBoard.defaultCampus = board.default_campus
+      }
     }
-    // 順序要剛好是現有校區的排列（後端已驗證五校不重複不缺漏）；對不上就沿用內建順序。
-    const order = board.campus_order ?? []
-    const known = content.home.campusBoard.campusOrder
-    if (order.length === known.length && new Set(order).size === order.length && order.every((key) => known.includes(key))) {
-      next.home.campusBoard.campusOrder = [...order]
-    }
-    if (board.default_campus && known.includes(board.default_campus)) {
-      next.home.campusBoard.defaultCampus = board.default_campus
-    }
-  }
+  })
 
-  if (overlay.booking_content) {
-    const booking = overlay.booking_content
-    next.booking = {
-      ...next.booking,
-      ctaLabel: booking.cta_label,
-      ctaLabelEn: booking.cta_label_en,
-      consentText: booking.consent_text,
-      bannerTitleTemplate: booking.banner_title_template,
-      bannerBody: booking.banner_body,
-      bannerButtonLabel: booking.banner_button_label,
-      privacyNotice: privacyNotice(booking.privacy_title, booking.privacy_sections)
+  guard('booking_content', () => {
+    if (overlay.booking_content) {
+      const booking = overlay.booking_content
+      next.booking = {
+        ...next.booking,
+        ctaLabel: booking.cta_label,
+        ctaLabelEn: booking.cta_label_en,
+        consentText: booking.consent_text,
+        bannerTitleTemplate: booking.banner_title_template,
+        bannerBody: booking.banner_body,
+        bannerButtonLabel: booking.banner_button_label,
+        privacyNotice: privacyNotice(booking.privacy_title, booking.privacy_sections)
+      }
     }
-  }
+  })
 
-  if (overlay.day_experience) {
-    const day = overlay.day_experience
-    // 卡片清單以後台為準：張數、順序、刪卡都照發布的內容。照片、色調與 alt
-    // 後台有設就用後台的；沒設的依 key 對回官網內建的同一張卡；後台新增、
-    // 內建沒有的卡片沒有照片，色調沿用同位置內建卡的節奏，DayMomentCard 顯示
-    // 無照片的相紙樣式。
-    const builtin = next.dayExperience.moments
-    const byKey = new Map(builtin.map((m) => [m.key, m]))
-    next.dayExperience = {
-      ...next.dayExperience,
-      eyebrow: day.eyebrow,
-      eyebrowEn: day.eyebrow_en,
-      note: day.note,
-      sourceNote: day.source_note,
-      moments: day.moments.map((m, i) => {
-        const original = byKey.get(m.key)
-        const builtinMedia = original
-          ? { tint: original.tint, photo: original.photo, alt: original.alt }
-          : { tint: builtin.length ? builtin[i % builtin.length]!.tint : '', photo: '', alt: '' }
-        const photo = slotImage(m.photo, media)
-        const tint = m.tint || builtinMedia.tint
+  guard('day_experience', () => {
+    if (overlay.day_experience) {
+      const day = overlay.day_experience
+      // 卡片清單以後台為準：張數、順序、刪卡都照發布的內容。照片、色調與 alt
+      // 後台有設就用後台的；沒設的依 key 對回官網內建的同一張卡；後台新增、
+      // 內建沒有的卡片沒有照片，色調沿用同位置內建卡的節奏，DayMomentCard 顯示
+      // 無照片的相紙樣式。
+      const builtin = next.dayExperience.moments
+      const byKey = new Map(builtin.map((m) => [m.key, m]))
+      next.dayExperience = {
+        ...next.dayExperience,
+        eyebrow: day.eyebrow,
+        eyebrowEn: day.eyebrow_en,
+        note: day.note,
+        sourceNote: day.source_note,
+        moments: day.moments.map((m, i) => {
+          const original = byKey.get(m.key)
+          const builtinMedia = original
+            ? { tint: original.tint, photo: original.photo, alt: original.alt }
+            : { tint: builtin.length ? builtin[i % builtin.length]!.tint : '', photo: '', alt: '' }
+          const photo = slotImage(m.photo, media)
+          const tint = m.tint || builtinMedia.tint
+          return {
+            ...(photo ? { tint, photo: '', alt: m.alt || photo.alt, photoMedia: photo } : { ...builtinMedia, tint, alt: m.alt || builtinMedia.alt }),
+            key: m.key,
+            time: m.time,
+            label: m.label,
+            caption: m.caption,
+            title: m.title,
+            story: m.story,
+            question: m.question,
+            answer: m.answer
+          }
+        })
+      }
+      const desktop = slotVideoSrc(day.film_desktop)
+      const mobile = slotVideoSrc(day.film_mobile)
+      if (desktop && day.film_desktop) {
+        next.dayExperience.filmSrc = desktop
+        next.dayExperience.filmPosition = slotPosition(day.film_desktop, media[day.film_desktop.media_id])
+      }
+      const mobileSlot = mobile ? day.film_mobile : desktop ? day.film_desktop : null
+      if (mobileSlot) {
+        next.dayExperience.filmSrcMobile = slotVideoSrc(mobileSlot)!
+        next.dayExperience.filmPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
+      }
+      const poster = slotImage(day.film_poster, media)
+      if (poster) next.dayExperience.filmPosterMedia = poster
+      if (day.film_caption_zh != null || day.film_caption_en != null) {
+        next.dayExperience.filmCaption = {
+          zh: day.film_caption_zh ?? next.dayExperience.filmCaption.zh,
+          en: day.film_caption_en ?? next.dayExperience.filmCaption.en
+        }
+      }
+    }
+  })
+
+  guard('admission_content', () => {
+    if (overlay.admission_content) {
+      // 整組取代：後台一次送出完整內容；巢狀欄位名稱兩邊相同，只有頂層要轉 camelCase。
+      const a = overlay.admission_content
+      next.admission = {
+        notice: a.notice,
+        intro: a.intro,
+        steps: a.steps.map((x) => ({ ...x })),
+        phases: a.phases.map((x) => ({ ...x, items: [...x.items], tips: [...x.tips] })),
+        uniformWeek: a.uniform_week.map((x) => ({ ...x })),
+        uniformNote: a.uniform_note,
+        pickupNotes: [...a.pickup_notes],
+        registrationNotes: [...a.registration_notes],
+        feeIntro: a.fee_intro,
+        subsidies: a.subsidies.map((x) => ({ ...x })),
+        allowanceTitle: a.allowance_title,
+        allowance: a.allowance.map((x) => ({ ...x })),
+        allowanceNote: a.allowance_note,
+        refunds: a.refunds.map((r) => ({ ...r, groups: r.groups.map((g) => ({ ...g, lines: [...g.lines] })) }))
+      }
+    }
+  })
+
+  guard('campus_profile', () => {
+    if (overlay.campus_profile) {
+      const profiles = overlay.campus_profile
+      next.campuses = next.campuses.map((c) => {
+        const profile = profiles[c.key]
+        if (!profile) return c
         return {
-          ...(photo ? { tint, photo: '', alt: m.alt || photo.alt, photoMedia: photo } : { ...builtinMedia, tint, alt: m.alt || builtinMedia.alt }),
-          key: m.key,
-          time: m.time,
-          label: m.label,
-          caption: m.caption,
-          title: m.title,
-          story: m.story,
-          question: m.question,
-          answer: m.answer
+          ...c,
+          name: profile.name,
+          district: profile.district,
+          address: profile.address,
+          phone: profile.phone,
+          intro: profile.intro,
+          description: profile.description,
+          facebook: profile.facebook,
+          fbNote: profile.fb_note,
+          line: profile.line || null,
+          mapUrl: profile.map_url || undefined,
+          // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
+          instagram: profile.instagram === undefined ? c.instagram : profile.instagram || null,
+          youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
+          ...campusMedia(c, profile, media)
         }
       })
     }
-    const desktop = slotVideoSrc(day.film_desktop)
-    const mobile = slotVideoSrc(day.film_mobile)
-    if (desktop && day.film_desktop) {
-      next.dayExperience.filmSrc = desktop
-      next.dayExperience.filmPosition = slotPosition(day.film_desktop, media[day.film_desktop.media_id])
+  })
+
+  guard('campus_faq', () => {
+    if (overlay.campus_faq) {
+      const faqs = overlay.campus_faq
+      next.campuses = next.campuses.map((c) => {
+        const faq = faqs[c.key]
+        if (!faq) return c
+        return { ...c, faq: { ...c.faq, items: mergeCampusFaq(c.key, faq, overlay.shared_faq) } }
+      })
     }
-    const mobileSlot = mobile ? day.film_mobile : desktop ? day.film_desktop : null
-    if (mobileSlot) {
-      next.dayExperience.filmSrcMobile = slotVideoSrc(mobileSlot)!
-      next.dayExperience.filmPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
-    }
-    const poster = slotImage(day.film_poster, media)
-    if (poster) next.dayExperience.filmPosterMedia = poster
-    if (day.film_caption_zh != null || day.film_caption_en != null) {
-      next.dayExperience.filmCaption = {
-        zh: day.film_caption_zh ?? next.dayExperience.filmCaption.zh,
-        en: day.film_caption_en ?? next.dayExperience.filmCaption.en
+  })
+
+  guard('home_news／campus_news', () => {
+    if (overlay.home_news || overlay.campus_news) {
+      // 整組取代：後台一次送出完整的消息與活動清單。全站消息（home_news）和
+      // 各校消息（campus_news）合併成同一份清單，官網依日期排序；校區名稱用
+      // 上面疊好的分校介紹，所以放在 campus_profile 之後。圖片欄位同
+      // campus_tour，可以是素材庫 UUID 或 fixture 代號（NewsDialog 用
+      // responsiveTourImage 解析）。
+      const names = Object.fromEntries(next.campuses.map((c) => [c.key, c.name]))
+      const news = overlay.home_news
+      // 「示意內容」逐則標：全站消息（或還沒發布全站消息時沿用的內建消息）看
+      // 示意說明有沒有值；各校消息是分校自己發布的真實消息，一律不是示意。
+      const sample = Boolean(news ? news.sample_note : next.news.sampleNote)
+      const articles: NewsArticle[] = news
+        ? news.articles.map((a) => ({ ...newsArticle(a, newsScope(a, names), media), sample }))
+        : next.news.articles.map((a) => ({ ...a, sample: a.sample ?? sample }))
+      const events: NewsEvent[] = news
+        ? news.events.map((e) => ({ ...newsEvent(e, newsScope(e, names)), sample }))
+        : next.news.events.map((e) => ({ ...e, sample: e.sample ?? sample }))
+      for (const c of next.campuses) {
+        const own = overlay.campus_news?.[c.key]
+        if (!own) continue
+        const where = { campus: c.name, campusKeys: [c.key] }
+        // 各校的 id 只在自己校內不重複，合併時加上校區避免撞到全站消息。
+        articles.push(...own.articles.map((a) => ({ ...newsArticle(a, where, media, `${c.key}:${a.id}`), featured: false, sample: false })))
+        events.push(...own.events.map((e) => ({ ...newsEvent(e, where, `${c.key}:${e.id}`), sample: false })))
       }
-    }
-  }
-
-  if (overlay.admission_content) {
-    // 整組取代：後台一次送出完整內容；巢狀欄位名稱兩邊相同，只有頂層要轉 camelCase。
-    const a = overlay.admission_content
-    next.admission = {
-      notice: a.notice,
-      intro: a.intro,
-      steps: a.steps.map((x) => ({ ...x })),
-      phases: a.phases.map((x) => ({ ...x, items: [...x.items], tips: [...x.tips] })),
-      uniformWeek: a.uniform_week.map((x) => ({ ...x })),
-      uniformNote: a.uniform_note,
-      pickupNotes: [...a.pickup_notes],
-      registrationNotes: [...a.registration_notes],
-      feeIntro: a.fee_intro,
-      subsidies: a.subsidies.map((x) => ({ ...x })),
-      allowanceTitle: a.allowance_title,
-      allowance: a.allowance.map((x) => ({ ...x })),
-      allowanceNote: a.allowance_note,
-      refunds: a.refunds.map((r) => ({ ...r, groups: r.groups.map((g) => ({ ...g, lines: [...g.lines] })) }))
-    }
-  }
-
-  if (overlay.campus_profile) {
-    const profiles = overlay.campus_profile
-    next.campuses = next.campuses.map((c) => {
-      const profile = profiles[c.key]
-      if (!profile) return c
-      return {
-        ...c,
-        name: profile.name,
-        district: profile.district,
-        address: profile.address,
-        phone: profile.phone,
-        intro: profile.intro,
-        description: profile.description,
-        facebook: profile.facebook,
-        fbNote: profile.fb_note,
-        line: profile.line || null,
-        mapUrl: profile.map_url || undefined,
-        // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
-        instagram: profile.instagram === undefined ? c.instagram : profile.instagram || null,
-        youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
-        ...campusMedia(c, profile, media)
+      next.news = {
+        ...next.news,
+        sampleNote: news ? news.sample_note : next.news.sampleNote,
+        articles,
+        events,
+        homeCount: news?.home_display_count ?? null
       }
-    })
-  }
-
-  if (overlay.campus_faq) {
-    const faqs = overlay.campus_faq
-    next.campuses = next.campuses.map((c) => {
-      const faq = faqs[c.key]
-      if (!faq) return c
-      return { ...c, faq: { ...c.faq, items: mergeCampusFaq(c.key, faq, overlay.shared_faq) } }
-    })
-  }
-
-  if (overlay.home_news || overlay.campus_news) {
-    // 整組取代：後台一次送出完整的消息與活動清單。全站消息（home_news）和
-    // 各校消息（campus_news）合併成同一份清單，官網依日期排序；校區名稱用
-    // 上面疊好的分校介紹，所以放在 campus_profile 之後。圖片欄位同
-    // campus_tour，可以是素材庫 UUID 或 fixture 代號（NewsDialog 用
-    // responsiveTourImage 解析）。
-    const names = Object.fromEntries(next.campuses.map((c) => [c.key, c.name]))
-    const news = overlay.home_news
-    // 「示意內容」逐則標：全站消息（或還沒發布全站消息時沿用的內建消息）看
-    // 示意說明有沒有值；各校消息是分校自己發布的真實消息，一律不是示意。
-    const sample = Boolean(news ? news.sample_note : next.news.sampleNote)
-    const articles: NewsArticle[] = news
-      ? news.articles.map((a) => ({ ...newsArticle(a, newsScope(a, names), media), sample }))
-      : next.news.articles.map((a) => ({ ...a, sample: a.sample ?? sample }))
-    const events: NewsEvent[] = news
-      ? news.events.map((e) => ({ ...newsEvent(e, newsScope(e, names)), sample }))
-      : next.news.events.map((e) => ({ ...e, sample: e.sample ?? sample }))
-    for (const c of next.campuses) {
-      const own = overlay.campus_news?.[c.key]
-      if (!own) continue
-      const where = { campus: c.name, campusKeys: [c.key] }
-      // 各校的 id 只在自己校內不重複，合併時加上校區避免撞到全站消息。
-      articles.push(...own.articles.map((a) => ({ ...newsArticle(a, where, media, `${c.key}:${a.id}`), featured: false, sample: false })))
-      events.push(...own.events.map((e) => ({ ...newsEvent(e, where, `${c.key}:${e.id}`), sample: false })))
+      const films = Array.isArray(news?.films) ? homeFilms(news.films, media) : []
+      // 至少要有一支才換掉內建清單（輪播沒有影片會整塊空白）。
+      if (films.length) next.news.films = films
     }
-    next.news = {
-      ...next.news,
-      sampleNote: news ? news.sample_note : next.news.sampleNote,
-      articles,
-      events,
-      homeCount: news?.home_display_count ?? null
-    }
-    const films = Array.isArray(news?.films) ? homeFilms(news.films, media) : []
-    // 至少要有一支才換掉內建清單（輪播沒有影片會整塊空白）。
-    if (films.length) next.news.films = films
-  }
+  })
 
-  if (overlay.campus_tour) {
-    const tours = overlay.campus_tour
-    // 整組取代（不是逐場景/逐熱點合併）：後台編輯器一次送出完整
-    // scenes 陣列，這裡直接換掉 tourScenes，含把原本的
-    // GeneratedTourScenes 佔位樣板換成真正逐校撰寫的內容。
-    next.campuses = next.campuses.map((c) => {
-      const tour = tours[c.key]
-      if (!tour) return c
-      return { ...c, tourScenes: tour.scenes.map((scene) => tourScene(scene, media)) }
-    })
-  }
+  guard('campus_tour', () => {
+    if (overlay.campus_tour) {
+      const tours = overlay.campus_tour
+      // 整組取代（不是逐場景/逐熱點合併）：後台編輯器一次送出完整
+      // scenes 陣列，這裡直接換掉 tourScenes，含把原本的
+      // GeneratedTourScenes 佔位樣板換成真正逐校撰寫的內容。
+      next.campuses = next.campuses.map((c) => {
+        const tour = tours[c.key]
+        if (!tour) return c
+        return { ...c, tourScenes: tour.scenes.map((scene) => tourScene(scene, media)) }
+      })
+    }
+  })
 
   return next
 }

@@ -281,7 +281,13 @@ class MaintenanceLoop:
         self._settings = settings
         self.interval_seconds = interval_seconds
         self.worker_id = worker_id or default_worker_id()
+        # last_completed_at：最近一次跑完一整輪（拿到鎖）的時間，即使有步驟失敗。
+        # last_clean_at：最近一次「每一步都成功」的時間；last_failed_steps 是最近
+        # 一輪失敗的步驟。只看 last_completed_at 會假綠：SMTP、排程發布每輪都失敗，
+        # 它照樣每分鐘更新。外部監控要看後兩個（見 docs/website-admin/operations.md）。
         self.last_completed_at: datetime | None = None
+        self.last_clean_at: datetime | None = None
+        self.last_failed_steps: list[str] = []
         self._stopping = asyncio.Event()
         self._task: asyncio.Task | None = None
 
@@ -318,7 +324,13 @@ class MaintenanceLoop:
                 logger.exception("定期工作：這一輪無法開始")
             else:
                 if result.ran:
-                    self.last_completed_at = datetime.now(timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    self.last_completed_at = now
+                    self.last_failed_steps = list(result.failed_steps)
+                    if result.failed_steps:
+                        logger.warning("定期工作：這一輪有步驟失敗：%s", ", ".join(result.failed_steps))
+                    else:
+                        self.last_clean_at = now
                     if result.did_anything:
                         logger.info("定期工作：%s", result)
             if not await self._sleep(self.interval_seconds):

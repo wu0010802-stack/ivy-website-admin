@@ -66,23 +66,33 @@ const ENCODED_SEPARATOR = /\\|%2f|%5c/i
 const CONTROL_OR_SPACE = /[\u0000- \u007f]/
 
 /**
- * 同源代理轉送前的路徑檢查；path 是去掉 `/api/website/v1` 前綴後的路徑
- * （h3 已解過一次碼，可含 query）。點區段、編碼斜線、反斜線與控制字元都
- * 拒絕：fetch 用 WHATWG URL 解析會把 `..`／`%2e%2e` 收掉，組出的網址可能
- * 跳出前綴（稽核 proxy-dot-segment-escape），或在前綴內繞過代理自己的
- * 路徑判斷。每層 %25 都拆開再查一次，雙重編碼也擋得到。
+ * 代理用字串拼接轉送目標，fetch 解析網址時會把 `..`、`%2e%2e` 當成上一層，
+ * `/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json` 就會打到 API 前綴以外的
+ * 端點（稽核 proxy-dot-segment-escape）。瀏覽器送出前本來就會收掉點區段，正常
+ * 請求不會帶，所以這裡不只擋「跳出前綴」，下列一律不轉送，免得在前綴內繞過
+ * 代理自己的路徑判斷：點區段（含 %2e；每層 %25 都拆開再查，雙重編碼也擋得到）、
+ * 編碼斜線與反斜線、控制字元與空白。最後再用同一套 WHATWG 規則正規化，結果
+ * 不在前綴底下也不轉送。
+ * path 是去掉 `/api/website/v1` 前綴後的路徑（h3 已解過一次碼，可含查詢字串）。
  */
-export function unsafeProxyPath(path: string): boolean {
+export function escapesApiPrefix(path: string): boolean {
   let current = path.split(/[?#]/)[0] ?? ''
-  for (let round = 0; round < 4; round++) {
+  for (let round = 0; ; round++) {
+    // 疊了四層以上的 %25 不是正常請求。
+    if (round === 4) return true
     if (ENCODED_SEPARATOR.test(current) || CONTROL_OR_SPACE.test(current)) return true
     if (current.split('/').some(segment => DOT_SEGMENT.test(segment))) return true
     const next = current.replace(/%25/gi, '%')
-    if (next === current) return false
+    if (next === current) break
     current = next
   }
-  // 疊了四層以上的 %25 不是正常請求。
-  return true
+  let resolved: string
+  try {
+    resolved = new URL(`${API_PREFIX}${path}`, 'http://proxy.invalid').pathname
+  } catch {
+    return true
+  }
+  return resolved !== API_PREFIX && !resolved.startsWith(`${API_PREFIX}/`)
 }
 
 export interface ApiProxyTarget {
@@ -93,8 +103,8 @@ export interface ApiProxyTarget {
 }
 
 /**
- * 組出代理目標。正規化後不在 `/api/website/v1/` 之下、或主機不是 base 的
- * 主機時回 null（呼叫端回 400）。
+ * 組出代理目標；path 須先通過 escapesApiPrefix（路徑跳脫只在那裡檢查）。
+ * 網址組不起來或主機不是 base 的主機時回 null。
  */
 export function apiProxyTarget(base: string, path: string): ApiProxyTarget | null {
   let url: URL
@@ -105,7 +115,7 @@ export function apiProxyTarget(base: string, path: string): ApiProxyTarget | nul
   } catch {
     return null
   }
-  if (url.origin !== origin || !url.pathname.startsWith(`${API_PREFIX}/`)) return null
+  if (url.origin !== origin) return null
   url.hash = ''
   const apiPath = url.pathname
     .slice(API_PREFIX.length)

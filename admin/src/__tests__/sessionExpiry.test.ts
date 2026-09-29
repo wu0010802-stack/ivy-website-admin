@@ -43,7 +43,7 @@ function respond401() {
 }
 
 describe('用到一半收到 401：導回登入頁並標示閒置逾時', () => {
-  it('清掉登入狀態，帶原本的路徑與 expired=1', async () => {
+  it('清掉登入狀態，帶原本的路徑與 reason=expired', async () => {
     setActivePinia(createPinia())
     const auth = useAuthStore()
     auth.user = testUser('super_admin', { id: 'u1', email: 'admin@example.invalid', campus_keys: [] })
@@ -56,10 +56,10 @@ describe('用到一半收到 401：導回登入頁並標示閒置逾時', () => 
 
     expect(auth.user).toBeNull()
     expect(router.currentRoute.value.name).toBe('login')
-    expect(router.currentRoute.value.query).toEqual({ redirect: '/visit-requests?status=pending', expired: '1' })
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/visit-requests?status=pending', reason: 'expired' })
   })
 
-  it('首頁被登出時不帶 redirect，仍標示 expired', async () => {
+  it('首頁被登出時不帶 redirect，仍標示 reason=expired', async () => {
     setActivePinia(createPinia())
     useAuthStore().user = testUser('super_admin', { id: 'u1', email: 'admin@example.invalid', campus_keys: [] })
     const router = await routerAt('/')
@@ -69,7 +69,7 @@ describe('用到一半收到 401：導回登入頁並標示閒置逾時', () => 
     await expect(api.post('/admin/media/x/replace', {})).rejects.toBeInstanceOf(ApiError)
     await flushPromises()
 
-    expect(router.currentRoute.value.query).toEqual({ expired: '1' })
+    expect(router.currentRoute.value.query).toEqual({ reason: 'expired' })
   })
 
   it('本來就沒登入（第一次載入的 /auth/me）不導向、不標示', async () => {
@@ -85,7 +85,7 @@ describe('用到一半收到 401：導回登入頁並標示閒置逾時', () => 
   })
 })
 
-describe('登入頁的閒置逾時說明', () => {
+describe('登入頁的閒置逾時說明（reason=expired，與 PR #15 的 reason 提示共用）', () => {
   async function mountLogin(path: string) {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const router = createRouter({
@@ -103,37 +103,37 @@ describe('登入頁的閒置逾時說明', () => {
     return wrapper
   }
 
-  it('expired=1 時說明閒置過久，重新送出登入時收掉', async () => {
-    const wrapper = await mountLogin('/login?redirect=%2Fmedia&expired=1')
-    expect(wrapper.get('[data-test="session-expired"]').text()).toContain('閒置過久')
+  it('reason=expired 時說明登入已逾時，重新送出登入失敗時改顯示帳密錯誤', async () => {
+    const wrapper = await mountLogin('/login?redirect=%2Fmedia&reason=expired')
+    expect(wrapper.get('[data-test="login-reason"]').text()).toContain('登入已逾時')
     vi.spyOn(api, 'post').mockRejectedValue(new ApiError(401, '帳號或密碼錯誤'))
     await wrapper.find('input[type="email"]').setValue('staff@ivy.example')
     await wrapper.find('input[type="password"]').setValue('wrong-password-xx')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(wrapper.find('[data-test="session-expired"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="login-reason"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('帳號或密碼錯誤')
   })
 
   it('一般進入登入頁不顯示', async () => {
     const wrapper = await mountLogin('/login?redirect=%2Fmedia')
-    expect(wrapper.find('[data-test="session-expired"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('閒置過久')
+    expect(wrapper.find('[data-test="login-reason"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('登入已逾時')
   })
 
   it('OAuth 錯誤優先顯示，不同時疊兩個提示', async () => {
-    const wrapper = await mountLogin('/login?oauth_error=line_failed&expired=1')
+    const wrapper = await mountLogin('/login?oauth_error=line_failed&reason=expired')
     expect(wrapper.text()).toContain('LINE 登入未完成或已逾時')
-    expect(wrapper.find('[data-test="session-expired"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="login-reason"]').exists()).toBe(false)
   })
 
-  it('Google／LINE 登入連結只帶 redirect，不把 expired 帶進去', async () => {
+  it('Google／LINE 登入連結只帶 redirect，不把 reason 帶進去', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: true, line: false })
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [{ path: '/login', name: 'login', component: LoginView }, { path: '/:rest(.*)', component: Blank }],
     })
-    await router.push('/login?redirect=%2Fmedia&expired=1')
+    await router.push('/login?redirect=%2Fmedia&reason=expired')
     await router.isReady()
     const wrapper = mount(LoginView, { global: { plugins: [createPinia(), router, ElementPlus] } })
     wrappers.push(wrapper)
@@ -211,7 +211,7 @@ describe('有未儲存的修改時收到 401：留在原頁，重新登入後再
     expect(confirm).toHaveBeenCalledTimes(1)
     expect(auth.user).toBeNull()
     expect(router.currentRoute.value.name).toBe('login')
-    expect(router.currentRoute.value.query).toEqual({ redirect: '/content/news', expired: '1' })
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/content/news', reason: 'expired' })
   })
 
   it('沒有未儲存的修改時照原本直接導去登入頁', async () => {

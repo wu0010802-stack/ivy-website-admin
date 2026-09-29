@@ -149,7 +149,8 @@ describe('到期待追蹤有來源也有入口', () => {
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (path.endsWith('/contact-notes')) return [] as never
       if (path.startsWith('/admin/slots')) return [{ ...slot, capacity: 3, booked_count: 0, closed: false }] as never
-      if (path.startsWith('/admin/visit-requests?')) return [{ ...base(), id: 'case-b' }, { ...base(), id: 'case-a' }] as never
+      if (path.startsWith('/admin/visit-requests?status=new')) return [{ ...base(), id: 'case-b' }, { ...base(), id: 'case-a' }] as never
+      if (path.startsWith('/admin/visit-requests?')) return [] as never
       return data as never
     })
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
@@ -158,7 +159,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await router.push('/visit-requests/case-a'); await router.isReady()
     const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.text()).toContain('下一筆待處理（還有 1 件）')
+    expect(wrapper.text()).toContain('下一筆（待處理 1）')
     wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', slot.id)
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '確認並排入時段')!.trigger('click')

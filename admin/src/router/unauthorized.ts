@@ -3,16 +3,17 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { hasUnsavedChanges, leaveWithoutAsking } from '../composables/useUnsavedChanges'
 
-/** 導回登入頁時帶的查詢參數；登入頁看到它就說明「閒置過久，請重新登入」。 */
-export const SESSION_EXPIRED_QUERY = 'expired'
-
 let recovering = false
 
+/**
+ * 導回登入頁時帶 reason=expired（跟 router/index.ts 的 signin／offline 同一組），
+ * 登入頁據此說明是逾時、登入後會回到剛才的頁面。
+ */
 function loginRoute(router: Router) {
   const current = router.currentRoute.value
   return {
     name: 'login',
-    query: { ...(current.fullPath !== '/' ? { redirect: current.fullPath } : {}), [SESSION_EXPIRED_QUERY]: '1' },
+    query: { ...(current.fullPath !== '/' ? { redirect: current.fullPath } : {}), reason: 'expired' },
   }
 }
 

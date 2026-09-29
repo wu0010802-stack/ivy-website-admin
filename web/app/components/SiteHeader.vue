@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
 import { getCampusSocials } from '~/utils/campus-socials'
+import { isPlainLeftClick } from '~/utils/campusPhotoMorph'
 import { siteLink } from '~/utils/site-links'
 
 const props = defineProps<{ content: SiteContent }>()
@@ -156,6 +157,28 @@ function onPointerdown(event: PointerEvent) {
   if (isPanelVisible.value && !headerRef.value?.contains(event.target as Node)) closePanel(false)
 }
 
+// Tab／讀屏焦點離開頁首（選單卡、膠囊、按鈕）就關卡，免得在被蓋住的頁面上操作。
+// relatedTarget 為 null（觸控點卡內空白處、視窗失焦）時不關，否則點標題或留白就會把卡片收掉。
+function onFocusout(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null
+  if (isMenuOpen.value && isPanelVisible.value && next && !headerRef.value?.contains(next)) closePanel(false)
+}
+
+// 首頁捲下去後點膠囊校徽：NuxtLink 指向目前路由不會導覽也不會捲動，改成瞬間回到頂端。
+// 不用 smooth：紙頁轉場、布幕等捲動驅動效果會被快速重播一遍。修飾鍵（另開分頁）照常交給瀏覽器。
+function onPillBrandClick(event: MouseEvent) {
+  if (route.path !== '/' || !isPlainLeftClick(event)) return
+  event.preventDefault()
+  closeMenu()
+  window.scrollTo({ top: 0, behavior: 'auto' })
+  // 鍵盤按 Enter（detail 為 0）：回頂後膠囊會隱藏、焦點掉回 body，下一個 Tab 會跳到頁面中段；
+  // 改交給頁首列看得到的校徽。滑鼠與觸控不移焦點，免得出現焦點框。
+  if (event.detail === 0) {
+    updateHeaderState()
+    nextTick(() => headerTopRef.value?.querySelector<HTMLElement>('.brand')?.focus({ preventScroll: true }))
+  }
+}
+
 let desktopQuery: MediaQueryList | null = null
 function onDesktopChange() {
   closeMenu()
@@ -201,6 +224,11 @@ onUnmounted(() => {
 })
 
 const campuses = computed(() => props.content.campuses)
+// 分校頁的頁首／膠囊預約直接帶入該校（/visit/<key>），其他頁仍連通用預約頁。
+const bookTo = computed(() => {
+  const key = route.path.match(/^\/campuses\/([^/]+)\/?$/)?.[1]
+  return key && campuses.value.some(campus => campus.key === key) ? `/visit/${key}` : '/visit'
+})
 // 後台可編輯的主選單；外部連結（https）另開分頁並標 ↗。
 const primaryNav = computed(() => props.content.siteMeta.primaryNav.flatMap((item) => {
   const link = siteLink(item.href)
@@ -232,7 +260,11 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
     :class="{ 'is-scrolled': isScrolled, 'is-pill-nav': usePanel, 'is-booking': isBookingPage }"
     :data-state="usePanel ? headerState : undefined"
     :data-menu="isMenuOpen ? 'open' : 'closed'"
+    @focusout="onFocusout"
   >
+    <!-- 窄螢幕選單卡外的透明遮罩：點卡外只關選單，不會同時點到底下的內容。
+         必須是 header 第一個子元素＋z-index:-1，才不會蓋住首屏頁首的預約鈕與 ✕（header 自成堆疊脈絡）。 -->
+    <div v-if="isNarrow && isMenuOpen" class="menu-scrim" aria-hidden="true" @click="closePanel(false)" />
     <div ref="headerTopRef" class="container header-top">
       <!-- 可及名稱直接用可見文字＋隱藏字尾，不另寫 aria-label，避免與可見文字不一致（label-content-name-mismatch）。 -->
       <NuxtLink class="brand" to="/">
@@ -263,7 +295,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
         </div>
       </nav>
       <div class="header-actions">
-        <NuxtLink class="button primary header-book" to="/visit">
+        <NuxtLink class="button primary header-book" :to="bookTo">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calendar-check" /></svg>
           <span class="header-label">
             <span>{{ content.booking.ctaLabel }}</span>
@@ -285,7 +317,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       </div>
     </div>
     <div ref="pillRef" class="header-pill">
-      <NuxtLink class="pill-brand" to="/">
+      <NuxtLink class="pill-brand" to="/" @click="onPillBrandClick">
         <span class="pill-crest">
           <svg class="brand-crest" viewBox="30 26 124 132" width="34" height="36" aria-hidden="true" focusable="false">
             <image href="/assets/logo.webp" width="552" height="192" filter="url(#logo-colour-cutout)" />
@@ -310,7 +342,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
           <span class="menu-lines" aria-hidden="true"><span /><span /></span>
           <span class="menu-word" aria-hidden="true">選單<small lang="en">Menu</small></span>
         </button>
-        <NuxtLink class="pill-book" to="/visit">
+        <NuxtLink class="pill-book" :to="bookTo">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calendar-check" /></svg>
           {{ content.booking.ctaLabel }}
         </NuxtLink>

@@ -69,10 +69,15 @@ class MediaBusy(Exception):
 
 # 等同校配額鎖的上限。持鎖的上傳在交易內還要寫儲存體與產生衍生檔（影片
 # 150 MB、S3、ffmpeg poster 最長 30 秒，還可能排處理名額），執行期連線預設的
-# lock_timeout（WEBSITE_DB_LOCK_TIMEOUT_MS，10 秒）對這把鎖太短，第二個檔案
-# 會變成 500（稽核 media-quota-lock-timeout-500）。持鎖方閒置在交易中時另受
-# idle_in_transaction_session_timeout 限制，所以等待仍有上限。
-QUOTA_LOCK_TIMEOUT = "120s"
+# lock_timeout（WEBSITE_DB_LOCK_TIMEOUT_MS，10 秒）與 statement_timeout（30 秒，
+# app/db.py）對這把鎖都太短，第二個檔案會變成 500（稽核
+# media-quota-lock-timeout-500）。這條交易只屬於後台上傳，兩個都用 SET LOCAL
+# 放寬：等鎖最多 QUOTA_LOCK_TIMEOUT，沿用 PR #14 讓後面的上傳排隊的 5 分鐘，
+# 等不到回 409 MEDIA_BUSY 請使用者重傳；statement_timeout 再多 30 秒
+# （QUOTA_STATEMENT_TIMEOUT），等鎖逾時一定先到，不會變成 500。持鎖方閒置在
+# 交易中時另受 idle_in_transaction_session_timeout 限制，所以等待仍有上限。
+QUOTA_LOCK_TIMEOUT = "300s"
+QUOTA_STATEMENT_TIMEOUT = "330s"
 _LOCK_NOT_AVAILABLE = "55P03"
 
 
@@ -83,7 +88,9 @@ async def _ensure_quota(
     「還有空間」而一起超過。處理失敗的素材原檔會被刪掉，不計入。"""
     bind = db.get_bind()
     if bind.dialect.name == "postgresql":
-        # SET LOCAL 只到這個交易結束，連線還回池後恢復預設。
+        # 前一筆上傳可能還在鎖內寫檔、跑 ffmpeg，排隊可以超過連線預設的逾時（見
+        # QUOTA_LOCK_TIMEOUT）。SET LOCAL 只到這個交易結束，連線還回池後恢復預設。
+        await db.execute(text(f"SET LOCAL statement_timeout = '{QUOTA_STATEMENT_TIMEOUT}'"))
         await db.execute(text(f"SET LOCAL lock_timeout = '{QUOTA_LOCK_TIMEOUT}'"))
         try:
             await db.execute(

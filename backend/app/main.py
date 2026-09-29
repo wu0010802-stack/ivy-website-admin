@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -33,6 +32,7 @@ from app.notifications.line_routes import router as line_router
 from app.notifications.routes import router as notifications_router
 from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
+from app.logging_config import configure_logging
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
 from app.workers.maintenance import MaintenanceLoop
 
@@ -62,6 +62,10 @@ def _error_response(request: Request, status_code: int, detail, headers: dict | 
     if request_id:
         merged[REQUEST_ID_HEADER] = request_id
     return JSONResponse(status_code=status_code, content=_error_body(detail, request_id), headers=merged)
+
+
+def _iso(value) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
 def _error_code(detail) -> str | None:
@@ -135,17 +139,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await app.state.rate_limit_engine.dispose()
             await app.state.engine.dispose()
 
-    # 正式站不開 API 文件：API 雖沒有公開 domain，但 web 同源代理若被
-    # dot-segment（%2e%2e）繞到 API 根目錄，就能拿到整份後台 schema。
-    # 契約匯出（scripts/export_openapi.py）直接呼叫 app.openapi()，不受影響。
-    docs_enabled = settings.environment != "production"
+    # 互動文件只在開發與測試開放：API 雖沒有公開 domain，但 web 同源代理若被
+    # dot-segment（%2e%2e）繞到 API 根目錄，就能拿到整份後台 schema。契約由
+    # scripts/export_openapi.py 直接呼叫 app.openapi() 產生，不需要這幾條路由。
+    docs = settings.environment != "production"
     app = FastAPI(
         title="Ivy Website Admin API",
         version="0.1.0",
         lifespan=lifespan,
-        docs_url="/docs" if docs_enabled else None,
-        redoc_url="/redoc" if docs_enabled else None,
-        openapi_url="/openapi.json" if docs_enabled else None,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
     )
     app.state.maintenance = None
     app.state.settings = settings
@@ -185,11 +189,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # 部署後用來確認定期工作真的有在跑（只有時間，不含任何資料）。
             "background_jobs": {
                 "enabled": maintenance is not None,
-                "last_completed_at": (
-                    maintenance.last_completed_at.isoformat()
-                    if maintenance is not None and maintenance.last_completed_at
-                    else None
-                ),
+                "last_completed_at": _iso(maintenance.last_completed_at if maintenance else None),
+                # 最近一次每一步都成功的時間與最近一輪失敗的步驟：定期工作「有在跑
+                # 但一直失敗」時，last_completed_at 仍會更新，要看這兩個欄位。
+                "last_clean_at": _iso(maintenance.last_clean_at if maintenance else None),
+                "last_failed_steps": list(maintenance.last_failed_steps) if maintenance else [],
             },
         }
 
@@ -211,37 +215,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def _configure_logging() -> None:
-    """讓 `app.*` 的 INFO（access log、4xx 摘要、定期工作結果）真的印出來。
-
-    uvicorn 只設定自己的 logger；沒有這段時 `app` 只剩 Python 預設的
-    lastResort（WARNING 以上），正式站關掉 uvicorn access log 之後就完全
-    看不到請求紀錄。只在真的啟動服務時呼叫，測試不受影響。"""
-    app_logger = logging.getLogger("app")
-    if app_logger.handlers:
-        return
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    # INFO 走 stdout、WARNING 以上走 stderr（和原本 lastResort 一樣），
-    # 平台 log 的嚴重度分類才不會把每一行 access log 都當成錯誤。
-    info = logging.StreamHandler(sys.stdout)
-    info.setLevel(logging.INFO)
-    info.addFilter(lambda record: record.levelno < logging.WARNING)
-    problems = logging.StreamHandler(sys.stderr)
-    problems.setLevel(logging.WARNING)
-    for handler in (info, problems):
-        handler.setFormatter(formatter)
-        app_logger.addHandler(handler)
-    app_logger.setLevel(logging.INFO)
-    app_logger.propagate = False
-
-
 def _build_default_app() -> FastAPI | None:
     """僅供 `uvicorn app.main:app` 使用。測試以 conftest 設定
     WEBSITE_SKIP_DEFAULT_APP=1，避免純 import 因缺環境變數而失敗；
     正常啟動時設定錯誤仍會如實拋出，訊息不含密碼。"""
     if os.environ.get("WEBSITE_SKIP_DEFAULT_APP") == "1":
         return None
-    _configure_logging()
+    configure_logging()
     return create_app()
 
 

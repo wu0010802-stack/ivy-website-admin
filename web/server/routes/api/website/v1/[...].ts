@@ -10,7 +10,7 @@
 // 真正的訪客 IP 放進一個自家 header，api 端以
 // WEBSITE_TRUSTED_CLIENT_IP_HEADER 讀取（見 deploy/README.md）。訪客 IP 由
 // trustedClientIp 從 X-Forwarded-For 右邊取，不採信訪客可自填的最左段。
-import { apiProxyTarget, isMediaUploadPath, proxyBodyLimit, unsafeProxyPath } from '../../../../../shared/request-guard'
+import { apiProxyTarget, escapesApiPrefix, isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
 import { abortOnClientClose, streamProxy } from '../../../../utils/stream-proxy'
 
 const CLIENT_IP_HEADER = 'x-website-client-ip'
@@ -26,13 +26,13 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const path = event.path.replace(/^\/api\/website\/v1/, '')
 
-  // 點區段、編碼斜線與控制字元一律 400：fetch 會把 `..`／`%2e%2e` 正規化，
-  // 組出的網址可能跳出 /api/website/v1（例如 FastAPI 的 /openapi.json），
+  // 點區段、編碼斜線與控制字元一律 404，後端收不到：fetch 會把 `..`／`%2e%2e`
+  // 正規化，組出的網址可能跳出 /api/website/v1（例如 FastAPI 的 /openapi.json），
   // 或在前綴內繞過下面的路徑判斷。h3 已解過一次碼，原始網址也查一次。
-  if (unsafeProxyPath(path) || unsafeProxyPath(event.node.req.url ?? '')) throw createError({ statusCode: 400 })
+  const rawPath = (event.node.req.url ?? '').replace(/^\/api\/website\/v1/, '')
+  if (escapesApiPrefix(path) || escapesApiPrefix(rawPath)) throw createError({ statusCode: 404 })
   const target = apiProxyTarget(config.websiteApiInternalBase, path)
-  if (!target) throw createError({ statusCode: 400 })
-  if (TELEMETRY_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
+  if (!target || TELEMETRY_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
 
   // 一定要顯式覆寫：proxyRequest 預設會把使用者送來的 header 一併轉發，
   // 不覆寫的話任何人都能自己帶一個 x-website-client-ip 來偽造訪客身分、

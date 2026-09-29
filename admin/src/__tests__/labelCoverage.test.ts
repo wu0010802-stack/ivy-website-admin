@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   AUDIT_ACTION_LABELS,
+  AUDIT_HIDDEN_METADATA_KEYS,
+  AUDIT_METADATA_KEYS,
   AUDIT_TARGET_LABELS,
+  auditChangeSummary,
   CANCEL_REASON_LABELS,
   CTA_ENTRY_LABELS,
   REFERRAL_SOURCE_LABELS,
@@ -232,5 +235,177 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     const referrals = [...referralLine.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!)
     expect(referrals.length).toBe(5)
     expect(referrals.filter((value) => !REFERRAL_SOURCE_LABELS[value])).toEqual([])
+  })
+})
+
+// ---- 操作紀錄「細節」：後端 log_action 的每個 metadata 鍵都要有中文寫法或刻意不顯示 ----
+// 只看 metadata 字面值的第一層鍵與 ** 展開；巢狀的物件（例如時段 {date,start,end}、
+// 還原的內容清單）由上一層的鍵整個翻譯。metadata 改成別的寫法（新的輔助函式、
+// 變數）時直接報錯，不讓比對悄悄失效。
+
+// 從 text[start]（左括號）找到對應的右括號，跳過字串內容。
+function balancedEnd(text: string, start: number): number {
+  let depth = 0
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!
+    if (ch === '"' || ch === "'") {
+      i = text.indexOf(ch, i + 1)
+      if (i === -1) return text.length - 1
+      continue
+    }
+    if ('({['.includes(ch)) depth++
+    else if (')}]'.includes(ch) && --depth === 0) return i
+  }
+  return text.length - 1
+}
+
+// 從 index 開始、到第一層的逗號或右括號為止的運算式（kwarg 的值）：回傳結束位置。
+function expressionEnd(text: string, index: number): number {
+  let i = index
+  for (; i < text.length; i++) {
+    const ch = text[i]!
+    if (ch === '"' || ch === "'") { i = text.indexOf(ch, i + 1); continue }
+    if ('({['.includes(ch)) { i = balancedEnd(text, i); continue }
+    if (ch === ',' || ch === ')' || ch === '}' || ch === ']') break
+  }
+  return i
+}
+
+function expressionAt(text: string, index: number): string {
+  return text.slice(index, expressionEnd(text, index)).trim()
+}
+
+// `{...}` 字面值第一層的 "key": 與 **展開。
+function dictEntries(literal: string): { keys: string[]; spreads: string[] } {
+  const keys: string[] = []
+  const spreads: string[] = []
+  for (let i = 1; i < literal.length - 1; i++) {
+    const ch = literal[i]!
+    if (ch === '"' || ch === "'") {
+      const end = literal.indexOf(ch, i + 1)
+      if (/^\s*:/.test(literal.slice(end + 1))) keys.push(literal.slice(i + 1, end))
+      i = end
+      continue
+    }
+    if ('({['.includes(ch)) { i = balancedEnd(literal, i); continue }
+    if (literal.startsWith('**', i)) {
+      const end = expressionEnd(literal, i + 2)
+      spreads.push(literal.slice(i + 2, end).trim())
+      i = end - 1
+    }
+  }
+  return { keys, spreads }
+}
+
+function functionBody(text: string, signature: string): string {
+  const start = text.indexOf(signature)
+  if (start === -1) throw new Error(`找不到 ${signature}`)
+  const rest = text.slice(start + signature.length)
+  const end = rest.search(/\n(?:\s*(?:async\s+)?def |@|class )/)
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
+// 函式裡 `return {…}` 或 `name = {…}` 的第一層鍵。
+function returnedKeys(body: string, marker = /(?:return|applied =) \{/g): string[] {
+  const keys: string[] = []
+  for (const m of body.matchAll(marker)) {
+    const open = m.index! + m[0].length - 1
+    keys.push(...dictEntries(body.slice(open, balancedEnd(body, open) + 1)).keys)
+  }
+  return keys
+}
+
+// 呼叫端的 kwargs（_audit_transition(..., action="…", has_reason=…) 的 **extra）。
+function transitionExtras(): string[] {
+  const keys: string[] = []
+  for (const call of logActionCalls().filter((c) => c.startsWith('_audit_transition('))) {
+    for (const m of call.matchAll(/[(,]\s*([a-z_]+)=/g)) if (m[1] !== 'action') keys.push(m[1]!)
+  }
+  return keys
+}
+
+// 不是字面值的 metadata：各自對到產生它的函式。
+const METADATA_HELPERS: [RegExp, () => string[]][] = [
+  [/^_media_audit\(/, () => returnedKeys(functionBody(source('media/routes.py'), 'def _media_audit('))],
+  [/^retention_service\.audit_metadata\(/, () => returnedKeys(functionBody(source('operations/retention_service.py'), 'def audit_metadata('))],
+  [/^filters\.audit_metadata\(\)$/, () => returnedKeys(functionBody(source('booking/routes.py'), 'def audit_metadata('))],
+  [/^result$/, () => [
+    ...returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def remove_exception(')),
+    // generate_slots 回傳的是 _create_from_rules 的結果。
+    ...returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def _create_from_rules(')),
+  ]],
+  [/^metadata$/, () => {
+    const body = functionBody(source('auth/routes.py'), 'async def update_user_role(')
+    return [...returnedKeys(body, /metadata = \{/g), ...[...body.matchAll(/metadata\["([a-z_]+)"\]/g)].map((m) => m[1]!)]
+  }],
+  [/^extra$/, transitionExtras],
+  // 停權與「解除綁定並登出」記下原本綁了哪些外部登入（2026-09-29 資安修正）。
+  [/^unlinked$/, () => returnedKeys(functionBody(source('auth/service.py'), 'def clear_external_logins('), /flags = \{/g)],
+]
+
+function metadataKeys(expr: string): string[] {
+  if (expr.startsWith('{')) {
+    const { keys, spreads } = dictEntries(expr)
+    return [...keys, ...spreads.flatMap(metadataKeys)]
+  }
+  // 條件式展開：**({"follow_up_cleared": True} if … else {})
+  if (expr.startsWith('(') && expr.includes('{')) {
+    return [...expr.matchAll(/\{/g)].flatMap((m) => dictEntries(expr.slice(m.index!, balancedEnd(expr, m.index!) + 1)).keys)
+  }
+  const helper = METADATA_HELPERS.find(([pattern]) => pattern.test(expr))
+  if (!helper) throw new Error(`新的 metadata 寫法「${expr}」：請在 labelCoverage 補上解析方式，並在 labels.ts 為它的鍵寫中文`)
+  return helper[1]()
+}
+
+function backendMetadataKeys(): Set<string> {
+  const keys = new Set<string>()
+  for (const call of logActionCalls()) {
+    const index = call.search(/\bmetadata=/)
+    if (index === -1) continue
+    for (const key of metadataKeys(expressionAt(call, index + 'metadata='.length))) keys.add(key)
+  }
+  return keys
+}
+
+describe('操作紀錄細節涵蓋後端所有 metadata 鍵', () => {
+  it('解析得出字面值、輔助函式與狀態轉換的額外欄位', () => {
+    expect(dictEntries('{"a": 1, "b": {"c": 2}, **extra}')).toEqual({ keys: ['a', 'b'], spreads: ['extra'] })
+    const keys = backendMetadataKeys()
+    expect(keys.size).toBeGreaterThan(50)
+    // 字面值、巢狀在字面值裡的輔助函式、**展開與 _audit_transition 的額外欄位都要掃得到。
+    for (const key of ['slot', 'from_status', 'to_status', 'row_count', 'has_search', 'size_bytes', 'trigger', 'run_id', 'has_reason', 'capabilities_removed', 'skipped_exception_days']) {
+      expect(keys, key).toContain(key)
+    }
+    expect(() => metadataKeys('some_new_helper(x)')).toThrow('新的 metadata 寫法')
+  })
+
+  it('每個鍵都有中文寫法，或列在刻意不顯示的識別碼裡', () => {
+    const keys = backendMetadataKeys()
+    expect([...keys].filter((key) => !AUDIT_METADATA_KEYS.has(key) && !AUDIT_HIDDEN_METADATA_KEYS.has(key))).toEqual([])
+    // 同一個鍵不會同時要顯示又要藏。
+    expect([...AUDIT_HIDDEN_METADATA_KEYS].filter((key) => AUDIT_METADATA_KEYS.has(key))).toEqual([])
+  })
+
+  it('修改前後（before／after）裡的欄位都有中文名', () => {
+    const fields = new Set<string>()
+    for (const text of Object.values(backendSources)) {
+      if (!text.includes('log_action(')) continue
+      for (const m of text.matchAll(/\b(?:before|after) = \{/g)) {
+        const open = m.index! + m[0].length - 1
+        const { keys, spreads } = dictEntries(text.slice(open, balancedEnd(text, open) + 1))
+        keys.forEach((key) => fields.add(key))
+        for (const spread of spreads) {
+          if (!spread.startsWith('retention_service.policy_days(')) throw new Error(`before／after 新的展開寫法：${spread}`)
+          returnedKeys(functionBody(source('operations/retention_service.py'), 'def policy_days(')).forEach((key) => fields.add(key))
+        }
+      }
+    }
+    // 預約設定的修改前後是 CONFIG_AUDIT_FIELDS 的快照。
+    const service = source('booking/service.py')
+    const tuple = service.slice(service.indexOf('CONFIG_AUDIT_FIELDS = ('), service.indexOf(')', service.indexOf('CONFIG_AUDIT_FIELDS = (')))
+    ;[...tuple.matchAll(/"([a-z_]+)"/g)].forEach((m) => fields.add(m[1]!))
+    for (const key of ['capacity', 'closed', 'cancelled_days', 'auto_run_enabled', 'min_lead_hours', 'mode', 'role']) expect(fields, key).toContain(key)
+    const raw = [...fields].filter((field) => auditChangeSummary({ before: { [field]: 1 }, after: { [field]: 2 } }).startsWith(`${field}：`))
+    expect(raw).toEqual([])
   })
 })

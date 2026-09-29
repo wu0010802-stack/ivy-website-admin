@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Component } from 'vue'
-import { useRoute } from 'vue-router'
-import * as Icons from '@element-plus/icons-vue'
-import { canSeeNavItem, landingPath, NAV_GROUPS } from '../router/nav'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  ArrowDown, Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
+  Document as DocumentIcon, EditPen, Files, Grid, HomeFilled, Key, List, Location as LocationIcon,
+  Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
+  SwitchButton, Tickets, Timer, User,
+} from '@element-plus/icons-vue'
+import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel } from '../api/labels'
@@ -14,6 +19,7 @@ const emit = defineEmits<{ close: []; logout: [] }>()
 const auth = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const route = useRoute()
+const router = useRouter()
 const query = ref('')
 const passwordOpen = ref(false)
 // 每天要用的總覽與參觀預約預設展開，內容三組與系統收起；使用者自己的
@@ -40,20 +46,50 @@ watch(expanded, value => {
     /* 存不了不影響操作 */
   }
 }, { deep: true })
-const icons = Icons as unknown as Record<string, Component>
+// nav.ts 用名稱指定圖示。逐一 import 而不是整包 import *：整包會把兩百多個
+// 用不到的圖示都打包進來。新增側欄項目時要把圖示加進這裡（有測試檢查）。
+const icons: Record<string, Component> = {
+  Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
+  EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Notification: NotificationIcon, Phone, Picture,
+  Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, User,
+}
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)
-const groups = computed(() => NAV_GROUPS.map(group => {
-  const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
-  const q = query.value.trim()
-  if (!q) return { ...group, items: allowed }
-  // 功能名先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開。
-  const hits = allowed.filter(item => item.title.includes(q))
-  if (hits.length) return { ...group, items: hits }
-  // 功能名都沒中才看分組或區段名，讓搜「參觀預約」能看到整組。
-  const byGroup = group.label.includes(q) || (group.section ?? '').includes(q)
-  return { ...group, items: byGroup ? allowed : [] }
-}).filter(group => group.items.length))
-const hasQuery = computed(() => Boolean(query.value.trim()))
+const normalizedQuery = computed(() => normalizeSearch(query.value))
+const groups = computed(() => {
+  const q = normalizedQuery.value
+  // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
+  const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
+    const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
+    if (!q) return { ...group, items: allowed, score: 0 }
+    // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
+    // 搜「預約」要帶出參觀案件、時段與容量，不只名稱裡有「預約」的兩項。
+    const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
+    if (hits.length) {
+      hits.sort((a, b) => b.score - a.score)
+      return { ...group, items: hits.map(hit => hit.item), score: hits[0]!.score }
+    }
+    // 這組沒有功能中才看分組或區段名，讓搜「參觀預約」能看到整組。
+    const byGroup = [group.label, group.section ?? ''].some(label => label && normalizeSearch(label).includes(q))
+    return { ...group, items: byGroup ? allowed : [], score: 0 }
+  }).filter(group => group.items.length)
+  // 最接近的一組排前面（sort 是穩定排序，同分維持側欄原本的順序）。
+  return q ? results.sort((a, b) => b.score - a.score) : results
+})
+const hasQuery = computed(() => Boolean(normalizedQuery.value))
+// 搜尋框按 Enter 直接前往第一筆結果。中文輸入法選字時按的 Enter 不算
+// （isComposing；Safari 在選字結束那一下是 keyCode 229）。沒打字時不動作：
+// 否則會跳到側欄第一項，手機清掉搜尋字後按鍵盤的「前往」也會換頁。
+function openFirstResult(event: KeyboardEvent) {
+  if (!hasQuery.value || event.isComposing || event.keyCode === 229) return
+  const first = groups.value[0]?.items[0]
+  if (!first) return
+  if (first.path === activePath.value) {
+    query.value = ''
+    emit('close')
+    return
+  }
+  void router.push(first.path)
+}
 // 相鄰且同 section 的分組併成一塊，共用一個區段標題。
 const blocks = computed(() => {
   const out: { key: string; section?: string; groups: typeof groups.value }[] = []
@@ -71,10 +107,13 @@ watch(activePath, path => {
 }, { immediate: true })
 // 點 logo 回到這個角色的起始頁（總管理者是營運總覽，其他角色是第一個看得到的功能）。
 const homePath = computed(() => landingPath(auth.user?.role))
+// 有指定校區的角色都帶校區（櫃台・義華、編輯・仁武），共用電腦或跨校支援時一眼
+// 看得出是哪一校的帳號，和「我的帳號」頁一致。總管理者管全部校區，不帶。
 const userLine = computed(() => {
   const user = auth.user
   if (!user) return ''
-  return `${roleLabel(user.role)}${user.role === 'campus_admin' ? `・${campusLabels(user.campus_keys)}` : ''}`
+  const campuses = user.role === 'super_admin' ? '' : campusLabels(user.campus_keys)
+  return campuses ? `${roleLabel(user.role)}・${campuses}` : roleLabel(user.role)
 })
 </script>
 
@@ -86,11 +125,12 @@ const userLine = computed(() => {
         <span class="sidebar__brand-text"><strong>常春藤官網</strong><span>管理後台</span></span>
       </router-link>
       <button v-if="mobile" class="sidebar__close" type="button" aria-label="關閉選單" @click="emit('close')">
-        <el-icon><Icons.Close /></el-icon>
+        <el-icon><Close /></el-icon>
       </button>
     </div>
     <div class="sidebar__search">
-      <el-input v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Icons.Search" clearable />
+      <el-input v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Search" clearable
+        @keydown.enter="openFirstResult" />
     </div>
     <nav class="sidebar__nav" aria-label="主選單">
       <template v-for="block in blocks" :key="block.key">
@@ -100,7 +140,7 @@ const userLine = computed(() => {
           <button type="button" class="sidebar__group-toggle" :disabled="hasQuery" :aria-expanded="hasQuery || expanded[group.key]"
             :aria-controls="`nav-${group.key}`" @click="expanded[group.key] = !expanded[group.key]">
             {{ group.label }}
-            <el-icon class="sidebar__chevron" :class="{ 'is-open': hasQuery || expanded[group.key] }"><Icons.ArrowDown /></el-icon>
+            <el-icon class="sidebar__chevron" :class="{ 'is-open': hasQuery || expanded[group.key] }"><ArrowDown /></el-icon>
           </button>
         </h2>
         <ul v-show="hasQuery || expanded[group.key]" :id="`nav-${group.key}`">
@@ -131,15 +171,22 @@ const userLine = computed(() => {
         <el-button text @click="query = ''">清除搜尋</el-button>
       </div>
     </nav>
-    <div v-if="auth.user" class="sidebar__user">
+    <div v-if="auth.user" class="sidebar__user" :class="{ 'is-mobile': mobile }">
       <router-link to="/account" class="sidebar__account" :class="{ 'is-active': route.path === '/account' }"
         :aria-current="route.path === '/account' ? 'page' : undefined"
-        :aria-label="`我的帳號：${auth.user.email}`" :title="auth.user.email">
+        :aria-label="`我的帳號：${auth.user.email}`" :title="`${auth.user.email}（${userLine}）`">
         <span class="sidebar__avatar" aria-hidden="true">{{ auth.user.email.slice(0, 1).toUpperCase() }}</span>
         <div class="sidebar__user-text"><strong>{{ auth.user.email }}</strong><span>{{ userLine }}</span></div>
       </router-link>
-      <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Icons.Key /></el-icon></el-button>
-      <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><Icons.SwitchButton /></el-icon></el-button>
+      <!-- 手機抽屜：觸控沒有 tooltip，圖示旁直接寫字。 -->
+      <div v-if="mobile" class="sidebar__user-actions">
+        <el-button text @click="passwordOpen = true"><el-icon><Key /></el-icon><span>更改密碼</span></el-button>
+        <el-button text @click="emit('logout')"><el-icon><SwitchButton /></el-icon><span>登出</span></el-button>
+      </div>
+      <template v-else>
+        <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Key /></el-icon></el-button>
+        <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><SwitchButton /></el-icon></el-button>
+      </template>
       <ChangePasswordDialog v-model="passwordOpen" />
     </div>
   </div>
@@ -183,7 +230,10 @@ const userLine = computed(() => {
 .sidebar__chevron { font-size: 12px; transform: rotate(-90deg); }
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__nav ul { list-style: none; margin: 0; padding: 0; }
-.sidebar__link { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+/* position:relative：數字裡的報讀文字（.visually-hidden 是絕對定位）要以連結為準、
+   跟著選單一起被捲動區裁切。沒有這行時它以整個側欄為準，下方分組展開後會把短頁面
+   撐高約 400px 的空白。 */
+.sidebar__link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
 .sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__link .el-icon { font-size: 17px; }
 /* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
@@ -195,9 +245,15 @@ const userLine = computed(() => {
 .sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__user-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
 .sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
-.sidebar__user-text span { font-size: 12px; color: var(--sidebar-muted); }
+.sidebar__user-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--sidebar-muted); }
 /* 更改密碼、登出只有圖示，14px 的鑰匙看起來像符號，放大到能一眼認出。 */
 .sidebar__user .el-button .el-icon { font-size: 18px; }
+/* 手機抽屜：帳號一行、下面兩顆帶字的按鈕各占一半。 */
+.sidebar__user.is-mobile { flex-wrap: wrap; row-gap: 14px; }
+.sidebar__user.is-mobile .sidebar__account { flex-basis: 100%; }
+.sidebar__user-actions { display: flex; gap: 8px; width: 100%; }
+.sidebar__user-actions .el-button { flex: 1; min-height: 44px; margin: 0; border: 1px solid var(--sidebar-line); font-size: 14px; }
+.sidebar__user-actions .el-button .el-icon { margin-right: 6px; }
 .sidebar__close { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-ink); cursor: pointer; }
 /* 滑鼠才有 hover 底色；觸控點開抽屜後手指的位置不會留下一塊亮底。 */
 .sidebar__home:hover, .sidebar__link:hover, .sidebar__account:hover { text-decoration: none; }

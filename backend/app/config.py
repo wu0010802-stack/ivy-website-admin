@@ -79,8 +79,10 @@ class Settings(BaseSettings):
     # migration 專用連線（schema owner）。沒設定時沿用 database_url；設定後
     # 執行期的 database_url 可以改成只有 DML 權限的角色，見 deploy/README.md。
     migration_database_url: str | None = Field(default=None, repr=False)
-    # 連線池。公開送單、限流、素材讀檔共用同一個池時，池太小或等待太久會讓
-    # 匿名併發拖垮整個 API；lock／idle-in-transaction 逾時是最後一道防線。
+    # 請求用主連線池（app/db.py；限流另有固定的小池）。公開送單、後台與素材讀檔
+    # 共用這個池，池太小或等待太久會讓匿名併發拖垮整個 API；預設與 PR #14 寫死的
+    # 10＋10、等 10 秒相同。lock／idle-in-transaction 逾時（加上固定 30 秒的
+    # statement_timeout）是最後一道防線。
     db_pool_size: int = Field(default=10, ge=1, le=50)
     db_max_overflow: int = Field(default=10, ge=0, le=50)
     db_pool_timeout_seconds: int = Field(default=10, ge=1, le=60)

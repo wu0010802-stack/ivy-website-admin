@@ -59,8 +59,9 @@ class ApiStartStorageTests(unittest.TestCase):
 
 
 class ApiStartSafetyTests(unittest.TestCase):
-    """2026-09-29 資安稽核：映像只給正式站用，漏設環境就不啟動；uvicorn 的
-    access log 會連 query string（後台搜尋的家長姓名／手機）一起記，關掉。"""
+    """2026-09-29 資安稽核：映像只給正式站用，漏設環境就不啟動。存取紀錄只有
+    uvicorn 這一份，查詢字串（後台搜尋的家長姓名／手機）由 app/logging_config.py
+    拿掉，不能被關掉而變成完全沒有存取紀錄。"""
 
     run_start = ApiStartStorageTests.run_start
 
@@ -80,9 +81,10 @@ class ApiStartSafetyTests(unittest.TestCase):
                 runpy.run_path(str(START_PATH))
         self.assertEqual(calls, [])
 
-    def test_uvicorn_access_log_is_disabled(self):
+    def test_uvicorn_keeps_the_only_access_log(self):
         calls = self.run_start({"WEBSITE_ENVIRONMENT": "production", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"})
-        self.assertIn("--no-access-log", calls[-1])
+        self.assertEqual(calls[-1][:2], ["uvicorn", "app.main:app"])
+        self.assertNotIn("--no-access-log", calls[-1])
 
 
 if __name__ == "__main__":

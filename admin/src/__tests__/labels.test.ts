@@ -44,6 +44,7 @@ describe('labels', () => {
   it('檔案大小換算', () => {
     expect(formatFileSize(512)).toBe('512 B')
     expect(formatFileSize(20480)).toBe('20 KB')
-    expect(formatFileSize(3 * 1024 * 1024)).toBe('3.0 MB')
+    expect(formatFileSize(3 * 1024 * 1024)).toBe('3 MB')
+    expect(formatFileSize(1.5 * 1024 * 1024)).toBe('1.5 MB')
   })
 })

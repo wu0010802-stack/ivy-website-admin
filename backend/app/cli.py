@@ -421,11 +421,12 @@ async def regenerate_media_variants(*, apply: bool, include_all: bool) -> None:
 
 
 async def strip_media_metadata(*, apply: bool) -> None:
-    """既有素材的原檔去除拍攝資訊（app/media/metadata.py）：2026-09-29 以前上傳的原檔
-    是原樣保存的，EXIF／GPS、影片拍攝地點會跟著公開在官網。預設只列出會處理哪些；
-    --apply 才改寫：去除後的檔案存成新的 storage key、更新素材記錄的大小、sha256
-    與寬高，commit 成功才刪舊檔。每個素材各自一個交易，失敗的不影響其他個；已經
-    乾淨的檔案不動，可以重跑。
+    """既有素材的原檔去除拍攝資訊（app/media/metadata.py）：PR #14 上線（2026-09-29）
+    以前上傳的圖片原檔是原樣保存的，之後的只拿掉 EXIF／XMP／IPTC 等主要區塊，
+    影片則一直沒有處理，EXIF／GPS、影片拍攝地點會跟著公開在官網。預設只列出會
+    處理哪些；--apply 才改寫：去除後的檔案存成新的 storage key、更新素材記錄的
+    大小、sha256 與寬高（轉正後），commit 成功才刪舊檔。每個素材各自一個交易，
+    失敗的不影響其他個；已經乾淨的檔案不動，可以重跑。
 
     舊素材（sha256 為 NULL）的 sha256 維持 NULL：regenerate-media-variants 靠它認出
     還沒轉正的舊縮圖，會在重新產生時補上。舊 GIF 不處理。"""

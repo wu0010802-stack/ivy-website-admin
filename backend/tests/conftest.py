@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import service
 from app.auth.models import Role, User
 from app.campuses.models import Campus
+from app.common.ratelimit import RateLimiter
 from app.config import Settings
 from app.main import create_app
 
@@ -90,6 +92,19 @@ def _test_settings() -> Settings:
 @pytest_asyncio.fixture
 async def app():
     return create_app(_test_settings())
+
+
+def freeze_rate_limit_clock(app) -> None:
+    """把 app 的限流器換成凍結時鐘的版本。
+
+    限流是固定窗口加權近似：一連串請求若剛好跨過窗口邊界，前一窗的次數會被
+    打折，「打到上限再多一次」的測試就會在某些秒數誤放行（test_traffic 曾在
+    main CI 這樣紅過）。要數到上限的測試先呼叫這個，所有請求落在同一個窗口，
+    結果不隨執行時間改變。"""
+    frozen = time.time()
+    app.state.rate_limiter = RateLimiter(
+        app.state.rate_limit_engine, app.state.settings.session_secret, clock=lambda: frozen
+    )
 
 
 @pytest_asyncio.fixture(autouse=True)

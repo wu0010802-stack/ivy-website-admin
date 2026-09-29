@@ -1,0 +1,1792 @@
+{
+  "about-curious": {
+    "width": 760,
+    "height": 570,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-curious-9496acca346e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/about-curious.webp",
+        "width": 760
+      }
+    ]
+  },
+  "campus-line-art-chongde": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-7f22e6bebf48-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-international": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-992d3338aca5-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-minghua": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-4c50f823cc32-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-renwu": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-94c0c937325b-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art-yihua": {
+    "width": 1536,
+    "height": 1024,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-286037849084-1536.webp",
+        "width": 1536
+      }
+    ]
+  },
+  "campus-line-art": {
+    "width": 1938,
+    "height": 812,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-2e84eaa66652-1938.webp",
+        "width": 1938
+      }
+    ]
+  },
+  "campus": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-815b7df1f159-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/campus-815b7df1f159-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/campus.webp",
+        "width": 960
+      }
+    ]
+  },
+  "chongde-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1736.webp",
+        "width": 1736
+      }
+    ]
+  },
+  "chongde": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/chongde-b0fec25e6335-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/chongde-b0fec25e6335-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/chongde.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "classroom": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/classroom-3c728c9505bc-960.webp",
+        "width": 960
+      }
+    ]
+  },
+  "day-discover": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-discover-264f4e0a782e-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-hello": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-hello-4129657284a6-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-home": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-home-aaf1109a3715-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-lunch": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-lunch-35d77f3c38be-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-outside": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-outside-c351b5489fda-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "day-poster": {
+    "width": 1440,
+    "height": 810,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-poster-25bf8e9913a0-1440.webp",
+        "width": 1440
+      }
+    ]
+  },
+  "garden": {
+    "width": 960,
+    "height": 600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/garden-42efe2cb2b79-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/garden-42efe2cb2b79-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/garden.webp",
+        "width": 960
+      }
+    ]
+  },
+  "graduation": {
+    "width": 1000,
+    "height": 563,
+    "candidates": [
+      {
+        "src": "/assets/responsive/graduation-6e17a5aad29d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/graduation-6e17a5aad29d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/graduation.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "hero-campus-restored-v1-still": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-1080.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "hero-campus-still": {
+    "width": 1080,
+    "height": 800,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-640.webp",
+        "width": 640
+      },
+      {
+        "src": "/assets/responsive/hero-campus-still-d1df263d128f-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/hero-campus-still.webp",
+        "width": 1080
+      }
+    ]
+  },
+  "hero": {
+    "width": 1440,
+    "height": 578,
+    "candidates": [
+      {
+        "src": "/assets/responsive/hero-82c55d626730-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/hero-82c55d626730-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/hero-82c55d626730-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/hero.webp",
+        "width": 1440
+      }
+    ]
+  },
+  "international-enhanced-v1": {
+    "width": 1736,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1736.webp",
+        "width": 1736
+      }
+    ]
+  },
+  "international": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/international-6e718dc52b98-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/international-6e718dc52b98-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/international.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "learning": {
+    "width": 1000,
+    "height": 402,
+    "candidates": [
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/learning-dfc84ab533b4-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "minghua-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1737.webp",
+        "width": 1737
+      }
+    ]
+  },
+  "minghua": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/minghua-1d403ab1bd62-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/minghua-1d403ab1bd62-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/minghua.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "renwu-enhanced-v1": {
+    "width": 1737,
+    "height": 906,
+    "candidates": [
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1737.webp",
+        "width": 1737
+      }
+    ]
+  },
+  "renwu": {
+    "width": 1000,
+    "height": 522,
+    "candidates": [
+      {
+        "src": "/assets/responsive/renwu-ab46d9df4a7f-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/renwu-ab46d9df4a7f-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/renwu.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "water": {
+    "width": 1000,
+    "height": 563,
+    "candidates": [
+      {
+        "src": "/assets/responsive/water-e823d1e5d336-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/water-e823d1e5d336-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/water.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "yihua-exterior-enhanced-v1": {
+    "width": 1546,
+    "height": 1017,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1546.webp",
+        "width": 1546
+      }
+    ]
+  },
+  "yihua-exterior": {
+    "width": 590,
+    "height": 388,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-87edb1595b78-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-87edb1595b78-590.webp",
+        "width": 590
+      }
+    ]
+  },
+  "about-together": {
+    "width": 1204,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/about-together-22ab26ab9c00-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/about-together.webp",
+        "width": 1204
+      }
+    ]
+  },
+  "campus-line-art-yihua-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-colour-08fbe2de8704-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-colour-08fbe2de8704-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-yihua-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-minghua-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-colour-56f214277928-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-colour-56f214277928-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-minghua-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-chongde-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-colour-25859748458d-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-colour-25859748458d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-chongde-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-international-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-international-colour-ac524c7a7e63-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-international-colour-ac524c7a7e63-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-international-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "campus-line-art-renwu-colour": {
+    "width": 768,
+    "height": 512,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-colour-100c37241671-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-colour-100c37241671-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/campus-line-art-renwu-colour.webp",
+        "width": 768
+      }
+    ]
+  },
+  "env-hero-hug": {
+    "width": 1960,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1960.webp",
+        "width": 1960
+      }
+    ]
+  },
+  "env-care-teacher": {
+    "width": 2221,
+    "height": 743,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-2221.webp",
+        "width": 2221
+      }
+    ]
+  },
+  "env-care-health": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-health-83b6353cb164-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-meal": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-clothes": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-comfort": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-care-clean": {
+    "width": 1961,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-care-clean-5617b0628778-1961.webp",
+        "width": 1961
+      }
+    ]
+  },
+  "env-space-playground": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-playground-854f318c0746-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/env-space-playground.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-classroom": {
+    "width": 1213,
+    "height": 908,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1213.webp",
+        "width": 1213
+      }
+    ]
+  },
+  "env-space-materials": {
+    "width": 928,
+    "height": 693,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-materials-7c442ca65f80-928.webp",
+        "width": 928
+      }
+    ]
+  },
+  "env-space-plaza": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/env-space-plaza.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-corner": {
+    "width": 900,
+    "height": 675,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-corner-07b228bcdecd-900.webp",
+        "width": 900
+      }
+    ]
+  },
+  "env-space-restroom": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-space-animals": {
+    "width": 1600,
+    "height": 1067,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-animals-590f2a835605-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "env-meal-book": {
+    "width": 1359,
+    "height": 1920,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-meal-book-4e824e723df8-1359.webp",
+        "width": 1359
+      }
+    ]
+  },
+  "cur-hero": {
+    "width": 2000,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-hero-a36954909f1d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-hero-a36954909f1d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-hero-a36954909f1d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-hero-a36954909f1d-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "cur-years": {
+    "width": 1667,
+    "height": 1111,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-years-a39d4aab82d5-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-years-a39d4aab82d5-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-years-a39d4aab82d5-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-years-a39d4aab82d5-1667.webp",
+        "width": 1667
+      }
+    ]
+  },
+  "cur-cognitive": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-cognitive-9b881824368a-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-cognitive-9b881824368a-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-cognitive-9b881824368a-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-cognitive-9b881824368a-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-integrated": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-integrated-176acde9055f-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-integrated-176acde9055f-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-integrated-176acde9055f-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-integrated-176acde9055f-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-multicultural": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-autonomy": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-autonomy-5d53935791ba-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-autonomy-5d53935791ba-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-autonomy-5d53935791ba-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-autonomy-5d53935791ba-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-activities": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-art": {
+    "width": 1779,
+    "height": 1335,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-art-65719ec56c66-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-art-65719ec56c66-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-art-65719ec56c66-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-art-65719ec56c66-1779.webp",
+        "width": 1779
+      }
+    ]
+  },
+  "cur-daily-calm": {
+    "width": 1000,
+    "height": 625,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "cur-daily-materials": {
+    "width": 1000,
+    "height": 625,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "cur-daily-art": {
+    "width": 1000,
+    "height": 625,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "cur-daily-reading": {
+    "width": 1200,
+    "height": 816,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-daily-reading-c480ef38a5a3-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-daily-reading-c480ef38a5a3-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-daily-reading-c480ef38a5a3-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-daily-motor": {
+    "width": 1000,
+    "height": 625,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-1000.webp",
+        "width": 1000
+      }
+    ]
+  },
+  "cur-visit": {
+    "width": 1204,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-1204.webp",
+        "width": 1204
+      }
+    ]
+  },
+  "tour-minghua-plaza": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/tour-minghua-plaza.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-minghua-fountain": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-chongde-field": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/tour-chongde-field.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-chongde-library": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-chongde-slide": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/tour-chongde-slide.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-international-street": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-international-street-a15b05ef6e87-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-international-street-a15b05ef6e87-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-international-street-a15b05ef6e87-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/tour-international-street-a15b05ef6e87-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-international-gate": {
+    "width": 1200,
+    "height": 750,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-international-gate-3425c482c253-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-international-gate-3425c482c253-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/tour-international-gate.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "tour-international-play": {
+    "width": 1200,
+    "height": 750,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-international-play-12a6f44bac93-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-international-play-12a6f44bac93-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/tour-international-play.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "tour-renwu-exterior": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/tour-renwu-exterior.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-renwu-classroom": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "tour-renwu-pond": {
+    "width": 2000,
+    "height": 1250,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/tour-renwu-pond.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "about-hero": {
+    "width": 2000,
+    "height": 803,
+    "candidates": [
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/about-hero-5036036202de-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/about-hero.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "cur-gallery-canvas-yellow": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-clay-ball": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-tote": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-plane-pink": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-tee": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tee-e6eb48bb154b-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-canvas-blue": {
+    "width": 1200,
+    "height": 1600,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "cur-gallery-tape": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1600.webp",
+        "width": 1600
+      }
+    ]
+  },
+  "cur-gallery-plane-dots": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1600.webp",
+        "width": 1600
+      }
+    ]
+  }
+}

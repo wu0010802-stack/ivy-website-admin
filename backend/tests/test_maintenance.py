@@ -192,6 +192,28 @@ async def test_loop_runs_cycles_and_stops_cleanly(app):
     assert loop._task is not None and loop._task.done()
 
 
+async def test_loop_reports_failed_steps_instead_of_looking_healthy(app, monkeypatch):
+    """每一步都失敗時 last_completed_at 照樣更新；健康狀態要能看出來。"""
+    from app.workers import maintenance
+
+    async def broken(db):
+        raise RuntimeError("模擬 DB 失敗")
+
+    monkeypatch.setattr(maintenance, "expire_holds", broken)
+    loop = MaintenanceLoop(app.state.session_factory, _without_email(app), interval_seconds=0.05, worker_id="loop")
+    loop.start()
+    try:
+        for _ in range(100):
+            if loop.last_completed_at is not None:
+                break
+            await asyncio.sleep(0.05)
+    finally:
+        await loop.stop(timeout=5)
+    assert loop.last_completed_at is not None
+    assert "expire_holds" in loop.last_failed_steps
+    assert loop.last_clean_at is None
+
+
 def _settings(**overrides) -> Settings:
     if overrides.get("environment") == "production":
         # production 一定要有 HTTPS 的 WEBSITE_ADMIN_ORIGIN（config 的正式環境檢查）。
@@ -224,7 +246,12 @@ async def test_lifespan_starts_loop_and_health_reports_it(app):
             assert loop_app.state.maintenance is not None
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=loop_app), base_url="http://test") as c:
                 body = (await c.get("/api/website/v1/health")).json()
-            assert body["background_jobs"] == {"enabled": True, "last_completed_at": None}
+            assert body["background_jobs"] == {
+                "enabled": True,
+                "last_completed_at": None,
+                "last_clean_at": None,
+                "last_failed_steps": [],
+            }
         assert loop_app.state.maintenance._task.done()
     finally:
         await loop_app.state.engine.dispose()
@@ -232,7 +259,12 @@ async def test_lifespan_starts_loop_and_health_reports_it(app):
 
 async def test_health_reports_disabled_when_loop_is_off(public_client):
     body = (await public_client.get("/api/website/v1/health")).json()
-    assert body["background_jobs"] == {"enabled": False, "last_completed_at": None}
+    assert body["background_jobs"] == {
+        "enabled": False,
+        "last_completed_at": None,
+        "last_clean_at": None,
+        "last_failed_steps": [],
+    }
 
 
 async def test_stale_backlog_writes_inbox_but_does_not_email(

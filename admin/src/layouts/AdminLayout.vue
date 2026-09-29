@@ -19,6 +19,10 @@ const drawerOpen = ref(false)
 const main = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const pageTitle = computed(() => route.meta.title ?? '')
+// 官網首頁。正式站的 base 是空字串（後台和官網同網域），直接拿 base 當 href 會變成
+// href=""，新分頁開的是目前這頁後台，所以一定要接上「/」。
+const websiteHome = `${WEBSITE_ASSET_BASE.replace(/\/+$/, '')}/`
+const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
 // 內容分成首頁／分校頁／全站三個子組，麵包屑顯示共用的「官網內容」，
 // 沒有區段的分組才用自己的名稱。
 const groupLabel = computed(() => {
@@ -41,15 +45,53 @@ watch(() => route.path, async () => {
   main.value?.scrollIntoView({ block: 'start' })
   main.value?.focus({ preventScroll: true })
 })
+// 從通知信、同事貼的網址進了沒有權限的頁面，會被送回起始頁（router 帶 denied）。
+// 說一聲是權限的關係，不要讓人以為連結壞了；說完把 denied 從網址拿掉，重新整理
+// 不會再跳一次。起始頁自己也可能同時改網址（分校內容頁會帶上 ?campus=），那次
+// replace 會蓋掉這裡的、把 denied 帶回來，所以跟著 fullPath 看：還在就再拿一次，
+// 提示只說一次。
+let announcedDenied: string | null = null
+watch(() => route.fullPath, () => {
+  const denied = route.query.denied
+  if (denied == null) {
+    announcedDenied = null
+    return
+  }
+  const name = (Array.isArray(denied) ? denied[0] : denied) ?? ''
+  if (announcedDenied !== name) {
+    announcedDenied = name
+    const title = router.getRoutes().find(record => record.name === name)?.meta.title
+    ElMessage.warning({
+      message: `你的帳號沒有${title ? `「${title}」` : '這個頁面'}的權限，已回到起始頁；需要的話請洽總管理者`,
+      duration: 6000,
+      showClose: true,
+    })
+  }
+  const { denied: _, ...rest } = route.query
+  void router.replace({ query: rest })
+}, { immediate: true })
+// 先換到登入頁，真正的登出在 router 的 beforeEach 裡（見 stores/auth.ts 的
+// logoutPending）：頁面有未儲存的修改時，離頁攔截會先問，選留在這頁就不登出。
 async function handleLogout() {
+  // 連按兩下只算一次：前一次還在等離頁確認或伺服器回應。
+  if (auth.logoutPending) return
+  auth.logoutPending = true
   try {
-    await auth.logout()
+    const failure = await router.push({ name: 'login' })
+    if (failure) {
+      // 選了留在這頁：仍是登入狀態，什麼都不做。
+      if (auth.user) return
+      // 網路慢、登出還沒回應時點了別的連結：換頁取消了，但登出已經完成。不能留在
+      // 沒有登入者的頁面上（之後的 401 都不會導回登入頁），補一次換到登入頁。
+      void router.replace({ name: 'login' })
+    }
   } catch {
     ElMessage.error('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
     return
+  } finally {
+    auth.logoutPending = false
   }
   openRequests.reset()
-  router.push({ name: 'login' })
 }
 </script>
 
@@ -69,7 +111,10 @@ async function handleLogout() {
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
         <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
-        <a class="top__site" :href="WEBSITE_ASSET_BASE" target="_blank" rel="noopener" title="開的是家長現在看到的版本；還沒發布的草稿不會出現在這裡">查看官網 <el-icon><TopRight /></el-icon></a>
+        <a class="top__site" :href="websiteHome" target="_blank" rel="noopener" aria-describedby="top-site-note"
+          :title="websiteNote">查看官網 <el-icon><TopRight /></el-icon></a>
+        <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
+        <span id="top-site-note" class="visually-hidden">{{ websiteNote }}</span>
       </header>
       <main id="main" ref="main" class="main" tabindex="-1"><router-view /></main>
     </div>
@@ -80,7 +125,8 @@ async function handleLogout() {
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100svh; }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px; border-radius: var(--radius); background: var(--ink); color: var(--surface); }
 .skip-link:focus { top: 12px; }
-.side { position: sticky; top: 0; height: 100svh; background: var(--sidebar-bg); }
+/* overflow:hidden 是保險：側欄裡絕對定位的東西（例如數字的報讀文字）不能把整頁撐高。 */
+.side { position: sticky; top: 0; height: 100svh; overflow: hidden; background: var(--sidebar-bg); }
 .main-col { display: flex; flex-direction: column; min-width: 0; }
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; min-height: var(--top-h); padding: 8px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .top__heading { min-width: 0; display: grid; gap: 3px; }

@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { api, ApiError, BASE_URL } from '../api/client'
 import { loginLimitedMessage } from '../api/errors'
 import type { AuthProviders } from '../api/types'
-import { SESSION_EXPIRED_QUERY } from '../router/unauthorized'
+import { safeRedirectPath } from '../router/nav'
 import crestUrl from '../assets/brand/ivy-crest.webp'
 
 const authStore = useAuthStore()
@@ -39,26 +39,26 @@ const errorMessage = ref<string | null>(
   typeof route.query.oauth_error === 'string' && Object.hasOwn(oauthErrors, route.query.oauth_error)
     ? oauthErrors[route.query.oauth_error] ?? null : null,
 )
-// 用到一半收到 401 被導回來（閒置逾時等），說明為什麼要重新登入；
-// OAuth 錯誤優先顯示，重新送出登入時收掉。
-const sessionNotice = ref<string | null>(
-  route.query[SESSION_EXPIRED_QUERY] === '1' && !errorMessage.value ? '閒置過久或登入已失效，請重新登入。' : null,
-)
+// 為什麼會在登入頁（router 與 router/unauthorized.ts 的 401 處理帶的 reason）。跟帳密錯誤的紅色
+// 警示分開，用灰色的資訊提示：不是使用者做錯了什麼。
+type ReasonNotice = { type: 'info' | 'warning'; text: string; reload?: boolean }
+const REASON_NOTICES: Record<string, ReasonNotice> = {
+  expired: { type: 'info', text: '登入已逾時，請重新登入；登入後會回到剛才的頁面。' },
+  signin: { type: 'info', text: '請先登入；登入後會直接開啟剛才的連結。' },
+  offline: { type: 'warning', text: '連不上伺服器，請確認網路後重新整理這一頁；如果先前已經登入，重新整理後會回到剛才的頁面。', reload: true },
+}
+const reasonNotice = computed(() => {
+  const reason = route.query.reason
+  return typeof reason === 'string' && Object.hasOwn(REASON_NOTICES, reason) ? REASON_NOTICES[reason] ?? null : null
+})
+function reloadPage() {
+  window.location.reload()
+}
 const submitting = ref(false)
 const googleEnabled = ref(false)
 const lineEnabled = ref(false)
-const returnTo = computed(() => {
-  const path = route.query.redirect
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return '/'
-  // Only allow local router paths. The server independently validates this too.
-  const pathname = path.split(/[?#]/)[0] ?? '/'
-  if (
-    /[\\\u0000-\u001f\u007f]/.test(path)
-    || /%|(^|\/)\.{1,2}(\/|$)/.test(pathname)
-    || pathname.replace(/\/+$/, '') === '/login'
-  ) return '/'
-  return path
-})
+// 只接受站內路徑（規則在 nav.ts，router 從書籤恢復登入時也用同一條）。
+const returnTo = computed(() => safeRedirectPath(route.query.redirect) ?? '/')
 const redirectQuery = computed(() => new URLSearchParams({ redirect: returnTo.value }).toString())
 const googleLoginUrl = computed(() => `${BASE_URL}/auth/google/login?${redirectQuery.value}`)
 const lineLoginUrl = computed(() => `${BASE_URL}/auth/line/login?${redirectQuery.value}`)
@@ -100,10 +100,19 @@ onMounted(async () => {
   }
 })
 
+// 其他錯誤不顯示狀態碼（「登入失敗（502）」對員工沒有意義）。實際會碰到的是部署或
+// 重啟時代理回的 502／503，和後端 500；後端 500 帶錯誤編號時附上，方便回報。代理的
+// 錯誤本文是英文，不能直接顯示，所以不用 apiErrorMessage。
+function otherLoginError(err: ApiError): string {
+  if (err.status < 500) return '登入沒有完成，請稍後再試；一直不行請聯絡總管理者。'
+  const detail = err.detail as { request_id?: unknown } | null
+  const requestId = detail && typeof detail === 'object' && typeof detail.request_id === 'string' ? detail.request_id.slice(0, 8) : ''
+  return `伺服器暫時無法回應，請稍後再試${requestId ? `（錯誤編號 ${requestId}）` : ''}`
+}
+
 async function handleSubmit() {
   if (submitting.value) return
   errorMessage.value = null
-  sessionNotice.value = null
   const email = form.email.trim()
   // 帳號就是完整 Email；只打「admin」之類的會被後端以 422 擋下，
   // 先在這裡講清楚，不要讓人看到狀態碼。
@@ -117,7 +126,9 @@ async function handleSubmit() {
   submitting.value = true
   try {
     await authStore.login(email, form.password)
-    await router.push(returnTo.value)
+    // replace 而不是 push：登入頁不留在瀏覽紀錄裡。從通知信點進案件、登入後按
+    // 「← 參觀案件」或返回鍵，才不會先退回登入頁、再被送到總覽。
+    await router.replace(returnTo.value)
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       errorMessage.value = '帳號或密碼錯誤'
@@ -130,7 +141,7 @@ async function handleSubmit() {
     } else if (err instanceof ApiError && err.status === 429) {
       errorMessage.value = limitedMessage(err)
     } else if (err instanceof ApiError) {
-      errorMessage.value = `登入失敗（${err.status}）`
+      errorMessage.value = otherLoginError(err)
     } else {
       errorMessage.value = '無法連線到伺服器，請稍後再試'
     }
@@ -159,14 +170,16 @@ async function handleSubmit() {
           class="login__alert"
         />
         <el-alert
-          v-else-if="sessionNotice"
-          :title="sessionNotice"
-          type="warning"
+          v-else-if="reasonNotice"
+          :title="reasonNotice.text"
+          :type="reasonNotice.type"
           :closable="false"
           show-icon
           class="login__alert"
-          data-test="session-expired"
-        />
+          data-test="login-reason"
+        >
+          <el-button v-if="reasonNotice.reload" size="small" class="login__reload" @click="reloadPage">重新整理</el-button>
+        </el-alert>
 
         <el-form label-position="top" size="large" class="login__form" @submit.prevent="handleSubmit" novalidate>
           <el-form-item label="帳號" for="admin-email" required :error="fieldErrors.email" :show-message="false">
@@ -288,6 +301,10 @@ async function handleSubmit() {
   margin-bottom: 20px;
 }
 
+.login__reload {
+  margin-top: 8px;
+}
+
 .login__form :deep(.el-form-item) {
   margin-bottom: 20px;
 }
@@ -359,10 +376,8 @@ async function handleSubmit() {
   text-align: center;
 }
 
+/* Google、LINE 按鈕的顏色依官方規範，token 在 style.css（第三方品牌規範色，不跟主題）。 */
 .login__google-link {
-  --google-button-fill: #fff;
-  --google-button-stroke: #747775;
-  --google-button-text: #1f1f1f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -388,12 +403,9 @@ async function handleSubmit() {
   outline-offset: 3px;
 }
 
-/* LINE 官方按鈕規範：#06C755 底、白色圖示與文字、8% 黑分隔線，
+/* LINE 官方按鈕規範（色值見 style.css）：綠底、白色圖示與文字、8% 黑分隔線，
    hover／press 疊 10%／30% 黑。圖示取自官方素材包，比例不可改。 */
 .login__line-link {
-  --line-button-fill: #06c755;
-  --line-button-ink: #fff;
-  --line-button-separator: rgb(0 0 0 / 0.08);
   --line-button-overlay: transparent;
   display: flex;
   align-items: stretch;
@@ -423,12 +435,12 @@ async function handleSubmit() {
 }
 
 .login__line-link:hover {
-  --line-button-overlay: rgb(0 0 0 / 0.1);
+  --line-button-overlay: var(--line-button-hover-overlay);
   text-decoration: none;
 }
 
 .login__line-link:active {
-  --line-button-overlay: rgb(0 0 0 / 0.3);
+  --line-button-overlay: var(--line-button-press-overlay);
 }
 
 .login__line-link:focus-visible {

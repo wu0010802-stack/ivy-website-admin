@@ -31,11 +31,17 @@ DEFAULT_WIDTHS = [480, 800, 1200]
 # 2026-09-22：day-poster 是背景影片底下的海報（上面還壓一層 shade），
 # classroom／learning 是關於區塊的小照片，降品質肉眼看不出差異。
 # hero-campus-still 是 LCP，補 640w 給 DPR 1.5–1.75 的手機。
+# 2026-09-29：首頁五校分頁線稿在手機只有 48–60px 寬（DPR3 約需 180px），補 240w，不必下載 480w。
 OVERRIDES = {
     'day-poster': {'quality': 68},
     'classroom': {'quality': 72},
     'learning': {'quality': 72},
     'hero-campus-still': {'widths': [480, 640, 800]},
+    'campus-line-art-yihua': {'widths': [240, 480, 800, 1200]},
+    'campus-line-art-minghua': {'widths': [240, 480, 800, 1200]},
+    'campus-line-art-chongde': {'widths': [240, 480, 800, 1200]},
+    'campus-line-art-international': {'widths': [240, 480, 800, 1200]},
+    'campus-line-art-renwu': {'widths': [240, 480, 800, 1200]},
 }
 FULL_REENCODE_MIN_SAVING = 0.2
 # 日常照片保留影片原生解析度，衍生小圖也降低再壓縮的細節損失。

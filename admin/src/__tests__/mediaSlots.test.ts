@@ -276,7 +276,7 @@ describe('MediaSlotField', () => {
 })
 
 describe('內容頁的素材版位', () => {
-  it('首屏：舊版本沒有影片與照片欄位不算修改；選 poster 會帶入素材說明當替代文字', async () => {
+  it('首屏：舊版本沒有影片與照片欄位不算修改；選影片封面會帶入素材說明當圖片說明', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path.startsWith('/admin/content-items/home_hero')) return contentItem('home_hero', { eyebrow: '小標', copy_lines: ['一'] }) as never
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
@@ -287,7 +287,7 @@ describe('內容頁的素材版位', () => {
     const wrapper = await mountView(HomeHeroView, '/content/home-hero')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
     expect(wrapper.text()).toContain('目前用官網內建的首屏照片')
-    const poster = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('Poster（'))!
+    const poster = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('影片封面（'))!
     await poster.findAll('button').find((b) => b.text() === '從素材庫選照片')!.trigger('click')
     await flushPromises()
     Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('garden.jpg'))!.click()
@@ -298,7 +298,7 @@ describe('內容頁的素材版位', () => {
     expect(payload.video_desktop).toBeNull()
   })
 
-  it('孩子的一天：舊卡片補上照片、替代文字與色調欄位（不算修改）', async () => {
+  it('孩子的一天：舊卡片補上照片、圖片說明與色調欄位（不算修改）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('day_experience', {
       eyebrow: '孩子的一天', eyebrow_en: 'A DAY', note: '', source_note: '',
       moments: [{ key: 'hello', time: '08:00', label: '早安', caption: '', title: '早安', story: '', question: '', answer: '' }],
@@ -306,8 +306,8 @@ describe('內容頁的素材版位', () => {
     const wrapper = await mountView(DayExperienceView, '/content/day-experience')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
     expect(wrapper.text()).toContain('目前用原本的照片')
-    const alt = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('照片替代文字'))!
-    await alt.get('input').setValue('孩子打招呼')
+    const alt = wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('圖片說明（給看不到照片的人）'))!
+    await alt.get('textarea').setValue('孩子打招呼')
     const payload = await savedPayload(wrapper, 'day_experience')
     expect((payload.moments as Record<string, unknown>[])[0]).toMatchObject({ photo: null, alt: '孩子打招呼', tint: null })
     expect(payload.film_caption_zh).toBeNull()
@@ -380,7 +380,7 @@ describe('活動影片規則與標籤', () => {
     expect(filmClipError(film)).toContain('結束秒數')
     expect(filmClipError({ ...film, end: null })).toBe('')
     // 知道影片長度時對照長度檢查（跟後端存檔相同）。
-    expect(filmClipError({ ...film, end: 12.5 }, 12.34)).toBe('影片只有 12.34 秒，結束秒數不能超過影片長度（留空＝播到結尾）')
+    expect(filmClipError({ ...film, end: 12.5 }, 12.34)).toBe('影片只有 12.34 秒，結束秒數不能超過影片長度（不填就播到結尾）')
     expect(filmClipError({ ...film, end: 12.34 }, 12.34)).toBe('')
     expect(filmClipError({ ...film, end: 30 }, null)).toBe('')
     expect(filmStartError({ ...film, start: 12.34, end: null }, 12.34)).toBe('影片只有 12.34 秒，開始秒數要小於影片長度')

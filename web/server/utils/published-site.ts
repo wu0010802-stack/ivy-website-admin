@@ -10,7 +10,10 @@ import { publishedContent, type LivePublicSite, type PublishedSite } from '../..
 // 只放「已發布」內容：草稿預覽（/preview）走 /api/site-fixture 與後台 API，
 // 不經過這裡；API 的 /public/site 也不看 cookie，所有訪客拿到的內容相同。
 export const PUBLISHED_SITE_TTL_MS = 3000
-const FETCH_TIMEOUT_MS = 10_000
+
+// 向 API 取已發布內容的上限。API 卡住（連線池吃緊、部署重啟中）時，SSR 不能
+// 跟著無限期等下去。
+const FETCH_TIMEOUT_MS = 8000
 
 interface CachedSite {
   base: string
@@ -19,6 +22,10 @@ interface CachedSite {
   checkedAt: number
 }
 
+// 最後一次成功組好的內容，同時是上面的短快取與失敗時的退路：API 部署重啟
+// （掛 volume 會先停舊容器）、暫時連不上、逾時或回 5xx 時退回這一份，訪客
+// 看到的是上一版官網而不是 503。只存在這個程序的記憶體：web 重啟後第一次
+// 請求仍須 API 可用。
 let cached: CachedSite | null = null
 let inflight: { base: string; promise: Promise<PublishedSite> } | null = null
 
@@ -50,7 +57,7 @@ export async function loadPublishedSite(config: { websiteEnv: string; websiteApi
   }
   const base = config.websiteApiInternalBase
   if (cached?.base === base && Date.now() - cached.checkedAt < PUBLISHED_SITE_TTL_MS) return cached.site
-  // 同時進來的請求共用同一次讀取，過期瞬間不會一起打 API。失敗不快取。
+  // 同時進來的請求共用同一次讀取，過期瞬間不會一起打 API。
   if (inflight?.base !== base) {
     const promise = fetchPublishedSite(base).finally(() => {
       if (inflight?.promise === promise) inflight = null
@@ -59,7 +66,22 @@ export async function loadPublishedSite(config: { websiteEnv: string; websiteApi
   }
   try {
     return await inflight.promise
-  } catch {
+  } catch (error) {
+    // 失敗不刷新快取時間：下一個請求照樣向 API 重讀，API 一恢復就換回新內容。
+    const lastGood = cached?.base === base ? cached.site : null
+    if (lastGood) {
+      console.warn(`[published-site] 內容服務暫時無法使用，改用上一份成功內容（release ${lastGood.releaseId}）`, describe(error))
+      return lastGood
+    }
+    console.error('[published-site] 內容服務暫時無法使用，也沒有可退回的內容', describe(error))
     throw createError({ statusCode: 503, statusMessage: '網站內容服務暫時無法使用' })
   }
+}
+
+function describe(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const { statusCode, message } = error as { statusCode?: number; message?: string }
+    return [statusCode, message].filter(Boolean).join(' ')
+  }
+  return String(error)
 }

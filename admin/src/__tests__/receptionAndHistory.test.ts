@@ -18,6 +18,7 @@ afterEach(() => {
   wrappers.forEach((wrapper) => wrapper.unmount())
   wrappers.length = 0
   vi.restoreAllMocks()
+  vi.useRealTimers()
   resetVisitStaff()
   document.body.innerHTML = ''
 })
@@ -156,10 +157,15 @@ describe('補登案件對話框', () => {
 
 describe('接待月曆', () => {
   it('把時段裡的家長排進對應日期，點日期列出當天名單', async () => {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())
+    // 固定在早上九點：已結束的場次不算可約，測試不能隨執行時間變。
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-24T09:00:00+08:00'))
+    const today = '2026-09-24'
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path.startsWith('/admin/visit-calendar')) {
         return [
+          // 早上八點那場已經結束，空位不算進「可約」。
+          { id: 's0', campus_key: 'yihua', slot_date: today, start_time: '08:00:00', end_time: '08:30:00', capacity: 5, closed: false, booked_count: 0, visits: [] },
           {
             id: 's1', campus_key: 'yihua', slot_date: today, start_time: '10:00:00', end_time: '10:30:00',
             capacity: 3, closed: false, booked_count: 1,
@@ -181,11 +187,12 @@ describe('接待月曆', () => {
     const todayCell = wrapper.find('.calendar__day.is-today')
     expect(todayCell.text()).toContain('10:00')
     expect(todayCell.text()).toContain('林爸爸')
-    expect(todayCell.text()).toContain('可約 2 位')
+    // 名額以組家庭計，跟時段頁一樣寫「組」。
+    expect(todayCell.text()).toContain('可約 2 組')
 
     // 今天預設就是選取的日期，下方列出名單與電話補登來源。
     const detail = wrapper.find('.calendar__detail')
-    expect(detail.text()).toContain('已排 1／3 位')
+    expect(detail.text()).toContain('已排 1／3 組')
     expect(detail.find('a[href="/visit-requests/v1"]').exists()).toBe(true)
     expect(detail.text()).toContain('電話補登')
   })

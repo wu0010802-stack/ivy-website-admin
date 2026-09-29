@@ -48,7 +48,7 @@ defineProps<{ campus: Campus }>()
             target="_blank"
             rel="noopener noreferrer"
           >
-            查看地圖與路線
+            查看地圖與路線<span aria-hidden="true">↗</span><span class="sr-only">（另開新視窗）</span>
           </a>
         </div>
       </div>
@@ -77,6 +77,11 @@ defineProps<{ campus: Campus }>()
           <h2 class="section-title">我們在這裡，等你來。</h2>
           <a class="phone-link" :href="`tel:${campus.phone}`">{{ campus.phone }}</a>
           <p>{{ campus.address }}</p>
+          <!-- LINE 只放該校自己的帳號，沒有就不顯示，不借用別校（CLAUDE.md）。 -->
+          <div class="contact-links">
+            <a class="text-link" :href="campusMapUrl(campus)" target="_blank" rel="noopener noreferrer">查看地圖與路線<span aria-hidden="true">↗</span><span class="sr-only">（另開新視窗）</span></a>
+            <a v-if="campus.line" class="text-link" :href="campus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ campus.name }}<span aria-hidden="true">↗</span><span class="sr-only">（另開新視窗）</span></a>
+          </div>
           <!-- 手機隱藏：緊接著的預約橫幅已有同一顆按鈕（styles.css 手機去重）。 -->
           <div class="contact-book">
             <BookingCta :campus-key="campus.key" :label="`預約${campus.name}`" button-class="button primary" />

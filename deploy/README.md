@@ -174,7 +174,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 ## 2026-09-29 資安稽核修正：部署前後人工步驟（尚未部署）
 
-白箱資安稽核的修正在分支 `fix/security-audit-20260929`。併進 `main` 就會正式部署；**api 掛 volume，Railway 先停舊容器再起新容器，新版啟動失敗＝停站**（見 2026-09-24 PR #9），所以「部署前」每一項都要先確認。
+白箱資安稽核的修正在分支 `fix/security-audit-20260929`（已合併 main `576672c`，含已上線的 PR #13–#17；與 PR #14 重複的機制只留一份，下面「這次改了什麼」照合併後的狀態寫）。併進 `main` 就會正式部署；**api 掛 volume，Railway 先停舊容器再起新容器，新版啟動失敗＝停站**（見 2026-09-24 PR #9），所以「部署前」每一項都要先確認。
 
 ### 部署前（必做）
 
@@ -194,10 +194,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 ### 這次改了什麼（部署相關）
 
-- **uvicorn access log 關閉**（`--no-access-log`）：它會把 query string 一起記，後台案件搜尋的 `?q=` 常是家長姓名或手機。改由 API 自己每個請求記一行 `app.access`：方法、路徑（不含 query string、控制字元已跳脫）、狀態、耗時、request id。`app.*` 的 INFO 走 stdout、WARNING 以上走 stderr。
-- **production 關閉 `/docs`、`/redoc`、`/openapi.json`**。契約匯出（`backend/scripts/export_openapi.py`、`npm run contract:check`）直接呼叫 `app.openapi()`，不受影響；CI smoke 不用這幾個路徑。
+- **存取紀錄**：沿用 PR #14 已上線的做法，只有 uvicorn 的 access log 一份，查詢字串由 `backend/app/logging_config.py` 拿掉（後台案件搜尋的 `?q=` 常是家長姓名或手機）；本分支原本的 `--no-access-log`＋API 自記 `app.access` 在合併時移除，不會有兩份。這次的差別只有：`app.*` 等 logger 的 INFO 改走 stdout、WARNING 以上走 stderr（PR #14 原本全部走 stderr，Railway 會把每一行 INFO 標成錯誤）。
+- **production 關閉 `/docs`、`/redoc`、`/openapi.json`**：PR #14 已上線，這次沒有變動。契約匯出（`backend/scripts/export_openapi.py`、`npm run contract:check`）直接呼叫 `app.openapi()`，不受影響；CI smoke 不用這幾個路徑。
 - **後台與登入回應 `Cache-Control: private, no-store`**：`/api/website/v1/admin/*` 與 `/api/website/v1/auth/*` 一律加上，路由自己已設的（素材縮圖 `private, max-age=86400`、OAuth 的 `no-store`）不覆寫。
-- **連線池**：請求池依 `WEBSITE_DB_*` 設定；限流另用獨立小池（2＋3 條、等 3 秒），不再和送單請求互等。限流池拿不到連線時，放行判斷一律當作超限（回 429，Retry-After 5 秒），事後記帳只記 warning。每條執行期連線帶 `lock_timeout`（10 秒）與 `idle_in_transaction_session_timeout`（5 分鐘）；alembic 自建 engine，不套用。SQLAlchemy 例外不再把綁定參數（家長個資）寫進 log。
+- **連線池**：請求池改依 `WEBSITE_DB_*` 設定（預設與 PR #14 寫死的 10＋10、等 10 秒相同）；限流獨立小池沿用 PR #14（3＋2 條、等 5 秒），不和送單請求互等。這次新增：限流池拿不到連線時，放行判斷一律當作超限（回 429，Retry-After 5 秒），事後記帳只記 warning。每條執行期連線除了 PR #14 的 `statement_timeout`（30 秒），再帶 `lock_timeout`（10 秒）與 `idle_in_transaction_session_timeout`（5 分鐘）；alembic 自建 engine，三個都不套用。SQLAlchemy 例外不再把綁定參數（家長個資）寫進 log。
 - **限流鍵 IPv6 聚合到 /64**（IPv4 不變、IPv4-mapped 視同 IPv4）。上線後既有 IPv6 訪客的限流計數等於歸零一次。
 - **base image 以 digest 釘版**（`deploy/api.Dockerfile`、`deploy/web.Dockerfile`，CI 的 `postgres:16` service 也是）。更新方式：讀 Docker Hub 的 multi-arch index digest 後把 `tag@sha256:…` 一起換掉：
 
@@ -214,8 +214,8 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - **Cloudflare Turnstile（公開預約的機器人驗證，選填）**：`WEBSITE_TURNSTILE_SITE_KEY` 與 `WEBSITE_TURNSTILE_SECRET_KEY` 兩個都設才啟用，只設一個 API 拒絕啟動。**要等官網的 Turnstile 元件上線（本次部署）後才能設**：順序反過來，所有官網送單都會被擋成 400 `BOT_CHECK_FAILED`。步驟：本次部署上線 → Cloudflare 後台建立 Turnstile widget（hostname 填正式網域，換自訂網域時要一起加）→ Railway api service 設兩個變數（secret 只放 Railway 變數，不進 repo）→ 用真的瀏覽器送一筆預約確認元件出現且能送出 → **查 api log 確認這筆送單沒有 `Turnstile` 開頭的 warning／error**（secret 設錯時 Cloudflare 回 `invalid-input-secret`，API 為了不讓整站停收仍會放行，只記一筆 error，光看「送得出去」驗不出來）。web service 不需要新變數（site key 由預約設定 API 帶出）。只有 Cloudflare 本身故障（連線錯誤、逾時、5xx、`internal-error`）時 API 放行並記 warning；其他 4xx、回應不是 JSON、驗證沒過一律 400 `BOT_CHECK_FAILED`。不比對 siteverify 回傳的 hostname：能產生 token 的網域由 Cloudflare widget 的 hostname 清單管制（換自訂網域時記得加）。日後若收緊公開站 CSP，`script-src`、`frame-src`、`connect-src` 都要放行 `https://challenges.cloudflare.com`。
 - **公開 telemetry／CTA 點擊**：資料照留、不清除（業主裁定），改用全站上限封住寫入量：telemetry 每分鐘 600、每日 20,000（瀏覽量與 Web Vitals 合計），點擊每分鐘 120、每日 5,000，每日以 UTC 日界線（台北 08:00）計、每天各自計數（前一天灌滿不影響隔天）。全站每日上限之前另有每來源每日上限（telemetry 500、點擊 200，代理有帶訪客 IP 才套用），少數來源用不光全站額度。超過時安靜丟棄、仍回 204，但每個窗口第一次開始丟棄時 API log 會記一筆 warning（`公開事件…上限已滿`）；看到這筆代表後台「數據」頁那段時間少算。可用 `WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`／`WEBSITE_TELEMETRY_DAILY_CAP`／`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`／`WEBSITE_ANALYTICS_CLICKS_DAILY_CAP` 調整，請對照後台「數據」頁的實際流量。官網代理對 `/api/website/v1/public/telemetry` 一律回 404（只接受經 `/api/telemetry` 轉送）。
 - **LINE 群組驗證**：新增 migration `e4c1a7f3b862`（見部署前第 2 點）。部署後既有群組的 `verified_at` 都是 NULL，已綁定的校區照常推播；要改到另一個群組時，先在那個群組貼後台產生的驗證碼（見上方「LINE 群組推播」第 5 步）。
-- **素材**：Pillow 升到 12.3.0；上傳與替換時，原檔在寫進儲存體前先去除拍攝資訊（EXIF／GPS、XMP、IPTC，影片的地點與建立時間），Pillow 與 ffmpeg 只解讀白名單格式，處理並行數限制為 2，送檔前先釋放 DB 連線。同校（共用素材全站一把）的配額鎖最多等 120 秒，不受一般的 10 秒 `lock_timeout` 限制；等不到回 409 `MEDIA_BUSY`（請稍後重傳），不是 500。**既有素材要在部署後手動處理一次**，見下方「部署後」。
-- **官網（web）**：資安標頭改在 nitro request hook 套用（涵蓋靜態資源與後台入口 `/admin/`），後台頁面加上嚴格 CSP（`script-src 'self'`）；API 代理拒絕 `.`／`..` 區段、編碼斜線與控制字元（400），素材改走有背壓的串流並在客戶端斷線時中止上游；`/assets/**/*.mp4` 改成串流並支援 Range；公開站資料加 3 秒程序內快取（ETag 重新驗證），發布後最多 3 秒才出現在官網。這層快取只保護正常的 SSR／換頁：通用 API 代理的 `GET /api/website/v1/public/site` 與 `GET /api/public-site`（CI smoke 在用）仍每次叫後端重組內容，刻意洪泛要靠後端快取才擋得住，列為後續工作。後台 CSP 是後台頁面本身的縱深防禦；稽核 `admin-same-origin-as-public-site`（公開頁 XSS 可同源呼叫後台 API）**仍未關閉**，要等後台移到獨立 origin 或公開站導入 nonce 型 `script-src`。
+- **素材**：Pillow 升到 12.3.0。圖片原檔去中繼資料沿用 PR #14 的無損做法（只留拍攝方向，像素不動），這次收緊成白名單：JPEG 其他 APPn（MPF、C2PA…）、多次掃描之間的區段與 EOI 之後的附加資料，PNG／WebP 不認得的 chunk 也拿掉；影片的地點與建立時間也去除（ffmpeg 不轉碼重新封裝）；清理寫到暫存複本，不再就地改寫來源檔。Pillow 與 ffmpeg 只解讀白名單格式，處理並行數限制為 2，送檔前先釋放 DB 連線。同校（共用素材全站一把）的配額鎖在交易內把 `lock_timeout` 放寬到 300 秒（沿用 PR #14 的 5 分鐘排隊上限）、`statement_timeout` 放寬到 330 秒，不受一般的 10 秒／30 秒限制；等鎖逾時一定先到，等不到回 409 `MEDIA_BUSY`（請稍後重傳），不是 500。**既有素材要在部署後手動處理一次**，見下方「部署後」。
+- **官網（web）**：資安標頭改在 nitro request hook 套用（涵蓋靜態資源與後台入口 `/admin/`），後台頁面加上嚴格 CSP（`script-src 'self'`）；API 代理在 PR #14 的 `..`／`%2e%2e` 檢查之外，再拒絕前綴內的 `..`、`.` 區段、編碼斜線、反斜線與控制字元（合併後同一支 `escapesApiPrefix`，一律回 PR #14 的 404；原本前綴內的 `..` 會照常轉送，現在也擋），素材改走有背壓的串流並在客戶端斷線時中止上游；`/assets/**/*.mp4` 改成串流並支援 Range；公開站資料加 3 秒程序內快取（ETag 重新驗證），疊在 PR #14 的 8 秒逾時與「API 暫時失敗時退回上一份成功內容」之上，發布後最多 3 秒才出現在官網。這層快取只保護正常的 SSR／換頁：通用 API 代理的 `GET /api/website/v1/public/site` 與 `GET /api/public-site`（CI smoke 在用）仍每次叫後端重組內容，刻意洪泛要靠後端快取才擋得住，列為後續工作。後台 CSP 是後台頁面本身的縱深防禦；稽核 `admin-same-origin-as-public-site`（公開頁 XSS 可同源呼叫後台 API）**仍未關閉**，要等後台移到獨立 origin 或公開站導入 nonce 型 `script-src`。
 - **保持不變**：`/api/website/v1/health` 仍回 `environment`、`fixture_enabled`、定期工作時間，`/release.json` 仍含 commit SHA——CI 部署後的 smoke（`deploy/railway_ci.py`）靠這些欄位確認 production／live，所以不收斂（稽核 `public-release-health-metadata` 列為 info、可接受）。
 
 ### 新環境變數（全部選填，沒設定就維持舊行為）
@@ -224,7 +224,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 ### 部署後（必做）
 
-1. **既有素材去除拍攝資訊**（2026-09-29 以前上傳的原檔是原樣保存的，EXIF／GPS、影片拍攝地點會跟著公開）。依「改寫資料先備份」的規則，**先備份正式 DB 與媒體 volume（或 S3 bucket）**，再在 Railway api 服務執行（auto 模式會擋 `railway ssh`，請自己在終端機跑）：
+1. **既有素材去除拍攝資訊**（PR #14 上線（2026-09-29 03:36 UTC）以前上傳的圖片原檔是原樣保存的；之後的只拿掉 EXIF／XMP／IPTC／註解，其他 APPn 與 EOI 之後的附加資料還在；影片一直沒處理，拍攝地點會跟著公開）。依「改寫資料先備份」的規則，**先備份正式 DB 與媒體 volume（或 S3 bucket）**，再在 Railway api 服務執行（auto 模式會擋 `railway ssh`，請自己在終端機跑）：
 
    ```sh
    python -m app.cli strip-media-metadata          # dry-run：只列出會處理哪些、各項數量
@@ -262,7 +262,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 
 - **備份不在同一個故障域**：開啟 Railway Postgres 的備份／PITR（`CICD.md` 記載目前未開）；另外定期把加密後的 `pg_dump` 與素材 volume 同步到異地（例如私有 R2 bucket、只給寫入權的金鑰），並做一次還原演練。現有 `/var/lib/postgresql/data/ivy-website-backups/*.dump` 和 DB 在同一顆 volume，volume 壞掉會一起消失。
 - **拆 DB 角色**：見上一節。
-- **Railway edge 的 `%2e%2e` 與 IPv6**：用 `curl --path-as-is 'https://web-production-04caa.up.railway.app/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json'` 確認 edge 是否原樣轉送（API 端已在 production 關掉文件；web 代理「先解析再驗證前綴」屬 web 端的修正範圍）；並確認 Railway 是否接受 IPv6 進站，以及 `X-Forwarded-For` 裡的 IPv6 形式（決定 /64 聚合是否生效）。
+- **Railway edge 的 IPv6**：`%2e%2e` 已由 PR #14 部署紀錄實測（edge 原樣轉送，部署前 200 回完整 OpenAPI，PR #14 起 web 代理擋下、production API 也關了文件，部署後 404），不必再查；剩下確認 Railway 是否接受 IPv6 進站，以及 `X-Forwarded-For` 裡的 IPv6 形式（決定 /64 聚合是否生效）。
 - **GitHub 原生 autodeploy**：確認 api、web 兩個服務都已斷開（見部署前第 3 點）。
 - **Postgres 是否開了公開 TCP proxy**：Railway Postgres 服務 → Settings → Networking，若有 TCP Proxy（`*.proxy.rlwy.net`）且沒有在用就移除；要留就確保密碼強度並只給必要的人。
 - **Railway CLI 供應鏈**：CD 仍以 `npm install --global @railway/cli@$RAILWAY_CLI_VERSION` 安裝（版本固定，但沒有 lockfile 的 integrity，安裝腳本會另外下載 binary）。之後改成下載官方 release binary 並核對 SHA-256，或放進有 lockfile 的 `package.json` 以 `npm ci` 安裝。
@@ -826,3 +826,28 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 本機驗證（Node 22）：web typecheck 0 錯、vitest 53 檔 502 項；`npm run build` 通過（唯一警告是 main 既有的 `studio.css:405` postcss）。fixture production build 以 Playwright 量 1440／390 七頁皆 200、零 console 錯誤與警告，特色教學與環境頁 `<img sizes>` 與預載一致，環境頁腳印桌機 54、手機 59，從環境頁點頁首連結進特色教學有暈開（`startViewTransition` 1 次）。
 - push `2abf4ec..c2feee4`：CI run `36361960741` 五個 job 全綠（Backend、web、admin、E2E、Deploy Railway production）。`/release.json` snapshot `1f5cc05474c0ed2da7c30c8f2498b108c644bbbe2ba1eb8f999779f188cb79f8`、`base_commit` `c2feee4`、`web+api`、`created_at` 2026-09-28T00:36:21Z。
 - 部署後 GET `/`、`/curriculum`、`/environment`、`/admission`、`/about`、`/news`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200；線上同一套 Playwright 檢查結果與本機相同（零錯誤、sizes 一致、腳印 54／59、換頁暈開 1 次）。未登入後台、未寫入業務資料；Safari／iOS 實機未驗證。
+
+## 2026-09-29 入學資訊頁「入學護照」部署（main CI 部署）
+
+- 使用者要求 commit 後部署。分支 `feature/admission-passport-20260928`（base `5263d0e`），提交 `c0ebf87`（改版前快照）、`64c3d87`（入學護照）。只動 `web/`（`AdmissionContent.vue` 重寫、`PassportStamp.vue`、`guilloche.ts`、`passport-stamp.ts`、`admission-motion.ts`、`admission-passport.css`、`tokens.css` 第 14 節、明體分片 `web/public/assets/fonts/admission/` 3.4MB）與兩支字型腳本；沒動 backend／admin／contracts、沒有 migration，不需先備份正式 DB。舊的未提交分支 `feature/admission-ux-20260928`（A 成長軌道版）已被這次取代，沒有併。
+- 本機驗證（Node 22）：web typecheck 0 錯、無 Duplicated imports 警告；vitest 55 檔 528 項；`npm run build` 通過（唯一警告是 main 既有的 `studio.css` postcss），入學頁 chunk 10.6KB（gzip），gsap（27KB）另一支，只在沒開減少動態時 `import()`。
+- push `5263d0e..64c3d87`（fast-forward）：CI run `36502355312` 五個 job 全綠（Backend、web、admin、E2E、Deploy Railway production）。`/release.json` snapshot `2ca8c45829f913958a6e8b1d79a63c13bf2aa98bf45d10e2516fc5d195b3b9b6`、`base_commit` `64c3d87`、`web+api`、`created_at` 2026-09-29T00:30:45Z；push 到上線約 17 分鐘。
+- 部署後 GET `/`、`/curriculum`、`/environment`、`/admission`、`/about`、`/news`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200；明體 critical 分片 `serif-600`（56,780 B）、`serif-900`（54,472 B）皆 200。線上 Playwright 1440／390：hero 照片挑 800w（顯示 483／304px）、六格簽證章捲到後都蓋上、2022/3/15 → 115 學年度中班（大章、「寶貝」小章、出生區間標示正確）、2025/5/1 → 116 學年度幼幼班、勾兩項蓋兩枚「已備」、明體 600／900 載入、`main` 文字對比全數達標、無水平溢出、零 console 錯誤與警告；減少動態時章一載入就在紙上；關掉 JS 時標題、6 步、5 條退費、3 張補助券、對照表都在。未登入後台、未寫入業務資料；Safari／iOS 實機、螢幕報讀器未驗證。
+
+## 2026-09-29 系統設計審查第一批修正部署（PR #14，main CI 部署）
+
+- 使用者要求併入 main。PR #14（`claude/system-design-review-rdqjzh`：`10f823b` 修正、`01a08d8` 合併 main、`16dc7ce` E2E 時段測試）以 merge commit `6d690b7` 併入；當時 `origin/main` 是 `144c2ff`，與 PR 最後一次 CI 的 base 相同，merge commit 的樹與 `16dc7ce` 完全相同。改動在 backend／web／admin／contracts／tests（內容見 README 2026-09-29）；沒有 migration，不需先備份正式 DB。
+- PR CI run `36512418073` 四個 job 全綠。合併後 main CI run `36514823871` 第一次 backend 失敗：`test_traffic.py::test_rate_limited_per_source` 預期 429 得到 204，deploy skipped，正式站沒動。原因是限流的固定窗口加權近似加上測試用真實時鐘：121 次請求跨過整分鐘時，前一窗次數被打折而放行（本機以可控時鐘重現：同窗第 121 次 429、跨窗第 121 次 204），與這次改動無關。merge commit 程式碼與 PR 上全綠的 `16dc7ce` 相同，所以重跑失敗 job 一次（attempt 2），五個 job 全綠含 Deploy Railway production。測試本身的修正（五支數到上限的測試改用凍結時鐘）另開後續 PR。
+- `/release.json` snapshot `180140f77de9e4081e886dd772b5cf91ea5d81a2005c8025bc103d7fdc14ff8a`、`base_commit` `6d690b7`、`web+api`、`created_at` 2026-09-29T03:33:06Z。
+- 部署期間約每 4 秒打一次 `/`：03:34:08 前後（api 換容器）有一次請求 10 秒逾時，其餘全部 200；web 換版時 `/release.json` 有一次讀不到、`/` 仍 200；03:36:02 起為新版。這次沒有 migration，api 起得快；比取樣間隔短的中斷量不到。
+- 部署後 GET `/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/news`、`/campuses/yihua`、`/campuses/renwu`、`/visit/yihua`、`/api/public-site`、`/admin/login`、`/sitemap.xml`、`/robots.txt` 皆 200。`/api/website/v1/health` 多了 `last_clean_at`、`last_failed_steps`（部署後第一輪定期工作為空陣列）。同源代理跳出前綴：`/api/website/v1/%2e%2e/%2e%2e/%2e%2e/openapi.json`（未編碼的 `../` 亦同）部署前 200 回完整 OpenAPI，部署後 404。
+- **未做**：沒有登入後台、沒有在正式站寫入業務資料（送單、點擊、上傳都沒試），所以限流獨立連線池、LINE／email 分開重試、發布樂觀鎖、EXIF 清理只在本機與 CI 驗證。正式 DB 的 PITR／排程備份與素材備份仍待使用者在 Railway 處理。
+
+## 2026-09-29 官網後台全面盤點與修正部署（PR #15，main CI 部署）
+
+- 使用者要求處理完併入 main。PR #15（`claude/backend-ui-ux-optimization-y5ndf4` → main），合併提交 `4c47c45`。改動是 `admin/` 9 區 UI/UX 修正與路由分塊、後端 `booking/service.py` 的 `get_or_create_config` 併發修正（`INSERT … ON CONFLICT DO NOTHING`）、三支 `tests/stack` 的預期與文件；沒有 migration、沒有 API／契約變動、不改寫既有資料，不需先備份正式 DB。盤點與改動細節見 `docs/analysis/2026-09-28-admin-uiux-audit.md`、README 2026-09-28／29 段落。
+- PR 開之前 main 進了 PR #14（發布樂觀鎖），已併進分支並把兩個斷言補上 `expected_published_revision_id`；PR CI（Frontend admin／web、Backend、E2E）四個 job 全綠。
+- main CI run `36517969412` 五個 job 全綠（含 Deploy Railway production，03:52:09–03:55:13）。`/release.json` snapshot `ec0eb4cac6ff0d534e26ace479d80602cb0c3a1fc553d04856bc20a876cf9da7`、`base_commit` `4c47c45`、`web+api`、`created_at` 2026-09-29T03:52:09Z；合併到上線約 18 分鐘。PR #16（`4193292`）的 main run 接在後面（concurrency 在 main 不取消，排隊執行）。
+- 部署後（唯讀、未登入）GET `/`、`/about`、`/admission`、`/news`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health` 皆 200；後台入口 `index-BBJbRF_K.js` 239,085 B（原本單一 JS 約 1.6 MB），入口引用的 30 個頁面分塊逐一 GET 皆 200。
+- **未做**：沒有登入後台、沒有在正式站寫入資料；本容器的 Chromium 不信任出口代理的憑證，沒有關掉 TLS 驗證硬跑，所以正式站畫面沒有在瀏覽器裡看過（同一份 build 在 CI 的 E2E 以 Google Chrome 全過）。Safari／iOS 實機未驗證。
+- **上線後請園方做一次**：校園探索的後台畫布改成和官網相同的 8:5 整張顯示，舊熱點在官網上的位置不變，但後台現在看到的才是官網實際位置；請各校打開「校園探索」複核熱點，偏掉的拖回去再發布。

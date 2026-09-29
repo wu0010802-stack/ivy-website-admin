@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 本人改密碼。成功後其他裝置登出，這個分頁保留登入。
+// 本人改密碼。成功後其他裝置登出，這個瀏覽器保留登入（同一個 session，所有分頁共用）。
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, ApiError } from '../api/client'

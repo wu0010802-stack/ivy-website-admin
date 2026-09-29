@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 import pytest
 from sqlalchemy import func, select, text
@@ -143,3 +144,27 @@ async def test_failed_logins_are_counted_even_though_request_rolls_back(app, db_
         await db_session.rollback()
     with pytest.raises(service.LoginRateLimited):
         await service.authenticate(db_session, "nobody@ivy.example", "wrong-password", limiter=limiter)
+
+
+async def test_concurrent_requests_do_not_deadlock_the_connection_pool(app, public_client):
+    """限流計數要獨立交易，呼叫時請求自己的 session 已握著一條連線。
+
+    限流原本向同一個連線池借第二條：十幾個同時進來的公開點擊就讓整個池子
+    「握一條、等一條」，全部等到逾時回 500，期間官網 /public/site 也拿不到
+    連線。限流改用 app/db.py 的獨立小池後，請求數超過主池大小也要全部完成。"""
+    total = app.state.engine.pool.size() + app.state.engine.pool._max_overflow + 20
+
+    async def click(index: int):
+        return await public_client.post(
+            "/api/website/v1/public/analytics-events",
+            json={
+                "event_type": "booking_cta_clicked",
+                "campus_key": "yihua",
+                "entry": "campus_hero",
+                "event_id": str(uuid.uuid4()),
+            },
+            headers={"x-website-client-ip": f"198.51.100.{index}"},
+        )
+
+    responses = await asyncio.wait_for(asyncio.gather(*(click(i) for i in range(total))), timeout=20)
+    assert [r.status_code for r in responses] == [204] * total

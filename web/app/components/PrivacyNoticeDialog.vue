@@ -91,14 +91,23 @@ function onClose() {
   text-align: start;
 }
 .privacy-dialog::backdrop { background: rgb(var(--ink) / .55); }
+/* 標題列跟著捲動：說明一長，「關閉」就捲出畫面，iOS 又沒有 Esc 或返回手勢可關。
+   top 要是負的內距：Chromium 的 sticky 會再內縮捲動容器的 padding，top:0 會空出一條縫；
+   負 margin 加回同量 padding，捲動前的外觀不變，白底蓋住捲上來的內文。 */
 .privacy-dialog-top {
+  position: sticky;
+  top: -24px;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+  margin-top: -24px;
   margin-bottom: 16px;
+  padding-top: 24px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line);
+  background: var(--white);
 }
 .privacy-dialog-top h2 {
   margin: 0;
@@ -131,6 +140,7 @@ function onClose() {
 
 @media (max-width: 760px) {
   .privacy-dialog { padding: 20px 18px; }
+  .privacy-dialog-top { top: -20px; margin-top: -20px; padding-top: 20px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
