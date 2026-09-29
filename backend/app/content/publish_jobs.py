@@ -37,24 +37,32 @@ async def check_publishable(
     revision: ContentRevision,
     *,
     require_active_campus: bool = True,
-    validate_schema: bool = False,
+    validate_schema: bool = True,
 ) -> None:
-    """發布前（立即、核准、排程到期、整站還原）共用的檢查：內容規則、分校仍
-    啟用、引用的素材都已處理完成。整站還原另外用目前的欄位規則重驗舊版本，
-    分校停用中的內容照樣換回舊版（官網本來就不顯示停用的分校）。"""
+    """發布前（立即、核准、建立排程、排程到期、還原、整站還原）共用的檢查：
+    用目前的欄位規則重驗這一版、內容規則、分校仍啟用、引用的素材都已處理完成。
+    整站還原另外讓分校停用中的內容照樣換回舊版（官網本來就不顯示停用的分校）。
+
+    欄位規則一律重驗（2026-09-29 稽核）：任何一版都可能是規則收緊前存的
+    （例如舊的網址黑名單放過、中間夾 Tab 的 javascript:），不重驗就能改走發布、核准或
+    排程把還原路徑擋下的內容推上官網。"""
     config = CONTENT_KIND_REGISTRY.get(item.kind)
     if config is None:
         raise NotPublishable("未知的內容種類", "CONTENT_KIND_UNKNOWN")
-    if validate_schema:
-        try:
-            config.payload_model.model_validate(revision.payload)
-        except ValidationError as exc:
-            raise NotPublishable(
-                "這一版的欄位格式已經過時，請到編輯頁手動修改後再發布", "CONTENT_SCHEMA_OUTDATED"
-            ) from exc
+    # 內容規則先檢查：它們針對已知的舊資料寫了具體的說明（例如第幾題空白），
+    # 比欄位規則的通用訊息好處理；兩者都會擋下。
     blocker = config.publish_blocker(revision.payload)
     if blocker:
         raise NotPublishable(blocker)
+    if validate_schema:
+        try:
+            config.payload_model.model_validate(revision.payload)
+        # 舊資料的形狀可能連驗證器都沒想到（ValueError 以外的錯誤不會包成
+        # ValidationError）；一律當成過時，排程到期時才會標記失敗、不會每輪重試。
+        except (ValidationError, ValueError, TypeError) as exc:
+            raise NotPublishable(
+                "這一版的欄位格式已經過時，請到編輯頁手動修改後再發布", "CONTENT_SCHEMA_OUTDATED"
+            ) from exc
     if require_active_campus and item.campus_key is not None:
         campus = await db.get(Campus, item.campus_key, populate_existing=True)
         if campus is None or not campus.active:

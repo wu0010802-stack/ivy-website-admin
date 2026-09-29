@@ -21,7 +21,14 @@ from app.auth.permissions import (
 from app.campuses.models import Campus
 from app.common import ratelimit
 from app.notifications.models import UserNotification
-from app.operations import analytics_service, audit_service, dashboard_service, retention_service, traffic_service
+from app.operations import (
+    analytics_service,
+    audit_service,
+    dashboard_service,
+    public_caps,
+    retention_service,
+    traffic_service,
+)
 from app.operations.models import (
     CTA_ENTRIES,
     RETENTION_MAX_DAYS,
@@ -49,6 +56,11 @@ class AnalyticsEventCreate(BaseModel):
     entry: CtaEntry | None = None
 
 
+def _trusted_source(request: Request) -> str | None:
+    """每來源每日上限的 key；代理沒帶訪客 IP 時為 None（不套用，免得全站共用一桶）。"""
+    return ratelimit.client_key(request) if ratelimit.trusted_client_ip(request) else None
+
+
 @router.post("/public/analytics-events", status_code=status.HTTP_204_NO_CONTENT)
 async def create_analytics_event(
     payload: AnalyticsEventCreate,
@@ -73,6 +85,8 @@ async def create_analytics_event(
             entry=payload.entry,
             limiter=ratelimit.limiter(request),
             client_key=client_key,
+            # 單一來源之外的全站每分鐘、每來源每日與全站每日上限；滿了安靜丟棄（仍回 204）。
+            caps=public_caps.click_limits(request.app.state.settings, _trusted_source(request)),
         )
     except analytics_service.EventTypeNotAllowed as exc:
         await db.rollback()
@@ -114,7 +128,8 @@ class TelemetryIn(BaseModel):
         return self
 
 
-# 單一來源每分鐘上限；正常瀏覽一頁約 1 筆瀏覽＋3–6 筆效能回報。
+# 單一來源每分鐘上限；正常瀏覽一頁約 1 筆瀏覽＋3–6 筆效能回報。另有全站
+# 每分鐘、每來源每日與全站每日上限（public_caps），滿了安靜丟棄。
 TELEMETRY_LIMIT = ratelimit.Limit("telemetry", window_seconds=60, max_per_window=120)
 
 
@@ -131,6 +146,13 @@ async def record_telemetry(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
+    if payload.event == "visit_click":
+        # visit_click 只留在 web 的日誌；預約轉換看「預約流程」的漏斗。不寫
+        # 資料庫，也不佔全站上限。
+        return
+    caps = public_caps.telemetry_limits(request.app.state.settings, _trusted_source(request))
+    if not await public_caps.admit(ratelimit.limiter(request), caps):
+        return
     if payload.event == "page_view":
         await traffic_service.record_page_view(db, page=payload.page, campus_key=payload.campus, device=payload.device)
     elif payload.event in ("LCP", "INP", "CLS"):
@@ -139,7 +161,6 @@ async def record_telemetry(
             db, sample_id=payload.id, metric=payload.event, page=payload.page,
             campus_key=payload.campus, device=payload.device, value=payload.value,
         )
-    # visit_click 只留在 web 的日誌；預約轉換看「預約流程」的漏斗。
     await db.commit()
 
 

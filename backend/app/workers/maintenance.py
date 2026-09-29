@@ -104,6 +104,12 @@ async def run_cycle(
         if not acquired:
             await lock_db.rollback()
             return CycleResult(ran=False)
+        # 持鎖的交易整輪都停在 idle in transaction。執行期連線預設帶
+        # idle_in_transaction_session_timeout（app/db.py），一輪超過逾時（例如
+        # SMTP 故障、多封信各等 20 秒）連線就會被 DB 砍掉、鎖提早釋放，finally
+        # 的 rollback 也會拋例外。只對這個刻意閒置的交易關掉；SET LOCAL 隨交易
+        # 結束失效，連線還回池後恢復預設。
+        await lock_db.execute(text("SET LOCAL idle_in_transaction_session_timeout = 0"))
         try:
             return await _run_steps(session_factory, settings, worker_id=worker_id, line_transport=line_transport)
         finally:

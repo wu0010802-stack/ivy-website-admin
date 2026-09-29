@@ -105,6 +105,14 @@ async def _super_admin(app) -> httpx.AsyncClient:
     return await _logged_in_client(app, "line-admin@ivy.example", "line-admin-password-123")
 
 
+async def _verify(app, client: httpx.AsyncClient, target: str = GROUP) -> None:
+    """在群組裡貼上後台產生的驗證碼：驗證過的群組才能被選為推播目標。"""
+    resp = await client.post("/api/website/v1/admin/line/verification-codes")
+    assert resp.status_code == 201, resp.text
+    said = _event("message", target, message={"type": "text", "id": "v", "text": resp.json()["code"]})
+    assert (await _webhook(app, [said])).status_code == 200
+
+
 # --- 簽章 ---------------------------------------------------------------------
 
 
@@ -202,6 +210,7 @@ async def test_assign_group_to_campus_and_clear(line_app):
     await _webhook(line_app, [_event("join")])
     client = await _super_admin(line_app)
     try:
+        await _verify(line_app, client)
         body = (await client.get("/api/website/v1/admin/line")).json()
         assert body["enabled"] is True
         assert body["webhook_url"] == "https://ivy.example/api/website/v1/line/webhook"
@@ -241,6 +250,7 @@ async def test_test_push_sends_to_assigned_group(line_app, fake_line):
     await _webhook(line_app, [_event("join")])
     client = await _super_admin(line_app)
     try:
+        await _verify(line_app, client)
         missing = await client.post("/api/website/v1/admin/line/campus-targets/yihua/test")
         assert missing.json()["detail"]["code"] == "LINE_TARGET_MISSING"
 
@@ -262,6 +272,7 @@ async def test_test_push_is_rate_limited(line_app):
     await _webhook(line_app, [_event("join")])
     client = await _super_admin(line_app)
     try:
+        await _verify(line_app, client)
         await client.put("/api/website/v1/admin/line/campus-targets/yihua", json={"target_id": GROUP})
         codes = [(await client.post("/api/website/v1/admin/line/campus-targets/yihua/test")).status_code for _ in range(6)]
         assert codes[:5] == [204] * 5
@@ -278,6 +289,7 @@ async def _setup_case(line_app, *, assign: bool = True) -> tuple[httpx.AsyncClie
     await _webhook(line_app, [_event("join")])
     admin = await _super_admin(line_app)
     if assign:
+        await _verify(line_app, admin)
         await admin.put("/api/website/v1/admin/line/campus-targets/yihua", json={"target_id": GROUP})
     # 開 slots 與官網送單都要有已發布的同意文字。
     async with line_app.state.session_factory() as db:

@@ -13,6 +13,7 @@ from app.booking.history import Actor
 from app.booking.models import VisitEventSource, VisitRequest
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc
+from app.operations import public_caps
 from app.operations.models import (
     CANCEL_REASON_PARENT,
     CANCEL_REASON_STAFF,
@@ -59,9 +60,11 @@ async def record_public_click(
     entry: str | None,
     limiter: ratelimit.RateLimiter,
     client_key: str,
+    caps: tuple[public_caps.Cap, ...] = (),
 ) -> bool:
     """回傳是否真的新增了一筆；同一個 event_id 重送（keepalive 重試、網路
-    重播）回 False、不重複計數。"""
+    重播）回 False、不重複計數。全站與每來源每日上限（caps，見 public_caps）
+    滿了也回 False：安靜丟棄，不當成錯誤。"""
     try:
         parsed_type = AnalyticsEventType(event_type)
     except ValueError as exc:
@@ -70,6 +73,8 @@ async def record_public_click(
         raise EventTypeNotAllowed()
 
     await check_rate_limit(limiter, client_key)
+    if caps and not await public_caps.admit(limiter, caps):
+        return False
 
     # 以唯一約束去重：兩個重送同時到也只會有一筆成功，另一筆什麼都不做。
     result = await db.execute(

@@ -9,7 +9,9 @@ import base64
 import hashlib
 import hmac
 import re
+import secrets
 import uuid
+from itertools import islice
 
 import httpx
 
@@ -17,6 +19,12 @@ LINE_API_BASE = "https://api.line.me"
 # 群組 C＋32 位十六進位、多人聊天室 R＋32 位十六進位。
 TARGET_ID_RE = re.compile(r"^[CR][0-9a-f]{32}$")
 _MAX_TEXT = 5000
+# 群組驗證碼：IVY- 加 8 個 Crockford base32 字元（去掉 I、L、O、U，手打不易混淆），
+# 約 40 bits；10 分鐘過期、一次性，線上猜中的機會可以忽略。
+_CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+_CODE_RE = re.compile(r"IVY-([0-9A-HJKMNP-TV-Z]{8})(?![0-9A-Z])", re.IGNORECASE)
+# 一則訊息最多比對幾個像驗證碼的字串：不讓一則長訊息塞進大量猜測值。
+_MAX_CODE_CANDIDATES = 3
 
 
 class LinePushError(Exception):
@@ -25,10 +33,27 @@ class LinePushError(Exception):
 
 def verify_signature(channel_secret: str, body: bytes, signature: str | None) -> bool:
     """X-Line-Signature＝base64(HMAC-SHA256(channel secret, 原始本文))。"""
-    if not signature:
+    # base64 只會有 ASCII；header 經 latin-1 解碼可能帶 0x80 以上的字元，
+    # compare_digest 比含非 ASCII 的 str 會丟 TypeError（變成 500），先擋掉、改比 bytes。
+    if not signature or not signature.isascii():
         return False
     digest = hmac.new(channel_secret.encode("utf-8"), body, hashlib.sha256).digest()
-    return hmac.compare_digest(base64.b64encode(digest).decode("ascii"), signature)
+    return hmac.compare_digest(base64.b64encode(digest), signature.encode("ascii"))
+
+
+def new_verification_code() -> str:
+    return "IVY-" + "".join(secrets.choice(_CODE_ALPHABET) for _ in range(8))
+
+
+def verification_code_hash(secret: str, code: str) -> str:
+    """資料庫只存 HMAC：拿到資料庫也無法離線反推還沒用掉的驗證碼。"""
+    message = f"line-group-verify\0{code.upper()}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
+def verification_code_candidates(text: str) -> list[str]:
+    """訊息裡像驗證碼的字串（不分大小寫，統一轉成大寫），最多 _MAX_CODE_CANDIDATES 個。"""
+    return [f"IVY-{match.group(1).upper()}" for match in islice(_CODE_RE.finditer(text), _MAX_CODE_CANDIDATES)]
 
 
 def retry_key(outbox_message_id: uuid.UUID, target_id: str) -> uuid.UUID:

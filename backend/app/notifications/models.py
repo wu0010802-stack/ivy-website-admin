@@ -89,6 +89,32 @@ class LineGroup(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 有人在這個群組裡貼上後台產生的一次性驗證碼的時間。任何人都能把官方帳號
+    # 拉進自己取名的群組，所以只有驗證過的群組能被選為校區推播目標；
+    # 2026-09-29 以前已綁定的群組不回填，照常推播。
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LineGroupVerificationCode(Base):
+    """後台產生、要貼到 LINE 群組裡的一次性驗證碼（證明群組裡有看得到後台的人）。
+
+    只存 HMAC 雜湊，不存驗證碼本身；10 分鐘過期，用過一次就作廢。"""
+
+    __tablename__ = "line_group_verification_codes"
+    __table_args__ = (
+        UniqueConstraint("code_hash", name="uq_line_group_verification_codes_code_hash"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 用在哪個群組（只作紀錄；群組列可能之後被清掉，不設外鍵）。
+    used_target_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class LineCampusTarget(Base):

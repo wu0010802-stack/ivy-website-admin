@@ -16,6 +16,7 @@ from sqlalchemy import func, select, text
 from app.booking.models import OutboxMessage, OutboxStatus, VisitRequestStatus
 from app.common.models import RateLimitCounter
 from app.config import Settings
+from app.db import create_engine, create_session_factory
 from app.main import create_app
 from app.notifications.models import NotificationInboxItem
 from app.workers import maintenance
@@ -82,6 +83,34 @@ async def test_cycle_skips_while_another_cycle_holds_the_lock(app):
 
     # 鎖隨交易結束釋放，下一輪照常。
     assert (await run_cycle(app.state.session_factory, _without_email(app), worker_id="third")).ran
+
+
+async def test_cycle_keeps_its_lock_beyond_the_idle_in_transaction_timeout(app, monkeypatch):
+    """持鎖的交易整輪都閒置。執行期連線帶 idle_in_transaction 逾時，一輪跑得比
+    逾時久時，原本連線會被 DB 砍掉：鎖提早釋放，finally 的 rollback 也拋例外。"""
+    settings = _without_email(app).model_copy(update={"db_idle_in_transaction_timeout_ms": 200})
+    engine = create_engine(settings)
+    observed: dict[str, bool] = {}
+
+    async def slow_steps(session_factory, settings, *, worker_id, line_transport):
+        await asyncio.sleep(0.8)
+        async with app.state.session_factory() as other:
+            observed["other_got_lock"] = (
+                await other.execute(
+                    text("SELECT pg_try_advisory_xact_lock(hashtext(:key))"), {"key": maintenance._LOCK_KEY}
+                )
+            ).scalar_one()
+            await other.rollback()
+        return maintenance.CycleResult(ran=True)
+
+    monkeypatch.setattr(maintenance, "_run_steps", slow_steps)
+    try:
+        result = await run_cycle(create_session_factory(engine), settings, worker_id="slow")
+    finally:
+        await engine.dispose()
+
+    assert result.ran
+    assert observed["other_got_lock"] is False
 
 
 async def test_cycle_purges_expired_rate_limit_rows(app, db_session):
@@ -164,6 +193,9 @@ async def test_loop_runs_cycles_and_stops_cleanly(app):
 
 
 def _settings(**overrides) -> Settings:
+    if overrides.get("environment") == "production":
+        # production 一定要有 HTTPS 的 WEBSITE_ADMIN_ORIGIN（config 的正式環境檢查）。
+        overrides.setdefault("admin_origin", "https://ivy.example")
     return Settings(
         database_url="postgresql+asyncpg://localhost/ivy_website_dev",
         session_secret="test-only-secret-please-rotate",

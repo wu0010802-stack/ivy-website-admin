@@ -1,14 +1,18 @@
 """LINE 群組推播：webhook（記錄 bot 所在的群組）與後台設定。
 
 設定流程：官方帳號開啟 Messaging API 與 webhook（網址見後台「LINE 通知」頁）
-→ 把官方帳號拉進各校員工群組 → 後台替每校選群組 → 按「送測試訊息」確認。"""
+→ 把官方帳號拉進各校員工群組 → 後台產生驗證碼、貼到群組裡（群組標記為已驗證）
+→ 後台替每校選群組 → 按「送測試訊息」確認。
+
+驗證碼是因為任何人都能把官方帳號拉進自己取名的群組（例如取名「義華行政群」），
+沒有驗證就會混在可選清單裡；貼得出後台驗證碼的群組才證明裡面有看得到後台的人。"""
 
 from __future__ import annotations
 
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -23,7 +27,7 @@ from app.auth.permissions import require_scope
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.notifications import line as line_api
-from app.notifications.models import LineCampusTarget, LineGroup
+from app.notifications.models import LineCampusTarget, LineGroup, LineGroupVerificationCode
 from app.notifications.service import campus_line_target, line_text
 from app.operations import audit_service
 
@@ -34,6 +38,9 @@ router = APIRouter(prefix="/api/website/v1", tags=["line"])
 WEBHOOK_PATH = "/api/website/v1/line/webhook"
 # 測試推播會用掉官方帳號的每月則數，限制一下誤按連點。
 TEST_PUSH_LIMIT = ratelimit.Limit("line_test_push", window_seconds=600, max_per_window=5)
+# 群組驗證碼 10 分鐘內有效；每人 10 分鐘最多產生 10 個，同時有效的碼不會太多。
+VERIFICATION_CODE_TTL = timedelta(minutes=10)
+VERIFICATION_CODE_LIMIT = ratelimit.Limit("line_verification_code", window_seconds=600, max_per_window=10)
 _SEEN_EVENTS = {"join", "message", "memberJoined", "memberLeft", "follow", "postback"}
 
 
@@ -56,10 +63,38 @@ def _target(event: dict) -> tuple[str, str] | None:
     return source_type, target_id
 
 
+async def _matching_code(
+    db: AsyncSession, secret: str, event: dict, now: datetime
+) -> LineGroupVerificationCode | None:
+    """群組裡的文字訊息含有還沒過期、還沒用過的驗證碼時回傳那一筆（已上鎖）。
+    只拿訊息文字來比對雜湊，不存任何訊息內容。"""
+    message = event.get("message")
+    if event.get("type") != "message" or not isinstance(message, dict) or message.get("type") != "text":
+        return None
+    text = message.get("text")
+    if not isinstance(text, str):
+        return None
+    for candidate in line_api.verification_code_candidates(text):
+        result = await db.execute(
+            select(LineGroupVerificationCode)
+            .where(
+                LineGroupVerificationCode.code_hash == line_api.verification_code_hash(secret, candidate),
+                LineGroupVerificationCode.used_at.is_(None),
+                LineGroupVerificationCode.expires_at > now,
+            )
+            .with_for_update()
+        )
+        code = result.scalar_one_or_none()
+        if code is not None:
+            return code
+    return None
+
+
 @router.post("/line/webhook", include_in_schema=False)
 async def line_webhook(request: Request, db: AsyncSession = Depends(get_db_session)) -> dict:
     """LINE 平台呼叫的 webhook。只處理群組／多人聊天室的進出，用來知道 bot
-    在哪些群組；不存任何訊息內容，也不回覆。簽章不符一律拒絕。"""
+    在哪些群組，以及群組裡貼的後台驗證碼；不存任何訊息內容，也不回覆。
+    簽章不符一律拒絕。"""
     settings = request.app.state.settings
     if not settings.line_messaging_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
@@ -99,6 +134,21 @@ async def line_webhook(request: Request, db: AsyncSession = Depends(get_db_sessi
         group.left_at = None
         if group.name is None and source_type == "group":
             unnamed.add(target_id)
+        if group.verified_at is None:
+            code = await _matching_code(db, settings.session_secret, event, now)
+            if code is not None:
+                # 一次性：用掉之後同一個碼貼到別的群組不會再通過。
+                code.used_at = now
+                code.used_target_id = target_id
+                group.verified_at = now
+                await audit_service.log_action(
+                    db,
+                    actor_user_id=code.created_by,
+                    action="line.group.verify",
+                    target_type="line_group",
+                    target_id=target_id,
+                    metadata={"verification_code_id": str(code.id), "source_type": source_type},
+                )
     await db.commit()
 
     # 群組名稱只是方便後台辨認，拿不到就算了；放在 commit 之後，LINE API
@@ -122,6 +172,9 @@ class LineGroupOut(BaseModel):
     first_seen_at: datetime
     last_seen_at: datetime
     left_at: datetime | None
+    # 在群組裡貼過後台驗證碼的時間；NULL 的群組不能被選為校區推播目標
+    # （已經綁定的照常推播）。
+    verified_at: datetime | None
 
 
 class LineCampusTargetOut(BaseModel):
@@ -139,6 +192,12 @@ class LineSettingsOut(BaseModel):
 
 class LineCampusTargetUpdate(BaseModel):
     target_id: str | None
+
+
+class LineVerificationCodeOut(BaseModel):
+    # 只在產生時回傳這一次，資料庫只存雜湊。
+    code: str
+    expires_at: datetime
 
 
 async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
@@ -200,6 +259,15 @@ async def update_line_campus_target(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"code": "LINE_GROUP_UNAVAILABLE", "message": "官方帳號不在這個群組裡，請重新把它拉進群組"},
             )
+        # 重存目前的設定照常放行：修補前綁好的群組沒有驗證紀錄，不因此被擋。
+        if group.verified_at is None and group.target_id != before:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "LINE_GROUP_UNVERIFIED",
+                    "message": "這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組",
+                },
+            )
         now = datetime.now(timezone.utc)
         if existing is None:
             db.add(
@@ -222,6 +290,58 @@ async def update_line_campus_target(
     )
     await db.commit()
     return await _settings_out(request, db)
+
+
+@router.post(
+    "/admin/line/verification-codes",
+    response_model=LineVerificationCodeOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_line_verification_code(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> LineVerificationCodeOut:
+    """產生一次性驗證碼。把它貼到要綁定的 LINE 群組，webhook 收到後把那個群組
+    標記為已驗證，之後才能選為校區推播目標。10 分鐘內有效、只能用一次。"""
+    require_scope(current_user, "notifications.manage")
+    settings = request.app.state.settings
+    if not settings.line_messaging_enabled:
+        # 沒有 webhook 就收不到群組裡的訊息，驗證碼沒有用處。
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "LINE_NOT_CONFIGURED", "message": "尚未設定 LINE 官方帳號的 Messaging API 金鑰"},
+        )
+    try:
+        await ratelimit.limiter(request).check(VERIFICATION_CODE_LIMIT, str(current_user.id))
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "驗證碼產生太多次了，請稍後再試"},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+    code = line_api.new_verification_code()
+    now = datetime.now(timezone.utc)
+    row = LineGroupVerificationCode(
+        id=uuid.uuid4(),
+        code_hash=line_api.verification_code_hash(settings.session_secret, code),
+        created_by=current_user.id,
+        created_at=now,
+        expires_at=now + VERIFICATION_CODE_TTL,
+    )
+    db.add(row)
+    # 稽核只記是哪一筆與到期時間，不記驗證碼本身。
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="line.verification_code.create",
+        target_type="line_verification_code",
+        target_id=str(row.id),
+        metadata={"expires_at": row.expires_at.isoformat()},
+    )
+    await db.commit()
+    return LineVerificationCodeOut(code=code, expires_at=row.expires_at)
 
 
 @router.post("/admin/line/campus-targets/{campus_key}/test", status_code=status.HTTP_204_NO_CONTENT)
