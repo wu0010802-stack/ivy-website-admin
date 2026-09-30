@@ -879,3 +879,11 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常；`/admin/`、`/admin/login` 帶嚴格 CSP（`script-src 'self'`）、`X-Frame-Options: SAMEORIGIN`、`nosniff`、`no-store`；Playwright（Chrome）載入 `/admin/login` 桌機與手機 0 筆 CSP 違規、登入表單正常；代理 `/api/website/v1/%2e%2e/…/openapi.json`、`/public/..%2f..%2fhealth`、`/public/telemetry` 皆 404；`/assets/day-film-mobile.mp4` Range 回 206；`/public/booking-config/yihua` 的 `turnstile_site_key` 為 null（未設 key，表單不變）。
 - **未做（見上方「2026-09-29 資安稽核修正」的部署後步驟）**：既有素材 `strip-media-metadata`（需先備份，本人以 `railway ssh` 執行）、Turnstile key、各校 LINE 群組貼驗證碼、告知同仁新規則、DB 角色拆分與 PITR；正式站沒有登入或寫入資料，iOS Safari 與 Google／LINE 登入往返未在正式站實測。
 
+
+## 2026-09-30 已完成分支併入 main 部署（`merge/branches-20260930`，main CI 部署）
+
+- 使用者要求把已完成的分支併入 main。併入 `feature/sketch-preview-20260929`、`claude/backend-ui-ux-optimization-y5ndf4`（PR #17 之後 16 個提交）、`feature/ux-admin-20260929`，取捨見 README 2026-09-30 段落。以 fast-forward 推上 main（`f11e87c..7861fc6`）。migration `e9c3a7d5f214` 只新增可為 NULL 的 `users.display_name`、不回填，改接 main head `e4c1a7f3b862`；依規則未強制先備份。
+- 推之前本機跑過：admin typecheck／vitest 679 項、web typecheck／663 項、backend pytest 1029 項＋schema guard、contract:check、admin／web build、stack e2e 56 項。
+- 第一次 main CI run `36654096211`（`7861fc6`）：後端 1 個測試失敗（1028 passed），deploy 被跳過，正式站維持 `f11e87c`。`test_queued_burst_cannot_outrun_the_lock` 驗了 11 次（上限 10）：限流的固定窗口加權在一批請求跨過 5 分鐘交界時會多放行一次，以跨交界時鐘重現得到 11 次；測試時機問題，不是這次合併造成。比照 PR #16，`test_secfix_auth.py` 改用凍結的限流時鐘（`2dfd269`）。正式行為不變：跨交界時最多多驗一次，之後帳號鎖照常生效。
+- 第二次 run `36655799635`（`2dfd269`）五個 job 全綠。`/release.json` snapshot `f94eb90c8db59b7ad3deb13069bf0825aaca43a0e515a90f6162610033bf68ca`、`base_commit` `2dfd269`、`created_at` 2026-09-30T01:54:26Z。
+- 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/campuses/yihua`、`/admin/`、`/admin/login` 皆 200；分校頁有預約橫幅（`data-cta-entry="campus_banner"`）。正式站沒有登入後台或寫入資料，顯示名稱、頁首未讀連結、下一筆跟著列表走等後台功能未在正式站實測。
