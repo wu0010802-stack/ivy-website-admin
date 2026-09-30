@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,8 +60,15 @@ class TokenExchangeRequest(BaseModel):
     token: str
 
 
+class ParentCancelRequest(BaseModel):
+    # 家長頁畫面上的案件；對不上目前 session 的案件就拒絕（_require_same_visit_request）。
+    visit_request_id: uuid.UUID
+
+
 class RescheduleRequestCreate(BaseModel):
     new_slot_id: uuid.UUID
+    # 同 ParentCancelRequest；舊版官網沒帶，見 _require_same_visit_request。
+    visit_request_id: uuid.UUID | None = None
 
 
 async def _require_parent_session(
@@ -74,6 +81,21 @@ async def _require_parent_session(
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="連結已過期，請重新取得")
     return visit_request
+
+
+def _require_same_visit_request(visit_request: VisitRequest, expected_id: uuid.UUID | None) -> None:
+    """同一個瀏覽器的分頁共用一個 session cookie：另一個分頁開了別筆預約的連結後，
+    這個分頁畫面上還是舊的那筆，按取消或改期卻會照 cookie 改到另一筆（2026-09-30
+    E2E）。官網異動一律帶畫面上的案件 id，對不上就拒絕，兩筆都不動。
+
+    沒帶（None）照舊依 session 處理：CD 先部署 API 再部署 web，部署前就開著的家長頁
+    與 web 上線前的空窗都是舊版官網，取消不帶 body；發布版本需前後相容
+    （deploy/CICD.md）。"""
+    if expected_id is not None and visit_request.id != expected_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "PARENT_SESSION_CHANGED", "message": "這個瀏覽器已改為管理另一筆預約，請重新開啟這筆預約的管理連結"},
+        )
 
 
 async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> ParentVisitRequestOut:
@@ -145,11 +167,13 @@ async def get_own_visit_request(
 @router.post("/public/visit-manage/cancel", response_model=ParentVisitRequestOut, dependencies=[Depends(require_parent_request)])
 async def parent_cancel(
     response: Response,
+    payload: ParentCancelRequest | None = Body(default=None),
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
     db: AsyncSession = Depends(get_db_session),
 ) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
+    _require_same_visit_request(visit_request, payload.visit_request_id if payload else None)
     await require_change_window(db, visit_request)
     try:
         await workflow_service.cancel(db, visit_request, actor=PARENT)
@@ -173,6 +197,7 @@ async def parent_request_reschedule(
     """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
+    _require_same_visit_request(visit_request, payload.visit_request_id)
     await require_change_window(db, visit_request)
     try:
         record = await access_service.create_reschedule_request(

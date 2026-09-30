@@ -675,7 +675,7 @@ async def test_reschedule_request_validates_slot(admin_client, public_client, mi
 
     bogus = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": str(uuid.uuid4())},
+        json={"visit_request_id": receipt_id, "new_slot_id": str(uuid.uuid4())},
     )
     assert bogus.status_code == 404
     assert bogus.json()["detail"]["code"] == "SLOT_NOT_FOUND"
@@ -683,13 +683,13 @@ async def test_reschedule_request_validates_slot(admin_client, public_client, mi
     other_campus_slot = await _create_slot(minghua_client, campus_key="minghua", days_ahead=5)
     cross = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": other_campus_slot["id"]},
+        json={"visit_request_id": receipt_id, "new_slot_id": other_campus_slot["id"]},
     )
     assert cross.status_code == 404
 
     same = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": slot["id"]},
+        json={"visit_request_id": receipt_id, "new_slot_id": slot["id"]},
     )
     assert same.status_code == 409
     assert same.json()["detail"]["code"] == "SAME_SLOT"
@@ -716,12 +716,12 @@ async def test_duplicate_pending_reschedule_request_is_rejected(admin_client, pu
 
     first = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": slot_b["id"]},
+        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
     )
     assert first.status_code == 201
     second = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": slot_b["id"]},
+        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
     )
     assert second.status_code == 409
     assert second.json()["detail"]["code"] == "RESCHEDULE_PENDING"
@@ -750,7 +750,7 @@ async def test_approving_reschedule_for_cancelled_request_is_409_not_500(
     )
     req = await public_client.post(
         "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": slot_b["id"]},
+        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
     )
     request_id = req.json()["id"]
 

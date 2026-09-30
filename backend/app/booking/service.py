@@ -344,6 +344,14 @@ async def submit_visit_request(
         select(BookingConfig).where(BookingConfig.campus_key == campus_key).with_for_update()
     )
     config = result.scalar_one_or_none()
+    # 同一把 key 的併發重送：開頭查重播時前一個請求還沒 commit，等到這把鎖時它已經
+    # 建好案件——可能正好占走最後一個名額，或是手機上限的第 N 筆。拿到鎖後先再查
+    # 一次，回原結果，不能回額滿或 429（2026-09-30 E2E：201＋409 SLOT_FULL）。
+    existing = await find_replay(
+        db, campus_key=campus_key, idempotency_key=idempotency_key, payload=payload, hash_key=hash_key
+    )
+    if existing is not None:
+        return existing, False
     now = now_utc()
     accepted_consent, slot = await _validate_submission(
         db,
@@ -367,13 +375,6 @@ async def submit_visit_request(
             )
         )
         if recent >= max_per_phone:
-            # 同一把 key 的併發重送：前一個請求可能剛在這把鎖裡建好案件（它就是
-            # 那第 N 筆）。先當重播回原結果，不能回 429。
-            existing = await find_replay(
-                db, campus_key=campus_key, idempotency_key=idempotency_key, payload=payload, hash_key=hash_key
-            )
-            if existing is not None:
-                return existing, False
             raise PhoneSubmissionLimit(int(window.total_seconds()))
 
     status = VisitRequestStatus.NEW.value

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { adminApi, findVisit } from './api'
+import { adminApi, findVisit, submitPublicRequest, type AdminApi } from './api'
 import { answerMessageBox, gotoAdmin, openAs } from './pages'
 import { INQUIRY_CAMPUS, SLOTS_CAMPUS } from './stack-env'
 
@@ -245,5 +245,82 @@ test.describe('填寫中的即時驗證', () => {
     await expect(page.locator('#visit-email-error')).not.toBeEmpty()
     await expect(email).toBeFocused()
     await context.close()
+  })
+})
+
+test.describe('家長管理頁的邊界情況', () => {
+  async function manageLink(api: AdminApi, visitId: string): Promise<string> {
+    const link = await api.send<{ manage_url_fragment: string }>('POST', `/admin/visit-requests/${visitId}/access-link`)
+    return link.manage_url_fragment
+  }
+
+  test('兩個分頁各開一筆預約，舊分頁按取消不會取消到另一筆', async ({ browser }) => {
+    // 2026-09-30 E2E：分頁共用 session cookie，後開的連結蓋掉前一筆；回舊分頁按取消，
+    // 畫面上的 A 沒變、另一筆 B 被取消了。
+    const api = await adminApi('super_admin')
+    await submitPublicRequest(INQUIRY_CAMPUS, '分頁甲家長', '0912000661')
+    await submitPublicRequest(INQUIRY_CAMPUS, '分頁乙家長', '0912000662')
+    const [first, second] = [await findVisit(api, '分頁甲家長'), await findVisit(api, '分頁乙家長')]
+    const { context, page: firstTab } = await openAs(browser, null)
+    await firstTab.goto(await manageLink(api, first.id))
+    await expect(firstTab.getByText('0912***661')).toBeVisible()
+    const secondTab = await context.newPage()
+    await secondTab.goto(await manageLink(api, second.id))
+    await expect(secondTab.getByText('0912***662')).toBeVisible()
+
+    await firstTab.bringToFront()
+    await firstTab.getByRole('button', { name: '取消預約' }).click()
+    await firstTab.getByRole('button', { name: '確認取消預約' }).click()
+    await expect(firstTab.locator('.parent-visit-error')).toContainText('其他分頁開啟了另一筆預約的管理連結')
+    await expect(firstTab.locator('.parent-visit-status')).toHaveCount(0)
+    expect((await findVisit(api, '分頁甲家長')).status).toBe('new')
+    expect((await findVisit(api, '分頁乙家長')).status).toBe('new')
+
+    // 後開的那一頁照常可以操作。
+    await secondTab.bringToFront()
+    await secondTab.getByRole('button', { name: '取消預約' }).click()
+    await secondTab.getByRole('button', { name: '確認取消預約' }).click()
+    await expect(secondTab.locator('.parent-visit-status')).toHaveText('預約已取消')
+    expect((await findVisit(api, '分頁乙家長')).status).toBe('cancelled')
+    expect((await findVisit(api, '分頁甲家長')).status).toBe('new')
+    await Promise.all([context.close(), api.dispose()])
+  })
+
+  test('改期送出時剛好過了異動截止，操作列回來、可以重新載入', async ({ browser }) => {
+    // 2026-09-30 E2E：API 正確回 CHANGE_DEADLINE_PASSED，但改期表單收起後操作列也不見，
+    // 重新載入與返回都沒有，只能自己重新整理瀏覽器。
+    const api = await adminApi('super_admin')
+    await submitPublicRequest(SLOTS_CAMPUS, '截止改期家長', '0912000663')
+    const visit = await findVisit(api, '截止改期家長')
+    await api.send('POST', `/admin/visit-requests/${visit.id}/confirm`, { slot_id: visit.slot!.id })
+    const { context, page } = await openAs(browser, null)
+    const config = await api.get<{ version: number; mode: string; slots_auto_confirm: boolean; parent_change_deadline_hours: number }>(
+      `/admin/booking-config/${SLOTS_CAMPUS}`,
+    )
+    const setDeadline = async (hours: number) => {
+      const current = await api.get<{ version: number }>(`/admin/booking-config/${SLOTS_CAMPUS}`)
+      await api.send('PATCH', `/admin/booking-config/${SLOTS_CAMPUS}`, {
+        expected_version: current.version, mode: config.mode, slots_auto_confirm: config.slots_auto_confirm, parent_change_deadline_hours: hours,
+      })
+    }
+    try {
+      await page.goto(await manageLink(api, visit.id))
+      await expect(page.locator('.parent-visit-status')).toHaveText('預約成立')
+      await page.getByRole('button', { name: '申請改期' }).click()
+      await page.getByLabel('希望改期的場次').selectOption({ index: 1 })
+      // 頁面開著的期間跨過截止：把這校的異動截止拉到參觀前 14 天（場次在 7–9 天後）。
+      await setDeadline(24 * 14)
+      await page.getByRole('button', { name: '送出改期申請' }).click()
+
+      await expect(page.locator('.parent-visit-error')).toContainText('目前已無法線上異動這筆預約')
+      await expect(page.getByRole('button', { name: '重新載入預約' })).toBeVisible()
+      await expect(page.getByRole('button', { name: '申請改期' })).toHaveCount(0)
+      await expect(page.getByText('已超過線上異動時間')).toBeVisible()
+      const requests = await api.get<{ visit_request_id: string }[]>(`/admin/reschedule-requests?campus_key=${SLOTS_CAMPUS}`)
+      expect(requests.filter(request => request.visit_request_id === visit.id)).toEqual([])
+    } finally {
+      await setDeadline(config.parent_change_deadline_hours)
+      await Promise.all([context.close(), api.dispose()])
+    }
   })
 })

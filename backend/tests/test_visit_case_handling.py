@@ -87,7 +87,10 @@ async def _parent_asks_for(app, admin_client, receipt_id: str, slot_id: str) -> 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as parent:
         assert (await parent.post(f"{API}/public/visit-manage/exchange", json={"token": token})).status_code == 200
-        asked = await parent.post(f"{API}/public/visit-manage/reschedule-request", json={"new_slot_id": slot_id})
+        asked = await parent.post(
+            f"{API}/public/visit-manage/reschedule-request",
+            json={"visit_request_id": receipt_id, "new_slot_id": slot_id},
+        )
         assert asked.status_code == 201, asked.text
         return asked.json()["id"]
 
@@ -440,7 +443,8 @@ async def test_parent_and_system_actions_are_attributed(app, admin_client, publi
     link = await admin_client.post(f"{BASE}/visit-requests/{receipt_id}/access-link")
     token = link.json()["manage_url_fragment"].split("token=")[1]
     await public_client.post(f"{API}/public/visit-manage/exchange", json={"token": token})
-    assert (await public_client.post(f"{API}/public/visit-manage/cancel")).status_code == 200
+    cancelled = await public_client.post(f"{API}/public/visit-manage/cancel", json={"visit_request_id": receipt_id})
+    assert cancelled.status_code == 200
     cancelled = next(e for e in await _history(admin_client, receipt_id) if e["event_type"] == "cancelled")
     assert cancelled["source"] == "parent"
     assert cancelled["actor_user_id"] is None

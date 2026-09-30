@@ -176,3 +176,160 @@ async def test_concurrent_first_reads_create_booking_config_once(app, for_update
             select(func.count()).select_from(BookingConfig).where(BookingConfig.campus_key == "chongde")
         )
     assert count == 1
+
+
+def _hold_until_both_return(monkeypatch, module, name: str) -> None:
+    """兩個請求第一次呼叫 module.name 都回來後才一起往下走：兩邊拿到同樣的結果（例如都
+    還查不到對方的案件），交錯順序因此固定，不靠運氣撞上競爭窗口。之後的呼叫不攔。"""
+    original = getattr(module, name)
+    barrier = asyncio.Barrier(2)
+    calls = 0
+
+    async def held(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        first_two = calls <= 2
+        result = await original(*args, **kwargs)
+        if first_two:
+            await asyncio.wait_for(barrier.wait(), timeout=10)
+        return result
+
+    monkeypatch.setattr(module, name, held)
+
+
+async def _last_slot_payload(admin_client) -> tuple[dict, str, str]:
+    """人工確認的 slots 模式，開一個只剩一個名額的時段。回傳 (送單內容, 時段 id, 日期)。"""
+    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=False)
+    version = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()["version"]
+    slot_date = (date.today() + timedelta(days=6)).isoformat()
+    slot = await admin_client.post(
+        "/api/website/v1/admin/slots?campus_key=yihua",
+        json={"slot_date": slot_date, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 1},
+    )
+    slot_id = slot.json()["id"]
+    return {**_payload(version), "slot_id": slot_id}, slot_id, slot_date
+
+
+async def _assert_one_booking_same_receipt(admin_client, results, slot_date: str) -> None:
+    assert sorted(r.status_code for r in results) == [200, 201], [r.text for r in results]
+    assert len({r.json()["receipt_id"] for r in results}) == 1
+    assert {r.json()["status"] for r in results} == {"pending_confirmation"}
+    check = await admin_client.get(
+        f"/api/website/v1/admin/slots?campus_key=yihua&date_from={slot_date}&date_to={slot_date}"
+    )
+    assert check.json()[0]["booked_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_replay_waiting_on_lock_gets_receipt_not_slot_full(
+    monkeypatch, admin_client, public_client, second_public_client
+):
+    """最後一個名額、同一把 Idempotency-Key 的重送同時抵達（2026-09-30 E2E 回 201＋409
+    SLOT_FULL，家長畫面顯示額滿，其實已建立）。兩個請求都查不到既有案件、都通過預檢，
+    慢的那個在校區設定列鎖上等到快的建好案件：拿到鎖後要先認出是重播，回同一張收據。"""
+    from app.booking import service
+
+    payload, _slot_id, slot_date = await _last_slot_payload(admin_client)
+    _hold_until_both_return(monkeypatch, service, "find_replay")
+    _hold_until_both_return(monkeypatch, service, "precheck_submission")
+
+    headers = {"Idempotency-Key": "last-slot-replay-lock-01"}
+    path = "/api/website/v1/public/visit-requests"
+    results = await asyncio.wait_for(
+        asyncio.gather(
+            public_client.post(path, json=payload, headers=headers),
+            second_public_client.post(path, json=payload, headers=headers),
+        ),
+        timeout=30,
+    )
+    await _assert_one_booking_same_receipt(admin_client, results, slot_date)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_replay_prechecked_after_first_commit_gets_receipt(
+    monkeypatch, admin_client, public_client, second_public_client
+):
+    """同上，但慢的那個在不上鎖的預檢時，快的已經建好並提交：預檢看到名額已滿，擋下前
+    要再查一次同一把 key，已經建立就回原收據。"""
+    from app.booking import service
+
+    payload, _slot_id, slot_date = await _last_slot_payload(admin_client)
+    _hold_until_both_return(monkeypatch, service, "find_replay")
+    original_precheck = service.precheck_submission
+    first_done = asyncio.Event()
+    prechecks = 0
+
+    async def precheck_after_first_request(*args, **kwargs):
+        nonlocal prechecks
+        prechecks += 1
+        if prechecks == 2:
+            await asyncio.wait_for(first_done.wait(), timeout=10)
+        return await original_precheck(*args, **kwargs)
+
+    monkeypatch.setattr(service, "precheck_submission", precheck_after_first_request)
+
+    headers = {"Idempotency-Key": "last-slot-replay-precheck-01"}
+    path = "/api/website/v1/public/visit-requests"
+    tasks = [
+        asyncio.create_task(client.post(path, json=payload, headers=headers))
+        for client in (public_client, second_public_client)
+    ]
+    for task in tasks:
+        task.add_done_callback(lambda _task: first_done.set())
+    results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=30)
+    await _assert_one_booking_same_receipt(admin_client, results, slot_date)
+
+
+@pytest.mark.asyncio
+async def test_parallel_reschedule_requests_for_one_visit_leave_one_pending(
+    monkeypatch, admin_client, public_client, second_public_client
+):
+    """同一筆預約在兩個分頁同時送出改期、各選不同場次：只能留一筆待核准，另一個回
+    RESCHEDULE_PENDING（2026-09-30 E2E 在舊版重現兩筆 pending）。兩個請求都通過前面的
+    檢查後才一起進入建立，靠 create_reschedule_request 鎖住案件列排隊。"""
+    from app.booking import access_service
+
+    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
+    version = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()["version"]
+    slot_date = (date.today() + timedelta(days=7)).isoformat()
+    slot_ids = []
+    for start, end in (("09:00:00", "10:00:00"), ("13:00:00", "14:00:00"), ("15:00:00", "16:00:00")):
+        slot = await admin_client.post(
+            "/api/website/v1/admin/slots?campus_key=yihua",
+            json={"slot_date": slot_date, "start_time": start, "end_time": end, "capacity": 2},
+        )
+        slot_ids.append(slot.json()["id"])
+    booked = await public_client.post(
+        "/api/website/v1/public/visit-requests",
+        json={**_payload(version), "slot_id": slot_ids[0]},
+        headers={"Idempotency-Key": "parallel-reschedule-01"},
+    )
+    receipt_id = booked.json()["receipt_id"]
+    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link")
+    token = link.json()["manage_url_fragment"].split("token=")[1]
+    for client in (public_client, second_public_client):
+        exchanged = await client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
+        assert exchanged.status_code == 200
+
+    original = access_service.create_reschedule_request
+    barrier = asyncio.Barrier(2)
+
+    async def enter_together(*args, **kwargs):
+        await asyncio.wait_for(barrier.wait(), timeout=10)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(access_service, "create_reschedule_request", enter_together)
+
+    path = "/api/website/v1/public/visit-manage/reschedule-request"
+    results = await asyncio.wait_for(
+        asyncio.gather(
+            public_client.post(path, json={"new_slot_id": slot_ids[1], "visit_request_id": receipt_id}),
+            second_public_client.post(path, json={"new_slot_id": slot_ids[2], "visit_request_id": receipt_id}),
+        ),
+        timeout=30,
+    )
+    assert sorted(r.status_code for r in results) == [201, 409], [r.text for r in results]
+    rejected = next(r for r in results if r.status_code == 409)
+    assert rejected.json()["detail"]["code"] == "RESCHEDULE_PENDING"
+    pending = await admin_client.get("/api/website/v1/admin/reschedule-requests?campus_key=yihua")
+    assert len(pending.json()) == 1

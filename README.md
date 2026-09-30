@@ -1,3 +1,17 @@
+## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，尚未部署）
+
+處理 `output/playwright/visit-e2e-20260930-round2/REPORT.md`。報告同樣在落後 main 的 `5e34c5d` 上測，四項都對 main 重新查證：三項仍在、一項 main 已修。
+
+- **P1 多分頁取消／改期錯筆（已修）**：同一個瀏覽器的分頁共用 `ivy_parent_session`，後開的連結蓋掉前一筆；回舊分頁按取消，後端照 cookie 取消了另一筆。官網的取消與改期改成帶 `visit_request_id`（畫面上的案件），和 session 的案件對不上回 `409 PARENT_SESSION_CHANGED`、兩筆都不動（沒帶照舊依 session 處理：CD 先部署 API 再部署 web，部署前開著的舊版家長頁取消不帶 body，發布版本需前後相容）；家長頁顯示「其他分頁開啟了另一筆預約的管理連結，這一頁的預約沒有任何變更」，請家長重開這筆的連結，不自動換成另一筆。契約（`openapi.json`、型別）與規格第 318 行同步。
+- **P2 同一案件併發改期兩筆 pending（main 已修）**：`95440a0` 起 `create_reschedule_request` 先鎖案件列再查 pending。補一項固定交錯的回歸測試，確認只留一筆、另一個回 `RESCHEDULE_PENDING`。
+- **P2 同 key 併發重送最後名額誤報額滿（已修）**：重播查詢在拿校區設定列鎖之前，慢的請求等到鎖後直接判定額滿（201＋409 `SLOT_FULL`）。`submit_visit_request` 拿到鎖後先再查一次同 key 案件（原本只在手機上限那條路補查，這次合併成一處）；路由的鎖外預檢判定失敗時也先補查，已建立就回原收據 200。同 key 不同內容仍回 `IDEMPOTENCY_CONFLICT`。
+- **P3 改期送出時跨過截止，操作列消失（已修）**：`manage.vue` 的操作列只看 `showReschedule`，改期表單還多看 `can_reschedule`，截止後兩邊都不顯示。改成 `cancelOpen`／`rescheduleOpen` 一組條件，面板收起操作列就回來。
+- 沒動的兩個觀察（報告也沒列為缺陷，待業主決定政策）：改期目標場次選好後被訂滿，仍可送出待審申請（核准時才擋）；取消成功但回應遺失時，重試只看到「連結失效」、拿不回取消回執。
+
+回歸測試：後端 `test_parent_access.py` 多分頁一項、`test_booking_concurrency.py` 三項（同 key 重送在鎖上等待／在預檢時對方已提交、同案件併發改期），用 `asyncio.Barrier` 包住 `find_replay`／`precheck_submission`／`create_reschedule_request` 排出固定交錯，連跑 5 次穩定；stack e2e `booking-flow.spec.ts`「家長管理頁的邊界情況」兩項（兩個分頁取消、改期途中過截止）。除了已修好的併發改期，其餘在修正前的程式上都失敗。既有測試的取消／改期呼叫補上 `visit_request_id`，另加一項舊版官網（取消不帶 body、改期不帶 id）照常可用。
+
+驗證：backend 全套 pytest（獨立測試庫、先 `alembic upgrade head`）1034 項全過；web `nuxt typecheck`（無警告）、`npm run test:website` 64 檔 663 項；admin typecheck、vitest 49 檔 679 項；`npm run contract:check`；production build 的完整 stack e2e 61 項全過。未驗：Safari／iOS 實機、多分頁情境下的實際 LINE／Email 通知。
+
 ## 2026-09-30 參觀表單：欄位填錯後第一次點擊落空（`fix/visit-consent-blur-20260930`，尚未部署）
 
 處理 `output/playwright/visit-e2e-20260930/REPORT.md` 的兩個 P3。該報告是在落後 main 364 個提交的 `feature/website-admin` 上測的，這裡都對 main 重新查證。

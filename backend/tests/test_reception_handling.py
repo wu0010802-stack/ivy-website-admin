@@ -203,7 +203,10 @@ async def test_reception_decides_parent_reschedule_requests(app, admin_client, p
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as parent:
             await parent.post(f"{API}/public/visit-manage/exchange", json={"token": token})
-            asked = await parent.post(f"{API}/public/visit-manage/reschedule-request", json={"new_slot_id": slot_id})
+            asked = await parent.post(
+                f"{API}/public/visit-manage/reschedule-request",
+                json={"visit_request_id": receipt_id, "new_slot_id": slot_id},
+            )
             assert asked.status_code == 201, asked.text
             return asked.json()["id"]
 

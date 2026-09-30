@@ -34,6 +34,11 @@ const deadlineLabel = computed(() => visit.value?.change_deadline
   : '')
 // 期限依各校設定，文案不寫死小時數。
 const deadlineRule = computed(() => changeDeadlineRule(visit.value?.change_deadline_hours))
+// 面板實際顯示的條件。送出途中權限可能變了（例如送出改期時剛好過了異動截止），面板收起後
+// 操作列要回來；原本操作列只看 showCancel／showReschedule，面板卻多看權限，兩邊都不顯示，
+// 重新載入與返回都消失（2026-09-30 E2E）。
+const cancelOpen = computed(() => showCancel.value && Boolean(visit.value?.can_cancel))
+const rescheduleOpen = computed(() => showReschedule.value && Boolean(visit.value?.can_reschedule) && !reschedulePending.value)
 const changeClosed = computed(() => visit.value && !visit.value.can_cancel && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(visit.value.status))
 const slotLabel = (slot: { slot_date: string; start_time: string; end_time: string }) => `${visitDateLabel(slot.slot_date)} ${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
 
@@ -98,7 +103,7 @@ async function submitReschedule() {
   }
   slotError.value = ''
   await requestReschedule(selectedSlotId.value)
-  if (reschedulePending.value) showReschedule.value = false
+  if (!rescheduleOpen.value) showReschedule.value = false
   await focusFeedback()
 }
 </script>
@@ -139,14 +144,14 @@ async function submitReschedule() {
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上異動時間。如需取消或改期，請直接聯絡園所。</p>
             <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上異動截止：{{ deadlineLabel }}（台灣時間{{ deadlineRule ? `，${deadlineRule}` : '' }}）。</p>
 
-            <div v-if="!showCancel && !showReschedule" class="parent-visit-actions">
+            <div v-if="!cancelOpen && !rescheduleOpen" class="parent-visit-actions">
               <button v-if="visit.can_reschedule && !reschedulePending" type="button" class="button primary" :disabled="busy" @click="openReschedule">申請改期</button>
               <button v-if="visit.can_cancel" type="button" class="button outline" :disabled="busy" @click="openCancel">取消預約</button>
               <button v-if="visit.status !== 'cancelled'" type="button" class="button outline" :disabled="busy" @click="reload">重新載入預約</button>
               <NuxtLink v-if="visit.status === 'cancelled' && visitCampus?.listed" class="button primary" :to="`/visit/${visit.campus_key}`">重新預約</NuxtLink>
             </div>
 
-            <section v-if="showCancel && visit.can_cancel" ref="cancelPanel" class="parent-visit-confirm" tabindex="-1" aria-labelledby="parent-cancel-title">
+            <section v-if="cancelOpen" ref="cancelPanel" class="parent-visit-confirm" tabindex="-1" aria-labelledby="parent-cancel-title">
               <h3 id="parent-cancel-title">確定要取消這次預約嗎？</h3>
               <p>取消後會釋出原時段；如需再次參觀，請重新預約。</p>
               <div class="parent-visit-actions">
@@ -155,7 +160,7 @@ async function submitReschedule() {
               </div>
             </section>
 
-            <form v-if="showReschedule && visit.can_reschedule && !reschedulePending" class="parent-visit-confirm" @submit.prevent="submitReschedule">
+            <form v-if="rescheduleOpen" class="parent-visit-confirm" @submit.prevent="submitReschedule">
               <h3>申請其他參觀時段</h3>
               <p>改期需由園所確認，核准前原時段仍保留。</p>
               <p v-if="slotsPending" role="status">正在讀取其他場次…</p>

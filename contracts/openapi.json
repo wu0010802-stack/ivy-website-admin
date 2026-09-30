@@ -2570,6 +2570,20 @@
         "title": "ParentAccessLinkOut",
         "type": "object"
       },
+      "ParentCancelRequest": {
+        "properties": {
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_request_id"
+        ],
+        "title": "ParentCancelRequest",
+        "type": "object"
+      },
       "ParentVisitRequestOut": {
         "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
         "properties": {
@@ -3664,6 +3678,18 @@
             "format": "uuid",
             "title": "New Slot Id",
             "type": "string"
+          },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
           }
         },
         "required": [
@@ -15865,6 +15891,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ParentCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

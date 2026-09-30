@@ -3015,6 +3015,14 @@ export interface components {
              */
             expires_at: string;
         };
+        /** ParentCancelRequest */
+        ParentCancelRequest: {
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
         /**
          * ParentVisitRequestOut
          * @description 家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
@@ -3405,6 +3413,8 @@ export interface components {
              * Format: uuid
              */
             new_slot_id: string;
+            /** Visit Request Id */
+            visit_request_id?: string | null;
         };
         /**
          * RescheduleRequestOut
@@ -8618,7 +8628,11 @@ export interface operations {
                 ivy_parent_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ParentCancelRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

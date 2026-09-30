@@ -387,6 +387,26 @@ async def create_visit_request(
         mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
     )
 
+    async def _late_replay() -> VisitRequestOut | None:
+        # 同一把 key 的併發重送：開頭不上鎖的重播查詢時，另一個請求還沒 commit；
+        # 等走到預檢或下面的上限時那筆已經建立、名額與額度也占掉了。擋下前再查一次，
+        # 已經建立就回原收據（200），家長不會看到「名額已滿」或「送出次數過多」。
+        try:
+            replay = await service.find_replay(
+                db, campus_key=payload.campus_key, idempotency_key=idempotency_key, payload=body, hash_key=hash_key
+            )
+        except _SUBMIT_ERRORS as exc:
+            await db.rollback()
+            raise _submit_error(exc) from exc
+        # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
+        out = None if replay is None else VisitRequestOut(
+            receipt_id=replay.id, status=replay.status, created_at=replay.created_at
+        )
+        await db.rollback()
+        if out is not None:
+            response.status_code = status.HTTP_200_OK
+        return out
+
     try:
         replay = await service.find_replay(
             db, campus_key=payload.campus_key, idempotency_key=idempotency_key, payload=body, hash_key=hash_key
@@ -403,6 +423,8 @@ async def create_visit_request(
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
+        if not isinstance(exc, service.IdempotencyConflict) and (late := await _late_replay()) is not None:
+            return late
         raise _submit_error(exc) from exc
     # 結束讀取交易、歸還連線；之後的 Turnstile（最長 5 秒）與限流都不佔用
     # 請求的連線。expunge 讓上鎖建立時重新讀到最新的設定、時段與同意說明，
@@ -423,26 +445,6 @@ async def create_visit_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "BOT_CHECK_FAILED", "message": "請完成機器人驗證後再送出"},
         ) from exc
-
-    async def _late_replay() -> VisitRequestOut | None:
-        # 同一把 key 的併發重送：開頭不上鎖的重播查詢時，另一個請求還沒 commit；
-        # 等走到下面的上限時那筆已經建立、額度也記上了。擋下前再查一次，已經建立
-        # 就回原收據（200），連點的家長不會看到「送出次數過多」。
-        try:
-            replay = await service.find_replay(
-                db, campus_key=payload.campus_key, idempotency_key=idempotency_key, payload=body, hash_key=hash_key
-            )
-        except _SUBMIT_ERRORS as exc:
-            await db.rollback()
-            raise _submit_error(exc) from exc
-        # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
-        out = None if replay is None else VisitRequestOut(
-            receipt_id=replay.id, status=replay.status, created_at=replay.created_at
-        )
-        await db.rollback()
-        if out is not None:
-            response.status_code = status.HTTP_200_OK
-        return out
 
     # 手機桶只對「真的新建了一筆」計數：這裡只看不記（早一點擋掉明顯超量的），
     # commit 之後才記。不能在這裡就原子地扣：同一個 Idempotency-Key 的併發重送

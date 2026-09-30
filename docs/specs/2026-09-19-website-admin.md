@@ -315,7 +315,7 @@ API base：`/api/website/v1`。管理端 base：`/api/website/v1/admin`；所有
 | `POST /public/visit-requests` | Idempotency-Key；驗證校區、模式、版本、同意、容量，201 建立／200 重播 |
 | `POST /public/visit-access/exchange` | 以管理 token 換短期受限 session；不得在 URL 查詢參數帶 token |
 | `GET /public/my-visit` | 受限 session 下只回該案必要資訊 |
-| `POST /public/my-visit/cancel`、`/reschedule-requests` | 遵守截止時間與狀態；CSRF/Origin 防護及限流 |
+| `POST /public/my-visit/cancel`、`/reschedule-requests` | 遵守截止時間與狀態；CSRF/Origin 防護及限流；請求帶畫面上的案件 id，與受限 session 的案件不符回 409（同一瀏覽器的分頁共用 session，2026-09-30） |
 | `POST /admin/auth/login`、`POST /admin/auth/logout`、`GET /admin/auth/me` | Session／CSRF；登入失敗不區分帳號是否存在 |
 | `/admin/users`、`/admin/campuses` | 帳號及五校管理；停用採明確 action |
 | `/admin/content-items`、`/{id}/revisions` | typed 內容編輯、版本、作用範圍；version 衝突 409 |

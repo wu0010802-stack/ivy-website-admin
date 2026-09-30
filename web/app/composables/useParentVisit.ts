@@ -118,6 +118,13 @@ export function useParentVisit() {
   async function operationFailed(cause: unknown, request: number) {
     const { status, code } = failureInfo(cause)
     if (status === 401) { expire(); return }
+    if (code === 'PARENT_SESSION_CHANGED') {
+      // 同一個瀏覽器的分頁共用登入：別的分頁開了另一筆預約的連結，這一頁顯示的已不是
+      // 目前登入的那一筆，後端拒絕異動、兩筆都沒動。不自動換成另一筆，請家長重開連結。
+      expire()
+      error.value = '這個瀏覽器剛在其他分頁開啟了另一筆預約的管理連結，這一頁的預約沒有任何變更。要管理這一筆，請重新點開它的管理連結。'
+      return
+    }
     if (code === 'RESCHEDULE_PENDING') {
       reschedulePending.value = true
       notice.value = '已有改期申請待園所確認；核准前原時段仍保留。'
@@ -149,7 +156,8 @@ export function useParentVisit() {
     error.value = ''
     notice.value = ''
     try {
-      const result = await $fetch<ParentVisit>(`${base}/cancel`, { ...requestOptions, signal: controller.signal, method: 'POST', headers: { 'X-Ivy-Parent': '1' } })
+      // 帶畫面上的案件：別的分頁換了登入的案件時，後端對不上就拒絕，不會取消到另一筆。
+      const result = await $fetch<ParentVisit>(`${base}/cancel`, { ...requestOptions, signal: controller.signal, method: 'POST', headers: { 'X-Ivy-Parent': '1' }, body: { visit_request_id: visit.value.id } })
       if (disposed || request !== revision) return
       // 取消會撤銷 session；保留回執，不立刻呼叫 /me 將成功畫面變成 401。
       visit.value = result
@@ -173,7 +181,7 @@ export function useParentVisit() {
     error.value = ''
     notice.value = ''
     try {
-      await $fetch(`${base}/reschedule-request`, { ...requestOptions, signal: controller.signal, method: 'POST', headers: { 'X-Ivy-Parent': '1' }, body: { new_slot_id: slotId } })
+      await $fetch(`${base}/reschedule-request`, { ...requestOptions, signal: controller.signal, method: 'POST', headers: { 'X-Ivy-Parent': '1' }, body: { new_slot_id: slotId, visit_request_id: visit.value.id } })
       if (disposed || request !== revision) return
       reschedulePending.value = true
       notice.value = '改期申請已送出，待園所確認；核准前原時段仍保留。'

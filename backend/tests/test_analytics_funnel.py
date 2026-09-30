@@ -120,7 +120,8 @@ async def test_cancellations_are_recorded_with_reason(admin_client, public_clien
     link = await admin_client.post(f"{BASE}/visit-requests/{parent}/access-link")
     token = link.json()["manage_url_fragment"].split("token=")[1]
     await public_client.post(f"{API}/public/visit-manage/exchange", json={"token": token})
-    assert (await public_client.post(f"{API}/public/visit-manage/cancel")).status_code == 200
+    cancelled = await public_client.post(f"{API}/public/visit-manage/cancel", json={"visit_request_id": parent})
+    assert cancelled.status_code == 200
 
     response = await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=False)
     version = response.json()["version"]
