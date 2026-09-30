@@ -1,5 +1,17 @@
 # Design
 
+## 手機效能第三輪：環境頁手繪層、首屏影片、three 預取、內頁 CWV（2026-09-30）
+
+處理 `output/playwright/mobile-perf-deep-20260930/report.md`（該報告量的是 main `0a00625`）。量測條件與數字見 README 同日段落。
+
+- **環境頁手繪層（`utils/rough-sketch.ts`）一批三段**：`prepare` 先調會動到版面的樣式（曬衣繩照片的 margin、太陽軌跡弧線／直線），`measure` 只讀版面、`paint` 只寫 DOM；藏線要的 `getTotalLength` 也整批先量完再寫。**paint 裡不讀版面**（包括 `innerWidth`：手機上讀它也會強制重排，只在每批開頭讀一次傳下去）。動態層（`environment-motion.ts`）的小路吃同一批量好的 `TrailGeometry`，不自己再讀。原本每個宿主「寫 → 讀」交錯，一百多張疊層各重排一次。
+- **首次渲染分批**：跟視窗重疊的章節同步畫，其餘依章節離視窗遠近每 8 個宿主一批，**每批之間等下一幀畫完**（`requestAnimationFrame`＋`setTimeout`），不要換回 `scheduler.yield()`：它的接續優先權高，實測連跑好幾批才輪到畫面，載入中點選單仍要 264 ms。動態層的 `start()` 等 `sketch.ready`（小路、便條、箭頭都畫好）才收便條、接捲動。
+- **字型換上後只重畫幾何變了的宿主**（`drawn` 記每個宿主量到的幾何）；視窗改寬也一樣。**不接 `document.fonts` 的 `loadingdone`**：捲動中才載到的分片會在曬衣繩擺動時觸發重畫，量到旋轉後放大的外框。曬衣繩繩長改用軌道的 `offsetWidth`：`scrollWidth` 會把繩子自己那張 svg 的出血算進去，每重畫一次長 30px（原本 fonts.ready 那次就長了）。
+- **照片框量的是含傾斜的外框**（`getBoundingClientRect`，舊行為照舊）。曬衣繩照片在 `is-windy` 轉場中途重畫會量到不同角度，所以現在只在轉場前畫一次；結果與減少動態時相同。改用不受 transform 影響的量法會讓所有傾斜照片的框變小一圈，是另一個設計決定，沒做。
+- **首屏影片**：`navigator.connection.downlink` 低於 5 Mbps 也比照 3G 留靜態封面（`heroMayAutoplay`，只用在首屏；孩子的一天等其他影片仍用 `mayAutoplay`）。影片疊在同一張封面上，第一幀比封面大 1px 列，一畫出來就成為新的 LCP，慢速 4G 會把 LCP 拉到影片第一幀。沒有 downlink（Safari、Firefox）照舊自動播放；Chromium 沒有估計值時回報上限 10，不會誤判。**不要改用 Resource Timing 自己估頻寬**：DevTools 限速與真實 TCP slow start 下小檔都被延遲主導，20 Mbps 只量到 3.5。慢速時是否要在封面上給「點了才播」的播放鍵，待業主決定（本輪沒做，照 09-22 定案維持靜態封面、不顯示控制鈕）。
+- **three 不進首屏 SSR prefetch**（`nuxt.config` 的 `build:manifest`）：父 chunk（布幕引擎）關掉不會連帶排除靜態依賴。布幕要播時由 `plugins/entrance-engine.client.ts` 在 plugin 階段就 import 引擎（首訪布幕開演只晚約 0.1 s，可播的網路條件不變）；日常紙張由 `utils/paper-warm.ts` 在整頁載完 3 秒後的閒置時段或卡片接近時暖載（three 求值 CPU 4× 約 11 ms），減少動態、沒有 WebGL 不載。多等 3 秒是讓開首屏影片（也是載完後閒置才起播），兩者同時下載會讓影片第一幀（快網路的 LCP）晚 0.1–0.2 s。
+- **內頁也回報瀏覽與 CWV**：`/about` `/curriculum` `/environment` `/admission` `/news`（含 `/news/<id>`，一律記成 `news`、不帶文章代號）。web 的 `publicPage`／`validateTelemetry`、後端 `TelemetryIn`、OpenAPI 契約、後台 `trafficPageLabel` 要一起改。後台「網頁速度」的 p75 仍不分頁（現在包含內頁），總瀏覽量從上線這天起多了內頁、與之前不連續。
+
 ## 義華外觀照改用 v2：完整、較高解析（2026-09-30）
 
 使用者反映首頁義華校圖片下半部被裁掉、要換成舊官網那張完整的並提高畫質。義華 `image` 改用 `yihua-exterior-v2`（2820×1684），取代下方 09-22「五校校園圖採用質感修復版」中義華那張；其他四校不變。來源、處理步驟與對照圖在 `design/yihua-photo-v2-20260930/`，改版前快照 `versions/before-yihua-photo-v2-20260930-092510/`。

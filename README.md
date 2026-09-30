@@ -1,3 +1,18 @@
+## 2026-09-30 手機效能第三輪：環境頁載入中卡操作、首屏影片拉長 LCP、three 首屏預取、內頁沒有 CWV（`feature/mobile-perf-20260930`，未部署）
+
+處理 `output/playwright/mobile-perf-deep-20260930/report.md`。報告量的是 main `0a00625`，這裡也從同一個 main 開 worktree 修（`/private/tmp/ivy-website-mobile-perf-20260930`）。規則見 DESIGN.md 最上方「手機效能第三輪」。改版前快照：`versions/before-mobile-perf-20260930-131548/`。
+
+量測條件同報告：Nuxt production build＋fixture、Chrome 154、390×844 DPR 3 觸控、正常快取但每輪新 context；「慢速」＝1.6 Mbps／RTT 150 ms／CPU 4×。基準是同一個 main 未修改的 build，兩版並排跑。
+
+- **P1 環境頁初始化卡住操作（已修）**：`rough-sketch.ts` 改成一批三段（prepare → 只讀的 measure → 只寫的 paint），藏線的路徑長度也集中量；fonts.ready 後只重畫幾何變了的宿主（原本整批再畫一次）；首屏以外的章節每 8 個宿主一批、每批之間等下一幀。載入中（5.9–6.2 秒間四個時間點）點手機選單：INP 基準 2,640／3,232 ms → 修正後 112–160 ms（選單都有開）；強制樣式與版面 2.6–3.0 s → 約 0.1 s；手繪層最長任務 1,583／1,897 ms → 每批 ≤67 ms（剩下超過 100 ms 的長任務是約 3.7 s 的 hydration，基準版也有）。減少動態：INP 3,504 → 176 ms、手繪層最長任務 2,173 ms → 每批腳本 ≤50 ms。
+- **手繪結果**：reduced motion 下 106 張 svg 與基準逐一比對，只有曬衣繩那條繩子不同——基準版第二次重畫時 `scrollWidth` 把繩子自己的 svg 出血算進去，繩子多畫 30px（之後每次改寬還會再長），改用軌道寬度。正常動態下曬衣繩五張照片框與基準版不同：基準版是在 `is-windy` 傾斜轉場中途重畫、量到半途的角度；修改版只在轉場前畫一次，與減少動態時完全相同（18/18）。
+- **P1 首屏影片拉長慢速手機 LCP（已修）**：影片第一幀比封面大 1px 列、一畫出來就成為新的 LCP。首屏影片在 `downlink` 低於 5 Mbps 時比照 3G 留靜態封面（其他影片不變）。慢速首頁 LCP 4.48 s → 1.42 s、16 秒下載量 2.95 MB → 0.75 MB；3 Mbps 2.81 → 0.93 s、5 Mbps（回報 4.3）2.54 → 0.84 s；8 Mbps 以上照常播放（LCP 1.94 s）。門檻依實測：LCP 約在 5 Mbps 越過 2.5 s。Safari／Firefox 沒有 downlink，行為不變。原本想用 Resource Timing 自己量這次載入的頻寬，實測小檔都被延遲主導（20 Mbps 只量到 3.5），不採用。
+- **P2 three 無條件進首屏預取（已修）**：three 本身的 manifest 也關 prefetch；布幕由新的 `plugins/entrance-engine.client.ts` 在 plugin 階段就 import 引擎，日常紙張由 `utils/paper-warm.ts` 在載完 3 秒後的閒置時段或卡片接近時暖載（多等 3 秒是讓開首屏影片：同時下載時 20 Mbps 的 LCP 晚 0.1–0.2 s；延後後四輪中位數基準 1.44 s、修改版 1.42 s）。減少動態的首頁不再下載 three（747 → 602 KB），LCP 不變；已看過布幕的首頁 three 改在載完後才抓。首訪布幕 A/B：9 Mbps 開演 1.63／1.54 → 1.61／1.63 s、5 Mbps 3.13／2.88 → 3.20／2.98 s，都照常播（plugin 比照 EntranceCurtain，hydration 晚過 1.8 s 就不抓引擎）；3 Mbps 以下兩版都超過 2.8 s 上限而略過。
+- **P2 新內頁沒進 CWV 回報（已修）**：`/about` `/curriculum` `/environment` `/admission` `/news`（含內文頁，一律記成 `news`）也回報瀏覽與 LCP／INP／CLS。改了 web `shared/telemetry.ts`、後端 `TelemetryIn`（page 欄位本來就是 String(16)、無 CHECK，不用 migration）、OpenAPI 契約、後台頁面名稱（沒改會被標成「預約參觀（選校）」）。**上線後注意**：後台總瀏覽量、手機比例從這天起多了內頁，與之前不連續；「網頁速度」p75 仍是全站一個數字（現在含內頁，環境頁會拉低 INP）。線上 telemetry 開關、配額是否夠用沒查。
+- **P2 內頁首屏字型與圖片（只量測、沒改）**：內頁 LCP 圖都在 0.3 s 左右就以 high priority 開始下載，慢的是 1.6 Mbps 下跟字型分片搶頻寬——例如 /about 首圖 142 KB 從 0.38 s 下到 3.94 s，同時段 LINE Seed 700 的 001–004 分片（約 160 KB，inline `font-subsets.css` 宣告，頁面下方標題就會觸發）與 3.35 s 起 extended 樣式表的 ExtraBold 分片一起下載。要改得重切分片（首屏 critical 涵蓋各頁第一屏、其餘延後），屬於字型管線與品牌字呈現的取捨，留待決定。
+
+驗證：web `nuxt typecheck`、`npm run test:website` 64 檔 666 項；admin `vue-tsc`、vitest 679 項；backend 全套 pytest 1037 項（獨立測試庫、先 `alembic upgrade head`）；`npm run contract:check`；production build 的完整 stack e2e 61 項全過（含 hydration／a11y／keyboard 走到環境頁）。量測腳本與原始數據：`output/playwright/mobile-perf-deep-20260930/fix-20260930/`（`probe.cjs` 載入／點擊、`compare-svg.cjs` 手繪 svg 逐一比對、`cross.cjs` 跨模式比對照片框；已 gitignore）。未驗：iPhone Safari 與 Android 實機、線上 CMS 內容、真實網路下 downlink 的分布（門檻只在 DevTools 限速下定）。
+
 ## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/visit-e2e-20260930-round2/REPORT.md`。報告同樣在落後 main 的 `5e34c5d` 上測，四項都對 main 重新查證：三項仍在、一項 main 已修。
