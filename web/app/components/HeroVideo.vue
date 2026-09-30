@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { HOME_HERO_SIZES } from '~/utils/responsive-image'
-import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { backgroundVideoSrc, heroMayAutoplay, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import { heroImageAttrs, mediaImageAttrs } from '~/utils/media-image'
 import type { HeroContent } from '~/types/site-content'
@@ -146,6 +146,11 @@ onMounted(() => {
   const startVideo = () => {
     if (disposed) return
     if (!entranceWaited && document.documentElement.dataset.ivyEntrance === 'pending') return waitForEntrance(startVideo)
+    // 封面與首屏資源都到了才看頻寬（這時瀏覽器已依這次載入更新估計）：慢速 4G 也比照 3G 留靜態封面（門檻與實測見 media-policy.ts）
+    if (!heroMayAutoplay(reduceQuery?.matches ?? false, connection)) {
+      wantsPlayback = false
+      return
+    }
     // 素材與裁切位置依寬度（後台的手機影片可能是直式）；編碼版本依布幕同一個手機定義，
     // 橫拿手機（高度 ≤500）也拿手機檔，不下載桌機母帶。
     const narrow = window.matchMedia('(max-width: 760px)').matches
