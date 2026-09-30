@@ -344,7 +344,7 @@ def test_plan_covers_current_site_files():
     assert "optimized" in str(video.path)
     yihua = next(e for e in entries if e.key == "yihua-cover")
     assert yihua.campus_key == "yihua"
-    assert yihua.target.extra == {"card_focus": {"x": 50.0, "y": 12.0}, "hero_focus": {"x": 85.0, "y": 8.0}}
+    assert yihua.target.extra == {"card_focus": {"x": 50.0, "y": 36.0}, "hero_focus": {"x": 85.0, "y": 16.0}}
 
 
 def _mini_web_root(tmp_path: Path) -> Path:
@@ -407,7 +407,7 @@ async def test_import_site_assets_dedupes_and_writes_drafts(db_session, tmp_path
     assert day["moments"][0]["photo"]["media_id"] == by_key["day-moment-hello"]
     yihua = await _latest(db_session, "campus_profile", "yihua")
     assert yihua["cover"]["media_id"] == by_key["yihua-cover"]
-    assert yihua["card_focus"] == {"x": 50.0, "y": 12.0} and yihua["hero_focus"] == {"x": 85.0, "y": 8.0}
+    assert yihua["card_focus"] == {"x": 50.0, "y": 36.0} and yihua["hero_focus"] == {"x": 85.0, "y": 16.0}
     minghua = await _latest(db_session, "campus_profile", "minghua")
     assert minghua["card_focus"] is None
     # 草稿不發布：公開內容仍是初始化的版本。
