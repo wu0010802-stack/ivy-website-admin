@@ -25,6 +25,7 @@ from app.auth.oauth_common import private
 from app.auth.reauth import login_rate_limited
 from app.auth.schemas import (
     AuthProviders,
+    DisplayNameUpdateRequest,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -93,6 +94,7 @@ def _user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         email=user.email,
+        display_name=user.display_name,
         role=user.role,
         is_active=user.is_active,
         campus_keys=sorted(scope.campus_key for scope in user.campus_scopes),
@@ -199,6 +201,35 @@ async def me(
     return MeResponse(csrf_token=session.csrf_token, user=_user_out(current_user))
 
 
+async def _set_display_name(db: AsyncSession, actor: User, user: User, display_name: str | None) -> None:
+    """改顯示名稱並留稽核。名字本身與 Email 不寫進稽核 metadata：操作紀錄讀取
+    時再依 target_id 查出對方現在的名字。沒有實際改變時不記。"""
+    if user.display_name == display_name:
+        return
+    user.display_name = display_name
+    await audit_service.log_action(
+        db,
+        actor_user_id=actor.id,
+        action="user.update_display_name",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"changed": ["display_name"], "self": actor.id == user.id},
+    )
+
+
+@router.patch("/auth/me", response_model=UserOut)
+async def update_me(
+    payload: DisplayNameUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserOut:
+    """本人改自己的顯示名稱；任何登入的後台帳號都可以。和其他寫入一樣要過
+    CSRF／Origin 檢查（get_current_user）。"""
+    await _set_display_name(db, current_user, current_user, payload.display_name)
+    await db.commit()
+    return _user_out(current_user)
+
+
 @router.get("/admin/users", response_model=list[UserOut])
 async def list_users(
     current_user: User = Depends(get_current_user),
@@ -229,6 +260,7 @@ async def create_user(
     user = User(
         id=uuid.uuid4(),
         email=payload.email,
+        display_name=payload.display_name,
         password_hash=await service.hash_password_async(payload.password),
         role=payload.role,
         is_active=True,
@@ -375,6 +407,21 @@ async def update_user_role(
     await db.commit()
     db.expire_all()
     return _user_out(await _load_user(db, user_id))
+
+
+@router.patch("/admin/users/{user_id}/display-name", response_model=UserOut)
+async def update_user_display_name(
+    user_id: uuid.UUID,
+    payload: DisplayNameUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserOut:
+    """總管理者替同事填或改顯示名稱（也可以清掉，畫面改用 Email）。"""
+    require_scope(current_user, "users.manage")
+    user = await _load_user(db, user_id)
+    await _set_display_name(db, current_user, user, payload.display_name)
+    await db.commit()
+    return _user_out(user)
 
 
 @router.post("/admin/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { UserOut } from '../api/types'
+import { staffWithEmail } from '../api/labels'
 defineProps<{ user: UserOut; self: boolean; busy: boolean; pending: boolean }>()
 defineEmits<{ scope: [user: UserOut]; toggle: [user: UserOut]; reset: [user: UserOut]; clearLogins: [user: UserOut] }>()
 </script>
@@ -12,10 +13,10 @@ defineEmits<{ scope: [user: UserOut]; toggle: [user: UserOut]; reset: [user: Use
     <template v-else>
       <el-button :disabled="busy" @click="$emit('scope', user)">角色與校區</el-button>
       <el-button :disabled="busy" @click="$emit('reset', user)">重設密碼</el-button>
-      <el-popconfirm v-if="user.line_linked || user.google_linked" :title="`解除 ${user.email} 的 Google／LINE 綁定，並登出對方所有裝置？LINE 要本人重新綁定；Google 用同一個 Email 登入時會自動重新綁定。`" confirm-button-text="解除並登出" cancel-button-text="先不要" confirm-button-type="danger" :width="300" @confirm="$emit('clearLogins', user)">
+      <el-popconfirm v-if="user.line_linked || user.google_linked" :title="`解除 ${staffWithEmail(user)} 的 Google／LINE 綁定，並登出對方所有裝置？LINE 要本人重新綁定；Google 用同一個 Email 登入時會自動重新綁定。`" confirm-button-text="解除並登出" cancel-button-text="先不要" confirm-button-type="danger" :width="300" @confirm="$emit('clearLogins', user)">
         <template #reference><el-button :disabled="busy" data-test="clear-external-logins">解除綁定並登出</el-button></template>
       </el-popconfirm>
-      <el-popconfirm v-if="user.is_active" :title="`停用後 ${user.email} 就無法登入後台，已建立的內容不受影響。`" confirm-button-text="停用" cancel-button-text="先不要" confirm-button-type="danger" :width="280" @confirm="$emit('toggle', user)">
+      <el-popconfirm v-if="user.is_active" :title="`停用後 ${staffWithEmail(user)} 就無法登入後台，已建立的內容不受影響。`" confirm-button-text="停用" cancel-button-text="先不要" confirm-button-type="danger" :width="280" @confirm="$emit('toggle', user)">
         <template #reference><el-button type="danger" plain :disabled="busy" :loading="pending">停用</el-button></template>
       </el-popconfirm>
       <el-button v-else type="primary" plain :disabled="busy" :loading="pending" @click="$emit('toggle', user)">恢復</el-button>

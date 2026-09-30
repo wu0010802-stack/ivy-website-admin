@@ -352,6 +352,8 @@ class VisitStaffOut(BaseModel):
 
     id: uuid.UUID
     email: str
+    # 同事看到的名字；沒填時為 null，畫面改用 Email。
+    display_name: str | None = None
     role: str
     campus_keys: list[str]
     is_active: bool
@@ -569,6 +571,7 @@ class VisitContactNoteOut(BaseModel):
     # 誰記的：同一校多人接手時要知道找誰問。帳號刪除後為 None。
     created_by: uuid.UUID | None = None
     created_by_email: str | None = None
+    created_by_display_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -607,6 +610,7 @@ class VisitHistoryOut(BaseModel):
     source: str | None
     actor_user_id: uuid.UUID | None
     actor_email: str | None
+    actor_display_name: str | None = None
     before: dict | None
     after: dict | None
     reason: str | None

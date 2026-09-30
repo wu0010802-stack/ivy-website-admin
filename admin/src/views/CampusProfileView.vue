@@ -25,6 +25,7 @@ const editor = useContentItem<CampusProfilePayload>(
     intro: '',
     description: '',
     facebook: '',
+    // Facebook 備註：官網不顯示、後台不列。載入時舊內容的值會蓋過這個空字串，存檔照原樣送回。
     fb_note: '',
     line: '',
     map_url: '',
@@ -221,11 +222,8 @@ const mapPreviewUrl = computed(() => {
         <el-input v-model="editor.form.value.facebook" inputmode="url" placeholder="https://www.facebook.com/…" />
         <span class="field-help">留空時首頁五校卡不顯示 Facebook；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
-      <el-form-item label="Facebook 備註">
-        <el-input v-model="editor.form.value.fb_note" placeholder="例如：活動照片與公告" />
-        <!-- 官網 content-overlay 只轉存 fbNote，沒有元件顯示（2026-09-28 盤點）。 -->
-        <span class="field-help unused-note">官網目前沒有顯示這一欄。</span>
-      </el-form-item>
+      <!-- Facebook 備註（fb_note）官網不顯示，2026-09-29 業主同意後台不再列這一欄；
+           舊內容的值留在表單裡照原樣存回，不清掉。 -->
       <el-form-item label="LINE 官方帳號網址" :error="webUrlError(editor.form.value.line)">
         <el-input v-model="editor.form.value.line" inputmode="url" placeholder="https://lin.ee/…" />
         <span class="field-help">留空代表這一校尚未提供：首頁五校卡寫「LINE · 待園方提供」，頁首選單列出這一校的社群時標「待提供」；不會帶入其他校的帳號。</span>

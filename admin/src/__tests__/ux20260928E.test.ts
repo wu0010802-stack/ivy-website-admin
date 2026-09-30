@@ -273,12 +273,17 @@ describe('孩子的一天：時刻卡排序、時間與新增', () => {
     expect((zh()!.get('input').element as HTMLInputElement).value).toBe('明華校 · 運動會')
   })
 
-  it('官網沒顯示的欄位註明出來，拿掉誤導的字數建議', async () => {
+  // 2026-09-29 業主裁定：照片補充字官網刻意不顯示，後台不再列。影片來源標註查證後同樣從未在官網
+  // 顯示（區塊來源說明是「說明文字」），比照不列。
+  it('照片補充字、影片來源標註不列出來，也不給補充字字數建議', async () => {
     mockDay()
     const wrapper = await mountView(DayExperienceView)
-    const unused = wrapper.findAll('.unused-note').map((note) => note.element.closest('.el-form-item')!.querySelector('.el-form-item__label')!.textContent)
-    expect(unused).toContain('影片來源標註')
-    expect(unused).toContain('照片補充字')
+    const labels = wrapper.findAll('.el-form-item__label').map((label) => label.text())
+    expect(labels).not.toContain('影片來源標註')
+    expect(labels).toContain('說明文字')
+    expect(labels).not.toContain('照片補充字')
+    expect(wrapper.find('.unused-note').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
     expect(LENGTH_HINTS).not.toHaveProperty('momentCaption')
     expect(LENGTH_HINTS).not.toHaveProperty('boardNote')
   })
@@ -402,28 +407,31 @@ describe('五校介紹：社群網址', () => {
     expect(item('LINE 官方帳號網址').text()).not.toContain('網址要以')
     expect(wrapper.text()).not.toContain('待補')
     expect(item('LINE 官方帳號網址').text()).toContain('待園方提供')
-    expect(item('Facebook 備註').find('.unused-note').exists()).toBe(true)
+    // Facebook 備註官網不顯示，2026-09-29 起後台不列（值照原樣存回，見 ownerMisc20260929）。
+    expect(wrapper.findAll('.el-form-item__label').map((label) => label.text())).not.toContain('Facebook 備註')
     expect(wrapper.get('input[placeholder="https://www.facebook.com/…"]').attributes('inputmode')).toBe('url')
   })
 })
 
 describe('官網沒顯示的欄位與預約橫幅', () => {
-  it('首頁五校區塊的說明文字改成多行、註明官網沒顯示', async () => {
+  // 2026-09-29 業主裁定：五校區塊的說明文字官網不顯示，後台不列（值照原樣存回，見 ownerMisc20260929）。
+  it('首頁五校區塊不再列出官網不顯示的說明文字', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_campus_board', { section_title: '分校資訊', eyebrow: '', note: '很長的說明'.repeat(10) }) as never)
     const wrapper = await mountView(HomeCampusBoardView)
-    const note = wrapper.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '說明文字')!
-    expect(note.find('textarea').exists()).toBe(true)
-    expect(note.text()).toContain('官網目前沒有顯示這一欄')
-    expect(note.text()).not.toContain('建議')
+    expect(wrapper.findAll('.el-form-item__label').map((label) => label.text())).not.toContain('說明文字')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
   })
 
-  it('預約橫幅註明官網目前是固定文字，變數說明和實際存的值一致', async () => {
+  it('預約橫幅接上官網：不再說是固定文字，校名記號的說明和實際存的值一致', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('booking_content', {
       cta_label: '', cta_label_en: '', consent_text: '', banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。', banner_body: '', banner_button_label: '',
       privacy_title: '', privacy_sections: [],
     }) as never)
     const wrapper = await mountView(BookingContentView)
-    expect(wrapper.get('.banner__notice').text()).toContain('這三欄目前不會出現在官網')
+    expect(wrapper.find('.banner__notice').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('不會出現在官網')
+    expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
     expect(wrapper.text()).toContain('{campusNameOrIvy}')
     expect(wrapper.text()).not.toContain('{campus}')
   })

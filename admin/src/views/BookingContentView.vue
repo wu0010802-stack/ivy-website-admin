@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, useTemplateRef } from 'vue'
+import { computed, nextTick, onMounted, useTemplateRef } from 'vue'
+import type { InputInstance } from 'element-plus'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
+import { useCampusScope } from '../composables/useCampusScope'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import { revealListItem } from '../composables/newsContent'
-import type { BookingContentPayload } from '../api/types'
+import { BANNER_CAMPUS_TOKEN, BANNER_DEFAULTS, bannerTitlePreview } from '../composables/contentHints'
+import { campusLabel } from '../api/labels'
+import { CAMPUS_KEYS, type BookingContentPayload } from '../api/types'
 import { PRIVACY_SAMPLE_MARKER, PRIVACY_SECTIONS_MAX, privacyHasSample, privacySampleSections } from '../composables/privacyNotice'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
@@ -47,13 +51,36 @@ function insertSample() {
   editor.form.value.privacy_sections.push(...privacySampleSections())
 }
 
+// 預約橫幅的標題預覽：用這個帳號看得到的第一校（總管理者是義華校）。官網用五校介紹
+// 裡的校名，寫法和這裡一樣是「義華校」。
+const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+const previewCampus = computed(() => `${campusLabel(visibleCampusKeys.value[0] ?? CAMPUS_KEYS[0])}校`)
+const bannerPreview = computed(() => bannerTitlePreview(editor.form.value.banner_title_template, previewCampus.value))
+const bannerTitleBlank = computed(() => !editor.form.value.banner_title_template.trim())
+
+// 「插入校名」：在標題欄的游標位置放入校名記號，園方不用自己打大括號。沒點過欄位時
+// 游標在最後（瀏覽器換掉欄位內容時會把游標移到結尾），就接在最後面。
+const bannerTitleInput = useTemplateRef<InputInstance>('bannerTitleInput')
+async function insertCampusName() {
+  const form = editor.form.value
+  const value = form.banner_title_template
+  const field = bannerTitleInput.value?.textarea
+  const start = field?.selectionStart ?? value.length
+  const end = field?.selectionEnd ?? value.length
+  form.banner_title_template = value.slice(0, start) + BANNER_CAMPUS_TOKEN + value.slice(end)
+  await nextTick()
+  const caret = start + BANNER_CAMPUS_TOKEN.length
+  field?.focus()
+  field?.setSelectionRange(caret, caret)
+}
+
 onMounted(editor.load)
 </script>
 
 <template>
   <ContentEditor :editor="editor">
     <template #lead>
-      預約按鈕、同意條款與隱私說明的文字。各校採用哪種預約方式（表單、LINE、電話）在
+      預約按鈕、同意條款、隱私說明與分校頁底部預約橫幅的文字。各校採用哪種預約方式（表單、LINE、電話）在
       <router-link to="/booking">各校預約方式</router-link> 設定。
     </template>
 
@@ -108,20 +135,30 @@ onMounted(editor.load)
       </div>
 
       <h3 class="form-section">分校頁底部的預約橫幅</h3>
-      <!-- 官網 CampusPageMain.vue 的橫幅是寫死的文字，沒有讀這三欄（web content-overlay 只轉存）。
-           欄位先保留，等官網接上再拿掉這段說明。 -->
-      <el-alert type="info" :closable="false" show-icon class="banner__notice" title="這三欄目前不會出現在官網">
-        分校頁底部的橫幅現在是固定文字：「親自走一趟，感受〇〇校的日常。」、「帶著孩子，也帶著你想了解的事。我們期待與你相遇。」與「預約校園參觀」按鈕。這裡改了、發布了，官網也不會變；需要改橫幅文字請聯絡網站維護人員。
-      </el-alert>
+      <p class="field-help banner__lead">每個分校頁最下方的預約橫幅：一句標題、一段內文和預約按鈕。欄位留空時，官網沿用原本的文字。</p>
       <el-form-item label="橫幅標題">
-        <el-input v-model="editor.form.value.banner_title_template" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
-        <span class="field-help">標題裡的 <code>{campusNameOrIvy}</code> 代表分校的校名，例如「親自走一趟，感受{campusNameOrIvy}的日常。」。</span>
+        <el-input ref="bannerTitleInput" v-model="editor.form.value.banner_title_template" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
+        <div v-if="!editor.readOnly.value" class="banner__tools">
+          <el-button size="small" @click="insertCampusName">插入校名</el-button>
+          <span class="field-help">
+            在游標的位置放入 <code>{{ BANNER_CAMPUS_TOKEN }}</code>，官網每個分校頁會換成自己的校名，不用自己打校名或大括號。
+          </span>
+        </div>
+        <p class="banner__preview" data-banner-preview>
+          <span>{{ bannerTitleBlank ? `留空時沿用原本的標題，${previewCampus}分校頁會顯示：` : `${previewCampus}分校頁會顯示：` }}</span>
+          <strong>{{ bannerPreview }}</strong>
+        </p>
+        <LengthHint :value="bannerTitleBlank ? '' : bannerPreview" rule="bannerTitle" />
       </el-form-item>
       <el-form-item label="內文">
-        <el-input v-model="editor.form.value.banner_body" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
+        <el-input v-model="editor.form.value.banner_body" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" :placeholder="BANNER_DEFAULTS.body" />
+        <LengthHint :value="editor.form.value.banner_body" rule="bannerBody" />
+        <span class="field-help">留空時官網用原本的內文：{{ BANNER_DEFAULTS.body }}</span>
       </el-form-item>
       <el-form-item label="按鈕文字">
-        <el-input v-model="editor.form.value.banner_button_label" />
+        <el-input v-model="editor.form.value.banner_button_label" :placeholder="BANNER_DEFAULTS.button" />
+        <LengthHint :value="editor.form.value.banner_button_label" rule="bannerButton" />
+        <span class="field-help">留空時官網用原本的按鈕文字：{{ BANNER_DEFAULTS.button }}</span>
       </el-form-item>
     </el-form>
   </ContentEditor>
@@ -143,7 +180,15 @@ onMounted(editor.load)
 
 .privacy__lead { margin: 0 0 12px; }
 .privacy__alert { margin-bottom: 12px; }
-.banner__notice { margin-bottom: 12px; }
+.banner__lead { margin: 0 0 12px; }
+/* 插入校名鈕與說明、預覽各佔一行（el-form-item__content 是 flex-wrap）。 */
+.banner__tools { display: flex; flex-basis: 100%; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; }
+.banner__tools .field-help { flex: 1 1 16em; margin-top: 0; }
+.banner__preview { flex-basis: 100%; margin: 8px 0 0; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.banner__preview strong { color: var(--ink); font-weight: 600; }
+@media (max-width: 720px) {
+  .banner__preview { font-size: 14px; }
+}
 .privacy__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .privacy__actions .el-button + .el-button { margin-left: 0; }
 .privacy__row-actions { display: flex; flex-wrap: wrap; gap: 4px; }

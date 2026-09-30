@@ -85,3 +85,15 @@ export function loginLimitedMessage(err: unknown, options: { verb: '登入' | '�
   if (apiErrorCode(err) !== 'LOGIN_LOCKED') return LOGIN_BUSY_MESSAGE
   return `密碼錯誤次數過多，這個帳號的密碼${options.verb}暫停 15 分鐘，${options.alternative ?? '請稍後再試'}。`
 }
+
+/** 422 裡指到某個欄位（loc 含欄位名）的訊息，寫在那一欄下方用；沒有就回空字串。 */
+export function apiFieldError(err: unknown, field: string): string {
+  if (!(err instanceof ApiError) || err.status !== 422 || !Array.isArray(err.detail)) return ''
+  return err.detail
+    .filter((e): e is { loc: unknown[]; msg: unknown } => {
+      const loc = (e as { loc?: unknown } | null)?.loc
+      return Array.isArray(loc) && loc.includes(field)
+    })
+    .map((e) => String(e.msg).replace(/^Value error,\s*/, ''))
+    .join('；')
+}

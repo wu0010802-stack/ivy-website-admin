@@ -23,6 +23,9 @@ class Role(str, enum.Enum):
 
 CREATABLE_ROLES = tuple(Role)
 
+# users.display_name 的長度上限（字數，不是位元組；PostgreSQL 的 VARCHAR(n) 也是算字數）。
+DISPLAY_NAME_MAX_LENGTH = 12
+
 # 規格 7：「全站內容編輯」與「個資匯出」是明確授權，不因擁有某校範圍就自動
 # 取得，只有總管理者可以逐人授予。總管理者本身不需要（已涵蓋全部）。
 SHARED_CONTENT = "content.shared"
@@ -48,6 +51,9 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    # 顯示名稱（2026-09-28 業主裁定）：承辦人、聯絡紀錄、歷程、操作紀錄等處給
+    # 同事看的名字；沒填時畫面用 Email。寫入一律經 schemas.normalize_display_name。
+    display_name: Mapped[str | None] = mapped_column(String(DISPLAY_NAME_MAX_LENGTH), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # Google sub 是穩定識別碼；email 只用於首次核對已核准的管理員。
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)

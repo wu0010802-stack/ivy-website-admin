@@ -269,29 +269,52 @@ async def get_analytics_funnel(
     return funnel
 
 
-@router.get("/admin/audit-log")
+class AuditLogEntryOut(BaseModel):
+    """操作紀錄一筆。actor_*、target_label 是讀取當下 join users 查出來的，
+    不存在稽核表裡（metadata 不放同事的 email 或名字）。"""
+
+    id: uuid.UUID
+    actor_user_id: uuid.UUID | None
+    # 誰做的：系統定期工作或帳號已刪除時為 null。
+    actor_email: str | None
+    actor_display_name: str | None
+    action: str
+    target_type: str
+    target_id: str
+    # 對哪個帳號（target_type 為 user 時）：對方的顯示名稱，沒填就用 email；
+    # 其他對象或找不到帳號時為 null。
+    target_label: str | None
+    campus_key: str | None
+    metadata: dict
+    created_at: datetime
+
+
+@router.get("/admin/audit-log", response_model=list[AuditLogEntryOut])
 async def get_audit_log(
     campus_key: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> list[dict]:
+) -> list[AuditLogEntryOut]:
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
-    entries = await audit_service.list_recent(db, campus_key)
+    rows = await audit_service.list_recent(db, campus_key)
     return [
-        {
-            "id": str(e.id),
-            "actor_user_id": str(e.actor_user_id) if e.actor_user_id else None,
-            "action": e.action,
-            "target_type": e.target_type,
-            "target_id": e.target_id,
-            "campus_key": e.campus_key,
-            "metadata": e.metadata_json,
-            "created_at": e.created_at.isoformat(),
-        }
-        for e in entries
+        AuditLogEntryOut(
+            id=row.entry.id,
+            actor_user_id=row.entry.actor_user_id,
+            actor_email=row.actor_email,
+            actor_display_name=row.actor_display_name,
+            action=row.entry.action,
+            target_type=row.entry.target_type,
+            target_id=row.entry.target_id,
+            target_label=row.target_label,
+            campus_key=row.entry.campus_key,
+            metadata=row.entry.metadata_json or {},
+            created_at=row.entry.created_at,
+        )
+        for row in rows
     ]
 
 
@@ -414,6 +437,7 @@ class RetentionPolicyOut(RetentionDaysOut):
     version: int
     updated_at: datetime | None
     updated_by_email: str | None
+    updated_by_display_name: str | None = None
     last_scheduled_on: date | None
     # 部署設定 WEBSITE_RETENTION_ALLOW_REAL_RUN；關閉時自動與手動都只能試算。
     real_run_allowed: bool
@@ -435,6 +459,7 @@ class RetentionRunOut(BaseModel):
     # manual＝總管理者在後台按下執行、scheduled＝定期工作。
     trigger: str
     actor_email: str | None
+    actor_display_name: str | None = None
     days: RetentionDaysOut
     counts: RetentionCountsOut
     total: int
@@ -461,6 +486,7 @@ async def _policy_out(db: AsyncSession, request: Request, policy: RetentionPolic
         version=policy.version,
         updated_at=policy.updated_at,
         updated_by_email=editor.email if editor else None,
+        updated_by_display_name=editor.display_name if editor else None,
         last_scheduled_on=policy.last_scheduled_on,
         real_run_allowed=request.app.state.settings.retention_allow_real_run,
         preview=_report_out(await retention_service.preview(db, days)),
@@ -594,16 +620,17 @@ async def list_retention_runs(
     require_scope(current_user, "retention.manage")
     runs = await retention_service.list_runs(db, limit=limit)
     actor_ids = {run.actor_user_id for run in runs if run.actor_user_id}
-    emails: dict = {}
+    actors: dict = {}
     if actor_ids:
-        result = await db.execute(select(User.id, User.email).where(User.id.in_(actor_ids)))
-        emails = dict(result.all())
+        result = await db.execute(select(User.id, User.email, User.display_name).where(User.id.in_(actor_ids)))
+        actors = {user_id: (email, display_name) for user_id, email, display_name in result.all()}
     return [
         RetentionRunOut(
             id=run.id,
             created_at=run.created_at,
             trigger=run.trigger,
-            actor_email=emails.get(run.actor_user_id),
+            actor_email=actors.get(run.actor_user_id, (None, None))[0],
+            actor_display_name=actors.get(run.actor_user_id, (None, None))[1],
             days=RetentionDaysOut(**run.policy),
             counts=RetentionCountsOut(**run.counts),
             total=run.total,

@@ -4,13 +4,15 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
-import { apiErrorMessage } from '../api/errors'
+import { apiErrorMessage, apiFieldError } from '../api/errors'
 import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
-import { campusLabel, campusLabels, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel } from '../api/labels'
+import { campusLabel, campusLabels, displayNameError, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
+import DisplayNameField from '../components/DisplayNameField.vue'
 import { passwordHint, passwordOk, PASSWORD_MIN_LENGTH } from '../composables/passwordRules'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { renameVisitStaff } from '../composables/useVisitStaff'
 
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
@@ -41,12 +43,20 @@ const operationBusy = computed(
   () => creating.value || savingScope.value || resetting.value || Boolean(togglingId.value) || Boolean(clearingId.value),
 )
 const visibleUsers = computed(() => sortedUsers.value.filter(user => {
-  const text = [user.email, roleLabel(user.role), user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys)].join(' ').toLocaleLowerCase()
+  const text = [user.display_name ?? '', user.email, roleLabel(user.role), user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys)].join(' ').toLocaleLowerCase()
   return text.includes(search.value.trim().toLocaleLowerCase()) && (!status.value || (status.value === 'active') === user.is_active)
 }))
+// 還沒設定顯示名稱的人：名稱欄先用 Email @ 前面那段（灰字），清單上方說明怎麼補。
+const unnamedCount = computed(() => users.value.filter(user => !user.display_name).length)
+
+// 顯示名稱送出前的樣子：前後空白不算，空白＝不設定（後端存 null，畫面改用 Email）。
+function normalizedName(value: string): string | null {
+  return value.trim() || null
+}
 
 const form = reactive({
   email: '',
+  display_name: '',
   password: '',
   role: 'campus_admin' as Role,
   campus_keys: [] as string[],
@@ -80,11 +90,15 @@ function sameGrants(a: readonly string[], b: readonly string[]): boolean {
 // 這種要在前端先擋，否則只會拿到英文的 422 訊息。
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const FULL_EMAIL_HINT = '請輸入完整的 Email，例如 name@example.com'
-const createErrors = reactive({ email: '', password: '', campus: '' })
+// 顯示名稱的長度與字元邊打邊檢查（DisplayNameField 自己寫原因），這裡只記後端另外
+// 回的錯誤；一改就清掉。
+const createErrors = reactive({ email: '', password: '', campus: '', display_name: '' })
 const emailInput = ref<{ focus: () => void } | null>(null)
+const nameInput = ref<{ focus: () => void } | null>(null)
 const passwordInput = ref<{ focus: () => void } | null>(null)
 const campusField = ref<HTMLElement | null>(null)
 watch(() => form.email, () => { createErrors.email = '' })
+watch(() => form.display_name, () => { createErrors.display_name = '' })
 watch(() => form.password, () => { createErrors.password = '' })
 watch(() => [form.role, form.campus_keys.length], () => { createErrors.campus = '' })
 
@@ -99,12 +113,13 @@ function validateCreate(): boolean {
   createErrors.email = !email ? '請輸入 Email' : EMAIL_PATTERN.test(email) ? '' : FULL_EMAIL_HINT
   createErrors.password = passwordProblem(form.password)
   createErrors.campus = form.role === 'super_admin' || form.campus_keys.length > 0 ? '' : '請至少勾選一個負責校區'
-  return !createErrors.email && !createErrors.password && !createErrors.campus
+  return !createErrors.email && !displayNameError(form.display_name) && !createErrors.password && !createErrors.campus
 }
 
 async function focusFirstCreateError() {
   await nextTick()
   if (createErrors.email) emailInput.value?.focus()
+  else if (displayNameError(form.display_name) || createErrors.display_name) nameInput.value?.focus()
   else if (createErrors.password) passwordInput.value?.focus()
   else if (createErrors.campus) campusField.value?.querySelector<HTMLInputElement>('input')?.focus()
 }
@@ -121,9 +136,9 @@ function emailRejected(err: unknown): boolean {
 // 總管理者可以管理所有帳號、看並匯出五校家長個資、執行無法復原的個資清理：
 // 新增或升為總管理者前再確認一次。降級不必（後端會擋最後一位）。
 const SUPER_ADMIN_POWERS = '可以管理所有帳號、看到並匯出五校家長資料，也能執行無法復原的個資清理'
-async function confirmSuperAdmin(email: string): Promise<boolean> {
+async function confirmSuperAdmin(who: string): Promise<boolean> {
   try {
-    await ElMessageBox.confirm(`總管理者${SUPER_ADMIN_POWERS}。只給確實需要的人。`, `確定讓 ${email} 成為總管理者？`, {
+    await ElMessageBox.confirm(`總管理者${SUPER_ADMIN_POWERS}。只給確實需要的人。`, `確定讓 ${who} 成為總管理者？`, {
       confirmButtonText: '設為總管理者',
       cancelButtonText: '先不要',
       type: 'warning',
@@ -182,7 +197,7 @@ function generatePassword() {
 // 新密碼只在這一次看得到（系統不寄信）：建立或重設成功後對話框不關，改成
 // 顯示密碼與複製鈕，等總管理者自己按「完成」。
 type SelectableInput = { focus: () => void; select: () => void } | null
-const createdEmail = ref('')
+const createdWho = ref('')
 const createdPassword = ref('')
 const createdInput = ref<SelectableInput>(null)
 const resetDone = ref(false)
@@ -203,6 +218,7 @@ async function copyPassword(value: string, input: SelectableInput) {
 function openCreateDialog() {
   if (operationBusy.value || loading.value) return
   form.email = ''
+  form.display_name = ''
   form.password = ''
   form.role = 'campus_admin'
   form.campus_keys = []
@@ -210,6 +226,7 @@ function openCreateDialog() {
   form.export_data = false
   passwordVisible.value = false
   createErrors.email = ''
+  createErrors.display_name = ''
   createErrors.password = ''
   createErrors.campus = ''
   clearCreated()
@@ -223,22 +240,28 @@ async function submitCreate() {
     return
   }
   const email = form.email.trim()
-  if (form.role === 'super_admin' && !(await confirmSuperAdmin(email))) return
+  const displayName = normalizedName(form.display_name)
+  if (form.role === 'super_admin' && !(await confirmSuperAdmin(staffWithEmail({ display_name: displayName, email })))) return
   creating.value = true
   try {
     const created = await api.post<UserOut>('/admin/users', {
       email,
+      display_name: displayName,
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
       capabilities: grantsFor(form.role, form.shared_content, form.export_data),
     })
     users.value.push(created)
-    createdEmail.value = created.email
+    createdWho.value = staffWithEmail(created)
     createdPassword.value = form.password
   } catch (err) {
+    const nameError = apiFieldError(err, 'display_name')
     if (emailRejected(err)) {
       createErrors.email = FULL_EMAIL_HINT
+      await focusFirstCreateError()
+    } else if (nameError) {
+      createErrors.display_name = nameError
       await focusFirstCreateError()
     } else {
       ElMessage.error(apiErrorMessage(err, '新增使用者失敗'))
@@ -257,7 +280,7 @@ async function toggleActive(target: UserOut) {
     })
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
-    ElMessage.success(updated.is_active ? `已恢復 ${updated.email} 的登入` : `已停用 ${updated.email}`)
+    ElMessage.success(updated.is_active ? `已恢復 ${staffWithEmail(updated)} 的登入` : `已停用 ${staffWithEmail(updated)}`)
   } catch (err) {
     ElMessage.error(apiErrorMessage(err, '更新啟用狀態失敗'))
   } finally {
@@ -268,12 +291,22 @@ async function toggleActive(target: UserOut) {
 function openScopeDialog(target: UserOut) {
   if (operationBusy.value) return
   scopeTarget.value = target
+  scopeName.value = target.display_name ?? ''
+  scopeNameServerError.value = ''
   scopeRole.value = target.role
   scopeShared.value = hasSharedGrant(target)
   scopeExport.value = hasExportGrant(target)
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
 }
+
+// 「角色與校區」對話框也可以替同事填或改顯示名稱（本人則在「我的帳號」自己改）。
+// 名稱有變才另外送 PATCH …/display-name，沒變不送、不留操作紀錄。
+const scopeName = ref('')
+const scopeNameServerError = ref('')
+const scopeNameInput = ref<{ focus: () => void } | null>(null)
+watch(scopeName, () => { scopeNameServerError.value = '' })
+const scopeNameChanged = computed(() => Boolean(scopeTarget.value) && normalizedName(scopeName.value) !== (scopeTarget.value?.display_name ?? null))
 
 // 換角色時後端會收回個資匯出授權（總管理者要針對新職位重新決定），勾選框
 // 跟著清掉並說明；改回原角色就恢復原狀。只改校區不影響。
@@ -288,28 +321,59 @@ watch(scopeRole, (role) => {
 const promotingToSuperAdmin = computed(() => Boolean(scopeTarget.value && scopeRole.value === 'super_admin' && scopeTarget.value.role !== 'super_admin'))
 const scopeMissingCampus = computed(() => scopeRole.value !== 'super_admin' && scopeSelection.value.length === 0)
 
+function replaceUser(updated: UserOut) {
+  const idx = users.value.findIndex((u) => u.id === updated.id)
+  if (idx !== -1) users.value[idx] = updated
+}
+
 async function submitScope() {
   if (!scopeTarget.value || operationBusy.value || scopeMissingCampus.value) return
-  if (promotingToSuperAdmin.value && !(await confirmSuperAdmin(scopeTarget.value.email))) return
+  if (displayNameError(scopeName.value)) {
+    scopeNameInput.value?.focus()
+    return
+  }
+  if (promotingToSuperAdmin.value && !(await confirmSuperAdmin(staffWithEmail(scopeTarget.value)))) return
+  const target = scopeTarget.value
+  const nameChanged = scopeNameChanged.value
+  const campusKeys = scopeRole.value === 'super_admin' ? [] : scopeSelection.value
+  const wanted = grantsFor(scopeRole.value, scopeShared.value, scopeExport.value)
+  // 只改名稱時不送角色：後端每收到一次角色就記一筆「變更角色與校區」，沒改也會記。
+  const onlyRenamed = nameChanged && scopeRole.value === target.role && sameGrants(campusKeys, target.campus_keys) && sameGrants(wanted, target.capabilities ?? [])
   savingScope.value = true
   try {
-    let updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/role`, {
+    // 名稱先存：改名失敗（例如後端說字數不對）時角色與校區都還沒動，改好再按一次儲存即可。
+    if (nameChanged) {
+      const renamed = await api.patch<UserOut>(`/admin/users/${target.id}/display-name`, { display_name: normalizedName(scopeName.value) })
+      replaceUser(renamed)
+      renameVisitStaff(renamed.id, renamed.display_name ?? null)
+      scopeTarget.value = renamed
+    }
+    if (onlyRenamed) {
+      scopeDialogVisible.value = false
+      ElMessage.success('已更新顯示名稱')
+      return
+    }
+    let updated = await api.patch<UserOut>(`/admin/users/${target.id}/role`, {
       role: scopeRole.value,
-      campus_keys: scopeRole.value === 'super_admin' ? [] : scopeSelection.value,
+      campus_keys: campusKeys,
     })
     // 改角色時後端會先清掉新角色不適用的授權；剩下的跟畫面上勾的不同才送。
-    const wanted = grantsFor(scopeRole.value, scopeShared.value, scopeExport.value)
     if (!sameGrants(wanted, updated.capabilities ?? [])) {
-      updated = await api.patch<UserOut>(`/admin/users/${scopeTarget.value.id}/capabilities`, {
+      updated = await api.patch<UserOut>(`/admin/users/${target.id}/capabilities`, {
         capabilities: wanted,
       })
     }
-    const idx = users.value.findIndex((u) => u.id === updated.id)
-    if (idx !== -1) users.value[idx] = updated
+    replaceUser(updated)
     scopeDialogVisible.value = false
-    ElMessage.success('已更新角色、校區與權限')
+    ElMessage.success(nameChanged ? '已更新顯示名稱、角色、校區與權限' : '已更新角色、校區與權限')
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '更新角色、校區與權限失敗'))
+    const nameError = apiFieldError(err, 'display_name')
+    if (nameError) {
+      scopeNameServerError.value = nameError
+      scopeNameInput.value?.focus()
+    } else {
+      ElMessage.error(apiErrorMessage(err, '更新角色、校區與權限失敗'))
+    }
   } finally {
     savingScope.value = false
   }
@@ -364,7 +428,7 @@ function isSelf(u: UserOut): boolean {
 
 // 對話框關掉後不再留著明文密碼。
 function clearCreated() {
-  createdEmail.value = ''
+  createdWho.value = ''
   createdPassword.value = ''
 }
 function clearReset() {
@@ -394,20 +458,29 @@ onMounted(loadUsers)
       </PageHeader>
 
       <div class="filter-bar">
-        <label class="filter-field filter-search"><span>搜尋使用者</span><el-input v-model="search" placeholder="Email、角色或校區" clearable /></label>
+        <label class="filter-field filter-search"><span>搜尋使用者</span><el-input v-model="search" placeholder="名稱、Email、角色或校區" clearable /></label>
         <label class="filter-field"><span>帳號狀態</span><el-select v-model="status" placeholder="全部狀態"><el-option label="全部狀態" value="" /><el-option label="啟用中" value="active" /><el-option label="已停用" value="inactive" /></el-select></label>
       </div>
       <div class="list-summary" role="status"><span>{{ loading ? '正在讀取使用者…' : loadError ? '使用者尚未載入' : `顯示 ${visibleUsers.length} / ${users.length} 位使用者` }}</span><el-button :loading="loading" :disabled="operationBusy" @click="loadUsers">重新整理</el-button></div>
       <el-alert v-if="loadError" class="inline-error" type="error" :title="loadError" :closable="false" show-icon><el-button @click="loadUsers">重新載入</el-button></el-alert>
       <div v-else-if="loading" class="panel list-skeleton"><el-skeleton animated :rows="5" /></div>
-      <div v-else class="panel">
+      <template v-else>
+      <p v-if="unnamedCount" class="hint users__unnamed" data-test="unnamed-hint">
+        有 {{ unnamedCount }} 位還沒設定顯示名稱，名稱先用 Email @ 前面那段（灰字）。可以請本人到「我的帳號」設定，或按「角色與校區」替他填。
+      </p>
+      <div class="panel">
         <el-empty v-if="!visibleUsers.length" :description="search || status ? '找不到符合條件的使用者' : '尚未建立任何使用者'"><el-button v-if="search || status" @click="search = ''; status = ''">清除篩選</el-button></el-empty>
         <template v-else>
         <el-table class="data-table" :data="visibleUsers">
-          <el-table-column label="Email" min-width="220">
+          <!-- 名稱在上、Email 小字在下：同事在承辦人、操作紀錄看到的是名稱，這裡對得起來。 -->
+          <el-table-column label="名稱與 Email" min-width="220">
             <template #default="{ row }: { row: UserOut }">
-              <span :class="{ muted: !row.is_active }">{{ row.email }}</span>
-              <el-tag v-if="isSelf(row)" size="small" type="info" round class="self-tag">你</el-tag>
+              <span class="user-name" :class="{ 'is-inactive': !row.is_active }">
+                <strong v-if="row.display_name" data-test="user-name">{{ row.display_name }}</strong>
+                <span v-else class="muted" title="還沒設定顯示名稱，先用 Email @ 前面那段" data-test="user-name-fallback">{{ staffLabel(row) }}</span>
+                <el-tag v-if="isSelf(row)" size="small" type="info" round class="self-tag">你</el-tag>
+              </span>
+              <span class="user-email">{{ row.email }}</span>
               <span v-if="loginLinks(row)" class="login-links" :title="`已綁定 ${loginLinks(row)} 登入`">{{ loginLinks(row) }}</span>
             </template>
           </el-table-column>
@@ -438,17 +511,21 @@ onMounted(loadUsers)
         </el-table>
         <ul class="mobile-records" aria-label="使用者清單">
           <li v-for="user in visibleUsers" :key="user.id" class="mobile-record">
-            <div class="record-heading"><strong>{{ user.email }}<el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong><el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag></div>
-            <dl class="record-meta"><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd></dl>
+            <div class="record-heading">
+              <strong><span v-if="user.display_name">{{ user.display_name }}</span><span v-else class="muted" title="還沒設定顯示名稱，先用 Email @ 前面那段">{{ staffLabel(user) }}</span><el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong>
+              <el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag>
+            </div>
+            <dl class="record-meta"><dt>Email</dt><dd>{{ user.email }}</dd><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd></dl>
             <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" @clear-logins="clearExternalLogins" /></div>
           </li>
         </ul>
         </template>
       </div>
+      </template>
 
       <el-dialog v-model="dialogVisible" title="新增使用者" width="480px" :show-close="!creating" :close-on-click-modal="!creating && !createdPassword" :close-on-press-escape="!creating" @closed="clearCreated">
         <div v-if="createdPassword" class="password-result" data-test="created-password">
-          <el-alert type="success" :closable="false" show-icon :title="`已建立 ${createdEmail}`" />
+          <el-alert type="success" :closable="false" show-icon :title="`已建立 ${createdWho}`" />
           <p class="hint">系統不會寄信。請用電話或當面把下面的密碼告訴對方；按「完成」關閉後，這裡不會再顯示。</p>
           <div class="password-row">
             <el-input ref="createdInput" :model-value="createdPassword" readonly aria-label="新帳號的密碼" class="password-result__value" />
@@ -468,6 +545,7 @@ onMounted(loadUsers)
             />
             <p v-if="createErrors.email" id="new-user-email-error" class="field-error">{{ createErrors.email }}</p>
           </el-form-item>
+          <DisplayNameField ref="nameInput" v-model="form.display_name" input-id="new-user-display-name" :server-error="createErrors.display_name" />
           <el-form-item label="密碼" for="new-user-password" required :error="createErrors.password" :show-message="false">
             <div class="password-row">
               <el-input
@@ -525,8 +603,15 @@ onMounted(loadUsers)
         </template>
       </el-dialog>
 
-      <el-dialog v-model="scopeDialogVisible" :title="`${scopeTarget?.email ?? ''} 的角色與校區`" width="480px" :show-close="!savingScope" :close-on-click-modal="!savingScope" :close-on-press-escape="!savingScope">
-        <el-form label-position="top" class="user-form" :disabled="savingScope">
+      <el-dialog v-model="scopeDialogVisible" :title="`${staffWithEmail(scopeTarget)} 的名稱、角色與校區`" width="480px" :show-close="!savingScope" :close-on-click-modal="!savingScope" :close-on-press-escape="!savingScope">
+        <el-form label-position="top" class="user-form" :disabled="savingScope" @submit.prevent="submitScope">
+          <DisplayNameField
+            ref="scopeNameInput"
+            v-model="scopeName"
+            input-id="scope-user-display-name"
+            :server-error="scopeNameServerError"
+            help="同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字；本人也可以在「我的帳號」自己改。留空就用 Email @ 前面那段。"
+          />
           <el-form-item label="角色">
             <el-radio-group v-model="scopeRole" class="role-group" aria-label="角色">
               <div v-for="role in ROLE_ORDER" :key="role" class="role-option" :class="{ 'is-active': scopeRole === role }">
@@ -562,10 +647,10 @@ onMounted(loadUsers)
         </template>
       </el-dialog>
 
-      <el-dialog v-model="resetVisible" :title="`重設 ${resetTarget?.email ?? ''} 的密碼`" width="440px" :show-close="!resetting" :close-on-click-modal="!resetting && !resetDone" :close-on-press-escape="!resetting" @closed="clearReset">
+      <el-dialog v-model="resetVisible" :title="`重設 ${staffWithEmail(resetTarget)} 的密碼`" width="440px" :show-close="!resetting" :close-on-click-modal="!resetting && !resetDone" :close-on-press-escape="!resetting" @closed="clearReset">
         <div v-if="resetDone" class="password-result" data-test="reset-password">
           <el-alert type="success" :closable="false" show-icon title="已重設密碼，對方所有裝置都已登出" />
-          <p class="hint">系統不會寄信。請用電話或當面把下面的新密碼告訴 {{ resetTarget?.email }}；按「完成」關閉後，這裡不會再顯示。</p>
+          <p class="hint">系統不會寄信。請用電話或當面把下面的新密碼告訴 {{ staffWithEmail(resetTarget) }}；按「完成」關閉後，這裡不會再顯示。</p>
           <div class="password-row">
             <el-input ref="resetResultInput" :model-value="resetPassword" readonly aria-label="新密碼" class="password-result__value" />
             <el-button type="primary" plain @click="copyPassword(resetPassword, resetResultInput)">複製密碼</el-button>
@@ -651,6 +736,23 @@ onMounted(loadUsers)
   font-size: 12px;
   color: var(--ink-3);
 }
+
+/* 名稱一行、Email 小字一行；停用的帳號名稱也轉灰。 */
+.user-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+.user-name strong { font-weight: 600; }
+.user-name.is-inactive strong { color: var(--ink-3); }
+.user-email {
+  display: block;
+  color: var(--ink-3);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.users__unnamed { margin: 0 0 12px; }
 
 .field-help.is-ok {
   color: var(--el-color-success);

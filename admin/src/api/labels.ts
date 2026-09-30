@@ -112,14 +112,89 @@ export function visitSourceLabel(source: string | null | undefined): string {
   return VISIT_SOURCE_LABELS[source ?? 'web'] ?? source ?? ''
 }
 
-// 承辦人只存 id，畫面上顯示 email 的 @ 前面那段，表格裡才放得下。
-export function staffLabel(
+// ---- 同事的名字（2026-09-28 業主裁定加「顯示名稱」）----
+// 承辦人、聯絡紀錄、歷程、操作紀錄、發布與排程、素材上傳者……凡是畫面上
+// 寫「誰」的地方都走這裡：有顯示名稱用顯示名稱，沒填就用 Email @ 前面那段
+// （表格放得下）。完整 Email 只放在 title，滑過去看得到，同前綴的同事靠它分辨。
+
+/** 同事顯示名字需要的兩個欄位；API 的 created_by_*／actor_* 等用 staffOf 轉成這個形狀。 */
+export interface StaffPerson {
+  display_name?: string | null
+  email?: string | null
+}
+
+/** 顯示名稱的長度上限，和後端 DISPLAY_NAME_MAX_LENGTH 一致（算字數，不是位元組）。 */
+export const DISPLAY_NAME_MAX_LENGTH = 12
+
+/** 同事在畫面上的名字。兩個欄位都沒有（系統動作、帳號已刪除）時回 fallback。 */
+export function staffLabel(person: StaffPerson | null | undefined, fallback = '已移除的帳號'): string {
+  const name = person?.display_name?.trim()
+  if (name) return name
+  const email = person?.email?.trim()
+  if (email) return email.split('@')[0] || email
+  return fallback
+}
+
+/** 名字旁邊 title／tooltip 用的完整 Email；沒有時回空字串（不掛 title）。 */
+export function staffEmail(person: StaffPerson | null | undefined): string {
+  return person?.email?.trim() ?? ''
+}
+
+/** 要確定是哪一個帳號的地方（確認框標題、帳號管理的提示）：「王小美（amy@ivy.tw）」；
+ * 沒有顯示名稱時就是 Email 本身。 */
+export function staffWithEmail(person: StaffPerson | null | undefined): string {
+  const name = person?.display_name?.trim()
+  const email = staffEmail(person)
+  return name && email ? `${name}（${email}）` : name || email
+}
+
+type StaffFieldPrefix = 'actor' | 'created_by' | 'updated_by' | 'submitted_by'
+type StaffFields<P extends StaffFieldPrefix> = { [K in `${P}_display_name` | `${P}_email`]?: string | null }
+
+/** API 回傳的 `<prefix>_display_name`／`<prefix>_email` 兩欄取成 StaffPerson。 */
+export function staffOf<P extends StaffFieldPrefix>(row: StaffFields<P>, prefix: P): StaffPerson {
+  const fields = row as Record<string, string | null | undefined>
+  return { display_name: fields[`${prefix}_display_name`], email: fields[`${prefix}_email`] }
+}
+
+/** 只存 id 的欄位（承辦人、登錄的人、歷程裡的承辦人異動）：從同事名單找名字。 */
+export function staffLabelById(
   staffId: string | null | undefined,
-  staff: readonly { id: string; email: string }[],
+  staff: readonly (StaffPerson & { id: string })[],
 ): string {
   if (!staffId) return '未指派'
   const found = staff.find((s) => s.id === staffId)
-  return found ? found.email.split('@')[0]! : '已移除的帳號'
+  return found ? staffLabel(found) : '已移除的帳號'
+}
+
+/** staffLabelById 的 title：找得到就是完整 Email，找不到回空字串。 */
+export function staffEmailById(
+  staffId: string | null | undefined,
+  staff: readonly (StaffPerson & { id: string })[],
+): string {
+  return staffId ? staffEmail(staff.find((s) => s.id === staffId)) : ''
+}
+
+// 看不見的字元：控制字元（Cc）、格式字元（Cf）、行／段落分隔（Zl、Zp）。表情
+// 符號組合用的零寬連接字（U+200D）與旗幟的標籤字元（U+E0020–E007F）是正常字，不擋。
+const HIDDEN_CHARACTER = /(?![\u200d\u{E0020}-\u{E007F}])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+
+/** 顯示名稱算幾個字：去掉前後空白後逐字算，和後端 len() 一樣（不是 UTF-16 長度）。 */
+export function displayNameLength(value: string): number {
+  return Array.from(value.trim()).length
+}
+
+/**
+ * 顯示名稱的前端檢查，規則和後端 normalize_display_name 相同：前後空白不算、
+ * 留空＝不設定（畫面改用 Email）、最多 12 個字、不能有換行或看不見的字元。
+ * 回傳錯誤訊息，沒問題回空字串。
+ */
+export function displayNameError(value: string): string {
+  const name = value.trim()
+  if (!name) return ''
+  if (HIDDEN_CHARACTER.test(name)) return '顯示名稱不能有換行或看不見的特殊字元'
+  if (displayNameLength(name) > DISPLAY_NAME_MAX_LENGTH) return `顯示名稱最多 ${DISPLAY_NAME_MAX_LENGTH} 個字`
+  return ''
 }
 
 export const MEDIA_STATUS: Record<string, StatusMeta> = {
@@ -280,6 +355,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.change_password': '變更自己的密碼',
   'user.set_role': '變更角色與校區',
   'user.set_capabilities': '變更授權（全站內容／匯出個資）',
+  'user.update_display_name': '變更顯示名稱',
   'visit_request.export': '匯出家長個資',
   'visit_request.manual_create': '人工補登參觀案件',
   'visit_request.assign': '指派承辦人',
@@ -963,6 +1039,9 @@ const MEDIA_FIELD_LABELS: Record<string, string> = {
 
 const OUTBOX_RETRY_SOURCE_LABELS: Record<string, string> = { admin: '在後台手動重寄', cli: '技術人員批次重寄' }
 
+// 帳號被改了哪些欄位（user.update_display_name 的 changed）。
+const USER_FIELD_LABELS: Record<string, string> = { display_name: '顯示名稱' }
+
 type AuditFormatter = (value: unknown, action: string, metadata: Record<string, unknown>) => string | null
 
 // 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
@@ -994,8 +1073,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   changed: (v, action) => {
     if (!Array.isArray(v) || !v.length) return null
     if (action === 'release.restore' || typeof v[0] === 'object') return `還原的內容：${contentItemsLabel(v)}`
-    return `修改：${v.map((field) => BOOKING_CONFIG_FIELD_LABELS[String(field)] ?? String(field)).join('、')}`
+    return `修改：${v.map((field) => USER_FIELD_LABELS[String(field)] ?? BOOKING_CONFIG_FIELD_LABELS[String(field)] ?? String(field)).join('、')}`
   },
+  // 顯示名稱是本人自己改的，還是總管理者替他改的。名字本身不記在紀錄裡
+  // （後端刻意不存），改成什麼要看「使用者」頁。
+  self: (v) => (v ? '本人自己修改' : '由總管理者修改'),
   // 時段與案件
   slot: (v) => `時段：${auditSlotLabel(v)}`,
   row_count: (v) => `匯出 ${countOf(v)} 筆`,

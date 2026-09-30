@@ -1339,6 +1339,7 @@ class ContentRevisionSummaryOut(BaseModel):
     version: int
     created_at: datetime
     created_by_email: str | None
+    created_by_display_name: str | None = None
     is_published: bool
     ever_published: bool
     last_published_at: datetime | None
@@ -1387,6 +1388,7 @@ class PublishJobOut(BaseModel):
     status: str
     error: str | None
     created_by_email: str | None
+    created_by_display_name: str | None = None
     finished_at: datetime | None
     # 沒有發布（failed／skipped）的排程已經處理過：有人按了「知道了」，或官網
     # 之後換過這項內容的版本。編輯頁只提示還沒處理的；其他狀態一律 false。
@@ -1400,6 +1402,7 @@ class PendingReviewOut(BaseModel):
     version: int
     submitted_at: datetime | None
     submitted_by_email: str | None
+    submitted_by_display_name: str | None = None
 
 
 class PublicSiteOut(BaseModel):
@@ -1422,6 +1425,7 @@ class PublishJobListOut(BaseModel):
     status: str
     error: str | None
     created_by_email: str | None
+    created_by_display_name: str | None = None
     created_at: datetime
     finished_at: datetime | None
     # 目前登入的人能不能取消（有這項內容的發布權限）。
@@ -1442,6 +1446,7 @@ class ReleaseOut(BaseModel):
     id: uuid.UUID
     created_at: datetime
     created_by_email: str | None
+    created_by_display_name: str | None = None
     # publish | review | scheduled | restore | release_restore | initialize；
     # 2026-09-25 以前的發布沒有記錄，為 null。
     source: str | None

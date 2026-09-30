@@ -9,11 +9,13 @@ import {
   formatDateTime,
   publishJobStatus,
   releaseSourceLabel,
+  staffEmail,
+  staffLabel,
+  staffOf,
   userNotificationLabel,
 } from '../api/labels'
 import type { PublishJobListOut, ReleaseOut, ReleasePageOut, ReleaseRestoreOut, UserNotificationOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
-import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 
@@ -23,7 +25,6 @@ import StatusTag from '../components/StatusTag.vue'
 const route = useRoute()
 const router = useRouter()
 const { can } = usePermissions()
-const openRequests = useOpenRequestsStore()
 const canRestore = computed(() => can('content.release_restore'))
 
 type Tab = 'releases' | 'schedules'
@@ -66,7 +67,10 @@ function noticeDetail(n: UserNotificationOut): string {
   const parts: string[] = []
   if (n.revision_version) parts.push(`第 ${n.revision_version} 版`)
   if (n.publish_at) parts.push(`排程 ${formatDateTime(n.publish_at)}`)
-  if (n.actor_email) parts.push(n.kind === 'content_review_submitted' ? `${n.actor_email} 送審` : n.actor_email)
+  if (n.actor_email || n.actor_display_name) {
+    const who = staffLabel(staffOf(n, 'actor'))
+    parts.push(n.kind === 'content_review_submitted' ? `${who} 送審` : who)
+  }
   return parts.join('・')
 }
 
@@ -82,7 +86,6 @@ async function markNoticeRead(n: UserNotificationOut) {
   try {
     const updated = await api.post<UserNotificationOut>(`/admin/my-notifications/${n.id}/read`)
     n.read_at = updated.read_at ?? new Date().toISOString()
-    openRequests.myNotices = Math.max(0, openRequests.myNotices - 1)
   } catch {
     if (alive) ElMessage.error('標記失敗，請重試')
   } finally {
@@ -97,7 +100,6 @@ async function markAllNoticesRead() {
     await api.post('/admin/my-notifications/read-all')
     const now = new Date().toISOString()
     for (const n of notices.value) if (!n.read_at) n.read_at = now
-    openRequests.myNotices = 0
   } catch {
     if (alive) ElMessage.error('標記失敗，請重試')
   } finally {
@@ -320,7 +322,7 @@ refreshAll()
             <router-link v-if="n.content_kind" :to="contentEditorPath(n.content_kind, n.campus_key)" class="notice__link" @click="openNotice(n)">
               {{ contentItemLabel(n.content_kind, n.campus_key) }} →
             </router-link>
-            <span v-if="noticeDetail(n)" class="notice__meta">{{ noticeDetail(n) }}</span>
+            <span v-if="noticeDetail(n)" class="notice__meta" :title="staffEmail(staffOf(n, 'actor')) || undefined">{{ noticeDetail(n) }}</span>
             <span v-if="noticeReason(n)" class="notice__reason">{{ noticeReason(n) }}</span>
           </div>
           <div class="notice__side">
@@ -350,7 +352,7 @@ refreshAll()
           <div class="release__head">
             <div class="release__when">
               <strong class="num">{{ formatDateTime(release.created_at) }}</strong>
-              <span class="release__by">{{ releaseSourceLabel(release.source) }}・{{ release.created_by_email || '系統' }}</span>
+              <span class="release__by" :title="staffEmail(staffOf(release, 'created_by')) || undefined">{{ releaseSourceLabel(release.source) }}・{{ staffLabel(staffOf(release, 'created_by'), '系統') }}</span>
             </div>
             <div class="release__tags">
               <el-tag v-if="release.is_current" type="success" size="small" disable-transitions>官網目前版本</el-tag>
@@ -388,7 +390,7 @@ refreshAll()
             <li v-for="job in upcomingJobs" :key="job.id" class="job">
               <div class="job__main">
                 <router-link :to="contentEditorPath(job.kind, job.campus_key)"><strong>{{ contentItemLabel(job.kind, job.campus_key) }}</strong></router-link>
-                <span class="job__meta"><span class="num">{{ formatDateTime(job.publish_at) }}</span> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email">・{{ job.created_by_email }} 排程</template></span>
+                <span class="job__meta"><span class="num">{{ formatDateTime(job.publish_at) }}</span> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span> 排程</template></span>
               </div>
               <el-button v-if="job.can_cancel" size="small" :loading="cancellingId === job.id" :disabled="cancellingId !== null" @click="cancelJob(job)">取消排程</el-button>
             </li>
@@ -403,7 +405,7 @@ refreshAll()
                   <router-link :to="contentEditorPath(job.kind, job.campus_key)"><strong>{{ contentItemLabel(job.kind, job.campus_key) }}</strong></router-link>
                   <StatusTag :meta="publishJobStatus(job.status)" />
                 </span>
-                <span class="job__meta">排程 <span class="num">{{ formatDateTime(job.publish_at) }}</span>・第 {{ job.revision_version }} 版<template v-if="job.created_by_email">・{{ job.created_by_email }}</template></span>
+                <span class="job__meta">排程 <span class="num">{{ formatDateTime(job.publish_at) }}</span>・第 {{ job.revision_version }} 版<template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span></template></span>
                 <span v-if="job.error" class="job__error" :class="{ 'is-failed': job.status === 'failed' }">{{ job.error }}</span>
               </div>
             </li>

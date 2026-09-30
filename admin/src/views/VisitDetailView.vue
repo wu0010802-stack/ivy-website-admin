@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Phone } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffLabel, visitSourceLabel } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
@@ -79,7 +79,7 @@ async function assign(staffId: string | null) {
       expected_version: detail.value.version,
     })
     await refreshDetail()
-    ElMessage.success(staffId ? `已指派給 ${staffLabel(staffId, staff.value)}` : '已取消指派')
+    ElMessage.success(staffId ? `已指派給 ${staffLabelById(staffId, staff.value)}` : '已取消指派')
   } catch (err) {
     reportError(err, '指派失敗')
   } finally {
@@ -614,7 +614,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
           <h1 class="detail__title">{{ detail.parent_name }}</h1>
           <p class="hint">
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
-            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（{{ staffLabel(detail.created_by, staff) }} 登錄）</template>
+            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>
           </p>
           <p v-if="detail.related_request_id" class="hint">
             重新預約自 <router-link :to="`/visit-requests/${detail.related_request_id}`">先前的案件</router-link>
@@ -662,7 +662,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               <li v-for="n in notes" :key="n.id" class="notes__item">
                 <span class="notes__meta">
                   <time class="notes__time num">{{ formatDateTime(n.created_at) }}</time>
-                  <span v-if="n.created_by" class="notes__author">{{ n.created_by_email ? n.created_by_email.split('@')[0] : '已移除的帳號' }}</span>
+                  <span v-if="n.created_by" class="notes__author" :title="staffEmail(staffOf(n, 'created_by')) || undefined">{{ staffLabel(staffOf(n, 'created_by')) }}</span>
                 </span>
                 <p class="detail__pre">{{ n.note }}</p>
               </li>
@@ -807,26 +807,34 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             </div>
             <div class="detail__assignee">
               <label for="visit-assignee">承辦人</label>
+              <!-- 選項寫名字，下面一行小字是完整 Email：同名或同 Email 前綴的同事才分得出來。 -->
               <el-select
                 v-if="canManage"
                 id="visit-assignee"
                 :model-value="detail.assigned_staff_id ?? ''"
                 :loading="assigning"
                 :disabled="assigning"
+                :title="staffEmailById(detail.assigned_staff_id, staff) || undefined"
                 placeholder="未指派"
                 clearable
+                popper-class="assignee-popper"
                 style="width: 100%"
                 @change="(value: string) => assign(value || null)"
               >
                 <el-option
                   v-if="detail.assigned_staff_id && !assignable.some((s) => s.id === detail!.assigned_staff_id)"
                   :value="detail.assigned_staff_id"
-                  :label="staffLabel(detail.assigned_staff_id, staff)"
+                  :label="staffLabelById(detail.assigned_staff_id, staff)"
                   disabled
                 />
-                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="s.email" />
+                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="staffLabel(s)">
+                  <span class="assignee-option" data-test="assignee-option">
+                    <span class="assignee-option__name">{{ staffLabel(s) }}</span>
+                    <span class="assignee-option__email">{{ s.email }}</span>
+                  </span>
+                </el-option>
               </el-select>
-              <span v-else>{{ staffLabel(detail.assigned_staff_id, staff) }}</span>
+              <span v-else :title="staffEmailById(detail.assigned_staff_id, staff) || undefined">{{ staffLabelById(detail.assigned_staff_id, staff) }}</span>
             </div>
             <div
               v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
@@ -1122,6 +1130,35 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 </style>
 
 <style>
+/* 承辦人選單：名字一行、完整 Email 一行小字。Element Plus 的選項預設固定一行高，
+   這裡改成自動高度；選單掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
+.assignee-popper .el-select-dropdown__item {
+  height: auto;
+  min-height: 44px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  line-height: 1.4;
+}
+
+.assignee-option {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assignee-option__name,
+.assignee-option__email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignee-option__email {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 /* 下次聯絡的快捷選項預設排在日曆左側，面板會比手機畫面寬；窄螢幕改排在日曆上方一列。
    選擇面板掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
 /* 觸控裝置（含平板）的快捷選項放大到 44px 高，手指點得到。 */

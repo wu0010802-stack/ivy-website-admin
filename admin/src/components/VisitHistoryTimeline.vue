@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { VisitHistoryOut } from '../api/types'
-import { formatDateTime } from '../api/labels'
+import { formatDateTime, type StaffPerson, staffEmail, staffOf } from '../api/labels'
 import { visitEventActor, visitEventChanges, visitEventRelatedId, visitEventTitle } from '../api/visitHistory'
 
 // 案件歷程（規格 L299）：誰、什麼時候、做了什麼、前後差在哪、為什麼。
 // 最新的在上面，跟聯絡紀錄同一個方向。
 const props = defineProps<{
   events: readonly VisitHistoryOut[]
-  staff: readonly { id: string; email: string }[]
+  staff: readonly (StaffPerson & { id: string })[]
 }>()
 
 const rows = computed(() =>
@@ -16,6 +16,8 @@ const rows = computed(() =>
     event,
     title: visitEventTitle(event),
     actor: visitEventActor(event),
+    // 園方人員的名字滑過去看得到完整 Email（同前綴的同事靠這個分辨）。
+    actorEmail: event.source === 'staff' ? staffEmail(staffOf(event, 'actor')) : '',
     changes: visitEventChanges(event, props.staff),
     related: visitEventRelatedId(event),
   })),
@@ -27,7 +29,7 @@ const rows = computed(() =>
     <li v-for="row in rows" :key="row.event.id" class="timeline__item">
       <div class="timeline__head">
         <strong>{{ row.title }}</strong>
-        <span v-if="row.actor" class="timeline__actor">{{ row.actor }}</span>
+        <span v-if="row.actor" class="timeline__actor" :title="row.actorEmail || undefined">{{ row.actor }}</span>
         <time class="timeline__time num">{{ formatDateTime(row.event.created_at) }}</time>
       </div>
       <p v-for="line in row.changes" :key="line" class="timeline__change">{{ line }}</p>

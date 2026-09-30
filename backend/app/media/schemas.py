@@ -39,6 +39,7 @@ class MediaAssetOut(BaseModel):
     duration_seconds: float | None = None
     created_at: datetime
     created_by_email: str | None = None
+    created_by_display_name: str | None = None
     archived_at: datetime | None = None
     deleted_at: datetime | None = None
     # 待清理的素材會在這個時間之後由定期工作刪除。

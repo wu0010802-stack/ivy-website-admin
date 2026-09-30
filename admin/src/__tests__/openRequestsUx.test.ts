@@ -134,7 +134,7 @@ describe('案件列表接住總覽帶來的條件', () => {
 })
 
 describe('側欄的待處理數字', () => {
-  it('參觀案件旁顯示新需求＋待確認的總數，0 件時不顯示', async () => {
+  it('參觀案件旁顯示新需求＋待確認的總數，0 件時不顯示；其他項目不掛數字', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
@@ -142,12 +142,18 @@ describe('側欄的待處理數字', () => {
     const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper)
     expect(wrapper.find('.sidebar__badge').exists()).toBe(false)
-    useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 7 })
+    // 總覽彙總也帶了待核准改期與未讀內容通知，但側欄只有參觀案件掛數字（DESIGN 第五輪，2026-09-29 業主再確認）。
+    useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 7, pending_reschedule_requests: 2, my_unread_notifications: 5 } as never)
     await flushPromises()
+    expect(wrapper.findAll('.sidebar__badge')).toHaveLength(1)
     const badge = wrapper.find('.sidebar__badge')
     expect(badge.text()).toBe('11 件待處理')
     expect(badge.element.closest('a')!.getAttribute('href')).toBe('/visit-requests')
     expect(badge.attributes('title')).toBe('新需求 4 件、待園方確認 7 件')
+    for (const href of ['/notifications', '/releases']) {
+      expect(wrapper.find(`a[href="${href}"]`).exists()).toBe(true)
+      expect(wrapper.find(`a[href="${href}"] .sidebar__badge`).exists()).toBe(false)
+    }
   })
 
   it('30 秒內換頁不重抓，強制重抓才會打 API；讀不到時保留原數字', async () => {

@@ -78,7 +78,7 @@ WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhos
 
 ## 保存政策 / 資料清理（2026-09-26 改為後台可設定並持久化）
 
-政策存在單列表 `retention_policies`，後台「全站設定 → 個資保存政策」可調整，三個天數各自 30–3650 天、預設都是 365：
+政策存在單列表 `retention_policies`，後台「個資與搜尋設定 → 個資保存政策」（2026-09-29 前叫「全站設定」）可調整，三個天數各自 30–3650 天、預設都是 365：
 
 - `cancelled_days`：用於已取消與未到場案件。
 - `completed_days`：用於已完成案件。

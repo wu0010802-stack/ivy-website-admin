@@ -340,7 +340,7 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     expect(wrapper.find('section.reschedule').text()).toContain('陳媽媽')
   })
 
-  it('側欄的站內通知旁顯示待核准改期數，總覽列出待辦', async () => {
+  it('待核准改期列在總覽待辦；側欄的站內通知不掛數字（只有參觀案件掛）', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: DashboardView }, { path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
@@ -353,12 +353,14 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     wrappers.push(dashboard); await flushPromises()
     expect(dashboard.text()).toContain('家長申請改期，等你核准')
     expect(dashboard.find('a.dash__primary').text()).toContain('核准改期申請')
-    expect(useOpenRequestsStore(pinia).reschedules).toBe(3)
 
+    useOpenRequestsStore(pinia).apply({ new_requests: 1, awaiting_confirmation: 0, pending_reschedule_requests: 3 } as never)
     const sidebar = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(sidebar); await flushPromises()
-    const badge = sidebar.findAll('.sidebar__badge').find(b => b.element.closest('a')!.getAttribute('href') === '/notifications')!
-    expect(badge.text()).toBe('3 件改期待核准')
+    const badgeLinks = sidebar.findAll('.sidebar__badge').map(b => b.element.closest('a')!.getAttribute('href'))
+    expect(badgeLinks).toEqual(['/visit-requests'])
+    const notifications = sidebar.findAll('a').find(a => a.attributes('href') === '/notifications')!
+    expect(notifications.text()).toBe('站內通知')
   })
 })
 
