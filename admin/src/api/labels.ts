@@ -466,6 +466,7 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   reschedule_superseded: '家長的改期申請失效（園方已直接改期）',
   access_link_created: '產生家長管理連結',
   access_link_revoked: '撤銷家長管理連結',
+  details_updated: '家長修改資料',
 }
 
 export function visitEventLabel(eventType: string): string {

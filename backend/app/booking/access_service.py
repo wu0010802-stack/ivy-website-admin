@@ -233,81 +233,28 @@ class RescheduleNotAllowed(Exception):
         super().__init__(message)
 
 
-async def create_reschedule_request(
+async def validate_parent_reschedule(
     db: AsyncSession, visit_request: VisitRequest, requested_slot_id: uuid.UUID
-) -> RescheduleRequest:
-    """只建立待核准紀錄，不動任何時段——真正改期要等園方在 admin 端核准。
-
-    但「不動時段」不代表可以不驗證：原本直接把家長傳來的 UUID 寫進去，
-    不存在的 slot 會撞 FK 變成 500，別校的 slot 則會建立一筆永遠卡在
-    pending、園方核准時才炸的申請。驗證條件與初次預約共用同一份判準。
-
-    同一個交易寫歷程與 outbox（visit_reschedule_requested）：園方要從站內
-    通知、側欄與總覽的待核准數知道有人申請，不是等核准後才看到。"""
-    # 先鎖住案件列並重讀狀態：同一案件的並行申請排隊（否則兩個交易都看
-    # 不到對方尚未提交的 pending，會各自建立一筆），也不會替剛被園方取消
-    # 的案件建立申請。
+) -> VisitSlot:
+    """家長直接改期前的檢查（名額與鎖在 workflow_service.reschedule 內再驗一次）。"""
     await db.refresh(visit_request, attribute_names=["status", "slot_id"], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
-        raise RescheduleNotAllowed(
-            "INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能申請改期"
-        )
+        raise RescheduleNotAllowed("INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能改期")
     campus = await db.get(Campus, visit_request.campus_key)
     if campus is not None and not campus.active:
-        # 停用的分校停止公開預約（規格 3.2）：公開時段不列，家長頁也不給改期。
         raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，請來電洽詢")
-
-    result = await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))
-    slot = result.scalar_one_or_none()
+    slot = (await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))).scalar_one_or_none()
     if slot is None or slot.campus_key != visit_request.campus_key:
         # 不區分「不存在」與「別校的」，避免用回應差異探測其他校的時段。
         raise RescheduleNotAllowed("SLOT_NOT_FOUND", "找不到這個時段")
     if slot.closed:
-        raise RescheduleNotAllowed("SLOT_CLOSED", "這個時段已關閉")
+        raise RescheduleNotAllowed("SLOT_CLOSED", "這個時段已停止申請")
     config = await db.get(BookingConfig, visit_request.campus_key)
     if not slot_service.is_publicly_bookable(slot, **slot_service.window_for(config)):
         raise RescheduleNotAllowed("SLOT_NOT_BOOKABLE", "這個時段目前無法預約")
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")
-
-    existing = await db.execute(
-        select(RescheduleRequest).where(
-            RescheduleRequest.visit_request_id == visit_request.id,
-            RescheduleRequest.status == "pending",
-        )
-    )
-    if existing.scalars().first() is not None:
-        raise RescheduleNotAllowed("RESCHEDULE_PENDING", "已經有一筆改期申請正在等待園方確認")
-
-    record = RescheduleRequest(
-        id=uuid.uuid4(),
-        visit_request_id=visit_request.id,
-        requested_slot_id=requested_slot_id,
-        status="pending",
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(record)
-    history.record_event(
-        db,
-        visit_request.id,
-        "reschedule_requested",
-        actor=history.PARENT,
-        before={"slot": history.slot_brief(await history.load_slot(db, visit_request.slot_id))},
-        after={"slot": history.slot_brief(slot)},
-    )
-    enqueue_outbox(
-        db,
-        visit_request.id,
-        RESCHEDULE_REQUESTED_KIND,
-        {
-            "campus_key": visit_request.campus_key,
-            "receipt_id": str(visit_request.id),
-            "reschedule_request_id": str(record.id),
-        },
-    )
-    await db.flush()
-    return record
-
+    return slot
 
 
 async def close_pending_reschedules(

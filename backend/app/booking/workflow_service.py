@@ -465,3 +465,30 @@ async def assign(
     )
     await db.flush()
     return visit_request
+
+
+EDITABLE_BY_PARENT = ("parent_name", "phone", "email", "child_name", "child_birthdate", "party_size", "questions")
+
+
+async def update_details_by_parent(
+    db: AsyncSession, visit_request: VisitRequest, changes: dict, *, expected_version: int
+) -> list[str]:
+    """家長從修改連結改資料。歷程只記改了哪些欄位，不記內容（歷程不放個資）。
+    回傳實際改變的欄位；沒有變化就什麼都不寫。"""
+    await db.refresh(
+        visit_request, attribute_names=["status", "version", *EDITABLE_BY_PARENT], with_for_update=True
+    )
+    if visit_request.status != VisitRequestStatus.CONFIRMED.value:
+        raise InvalidTransition(f"狀態 {visit_request.status} 的案件不能修改資料")
+    if visit_request.version != expected_version:
+        raise VersionConflict(visit_request.version)
+    changed = [f for f in EDITABLE_BY_PARENT if f in changes and getattr(visit_request, f) != changes[f]]
+    if not changed:
+        return []
+    for field in changed:
+        setattr(visit_request, field, changes[field])
+    visit_request.version += 1
+    history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    await db.flush()
+    return changed

@@ -23,6 +23,8 @@ from app.booking.parent_policy import change_deadline_hours, parent_change_open
 from app.common import ratelimit
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
+    ParentDetailsUpdate,
+    ParentRescheduleRequest,
     ParentVisitRequestOut,
     RescheduleDecisionRequest,
     RescheduleRequestOut,
@@ -64,12 +66,6 @@ class TokenExchangeRequest(BaseModel):
 class ParentCancelRequest(BaseModel):
     # 家長頁畫面上的案件；對不上目前 session 的案件就拒絕（_require_same_visit_request）。
     visit_request_id: uuid.UUID
-
-
-class RescheduleRequestCreate(BaseModel):
-    new_slot_id: uuid.UUID
-    # 同 ParentCancelRequest；舊版官網沒帶，見 _require_same_visit_request。
-    visit_request_id: uuid.UUID | None = None
 
 
 async def _require_parent_session(
@@ -188,30 +184,96 @@ async def parent_cancel(
     return await _parent_output(db, visit_request)
 
 
-@router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_parent_request)])
-async def parent_request_reschedule(
-    payload: RescheduleRequestCreate,
+@router.post("/public/visit-manage/reschedule-request", include_in_schema=False)
+async def parent_request_reschedule_retired() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"code": "ENDPOINT_RETIRED", "message": "改期已改成直接選新場次，請重新整理頁面"},
+    )
+
+
+def _conflict(code: str, message: str, **extra) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": code, "message": message, **extra})
+
+
+@router.post(
+    "/public/visit-manage/reschedule",
+    response_model=ParentVisitRequestOut,
+    dependencies=[Depends(require_parent_request)],
+)
+async def parent_reschedule(
+    payload: ParentRescheduleRequest,
     response: Response,
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
+) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     _require_same_visit_request(visit_request, payload.visit_request_id)
     await require_change_window(db, visit_request)
     try:
-        record = await access_service.create_reschedule_request(
-            db, visit_request, payload.new_slot_id
-        )
+        await access_service.validate_parent_reschedule(db, visit_request, payload.slot_id)
+        await workflow_service.reschedule(db, visit_request, payload.slot_id, actor=PARENT)
     except access_service.RescheduleNotAllowed as exc:
         await db.rollback()
-        code = status.HTTP_404_NOT_FOUND if exc.code == "SLOT_NOT_FOUND" else status.HTTP_409_CONFLICT
+        if exc.code == "SLOT_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail={"code": exc.code, "message": exc.message}
+            ) from exc
+        raise _conflict(exc.code, exc.message) from exc
+    except workflow_service.SlotNotFound as exc:
+        await db.rollback()
         raise HTTPException(
-            status_code=code, detail={"code": exc.code, "message": exc.message}
+            status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SLOT_NOT_FOUND", "message": "找不到這個時段"}
+        ) from exc
+    except workflow_service.SlotClosed as exc:
+        await db.rollback()
+        raise _conflict("SLOT_CLOSED", "這個場次已停止申請") from exc
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise _conflict("SLOT_FULL", "這個場次剛好額滿了，請選擇其他場次") from exc
+    except slot_service.SlotNotBookable as exc:
+        await db.rollback()
+        raise _conflict("SLOT_NOT_BOOKABLE", "這個場次目前無法預約") from exc
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _conflict("INVALID_TRANSITION", exc.message) from exc
+    await db.commit()
+    await db.refresh(visit_request, attribute_names=["slot"])
+    return await _parent_output(db, visit_request)
+
+
+@router.patch(
+    "/public/visit-manage/me",
+    response_model=ParentVisitRequestOut,
+    dependencies=[Depends(require_parent_request)],
+)
+async def parent_update_details(
+    payload: ParentDetailsUpdate,
+    response: Response,
+    session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
+    db: AsyncSession = Depends(get_db_session),
+) -> ParentVisitRequestOut:
+    response.headers["Cache-Control"] = "private, no-store"
+    visit_request = await _require_parent_session(db, session_token)
+    _require_same_visit_request(visit_request, payload.visit_request_id)
+    await require_change_window(db, visit_request)
+    try:
+        await workflow_service.update_details_by_parent(
+            db, visit_request, payload.changes(), expected_version=payload.expected_version
+        )
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _conflict("INVALID_TRANSITION", exc.message) from exc
+    except workflow_service.VersionConflict as exc:
+        await db.rollback()
+        raise _conflict(
+            "VISIT_REQUEST_VERSION_CONFLICT",
+            "這筆預約剛被修改過，請重新載入後再改",
+            current_version=exc.current_version,
         ) from exc
     await db.commit()
-    return {"id": str(record.id), "status": record.status}
+    return await _parent_output(db, visit_request)
 
 
 # ---------------------------------------------------------------------------

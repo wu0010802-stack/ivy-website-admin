@@ -497,11 +497,59 @@ class VisitRequestDetailOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def _mask_phone(phone: str) -> str:
-    """規格 6.4：家長頁只顯示遮罩手機。保留前 4 碼與後 3 碼供本人辨識。"""
-    if len(phone) < 7:
-        return "*" * len(phone)
-    return f"{phone[:4]}***{phone[-3:]}"
+class ParentRescheduleRequest(BaseModel):
+    visit_request_id: uuid.UUID
+    slot_id: uuid.UUID
+
+
+class ParentDetailsUpdate(BaseModel):
+    """家長自己修改的欄位；只送有改的欄位。必填欄位不能清空。"""
+
+    visit_request_id: uuid.UUID
+    expected_version: int
+    parent_name: str | None = Field(default=None, min_length=1, max_length=64)
+    phone: str | None = None
+    email: EmailStr | None = Field(default=None, max_length=254)
+    child_name: str | None = Field(default=None, min_length=1, max_length=64)
+    child_birthdate: date | None = None
+    party_size: int | None = Field(default=None, ge=1, le=10)
+    questions: str | None = Field(default=None, max_length=500)
+
+    @field_validator("parent_name", "child_name", mode="before")
+    @classmethod
+    def _strip(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("parent_name", "child_name", "questions")
+    @classmethod
+    def _no_control_chars(cls, value):
+        return _reject_control_chars(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value) if value is not None else value
+
+    @field_validator("child_birthdate")
+    @classmethod
+    def _birthdate_not_future(cls, value: date | None) -> date | None:
+        if value is not None and value > today_local():
+            raise ValueError("寶貝出生日期不能晚於今天")
+        return value
+
+    @model_validator(mode="after")
+    def _required_stay_filled(self):
+        for field in ("parent_name", "phone", "email", "child_name", "party_size"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} 不能清空")
+        return self
+
+    def changes(self) -> dict:
+        return {
+            field: getattr(self, field)
+            for field in self.model_fields_set
+            if field not in {"visit_request_id", "expected_version"}
+        }
 
 
 class ParentVisitRequestOut(BaseModel):
@@ -512,7 +560,15 @@ class ParentVisitRequestOut(BaseModel):
     id: uuid.UUID
     campus_key: str
     status: str
-    phone_masked: str
+    parent_name: str
+    phone: str
+    email: str | None = None
+    child_name: str | None = None
+    child_birthdate: date | None = None
+    party_size: int | None = None
+    questions: str | None = None
+    # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。
+    version: int
     slot: VisitSlotBriefOut | None = None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
@@ -523,6 +579,7 @@ class ParentVisitRequestOut(BaseModel):
     change_deadline_hours: int
     can_cancel: bool
     can_reschedule: bool
+    can_edit: bool = False
     reschedule_pending: bool = False
     # 預約的分校。停用的分校不在公開內容裡（官網沒有它的分校頁與預約頁），家長
     # 管理頁靠這三欄顯示校名、「暫停開放」與電話，不改列其他校區。校名與電話取自
@@ -549,7 +606,14 @@ class ParentVisitRequestOut(BaseModel):
             campus_active=campus_active,
             campus_phone=campus_phone,
             status=visit_request.status,
-            phone_masked=_mask_phone(visit_request.phone),
+            parent_name=visit_request.parent_name,
+            phone=visit_request.phone,
+            email=visit_request.email,
+            child_name=visit_request.child_name,
+            child_birthdate=visit_request.child_birthdate,
+            party_size=visit_request.party_size,
+            questions=visit_request.questions,
+            version=visit_request.version,
             slot=(
                 VisitSlotBriefOut.model_validate(visit_request.slot)
                 if visit_request.slot is not None
@@ -564,6 +628,7 @@ class ParentVisitRequestOut(BaseModel):
             can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
             # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
             can_reschedule=visit_request.status == "confirmed" and change_open and campus_active,
+            can_edit=visit_request.status == "confirmed" and change_open and campus_active,
         )
 
 
