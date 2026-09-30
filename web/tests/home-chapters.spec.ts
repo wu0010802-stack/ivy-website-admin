@@ -1,29 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ancestorIds, chapterAt, chapterForHref } from '../app/utils/homeChapters'
+import { chapterForHref } from '../app/utils/homeChapters'
 import { canMorphCampusPhoto, isPlainLeftClick } from '../app/utils/campusPhotoMorph'
-
-const CHAPTERS = ['about', 'life', 'latest-news', 'campuses']
-
-describe('chapterAt', () => {
-  it('取最近的章節祖先（章節元件是巢狀的）', () => {
-    expect(chapterAt(['print-3', 'life', 'about'], CHAPTERS)).toBe(1)
-    expect(chapterAt(['campuses', 'latest-news', 'life', 'about'], CHAPTERS)).toBe(3)
-  })
-
-  it('首屏或頁尾不屬於任何章節', () => {
-    expect(chapterAt(['home-title', 'main'], CHAPTERS)).toBe(-1)
-    expect(chapterAt([], CHAPTERS)).toBe(-1)
-  })
-})
-
-describe('ancestorIds', () => {
-  it('由內往外收集有 id 的祖先', () => {
-    const node = (id: string, parentElement: unknown) => ({ id, parentElement }) as unknown as Element
-    const leaf = node('', node('life', node('', node('about', null))))
-    expect(ancestorIds(leaf)).toEqual(['life', 'about'])
-    expect(ancestorIds(null)).toEqual([])
-  })
-})
 
 describe('campusPhotoMorph', () => {
   const doc = (supported: boolean) => ({ startViewTransition: supported ? () => ({}) : undefined }) as unknown as Document
@@ -49,7 +26,7 @@ describe('chapterForHref', () => {
   const origin = 'https://ivy.example'
   const chapters = [{ id: 'about' }, { id: 'life', after: '.belief-reveal-track' }]
 
-  it('頁尾的 /#life 與章節指示的 #life 都接手', () => {
+  it('頁尾的 /#life 與站內的 #life 都接手', () => {
     expect(chapterForHref('/#life', origin, chapters)?.id).toBe('life')
     expect(chapterForHref('#life', origin, chapters)?.id).toBe('life')
     expect(chapterForHref(`${origin}/#life`, origin, chapters)?.id).toBe('life')

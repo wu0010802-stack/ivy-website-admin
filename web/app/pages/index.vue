@@ -11,18 +11,18 @@ useHead({
 const root = ref<HTMLElement | null>(null)
 const footer = ref<HTMLElement | null>(null)
 useHomeFooterFade(root, footer)
-// 章節指示的順序照畫面由上而下（最新消息的紙是從五校後面蓋上來的，所以排最後）；孩子的一天是深色影片底，指示改白色。
+// 首頁章節錨點。錨點會落在簾幕擦除前的章節設 after（前一道簾幕的 track）。
 const chapters = computed(() => {
   const content = data.value?.content
   if (!content) return []
   return [
-    { id: content.home.about.anchorId, label: '關於常春藤' },
-    { id: content.dayExperience.sectionId, label: '孩子的一天', dark: true, after: '.belief-reveal-track' },
-    { id: 'campuses', label: '五所校園' },
-    { id: content.news.sectionId, label: '最新消息' }
+    { id: content.home.about.anchorId },
+    { id: content.dayExperience.sectionId, after: '.belief-reveal-track' },
+    { id: 'campuses' },
+    { id: content.news.sectionId }
   ]
 })
-// 頁尾「孩子的一天」等連到首頁章節的連結，捲到簾幕擦完的位置（章節指示也走這裡）。
+// 頁尾「孩子的一天」等連到首頁章節的連結，捲到簾幕擦完的位置。
 useChapterAnchors(chapters)
 </script>
 
@@ -41,7 +41,6 @@ useChapterAnchors(chapters)
       </HeroVideo>
     </main>
     <div ref="footer" class="home-footer"><SiteFooter :content="data.content" /></div>
-    <HomeChapters :chapters="chapters" />
     <EntranceCurtain />
   </div>
 </template>

@@ -2,7 +2,7 @@ import { chapterForHref, type ChapterAnchor } from '~/utils/homeChapters'
 
 /**
  * 首頁有些章節的錨點落在前一道簾幕擦除之前（例如 #life：錨點到了，畫面仍是「關於」）。
- * 章節設了 after（前一道簾幕的 track）時，連到它的站內連結（頁尾、章節指示）與帶著 hash 進站，
+ * 章節設了 after（前一道簾幕的 track）時，連到它的站內連結（例如頁尾）與帶著 hash 進站，
  * 都改成先照錨點捲、再補到那道簾幕擦完的位置。其他錨點不經過這裡。
  */
 export function scrollPastCurtain(chapter: ChapterAnchor): boolean {
