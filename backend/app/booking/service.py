@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import consent, history, readiness, slot_service
+from app.booking import access_service, consent, history, readiness, slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
@@ -309,6 +309,7 @@ async def submit_visit_request(
     hash_key: bytes,
     consent_revision_id: uuid.UUID | None = None,
     phone_limit: tuple[int, timedelta] | None = None,
+    access_secret: str,
 ) -> tuple[VisitRequest, bool]:
     """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
     payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
@@ -431,6 +432,7 @@ async def submit_visit_request(
         actor=history.PARENT,
         after={"status": status, "slot": history.slot_brief(slot)},
     )
+    await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
     enqueue_outbox(
         db,
         visit_request.id,

@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import attention, consent, presenters, readiness, service, slot_service, turnstile, workflow_service
+from app.booking import access_service, attention, consent, presenters, readiness, service, slot_service, turnstile, workflow_service
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
 from app.common import ratelimit
@@ -345,6 +345,12 @@ def _trusted_client_ip_header(request: Request) -> str | None:
     return ratelimit.trusted_client_ip(request)
 
 
+async def _manage_path(db: AsyncSession, request: Request, visit_request_id: uuid.UUID) -> str | None:
+    return await access_service.current_manage_path(
+        db, visit_request_id, secret=request.app.state.settings.session_secret
+    )
+
+
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
 async def create_visit_request(
     payload: VisitRequestCreate,
@@ -367,6 +373,7 @@ async def create_visit_request(
     連線）時再向連線池要連線，匿名併發就能讓鎖與連線池互等、卡死整個
     API；所以 3–6 做完先結束讀取交易、歸還連線，7 之後到 commit 前完全
     不碰限流器。"""
+    response.headers["Cache-Control"] = "no-store"
     if idempotency_key.startswith(RESERVED_IDEMPOTENCY_PREFIXES):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -413,7 +420,10 @@ async def create_visit_request(
             raise _submit_error(exc) from exc
         # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
         out = None if replay is None else VisitRequestOut(
-            receipt_id=replay.id, status=replay.status, created_at=replay.created_at
+            receipt_id=replay.id,
+            status=replay.status,
+            created_at=replay.created_at,
+            manage_path=await _manage_path(db, request, replay.id),
         )
         await db.rollback()
         if out is not None:
@@ -426,7 +436,12 @@ async def create_visit_request(
         )
         if replay is not None:
             response.status_code = status.HTTP_200_OK
-            return VisitRequestOut(receipt_id=replay.id, status=replay.status, created_at=replay.created_at)
+            return VisitRequestOut(
+                receipt_id=replay.id,
+                status=replay.status,
+                created_at=replay.created_at,
+                manage_path=await _manage_path(db, request, replay.id),
+            )
         holds_slot = await service.precheck_submission(
             db,
             campus_key=payload.campus_key,
@@ -525,10 +540,16 @@ async def create_visit_request(
             phone_limit=(
                 SUBMIT_LIMIT_BY_PHONE.max_per_window, timedelta(seconds=SUBMIT_LIMIT_BY_PHONE.window_seconds)
             ),
+            access_secret=settings.session_secret,
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
         raise _submit_error(exc) from exc
+    # commit 會讓 ORM 物件過期，先取出回應要的欄位；連結由 id 與密鑰重算，
+    # 新建與重播回的是同一條。
+    receipt_id = visit_request.id
+    receipt_status = visit_request.status
+    created_at = visit_request.created_at
     await db.commit()
 
     if is_new:
@@ -539,7 +560,10 @@ async def create_visit_request(
             logger.warning("公開送單的手機限流計數寫入失敗", exc_info=True)
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return VisitRequestOut(
-        receipt_id=visit_request.id, status=visit_request.status, created_at=visit_request.created_at
+        receipt_id=receipt_id,
+        status=receipt_status,
+        created_at=created_at,
+        manage_path=await _manage_path(db, request, receipt_id),
     )
 
 
@@ -1118,6 +1142,9 @@ async def create_manual_visit_request(
         except slot_service.SlotNotBookable as exc:
             await db.rollback()
             raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
+        await access_service.ensure_access_token(
+            db, visit_request.id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+        )
         if payload.note and payload.note.strip():
             await workflow_service.add_contact_note(
                 db,
@@ -1327,6 +1354,7 @@ async def assign_visit_request(
 async def confirm_visit_request(
     visit_request_id: uuid.UUID,
     payload: VisitRequestConfirmRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
@@ -1348,6 +1376,9 @@ async def confirm_visit_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
+    await access_service.ensure_access_token(
+        db, visit_request.id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,

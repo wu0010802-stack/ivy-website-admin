@@ -259,8 +259,9 @@ async def create_parent_access_link(
         )
 
     replaced = await access_service.active_access_token(db, visit_request_id) is not None
-    await access_service.revoke_access_for_visit_request(db, visit_request_id)
-    raw_token, expires_at = await access_service.create_access_token(db, visit_request_id)
+    raw_token, expires_at = await access_service.issue_access_token(
+        db, visit_request_id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+    )
     fragment = f"/visit/manage#token={raw_token}"
     origin = request.app.state.settings.admin_origin
     history.record_event(

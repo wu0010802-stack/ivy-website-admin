@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -14,8 +16,8 @@ from app.booking import history, slot_service
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import enqueue_outbox
 from app.campuses.models import Campus
+from app.common.timezones import slot_start_utc
 
-TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
 # 同一案件同時有效的家長 session 上限。連結可以重複兌換，每次都會新增
 # 一列；不設上限的話持有連結的人能無限累積資料列。家長正常使用（手機、
@@ -35,14 +37,42 @@ def _hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> tuple[str, datetime]:
-    """回傳 (原始 token, 到期時間)。原始 token 只有這一次拿得到。"""
-    raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
+# 修改連結的有效期：至少 14 天；參觀日較遠時延到參觀開始後 7 天。
+TOKEN_MIN_TTL = timedelta(days=14)
+TOKEN_AFTER_VISIT = timedelta(days=7)
+_ACCESS_KEY_LABEL = b"ivy-parent-access-v1"
+
+
+def _derive_raw(secret: str, token_id: uuid.UUID) -> str:
+    """原始 token 由伺服器密鑰與 token 列 id 算出：DB 只存雜湊，送單重播與寄信時
+    仍能重算出同一條連結；只有 DB 沒有密鑰算不出來。"""
+    key = hmac.new(secret.encode("utf-8"), _ACCESS_KEY_LABEL, hashlib.sha256).digest()
+    digest = hmac.new(key, token_id.bytes, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def token_expiry(slot: VisitSlot | None, now: datetime) -> datetime:
+    floor = now + TOKEN_MIN_TTL
+    if slot is None:
+        return floor
+    return max(floor, slot_start_utc(slot.slot_date, slot.start_time) + TOKEN_AFTER_VISIT)
+
+
+def manage_path(raw_token: str) -> str:
+    return f"/visit/manage#token={raw_token}"
+
+
+async def create_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+) -> tuple[str, datetime]:
+    """建一條修改連結，回傳 (原始 token, 到期時間)。呼叫端負責先撤銷舊連結。"""
     now = datetime.now(timezone.utc)
-    expires_at = now + TOKEN_TTL
+    token_id = uuid.uuid4()
+    raw_token = _derive_raw(secret, token_id)
+    expires_at = token_expiry(slot, now)
     db.add(
         ParentAccessToken(
-            id=uuid.uuid4(),
+            id=token_id,
             visit_request_id=visit_request_id,
             token_hash=_hash(raw_token),
             created_at=now,
@@ -51,6 +81,40 @@ async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> 
     )
     await db.flush()
     return raw_token, expires_at
+
+
+async def issue_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+) -> tuple[str, datetime]:
+    await revoke_access_for_visit_request(db, visit_request_id)
+    return await create_access_token(db, visit_request_id, secret=secret, slot=slot)
+
+
+async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
+    """目前有效連結的站內路徑；已撤銷、已過期，或是 2026-09-30 以前隨機產生（重算不出來）
+    的連結，回傳 None。"""
+    token = await active_access_token(db, visit_request_id)
+    if token is None:
+        return None
+    raw_token = _derive_raw(secret, token.id)
+    if not hmac.compare_digest(_hash(raw_token), token.token_hash):
+        return None
+    return manage_path(raw_token)
+
+
+async def ensure_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+) -> None:
+    if await current_manage_path(db, visit_request_id, secret=secret) is None:
+        await issue_access_token(db, visit_request_id, secret=secret, slot=slot)
+
+
+async def extend_token_expiry(db: AsyncSession, visit_request_id: uuid.UUID, slot: VisitSlot) -> None:
+    """改到較晚的場次時，連結跟著延長；不縮短已發出的期限。"""
+    token = await active_access_token(db, visit_request_id)
+    if token is not None:
+        token.expires_at = max(token.expires_at, token_expiry(slot, datetime.now(timezone.utc)))
+        await db.flush()
 
 
 async def revoke_access_for_visit_request(db: AsyncSession, visit_request_id: uuid.UUID) -> None:

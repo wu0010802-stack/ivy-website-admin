@@ -385,6 +385,8 @@ class VisitRequestOut(BaseModel):
     receipt_id: uuid.UUID
     status: str
     created_at: datetime
+    # 家長的修改連結（站內路徑，含 #token=）。已取消／已結案或連結已撤銷時為 None。
+    manage_path: str | None = None
 
 
 class VisitSlotOut(BaseModel):

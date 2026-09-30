@@ -284,6 +284,7 @@ async def reschedule(
         raise SlotFull()
 
     visit_request.slot = new_slot
+    await access_service.extend_token_expiry(db, visit_request.id, new_slot)
     history.record_event(
         db,
         visit_request.id,
