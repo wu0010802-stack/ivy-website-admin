@@ -1,4 +1,4 @@
-## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，尚未部署）
+## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/visit-e2e-20260930-round2/REPORT.md`。報告同樣在落後 main 的 `5e34c5d` 上測，四項都對 main 重新查證：三項仍在、一項 main 已修。
 
@@ -12,7 +12,7 @@
 
 驗證：backend 全套 pytest（獨立測試庫、先 `alembic upgrade head`）1034 項全過；web `nuxt typecheck`（無警告）、`npm run test:website` 64 檔 663 項；admin typecheck、vitest 49 檔 679 項；`npm run contract:check`；production build 的完整 stack e2e 61 項全過。未驗：Safari／iOS 實機、多分頁情境下的實際 LINE／Email 通知。
 
-## 2026-09-30 參觀表單：欄位填錯後第一次點擊落空（`fix/visit-consent-blur-20260930`，尚未部署）
+## 2026-09-30 參觀表單：欄位填錯後第一次點擊落空（`fix/visit-consent-blur-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/visit-e2e-20260930/REPORT.md` 的兩個 P3。該報告是在落後 main 364 個提交的 `feature/website-admin` 上測的，這裡都對 main 重新查證。
 

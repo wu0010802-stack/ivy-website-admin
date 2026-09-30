@@ -895,3 +895,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 第二次 run `36660936323`（`46379ee`）五個 job 全綠，Deploy Railway production 02:57:45–03:01:46 UTC。`/release.json` snapshot `b9fc3603d8534533eb46d3dafae6a5b655bde9a10ea78172855f7bd9f1f551b0`、`base_commit` `46379ee`、`web+api`、`created_at` 2026-09-30T02:58:07Z。
 - 部署後（唯讀、未登入）：`/`、`/campuses/yihua`、`/api/website/v1/health`、`/assets/yihua-exterior-v2.webp`、`/assets/og/yihua-exterior-v2.jpg`、2400w 衍生檔皆 200。Playwright（Chrome）1440（DPR2）／1920／390：首頁義華卡 `center 36%`、分校頁封面 `85% 16%`、`og:image` 為 `yihua-exterior-v2.jpg`，選到的衍生檔依序 2400／1600／1200（封面 2820／2000／1200），0 page error；畫面從塔尖露到遊具與草地。正式站用的是 fixture 內建封面，後台沒有已發布的義華封面或焦點覆寫。
 - **未做**：Safari／iOS／Android 實機；後台素材庫若有 `import-site-assets --write-drafts` 產生的舊義華草稿（`enhanced-v1`、焦點 50/12），發布會蓋回舊圖，未查正式 DB。
+
+## 2026-09-30 參觀報名兩輪 E2E 修正（`fix/visit-e2e-20260930`，main CI 部署）
+
+- 使用者要求上線。分支從 origin/main 開，rebase 兩次（README 頂部衝突，兩段都保留）後 fast-forward 推上：`96e3f02..b74f525`（`5998ffc` 同意框／送出第一次點擊落空、`b74f525` 家長管理頁多分頁錯筆＋同 key 重送誤報額滿＋截止後操作列）。沒有 migration，依 `deploy/CICD.md` 不需先備份正式 DB。
+- API 相容：CD 先部署 API 再部署 web。家長取消／改期的 `visit_request_id` 做成選填（有帶才比對），部署前開著的舊版家長頁與 web 上線前的空窗照常可用。
+- 推送前本機驗證：backend pytest 1034 項全過；web typecheck、vitest 64 檔 663 項；admin typecheck、vitest 49 檔 679 項；`contract:check`；production build 的 stack e2e 61 項全過。
+- run `36664641812`（`b74f525`）五個 job 全綠，Deploy Railway production 03:48:52–03:52:14 UTC。`/release.json` snapshot `03c857670339f4ac38c2913f985a57e29d2e05ec937330a39f5936c223f6d1f3`、`base_commit` `b74f525`、`web+api`、`created_at` 2026-09-30T03:49:14Z。
+- 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/visit/minghua`、`/visit/manage`、`/admin/login` 皆 200；正式站 `/visit/manage` 與 `/visit/minghua` 引用的 JS 含 `PARENT_SESSION_CHANGED`、多分頁提示文字、`visit_request_id` 與同意框的 `contextmenu` 釋放處理，確認是新版前端。
+- **未做**：Safari／iOS 實機；正式站沒有送出預約、沒有開家長管理連結，多分頁與截止情境只在本機 stack 驗過。
