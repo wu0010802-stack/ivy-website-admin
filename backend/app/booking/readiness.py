@@ -61,7 +61,7 @@ NO_SLOTS_OR_RULES = NotReadyReason(
 )
 
 # 家長在官網填表的方式：要有已發布的同意文字才能收件。
-FORM_MODES = (BookingMode.INQUIRY, BookingMode.SLOTS)
+FORM_MODES = (BookingMode.SLOTS,)
 
 
 def field_blockers(

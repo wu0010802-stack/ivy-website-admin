@@ -119,7 +119,6 @@ class BookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
-    slots_auto_confirm: bool
     # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
     parent_change_deadline_hours: int
 
@@ -135,9 +134,6 @@ class BookingConfigUpdateRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     external_url: str | None = Field(default=None, max_length=500)
     message: str | None = Field(default=None, max_length=500)
-    # 規格 197／222：slots 預設為人工確認（家長看到「待園方確認」），
-    # 園方要自動確認才明確打開。
-    slots_auto_confirm: bool = False
     # 省略＝維持原設定（沒有這個欄位的舊版後台存檔時不會把它改回預設）。
     parent_change_deadline_hours: int | None = Field(
         default=None, ge=MIN_CHANGE_DEADLINE_HOURS, le=MAX_CHANGE_DEADLINE_HOURS
@@ -213,7 +209,6 @@ class PublicBookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
-    slots_auto_confirm: bool
     # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
     # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
     # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
@@ -262,7 +257,6 @@ class _VisitRequestFields(BaseModel):
     @classmethod
     def _time_code(cls, value):
         return _label_to_code(value, CONTACT_TIME_LABELS)
-    slot_id: uuid.UUID | None = None  # mode=slots 時必填
 
     @field_validator("parent_name")
     @classmethod
@@ -304,6 +298,9 @@ class _VisitRequestFields(BaseModel):
 
 
 class VisitRequestCreate(_VisitRequestFields):
+    # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
+    email: EmailStr = Field(max_length=254)
+    slot_id: uuid.UUID
     config_version: int
     # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
     # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
@@ -325,8 +322,8 @@ class VisitRequestManualCreate(_VisitRequestFields):
     家長說明並取得同意留存資料」，同樣必須為 true。"""
 
     source: ManualVisitSource
-    # 選填：當場就排定時段時直接確認，走與一般確認相同的容量檢查。
-    slot_id: uuid.UUID | None = None
+    # 必填：補登一律直接排入場次，走與一般確認相同的容量檢查。
+    slot_id: uuid.UUID
     # 選填：第一筆聯絡紀錄（例如「家長來電，想週六參觀」）。
     note: str | None = Field(default=None, max_length=1000)
     # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
@@ -482,6 +479,7 @@ class VisitRequestDetailOut(BaseModel):
     assigned_staff_id: uuid.UUID | None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
+    cancel_reason: str | None = None
     follow_up_at: datetime | None
     hold_expires_at: datetime | None = None
     source: VisitSource = "web"

@@ -117,6 +117,14 @@ async def update_booking_config(
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+    if payload.mode == BookingMode.INQUIRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "BOOKING_MODE_RETIRED",
+                "message": "「填表後由園方聯絡」已停用，請改用自選場次，或暫停線上預約",
+            },
+        )
     config = await service.get_or_create_config(db, campus_key, for_update=True)
     before = service.config_snapshot(config)
 
@@ -131,7 +139,6 @@ async def update_booking_config(
             message=payload.message,
             expected_version=payload.expected_version,
             updated_by=current_user.id,
-            slots_auto_confirm=payload.slots_auto_confirm,
             parent_change_deadline_hours=payload.parent_change_deadline_hours,
         )
     except service.ConfigVersionConflict as exc:
@@ -241,6 +248,12 @@ async def get_public_booking_config(
                 if published.has_privacy_notice
                 else None
             ),
+        })
+    # 上線前的舊設定：填表待聯絡已退場，官網一律當成暫停。
+    if out.mode == BookingMode.INQUIRY:
+        out = out.model_copy(update={
+            "mode": BookingMode.PAUSED,
+            "message": out.message or "線上預約即將開放，歡迎來電洽詢。",
         })
     if not campus.active:
         # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，
@@ -1046,7 +1059,7 @@ async def create_manual_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    """人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
+    """人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡
     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
     人員改完再送一次即可。"""
     require_scope(current_user, "booking.handle", campus_keys=[payload.campus_key])
@@ -1095,17 +1108,16 @@ async def create_manual_visit_request(
                 db, related.id, "rebooked_as_new", actor=actor,
                 after={"related_request_id": str(visit_request.id)},
             )
-        if payload.slot_id is not None:
-            try:
-                await workflow_service.confirm_with_slot(
-                    db, visit_request, payload.slot_id, current_user.id
-                )
-            except workflow_service.SlotFull as exc:
-                await db.rollback()
-                raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
-            except slot_service.SlotNotBookable as exc:
-                await db.rollback()
-                raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
+        try:
+            await workflow_service.confirm_with_slot(
+                db, visit_request, payload.slot_id, current_user.id
+            )
+        except workflow_service.SlotFull as exc:
+            await db.rollback()
+            raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
+        except slot_service.SlotNotBookable as exc:
+            await db.rollback()
+            raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
         if payload.note and payload.note.strip():
             await workflow_service.add_contact_note(
                 db,
@@ -1514,20 +1526,9 @@ def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPExceptio
     )
 
 
-@router.post("/admin/visit-requests/{visit_request_id}/contacting", response_model=VisitRequestDetailOut)
-async def mark_contacting(
-    visit_request_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
-    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
-    before_status = visit_request.status
-    try:
-        await workflow_service.mark_contacting(db, visit_request, actor=Actor.staff(current_user.id))
-    except workflow_service.InvalidTransition as exc:
-        await db.rollback()
-        raise _invalid_transition(exc) from exc
-    await _audit_transition(db, current_user, visit_request, before_status, action="visit_request.contacting")
-    await db.commit()
-    await db.refresh(visit_request, attribute_names=["slot"])
-    return VisitRequestDetailOut.model_validate(visit_request)
+@router.post("/admin/visit-requests/{visit_request_id}/contacting", include_in_schema=False)
+async def mark_contacting_retired(visit_request_id: uuid.UUID) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"code": "ENDPOINT_RETIRED", "message": "「聯絡中」已停用，請直接排入場次或取消"},
+    )

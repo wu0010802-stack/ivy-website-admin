@@ -175,6 +175,8 @@ async def cancel(
     visit_request.status = VisitRequestStatus.CANCELLED.value
     visit_request.cancelled_at = datetime.now(timezone.utc)
     visit_request.hold_expires_at = None
+    reason_code = analytics_service.cancel_reason(actor)
+    visit_request.cancel_reason = reason_code
     await _close(db, visit_request, "cancelled", before=before, actor=actor, reason=reason)
     enqueue_outbox(
         db,
@@ -182,40 +184,7 @@ async def cancel(
         "visit_request_cancelled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
-    await analytics_service.record_cancelled(db, visit_request, reason=analytics_service.cancel_reason(actor))
-    await db.flush()
-    return visit_request
-
-
-async def mark_contacting(
-    db: AsyncSession, visit_request: VisitRequest, *, actor: Actor | None = None
-) -> VisitRequest:
-    """規格 6.2：new → contacting（園方開始聯絡）；pending_confirmation 退回
-    contacting 時釋放占位並清掉 slot_id／hold_expires_at。已是 contacting 直接
-    回傳，重送不重複寫歷程。"""
-    await _lock_status(db, visit_request)
-    if visit_request.status == VisitRequestStatus.CONTACTING.value:
-        return visit_request
-    before = await history.state_of(db, visit_request)
-    if visit_request.status == VisitRequestStatus.NEW.value:
-        visit_request.status = VisitRequestStatus.CONTACTING.value
-        event_type = "contacting"
-    elif visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value:
-        visit_request.status = VisitRequestStatus.CONTACTING.value
-        # 名額是依狀態即時算的，轉成 contacting 就等於釋放，不會重複釋放。
-        visit_request.slot = None
-        visit_request.hold_expires_at = None
-        event_type = "returned_to_contacting"
-    else:
-        raise InvalidTransition(f"狀態 {visit_request.status} 不能改成聯絡中")
-    history.record_event(
-        db,
-        visit_request.id,
-        event_type,
-        actor=actor,
-        before=before,
-        after={"status": visit_request.status, "slot": None},
-    )
+    await analytics_service.record_cancelled(db, visit_request, reason=reason_code)
     await db.flush()
     return visit_request
 
@@ -370,6 +339,7 @@ async def expire_holds(db: AsyncSession, *, limit: int = 100) -> int:
         before = await history.state_of(db, visit_request)
         visit_request.status = VisitRequestStatus.CANCELLED.value
         visit_request.cancelled_at = now
+        visit_request.cancel_reason = CANCEL_REASON_HOLD_EXPIRED
         visit_request.hold_expires_at = None
         await access_service.revoke_access_for_visit_request(db, visit_request.id)
         history.record_event(
