@@ -25,7 +25,7 @@
 
 **要做**
 - 公開官網：預約表單（Email 必填、拿掉「方便接電話時段」）、結果頁（預約成功＋修改連結＋寄信文案）、管理頁（改場次／改資料／取消）。
-- 後端：送出即成立、送單時發修改連結、家長直接改期與改資料 API、三種寄給家長的信、列表分組篩選、`cancelled_by`、補登必選場次、預約模式移除 `inquiry`。
+- 後端：送出即成立、送單時發修改連結、家長直接改期與改資料 API、三種寄給家長的信、列表分組篩選、`cancel_reason`、補登必選場次、預約模式移除 `inquiry`。
 - 後台：案件列表分頁與狀態欄、案件明細、各校預約方式、「參觀場次」頁（固定場次設定＋月曆，取代「時段與容量」與「接待月曆」兩頁）、補登對話框。
 - 一支 migration（改寫正式資料，上線前備份）。
 
@@ -88,7 +88,7 @@
   - 條件同改期（`confirmed`、截止前）。沒有實際變更時直接回目前資料，不寫歷程、不寄信。
   - 歷程事件 `details_updated`（actor=PARENT，before／after 只列有變的欄位）。不通知園方。
   - 有變更時排 `parent_visit_changed`，寄到**新的** Email。
-- `POST /public/visit-manage/cancel`：不變；另外寫 `cancelled_by=parent`。寄信由 `workflow_service.cancel` 統一排（§3.4）。
+- `POST /public/visit-manage/cancel`：不變；另外寫 `cancel_reason=parent`。寄信由 `workflow_service.cancel` 統一排（§3.4）。
 - `POST /public/visit-manage/reschedule-request`：停用，回 410 `ENDPOINT_RETIRED`。既有 pending 的 `reschedule_requests` 仍可在後台核准或退回（`access_routes.py:378`、`:433`）。
 
 ### 3.4 寄給家長的信
@@ -123,7 +123,7 @@
 
 ### 3.5 後台列表的分組與取消來源
 
-- `visit_requests.cancelled_by`：`String(16)`、nullable，值 `parent`／`staff`／`system`。取消時寫入：家長取消 `parent`、後台取消 `staff`、占位逾期 `system`（`workflow_service.expire_holds`，`:348`）。
+- `visit_requests.cancel_reason`：`String(16)`、nullable，值沿用 `app/operations/models.py` 的 `parent`／`staff`／`hold_expired`（不另訂 `system`）。取消時寫入：家長取消 `parent`、後台取消 `staff`、占位逾期 `hold_expired`（`workflow_service.expire_holds`，`:348`）。
 - 列表 `GET /admin/visit-requests` 新增 `group` 參數（與既有 `status` 參數擇一，`status` 保留相容）：
 
 | group | 條件 |
@@ -135,7 +135,7 @@
 
   - 場次開始時間用 `slot_start_utc`（Asia/Taipei 的日期＋開始時間）在 SQL 端計算，join `visit_slots`。
   - 新增 `GET /admin/visit-requests/group-counts`（套用同一組其他篩選，回四組筆數），供分頁數字使用。
-- `VisitRequestOut`（後台列表與明細）新增 `cancelled_by` 與 `display_status`（`pending`／`upcoming`／`past`／`cancelled`，同上表規則，由後端計算，前端不自行推導）。
+- `VisitRequestOut`（後台列表與明細）新增 `cancel_reason` 與 `display_status`（`pending`／`upcoming`／`past`／`cancelled`，同上表規則，由後端計算，前端不自行推導）。
 
 ### 3.6 後台端點調整
 
@@ -194,8 +194,8 @@
 - 狀態欄（依 `display_status`）：
   - `upcoming`：綠字「預約正常」。
   - `pending`：暖黃「待處理」；舊的 contacting 顯示「待處理・聯絡中」，pending_confirmation 顯示「待處理・待確認」。
-  - `past`：灰字「預約時間已過」；completed 加一行「已到場」，no_show 加一行「未到場」。
-  - `cancelled`：紅字「預約已取消」，第二行小字「家長取消：09-28 18:45」／「園方取消：…」／「逾期未確認：…」（`cancelled_by`＋`cancelled_at`；舊資料無來源時只寫「取消時間：…」）。
+  - `past`：灰字「預約時間已過」；completed 加一行「已到場」，no_show 加一行「未到場」，仍是 confirmed（還沒標記）的加一行「尚未確認到場」。之後的招生入學模組（`docs/specs/2026-09-30-website-admissions-design.md` §6.1）要靠「標記已到場」建立招生訪視，這行提示讓園方知道還有待確認的預約。
+  - `cancelled`：紅字「預約已取消」，第二行小字「家長取消：09-28 18:45」／「園方取消：…」／「逾期未確認：…」（`cancel_reason`＋`cancelled_at`；舊資料無來源時只寫「取消時間：…」）。
 - 「下一筆」與側欄數字只算 `pending` 組（舊資料清完就是 0）。
 - 顏色走既有 token，不寫字面值。
 
@@ -270,8 +270,8 @@
    - 所有列 `slots_auto_confirm = true`。
    - 有改動的列 `version = version + 1`，讓還開著舊表單的家長送出時收到 `BOOKING_CONFIG_CHANGED`。
    - 每一校的改動寫一筆 `audit_logs`（actor 為 system、action `booking_config.migrate_self_booking`，metadata 有 before／after）。
-2. `visit_requests.cancelled_by` 新增欄位；從 `visit_request_events` 回填：取每案最後一筆取消類事件，`hold_expired` → `system`，source=parent → `parent`，其餘 → `staff`。
-3. downgrade：只刪 `cancelled_by`；不把模式改回 `inquiry`（無法還原哪些是 migration 改的以外，也不應讓官網退回舊流程）。
+2. `visit_requests.cancel_reason` 新增欄位；從 `visit_request_events` 回填：取每案最後一筆取消類事件，`hold_expired` → `hold_expired`，source=parent → `parent`，source=staff → `staff`；舊歷程沒有 `source` 的回填為 NULL。
+3. downgrade：只刪 `cancel_reason`；不把模式改回 `inquiry`（無法還原哪些是 migration 改的以外，也不應讓官網退回舊流程）。
 
 ### 5.2 相容與上線順序
 
@@ -289,9 +289,9 @@
 - 家長改資料：版本衝突、欄位驗證、Email 不可清空、無變更不寫歷程、截止後 409、`PARENT_SESSION_CHANGED`。
 - 寄信：三種 kind 各自的觸發點（§3.4 表）；payload 不含 raw token；取消信沒有修改連結；無 Email／無 adapter 標 `skipped`；去重；sink adapter 內容含正確場次文字與連結。
 - 後台：補登必選場次並寄信；排入場次發連結與寄信；`/contacting` 410；`resend-confirmation`；`access-link` 重新產生並寄出；`BOOKING_MODE_RETIRED`。
-- 列表：`group` 四組條件（含場次剛好開始的邊界）、`group-counts`、`display_status`、`cancelled_by` 寫入。
+- 列表：`group` 四組條件（含場次剛好開始的邊界）、`group-counts`、`display_status`、`cancel_reason` 寫入。
 - 場次：`PUT visit-schedule` 後同一請求內已補好場次；園方手動停止申請的場次上的案件不列待人工處理、休假日的仍列。
-- Migration：inquiry→slots（有規則）／→paused（無規則，含訊息填入與不覆蓋既有訊息）、`version` 遞增、`cancelled_by` 回填。
+- Migration：inquiry→slots（有規則）／→paused（無規則，含訊息填入與不覆蓋既有訊息）、`version` 遞增、`cancel_reason` 回填。
 - 既有測試中依賴 inquiry、`slots_auto_confirm=false`、`mark_contacting`、`reschedule-request` 的案例改寫或移除，並在 PR 說明列出。
 
 **後台（vitest）**：列表分頁與狀態欄（四種 display_status 與取消來源）、`?status=` 轉 `?group=`、明細按鈕依狀態顯示、補登必選場次、預約設定頁無自動確認與無 inquiry、`labelCoverage` 含新 kind；參觀場次頁：規則⇄場次換算（含舊的多場區間規則來回不變、長度不一致）、套用常用場次、儲存並開放線上預約（readiness 通過與不通過、權限不足）、月曆色塊、停止／恢復／名額／整天休假／加開、接待人員唯讀、`/slots` 轉址。
@@ -311,7 +311,7 @@
    - 用學校網域寄件要先設 SPF／DKIM，否則易進垃圾信件匣。
    - 不設也能上線：家長只在畫面上看到連結，`parent_email_enabled=false`。
 2. **各校設定場次**：正式站上線本案後，各校到後台「參觀場次」按「套用常用場次」→ 調整 → 「儲存並開放線上預約」，一步完成。上線時還沒設場次的校會先顯示暫停（請來電），設好就開放；上線前若已在舊的「時段與容量」頁設好規則，migration 會直接切成自選場次。
-3. **同意文字**：確認各校已發布的預約同意文字提到「Email 用於寄送預約確認與修改連結」（實作時列出建議字句）。
+3. **同意文字**：確認各校已發布的預約同意文字提到「Email 用於寄送預約確認與修改連結」（實作時列出建議字句）。這次改版本來就要改同意文字，**建議同一次一起寫明參觀後的招生用途**：參觀後園方會依預約資料聯繫，並記錄入學意願與進度。之後的招生入學模組會把到場預約的孩子與聯絡資料複製成招生紀錄，保存期限另訂（`docs/specs/2026-09-30-website-admissions-design.md` §11、§15 Q1）。實際字句與保存天數由業主裁定；若業主決定招生用途另案處理，這一步只寫 Email。
 4. 上線前依備份閘門備份正式 DB；上線後唯讀檢查五校模式。
 5. 知悉：更換 `WEBSITE_SESSION_SECRET` 會讓家長的修改連結全部失效。
 

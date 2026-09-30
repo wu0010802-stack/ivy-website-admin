@@ -66,6 +66,7 @@ describe('案件狀態顯示（參考義華舊後台）', () => {
     expect(visitDisplay({ status: 'confirmed', display_status: 'upcoming' })).toMatchObject({ label: '預約正常', tone: 'success', sub: '' })
     expect(visitDisplay({ status: 'completed', display_status: 'past' })).toMatchObject({ label: '預約時間已過', sub: '已到場' })
     expect(visitDisplay({ status: 'no_show', display_status: 'past' }).sub).toBe('未到場')
+    expect(visitDisplay({ status: 'confirmed', display_status: 'past' }).sub).toBe('尚未確認到場')
     expect(visitDisplay({ status: 'contacting', display_status: 'pending' })).toMatchObject({ label: '待處理', sub: '聯絡中' })
   })
 
@@ -143,7 +144,8 @@ export function legacyStatusGroup(status: string): VisitGroup | '' {
 
 const CANCEL_REASON_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
 const PENDING_SUB: Record<string, string> = { contacting: '聯絡中', pending_confirmation: '待確認' }
-const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場' }
+// confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
+const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
 
 export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
   switch (row.display_status) {

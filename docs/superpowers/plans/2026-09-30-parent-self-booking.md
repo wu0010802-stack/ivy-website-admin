@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI 0.136.1（釘版）、SQLAlchemy 2.0 async＋asyncpg、Alembic、PostgreSQL、pytest＋pytest-asyncio；Nuxt 4＋Vue 3＋TS、vitest；後台 Vue 3＋Pinia＋Element Plus＋Vite、vitest＋@vue/test-utils＋jsdom；Playwright（stack e2e）。
 
-**Spec:** `docs/specs/2026-09-30-parent-self-booking-design.md`（實作前必讀；本計畫與規格衝突時以規格為準，並回報）。
+**Spec:** `docs/specs/2026-09-30-parent-self-booking-design.md`（實作前必讀；本計畫與規格衝突時以規格為準，並回報）。**例外**：階段計畫開頭「本階段對規格的技術調整」一節列出的項目，以該節為準，由 Task A9 回寫規格。取消原因欄位 `cancel_reason` 已於 2026-09-30 先回寫。
 
 ## 分階段（一次 session 只做一個階段，階段間有硬閘）
 
