@@ -10,7 +10,7 @@ from app.common.timezones import today_local
 from tests.test_visit_workflow import _enable_slots, _slot_payload
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
@@ -34,6 +34,17 @@ async def _set_rules(client, rules, campus="yihua", lead=24, advance=60):
 
 
 WED_MORNING = {"weekday": 2, "start_time": "09:00:00", "end_time": "10:30:00", "slot_minutes": 30, "capacity": 2}
+
+# 2026-09-30 起存每週規則當下就會把場次補到「最遠開放天數」（回應 slot_sync.created），
+# 不再等定期工作。下面的測試要讓存檔補出來的數量可預期，所以：
+# - 只驗產生邏輯、不訂位的，最遠開放天數設 1（存檔只補今天與明天，測的日期都在 3 天後）；
+# - 要訂位的，最遠開放天數設 4，並把規則掛在「3 天後」那天的星期（`_day_rule`），
+#   今天到 4 天後之間只有那一天符合，存檔補出的就恰好是那一天的場次。
+
+
+def _day_rule(day: date, **overrides) -> dict:
+    """指定日期那個星期的規則：09:00–10:30、每 30 分鐘 3 場、名額 2。"""
+    return {**WED_MORNING, "weekday": day.weekday(), **overrides}
 
 
 @pytest.mark.asyncio
@@ -79,7 +90,8 @@ async def test_rule_validation(admin_client):
 
 @pytest.mark.asyncio
 async def test_generate_slots_from_rules_is_idempotent(admin_client):
-    await _set_rules(admin_client, [WED_MORNING])
+    # 最遠開放天數 1：存檔只補今天與明天，3 天後以上的場次留給下面的產生來建。
+    await _set_rules(admin_client, [WED_MORNING], advance=1)
     wed = _next_weekday(2)
     gen = await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/generate",
@@ -102,7 +114,7 @@ async def test_generate_slots_from_rules_is_idempotent(admin_client):
 
 @pytest.mark.asyncio
 async def test_generate_skips_past_and_exception_days(admin_client):
-    await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)])
+    await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=1)
     holiday = today_local() + timedelta(days=5)
     exc = await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/exceptions",
@@ -112,13 +124,21 @@ async def test_generate_skips_past_and_exception_days(admin_client):
 
     start = today_local() - timedelta(days=3)
     end = today_local() + timedelta(days=6)
+    # 存檔當下已經補好的場次（今天還沒開始的、明天）：產生時算「已存在」。
+    already = await admin_client.get(
+        f"{API}/admin/slots?campus_key=yihua&date_from={today_local()}&date_to={end}"
+    )
+    assert already.status_code == 200, already.text
+    already_count = len(already.json())
+    assert 3 <= already_count <= 6
     gen = await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/generate",
         json={"date_from": start.isoformat(), "date_to": end.isoformat()},
     )
     body = gen.json()
-    # 今天到 +6 共 7 天，扣掉休假日 1 天 → 6 天 × 3 格。
-    assert body["created"] == 18
+    # 今天到 +6 共 7 天，扣掉休假日 1 天 → 6 天 × 3 格；其中存檔時補好的不再建。
+    assert body["created"] == 18 - already_count
+    assert body["skipped_existing"] == already_count
     assert body["skipped_exception_days"] == 1
     assert (await admin_client.get(f"{API}/admin/slots?campus_key=yihua&date_from={holiday}&date_to={holiday}")).json() == []
     past = (await admin_client.get(f"{API}/admin/slots?campus_key=yihua&date_from={start}&date_to={today_local() - timedelta(days=1)}")).json()
@@ -133,7 +153,7 @@ async def test_generate_skips_past_and_exception_days(admin_client):
 
 @pytest.mark.asyncio
 async def test_exception_closes_existing_slots_without_cancelling(admin_client, public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     await _set_rules(admin_client, [WED_MORNING])
     wed = _next_weekday(2)
     await admin_client.post(
@@ -172,7 +192,7 @@ async def test_exception_closes_existing_slots_without_cancelling(admin_client, 
 
 @pytest.mark.asyncio
 async def test_public_window_follows_campus_settings(admin_client):
-    await _enable_slots(admin_client, auto_confirm=True)
+    await _enable_slots(admin_client)
     near = date.today() + timedelta(days=2)
     created = await admin_client.post(
         f"{API}/admin/slots?campus_key=yihua",
@@ -251,11 +271,13 @@ async def test_removing_holiday_reopens_only_slots_it_closed(admin_client, db_se
 
 @pytest.mark.asyncio
 async def test_removing_holiday_fills_slots_skipped_while_it_existed(admin_client):
-    await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)])
+    # 先設休假日再存規則：存檔當下補場次時，休假日那天要被跳過（不會建了又關）。
     holiday = today_local() + timedelta(days=5)
     exc = await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": holiday.isoformat()}
     )
+    saved = await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)])
+    assert saved["slot_sync"]["created"] > 0
     await admin_client.post(
         f"{API}/admin/visit-schedule/yihua/generate",
         json={"date_from": today_local().isoformat(), "date_to": (today_local() + timedelta(days=6)).isoformat()},
@@ -271,35 +293,59 @@ def _cycle_settings(app):
     return app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
 
 
+async def _mark_extension_due(db_session, *, days_ago: int | None = None):
+    """模擬「隔了一天」：清掉 rules_extended_on（或記成幾天前），定期工作才會再補一次。
+    存檔當下已經補過並記下今天，不清掉的話當天的定期工作什麼都不會做。"""
+    from sqlalchemy import update
+
+    from app.booking.models import BookingConfig
+
+    value = None if days_ago is None else today_local() - timedelta(days=days_ago)
+    await db_session.execute(
+        update(BookingConfig).where(BookingConfig.campus_key == "yihua").values(rules_extended_on=value)
+    )
+    await db_session.commit()
+
+
 @pytest.mark.asyncio
-async def test_rules_extend_daily_up_to_max_advance_days(app, admin_client):
+async def test_rules_extend_daily_up_to_max_advance_days(app, admin_client, db_session):
+    from sqlalchemy import update
+
+    from app.booking.models import BookingConfig
     from app.workers.maintenance import run_cycle
 
-    await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=10)
     today = today_local()
-    # 園方手動調過的時段：名額改 5、其中一場關閉。自動補不能覆蓋或重建。
-    tweaked_day = today + timedelta(days=3)
-    await admin_client.post(
-        f"{API}/admin/visit-schedule/yihua/generate",
-        json={"date_from": tweaked_day.isoformat(), "date_to": tweaked_day.isoformat()},
-    )
-    tweaked = await _slots_on(admin_client, tweaked_day)
-    await admin_client.patch(f"{API}/admin/slots/{tweaked[0]['id']}", json={"capacity": 5, "expected_version": 1})
-    await admin_client.patch(f"{API}/admin/slots/{tweaked[1]['id']}", json={"closed": True, "expected_version": 1})
     holiday = today + timedelta(days=4)
     await admin_client.post(f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": holiday.isoformat()})
+    # 存檔當下就補到最遠開放天數（3 天）：今天還沒開始的場次到 3 天後。
+    saved = await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=3)
+    assert saved["slot_sync"]["created"] >= 9
+    assert saved["rules_extended_on"] == today.isoformat()
+    # 園方手動調過的時段：名額改 5、其中一場關閉。自動補不能覆蓋或重建。
+    tweaked_day = today + timedelta(days=3)
+    tweaked = await _slots_on(admin_client, tweaked_day)
+    assert len(tweaked) == 3
+    await admin_client.patch(f"{API}/admin/slots/{tweaked[0]['id']}", json={"capacity": 5, "expected_version": 1})
+    await admin_client.patch(f"{API}/admin/slots/{tweaked[1]['id']}", json={"closed": True, "expected_version": 1})
 
+    # 過了一天：最遠開放天數是 10 天，定期工作把後面的日子補上。
+    await db_session.execute(
+        update(BookingConfig)
+        .where(BookingConfig.campus_key == "yihua")
+        .values(max_advance_days=10, rules_extended_on=today - timedelta(days=1))
+    )
+    await db_session.commit()
     first = await run_cycle(app.state.session_factory, _cycle_settings(app), worker_id="test")
     assert first.failed_steps == []
-    # 明天到第 10 天共 10 天 × 3 場，扣掉休假日 3 場、已存在的 3 場；今天的場次
-    # 視測試執行時間可能已開始，不列入斷言。
-    assert first.slots_generated >= 24
+    # 第 5 到第 10 天共 6 天 × 3 場（第 4 天是休假日，前 3 天存檔時已補好）。
+    assert first.slots_generated == 18
 
     ahead = (
         await admin_client.get(
             f"{API}/admin/slots?campus_key=yihua&date_from={today + timedelta(days=1)}&date_to={today + timedelta(days=10)}"
         )
     ).json()
+    # 明天到第 10 天共 10 天 × 3 場，扣掉休假日 3 場。
     assert len(ahead) == 27
     assert await _slots_on(admin_client, holiday) == []
     assert (
@@ -314,13 +360,14 @@ async def test_rules_extend_daily_up_to_max_advance_days(app, admin_client):
     schedule = (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()
     assert schedule["rules_extended_on"] == today.isoformat()
 
-    # 同一天不再補；改了最遠開放天數就清掉標記，下一輪立刻依新設定補。
+    # 同一天不再補；改了最遠開放天數，存檔當下就依新設定補，不必等下一輪。
     second = await run_cycle(app.state.session_factory, _cycle_settings(app), worker_id="test")
     assert second.slots_generated == 0
     saved = await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=12)
-    assert saved["rules_extended_on"] is None
+    assert saved["slot_sync"]["created"] == 6
+    assert saved["rules_extended_on"] == today.isoformat()
     third = await run_cycle(app.state.session_factory, _cycle_settings(app), worker_id="test")
-    assert third.slots_generated == 6
+    assert third.slots_generated == 0
     assert len(await _slots_on(admin_client, today + timedelta(days=12))) == 3
 
 
@@ -328,7 +375,7 @@ async def test_rules_extend_daily_up_to_max_advance_days(app, admin_client):
 async def test_extension_skips_started_windows_inactive_campus_and_campus_without_rules(app, admin_client, db_session):
     from datetime import datetime, time, timezone
 
-    from sqlalchemy import func, select
+    from sqlalchemy import delete, func, select
 
     from app.booking import schedule_service
     from app.booking.models import VisitSlot
@@ -337,6 +384,10 @@ async def test_extension_skips_started_windows_inactive_campus_and_campus_withou
 
     await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=2)
     today = today_local()
+    # 存檔當下已依真實時間補過一輪；這個測試要用「假的 09:45」驗定期工作，先清成沒補過。
+    await db_session.execute(delete(VisitSlot).where(VisitSlot.campus_key == "yihua"))
+    await db_session.commit()
+    await _mark_extension_due(db_session)
     # 台灣時間 09:45：今天 09:00、09:30 已開始不建，10:00 還來得及。
     at = datetime.combine(today, time(9, 45), tzinfo=OPERATING_TZ).astimezone(timezone.utc)
     assert await schedule_service.extend_from_rules(db_session, "yihua", now=at) == 1 + 3 + 3
@@ -348,6 +399,7 @@ async def test_extension_skips_started_windows_inactive_campus_and_campus_withou
 
     # 停用中的分校不補；沒有規則的分校（明華）本來就不在名單上。
     await _set_rules(admin_client, [{**WED_MORNING, "weekday": d} for d in range(7)], advance=5)
+    await _mark_extension_due(db_session)  # 隔天：定期工作到期，但分校停用就不補。
     off = await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": False})
     assert off.status_code == 200
     try:
@@ -384,11 +436,16 @@ async def _generate(client, day):
 @pytest.mark.asyncio
 async def test_changing_slot_length_retires_unused_old_slots_without_overlap(admin_client, public_client, db_session):
     """審查情境：週三 09:00–10:30 每 30 分鐘已產生 09:00、09:30、10:00，改成每
-    45 分鐘後不能同時公開 09:00、09:30、09:45、10:00 四格。"""
-    await _set_rules(admin_client, [WED_MORNING])
-    version = await _enable_slots(admin_client, auto_confirm=True)
-    wed = _next_weekday(2)
-    assert (await _generate(admin_client, wed))["created"] == 3
+    45 分鐘後不能同時公開 09:00、09:30、09:45、10:00 四格。（規則掛在 3 天後那天的
+    星期，存檔補出的場次恰好是那一天，見檔頭說明。）"""
+    wed = today_local() + timedelta(days=3)
+    rule = _day_rule(wed)
+    first_save = await _set_rules(admin_client, [rule], advance=4)
+    assert first_save["slot_sync"]["created"] == 3
+    version = await _enable_slots(admin_client)
+    assert len(await _slots_on(admin_client, wed)) == 3
+    # 再產生一次不會多建（冪等）。
+    assert (await _generate(admin_client, wed))["created"] == 0
     # 園方在時段頁手動加開的場次不受改規則影響。
     manual = await admin_client.post(
         f"{API}/admin/slots?campus_key=yihua",
@@ -412,28 +469,32 @@ async def test_changing_slot_length_retires_unused_old_slots_without_overlap(adm
     cancelled = await admin_client.post(f"{API}/admin/visit-requests/{gone.json()['receipt_id']}/cancel")
     assert cancelled.status_code == 200, cancelled.text
 
-    saved = await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
-    assert saved["slot_sync"] == {"removed": 1, "closed": 1, "reopened": 0, "capacity_updated": 0, "kept_booked": 1}
-    assert saved["rules_extended_on"] is None
+    # 依新規則補場次（存檔當下就補）：09:00–09:45 建立；09:45–10:30 跟已排入的 10:00
+    # 重疊不建。規則變更停用的 09:30 不佔時間。
+    saved = await _set_rules(admin_client, [{**rule, "slot_minutes": 45}], advance=4)
+    assert saved["slot_sync"] == {
+        "removed": 1, "closed": 1, "reopened": 0, "capacity_updated": 0, "kept_booked": 1, "created": 1,
+    }
+    assert saved["rules_extended_on"] == today_local().isoformat()
     after = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
-    assert "09:00:00" not in after
     assert (after["09:30:00"]["closed"], after["09:30:00"]["closed_source"]) == (True, "rule")
     assert after["10:00:00"]["closed"] is False  # 已有家長排入，維持原樣
     assert after["13:00:00"]["closed"] is False
 
-    # 依新規則補場次：09:00–09:45 建立；09:45–10:30 跟已排入的 10:00 重疊不建。
-    # 規則變更停用的 09:30 不佔時間。
+    # 再產生一次：09:00–09:45 已在、09:45–10:30 跟 10:00 重疊，什麼都不建。
     generated = await _generate(admin_client, wed)
-    assert generated["created"] == 1
-    assert generated["skipped_existing"] == 1
+    assert generated["created"] == 0
+    assert generated["skipped_existing"] == 2
     public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
     assert _times(public) == [("09:00", "09:45"), ("10:00", "10:30"), ("13:00", "14:00")]
 
     # 規則改回每 30 分鐘：規則變更停用的 09:30 重新開放，沒人用的 09:00–09:45
     # 移除，補上 09:00–09:30。
-    back = await _set_rules(admin_client, [WED_MORNING])
-    assert back["slot_sync"] == {"removed": 1, "closed": 0, "reopened": 1, "capacity_updated": 0, "kept_booked": 0}
-    assert (await _generate(admin_client, wed))["created"] == 1
+    back = await _set_rules(admin_client, [rule], advance=4)
+    assert back["slot_sync"] == {
+        "removed": 1, "closed": 0, "reopened": 1, "capacity_updated": 0, "kept_booked": 0, "created": 1,
+    }
+    assert (await _generate(admin_client, wed))["created"] == 0
     reopened = await _slots_on(admin_client, wed)
     assert _times(reopened) == [("09:00", "09:30"), ("09:30", "10:00"), ("10:00", "10:30"), ("13:00", "14:00")]
     assert not any(s["closed"] for s in reopened)
@@ -452,11 +513,14 @@ async def test_changing_slot_length_retires_unused_old_slots_without_overlap(adm
 
 @pytest.mark.asyncio
 async def test_removing_weekday_and_changing_capacity_follow_new_rules(admin_client, public_client):
-    thu_rule = {**WED_MORNING, "weekday": 3}
-    await _set_rules(admin_client, [WED_MORNING, thu_rule])
-    await _enable_slots(admin_client, auto_confirm=True)
-    wed = _next_weekday(2)
-    thu = _next_weekday(3)
+    # 「週三」「週四」取 3、4 天後那兩天的星期；最遠開放天數 1，存檔只補今天與明天，
+    # 場次由下面明確產生的三天決定。
+    wed = today_local() + timedelta(days=3)
+    thu = today_local() + timedelta(days=4)
+    wed_rule = _day_rule(wed)
+    thu_rule = _day_rule(thu)
+    await _set_rules(admin_client, [wed_rule, thu_rule], advance=1)
+    await _enable_slots(admin_client)
     later_wed = wed + timedelta(days=7)
     for day in (wed, thu, later_wed):
         await _generate(admin_client, day)
@@ -470,8 +534,10 @@ async def test_removing_weekday_and_changing_capacity_follow_new_rules(admin_cli
     await admin_client.patch(f"{API}/admin/slots/{first['id']}", json={"capacity": 5, "expected_version": 1})
     await admin_client.patch(f"{API}/admin/slots/{second['id']}", json={"closed": True, "expected_version": 1})
 
-    saved = await _set_rules(admin_client, [{**thu_rule, "capacity": 3}])
-    assert saved["slot_sync"] == {"removed": 6, "closed": 0, "reopened": 0, "capacity_updated": 1, "kept_booked": 0}
+    saved = await _set_rules(admin_client, [{**thu_rule, "capacity": 3}], advance=1)
+    assert saved["slot_sync"] == {
+        "removed": 6, "closed": 0, "reopened": 0, "capacity_updated": 1, "kept_booked": 0, "created": 0,
+    }
     assert await _slots_on(admin_client, wed) == []
     assert await _slots_on(admin_client, later_wed) == []
     thu_after = await _slots_on(admin_client, thu)
@@ -503,11 +569,14 @@ async def _book_then_cancel(admin_client, public_client, version, slot_id, key):
 async def test_restoring_rules_keeps_holiday_slots_closed(admin_client, public_client, holiday_first):
     """有取消紀錄的舊時段因改規則停用後，規則改回來時如果當天是休假日，要維持
     關閉（改記 exception），取消休假才重開；不能無視休假日直接開放預約。"""
-    await _set_rules(admin_client, [WED_MORNING])
-    version = await _enable_slots(admin_client, auto_confirm=True)
-    wed = _next_weekday(2)
-    await _generate(admin_client, wed)
+    wed = today_local() + timedelta(days=3)
+    rule = _day_rule(wed)
+    # 訂位要在最遠開放天數內（4 天，存檔補出的就是 wed 那天的 3 場）；改規則那一步用
+    # 1 天，存檔不補 wed，才看得到「只剩停用的 09:30」。
+    await _set_rules(admin_client, [rule], advance=4)
+    version = await _enable_slots(admin_client)
     by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    assert sorted(by_start) == ["09:00:00", "09:30:00", "10:00:00"]
     await _book_then_cancel(admin_client, public_client, version, by_start["09:30:00"]["id"], f"holiday-{holiday_first}")
 
     async def add_holiday():
@@ -519,16 +588,18 @@ async def test_restoring_rules_keeps_holiday_slots_closed(admin_client, public_c
 
     if holiday_first:
         exc_id = await add_holiday()
-        await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+        await _set_rules(admin_client, [{**rule, "slot_minutes": 45}], advance=1)
     else:
-        await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
+        await _set_rules(admin_client, [{**rule, "slot_minutes": 45}], advance=1)
         exc_id = await add_holiday()
     assert [(s["start_time"], s["closed_source"]) for s in await _slots_on(admin_client, wed)] == [
         ("09:30:00", "rule")
     ]
 
-    back = await _set_rules(admin_client, [WED_MORNING])
+    # 規則改回來、最遠開放天數 4：存檔補場次時 wed 是休假日，不建。
+    back = await _set_rules(admin_client, [rule], advance=4)
     assert back["slot_sync"]["reopened"] == 0
+    assert back["slot_sync"]["created"] == 0
     after = await _slots_on(admin_client, wed)
     assert [(s["start_time"], s["closed"], s["closed_source"]) for s in after] == [("09:30:00", True, "exception")]
     public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
@@ -546,15 +617,17 @@ async def test_restoring_rules_keeps_holiday_slots_closed(admin_client, public_c
 async def test_restoring_rules_does_not_reopen_slot_overlapping_booked_slot(admin_client, public_client):
     """30→45→30 分鐘：45 分鐘規則期間家長排入 09:45–10:30，規則改回 30 分鐘時，
     停用中的 09:30–10:00 跟它重疊，不能重新開放。"""
-    await _set_rules(admin_client, [WED_MORNING])
-    version = await _enable_slots(admin_client, auto_confirm=True)
-    wed = _next_weekday(2)
-    await _generate(admin_client, wed)
+    wed = today_local() + timedelta(days=3)
+    rule = _day_rule(wed)
+    await _set_rules(admin_client, [rule], advance=4)
+    version = await _enable_slots(admin_client)
     by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
+    assert sorted(by_start) == ["09:00:00", "09:30:00", "10:00:00"]
     await _book_then_cancel(admin_client, public_client, version, by_start["09:30:00"]["id"], "overlap-cancelled")
 
-    await _set_rules(admin_client, [{**WED_MORNING, "slot_minutes": 45}])
-    assert (await _generate(admin_client, wed))["created"] == 2
+    # 改成 45 分鐘：存檔當下補上 09:00–09:45、09:45–10:30（停用的 09:30 不佔時間）。
+    forty_five = await _set_rules(admin_client, [{**rule, "slot_minutes": 45}], advance=4)
+    assert forty_five["slot_sync"]["created"] == 2
     by_start = {s["start_time"]: s for s in await _slots_on(admin_client, wed)}
     booked = await public_client.post(
         f"{API}/public/visit-requests",
@@ -563,8 +636,12 @@ async def test_restoring_rules_does_not_reopen_slot_overlapping_booked_slot(admi
     )
     assert booked.status_code == 201, booked.text
 
-    back = await _set_rules(admin_client, [WED_MORNING])
-    assert back["slot_sync"] == {"removed": 1, "closed": 0, "reopened": 0, "capacity_updated": 0, "kept_booked": 1}
+    back = await _set_rules(admin_client, [rule], advance=4)
+    # 沒人用的 09:00–09:45 移除；已排入的 09:45 保留；停用的 09:30 跟它重疊不重開；
+    # 補上 09:00–09:30（09:30–10:00、10:00–10:30 都跟 09:45–10:30 重疊，不建）。
+    assert back["slot_sync"] == {
+        "removed": 1, "closed": 0, "reopened": 0, "capacity_updated": 0, "kept_booked": 1, "created": 1,
+    }
     await _generate(admin_client, wed)
     public = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={wed}&date_to={wed}")).json()
     assert _times(public) == [("09:00", "09:30"), ("09:45", "10:30")]
@@ -580,7 +657,7 @@ async def test_generate_skips_windows_overlapping_existing_slots(admin_client):
         json={"slot_date": wed.isoformat(), "start_time": "09:15:00", "end_time": "09:45:00", "capacity": 1},
     )
     assert manual.status_code == 201, manual.text
-    await _set_rules(admin_client, [WED_MORNING])
+    await _set_rules(admin_client, [WED_MORNING], advance=1)  # 存檔只補今天與明天，wed 由下面產生
     result = await _generate(admin_client, wed)
     # 09:00–09:30、09:30–10:00 都跟 09:15–09:45 重疊，只建 10:00–10:30。
     assert result == {"created": 1, "skipped_existing": 2, "skipped_exception_days": 0}

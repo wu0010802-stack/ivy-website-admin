@@ -1,6 +1,6 @@
 """接待人員處理案件（2026-09-25 業主裁定）：booking.handle。
 
-櫃台可以記聯絡紀錄、轉聯絡中、確認排入時段、人工補登、取消、標記未到場、
+櫃台可以記聯絡紀錄、確認排入時段（舊案）、人工補登（選場次即確認）、取消、標記未到場、
 完成參觀、後台改期、核准／退回家長改期、產生／撤銷家長管理連結；時段、
 每週規則、休假日、預約設定與指派承辦人仍限 booking.manage。站內通知標為
 已處理不在裁定的清單裡，業主確認前也限 booking.manage。"""
@@ -9,17 +9,24 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-import httpx
 import pytest
 from sqlalchemy import select
 
 from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
 from app.operations.models import AuditLogEntry
-from tests.conftest import case_version, _create_user, _logged_in_client, set_booking_mode, start_visit_slot
+from tests.conftest import (
+    case_version,
+    _create_user,
+    _logged_in_client,
+    book_slot,
+    legacy_request,
+    legacy_reschedule_request,
+    start_visit_slot,
+)
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
@@ -48,7 +55,8 @@ async def _slot(client, *, days_ahead=3, start="10:00:00", end="11:00:00", capac
     return response.json()
 
 
-async def _manual_case(client, key: str, campus_key="yihua", **extra) -> dict:
+async def _manual_case(client, key: str, *, slot_id: str, campus_key="yihua", **extra) -> dict:
+    """人工補登：一定要選場次，送出即確認。"""
     response = await client.post(
         f"{BASE}/visit-requests",
         json={
@@ -57,6 +65,7 @@ async def _manual_case(client, key: str, campus_key="yihua", **extra) -> dict:
             "parent_name": "王媽媽",
             "phone": "0912345678",
             "consent_given": True,
+            "slot_id": slot_id,
             **extra,
         },
         headers={"Idempotency-Key": key},
@@ -79,19 +88,15 @@ def test_booking_handle_includes_reception_but_manage_does_not():
 
 
 @pytest.mark.asyncio
-async def test_reception_handles_a_case_end_to_end(admin_client, reception, db_session):
+async def test_reception_handles_a_case_end_to_end(admin_client, public_client, reception, db_session):
     desk_user, desk = reception
     slot_a = await _slot(admin_client)
     slot_b = await _slot(admin_client, start="14:00:00", end="15:00:00")
 
-    # 電話來的家長：櫃台自己補登並寫第一筆聯絡紀錄。
-    case = await _manual_case(desk, "desk-1", note="家長來電")
-    case_id = case["id"]
-    assert case["created_by"] is not None
-
+    # 上線前留下的「已收到需求」舊案：櫃台寫聯絡紀錄、確認排入時段。
+    case_id = await legacy_request(db_session, status="new", parent_name="王媽媽")
     note = await desk.post(f"{BASE}/visit-requests/{case_id}/contact-notes", json={"note": "已回電，約週六"})
     assert note.status_code == 201, note.text
-    assert (await desk.post(f"{BASE}/visit-requests/{case_id}/contacting")).json()["status"] == "contacting"
 
     confirmed = await desk.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_a["id"]})
     assert confirmed.status_code == 200, confirmed.text
@@ -123,20 +128,22 @@ async def test_reception_handles_a_case_end_to_end(admin_client, reception, db_s
     await start_visit_slot(db_session, case_id)
     assert (await desk.post(f"{BASE}/visit-requests/{case_id}/complete")).json()["status"] == "completed"
 
-    no_show_case = await _manual_case(desk, "desk-2", slot_id=slot_a["id"])
+    # 電話來的家長：櫃台自己補登（選場次即確認）並寫第一筆聯絡紀錄。
+    no_show_case = await _manual_case(desk, "desk-2", slot_id=slot_a["id"], note="家長來電")
+    assert no_show_case["created_by"] is not None
     assert no_show_case["status"] == "confirmed"
     await start_visit_slot(db_session, no_show_case["id"])
     assert (await desk.post(f"{BASE}/visit-requests/{no_show_case['id']}/no-show")).json()["status"] == "no_show"
 
-    cancel_case = await _manual_case(desk, "desk-3")
-    assert (await desk.post(f"{BASE}/visit-requests/{cancel_case['id']}/cancel")).json()["status"] == "cancelled"
+    booked = await book_slot(admin_client, public_client, days_ahead=6, idempotency_key="desk-3")
+    assert (await desk.post(f"{BASE}/visit-requests/{booked['receipt_id']}/cancel")).json()["status"] == "cancelled"
 
 
 @pytest.mark.asyncio
 async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_client, reception):
     _, desk = reception
     slot = await _slot(admin_client)
-    case = await _manual_case(admin_client, "desk-admin-1")
+    case = await _manual_case(admin_client, "desk-admin-1", slot_id=slot["id"])
     me = (await desk.get(f"{API}/auth/me")).json()["user"]
 
     assert (await desk.post(
@@ -168,54 +175,33 @@ async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_cli
 @pytest.mark.asyncio
 async def test_reception_stays_inside_own_campus(admin_client, reception):
     _, desk = reception
-    other = await _manual_case(admin_client, "desk-other-campus", campus_key="minghua")
+    other_slot = await _slot(admin_client, campus_key="minghua")
+    other = await _manual_case(admin_client, "desk-other-campus", slot_id=other_slot["id"], campus_key="minghua")
     assert (await desk.post(f"{BASE}/visit-requests/{other['id']}/contact-notes", json={"note": "x"})).status_code == 404
     assert (await desk.post(f"{BASE}/visit-requests/{other['id']}/cancel")).status_code == 404
     assert (await desk.post(f"{BASE}/visit-requests/{other['id']}/access-link")).status_code == 404
     assert (await desk.post(
         f"{BASE}/visit-requests", json={"campus_key": "minghua", "source": "phone", "parent_name": "林先生",
-                                        "phone": "0911222333", "consent_given": True},
+                                        "phone": "0911222333", "consent_given": True, "slot_id": other_slot["id"]},
         headers={"Idempotency-Key": "desk-wrong-campus"},
     )).status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_reception_decides_parent_reschedule_requests(app, admin_client, public_client, reception):
+async def test_reception_decides_parent_reschedule_requests(admin_client, public_client, reception, db_session):
     _, desk = reception
-    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
-    version = (await admin_client.get(f"{BASE}/booking-config/yihua")).json()["version"]
-    slot_a = await _slot(admin_client)
-    slot_b = await _slot(admin_client, start="15:00:00", end="16:00:00")
-    slot_c = await _slot(admin_client, start="16:00:00", end="17:00:00")
-    created = await public_client.post(
-        f"{API}/public/visit-requests",
-        json={"campus_key": "yihua", "config_version": version, "parent_name": "陳媽媽", "phone": "0912345678",
-              "consent_given": True, "slot_id": slot_a["id"]},
-        headers={"Idempotency-Key": "desk-reschedule-01"},
-    )
-    assert created.status_code == 201, created.text
-    receipt_id = created.json()["receipt_id"]
+    booked = await book_slot(admin_client, public_client, idempotency_key="desk-reschedule-01")
+    receipt_id = booked["receipt_id"]
+    slot_b = await _slot(admin_client, days_ahead=4, start="15:00:00", end="16:00:00")
+    slot_c = await _slot(admin_client, days_ahead=4, start="16:00:00", end="17:00:00")
 
-    link = await desk.post(f"{BASE}/visit-requests/{receipt_id}/access-link")
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-
-    async def parent_asks_for(slot_id: str) -> str:
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as parent:
-            await parent.post(f"{API}/public/visit-manage/exchange", json={"token": token})
-            asked = await parent.post(
-                f"{API}/public/visit-manage/reschedule-request",
-                json={"visit_request_id": receipt_id, "new_slot_id": slot_id},
-            )
-            assert asked.status_code == 201, asked.text
-            return asked.json()["id"]
-
-    first = await parent_asks_for(slot_b["id"])
+    # 上線前家長送出、還在等園方核准的改期申請（家長端「申請改期」已退場）。
+    first = await legacy_reschedule_request(db_session, receipt_id, slot_b["id"])
     rejected = await desk.post(f"{BASE}/reschedule-requests/{first}/reject")
     assert rejected.status_code == 200, rejected.text
     assert rejected.json()["status"] == "rejected"
 
-    second = await parent_asks_for(slot_c["id"])
+    second = await legacy_reschedule_request(db_session, receipt_id, slot_c["id"])
     approved = await desk.post(f"{BASE}/reschedule-requests/{second}/approve")
     assert approved.status_code == 200, approved.text
     assert approved.json()["slot_id"] == slot_c["id"]
@@ -227,23 +213,14 @@ async def test_reception_sees_notifications_but_only_managers_mark_them_handled(
 ):
     # read_at 是全校共用的狀態；2026-09-25 裁定沒有把「標為已處理」開給櫃台。
     _, desk = reception
-    current = await admin_client.get(f"{BASE}/booking-config/yihua")
-    await admin_client.patch(
-        f"{BASE}/booking-config/yihua", json={"expected_version": current.json()["version"], "mode": "inquiry"}
-    )
-    version = (await admin_client.get(f"{BASE}/booking-config/yihua")).json()["version"]
-    await public_client.post(
-        f"{API}/public/visit-requests",
-        json={"campus_key": "yihua", "config_version": version, "parent_name": "陳媽媽", "phone": "0912345678",
-              "consent_given": True},
-        headers={"Idempotency-Key": "desk-notif-01"},
-    )
+    await book_slot(admin_client, public_client, idempotency_key="desk-notif-01")
     await run_outbox_once(recording_mail_adapter)
     items = (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json()
-    assert len(items) == 1
+    # 自選場次送單即確認：園方收到「新需求」與「已確認」兩則站內通知。
+    assert sorted(item["kind"] for item in items) == ["visit_request_confirmed", "visit_request_created"]
     denied = await desk.post(f"{BASE}/notifications/{items[0]['id']}/read")
     assert denied.status_code == 403, denied.text
-    assert (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json()[0]["read_at"] is None
+    assert all(item["read_at"] is None for item in (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json())
     marked = await admin_client.post(f"{BASE}/notifications/{items[0]['id']}/read")
     assert marked.status_code == 200, marked.text
 
@@ -261,7 +238,8 @@ async def test_reception_is_an_assignable_handler(admin_client, minghua_client, 
     # 分校管理者只看得到跟自己有共同校區的人。
     assert str(desk_user.id) not in {s["id"] for s in (await minghua_client.get(f"{BASE}/visit-staff")).json()}
 
-    case = await _manual_case(admin_client, "desk-assign-1")
+    case_slot = await _slot(admin_client)
+    case = await _manual_case(admin_client, "desk-assign-1", slot_id=case_slot["id"])
     assigned = await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(desk_user.id), "expected_version": await case_version(admin_client, case["id"])}
     )

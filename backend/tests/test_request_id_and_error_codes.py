@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from app.media.models import MediaAsset, MediaKind, MediaStatus
-from tests.conftest import set_booking_mode
+from tests.conftest import legacy_request, set_booking_mode
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -148,16 +148,12 @@ async def test_closed_slot_is_reported_as_closed_not_full(admin_client, public_c
 
 
 @pytest.mark.asyncio
-async def test_admin_confirm_and_reschedule_into_closed_slot(admin_client):
+async def test_admin_confirm_and_reschedule_into_closed_slot(admin_client, db_session):
     open_slot = await _slot(admin_client)
     closed_slot = await _slot(admin_client, days_ahead=4)
     await _close(admin_client, closed_slot)
-    created = await admin_client.post(
-        f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345678", "consent_given": True},
-        headers={"Idempotency-Key": "closed-03"},
-    )
-    case_id = created.json()["id"]
+    # 上線前留下的「已收到需求」舊案，園方確認時選了已關閉的時段。
+    case_id = await legacy_request(db_session, status="new", parent_name="王媽媽", phone="0912345678")
 
     refused = await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": closed_slot["id"]})
     assert refused.status_code == 409

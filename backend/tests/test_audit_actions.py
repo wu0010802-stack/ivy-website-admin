@@ -17,8 +17,7 @@ from app.auth.models import Role
 from app.booking.history import Actor
 from app.booking.models import VisitRequest
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, start_visit_slot
-from tests.test_visit_case_handling import _parent_asks_for
+from tests.conftest import _create_user, book_slot, legacy_request, legacy_reschedule_request, start_visit_slot
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -57,14 +56,9 @@ async def _slot(client, *, days_ahead=3, start="10:00:00", end="11:00:00", capac
     return response.json()
 
 
-async def _manual_case(client, key: str) -> str:
-    response = await client.post(
-        f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": PARENT, "phone": PHONE, "consent_given": True},
-        headers={"Idempotency-Key": key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
+async def _legacy_case(db_session) -> str:
+    """上線前留下的「已收到需求」舊案（new）；新流程建不出這個狀態。"""
+    return await legacy_request(db_session, status="new", parent_name=PARENT, phone=PHONE)
 
 
 @pytest.mark.asyncio
@@ -96,11 +90,8 @@ async def test_slot_create_and_update_are_audited(admin_client, db_session):
 async def test_case_transitions_and_contact_notes_are_audited(admin_client, db_session):
     slot = await _slot(admin_client)
     other = await _slot(admin_client, days_ahead=4, start="14:00:00", end="15:00:00")
-    case_id = await _manual_case(admin_client, "audit-case-01")
+    case_id = await _legacy_case(db_session)
 
-    assert (await admin_client.post(f"{BASE}/visit-requests/{case_id}/contacting")).status_code == 200
-    # 重送開始聯絡是冪等的，不重複記。
-    assert (await admin_client.post(f"{BASE}/visit-requests/{case_id}/contacting")).status_code == 200
     note = await admin_client.post(
         f"{BASE}/visit-requests/{case_id}/contact-notes", json={"note": FREE_TEXT}
     )
@@ -115,12 +106,10 @@ async def test_case_transitions_and_contact_notes_are_audited(admin_client, db_s
     done = await admin_client.post(f"{BASE}/visit-requests/{case_id}/complete")
     assert done.status_code == 200, done.text
 
-    [contacting] = await _entries(db_session, "visit_request.contacting")
-    assert contacting.metadata_json == {"from_status": "new", "to_status": "contacting"}
     [noted] = await _entries(db_session, "visit_request.add_contact_note")
     assert noted.metadata_json == {"note_id": note.json()["id"], "follow_up_set": False}
     [confirm] = await _entries(db_session, "visit_request.confirm")
-    assert confirm.metadata_json["from_status"] == "contacting"
+    assert confirm.metadata_json["from_status"] == "new"
     assert confirm.metadata_json["slot"]["id"] == slot["id"]
     [reschedule] = await _entries(db_session, "visit_request.reschedule")
     assert reschedule.metadata_json["from_slot"]["id"] == slot["id"]
@@ -129,7 +118,7 @@ async def test_case_transitions_and_contact_notes_are_audited(admin_client, db_s
     [complete] = await _entries(db_session, "visit_request.complete")
     assert complete.metadata_json == {"from_status": "confirmed", "to_status": "completed"}
 
-    for entry in (contacting, noted, confirm, reschedule, complete):
+    for entry in (noted, confirm, reschedule, complete):
         assert entry.target_type == "visit_request"
         assert entry.target_id == case_id
         assert entry.campus_key == "yihua"
@@ -137,18 +126,14 @@ async def test_case_transitions_and_contact_notes_are_audited(admin_client, db_s
 
 
 @pytest.mark.asyncio
-async def test_cancel_and_no_show_are_audited_without_reason_text(admin_client, db_session):
-    slot = await _slot(admin_client)
-    cancelled_id = await _manual_case(admin_client, "audit-case-02")
+async def test_cancel_and_no_show_are_audited_without_reason_text(admin_client, public_client, db_session):
+    cancelled_id = await _legacy_case(db_session)
     cancel = await admin_client.post(f"{BASE}/visit-requests/{cancelled_id}/cancel", json={"reason": FREE_TEXT})
     assert cancel.status_code == 200, cancel.text
     # 取消是冪等的：第二次不再記。
     assert (await admin_client.post(f"{BASE}/visit-requests/{cancelled_id}/cancel")).status_code == 200
 
-    no_show_id = await _manual_case(admin_client, "audit-case-03")
-    assert (
-        await admin_client.post(f"{BASE}/visit-requests/{no_show_id}/confirm", json={"slot_id": slot["id"]})
-    ).status_code == 200
+    no_show_id = (await book_slot(admin_client, public_client, days_ahead=5))["receipt_id"]
     await start_visit_slot(db_session, no_show_id)
     assert (await admin_client.post(f"{BASE}/visit-requests/{no_show_id}/no-show")).status_code == 200
 
@@ -179,7 +164,7 @@ async def _while_other_holds_lock(app, case_id: str, change, request):
 
 @pytest.mark.asyncio
 async def test_transition_already_done_by_someone_else_is_not_audited(app, admin_client, db_session):
-    """B12-1：取消、開始聯絡、改期是冪等的。家長或另一位同事剛好同時做了同一件
+    """B12-1：取消、改期是冪等的。家長或另一位同事剛好同時做了同一件
     事，這次什麼都沒改；稽核若拿鎖列之前讀到的舊狀態／舊時段比對，會把別人做的
     事記在這位同事名下。"""
     from app.booking import workflow_service
@@ -189,7 +174,7 @@ async def test_transition_already_done_by_someone_else_is_not_audited(app, admin
     slot_b = await _slot(admin_client, days_ahead=4, start="14:00:00", end="15:00:00")
 
     # 家長自行取消的同時，園方也按了取消。
-    cancelled_id = await _manual_case(admin_client, "audit-race-cancel")
+    cancelled_id = await _legacy_case(db_session)
     cancel = await _while_other_holds_lock(
         app,
         cancelled_id,
@@ -200,20 +185,8 @@ async def test_transition_already_done_by_someone_else_is_not_audited(app, admin
     assert cancel.json()["status"] == "cancelled"
     assert await _entries(db_session, "visit_request.cancel") == []
 
-    # 同事已經開始聯絡，這次再按一次。
-    contacting_id = await _manual_case(admin_client, "audit-race-contacting")
-    contacting = await _while_other_holds_lock(
-        app,
-        contacting_id,
-        lambda db, case: workflow_service.mark_contacting(db, case, actor=Actor.staff(colleague.id)),
-        lambda: admin_client.post(f"{BASE}/visit-requests/{contacting_id}/contacting"),
-    )
-    assert contacting.status_code == 200, contacting.text
-    assert contacting.json()["status"] == "contacting"
-    assert await _entries(db_session, "visit_request.contacting") == []
-
     # 同事剛把案件改到 B，這次也選 B：案件沒動，回應要是鎖內讀到的 B。
-    moved_id = await _manual_case(admin_client, "audit-race-reschedule")
+    moved_id = await _legacy_case(db_session)
     confirmed = await admin_client.post(f"{BASE}/visit-requests/{moved_id}/confirm", json={"slot_id": slot_a["id"]})
     assert confirmed.status_code == 200, confirmed.text
     moved = await _while_other_holds_lock(
@@ -236,31 +209,33 @@ async def test_transition_audit_uses_status_read_under_lock(app, admin_client, d
     from app.booking import workflow_service
 
     colleague = await _create_user(db_session, "colleague@ivy.example", "colleague-password-123", Role.RECEPTION, ["yihua"])
-    case_id = await _manual_case(admin_client, "audit-race-from-status")
+    slot = await _slot(admin_client)
+    case_id = await _legacy_case(db_session)
+    # 後台按取消時案件是 new；同事的交易剛把它確認進時段、還沒提交，取消等鎖後看到 confirmed。
     cancel = await _while_other_holds_lock(
         app,
         case_id,
-        lambda db, case: workflow_service.mark_contacting(db, case, actor=Actor.staff(colleague.id)),
+        lambda db, case: workflow_service.confirm_with_slot(db, case, uuid.UUID(slot["id"]), colleague.id),
         lambda: admin_client.post(f"{BASE}/visit-requests/{case_id}/cancel"),
     )
     assert cancel.status_code == 200, cancel.text
     [cancelled] = await _entries(db_session, "visit_request.cancel")
-    assert cancelled.metadata_json == {"from_status": "contacting", "to_status": "cancelled", "has_reason": False}
+    assert cancelled.metadata_json == {"from_status": "confirmed", "to_status": "cancelled", "has_reason": False}
 
 
 @pytest.mark.asyncio
 async def test_reschedule_request_decisions_are_audited(app, admin_client, db_session):
     slot_a = await _slot(admin_client)
     slot_b = await _slot(admin_client, days_ahead=4, start="14:00:00", end="15:00:00")
-    case_id = await _manual_case(admin_client, "audit-case-04")
+    case_id = await _legacy_case(db_session)
     assert (
         await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_a["id"]})
     ).status_code == 200
 
-    first = await _parent_asks_for(app, admin_client, case_id, slot_b["id"])
+    first = await legacy_reschedule_request(db_session, case_id, slot_b["id"])
     rejected = await admin_client.post(f"{BASE}/reschedule-requests/{first}/reject", json={"reason": FREE_TEXT})
     assert rejected.status_code == 200, rejected.text
-    second = await _parent_asks_for(app, admin_client, case_id, slot_b["id"])
+    second = await legacy_reschedule_request(db_session, case_id, slot_b["id"])
     approved = await admin_client.post(f"{BASE}/reschedule-requests/{second}/approve")
     assert approved.status_code == 200, approved.text
 
