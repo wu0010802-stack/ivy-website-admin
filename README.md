@@ -1,3 +1,13 @@
+## 2026-09-30 參觀表單：欄位填錯後第一次點擊落空（`fix/visit-consent-blur-20260930`，尚未部署）
+
+處理 `output/playwright/visit-e2e-20260930/REPORT.md` 的兩個 P3。該報告是在落後 main 364 個提交的 `feature/website-admin` 上測的，這裡都對 main 重新查證。
+
+- **問題 1（已修）**：電話填錯直接點同意框要點兩次。滑鼠或觸控按下的當下電話欄就 blur，錯誤訊息插入把下方推下 31.5px，`mouseup`／`click` 落在 `FIELDSET`。main 上一樣重現，而且「Email 填錯直接按送出」第一次也按不到送出鈕。只在剛填的欄位還在畫面上時發生：目標在畫面外時瀏覽器先捲動，Chrome 的 scroll anchoring 剛好把位移補掉。`VisitForm.vue` 五個欄位的 blur 驗證改走 `checkFieldOnBlur`，按住主鍵期間只記下欄位，放開、click 跑完才顯示錯誤；鍵盤 Tab 照舊立即顯示，版面不變。規則見 DESIGN.md「預約校園參觀 A」。
+- **問題 2（main 已修，不用動）**：已關閉場次顯示「名額剛好滿了」。main 在 `1f32f7d` 改成回 `409 SLOT_CLOSED`，前端顯示「這個時段剛被園所關閉了，請選擇其他時段。」，後端（`test_request_id_and_error_codes.py`）與前端（`visit-form.spec.ts`）都有測試。
+- 回歸測試：`tests/stack/booking-flow.spec.ts`「填寫中的即時驗證」三項（桌機滑鼠、手機觸控點同意框；Email 填錯直接送出），`openAs` 多一個選填的 `device` 參數（手機視口與觸控）。三項在修正前的 main 上都失敗。
+
+驗證：web `nuxt typecheck`（無警告）、`npm run test:website` 64 檔 663 項；新回歸測試在 nuxt dev 上連跑 3 次共 9 項全過；production build 的完整 stack e2e（真 API＋拋棄式 PostgreSQL）59 項 58 過，唯一失敗是已知的 `media.spec.ts` 整套跑順序問題（`home_about` 最新版沒有 `photo`），同一份 build 單獨跑會過。另外手動確認：鍵盤 Tab 離開電話欄仍然立即顯示錯誤；點別處後 `0912-345-678` 照常正規化成 `0912345678`。未驗：Safari／iOS 實機（iOS 點 checkbox 時 blur 的時間點可能不同）、正式站。
+
 ## 2026-09-30 義華外觀照換成完整、較高解析的 v2（`feature/yihua-photo-20260930`，2026-09-30 經 main CI 部署）
 
 使用者反映首頁五校卡的義華校圖片下半部被裁掉，舊官網有完整的圖，要換成完整的並提高畫質。原因是版面：五校卡桌機 2.13:1、舊圖 1.52:1，塔尖和地面放不進同一張卡，舊設定 `center 12%` 只保塔尖。規則見 DESIGN.md 最上方「義華外觀照改用 v2」，來源與處理步驟見 `design/yihua-photo-v2-20260930/README.md`。改版前快照：`versions/before-yihua-photo-v2-20260930-092510/`。

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { adminApi, findVisit } from './api'
 import { answerMessageBox, gotoAdmin, openAs } from './pages'
 import { INQUIRY_CAMPUS, SLOTS_CAMPUS } from './stack-env'
@@ -186,5 +186,64 @@ test.describe('只收需求（明華）', () => {
     expect((await findVisit(api, form.parentName)).status).toBe('cancelled')
 
     await Promise.all([parent.context.close(), staff.context.close(), api.dispose()])
+  })
+})
+
+test.describe('填寫中的即時驗證', () => {
+  // 2026-09-30 E2E：輸入框 blur 時插入的錯誤訊息把下方版面推下約 31px，按下時還在目標上、
+  // 放開時已不在，第一次點擊落空（電話填錯直接點同意框要點兩次）。錯誤訊息要等點擊完成才出現。
+  // 重現條件是剛填的欄位還在畫面上：目標在畫面外時 Playwright 會先捲動，Chrome 的 scroll
+  // anchoring 剛好把位移補掉，測不出來。
+  async function openInquiryForm(page: Page): Promise<void> {
+    await page.goto(`/visit/${INQUIRY_CAMPUS}`)
+    await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
+    await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__))
+    await page.getByLabel('孩子姓名').fill('王小葉')
+    await page.getByLabel('孩子出生年月日').fill('2022-03-15')
+    await page.getByLabel('家長稱呼').fill('王驗證家長')
+  }
+
+  /** 剛填的欄位捲到畫面上方、焦點留著：家長填完就直接往下點。 */
+  async function keepOnScreen(field: Locator): Promise<void> {
+    await field.evaluate(el => window.scrollBy({ top: el.getBoundingClientRect().top - 120, behavior: 'instant' }))
+  }
+
+  const devices = [
+    { name: '桌機滑鼠', device: {}, touch: false },
+    { name: '手機觸控', device: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, touch: true },
+  ]
+  for (const { name, device, touch } of devices) {
+    test(`電話填錯直接點同意框，一次就勾到（${name}）`, async ({ browser }) => {
+      const { context, page } = await openAs(browser, null, device)
+      await openInquiryForm(page)
+      const phone = page.getByLabel('聯絡電話')
+      await phone.fill('12345')
+      await keepOnScreen(phone)
+
+      const consent = page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ })
+      if (touch) await consent.tap()
+      else await consent.click()
+      // 錯誤訊息出現代表 Vue 已接手處理 blur，不是 hydration 前的原生勾選。
+      await expect(page.locator('#visit-phone-error')).not.toBeEmpty()
+      await expect(consent).toBeChecked()
+      await context.close()
+    })
+  }
+
+  test('Email 填錯直接按送出，一次就跑送出前檢查', async ({ browser }) => {
+    const { context, page } = await openAs(browser, null)
+    await openInquiryForm(page)
+    await page.getByLabel('聯絡電話').fill('0912000333')
+    await page.getByLabel('參觀人數').selectOption('2')
+    await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
+    const email = page.getByLabel('聯絡 Email')
+    await email.fill('not-an-email')
+    await keepOnScreen(email)
+
+    await page.getByRole('button', { name: '送出參觀需求' }).click()
+    // 送出前檢查擋下後把焦點帶回第一個錯誤欄位；點擊落空的話焦點會停在送出鈕上。
+    await expect(page.locator('#visit-email-error')).not.toBeEmpty()
+    await expect(email).toBeFocused()
+    await context.close()
   })
 })

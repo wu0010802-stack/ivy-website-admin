@@ -1,15 +1,20 @@
-import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { expect, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test'
 import { WEB_ORIGIN, storageStatePath, type StackRole } from './stack-env'
 
 // 同一個測試裡家長與園方各用各的瀏覽器 context（cookie 互不相通），
-// 選項和 playwright.stack.config.ts 的 use 一致。
-export async function openAs(browser: Browser, role: StackRole | null): Promise<{ context: BrowserContext; page: Page }> {
+// 選項和 playwright.stack.config.ts 的 use 一致；device 可換成手機視口與觸控。
+export async function openAs(
+  browser: Browser,
+  role: StackRole | null,
+  device: Pick<BrowserContextOptions, 'viewport' | 'isMobile' | 'hasTouch'> = {},
+): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({
     baseURL: WEB_ORIGIN,
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',
     reducedMotion: 'reduce',
     viewport: { width: 1440, height: 900 },
+    ...device,
     storageState: role ? storageStatePath(role) : undefined,
   })
   return { context, page: await context.newPage() }
