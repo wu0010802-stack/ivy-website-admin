@@ -3634,7 +3634,7 @@ export interface components {
              * Page
              * @enum {string}
              */
-            page: "home" | "campus" | "visit";
+            page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news";
             /** Value */
             value?: number | null;
         };

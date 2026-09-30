@@ -4,6 +4,7 @@ import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
+import { warmPaper, warmPaperWhenIdle } from '~/utils/paper-warm'
 import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
 import { CORNER_REST, PUFF_MS, cornerPose, fadePose, leadPose, puffPose, strongest, subscribeCornerWind, type CornerPose, type WindState } from '~/utils/cornerWind'
@@ -375,9 +376,13 @@ onMounted(() => {
   windObserver = new IntersectionObserver((entries) => listenWind(entries.at(-1)?.isIntersecting ?? false), { rootMargin: '10% 0px' })
   windObserver.observe(cardEl.value)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
-  if (mayAutoplay(prefersReducedMotion, connection)) nearObserver = new IntersectionObserver(
+  const motionAllowed = mayAutoplay(prefersReducedMotion, connection)
+  // three 不進首屏 prefetch：整頁載完閒置時暖載，卡片先接近就提早（見 utils/paper-warm.ts）
+  if (motionAllowed) warmPaperWhenIdle()
+  if (motionAllowed) nearObserver = new IntersectionObserver(
     (entries) => {
       isNear = entries.at(-1)?.isIntersecting ?? false
+      if (isNear) warmPaper()
       if (!isNear) {
         cancelPaper?.()
         cancelPaper = null

@@ -10,7 +10,7 @@
 import type { gsap as Gsap } from 'gsap'
 import type { ScrollTrigger as ScrollTriggerStatic } from 'gsap/ScrollTrigger'
 import type { MotionPathPlugin as MotionPathStatic } from 'gsap/MotionPathPlugin'
-import type { SketchMotion, SketchTools, TrailGeometry } from './rough-sketch'
+import type { SketchMotion, SketchTools } from './rough-sketch'
 
 type Point = [number, number]
 type RawPath = ReturnType<typeof MotionPathStatic.getRawPath>
@@ -143,12 +143,11 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
     return g
   }
 
-  // 版面（寬高、號碼位置、視窗寬）用 rough-sketch 同一批量好的 geo，這裡只寫 DOM、不再讀版面
-  function buildTrail(el: HTMLElement, tools: SketchTools, geo: TrailGeometry) {
-    const { svg, w, h } = tools.layer(el, 'trail', 40, true, geo)
-    const narrow = geo.vw <= NARROW
-    stops = [...el.querySelectorAll<HTMLElement>('.renv-stop-no')].slice(0, geo.stops.length).map((n, i) => {
-      const b = geo.stops[i]!
+  function buildTrail(el: HTMLElement, tools: SketchTools) {
+    const { svg, w, h } = tools.layer(el, 'trail', 40, true)
+    const narrow = innerWidth <= NARROW
+    stops = [...el.querySelectorAll<HTMLElement>('.renv-stop-no')].map((n, i) => {
+      const b = tools.rel(n, el)
       const cx = b.x + b.w / 2
       const cy = b.y + b.h / 2
       const photoLeft = !narrow && i % 2 === 0
@@ -228,13 +227,12 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
     svg.append(group)
   }
 
-  // 有 geo（剛重畫完）就用量好的；ScrollTrigger refresh 時才自己讀版面
-  function measure(geo?: TrailGeometry) {
+  function measure() {
     if (!host || !raw) return
     anchors = walkAnchors({
-      top: geo ? geo.top : host.getBoundingClientRect().top + scrollY,
-      height: geo ? geo.h : host.offsetHeight,
-      vh: geo ? geo.vh : innerHeight,
+      top: host.getBoundingClientRect().top + scrollY,
+      height: host.offsetHeight,
+      vh: innerHeight,
       stops: stops.map((stop) => ({ cy: stop.cy, length: stop.length })),
       total
     })
@@ -315,18 +313,17 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
   }
 
   return {
-    trail(el, tools, geo) {
+    trail(el, tools) {
       host = el
-      buildTrail(el, tools, geo)
-      // 減少動態：腳印一次全蓋上，不跟捲動走，用不到走路錨點
+      buildTrail(el, tools)
+      measure()
       if (reducedMotion) {
         walker.s = total
         for (const { use } of prints) use.style.opacity = '1'
         shown = prints.length
-        return
+      } else if (started) {
+        paint(true)
       }
-      measure(geo)
-      if (started) paint(true)
     },
     sun(p, place) {
       if (reducedMotion) { place(p); return }
