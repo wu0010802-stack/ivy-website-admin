@@ -16,10 +16,11 @@ describe('首頁五校輪播', () => {
 })
 
 describe('首屏「找校區」', () => {
-  it('桌機也顯示（2026-09-29 翻 09-14「首屏不放按鈕」），仍是文字連結', () => {
+  it('2026-09-30 首屏改版拿掉（取代 09-29 的桌機也顯示）；揭幕需要的 .studio-actions 容器留空、不佔高度', () => {
     const hero = read('../app/components/HeroVideo.vue')
-    expect(hero).toContain('<a class="hero-campus-link" href="#campuses">找校區')
-    expect(hero).not.toMatch(/^\.studio-actions\{display:none\}/m)
+    expect(hero).not.toContain('hero-campus-link')
+    expect(hero).toContain('<div ref="actionsEl" class="studio-actions" />')
+    expect(hero).toMatch(/^\.studio-actions\{display:none\}/m)
   })
 })
 

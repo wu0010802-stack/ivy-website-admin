@@ -224,22 +224,38 @@ onUnmounted(() => {
     <div ref="trackEl" class="home-reveal-track">
       <section ref="sectionEl" class="studio-hero" aria-labelledby="home-title">
         <div class="container studio-hero-grid">
+          <!-- 2026-09-30 首屏改版（design/hero-brush-mockup-20260930）：拿掉小標與「找校區」，
+               重點詞的黃色底線換成金色乾刷色塊（字與色塊一起歪 -2°）。 -->
           <div ref="copyEl" class="studio-hero-copy">
-            <span class="eyebrow">{{ hero.eyebrow }}</span>
             <h1 id="home-title">
-              {{ heroText.titleParts.before }}<span class="punct">{{ heroText.titleParts.punctAfterBefore }}</span><br>
+              {{ heroText.titleParts.before }}<span v-if="heroText.titleParts.punctAfterBefore" class="punct">{{ heroText.titleParts.punctAfterBefore }}</span><br>
               {{ heroText.titleParts.middle }}<span class="hero-title-ending">
-                <span class="growing-word">{{ heroText.titleParts.growingWord }}
-                  <span class="hero-underline" aria-hidden="true"><svg viewBox="0 0 180 14"><path d="M3 9Q48 2 92 7T177 6" /></svg></span>
-                </span><span class="punct">{{ heroText.titleParts.punctAfterGrowingWord }}</span>
+                <span class="hero-key">
+                  <svg class="hero-swatch" viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true">
+                    <defs>
+                      <filter id="hero-brush" x="-6%" y="-24%" width="112%" height="148%">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.02 0.45" numOctaves="3" seed="11" result="n" />
+                        <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G" />
+                      </filter>
+                    </defs>
+                    <g filter="url(#hero-brush)">
+                      <path d="M8 26C42 16 94 14 150 13C198 12 240 9 282 12C286 34 287 62 283 88C242 92 196 90 150 91C100 92 54 95 12 91C4 72 3 48 8 26Z" />
+                      <path d="M270 13L297 16L296 25L272 25Z" />
+                      <path d="M274 31L300 33L299 42L276 41Z" />
+                      <path d="M276 49L294 50L293 58L277 58Z" />
+                      <path d="M272 64L299 66L298 75L274 74Z" />
+                      <path d="M268 80L290 81L289 89L270 90Z" />
+                    </g>
+                  </svg>
+                  <span class="hero-key-text">{{ heroText.titleParts.growingWord }}</span>
+                </span><span v-if="heroText.titleParts.punctAfterGrowingWord" class="punct">{{ heroText.titleParts.punctAfterGrowingWord }}</span>
               </span>
             </h1>
             <p>
               <span v-for="line in heroText.copyLines" :key="line" class="hero-copy-line">{{ line }}</span>
             </p>
-            <div ref="actionsEl" class="studio-actions">
-              <a class="hero-campus-link" href="#campuses">找校區<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></a>
-            </div>
+            <!-- useHomeReveal 需要這個容器（揭幕時設 inert）；「找校區」2026-09-30 拿掉後留空。 -->
+            <div ref="actionsEl" class="studio-actions" />
           </div>
           <figure ref="imageEl" class="studio-hero-image">
             <img
@@ -280,12 +296,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 2026-09-23 拿掉「看看孩子的一天」按鈕後，這一列只剩「找校區」底線連結；2026-09-29 起桌機也顯示
-   （評析：桌機首頁到五校要捲近 7 屏，使用者同意翻 09-14「首屏不放按鈕」）。仍是文字連結、不是按鈕。 */
-.studio-actions{display:flex}
-.hero-campus-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:inherit;font-size:var(--fs-md);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
-.hero-campus-link:hover{text-decoration-thickness:2px}
-@media(min-width:1001px){
-  .studio-actions{margin-top:20px}
-}
+/* 「找校區」2026-09-30 拿掉，.studio-actions 只剩空容器（useHomeReveal 依賴它），不佔高度。 */
+.studio-actions{display:none}
 </style>

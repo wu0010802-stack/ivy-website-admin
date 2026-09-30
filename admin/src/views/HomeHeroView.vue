@@ -48,7 +48,7 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor">
-    <template #lead>首頁大圖（影片）旁的小標與標語。標語每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。大標題由官網設計固定，不在這裡修改。</template>
+    <template #lead>首頁大圖（影片）旁的標語。標語每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。大標題由官網設計固定，不在這裡修改。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <!-- 小標在官網用系統字（web typography.css 的字體分工），不是標題子集，所以不放缺字提示；
@@ -56,6 +56,7 @@ onMounted(editor.load)
       <el-form-item label="標語上方的小標">
         <el-input v-model="editor.form.value.eyebrow" placeholder="例如：高雄五校・1997 創校" />
         <LengthHint :value="editor.form.value.eyebrow" rule="heroEyebrow" />
+        <p class="field-help">2026-09-30 首屏改版後官網首頁不顯示小標，這欄先保留，填了也不會出現。</p>
       </el-form-item>
       <el-form-item v-for="(_, i) in editor.form.value.copy_lines" :key="i" :label="`標語第 ${i + 1} 行`">
         <el-input v-model="editor.form.value.copy_lines[i]" maxlength="24" show-word-limit />

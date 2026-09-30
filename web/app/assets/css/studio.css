@@ -13,10 +13,10 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .studio-intro-photo img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:16px}
 @media(min-width:1101px){.studio-about>.container{width:min(1400px,calc(100% - 96px))}}
 .campuses{background:var(--cream);padding-block:80px}.faq-grid{gap:80px}.visit-banner{background:var(--studio-sage);color:var(--green);padding-block:64px}.visit-banner .eyebrow{color:var(--leaf)}.visit-banner p{color:var(--muted)}.visit-banner .yellow{background:var(--green);color:var(--paper)}.visit-banner .yellow:hover{background:var(--deep)}.footer{background:var(--paper)}
-@media(max-width:1100px){.container{width:calc(100% - 64px)}.header-top{gap:20px}.nav-inner{gap:20px}.nav-inner>a{font-size:.8125rem}.header-book{padding-inline:16px}.studio-hero-grid{gap:28px;grid-template-columns:1fr 1.05fr}.studio-hero h1{font-size:clamp(2rem,3.6vw,2.8rem)}.studio-hero-image>img{height:460px}.studio-actions{gap:16px}.studio-actions .button{padding-inline:18px}.studio-intro{gap:32px}}
+@media(max-width:1100px){.container{width:calc(100% - 64px)}.header-top{gap:20px}.nav-inner{gap:20px}.nav-inner>a{font-size:.8125rem}.header-book{padding-inline:16px}.studio-hero-grid{gap:28px;grid-template-columns:1fr 1.05fr}.studio-hero h1{font-size:clamp(2rem,3.6vw,2.8rem)}.studio-hero-image>img{height:460px}.studio-intro{gap:32px}}
 @media(max-width:900px){.header-top{height:80px}.menu-toggle{display:flex;flex-direction:column;justify-content:center;gap:6px;border:0;background:none;width:44px;height:44px;padding:12px}.menu-toggle span{display:block;height:1px;width:20px;background:var(--green)}.header-actions{margin-left:auto}.navigation{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);border-bottom:1px solid var(--line)}.navigation.open{display:block;max-height:calc(100svh - 80px);overflow:auto}.nav-inner{display:block;width:calc(100% - 64px);margin:auto;padding-block:12px}.nav-inner>a{font-size:1rem;min-height:56px;border-bottom:1px solid var(--line)}.studio-actions{align-items:flex-start;flex-direction:column;gap:8px}.studio-intro{grid-template-columns:1fr;gap:32px}.studio-intro-photo img{aspect-ratio:3/2}}
 @media(max-width:760px){html{scroll-padding-top:96px}.container{width:calc(100% - 40px)}.header-top{gap:12px;height:78px}.header-book{padding:10px 14px;font-size:.8125rem;min-height:44px}.header-actions{gap:4px}.nav-inner{width:calc(100% - 40px)}.studio-hero{padding-top:36px}.studio-hero-grid{grid-template-columns:1fr;gap:32px}.studio-hero-copy{padding:0}.studio-hero-copy .eyebrow{margin-bottom:20px;font-size:var(--fs-xs)}.studio-hero h1{font-size:clamp(2rem,6.8vw,3rem);white-space:normal}.studio-hero-copy>p{margin-top:24px;font-size:var(--fs-md)}.studio-actions{flex-direction:row;align-items:center;gap:20px;margin-top:24px}.studio-actions .button{font-size:var(--fs-sm);padding:12px 18px;gap:10px}.studio-actions .text-link{font-size:var(--fs-sm)}.studio-hero-image{width:calc(100% - 20px);margin-left:8px;padding-bottom:28px}.studio-hero-image>img{height:auto;aspect-ratio:1.08;object-position:77% center;border-radius:42% 42% 2px 2px}.studio-hero-foot{margin-top:24px;padding-block:12px;gap:20px;align-items:flex-start}.studio-hero-foot>span{padding-top:10px}.studio-hero-foot a{gap:8px}.section{padding-block:56px}.studio-intro{gap:28px}.studio-intro .section-copy{font-size:var(--fs-sm)}.studio-intro .text-link{margin-top:20px}.campuses .section-heading{margin-bottom:20px}.faq-grid{gap:28px}.visit-banner{padding-block:48px}.visit-banner .section-title{font-size:var(--fs-2xl)}.footer-main{padding-block:40px}}
-@media(max-width:380px){.container{width:calc(100% - 32px)}.header-top{gap:8px}.header-book{padding-inline:10px}.header-actions{gap:0}.studio-actions{gap:12px}.studio-actions .button{padding-inline:14px}.studio-hero h1{font-size:var(--fs-4xl)}}
+@media(max-width:380px){.container{width:calc(100% - 32px)}.header-top{gap:8px}.header-book{padding-inline:10px}.header-actions{gap:0}.studio-hero h1{font-size:var(--fs-4xl)}}
 /* Compact bilingual pairs share the brand's English face and a single baseline. */
 .header .nav-inner>a,.header-label {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.35}
 .header .nav-inner>a {position:relative;min-inline-size:5.5rem;min-block-size:56px;font-size:.9375rem}
@@ -432,10 +432,7 @@ body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outl
   .studio-hero-grid {padding-top:28px;padding-bottom:56px}
 }
 .studio-hero-copy {padding:0}
-.studio-hero-copy :is(.eyebrow,.growing-word),
 .studio-hero-copy>p {color:inherit}
-/* The one brand colour the hero keeps. */
-.studio-hero-copy .growing-word svg {stroke:var(--yellow)}
 .studio-hero h1 {
   font-weight:700;
   font-synthesis:none;
@@ -451,19 +448,20 @@ body:has(:is(.studio-hero,.photo-hero)) .header.is-scrolled :focus-visible {outl
 }
 /* 子集字型的 halt 沒有作用，句尾標點以負邊距收進來。 */
 .studio-hero h1 .punct {margin-inline-start:-.24em}
-.studio-hero .growing-word,.hero-title-ending {white-space:nowrap}
-.hero-title-ending {display:inline-block}
-.studio-hero .growing-word svg {bottom:-.15em;height:.23em;stroke-width:2.5}
-/* 進場：標語先落定，底線才慢慢畫出來。基底狀態即為完成狀態，減少動態時直接顯示。 */
-/* 底線改用「遮罩框往右滑、線條反向滑」的雙層 transform 擦出，取代 stroke-dashoffset
-   （非合成屬性、每幀重繪 SVG）。線條近乎水平，左→右的擦出與沿路徑描畫肉眼一致；
-   節奏、延遲、曲線與原本相同。基底狀態仍是完成狀態。 */
-.studio-hero .hero-underline {position:absolute;left:0;bottom:-.15em;width:100%;height:.23em;overflow:hidden;animation:hero-wipe-frame 1.1s cubic-bezier(.22,1,.36,1) .8s both}
-.studio-hero .hero-underline svg {position:absolute;inset:0;width:100%;height:100%;animation:hero-wipe-line 1.1s cubic-bezier(.22,1,.36,1) .8s both}
-@keyframes hero-wipe-frame {from{transform:translateX(-101%)}}
-@keyframes hero-wipe-line {from{transform:translateX(101%)}}
+.hero-title-ending {display:inline-block;white-space:nowrap}
+/* 2026-09-30 重點詞改金色乾刷色塊，取代黃色手繪底線（mock：design/hero-brush-mockup-20260930/watercolor.html）。
+   - 字與色塊一起歪 -2°（以左下 70% 高為軸）。用獨立的 rotate 屬性，不和 hero-rise 的 transform 互相覆蓋。
+   - LINE Seed 字身在行框偏上，行高 1.32 時色塊要 top -.22em、加高 .3em 才蓋住字頂（實測）。
+   - 刷痕是 SVG 路徑＋feTurbulence 位移，右端五條飛白；透明度 .75 加在整組（飛白和主體重疊，逐塊 fill-opacity 會疊出深色斑）。
+   - 進場在標語落定後由左刷到右；基底狀態即完成狀態，減少動態時直接顯示。 */
+.studio-hero .hero-key {position:relative;display:inline-block;margin:0 .16em 0 .18em;padding:0 .1em;isolation:isolate;font-weight:800;color:var(--ivy-forest);text-shadow:none;rotate:-2deg;transform-origin:0 70%}
+.studio-hero .hero-key-text {position:relative}
+.studio-hero .hero-swatch {position:absolute;z-index:-1;left:-.14em;top:-.22em;width:calc(100% + .34em);height:calc(100% + .3em);overflow:visible;pointer-events:none;animation:hero-brush-in 1s cubic-bezier(.16,1,.3,1) .7s both}
+.studio-hero .hero-swatch g {fill:var(--gold);opacity:.75}
+@keyframes hero-brush-in {from{clip-path:inset(-30% 100% -30% -8%)}to{clip-path:inset(-30% -8% -30% -8%)}}
 @media(prefers-reduced-motion:reduce) {
-  .studio-hero-copy>*,.studio-hero .hero-underline,.studio-hero .hero-underline svg {animation:none!important;transform:none!important;opacity:1!important}
+  .studio-hero-copy>*,.studio-hero .hero-swatch {animation:none!important;transform:none!important;opacity:1!important}
+  .studio-hero .hero-swatch {clip-path:none}
 }
 .studio-hero-copy>* {animation:hero-rise .9s cubic-bezier(.22,1,.36,1) both}
 .studio-hero-copy>:nth-child(2) {animation-delay:.12s}
@@ -506,7 +504,6 @@ body:has(:is(.studio-hero,.photo-hero)) .header-top,
 @media(max-width:760px) {.hero-copy-line {word-break:keep-all;overflow-wrap:anywhere}}
 .hero-copy-phrase {white-space:nowrap}
 .studio-hero-foot {font-size:var(--fs-sm);font-weight:500}
-.studio-hero-copy .eyebrow {font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);letter-spacing:.18em;margin-bottom:30px}
 .studio-hero-image>video {position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 35%}
 .studio-media {position:absolute;inset:auto 0 32px;margin-inline:auto;display:flex;justify-content:flex-end;pointer-events:none}
 .studio-media button {display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;background:rgb(var(--ink) / .6);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);border:1px solid rgb(var(--on-dark) / .28);color:inherit;border-radius:50%;pointer-events:auto;transition:background-color .25s,border-color .25s}
@@ -518,8 +515,6 @@ body:has(:is(.studio-hero,.photo-hero)) .header-top,
 @media(max-width:760px) {
  .studio-hero-copy>p {font-size:var(--fs-md);margin-top:22px}
  .studio-hero h1 {font-size:clamp(1.875rem,9vw,2.125rem)}
- .studio-hero-copy .eyebrow {font-size:var(--fs-xs);margin-bottom:20px}
- .studio-hero .studio-actions {margin-top:28px}
 }
 @media(max-width:360px) {
  body:has(:is(.studio-hero,.photo-hero)) .header-book {white-space:nowrap;padding-inline:8px}

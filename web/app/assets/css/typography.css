@@ -23,12 +23,6 @@
   --fs-8xl:4rem;
 }
 
-.studio-hero-copy .eyebrow {
-  font-family:var(--font-information);
-  font-weight:var(--weight-action);
-  letter-spacing:.1em;
-}
-
 /* 標題字級同時給照片算對齊（studio.css 的 .belief-photo），改字級只改這個變數。 */
 .home-belief {--belief-title-size:clamp(2.25rem,3.35vw,3.25rem)}
 .belief-main h2 {

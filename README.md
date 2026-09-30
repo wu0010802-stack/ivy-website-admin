@@ -1,3 +1,14 @@
+## 2026-09-30 首屏文字：「新發現」金色乾刷色塊、拿掉小標與找校區（`feature/hero-brush-20260930`，未部署）
+
+依 `design/hero-brush-mockup-20260930/watercolor.html` 的定案（筆刷／金／原位／滿版裁切／關鍵字 -2°）改 `web/`：
+
+- `HeroVideo.vue`：拿掉小標與「找校區」；「新發現」的黃色底線換成金色乾刷 SVG 色塊（字與色塊一起 -2°、.75 透明、進場由左刷到右）；標點有值才畫。
+- `studio.css`／`typography.css`：刪掉底線與首屏小標樣式，加 `.hero-key`／`.hero-swatch`。
+- `site-fixture.json`（與測試基準 `overlay-baseline-20260925.json`）：主標兩個標點改空字串。後端只匯入小標／說明／按鈕文字，不受影響。
+- 後台首屏表單：說明改成「旁的標語」，小標欄位加「首頁不顯示」提示。
+- 測試：`ux-critique-20260929.spec.ts` 的「找校區」改成鎖住拿掉；新增 `hero-brush-20260930.spec.ts`。
+- 驗證：`npm --prefix web run typecheck`（0 警告）、`npm run test:website`（65 檔 668 項）、`npm --prefix admin run typecheck`、`npm --prefix admin run test:unit`（49 檔 679 項）；dev server 上 1440／1280／390 的 12 幀對比與九種寬度，數字見 DESIGN.md 同日章節。改版前快照 `versions/before-hero-brush-20260930-145859/`。
+
 ## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/visit-e2e-20260930-round2/REPORT.md`。報告同樣在落後 main 的 `5e34c5d` 上測，四項都對 main 重新查證：三項仍在、一項 main 已修。
