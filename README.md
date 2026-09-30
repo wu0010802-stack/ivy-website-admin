@@ -8,6 +8,15 @@
 - 後台首屏表單：說明改成「旁的標語」，小標欄位加「首頁不顯示」提示。
 - 測試：`ux-critique-20260929.spec.ts` 的「找校區」改成鎖住拿掉；新增 `hero-brush-20260930.spec.ts`。
 - 驗證：`npm --prefix web run typecheck`（0 警告）、`npm run test:website`（65 檔 668 項）、`npm --prefix admin run typecheck`、`npm --prefix admin run test:unit`（49 檔 679 項）；dev server 上 1440／1280／390 的 12 幀對比與九種寬度，數字見 DESIGN.md 同日章節。改版前快照 `versions/before-hero-brush-20260930-145859/`。
+## 2026-09-30 首頁拿掉桌機章節指示（`feature/height-ruler-20260930`，未部署）
+
+使用者要把首頁右側的章節指示改成像身高尺。試了三個方向（`?ruler=a` 刻度＋滑動頭頂板、`b` 從上方填色、`c` 由下往上長高），看完決定整個不要：首頁不放章節／進度指示。
+
+- 刪 `components/HomeChapters.vue`，`pages/index.vue` 不再掛它；`utils/homeChapters.ts` 只剩 `chapterForHref`（`chapterAt`、`ancestorIds`、`READ_LINE` 與三項測試一起刪）。
+- `useChapterAnchors` 保留：頁尾「孩子的一天」照樣捲到關於簾幕擦完的位置。`index.vue` 的 chapters 只留 `id`／`after`。
+- DESIGN.md「首頁四項效果」那條改成已拿掉、勿再提。修改前快照 `versions/before-remove-chapter-nav-20260930-143455/`。
+
+驗證：Node 22 `nuxt typecheck` 結束碼 0；`npm run test:website` 64 檔 660 項通過。dev server（fixture）Playwright 1440×900、390×844：首頁沒有章節指示，點頁尾「孩子的一天」網址變 `#life`、讀線元素在 `#life` 內，沒有 console／page error。
 
 ## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，2026-09-30 經 main CI 部署）
 
