@@ -87,6 +87,16 @@ def _use_clock(app, start: float = 1_900_000_000.0) -> Clock:
     return clock
 
 
+@pytest.fixture(autouse=True)
+def _frozen_rate_limit_clock(request):
+    """這個檔案的測試都在數帳號額度（錯 10 次鎖定、併發搶額度）。限流是固定窗口
+    加權近似，一批請求剛好跨過 5 分鐘窗口交界時前一窗的次數會被打折、多放行一次
+    （main CI run 36654096211 的 test_queued_burst_cannot_outrun_the_lock 驗了 11
+    次）。用到 app 的測試一律先換成凍結時鐘；要推進時間的測試自己再呼叫 _use_clock。"""
+    if "app" in request.fixturenames:
+        _use_clock(request.getfixturevalue("app"))
+
+
 def _count_bcrypt(monkeypatch) -> list[int]:
     """記下每次 bcrypt 是在哪個執行緒跑的（事件迴圈執行緒 vs worker）。"""
     calls: list[int] = []
