@@ -45,8 +45,7 @@
   - `readiness.py` 不再列 `inquiry` 為可選模式。
   - 公開端 `GET /public/booking-config/{campus_key}`（`routes.py:212`）若讀到 `inquiry`（只可能在 migration 前），一律回 `paused`。
 - 送單 `POST /public/visit-requests`（`routes.py:335`，`service.py`）：
-  - `slot_id` 必填（schema 層），缺少回 422 `SLOT_REQUIRED`。
-  - `email` 必填，缺少回 422 `EMAIL_REQUIRED`。
+  - `slot_id`、`email` 必填（schema 層），缺少回 FastAPI 標準 422（`detail[].loc` 指到欄位），不另訂 `SLOT_REQUIRED`／`EMAIL_REQUIRED` 代碼；官網依 `loc` 標欄位錯誤。
   - 有時段一律建立為 `confirmed`、`confirmed_at=now`，不再讀 `slots_auto_confirm`（取代 `service.py:385-396` 的分支）。不再寫 `hold_expires_at`。
   - `preferred_time`：官網不再送出；schema 維持選填以相容舊前端，DB 欄位保留。
   - 其餘順序（限流、重播、Turnstile、上限、鎖 `booking_configs` 與時段列）不變。
@@ -61,7 +60,7 @@
   - 既有以 `secrets.token_urlsafe` 產生的舊 token 仍以 hash 查找，照常可兌換。
 - `access_service`（`access_service.py:38`）新增：
   - `issue_access_token(db, visit_request)`：撤銷該案既有 token 與 session，建新列，回傳 raw 與到期時間。
-  - `current_manage_url(db, visit_request, origin)`：找該案未撤銷、未到期的 token，重算 raw，組 `{origin}/visit/manage#token=<raw>`；沒有則回 None。
+  - `current_manage_url(db, visit_request, origin)`：找該案未撤銷、未到期的 token，重算 raw，組 `{origin}/visit/manage#token=<raw>`（`origin` 用 `WEBSITE_ADMIN_ORIGIN`）；沒有則回 None。
 - 有效期：`expires_at = max(now + 14 天, 參觀開始 + 7 天)`。改場次時依新場次重算（只會延長或維持，不縮短已發出的連結）。
 - 發放時機：
   - 公開送單成功時（同一交易內）。
@@ -69,14 +68,14 @@
   - 後台「重新產生連結並寄出」時（撤銷舊的、發新的、排一封 `parent_visit_changed`）。
   - 舊案件（本案上線前建立、沒有 token）在後台「排入場次」時。
 - 撤銷：沿用 `revoke_access_for_visit_request`，在取消、完成、未到場時由 `workflow_service._close`（`workflow_service.py:139`）呼叫。
-- 送單回應 `VisitRequestOut`（`schemas.py:387`）新增 `manage_url: str | None`。新建與重播都用 `current_manage_url` 取得，同一筆永遠是同一條。回應加 `Cache-Control: no-store`。
-- 更換 `WEBSITE_SESSION_SECRET` 會讓所有已發出的連結失效（寫進 `deploy/README.md`）。
+- 送單回應 `VisitRequestOut`（`schemas.py:387`）新增 `manage_path: str | None`（相對路徑 `/visit/manage#token=…`，不是完整網址；信件才用 origin 組完整網址）。新建與重播都用 `current_manage_url` 取得，同一筆永遠是同一條。回應加 `Cache-Control: no-store`。
+- 更換 `WEBSITE_SESSION_SECRET` 的影響（寫進 `deploy/README.md`）：已發出的連結**仍可用到到期**（兌換只比對雜湊），但系統無法再重算這些連結（重送、寄信拿不到連結）；園方可在後台按「重新產生連結並寄出」補發。
 
 ### 3.3 家長端 API（`access_routes.py`）
 
 全部沿用現有 session cookie、`require_parent_request`（`X-Ivy-Parent: 1`、擋 cross-site、每分鐘 30 次）、`_require_same_visit_request`（`access_routes.py:74`）與截止檢查 `require_change_window`（`parent_policy.py`）。
 
-- `GET /public/visit-manage/me`：`ParentVisitRequestOut`（`schemas.py:504`）新增 `parent_name`、`phone`、`email`、`child_name`、`child_birthdate`、`party_size`、`questions`、`version`，以及 `can_edit`（與 `can_reschedule` 同條件）。移除 `phone_masked`（改顯示完整電話）。
+- `GET /public/visit-manage/me`：`ParentVisitRequestOut`（`schemas.py:504`）新增 `parent_name`、`phone`、`email`、`child_name`、`child_birthdate`、`party_size`、`questions`、`version`，以及 `can_edit`（與 `can_reschedule` 同條件）。移除 `phone_masked`（改回傳完整 `phone`）。
 - `POST /public/visit-manage/reschedule`（新）：body `{visit_request_id, slot_id}`。
   - 條件：案件 `confirmed`、分校啟用、在截止前、新時段 `is_publicly_bookable`、與原時段不同。
   - 呼叫 `workflow_service.reschedule(actor=PARENT)`（`workflow_service.py:270`），沿用「新舊時段依字串排序上鎖」與容量檢查。
@@ -84,9 +83,9 @@
   - 錯誤碼：`SLOT_FULL`、`SLOT_CLOSED`、`SLOT_NOT_FOUND`、`SLOT_NOT_BOOKABLE`、`SAME_SLOT`、`CHANGE_DEADLINE_PASSED`、`INVALID_TRANSITION`、`BOOKING_UNAVAILABLE`、`PARENT_SESSION_CHANGED`。
 - `PATCH /public/visit-manage/me`（新）：body `{visit_request_id, expected_version, parent_name?, phone?, email?, child_name?, child_birthdate?, party_size?, questions?}`。
   - 欄位驗證與公開送單相同（`schemas.py:231-317`）；`email` 不可清空。
-  - 鎖案件列，`version` 不符回 409 `VISIT_VERSION_CONFLICT`。
+  - 鎖案件列，`version` 不符回 409 `VISIT_REQUEST_VERSION_CONFLICT`（沿用既有代碼）。
   - 條件同改期（`confirmed`、截止前）。沒有實際變更時直接回目前資料，不寫歷程、不寄信。
-  - 歷程事件 `details_updated`（actor=PARENT，before／after 只列有變的欄位）。不通知園方。
+  - 歷程事件 `details_updated`（actor=PARENT，只記改了哪些欄位名稱：`after={"fields": [...]}`，不記內容，歷程表規定不放個資）。不通知園方。
   - 有變更時排 `parent_visit_changed`，寄到**新的** Email。
 - `POST /public/visit-manage/cancel`：不變；另外寫 `cancel_reason=parent`。寄信由 `workflow_service.cancel` 統一排（§3.4）。
 - `POST /public/visit-manage/reschedule-request`：停用，回 410 `ENDPOINT_RETIRED`。既有 pending 的 `reschedule_requests` 仍可在後台核准或退回（`access_routes.py:378`、`:433`）。
@@ -141,7 +140,7 @@
 
 - 移除 `POST .../contacting`（`routes.py:1517`）：回 410 `ENDPOINT_RETIRED`。`workflow_service.mark_contacting` 刪除。
 - `POST .../confirm`（`routes.py:1314`）保留，語意改為「排入場次」，只用於 pending 組的舊案件；成功後發修改連結（若無）並排 `parent_visit_booked`（有 Email 時）。
-- 補登 `POST /admin/visit-requests`（`routes.py:1036`）：`slot_id` 必填（422 `SLOT_REQUIRED`）；時段可在 24 小時預約窗內，但不可已關閉、已滿、已開始（與 `ManualVisitDialog.vue:103` 的 `openSlots` 一致）；成功即 `confirmed`、發修改連結、有 Email 時排 `parent_visit_booked`。
+- 補登 `POST /admin/visit-requests`（`routes.py:1036`）：`slot_id` 必填（schema 層，缺少回標準 422）；時段可在 24 小時預約窗內，但不可已關閉、已滿、已開始（與 `ManualVisitDialog.vue:103` 的 `openSlots` 一致）；成功即 `confirmed`、發修改連結、有 Email 時排 `parent_visit_booked`。
 - 新增 `POST /admin/visit-requests/{id}/resend-confirmation`（`booking.handle`）：案件須為 `confirmed` 且有 Email，否則 409。若沒有有效 token 先發一條。
 - 既有 `POST .../access-link`（`access_routes.py:229`）改為「重新產生並寄出」：撤銷舊連結、發新連結、有 Email 時排 `parent_visit_changed`；回應仍附新連結供園方複製。
 - 後台取消與改期的回應不變；寄信在 §3.4 觸發。
@@ -161,13 +160,13 @@
 - 只剩自選場次。`resolveBookingAction`（`web/app/utils/booking-action.ts:30`）移除 inquiry 分支；CTA 一律「選擇參觀日期與場次」。
 - Email 改必填，說明「確認信與修改連結會寄到這裡」。
 - 拿掉「方便接電話的時段」欄位（`VisitForm.vue:584`）。
-- 新錯誤碼文案：`SLOT_REQUIRED`、`EMAIL_REQUIRED`（422 時聚焦對應欄位）。
+- 缺 `slot_id`／`email` 時後端回標準 422，依 `detail[].loc` 標欄位錯誤並聚焦對應欄位。
 
 ### 4.2 結果頁
 
 - 只有一種成功狀態：標題「預約成功」＋綠勾（取代 `resultCopy` 的 confirmed「預約成立」與另外兩種語意，`VisitForm.vue:177-198`）。
 - 摘要清單：校區、日期、場次（`10/02（五）上午場 10:00`）、參觀人數、孩子姓名與生日、家長稱呼、電話、Email、得知管道、想了解的事。
-- 主按鈕「修改或取消預約」→ `manage_url`；次按鈕「複製連結」；提示「請收藏這條連結」。
+- 主按鈕「修改或取消預約」→ `manage_path`（前端用當前 origin 組完整網址）；次按鈕「複製連結」；提示「請收藏這條連結」。
 - `parent_email_enabled` 為 true：「確認信已寄到 w***@gmail.com，沒收到請看垃圾信件匣」。為 false：「請收藏上方連結，之後要改時間或取消都從這裡進入」。
 - 加入行事曆與導航（`VisitCalendarActions.vue`）保留；行程內仍不放孩子資料、電話與管理連結（2026-09-26 裁定）。
 
@@ -266,7 +265,7 @@
 上線前依 `deploy/README.md` 備份閘門先備份正式 DB。
 
 1. `booking_configs`：
-   - `mode='inquiry'` 的分校：若有任一 `visit_rules` 列，或有未來、未關閉的 `visit_slots`，改為 `slots`；否則改為 `paused`，且 `message` 為空時填入「線上預約即將開放，請來電 {campuses.phone}」（沒有電話時只寫前半句）。
+   - `mode='inquiry'` 的分校：若有任一 `visit_rules` 列，或有未來、未關閉的 `visit_slots`，改為 `slots`；否則改為 `paused`，且 `message` 為空時填入「線上預約即將開放，歡迎來電洽詢。」（分校電話存在 CMS 內容，不在 `campuses` 表，migration 不讀，故訊息不含電話）。`booking_mode` 是 PG native enum，存的是大寫名稱（`'INQUIRY'`、`'SLOTS'`、`'PAUSED'`），SQL 字面值一律大寫。
    - 所有列 `slots_auto_confirm = true`。
    - 有改動的列 `version = version + 1`，讓還開著舊表單的家長送出時收到 `BOOKING_CONFIG_CHANGED`。
    - 每一校的改動寫一筆 `audit_logs`（actor 為 system、action `booking_config.migrate_self_booking`，metadata 有 before／after）。
@@ -275,16 +274,16 @@
 
 ### 5.2 相容與上線順序
 
-- web 與 api 在同一次部署上線。舊版前台在空窗期送出沒有 `slot_id` 的表單會收到 422 `SLOT_REQUIRED`（或因 `version` 遞增收到 `BOOKING_CONFIG_CHANGED`），前台顯示「預約方式已更新，請重新整理」。
+- web 與 api 在同一次部署上線。舊版前台在空窗期送出沒有 `slot_id` 的表單會收到標準 422（缺 `slot_id`；或因 `version` 遞增收到 `BOOKING_CONFIG_CHANGED`），前台顯示「預約方式已更新，請重新整理」。
 - 既有 new／contacting／pending_confirmation 案件保留原狀態，出現在「待處理」分頁；pending_confirmation 仍由 `expire_holds` 在逾期時釋放。
-- 既有 token（隨機產生）可照常兌換直到到期；本案上線前建立的案件沒有 `manage_url`，後台可按「重新產生連結並寄出」補發。
+- 既有 token（隨機產生）可照常兌換直到到期；本案上線前建立的案件沒有修改連結，後台可按「重新產生連結並寄出」補發。
 - 既有 pending 的改期申請照常在後台處理。
 
 ## 6. 測試
 
 **後端（pytest，真 PostgreSQL）**
 - 送單：一律 `confirmed`；缺 `slot_id` 422；缺 Email 422；`inquiry` 設定下公開端回 paused。
-- 修改連結：新建與重播的 `manage_url` 相同；raw 可兌換；撤銷後 `current_manage_url` 為 None；更換密鑰後舊連結失效；有效期計算與改期延長；舊隨機 token 仍可兌換。
+- 修改連結：新建與重播的 `manage_path` 相同；raw 可兌換；撤銷後 `current_manage_url` 為 None；更換密鑰後舊連結仍可兌換但無法重算；有效期計算與改期延長；舊隨機 token 仍可兌換。
 - 家長改期：成功、截止後 409、同時段、非公開可訂；**最後一個名額「家長改期」與「新預約」並發只一方成功**（沿用 `test_booking_concurrency.py` 的做法）。
 - 家長改資料：版本衝突、欄位驗證、Email 不可清空、無變更不寫歷程、截止後 409、`PARENT_SESSION_CHANGED`。
 - 寄信：三種 kind 各自的觸發點（§3.4 表）；payload 不含 raw token；取消信沒有修改連結；無 Email／無 adapter 標 `skipped`；去重；sink adapter 內容含正確場次文字與連結。
@@ -313,7 +312,7 @@
 2. **各校設定場次**：正式站上線本案後，各校到後台「參觀場次」按「套用常用場次」→ 調整 → 「儲存並開放線上預約」，一步完成。上線時還沒設場次的校會先顯示暫停（請來電），設好就開放；上線前若已在舊的「時段與容量」頁設好規則，migration 會直接切成自選場次。
 3. **同意文字**：確認各校已發布的預約同意文字提到「Email 用於寄送預約確認與修改連結」（實作時列出建議字句）。這次改版本來就要改同意文字，**建議同一次一起寫明參觀後的招生用途**：參觀後園方會依預約資料聯繫，並記錄入學意願與進度。之後的招生入學模組會把到場預約的孩子與聯絡資料複製成招生紀錄，保存期限另訂（`docs/specs/2026-09-30-website-admissions-design.md` §11、§15 Q1）。實際字句與保存天數由業主裁定；若業主決定招生用途另案處理，這一步只寫 Email。
 4. 上線前依備份閘門備份正式 DB；上線後唯讀檢查五校模式。
-5. 知悉：更換 `WEBSITE_SESSION_SECRET` 會讓家長的修改連結全部失效。
+5. 知悉：更換 `WEBSITE_SESSION_SECRET` 後，已發出的家長修改連結仍可用到到期，但系統無法再重算它們（重送、寄信拿不到連結）；需要時由園方按「重新產生連結並寄出」補發。
 
 ## 8. 文件更新（隨實作一起改）
 
