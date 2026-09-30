@@ -149,7 +149,7 @@ describe('啟用條件與影響範圍（純函式）', () => {
   it('參觀人數與同意紀錄的顯示', () => {
     expect(partySizeLabel(3)).toBe('3 位')
     expect(partySizeLabel(null)).toBe('未填')
-    expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: 'r', consent_revision_version: 5, consent_accepted_at: '2026-09-25T02:00:00Z' })).toBe('家長勾選同意（預約文案第 5 版）・2026/09/25 10:00')
+    expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: 'r', consent_revision_version: 5, consent_accepted_at: '2026-09-25T02:00:00Z' })).toBe('家長勾選同意（當時的預約文案）・2026/09/25 10:00')
     expect(consentRecordLabel({ source: 'phone', consent_given: true, consent_revision_id: null, consent_accepted_at: null })).toBe('人員說明後代為勾選')
     expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: null })).toContain('尚未記錄版本')
   })
@@ -411,7 +411,7 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => (path.startsWith('/admin/visit-requests/case') && !path.endsWith('/contact-notes') ? detail : []) as never)
     let wrapper = await mountAt(VisitDetailView, '/visit-requests/case', '/visit-requests/:id')
     expect(wrapper.text()).toContain('參觀人數4 位')
-    expect(wrapper.text()).toContain('家長勾選同意（預約文案第 7 版）')
+    expect(wrapper.text()).toContain('家長勾選同意（當時的預約文案）')
     wrapper.unmount()
 
     vi.restoreAllMocks()

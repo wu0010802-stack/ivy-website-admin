@@ -51,6 +51,7 @@ interface DashboardSummary {
   awaiting_confirmation?: number
   next_hold_expires_at?: string | null
   pending_reschedule_requests?: number
+  my_unread_notifications?: number
   needs_attention?: number
   pending_follow_up: number
   pending_publish: number
@@ -216,6 +217,8 @@ function shortDateTime(value: string | null | undefined): string {
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
 const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
+// 給自己的內容通知（送審、核准或退回、排程沒有發布）還沒讀的則數：側欄不掛數字，改在總覽與頁首提醒。
+const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
 // 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
 const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 const followUpDue = computed(() => summary.value?.pending_follow_up ?? 0)
@@ -270,7 +273,7 @@ const shortcuts = computed(() =>
       : []),
     canManageBooking.value
       ? { to: '/slots', title: '安排參觀時段', hint: '開放時間與可接待人數' }
-      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約人數' },
+      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約組數' },
     { to: '/visit-calendar', title: '查看接待月曆', hint: '每天有誰要來參觀' },
     { to: '/content/home-hero', title: '更新首頁文字', hint: '調整家長進站看到的標語' },
     { to: '/content/campus-profile', title: '修改各校資料', hint: '校園介紹與聯絡方式' },
@@ -312,6 +315,7 @@ const hasTodo = computed(() => {
   return (
     openCount.value > 0 ||
     reschedules.value > 0 ||
+    (myNotices.value > 0 && canOpen('/releases')) ||
     needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
     pendingPublishCount.value > 0 ||
@@ -387,6 +391,10 @@ const hasTodo = computed(() => {
             <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
               <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
               <div><h3 id="task-due-t">案件已到追蹤時間</h3><p id="task-due-d">之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span id="task-due-a" class="task__action">查看到期案件 <span aria-hidden="true">→</span></span></div>
+            </router-link>
+            <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
+              <span id="task-notices-n" class="task__number">{{ myNotices }}</span>
+              <div><h3 id="task-notices-t">有內容通知還沒看</h3><p id="task-notices-d">送審、核准或退回，以及排程沒有發布的通知。退回的會寫明原因。</p><span id="task-notices-a" class="task__action">查看內容通知 <span aria-hidden="true">→</span></span></div>
             </router-link>
             <router-link v-if="campusesWithoutBooking.length && canOpen('/booking')" class="task" to="/booking" v-bind="taskAria('booking')">
               <span id="task-booking-n" class="task__number">{{ campusesWithoutBooking.length }}</span>

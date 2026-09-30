@@ -17,6 +17,7 @@ import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
 import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import { useCampusScope } from '../composables/useCampusScope'
+import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 
 const route = useRoute()
 const openRequests = useOpenRequestsStore()
@@ -34,14 +35,17 @@ const rescheduleReason = ref('')
 const manualRescheduleOpen = ref(false)
 const rescheduleSelect = ref<{ focus: () => void } | null>(null)
 const rescheduleTitle = ref<HTMLElement | null>(null)
-const newNote = ref('')
+// 聯絡紀錄草稿：被打斷時存在這個分頁，回到同一筆帶回（composables/visitNoteDraft.ts）。
+const newNote = ref(readVisitNoteDraft(route.params.id as string))
+watch(newNote, (text) => writeVisitNoteDraft(id.value, text))
 // 「下次聯絡」跟著這一筆紀錄一起送；家長說「下週再打」時才有地方記，
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
 // 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
 const noteInput = ref<{ focus: () => void } | null>(null)
 // 同校還沒處理完的其他案件，讓櫃台早上能一筆接一筆處理，不必每次回列表。
-const nextQueue = ref<{ id: string; held: number; fresh: number; heldMore: boolean; freshMore: boolean } | null>(null)
+// 從列表點進來時跟著那份列表的條件與順序（list）；沒有來源時照下方 loadNextCases 的處理優先序。
+const nextQueue = ref<{ id: string; held: number; fresh: number; heldMore: boolean; freshMore: boolean; list?: { count: number; label: string } } | null>(null)
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
 type DetailAction = 'contacting' | 'confirm' | 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note' | RescheduleAction
@@ -165,10 +169,54 @@ function holdTime(request: VisitRequestDetailOut): number {
   return Number.isNaN(at) ? Number.POSITIVE_INFINITY : at
 }
 
+// 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
+const LIST_KEYS = ['campus_key', 'status', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+function sourceListParams(): URLSearchParams | null {
+  const raw = route.query.list
+  if (typeof raw !== 'string' || !raw) return null
+  const incoming = new URLSearchParams(raw)
+  const params = new URLSearchParams()
+  for (const key of LIST_KEYS) {
+    const value = incoming.get(key)
+    if (value) params.set(key, value)
+  }
+  // 從列表第 1 頁來就一次抓 50 筆；第 2 頁以後照列表的頁碼與每頁筆數抓同一段。
+  if (!params.has('page_size')) params.set('page_size', '50')
+  return params
+}
+
+const NEXT_LABELS: Record<string, string> = { pending_confirmation: '下一筆待確認', new: '下一筆待處理' }
+// 目前這筆在來源列表的第幾位；處理完離開列表（例如狀態變了）後，
+// 接手它位置的那一筆就是下一筆。
+let queuePosition = 0
+
+// 從列表點進來：下一筆照那份列表的條件與順序走。
+async function loadListNext(source: URLSearchParams, gen: number) {
+  const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${source}`)
+  if (gen !== generation) return
+  const rows = Array.isArray(list) ? list : []
+  const index = rows.findIndex((r) => r.id === id.value)
+  const others = rows.filter((r) => r.id !== id.value)
+  if (index >= 0) queuePosition = index
+  const next = index >= 0 ? (rows[index + 1] ?? others[0]) : others[Math.min(queuePosition, others.length - 1)]
+  nextQueue.value = next
+    ? { id: next.id, held: 0, fresh: 0, heldMore: false, freshMore: false, list: { count: others.length, label: NEXT_LABELS[next.status] ?? '下一筆' } }
+    : null
+}
+
 // 下一筆的順序：待園方確認有期限（逾期名額會釋出），排在前面、期限最早的先；
 // 再來是待處理，最早送出的先。後端列表只能依送出時間排序，確認期限在這裡排。
 async function loadNextCases(campusKey: string) {
   const gen = generation
+  const source = sourceListParams()
+  if (source) {
+    try {
+      await loadListNext(source, gen)
+    } catch {
+      if (gen === generation) nextQueue.value = null
+    }
+    return
+  }
   const fetchStatus = (status: string) =>
     api.get<VisitRequestDetailOut[]>(
       `/admin/visit-requests?${new URLSearchParams({ status, campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
@@ -204,6 +252,7 @@ async function loadNextCases(campusKey: string) {
 const nextLabel = computed(() => {
   const q = nextQueue.value
   if (!q) return ''
+  if (q.list) return `${q.list.label}（這份列表還有 ${q.list.count} 件）`
   const parts = [
     q.held ? `待確認 ${q.held}${q.heldMore ? '+' : ''}` : '',
     q.fresh ? `待處理 ${q.fresh}${q.freshMore ? '+' : ''}` : '',
@@ -214,6 +263,7 @@ const nextLabel = computed(() => {
 const nextTitle = computed(() => {
   const q = nextQueue.value
   if (!q || !detail.value) return ''
+  if (q.list) return '照剛才案件列表的篩選條件與排序往下'
   return `${campusLabel(detail.value.campus_key)}還有待園方確認 ${q.held} 件、待處理 ${q.fresh} 件（不含這一筆）；確認期限最早的排最前面`
 })
 
@@ -269,8 +319,7 @@ async function confirm() {
     // 確認完的下一步幾乎都是打電話告知家長：把紀錄框先填好、游標放進去，
     // 講完電話按 Enter 就記下，不用再想要寫什麼。
     if (!newNote.value.trim()) newNote.value = `已致電家長，告知參觀時間 ${formatSlotWhen(slot)}。`
-    await nextTick()
-    noteInput.value?.focus()
+    await focusNoteOrShowTop()
   } catch (err) {
     reportError(err, '確認失敗')
   } finally {
@@ -288,10 +337,11 @@ async function cancel() {
   let reason: string | null = null
   try {
     const result = await ElMessageBox.prompt(
-      `${released}案件會結案；家長之後想再約，可以在這一頁用「重新預約（另建新案）」接續，不必請家長重新送出。`,
+      `${released}案件會結案。系統不會通知家長，需要的話請另外聯絡；家長之後想再約，可以在這一頁用「重新預約（另建新案）」接續，不必請家長重新送出。`,
       request ? '取消這筆參觀需求？' : '取消這筆預約？',
       {
         confirmButtonText: request ? '取消需求' : '取消預約',
+        confirmButtonClass: 'el-button--danger',
         cancelButtonText: '先不要',
         inputPlaceholder: '取消原因（選填，會記在案件歷程）',
         inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
@@ -352,6 +402,14 @@ const visitStarted = computed(() => {
   return slot ? slotStarted(slot, clockNow.value) : false
 })
 
+// 桌機游標直接進紀錄框；觸控裝置聚焦會彈出鍵盤，還把頁面捲到紀錄框、
+// 狀態標籤跑出畫面，所以只把頁面捲回頂端，狀態與「處理」面板都看得到。
+async function focusNoteOrShowTop() {
+  await nextTick()
+  if (window.matchMedia?.('(pointer: coarse)').matches) window.scrollTo({ top: 0 })
+  else noteInput.value?.focus()
+}
+
 // 待確認的占位過了期限：後端不會再接受確認，系統排程會自動取消並釋出名額。
 const holdExpired = computed(() => {
   const at = detail.value?.status === 'pending_confirmation' ? detail.value.hold_expires_at : null
@@ -379,10 +437,7 @@ async function markContacting() {
     ElMessage.success(returning ? '已退回聯絡中，名額已釋出' : '已標為聯絡中')
     openRequests.refresh(true)
     await load({ quiet: true })
-    if (!returning) {
-      await nextTick()
-      noteInput.value?.focus()
-    }
+    if (!returning) await focusNoteOrShowTop()
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
@@ -522,8 +577,12 @@ function goBack() {
 }
 
 // 用 replace：一筆接一筆處理完，按返回直接回列表，不必一筆筆倒退。
+// 從列表來的把列表條件一起帶到下一筆，下一筆的「下一筆」才會照同一份列表走。
 function goNext() {
-  if (nextQueue.value) router.replace(`/visit-requests/${nextQueue.value.id}`)
+  if (!nextQueue.value) return
+  const path = `/visit-requests/${nextQueue.value.id}`
+  const list = route.query.list
+  void router.replace(typeof list === 'string' && list ? { path, query: { list } } : path)
 }
 
 // 會列進總覽「到期待追蹤」的案件：與後端同一個定義，已取消、已完成的不算
@@ -578,7 +637,7 @@ watch(id, () => {
   detail.value = null
   notes.value = []
   nextQueue.value = null
-  newNote.value = ''
+  newNote.value = readVisitNoteDraft(id.value)
   followUpAt.value = null
   selectedSlotId.value = ''
   rescheduleSlotId.value = ''
@@ -611,7 +670,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
     <template v-else-if="detail">
       <div class="detail__head">
         <div>
-          <h1 class="detail__title">{{ detail.parent_name }}</h1>
+          <h2 class="detail__title">{{ detail.parent_name }}</h2>
           <p class="hint">
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
             {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>

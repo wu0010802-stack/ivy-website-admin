@@ -3,7 +3,7 @@
 // 提示、建議字數，以及後端新代碼都有中文標籤。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent, ref } from 'vue'
+import { computed, defineComponent, ref, render } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
@@ -164,6 +164,33 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     expect(mobile.attributes('href')).toBe('https://example.test/preview?page=campus&campus=yihua&viewport=mobile')
   })
 
+  it('核准送審版先列出和官網目前版本的欄位差異，欄位名和表單一致', async () => {
+    const { global } = await setup('/content/campus-profile')
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const review = vi.fn(async () => true)
+    // 差異清單的欄位名依內容種類對應表單（intro 在分校介紹叫「一句話簡介」，不是通用的「前言」）。
+    const compareWithLive = vi.fn(async () => ({ firstPublish: false, changes: diffPayload({ intro: '舊簡介', description: '同' }, { intro: '新簡介', description: '同' }, 'campus_profile') }))
+    const wrapper = mount(ContentEditor, {
+      props: { editor: editorState({ reviewStatus: computed(() => 'pending_review'), review, compareWithLive }) },
+      global,
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === '核准並發布')!.trigger('click')
+    await flushPromises()
+    expect(compareWithLive).toHaveBeenCalledOnce()
+    const [message, title, options] = confirm.mock.calls[0]!
+    const body = document.createElement('div')
+    render(message as never, body)
+    expect(title).toContain('核准並發布')
+    expect(body.textContent).toContain('一句話簡介')
+    expect(body.textContent).toContain('舊簡介')
+    expect(body.textContent).toContain('新簡介')
+    expect(body.textContent).not.toContain('前言')
+    expect(options).toMatchObject({ confirmButtonText: '核准並發布', cancelButtonText: '先不要' })
+    expect(review).not.toHaveBeenCalled()
+  })
+
   it('之後又成功發布過，就不再提舊的失敗', async () => {
     const { global } = await setup('/content/campus-faq')
     const schedules = ref([
@@ -313,9 +340,10 @@ describe('發布紀錄頁（第 56 條）', () => {
     const text = wrapper.text()
     expect(text).toContain('官網目前版本')
     expect(text).toContain('還原成 2026/09/20 10:00 那次發布的內容')
-    expect(text).toContain('第 2 版 → 第 1 版')
+    expect(text).toContain('內容已更新')
+    expect(text).not.toContain('第 2 版')
     expect(text).toContain('核准送審並發布')
-    expect(text).toContain('第一次上線（第 1 版）')
+    expect(text).toContain('第一次上線')
     expect(wrapper.find('a[href="/content/campus-faq?campus=yihua"]').exists()).toBe(true)
     // 目前這一筆沒有還原鈕，其他兩筆有。
     expect(wrapper.findAll('button').filter((b) => b.text() === '整站還原到這次')).toHaveLength(2)

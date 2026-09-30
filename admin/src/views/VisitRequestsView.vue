@@ -317,8 +317,24 @@ function exportCsv() {
   window.open(`${BASE_URL}/admin/visit-requests/export?${filterParams()}`, '_blank')
 }
 
+// 點進案件時把目前的篩選條件與排序帶過去，案件頁的「下一筆」才會照這份列表的
+// 順序走。沒有篩狀態、到期或待人工處理時（例如「全部」）不帶：那份列表夾著已結案
+// 的案件，「下一筆」改用固定的處理優先序。
+function detailTo(id: string) {
+  const actionable = statusFilter.value || dueOnly.value || attentionOnly.value
+  if (!actionable) return `/visit-requests/${id}`
+  const params = filterParams()
+  if (order.value !== 'newest') params.set('order', order.value)
+  // 第 2 頁以後要連每頁筆數一起帶，案件頁才會查到同一段列表（案件頁預設一次抓 50 筆）。
+  if (page.value > 1) {
+    params.set('page', String(page.value))
+    params.set('page_size', String(pageSize))
+  }
+  return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
+}
+
 function openDetail(row: VisitRequestDetailOut) {
-  router.push(`/visit-requests/${row.id}`)
+  router.push(detailTo(row.id))
 }
 
 function onManualCreated(created: VisitRequestDetailOut) {
@@ -414,7 +430,7 @@ onMounted(() => {
         :data="requests"
         v-loading="loading"
         class="el-table--clickable requests-table"
-        :empty-text="emptyText"
+        :empty-text="loading ? '' : emptyText"
         @row-click="openDetail"
       >
         <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
@@ -432,7 +448,7 @@ onMounted(() => {
         <!-- 方便接電話時段併成家長欄的灰字副行（明細與手機卡片也有），不另佔一欄。 -->
         <el-table-column label="家長／孩子" min-width="180">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <router-link :to="`/visit-requests/${row.id}`" @click.stop>{{ row.parent_name }}</router-link>
+            <router-link :to="detailTo(row.id)" @click.stop>{{ row.parent_name }}</router-link>
             <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}<span v-if="manualSource(row)" class="source"> · {{ manualSource(row) }}</span></span>
             <span v-if="row.follow_up_at" class="cell-sub cell-sub--line num" :class="{ 'is-due': followUpDue(row) }">{{ followUpDue(row) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(row.follow_up_at) }}</span>
             <span v-if="row.preferred_time" class="muted cell-sub">方便接電話時段：{{ contactTimeLabel(row.preferred_time) }}</span>
@@ -464,7 +480,7 @@ onMounted(() => {
         <el-skeleton v-if="loading" animated :rows="4" class="panel__body" />
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
-            <div class="request-list__head"><router-link :to="`/visit-requests/${request.id}`">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
+            <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>

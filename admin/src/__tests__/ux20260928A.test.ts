@@ -614,7 +614,7 @@ describe('側欄帳號區（v-shell-13／shell-12）', () => {
 
   it.each([
     ['reception', '櫃台・義華'],
-    ['editor', '編輯・義華'],
+    ['editor', '內容編輯・義華'],
     ['readonly', '唯讀・義華'],
     ['campus_admin', '校區管理者・義華'],
     ['super_admin', '總管理者'],

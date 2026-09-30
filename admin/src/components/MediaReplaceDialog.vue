@@ -301,7 +301,7 @@ async function applyReplacement() {
           <ul class="replace__results">
             <li v-for="row in results.items" :key="row.content_item_id">
               <router-link :to="contentEditorPath(row.kind, row.campus_key)">{{ contentItemLabel(row.kind, row.campus_key) }}</router-link>
-              <span class="hint">第 {{ row.version }} 版・{{ row.field_paths.map(mediaFieldPathLabel).join('、') }}</span>
+              <span class="hint">{{ row.field_paths.map(mediaFieldPathLabel).join('、') }}</span>
             </li>
           </ul>
         </template>

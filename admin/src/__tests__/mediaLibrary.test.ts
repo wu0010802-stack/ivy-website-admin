@@ -227,11 +227,12 @@ describe('素材庫頁', () => {
     expect(get).toHaveBeenCalledWith('/admin/media/m1/usages')
     const text = wrapper.text()
     expect(text).toContain('第 2 個場景的照片（操場）')
-    expect(text).toContain('第 3 版')
+    expect(text).not.toContain('第 3 版')
     expect(text).toContain('官網上')
     expect(text).toContain('第 1 則消息內文第 3 段的圖片')
     expect(text).toContain('只在舊版本')
-    expect(text).toContain('第 2、1 版')
+    expect(text).toContain('2 個舊版本')
+    expect(text).not.toContain('第 2、1 版')
   })
 
   it('篩選有看得到的標籤，筆數放在清單上方；分頁和篩選分開', async () => {
@@ -577,7 +578,8 @@ describe('替換素材', () => {
       replacement_id: 'm2',
       items: [{ content_item_id: 'tour', expected_version: 3, field_paths: ['scenes[1].image'] }],
     })
-    expect(wrapper.text()).toContain('第 4 版・第 2 個場景的照片')
+    expect(wrapper.text()).toContain('第 2 個場景的照片')
+    expect(wrapper.text()).not.toContain('第 4 版')
   })
 
   it('同一則消息的封面與內文可以只換封面；全選只選能編輯的位置', async () => {

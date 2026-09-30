@@ -5,7 +5,7 @@ import { TopRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { NAV_GROUPS } from '../router/nav'
+import { NAV_GROUPS, canOpenPath } from '../router/nav'
 import { WEBSITE_ASSET_BASE } from '../config'
 import AdminSidebar from '../components/AdminSidebar.vue'
 
@@ -23,6 +23,19 @@ const pageTitle = computed(() => route.meta.title ?? '')
 // href=""，新分頁開的是目前這頁後台，所以一定要接上「/」。
 const websiteHome = `${WEBSITE_ASSET_BASE.replace(/\/+$/, '')}/`
 const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
+// 側欄只留參觀案件的數字；家長的改期申請與給自己的內容通知未讀時，
+// 改在頁首出現一個連結，任何頁面都看得到、點了直接進去。
+const unreadLinks = computed(() => {
+  const user = auth.user
+  const links: { to: string; label: string; short: string; count: number }[] = []
+  if (openRequests.reschedules > 0 && canOpenPath('/notifications', user)) {
+    links.push({ to: '/notifications', label: '改期申請待核准', short: '改期', count: openRequests.reschedules })
+  }
+  if (openRequests.myNotices > 0 && canOpenPath('/releases', user)) {
+    links.push({ to: '/releases', label: '內容通知未讀', short: '通知', count: openRequests.myNotices })
+  }
+  return links
+})
 // 內容分成首頁／分校頁／全站三個子組，麵包屑顯示共用的「官網內容」，
 // 沒有區段的分組才用自己的名稱。
 const groupLabel = computed(() => {
@@ -111,6 +124,11 @@ async function handleLogout() {
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
         <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
+        <nav v-if="unreadLinks.length" class="top__alerts" aria-label="未讀通知">
+          <router-link v-for="link in unreadLinks" :key="link.to" :to="link.to" class="top__alert" :aria-label="`${link.label} ${link.count}`">
+            <span class="top__alert-count num">{{ link.count > 99 ? '99+' : link.count }}</span><span class="top__alert-long">{{ link.label }}</span><span class="top__alert-short" aria-hidden="true">{{ link.short }}</span>
+          </router-link>
+        </nav>
         <a class="top__site" :href="websiteHome" target="_blank" rel="noopener" aria-describedby="top-site-note"
           :title="websiteNote">查看官網 <el-icon><TopRight /></el-icon></a>
         <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
@@ -132,6 +150,12 @@ async function handleLogout() {
 .top__heading { min-width: 0; display: grid; gap: 3px; }
 .top__heading h1 { font-size: 18px; }
 .top__group { font-size: 12px; color: var(--ink-3); }
+.top__alerts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.top__alert { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--brand-gold); border-radius: var(--radius); background: var(--surface); font-size: 13px; color: var(--ink); }
+.top__alert:hover { background: var(--surface-2); text-decoration: none; }
+.top__alert-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-gold); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+.top__alert-short { display: none; }
+.top__alerts + .top__site { margin-left: 0; }
 .top__site { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--ink-2); }
 .top__site:hover { background: var(--surface-2); text-decoration: none; }
 .top__menu { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius); cursor: pointer; font-size: 20px; }
@@ -141,6 +165,11 @@ async function handleLogout() {
   .top { padding: 0 16px; }
   .top__heading h1 { font-size: 18px; }
   .top__site { min-height: 44px; padding: 0 8px; }
+  .top__alert { min-height: 44px; padding: 0 8px; white-space: nowrap; }
+  .top__alert-long { display: none; }
+  .top__alert-short { display: inline; }
+  .top__heading { flex: 1; }
+  .top__alerts { margin-left: 0; flex-wrap: nowrap; }
   .main { padding: 20px 16px 32px; }
 }
 @media (max-width: 360px) { .top { gap: 8px; padding: 0 12px; } .top__heading h1 { font-size: 16px; } }

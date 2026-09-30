@@ -65,7 +65,6 @@ async function loadNotices() {
 
 function noticeDetail(n: UserNotificationOut): string {
   const parts: string[] = []
-  if (n.revision_version) parts.push(`第 ${n.revision_version} 版`)
   if (n.publish_at) parts.push(`排程 ${formatDateTime(n.publish_at)}`)
   if (n.actor_email || n.actor_display_name) {
     const who = staffLabel(staffOf(n, 'actor'))
@@ -166,8 +165,8 @@ function restoredFromLabel(release: ReleaseOut): string {
 
 function versionChange(change: ReleaseOut['changes'][number]): string {
   return change.previous_revision_version === null
-    ? `第一次上線（第 ${change.revision_version} 版）`
-    : `第 ${change.previous_revision_version} 版 → 第 ${change.revision_version} 版`
+    ? '第一次上線'
+    : '內容已更新'
 }
 
 // 整站還原預計會換回哪些內容。只看目標之後的發布紀錄（新到舊排，目標之後的
@@ -271,7 +270,7 @@ async function cancelJob(job: PublishJobListOut) {
   if (!job.can_cancel || cancellingId.value) return
   try {
     await ElMessageBox.confirm(
-      `取消後 ${formatDateTime(job.publish_at)} 不會發布${contentItemLabel(job.kind, job.campus_key)}第 ${job.revision_version} 版。`,
+      `取消後 ${formatDateTime(job.publish_at)} 不會發布${contentItemLabel(job.kind, job.campus_key)}排程時選定的內容。`,
       '取消這個排程？',
       { confirmButtonText: '取消排程', cancelButtonText: '先不要', type: 'warning' },
     )
@@ -390,7 +389,7 @@ refreshAll()
             <li v-for="job in upcomingJobs" :key="job.id" class="job">
               <div class="job__main">
                 <router-link :to="contentEditorPath(job.kind, job.campus_key)"><strong>{{ contentItemLabel(job.kind, job.campus_key) }}</strong></router-link>
-                <span class="job__meta"><span class="num">{{ formatDateTime(job.publish_at) }}</span> 發布第 {{ job.revision_version }} 版<template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span> 排程</template></span>
+                <span class="job__meta"><span class="num">{{ formatDateTime(job.publish_at) }}</span> 發布排程時選定的內容<template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span> 排程</template></span>
               </div>
               <el-button v-if="job.can_cancel" size="small" :loading="cancellingId === job.id" :disabled="cancellingId !== null" @click="cancelJob(job)">取消排程</el-button>
             </li>
@@ -405,7 +404,7 @@ refreshAll()
                   <router-link :to="contentEditorPath(job.kind, job.campus_key)"><strong>{{ contentItemLabel(job.kind, job.campus_key) }}</strong></router-link>
                   <StatusTag :meta="publishJobStatus(job.status)" />
                 </span>
-                <span class="job__meta">排程 <span class="num">{{ formatDateTime(job.publish_at) }}</span>・第 {{ job.revision_version }} 版<template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span></template></span>
+                <span class="job__meta">排程 <span class="num">{{ formatDateTime(job.publish_at) }}</span><template v-if="job.created_by_email || job.created_by_display_name">・<span :title="staffEmail(staffOf(job, 'created_by')) || undefined">{{ staffLabel(staffOf(job, 'created_by')) }}</span></template></span>
                 <span v-if="job.error" class="job__error" :class="{ 'is-failed': job.status === 'failed' }">{{ job.error }}</span>
               </div>
             </li>

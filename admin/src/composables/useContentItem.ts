@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
 import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
+import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
@@ -126,12 +127,12 @@ export function nestedChangeDetail(before: unknown, after: unknown): string | un
   return undefined
 }
 
-export function diffPayload(before: Record<string, unknown>, after: Record<string, unknown>): FieldChange[] {
+export function diffPayload(before: Record<string, unknown>, after: Record<string, unknown>, kind?: string): FieldChange[] {
   const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
   return keys
     .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
     .map((key) => {
-      const change: FieldChange = { key, label: contentFieldLabel(key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }
+      const change: FieldChange = { key, label: contentFieldLabelFor(kind, key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }
       // 字串清單（標語）前後值已經逐字列出，不必再摘要。
       const plainStrings = [before[key], after[key]].every((v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
       const detail = plainStrings ? undefined : nestedChangeDetail(before[key], after[key])
@@ -177,6 +178,8 @@ export interface RevisionSummary {
 
 /** 版本紀錄抽屜需要的動作；ContentEditor 有拿到才顯示「版本紀錄」按鈕 */
 export interface RevisionHistoryHandle {
+  /** 內容種類：差異清單依它給和表單一致的欄位名 */
+  kind?: string
   list: () => Promise<RevisionSummary[]>
   payloadOf: (revisionId: string) => Promise<Record<string, unknown>>
   /** 目前已儲存的內容，用來列出「還原後哪些欄位會變」 */
@@ -291,7 +294,7 @@ export function useContentItem<TPayload extends object>(
 
   const changes = computed<FieldChange[]>(() => {
     if (!snapshot.value) return []
-    return diffPayload(JSON.parse(snapshot.value) as Record<string, unknown>, form.value as Record<string, unknown>)
+    return diffPayload(JSON.parse(snapshot.value) as Record<string, unknown>, form.value as Record<string, unknown>, kind)
   })
 
   const publicUrl = computed(() => `${WEBSITE_ASSET_BASE}${contentPublicPath(kind, unref(campusKey))}`)
@@ -474,7 +477,7 @@ export function useContentItem<TPayload extends object>(
       })
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       if (decision === 'approve') void loadSchedules()
-      ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，編輯會看到你寫的原因')
+      ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，內容編輯會看到你寫的原因')
       return true
     } catch (err) {
       ElMessage.error(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
@@ -565,6 +568,7 @@ export function useContentItem<TPayload extends object>(
   }
 
   const history: RevisionHistoryHandle = {
+    kind,
     list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
     async payloadOf(revisionId) {
       return (await readRevision(revisionId)).payload
@@ -620,7 +624,7 @@ export function useContentItem<TPayload extends object>(
         livePayloads.set(liveId, payload)
       }
       const live = withDefaults(payload) as Record<string, unknown>
-      return { firstPublish: false, changes: diffPayload(live, form.value as Record<string, unknown>) }
+      return { firstPublish: false, changes: diffPayload(live, form.value as Record<string, unknown>, kind) }
     } catch {
       return null
     }

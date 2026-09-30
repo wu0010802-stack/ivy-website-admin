@@ -22,7 +22,7 @@ export function campusLabels(keys: readonly string[]): string {
 export const ROLE_LABELS: Record<Role, string> = {
   super_admin: '總管理者',
   campus_admin: '校區管理者',
-  editor: '編輯',
+  editor: '內容編輯',
   reception: '櫃台',
   readonly: '唯讀',
 }
@@ -860,7 +860,7 @@ export function consentRecordLabel(detail: {
   if (detail.consent_given === false) return '未同意'
   const when = detail.consent_accepted_at ? `・${formatDateTime(detail.consent_accepted_at)}` : ''
   if (detail.consent_revision_id) {
-    const version = detail.consent_revision_version ? `預約文案第 ${detail.consent_revision_version} 版` : '版本已無法查到'
+    const version = detail.consent_revision_version ? '當時的預約文案' : '當時的預約文案已無法查到'
     return `家長勾選同意（${version}）${when}`
   }
   if (detail.source && detail.source !== 'web') return `人員說明後代為勾選${when}`

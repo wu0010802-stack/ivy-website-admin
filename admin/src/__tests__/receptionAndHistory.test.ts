@@ -85,8 +85,9 @@ describe('版本紀錄抽屜', () => {
     const handle = history()
     await mountDrawer(handle)
     const text = document.body.textContent ?? ''
-    // 儲存的人寫名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
-    expect(text).toContain('第 2 版・amy')
+    // 不寫版本號（2026-09-29 裁定）；編輯者寫名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
+    expect(text).toContain('編輯者：amy')
+    expect(text).not.toMatch(/第 \d+ 版/)
     expect(text).not.toContain('amy@ivy.example')
     expect(document.body.querySelector('.history__meta[title="amy@ivy.example"]')).not.toBeNull()
     expect(text).toContain('官網目前版本')

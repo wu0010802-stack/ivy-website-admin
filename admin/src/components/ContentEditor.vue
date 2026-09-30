@@ -231,7 +231,7 @@ function confirmBody(summary: ConfirmSummary, notes: (string | VNode | null)[]) 
 async function rejectWithNote() {
   if (!props.editor.review) return
   try {
-    const result = await ElMessageBox.prompt('寫下要修改的地方，編輯打開這一頁就看得到。', `退回${named.value}這次送審？`, {
+    const result = await ElMessageBox.prompt('寫下要修改的地方，內容編輯打開這一頁就看得到。', `退回${named.value}這次送審？`, {
       confirmButtonText: '退回',
       cancelButtonText: '先不要',
       inputType: 'textarea',

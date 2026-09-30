@@ -22,6 +22,9 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
   document.body.innerHTML = ''
+  // 聯絡紀錄草稿存在 sessionStorage（visitNoteDraft.ts）：不清的話會帶進下一個測試，
+  // 紀錄框有字就觸發離頁確認。
+  window.sessionStorage.clear()
 })
 
 const future = { id: 'slot-f', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' }
