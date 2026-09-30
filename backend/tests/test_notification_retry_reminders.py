@@ -22,8 +22,7 @@ from app.workers import lease_service
 from app.workers.maintenance import run_cycle
 from app.workers.runner import process_outbox_batch
 from tests.test_line_notifications import GROUP, TOKEN, FakeLine
-from tests.test_notifications import _enable_inquiry_and_submit
-from tests.test_security_hardening import _create_slot, _enable_slots, _payload
+from tests.conftest import book_slot, create_slot, legacy_request
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -53,6 +52,21 @@ async def _fail_until_given_up(db_session, message_id, adapter, line) -> OutboxM
     return message
 
 
+async def _book_created_only(admin_client, public_client, db_session, **fields) -> uuid.UUID:
+    """book_slot 後只留園方「新的參觀需求」那一筆待處理：已確認通知與家長確認信
+    標成已寄出，讓失敗、重送的計數只看這一筆。回傳它的 outbox id。"""
+    await book_slot(admin_client, public_client, **fields)
+    await db_session.execute(
+        update(OutboxMessage)
+        .where(OutboxMessage.kind != "visit_request_created")
+        .values(status=OutboxStatus.SENT.value)
+    )
+    await db_session.commit()
+    return (
+        await db_session.execute(select(OutboxMessage.id).where(OutboxMessage.kind == "visit_request_created"))
+    ).scalar_one()
+
+
 async def _inbox_count(db_session) -> int:
     return (await db_session.execute(select(func.count()).select_from(NotificationInboxItem))).scalar_one()
 
@@ -64,8 +78,7 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
     admin_client, minghua_client, public_client, db_session, failing_mail_adapter, recording_mail_adapter
 ):
     await _route_line_to_group(db_session)
-    await _enable_inquiry_and_submit(admin_client, public_client, "outbox-retry-01")
-    message_id = (await db_session.execute(select(OutboxMessage.id))).scalar_one()
+    message_id = await _book_created_only(admin_client, public_client, db_session)
     fake = FakeLine()
     line = LineMessagingClient(TOKEN, transport=fake.transport())
     try:
@@ -136,8 +149,7 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
 async def test_batch_retry_skips_other_campus_and_non_failed(
     admin_client, minghua_client, editor_client, public_client, db_session, failing_mail_adapter
 ):
-    await _enable_inquiry_and_submit(admin_client, public_client, "outbox-batch-01")
-    message_id = (await db_session.execute(select(OutboxMessage.id))).scalar_one()
+    message_id = await _book_created_only(admin_client, public_client, db_session)
     await _fail_until_given_up(db_session, message_id, failing_mail_adapter, None)
     ids = [str(message_id), str(uuid.uuid4())]
 
@@ -157,8 +169,7 @@ async def test_batch_retry_skips_other_campus_and_non_failed(
 
 
 async def test_cli_requeue_respects_campus(admin_client, public_client, db_session, failing_mail_adapter):
-    await _enable_inquiry_and_submit(admin_client, public_client, "outbox-cli-01")
-    message_id = (await db_session.execute(select(OutboxMessage.id))).scalar_one()
+    message_id = await _book_created_only(admin_client, public_client, db_session)
     await _fail_until_given_up(db_session, message_id, failing_mail_adapter, None)
 
     assert await outbox_admin.requeue_all_failed(db_session, {"minghua"}, actor_user_id=None, source="cli") == 0
@@ -178,8 +189,7 @@ async def test_cli_requeue_respects_campus(admin_client, public_client, db_sessi
 async def test_dashboard_failed_count_matches_outbox_list(
     admin_client, public_client, db_session, failing_mail_adapter
 ):
-    await _enable_inquiry_and_submit(admin_client, public_client, "outbox-dash-01")
-    message_id = (await db_session.execute(select(OutboxMessage.id))).scalar_one()
+    message_id = await _book_created_only(admin_client, public_client, db_session)
     await _fail_until_given_up(db_session, message_id, failing_mail_adapter, None)
 
     summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
@@ -187,10 +197,20 @@ async def test_dashboard_failed_count_matches_outbox_list(
 
 
 async def test_outbox_list_reports_total_beyond_limit(admin_client, public_client, db_session, monkeypatch):
-    for key in ("outbox-total-01", "outbox-total-02", "outbox-total-03"):
-        await _enable_inquiry_and_submit(admin_client, public_client, key)
+    for index in range(3):
+        await book_slot(
+            admin_client, public_client, days_ahead=3 + index, capacity=2, phone=f"091234567{index}"
+        )
+    # 每筆預約有三則通知；只把園方「新的參觀需求」三則標成失敗。
     await db_session.execute(
-        update(OutboxMessage).values(status=OutboxStatus.FAILED.value, attempts=lease_service.MAX_ATTEMPTS)
+        update(OutboxMessage)
+        .where(OutboxMessage.kind == "visit_request_created")
+        .values(status=OutboxStatus.FAILED.value, attempts=lease_service.MAX_ATTEMPTS)
+    )
+    await db_session.execute(
+        update(OutboxMessage)
+        .where(OutboxMessage.kind != "visit_request_created")
+        .values(status=OutboxStatus.SENT.value)
     )
     await db_session.commit()
     monkeypatch.setattr(outbox_admin, "LIST_LIMIT", 2)
@@ -207,16 +227,9 @@ async def test_outbox_list_reports_total_beyond_limit(admin_client, public_clien
 # --- 即將參觀 ---------------------------------------------------------------
 
 
-async def _confirmed_visit(admin_client, public_client, key: str, days_ahead: int = 3) -> tuple[str, dict]:
-    version = await _enable_slots(admin_client, auto_confirm=True)
-    slot = await _create_slot(admin_client, capacity=2, days_ahead=days_ahead)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": key},
-    )
-    assert created.status_code == 201, created.text
-    return created.json()["receipt_id"], slot
+async def _confirmed_visit(admin_client, public_client, days_ahead: int = 3) -> tuple[str, dict]:
+    booked = await book_slot(admin_client, public_client, days_ahead=days_ahead)
+    return booked["receipt_id"], {"id": booked["slot_id"]}
 
 
 async def _slot_start(db_session, slot_id: str) -> datetime:
@@ -234,7 +247,7 @@ async def _reminders(db_session, kind: str) -> list[OutboxMessage]:
 async def test_upcoming_visit_reminded_once_within_lead(
     admin_client, public_client, db_session, recording_mail_adapter
 ):
-    receipt_id, slot = await _confirmed_visit(admin_client, public_client, "upcoming-01")
+    receipt_id, slot = await _confirmed_visit(admin_client, public_client)
     starts = await _slot_start(db_session, slot["id"])
 
     # 還沒到提醒時間。
@@ -258,13 +271,13 @@ async def test_upcoming_visit_reminded_once_within_lead(
 async def test_upcoming_reminder_reevaluated_after_reschedule(
     admin_client, public_client, db_session, recording_mail_adapter
 ):
-    receipt_id, first_slot = await _confirmed_visit(admin_client, public_client, "upcoming-02")
+    receipt_id, first_slot = await _confirmed_visit(admin_client, public_client)
     first_start = await _slot_start(db_session, first_slot["id"])
     assert await reminders.enqueue_due_reminders(db_session, now=first_start - timedelta(hours=23)) == 1
     await db_session.commit()
 
     # 提醒還沒送出就改期：舊時段那則到寄送時不再成立，標成 skipped。
-    second_slot = await _create_slot(admin_client, capacity=2, days_ahead=5)
+    second_slot = {"id": await create_slot(admin_client, capacity=2, days_ahead=5)}
     moved = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/reschedule", json={"new_slot_id": second_slot["id"]}
     )
@@ -291,7 +304,7 @@ async def test_upcoming_reminder_reevaluated_after_reschedule(
 
 
 async def test_visit_confirmed_inside_lead_is_not_reminded_again(admin_client, public_client, db_session):
-    receipt_id, slot = await _confirmed_visit(admin_client, public_client, "upcoming-03")
+    receipt_id, slot = await _confirmed_visit(admin_client, public_client)
     starts = await _slot_start(db_session, slot["id"])
     await db_session.execute(
         update(VisitRequest)
@@ -304,8 +317,8 @@ async def test_visit_confirmed_inside_lead_is_not_reminded_again(admin_client, p
 
 
 async def test_rescheduled_inside_lead_is_not_reminded_again(admin_client, public_client, db_session):
-    receipt_id, _ = await _confirmed_visit(admin_client, public_client, "upcoming-04")
-    second_slot = await _create_slot(admin_client, capacity=2, days_ahead=5)
+    receipt_id, _ = await _confirmed_visit(admin_client, public_client)
+    second_slot = {"id": await create_slot(admin_client, capacity=2, days_ahead=5)}
     moved = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/reschedule", json={"new_slot_id": second_slot["id"]}
     )
@@ -343,10 +356,10 @@ async def _set_created_at(db_session, receipt_id: str, when: datetime) -> None:
 
 
 async def test_new_request_overdue_reminded_once_and_skipped_once_handled(
-    admin_client, public_client, db_session, recording_mail_adapter
+    admin_client, db_session, recording_mail_adapter
 ):
-    receipt_id = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-01")
-    old_receipt = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-02")
+    receipt_id = await legacy_request(db_session, status="new")
+    old_receipt = await legacy_request(db_session, status="new")
     now = datetime.now(timezone.utc)
     await _set_created_at(db_session, receipt_id, now - timedelta(hours=25))
     # 早就過期的舊案（超過補發範圍）不在功能上線時一次推出去。
@@ -360,8 +373,10 @@ async def test_new_request_overdue_reminded_once_and_skipped_once_handled(
     assert reminder.payload["reason"] == reminders.REASON_NEW_UNHANDLED
 
     # 寄出前有人開始聯絡了：提醒不再成立。
-    contacted = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/contacting")
-    assert contacted.status_code == 200, contacted.text
+    contacted = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/contact-notes", json={"note": "已致電家長"}
+    )
+    assert contacted.status_code == 201, contacted.text
     result = await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
     assert result["skipped"] == 1
     await db_session.refresh(reminder)
@@ -369,22 +384,17 @@ async def test_new_request_overdue_reminded_once_and_skipped_once_handled(
 
 
 async def test_manual_request_is_not_reported_overdue(admin_client, db_session):
-    created = await admin_client.post(
-        "/api/website/v1/admin/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678", "consent_given": True},
-        headers={"Idempotency-Key": "overdue-manual-01"},
-    )
-    assert created.status_code == 201, created.text
-    await _set_created_at(db_session, created.json()["id"], datetime.now(timezone.utc) - timedelta(hours=25))
+    receipt_id = await legacy_request(db_session, status="new", source="phone", parent_name="林爸爸")
+    await _set_created_at(db_session, receipt_id, datetime.now(timezone.utc) - timedelta(hours=25))
     # 人工補登的案件登錄的人就是承辦人，建立時也不發新案通知，不算「沒人處理」。
     assert await reminders.enqueue_due_reminders(db_session) == 0
 
 
 async def test_new_request_with_contact_note_is_not_reported_overdue(
-    admin_client, public_client, db_session, recording_mail_adapter
+    admin_client, db_session, recording_mail_adapter
 ):
-    noted = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-noted-01")
-    pending = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-noted-02")
+    noted = await legacy_request(db_session, status="new")
+    pending = await legacy_request(db_session, status="new")
     now = datetime.now(timezone.utc)
     await _set_created_at(db_session, noted, now - timedelta(hours=25))
     await _set_created_at(db_session, pending, now - timedelta(hours=25))
@@ -411,18 +421,10 @@ async def test_new_request_with_contact_note_is_not_reported_overdue(
     assert reminder.status == OutboxStatus.SKIPPED.value
 
 
-async def test_hold_expiring_reminder(admin_client, public_client, db_session, recording_mail_adapter):
-    version = await _enable_slots(admin_client, auto_confirm=False)
-    slot = await _create_slot(admin_client, capacity=2)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": "hold-expiring-01"},
-    )
-    assert created.status_code == 201, created.text
-    receipt_id = created.json()["receipt_id"]
-    visit = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-    hold = visit.hold_expires_at
+async def test_hold_expiring_reminder(admin_client, db_session, recording_mail_adapter):
+    slot_id = await create_slot(admin_client, capacity=2)
+    hold = datetime.now(timezone.utc) + timedelta(hours=24)
+    await legacy_request(db_session, status="pending_confirmation", slot_id=slot_id, hold_expires_at=hold)
 
     assert await reminders.enqueue_due_reminders(db_session, now=hold - timedelta(hours=7)) == 0
     assert await reminders.enqueue_due_reminders(db_session, now=hold - timedelta(hours=5)) == 1
@@ -436,23 +438,22 @@ async def test_hold_expiring_reminder(admin_client, public_client, db_session, r
     assert any("案件逾期未處理：待確認的時段申請 6 小時內到期" in subject for subject in subjects)
 
 
-async def test_short_hold_is_not_reminded(admin_client, public_client, db_session):
-    version = await _enable_slots(admin_client, auto_confirm=False)
-    slot = await _create_slot(admin_client, capacity=2)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": "hold-short-01"},
+async def test_short_hold_is_not_reminded(admin_client, db_session):
+    slot_id = await create_slot(admin_client, capacity=2)
+    receipt_id = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot_id,
+        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=3),
     )
-    receipt_id = created.json()["receipt_id"]
     visit = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
     # 占位本來就只有 3 小時（場次很近）：送出時那則通知已經夠急，不另外提醒。
     await _set_created_at(db_session, receipt_id, visit.hold_expires_at - timedelta(hours=3))
     assert await reminders.enqueue_due_reminders(db_session, now=visit.hold_expires_at - timedelta(hours=2)) == 0
 
 
-async def test_maintenance_cycle_enqueues_and_sends_reminders(app, admin_client, public_client, db_session):
-    receipt_id = await _enable_inquiry_and_submit(admin_client, public_client, "overdue-cycle")
+async def test_maintenance_cycle_enqueues_and_sends_reminders(app, admin_client, db_session):
+    receipt_id = await legacy_request(db_session, status="new")
     await _set_created_at(db_session, receipt_id, datetime.now(timezone.utc) - timedelta(hours=30))
 
     settings = app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})

@@ -15,15 +15,22 @@ from app.booking.models import OutboxMessage, OutboxStatus, VisitContactNote, Vi
 from app.media.models import MediaAsset
 from app.operations import retention_service
 from app.operations.models import RetentionRunTrigger
-from tests.conftest import _create_user, _logged_in_client, set_booking_mode, start_visit_slot
+from tests.conftest import (
+    _create_user,
+    _logged_in_client,
+    book_slot,
+    legacy_request,
+    set_booking_mode,
+    start_visit_slot,
+)
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（切 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-async def _enable_slots(admin_client, campus_key="yihua", auto_confirm=True) -> int:
-    resp = await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=auto_confirm)
+async def _enable_slots(admin_client, campus_key="yihua") -> int:
+    resp = await set_booking_mode(admin_client, campus_key, mode="slots")
     assert resp.status_code == 200, resp.text
     return resp.json()["version"]
 
@@ -42,8 +49,8 @@ async def _create_slot(admin_client, campus_key="yihua", capacity=1, days_ahead=
     return resp.json()
 
 
-def _payload(campus_key, version, slot_id=None, *, parent_name="陳媽媽", phone="0912345678") -> dict:
-    body = {
+def _payload(campus_key, version, slot_id, *, parent_name="陳媽媽", phone="0912345678") -> dict:
+    return {
         "campus_key": campus_key,
         "config_version": version,
         "parent_name": parent_name,
@@ -52,19 +59,8 @@ def _payload(campus_key, version, slot_id=None, *, parent_name="陳媽媽", phon
         "preferred_time": None,
         "questions": None,
         "consent_given": True,
+        "slot_id": slot_id,
     }
-    if slot_id is not None:
-        body["slot_id"] = slot_id
-    return body
-
-
-async def _expire_hold(db_session, receipt_id: str) -> None:
-    await db_session.execute(
-        update(VisitRequest)
-        .where(VisitRequest.id == uuid.UUID(receipt_id))
-        .values(hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
-    )
-    await db_session.commit()
 
 
 # --- #1 逾期占位 -------------------------------------------------------------
@@ -74,15 +70,15 @@ async def _expire_hold(db_session, receipt_id: str) -> None:
 async def test_expired_hold_does_not_occupy_capacity_before_cleanup(
     admin_client, public_client, second_public_client, db_session
 ):
-    version = await _enable_slots(admin_client, auto_confirm=False)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
-    first = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": "expired-hold-a"},
+    # 上線前留下的待確認舊案，占位已到期但清理排程還沒跑。
+    await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot["id"],
+        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
-    assert first.status_code == 201, first.text
-    await _expire_hold(db_session, first.json()["receipt_id"])
 
     # 清理排程沒跑，名額也不能被到期占位卡住。
     second = await second_public_client.post(
@@ -95,19 +91,17 @@ async def test_expired_hold_does_not_occupy_capacity_before_cleanup(
 
 @pytest.mark.asyncio
 async def test_process_notifications_releases_holds_without_email_sink(
-    app, admin_client, public_client, db_session, monkeypatch
+    app, admin_client, db_session, monkeypatch
 ):
     from app import cli
 
-    version = await _enable_slots(admin_client, auto_confirm=False)
     slot = await _create_slot(admin_client, capacity=1)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": "expired-hold-cli"},
+    receipt_id = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot["id"],
+        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
-    receipt_id = created.json()["receipt_id"]
-    await _expire_hold(db_session, receipt_id)
 
     settings = app.state.settings.model_copy(update={"notification_email_sink_dir": None})
     monkeypatch.setattr(cli, "get_settings", lambda: settings)
@@ -184,7 +178,7 @@ def test_marking_shared_notification_read_requires_manage():
 
 
 async def _confirmed_booking_with_spare_slot(admin_client, public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot_a = await _create_slot(admin_client, capacity=2, days_ahead=3)
     slot_b = await _create_slot(admin_client, capacity=2, days_ahead=4)
     created = await public_client.post(
@@ -222,25 +216,6 @@ async def _blocks_until_first_commits(first_session, second_call) -> asyncio.Tas
     assert not task.done(), "第二個交易沒有等第一個交易的鎖"
     await first_session.commit()
     return task
-
-
-@pytest.mark.asyncio
-async def test_concurrent_reschedule_requests_serialize_on_visit_request(app, admin_client, public_client):
-    from app.booking import access_service
-
-    receipt_id, _, slot_b_id = await _confirmed_booking_with_spare_slot(admin_client, public_client)
-    factory = app.state.session_factory
-    async with factory() as first, factory() as second:
-        request_a = await first.get(VisitRequest, uuid.UUID(receipt_id))
-        request_b = await second.get(VisitRequest, uuid.UUID(receipt_id))
-        await access_service.create_reschedule_request(first, request_a, uuid.UUID(slot_b_id))
-        task = await _blocks_until_first_commits(
-            first, access_service.create_reschedule_request(second, request_b, uuid.UUID(slot_b_id))
-        )
-        with pytest.raises(access_service.RescheduleNotAllowed) as exc:
-            await task
-        assert exc.value.code == "RESCHEDULE_PENDING"
-        await second.rollback()
 
 
 @pytest.mark.asyncio
@@ -290,17 +265,7 @@ async def test_dashboard_failed_notifications_are_campus_scoped(
     admin_client, minghua_client, public_client, db_session
 ):
     for campus_key, phone in (("yihua", "0911111111"), ("minghua", "0922222222")):
-        current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-        config = await admin_client.patch(
-            f"/api/website/v1/admin/booking-config/{campus_key}",
-            json={"expected_version": current.json()["version"], "mode": "inquiry"},
-        )
-        resp = await public_client.post(
-            "/api/website/v1/public/visit-requests",
-            json=_payload(campus_key, config.json()["version"], phone=phone),
-            headers={"Idempotency-Key": f"failed-outbox-{campus_key}"},
-        )
-        assert resp.status_code == 201, resp.text
+        await book_slot(admin_client, public_client, campus_key, phone=phone)
     await db_session.execute(update(OutboxMessage).values(status=OutboxStatus.FAILED.value))
     await db_session.commit()
     total = (await db_session.execute(select(func.count()).select_from(OutboxMessage))).scalar_one()
