@@ -16,7 +16,18 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import access_service, attention, consent, presenters, readiness, service, slot_service, turnstile, workflow_service
+from app.booking import (
+    access_service,
+    attention,
+    consent,
+    presenters,
+    readiness,
+    service,
+    slot_service,
+    status_groups,
+    turnstile,
+    workflow_service,
+)
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
 from app.common import ratelimit
@@ -32,6 +43,7 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.schemas import (
+    VisitGroupCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
     BookingConsentBriefOut,
@@ -891,6 +903,11 @@ class VisitRequestFilters:
             default=False,
             description="只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
         ),
+        group: str | None = Query(
+            default=None,
+            pattern="^(pending|upcoming|past|cancelled)$",
+            description="案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -901,6 +918,7 @@ class VisitRequestFilters:
         self.created_from = created_from
         self.created_to = created_to
         self.needs_attention = needs_attention
+        self.group = group
 
     def apply(self, stmt, user: User, capability: str):
         if self.follow_up_due:
@@ -920,6 +938,8 @@ class VisitRequestFilters:
             stmt = stmt.where(VisitRequest.campus_key.in_(scope))
         if self.status:
             stmt = stmt.where(VisitRequest.status == self.status)
+        if self.group:
+            stmt = stmt.where(status_groups.group_condition(self.group))
         if self.assignee == "me":
             stmt = stmt.where(VisitRequest.assigned_staff_id == user.id)
         elif self.assignee == "none":
@@ -958,6 +978,7 @@ class VisitRequestFilters:
         搜尋」，不記內容，稽核紀錄不能變成另一份個資。"""
         applied = {
             "status": self.status,
+            "group": self.group,
             "source": self.source,
             "assignee": self.assignee,
             "created_from": self.created_from.isoformat() if self.created_from else None,
@@ -984,6 +1005,23 @@ async def list_visit_requests(
     stmt = stmt.order_by(ordering).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
+
+
+@router.get("/admin/visit-requests/group-counts", response_model=VisitGroupCountsOut)
+async def visit_request_group_counts(
+    filters: VisitRequestFilters = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitGroupCountsOut:
+    """分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。"""
+    require_scope(current_user, "booking.read")
+    filters.status = None
+    filters.group = None
+    base = filters.apply(select(func.count()).select_from(VisitRequest), current_user, "booking.read")
+    counts = {}
+    for group in status_groups.GROUPS:
+        counts[group] = (await db.execute(base.where(status_groups.group_condition(group)))).scalar_one()
+    return VisitGroupCountsOut(**counts)
 
 
 # 匯出欄位。每個欄位只出現一次：同名欄位在試算表樞紐分析或匯入其他系統時會

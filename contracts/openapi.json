@@ -389,6 +389,11 @@
             "title": "Parent Change Deadline Hours",
             "type": "integer"
           },
+          "parent_email_enabled": {
+            "default": false,
+            "title": "Parent Email Enabled",
+            "type": "boolean"
+          },
           "phone": {
             "anyOf": [
               {
@@ -399,10 +404,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "slots_auto_confirm": {
-            "title": "Slots Auto Confirm",
-            "type": "boolean"
           },
           "version": {
             "title": "Version",
@@ -417,7 +418,6 @@
           "phone",
           "external_url",
           "message",
-          "slots_auto_confirm",
           "parent_change_deadline_hours"
         ],
         "title": "BookingConfigOut",
@@ -492,11 +492,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "slots_auto_confirm": {
-            "default": false,
-            "title": "Slots Auto Confirm",
-            "type": "boolean"
           }
         },
         "required": [
@@ -2515,6 +2510,11 @@
       "ParentAccessLinkCreatedOut": {
         "description": "manage_url 是可以直接給家長的完整網址（公開官網 origin＝\nWEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用\nmanage_url_fragment 自行組網址。兩者都含 token，只回這一次。",
         "properties": {
+          "emailed": {
+            "default": false,
+            "title": "Emailed",
+            "type": "boolean"
+          },
           "expires_at": {
             "format": "date-time",
             "title": "Expires At",
@@ -2584,6 +2584,133 @@
         "title": "ParentCancelRequest",
         "type": "object"
       },
+      "ParentDetailsUpdate": {
+        "description": "家長自己修改的欄位；只送有改的欄位。必填欄位不能清空。",
+        "properties": {
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expected_version": {
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "parent_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Name"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_request_id",
+          "expected_version"
+        ],
+        "title": "ParentDetailsUpdate",
+        "type": "object"
+      },
+      "ParentRescheduleRequest": {
+        "properties": {
+          "slot_id": {
+            "format": "uuid",
+            "title": "Slot Id",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_request_id",
+          "slot_id"
+        ],
+        "title": "ParentRescheduleRequest",
+        "type": "object"
+      },
       "ParentVisitRequestOut": {
         "description": "家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：\n那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部\n欄位，連結一旦外流就等於把整份個資交出去。",
         "properties": {
@@ -2612,6 +2739,11 @@
           },
           "can_cancel": {
             "title": "Can Cancel",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "default": false,
+            "title": "Can Edit",
             "type": "boolean"
           },
           "can_reschedule": {
@@ -2646,6 +2778,29 @@
             "title": "Change Deadline Hours",
             "type": "integer"
           },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
           "confirmed_at": {
             "anyOf": [
               {
@@ -2662,6 +2817,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "hold_expires_at": {
             "anyOf": [
@@ -2680,9 +2846,35 @@
             "title": "Id",
             "type": "string"
           },
-          "phone_masked": {
-            "title": "Phone Masked",
+          "parent_name": {
+            "title": "Parent Name",
             "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
           },
           "reschedule_pending": {
             "default": false,
@@ -2702,13 +2894,19 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
           "id",
           "campus_key",
           "status",
-          "phone_masked",
+          "parent_name",
+          "phone",
+          "version",
           "confirmed_at",
           "cancelled_at",
           "hold_expires_at",
@@ -2939,6 +3137,11 @@
           "mode": {
             "$ref": "#/components/schemas/BookingMode"
           },
+          "parent_email_enabled": {
+            "default": false,
+            "title": "Parent Email Enabled",
+            "type": "boolean"
+          },
           "phone": {
             "anyOf": [
               {
@@ -2959,10 +3162,6 @@
                 "type": "null"
               }
             ]
-          },
-          "slots_auto_confirm": {
-            "title": "Slots Auto Confirm",
-            "type": "boolean"
           },
           "turnstile_site_key": {
             "anyOf": [
@@ -2987,8 +3186,7 @@
           "line_url",
           "phone",
           "external_url",
-          "message",
-          "slots_auto_confirm"
+          "message"
         ],
         "title": "PublicBookingConfigOut",
         "type": "object"
@@ -3670,32 +3868,6 @@
           }
         },
         "title": "RescheduleDecisionRequest",
-        "type": "object"
-      },
-      "RescheduleRequestCreate": {
-        "properties": {
-          "new_slot_id": {
-            "format": "uuid",
-            "title": "New Slot Id",
-            "type": "string"
-          },
-          "visit_request_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Visit Request Id"
-          }
-        },
-        "required": [
-          "new_slot_id"
-        ],
-        "title": "RescheduleRequestCreate",
         "type": "object"
       },
       "RescheduleRequestOut": {
@@ -4868,6 +5040,34 @@
         "title": "VisitExceptionRemovedOut",
         "type": "object"
       },
+      "VisitGroupCountsOut": {
+        "properties": {
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "past": {
+            "title": "Past",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "upcoming",
+          "past",
+          "cancelled"
+        ],
+        "title": "VisitGroupCountsOut",
+        "type": "object"
+      },
       "VisitHistoryOut": {
         "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人\n或下次聯絡時間，不含家長個資。",
         "properties": {
@@ -5110,17 +5310,10 @@
             "title": "Consent Revision Id"
           },
           "email": {
-            "anyOf": [
-              {
-                "format": "email",
-                "maxLength": 254,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
+            "format": "email",
+            "maxLength": 254,
+            "title": "Email",
+            "type": "string"
           },
           "parent_name": {
             "maxLength": 64,
@@ -5190,16 +5383,9 @@
             "type": "array"
           },
           "slot_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Id"
+            "format": "uuid",
+            "title": "Slot Id",
+            "type": "string"
           },
           "turnstile_token": {
             "anyOf": [
@@ -5218,7 +5404,9 @@
           "campus_key",
           "parent_name",
           "phone",
+          "email",
           "consent_given",
+          "slot_id",
           "config_version"
         ],
         "title": "VisitRequestCreate",
@@ -5252,6 +5440,17 @@
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
           },
           "cancelled_at": {
             "anyOf": [
@@ -5345,6 +5544,12 @@
               }
             ],
             "title": "Created By"
+          },
+          "display_status": {
+            "description": "pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
           },
           "email": {
             "anyOf": [
@@ -5511,7 +5716,8 @@
           "cancelled_at",
           "follow_up_at",
           "created_at",
-          "version"
+          "version",
+          "display_status"
         ],
         "title": "VisitRequestDetailOut",
         "type": "object"
@@ -5555,6 +5761,17 @@
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
           },
           "cancelled_at": {
             "anyOf": [
@@ -5659,6 +5876,12 @@
               }
             ],
             "title": "Created By"
+          },
+          "display_status": {
+            "description": "pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
           },
           "email": {
             "anyOf": [
@@ -5850,7 +6073,8 @@
           "history",
           "pending_reschedule",
           "access_link",
-          "parent_change_deadline_hours"
+          "parent_change_deadline_hours",
+          "display_status"
         ],
         "title": "VisitRequestFullOut",
         "type": "object"
@@ -6015,16 +6239,9 @@
             "title": "Related Request Id"
           },
           "slot_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Id"
+            "format": "uuid",
+            "title": "Slot Id",
+            "type": "string"
           },
           "source": {
             "enum": [
@@ -6042,7 +6259,8 @@
           "parent_name",
           "phone",
           "consent_given",
-          "source"
+          "source",
+          "slot_id"
         ],
         "title": "VisitRequestManualCreate",
         "type": "object"
@@ -6053,6 +6271,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "manage_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manage Path"
           },
           "receipt_id": {
             "format": "uuid",
@@ -13029,6 +13258,25 @@
             }
           },
           {
+            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "title": "Group"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -13093,7 +13341,7 @@
         ]
       },
       "post": {
-        "description": "人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡\n紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，\n人員改完再送一次即可。",
+        "description": "人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡\n紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，\n人員改完再送一次即可。",
         "operationId": "create_manual_visit_request_api_website_v1_admin_visit_requests_post",
         "parameters": [
           {
@@ -13333,6 +13581,25 @@
             }
           },
           {
+            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "title": "Group"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -13386,6 +13653,240 @@
           }
         },
         "summary": "Export Visit Requests",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/group-counts": {
+      "get": {
+        "description": "分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。",
+        "operationId": "visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "家長或寶貝姓名、電話或 Email 片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "家長或寶貝姓名、電話或 Email 片段",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "只列已到預定聯絡時間、尚未結案的案件",
+            "in": "query",
+            "name": "follow_up_due",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列已到預定聯絡時間、尚未結案的案件",
+              "title": "Follow Up Due",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+            "in": "query",
+            "name": "assignee",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id",
+              "title": "Assignee"
+            }
+          },
+          {
+            "description": "案件來源：web／phone／line／walk_in／external",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件來源：web／phone／line／walk_in／external",
+              "title": "Source"
+            }
+          },
+          {
+            "description": "送出日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "送出日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（含），台灣日期",
+              "title": "Created To"
+            }
+          },
+          {
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+            "in": "query",
+            "name": "needs_attention",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "title": "Group"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitGroupCountsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visit Request Group Counts",
         "tags": [
           "booking"
         ]
@@ -14044,81 +14545,6 @@
         ]
       }
     },
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting": {
-      "post": {
-        "operationId": "mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "visit_request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Visit Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Mark Contacting",
-        "tags": [
-          "booking"
-        ]
-      }
-    },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
       "post": {
         "operationId": "mark_no_show_api_website_v1_admin_visit_requests__visit_request_id__no_show_post",
@@ -14277,6 +14703,84 @@
         "summary": "Reschedule Visit Request",
         "tags": [
           "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/resend-confirmation": {
+      "post": {
+        "description": "重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。",
+        "operationId": "resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resend Parent Confirmation Api Website V1 Admin Visit Requests  Visit Request Id  Resend Confirmation Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Parent Confirmation",
+        "tags": [
+          "parent-access"
         ]
       }
     },
@@ -16042,12 +16546,9 @@
         "tags": [
           "parent-access"
         ]
-      }
-    },
-    "/api/website/v1/public/visit-manage/reschedule-request": {
-      "post": {
-        "description": "只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。",
-        "operationId": "parent_request_reschedule_api_website_v1_public_visit_manage_reschedule_request_post",
+      },
+      "patch": {
+        "operationId": "parent_update_details_api_website_v1_public_visit_manage_me_patch",
         "parameters": [
           {
             "in": "header",
@@ -16086,20 +16587,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RescheduleRequestCreate"
+                "$ref": "#/components/schemas/ParentDetailsUpdate"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Parent Request Reschedule Api Website V1 Public Visit Manage Reschedule Request Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
                 }
               }
             },
@@ -16116,7 +16615,82 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Parent Request Reschedule",
+        "summary": "Parent Update Details",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-manage/reschedule": {
+      "post": {
+        "operationId": "parent_reschedule_api_website_v1_public_visit_manage_reschedule_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParentRescheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parent Reschedule",
         "tags": [
           "parent-access"
         ]

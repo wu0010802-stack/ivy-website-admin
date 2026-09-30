@@ -5,8 +5,9 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, computed_field, field_validator, model_validator
 
+from app.booking import status_groups
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
     MAX_CHANGE_DEADLINE_HOURS,
@@ -495,6 +496,22 @@ class VisitRequestDetailOut(BaseModel):
     version: int
 
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def display_status(self) -> str:
+        """pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。"""
+        slot = self.slot
+        return status_groups.display_status(
+            self.status, slot.slot_date if slot else None, slot.start_time if slot else None
+        )
+
+
+class VisitGroupCountsOut(BaseModel):
+    pending: int
+    upcoming: int
+    past: int
+    cancelled: int
 
 
 class ParentRescheduleRequest(BaseModel):

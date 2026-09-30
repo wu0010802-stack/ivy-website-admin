@@ -65,6 +65,13 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
 
 export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
+export const VISIT_GROUP_LABELS: Record<string, string> = {
+  pending: '待處理',
+  upcoming: '預約正常',
+  past: '時間已過',
+  cancelled: '已取消',
+}
+
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
 }
@@ -1096,6 +1103,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     if (action === 'notification_outbox.retry') return OUTBOX_RETRY_SOURCE_LABELS[String(v)] ?? '重新寄送'
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
+  group: (v) => `篩選分組：${VISIT_GROUP_LABELS[String(v)] ?? String(v)}`,
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : '指定的同事'}`,
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),
