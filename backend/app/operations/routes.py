@@ -109,7 +109,8 @@ class TelemetryIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event: Literal["page_view", "visit_click", "LCP", "INP", "CLS"]
-    page: Literal["home", "campus", "visit"]
+    # 2026-09-30 起公開內頁（關於、特色教學、環境、入學、最新消息）也回報；消息內文頁一律記成 news。
+    page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news"]
     campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
     device: Literal["mobile", "desktop"]
     value: float | None = None
@@ -117,7 +118,8 @@ class TelemetryIn(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> "TelemetryIn":
-        if (self.page == "home" and self.campus is not None) or (self.page == "campus" and self.campus is None):
+        # 只有分校頁一定帶校、預約頁可帶可不帶；首頁與內頁都不帶
+        if (self.page not in ("campus", "visit") and self.campus is not None) or (self.page == "campus" and self.campus is None):
             raise ValueError("page 與 campus 不一致")
         if self.event in ("LCP", "INP", "CLS"):
             limit = 100 if self.event == "CLS" else 3_600_000

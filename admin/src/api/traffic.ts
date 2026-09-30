@@ -1,8 +1,17 @@
 // 後台「數據」頁的官網瀏覽量與 Core Web Vitals（GET /admin/analytics/traffic）。
 import { campusLabel } from './labels'
 
+// 2026-09-30 起公開內頁也回報瀏覽與速度（名稱同官網頁首；最新消息含內文頁）
+const CONTENT_PAGE_LABELS = {
+  about: '關於常春藤',
+  curriculum: '特色教學',
+  environment: '常春藤環境',
+  admission: '入學資訊',
+  news: '最新消息',
+} as const
+
 export interface TrafficPage {
-  page: 'home' | 'campus' | 'visit'
+  page: 'home' | 'campus' | 'visit' | keyof typeof CONTENT_PAGE_LABELS
   campus_key: string | null
   views: number
 }
@@ -28,6 +37,7 @@ export interface TrafficSummary {
 
 export function trafficPageLabel(item: Pick<TrafficPage, 'page' | 'campus_key'>): string {
   if (item.page === 'home') return '首頁'
+  if (item.page in CONTENT_PAGE_LABELS) return CONTENT_PAGE_LABELS[item.page as keyof typeof CONTENT_PAGE_LABELS]
   const campus = item.campus_key ? `${campusLabel(item.campus_key)}校` : ''
   if (item.page === 'campus') return `${campus}介紹頁`
   return campus ? `${campus}預約頁` : '預約參觀（選校）'

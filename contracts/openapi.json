@@ -4232,7 +4232,12 @@
             "enum": [
               "home",
               "campus",
-              "visit"
+              "visit",
+              "about",
+              "curriculum",
+              "environment",
+              "admission",
+              "news"
             ],
             "title": "Page",
             "type": "string"
