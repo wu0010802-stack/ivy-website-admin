@@ -914,3 +914,12 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 正式站首頁（Playwright Chrome 1440／390）：`h1` 為「在常春藤每一天都有新發現」、`.hero-key` `rotate:-2deg`、沒有小標與 `.hero-campus-link`；HTML 含 `hero-swatch`／`hero-brush`、不含 `hero-underline`。
 - 這筆紀錄的 docs 提交推上後會再跑一次同內容部署，順便重跑 smoke；若邊緣偶發逾時還在，那次也可能紅燈，要再看 `railway logs --http` 分辨。
 - **未做**：Safari／iOS 實機；Railway 邊緣逾時的根因（未開 Railway 支援單、未查 status 頁）。
+
+## 2026-09-30 下午已完成分支併入 main 部署（`merge/branches-20260930b`，main CI 部署）
+
+- 使用者要求把已完成的分支併入 main。併入 `feature/tassels-five-20260930`（開場布幕流蘇固定五顆）、`feature/height-ruler-20260930`（首頁拿掉桌機章節指示）、`feature/mobile-perf-20260930`（手機效能第三輪），取捨與沒併的分支見 README 同日段落。從 main `7189998` 合併，使用者以 fast-forward 推上 `7189998..392a41c`。沒有 migration（alembic 單一 head `e9c3a7d5f214`），依 `deploy/CICD.md` 不需先備份正式 DB。
+- 推之前本機跑過：web typecheck（0 警告）／vitest 65 檔 668 項、admin typecheck／vitest 679 項、backend pytest 1037 項、contract:check、production build 的 stack e2e 61 項。
+- run `36688512301` 第一次嘗試：Frontend／E2E 全綠，**Backend 在 20 分鐘 `timeout-minutes` 被取消**（pytest 跑到 83%、零失敗；這台 runner 的 pytest 約需 21 分鐘，前幾次整個 job 17–19 分鐘），Deploy 因而略過，正式站維持 `7189998`。以 `gh run rerun --failed` 重跑：第二次嘗試 Backend 16 分 19 秒通過，Deploy Railway production 09:06:16–09:11:04 UTC 成功（含 smoke）。同批另提交 `ci:` 把 Backend job 上限放寬到 30 分鐘。
+- `/release.json` snapshot `ed106ef4566b8b595bbb1847c48eeb73b5c9f59d0cf40d6d732eafcbdcadb9b0`、`base_commit` `392a41c`、`web+api`、`created_at` 2026-09-30T09:06:38Z。
+- 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/environment`、`/about`、`/curriculum`、`/admission`、`/campuses/yihua`、`/admin/login` 皆 200。首頁 HTML 不含 `home-chapters`、流蘇海報是新版號（`entrance-poster-wide.webp?v=5184d415`，舊版號不見）、首屏 12 個 prefetch／modulepreload 都不含 three。Playwright（Chrome，1440×900 與 390×844）開 `/`、`/environment`、`/about`：零 page error、沒有章節指示；遙測請求在瀏覽器端攔下不送出（不寫正式庫），三頁分別帶 `page` `home`／`environment`／`about`，確認內頁回報已上線。
+- **未做**：Safari／iOS 實機；開場流蘇數只以海報版號確認，未在正式站實跑 WebGL 開場；慢速網路下首屏留靜態封面、環境頁載入中點選單的 INP 未在正式站量測（數字見 README mobile-perf 段落，為本機 production build）。
