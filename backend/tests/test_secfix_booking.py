@@ -41,7 +41,8 @@ SUBMIT = f"{API}/public/visit-requests"
 CLIENT_IP_HEADER = "x-website-client-ip"
 
 
-def _payload(version: int, *, slot_id: str | None = None, phone: str = "0912345678", campus_key: str = "yihua", **extra):
+def _payload(version: int, slot_id: str, *, phone: str = "0912345678", campus_key: str = "yihua", **extra):
+    """2026-09-30 起送單一定要選場次、留 Email；缺任何一個都是 422。"""
     return {
         "campus_key": campus_key,
         "config_version": version,
@@ -52,6 +53,7 @@ def _payload(version: int, *, slot_id: str | None = None, phone: str = "09123456
         "questions": None,
         "consent_given": True,
         "slot_id": slot_id,
+        "email": "parent@example.com",
         **extra,
     }
 
@@ -74,6 +76,13 @@ async def _slot(admin_client, *, days_ahead: int = 3, capacity: int = 5, campus_
     )
     assert response.status_code == 201, response.text
     return response.json()["id"]
+
+
+async def _open(admin_client, campus_key: str = "yihua", *, capacity: int = 50, days_ahead: int = 3) -> tuple[int, str]:
+    """建一個容量夠大的場次再切到 slots；回傳（設定版本, slot_id）。每筆送單都會占位，
+    要測限流的測試不能被名額先擋下。"""
+    slot_id = await _slot(admin_client, days_ahead=days_ahead, capacity=capacity, campus_key=campus_key)
+    return await _enable(admin_client, "slots", campus_key), slot_id
 
 
 def _update_settings(app, **changes) -> None:
@@ -123,18 +132,15 @@ class _LockProbingLimiter:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["inquiry", "slots"])
-async def test_public_submit_never_calls_rate_limiter_while_holding_config_lock(app, admin_client, public_client, mode):
-    config = {"slots_auto_confirm": True} if mode == "slots" else {}
-    version = await _enable(admin_client, mode, **config)
-    slot_id = await _slot(admin_client) if mode == "slots" else None
+async def test_public_submit_never_calls_rate_limiter_while_holding_config_lock(app, admin_client, public_client):
+    version, slot_id = await _open(admin_client)
     spy = _LockProbingLimiter(app.state.rate_limiter, app.state.engine, "yihua")
     app.state.rate_limiter = spy
 
     created = await public_client.post(
         SUBMIT,
-        json=_payload(version, slot_id=slot_id),
-        headers={"Idempotency-Key": f"pool-{mode}", CLIENT_IP_HEADER: "198.51.100.20"},
+        json=_payload(version, slot_id),
+        headers={"Idempotency-Key": "pool-slots", CLIENT_IP_HEADER: "198.51.100.20"},
     )
 
     assert created.status_code == 201, created.text
@@ -178,11 +184,11 @@ async def test_public_booking_config_exposes_turnstile_site_key_only_when_enable
 
 @pytest.mark.asyncio
 async def test_turnstile_required_and_verified_server_side(app, admin_client, public_client):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     verifier = _Siteverify()
     _enable_turnstile(app, verifier)
 
-    missing = await public_client.post(SUBMIT, json=_payload(version), headers={"Idempotency-Key": "ts-missing"})
+    missing = await public_client.post(SUBMIT, json=_payload(version, slot_id), headers={"Idempotency-Key": "ts-missing"})
     assert missing.status_code == 400, missing.text
     detail = missing.json()["detail"]
     assert (detail["code"], detail["message"]) == ("BOT_CHECK_FAILED", "請完成機器人驗證後再送出")
@@ -190,7 +196,7 @@ async def test_turnstile_required_and_verified_server_side(app, admin_client, pu
 
     ok = await public_client.post(
         SUBMIT,
-        json=_payload(version, turnstile_token="token-ok"),
+        json=_payload(version, slot_id, turnstile_token="token-ok"),
         headers={"Idempotency-Key": "ts-ok", CLIENT_IP_HEADER: "203.0.113.9"},
     )
     assert ok.status_code == 201, ok.text
@@ -199,11 +205,11 @@ async def test_turnstile_required_and_verified_server_side(app, admin_client, pu
 
     # 重播（前端逾時重送）回原結果，不再驗一次（token 只能用一次）。
     replay = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="token-ok"), headers={"Idempotency-Key": "ts-ok"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="token-ok"), headers={"Idempotency-Key": "ts-ok"}
     )
     assert replay.status_code == 200, replay.text
     assert replay.json()["receipt_id"] == ok.json()["receipt_id"]
-    replay_without_token = await public_client.post(SUBMIT, json=_payload(version), headers={"Idempotency-Key": "ts-ok"})
+    replay_without_token = await public_client.post(SUBMIT, json=_payload(version, slot_id), headers={"Idempotency-Key": "ts-ok"})
     assert replay_without_token.status_code == 200, replay_without_token.text
     assert len(verifier.forms) == 1
 
@@ -228,12 +234,12 @@ def test_turnstile_remoteip_skips_aggregated_ipv6(header, expected):
 
 @pytest.mark.asyncio
 async def test_turnstile_rejection_is_400(app, admin_client, public_client):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     verifier = _Siteverify(body={"success": False, "error-codes": ["invalid-input-response"]})
     _enable_turnstile(app, verifier)
 
     rejected = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="bad"), headers={"Idempotency-Key": "ts-bad"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="bad"), headers={"Idempotency-Key": "ts-bad"}
     )
     assert rejected.status_code == 400, rejected.text
     assert rejected.json()["detail"]["code"] == "BOT_CHECK_FAILED"
@@ -253,11 +259,11 @@ async def test_turnstile_rejection_is_400(app, admin_client, public_client):
     ids=["http-503", "timeout"],
 )
 async def test_turnstile_outage_fails_open(app, admin_client, public_client, verifier, caplog):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     _enable_turnstile(app, verifier)
 
     created = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-outage"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-outage"}
     )
     assert created.status_code == 201, created.text
     assert any("Turnstile" in record.getMessage() for record in caplog.records)
@@ -276,11 +282,11 @@ async def test_turnstile_outage_fails_open(app, admin_client, public_client, ver
     ids=["http-400-bad-request", "http-400-invalid-response", "not-a-dict"],
 )
 async def test_turnstile_client_errors_and_malformed_answers_are_rejected(app, admin_client, public_client, verifier):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     _enable_turnstile(app, verifier)
 
     rejected = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-4xx"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-4xx"}
     )
     assert rejected.status_code == 400, rejected.text
     assert rejected.json()["detail"]["code"] == "BOT_CHECK_FAILED"
@@ -289,12 +295,12 @@ async def test_turnstile_client_errors_and_malformed_answers_are_rejected(app, a
 
 @pytest.mark.asyncio
 async def test_turnstile_not_json_is_rejected(app, admin_client, public_client):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     _update_settings(app, turnstile_site_key="site-key-test", turnstile_secret_key="secret-key-test")
     app.state.turnstile_transport = httpx.MockTransport(lambda request: httpx.Response(200, text="<html>oops</html>"))
 
     rejected = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-html"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-html"}
     )
     assert rejected.status_code == 400, rejected.text
     assert rejected.json()["detail"]["code"] == "BOT_CHECK_FAILED"
@@ -304,11 +310,11 @@ async def test_turnstile_not_json_is_rejected(app, admin_client, public_client):
 async def test_turnstile_wrong_secret_is_logged_as_error_and_fails_open(app, admin_client, public_client, caplog):
     """secret 設錯（Cloudflare 回 400 invalid-input-secret）是部署問題：不讓整站
     停收，但要記 error（部署後的驗證步驟會查這筆），不是只有一行 warning。"""
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     _enable_turnstile(app, _Siteverify(status=400, body={"success": False, "error-codes": ["invalid-input-secret"]}))
 
     created = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-secret"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-secret"}
     )
     assert created.status_code == 201, created.text
     errors = [r for r in caplog.records if r.levelname == "ERROR" and "Turnstile" in r.getMessage()]
@@ -318,11 +324,11 @@ async def test_turnstile_wrong_secret_is_logged_as_error_and_fails_open(app, adm
 
 @pytest.mark.asyncio
 async def test_turnstile_internal_error_fails_open(app, admin_client, public_client, caplog):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     _enable_turnstile(app, _Siteverify(status=200, body={"success": False, "error-codes": ["internal-error"]}))
 
     created = await public_client.post(
-        SUBMIT, json=_payload(version, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-internal"}
+        SUBMIT, json=_payload(version, slot_id, turnstile_token="whatever"), headers={"Idempotency-Key": "ts-internal"}
     )
     assert created.status_code == 201, created.text
     assert any("Turnstile" in record.getMessage() for record in caplog.records)
@@ -330,15 +336,15 @@ async def test_turnstile_internal_error_fails_open(app, admin_client, public_cli
 
 def test_turnstile_token_length_is_bounded():
     with pytest.raises(ValueError):
-        VisitRequestCreate.model_validate(_payload(1, party_size=2, turnstile_token="x" * 2049))
+        VisitRequestCreate.model_validate(_payload(1, str(uuid.uuid4()), party_size=2, turnstile_token="x" * 2049))
 
 
 # ------------------------------------------------------------ caps
 @pytest.mark.asyncio
 async def test_slot_holds_are_capped_per_source_per_day(app, admin_client, public_client):
     _update_settings(app, booking_slot_holds_per_source_per_day=2)
-    version = await _enable(admin_client, "slots", slots_auto_confirm=True)
     slots = [await _slot(admin_client, days_ahead=3 + i) for i in range(3)]
+    version = await _enable(admin_client, "slots")
     source = {CLIENT_IP_HEADER: "203.0.113.50"}
 
     codes = []
@@ -346,7 +352,7 @@ async def test_slot_holds_are_capped_per_source_per_day(app, admin_client, publi
     for i, slot_id in enumerate(slots):
         response = await public_client.post(
             SUBMIT,
-            json=_payload(version, slot_id=slot_id, phone=f"091234560{i}"),
+            json=_payload(version, slot_id, phone=f"091234560{i}"),
             headers={"Idempotency-Key": f"hold-{i}", **source},
         )
         codes.append(response.status_code)
@@ -359,7 +365,7 @@ async def test_slot_holds_are_capped_per_source_per_day(app, admin_client, publi
     # 重播不算新占位，照常回原結果。
     replay = await public_client.post(
         SUBMIT,
-        json=_payload(version, slot_id=slots[0], phone="0912345600"),
+        json=_payload(version, slots[0], phone="0912345600"),
         headers={"Idempotency-Key": "hold-0", **source},
     )
     assert replay.status_code == 200, replay.text
@@ -367,33 +373,20 @@ async def test_slot_holds_are_capped_per_source_per_day(app, admin_client, publi
     # 上限是每個來源各自計算。
     other = await public_client.post(
         SUBMIT,
-        json=_payload(version, slot_id=slots[2], phone="0912345602"),
+        json=_payload(version, slots[2], phone="0912345602"),
         headers={"Idempotency-Key": "hold-other", CLIENT_IP_HEADER: "198.51.100.77"},
     )
     assert other.status_code == 201, other.text
 
 
 @pytest.mark.asyncio
-async def test_inquiry_submissions_do_not_count_as_slot_holds(app, admin_client, public_client):
-    _update_settings(app, booking_slot_holds_per_source_per_day=1)
-    version = await _enable(admin_client, "inquiry")
-    for i in range(3):
-        response = await public_client.post(
-            SUBMIT,
-            json=_payload(version, phone=f"091234561{i}"),
-            headers={"Idempotency-Key": f"inq-{i}", CLIENT_IP_HEADER: "203.0.113.51"},
-        )
-        assert response.status_code == 201, response.text
-
-
-@pytest.mark.asyncio
 async def test_public_submissions_are_capped_per_campus_per_hour(app, admin_client, public_client):
     _update_settings(app, booking_submissions_per_campus_per_hour=2)
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
 
     # 版本過期的送單在預檢就被擋，不吃上限。
     stale = await public_client.post(
-        SUBMIT, json=_payload(version - 1), headers={"Idempotency-Key": "campus-stale"}
+        SUBMIT, json=_payload(version - 1, slot_id), headers={"Idempotency-Key": "campus-stale"}
     )
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "BOOKING_CONFIG_CHANGED"
@@ -402,7 +395,7 @@ async def test_public_submissions_are_capped_per_campus_per_hour(app, admin_clie
     for i in range(3):
         response = await public_client.post(
             SUBMIT,
-            json=_payload(version, phone=f"091234562{i}"),
+            json=_payload(version, slot_id, phone=f"091234562{i}"),
             headers={"Idempotency-Key": f"campus-{i}", CLIENT_IP_HEADER: f"203.0.113.{60 + i}"},
         )
         codes.append(response)
@@ -411,14 +404,14 @@ async def test_public_submissions_are_capped_per_campus_per_hour(app, admin_clie
     assert int(codes[-1].headers["Retry-After"]) > 0
 
     replay = await public_client.post(
-        SUBMIT, json=_payload(version, phone="0912345620"), headers={"Idempotency-Key": "campus-0"}
+        SUBMIT, json=_payload(version, slot_id, phone="0912345620"), headers={"Idempotency-Key": "campus-0"}
     )
     assert replay.status_code == 200, replay.text
 
-    other_version = await _enable(admin_client, "inquiry", campus_key="minghua")
+    other_version, other_slot = await _open(admin_client, "minghua")
     other = await public_client.post(
         SUBMIT,
-        json=_payload(other_version, phone="0912345629", campus_key="minghua"),
+        json=_payload(other_version, other_slot, phone="0912345629", campus_key="minghua"),
         headers={"Idempotency-Key": "campus-other"},
     )
     assert other.status_code == 201, other.text
@@ -426,16 +419,17 @@ async def test_public_submissions_are_capped_per_campus_per_hour(app, admin_clie
 
 @pytest.mark.asyncio
 async def test_single_source_cannot_use_up_the_campus_cap(app, admin_client, public_client):
-    """稽核 campus-cap-single-source-dos：inquiry 模式沒有占位上限，一個匿名 IP
-    換手機號碼就能送滿每校每小時上限、讓整校家長都收到 429。現在同一來源對同一
-    校每小時最多 5 筆，其他來源照常送。"""
-    version = await _enable(admin_client, "inquiry")
+    """稽核 campus-cap-single-source-dos：一個匿名 IP 換手機號碼就能送滿每校每小時
+    上限、讓整校家長都收到 429。現在同一來源對同一校每小時最多 5 筆，其他來源照常送。
+    每筆送單都占位，所以把「每來源每日占位上限」調高，讓這裡驗的是每小時那條。"""
+    _update_settings(app, booking_slot_holds_per_source_per_day=100)
+    version, slot_id = await _open(admin_client)
     source = {CLIENT_IP_HEADER: "203.0.113.70"}
     codes = []
     for i in range(6):
         response = await public_client.post(
             SUBMIT,
-            json=_payload(version, phone=f"091234570{i}"),
+            json=_payload(version, slot_id, phone=f"091234570{i}"),
             headers={"Idempotency-Key": f"src-campus-{i}", **source},
         )
         codes.append(response)
@@ -447,7 +441,7 @@ async def test_single_source_cannot_use_up_the_campus_cap(app, admin_client, pub
     ipv6 = [
         await public_client.post(
             SUBMIT,
-            json=_payload(version, phone=f"091234571{i}"),
+            json=_payload(version, slot_id, phone=f"091234571{i}"),
             headers={"Idempotency-Key": f"src-v6-{i}", CLIENT_IP_HEADER: f"2001:db8:5:6::{i + 1}"},
         )
         for i in range(6)
@@ -457,14 +451,14 @@ async def test_single_source_cannot_use_up_the_campus_cap(app, admin_client, pub
     # 別的來源、同一來源對別的校區，都不受影響。
     other = await public_client.post(
         SUBMIT,
-        json=_payload(version, phone="0912345720"),
+        json=_payload(version, slot_id, phone="0912345720"),
         headers={"Idempotency-Key": "src-other", CLIENT_IP_HEADER: "198.51.100.71"},
     )
     assert other.status_code == 201, other.text
-    other_version = await _enable(admin_client, "inquiry", campus_key="minghua")
+    other_version, other_slot = await _open(admin_client, "minghua")
     other_campus = await public_client.post(
         SUBMIT,
-        json=_payload(other_version, phone="0912345721", campus_key="minghua"),
+        json=_payload(other_version, other_slot, phone="0912345721", campus_key="minghua"),
         headers={"Idempotency-Key": "src-other-campus", **source},
     )
     assert other_campus.status_code == 201, other_campus.text
@@ -476,9 +470,9 @@ async def test_phone_bucket_holds_under_concurrent_submissions(app, admin_client
     併發送單原本可以一起越過每 10 分鐘 5 筆。現在在校區設定列鎖內（同一校的送單
     在這裡排隊）核對這支手機近 10 分鐘建立的筆數；同一把 key 的併發重送仍然拿回
     同一張收據（見 test_booking_concurrency）。"""
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     responses = await asyncio.gather(*[
-        public_client.post(SUBMIT, json=_payload(version, phone="0912345730"), headers={"Idempotency-Key": f"phone-{i}"})
+        public_client.post(SUBMIT, json=_payload(version, slot_id, phone="0912345730"), headers={"Idempotency-Key": f"phone-{i}"})
         for i in range(8)
     ])
     codes = sorted(r.status_code for r in responses)
@@ -491,7 +485,7 @@ async def test_phone_bucket_holds_under_concurrent_submissions(app, admin_client
     # 冪等重播在限流之前就回原結果，不吃額度也不會被擋。
     created = next(r for r in responses if r.status_code == 201)
     replay_key = f"phone-{responses.index(created)}"
-    replay = await public_client.post(SUBMIT, json=_payload(version, phone="0912345730"), headers={"Idempotency-Key": replay_key})
+    replay = await public_client.post(SUBMIT, json=_payload(version, slot_id, phone="0912345730"), headers={"Idempotency-Key": replay_key})
     assert replay.status_code == 200, replay.text
 
 
@@ -499,14 +493,14 @@ async def test_phone_bucket_holds_under_concurrent_submissions(app, admin_client
 async def test_concurrent_retry_of_the_last_allowed_submission_is_a_replay(app, admin_client, public_client):
     """同一支手機已經 4 筆，第 5 筆的同一把 key 併發重送：一個建立，其餘拿回同一張
     收據，不能因為鎖內核對時已經 5 筆就回 429。"""
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     for i in range(4):
         response = await public_client.post(
-            SUBMIT, json=_payload(version, phone="0912345740"), headers={"Idempotency-Key": f"last-{i}"}
+            SUBMIT, json=_payload(version, slot_id, phone="0912345740"), headers={"Idempotency-Key": f"last-{i}"}
         )
         assert response.status_code == 201, response.text
     responses = await asyncio.gather(*[
-        public_client.post(SUBMIT, json=_payload(version, phone="0912345740"), headers={"Idempotency-Key": "last-final"})
+        public_client.post(SUBMIT, json=_payload(version, slot_id, phone="0912345740"), headers={"Idempotency-Key": "last-final"})
         for _ in range(4)
     ])
     assert sorted(r.status_code for r in responses) == [200, 200, 200, 201], [r.text for r in responses]
@@ -520,14 +514,14 @@ async def test_retry_that_missed_the_first_replay_lookup_is_not_rate_limited(
     """上面那個併發情境的確定性版本（CI run 36562527040 曾撞到）：重送做第一次
     不上鎖的重播查詢時，另一個請求還沒 commit；等它走到手機桶預檢，那筆已經建立、
     手機額度也記滿了。擋下前要再查一次重播，回原收據（200），不是 429。"""
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     for i in range(4):
         response = await public_client.post(
-            SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": f"miss-{i}"}
+            SUBMIT, json=_payload(version, slot_id, phone="0912345741"), headers={"Idempotency-Key": f"miss-{i}"}
         )
         assert response.status_code == 201, response.text
     created = await public_client.post(
-        SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
+        SUBMIT, json=_payload(version, slot_id, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
     )
     assert created.status_code == 201, created.text
 
@@ -541,7 +535,7 @@ async def test_retry_that_missed_the_first_replay_lookup_is_not_rate_limited(
 
     monkeypatch.setattr(service, "find_replay", first_lookup_misses)
     retry = await public_client.post(
-        SUBMIT, json=_payload(version, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
+        SUBMIT, json=_payload(version, slot_id, phone="0912345741"), headers={"Idempotency-Key": "miss-final"}
     )
     assert retry.status_code == 200, retry.text
     assert retry.json()["receipt_id"] == created.json()["receipt_id"]
@@ -550,8 +544,9 @@ async def test_retry_that_missed_the_first_replay_lookup_is_not_rate_limited(
 # ------------------------------------------------------------ public slots
 @pytest.mark.asyncio
 async def test_public_slots_uses_constant_number_of_queries(app, admin_client, public_client):
-    await _enable(admin_client, "slots", slots_auto_confirm=True)
+    # 先建場次再切 slots：沒有場次時 set_booking_mode 會補每週規則，A7 起存規則就會立刻補出一堆場次。
     await _slot(admin_client, days_ahead=3)
+    await _enable(admin_client, "slots")
     date_from = today_local().isoformat()
     date_to = (today_local() + timedelta(days=30)).isoformat()
     url = f"{API}/public/slots?campus_key=yihua&date_from={date_from}&date_to={date_to}"
@@ -580,13 +575,13 @@ async def test_public_slots_uses_constant_number_of_queries(app, admin_client, p
 
 @pytest.mark.asyncio
 async def test_public_slots_remaining_counts_occupying_requests(admin_client, public_client):
-    version = await _enable(admin_client, "slots", slots_auto_confirm=True)
     busy = await _slot(admin_client, days_ahead=3, capacity=2)
     full = await _slot(admin_client, days_ahead=4, capacity=1)
     await _slot(admin_client, days_ahead=5, capacity=3)
+    version = await _enable(admin_client, "slots")
     for key, slot_id, phone in (("rem-1", busy, "0912345631"), ("rem-2", full, "0912345632")):
         created = await public_client.post(
-            SUBMIT, json=_payload(version, slot_id=slot_id, phone=phone), headers={"Idempotency-Key": key}
+            SUBMIT, json=_payload(version, slot_id, phone=phone), headers={"Idempotency-Key": key}
         )
         assert created.status_code == 201, created.text
     date_from = today_local().isoformat()
@@ -614,8 +609,8 @@ async def test_public_slots_is_rate_limited_per_source(admin_client, public_clie
 @pytest.mark.asyncio
 @pytest.mark.parametrize("key", ["admin:3f1c7e0a-manual", "anonymized:0d2c"])
 async def test_public_idempotency_key_cannot_use_reserved_prefix(admin_client, public_client, key):
-    version = await _enable(admin_client, "inquiry")
-    response = await public_client.post(SUBMIT, json=_payload(version), headers={"Idempotency-Key": key})
+    version, slot_id = await _open(admin_client)
+    response = await public_client.post(SUBMIT, json=_payload(version, slot_id), headers={"Idempotency-Key": key})
     assert response.status_code == 422, response.text
     assert response.json()["detail"][0]["loc"] == ["header", "Idempotency-Key"]
     listed = await admin_client.get(f"{API}/admin/visit-requests?campus_key=yihua")
@@ -635,9 +630,9 @@ def _plain_sha256(body: dict) -> str:
 
 @pytest.mark.asyncio
 async def test_new_payload_hash_is_keyed_and_legacy_hash_still_replays(app, admin_client, public_client, db_session):
-    version = await _enable(admin_client, "inquiry")
-    # 不帶 Email：這裡直接用 payload 重算 hash，測試 client 不能另外補預設 Email。
-    payload = _payload(version, party_size=2, email=None)
+    version, slot_id = await _open(admin_client)
+    # 這裡直接用 payload 重算 hash：body 要跟送出去的一模一樣（含 slot_id、email）。
+    payload = _payload(version, slot_id, party_size=2)
     created = await public_client.post(SUBMIT, json=payload, headers={"Idempotency-Key": "hash-keyed"})
     assert created.status_code == 201, created.text
     stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))
@@ -667,7 +662,11 @@ async def test_new_payload_hash_is_keyed_and_legacy_hash_still_replays(app, admi
 
 @pytest.mark.asyncio
 async def test_manual_create_hash_is_keyed(admin_client, db_session):
-    body = {"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345640", "consent_given": True}
+    slot_id = await _slot(admin_client)
+    body = {
+        "campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345640",
+        "consent_given": True, "slot_id": slot_id,
+    }
     created = await admin_client.post(f"{API}/admin/visit-requests", json=body, headers={"Idempotency-Key": "manual-hash"})
     assert created.status_code == 201, created.text
     stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["id"]))
@@ -682,8 +681,8 @@ async def test_manual_create_hash_is_keyed(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_anonymize_scrubs_payload_hash_and_idempotency_key(admin_client, public_client, db_session):
-    version = await _enable(admin_client, "inquiry")
-    created = await public_client.post(SUBMIT, json=_payload(version), headers={"Idempotency-Key": "anon-scrub"})
+    version, slot_id = await _open(admin_client)
+    created = await public_client.post(SUBMIT, json=_payload(version, slot_id), headers={"Idempotency-Key": "anon-scrub"})
     assert created.status_code == 201, created.text
     case_id = uuid.UUID(created.json()["receipt_id"])
     visit = await db_session.get(VisitRequest, case_id)
@@ -704,8 +703,8 @@ async def test_anonymize_scrubs_payload_hash_and_idempotency_key(admin_client, p
 
 @pytest.mark.asyncio
 async def test_sweep_scrubs_rows_anonymized_before_the_fix(admin_client, public_client, db_session):
-    version = await _enable(admin_client, "inquiry")
-    created = await public_client.post(SUBMIT, json=_payload(version), headers={"Idempotency-Key": "anon-legacy"})
+    version, slot_id = await _open(admin_client)
+    created = await public_client.post(SUBMIT, json=_payload(version, slot_id), headers={"Idempotency-Key": "anon-legacy"})
     assert created.status_code == 201, created.text
     case_id = uuid.UUID(created.json()["receipt_id"])
     visit = await db_session.get(VisitRequest, case_id)
@@ -754,8 +753,8 @@ async def test_sweep_scrubs_rows_anonymized_before_the_fix(admin_client, public_
     ],
 )
 async def test_public_submit_rejects_control_characters_with_422(admin_client, public_client, field, value):
-    version = await _enable(admin_client, "inquiry")
-    body = {**_payload(version), field: value}
+    version, slot_id = await _open(admin_client)
+    body = {**_payload(version, slot_id), field: value}
     if field == "campus_key":
         # 測試用家長 client 會拿 campus_key 組網址去讀同意版本；自己帶，免得 httpx 先擋掉網址。
         body["consent_revision_id"] = None
@@ -765,10 +764,10 @@ async def test_public_submit_rejects_control_characters_with_422(admin_client, p
 
 @pytest.mark.asyncio
 async def test_public_submit_keeps_newlines_and_tabs(admin_client, public_client):
-    version = await _enable(admin_client, "inquiry")
+    version, slot_id = await _open(admin_client)
     response = await public_client.post(
         SUBMIT,
-        json={**_payload(version), "questions": "第一行\r\n第二行\t補充"},
+        json={**_payload(version, slot_id), "questions": "第一行\r\n第二行\t補充"},
         headers={"Idempotency-Key": "ctrl-newline"},
     )
     assert response.status_code == 201, response.text
@@ -776,11 +775,12 @@ async def test_public_submit_keeps_newlines_and_tabs(admin_client, public_client
 
 @pytest.mark.asyncio
 async def test_manual_note_rejects_control_characters(admin_client):
+    slot_id = await _slot(admin_client)
     response = await admin_client.post(
         f"{API}/admin/visit-requests",
         json={
             "campus_key": "yihua", "source": "phone", "parent_name": "王媽媽",
-            "phone": "0912345641", "consent_given": True, "note": "來電\x00",
+            "phone": "0912345641", "consent_given": True, "note": "來電\x00", "slot_id": slot_id,
         },
         headers={"Idempotency-Key": "manual-ctrl"},
     )

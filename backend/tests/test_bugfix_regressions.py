@@ -15,10 +15,10 @@ from sqlalchemy import select
 from app.booking import workflow_service
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.common.timezones import OPERATING_TZ, today_local
-from tests.conftest import set_booking_mode
+from tests.conftest import legacy_request, legacy_reschedule_request, set_booking_mode
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 FIXTURES = Path("/tmp/media-fixtures")
@@ -35,8 +35,8 @@ def _img() -> bytes:
     return (FIXTURES / "test.jpg").read_bytes()
 
 
-async def _enable_slots(admin_client, *, auto_confirm: bool, campus_key="yihua") -> int:
-    resp = await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=auto_confirm)
+async def _enable_slots(admin_client, campus_key="yihua") -> int:
+    resp = await set_booking_mode(admin_client, campus_key, mode="slots")
     assert resp.status_code == 200, resp.text
     return resp.json()["version"]
 
@@ -55,10 +55,10 @@ async def _create_slot(admin_client, *, days_ahead=3, capacity=1, campus_key="yi
     return resp.json()
 
 
-def _payload(version: int, slot_id: str | None = None, phone="0912345678", campus_key="yihua") -> dict:
+def _payload(version: int, slot_id: str, phone="0912345678", campus_key="yihua") -> dict:
     return {
         "campus_key": campus_key, "config_version": version, "parent_name": "陳媽媽",
-        "phone": phone, "age": None, "preferred_time": None, "questions": None,
+        "phone": phone, "email": "parent@example.com", "age": None, "preferred_time": None, "questions": None,
         "consent_given": True, "slot_id": slot_id,
     }
 
@@ -326,7 +326,7 @@ async def test_content_revision_rejects_unknown_and_cross_campus_media(
 @pytest.mark.asyncio
 async def test_past_slot_is_not_publicly_listed_or_bookable(admin_client, public_client):
     """原本：過去的時段可以被公開查到也可以被預約，名額從此永久被佔住。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     past = (today_local() - timedelta(days=30)).isoformat()
     slot = await admin_client.post(
         "/api/website/v1/admin/slots?campus_key=yihua",
@@ -351,10 +351,10 @@ async def test_past_slot_is_not_publicly_listed_or_bookable(admin_client, public
 
 
 @pytest.mark.asyncio
-async def test_slots_manual_confirmation_is_the_default(admin_client, public_client):
-    """規格 197：人工確認模式下送出只是「待園方確認」，不是預約成立。
-    原本一律直接寫成 confirmed 並發出「已確認」通知。"""
-    version = await _enable_slots(admin_client, auto_confirm=False)
+async def test_slots_submission_is_confirmed_without_hold(admin_client, public_client):
+    """2026-09-30 起家長自選場次、送出即成立：直接 confirmed、沒有占位期限。
+    （原本是「待園方確認」，占位 24 小時。）"""
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
 
     created = await public_client.post(
@@ -363,29 +363,32 @@ async def test_slots_manual_confirmation_is_the_default(admin_client, public_cli
         headers={"Idempotency-Key": "manual-confirm-01"},
     )
     assert created.status_code == 201, created.text
-    assert created.json()["status"] == VisitRequestStatus.PENDING_CONFIRMATION.value
+    assert created.json()["status"] == VisitRequestStatus.CONFIRMED.value
 
     detail = await admin_client.get(
         f"/api/website/v1/admin/visit-requests/{created.json()['receipt_id']}"
     )
-    assert detail.json()["hold_expires_at"] is not None
+    assert detail.json()["status"] == VisitRequestStatus.CONFIRMED.value
+    assert detail.json()["confirmed_at"] is not None
+    assert detail.json()["hold_expires_at"] is None
 
 
 @pytest.mark.asyncio
-async def test_pending_confirmation_occupies_capacity(admin_client, public_client, second_public_client):
+async def test_pending_confirmation_occupies_capacity(admin_client, public_client, db_session):
     """規格 221：pending_confirmation 也占名額，否則同一個名額會先賣給
-    多個家長，等園方逐一確認時才發現超收。"""
-    version = await _enable_slots(admin_client, auto_confirm=False)
+    多個家長，等園方逐一確認時才發現超收。本案上線前留下的舊案仍是這個狀態，
+    新送單不能搶走它占著的名額。"""
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
-
-    first = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload(version, slot["id"], phone="0912345678"),
-        headers={"Idempotency-Key": "hold-capacity-a"},
+    await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot["id"],
+        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=12),
+        phone="0912345678",
     )
-    assert first.status_code == 201, first.text
 
-    second = await second_public_client.post(
+    second = await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_payload(version, slot["id"], phone="0987654321"),
         headers={"Idempotency-Key": "hold-capacity-b"},
@@ -399,24 +402,19 @@ async def test_expired_hold_is_cancelled_and_releases_capacity(
     admin_client, public_client, second_public_client, db_session
 ):
     """規格 222：占位到期轉 cancelled、記 hold_expired、釋放名額。
-    原本完全沒有這條路徑（也沒有任何案件會是 pending）。"""
-    version = await _enable_slots(admin_client, auto_confirm=False)
+    原本完全沒有這條路徑（也沒有任何案件會是 pending）。新流程不再建出待確認案件，
+    但上線前留下的舊案要能正常到期釋放。"""
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
 
-    first = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload(version, slot["id"], phone="0912345678"),
-        headers={"Idempotency-Key": "hold-expiry-a"},
+    # 占位期限已過（模擬 24 小時已過）的舊案。
+    receipt_id = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot["id"],
+        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        phone="0912345678",
     )
-    receipt_id = first.json()["receipt_id"]
-
-    # 把占位期限倒推到過去，模擬 24 小時已過。
-    row = await db_session.execute(
-        select(VisitRequest).where(VisitRequest.id == uuid.UUID(receipt_id))
-    )
-    visit_request = row.scalar_one()
-    visit_request.hold_expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
-    await db_session.commit()
 
     processed = await workflow_service.expire_holds(db_session)
     await db_session.commit()
@@ -439,7 +437,7 @@ async def test_expired_hold_is_cancelled_and_releases_capacity(
 
 @pytest.mark.asyncio
 async def test_phone_is_normalized_and_trailing_newline_rejected(admin_client, public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
 
     created = await public_client.post(
@@ -501,7 +499,7 @@ async def test_booking_config_rejects_oversized_text_and_unsafe_links(admin_clie
 
 @pytest.mark.asyncio
 async def test_overlong_idempotency_key_is_422_not_500(admin_client, public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     resp = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -514,7 +512,7 @@ async def test_overlong_idempotency_key_is_422_not_500(admin_client, public_clie
 @pytest.mark.asyncio
 async def test_public_submit_is_rate_limited(admin_client, public_client):
     """規格 199：公開提交超過限制要回 429。原本完全沒有限流。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     statuses = []
     for i in range(8):
         slot = await _create_slot(admin_client, days_ahead=3 + i, capacity=5)
@@ -531,7 +529,7 @@ async def test_public_submit_is_rate_limited(admin_client, public_client):
 @pytest.mark.asyncio
 async def test_idempotent_replay_does_not_consume_rate_limit(admin_client, public_client):
     """重播不建立新案件，不該吃掉家長的限流額度。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=5)
     body = _payload(version, slot["id"])
     codes = []
@@ -560,12 +558,13 @@ async def test_export_needs_dedicated_permission_and_is_audited(admin_client, ed
 
 # ----------------------------------------------------- parent access
 @pytest.mark.asyncio
-async def test_parent_endpoints_mask_phone_and_hide_internal_fields(
+async def test_parent_endpoints_hide_internal_fields(
     admin_client, public_client
 ):
-    """規格 6.4：家長頁只顯示遮罩手機。原本直接回後台用的
-    VisitRequestDetailOut，含完整手機、家長姓名、提問與內部欄位。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    """規格 6.4：家長頁不回後台用的內部欄位。原本直接回後台用的
+    VisitRequestDetailOut，含 assigned_staff_id 等內部欄位。2026-09-30 起家長改自己的
+    資料，所以顯示完整電話與自己填的姓名、提問（不再遮罩）。"""
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -583,10 +582,9 @@ async def test_parent_endpoints_mask_phone_and_hide_internal_fields(
     )
     assert exchange.status_code == 200
     body = exchange.json()
-    assert body["phone_masked"] == "0912***678"
-    assert "phone" not in body
-    assert "parent_name" not in body
-    assert "questions" not in body
+    assert "phone_masked" not in body
+    assert body["phone"] == "0912345678"
+    assert body["parent_name"] == "陳媽媽"
     assert "assigned_staff_id" not in body
 
 
@@ -595,7 +593,7 @@ async def test_parent_access_is_revoked_when_request_is_cancelled(
     admin_client, public_client, second_public_client
 ):
     """原本：token 從未被撤銷，連結外流後 14 天內都能重放。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -629,7 +627,7 @@ async def test_parent_access_is_revoked_when_request_is_cancelled(
 
 @pytest.mark.asyncio
 async def test_admin_can_revoke_leaked_access_link(admin_client, public_client, second_public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -654,10 +652,11 @@ async def test_admin_can_revoke_leaked_access_link(admin_client, public_client, 
 
 
 @pytest.mark.asyncio
-async def test_reschedule_request_validates_slot(admin_client, public_client, minghua_client):
+async def test_reschedule_validates_slot(admin_client, public_client, minghua_client):
     """原本：家長傳什麼 UUID 就寫什麼，不存在的 slot 直接撞 FK 變 500，
-    別校的 slot 會建立一筆永遠卡住的申請。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    別校的 slot 會建立一筆永遠卡住的申請。家長改期現在是直接改場次
+    （POST /reschedule），一樣要驗場次存在、同校、不是同一個。"""
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -674,65 +673,33 @@ async def test_reschedule_request_validates_slot(admin_client, public_client, mi
     )
 
     bogus = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": str(uuid.uuid4())},
+        "/api/website/v1/public/visit-manage/reschedule",
+        json={"visit_request_id": receipt_id, "slot_id": str(uuid.uuid4())},
     )
     assert bogus.status_code == 404
     assert bogus.json()["detail"]["code"] == "SLOT_NOT_FOUND"
 
     other_campus_slot = await _create_slot(minghua_client, campus_key="minghua", days_ahead=5)
     cross = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": other_campus_slot["id"]},
+        "/api/website/v1/public/visit-manage/reschedule",
+        json={"visit_request_id": receipt_id, "slot_id": other_campus_slot["id"]},
     )
     assert cross.status_code == 404
 
     same = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": slot["id"]},
+        "/api/website/v1/public/visit-manage/reschedule",
+        json={"visit_request_id": receipt_id, "slot_id": slot["id"]},
     )
     assert same.status_code == 409
     assert same.json()["detail"]["code"] == "SAME_SLOT"
 
 
 @pytest.mark.asyncio
-async def test_duplicate_pending_reschedule_request_is_rejected(admin_client, public_client):
-    version = await _enable_slots(admin_client, auto_confirm=True)
-    slot_a = await _create_slot(admin_client, days_ahead=3)
-    slot_b = await _create_slot(admin_client, days_ahead=4)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload(version, slot_a["id"]),
-        headers={"Idempotency-Key": "reschedule-dup-01"},
-    )
-    receipt_id = created.json()["receipt_id"]
-    link = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link"
-    )
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-    await public_client.post(
-        "/api/website/v1/public/visit-manage/exchange", json={"token": token}
-    )
-
-    first = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
-    )
-    assert first.status_code == 201
-    second = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
-    )
-    assert second.status_code == 409
-    assert second.json()["detail"]["code"] == "RESCHEDULE_PENDING"
-
-
-@pytest.mark.asyncio
 async def test_approving_reschedule_for_cancelled_request_is_409_not_500(
-    admin_client, public_client
+    admin_client, public_client, db_session
 ):
     """原本：核准端點沒接 InvalidTransition，案件已取消時回 500。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot_a = await _create_slot(admin_client, days_ahead=3)
     slot_b = await _create_slot(admin_client, days_ahead=4)
     created = await public_client.post(
@@ -741,18 +708,8 @@ async def test_approving_reschedule_for_cancelled_request_is_409_not_500(
         headers={"Idempotency-Key": "reschedule-cancelled-01"},
     )
     receipt_id = created.json()["receipt_id"]
-    link = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link"
-    )
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-    await public_client.post(
-        "/api/website/v1/public/visit-manage/exchange", json={"token": token}
-    )
-    req = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt_id, "new_slot_id": slot_b["id"]},
-    )
-    request_id = req.json()["id"]
+    # 家長申請改期已退場；上線前留下的待核准申請仍由後台處理。
+    request_id = await legacy_reschedule_request(db_session, receipt_id, slot_b["id"])
 
     await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/cancel")
 
@@ -770,7 +727,7 @@ async def test_failed_delivery_retry_does_not_duplicate_inbox_or_email(
 ):
     """原本：寄信失敗沒有 rollback，已寫入的站內通知跟著 commit，
     每重試一次就多一筆；已寄成功的收件人也會重複收信。"""
-    version = await _enable_slots(admin_client, auto_confirm=True)
+    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     await public_client.post(
         "/api/website/v1/public/visit-requests",

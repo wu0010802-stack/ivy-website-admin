@@ -6,8 +6,10 @@ import io
 import pytest
 from PIL import Image
 
+from tests.conftest import create_slot, set_booking_mode
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 API = "/api/website/v1"
@@ -15,14 +17,15 @@ API = "/api/website/v1"
 
 @pytest.mark.asyncio
 async def test_deactivate_campus_stops_public_booking_and_keeps_cases(admin_client, public_client):
-    current = await admin_client.get(f"{API}/admin/booking-config/yihua")
-    await admin_client.patch(
-        f"{API}/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
+    slot_id = await create_slot(admin_client)
+    mode = await set_booking_mode(admin_client, mode="slots")
+    assert mode.status_code == 200, mode.text
     manual = await admin_client.post(
         f"{API}/admin/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678", "consent_given": True},
+        json={
+            "campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678",
+            "consent_given": True, "slot_id": slot_id,
+        },
         headers={"Idempotency-Key": "campus-status-manual"},
     )
     assert manual.status_code == 201
@@ -44,7 +47,7 @@ async def test_deactivate_campus_stops_public_booking_and_keeps_cases(admin_clie
         f"{API}/public/visit-requests",
         json={
             "campus_key": "yihua", "config_version": cfg["version"], "parent_name": "陳媽媽",
-            "phone": "0922333444", "consent_given": True,
+            "phone": "0922333444", "email": "parent@example.com", "slot_id": slot_id, "consent_given": True,
         },
         headers={"Idempotency-Key": "inactive-campus-01"},
     )
@@ -53,12 +56,12 @@ async def test_deactivate_campus_stops_public_booking_and_keeps_cases(admin_clie
 
     # 既有案件還在、沒被取消。
     case = await admin_client.get(f"{API}/admin/visit-requests/{manual.json()['id']}")
-    assert case.json()["status"] == "new"
+    assert case.json()["status"] == "confirmed"
 
     on = await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
     assert on.json()["active"] is True
     assert on.json()["deactivated_at"] is None
-    assert (await public_client.get(f"{API}/public/booking-config/yihua")).json()["mode"] == "inquiry"
+    assert (await public_client.get(f"{API}/public/booking-config/yihua")).json()["mode"] == "slots"
 
 
 @pytest.mark.asyncio

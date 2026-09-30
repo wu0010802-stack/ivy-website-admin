@@ -21,7 +21,13 @@ from app.content import service as content_service
 from app.content.models import ContentItem, ContentRevision, SiteState
 from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
 from app.operations.models import AuditLogEntry
-from tests.conftest import TEST_CONSENT_TEXT, add_weekly_rule, publish_booking_consent, set_booking_mode
+from tests.conftest import (
+    TEST_CONSENT_TEXT,
+    add_weekly_rule,
+    legacy_request,
+    publish_booking_consent,
+    set_booking_mode,
+)
 
 API = "/api/website/v1"
 FORMAL_CONSENT_MIGRATION = (
@@ -60,21 +66,24 @@ async def _publish_booking(admin_client, **changes) -> str:
     return revision["id"]
 
 
-def _form(version: int, **changes) -> dict:
+def _form(version: int, slot_id: str, **changes) -> dict:
+    """2026-09-30 起送單一定要選場次、留 Email。"""
     return {
         "campus_key": "yihua",
         "config_version": version,
+        "slot_id": slot_id,
         "parent_name": "陳媽媽",
         "phone": "0912345678",
+        "email": "parent@example.com",
         "questions": None,
         "consent_given": True,
         **changes,
     }
 
 
-async def _submit(public_client, version: int, key: str, **changes):
+async def _submit(public_client, version: int, key: str, slot_id: str, **changes):
     return await public_client.post(
-        f"{API}/public/visit-requests", json=_form(version, **changes), headers={"Idempotency-Key": key}
+        f"{API}/public/visit-requests", json=_form(version, slot_id, **changes), headers={"Idempotency-Key": key}
     )
 
 
@@ -90,6 +99,14 @@ async def _slot(admin_client, *, days_ahead=5, capacity=2, start="10:00:00", end
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+async def _open_slot(admin_client, *, capacity: int = 20, days_ahead: int = 5) -> tuple[int, str]:
+    """建一個場次再切到 slots（同意文字要先發布）；回傳（設定版本, slot_id）。"""
+    slot = await _slot(admin_client, capacity=capacity, days_ahead=days_ahead)
+    response = await set_booking_mode(admin_client, mode="slots")
+    assert response.status_code == 200, response.text
+    return response.json()["version"], slot["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +135,9 @@ async def test_public_config_exposes_the_published_consent_version(admin_client,
 @pytest.mark.asyncio
 async def test_submission_records_consent_revision_and_server_time(admin_client, public_client, db_session):
     revision_id = await _publish_booking(admin_client)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
+    version, slot_id = await _open_slot(admin_client)
 
-    created = await _submit(public_client, version, "consent-record-01", party_size=3)
+    created = await _submit(public_client, version, "consent-record-01", slot_id, party_size=3)
     assert created.status_code == 201, created.text
     receipt = created.json()["receipt_id"]
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt))
@@ -139,35 +156,35 @@ async def test_submission_records_consent_revision_and_server_time(admin_client,
 @pytest.mark.asyncio
 async def test_missing_or_outdated_consent_version_is_rejected(admin_client, public_client):
     first = await _publish_booking(admin_client)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
+    version, slot_id = await _open_slot(admin_client)
 
-    missing = await _submit(public_client, version, "consent-missing", consent_revision_id=None)
+    missing = await _submit(public_client, version, "consent-missing", slot_id, consent_revision_id=None)
     assert missing.status_code == 409
     assert missing.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
 
     # 同意文字改版後，舊版本不再收，家長要重新閱讀、勾選。
     await _publish_booking(admin_client, consent_text="我同意園方使用資料安排參觀（新版）。")
-    stale = await _submit(public_client, version, "consent-stale", consent_revision_id=first)
+    stale = await _submit(public_client, version, "consent-stale", slot_id, consent_revision_id=first)
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
 
     # 只是草稿（沒發布過）的版本也不收。
     draft = await _save_booking(admin_client, consent_text="草稿文字")
-    unpublished = await _submit(public_client, version, "consent-draft", consent_revision_id=draft["id"])
+    unpublished = await _submit(public_client, version, "consent-draft", slot_id, consent_revision_id=draft["id"])
     assert unpublished.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
 
-    garbage = await _submit(public_client, version, "consent-garbage", consent_revision_id=str(uuid.uuid4()))
+    garbage = await _submit(public_client, version, "consent-garbage", slot_id, consent_revision_id=str(uuid.uuid4()))
     assert garbage.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
 
 
 @pytest.mark.asyncio
 async def test_republish_without_consent_change_keeps_filled_forms_valid(admin_client, public_client, db_session):
     seen = await _publish_booking(admin_client)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
+    version, slot_id = await _open_slot(admin_client)
     # 只改預約按鈕文字再發布：同意說明沒變，家長手上的版本照收，並記下他看到的那一版。
     await _publish_booking(admin_client, cta_label="預約來園參觀")
 
-    created = await _submit(public_client, version, "consent-cta-only", consent_revision_id=seen)
+    created = await _submit(public_client, version, "consent-cta-only", slot_id, consent_revision_id=seen)
     assert created.status_code == 201, created.text
     stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))
     assert str(stored.consent_revision_id) == seen
@@ -176,30 +193,31 @@ async def test_republish_without_consent_change_keeps_filled_forms_valid(admin_c
 @pytest.mark.asyncio
 async def test_replay_returns_original_case_even_after_consent_changes(admin_client, public_client):
     first = await _publish_booking(admin_client)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
-    created = await _submit(public_client, version, "consent-replay", consent_revision_id=first)
+    version, slot_id = await _open_slot(admin_client)
+    created = await _submit(public_client, version, "consent-replay", slot_id, consent_revision_id=first)
     assert created.status_code == 201
 
     await _publish_booking(admin_client, consent_text="改版後的同意文字。")
-    replay = await _submit(public_client, version, "consent-replay", consent_revision_id=first)
+    replay = await _submit(public_client, version, "consent-replay", slot_id, consent_revision_id=first)
     assert replay.status_code == 200
     assert replay.json()["receipt_id"] == created.json()["receipt_id"]
 
 
 @pytest.mark.asyncio
 async def test_form_modes_reject_submissions_without_a_published_consent(admin_client, public_client, db_session):
-    """legacy：更新前就開了 inquiry、但從沒發布同意文字的校區。"""
+    """legacy：更新前就開了 slots、但從沒發布同意文字的校區。"""
     from app.booking.models import BookingConfig, BookingMode
 
     config = await db_session.get(BookingConfig, "yihua")
     if config is None:
         await admin_client.get(f"{API}/admin/booking-config/yihua")
         config = await db_session.get(BookingConfig, "yihua")
-    config.mode = BookingMode.INQUIRY
+    config.mode = BookingMode.SLOTS
     version = config.version
     await db_session.commit()
+    slot_id = (await _slot(admin_client))["id"]
 
-    response = await _submit(public_client, version, "no-consent-published", consent_revision_id=None)
+    response = await _submit(public_client, version, "no-consent-published", slot_id, consent_revision_id=None)
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "BOOKING_UNAVAILABLE"
 
@@ -214,15 +232,17 @@ async def test_form_modes_reject_submissions_without_a_published_consent(admin_c
 
     await _publish_booking(admin_client)
     public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert public["mode"] == "inquiry" and public["consent_text"] == TEST_CONSENT_TEXT
+    assert public["mode"] == "slots" and public["consent_text"] == TEST_CONSENT_TEXT
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["campuses_form_without_consent"] == []
 
 
 @pytest.mark.asyncio
 async def test_manual_case_has_no_consent_version_but_records_time(admin_client):
+    slot = await _slot(admin_client)
     created = await admin_client.post(
         f"{API}/admin/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912000111", "consent_given": True},
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912000111",
+              "consent_given": True, "slot_id": slot["id"]},
         headers={"Idempotency-Key": "manual-consent"},
     )
     assert created.status_code == 201, created.text
@@ -303,23 +323,25 @@ async def test_blank_consent_text_cannot_be_published(admin_client, public_clien
 
 @pytest.mark.asyncio
 async def test_form_modes_need_a_published_consent(admin_client):
-    blocked = await admin_client.patch(
-        f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "inquiry"}
-    )
-    assert blocked.status_code == 400
-    detail = blocked.json()["detail"]
-    assert detail["code"] == "BOOKING_MODE_NOT_READY"
-    assert [r["code"] for r in detail["reasons"]] == ["CONSENT_NOT_PUBLISHED"]
-
     # slots 兩個條件都缺時兩條原因都列。
     blocked = await admin_client.patch(
         f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "slots"}
     )
-    assert [r["code"] for r in blocked.json()["detail"]["reasons"]] == ["CONSENT_NOT_PUBLISHED", "NO_SLOTS_OR_RULES"]
+    assert blocked.status_code == 400
+    detail = blocked.json()["detail"]
+    assert detail["code"] == "BOOKING_MODE_NOT_READY"
+    assert [r["code"] for r in detail["reasons"]] == ["CONSENT_NOT_PUBLISHED", "NO_SLOTS_OR_RULES"]
 
+    # 同意文字發布了，還缺可預約的場次。
     await _publish_booking(admin_client)
+    blocked = await admin_client.patch(
+        f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "slots"}
+    )
+    assert [r["code"] for r in blocked.json()["detail"]["reasons"]] == ["NO_SLOTS_OR_RULES"]
+
+    await _slot(admin_client)
     enabled = await admin_client.patch(
-        f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "inquiry"}
+        f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "slots"}
     )
     assert enabled.status_code == 200, enabled.text
 
@@ -354,7 +376,6 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     body = readiness.json()
     assert body["current_mode"] == "paused"
     assert body["consent"] is None
-    assert [r["code"] for r in body["blockers"]["inquiry"]] == ["CONSENT_NOT_PUBLISHED"]
     assert [r["code"] for r in body["blockers"]["slots"]] == ["CONSENT_NOT_PUBLISHED", "NO_SLOTS_OR_RULES"]
     assert body["blockers"]["line"] == [] and body["blockers"]["paused"] == []
     assert body["impact"] == {
@@ -365,19 +386,19 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     revision_id = await _publish_booking(admin_client, privacy_sections=_PRIVACY)
     slot = await _slot(admin_client, capacity=3)
     await _slot(admin_client, days_ahead=6)
-    version = (await set_booking_mode(admin_client, mode="slots", slots_auto_confirm=True)).json()["version"]
-    confirmed = await _submit(public_client, version, "impact-confirmed", slot_id=slot["id"])
+    version = (await set_booking_mode(admin_client, mode="slots")).json()["version"]
+    confirmed = await _submit(public_client, version, "impact-confirmed", slot["id"])
     assert confirmed.status_code == 201, confirmed.text
-    await set_booking_mode(admin_client, mode="inquiry")
-    version = (await admin_client.get(f"{API}/admin/booking-config/yihua")).json()["version"]
-    assert (await _submit(public_client, version, "impact-new")).status_code == 201
+    # 本案上線前留下的舊案（新需求、聯絡中）仍要算進切換前的影響範圍。
+    await legacy_request(db_session, status="new")
+    await legacy_request(db_session, status="contacting")
 
     body = (await admin_client.get(f"{API}/admin/booking-config/yihua/readiness")).json()
-    assert body["current_mode"] == "inquiry"
+    assert body["current_mode"] == "slots"
     assert body["consent"] == {"revision_id": revision_id, "version": 1, "has_privacy_notice": True}
-    assert body["blockers"]["inquiry"] == [] and body["blockers"]["slots"] == []
+    assert body["blockers"]["slots"] == []
     assert body["impact"] == {
-        "open_requests": 2, "new_requests": 1, "contacting": 0, "pending_confirmation": 0,
+        "open_requests": 3, "new_requests": 1, "contacting": 1, "pending_confirmation": 0,
         "upcoming_confirmed": 1, "past_confirmed": 0, "bookable_slots": 2, "weekly_rules": 0,
     }
 
@@ -396,9 +417,9 @@ async def test_impact_counts_confirmed_visits_already_past_separately(admin_clie
     await publish_booking_consent(db_session)
     early = await _slot(admin_client, days_ahead=2)
     later = await _slot(admin_client, days_ahead=6)
-    version = (await set_booking_mode(admin_client, mode="slots", slots_auto_confirm=True)).json()["version"]
+    version = (await set_booking_mode(admin_client, mode="slots")).json()["version"]
     for key, slot in (("past-a", early), ("past-b", early), ("upcoming", later)):
-        created = await _submit(public_client, version, key, slot_id=slot["id"])
+        created = await _submit(public_client, version, key, slot["id"])
         assert created.status_code == 201, created.text
         assert created.json()["status"] == "confirmed"
 
@@ -418,19 +439,38 @@ async def test_impact_counts_confirmed_visits_already_past_separately(admin_clie
 @pytest.mark.asyncio
 async def test_dashboard_lists_slots_campuses_without_openings(admin_client, public_client, db_session):
     await publish_booking_consent(db_session)
-    await add_weekly_rule(admin_client)
-    await set_booking_mode(admin_client, mode="slots", slots_auto_confirm=True)
+    # 有每週規則，但預約提前量比開放天數還長：存規則時補不出任何場次（A7 起存規則就會補場次）。
+    schedule = (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()
+    saved = await admin_client.put(
+        f"{API}/admin/visit-schedule/yihua",
+        json={
+            "expected_version": schedule["version"],
+            "min_lead_hours": 24 * 14,
+            "max_advance_days": 1,
+            "rules": [{"weekday": 5, "start_time": "09:00:00", "end_time": "10:00:00", "slot_minutes": 60, "capacity": 1}],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["slot_sync"]["created"] == 0
+    await set_booking_mode(admin_client, mode="slots")
     summary = (await admin_client.get(f"{API}/admin/dashboard")).json()
-    # 有規則但定期工作還沒補出場次：家長現在選不到，列入待辦。
+    # 有規則但補不出場次：家長現在選不到，列入待辦。
     assert summary["campuses_slots_without_openings"] == ["yihua"]
     assert "yihua" not in summary["campuses_without_active_booking"]
 
+    # 放寬提前量、拿掉規則（不再自動補場次），改手動開一個場次：有得選就不在待辦。
+    schedule = (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()
+    relaxed = await admin_client.put(
+        f"{API}/admin/visit-schedule/yihua",
+        json={"expected_version": schedule["version"], "min_lead_hours": 0, "max_advance_days": 30, "rules": []},
+    )
+    assert relaxed.status_code == 200, relaxed.text
     slot = await _slot(admin_client, capacity=1)
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["campuses_slots_without_openings"] == []
 
     # 唯一的場次額滿後又回到待辦。
     version = (await admin_client.get(f"{API}/admin/booking-config/yihua")).json()["version"]
-    assert (await _submit(public_client, version, "dash-full", slot_id=slot["id"])).status_code == 201
+    assert (await _submit(public_client, version, "dash-full", slot["id"])).status_code == 201
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["campuses_slots_without_openings"] == ["yihua"]
 
 
@@ -443,7 +483,7 @@ async def test_dashboard_lists_slots_campuses_without_openings(admin_client, pub
 async def test_config_audit_records_full_before_and_after(admin_client, db_session):
     await publish_booking_consent(db_session)
     await set_booking_mode(admin_client, mode="line", line_url="https://lin.ee/abc", message="加 LINE 預約")
-    await set_booking_mode(admin_client, mode="inquiry", slots_auto_confirm=False)
+    await set_booking_mode(admin_client, mode="phone", phone="03-1234567")
 
     entries = (
         await db_session.execute(
@@ -458,10 +498,11 @@ async def test_config_audit_records_full_before_and_after(admin_client, db_sessi
     assert second["before"]["line_url"] == "https://lin.ee/abc"
     assert second["before"]["message"] == "加 LINE 預約"
     assert second["after"] == {
-        "mode": "inquiry", "line_url": None, "phone": None, "external_url": None, "message": None,
-        "slots_auto_confirm": False, "parent_change_deadline_hours": 24,
+        "mode": "phone", "line_url": None, "phone": "03-1234567", "external_url": None, "message": None,
+        "parent_change_deadline_hours": 24,
     }
-    assert second["changed"] == ["mode", "line_url", "message"]
+    assert "slots_auto_confirm" not in second["after"] and "slots_auto_confirm" not in second["before"]
+    assert second["changed"] == ["mode", "line_url", "phone", "message"]
     assert second["version"] == 2
 
 
@@ -473,19 +514,19 @@ async def test_config_audit_records_full_before_and_after(admin_client, db_sessi
 @pytest.mark.asyncio
 async def test_party_size_is_required_validated_and_exported(admin_client, public_client, db_session):
     await publish_booking_consent(db_session)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
+    version, slot_id = await _open_slot(admin_client)
 
-    missing = await _submit(public_client, version, "party-missing", party_size=None)
+    missing = await _submit(public_client, version, "party-missing", slot_id, party_size=None)
     assert missing.status_code == 422
     for index, bad in enumerate((0, 11, "兩位")):
-        assert (await _submit(public_client, version, f"party-bad-{index}", party_size=bad)).status_code == 422
+        assert (await _submit(public_client, version, f"party-bad-{index}", slot_id, party_size=bad)).status_code == 422
 
-    created = await _submit(public_client, version, "party-ok", party_size=10)
+    created = await _submit(public_client, version, "party-ok", slot_id, party_size=10)
     assert created.status_code == 201, created.text
     receipt = created.json()["receipt_id"]
 
     # 同一把 key 改了人數是不同的送單。
-    changed = await _submit(public_client, version, "party-ok", party_size=4)
+    changed = await _submit(public_client, version, "party-ok", slot_id, party_size=4)
     assert changed.status_code == 409
     assert changed.json()["detail"]["code"] == "IDEMPOTENCY_CONFLICT"
 
@@ -495,7 +536,7 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
     manual = await admin_client.post(
         f"{API}/admin/visit-requests",
         json={"campus_key": "yihua", "source": "walk_in", "parent_name": "林爸爸", "phone": "0912000222",
-              "consent_given": True, "party_size": 3},
+              "consent_given": True, "party_size": 3, "slot_id": slot_id},
         headers={"Idempotency-Key": "manual-party"},
     )
     assert manual.status_code == 201, manual.text
@@ -503,7 +544,7 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
     assert (await admin_client.post(
         f"{API}/admin/visit-requests",
         json={"campus_key": "yihua", "source": "walk_in", "parent_name": "林爸爸", "phone": "0912000222",
-              "consent_given": True, "party_size": 11},
+              "consent_given": True, "party_size": 11, "slot_id": slot_id},
         headers={"Idempotency-Key": "manual-party-bad"},
     )).status_code == 422
 
@@ -516,12 +557,8 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
 
 @pytest.mark.asyncio
 async def test_legacy_case_without_party_size_exports_blank(admin_client, db_session):
-    created = await admin_client.post(
-        f"{API}/admin/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "舊案", "phone": "0912000333", "consent_given": True},
-        headers={"Idempotency-Key": "legacy-party"},
-    )
-    assert created.json()["party_size"] is None
+    # 參觀人數是後來才加的欄位；舊案沒有值，匯出留空。
+    await legacy_request(db_session, status="new", party_size=None)
     export = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
     assert [row["party_size"] for row in csv.DictReader(io.StringIO(export.text))] == [""]
 
@@ -534,11 +571,11 @@ async def test_legacy_case_without_party_size_exports_blank(admin_client, db_ses
 @pytest.mark.asyncio
 async def test_questions_are_limited_to_500_characters(admin_client, public_client, db_session):
     await publish_booking_consent(db_session)
-    version = (await set_booking_mode(admin_client, mode="inquiry")).json()["version"]
-    assert (await _submit(public_client, version, "q-501", questions="問" * 501)).status_code == 422
-    assert (await _submit(public_client, version, "q-500", questions="問" * 500)).status_code == 201
+    version, slot_id = await _open_slot(admin_client)
+    assert (await _submit(public_client, version, "q-501", slot_id, questions="問" * 501)).status_code == 422
+    assert (await _submit(public_client, version, "q-500", slot_id, questions="問" * 500)).status_code == 201
 
-    manual = {"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912000444", "consent_given": True}
+    manual = {"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912000444", "consent_given": True, "slot_id": slot_id}
     too_long = await admin_client.post(
         f"{API}/admin/visit-requests", json={**manual, "questions": "問" * 501}, headers={"Idempotency-Key": "mq-501"}
     )

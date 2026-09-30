@@ -5,24 +5,33 @@ from datetime import date, timedelta
 
 import pytest
 
-from tests.conftest import set_booking_mode
+from tests.conftest import create_slot, set_booking_mode
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-def _payload(config_version: int):
+def _payload(config_version: int, slot_id: str):
     return {
         "campus_key": "yihua",
         "config_version": config_version,
+        "slot_id": slot_id,
         "parent_name": "陳媽媽",
         "phone": "0912345678",
+        "email": "parent@example.com",
         "age": "3-4",
-        "preferred_time": "平日上午",
         "questions": None,
         "consent_given": True,
     }
+
+
+async def _open_slot(admin_client, *, capacity: int = 2, days_ahead: int = 3) -> tuple[int, str]:
+    """建一個場次再切到 slots；回傳（設定版本, slot_id）。"""
+    slot_id = await create_slot(admin_client, "yihua", days_ahead=days_ahead, capacity=capacity)
+    response = await set_booking_mode(admin_client, "yihua", mode="slots")
+    assert response.status_code == 200, response.text
+    return response.json()["version"], slot_id
 
 
 @pytest.mark.asyncio
@@ -31,14 +40,9 @@ async def test_concurrent_identical_submissions_create_only_one_request(
 ):
     """真實併發：兩個獨立連線同時用同一個 idempotency key 送出同樣內容，
     只能有一筆案件被建立，另一個必須安全地拿到同一個 receipt（不是各建一筆）。"""
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    resp = await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    version = resp.json()["version"]
+    version, slot_id = await _open_slot(admin_client)
 
-    payload = _payload(version)
+    payload = _payload(version, slot_id)
     headers = {"Idempotency-Key": "race-test-01"}
 
     results = await asyncio.gather(
@@ -62,16 +66,11 @@ async def test_many_concurrent_identical_submissions_still_one_request(app, admi
     提高真的撞上 INSERT 競爭窗口的機率，驗證 IntegrityError 安全網。"""
     import httpx
 
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    resp = await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    version = resp.json()["version"]
+    version, slot_id = await _open_slot(admin_client)
     # 這裡用一般 httpx client（不經測試用的家長 client），官網會帶的人數與同意
     # 版本自己補上，十個請求才會同時打到建單。
     config = await public_client.get("/api/website/v1/public/booking-config/yihua")
-    payload = {**_payload(version), "party_size": 2, "consent_revision_id": config.json()["consent_revision_id"]}
+    payload = {**_payload(version, slot_id), "party_size": 2, "consent_revision_id": config.json()["consent_revision_id"]}
     headers = {"Idempotency-Key": "race-test-many-01"}
 
     transport = httpx.ASGITransport(app=app)
@@ -100,21 +99,8 @@ async def test_one_slot_cannot_accept_two_families(
 ):
     """計畫 Task 7 明確要求的真實 PostgreSQL 併發驗證：同一個時段的
     最後一個名額，兩個不同 idempotency key 的並發請求只能一個成功。"""
-    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
-    me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    version = me.json()["version"]
-
+    version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=5)
     slot_date = (date.today() + timedelta(days=5)).isoformat()
-    slot_resp = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={
-            "slot_date": slot_date,
-            "start_time": "10:00:00",
-            "end_time": "11:00:00",
-            "capacity": 1,
-        },
-    )
-    slot_id = slot_resp.json()["id"]
 
     def _payload(name: str) -> dict:
         return {
@@ -122,8 +108,8 @@ async def test_one_slot_cannot_accept_two_families(
             "config_version": version,
             "parent_name": name,
             "phone": "0912345678",
+            "email": "parent@example.com",
             "age": "3-4",
-            "preferred_time": None,
             "questions": None,
             "consent_given": True,
             "slot_id": slot_id,
@@ -198,22 +184,16 @@ def _hold_until_both_return(monkeypatch, module, name: str) -> None:
 
 
 async def _last_slot_payload(admin_client) -> tuple[dict, str, str]:
-    """人工確認的 slots 模式，開一個只剩一個名額的時段。回傳 (送單內容, 時段 id, 日期)。"""
-    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=False)
-    version = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()["version"]
+    """slots 模式，開一個只剩一個名額的時段。回傳 (送單內容, 時段 id, 日期)。"""
+    version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=6)
     slot_date = (date.today() + timedelta(days=6)).isoformat()
-    slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": slot_date, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 1},
-    )
-    slot_id = slot.json()["id"]
-    return {**_payload(version), "slot_id": slot_id}, slot_id, slot_date
+    return _payload(version, slot_id), slot_id, slot_date
 
 
 async def _assert_one_booking_same_receipt(admin_client, results, slot_date: str) -> None:
     assert sorted(r.status_code for r in results) == [200, 201], [r.text for r in results]
     assert len({r.json()["receipt_id"] for r in results}) == 1
-    assert {r.json()["status"] for r in results} == {"pending_confirmation"}
+    assert {r.json()["status"] for r in results} == {"confirmed"}
     check = await admin_client.get(
         f"/api/website/v1/admin/slots?campus_key=yihua&date_from={slot_date}&date_to={slot_date}"
     )
@@ -278,58 +258,3 @@ async def test_concurrent_replay_prechecked_after_first_commit_gets_receipt(
         task.add_done_callback(lambda _task: first_done.set())
     results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=30)
     await _assert_one_booking_same_receipt(admin_client, results, slot_date)
-
-
-@pytest.mark.asyncio
-async def test_parallel_reschedule_requests_for_one_visit_leave_one_pending(
-    monkeypatch, admin_client, public_client, second_public_client
-):
-    """同一筆預約在兩個分頁同時送出改期、各選不同場次：只能留一筆待核准，另一個回
-    RESCHEDULE_PENDING（2026-09-30 E2E 在舊版重現兩筆 pending）。兩個請求都通過前面的
-    檢查後才一起進入建立，靠 create_reschedule_request 鎖住案件列排隊。"""
-    from app.booking import access_service
-
-    await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
-    version = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()["version"]
-    slot_date = (date.today() + timedelta(days=7)).isoformat()
-    slot_ids = []
-    for start, end in (("09:00:00", "10:00:00"), ("13:00:00", "14:00:00"), ("15:00:00", "16:00:00")):
-        slot = await admin_client.post(
-            "/api/website/v1/admin/slots?campus_key=yihua",
-            json={"slot_date": slot_date, "start_time": start, "end_time": end, "capacity": 2},
-        )
-        slot_ids.append(slot.json()["id"])
-    booked = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={**_payload(version), "slot_id": slot_ids[0]},
-        headers={"Idempotency-Key": "parallel-reschedule-01"},
-    )
-    receipt_id = booked.json()["receipt_id"]
-    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link")
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-    for client in (public_client, second_public_client):
-        exchanged = await client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
-        assert exchanged.status_code == 200
-
-    original = access_service.create_reschedule_request
-    barrier = asyncio.Barrier(2)
-
-    async def enter_together(*args, **kwargs):
-        await asyncio.wait_for(barrier.wait(), timeout=10)
-        return await original(*args, **kwargs)
-
-    monkeypatch.setattr(access_service, "create_reschedule_request", enter_together)
-
-    path = "/api/website/v1/public/visit-manage/reschedule-request"
-    results = await asyncio.wait_for(
-        asyncio.gather(
-            public_client.post(path, json={"new_slot_id": slot_ids[1], "visit_request_id": receipt_id}),
-            second_public_client.post(path, json={"new_slot_id": slot_ids[2], "visit_request_id": receipt_id}),
-        ),
-        timeout=30,
-    )
-    assert sorted(r.status_code for r in results) == [201, 409], [r.text for r in results]
-    rejected = next(r for r in results if r.status_code == 409)
-    assert rejected.json()["detail"]["code"] == "RESCHEDULE_PENDING"
-    pending = await admin_client.get("/api/website/v1/admin/reschedule-requests?campus_key=yihua")
-    assert len(pending.json()) == 1
