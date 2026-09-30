@@ -1,8 +1,6 @@
 /**
  * 首頁五校「淡彩速寫」（2026-09-29 定案，比稿 A）：五校大照片先變成那一校的鉛筆線稿，水彩從建築中央一團團滲開上色，
  * 再從中央暈開回到照片（暈開沿用 /curriculum 照片進場的 bloomCanvas）。第一次捲到五校與手動換校時播，自動輪播不播。
- * 2026-09-29 晚：左右預覽卡改成靜態線稿（paintSketchStill），換到中央才從線稿接手上色（from: 'sketch'）；
- * 自動輪播只暈開、不上水彩（wash: false）。
  *
  * 線稿（campus-line-art-*.webp）是從同一張校園照描的，只差裁切與縮放；下表是線稿框在照片原始像素上的位置，
  * 用邊緣相關性對位算出（國際校線稿垂直多拉了約 12%，已含在高度裡）。只對表上那張照片成立：
@@ -42,10 +40,6 @@ const WASH_STAGGER = 120
 const WASH_MS = 950
 const PHOTO_AT = 2800
 const PHOTO_MS = 1700
-// 從預覽線稿接手：線已經畫好，跳過描線、第一團水彩提早到 200ms（卡片還在滑進中央）
-const SKETCH_SKIP = WASH_START - 200
-// 只暈開（自動輪播）：卡片滑到九成再開始
-const BLOOM_ONLY_AT = 450
 
 const images = new Map<string, Promise<HTMLImageElement>>()
 function loadImage(src: string) {
@@ -108,65 +102,6 @@ function layer(width: number, height: number) {
   return { el, ctx: el.getContext('2d')! }
 }
 
-/** canvas 依卡片尺寸重設大小（會清空）、算線稿框，並把線稿加深一次畫好。靜態線稿與淡彩速寫共用，兩邊的線才一模一樣。 */
-function sketchSurface(card: HTMLElement, canvas: HTMLCanvasElement, reg: SketchRegistration, line: HTMLImageElement, objectPosition: string) {
-  const cw = card.clientWidth, ch = card.clientHeight
-  const scale = sketchScale()
-  canvas.width = Math.round(cw * scale)
-  canvas.height = Math.round(ch * scale)
-  const W = canvas.width, H = canvas.height
-  const ctx = canvas.getContext('2d')!
-  const box = sketchLayout(reg, cw, ch, objectPosition)
-  const lx = box.x * scale, ly = box.y * scale, lw = box.width * scale, lh = box.height * scale
-  // 線稿加深一次畫好（逐幀用 ctx.filter 太貴）
-  const lineLayer = layer(lw, lh)
-  // 先壓暗再拉對比：紙底被推回全白（multiply 不染色），線條變深；順序反過來整張會變灰
-  lineLayer.ctx.filter = 'grayscale(1) brightness(.8) contrast(2.4)'
-  lineLayer.ctx.drawImage(line, 0, 0, lw, lh)
-  grain ??= grainCanvas()
-  return {
-    ctx, W, H, scale, lx, ly, lw, lh, lineLayer,
-    grainPattern: ctx.createPattern(grain, 'repeat'),
-    // 紙色讀卡片的 --paper（--ivy-campus-paper），不寫色碼
-    paper: getComputedStyle(card).getPropertyValue('--paper').trim()
-  }
-}
-type SketchSurface = ReturnType<typeof sketchSurface>
-
-/** 鋪紙；之後的顏料與線稿用 multiply 疊上去 */
-function paintPaper({ ctx, W, H, paper }: SketchSurface) {
-  ctx.globalCompositeOperation = 'source-over'
-  if (paper) ctx.fillStyle = paper
-  ctx.fillRect(0, 0, W, H)
-  ctx.globalCompositeOperation = 'multiply'
-}
-/** 紙紋；畫完把合成模式還原 */
-function paintGrain({ ctx, W, H, grainPattern }: SketchSurface) {
-  if (grainPattern) { ctx.globalAlpha = 0.45; ctx.fillStyle = grainPattern; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1 }
-  ctx.globalCompositeOperation = 'source-over'
-}
-
-/**
- * 左右預覽卡的靜態線稿（2026-09-29 晚）：就是淡彩速寫描完線、還沒上色的那一幀，換到中央時 developSketch 才接得上。
- * 線稿載好時 wanted() 不成立（例如這張已經換到中央）就不畫；回傳 false＝沒畫，照片照常顯示。
- */
-export async function paintSketchStill(options: {
-  card: HTMLElement
-  canvas: HTMLCanvasElement
-  registration: SketchRegistration
-  lineSrc: string
-  objectPosition: string
-  wanted: () => boolean
-}) {
-  const line = await loadImage(options.lineSrc).catch(() => null)
-  if (!line || !options.wanted()) return false
-  const surface = sketchSurface(options.card, options.canvas, options.registration, line, options.objectPosition)
-  paintPaper(surface)
-  surface.ctx.drawImage(surface.lineLayer.el, surface.lx, surface.ly, surface.lw, surface.lh)
-  paintGrain(surface)
-  return true
-}
-
 export interface DevelopHandle { cancel: () => void, done: Promise<void> }
 
 export function developSketch(options: {
@@ -180,16 +115,8 @@ export function developSketch(options: {
   objectPosition: string
   /** tokens.css 的 --ivy-paint-sky-rgb；讀不到就不刷天空 */
   skyRgb: string
-  /** 'photo'（預設）：照片淡出、線稿由左往右畫出；'sketch'：canvas 上已經是 paintSketchStill 的線稿，直接上色 */
-  from?: 'photo' | 'sketch'
-  /** false：不上水彩，線稿直接暈開回照片（自動輪播） */
-  wash?: boolean
 }): DevelopHandle {
   const { card, img, canvas, campusKey, registration: reg } = options
-  const fromSketch = options.from === 'sketch'
-  const washing = options.wash ?? true
-  // 從線稿接手時時間軸往後跳，跳過描線
-  const skip = fromSketch ? SKETCH_SKIP : 0
   let frame = 0
   let cancelled = false
   let finish: () => void = () => {}
@@ -205,41 +132,54 @@ export function developSketch(options: {
   }
 
   card.classList.remove('is-sketch', 'is-develop', 'is-developed')
-  // 線稿已經在 canvas 上：馬上接手蓋住照片，呼叫端再拿掉預覽狀態時照片不會閃出來
-  if (fromSketch) card.classList.add('is-sketch')
 
   void (async () => {
     // 素材載好才開始（照片這時才淡出），不然第一次會先空白一段
     const [line, colour, bloom] = await Promise.all([
       loadImage(options.lineSrc),
-      washing ? loadImage(options.colourSrc) : null,
+      loadImage(options.colourSrc),
       bloomMask()
     ]).catch(() => [null, null, ''] as const)
     if (cancelled) return
-    if (!line || (washing && !colour)) { cleanup(); return }
+    if (!line || !colour) { cleanup(); return }
 
     // ---------- 尺寸與對位 ----------
-    const surface = sketchSurface(card, canvas, reg, line, options.objectPosition)
-    const { ctx, W, H, scale, lx, ly, lw, lh, lineLayer } = surface
-    // 淡彩層稍微提一點彩度
+    const cw = card.clientWidth, ch = card.clientHeight
+    const scale = sketchScale()
+    canvas.width = Math.round(cw * scale)
+    canvas.height = Math.round(ch * scale)
+    const W = canvas.width, H = canvas.height
+    const ctx = canvas.getContext('2d')!
+    const box = sketchLayout(reg, cw, ch, options.objectPosition)
+    const lx = box.x * scale, ly = box.y * scale, lw = box.width * scale, lh = box.height * scale
+
+    // 線稿加深一次畫好（逐幀用 ctx.filter 太貴）；淡彩層稍微提一點彩度
+    const lineLayer = layer(lw, lh)
+    // 先壓暗再拉對比：紙底被推回全白（multiply 不染色），線條變深；順序反過來整張會變灰
+    lineLayer.ctx.filter = 'grayscale(1) brightness(.8) contrast(2.4)'
+    lineLayer.ctx.drawImage(line, 0, 0, lw, lh)
     const colourLayer = layer(lw, lh)
     colourLayer.ctx.filter = 'saturate(1.2)'
-    if (colour) colourLayer.ctx.drawImage(colour, 0, 0, lw, lh)
+    colourLayer.ctx.drawImage(colour, 0, 0, lw, lh)
     const mask = layer(W, H)
     const sky = layer(W, H)
     const scratch = layer(W, H)
+    grain ??= grainCanvas()
+    const grainPattern = ctx.createPattern(grain, 'repeat')
+    // 紙色讀卡片的 --paper（--ivy-campus-paper），不寫色碼
+    const paper = getComputedStyle(card).getPropertyValue('--paper').trim()
 
     // ---------- 顏料團：從建築中央往外，一團一團滲開 ----------
     const random = seededRandom(campusKey.length * 977 + campusKey.charCodeAt(0))
     const cx = lx + lw * 0.5, cy = ly + lh * 0.55
-    const blobs = !washing ? [] : Array.from({ length: 10 }, () => {
+    const blobs = Array.from({ length: 10 }, () => {
       const x = lx + lw * (0.1 + random() * 0.8), y = ly + lh * (0.22 + random() * 0.62)
       const rx = lw * (0.12 + random() * 0.13)
       return { x, y, rx, ry: rx * (0.55 + random() * 0.3) }
     }).sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))
       .map((blob, i) => ({ ...blob, start: WASH_START + i * WASH_STAGGER, polys: washPolygons(random, blob.x, blob.y, blob.rx, blob.ry, 22), drawn: 0 }))
     // 天空：兩團很淡的天藍，淡彩速寫常見的「隨手刷一筆天」
-    const skies = (washing && options.skyRgb ? [0.3, 0.72] : []).map((fx, i) => ({
+    const skies = (options.skyRgb ? [0.3, 0.72] : []).map((fx, i) => ({
       start: WASH_START + 400 + i * 200,
       polys: washPolygons(random, lx + lw * fx, ly + lh * 0.14, lw * 0.26, lh * 0.12, 18),
       drawn: 0
@@ -251,7 +191,7 @@ export function developSketch(options: {
     const render = (now: number) => {
       frame = 0
       if (cancelled) return
-      const t = now - t0 + skip
+      const t = now - t0
       let painting = false
       for (const blob of blobs) {
         const want = Math.round(Math.min(1, Math.max(0, (t - blob.start) / WASH_MS)) * blob.polys.length)
@@ -273,9 +213,12 @@ export function developSketch(options: {
           sky.ctx.fill()
         }
       }
-      const lineProgress = fromSketch ? 1 : easeOut(Math.min(1, t / LINE_MS))
+      const lineProgress = easeOut(Math.min(1, t / LINE_MS))
 
-      paintPaper(surface)
+      ctx.globalCompositeOperation = 'source-over'
+      if (paper) ctx.fillStyle = paper
+      ctx.fillRect(0, 0, W, H)
+      ctx.globalCompositeOperation = 'multiply'
       ctx.drawImage(sky.el, 0, 0)
       scratch.ctx.globalCompositeOperation = 'source-over'
       scratch.ctx.clearRect(0, 0, W, H)
@@ -297,7 +240,8 @@ export function developSketch(options: {
         scratch.ctx.fillRect(0, 0, W, H)
       }
       ctx.drawImage(scratch.el, 0, 0)
-      paintGrain(surface)
+      if (grainPattern) { ctx.globalAlpha = 0.45; ctx.fillStyle = grainPattern; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1 }
+      ctx.globalCompositeOperation = 'source-over'
 
       settled = !painting && lineProgress >= 1
       if (!settled) frame = requestAnimationFrame(render)
@@ -318,7 +262,7 @@ export function developSketch(options: {
       img.addEventListener('transitionend', onBloomEnd)
       // 保險：轉場事件沒來（例如分頁在背景）也要收尾
       timers.push(setTimeout(() => { if (!cancelled) cleanup() }, PHOTO_MS + 900))
-    }, washing ? PHOTO_AT - skip : BLOOM_ONLY_AT))
+    }, PHOTO_AT))
   })()
 
   return {
