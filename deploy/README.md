@@ -904,3 +904,13 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - run `36664641812`（`b74f525`）五個 job 全綠，Deploy Railway production 03:48:52–03:52:14 UTC。`/release.json` snapshot `03c857670339f4ac38c2913f985a57e29d2e05ec937330a39f5936c223f6d1f3`、`base_commit` `b74f525`、`web+api`、`created_at` 2026-09-30T03:49:14Z。
 - 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/visit/minghua`、`/visit/manage`、`/admin/login` 皆 200；正式站 `/visit/manage` 與 `/visit/minghua` 引用的 JS 含 `PARENT_SESSION_CHANGED`、多分頁提示文字、`visit_request_id` 與同意框的 `contextmenu` 釋放處理，確認是新版前端。
 - **未做**：Safari／iOS 實機；正式站沒有送出預約、沒有開家長管理連結，多分頁與截止情境只在本機 stack 驗過。
+
+## 2026-09-30 首屏「新發現」金色乾刷色塊（`feature/hero-brush-20260930`，main CI 部署；部署後驗證逾時）
+
+- 使用者要求上線。分支從 origin/main `0a00625` 開，fast-forward 推上 `0a00625..7a9a1f2`（`37422e1` 改版前快照、`7a9a1f2` 首屏改版：拿掉小標與「找校區」、主標不加標點、重點詞改金色乾刷色塊）。沒有 migration、沒有 API 變更，依 `deploy/CICD.md` 不需先備份正式 DB。
+- 推送前本機驗證：web typecheck（0 警告）、vitest 65 檔 668 項；admin typecheck、vitest 49 檔 679 項；production build 的 stack e2e 62 項全過（含首頁 a11y／hydration／keyboard）。後端只匯入 `home_hero` 的小標／說明／按鈕文字，主標五段不進後端，未另跑 pytest（CI 的 Backend job 已全綠）。
+- run `36683022871`（`7a9a1f2`）：Backend／E2E／Frontend (web)／Frontend (admin) 四個 job 全綠；**Deploy Railway production 失敗在最後的 smoke**。API 先部署、web deployment `82299e25-053f-471a-be63-39b3e2b406d0` 於 07:40:33 UTC 回報 SUCCESS，之後 `GET /release.json?commit=7a9a1f2…` 連續三次 30 秒讀取逾時（07:41:03–07:42:06），腳本判定失敗；沒有回滾。
+- 事後查證（唯讀）：`/release.json` snapshot `4f94ccc47e70e73cf4450f63b7795e185d5aa83cc06809e9920848ead9642703`、`base_commit` `7a9a1f2`、`web+api`、`created_at` 2026-09-30T07:37:25Z，新版已在線上；Railway web 只剩 `82299e25` 一個部署（舊的都 REMOVED）。本機連打 `/`、`/release.json`、`/api/website/v1/health` 約每 10 次有 1 次卡滿 35 秒（`x-railway-edge: hkg1`），其餘 0.1–0.7 秒；`railway logs --http` 裡**沒有**這些卡住的請求（服務端最慢 98ms，只有兩筆瀏覽器取消的 499），判斷是 Railway 邊緣網路偶發未轉送，不是應用程式。web 執行 log 只有啟動訊息、沒有錯誤。
+- 正式站首頁（Playwright Chrome 1440／390）：`h1` 為「在常春藤每一天都有新發現」、`.hero-key` `rotate:-2deg`、沒有小標與 `.hero-campus-link`；HTML 含 `hero-swatch`／`hero-brush`、不含 `hero-underline`。
+- 這筆紀錄的 docs 提交推上後會再跑一次同內容部署，順便重跑 smoke；若邊緣偶發逾時還在，那次也可能紅燈，要再看 `railway logs --http` 分辨。
+- **未做**：Safari／iOS 實機；Railway 邊緣逾時的根因（未開 Railway 支援單、未查 status 頁）。
