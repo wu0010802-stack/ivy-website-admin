@@ -26,12 +26,12 @@ describe('淡彩速寫的對位', () => {
     }
   })
   it('後台換了照片、線稿或淡彩層就不畫（對位對不上）', () => {
-    const yihua = { key: 'yihua', image: 'yihua-exterior-enhanced-v1' }
-    expect(sketchRegistration({ ...yihua, image: 'yihua-exterior' })).toBeNull()
+    const yihua = { key: 'yihua', image: 'yihua-exterior-v2' }
+    expect(sketchRegistration({ ...yihua, image: 'yihua-exterior-enhanced-v1' })).toBeNull()
     expect(sketchRegistration({ ...yihua, imageMedia: { media_id: 'x' } })).toBeNull()
     expect(sketchRegistration({ ...yihua, lineArtMedia: { media_id: 'x' } })).toBeNull()
     expect(sketchRegistration({ ...yihua, lineArtColourMedia: { media_id: 'x' } })).toBeNull()
-    expect(sketchRegistration({ key: 'nowhere', image: 'yihua-exterior-enhanced-v1' })).toBeNull()
+    expect(sketchRegistration({ key: 'nowhere', image: 'yihua-exterior-v2' })).toBeNull()
   })
   it('object-position 換成對齊比例', () => {
     expect(sketchAlignment('center 12%')).toEqual([0.5, 0.12])

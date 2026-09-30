@@ -42,7 +42,7 @@ const editor = useContentItem<CampusProfilePayload>(
 
 // 官網內建的五校封面（沒換封面時也能只調兩個版位的焦點）。
 const BUILTIN_COVERS: Record<string, string> = {
-  yihua: 'yihua-exterior-enhanced-v1',
+  yihua: 'yihua-exterior-v2',
   minghua: 'minghua-enhanced-v1',
   chongde: 'chongde-enhanced-v1',
   international: 'international-enhanced-v1',

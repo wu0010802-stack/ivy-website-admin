@@ -1,3 +1,13 @@
+## 2026-09-30 義華外觀照換成完整、較高解析的 v2（`feature/yihua-photo-20260930`）
+
+使用者反映首頁五校卡的義華校圖片下半部被裁掉，舊官網有完整的圖，要換成完整的並提高畫質。原因是版面：五校卡桌機 2.13:1、舊圖 1.52:1，塔尖和地面放不進同一張卡，舊設定 `center 12%` 只保塔尖。規則見 DESIGN.md 最上方「義華外觀照改用 v2」，來源與處理步驟見 `design/yihua-photo-v2-20260930/README.md`。改版前快照：`versions/before-yihua-photo-v2-20260930-092510/`。
+
+- **新母檔** `web/public/assets/yihua-exterior-v2.webp`（2820×1684）：舊站 Wix 原始上傳（1560×1123）左右延伸背景（LaMa）後以 Real-ESRGAN 放大，招牌字形換回原圖的保守放大。響應式多 1600／2000／2400 三級（`scripts/optimize-site-images.py` 的 `OVERRIDES`），分享圖 `og/yihua-exterior-v2.jpg`。
+- **資料**：`web/server/data/site-fixture.json` 義華 `image` → `yihua-exterior-v2`、`panoramaPos` `center 12%` → `center 36%`、`heroPhotoPos` `85% 8%` → `85% 16%`；後台「五校介紹」內建封面（`CampusProfileView.vue`）同步；`media-slots.spec.ts` 的比對基準照慣例更新這三欄。`content/site-fixture.json` 的圖與焦點後端不讀，沒改。
+- **淡彩速寫**：`campusSketch.ts` 義華對位換算成 v2（照片對照片的相位相關再套舊表），疊圖與動畫截圖確認塔尖、窗框對齊。
+
+驗證（Node 22.23.2，rebase 到 main `2dfd269` 後重跑，fixture 模式 dev server）：web `nuxt typecheck` 通過（0 警告）、vitest 64 檔 663 項；admin `vue-tsc -b --noEmit` 通過、vitest 49 檔 679 項。Playwright（Chrome）1920／1440／1280／1000／390 寬截首頁義華卡與 `/campuses/yihua` 封面，零 page error，各寬度選到預期的衍生檔；首頁淡彩速寫三階段、義華當鄰卡的靜態線稿與換回時從線稿接手上色；預約頁縮圖。未驗：stack e2e、正式站、Safari／Firefox 與手機實機。
+
 ## 2026-09-30 已完成分支併入 main（`merge/branches-20260930`）
 
 併入三個已提交、沒有在途修改的分支：`feature/sketch-preview-20260929`（首頁五校左右預覽改線稿）、`claude/backend-ui-ux-optimization-y5ndf4` 在 PR #17 之後的 16 個提交（2026-09-29 業主裁定：同事顯示名稱、操作紀錄的操作者、側欄只留參觀案件數字、隱藏官網不顯示的欄位、「個資與搜尋設定」改名）、`feature/ux-admin-20260929`（後台第六輪 UX，取捨見下方該段）。

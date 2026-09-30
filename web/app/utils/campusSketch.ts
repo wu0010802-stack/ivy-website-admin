@@ -8,12 +8,14 @@
  * 用邊緣相關性對位算出（國際校線稿垂直多拉了約 12%，已含在高度裡）。只對表上那張照片成立：
  * 後台換了照片、線稿或淡彩層（有 media 版位）就對不上，sketchRegistration 回傳 null，照片照常顯示、不畫。
  * 換新照片要重算對位：照片與線稿各取邊緣圖，逐一試縮放比例，用 FFT 互相關找位移，取分數最高的一組。
+ * 義華 v2（2026-09-30）是舊表 × 照片對照片的換算（enhanced-v1 → v2：x×1.480＋312、y×1.474＋82）：
+ * 線稿直接對 v2 的分數太低（0.015），塔尖會偏高；照片對照片 0.21，疊圖塔尖、窗戶都對得上。
  */
 import { bloomCanvas, grainCanvas, seededRandom, tracePolygon, washPolygons } from './watercolor'
 
 export interface SketchRegistration { image: string, photo: [number, number], left: number, top: number, width: number, height: number }
 export const SKETCH_REGISTRATION: Record<string, SketchRegistration> = {
-  yihua: { image: 'yihua-exterior-enhanced-v1', photo: [1546, 1017], left: 3.9, top: -15.5, width: 1530.5, height: 1039.7 },
+  yihua: { image: 'yihua-exterior-v2', photo: [2820, 1684], left: 317.8, top: 59.2, width: 2265.1, height: 1532.5 },
   minghua: { image: 'minghua-enhanced-v1', photo: [1737, 906], left: 13, top: -56.5, width: 1702.3, height: 1042.2 },
   chongde: { image: 'chongde-enhanced-v1', photo: [1736, 906], left: 26, top: 21.7, width: 1649.2, height: 989.5 },
   international: { image: 'international-enhanced-v1', photo: [1736, 906], left: 0, top: 47.7, width: 1701.3, height: 998.2 },

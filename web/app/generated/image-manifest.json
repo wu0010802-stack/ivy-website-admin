@@ -1808,5 +1808,39 @@
         "width": 1600
       }
     ]
+  },
+  "yihua-exterior-v2": {
+    "width": 2820,
+    "height": 1684,
+    "candidates": [
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-1600.webp",
+        "width": 1600
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2000.webp",
+        "width": 2000
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2400.webp",
+        "width": 2400
+      },
+      {
+        "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2820.webp",
+        "width": 2820
+      }
+    ]
   }
 }

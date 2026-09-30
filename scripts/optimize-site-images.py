@@ -32,6 +32,7 @@ DEFAULT_WIDTHS = [480, 800, 1200]
 # classroom／learning 是關於區塊的小照片，降品質肉眼看不出差異。
 # hero-campus-still 是 LCP，補 640w 給 DPR 1.5–1.75 的手機。
 # 2026-09-29：首頁五校分頁線稿在手機只有 48–60px 寬（DPR3 約需 180px），補 240w，不必下載 480w。
+# 2026-09-30：義華外觀 v2 母檔 2820px，首頁五校卡在桌機 DPR2 要 2000–2900px，補中間幾級，免得 1200 以上直接跳母檔。
 OVERRIDES = {
     'day-poster': {'quality': 68},
     'classroom': {'quality': 72},
@@ -42,6 +43,7 @@ OVERRIDES = {
     'campus-line-art-chongde': {'widths': [240, 480, 800, 1200]},
     'campus-line-art-international': {'widths': [240, 480, 800, 1200]},
     'campus-line-art-renwu': {'widths': [240, 480, 800, 1200]},
+    'yihua-exterior-v2': {'widths': [480, 800, 1200, 1600, 2000, 2400]},
 }
 FULL_REENCODE_MIN_SAVING = 0.2
 # 日常照片保留影片原生解析度，衍生小圖也降低再壓縮的細節損失。
@@ -49,7 +51,7 @@ DAY_PHOTOS = {f'day-{name}' for name in ['hello', 'discover', 'lunch', 'outside'
 DAY_QUALITY = 92
 DAY_WIDTHS = [160, 480, 800, 1200]
 # 分享圖：首頁 hero 與五校封面（campus.image 不開放 CMS 修改，清單固定）。
-OG_IMAGES = ['hero-campus-restored-v1-still', 'yihua-exterior-enhanced-v1', 'minghua-enhanced-v1', 'chongde-enhanced-v1', 'international-enhanced-v1', 'renwu-enhanced-v1']
+OG_IMAGES = ['hero-campus-restored-v1-still', 'yihua-exterior-v2', 'minghua-enhanced-v1', 'chongde-enhanced-v1', 'international-enhanced-v1', 'renwu-enhanced-v1']
 OG_SIZE = (1200, 630)
 
 
