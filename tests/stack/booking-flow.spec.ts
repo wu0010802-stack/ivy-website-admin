@@ -24,7 +24,8 @@ async function fillParentForm(page: Page, form: ParentForm): Promise<void> {
 async function openCase(page: Page, parentName: string): Promise<void> {
   await gotoAdmin(page, '/visit-requests', '參觀案件')
   await page.getByRole('link', { name: parentName }).first().click()
-  await expect(page.getByRole('heading', { level: 1, name: parentName })).toBeVisible()
+  // 頁首的頁名是 h1，家長姓名是 h2（DESIGN 第六輪：一頁只有一個 h1）。
+  await expect(page.getByRole('heading', { level: 2, name: parentName })).toBeVisible()
 }
 
 /** 已確認的案件：狀態標籤是「已確認」，處理區換成改期（場次開始前沒有完成／未到場）。 */

@@ -35,7 +35,8 @@ test.describe('後台畫面基準', () => {
   })
 
   test('案件明細', async ({ page }) => {
-    await gotoAdmin(page, `/visit-requests/${visitId}`, PARENT)
+    await gotoAdmin(page, `/visit-requests/${visitId}`, '案件明細')
+    await expect(page.getByRole('heading', { level: 2, name: PARENT })).toBeVisible()
     await settle(page)
     await expect(page).toHaveScreenshot('visit-detail.png', {
       // 送出時間與同意時間是伺服器當下時間。

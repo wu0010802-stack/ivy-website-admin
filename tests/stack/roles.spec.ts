@@ -56,7 +56,7 @@ test('分校管理者：他校案件與使用者管理都進不去', async ({ br
   const { context, page } = await openAs(browser, 'campus_admin')
   await page.goto(`/admin/visit-requests/${minghua.id}`)
   await expect(page.getByRole('alert').filter({ hasText: '不在你的校區範圍' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: MINGHUA_PARENT })).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 2, name: MINGHUA_PARENT })).toHaveCount(0)
   await page.goto('/admin/users')
   await expect(page).toHaveURL(/\/admin\/$/)
   await context.close()

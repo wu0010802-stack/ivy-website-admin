@@ -22,7 +22,9 @@ export default defineConfig({
   ignoreSnapshots: process.platform !== 'darwin',
   expect: {
     timeout: 10_000,
-    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled', caret: 'hide' },
+    // 頁首的未讀連結（改期申請、內容通知）出不出現要看其他測試有沒有產生通知：截圖時隱藏
+    // 但保留版面，基準圖才不會隨測試順序變動。
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled', caret: 'hide', style: '.top__alerts { visibility: hidden !important; }' },
   },
   use: {
     baseURL: WEB_ORIGIN,

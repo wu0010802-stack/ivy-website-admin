@@ -1,3 +1,13 @@
+## 2026-09-30 已完成分支併入 main（`merge/branches-20260930`）
+
+併入三個已提交、沒有在途修改的分支：`feature/sketch-preview-20260929`（首頁五校左右預覽改線稿）、`claude/backend-ui-ux-optimization-y5ndf4` 在 PR #17 之後的 16 個提交（2026-09-29 業主裁定：同事顯示名稱、操作紀錄的操作者、側欄只留參觀案件數字、隱藏官網不顯示的欄位、「個資與搜尋設定」改名）、`feature/ux-admin-20260929`（後台第六輪 UX，取捨見下方該段）。
+
+- migration `e9c3a7d5f214`（`users.display_name`，只加可為 NULL 的欄位、不回填）改接 main 當下的 head `e4c1a7f3b862`，維持單一 head；不改寫既有資料，依 `deploy/CICD.md` 不需先備份正式 DB。
+- 沒併：30 週年比稿（PR #12 草稿，待業主拍板）、Renovate、已用 cherry-pick 上線或被後續定案取代的舊分支。
+- 後台截圖基準（`tests/stack/visual.spec.ts-snapshots/`）停在 09-27，PR #15 之後本來就對不上，這次依合併後畫面重拍；頁首未讀連結在截圖時隱藏（出不出現要看其他測試），家長姓名改 h2 後 e2e 改用 h2 找。
+
+驗證：admin typecheck、vitest 49 檔 679 項；web typecheck、`npm run test:website` 64 檔 663 項；backend pytest 1029 項（獨立測試庫、先 `alembic upgrade head`）＋ schema guard；`npm run contract:check`；admin／web production build；本機 stack e2e 56 項（真 API＋拋棄式 PostgreSQL＋production build）。
+
 ## 2026-09-29 首頁五校：左右預覽改成線稿（`feature/sketch-preview-20260929`，尚未部署）
 
 使用者回報首頁五校左右滑時，鄰卡是彩色照片、滑到中央後才被淡彩速寫蓋成黑白線稿再上色（彩色→黑白→彩色）。改成不在中央的卡一律顯示靜態線稿，換到中央才上色：手動換校從線稿直接上水彩再暈開回照片，自動輪播只暈開；離開中央的那張邊滑邊淡回線稿。第一次捲到的淡彩速寫、減少動態／強制色彩（維持照片）不變。規則見 DESIGN.md「首頁水彩」的「左右預覽是線稿」。改版前快照 `versions/before-sketch-preview-20260929-191717/`。
