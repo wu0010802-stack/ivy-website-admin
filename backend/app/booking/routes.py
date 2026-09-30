@@ -100,19 +100,23 @@ RESERVED_IDEMPOTENCY_PREFIXES = (service.MANUAL_IDEMPOTENCY_PREFIX, retention_se
 @router.get("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
 async def get_booking_config(
     campus_key: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
-    return BookingConfigOut.model_validate(config)
+    return BookingConfigOut.model_validate(config).model_copy(
+        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+    )
 
 
 @router.patch("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
 async def update_booking_config(
     campus_key: str,
     payload: BookingConfigUpdateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
@@ -177,7 +181,9 @@ async def update_booking_config(
         },
     )
     await db.commit()
-    return BookingConfigOut.model_validate(config)
+    return BookingConfigOut.model_validate(config).model_copy(
+        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+    )
 
 
 @router.get("/admin/booking-config/{campus_key}/readiness", response_model=BookingReadinessOut)
@@ -235,6 +241,7 @@ async def get_public_booking_config(
     await db.commit()
     out = PublicBookingConfigOut.model_validate(config)
     settings = request.app.state.settings
+    out = out.model_copy(update={"parent_email_enabled": bool(settings.smtp_host)})
     if settings.turnstile_enabled:
         out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})
     if published is not None:

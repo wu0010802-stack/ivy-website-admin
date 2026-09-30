@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import campus_scope, require_scope
+from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
 from app.booking import access_service, history, presenters, slot_service, workflow_service
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import PARENT, Actor
@@ -262,6 +263,8 @@ async def create_parent_access_link(
     raw_token, expires_at = await access_service.issue_access_token(
         db, visit_request_id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
     )
+    emailed = bool(visit_request.email)
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     fragment = f"/visit/manage#token={raw_token}"
     origin = request.app.state.settings.admin_origin
     history.record_event(
@@ -286,7 +289,46 @@ async def create_parent_access_link(
         manage_url_fragment=fragment,
         expires_at=expires_at,
         replaced_previous=replaced,
+        emailed=emailed,
     )
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/resend-confirmation", status_code=status.HTTP_202_ACCEPTED)
+async def resend_parent_confirmation(
+    visit_request_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。"""
+    result = await db.execute(
+        select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_request_id)
+    )
+    visit_request = result.scalar_one_or_none()
+    if visit_request is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    await workflow_service.lock_status(db, visit_request)
+    if visit_request.status != VisitRequestStatus.CONFIRMED.value or not visit_request.email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "RESEND_NOT_AVAILABLE", "message": "只有已排入場次、有 Email 的預約可以重寄確認信"},
+        )
+    await access_service.ensure_access_token(
+        db, visit_request.id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+    )
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.resend_confirmation",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={},
+    )
+    await db.commit()
+    return {"queued": True}
 
 
 @router.post("/admin/visit-requests/{visit_request_id}/revoke-access", status_code=status.HTTP_204_NO_CONTENT)

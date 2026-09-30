@@ -13,7 +13,13 @@ from app.booking import access_service, history, slot_service
 from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
 from app.booking.history import PARENT, SYSTEM, Actor
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
-from app.booking.outbox import enqueue_outbox
+from app.booking.outbox import (
+    PARENT_VISIT_BOOKED,
+    PARENT_VISIT_CANCELLED,
+    PARENT_VISIT_CHANGED,
+    enqueue_outbox,
+    enqueue_parent_email,
+)
 from app.common.timezones import now_utc
 from app.operations import analytics_service
 from app.operations.models import CANCEL_REASON_HOLD_EXPIRED, AnalyticsEventType
@@ -112,6 +118,7 @@ async def confirm_with_slot(
         "visit_request_confirmed",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
     await analytics_service.record_internal_event(
         db,
         event_type=AnalyticsEventType.VISIT_CONFIRMED,
@@ -184,6 +191,8 @@ async def cancel(
         "visit_request_cancelled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    if visit_request.slot_id is not None:
+        enqueue_parent_email(db, visit_request, PARENT_VISIT_CANCELLED)
     await analytics_service.record_cancelled(db, visit_request, reason=reason_code)
     await db.flush()
     return visit_request
@@ -311,6 +320,7 @@ async def reschedule(
         "visit_request_rescheduled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return visit_request
 

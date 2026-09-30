@@ -21,7 +21,7 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.exceptions import SlotClosed, SlotFull, SlotNotFound
-from app.booking.outbox import enqueue_outbox
+from app.booking.outbox import PARENT_VISIT_BOOKED, enqueue_outbox, enqueue_parent_email
 from app.booking.schemas import CONTACT_TIME_LABELS
 from app.common.timezones import now_utc
 from app.operations import analytics_service
@@ -433,6 +433,7 @@ async def submit_visit_request(
         after={"status": status, "slot": history.slot_brief(slot)},
     )
     await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
+    enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
     enqueue_outbox(
         db,
         visit_request.id,

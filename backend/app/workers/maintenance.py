@@ -191,7 +191,8 @@ async def _run_steps(
     try:
         async with session_factory() as db:
             outbox = await process_outbox_batch(
-                db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin
+                db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin,
+                access_secret=settings.session_secret,
             )
         result.notifications_sent = outbox["sent"]
         result.notifications_failed = outbox["failed"]

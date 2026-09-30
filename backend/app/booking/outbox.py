@@ -20,3 +20,21 @@ def enqueue_outbox(db: AsyncSession, visit_request_id: uuid.UUID, kind: str, pay
             next_attempt_at=now,
         )
     )
+
+
+# 寄給家長的確認信（只走 Email，不寫站內通知、不推 LINE）。payload 只放 id，
+# 修改連結在寄件當下才重算，原始 token 不進 DB。
+PARENT_VISIT_BOOKED = "parent_visit_booked"
+PARENT_VISIT_CHANGED = "parent_visit_changed"
+PARENT_VISIT_CANCELLED = "parent_visit_cancelled"
+PARENT_KINDS = frozenset({PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, PARENT_VISIT_CANCELLED})
+
+
+def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> None:
+    if kind not in PARENT_KINDS:
+        raise ValueError(kind)
+    if not visit_request.email:
+        return
+    enqueue_outbox(
+        db, visit_request.id, kind, {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)}
+    )

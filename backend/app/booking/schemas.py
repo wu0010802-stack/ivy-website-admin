@@ -121,6 +121,8 @@ class BookingConfigOut(BaseModel):
     message: str | None
     # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
     parent_change_deadline_hours: int
+    # 部署有設定寄信時，家長會收到確認信；官網與後台據此決定要不要講「已寄到信箱」。
+    parent_email_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -209,6 +211,7 @@ class PublicBookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
+    parent_email_enabled: bool = False
     # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
     # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
     # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
@@ -650,6 +653,8 @@ class ParentAccessLinkCreatedOut(BaseModel):
     manage_url_fragment: str
     expires_at: datetime
     replaced_previous: bool
+    # 已排入寄給家長的信（沒有 Email 時為 False，園方要自行轉交連結）。
+    emailed: bool = False
 
 
 class VisitRequestFullOut(VisitRequestDetailOut):

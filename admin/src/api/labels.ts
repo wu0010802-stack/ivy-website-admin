@@ -280,6 +280,9 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_cancelled: '參觀預約已取消',
   visit_request_rescheduled: '參觀預約已改期',
   visit_request_hold_expired: '時段占位已逾期，名額已釋放',
+  parent_visit_booked: '家長確認信（預約成功）',
+  parent_visit_changed: '家長確認信（預約已變更）',
+  parent_visit_cancelled: '家長確認信（預約已取消）',
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
   visit_upcoming: '即將參觀（24 小時內）',
@@ -360,6 +363,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.manual_create': '人工補登參觀案件',
   'visit_request.assign': '指派承辦人',
   'visit_request.create_access_link': '產生家長管理連結',
+  'visit_request.resend_confirmation': '重寄家長確認信',
+  'booking_config.migrate_self_booking': '改為家長自選場次（系統轉換）',
   'visit_request.revoke_access': '撤銷家長管理連結',
   'visit_request.contacting': '開始聯絡案件',
   'visit_request.add_contact_note': '新增聯絡紀錄',
