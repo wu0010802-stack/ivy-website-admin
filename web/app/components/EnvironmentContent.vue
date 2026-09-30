@@ -113,7 +113,9 @@ onMounted(async () => {
   if (disposed || !root.value) { loaded?.destroy(); return }
   motion = loaded
   sketch = createRoughSketch(root.value, rough, { reducedMotion, motion: motion ?? undefined })
-  motion?.start(root.value)
+  // 手繪線首屏以外分批畫（見 rough-sketch 的 drawFirst）；小路與上面的便條、箭頭都畫好了，動態層才收起便條、接上捲動
+  await sketch.ready
+  if (!disposed && root.value) motion?.start(root.value)
 })
 onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
 </script>

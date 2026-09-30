@@ -179,7 +179,7 @@ describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/
   it('GSAP 載入失敗就不用動態層，手繪線照畫（小路退回虛線）', () => {
     expect(component).toMatch(/\.catch\(\(\) => null\)/)
     expect(component).toContain('motion: motion ?? undefined')
-    expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools); return }')
+    expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools, geo); return }')
   })
 
   it('小路提示字跟著改成小腳印', () => {
