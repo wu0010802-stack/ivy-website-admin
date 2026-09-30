@@ -636,7 +636,8 @@ def _plain_sha256(body: dict) -> str:
 @pytest.mark.asyncio
 async def test_new_payload_hash_is_keyed_and_legacy_hash_still_replays(app, admin_client, public_client, db_session):
     version = await _enable(admin_client, "inquiry")
-    payload = _payload(version, party_size=2)
+    # 不帶 Email：這裡直接用 payload 重算 hash，測試 client 不能另外補預設 Email。
+    payload = _payload(version, party_size=2, email=None)
     created = await public_client.post(SUBMIT, json=payload, headers={"Idempotency-Key": "hash-keyed"})
     assert created.status_code == 201, created.text
     stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))

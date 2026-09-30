@@ -106,6 +106,10 @@ class VisitRequest(Base):
             "party_size IS NULL OR party_size BETWEEN 1 AND 10",
             name="ck_visit_requests_party_size",
         ),
+        CheckConstraint(
+            "cancel_reason IS NULL OR cancel_reason IN ('parent', 'staff', 'hold_expired')",
+            name="ck_visit_requests_cancel_reason",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -165,6 +169,9 @@ class VisitRequest(Base):
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 誰取消的（值同 app.operations.models.CANCEL_REASONS）；後台列表寫「家長取消／園方取消／逾期未確認」。
+    # 2026-09-30 以前、歷程沒有記來源的舊取消案件為 NULL。
+    cancel_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # 規格 222：人工待確認的 slot 案件占位期限。到期轉 cancelled、記
     # hold_expired、釋放名額。只有 pending_confirmation 會有值。
     hold_expires_at: Mapped[datetime | None] = mapped_column(

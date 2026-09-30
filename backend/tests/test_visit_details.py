@@ -186,10 +186,11 @@ async def test_legacy_replay_accepts_omitted_or_empty_new_details(
 ):
     version = await _enable_inquiry(admin_client)
     # 更新前的官網沒有參觀人數；明確送 None，測試 client 才不會補預設人數。
-    body = {**_payload(version), "party_size": None}
+    # 同理不帶 Email：舊 hash 算的是當時沒有 Email 的內容。
+    body = {**_payload(version), "party_size": None, "email": None}
     headers = {"Idempotency-Key": "legacy-details-replay"}
     legacy_body = {
-        key: value for key, value in body.items() if key not in {"campus_key", "config_version", "party_size"}
+        key: value for key, value in body.items() if key not in {"campus_key", "config_version", "party_size", "email"}
     }
     legacy_body["slot_id"] = None
     expected_legacy_hash = hashlib.sha256(
