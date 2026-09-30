@@ -102,6 +102,11 @@ function loadThree(): Promise<Three | null> {
   return threePromise
 }
 
+/** 先把 three 載好（utils/paper-warm.ts 在閒置或卡片接近時呼叫）；用不到紙張（減少動態、沒有 WebGL）就不載。 */
+export function warmThree(): void {
+  if (canUseWebGL()) void loadThree()
+}
+
 function acquireRenderer(three: Three) {
   if (!shared) {
     const renderer = new three.WebGLRenderer({ alpha: true, antialias: true })

@@ -47,6 +47,10 @@ export default defineNuxtConfig({
         // 2026-09-29 起用自訂的 app/error.vue，同樣不要在首頁 prefetch。
         if (/(?:^|\/)error\.vue(?:\?.*)?$/.test(entry.src ?? key)) entry.prefetch = false
         if (/(?:^|\/)entranceCurtain\.ts(?:\?.*)?$/.test(entry.src ?? key)) entry.prefetch = false
+        // 2026-09-30：three 本身（布幕引擎的靜態依賴、日常紙張的動態 import）也不進首屏 prefetch——父 chunk 關掉不會連帶
+        // 排除依賴，略過布幕、減少動態、慢速連線照樣多下載 150 KB。布幕由 plugins/entrance-engine.client.ts 提早 import，
+        // 紙張由 utils/paper-warm.ts 在整頁載完閒置或卡片接近時暖載。
+        if (/(?:^|\/)node_modules\/three\//.test(entry.src ?? key)) entry.prefetch = false
       }
     }
   },
