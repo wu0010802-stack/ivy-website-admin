@@ -887,3 +887,11 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 第一次 main CI run `36654096211`（`7861fc6`）：後端 1 個測試失敗（1028 passed），deploy 被跳過，正式站維持 `f11e87c`。`test_queued_burst_cannot_outrun_the_lock` 驗了 11 次（上限 10）：限流的固定窗口加權在一批請求跨過 5 分鐘交界時會多放行一次，以跨交界時鐘重現得到 11 次；測試時機問題，不是這次合併造成。比照 PR #16，`test_secfix_auth.py` 改用凍結的限流時鐘（`2dfd269`）。正式行為不變：跨交界時最多多驗一次，之後帳號鎖照常生效。
 - 第二次 run `36655799635`（`2dfd269`）五個 job 全綠。`/release.json` snapshot `f94eb90c8db59b7ad3deb13069bf0825aaca43a0e515a90f6162610033bf68ca`、`base_commit` `2dfd269`、`created_at` 2026-09-30T01:54:26Z。
 - 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/campuses/yihua`、`/admin/`、`/admin/login` 皆 200；分校頁有預約橫幅（`data-cta-entry="campus_banner"`）。正式站沒有登入後台或寫入資料，顯示名稱、頁首未讀連結、下一筆跟著列表走等後台功能未在正式站實測。
+
+## 2026-09-30 義華外觀照 v2（`feature/yihua-photo-20260930`，main CI 部署）
+
+- 使用者要求提交並推上 main。分支從 `f11e87c` 開，`merge/branches-20260930` 先上了 main，rebase 兩次（README 頂部衝突，兩段都保留；`campusSketch.ts` 自動合併，只有對位表那一行）後 fast-forward 推上：`242b9b0..8f2253c`（`610ed57` 快照、`8f2253c` feat）。沒有 migration、沒有後端程式改動。
+- 第一次 run `36657936746`（`8f2253c`）：後端 2 個測試失敗（1027 passed），deploy 被跳過，正式站維持 `242b9b0`。`site_import` 讀 web 的 `site-fixture.json`，`test_media_slots.py` 寫死義華舊焦點 50/12、85/8；改成 50/36、85/16（`46379ee`），本機專用測試庫 `test_media_slots.py` 19 passed，並補跑 CI 沒跑到的 `deploy/tests`（20 OK）與 `contract:check`。
+- 第二次 run `36660936323`（`46379ee`）五個 job 全綠，Deploy Railway production 02:57:45–03:01:46 UTC。`/release.json` snapshot `b9fc3603d8534533eb46d3dafae6a5b655bde9a10ea78172855f7bd9f1f551b0`、`base_commit` `46379ee`、`web+api`、`created_at` 2026-09-30T02:58:07Z。
+- 部署後（唯讀、未登入）：`/`、`/campuses/yihua`、`/api/website/v1/health`、`/assets/yihua-exterior-v2.webp`、`/assets/og/yihua-exterior-v2.jpg`、2400w 衍生檔皆 200。Playwright（Chrome）1440（DPR2）／1920／390：首頁義華卡 `center 36%`、分校頁封面 `85% 16%`、`og:image` 為 `yihua-exterior-v2.jpg`，選到的衍生檔依序 2400／1600／1200（封面 2820／2000／1200），0 page error；畫面從塔尖露到遊具與草地。正式站用的是 fixture 內建封面，後台沒有已發布的義華封面或焦點覆寫。
+- **未做**：Safari／iOS／Android 實機；後台素材庫若有 `import-site-assets --write-drafts` 產生的舊義華草稿（`enhanced-v1`、焦點 50/12），發布會蓋回舊圖，未查正式 DB。
