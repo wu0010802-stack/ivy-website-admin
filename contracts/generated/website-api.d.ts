@@ -2353,6 +2353,8 @@ export interface components {
             capacity: number;
             /** Closed */
             closed: boolean;
+            /** Closed Source */
+            closed_source?: string | null;
             /**
              * End Time
              * Format: time
@@ -2373,6 +2375,8 @@ export interface components {
              * Format: time
              */
             start_time: string;
+            /** Version */
+            version: number;
             /** Visits */
             visits: components["schemas"]["CalendarVisitOut"][];
         };
@@ -4348,6 +4352,11 @@ export interface components {
             capacity_updated: number;
             /** Closed */
             closed: number;
+            /**
+             * Created
+             * @default 0
+             */
+            created: number;
             /** Kept Booked */
             kept_booked: number;
             /** Removed */

@@ -670,6 +670,17 @@
             "title": "Closed",
             "type": "boolean"
           },
+          "closed_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Source"
+          },
           "end_time": {
             "format": "time",
             "title": "End Time",
@@ -690,6 +701,10 @@
             "title": "Start Time",
             "type": "string"
           },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
           "visits": {
             "items": {
               "$ref": "#/components/schemas/CalendarVisitOut"
@@ -706,6 +721,7 @@
           "end_time",
           "capacity",
           "closed",
+          "version",
           "booked_count",
           "visits"
         ],
@@ -6491,6 +6507,11 @@
           },
           "closed": {
             "title": "Closed",
+            "type": "integer"
+          },
+          "created": {
+            "default": 0,
+            "title": "Created",
             "type": "integer"
           },
           "kept_booked": {

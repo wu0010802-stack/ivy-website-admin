@@ -381,6 +381,8 @@ class CalendarSlotOut(BaseModel):
     end_time: time
     capacity: int
     closed: bool
+    version: int
+    closed_source: str | None = None
     booked_count: int
     visits: list[CalendarVisitOut]
 
@@ -848,6 +850,8 @@ class VisitScheduleSlotSyncOut(BaseModel):
     capacity_updated: int
     # 不符合新規則，但已有家長排入（或有待核准改期申請）而維持原樣的場次。
     kept_booked: int
+    # 存檔當下依新規則補到最遠開放天數的新場次數。
+    created: int = 0
 
 
 class VisitScheduleOut(BaseModel):

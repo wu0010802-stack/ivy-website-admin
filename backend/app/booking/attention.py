@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import and_, or_, select
 
 from app.booking import slot_service
-from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import SlotClosedSource, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import now_utc, today_local
 
@@ -32,8 +32,12 @@ def needs_attention_condition(now: datetime | None = None):
       流程，不再列為要聯絡。
     - 分校已停用，案件還沒結案（含尚未排時段的新需求與聯絡中）。"""
     current = now or now_utc()
+    # 2026-09-30 起「停止申請」（園方手動關閉）只是不收新預約，已約的家長照常參觀；
+    # 只有休假日整天關閉，已排入的家長才需要人工聯絡。
     closed_upcoming_slots = select(VisitSlot.id).where(
-        VisitSlot.closed.is_(True), VisitSlot.slot_date >= today_local(current)
+        VisitSlot.closed.is_(True),
+        VisitSlot.closed_source == SlotClosedSource.EXCEPTION.value,
+        VisitSlot.slot_date >= today_local(current),
     )
     inactive_campuses = select(Campus.key).where(Campus.active.is_(False))
     return or_(

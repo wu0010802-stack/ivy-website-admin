@@ -787,6 +787,8 @@ async def get_visit_calendar(
             end_time=slot.end_time,
             capacity=slot.capacity,
             closed=slot.closed,
+            version=slot.version,
+            closed_source=slot.closed_source,
             booked_count=booked.get(slot.id, 0),
             visits=visits_by_slot.get(slot.id, []),
         )

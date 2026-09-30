@@ -98,6 +98,9 @@ async def update_visit_schedule(
     # 時段是預先補好的：還沒被使用的舊規則場次在同一把鎖內對齊新規則，
     # 不然要等最遠開放天數過完才會消失，新場次還會跟它們重疊。
     slot_sync = await schedule_service.sync_rule_slots(db, campus_key, old_windows)
+    # 存檔當下就把新規則的場次補到最遠開放天數，不等下一輪定期工作
+    # （config.rules_extended_on 上面已清空，所以這裡一定會補）。
+    slot_sync["created"] = await schedule_service.extend_from_rules(db, campus_key)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
