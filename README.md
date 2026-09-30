@@ -42,6 +42,11 @@
 - **淡彩速寫**：`campusSketch.ts` 義華對位換算成 v2（照片對照片的相位相關再套舊表），疊圖與動畫截圖確認塔尖、窗框對齊。
 
 驗證（Node 22.23.2，rebase 到 main `2dfd269` 後重跑，fixture 模式 dev server）：web `nuxt typecheck` 通過（0 警告）、vitest 64 檔 663 項；admin `vue-tsc -b --noEmit` 通過、vitest 49 檔 679 項。Playwright（Chrome）1920／1440／1280／1000／390 寬截首頁義華卡與 `/campuses/yihua` 封面，零 page error，各寬度選到預期的衍生檔；首頁淡彩速寫三階段、義華當鄰卡的靜態線稿與換回時從線稿接手上色；預約頁縮圖。未驗：stack e2e、正式站、Safari／Firefox 與手機實機。
+## 2026-09-30 開場布幕流蘇固定五顆
+
+使用者要求開場動畫的金色流蘇由四顆改成五顆。原本帷幔垂花數依畫面比例 `max(2, floor(aspect×2.4+0.5))`，流蘇掛在內側綁點，所以 1440×900 是三顆、較寬螢幕四顆、手機一顆。`web/app/utils/entranceCurtain.ts` 改成固定六段垂花（`VALANCE_SWAGS`），任何比例都是五顆；手機也跟著變五顆，垂花較窄、流蘇間距約一顆流蘇寬。五張首屏海報（`web/public/assets/entrance-poster-*.webp`）用 `render-posters.cjs` 重產並更新 `ENTRANCE_POSTERS` 版號，比例分檔不變；預覽 `velvet.js` 重新產生（main 上原本就落後，一併追上）。
+
+驗證：Node 22 `nuxt typecheck` 0 個 `error TS`；`npm run test:website` 64 檔 663 項通過（rebase 到 `7861fc6` 後重跑）。dev server（fixture）用 Playwright（Metal）實跑開場：1512×790、1440×900、390×844 倒數期間都是五顆，拉幕後帷幔連同流蘇飛出，無 console／shader error。Safari／iOS 實機未驗證。未部署。
 
 ## 2026-09-30 已完成分支併入 main（`merge/branches-20260930`）
 

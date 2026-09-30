@@ -13,15 +13,16 @@ const os = require('node:os')
 
 const root = path.resolve(__dirname, '../..')
 const out = path.join(root, 'web/public/assets')
-// One poster per valance swag count: the engine uses max(2, floor(aspect*2.4 + 0.5)).
-// Folds and tie points are fractions of the viewport, so a stretched poster keeps
-// the valance, tassels and hem in place anywhere inside its aspect band.
+// One poster per aspect band. The valance has six swags at every aspect
+// (2026-09-30; the bands were first cut where its old aspect-driven swag count
+// changed). Folds and tie points are fractions of the viewport, so a stretched
+// poster keeps the valance, tassels and hem in place anywhere inside its band.
 const posters = [
   { name: 'phone', width: 390, height: 844, dpr: 2 }, // aspect < 2/3 (folds fixed at 3.2 per panel)
-  { name: 'portrait', width: 800, height: 1000, dpr: 1.5 }, // 2/3–25/24, 2 swags
-  { name: 'landscape', width: 1280, height: 1024, dpr: 1.5 }, // 25/24–35/24, 3 swags
-  { name: 'desktop', width: 1440, height: 900, dpr: 1.5 }, // 35/24–15/8, 4 swags
-  { name: 'wide', width: 1760, height: 800, dpr: 1.5 } // ≥ 15/8, 5 swags
+  { name: 'portrait', width: 800, height: 1000, dpr: 1.5 }, // 2/3–25/24
+  { name: 'landscape', width: 1280, height: 1024, dpr: 1.5 }, // 25/24–35/24
+  { name: 'desktop', width: 1440, height: 900, dpr: 1.5 }, // 35/24–15/8
+  { name: 'wide', width: 1760, height: 800, dpr: 1.5 } // ≥ 15/8
 ]
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.woff2': 'font/woff2' }
 

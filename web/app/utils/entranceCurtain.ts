@@ -13,6 +13,9 @@ const velvetPalette = {
 // How far the valance flies out: far enough that its ease-out finishes above
 // the frame, so the tassels do not crawl across the page header on the way out.
 const VALANCE_FLY = 0.5
+// Six festoon swags at every aspect, so the five interior tie points each hang
+// one tassel (owner's call 2026-09-30; the count used to follow the aspect).
+const VALANCE_SWAGS = 6
 
 type EntranceCurtainOptions = {
   /** Leader numerals face; the fallback sans stays drawn until it loads. */
@@ -87,7 +90,7 @@ varying vec2 clothUv;
 varying vec3 clothPosition;
 const float V_PI = 3.14159265359;
 vec3 valancePoint(vec2 uv) {
-  float swags = max(2.0, floor(valanceAspect*2.4 + 0.5));
+  float swags = ${VALANCE_SWAGS.toFixed(1)};
   float swag = fract(uv.x*swags);
   float droop = sin(swag*V_PI);
   // The hem keeps its pointed cusps, but the depth eases to zero slope at each
@@ -165,7 +168,7 @@ uniform float valanceAspect;
 uniform float valanceLift;
 float valanceHem(float x) {
   float u = (x/(valanceAspect*1.02)+1.0)*0.5;
-  float swags = max(2.0, floor(valanceAspect*2.4 + 0.5));
+  float swags = ${VALANCE_SWAGS.toFixed(1)};
   return 0.77 - 0.06*sin(fract(u*swags)*3.14159265) + valanceLift*${VALANCE_FLY.toFixed(2)};
 }
 `
@@ -780,8 +783,8 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
   const tasselGold = tasselMaterial()
   geometries.push(tasselShape)
   materials.push(tasselGold)
-  // One tassel per interior tie point; the count follows the viewport aspect.
-  const tassels = Array.from({ length: 12 }, () => {
+  // One tassel per interior tie point.
+  const tassels = Array.from({ length: VALANCE_SWAGS - 1 }, () => {
     const tassel = new THREE.Mesh(tasselShape, tasselGold)
     tassel.scale.setScalar(1.1)
     tassel.visible = false
@@ -859,8 +862,7 @@ export function createEntranceCurtain(canvas: HTMLCanvasElement, host: HTMLEleme
     clothUniforms.forEach(uniforms => { uniforms.curtainAspect.value = aspect })
     valanceUniforms.valanceAspect.value = aspect
     stageWidth.value = aspect
-    const swags = Math.max(2, Math.floor(aspect*2.4 + 0.5))
-    tieXs = Array.from({ length: Math.min(tassels.length, swags - 1) }, (_, k) => ((k + 1)/swags*2 - 1)*aspect*1.02)
+    tieXs = tassels.map((_, k) => ((k + 1)/VALANCE_SWAGS*2 - 1)*aspect*1.02)
     // Keep one braid twist every ~9 CSS px whatever the viewport.
     hemBraid.braidCycles.value = 0.527*width/9
     valanceBraid.braidCycles.value = 1.02*width/9

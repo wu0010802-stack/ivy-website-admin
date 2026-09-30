@@ -31,15 +31,19 @@ function entranceTimeline(elapsedMs) {
   const shadowOpacity = 0.18 * (1 - smooth(opening / 0.8));
   return { phase, countdown, opening, projection, iris, logoOpacity, leaderOpacity, leaderIris, sweep, flash, flare, filmFrame: Math.floor(countElapsed / (1e3 / 12)), shadowOpacity, complete };
 }
+var COMPACT_LOGO = 1500;
+var COMPACT_OPENING = 2300;
+var COMPACT_DURATION = COMPACT_LOGO + COMPACT_OPENING;
+var COMPACT_RESUME = OPENING_START + 180;
 
 // web/app/utils/entrance-policy.ts
 var ENTRANCE_SESSION_KEY = "ivy-entrance-a-seen";
 var ENTRANCE_POSTERS = [
-  ["(min-aspect-ratio: 15/8)", "/assets/entrance-poster-wide.webp?v=284d0e3b"],
-  ["(max-aspect-ratio: 2/3)", "/assets/entrance-poster-phone.webp?v=0c426b53"],
-  ["(max-aspect-ratio: 25/24)", "/assets/entrance-poster-portrait.webp?v=7b04cd78"],
-  ["(max-aspect-ratio: 35/24)", "/assets/entrance-poster-landscape.webp?v=6a5f77f4"],
-  ["all", "/assets/entrance-poster-desktop.webp?v=35a6d775"]
+  ["(min-aspect-ratio: 15/8)", "/assets/entrance-poster-wide.webp?v=5184d415"],
+  ["(max-aspect-ratio: 2/3)", "/assets/entrance-poster-phone.webp?v=a91de577"],
+  ["(max-aspect-ratio: 25/24)", "/assets/entrance-poster-portrait.webp?v=63059e4f"],
+  ["(max-aspect-ratio: 35/24)", "/assets/entrance-poster-landscape.webp?v=d0054d29"],
+  ["all", "/assets/entrance-poster-desktop.webp?v=4f9e5152"]
 ];
 var ENTRANCE_PROJECTION = "/assets/ivy-30th-anniversary-projection.webp?v=bd2d47dc";
 var ENTRANCE_DIGIT_FONT = "/assets/fonts/oswald-700-leader.woff2";
@@ -102,6 +106,7 @@ var velvetPalette = {
   clothTint: "#ff8a99"
 };
 var VALANCE_FLY = 0.5;
+var VALANCE_SWAGS = 6;
 var clothDeformation = (
   /* glsl */
   `
@@ -170,7 +175,7 @@ varying vec2 clothUv;
 varying vec3 clothPosition;
 const float V_PI = 3.14159265359;
 vec3 valancePoint(vec2 uv) {
-  float swags = max(2.0, floor(valanceAspect*2.4 + 0.5));
+  float swags = ${VALANCE_SWAGS.toFixed(1)};
   float swag = fract(uv.x*swags);
   float droop = sin(swag*V_PI);
   // The hem keeps its pointed cusps, but the depth eases to zero slope at each
@@ -251,7 +256,7 @@ uniform float valanceAspect;
 uniform float valanceLift;
 float valanceHem(float x) {
   float u = (x/(valanceAspect*1.02)+1.0)*0.5;
-  float swags = max(2.0, floor(valanceAspect*2.4 + 0.5));
+  float swags = ${VALANCE_SWAGS.toFixed(1)};
   return 0.77 - 0.06*sin(fract(u*swags)*3.14159265) + valanceLift*${VALANCE_FLY.toFixed(2)};
 }
 `
@@ -336,6 +341,11 @@ var projectionLighting = (
   // UVs run upwards: (1254 - 495 - 176) / 964 is the crest's source centre.
   vec2 center = vec2(0.0);
   vec2 logoUv = (projected-center)/logoSize + vec2(0.5,583.0/964.0);
+  // The anniversary ribbon throws from the leader's long lens so its straight
+  // edges and lettering do not ripple over each fold. The blend runs up through
+  // the IVY KIDS bar, so there is no step where the two throws meet.
+  float ribbonFlat = 1.0-smoothstep(0.19,0.30,logoUv.y);
+  logoUv = mix(logoUv, (clothPosition.xy*(12.0/(12.0-clothPosition.z))-center)/logoSize + vec2(0.5,583.0/964.0), ribbonFlat);
   vec2 leader = (projected-center)/logoSize.y;
   float radius = length(leader);
   float aa = max(fwidth(radius),0.001);
@@ -346,7 +356,7 @@ var projectionLighting = (
 
   // Emblem: one slide, one light model. A soft follow-spot pool surrounds it,
   // dark ink blocks the lamp, coloured areas replace the cloth with their light.
-  float logoFocus = 0.0016+abs(clothPosition.z)*0.018;
+  float logoFocus = 0.0016+abs(clothPosition.z)*0.018*(1.0-0.7*ribbonFlat);
   vec4 slide = logoTransmission(logoUv)*0.84 + (logoTransmission(logoUv-vec2(logoFocus,0.0))
              + logoTransmission(logoUv+vec2(logoFocus,0.0)) + logoTransmission(logoUv+vec2(0.0,logoFocus))
              + logoTransmission(logoUv-vec2(0.0,logoFocus)))*0.04;
@@ -443,6 +453,9 @@ var projectionLighting = (
   reflectedLight.directDiffuse *= wash;
   reflectedLight.indirectDiffuse *= wash;
   float crestFold = 0.74+0.26*smoothstep(-0.085,0.065,clothPosition.z);
+  // The ribbon keeps only a hint of the fold light, so it reads as one flat band.
+  crestFold = mix(crestFold, 0.92+0.08*smoothstep(-0.085,0.065,clothPosition.z), goldRibbon);
+  float slideIncidence = mix(incidence, 0.88+0.12*incidence, goldRibbon);
   // A little of the dyed cloth tints every projected colour so it sits in the pile.
   vec3 slideLight = slide.rgb*mix(vec3(1.0),clothTint,0.12)*crestOn*crestFold*(0.99+grain*0.02)*1.05;
   // Pools brighten the velvet itself (light times dye) and catch its pile on the
@@ -450,7 +463,7 @@ var projectionLighting = (
   vec3 poolLight = (diffuseColor.rgb*0.95 + rimColor*rim*0.12 + 0.01)*projectionColor*crestOn*(1.0-slide.a);
   // The leader's clear film is brighter than the emblem's pool: a lit gate on the pile.
   vec3 leaderColour = (diffuseColor.rgb*6.0 + rimColor*rim*0.35 + 0.2)*leaderLampColor*leaderLight;
-  reflectedLight.directDiffuse += (slideLight + poolLight + leaderColour) * incidence;
+  reflectedLight.directDiffuse += slideLight*slideIncidence + (poolLight + leaderColour)*incidence;
 `
 );
 function velvetUniforms(pileDensity, stageWidth) {
@@ -530,7 +543,7 @@ ${colour}`);
 ${lights}`);
   };
   const key = `${surface.point}-${shading.projection ? "projection" : shading.braid ? "braid" : shading.stage ? "velvet" : "depth"}`;
-  material.customProgramCacheKey = () => `ivy-velvet-a-${key}-19`;
+  material.customProgramCacheKey = () => `ivy-velvet-a-${key}-20`;
 }
 var TASSEL_RUFF = 0.045;
 var TASSEL_HEM = 0.124;
@@ -815,7 +828,7 @@ function createEntranceCurtain(canvas, host, logoUrl = ENTRANCE_PROJECTION, opti
   const tasselGold = tasselMaterial();
   geometries.push(tasselShape);
   materials.push(tasselGold);
-  const tassels = Array.from({ length: 12 }, () => {
+  const tassels = Array.from({ length: VALANCE_SWAGS - 1 }, () => {
     const tassel = new THREE.Mesh(tasselShape, tasselGold);
     tassel.scale.setScalar(1.1);
     tassel.visible = false;
@@ -886,8 +899,7 @@ function createEntranceCurtain(canvas, host, logoUrl = ENTRANCE_PROJECTION, opti
     });
     valanceUniforms.valanceAspect.value = aspect;
     stageWidth.value = aspect;
-    const swags = Math.max(2, Math.floor(aspect * 2.4 + 0.5));
-    tieXs = Array.from({ length: Math.min(tassels.length, swags - 1) }, (_, k) => ((k + 1) / swags * 2 - 1) * aspect * 1.02);
+    tieXs = tassels.map((_, k) => ((k + 1) / VALANCE_SWAGS * 2 - 1) * aspect * 1.02);
     hemBraid.braidCycles.value = 0.527 * width / 9;
     valanceBraid.braidCycles.value = 1.02 * width / 9;
     drapePile.value = 0.527 * width / 2;
