@@ -1,3 +1,13 @@
+## 2026-09-30 下午已完成分支併入 main（`merge/branches-20260930b`）
+
+併入三個已提交、worktree 乾淨的分支，各自說明見下方同日段落：`feature/tassels-five-20260930`（開場布幕流蘇固定五顆）、`feature/height-ruler-20260930`（首頁拿掉桌機章節指示）、`feature/mobile-perf-20260930`（手機效能第三輪）。合併基底是 main `7189998`（首屏筆刷的部署紀錄）。
+
+- 衝突只有 README／DESIGN 頂部的日期段落，兩邊都保留。跨分支改到同一個程式檔的只有 `HeroVideo.vue`（首屏筆刷改文字、mobile-perf 在 `startVideo` 加頻寬判斷），區塊不重疊，自動合併結果逐行看過。
+- 沒有新 migration，alembic 仍是單一 head `e9c3a7d5f214`；mobile-perf 只放寬 `TelemetryIn` 的頁面值（欄位本來就是 `String(16)`、無 CHECK），OpenAPI 契約與型別同步。
+- 沒併：`feature/parent-self-booking-20260930`（規格待審、worktree 有未提交修改）、30 週年比稿（待業主拍板）、`feature/admin-seo-analytics-retention-20260925`（WIP 草稿；robots 跟著收錄開關 main 已有）、Renovate；`fix/visit-consent-blur-20260930`、`feature/social-films-20260925` 已用不同提交上線。
+
+驗證（Node 22.23.2）：web typecheck（0 警告）、`npm run test:website` 65 檔 668 項；admin typecheck、vitest 49 檔 679 項（整套跑時另有三個 session 在忙、load 23，16 項 5 秒逾時，那 7 檔單獨重跑 133 項全過）；backend pytest 1037 項（獨立測試庫、先 `alembic upgrade head`）；`npm run contract:check`；production build 的完整 stack e2e 61 項全過（真 API＋拋棄式 PostgreSQL）。未驗：Safari／iOS 實機、正式站。
+
 ## 2026-09-30 首屏文字：「新發現」金色乾刷色塊、拿掉小標與找校區（`feature/hero-brush-20260930`，未部署）
 
 依 `design/hero-brush-mockup-20260930/watercolor.html` 的定案（筆刷／金／原位／滿版裁切／關鍵字 -2°）改 `web/`：
