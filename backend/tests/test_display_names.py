@@ -58,8 +58,8 @@ def test_migration_follows_previous_head_without_branching():
     config = Config(str(backend / "alembic.ini"))
     config.set_main_option("script_location", str(backend / "migrations"))
     script = ScriptDirectory.from_config(config)
-    # 接在 2026-09-26 的 head 後面，沒有另開分支（部署時只會有一個 head）。
-    assert script.get_revision("e9c3a7d5f214").down_revision == "de61f57ec77d"
+    # 接在 main 當下的 head（2026-09-29 LINE 群組驗證）後面，沒有另開分支（部署時只會有一個 head）。
+    assert script.get_revision("e9c3a7d5f214").down_revision == "e4c1a7f3b862"
     assert len(script.get_heads()) == 1
     source = MIGRATION.read_text(encoding="utf-8")
     # 只加欄位、不回填：與上一版程式相容，部署時也不會跑大量資料更新。
@@ -486,7 +486,9 @@ async def test_audit_log_campus_scope_is_unchanged(admin_client, minghua_client,
     assert (entry["actor_email"], entry["actor_display_name"]) == ("minghua-admin@ivy.example", "明華主任")
     assert (await minghua_client.get(f"{BASE}/audit-log?campus_key=yihua")).status_code == 404
     assert (await minghua_client.get(f"{BASE}/audit-log")).status_code == 403
-    assert len((await admin_client.get(f"{BASE}/audit-log")).json()) == 3
+    # 只數這個測試寫的三筆；client 登入時另有 user.login_password（2026-09-29 資安修正起記錄密碼登入）。
+    entries = (await admin_client.get(f"{BASE}/audit-log")).json()
+    assert len([e for e in entries if e["action"] == "booking_config.update"]) == 3
 
 
 # ---------------------------------------------------------------- public endpoints stay clean
