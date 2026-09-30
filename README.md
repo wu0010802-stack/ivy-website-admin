@@ -1,3 +1,9 @@
+## 2026-09-30 開場布幕流蘇固定五顆
+
+使用者要求開場動畫的金色流蘇由四顆改成五顆。原本帷幔垂花數依畫面比例 `max(2, floor(aspect×2.4+0.5))`，流蘇掛在內側綁點，所以 1440×900 是三顆、較寬螢幕四顆、手機一顆。`web/app/utils/entranceCurtain.ts` 改成固定六段垂花（`VALANCE_SWAGS`），任何比例都是五顆；手機也跟著變五顆，垂花較窄、流蘇間距約一顆流蘇寬。五張首屏海報（`web/public/assets/entrance-poster-*.webp`）用 `render-posters.cjs` 重產並更新 `ENTRANCE_POSTERS` 版號，比例分檔不變；預覽 `velvet.js` 重新產生（main 上原本就落後，一併追上）。
+
+驗證：Node 22 `nuxt typecheck` 0 個 `error TS`；`npm run test:website` 64 檔 663 項通過（rebase 到 `7861fc6` 後重跑）。dev server（fixture）用 Playwright（Metal）實跑開場：1512×790、1440×900、390×844 倒數期間都是五顆，拉幕後帷幔連同流蘇飛出，無 console／shader error。Safari／iOS 實機未驗證。未部署。
+
 ## 2026-09-30 已完成分支併入 main（`merge/branches-20260930`）
 
 併入三個已提交、沒有在途修改的分支：`feature/sketch-preview-20260929`（首頁五校左右預覽改線稿）、`claude/backend-ui-ux-optimization-y5ndf4` 在 PR #17 之後的 16 個提交（2026-09-29 業主裁定：同事顯示名稱、操作紀錄的操作者、側欄只留參觀案件數字、隱藏官網不顯示的欄位、「個資與搜尋設定」改名）、`feature/ux-admin-20260929`（後台第六輪 UX，取捨見下方該段）。

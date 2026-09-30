@@ -1,17 +1,17 @@
 export const ENTRANCE_SESSION_KEY = 'ivy-entrance-a-seen'
 
-// Stills of the WebGL curtain's first frame (progress 0), one per valance swag
-// count: the engine uses max(2, floor(aspect*2.4 + 0.5)). Folds and tie points
-// are fractions of the viewport, so a poster stretched across its aspect band
-// keeps the valance, tassels and hem where the live frame draws them. First
+// Stills of the WebGL curtain's first frame (progress 0), one per aspect band.
+// Folds and tie points are fractions of the viewport (the valance always has
+// six swags), so a poster stretched across its aspect band keeps the valance,
+// tassels and hem where the live frame draws them. First
 // match wins. Regenerate with design/entrance-curtain-a-velvet-20260922/render-posters.cjs
 // whenever the curtain's look changes, or the cover shows an outdated curtain.
 export const ENTRANCE_POSTERS: ReadonlyArray<readonly [media: string, src: string]> = [
-  ['(min-aspect-ratio: 15/8)', '/assets/entrance-poster-wide.webp?v=04d5da0f'],
-  ['(max-aspect-ratio: 2/3)', '/assets/entrance-poster-phone.webp?v=4b1ce1a4'],
-  ['(max-aspect-ratio: 25/24)', '/assets/entrance-poster-portrait.webp?v=48bc69e7'],
-  ['(max-aspect-ratio: 35/24)', '/assets/entrance-poster-landscape.webp?v=aa84c846'],
-  ['all', '/assets/entrance-poster-desktop.webp?v=e0ccbd68']
+  ['(min-aspect-ratio: 15/8)', '/assets/entrance-poster-wide.webp?v=5184d415'],
+  ['(max-aspect-ratio: 2/3)', '/assets/entrance-poster-phone.webp?v=a91de577'],
+  ['(max-aspect-ratio: 25/24)', '/assets/entrance-poster-portrait.webp?v=63059e4f'],
+  ['(max-aspect-ratio: 35/24)', '/assets/entrance-poster-landscape.webp?v=d0054d29'],
+  ['all', '/assets/entrance-poster-desktop.webp?v=4f9e5152']
 ]
 
 // The renderer's own assets. The projection is the original PNG losslessly

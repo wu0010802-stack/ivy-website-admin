@@ -98,7 +98,7 @@ describe('renderer assets', () => {
 
 describe('first-paint curtain poster', () => {
   const poster = (name: string) => ENTRANCE_POSTERS.find(([, src]) => src.includes(`entrance-poster-${name}.webp`))![1]
-  // Aspect bands follow the engine's valance swag count, max(2, floor(aspect*2.4 + 0.5)).
+  // Aspect bands where a stretched poster still matches the live curtain.
   it.each([
     [390 / 844, 'phone'], [0.75, 'portrait'], [1, 'portrait'], [1.33, 'landscape'],
     [1.6, 'desktop'], [16 / 9, 'desktop'], [2.2, 'wide'], [21 / 9, 'wide']
