@@ -238,3 +238,56 @@ class AdmissionsOptionsOut(BaseModel):
     no_deposit_reasons: list[NoDepositReasonOption]
     # 來源分類代碼 → 園務文案，順序同園務（A 計畫調整第 17 條）。
     source_categories: dict[str, str]
+
+
+class TransitionRequest(BaseModel):
+    """狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀
+    自己需要的欄位。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to_stage: Stage
+    expected_version: int = Field(ge=1)
+    # 退預繳、退註冊、取消註冊必填；其他轉換可以附註。
+    reason: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+    # 標記預繳時選填。
+    deposit_collector: OptionalText = Field(default=None, max_length=constants.LEN_COLLECTOR)
+    # 標記註冊：註冊日期（沒給用台北今天）、年級與入學學年學期（沒保留座位時必填）。
+    enrolled_on: date | None = None
+    grade: Grade | None = None
+    target_school_year: SchoolYear | None = None
+    target_semester: Semester | None = None
+
+
+class FunnelCardOut(BaseModel):
+    id: uuid.UUID
+    child_name: str
+    grade: Grade | None
+    # 保留座位或註冊的年級。
+    provisional_grade: Grade | None
+    target_school_year: int | None
+    target_semester: int | None
+    visit_date: date
+    # 由官網預約建立（卡片上的標記）。
+    has_visit_request: bool
+    # 在退出欄時是退預繳（deposited）還是退註冊（enrolled）。
+    withdrawn_from: WithdrawnFrom | None
+    version: int
+
+
+class FunnelColumnsOut(BaseModel):
+    """四欄各自一個 list（A 計畫調整第 8 條：產生的 TS 型別不是索引簽章）。"""
+
+    visited: list[FunnelCardOut]
+    deposited: list[FunnelCardOut]
+    enrolled: list[FunnelCardOut]
+    withdrawn: list[FunnelCardOut]
+
+
+class FunnelBoardOut(BaseModel):
+    columns: FunnelColumnsOut
+    # 這一校沒填入學學年的訪視數（不受學年篩選影響）。
+    unscoped_count: int
+    school_year: int
+    # None＝整學年。
+    semester: int | None

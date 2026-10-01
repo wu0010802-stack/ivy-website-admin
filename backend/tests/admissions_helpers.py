@@ -71,3 +71,33 @@ async def readonly_yihua_client(app, db_session):
     client = await _staff_client(app, db_session, "admissions-readonly-yihua@ivy.example", Role.READONLY)
     yield client
     await client.aclose()
+
+
+async def transition(client, record: dict, to_stage: str, **fields) -> dict:
+    """帶目前版本送一次狀態轉換，回傳轉換後的訪視。"""
+    response = await client.post(
+        f"{ADMISSIONS}/records/{record['id']}/transition",
+        json={"to_stage": to_stage, "expected_version": record["version"], **fields},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def record_at_stage(
+    client, stage: str, *, withdrawn_from: str = "deposited", campus_key: str = "yihua", **overrides
+) -> dict:
+    """用 API 建一筆訪視並推到指定階段。已註冊一律是 115 學年上學期小班；
+    withdrawn 依 withdrawn_from 從已預繳或已註冊退出，原因「家長改送他校」。"""
+    record = await create_record(client, campus_key, **overrides)
+    if stage == "visited":
+        return record
+    record = await transition(client, record, "deposited")
+    if stage == "deposited":
+        return record
+    if stage == "enrolled" or withdrawn_from == "enrolled":
+        record = await transition(
+            client, record, "enrolled", grade="小班", target_school_year=115, target_semester=1, enrolled_on="2026-09-30"
+        )
+        if stage == "enrolled":
+            return record
+    return await transition(client, record, "withdrawn", reason="家長改送他校")

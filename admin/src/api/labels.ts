@@ -453,6 +453,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.create': '新增招生訪視',
   'recruitment_visit.update': '修改招生訪視',
   'recruitment_visit.delete': '刪除招生訪視',
+  'recruitment_visit.transition': '變更招生階段',
 }
 
 export function auditActionLabel(action: string): string {
@@ -1270,7 +1271,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。
-const AUDIT_PAIRED_KEYS = ['from_status', 'to_status', 'from_slot', 'to_slot', 'created_from', 'created_to', 'date_from', 'date_to', 'from', 'to'] as const
+const AUDIT_PAIRED_KEYS = ['from_status', 'to_status', 'from_slot', 'to_slot', 'from_stage', 'to_stage', 'created_from', 'created_to', 'date_from', 'date_to', 'from', 'to'] as const
 
 /** 後台看得懂的 metadata 鍵（有中文寫法，或成對、before／after 另外處理）。 */
 export const AUDIT_METADATA_KEYS = new Set([...Object.keys(AUDIT_METADATA_FORMATTERS), ...AUDIT_PAIRED_KEYS, 'before', 'after', 'slot_sync'])
@@ -1285,6 +1286,10 @@ function pairedLines(m: Record<string, unknown>): string[] {
   }
   if (has('from_slot') || has('to_slot')) {
     lines.push(`時段：${m.from_slot ? auditSlotLabel(m.from_slot) : '未排時段'} → ${m.to_slot ? auditSlotLabel(m.to_slot) : '未排時段'}`)
+  }
+  if (has('from_stage') || has('to_stage')) {
+    const stage = (value: unknown) => RECRUITMENT_STAGE_LABELS[String(value)] ?? String(value)
+    lines.push(m.from_stage && m.to_stage ? `招生階段：${stage(m.from_stage)} → ${stage(m.to_stage)}` : `招生階段：${stage(m.from_stage ?? m.to_stage)}`)
   }
   if (m.created_from || m.created_to) {
     lines.push(`篩選送出日期：${m.created_from ? auditWhen(m.created_from) : '不限'} – ${m.created_to ? auditWhen(m.created_to) : '不限'}`)

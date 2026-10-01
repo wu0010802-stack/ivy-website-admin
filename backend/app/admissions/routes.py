@@ -16,19 +16,22 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import funnel, records
+from app.admissions import academic, constants, funnel, records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsOptionsOut,
+    FunnelBoardOut,
     RecruitmentEventOut,
     RecruitmentVisitCreate,
     RecruitmentVisitOut,
     RecruitmentVisitUpdate,
+    TransitionRequest,
 )
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, require_scope
 from app.campuses.models import CAMPUS_KEYS
+from app.common.timezones import today_local
 from app.operations import audit_service
 
 router = APIRouter(prefix="/api/website/v1", tags=["admissions"])
@@ -233,3 +236,92 @@ async def list_recruitment_events(
         )
         for event, display_name, email in result.all()
     ]
+
+
+_FIELD_NAMES = {"reason": "原因", "grade": "年級", "target_school_year": "入學學年"}
+
+
+@router.post("/admin/admissions/records/{visit_id}/transition", response_model=RecruitmentVisitOut)
+async def transition_recruitment_visit(
+    visit_id: uuid.UUID,
+    payload: TransitionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    """狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 版本
+    （409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。版本放在
+    權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片已換欄
+    而誤回 403（A 計畫調整第 10 條）。"""
+    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.read")
+    if visit.version != payload.expected_version:
+        current = visit.version
+        await db.rollback()
+        raise _version_conflict(records.VersionConflict(current))
+    from_stage = funnel.derive_stage(visit)
+    capability = funnel.transition_capability(from_stage, payload.to_stage)
+    if capability is None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "TRANSITION_NOT_ALLOWED", "message": funnel.not_allowed_reason(from_stage, payload.to_stage)},
+        )
+    require_scope(current_user, capability, campus_keys=[visit.campus_key])
+    try:
+        await funnel.transition(
+            db,
+            visit,
+            to_stage=payload.to_stage,
+            expected_version=payload.expected_version,
+            actor_user_id=current_user.id,
+            reason=payload.reason,
+            deposit_collector=payload.deposit_collector,
+            enrolled_on=payload.enrolled_on,
+            grade=payload.grade,
+            target_school_year=payload.target_school_year,
+            target_semester=payload.target_semester,
+        )
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    except funnel.TransitionNotAllowed as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "TRANSITION_NOT_ALLOWED", "message": exc.message},
+        ) from exc
+    except funnel.TransitionFieldsMissing as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "TRANSITION_FIELDS_REQUIRED",
+                "message": "請填寫：" + "、".join(_FIELD_NAMES.get(name, name) for name in exc.fields),
+                "fields": exc.fields,
+            },
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.transition",
+        target_type="recruitment_visit",
+        target_id=str(visit.id),
+        campus_key=visit.campus_key,
+        metadata={"from_stage": from_stage, "to_stage": payload.to_stage, "has_reason": payload.reason is not None},
+    )
+    await db.commit()
+    return RecruitmentVisitOut.model_validate(visit)
+
+
+@router.get("/admin/admissions/board", response_model=FunnelBoardOut)
+async def get_funnel_board(
+    campus_key: str,
+    school_year: int | None = Query(
+        default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX, description="入學學年；不帶＝目前學年"
+    ),
+    semester: int | None = Query(default=None, ge=1, le=2, description="入學學期；不帶＝整學年"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> FunnelBoardOut:
+    _require_campus(current_user, "admissions.read", campus_key)
+    year = school_year if school_year is not None else academic.current_term(today_local())[0]
+    return FunnelBoardOut.model_validate(await funnel.board(db, campus_key, year, semester))
