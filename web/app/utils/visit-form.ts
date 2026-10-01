@@ -98,6 +98,37 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
   }
   // 舊呼叫端不帶人數；新版表單未選時是空字串。
   if (contact.partySize !== undefined && !isValidPartySize(contact.partySize)) errors.partySize = '請選擇參觀人數。'
-  if (contact.email?.trim() && (contact.email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))) errors.email = '請填寫有效的 Email，例如 name@example.com。'
+  // 新版表單一律帶 email 欄位（2026-09-30 起必填：確認信與修改連結寄到這裡）；舊呼叫端不帶。
+  if (contact.email !== undefined) {
+    const email = contact.email.trim()
+    if (!email) errors.email = '請填寫 Email，確認信與修改連結會寄到這裡。'
+    else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = '請填寫有效的 Email，例如 name@example.com。'
+  }
+  return errors
+}
+
+const API_FIELDS: Record<string, VisitField> = {
+  slot_id: 'slotId', email: 'email', phone: 'phone', parent_name: 'parentName', child_name: 'childName',
+  child_birthdate: 'childBirthdate', party_size: 'partySize', consent_given: 'consent'
+}
+const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
+  slotId: '請選擇這一天的參觀場次。',
+  email: '請填寫有效的 Email，確認信與修改連結會寄到這裡。',
+  phone: '請填寫 09 開頭的 10 碼手機號碼。',
+  parentName: '請填寫家長稱呼。',
+  childName: '請填寫孩子姓名。',
+  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
+  partySize: '請選擇參觀人數。',
+  consent: '請勾選同意。'
+}
+
+// 後端 422 是 FastAPI 的標準格式：detail 是陣列，loc[1] 是欄位名稱。
+export function apiFieldErrors(detail: unknown): VisitErrors {
+  if (!Array.isArray(detail)) return {}
+  const errors: VisitErrors = {}
+  for (const item of detail) {
+    const field = API_FIELDS[String((item as { loc?: unknown[] })?.loc?.[1] ?? '')]
+    if (field && !errors[field]) errors[field] = API_FIELD_MESSAGES[field] ?? '請檢查這個欄位。'
+  }
   return errors
 }
