@@ -449,6 +449,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.import_site_assets': '匯入官網內建素材',
   'media.regenerate_variants': '重新產生素材縮圖與大圖',
   'media.strip_metadata': '去除素材原檔的拍攝資訊',
+  // 招生入學（2026-10）
+  'recruitment_visit.create': '新增招生訪視',
+  'recruitment_visit.update': '修改招生訪視',
+  'recruitment_visit.delete': '刪除招生訪視',
 }
 
 export function auditActionLabel(action: string): string {
@@ -538,6 +542,46 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   retention_policy: '個資保存政策',
   line_group: 'LINE 群組',
   line_verification_code: 'LINE 群組驗證碼',
+  recruitment_visit: '招生訪視',
+}
+
+// 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。
+export const RECRUITMENT_STAGE_LABELS: Record<string, string> = {
+  visited: '已訪視',
+  deposited: '已預繳',
+  enrolled: '已註冊',
+  withdrawn: '退預繳／退註冊',
+}
+
+// 招生訪視怎麼建立的（後端 constants.ORIGINS，created 事件與稽核的 origin）。
+export const RECRUITMENT_ORIGIN_LABELS: Record<string, string> = {
+  manual: '手動新增',
+  visit_request: '官網預約到場',
+}
+
+// 招生訪視編輯了哪些欄位（recruitment_visit.update 的 fields；只記欄位名，不記內容）。
+export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
+  visit_date: '參觀日期',
+  child_name: '幼生姓名',
+  birthday: '生日',
+  grade: '適讀班級',
+  phone: '電話',
+  contact_name: '聯絡人',
+  address: '地址',
+  source: '幼生來源',
+  referrer: '介紹者',
+  deposit_collector: '收預繳人員',
+  tour_guide_user_id: '帶參觀老師',
+  tour_guide_name: '帶參觀老師',
+  source_category: '來源分類',
+  rides_bus: '娃娃車',
+  transfer_term: '轉其他學期',
+  notes: '備註',
+  parent_response: '電訪回應',
+  no_deposit_reason: '未預繳原因',
+  no_deposit_reason_detail: '未預繳原因說明',
+  target_school_year: '入學學年',
+  target_semester: '入學學期',
 }
 
 // 個資保存政策會清理的案件類別（後端 retention_service.CATEGORIES）。
@@ -1186,7 +1230,12 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   filename: (v) => `檔名：${String(v)}`,
   size_bytes: (v) => `檔案大小：${formatFileSize(countOf(v))}`,
   deleted_at: (v) => `刪除時間：${auditWhen(v)}`,
-  fields: (v) => (Array.isArray(v) ? `修改：${Array.from(new Set(v.map((field) => MEDIA_FIELD_LABELS[String(field)] ?? String(field)))).join('、')}` : null),
+  // 素材說明（media.update）或招生訪視（recruitment_visit.update）被改了哪些欄位。
+  fields: (v, action) => {
+    if (!Array.isArray(v)) return null
+    const names = action.startsWith('recruitment_visit.') ? RECRUITMENT_FIELD_LABELS : MEDIA_FIELD_LABELS
+    return `修改：${Array.from(new Set(v.map((field) => names[String(field)] ?? String(field)))).join('、')}`
+  },
   imported: (v) => `匯入 ${countOf(v)} 個`,
   reused: (v) => (countOf(v) ? `${countOf(v)} 個已在素材庫` : null),
   failed: (v) => (countOf(v) ? `失敗 ${countOf(v)} 個` : null),
@@ -1215,6 +1264,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   },
   total: (v) => `共匿名化 ${countOf(v)} 筆`,
   open_overdue_count: (v) => (countOf(v) ? `另有 ${countOf(v)} 筆超過天數仍未結案` : null),
+  // 招生入學
+  origin: (v) => `建立方式：${RECRUITMENT_ORIGIN_LABELS[String(v)] ?? String(v)}`,
+  stage: (v) => `刪除時的階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。

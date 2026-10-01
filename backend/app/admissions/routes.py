@@ -1,0 +1,235 @@
+"""招生入學 API（規格 13；/api/website/v1/admin/admissions/*）。
+
+service（records、funnel、intake、booking_link）只 flush、丟自訂例外；這裡檢查
+權限、把例外轉成 HTTP 錯誤、寫稽核並 commit，失敗時先 rollback。稽核的
+action、target_type 與 metadata 一律寫字面值（admin labelCoverage 測試會掃），
+metadata 不放個資。
+
+單筆端點先載入訪視、再用訪視上的 campus_key 檢查權限：查無與越權一律 404
+（ScopeDenied），沒有 capability 是 403。"""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.admissions import funnel, records
+from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
+from app.admissions.schemas import (
+    AdmissionsOptionsOut,
+    RecruitmentEventOut,
+    RecruitmentVisitCreate,
+    RecruitmentVisitOut,
+    RecruitmentVisitUpdate,
+)
+from app.auth.deps import get_current_user, get_db_session
+from app.auth.models import User
+from app.auth.permissions import ScopeDenied, require_scope
+from app.campuses.models import CAMPUS_KEYS
+from app.operations import audit_service
+
+router = APIRouter(prefix="/api/website/v1", tags=["admissions"])
+
+
+def _require_campus(user: User, capability: str, campus_key: str) -> None:
+    """校區層級的端點：先檢查權限（沒有 capability 403、越權 404），總管理者帶
+    不存在的校區也回 404，不要變成空清單或外鍵錯誤。"""
+    require_scope(user, capability, campus_keys=[campus_key])
+    if campus_key not in CAMPUS_KEYS:
+        raise ScopeDenied()
+
+
+async def _visit_for(db: AsyncSession, user: User, visit_id: uuid.UUID, capability: str) -> RecruitmentVisit:
+    visit = await db.get(RecruitmentVisit, visit_id)
+    if visit is None:
+        raise ScopeDenied()
+    require_scope(user, capability, campus_keys=[visit.campus_key])
+    return visit
+
+
+async def _locked_visit_for(db: AsyncSession, user: User, visit_id: uuid.UUID, capability: str) -> RecruitmentVisit:
+    """寫入用：鎖住訪視列、讀最新值後再檢查權限（同 PATCH /admin/slots）。"""
+    visit = await records.get_visit_for_update(db, visit_id)
+    if visit is None:
+        await db.rollback()
+        raise ScopeDenied()
+    require_scope(user, capability, campus_keys=[visit.campus_key])
+    return visit
+
+
+def _version_conflict(exc: records.VersionConflict) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": "RECRUITMENT_VISIT_VERSION_CONFLICT",
+            "message": "這筆招生訪視剛被其他人修改，請重新載入後再操作",
+            "current_version": exc.current_version,
+        },
+    )
+
+
+def _tour_guide_invalid() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "TOUR_GUIDE_INVALID", "message": "找不到這位帶參觀老師的帳號"},
+    )
+
+
+@router.get("/admin/admissions/options", response_model=AdmissionsOptionsOut)
+async def get_admissions_options(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdmissionsOptionsOut:
+    _require_campus(current_user, "admissions.read", campus_key)
+    return AdmissionsOptionsOut.model_validate(await records.options(db, campus_key))
+
+
+@router.get("/admin/admissions/records", response_model=list[RecruitmentVisitOut])
+async def list_recruitment_visits(
+    filters: records.RecruitmentVisitFilters = Depends(),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[RecruitmentVisitOut]:
+    """訪視明細：參觀日期新到舊；回裸 list，筆數等於 page_size 代表可能還有下一頁。"""
+    _require_campus(current_user, "admissions.read", filters.campus_key)
+    stmt = filters.apply(select(RecruitmentVisit))
+    stmt = stmt.order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc())
+    result = await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))
+    return [RecruitmentVisitOut.model_validate(visit) for visit in result.scalars()]
+
+
+@router.post("/admin/admissions/records", response_model=RecruitmentVisitOut, status_code=status.HTTP_201_CREATED)
+async def create_recruitment_visit(
+    campus_key: str,
+    payload: RecruitmentVisitCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    """手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。"""
+    _require_campus(current_user, "admissions.write", campus_key)
+    try:
+        visit = await records.create_visit(
+            db, campus_key=campus_key, fields=payload.model_dump(), actor_user_id=current_user.id, origin="manual"
+        )
+    except records.TourGuideNotFound as exc:
+        await db.rollback()
+        raise _tour_guide_invalid() from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.create",
+        target_type="recruitment_visit",
+        target_id=str(visit.id),
+        campus_key=campus_key,
+        metadata={"origin": "manual"},
+    )
+    await db.commit()
+    return RecruitmentVisitOut.model_validate(visit)
+
+
+@router.get("/admin/admissions/records/{visit_id}", response_model=RecruitmentVisitOut)
+async def get_recruitment_visit(
+    visit_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    return RecruitmentVisitOut.model_validate(await _visit_for(db, current_user, visit_id, "admissions.read"))
+
+
+@router.patch("/admin/admissions/records/{visit_id}", response_model=RecruitmentVisitOut)
+async def update_recruitment_visit(
+    visit_id: uuid.UUID,
+    payload: RecruitmentVisitUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    """編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422。"""
+    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    changes = payload.model_dump(exclude_unset=True, exclude={"expected_version"})
+    try:
+        changed = await records.update_visit(db, visit, changes=changes, expected_version=payload.expected_version)
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    except records.TourGuideNotFound as exc:
+        await db.rollback()
+        raise _tour_guide_invalid() from exc
+    if changed:
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="recruitment_visit.update",
+            target_type="recruitment_visit",
+            target_id=str(visit.id),
+            campus_key=visit.campus_key,
+            metadata={"fields": changed},
+        )
+    await db.commit()
+    return RecruitmentVisitOut.model_validate(visit)
+
+
+@router.delete("/admin/admissions/records/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recruitment_visit(
+    visit_id: uuid.UUID,
+    expected_version: int = Query(ge=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
+    訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。"""
+    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    stage = funnel.derive_stage(visit)
+    campus_key = visit.campus_key
+    try:
+        await records.delete_visit(db, visit, expected_version=expected_version)
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.delete",
+        target_type="recruitment_visit",
+        target_id=str(visit_id),
+        campus_key=campus_key,
+        metadata={"stage": stage},
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/admin/admissions/records/{visit_id}/events", response_model=list[RecruitmentEventOut])
+async def list_recruitment_events(
+    visit_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[RecruitmentEventOut]:
+    """招生歷程，舊到新（園務 timeline 同順序）。操作者名稱讀取時才 join，帳號改名
+    後跟著更新，歷程裡不存姓名。"""
+    await _visit_for(db, current_user, visit_id, "admissions.read")
+    result = await db.execute(
+        select(RecruitmentEventLog, User.display_name, User.email)
+        .outerjoin(User, User.id == RecruitmentEventLog.actor_user_id)
+        .where(RecruitmentEventLog.recruitment_visit_id == visit_id)
+        .order_by(RecruitmentEventLog.created_at, RecruitmentEventLog.id)
+    )
+    return [
+        RecruitmentEventOut(
+            id=event.id,
+            event_type=event.event_type,
+            from_stage=event.from_stage,
+            to_stage=event.to_stage,
+            reason=event.reason,
+            metadata_json=event.metadata_json,
+            actor_user_id=event.actor_user_id,
+            actor_name=display_name or email,
+            created_at=event.created_at,
+        )
+        for event, display_name, email in result.all()
+    ]
