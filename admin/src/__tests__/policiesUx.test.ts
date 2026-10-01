@@ -378,6 +378,18 @@ describe('招生訪視的保存天數（規格第 11 節）', () => {
     expect(put).not.toHaveBeenCalled()
   })
 
+  it('F6b：自動清理從關到開、招生訪視已設天數：確認框也提招生訪視個資會清除', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const { wrapper } = await setup(undefined, withAdmissions({ admissions_days: 365 }))
+    await wrapper.get('.retention-form .el-switch').trigger('click')
+    await flushPromises()
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    const [message, title] = confirm.mock.calls[0]! as unknown as [string, string]
+    expect(title).toBe('確定開啟每天自動清理？')
+    expect(message).toContain('招生訪視到期會清除孩子與聯絡人的個資')
+  })
+
   it('改成不自動清理（清空）不必確認', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm')
     const put = vi.spyOn(api, 'put').mockResolvedValue(withAdmissions({ auto_run_enabled: true, version: 2 }) as never)

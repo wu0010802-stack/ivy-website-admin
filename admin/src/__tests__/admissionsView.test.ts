@@ -5,7 +5,7 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import { routes } from '../router'
 import { canSeeNavItem, NAV_GROUPS, navItem } from '../router/nav'
 import { testUser } from './fixtures'
-import { arrivalRow, arrivals, button, cleanup, deferred, mockGet, mountWith, options, pathsTo, VR_ID_2 } from './admissionsTestKit'
+import { arrivalRow, arrivals, button, cleanup, deferred, mockGet, mountWith, options, pathsTo, VR_ID, VR_ID_2 } from './admissionsTestKit'
 
 afterEach(cleanup)
 
@@ -61,6 +61,25 @@ describe('招生入學頁：篩選與分頁跟網址雙向同步（規格第 10 
     await router.push('/admissions?campus=renwu&tab=stats&sem=1')
     await flushPromises()
     expect(wrapper.findComponent(StatsTab).props()).toMatchObject({ campusKey: 'renwu', semester: 1 })
+  })
+
+  it('F1：使用者主動換校會清掉 vr；從帶 campus＋vr 的網址進來時兩個都保留', async () => {
+    mockGet({ ...noArrivals, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: `/admissions?campus=yihua&tab=records&vr=${VR_ID}` })
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', vr: VR_ID })
+    wrapper.findComponent({ name: 'CampusSelect' }).vm.$emit('update:modelValue', 'renwu')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'renwu', tab: 'records' })
+  })
+
+  it('F6a：民國月份只收三位數年份，99.09 被丟掉、115.09 保留', async () => {
+    mockGet({ ...noArrivals, '/admin/admissions/records': [] })
+    const bad = await mountWith(AdmissionsView, { path: '/admissions?tab=records&month=99.09' })
+    expect(bad.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records' })
+    cleanup()
+    mockGet({ ...noArrivals, '/admin/admissions/records': [] })
+    const good = await mountWith(AdmissionsView, { path: '/admissions?tab=records&month=115.09' })
+    expect(good.router.currentRoute.value.query).toMatchObject({ month: '115.09' })
   })
 
   it('看不到的校區、亂寫的學期與分頁一律退回預設', async () => {

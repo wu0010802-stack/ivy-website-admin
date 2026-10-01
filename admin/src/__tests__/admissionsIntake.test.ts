@@ -309,4 +309,21 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     expect(info).not.toHaveBeenCalled()
     expect(pathsTo(get, '/admin/admissions/records?')).toHaveLength(2)
   })
+
+  it('F2：SeatDialog 收到 404（別人剛刪掉）：提示、關閉並重讀，不顯示錯誤', async () => {
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const error = vi.spyOn(ElMessage, 'error')
+    const get = mockGet({
+      '/admin/admissions/records': [visit({ id: 'v-1', has_deposit: true, stage: 'deposited' })],
+      '/admin/admissions/options': options(),
+    })
+    mockPost({ '/admin/admissions/records/v-1/seat': () => { throw new ApiError(404, { detail: 'not found' }) } })
+    const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
+    await chooseMore(wrapper, 'v-1', '保留座位')
+    bodyButton('確認保留')!.click()
+    await flushPromises()
+    expect(warning).toHaveBeenCalledWith('這筆招生訪視已被刪除，已重新載入')
+    expect(error).not.toHaveBeenCalled()
+    expect(pathsTo(get, '/admin/admissions/records?')).toHaveLength(2)
+  })
 })

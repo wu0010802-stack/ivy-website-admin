@@ -6,7 +6,8 @@ import { rocDate, termLabel } from '../../admissions/academic'
 import { MISSING_CHILD_NAME, STAGE_LABELS, WITHDRAWN_FROM_LABELS, type Stage } from '../../admissions/constants'
 
 // 看板卡片（園務 FunnelCard.vue:14-37）：姓名＋退出類型、年級、入學學期、官網預約標記。
-// 官網沒有學號、預繳金對帳，那兩種徽章不做。整張卡可點、Enter、空白鍵開歷程；
+// 官網沒有學號、預繳金對帳，那兩種徽章不做。滑鼠點整張卡開歷程；鍵盤走卡片裡真正的
+// <button>（姓名），外層不設 role=button，否則裡面的「移到…」會被報讀器當成裝飾。
 // 「移到…」是拖曳的鍵盤替代（規格第 10 節），只列允許且有權限的目的欄。
 const props = defineProps<{ card: BoardCard; stage: Stage; draggable: boolean; targets: readonly Stage[] }>()
 const emit = defineEmits<{ open: []; move: [to: Stage]; dragstart: []; dragend: [] }>()
@@ -31,20 +32,15 @@ function onDragStart(event: DragEvent) {
     :class="{ 'is-locked': !draggable }"
     :data-id="card.id"
     :draggable="draggable ? 'true' : 'false'"
-    role="button"
-    tabindex="0"
-    :aria-label="`${card.child_name}（${STAGE_LABELS[stage]}），按 Enter 看歷程`"
     @click="emit('open')"
-    @keydown.enter.self.prevent="emit('open')"
-    @keydown.space.self.prevent="emit('open')"
     @dragstart="onDragStart"
     @dragend="emit('dragend')"
   >
     <div class="funnel-card__head">
-      <strong class="funnel-card__name">
-        {{ card.child_name }}
+      <button type="button" class="funnel-card__open" :aria-label="`${card.child_name}（${STAGE_LABELS[stage]}），開啟歷程`">
+        <strong class="funnel-card__name">{{ card.child_name }}</strong>
         <el-tag v-if="card.child_name === MISSING_CHILD_NAME" size="small" type="warning" effect="light" round>待補</el-tag>
-      </strong>
+      </button>
       <el-dropdown
         v-if="targets.length"
         trigger="click"
@@ -93,9 +89,26 @@ function onDragStart(event: DragEvent) {
   cursor: pointer;
 }
 
-.funnel-card:focus-visible {
+/* 看起來還是卡片裡的姓名；去掉預設按鈕外觀，focus 有可見外框。 */
+.funnel-card__open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: inherit;
+}
+
+.funnel-card__open:focus-visible {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 .funnel-card__head {

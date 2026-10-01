@@ -167,7 +167,7 @@ async function confirmAutoCleanup(): Promise<boolean> {
   else when = '儲存後約一分鐘內就會執行第一次，之後每天一次。'
   try {
     await ElMessageBox.confirm(
-      `${when}${count}到期案件的姓名、電話、孩子資料、問題與聯絡紀錄會改成匿名文字，無法復原。${admissionsShortened ? '招生訪視到期會清除孩子與聯絡人的個資、備註、電訪回應與原因說明，統計數字保留。' : ''}`,
+      `${when}${count}到期案件的姓名、電話、孩子資料、問題與聯絡紀錄會改成匿名文字，無法復原。${newAdmissions !== null && (enabling || admissionsShortened) ? '招生訪視到期會清除孩子與聯絡人的個資、備註、電訪回應與原因說明，統計數字保留。' : ''}`,
       enabling ? '確定開啟每天自動清理？' : '確定縮短保留天數？',
       {
         confirmButtonText: enabling ? '開啟自動清理' : '縮短保留天數',

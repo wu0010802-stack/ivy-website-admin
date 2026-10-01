@@ -126,6 +126,8 @@ async function loadOptions() {
 
 // 換校：來源、介紹者是各校自己的選項，一起清掉。
 watch(() => props.campusKey, () => {
+  // 上一校的名單不能留在載入遮罩下（同 FunnelBoard、IntakePlanTab）。
+  rows.value = []
   options.value = null
   source.value = ''
   referrer.value = ''
@@ -370,7 +372,7 @@ async function remove(row: RecruitmentVisit) {
       </div>
       <div class="filter-field records__search">
         <span>搜尋</span>
-        <el-input v-model="search" clearable :prefix-icon="Search" placeholder="姓名/地址/備註搜尋..." aria-label="搜尋訪視" />
+        <el-input v-model="search" clearable maxlength="100" :prefix-icon="Search" placeholder="姓名/地址/備註搜尋..." aria-label="搜尋訪視" />
       </div>
       <el-button v-if="hasFilters" text class="records__clear" @click="clearFilters">清除篩選</el-button>
     </div>

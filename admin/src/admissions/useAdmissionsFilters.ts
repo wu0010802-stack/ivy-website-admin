@@ -8,8 +8,8 @@ export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-// 民國月份「115.09」（園務 ROC_MONTH_PATTERN 允許兩到三位數年份）。
-const ROC_MONTH = /^\d{2,3}\.(0[1-9]|1[0-2])$/
+// 民國月份「115.09」：三位數年份，同後端 academic.py 的 ROC_MONTH。
+const ROC_MONTH = /^\d{3}\.(0[1-9]|1[0-2])$/
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 export function isAdmissionsTab(value: unknown): value is AdmissionsTab {

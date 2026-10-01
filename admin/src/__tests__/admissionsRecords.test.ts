@@ -146,6 +146,28 @@ describe('篩選、分頁與權限', () => {
     expect(wrapper.emitted('update:visitRequestId')).toEqual([['']])
   })
 
+  it('F1：換校時上一校的列立刻消失，不留在載入遮罩下', async () => {
+    const slow = deferred<unknown>()
+    mockGet({
+      '/admin/admissions/records': (path: string) => (queryOf(path).get('campus_key') === 'renwu' ? slow.promise : [visit()]),
+      '/admin/admissions/options': options(),
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    expect(rowTexts(wrapper)[0]).toContain('王小安')
+    await wrapper.setProps({ campusKey: 'renwu' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('王小安')
+    slow.resolve([visit({ id: 'v-r', child_name: '林小美' })])
+    await flushPromises()
+    expect(rowTexts(wrapper)[0]).toContain('林小美')
+  })
+
+  it('F4：搜尋框限制 100 字（後端 q 上限）', async () => {
+    mockGet({ '/admin/admissions/records': [], '/admin/admissions/options': options() })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    expect(wrapper.get('input[aria-label="搜尋訪視"]').attributes('maxlength')).toBe('100')
+  })
+
   it('只能看招生的帳號：沒有新增、編輯、更多，仍可看歷程', async () => {
     mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
     const { wrapper } = await mountWith(RecordsTab, { props: props(), user: admissionsViewer() })
@@ -192,6 +214,10 @@ describe('篩選、分頁與權限', () => {
     expect(rowTexts(wrapper)[0]).toContain('已匿名化')
     expect(hasButton(wrapper, '編輯')).toBe(false)
     expect(hasButton(wrapper, '歷程')).toBe(true)
+    await wrapper.get('.records-table .el-table__body tr').trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(RecordDialog).props('modelValue')).toBe(false)
+    expect(document.body.querySelector('.el-dialog')).toBeNull()
     const labels = labelsOf(await moreItems(wrapper, 'v-1'))
     expect(labels).toContain('刪除')
     expect(labels).not.toContain('退預繳')

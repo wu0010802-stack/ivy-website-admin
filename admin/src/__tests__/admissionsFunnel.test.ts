@@ -109,10 +109,14 @@ describe('看板：四欄、摘要列、卡片（規格第 10 節）', () => {
     expect(column(wrapper, 'visited').text()).not.toContain('王小安')
   })
 
-  it('點卡片（或 Enter）開歷程抽屜', async () => {
+  it('點卡片（或用鍵盤按卡片裡的姓名按鈕）開歷程抽屜', async () => {
     mockGet({ '/admin/admissions/board': board({ visited: [card()] }) })
     const { wrapper } = await mountWith(FunnelBoard, { props: boardProps() })
-    await wrapper.get('.funnel-card[data-id="v-1"]').trigger('keydown', { key: 'Enter' })
+    // 卡片外層不是 role=button：鍵盤走卡片裡真正的 <button>（原生 Enter／空白鍵會觸發 click）。
+    const el = wrapper.get('.funnel-card[data-id="v-1"]')
+    expect(el.attributes('role')).toBeUndefined()
+    expect(el.attributes('tabindex')).toBeUndefined()
+    await el.get('button.funnel-card__open').trigger('click')
     expect(wrapper.getComponent(EventsDrawer).props()).toMatchObject({ modelValue: true, visitId: 'v-1', childName: '王小安' })
   })
 })
@@ -291,6 +295,21 @@ describe('裁定補充（R4、R5、R10、R12）', () => {
     await flushPromises()
     expect(warning).toHaveBeenCalledWith('這筆招生訪視已依保存政策匿名化，不能再變更')
     expect(info).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
+    expect(pathsTo(get, '/admin/admissions/board')).toHaveLength(2)
+    expect(wrapper.getComponent(TransitionDialog).props('modelValue')).toBe(false)
+  })
+
+  it('F2：拖曳確認時收到 404（別人剛刪掉）：提示、關閉確認框並重讀看板，不顯示錯誤', async () => {
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const error = vi.spyOn(ElMessage, 'error')
+    const get = mockGet({ '/admin/admissions/board': board({ visited: [card()] }) })
+    mockPost({ '/admin/admissions/records/v-1/transition': () => { throw new ApiError(404, { detail: 'not found' }) } })
+    const { wrapper } = await mountWith(FunnelBoard, { props: boardProps() })
+    await drag(wrapper, 'v-1', 'deposited')
+    bodyButton('確認')!.click()
+    await flushPromises()
+    expect(warning).toHaveBeenCalledWith('這筆招生訪視已被刪除，已重新載入')
     expect(error).not.toHaveBeenCalled()
     expect(pathsTo(get, '/admin/admissions/board')).toHaveLength(2)
     expect(wrapper.getComponent(TransitionDialog).props('modelValue')).toBe(false)

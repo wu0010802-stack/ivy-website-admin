@@ -167,6 +167,25 @@ describe('編輯訪視（規格 6.6）', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
   })
 
+  it('F2：編輯儲存收到 404（別人剛刪掉）：提示已重新載入、關閉、通知列表重讀，不顯示錯誤', async () => {
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const error = vi.spyOn(ElMessage, 'error')
+    mockPatch({
+      '/admin/admissions/records/v-1': () => {
+        throw new ApiError(404, { detail: 'not found' })
+      },
+    })
+    const { wrapper } = await openDialog({ mode: 'edit', record: visit() })
+    typeInto(field('textarea[aria-label="備註"]'), '想補一句')
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(warning).toHaveBeenCalledWith('這筆招生訪視已被刪除，已重新載入')
+    expect(error).not.toHaveBeenCalled()
+    expect(wrapper.emitted('stale')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
+  })
+
   it('有改動時關閉要先確認；按先不要就留著', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
     const { wrapper } = await openDialog({ mode: 'edit', record: visit() })

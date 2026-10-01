@@ -9,7 +9,7 @@ import { ApiError } from '../api/client'
 import type { UserOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
-import { button, cleanup, hasButton, mockGet, mockPost, pathsTo, queryOf, superAdmin, visit, VR_ID, wrappers } from './admissionsTestKit'
+import { button, cleanup, deferred, hasButton, mockGet, mockPost, pathsTo, queryOf, superAdmin, visit, VR_ID, wrappers } from './admissionsTestKit'
 
 afterEach(cleanup)
 
@@ -73,8 +73,6 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
   })
   // R1：招生開關關閉時（招生 API 404）與查不到時，維持改版前的行為。
   it('招生未啟用（招生 API 回 404）：沒有確認框、維持原本訊息、沒有招生訪視區塊', async () => {
-    const confirm = vi.spyOn(ElMessageBox, 'confirm')
-    const success = vi.spyOn(ElMessage, 'success')
     mockDetail(detail({ status: 'completed' }), () => { throw new ApiError(404, { code: 'NOT_FOUND' }) })
     const { wrapper } = await mountDetail()
     expect(wrapper.find('.detail__admissions').exists()).toBe(false)
@@ -87,11 +85,9 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     const off = await mountDetail()
     await button(off.wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
-    expect(confirm).not.toHaveBeenCalled()
     expect(confirmAgain).not.toHaveBeenCalled()
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VR_ID}/complete`)
     expect(successAgain).toHaveBeenCalledWith('已標記完成參觀')
-    expect(success).not.toHaveBeenCalledWith('已標記已到場，招生訪視已建立')
   })
 
   it('查招生失敗（非 404）：不確定招生是否可用，維持改版前的行為', async () => {
@@ -104,6 +100,30 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     await flushPromises()
     expect(confirm).not.toHaveBeenCalled()
     expect(success).toHaveBeenCalledWith('已標記完成參觀')
+  })
+
+  it('F6c：已到場但查招生回 500：不顯示招生訪視區塊', async () => {
+    mockDetail(detail({ status: 'completed' }), () => { throw new ApiError(500, { code: 'INTERNAL_ERROR' }) })
+    const { wrapper } = await mountDetail()
+    expect(wrapper.find('.detail__admissions').exists()).toBe(false)
+  })
+
+  it('F3：招生查詢還沒回來就按「標記已到場」：等查完，有確認框、成功文案寫招生訪視已建立', async () => {
+    const slow = deferred<unknown[]>()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const success = vi.spyOn(ElMessage, 'success')
+    mockDetail(detail(), () => slow.promise as never)
+    const post = mockPost()
+    const { wrapper } = await mountDetail()
+    await button(wrapper, '標記已到場')!.trigger('click')
+    await flushPromises()
+    // 查詢還在跑：不能先送出（後端會建招生訪視，卻沒有確認框）。
+    expect(post).not.toHaveBeenCalled()
+    slow.resolve([])
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VR_ID}/complete`)
+    expect(success).toHaveBeenCalledWith('已標記已到場，招生訪視已建立')
   })
 
   it('沒有招生權限（沒查招生）：維持改版前的行為', async () => {

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { setSeat } from '../../api/admissions'
+import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { RecruitmentVisit } from '../../api/types'
 import { currentTerm, schoolYearOptions, termLabel } from '../../admissions/academic'
@@ -44,6 +45,13 @@ function handleError(err: unknown, fallback: string) {
   }
   if (isVersionConflict(err)) {
     ElMessage.info('這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作')
+    open.value = false
+    emit('stale')
+    return
+  }
+  // 別人剛把這筆刪掉：不顯示錯誤，關閉並請父層重讀。
+  if (err instanceof ApiError && err.status === 404) {
+    ElMessage.warning('這筆招生訪視已被刪除，已重新載入')
     open.value = false
     emit('stale')
     return

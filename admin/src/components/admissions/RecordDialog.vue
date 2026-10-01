@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createRecord, getRecord, updateRecord } from '../../api/admissions'
+import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, RecruitmentVisit, RecruitmentVisitCreate, RecruitmentVisitUpdate } from '../../api/types'
 import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday } from '../../admissions/academic'
@@ -228,6 +229,11 @@ async function save(next = false) {
     if (props.mode === 'edit' && apiErrorCode(err) === 'RECRUITMENT_VISIT_ANONYMIZED') {
       // 已依保存政策匿名化：不能再改。關閉表單並通知列表重讀。
       ElMessage.warning(ANONYMIZED_CONFLICT_TEXT)
+      emit('stale')
+      open.value = false
+    } else if (props.mode === 'edit' && err instanceof ApiError && err.status === 404) {
+      // 別人剛把這筆刪掉：不顯示錯誤，關閉表單並通知列表重讀。
+      ElMessage.warning('這筆招生訪視已被刪除，已重新載入')
       emit('stale')
       open.value = false
     } else if (isVersionConflict(err) && current.value) {

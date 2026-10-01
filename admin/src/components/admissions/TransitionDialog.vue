@@ -76,6 +76,11 @@ async function submit() {
       else ElMessage.info('狀態已被其他人變更，已自動重新載入')
       open.value = false
       emit('stale')
+    } else if (err instanceof ApiError && err.status === 404) {
+      // 別人剛把這筆刪掉：不顯示錯誤，關閉並請父層重讀（同訪視明細的 reportError）。
+      ElMessage.warning('這筆招生訪視已被刪除，已重新載入')
+      open.value = false
+      emit('stale')
     } else if (err instanceof ApiError && err.status === 403) {
       ElMessage.warning('無權限執行此操作')
     } else {

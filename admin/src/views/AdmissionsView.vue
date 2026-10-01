@@ -70,6 +70,12 @@ watch([tab, canSeeArrivals], () => {
 function setTab(name: string | number) {
   if (isAdmissionsTab(name)) tab.value = name
 }
+// 使用者主動換校：vr 是某一校的預約 id，換校後清掉。不放在 useAdmissionsFilters：
+// 預約明細的連結同時帶 campus 與 vr，從網址進來兩者都要保留。
+function setCampus(value: string) {
+  if (value !== campus.value) visitRequestId.value = ''
+  campus.value = value
+}
 function setYear(value: number | null | undefined) {
   schoolYear.value = value ?? null
 }
@@ -102,7 +108,7 @@ function onArrivalsCount(count: number) {
       <div class="toolbar admissions__filters">
         <div class="filter-field">
           <span v-if="multiCampus">校區</span>
-          <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+          <CampusSelect :model-value="campus" :keys="visibleCampusKeys" @update:model-value="setCampus" />
         </div>
         <div class="filter-field">
           <span>入學學年</span>

@@ -515,6 +515,8 @@ async function onRebooked(created: VisitRequestDetailOut) {
 // 招生入學可用時，標記已到場會在同一個交易裡建立招生訪視（規格 6.1），所以先確認（規格第 10 節原文）。
 // 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
 async function markCompleted() {
+  // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
+  if (canReadAdmissions.value && admissionsLookup) await admissionsLookup
   const withAdmissions = admissionsAvailable.value === 'yes'
   if (withAdmissions) {
     try {
@@ -550,7 +552,18 @@ const admissionsVisit = ref<RecruitmentVisit | null>(null)
 const admissionsAvailable = ref<'yes' | 'no' | 'unknown'>('unknown')
 const creatingAdmissions = ref(false)
 
-async function loadAdmissionsVisit() {
+// 進行中的查詢：markCompleted 要等它（只在查完仍是 unknown 才沿用舊行為）。
+let admissionsLookup: Promise<void> | null = null
+
+function loadAdmissionsVisit(): Promise<void> {
+  const run = fetchAdmissionsVisit().finally(() => {
+    if (admissionsLookup === run) admissionsLookup = null
+  })
+  admissionsLookup = run
+  return run
+}
+
+async function fetchAdmissionsVisit() {
   const current = detail.value
   admissionsVisit.value = null
   admissionsAvailable.value = 'unknown'
