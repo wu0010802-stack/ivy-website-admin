@@ -69,11 +69,16 @@ watch(() => [props.campusKey, planYear.value, planSemester.value], () => void lo
 async function save() {
   if (!dirty.value || saving.value) return
   saving.value = true
+  // 記下這次儲存的對象；回應回來時若已切到別的校區／學期，就不能寫進現在的畫面。
+  const scope = `${props.campusKey}|${planYear.value}|${planSemester.value}`
+  const sameScope = () => scope === `${props.campusKey}|${planYear.value}|${planSemester.value}`
   try {
     const targets = Object.fromEntries(changedGrades.value.map((grade) => [grade, drafts.value[grade] ?? null]))
     const result = await saveIntakeTargets(props.campusKey, { school_year: planYear.value, semester: planSemester.value, targets })
-    plan.value = result
-    resetDrafts()
+    if (sameScope()) {
+      plan.value = result
+      resetDrafts()
+    }
     ElMessage.success('已儲存計畫名額')
   } catch (err) {
     ElMessage.error(apiErrorMessage(err, '儲存招生名額計畫失敗'))

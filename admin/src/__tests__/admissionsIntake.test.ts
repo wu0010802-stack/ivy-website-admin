@@ -14,6 +14,7 @@ afterEach(cleanup)
 const planProps = (changes: Record<string, unknown> = {}) => ({ campusKey: 'yihua', schoolYear: 115, semester: 1, ...changes })
 const cells = (wrapper: VueWrapper) =>
   wrapper.findAll('.intake-table .el-table__body tr').map((row) => row.findAll('td').map((cell) => cell.text().trim()))
+const inputValues = (wrapper: VueWrapper) => wrapper.findAll('.intake-table input').map((input) => (input.element as HTMLInputElement).value)
 const bodyText = () => document.body.textContent ?? ''
 const bodyButton = (text: string) =>
   [...document.body.querySelectorAll<HTMLButtonElement>('button')].find((element) => element.textContent?.trim() === text)
@@ -137,6 +138,30 @@ describe('名額規劃（規格第 8 節）', () => {
     await flushPromises()
     expect(cells(wrapper)[1]![1]).toBe('8')
     expect(cells(wrapper)[2]![1]).toBe('未設定')
+  })
+})
+
+describe('名額規劃：儲存回應晚到', () => {
+  it('儲存中切校區，A 校的 PUT 後回來不覆寫 B 校畫面，成功訊息照常', async () => {
+    const success = vi.spyOn(ElMessage, 'success')
+    const slowPut = deferred<unknown>()
+    mockGet({
+      '/admin/admissions/intake-plan': (path: string) =>
+        queryOf(path).get('campus_key') === 'yihua' ? mixedPlan() : intakePlan([intakeRow('小班', { target_seats: 8, remaining: 8 })], { target_seats: 8, remaining: 8 }),
+    })
+    mockPut({ '/admin/admissions/intake-targets': () => slowPut.promise })
+    const { wrapper } = await mountWith(IntakePlanTab, { props: planProps() })
+    wrapper.findAllComponents({ name: 'ElInputNumber' })[0]!.vm.$emit('update:modelValue', 12)
+    await flushPromises()
+    await button(wrapper, '儲存計畫名額')!.trigger('click')
+    await flushPromises()
+    await wrapper.setProps({ campusKey: 'renwu' })
+    await flushPromises()
+    expect(inputValues(wrapper)).toEqual(['', '8', '', ''])
+    slowPut.resolve(intakePlan([intakeRow('幼幼班', { target_seats: 12, remaining: 12 })], { target_seats: 12, remaining: 12 }))
+    await flushPromises()
+    expect(inputValues(wrapper)).toEqual(['', '8', '', ''])
+    expect(success).toHaveBeenCalledWith('已儲存計畫名額')
   })
 })
 
