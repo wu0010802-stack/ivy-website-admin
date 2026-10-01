@@ -320,3 +320,22 @@ def test_drift_check_reports_each_difference():
     assert any("recruitment_visits.phone" in p for p in problems)
     assert any("recruitment_event_log.student_note" in p and "新增" in p for p in problems)
     assert any("event_types" in p for p in problems)
+
+
+def test_drift_check_fails_loudly_when_a_table_disappears(tmp_path, capsys):
+    """園務把 class 改名或搬檔：快照有、現行沒有的整張表要報，不能靜默通過。"""
+    check = _load_script("check_ivy_recruitment_contract")
+    for relative, source in FAKE_IVY.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source.replace("class GradeIntakeTarget", "class GradeIntakeTargetV2"), encoding="utf-8")
+    live = check.read_ivy(tmp_path)
+    assert "grade_intake_targets" not in live["tables"]
+    same = {"tables": copy.deepcopy(SCHEMA["tables"]), "enums": {k: v for k, v in SCHEMA["enums"].items() if k != "grades"}}
+    problems = check.diff(SCHEMA, {"tables": {k: v for k, v in same["tables"].items() if k != "grade_intake_targets"}, "enums": same["enums"]})
+    assert problems == ["表 grade_intake_targets：契約有，園務原始碼已找不到對應的 class（改名或搬檔？）"]
+    extra = copy.deepcopy(same)
+    extra["tables"]["new_table"] = {"columns": {}}
+    assert any("new_table" in p and "新增" in p for p in check.diff(SCHEMA, extra))
+    assert check.main(["--ivy-backend", str(tmp_path)]) == 1
+    assert "grade_intake_targets" in capsys.readouterr().out

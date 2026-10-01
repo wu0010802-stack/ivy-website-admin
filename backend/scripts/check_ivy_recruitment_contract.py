@@ -143,6 +143,10 @@ def read_ivy(ivy_root: Path) -> dict:
 def diff(snapshot: dict, live: dict) -> list[str]:
     """逐項列出快照與園務現行程式的差異；一致回空 list。"""
     problems: list[str] = []
+    for table in sorted(snapshot["tables"].keys() - live["tables"].keys()):
+        problems.append(f"表 {table}：契約有，園務原始碼已找不到對應的 class（改名或搬檔？）")
+    for table in sorted(live["tables"].keys() - snapshot["tables"].keys()):
+        problems.append(f"表 {table}：園務新增的表，契約沒有")
     for table, spec in live["tables"].items():
         expected = snapshot["tables"].get(table, {}).get("columns", {})
         actual = spec["columns"]
