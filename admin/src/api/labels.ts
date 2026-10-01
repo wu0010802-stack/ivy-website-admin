@@ -83,6 +83,13 @@ const PENDING_SUB: Record<string, string> = { contacting: '聯絡中', pending_c
 // confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
 const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
 
+// 與官網結果頁同規則：w***@domain。
+export function maskEmail(email: string): string {
+  const [name, domain] = email.split('@')
+  if (!name || !domain) return email
+  return `${name.slice(0, 1)}***@${domain}`
+}
+
 export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
   switch (row.display_status) {
     case 'upcoming':

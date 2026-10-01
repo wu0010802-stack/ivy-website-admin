@@ -422,8 +422,8 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
   })
 
   it('補登可以填參觀人數，問題上限 500 字', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'new-case', status: 'new', slot: null } as never)
+    vi.spyOn(api, 'get').mockResolvedValue([{ id: 'slot-f', campus_key: 'yihua', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 1, closed: false }] as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'new-case', status: 'confirmed', slot: { slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' } } as never)
     const wrapper = mount(ManualVisitDialog, { props: { campusKeys: ['yihua'], modelValue: false }, global: { plugins: [ElementPlus] }, attachTo: document.body })
     wrappers.push(wrapper)
     await wrapper.setProps({ modelValue: true })
@@ -435,6 +435,7 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
     }
     const partySelect = wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('placeholder') === '選填，含大人與孩子')!
     partySelect.vm.$emit('update:modelValue', 3)
+    wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
     expect(document.body.querySelector('textarea[maxlength="500"]')).not.toBeNull()
     document.body.querySelector<HTMLInputElement>('.manual__consent input')!.click()
     await nextTick()

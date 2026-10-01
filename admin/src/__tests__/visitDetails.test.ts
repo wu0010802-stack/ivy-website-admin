@@ -34,7 +34,7 @@ describe('參觀資料與已選場次', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
     const wrapper = await setup()
-    await wrapper.findAll('button').find(button => button.text() === '確認已選場次')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '確認這個場次')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledOnce()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/confirm', { slot_id: slot.id })
@@ -49,25 +49,9 @@ describe('案件流程補完', () => {
     const wrapper = await setup({ ...details(), status: 'confirmed', hold_expires_at: null, slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())
     expect(labels).toContain('標記未到場')
-    await wrapper.findAll('button').find(button => button.text() === '完成參觀')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '標記已到場')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/complete')
-  })
-
-  it('新需求可以先標為聯絡中；家長要改時間時待確認可退回聯絡中', async () => {
-    const post = vi.spyOn(api, 'post').mockResolvedValue({})
-    const fresh = await setup({ ...details(), status: 'new', slot_id: null, slot: null, hold_expires_at: null })
-    await fresh.findAll('button').find(button => button.text().startsWith('開始聯絡'))!.trigger('click')
-    await flushPromises()
-    expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/contacting')
-    fresh.unmount(); wrappers.length = 0; vi.restoreAllMocks()
-
-    vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
-    const post2 = vi.spyOn(api, 'post').mockResolvedValue({})
-    const held = await setup()
-    await held.findAll('button').find(button => button.text().includes('退回聯絡中'))!.trigger('click')
-    await flushPromises()
-    expect(post2).toHaveBeenCalledWith('/admin/visit-requests/local-case/contacting')
   })
 
   it('人工補登的案件顯示來源；沒有處理權的帳號只看得到資料', async () => {
@@ -79,7 +63,7 @@ describe('案件流程補完', () => {
     const viewer = testUser('readonly', { campus_keys: ['yihua'], effective_capabilities: ['booking.read'] })
     const readOnly = await setup(details(), viewer)
     expect(readOnly.text()).toContain('只能查看案件')
-    expect(readOnly.findAll('button').some(button => button.text() === '確認已選場次')).toBe(false)
+    expect(readOnly.findAll('button').some(button => button.text() === '確認這個場次')).toBe(false)
     expect(readOnly.find('textarea[aria-label="新增聯絡紀錄"]').exists()).toBe(false)
     expect(readOnly.text()).not.toContain('取消預約')
   })
@@ -88,7 +72,7 @@ describe('案件流程補完', () => {
     const desk = testUser('reception', { id: 'desk', email: 'desk@example.invalid', campus_keys: ['yihua'] })
     const wrapper = await setup(details(), desk)
     expect(wrapper.text()).not.toContain('只能查看案件')
-    expect(wrapper.findAll('button').some(button => button.text() === '確認已選場次')).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(true)
     expect(wrapper.find('textarea[aria-label="新增聯絡紀錄"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('取消預約')
     // 指派承辦人限校區管理者以上：櫃台只看到文字，沒有下拉選單。

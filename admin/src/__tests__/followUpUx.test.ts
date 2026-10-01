@@ -144,7 +144,7 @@ describe('到期待追蹤有來源也有入口', () => {
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-b/contact-notes', { note: '已致電' })
   })
 
-  it('確認預約後先把「已致電家長」填進紀錄框，並提供下一筆待處理', async () => {
+  it('排入場次後不再預填「已致電家長」（確認信由系統寄出），並提供下一筆待處理', async () => {
     const data = { ...base(), follow_up_at: null }
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (path.endsWith('/contact-notes')) return [] as never
@@ -162,9 +162,9 @@ describe('到期待追蹤有來源也有入口', () => {
     expect(wrapper.text()).toContain('下一筆（待處理 1）')
     wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', slot.id)
     await flushPromises()
-    await wrapper.findAll('button').find(b => b.text() === '確認並排入時段')!.trigger('click')
+    await wrapper.findAll('button').find(b => b.text() === '排入場次')!.trigger('click')
     await flushPromises()
-    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('已致電家長，告知參觀時間 2099/09/26')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 })
 

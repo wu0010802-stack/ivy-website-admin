@@ -5,13 +5,15 @@ import { api, ApiError } from '../api/client'
 import { formatDateTime, parentDeadlineLabel } from '../api/labels'
 import type { ParentAccessLinkCreatedOut } from '../api/types'
 
-// 家長管理連結（規格 6.4）：家長用它查看預約、取消或申請改期。完整網址只在
+// 家長管理連結（規格 6.4）：家長用它查看預約、改場次、修改資料或取消。完整網址只在
 // 產生當下顯示一次（資料庫只存 hash），所以這裡只知道「有沒有、何時到期」；
-// 遺失就重新產生，舊連結同時失效。系統不會自動寄給家長。
+// 遺失就重新產生並寄到家長信箱，舊連結同時失效。
 const props = defineProps<{
   visitId: string
   accessLink: { created_at: string; expires_at: string } | null | undefined
   canHandle: boolean
+  status: string
+  email: string | null
   // 該校設定的線上異動期限（參觀前幾小時）；舊版 API 沒回時只講依本校設定。
   deadlineHours?: number | null
 }>()
@@ -35,7 +37,7 @@ function errorText(err: unknown, fallback: string): string {
 async function generate() {
   if (props.accessLink || created.value) {
     try {
-      await ElMessageBox.confirm('重新產生後，先前給家長的連結會立即失效，家長要改用新連結。', '重新產生家長管理連結？', {
+      await ElMessageBox.confirm('重新產生後，舊連結會立即失效，新連結會寄到家長信箱。', '重新產生家長管理連結？', {
         confirmButtonText: '重新產生',
         cancelButtonText: '先不要',
         type: 'warning',
@@ -47,9 +49,22 @@ async function generate() {
   busy.value = true
   try {
     created.value = await api.post<ParentAccessLinkCreatedOut>(`/admin/visit-requests/${props.visitId}/access-link`)
+    if (created.value.emailed) ElMessage.success('新連結已寄到家長信箱')
     emit('changed')
   } catch (err) {
     ElMessage.error(errorText(err, '產生連結失敗'))
+  } finally {
+    busy.value = false
+  }
+}
+
+async function resend() {
+  busy.value = true
+  try {
+    await api.post(`/admin/visit-requests/${props.visitId}/resend-confirmation`)
+    ElMessage.success('已排入寄送，約一分鐘內寄到家長信箱')
+  } catch (err) {
+    ElMessage.error(errorText(err, '重寄失敗，請稍後再試'))
   } finally {
     busy.value = false
   }
@@ -95,7 +110,7 @@ async function copy() {
 <template>
   <section class="section access">
     <div class="section__title"><h2>家長管理連結</h2></div>
-    <p class="hint">家長用這條連結可以自己查看預約、取消或申請改期（{{ deadlineHours ? `${parentDeadlineLabel(deadlineHours)}截止` : '截止時間依本校預約設定' }}）。系統不會自動寄出，請用簡訊、LINE 或 Email 轉交。</p>
+    <p class="hint">家長送出預約時已收到這條連結{{ email ? '（也寄到信箱）' : '' }}，可以改場次、修改資料或取消（{{ deadlineHours ? `${parentDeadlineLabel(deadlineHours)}截止` : '截止時間依本校預約設定' }}）。</p>
 
     <div v-if="created" class="access__created">
       <el-alert type="warning" :closable="false" show-icon title="連結只顯示這一次" description="離開這頁就看不到了；遺失請重新產生，舊連結會同時失效。" />
@@ -107,12 +122,13 @@ async function copy() {
       <p class="hint">有效到 <span class="num">{{ formatDateTime(created.expires_at) }}</span></p>
     </div>
     <p v-else-if="accessLink" class="hint">
-      目前有一條有效連結（{{ formatDateTime(accessLink.created_at) }} 產生，有效到 {{ formatDateTime(accessLink.expires_at) }}）。網址不會保存，要再給家長請重新產生。
+      目前連結有效到 {{ formatDateTime(accessLink.expires_at) }}（{{ formatDateTime(accessLink.created_at) }} 產生）。網址不會保存，要再給家長請重新產生。
     </p>
     <p v-else class="hint">還沒有產生連結。</p>
 
     <div v-if="canHandle" class="access__actions">
-      <el-button :loading="busy" @click="generate">{{ accessLink || created ? '重新產生連結' : '產生連結' }}</el-button>
+      <el-button v-if="status === 'confirmed' && email" :loading="busy" @click="resend">重寄確認信</el-button>
+      <el-button :loading="busy" @click="generate">{{ accessLink || created ? '重新產生連結並寄出' : '產生連結' }}</el-button>
       <el-button v-if="accessLink || created" text type="danger" :disabled="busy" @click="revoke">撤銷連結</el-button>
     </div>
   </section>

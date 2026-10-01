@@ -410,7 +410,7 @@ describe('讀取與處理中的狀態', () => {
     mockApi(request({ status: 'pending_confirmation', slot_id: future.id, slot: future, hold_expires_at: '2099-01-01T01:30:00Z' }))
     const { wrapper } = await mountDetail()
     expect(wrapper.find('.hold-deadline').text()).toContain('還剩 1 小時')
-    expect(button(wrapper, '確認已選場次')!.attributes('disabled')).toBeUndefined()
+    expect(button(wrapper, '確認這個場次')!.attributes('disabled')).toBeUndefined()
     vi.advanceTimersByTime(31 * 60_000)
     await flushPromises()
     expect(wrapper.find('.hold-deadline').text()).toContain('還剩 59 分鐘')
@@ -420,7 +420,7 @@ describe('讀取與處理中的狀態', () => {
     expect(wrapper.find('.hold-deadline').text()).toContain('已過，不能再確認')
     // 過期說明出現在一開始就在的報讀區裡，報讀軟體才會念出來。
     expect(wrapper.find('.hold-status[role="status"] .hold-deadline').text()).toContain('已過，不能再確認')
-    expect(button(wrapper, '確認已選場次')!.attributes('disabled')).toBeDefined()
+    expect(button(wrapper, '確認這個場次')!.attributes('disabled')).toBeDefined()
   })
 
   it('只有按下去的那顆按鈕轉圈，其他按鈕停用', async () => {
@@ -431,7 +431,7 @@ describe('讀取與處理中的狀態', () => {
     await button(wrapper, '新增紀錄')!.trigger('click')
     await nextTick()
     expect(button(wrapper, '新增紀錄')!.classes()).toContain('is-loading')
-    const confirmButton = button(wrapper, '確認已選場次')!
+    const confirmButton = button(wrapper, '確認這個場次')!
     expect(confirmButton.classes()).not.toContain('is-loading')
     expect(confirmButton.attributes('disabled')).toBeDefined()
   })
@@ -463,14 +463,16 @@ describe('補登對話框', () => {
   const missingText = () => document.body.querySelector('.manual__missing')?.textContent?.trim() ?? ''
 
   it('送出鈕停用時說出還差什麼，同意勾選固定在底部', async () => {
-    await mountDialog()
-    expect(missingText()).toBe('還不能送出：還沒填家長稱呼、手機；還沒勾選同意')
+    const wrapper = await mountDialog([{ ...future, campus_key: 'yihua', capacity: 3, booked_count: 1, closed: false }])
+    expect(missingText()).toBe('還不能送出：還沒填家長稱呼、手機、參觀場次；還沒勾選同意')
     expect(document.body.querySelector('.el-dialog__footer .manual__consent')).not.toBeNull()
     fill('例如：王媽媽', '王媽媽')
     fill('0912345678', '0912')
     await nextTick()
-    expect(missingText()).toBe('還不能送出：手機號碼格式不對；還沒勾選同意')
+    expect(missingText()).toBe('還不能送出：還沒填參觀場次；手機號碼格式不對；還沒勾選同意')
     fill('0912345678', '0912345678')
+    await nextTick()
+    wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
     await nextTick()
     expect(missingText()).toBe('還不能送出：還沒勾選同意')
     document.body.querySelector<HTMLInputElement>('.manual__consent input')!.click()
@@ -520,7 +522,7 @@ describe('補登對話框', () => {
       slot({ id: 'started', slot_date: '2020-01-01', start_time: '10:00:00', end_time: '11:00:00' }),
       slot({ ...future }),
     ])
-    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((s) => s.props('placeholder') === '還沒談好時間就留空')!
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((s) => s.props('placeholder') === '選擇場次')!
     const options = select.findAllComponents({ name: 'ElOption' }).map((o) => [o.props('value'), o.props('label')])
     expect(options).toEqual([['slot-f', '2099/10/01（週四）10:00–11:00，剩 2 組']])
     wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks(); document.body.innerHTML = ''

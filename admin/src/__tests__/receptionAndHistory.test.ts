@@ -118,7 +118,7 @@ describe('版本紀錄抽屜', () => {
 
 describe('補登案件對話框', () => {
   async function mountDialog() {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    vi.spyOn(api, 'get').mockResolvedValue([{ id: 'slot-f', campus_key: 'yihua', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 1, closed: false }] as never)
     const wrapper = mount(ManualVisitDialog, {
       props: { campusKeys: ['yihua'], modelValue: false },
       global: { plugins: [ElementPlus] },
@@ -137,12 +137,15 @@ describe('補登案件對話框', () => {
   }
 
   it('沒勾同意前不能送出；送出時帶 Idempotency-Key 並正規化手機', async () => {
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'new-case', status: 'new', slot: null } as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'new-case', status: 'confirmed', slot: { slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' } } as never)
     const wrapper = await mountDialog()
     fill('例如：王媽媽', '王媽媽')
     fill('0912345678', '0912-345-678')
     await nextTick()
     expect(buttonByText('補登案件').disabled).toBe(true)
+    wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
+    await nextTick()
+    expect(buttonByText('補登案件').disabled).toBe(true) // 還沒勾同意
 
     const consent = document.body.querySelector<HTMLInputElement>('.manual__consent input')!
     consent.click()
@@ -153,7 +156,7 @@ describe('補登案件對話框', () => {
     expect(post).toHaveBeenCalledOnce()
     const [path, body, options] = post.mock.calls[0]!
     expect(path).toBe('/admin/visit-requests')
-    expect(body).toMatchObject({ campus_key: 'yihua', source: 'phone', parent_name: '王媽媽', phone: '0912345678', consent_given: true, slot_id: null })
+    expect(body).toMatchObject({ campus_key: 'yihua', source: 'phone', parent_name: '王媽媽', phone: '0912345678', consent_given: true, slot_id: 'slot-f' })
     expect(options?.headers?.['Idempotency-Key']).toBeTruthy()
     expect(wrapper.emitted('created')?.[0]?.[0]).toMatchObject({ id: 'new-case' })
   })

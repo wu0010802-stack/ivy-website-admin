@@ -126,7 +126,7 @@ describe('案件列表接住總覽帶來的條件', () => {
     const { wrapper } = await mountAt('/visit-requests?status=pending_confirmation&order=oldest')
     const listCall = get.mock.calls.map(c => String(c[0])).find(p => p.startsWith('/admin/visit-requests?'))!
     expect(listCall).toContain('order=oldest')
-    expect(listCall).toContain('status=pending_confirmation')
+    expect(listCall).toContain('group=pending') // 舊書籤的 ?status= 轉成分組
     expect(wrapper.text()).toContain('確認期限還剩 2 小時')
     expect(wrapper.find('.hold.is-due').exists()).toBe(true)
     expect(wrapper.find('.request-list').text()).not.toContain('方便時段')
@@ -262,7 +262,7 @@ describe('案件明細的確認期限', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
     vi.spyOn(api, 'post').mockResolvedValue({})
     const { wrapper, get } = await mountDetail(held(10))
-    await wrapper.findAll('button').find(button => button.text() === '確認已選場次')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '確認這個場次')!.trigger('click')
     await flushPromises()
     expect(get.mock.calls.some(call => call[0] === '/admin/dashboard')).toBe(true)
   })
