@@ -5,7 +5,7 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import { routes } from '../router'
 import { canSeeNavItem, NAV_GROUPS, navItem } from '../router/nav'
 import { testUser } from './fixtures'
-import { arrivalRow, arrivals, button, cleanup, deferred, mockGet, mountWith, options, pathsTo, VR_ID, VR_ID_2 } from './admissionsTestKit'
+import { arrivalRow, arrivals, cleanup, deferred, mockGet, mountWith, options, pathsTo, VR_ID, VR_ID_2 } from './admissionsTestKit'
 
 afterEach(cleanup)
 
@@ -15,7 +15,13 @@ function freezeToday() {
   vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
 }
 // options 預設照常回資料（開關開啟）；arrivals 預設空。
-const noArrivals = { '/admin/admissions/options': options(), '/admin/admissions/arrivals': arrivals() }
+const noArrivals = {
+  '/admin/admissions/options': options(),
+  '/admin/admissions/arrivals': arrivals(),
+  '/admin/admissions/stats': () => {
+    throw new Error('統計不在這支測試的範圍')
+  },
+}
 const tabTexts = (wrapper: VueWrapper) => wrapper.findAll('.el-tabs__item').map((tab) => tab.text().replace(/\s+/g, ''))
 
 describe('側欄與路由', () => {
@@ -160,13 +166,21 @@ describe('招生開關關閉（R1）', () => {
   })
 })
 
-describe('統計分析（C 階段前的空狀態）', () => {
-  it('說明還在準備中，按鈕切到名額規劃或漏斗看板', async () => {
+describe('統計分析與頁面的接縫（C3）', () => {
+  it('統計分頁拿到頁首的校區、學年學期與看得到的校區（決定有沒有五校比較）', async () => {
     mockGet(noArrivals)
-    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?tab=stats' })
-    expect(wrapper.text()).toContain('統計分析還在準備中')
-    await button(wrapper, '看名額規劃')!.trigger('click')
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=renwu&sy=114&sem=2&tab=stats' })
+    expect(wrapper.findComponent(StatsTab).props()).toEqual({
+      campusKey: 'renwu', schoolYear: 114, semester: 2, campusKeys: ['yihua', 'minghua', 'chongde', 'international', 'renwu'],
+    })
+  })
+
+  it('警示或行動入口要看某月明細：切到訪視明細並帶 month；用 push，上一頁回到統計', async () => {
+    mockGet(noArrivals)
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats' })
+    const push = vi.spyOn(router, 'push')
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { month: '115.09' })
     await flushPromises()
-    expect(router.currentRoute.value.query.tab).toBe('intake')
+    expect(push).toHaveBeenCalledWith({ query: { campus: 'yihua', tab: 'records', month: '115.09' } })
   })
 })

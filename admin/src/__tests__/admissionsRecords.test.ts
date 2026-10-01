@@ -326,6 +326,9 @@ describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔�
     '/admin/admissions/arrivals': arrivals(),
     '/admin/admissions/records': [visit()],
     '/admin/admissions/options': options(),
+    '/admin/admissions/stats': () => {
+      throw new Error('統計不在這支測試的範圍')
+    },
   })
 
   it('網址帶 tab=records&month=115.09 時明細以該月份查詢', async () => {

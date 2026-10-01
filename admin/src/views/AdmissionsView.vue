@@ -7,18 +7,27 @@ import RecordsTab from '../components/admissions/RecordsTab.vue'
 import IntakePlanTab from '../components/admissions/IntakePlanTab.vue'
 import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getArrivals, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
 import { usePermissions } from '../composables/usePermissions'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { schoolYearOptions } from '../admissions/academic'
 import { SEMESTER_LABELS } from '../admissions/constants'
-import { isAdmissionsTab, useAdmissionsFilters, type AdmissionsTab, type Semester } from '../admissions/useAdmissionsFilters'
+import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissions/useAdmissionsFilters'
 
 // 招生入學（規格第 10 節）：頁首放校區與入學學年學期，五個分頁順序比照園務。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
 const { campus, schoolYear, semester, tab, visitRequestId, month, visibleCampusKeys, defaultYear, clearTerm } = useAdmissionsFilters()
 const { can } = usePermissions()
+const route = useRoute()
+const router = useRouter()
+
+// 統計的警示與行動入口「查看本月明細」：切到訪視明細並帶月份（B2 的明細讀網址的 month）。
+// 用 push 不用 replace：看完明細按上一頁回到統計。
+function openRecords(filter: { month: string }) {
+  void router.push({ query: { ...route.query, tab: 'records', month: filter.month } })
+}
 // 官網預約分頁讀 /admin/admissions/arrivals，需要 booking.read。
 const canSeeArrivals = computed(() => can('booking.read'))
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
@@ -81,9 +90,6 @@ function setYear(value: number | null | undefined) {
 }
 function setSemester(value: Semester | null | undefined) {
   semester.value = value ?? null
-}
-function goTab(next: AdmissionsTab) {
-  tab.value = next
 }
 // 看板「另有 N 筆沒有填入學學期」→ 到訪視明細，並清掉學年學期篩選（園務 showUnscopedVisits）。
 function showUnscoped() {
@@ -148,7 +154,14 @@ function onArrivalsCount(count: number) {
         />
         <IntakePlanTab v-if="tab === 'intake'" :campus-key="campus" :school-year="schoolYear" :semester="semester" />
         <ArrivalsTab v-if="tab === 'arrivals' && canSeeArrivals" :campus-key="campus" @count="onArrivalsCount" />
-        <StatsTab v-if="tab === 'stats'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @go="goTab" />
+        <StatsTab
+          v-if="tab === 'stats'"
+          :campus-key="campus"
+          :school-year="schoolYear"
+          :semester="semester"
+          :campus-keys="visibleCampusKeys"
+          @open-records="openRecords"
+        />
       </div>
     </template>
   </div>

@@ -393,3 +393,6 @@ export type IntakeTargetsRequest = components['schemas']['IntakeTargetsRequest']
 export type Arrivals = components['schemas']['ArrivalsOut']
 export type ArrivalRow = components['schemas']['ArrivalRowOut']
 export type AdmissionsOptions = components['schemas']['AdmissionsOptionsOut']
+
+// 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
+export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']

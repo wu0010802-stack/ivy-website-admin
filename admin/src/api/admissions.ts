@@ -1,9 +1,9 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計（getStats、getCompare）在 C3、C4 加。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getCompare（C4）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsOptions, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, RecruitmentEvent, RecruitmentVisit,
+  AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -106,4 +106,14 @@ export function createFromVisitRequest(visitRequestId: string): Promise<Recruitm
 
 export function getOptions(campusKey: string): Promise<AdmissionsOptions> {
   return api.get<AdmissionsOptions>(`/admin/admissions/options?${toQuery({ campus_key: campusKey })}`)
+}
+
+/** 統計分析（規格第 9 節）。school_year／semester 為 null＝不篩；reference_month 為 null＝最新有資料的月份。 */
+export function getStats(params: {
+  campus_key: string
+  school_year: number | null
+  semester: number | null
+  reference_month: string | null
+}): Promise<AdmissionsStats> {
+  return api.get<AdmissionsStats>(`/admin/admissions/stats?${toQuery(params)}`)
 }
