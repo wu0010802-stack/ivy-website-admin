@@ -1,0 +1,22 @@
+{
+  "description": "招生年級與學期的共用案例（規格 6.4、R12）。後端 pytest（tests/test_admissions_academic.py）、web vitest（web/tests/admission-grade-cases.spec.ts）、admin vitest（B1）都讀這份。年級用 expected_term 的學年換算；today 是台北日期。",
+  "cases": [
+    {"name": "9/1 生日當天算足歲：115 學年小班", "birthday": "2023-09-01", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "小班"},
+    {"name": "9/2 生日晚一天：115 學年幼幼班", "birthday": "2023-09-02", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "幼幼班"},
+    {"name": "滿 2 歲（9/1 生日）：115 學年幼幼班", "birthday": "2024-09-01", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "幼幼班"},
+    {"name": "未滿 2 歲：範圍外", "birthday": "2024-09-02", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": null},
+    {"name": "大班最大（2020/9/2）", "birthday": "2020-09-02", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "大班"},
+    {"name": "大班最小（2021/9/1）", "birthday": "2021-09-01", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "大班"},
+    {"name": "滿 6 歲：小一年齡，範圍外", "birthday": "2020-09-01", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": null},
+    {"name": "中班", "birthday": "2022-03-15", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "中班"},
+    {"name": "7/31 還是 114 學年下學期", "birthday": "2023-09-01", "today": "2026-07-31", "expected_term": [114, 2], "expected_grade": "幼幼班"},
+    {"name": "8/1 起是 115 學年上學期", "birthday": "2023-09-01", "today": "2026-08-01", "expected_term": [115, 1], "expected_grade": "小班"},
+    {"name": "12/31 仍是上學期", "birthday": "2023-09-01", "today": "2026-12-31", "expected_term": [115, 1], "expected_grade": "小班"},
+    {"name": "跨年 1/1 仍是 115 學年上學期", "birthday": "2023-09-01", "today": "2027-01-01", "expected_term": [115, 1], "expected_grade": "小班"},
+    {"name": "1/31 上學期最後一天", "birthday": "2023-09-01", "today": "2027-01-31", "expected_term": [115, 1], "expected_grade": "小班"},
+    {"name": "2/1 起是 115 學年下學期", "birthday": "2023-09-01", "today": "2027-02-01", "expected_term": [115, 2], "expected_grade": "小班"},
+    {"name": "年底出生（12/31）與隔年 1/1 同一屆", "birthday": "2023-12-31", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "幼幼班"},
+    {"name": "隔年 1/1 出生", "birthday": "2024-01-01", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "幼幼班"},
+    {"name": "閏日出生", "birthday": "2024-02-29", "today": "2026-09-08", "expected_term": [115, 1], "expected_grade": "幼幼班"}
+  ]
+}
