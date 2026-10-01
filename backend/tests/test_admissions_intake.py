@@ -261,3 +261,16 @@ async def test_intake_plan_reports_applied_filters_and_as_of(admin_client):
         assert (body["campus_key"], body["school_year"], body["semester"]) == ("renwu", 116, 2)
         as_of = datetime.fromisoformat(body["as_of"])
         assert as_of.utcoffset() == timedelta(0) and before <= as_of <= after
+
+
+@pytest.mark.asyncio
+async def test_enroll_with_another_grade_overrides_reserved_seat(admin_client):
+    """F7／調整第 21 條：已保留小班、註冊時給中班 → provisional_grade 變中班，名額算在中班。"""
+    record = await record_at_stage(admin_client, "deposited")
+    seated = (await _seat(admin_client, record, "小班")).json()["visit"]
+    assert _rows(await _plan(admin_client))["小班"][1:3] == (1, 0)
+    enrolled = await transition(admin_client, seated, "enrolled", grade="中班")
+    assert (enrolled["provisional_grade"], enrolled["target_school_year"], enrolled["target_semester"]) == ("中班", 115, 1)
+    rows = _rows(await _plan(admin_client))
+    assert rows["小班"][1:3] == (0, 0)
+    assert rows["中班"][1:3] == (0, 1)

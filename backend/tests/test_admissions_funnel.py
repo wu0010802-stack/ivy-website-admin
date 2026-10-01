@@ -293,3 +293,14 @@ async def test_board_reports_applied_filters_and_as_of(admin_client):
     assert (body["campus_key"], body["school_year"], body["semester"]) == ("minghua", 115, 2)
     as_of = datetime.fromisoformat(body["as_of"])
     assert as_of.utcoffset() == timedelta(0) and before <= as_of <= after
+
+
+@pytest.mark.asyncio
+async def test_transition_on_other_campus_visit_is_404(admin_client, minghua_client):
+    """F7／R07：分校帳號對他校訪視做狀態轉換一律 404（不是 403），資料與版本不動。"""
+    record = await create_record(admin_client)
+    for to_stage, fields in (("deposited", {}), ("withdrawn", {"reason": "越權"})):
+        response = await _post(minghua_client, record, to_stage, **fields)
+        assert response.status_code == 404, response.text
+    current = (await admin_client.get(f"{RECORDS}/{record['id']}")).json()
+    assert (current["stage"], current["version"]) == ("visited", record["version"])
