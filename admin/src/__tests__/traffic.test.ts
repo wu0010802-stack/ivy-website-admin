@@ -64,8 +64,11 @@ describe('瀏覽統計面板', () => {
     expect(wrapper.find('h2').text()).toBe('官網瀏覽與速度（近 28 天）')
     expect(wrapper.find('.filter-field > span').text()).toBe('期間')
     const text = wrapper.text()
-    expect(text).toContain('目前只計算首頁、五校介紹頁與預約參觀頁')
-    expect(text).toContain('最新消息')
+    // 2026-09-30 起內頁也回報瀏覽：說明要寫進去，並提醒跨過這天的期間不能直接比。
+    expect(text).toContain('首頁、五校介紹頁、預約參觀頁')
+    expect(text).toContain('2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息')
+    expect(text).toContain('不能直接比較')
+    expect(text).not.toContain('還沒有計入')
     expect(text).not.toContain('只計算公開頁面')
   })
 

@@ -62,6 +62,15 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
   return { wrapper, get }
 }
 
+// 自訂區間：先把期間選單切到「自訂區間」，再選日期。
+async function pickRange(wrapper: VueWrapper, from: string, to: string) {
+  const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.attributes('aria-label') === '期間' || item.props('ariaLabel') === '期間')!
+  select.vm.$emit('update:modelValue', 'custom')
+  await flushPromises()
+  wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', [from, to])
+  await flushPromises()
+}
+
 describe('成效漏斗：期間、取消與來源維度', () => {
   it('預設看開站至今，列出取消數、取消率與取消原因', async () => {
     const { wrapper, get } = await setup()
@@ -76,7 +85,7 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(wrapper.find('.analytics__section-title').text()).toBe('各校預約（開站至今）')
   })
 
-  it('確認率只算官網表單的需求，補登另外寫；比例不會超過 100%', async () => {
+  it('確認率只算官網表單的需求，補登另外寫；比例不會超過 100%（2026/10/01 以前的期間）', async () => {
     const { wrapper } = await setup({
       ...funnel,
       counts: { ...outcome(2, 5, 6, 3) },
@@ -86,6 +95,7 @@ describe('成效漏斗：期間、取消與來源維度', () => {
         { source: 'line', counts: outcome(0, 1, 1, 0) },
       ],
     })
+    await pickRange(wrapper, '2026-09-01', '2026-09-30')
     const rows = wrapper.findAll('.funnel__row').map((row) => row.text())
     expect(rows[1]).toContain('官網需求的 100%')
     expect(rows[1]).toContain('另有後台補登 3 筆')
@@ -110,6 +120,7 @@ describe('成效漏斗：期間、取消與來源維度', () => {
         { source: 'unknown', counts: outcome(0, 2, 0, 2) },
       ],
     })
+    await pickRange(wrapper, '2026-09-01', '2026-09-30')
     const rows = wrapper.findAll('.funnel__row').map((row) => row.text())
     // 確認 7 = 官網 4＋補登 1＋未記錄來源 2。
     expect(rows[1]).toContain('官網需求的 50%')
@@ -120,6 +131,35 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(rows[3]).toContain('另有未記錄來源 2 筆')
     const webCard = wrapper.findAll('.analytics__record').find((card) => card.text().includes('官網表單'))!
     expect(webCard.text()).toContain('1（取消率 13%）')
+  })
+
+  it('期間碰到 2026/10/01 以後就不計官網確認率（自選場次送出即確認），補登與未記錄來源照寫', async () => {
+    const data = {
+      ...funnel,
+      counts: { ...outcome(8, 11, 3, 3) },
+      by_source: [
+        { source: 'web', counts: outcome(8, 8, 3, 1) },
+        { source: 'phone', counts: outcome(0, 1, 0, 0) },
+        { source: 'unknown', counts: outcome(0, 2, 0, 2) },
+      ],
+    }
+    // 預設「開站至今」包含 10/01 以後。
+    const { wrapper } = await setup(data)
+    const confirmedRow = () => wrapper.findAll('.funnel__row').map((row) => row.text())[1]!
+    expect(confirmedRow()).toContain('2026/10/01 起官網送出即預約成功，不計確認率')
+    expect(confirmedRow()).not.toContain('官網需求的')
+    expect(confirmedRow()).toContain('另有後台補登 1 筆')
+    expect(confirmedRow()).toContain('另有未記錄來源 2 筆')
+    const periodNote = wrapper.findAll('.analytics__note').find((note) => note.text().startsWith('依事件發生的日期'))!
+    expect(periodNote.text()).toContain('2026/10/01 起家長自選場次')
+    // 取消率照算。
+    expect(wrapper.findAll('.funnel__row')[3]!.text()).toContain('官網需求取消率 13%')
+
+    // 只要期間的結束日在 10/01 以後就不計；整段在 9 月則照舊。
+    await pickRange(wrapper, '2026-09-20', '2026-10-01')
+    expect(confirmedRow()).toContain('不計確認率')
+    await pickRange(wrapper, '2026-09-01', '2026-09-30')
+    expect(confirmedRow()).toContain('官網需求的 100%')
   })
 
   it('換條件時保留上一次的數字並寫「更新中…」，不整區換成骨架', async () => {

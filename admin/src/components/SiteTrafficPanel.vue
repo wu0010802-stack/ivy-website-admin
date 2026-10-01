@@ -78,8 +78,8 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
     <div v-else-if="summary" class="panel traffic__panel" :class="{ 'is-updating': updating }">
       <div class="panel__body traffic__body">
         <p class="hint">
-          全站五校合計，不分校區權限，和下方各校的預約數字不能直接相比。目前只計算首頁、五校介紹頁與預約參觀頁；
-          關於我們、特色教學、常春藤環境、入學資訊與最新消息等頁面還沒有計入。不記錄 IP、cookie 或個人資料；
+          全站五校合計，不分校區權限，和下方各校的預約數字不能直接相比。計算首頁、五校介紹頁、預約參觀頁，
+          2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息；期間跨過這天時，前後的瀏覽次數不能直接比較。不記錄 IP、cookie 或個人資料；
           訪客開啟「不要追蹤」時不計入。
         </p>
 

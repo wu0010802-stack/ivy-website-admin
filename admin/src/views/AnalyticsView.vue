@@ -125,14 +125,21 @@ const sourceCount = (key: string, match: (source: string) => boolean) =>
     .filter((row) => match(row.source))
     .reduce((sum, row) => sum + (row.counts[key] ?? 0), 0)
 
+// 2026-10-01 起家長自選場次：官網送出即預約成功，同時記「已送出需求」與「已確認預約」，
+// 官網確認率必為 100%。期間的結束日在這天以後（含開站至今）就不算確認率，免得和舊流程的
+// 人工確認混在一起；取消率照算。
+const SELF_BOOKING_SINCE = '2026-10-01'
+const coversSelfBooking = computed(() => !range.value || range.value.to >= SELF_BOOKING_SINCE)
+
 // 舊資料沒有記來源（「未記錄來源」）：不算進官網比例也不算補登，另外寫，總數才對得起來。
-function webShareNote(key: string, describe: (rate: string) => string): string {
+// skipRate 有值時改寫這段說明、不算官網比例（補登與未記錄來源照寫）。
+function webShareNote(key: string, describe: (rate: string) => string, skipRate?: string): string {
   const webCreated = webCounts.value.request_created ?? 0
   const manual = sourceCount(key, isManualSource)
   const unrecorded = sourceCount(key, (source) => source !== 'web' && !isManualSource(source))
   const rate = percent(webCounts.value[key] ?? 0, webCreated)
   return [
-    webCreated ? (rate ? describe(rate) : '含之前送出的需求，不計比例') : '',
+    skipRate ?? (webCreated ? (rate ? describe(rate) : '含之前送出的需求，不計比例') : ''),
     manual ? `另有後台補登 ${manual} 筆` : '',
     unrecorded ? `另有未記錄來源 ${unrecorded} 筆` : '',
   ].filter(Boolean).join('・')
@@ -147,7 +154,7 @@ const stages = computed(() => {
   const completedRate = percent(completed, confirmed)
   return [
     { key: 'created', label: '已送出需求', value: created, ratio: created / max, note: '家長在官網填表' },
-    { key: 'confirmed', label: '已確認預約', value: confirmed, ratio: confirmed / max, note: webShareNote('visit_confirmed', (rate) => `官網需求的 ${rate}`) },
+    { key: 'confirmed', label: '已確認預約', value: confirmed, ratio: confirmed / max, note: webShareNote('visit_confirmed', (rate) => `官網需求的 ${rate}`, coversSelfBooking.value ? '2026/10/01 起官網送出即預約成功，不計確認率' : undefined) },
     { key: 'completed', label: '已完成參觀', value: completed, ratio: completed / max, note: confirmed ? (completedRate ? `${completedRate} 的確認` : '含之前確認的預約，不計比例') : '' },
     { key: 'cancelled', label: '已取消', value: cancelled, ratio: cancelled / max, note: webShareNote('visit_cancelled', (rate) => `官網需求取消率 ${rate}`) },
   ]
@@ -252,7 +259,7 @@ const entryRows = computed(() =>
           </li>
         </ol>
         <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
-        <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。</p>
+        <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
       </section>
 
       <section class="panel">
