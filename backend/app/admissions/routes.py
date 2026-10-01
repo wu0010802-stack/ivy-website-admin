@@ -16,15 +16,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, constants, funnel, records
+from app.admissions import academic, constants, funnel, intake, records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsOptionsOut,
     FunnelBoardOut,
+    IntakePlanOut,
+    IntakeTargetsRequest,
     RecruitmentEventOut,
     RecruitmentVisitCreate,
     RecruitmentVisitOut,
     RecruitmentVisitUpdate,
+    SeatOut,
+    SeatRequest,
     TransitionRequest,
 )
 from app.auth.deps import get_current_user, get_db_session
@@ -325,3 +329,87 @@ async def get_funnel_board(
     _require_campus(current_user, "admissions.read", campus_key)
     year = school_year if school_year is not None else academic.current_term(today_local())[0]
     return FunnelBoardOut.model_validate(await funnel.board(db, campus_key, year, semester))
+
+
+@router.post("/admin/admissions/records/{visit_id}/seat", response_model=SeatOut)
+async def set_recruitment_seat(
+    visit_id: uuid.UUID,
+    payload: SeatRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> SeatOut:
+    """保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留。"""
+    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    try:
+        warning = await intake.set_seat(
+            db,
+            visit,
+            grade=payload.grade,
+            target_school_year=payload.target_school_year,
+            target_semester=payload.target_semester,
+            expected_version=payload.expected_version,
+            actor_user_id=current_user.id,
+        )
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    except intake.SeatNotAllowed as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "SEAT_NOT_ALLOWED", "message": exc.message},
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.seat",
+        target_type="recruitment_visit",
+        target_id=str(visit.id),
+        campus_key=visit.campus_key,
+        metadata={"grade_set": payload.grade is not None, "capacity_warning": warning},
+    )
+    await db.commit()
+    return SeatOut(
+        visit=RecruitmentVisitOut.model_validate(visit),
+        capacity_warning=warning,
+        warning_code="SEAT_CAPACITY_WARNING" if warning else None,
+    )
+
+
+@router.get("/admin/admissions/intake-plan", response_model=IntakePlanOut)
+async def get_intake_plan(
+    campus_key: str,
+    school_year: int = Query(ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
+    semester: int = Query(default=1, ge=1, le=2),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> IntakePlanOut:
+    _require_campus(current_user, "admissions.read", campus_key)
+    return IntakePlanOut.model_validate(await intake.intake_plan(db, campus_key, school_year, semester))
+
+
+@router.put("/admin/admissions/intake-targets", response_model=IntakePlanOut)
+async def save_intake_targets(
+    campus_key: str,
+    payload: IntakeTargetsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> IntakePlanOut:
+    """存計畫名額後回傳最新的名額規劃。沒有任何變動不寫稽核。"""
+    _require_campus(current_user, "admissions.write", campus_key)
+    changed = await intake.save_targets(
+        db, campus_key, payload.school_year, payload.semester, dict(payload.targets), current_user.id
+    )
+    if changed:
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="grade_intake_target.update",
+            target_type="grade_intake_target",
+            target_id=f"{campus_key}:{payload.school_year}:{payload.semester}",
+            campus_key=campus_key,
+            metadata={"school_year": payload.school_year, "semester": payload.semester, "grades": changed},
+        )
+    plan = await intake.intake_plan(db, campus_key, payload.school_year, payload.semester)
+    await db.commit()
+    return IntakePlanOut.model_validate(plan)

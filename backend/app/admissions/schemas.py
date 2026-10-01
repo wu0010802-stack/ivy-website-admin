@@ -291,3 +291,61 @@ class FunnelBoardOut(BaseModel):
     school_year: int
     # None＝整學年。
     semester: int | None
+
+
+class SeatRequest(BaseModel):
+    """保留座位（grade 有值）或釋放保留（grade 為 null）（規格 6.5）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grade: Grade | None
+    # 保留時必填（缺了回 422 SEAT_NOT_ALLOWED「保留座位需指定目標學年」）。
+    target_school_year: SchoolYear | None = None
+    # 沒給用上學期。
+    target_semester: Semester | None = None
+    expected_version: int = Field(ge=1)
+
+
+class SeatOut(BaseModel):
+    """A 計畫調整第 12 條：超額只警示，警示代碼放在回應，不是錯誤。"""
+
+    visit: RecruitmentVisitOut
+    capacity_warning: bool
+    warning_code: Literal["SEAT_CAPACITY_WARNING"] | None
+
+
+class IntakePlanRowOut(BaseModel):
+    grade: Grade
+    # None＝未設定（沒有計畫列），與「計畫名額 0」分開。
+    target_seats: int | None
+    reserved: int
+    enrolled: int
+    # 計畫−已保留−已註冊，可以是負數；未設定時 None。
+    remaining: int | None
+    over_capacity: bool
+
+
+class IntakePlanTotalsOut(BaseModel):
+    # 計畫名額與剩餘只加總有設定的年級；一個都沒設定時 None。
+    target_seats: int | None
+    reserved: int
+    enrolled: int
+    remaining: int | None
+
+
+class IntakePlanOut(BaseModel):
+    school_year: int
+    semester: int
+    rows: list[IntakePlanRowOut]
+    totals: IntakePlanTotalsOut
+
+
+class IntakeTargetsRequest(BaseModel):
+    """同校同學期一次送多個年級（規格 13 PUT /intake-targets）。值是 null＝刪除
+    該年級的計畫（回到「未設定」）；沒送的年級不動。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    school_year: SchoolYear
+    semester: Semester
+    targets: dict[Grade, Annotated[int, Field(ge=0, le=999)] | None]

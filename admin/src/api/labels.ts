@@ -454,6 +454,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.update': '修改招生訪視',
   'recruitment_visit.delete': '刪除招生訪視',
   'recruitment_visit.transition': '變更招生階段',
+  'recruitment_visit.seat': '保留或釋放座位',
+  'grade_intake_target.update': '設定計畫名額',
 }
 
 export function auditActionLabel(action: string): string {
@@ -544,6 +546,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   line_group: 'LINE 群組',
   line_verification_code: 'LINE 群組驗證碼',
   recruitment_visit: '招生訪視',
+  grade_intake_target: '計畫名額',
 }
 
 // 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。
@@ -1268,6 +1271,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 招生入學
   origin: (v) => `建立方式：${RECRUITMENT_ORIGIN_LABELS[String(v)] ?? String(v)}`,
   stage: (v) => `刪除時的階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
+  grade_set: (v) => (v ? '保留座位' : '釋放保留座位'),
+  capacity_warning: (v) => (v ? '超過計畫名額（只提醒，沒有擋下）' : null),
+  school_year: (v) => `入學學年：${String(v)} 學年`,
+  semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
+  grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。
