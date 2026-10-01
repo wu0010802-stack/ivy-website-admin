@@ -1,3 +1,16 @@
+## 2026-10-01 已完成改動併入 main（`merge/all-20261001`）
+
+使用者要求把所有已完成的改動併入 main；家長自選場次一起上線，並裁定正式庫現有的預約資料都是測試資料、不必先備份。
+
+- 基底：本機 `main` `2b05446`，已含全人教育 A2（`f718281`，web 已先單獨部署）與分校首次線稿（`099f03a`）。`03fc267`（09-24 舊的影片畫質提交）由那次合併以 ours 保留歷史，樹不變。
+- 併入 `merge/branches-20260930b` 還沒上 main 的兩個提交：`8187ccf`（CI 後端 job 逾時放寬到 30 分）、`bad55bb`（09-30 下午部署紀錄）。
+- 併入 `feature/parent-self-booking-20260930`（`0be93ea`，35 個提交，A–D 四階段）。
+- 衝突只有 README／deploy/README 的日期段落，兩邊都保留。兩邊都改到的程式檔只有 `web/tests/fixtures/overlay-baseline-20260925.json`（首屏標點／預約 FAQ 文案）與 `web/tests/ux-critique-20260929.spec.ts`（首屏／預約結果圖示），區塊不重疊。
+- 契約重產無差異；alembic 單一 head `c7d2e9f4a1b8`。這個 migration 會改寫資料：已有每週規則的 inquiry 校切成 slots，其餘切成 paused（各校到後台「參觀場次」設好後再開放）。
+- 沒併：30 週年比稿（PR #12 draft，待業主拍板）、Renovate（PR #1）、`feature/admin-seo-analytics-retention-20260925`（WIP）、Desktop 工作目錄的未提交修改（LINE／Google 登入的舊稿，正式版已在 main；分析報告與招生入學規格草稿）。
+
+驗證（Node 22.23.2）：backend pytest 1090 項（獨立測試庫；第一次在高負載下跑到 99% 後卡住、被 40 分鐘上限中止，重跑 13 分鐘全過）、schema guard、`deploy/tests` 20 項、`contract:check`；web typecheck（0 警告）、vitest 69 檔 689 項；admin typecheck、vitest 54 檔 699 項；production build 的 stack e2e 60 項（2.6 分）。
+
 ## 2026-10-01 分校資訊首次從線稿進場（未部署）
 
 `CampusBoard.vue` 的預設中央校與左右預覽一起預畫線稿，首次露出後接續水彩上色、暈開成照片，移除「彩色 → 線稿 → 彩色」的順序。SSR 即標記首張等待狀態，素材載入與動畫期間暫停輪播計時；素材失敗、減少動態、強制色彩及無 JavaScript 保留照片 fallback。手動切換、自動輪播節奏沿用既有設定。
