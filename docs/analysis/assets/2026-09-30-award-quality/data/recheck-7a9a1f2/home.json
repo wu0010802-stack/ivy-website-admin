@@ -1,0 +1,20 @@
+[
+  {
+    "device": "desktop",
+    "scrollHeight": 9008,
+    "campusesTop": 6099,
+    "campusHeadingTop": 6222,
+    "screensToHeading": 6.9,
+    "heroLinksToCampuses": [],
+    "firstScreenLinksToCampuses": []
+  },
+  {
+    "device": "mobile",
+    "scrollHeight": 8119,
+    "campusesTop": 4961,
+    "campusHeadingTop": 5038,
+    "screensToHeading": 6,
+    "heroLinksToCampuses": [],
+    "firstScreenLinksToCampuses": []
+  }
+]

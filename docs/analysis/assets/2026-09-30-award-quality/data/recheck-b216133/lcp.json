@@ -1,0 +1,172 @@
+[
+  {
+    "run": 1,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 1336,
+        "tag": "SPAN",
+        "url": "",
+        "size": 2903,
+        "box": [
+          126,
+          22
+        ]
+      },
+      {
+        "time": 1448,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.7,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.7,
+      "effectiveType": "4g"
+    },
+    "fcp": 1336,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": null,
+    "heroVideo": null,
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 6254,
+        "end": 7152
+      }
+    ]
+  },
+  {
+    "run": 2,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 1168,
+        "tag": "SPAN",
+        "url": "",
+        "size": 2903,
+        "box": [
+          127,
+          22
+        ]
+      },
+      {
+        "time": 1240,
+        "tag": "H1",
+        "url": "",
+        "size": 16089,
+        "box": [
+          350,
+          90
+        ]
+      },
+      {
+        "time": 1356,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.45,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.45,
+      "effectiveType": "4g"
+    },
+    "fcp": 1168,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": null,
+    "heroVideo": null,
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 6227,
+        "end": 7127
+      }
+    ]
+  },
+  {
+    "run": 3,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 1360,
+        "tag": "SPAN",
+        "url": "",
+        "size": 2903,
+        "box": [
+          126,
+          22
+        ]
+      },
+      {
+        "time": 1408,
+        "tag": "H1",
+        "url": "",
+        "size": 16089,
+        "box": [
+          350,
+          90
+        ]
+      },
+      {
+        "time": 1508,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.35,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.35,
+      "effectiveType": "4g"
+    },
+    "fcp": 1360,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": null,
+    "heroVideo": null,
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 6441,
+        "end": 7362
+      }
+    ]
+  }
+]

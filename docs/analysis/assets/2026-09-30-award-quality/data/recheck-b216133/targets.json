@@ -1,0 +1,234 @@
+[
+  {
+    "route": "/",
+    "name": "暫停影片",
+    "tag": "button",
+    "layout": {
+      "w": 44,
+      "h": 44
+    },
+    "visualAtLoad": "40×40",
+    "visual": {
+      "w": 43,
+      "h": 43
+    },
+    "hit": {
+      "w": 44,
+      "h": 44
+    },
+    "ancestorScale": 0.983
+  },
+  {
+    "route": "/",
+    "name": "所有最新消息",
+    "tag": "a",
+    "layout": {
+      "w": 84,
+      "h": 44
+    },
+    "visualAtLoad": "77×40",
+    "visual": {
+      "w": 84,
+      "h": 44
+    },
+    "hit": {
+      "w": 81,
+      "h": 45
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/about",
+    "name": "義華校",
+    "tag": "a",
+    "layout": {
+      "w": 70,
+      "h": 32
+    },
+    "visualAtLoad": "70×32",
+    "visual": {
+      "w": 70,
+      "h": 32
+    },
+    "hit": {
+      "w": 70,
+      "h": 32
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/about",
+    "name": "明華校",
+    "tag": "a",
+    "layout": {
+      "w": 70,
+      "h": 32
+    },
+    "visualAtLoad": "70×32",
+    "visual": {
+      "w": 70,
+      "h": 32
+    },
+    "hit": {
+      "w": 70,
+      "h": 32
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/about",
+    "name": "崇德校",
+    "tag": "a",
+    "layout": {
+      "w": 70,
+      "h": 32
+    },
+    "visualAtLoad": "70×32",
+    "visual": {
+      "w": 70,
+      "h": 32
+    },
+    "hit": {
+      "w": 70,
+      "h": 32
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/about",
+    "name": "國際校",
+    "tag": "a",
+    "layout": {
+      "w": 70,
+      "h": 32
+    },
+    "visualAtLoad": "70×32",
+    "visual": {
+      "w": 70,
+      "h": 32
+    },
+    "hit": {
+      "w": 70,
+      "h": 32
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/about",
+    "name": "仁武校",
+    "tag": "a",
+    "layout": {
+      "w": 70,
+      "h": 32
+    },
+    "visualAtLoad": "70×32",
+    "visual": {
+      "w": 70,
+      "h": 32
+    },
+    "hit": {
+      "w": 70,
+      "h": 32
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "首頁",
+    "tag": "a",
+    "layout": {
+      "w": 24,
+      "h": 44
+    },
+    "visualAtLoad": "24×44",
+    "visual": {
+      "w": 24,
+      "h": 44
+    },
+    "hit": {
+      "w": 24,
+      "h": 44
+    },
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "義華校，高雄市三民區義華路68號",
+    "tag": "input",
+    "layout": {
+      "w": 1,
+      "h": 1
+    },
+    "visualAtLoad": "1×1",
+    "visual": {
+      "w": 1,
+      "h": 1
+    },
+    "hit": null,
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "明華校，高雄市左營區明華一路176號",
+    "tag": "input",
+    "layout": {
+      "w": 1,
+      "h": 1
+    },
+    "visualAtLoad": "1×1",
+    "visual": {
+      "w": 1,
+      "h": 1
+    },
+    "hit": null,
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "崇德校，高雄市左營區崇德路87號",
+    "tag": "input",
+    "layout": {
+      "w": 1,
+      "h": 1
+    },
+    "visualAtLoad": "1×1",
+    "visual": {
+      "w": 1,
+      "h": 1
+    },
+    "hit": null,
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "國際校，高雄市鳥松區球場路59號",
+    "tag": "input",
+    "layout": {
+      "w": 1,
+      "h": 1
+    },
+    "visualAtLoad": "1×1",
+    "visual": {
+      "w": 1,
+      "h": 1
+    },
+    "hit": null,
+    "ancestorScale": 1
+  },
+  {
+    "route": "/visit",
+    "name": "仁武校，高雄市仁武區京吉一路102號",
+    "tag": "input",
+    "layout": {
+      "w": 1,
+      "h": 1
+    },
+    "visualAtLoad": "1×1",
+    "visual": {
+      "w": 1,
+      "h": 1
+    },
+    "hit": null,
+    "ancestorScale": 1
+  }
+]

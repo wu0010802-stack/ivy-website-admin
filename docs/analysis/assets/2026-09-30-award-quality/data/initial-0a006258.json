@@ -1,0 +1,208 @@
+{
+  "note": "09-30 初測（線上 0a006258）原始數據摘錄；完整檔在本機 output/playwright/award-quality-20260930/（gitignore）",
+  "capturedAt": "2026-09-30T05:21:23.823Z",
+  "slowMobileLab": [
+    {
+      "run": 1,
+      "profile": "390x844, cold cache, 1.6Mbps down, 750Kbps up, 150ms latency, 4x CPU",
+      "fcp": 1560,
+      "lcp": {
+        "value": 4316,
+        "element": "VIDEO"
+      },
+      "cls": 0,
+      "largeResources": [
+        {
+          "name": "4gI5Z-_B.js",
+          "size": 150173,
+          "duration": 3240
+        },
+        {
+          "name": "hero-mobile-ba791e4aa97c.mp4",
+          "size": 2256289,
+          "duration": 11558
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "profile": "390x844, cold cache, 1.6Mbps down, 750Kbps up, 150ms latency, 4x CPU",
+      "fcp": 1576,
+      "lcp": {
+        "value": 4184,
+        "element": "VIDEO"
+      },
+      "cls": 0,
+      "largeResources": [
+        {
+          "name": "4gI5Z-_B.js",
+          "size": 150173,
+          "duration": 3240
+        },
+        {
+          "name": "hero-mobile-ba791e4aa97c.mp4",
+          "size": 2256289,
+          "duration": 11556
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "profile": "390x844, cold cache, 1.6Mbps down, 750Kbps up, 150ms latency, 4x CPU",
+      "fcp": 1200,
+      "lcp": {
+        "value": 4108,
+        "element": "VIDEO"
+      },
+      "cls": 9.813032448242518e-05,
+      "largeResources": [
+        {
+          "name": "4gI5Z-_B.js",
+          "size": 150173,
+          "duration": 3274
+        },
+        {
+          "name": "hero-mobile-ba791e4aa97c.mp4",
+          "size": 2256289,
+          "duration": 11631
+        }
+      ]
+    }
+  ],
+  "lighthouseSnapshot": [
+    {
+      "url": "/",
+      "version": "13.4.1",
+      "mode": "snapshot",
+      "categories": {
+        "accessibility": 1,
+        "best-practices": 1,
+        "seo": 1
+      },
+      "failed": [
+        {
+          "id": "label-content-name-mismatch",
+          "title": "Elements with visible text labels do not have matching accessible names.",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "url": "/about",
+      "version": "13.4.1",
+      "mode": "snapshot",
+      "categories": {
+        "accessibility": 0.96,
+        "best-practices": 1,
+        "seo": 1
+      },
+      "failed": [
+        {
+          "id": "color-contrast",
+          "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+          "score": 0
+        }
+      ]
+    },
+    {
+      "url": "/visit/renwu",
+      "version": "13.4.1",
+      "mode": "snapshot",
+      "categories": {
+        "accessibility": 1,
+        "best-practices": 1,
+        "seo": 0.83
+      },
+      "failed": [
+        {
+          "id": "meta-description",
+          "title": "Document does not have a meta description",
+          "score": 0
+        }
+      ]
+    }
+  ],
+  "browserChecks": {
+    "release": {
+      "snapshot": "a3f67e9d15a83f21a9dd7f4a705af9a022792620c5c12727d886443d57654236",
+      "base_commit": "0a006258ea36c08d3fb9579fdbd0301b7940f496",
+      "created_at": "2026-09-30T04:13:10.023758+00:00",
+      "source": "GitHub Actions: committed production snapshot",
+      "service": "web+api"
+    },
+    "routeChecks": 37,
+    "overflows": [],
+    "pageErrors": 0,
+    "mobileHome": {
+      "scrollHeight": 8232,
+      "smallTargetsAtLoad": [
+        {
+          "tag": "BUTTON",
+          "name": "暫停影片",
+          "w": 40,
+          "h": 40
+        },
+        {
+          "tag": "A",
+          "name": "所有最新消息",
+          "w": 77,
+          "h": 40
+        }
+      ]
+    },
+    "interactions": [
+      {
+        "device": "desktop",
+        "test": "news_rotation",
+        "changed": true,
+        "controls": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "示意日期未定義華校親子共讀・故事的午後",
+          "示意日期未定全校一起出發！親子探索日",
+          " 所有活動 "
+        ]
+      },
+      {
+        "device": "desktop",
+        "test": "visit_step2"
+      },
+      {
+        "device": "mobile",
+        "test": "news_rotation",
+        "changed": false,
+        "controls": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "示意日期未定義華校親子共讀・故事的午後",
+          "示意日期未定全校一起出發！親子探索日",
+          " 所有活動 "
+        ]
+      },
+      {
+        "device": "mobile",
+        "test": "visit_step2"
+      },
+      {
+        "test": "reduced_motion_home",
+        "entrance": 0
+      }
+    ]
+  }
+}

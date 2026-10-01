@@ -1,0 +1,290 @@
+[
+  {
+    "device": "desktop",
+    "route": "/",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/about",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/curriculum",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/environment",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/admission",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/news",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/visit",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/campuses/yihua",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/campuses/minghua",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/campuses/chongde",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/campuses/international",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "desktop",
+    "route": "/campuses/renwu",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/about",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/curriculum",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/environment",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/admission",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/news",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/visit",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/campuses/yihua",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/campuses/minghua",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/campuses/chongde",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/campuses/international",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "mobile",
+    "route": "/campuses/renwu",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/about",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/curriculum",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/environment",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/admission",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-320",
+    "route": "/visit",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/about",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/curriculum",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/environment",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/admission",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  },
+  {
+    "device": "width-768",
+    "route": "/visit",
+    "status": 200,
+    "overflow": 0,
+    "brokenImages": [],
+    "pageErrors": []
+  }
+]

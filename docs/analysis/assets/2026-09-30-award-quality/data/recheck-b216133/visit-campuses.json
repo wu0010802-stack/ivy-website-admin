@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-01",
+  "release": "b216133",
+  "method": "390×844 開 /visit/<key>（已選校的第二步），不填資料、不送出；非 GET 請求一律擋下",
+  "campuses": {
+    "yihua": { "onlineBooking": true, "headings": ["填寫參觀資料", "孩子與家長資料", "預約場次必填", "如何知道常春藤幼兒園？可複選・選填"] },
+    "minghua": { "onlineBooking": false, "headings": ["歡迎與明華校聯絡"], "copy": "線上預約即將開放，歡迎來電洽詢。" },
+    "chongde": { "onlineBooking": false, "headings": ["歡迎與崇德校聯絡"], "copy": "線上預約即將開放，歡迎來電洽詢。" },
+    "international": { "onlineBooking": false, "headings": ["歡迎與國際校聯絡"], "copy": "線上預約即將開放，歡迎來電洽詢。" },
+    "renwu": { "onlineBooking": false, "headings": ["歡迎與仁武校聯絡"], "copy": "線上預約即將開放，歡迎來電洽詢。" }
+  }
+}

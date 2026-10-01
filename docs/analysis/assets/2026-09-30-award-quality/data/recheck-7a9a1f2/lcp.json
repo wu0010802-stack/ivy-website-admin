@@ -1,0 +1,202 @@
+[
+  {
+    "run": 1,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 3056,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      },
+      {
+        "time": 5484,
+        "tag": "VIDEO",
+        "url": "hero-mobile-ba791e4aa97c.mp4",
+        "size": 197730,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.65,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.65,
+      "effectiveType": "4g"
+    },
+    "fcp": 3056,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": [
+      390,
+      506.4
+    ],
+    "heroVideo": {
+      "src": "hero-mobile-ba791e4aa97c.mp4",
+      "paused": false
+    },
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 513,
+        "end": 3660
+      }
+    ]
+  },
+  {
+    "run": 2,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 1648,
+        "tag": "SPAN",
+        "url": "",
+        "size": 2903,
+        "box": [
+          126,
+          22
+        ]
+      },
+      {
+        "time": 1676,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      },
+      {
+        "time": 4700,
+        "tag": "VIDEO",
+        "url": "hero-mobile-ba791e4aa97c.mp4",
+        "size": 197730,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.65,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.65,
+      "effectiveType": "4g"
+    },
+    "fcp": 1648,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": [
+      390,
+      506.4
+    ],
+    "heroVideo": {
+      "src": "hero-mobile-ba791e4aa97c.mp4",
+      "paused": false
+    },
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 474,
+        "end": 3539
+      },
+      {
+        "name": "hero-mobile-ba791e4aa97c.mp4",
+        "bytes": 2256289,
+        "start": 4181,
+        "end": 15638
+      }
+    ]
+  },
+  {
+    "run": 3,
+    "downlinkOverride": null,
+    "lcp": [
+      {
+        "time": 1540,
+        "tag": "SPAN",
+        "url": "",
+        "size": 2903,
+        "box": [
+          126,
+          22
+        ]
+      },
+      {
+        "time": 1576,
+        "tag": "IMG",
+        "url": "hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "size": 170880,
+        "box": [
+          390,
+          506
+        ]
+      },
+      {
+        "time": 4600,
+        "tag": "VIDEO",
+        "url": "hero-mobile-ba791e4aa97c.mp4",
+        "size": 197730,
+        "box": [
+          390,
+          506
+        ]
+      }
+    ],
+    "connectionAtStart": {
+      "downlink": 1.55,
+      "effectiveType": "4g"
+    },
+    "cls": 0,
+    "connectionAtEnd": {
+      "downlink": 1.55,
+      "effectiveType": "4g"
+    },
+    "fcp": 1540,
+    "heroPosterBox": [
+      390,
+      506.4
+    ],
+    "heroVideoBox": [
+      390,
+      506.4
+    ],
+    "heroVideo": {
+      "src": "hero-mobile-ba791e4aa97c.mp4",
+      "paused": false
+    },
+    "largeResources": [
+      {
+        "name": "4gI5Z-_B.js",
+        "bytes": 150173,
+        "start": 431,
+        "end": 3499
+      },
+      {
+        "name": "hero-mobile-ba791e4aa97c.mp4",
+        "bytes": 2256289,
+        "start": 4063,
+        "end": 15546
+      }
+    ]
+  }
+]
