@@ -5,6 +5,7 @@ import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
 import IntakePlanTab from '../components/admissions/IntakePlanTab.vue'
+import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { getArrivals, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
@@ -83,6 +84,10 @@ function showUnscoped() {
   clearTerm()
   tab.value = 'records'
 }
+// 官網預約分頁讀完清單會回報待確認筆數；標記到場後標籤上的數字跟著變。
+function onArrivalsCount(count: number) {
+  arrivalsCount.value = count
+}
 </script>
 
 <template>
@@ -136,6 +141,7 @@ function showUnscoped() {
           @clear-term="clearTerm"
         />
         <IntakePlanTab v-if="tab === 'intake'" :campus-key="campus" :school-year="schoolYear" :semester="semester" />
+        <ArrivalsTab v-if="tab === 'arrivals' && canSeeArrivals" :campus-key="campus" @count="onArrivalsCount" />
         <StatsTab v-if="tab === 'stats'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @go="goTab" />
       </div>
     </template>

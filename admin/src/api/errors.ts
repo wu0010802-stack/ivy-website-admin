@@ -29,6 +29,8 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   RECRUITMENT_VISIT_VERSION_CONFLICT: '這筆招生訪視剛被其他人修改，請重新載入後再操作',
   RECRUITMENT_VISIT_ANONYMIZED: '這筆招生訪視已依保存政策匿名化，不能再修改',
   TRANSITION_NOT_ALLOWED: '這個階段不能直接移過去',
+  VISIT_REQUEST_NOT_COMPLETED: '這筆預約不是「已到場」，不能建立招生訪視',
+  VISIT_REQUEST_ANONYMIZED: '這筆預約已依保存政策匿名化，不能再建立招生訪視',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 
