@@ -7,7 +7,6 @@ import ElementPlus from 'element-plus'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import VisitSlotsView from '../views/VisitSlotsView.vue'
 import { useAuthStore } from '../stores/auth'
-import { useOpenRequestsStore } from '../stores/openRequests'
 import { api } from '../api/client'
 import { testUser } from './fixtures'
 
@@ -25,30 +24,32 @@ async function mountView(component: object, path: string) {
   return { wrapper, pinia }
 }
 
-describe('案件列表的狀態頁籤', () => {
-  it('一鍵切換狀態並帶給後端，待處理兩種狀態顯示側欄同源的數字', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const { wrapper, pinia } = await mountView(VisitRequestsView, '/visit-requests')
-    useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 2 })
+describe('案件列表的分組頁籤', () => {
+  const countsMock = (counts: Record<string, number>) => vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
+    (path.startsWith('/admin/visit-requests/group-counts') ? counts : []) as never)
+
+  it('一鍵切換分組並帶給後端，數字來自 group-counts', async () => {
+    const get = countsMock({ pending: 4, upcoming: 3, past: 2, cancelled: 1 })
+    const { wrapper } = await mountView(VisitRequestsView, '/visit-requests')
     await flushPromises()
     const tabs = wrapper.findAll('.status-tab')
-    // 「聯絡中」沒有側欄數字（不是待辦），只有兩種待處理狀態帶數字。
-    expect(tabs.map(tab => tab.text())).toEqual(['全部', '待處理4 件', '聯絡中', '待園方確認2 件', '已確認', '已完成', '未到場', '已取消'])
+    expect(tabs.map(tab => tab.text().replace(/\s+/g, ''))).toEqual(['全部', '待處理4件', '預約正常3件', '時間已過2件', '已取消1件'])
     expect(tabs[0]!.attributes('aria-pressed')).toBe('true')
-    await tabs[3]!.trigger('click')
+    await tabs[2]!.trigger('click')
     await flushPromises()
-    expect(String(get.mock.calls.at(-1)![0])).toContain('status=pending_confirmation')
-    expect(wrapper.findAll('.status-tab')[3]!.attributes('aria-pressed')).toBe('true')
+    const lists = get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests?'))
+    expect(lists.at(-1)).toContain('group=upcoming')
+    expect(wrapper.findAll('.status-tab')[2]!.attributes('aria-pressed')).toBe('true')
   })
 
-  it('縮小到單一校區時不顯示總數，避免和清單對不上', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const { wrapper, pinia } = await mountView(VisitRequestsView, '/visit-requests')
-    useOpenRequestsStore(pinia).apply({ new_requests: 4, awaiting_confirmation: 2 })
+  it('縮小到單一校區時，數字也跟著帶校區條件重算', async () => {
+    const get = countsMock({ pending: 0, upcoming: 3, past: 0, cancelled: 0 })
+    const { wrapper } = await mountView(VisitRequestsView, '/visit-requests')
     wrapper.findAllComponents({ name: 'ElSelect' })[0]!.vm.$emit('update:modelValue', 'yihua')
     await flushPromises()
-    expect(wrapper.findAll('.status-tab__count')).toHaveLength(1) // 只剩「更多篩選」上的套用數
-    expect(wrapper.get('.more-filters').text()).toContain('1')
+    const counts = get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests/group-counts'))
+    expect(counts.at(-1)).toContain('campus_key=yihua')
+    expect(counts.at(-1)).not.toContain('group=')
   })
 })
 

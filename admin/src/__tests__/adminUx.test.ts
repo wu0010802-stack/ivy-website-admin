@@ -148,7 +148,8 @@ describe('後台導覽與編輯操作', () => {
 
   it('搜尋停止輸入後才查詢，並把關鍵字帶進 q 參數', async () => {
     const { global } = await setup('/visit-requests')
-    const get = vi.spyOn(api, 'get').mockResolvedValue([])
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
+      (path.startsWith('/admin/visit-requests/group-counts') ? { pending: 0, upcoming: 0, past: 0, cancelled: 0 } : []) as never)
     const wrapper = mount(VisitRequestsView, { global })
     wrappers.push(wrapper)
     await flushPromises()
@@ -160,8 +161,9 @@ describe('後台導覽與編輯操作', () => {
 
     await new Promise(resolve => setTimeout(resolve, 350))
     await flushPromises()
-    expect(get).toHaveBeenCalledOnce()
-    expect(String(get.mock.calls[0]![0])).toContain('q=%E9%99%B3')
+    const listCalls = get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests?'))
+    expect(listCalls).toHaveLength(1)
+    expect(listCalls[0]).toContain('q=%E9%99%B3')
     expect(wrapper.text()).toContain('找不到符合「陳」的案件')
   })
 
@@ -169,10 +171,15 @@ describe('後台導覽與編輯操作', () => {
     const { global } = await setup('/visit-requests')
     let resolveOld!: (value: unknown[]) => void
     const oldRequest = new Promise<unknown[]>(resolve => { resolveOld = resolve })
-    vi.spyOn(api, 'get').mockImplementationOnce(() => oldRequest as Promise<never>).mockResolvedValueOnce([])
+    let listCall = 0
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/visit-requests/group-counts')) return { pending: 1, upcoming: 0, past: 0, cancelled: 0 } as never
+      return (listCall++ === 0 ? oldRequest : []) as never
+    })
     const wrapper = mount(VisitRequestsView, { global })
     wrappers.push(wrapper)
-    await wrapper.findAll('.status-tab').find(tab => tab.text() === '待處理')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('待處理'))!.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('沒有「待處理」的案件')
     resolveOld([{ id: 'old-result', parent_name: '過時的篩選結果', status: 'confirmed', campus_key: 'renwu', phone: '000', created_at: '2026-09-21T00:00:00Z' }])

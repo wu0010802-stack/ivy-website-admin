@@ -53,10 +53,10 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
   it('網址上的條件（含搜尋、來源、送出日期與頁數）掛載時全部讀回來', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([request()] as never)
     const { wrapper } = await mountAt(VisitRequestsView,
-      '/visit-requests?status=new&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&assignee=me&order=oldest&page=3&campus=renwu')
+      '/visit-requests?group=pending&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&assignee=me&order=oldest&page=3&campus=renwu')
     expect(listCalls(get)).toHaveLength(1)
     expect(Object.fromEntries(lastListQuery(get))).toEqual({
-      status: 'new', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07', assignee: 'me',
+      group: 'pending', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07', assignee: 'me',
       campus_key: 'renwu', order: 'oldest', page: '3', page_size: '20',
     })
     expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('待處理'))!.attributes('aria-pressed')).toBe('true')
@@ -69,20 +69,20 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const replace = vi.spyOn(router, 'replace')
     const push = vi.spyOn(router, 'push')
 
-    await wrapper.findAll('.status-tab').find(tab => tab.text() === '已確認')!.trigger('click')
+    await wrapper.findAll('.status-tab').find(tab => tab.text() === '預約正常')!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ status: 'confirmed', order: 'oldest' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming', order: 'oldest' })
     expect(lastListQuery(get).get('page')).toBe('1')
     expect(listCalls(get)).toHaveLength(2)
 
     await wrapper.findAll('button').find(button => button.text() === '下一頁')!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ status: 'confirmed', order: 'oldest', page: '2' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming', order: 'oldest', page: '2' })
     expect(listCalls(get)).toHaveLength(3)
 
     wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2026-09-01', '2026-09-07'])
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ status: 'confirmed', order: 'oldest', created_from: '2026-09-01', created_to: '2026-09-07' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming', order: 'oldest', created_from: '2026-09-01', created_to: '2026-09-07' })
     expect(listCalls(get)).toHaveLength(4)
     expect(push).not.toHaveBeenCalled()
     expect(replace).toHaveBeenCalledTimes(3)
@@ -109,10 +109,10 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
       if (!path.startsWith('/admin/visit-requests?')) return [] as never
       return (new URLSearchParams(path.split('?')[1]).get('page') === '1' ? [request()] : []) as never
     })
-    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=pending&page=2')
     expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '1'])
-    expect(lastListQuery(get).get('status')).toBe('new')
-    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(lastListQuery(get).get('group')).toBe('pending')
+    expect(router.currentRoute.value.query).toEqual({ group: 'pending' })
     expect(wrapper.text()).toContain('王媽媽')
     expect(wrapper.text()).not.toContain('沒有「待處理」的案件')
     expect(wrapper.find('.pager').exists()).toBe(false)
@@ -120,9 +120,9 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
 
   it('第一頁也沒有案件才顯示空狀態', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=pending&page=2')
     expect(listCalls(get)).toHaveLength(2)
-    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'pending' })
     expect(wrapper.find('.requests-mobile .requests-empty').text()).toContain('沒有「待處理」的案件')
   })
 
@@ -132,11 +132,11 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
       const page = new URLSearchParams(path.split('?')[1]).get('page')
       return (page === '1' ? Array.from({ length: 20 }, (_, i) => request({ id: `case-${i}` })) : []) as never
     })
-    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new')
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=pending')
     await wrapper.findAll('button').find(button => button.text() === '下一頁')!.trigger('click')
     await flushPromises()
     expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['1', '2'])
-    expect(router.currentRoute.value.query).toEqual({ status: 'new', page: '2' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'pending', page: '2' })
     const empty = wrapper.get('.requests-mobile .requests-empty')
     expect(empty.text()).toContain('後面沒有更多案件了')
     expect(empty.text()).toContain('前面的頁數還有案件')
@@ -145,20 +145,20 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
 
     await empty.findAll('button').find(button => button.text() === '回上一頁')!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'pending' })
     expect(wrapper.findAll('.request-list li')).toHaveLength(20)
   })
 
   it('側欄或總覽連結改了網址就套用新條件；點進案件時不會清掉條件重查', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new')
-    await router.push('/visit-requests?status=pending_confirmation&order=oldest')
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=pending')
+    await router.push('/visit-requests?group=pending&order=oldest')
     await flushPromises()
-    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('待園方確認'))!.attributes('aria-pressed')).toBe('true')
-    expect(lastListQuery(get).get('status')).toBe('pending_confirmation')
+    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('待處理'))!.attributes('aria-pressed')).toBe('true')
+    expect(lastListQuery(get).get('group')).toBe('pending')
     expect(lastListQuery(get).get('order')).toBe('oldest')
     expect(listCalls(get)).toHaveLength(2)
-    expect(router.currentRoute.value.fullPath).toBe('/visit-requests?status=pending_confirmation&order=oldest')
+    expect(router.currentRoute.value.fullPath).toBe('/visit-requests?group=pending&order=oldest')
 
     await router.push('/visit-requests/case-a')
     await flushPromises()
@@ -266,14 +266,14 @@ describe('案件列表：切回分頁時更新', () => {
       if (listRequests === 1) return [request({ id: 'case-old', parent_name: '第二頁的家長' })] as never
       return (new URLSearchParams(path.split('?')[1]).get('page') === '1' ? [request({ id: 'case-first', parent_name: '第一頁的家長' })] : []) as never
     })
-    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=new&page=2')
+    const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=pending&page=2')
     expect(wrapper.text()).toContain('第二頁的家長')
 
     vi.setSystemTime(new Date('2026-09-28T09:01:05+08:00'))
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
     expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '2', '1'])
-    expect(router.currentRoute.value.query).toEqual({ status: 'new' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'pending' })
     expect(wrapper.text()).toContain('第一頁的家長')
     expect(wrapper.text()).not.toContain('沒有「待處理」的案件')
   })

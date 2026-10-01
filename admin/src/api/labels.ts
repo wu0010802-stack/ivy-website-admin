@@ -65,11 +65,37 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
 
 export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
-export const VISIT_GROUP_LABELS: Record<string, string> = {
-  pending: '待處理',
-  upcoming: '預約正常',
-  past: '時間已過',
-  cancelled: '已取消',
+// 列表分組（2026-09-30 業主裁定，參考義華舊後台）：資料庫狀態不變，只在顯示上歸組。
+export const VISIT_GROUPS = ['pending', 'upcoming', 'past', 'cancelled'] as const
+export type VisitGroup = typeof VISIT_GROUPS[number]
+export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { pending: '待處理', upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
+
+const LEGACY_STATUS_GROUP: Record<string, VisitGroup> = {
+  new: 'pending', contacting: 'pending', pending_confirmation: 'pending',
+  confirmed: 'upcoming', completed: 'past', no_show: 'past', cancelled: 'cancelled',
+}
+export function legacyStatusGroup(status: string): VisitGroup | '' {
+  return LEGACY_STATUS_GROUP[status] ?? ''
+}
+
+const CANCELLED_BY_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
+const PENDING_SUB: Record<string, string> = { contacting: '聯絡中', pending_confirmation: '待確認' }
+// confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
+const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
+
+export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
+  switch (row.display_status) {
+    case 'upcoming':
+      return { label: '預約正常', tone: 'success', sub: '' }
+    case 'past':
+      return { label: '預約時間已過', tone: 'info', sub: PAST_SUB[row.status] ?? '' }
+    case 'cancelled': {
+      const who = (row.cancel_reason && CANCELLED_BY_LABELS[row.cancel_reason]) || '取消時間'
+      return { label: '預約已取消', tone: 'danger', sub: row.cancelled_at ? `${who}：${formatDateTime(row.cancelled_at)}` : '' }
+    }
+    default:
+      return { label: '待處理', tone: 'warning', sub: PENDING_SUB[row.status] ?? '' }
+  }
 }
 
 export function visitStatus(status: string): StatusMeta {
@@ -1103,7 +1129,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     if (action === 'notification_outbox.retry') return OUTBOX_RETRY_SOURCE_LABELS[String(v)] ?? '重新寄送'
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
-  group: (v) => `篩選分組：${VISIT_GROUP_LABELS[String(v)] ?? String(v)}`,
+  group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : '指定的同事'}`,
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),

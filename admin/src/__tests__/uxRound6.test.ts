@@ -105,11 +105,11 @@ describe('下一筆跟著來源列表', () => {
   it('列表點進案件時帶上條件；沒篩狀態（全部）就不帶', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([kase()] as never)
     const router = makeRouter()
-    await router.push('/visit-requests?status=new&order=oldest'); await router.isReady()
+    await router.push('/visit-requests?group=pending&order=oldest'); await router.isReady()
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     const link = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
-    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=status=new&order=oldest')
+    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=group=pending&order=oldest')
 
     await router.push('/visit-requests'); await flushPromises()
     const plain = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
