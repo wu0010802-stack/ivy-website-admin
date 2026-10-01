@@ -1,3 +1,11 @@
+## 2026-10-01 全人教育右側採用 A2（`feature/whole-person-a2-20261001`，已部署 web）
+
+依使用者指定，只替換 `/about#whole-child` 右側紙轉盤；左頁內容、DOM、列表、來源、連結、尺寸與元素位置保持。新增 `AboutWholePerson.vue`，六個透明圓聚合成全人，8.6 秒播放一次，依最新要求移除下方操作鈕，保留離開視窗暫停；減少動態、強制色彩和無 JS 顯示完成圖。移除原轉盤的樣式、事件、角度工具與 3 項專屬測試。
+
+- 基底：最新取得的 `origin/main` `392a41c`；隔離工作目錄 `/private/tmp/ivy-website-whole-person-a2-20261001`。本機 fixture 預覽 `http://127.0.0.1:3931/about#whole-child`，未連正式 API、未修改 CMS。
+- 驗證：Node 22.23.2 typecheck 成功；`npm run test:website` 65 檔 665 項全過（修改前 668 項，差額是已移除的轉盤測試）。Playwright 1440／1024／768／390／320px 左頁 DOM、所有元素尺寸與相對位置一致，無橫向溢出；移除按鈕後已重新驗證桌機與手機自動播放、離屏暫停與續播、減少動態、無 JS，無 page error。未驗 Safari／iOS 實機。
+- 本機修改前快照 `versions/before-whole-person-a2-20261001/`（不納入提交）；截圖、左頁基準、檢查腳本與結果 `output/playwright/whole-person-a2/`。已依最新要求只部署 web（`f24d6e9b-cf09-4e5c-9fd6-7e4ecd88fe69`，SUCCESS），線上 release 與桌機手機驗證完成；本次提交保存已上線的六檔差異與紀錄，未 push。API／DB 部署不變，詳細紀錄見 `deploy/README.md`。
+
 ## 2026-09-30 下午已完成分支併入 main（`merge/branches-20260930b`）
 
 併入三個已提交、worktree 乾淨的分支，各自說明見下方同日段落：`feature/tassels-five-20260930`（開場布幕流蘇固定五顆）、`feature/height-ruler-20260930`（首頁拿掉桌機章節指示）、`feature/mobile-perf-20260930`（手機效能第三輪）。合併基底是 main `7189998`（首屏筆刷的部署紀錄）。

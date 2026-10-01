@@ -1,6 +1,6 @@
 /* 關於常春藤頁（/about）立體書版（2026-09-29，使用者選定 J：design/about-style-directions-20260929/j-popup.*）
    整頁是一本攤在淡綠桌面上的立體繪本：每段一個跨頁，左頁文字、右頁照片卡紙；卡紙是品牌色。
-   動態（翻頁 --open、卡紙 --up、紙條 --pull、轉盤 --rot）由 utils/about-popup.ts 寫進 CSS 變數；
+   動態（翻頁 --open、卡紙 --up、紙條 --pull）由 utils/about-popup.ts 寫進 CSS 變數；
    沒有 JS 時預設 --open:1、--up:1、--pull:0，書是攤開的、卡紙是站好的。
    顏色一律走站內 token；透明度用 RGB 三元組（--ink）。不再共用 admission.css。 */
 
@@ -77,7 +77,7 @@
 .abk-tab:active{cursor:grabbing}
 .abk-tab:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:3px}
 
-/* ---------- 02 全人教育：紙轉盤 ---------- */
+/* ---------- 02 全人教育：左頁清單（右頁六圈樣式在 AboutWholePerson） ---------- */
 .abk-lists{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
 .abk-lists h3{font-size:var(--fs-xs);font-weight:600;letter-spacing:.12em;color:var(--muted)}
 .abk-lists ol{list-style:none;margin:6px 0 0;padding:0}
@@ -86,21 +86,6 @@
 .abk-fine small{display:block;margin-top:4px;font-size:var(--fs-xs)}
 .abk-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:16px;font-weight:700;color:var(--green);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
 .abk-link .icon{width:18px;height:18px}
-.abk-wheel-wrap{display:grid;align-content:center;justify-items:center;gap:14px;height:100%;min-height:inherit}
-.abk-wheel{position:relative;width:min(92%,480px);aspect-ratio:1;container-type:inline-size;touch-action:none;cursor:grab}
-.abk-wheel:active{cursor:grabbing}
-.abk-disc{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from -30deg,rgb(var(--ivy-paint-orange-rgb)) 0 60deg,rgb(var(--ivy-paint-sky-rgb)) 0 120deg,rgb(var(--ivy-paint-sun-rgb)) 0 180deg,rgb(var(--ivy-paint-leaf-rgb)) 0 240deg,rgb(var(--ivy-paint-mint-rgb)) 0 300deg,var(--trail) 0 360deg);box-shadow:0 10px 24px -10px rgb(var(--ink)/.4);transform:rotate(var(--rot,0deg))}
-.abk-disc span{position:absolute;left:50%;top:50%;width:0;height:0;transform:rotate(calc(var(--i) * 60deg))}
-.abk-disc b{position:absolute;left:0;top:-48.5cqw;width:max-content;transform:translateX(-50%);white-space:pre-line;font:800 4.2cqw/1.2 var(--font-head);text-align:center;color:var(--ivy-forest)}
-/* 蓋在轉盤上的卡紙：整片蓋住，只在頂端外圈挖一個扇形窗（圓心附近不挖） */
-.abk-cover{position:absolute;inset:-3%;display:grid;place-content:center;justify-items:center;gap:10px;border-radius:50%;background:var(--cream);box-shadow:0 6px 16px rgb(var(--ink)/.25);-webkit-mask:conic-gradient(from -26deg,transparent 0 52deg,rgb(var(--ink)) 0),radial-gradient(circle,rgb(var(--ink)) 0 36%,transparent 36.5%);mask:conic-gradient(from -26deg,transparent 0 52deg,rgb(var(--ink)) 0),radial-gradient(circle,rgb(var(--ink)) 0 36%,transparent 36.5%);pointer-events:none}
-.abk-cover b{font:800 9cqw/1 var(--font-head);color:var(--ivy-forest)}
-.abk-cover small{font-size:var(--fs-sm);font-weight:700;color:var(--muted)}
-.abk-wheel-out{min-height:1.6em;font-weight:800;font-size:var(--fs-lg);color:var(--ivy-forest)}
-.abk-turn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 20px;border:0;border-radius:99px;background:var(--ivy-forest);color:var(--white);font:700 var(--fs-md)/1 var(--font);cursor:pointer;box-shadow:0 3px 0 rgb(var(--ink)/.5)}
-.abk-turn .icon{width:18px;height:18px}
-.abk-turn:active{transform:translateY(2px);box-shadow:0 1px 0 rgb(var(--ink)/.5)}
-
 /* ---------- 03 我們的期許：紙房子 ---------- */
 .abk-quote{margin:24px 0 0;padding-left:20px;border-left:4px solid var(--yellow)}
 .abk-quote p{font-size:var(--fs-lg);line-height:2;color:var(--text)}
@@ -136,7 +121,6 @@
   .abk-story .abk-stage{min-height:480px}
   .abk-hope .abk-stage{min-height:440px}
   .abk-list li{grid-template-columns:80px 1fr}
-  .abk-wheel-wrap{min-height:0;padding-block:8px 28px}
 }
 @media (max-width:420px){
   .abk-lists{grid-template-columns:minmax(0,1fr)}

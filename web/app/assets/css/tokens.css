@@ -47,6 +47,14 @@
   --ivy-ivory: #fffdf5;                  /* 首屏揭開前的象牙底 */
   --ivy-gold-glow-rgb: 255 215 94;
 
+  /* 全人教育 A2（2026-10-01 定案）：六張透明圓片，僅用於 /about 右頁 */
+  --ivy-whole-body: #e9975e;
+  --ivy-whole-cognition: #82b8ca;
+  --ivy-whole-language: #e8c65b;
+  --ivy-whole-social: #8caf7b;
+  --ivy-whole-emotion: #d9929d;
+  --ivy-whole-aesthetic: #b0a1c4;
+
   /* 4. 分校資訊：首頁五校區塊、分校頁、預約第二步 ------------------------------ */
   --ivy-campus-green: oklch(37% .035 160);
   --ivy-campus-deep: oklch(29% .022 160);

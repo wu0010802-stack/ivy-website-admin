@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-01 全人教育 A2 六圈、移除操作鈕（web-only，已部署）
+
+使用者定案採用 A2，保留全人教育左頁原樣，並要求移除「再看一次」按鈕及部署。右頁由紙轉盤換成六張透明圓片；進場播放一次，完成停住，沒有下方控制鈕。
+
+- 僅部署 web：`f24d6e9b-cf09-4e5c-9fd6-7e4ecd88fe69`，Railway `SUCCESS`（2026-10-01 10:41 台灣時間）。
+- 正式 `release.json` 已核對：snapshot `6100d899f5c94f68a6cdf12a26f486c349c599b18a0024259c67ed4b62eee40a`；base commit `392a41c6f52b1d12cd9a692e56e89e54d4df9dc4`。
+- 基底從該 commit 重建，hash 與當時正式快照 `ed106ef4566b8b595bbb1847c48eeb73b5c9f59d0cf40d6d732eafcbdcadb9b0` 完全相同。只疊入 AboutContent／AboutWholePerson、about.css／tokens.css、about-popup.ts／about.spec.ts 六個檔案。
+- API 維持 `544f5966-244f-43df-b87f-e2fd6042b86b`；Postgres 維持 `be22e502-02ad-41b3-8559-0ce90ae03043`。沒有 API 部署、migration、CMS 寫入或其他設定異動。
+- 本機 Node 22：typecheck、65 檔 665 項單元測試、production build 全部通過。五種寬度左頁 DOM／尺寸／位置比對一致；無 JS、減少動態、離屏暫停與恢復通過。
+- 線上 Playwright 1440／390px：左頁 DOM／元素尺寸／相對位置與部署前一致，右頁無按鈕、無橫向溢出、無 page error；一般動態播放一次後停止。公開唯讀 smoke：release、production/live API、CMS、首頁、about、五校頁及 admin 登入入口全部通過。
+- 原始碼快照 `/private/tmp/ivy-website-whole-person-a2-release-20261001`；證據在工作目錄的 `output/railway-whole-person-a2-20261001/`；工作目錄 `/private/tmp/ivy-website-whole-person-a2-20261001`。Safari／iOS 實機未驗。
+- **Git 狀態**：部署當時以核准的限定快照直接部署 web，尚未 commit／push／合併；`origin/main` 為 `392a41c`。本次依使用者要求將已上線的六檔差異與紀錄提交，供 main 整合；Git 同步與正式部署為不同步驟。可復原 patch 與交接：Desktop 工作區的 `design/whole-person-circles-20261001/integration-a2.patch`、`integration-a2.md`。
+
 ## 組成
 
 web 以 Node 22 建置 Nuxt SSR 及 Vue admin，後台放在同源 `/admin/`，深層路由回傳後台入口，遺失的後台 assets 維持 404。`VITE_WEBSITE_ASSET_BASE` 在 build 時設為空字串，素材使用同源路徑。web 程序使用 `node` 非 root 使用者。

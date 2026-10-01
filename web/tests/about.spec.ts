@@ -6,7 +6,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
 import manifest from '../app/generated/image-manifest.json'
-import { pullIndex, snapDegrees, wheelSector } from '../app/utils/about-popup'
+import { pullIndex } from '../app/utils/about-popup'
 
 const site = fixture as unknown as SiteContent
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -76,20 +76,6 @@ describe('立體書：拉紙條', () => {
     const popup = read('../app/utils/about-popup.ts')
     for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) expect(popup).toContain(key)
     expect(popup).toContain("tab.setAttribute('aria-valuetext'")
-  })
-})
-
-describe('立體書：紙轉盤', () => {
-  it('窗口在正上方：轉盤往負方向轉 60°，下一格轉進窗口；轉滿一圈回到第一格', () => {
-    expect([0, -60, -120, -300, -360, 60, 29, 31].map((deg) => wheelSector(deg, 6))).toEqual([0, 1, 2, 5, 0, 5, 0, 5])
-  })
-  it('放手時彈到最近一格', () => {
-    expect([0, 29, 31, -89, -91, 400].map((deg) => snapDegrees(deg, 6))).toEqual([0, 0, 60, -60, -120, 420])
-  })
-  it('轉盤是裝飾，窗口裡的領域用 aria-live 念出來；「轉一格」是按鈕', () => {
-    expect(template).toMatch(/<div class="abk-wheel" data-wheel aria-hidden="true">/)
-    expect(template).toContain('data-wheel-out aria-live="polite"')
-    expect(template).toMatch(/<button class="abk-turn" type="button" data-turn>/)
   })
 })
 

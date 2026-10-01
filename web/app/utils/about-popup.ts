@@ -4,10 +4,10 @@
 // - 卡紙：--up 0 平躺 → 1 站好，用 spring 寫進 CSS 變數；彈簧會超過 1 一點（往前晃一下）。
 // - 一路走來：拉右頁下方的紙條，五個年份等距排在軌道上；拉過哪一站、那一校就站起來，放手彈到最近一站。
 //   紙條是 role="slider"，左右鍵一站一格、Home／End 到頭尾。
-// - 全人教育：紙轉盤，拖著轉、放手彈到最近一格（60°），窗口顯示那個領域；「轉一格」按鈕。
+// - 全人教育：A2 六圈由 AboutWholePerson.vue 管理，收到 abk-open 後才播放。
 // 沒有 JS（或還沒載入）時 CSS 預設 --open:1、--up:1：書是攤開的、卡紙是站好的，內容全部看得到。
 // 掛上時已經在視窗內的跨頁直接維持攤開，不闔上再翻（避免閃一下）。首屏跨頁（data-spread="static"）不翻。
-// 減少動態：書攤開、卡紙站好、紙條拉到底，紙條與轉盤操作直接跳格。
+// 減少動態：書攤開、卡紙站好、紙條拉到底，紙條操作直接跳格，六圈維持完成圖。
 import type { animate as MotionAnimate, inView as MotionInView, scroll as MotionScroll } from 'motion'
 
 export interface AboutPopupDeps {
@@ -22,17 +22,6 @@ export function pullIndex(t: number, stops: number) {
   if (stops < 2) return 0
   return Math.round(Math.min(1, Math.max(0, t)) * (stops - 1))
 }
-/** 轉盤轉了 deg 度時，窗口（正上方）是第幾格；轉盤往負方向轉，下一格才會轉進窗口。 */
-export function wheelSector(deg: number, sectors: number) {
-  const step = 360 / sectors
-  return ((Math.round(-deg / step) % sectors) + sectors) % sectors
-}
-/** 放手時彈到最近一格的角度。 */
-export function snapDegrees(deg: number, sectors: number) {
-  const step = 360 / sectors
-  return Math.round(deg / step) * step
-}
-
 export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }: AboutPopupDeps, { reducedMotion }: { reducedMotion: boolean }): AboutPopup {
   const cleanups: (() => void)[] = []
   const running = new Set<{ stop: () => void }>()
@@ -82,7 +71,7 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
         if (progress > 0.92) open(false)
       }, { target: spread, offset: ['start 0.95', 'start 0.3'] }))
     } else {
-      cleanups.push(inView(spread.querySelector('.abk-stage, .abk-wheel') ?? spread, () => { open(false) }, { amount: 0.4 }))
+      cleanups.push(inView(spread.querySelector('.abk-stage, .abk-whole') ?? spread, () => { open(false) }, { amount: 0.4 }))
     }
   }
 
@@ -152,51 +141,6 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
     set(0)
     // 掛上時就在視窗內（或減少動態）：翻開事件在上面那個迴圈裡已經發過，直接拉到底
     if (reducedMotion || (spread && inViewport(spread))) { cards.forEach((card) => setUp(card, 1)); set(1) }
-  }
-
-  // ---------- 全人教育：紙轉盤 ----------
-  const wheel = root.querySelector<HTMLElement>('[data-wheel]')
-  const disc = wheel?.querySelector<HTMLElement>('.abk-disc')
-  const out = root.querySelector<HTMLElement>('[data-wheel-out]')
-  const turn = root.querySelector<HTMLButtonElement>('[data-turn]')
-  if (wheel && disc && out && turn) {
-    const names = [...disc.querySelectorAll<HTMLElement>('[data-sector]')].map((el) => el.dataset.sector ?? '')
-    const n = names.length
-    let rot = 0
-    let sector = -1
-    const set = (v: number) => {
-      rot = v
-      disc.style.setProperty('--rot', `${v.toFixed(2)}deg`)
-      const s = wheelSector(v, n)
-      if (s !== sector) { sector = s; out.textContent = `窗口裡：${names[s]}` }
-    }
-    const angle = (e: PointerEvent) => { const r = wheel.getBoundingClientRect(); return (Math.atan2(e.clientY - r.top - r.height / 2, e.clientX - r.left - r.width / 2) * 180) / Math.PI }
-    let drag: { a: number, rot: number } | null = null
-    const onDown = (e: PointerEvent) => { drag = { a: angle(e), rot }; wheel.setPointerCapture(e.pointerId) }
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return
-      let d = angle(e) - drag.a
-      if (d > 180) d -= 360
-      if (d < -180) d += 360
-      drag.rot += d
-      drag.a = angle(e)
-      set(drag.rot)
-    }
-    const onUp = () => { if (!drag) return; drag = null; spring(rot, snapDegrees(rot, n), set, { bounce: 0.45 }) }
-    const onTurn = () => spring(rot, snapDegrees(rot, n) - 360 / n, set, { bounce: 0.45 })
-    wheel.addEventListener('pointerdown', onDown)
-    wheel.addEventListener('pointermove', onMove)
-    wheel.addEventListener('pointerup', onUp)
-    wheel.addEventListener('pointercancel', onUp)
-    turn.addEventListener('click', onTurn)
-    cleanups.push(() => {
-      wheel.removeEventListener('pointerdown', onDown)
-      wheel.removeEventListener('pointermove', onMove)
-      wheel.removeEventListener('pointerup', onUp)
-      wheel.removeEventListener('pointercancel', onUp)
-      turn.removeEventListener('click', onTurn)
-    })
-    set(0)
   }
 
   return {

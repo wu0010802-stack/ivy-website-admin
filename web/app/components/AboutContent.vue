@@ -7,9 +7,10 @@
 // - 03 我們的期許：舊站首頁「Our Goals」與「幼兒園是孩童第一所學校也是孩童第二個家」。
 // 內容寫在元件裡，不進後台。不綁 30 週年（週年版尚未拍板）。校名、照片跟著後台發布的分校資料；年份是固定的沿革。
 // 2026-09-29 改成「立體書」（使用者選定 J：design/about-style-directions-20260929/j-popup.*）：每段是一個跨頁，
-// 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來拉紙條、全人教育轉紙轉盤、期許是折起來的紙房子。
+// 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來拉紙條、全人教育六圈聚合、期許是折起來的紙房子。
 // 使用者要求不特別強調 2005 → 2020 相隔十五年：紙條上五站等距。頁面內容不放預約參觀（同常春藤環境、特色教學；
-// 頁首全站共用的預約鈕照舊）。動態由 utils/about-popup.ts 做，Motion 只在這頁動態載入；沒有 JS 時書攤開、卡紙站好。
+// 頁首全站共用的預約鈕照舊）。立體書由 utils/about-popup.ts 管理，Motion 只在這頁動態載入。
+// 2026-10-01 只將右頁轉盤換成 AboutWholePerson 的 A2 六圈；沒有 JS 時書攤開、六圈顯示完成圖。
 import type { Campus } from '~/types/site-content'
 import { pickImage } from '~/utils/media-image'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
@@ -43,8 +44,6 @@ const cardStyle = (i: number) => {
 
 const DOMAINS = ['身體動作與健康', '認知', '語文', '社會', '情緒', '美感']
 const LITERACIES = ['覺知辨識', '表達溝通', '關懷合作', '推理賞析', '想像創造', '自主管理']
-// 紙轉盤上的標籤：長的名稱折成兩行
-const SECTOR_LABELS = ['身體動作\n與健康', '認知', '語文', '社會', '情緒', '美感']
 const BOOKMARKS = ['var(--yellow)', 'var(--studio-blue)', 'var(--studio-sage)', 'var(--mint)', 'var(--studio-orange)']
 
 const root = ref<HTMLElement | null>(null)
@@ -126,7 +125,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
     </section>
 
-    <!-- 02 全人教育：左頁兩份清單，右頁紙轉盤 -->
+    <!-- 02 全人教育：左頁兩份清單保持原樣，右頁採用 A2 透色六圈 -->
     <section id="whole-child" class="abk-spread" data-spread aria-labelledby="whole-title">
       <div class="abk-page is-left">
         <p class="abk-kicker"><span lang="en"><b>02</b>Whole child</span></p>
@@ -147,16 +146,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <span class="abk-no" lang="en" aria-hidden="true">5</span>
       </div>
       <div class="abk-page is-right">
-        <div class="abk-wheel-wrap">
-          <div class="abk-wheel" data-wheel aria-hidden="true">
-            <div class="abk-disc">
-              <span v-for="(label, i) in SECTOR_LABELS" :key="label" :data-sector="DOMAINS[i]" :style="{ '--i': i }"><b>{{ label }}</b></span>
-            </div>
-            <div class="abk-cover"><b>全人</b><small>拖著轉轉看</small></div>
-          </div>
-          <p class="abk-wheel-out" data-wheel-out aria-live="polite" />
-          <button class="abk-turn" type="button" data-turn>轉一格<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-counter-clockwise" /></svg></button>
-        </div>
+        <AboutWholePerson />
         <span class="abk-no" lang="en" aria-hidden="true">6</span>
       </div>
     </section>
