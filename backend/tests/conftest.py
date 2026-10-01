@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
@@ -265,9 +265,10 @@ async def booking_consent(db_session) -> uuid.UUID:
 async def set_booking_mode(admin_client, campus_key: str = "yihua", **config) -> httpx.Response:
     """測試前置：把某校切到指定的預約方式（config 是 PATCH 的其餘欄位）。
 
-    切到 slots 卻因為「沒有可預約場次也沒有每週規則」被擋時，補一條每週規則
-    再送一次——很多測試是先開 slots 再建自己的場次。先建好場次的測試不會被補
-    規則，不影響依規則產生時段、休假日這類要算場次數的測試。"""
+    切到 slots 卻因為「沒有可預約場次也沒有每週規則」被擋時，補一個很遠的
+    手動場次（今天＋58 天 06:00，仍在預設 60 天公開窗內）再送一次——很多測試是
+    先開 slots 再建自己的場次。不補每週規則：規則會立刻產生未來 60 天的真實場次，
+    讓計算場次數的測試依賴今天是星期幾。先建好場次的測試不會被補。"""
     url = f"/api/website/v1/admin/booking-config/{campus_key}"
     current = await admin_client.get(url)
     body = {"expected_version": current.json()["version"], **config}
@@ -277,7 +278,12 @@ async def set_booking_mode(admin_client, campus_key: str = "yihua", **config) ->
         and config.get("mode") == "slots"
         and [r["code"] for r in response.json()["detail"].get("reasons", [])] == ["NO_SLOTS_OR_RULES"]
     ):
-        await add_weekly_rule(admin_client, campus_key)
+        far = date.today() + timedelta(days=58)
+        created = await admin_client.post(
+            f"/api/website/v1/admin/slots?campus_key={campus_key}",
+            json={"slot_date": far.isoformat(), "start_time": "06:00:00", "end_time": "06:30:00", "capacity": 1},
+        )
+        assert created.status_code == 201, created.text
         response = await admin_client.patch(url, json=body)
     return response
 

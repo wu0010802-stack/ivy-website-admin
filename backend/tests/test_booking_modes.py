@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import add_weekly_rule, create_slot
+from tests.conftest import add_weekly_rule, create_slot, set_booking_mode
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -333,3 +333,17 @@ async def test_missing_consent_rejected(admin_client, public_client):
         headers={"Idempotency-Key": "no-consent-01"},
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_slots_mode_fallback_adds_no_near_term_slots(admin_client):
+    """set_booking_mode 的補場次只放遠期手動場次，近 30 天不會有任何場次（測試不依賴星期幾）。"""
+    from datetime import date, timedelta
+
+    assert (await set_booking_mode(admin_client, mode="slots")).status_code == 200
+    today = date.today()
+    listed = await admin_client.get(
+        f"/api/website/v1/admin/slots?campus_key=yihua&date_from={today}&date_to={today + timedelta(days=30)}"
+    )
+    assert listed.status_code == 200
+    assert listed.json() == []
