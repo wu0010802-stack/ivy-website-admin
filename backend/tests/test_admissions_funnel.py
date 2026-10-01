@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select, update
@@ -279,3 +280,16 @@ async def test_transition_audit_has_no_free_text(admin_client, db_session):
     ]
     assert entries[-1].target_type == "recruitment_visit" and entries[-1].target_id == record["id"]
     assert "小明" not in json.dumps([e.metadata_json for e in entries], ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_board_reports_applied_filters_and_as_of(admin_client):
+    """F4：看板帶實際套用的校區、學年學期與資料時間（UTC）。"""
+    before = datetime.now(timezone.utc)
+    response = await admin_client.get(f"{ADMISSIONS}/board?campus_key=minghua&school_year=115&semester=2")
+    after = datetime.now(timezone.utc)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["campus_key"], body["school_year"], body["semester"]) == ("minghua", 115, 2)
+    as_of = datetime.fromisoformat(body["as_of"])
+    assert as_of.utcoffset() == timedelta(0) and before <= as_of <= after

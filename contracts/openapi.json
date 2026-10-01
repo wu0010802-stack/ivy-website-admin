@@ -1395,6 +1395,15 @@
       },
       "FunnelBoardOut": {
         "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
           "columns": {
             "$ref": "#/components/schemas/FunnelColumnsOut"
           },
@@ -1421,8 +1430,10 @@
         "required": [
           "columns",
           "unscoped_count",
+          "campus_key",
           "school_year",
-          "semester"
+          "semester",
+          "as_of"
         ],
         "title": "FunnelBoardOut",
         "type": "object"
@@ -1657,6 +1668,15 @@
       },
       "IntakePlanOut": {
         "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/IntakePlanRowOut"
@@ -1677,8 +1697,10 @@
           }
         },
         "required": [
+          "campus_key",
           "school_year",
           "semester",
+          "as_of",
           "rows",
           "totals"
         ],

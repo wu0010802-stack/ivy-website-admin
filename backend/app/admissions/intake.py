@@ -88,7 +88,9 @@ async def intake_plan(db: AsyncSession, campus_key: str, school_year: int, semes
     - 剩餘＝計畫−已保留−已註冊，可以是負數；沒有計畫列（未設定）時是 None。
     - 超額：有計畫名額且已保留＋已註冊 > 計畫名額，只警示。
     - 合計：計畫名額與剩餘只加總有設定的年級，一個都沒設定時是 None。
-    轉其他學期（transfer_term）不影響名額，同園務 compute_intake_plan。"""
+    轉其他學期（transfer_term）不影響名額，同園務 compute_intake_plan。回應帶實際
+    套用的校區、學年學期與讀取時間 as_of（UTC）。"""
+    as_of = datetime.now(timezone.utc)
     term = (
         RecruitmentVisit.campus_key == campus_key,
         RecruitmentVisit.target_school_year == school_year,
@@ -139,7 +141,14 @@ async def intake_plan(db: AsyncSession, campus_key: str, school_year: int, semes
         "enrolled": sum(row["enrolled"] for row in rows),
         "remaining": sum(row["remaining"] for row in planned) if planned else None,
     }
-    return {"school_year": school_year, "semester": semester, "rows": rows, "totals": totals}
+    return {
+        "campus_key": campus_key,
+        "school_year": school_year,
+        "semester": semester,
+        "as_of": as_of,
+        "rows": rows,
+        "totals": totals,
+    }
 
 
 async def save_targets(

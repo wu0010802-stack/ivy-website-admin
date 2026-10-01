@@ -2857,6 +2857,13 @@ export interface components {
         };
         /** FunnelBoardOut */
         FunnelBoardOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
             columns: components["schemas"]["FunnelColumnsOut"];
             /** School Year */
             school_year: number;
@@ -2942,6 +2949,13 @@ export interface components {
         };
         /** IntakePlanOut */
         IntakePlanOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
             /** Rows */
             rows: components["schemas"]["IntakePlanRowOut"][];
             /** School Year */

@@ -291,9 +291,12 @@ class FunnelBoardOut(BaseModel):
     columns: FunnelColumnsOut
     # 這一校沒填入學學年的訪視數（不受學年篩選影響）。
     unscoped_count: int
+    # 實際套用的篩選：校區、入學學年（沒帶時是目前學年）、學期（None＝整學年）。
+    campus_key: str
     school_year: int
-    # None＝整學年。
     semester: int | None
+    # 資料讀取時間（UTC）。
+    as_of: datetime
 
 
 class SeatRequest(BaseModel):
@@ -337,8 +340,12 @@ class IntakePlanTotalsOut(BaseModel):
 
 
 class IntakePlanOut(BaseModel):
+    # 實際套用的篩選。
+    campus_key: str
     school_year: int
     semester: int
+    # 資料讀取時間（UTC）。
+    as_of: datetime
     rows: list[IntakePlanRowOut]
     totals: IntakePlanTotalsOut
 

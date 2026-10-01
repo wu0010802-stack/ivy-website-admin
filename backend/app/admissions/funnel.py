@@ -216,7 +216,9 @@ def _card(visit: RecruitmentVisit) -> dict:
 async def board(db: AsyncSession, campus_key: str, school_year: int, semester: int | None) -> dict:
     """漏斗看板（規格 10；園務 GET /board）：以入學學年學期圈範圍，semester 為
     None 時是整學年。unscoped_count 是這一校沒填入學學年的訪視數，不受學年篩選
-    影響（沒有它，空看板會像是「還沒有訪視」）。"""
+    影響（沒有它，空看板會像是「還沒有訪視」）。回應帶實際套用的校區、學年學期
+    與讀取時間 as_of（UTC）。"""
+    as_of = datetime.now(timezone.utc)
     conditions = [RecruitmentVisit.campus_key == campus_key, RecruitmentVisit.target_school_year == school_year]
     if semester is not None:
         conditions.append(RecruitmentVisit.target_semester == semester)
@@ -233,4 +235,11 @@ async def board(db: AsyncSession, campus_key: str, school_year: int, semester: i
         .select_from(RecruitmentVisit)
         .where(RecruitmentVisit.campus_key == campus_key, RecruitmentVisit.target_school_year.is_(None))
     )
-    return {"columns": columns, "unscoped_count": int(unscoped or 0), "school_year": school_year, "semester": semester}
+    return {
+        "columns": columns,
+        "unscoped_count": int(unscoped or 0),
+        "campus_key": campus_key,
+        "school_year": school_year,
+        "semester": semester,
+        "as_of": as_of,
+    }

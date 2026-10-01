@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import func, select, update
@@ -246,3 +247,17 @@ async def test_intake_permissions_and_scope(admin_client, reception_yihua_client
     current = (await admin_client.get(f"{RECORDS}/{record['id']}")).json()
     assert (await _seat(minghua_client, current, None)).status_code == 404
     assert (await admin_client.get(f"{ADMISSIONS}/intake-plan?campus_key=nowhere&school_year=115")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_intake_plan_reports_applied_filters_and_as_of(admin_client):
+    """F4：名額規劃（查詢與存計畫名額後的回應）帶實際套用的校區、學年學期與資料時間（UTC）。"""
+    before = datetime.now(timezone.utc)
+    plan = await _plan(admin_client, f"{ADMISSIONS}/intake-plan?campus_key=renwu&school_year=116&semester=2")
+    saved = await _targets(admin_client, {"小班": 3}, school_year=116, semester=2, campus_key="renwu")
+    after = datetime.now(timezone.utc)
+    assert saved.status_code == 200, saved.text
+    for body in (plan, saved.json()):
+        assert (body["campus_key"], body["school_year"], body["semester"]) == ("renwu", 116, 2)
+        as_of = datetime.fromisoformat(body["as_of"])
+        assert as_of.utcoffset() == timedelta(0) and before <= as_of <= after
