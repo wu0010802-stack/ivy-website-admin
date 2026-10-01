@@ -868,12 +868,24 @@ export function slotClosedLabel(source: string | null | undefined): string {
 // 存每週規則時，還沒被使用的舊規則時段跟著調整的結果（PUT visit-schedule 的
 // slot_sync，稽核紀錄的 metadata 也是同一份）。移除與停用對園方來說都是「這一
 // 場不再開放」，合在一起講。
-export interface SlotSyncResult { removed: number; closed: number; reopened: number; capacity_updated: number; kept_booked: number }
+export interface SlotSyncResult { created?: number; removed: number; closed: number; reopened: number; capacity_updated: number; kept_booked: number }
+
+export const LEAD_OPTIONS = [2, 12, 24, 48, 72] as const
+export const ADVANCE_OPTIONS = [14, 30, 60, 90] as const
+export function leadLabel(hours: number): string {
+  return hours >= 24 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
+}
+export function advanceLabel(days: number): string {
+  if (days === 14) return '2 週內'
+  if (days % 30 === 0) return `${days / 30} 個月內`
+  return `${days} 天內`
+}
 
 export function slotSyncLines(sync: Partial<SlotSyncResult> | null | undefined): string[] {
   if (!sync) return []
   const retired = (sync.removed ?? 0) + (sync.closed ?? 0)
   return [
+    sync.created ? `已排出 ${sync.created} 場` : '',
     retired ? `${retired} 場不符合新規則的時段不再開放` : '',
     sync.reopened ? `重新開放 ${sync.reopened} 場` : '',
     sync.capacity_updated ? `${sync.capacity_updated} 場名額改成新規則` : '',
