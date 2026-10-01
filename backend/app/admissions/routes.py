@@ -204,10 +204,24 @@ async def delete_recruitment_visit(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
-    訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。"""
+    訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。
+
+    檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、
+    或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，
+    與取消註冊、退註冊同一個權限。"""
     visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    if visit.version != expected_version:
+        current = visit.version
+        await db.rollback()
+        raise _version_conflict(records.VersionConflict(current))
     stage = funnel.derive_stage(visit)
     campus_key = visit.campus_key
+    if stage == "enrolled" or (stage == "withdrawn" and visit.withdrawn_from == "enrolled"):
+        try:
+            require_scope(current_user, "admissions.convert", campus_keys=[campus_key])
+        except HTTPException:
+            await db.rollback()
+            raise
     try:
         await records.delete_visit(db, visit, expected_version=expected_version)
     except records.VersionConflict as exc:

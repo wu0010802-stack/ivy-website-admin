@@ -155,7 +155,11 @@ export interface paths {
         /**
          * Delete Recruitment Visit
          * @description 刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
-         *     訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。
+         *     訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。
+         *
+         *     檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、
+         *     或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，
+         *     與取消註冊、退註冊同一個權限。
          */
         delete: operations["delete_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__delete"];
         options?: never;

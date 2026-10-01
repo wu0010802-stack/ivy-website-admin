@@ -17,6 +17,7 @@ from app.auth.models import Role
 from app.operations.models import AuditLogEntry
 from tests.admissions_helpers import (  # noqa: F401
     ADMISSIONS,
+    campus_admin_yihua_client,
     create_record,
     manual_fields,
     readonly_yihua_client,
@@ -418,3 +419,30 @@ async def test_anonymized_visit_rejects_edit_transition_and_seat_but_can_be_dele
     after = (await admin_client.get(url)).json()
     assert (after["version"], after["stage"], after["notes"], after["provisional_grade"]) == (version, "deposited", None, None)
     assert (await admin_client.delete(f"{url}?expected_version={version}")).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_deleting_enrolled_related_visit_needs_convert(
+    admin_client, reception_yihua_client, campus_admin_yihua_client
+):
+    """F5：已註冊、或從已註冊退出的訪視，刪除除了 admissions.write 還要 admissions.convert（403）；
+    版本先比對（409 在 403 之前，同狀態轉換）。已預繳、退預繳的接待照常可以刪。"""
+    enrolled = await record_at_stage(admin_client, "enrolled", child_name="已註冊")
+    withdrawn = await record_at_stage(admin_client, "withdrawn", withdrawn_from="enrolled", child_name="退註冊")
+    deposited = await record_at_stage(admin_client, "deposited", child_name="已預繳")
+    withdrawn_deposit = await record_at_stage(admin_client, "withdrawn", child_name="退預繳")
+
+    async def delete(client, record: dict, version: int | None = None):
+        return await client.delete(f"{RECORDS}/{record['id']}?expected_version={version or record['version']}")
+
+    stale = await delete(reception_yihua_client, enrolled, version=enrolled["version"] + 5)
+    assert stale.status_code == 409, stale.text
+    assert stale.json()["detail"]["code"] == "RECRUITMENT_VISIT_VERSION_CONFLICT"
+    for record in (enrolled, withdrawn):
+        denied = await delete(reception_yihua_client, record)
+        assert denied.status_code == 403, denied.text
+        assert (await admin_client.get(f"{RECORDS}/{record['id']}")).status_code == 200
+    for record in (deposited, withdrawn_deposit):
+        assert (await delete(reception_yihua_client, record)).status_code == 204
+    for record in (enrolled, withdrawn):
+        assert (await delete(campus_admin_yihua_client, record)).status_code == 204
