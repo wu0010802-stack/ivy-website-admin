@@ -8,13 +8,14 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/erro
 import type { AdmissionsOptions, RecruitmentVisit } from '../../api/types'
 import { campusLabel, type TagTone } from '../../api/labels'
 import { rocDate, termLabel } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, WITHDRAWN_FROM_LABELS, transitionWarning } from '../../admissions/constants'
+import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, WITHDRAWN_FROM_LABELS, transitionWarning, type TransitionTarget } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
+import TransitionDialog from './TransitionDialog.vue'
 
 // 訪視明細（園務 RecruitmentDetailTab＋AdmissionsRecordsPanel）。入學學年學期用頁首的篩選，
 // 這裡不重複（本檔調整第 11 條）；月份與 vr 由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
@@ -202,6 +203,19 @@ function openEdit(row: RecruitmentVisit) {
 function openEvents(row: RecruitmentVisit) {
   eventsFor.value = row
   eventsOpen.value = true
+}
+
+// ---- 標記註冊（有 admissions.convert，且已預繳；園務「轉為學生」的位置）----
+const transitionOpen = ref(false)
+const transitionTarget = ref<TransitionTarget | null>(null)
+
+function canEnroll(row: RecruitmentVisit): boolean {
+  return canConvert.value && row.stage === 'deposited' && !row.anonymized_at
+}
+
+function openEnroll(row: RecruitmentVisit) {
+  transitionTarget.value = { card: row, from: 'deposited', to: 'enrolled' }
+  transitionOpen.value = true
 }
 
 function onSaved() {
@@ -432,7 +446,7 @@ async function remove(row: RecruitmentVisit) {
             <div class="cell-actions records__actions">
               <el-button v-if="canWrite && !row.anonymized_at" size="small" text type="primary" :disabled="pendingId === row.id" @click="openEdit(row)">編輯</el-button>
               <el-button size="small" text @click="openEvents(row)">歷程</el-button>
-              <!-- B3：標記註冊 -->
+              <el-button v-if="canEnroll(row)" size="small" text type="success" :disabled="pendingId === row.id" @click="openEnroll(row)">標記註冊</el-button>
               <el-dropdown
                 v-if="moreCommands(row).length"
                 trigger="click"
@@ -469,7 +483,8 @@ async function remove(row: RecruitmentVisit) {
 
     <RecordDialog v-model="dialogOpen" :mode="dialogMode" :campus-key="campusKey" :record="editing" :options="options" @saved="onSaved" @stale="load" />
     <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" />
-    <!-- B3：TransitionDialog；B4：SeatDialog -->
+    <TransitionDialog v-model="transitionOpen" :target="transitionTarget" @done="load" @stale="load" />
+    <!-- B4：SeatDialog -->
   </section>
 </template>
 

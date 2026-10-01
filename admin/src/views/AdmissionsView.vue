@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { getArrivals, getOptions } from '../api/admissions'
@@ -76,6 +77,11 @@ function setSemester(value: Semester | null | undefined) {
 function goTab(next: AdmissionsTab) {
   tab.value = next
 }
+// 看板「另有 N 筆沒有填入學學期」→ 到訪視明細，並清掉學年學期篩選（園務 showUnscopedVisits）。
+function showUnscoped() {
+  clearTerm()
+  tab.value = 'records'
+}
 </script>
 
 <template>
@@ -118,6 +124,7 @@ function goTab(next: AdmissionsTab) {
       </el-tabs>
 
       <div class="admissions__body">
+        <FunnelBoard v-if="tab === 'funnel'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @show-unscoped="showUnscoped" />
         <RecordsTab
           v-if="tab === 'records'"
           v-model:month="month"
