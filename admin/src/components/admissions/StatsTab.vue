@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
-import { getStats } from '../../api/admissions'
+import { getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
-import type { AdmissionsStats } from '../../api/types'
-import { termLabel } from '../../admissions/academic'
+import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
+import { currentTerm, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS } from '../../admissions/constants'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -19,7 +20,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
 
-const SUB_TABS = ['stats-overview', 'stats-class', 'stats-source', 'stats-staff', 'stats-nodeposit'] as const
+const SUB_TABS = ['stats-overview', 'stats-class', 'stats-source', 'stats-staff', 'stats-nodeposit', 'stats-compare'] as const
 type SubTab = (typeof SUB_TABS)[number]
 const subTab = ref<SubTab>('stats-overview')
 
@@ -109,6 +110,40 @@ function navigate(target: { tab: StatsTarget; filter: Record<string, string | nu
   if (target.tab === 'nodeposit') noDepositPreset.value = { ...target.filter }
   setSubTab(`stats-${target.tab}`)
 }
+
+// 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。名額剩餘要對到單一學期，
+// 規則同名額規劃（IntakePlanTab）：沒選學年用目前學年、沒選學期一律用上學期，兩個分頁看的是同一學期。
+// 頁首有沒選的部分就在表格上方寫明用的是哪個學期。
+const showCompare = computed(() => props.campusKeys.length > 1)
+const compareTerm = computed(() => ({
+  schoolYear: props.schoolYear ?? currentTerm().schoolYear,
+  semester: props.semester ?? 1,
+  defaulted: props.schoolYear === null || props.semester === null,
+}))
+const compareResult = ref<AdmissionsCompare | null>(null)
+const compareFailed = ref(false)
+const compareRequests = useRequestSequence()
+
+async function loadCompare() {
+  const request = compareRequests.begin()
+  const { schoolYear, semester } = compareTerm.value
+  compareResult.value = null
+  compareFailed.value = false
+  try {
+    const result = await getCompare(schoolYear, semester)
+    if (compareRequests.isCurrent(request)) compareResult.value = result
+  } catch {
+    if (compareRequests.isCurrent(request)) compareFailed.value = true
+  }
+}
+
+watch([subTab, () => compareTerm.value.schoolYear, () => compareTerm.value.semester], () => {
+  if (subTab.value === 'stats-compare') void loadCompare()
+})
+// 權限更新後只剩一校：子分頁消失，退回總覽。
+watch(showCompare, (visible) => {
+  if (!visible && subTab.value === 'stats-compare') subTab.value = 'stats-overview'
+})
 
 // 表頭照園務 Recruitment{Class,Source,Staff,NoDeposit}Tab 原文。
 const GRADE_COLUMNS: StatsColumn[] = [
@@ -337,6 +372,19 @@ const noDepositKpis = computed(() => {
             />
           </div>
         </el-tab-pane>
+
+        <el-tab-pane v-if="showCompare" label="五校比較" name="stats-compare" lazy>
+          <div class="stats-pane">
+            <p v-if="compareTerm.defaulted" class="hint compare-note">
+              五校比較要對到單一學期的名額：頁首沒選的部分用 {{ termLabel(compareTerm.schoolYear, compareTerm.semester) }}。
+            </p>
+            <el-alert v-if="compareFailed" type="error" :closable="false" show-icon title="無法讀取五校比較，請重新載入。">
+              <el-button size="small" @click="loadCompare()">重新載入</el-button>
+            </el-alert>
+            <el-skeleton v-else-if="!compareResult" :rows="4" animated />
+            <CompareTable v-else :rows="compareResult.rows" :school-year="compareResult.school_year" :semester="compareResult.semester" />
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </template>
   </section>
@@ -408,6 +456,10 @@ const noDepositKpis = computed(() => {
 .nodeposit-priority {
   margin: 0;
   color: var(--ink-2);
+}
+
+.compare-note {
+  margin: 0;
 }
 
 @media (max-width: 720px) {

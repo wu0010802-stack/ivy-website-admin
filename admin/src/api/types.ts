@@ -397,6 +397,11 @@ export type AdmissionsOptions = components['schemas']['AdmissionsOptionsOut']
 // 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
 export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']
 
+// 五校比較（C4）。後端回 {as_of, school_year, semester, rows}；AdmissionsRate 是 {value, numerator, denominator}，畫面同時寫分子分母。
+export type AdmissionsCompare = components['schemas']['AdmissionsCompareOut']
+export type AdmissionsCompareRow = components['schemas']['AdmissionsCompareRow']
+export type AdmissionsRate = components['schemas']['AdmissionsRate']
+
 // 未預繳明細（C3b）。NoDepositRecordsOut 在 C2b 才進 OpenAPI。
 export type NoDepositRecords = components['schemas']['NoDepositRecordsOut']
 export type NoDepositRecord = components['schemas']['NoDepositRecordOut']

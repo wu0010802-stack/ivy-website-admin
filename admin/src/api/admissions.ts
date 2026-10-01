@@ -3,7 +3,7 @@
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
+  AdmissionsCompare, AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -132,4 +132,9 @@ export function getNoDepositRecords(params: {
   page_size: number
 }): Promise<NoDepositRecords> {
   return api.get<NoDepositRecords>(`/admin/admissions/no-deposit-records?${toQuery(params)}`)
+}
+
+/** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年學期必填（名額剩餘要對到單一學期）。 */
+export function getCompare(schoolYear: number, semester: number): Promise<AdmissionsCompare> {
+  return api.get<AdmissionsCompare>(`/admin/admissions/compare?${toQuery({ school_year: schoolYear, semester })}`)
 }
