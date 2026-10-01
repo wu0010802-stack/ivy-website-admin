@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select, update
@@ -317,3 +317,25 @@ async def test_enrolled_on_outside_roc_range_is_422(admin_client, bad_date):
     assert (await admin_client.get(f"{RECORDS}/{record['id']}")).json()["version"] == record["version"]
     edge = await transition(admin_client, record, "enrolled", enrolled_on="2111-12-31", **ENROLL)
     assert edge["enrolled_on"] == "2111-12-31"
+
+
+def _same_moment_visits(count: int) -> list[RecruitmentVisit]:
+    """參觀日期與建立時間完全相同、id 由小到大（也照這個順序寫入）的訪視。"""
+    now = datetime.now(timezone.utc)
+    return [
+        RecruitmentVisit(
+            id=uuid.UUID(int=n), campus_key="yihua", month="115.09", visit_date=date(2026, 9, 8),
+            child_name=f"同時{n}", target_school_year=115, target_semester=1, created_at=now, updated_at=now,
+        )
+        for n in range(1, count + 1)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_board_card_order_is_stable_when_date_and_created_at_tie(admin_client, db_session):
+    """F10：看板卡片的參觀日期與建立時間都相同時以 id 排定（大到小）。"""
+    visits = _same_moment_visits(5)
+    db_session.add_all(visits)
+    await db_session.commit()
+    body = (await admin_client.get(f"{ADMISSIONS}/board?campus_key=yihua&school_year=115&semester=1")).json()
+    assert [card["id"] for card in body["columns"]["visited"]] == [str(visit.id) for visit in reversed(visits)]

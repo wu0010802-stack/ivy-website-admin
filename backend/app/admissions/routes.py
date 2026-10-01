@@ -118,10 +118,13 @@ async def list_recruitment_visits(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[RecruitmentVisitOut]:
-    """訪視明細：參觀日期新到舊；回裸 list，筆數等於 page_size 代表可能還有下一頁。"""
+    """訪視明細：參觀日期新到舊（同日依建立時間、再依 id，分頁穩定）；回裸 list，
+    筆數等於 page_size 代表可能還有下一頁。"""
     _require_campus(current_user, "admissions.read", filters.campus_key)
     stmt = filters.apply(select(RecruitmentVisit))
-    stmt = stmt.order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc())
+    stmt = stmt.order_by(
+        RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc()
+    )
     result = await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))
     return [RecruitmentVisitOut.model_validate(visit) for visit in result.scalars()]
 

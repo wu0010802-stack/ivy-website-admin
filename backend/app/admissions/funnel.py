@@ -225,7 +225,7 @@ async def board(db: AsyncSession, campus_key: str, school_year: int, semester: i
     result = await db.execute(
         select(RecruitmentVisit)
         .where(*conditions)
-        .order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc())
+        .order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc())
     )
     columns: dict[str, list[dict]] = {stage: [] for stage in STAGE_VALUES}
     for visit in result.scalars():

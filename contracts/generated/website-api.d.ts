@@ -126,7 +126,8 @@ export interface paths {
         };
         /**
          * List Recruitment Visits
-         * @description 訪視明細：參觀日期新到舊；回裸 list，筆數等於 page_size 代表可能還有下一頁。
+         * @description 訪視明細：參觀日期新到舊（同日依建立時間、再依 id，分頁穩定）；回裸 list，
+         *     筆數等於 page_size 代表可能還有下一頁。
          */
         get: operations["list_recruitment_visits_api_website_v1_admin_admissions_records_get"];
         put?: never;

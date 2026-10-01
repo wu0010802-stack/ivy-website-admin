@@ -446,3 +446,30 @@ async def test_deleting_enrolled_related_visit_needs_convert(
         assert (await delete(reception_yihua_client, record)).status_code == 204
     for record in (enrolled, withdrawn):
         assert (await delete(campus_admin_yihua_client, record)).status_code == 204
+
+
+def _same_moment_visits(count: int) -> list[RecruitmentVisit]:
+    """參觀日期與建立時間完全相同、id 由小到大（也照這個順序寫入）的訪視。"""
+    now = datetime.now(timezone.utc)
+    return [
+        RecruitmentVisit(
+            id=uuid.UUID(int=n), campus_key="yihua", month="115.09", visit_date=date(2026, 9, 8),
+            child_name=f"同時{n}", target_school_year=115, target_semester=1, created_at=now, updated_at=now,
+        )
+        for n in range(1, count + 1)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_order_is_stable_when_date_and_created_at_tie(admin_client, db_session):
+    """F10：參觀日期與建立時間都相同時以 id 排定（大到小），分頁不重複、不遺漏。"""
+    visits = _same_moment_visits(5)
+    db_session.add_all(visits)
+    await db_session.commit()
+    expected = [str(visit.id) for visit in reversed(visits)]
+    response = await admin_client.get(f"{RECORDS}?campus_key=yihua")
+    assert [row["id"] for row in response.json()] == expected
+    paged = []
+    for page in (1, 2, 3):
+        paged += (await admin_client.get(f"{RECORDS}?campus_key=yihua&page_size=2&page={page}")).json()
+    assert [row["id"] for row in paged] == expected
