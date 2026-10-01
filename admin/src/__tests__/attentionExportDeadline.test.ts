@@ -83,7 +83,7 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
   it('匯出送出畫面上全部的篩選（不含分頁），按鈕旁講清楚範圍', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
-    const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?status=confirmed&attention=1')
+    const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&attention=1')
     expect(wrapper.get('#export-scope').text()).toContain('目前篩選的全部結果')
     wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2026-09-01', '2026-09-07'])
     await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('王')
@@ -93,7 +93,7 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     expect(url.startsWith('/api/website/v1/admin/visit-requests/export?')).toBe(true)
     const query = new URLSearchParams(url.split('?')[1])
     expect(Object.fromEntries(query)).toEqual({
-      status: 'confirmed', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
+      group: 'upcoming', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
     })
 
     await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
@@ -205,7 +205,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('預約方式頁：啟用中的分校狀態放在表單下方，已停用時留在頁首', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let active = true
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
@@ -227,7 +227,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('分校狀態還在讀時不先擺空的標題；重新載入時原因留著', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let resolveStatus!: (value: unknown) => void
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return new Promise(resolve => { resolveStatus = resolve }) as never
@@ -252,7 +252,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('停用分校後卡片移到頁首，焦點落在「重新啟用」，不掉回頁面最上方', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let active = true
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
@@ -282,7 +282,7 @@ describe('待人工處理的入口', () => {
 describe('家長線上取消／改期期限', () => {
   const deadlineInput = (wrapper: VueWrapper) =>
     wrapper.findAllComponents({ name: 'ElInputNumber' }).find(item => item.find('input[aria-label="參觀前幾小時截止"]').exists())!
-  const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 48 }
+  const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 48 }
 
   it('各校預約方式可以設定，存檔一起送出', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(config as never)

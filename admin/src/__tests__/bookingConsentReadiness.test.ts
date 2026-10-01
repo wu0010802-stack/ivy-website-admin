@@ -58,7 +58,7 @@ const impact = { open_requests: 3, new_requests: 1, contacting: 0, pending_confi
 function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadinessOut {
   return {
     campus_key: 'yihua',
-    current_mode: 'inquiry',
+    current_mode: 'paused',
     consent: { revision_id: 'rev-1', version: 3, has_privacy_notice: false },
     blockers: {
       inquiry: [], slots: [{ code: 'NO_SLOTS_OR_RULES', message: '目前沒有官網可預約的場次，也沒有每週開放規則' }],
@@ -69,8 +69,8 @@ function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadine
   }
 }
 
-function config(mode = 'inquiry', message: string | null = '請先填表') {
-  return { campus_key: 'yihua', version: 4, mode, line_url: null, phone: null, external_url: null, message, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+function config(mode = 'paused', message: string | null = '暑假暫停') {
+  return { campus_key: 'yihua', version: 4, mode, line_url: null, phone: null, external_url: null, message, parent_change_deadline_hours: 24 }
 }
 
 function mockBookingApi(ready: BookingReadinessOut | null = readiness(), saved = config()) {
@@ -132,13 +132,13 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(reasonAction('CONSENT_NOT_PUBLISHED', superAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
     expect(reasonAction('CONSENT_NOT_PUBLISHED', grantedCampusAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
     expect(reasonAction('CONSENT_NOT_PUBLISHED', campusAdmin)).toEqual({ note: '請聯絡總管理者到「預約文案」發布同意條款。' })
-    expect(reasonAction('NO_SLOTS_OR_RULES', campusAdmin)).toEqual({ to: '/slots', label: '到時段與容量新增場次' })
+    expect(reasonAction('NO_SLOTS_OR_RULES', campusAdmin)).toEqual({ to: '/visit-calendar', label: '到參觀場次新增場次' })
     expect(reasonAction('FIELD', superAdmin)).toBeNull()
   })
 
   it('稽核修改前後與中文標籤', () => {
-    expect(configChangeLines({ mode: 'paused', message: null, slots_auto_confirm: false }, { mode: 'inquiry', message: '歡迎', slots_auto_confirm: false })).toEqual([
-      '預約方式：暫停預約 → 線上表單（收到需求後由園方聯絡）',
+    expect(configChangeLines({ mode: 'paused', message: null }, { mode: 'slots', message: '歡迎' })).toEqual([
+      '預約方式：暫停預約 → 自選場次（家長線上預約）',
       '給家長的說明：（空白） → 歡迎',
     ])
     expect(auditChangeSummary({ mode: 'inquiry', before: { parent_change_deadline_hours: 24 }, after: { parent_change_deadline_hours: 72 } })).toBe('家長線上異動期限：參觀前 24 小時 → 參觀前 3 天')
@@ -172,9 +172,9 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     expect(slotsOption.textContent).toContain('不可啟用：目前沒有官網可預約的場次')
     await wrapper.get('input[type="radio"][value="slots"]').setValue(true)
     await nextTick()
-    expect(wrapper.get('.blocked-reasons').text()).toContain('還不能使用「時段預約（家長自選場次）」')
+    expect(wrapper.get('.blocked-reasons').text()).toContain('還不能使用「自選場次（家長線上預約）」')
     // 連到時段與容量帶著目前校區，不會落在預設的第一校。
-    expect(wrapper.get('.blocked-reasons a').attributes('href')).toBe('/slots?campus=yihua')
+    expect(wrapper.get('.blocked-reasons a').attributes('href')).toBe('/visit-calendar?campus=yihua')
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
     await saveButton(wrapper).trigger('click')
     expect(patch).not.toHaveBeenCalled()
@@ -185,14 +185,14 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
       current_mode: 'paused',
       consent: null,
       blockers: {
-        inquiry: [{ code: 'CONSENT_NOT_PUBLISHED', message: '「預約文案」還沒有發布同意條款文字' }],
-        slots: [], line: [], phone: [], external: [], paused: [],
+        inquiry: [], slots: [{ code: 'CONSENT_NOT_PUBLISHED', message: '「預約文案」還沒有發布同意條款文字' }],
+        line: [], phone: [], external: [], paused: [],
       },
     })
     mockBookingApi(blocked, config('paused', '暑假暫停'))
     const campusAdmin = testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] })
     const wrapper = await mountAt(BookingSettingsView, '/booking', '/:pathMatch(.*)*', campusAdmin)
-    await wrapper.get('input[type="radio"][value="inquiry"]').setValue(true)
+    await wrapper.get('input[type="radio"][value="slots"]').setValue(true)
     await nextTick()
     const reasons = wrapper.get('.blocked-reasons')
     expect(reasons.find('a[href="/content/booking-content"]').exists()).toBe(false)
@@ -200,7 +200,7 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
   })
 
   it('暫停預約要填暫停說明', async () => {
-    mockBookingApi(readiness(), config('inquiry', null))
+    mockBookingApi(readiness(), config('phone', null))
     const wrapper = await mountAt(BookingSettingsView, '/booking')
     await wrapper.get('input[type="radio"][value="paused"]').setValue(true)
     await nextTick()
@@ -230,7 +230,7 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     const [message, title] = confirm.mock.calls[0]!
     expect(title).toBe('切換預約方式？')
     const text = textOf(message)
-    expect(text).toContain('會從「線上表單（收到需求後由園方聯絡）」改成「電話洽詢」')
+    expect(text).toContain('會從「暫停預約」改成「電話洽詢」')
     expect(text).toContain('進行中的案件 3 件')
     expect(text).toContain('洽詢電話：（空白） → 07-000-0000')
     expect(patch).not.toHaveBeenCalled()
@@ -343,7 +343,7 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     await wrapper.get('input[type="radio"][value="slots"]').setValue(true)
     await saveButton(wrapper).trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('還不能使用「時段預約（家長自選場次）」：「預約文案」還沒有發布同意條款文字')
+    expect(wrapper.text()).toContain('還不能使用「自選場次（家長線上預約）」：「預約文案」還沒有發布同意條款文字')
     expect((wrapper.get('input[type="radio"][value="slots"]').element as HTMLInputElement).checked).toBe(true)
   })
 })

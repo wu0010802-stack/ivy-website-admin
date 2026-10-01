@@ -36,19 +36,29 @@ function saveButton(wrapper: VueWrapper) {
 }
 
 describe('設定頁的編輯保護', () => {
-  it('可啟用日期場次並以人工確認作為預設', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(config())
-    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ ...config(), version: 2, mode: 'slots', slots_auto_confirm: false })
+  it('自選場次沒有人工確認開關，並顯示確認信狀態', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...config(), parent_email_enabled: false })
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ ...config(), version: 2, mode: 'slots', parent_email_enabled: false })
     // 切換預約方式前會先確認影響範圍。
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = await booking()
     const radio = wrapper.get('input[type="radio"][value="slots"]')
     expect(radio.attributes('disabled')).toBeUndefined()
     await radio.setValue(true)
+    expect(wrapper.text()).not.toContain('送出後自動確認預約')
+    expect(wrapper.text()).not.toContain('線上表單（收到需求後由園方聯絡）')
+    expect(wrapper.text()).toContain('尚未設定寄信，家長只會在畫面上看到修改連結')
     await saveButton(wrapper).trigger('click')
     await flushPromises()
     expect(confirm).toHaveBeenCalledOnce()
-    expect(patch).toHaveBeenCalledWith('/admin/booking-config/yihua', expect.objectContaining({ mode: 'slots', slots_auto_confirm: false }))
+    expect(patch).toHaveBeenCalledWith('/admin/booking-config/yihua', expect.objectContaining({ mode: 'slots' }))
+    expect(patch.mock.calls[0]![1]).not.toHaveProperty('slots_auto_confirm')
+  })
+
+  it('寄信啟用時顯示確認信：已啟用', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...config(), mode: 'slots', parent_email_enabled: true })
+    const wrapper = await booking()
+    expect(wrapper.text()).toContain('確認信：已啟用')
   })
 
   it('拒絕放棄修改時保留校區與輸入，不載入另一校', async () => {

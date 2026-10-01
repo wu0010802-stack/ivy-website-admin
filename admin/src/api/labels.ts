@@ -304,8 +304,8 @@ export function formatDuration(seconds: number | null | undefined): string {
 }
 
 export const BOOKING_MODE_LABELS: Record<string, string> = {
-  inquiry: '線上表單（收到需求後由園方聯絡）',
-  slots: '時段預約（家長自選場次）',
+  slots: '自選場次（家長線上預約）',
+  inquiry: '線上表單（已停用）',
   line: 'LINE 官方帳號',
   phone: '電話洽詢',
   external: '外部預約網站',
