@@ -304,3 +304,16 @@ async def test_transition_on_other_campus_visit_is_404(admin_client, minghua_cli
         assert response.status_code == 404, response.text
     current = (await admin_client.get(f"{RECORDS}/{record['id']}")).json()
     assert (current["stage"], current["version"]) == ("visited", record["version"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_date", ["2010-12-31", "2112-01-01"])
+async def test_enrolled_on_outside_roc_range_is_422(admin_client, bad_date):
+    """F8：註冊日期的民國年同參觀日期，要在 SCHOOL_YEAR_MIN～MAX，否則 422（loc 指 enrolled_on）。"""
+    record = await record_at_stage(admin_client, "deposited")
+    response = await _post(admin_client, record, "enrolled", enrolled_on=bad_date, **ENROLL)
+    assert response.status_code == 422, response.text
+    assert any(error["loc"][-1] == "enrolled_on" for error in response.json()["detail"]), response.text
+    assert (await admin_client.get(f"{RECORDS}/{record['id']}")).json()["version"] == record["version"]
+    edge = await transition(admin_client, record, "enrolled", enrolled_on="2111-12-31", **ENROLL)
+    assert edge["enrolled_on"] == "2111-12-31"

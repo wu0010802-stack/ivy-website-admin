@@ -55,11 +55,16 @@ def _not_future(value: date | None) -> date | None:
     return value
 
 
-def _roc_visit_date(value: date | None) -> date | None:
-    """民國年要落在 SCHOOL_YEAR_MIN～MAX，month 才會是三位數年份（roc_month 直接 year-1911）。"""
+def _roc_date(value: date | None, label: str) -> date | None:
+    """民國年要落在 SCHOOL_YEAR_MIN～MAX：參觀日期的 month 才會是三位數年份（roc_month
+    直接 year-1911）；註冊日期用同一個範圍擋掉打錯的年份。"""
     if value is not None and not constants.SCHOOL_YEAR_MIN <= value.year - 1911 <= constants.SCHOOL_YEAR_MAX:
-        raise ValueError(f"參觀日期的民國年必須在 {constants.SCHOOL_YEAR_MIN}～{constants.SCHOOL_YEAR_MAX} 之間")
+        raise ValueError(f"{label}的民國年必須在 {constants.SCHOOL_YEAR_MIN}～{constants.SCHOOL_YEAR_MAX} 之間")
     return value
+
+
+def _roc_visit_date(value: date | None) -> date | None:
+    return _roc_date(value, "參觀日期")
 
 
 class _VisitEditable(BaseModel):
@@ -255,11 +260,17 @@ class TransitionRequest(BaseModel):
     reason: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
     # 標記預繳時選填。
     deposit_collector: OptionalText = Field(default=None, max_length=constants.LEN_COLLECTOR)
-    # 標記註冊：註冊日期（沒給用台北今天）、年級與入學學年學期（沒保留座位時必填）。
+    # 標記註冊：註冊日期（沒給用台北今天；民國年同參觀日期要在 100～200）、年級與
+    # 入學學年學期（沒保留座位時必填）。
     enrolled_on: date | None = None
     grade: Grade | None = None
     target_school_year: SchoolYear | None = None
     target_semester: Semester | None = None
+
+    @field_validator("enrolled_on")
+    @classmethod
+    def _enrolled_on(cls, value: date | None) -> date | None:
+        return _roc_date(value, "註冊日期")
 
 
 class FunnelCardOut(BaseModel):
