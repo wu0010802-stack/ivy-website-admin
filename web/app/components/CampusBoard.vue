@@ -34,7 +34,7 @@ const announcement = ref('')
 // 換校時，被選中的分頁線稿由左往右畫出來、畫完再染淡彩；-1 表示目前沒有在畫。
 const drawing = ref(-1)
 let drewOnce = false
-// 淡彩速寫（2026-09-29，utils/campusSketch.ts）：第一次捲到與手動換校時，大照片先畫成線稿、上水彩，再暈開回照片。
+// 淡彩速寫（utils/campusSketch.ts）：第一次捲到從預畫線稿上水彩，再暈開回照片；手動換校沿用預覽線稿。
 // 自動輪播不重播（左右預覽改成線稿後只暈開，見下）；畫的期間暫停輪播計時。後台換過照片／線稿（對位不上）的學校不畫。
 const developing = ref(false)
 let develop: DevelopHandle | null = null
@@ -42,6 +42,8 @@ let develop: DevelopHandle | null = null
 // 看起來「彩色→黑白→彩色」。現在不在中央的卡先在 canvas 畫好線稿（paintSketchStill）才進這個集合，
 // 卡片掛 data-art="line" 藏照片；換到中央由 runDevelop 從線稿接手上色。存校名 key，後台換順序不錯位。
 const lineArt = shallowRef(new Set<string>())
+// 第一張也先準備線稿；SSR 即標記，head 的 JS 標記啟用遮照片，避免 hydration／慢下載時先閃彩色。
+const initialSketch = ref(current.value && sketchRegistration(current.value) ? current.value.key : null)
 let lineArtStarted = false
 let lineArtSize = ''
 function setLineArt(key: string, on: boolean) {
@@ -54,22 +56,24 @@ function setLineArt(key: string, on: boolean) {
 async function showLineArt(i: number) {
   const campus = orderedCampuses.value[i]
   const registration = campus && sketchRegistration(campus)
-  if (!campus || !registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
+  if (!campus || !registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return false
   const card = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]
   const canvas = card?.querySelector<HTMLCanvasElement>('canvas.sketch-canvas')
   const sources = sketchSources(i)
-  if (!card || !canvas || !sources) return
-  // 等線稿下載的期間這張可能被換到中央（canvas 歸 runDevelop 用），那就不畫
+  if (!card || !canvas || !sources) return false
+  // 第一張開始上色前也先畫完整線稿；其他卡換到中央後 canvas 歸 runDevelop，不再重畫。
   const painted = await paintSketchStill({
     card, canvas, registration, lineSrc: sources.lineSrc,
     objectPosition: campus.panoramaPos || 'center 55%',
-    wanted: () => current.value?.key !== campus.key
+    wanted: () => !reducedMotion.value && !matchMedia('(forced-colors: active)').matches
+      && (current.value?.key !== campus.key || initialSketch.value === campus.key)
   })
   if (painted) setLineArt(campus.key, true)
+  return painted
 }
 function refreshLineArt() {
   if (!lineArtStarted) return
-  orderedCampuses.value.forEach((_, i) => { if (i !== index.value) void showLineArt(i) })
+  orderedCampuses.value.forEach((campus, i) => { if (i !== index.value || initialSketch.value === campus.key) void showLineArt(i) })
 }
 // canvas 依卡片尺寸畫：卡片變大小才重畫（手機網址列伸縮只改視窗高度，卡片不變）
 function refreshLineArtOnResize() {
@@ -94,14 +98,22 @@ function preloadCampus(i: number) {
   const sources = sketchSources(i)
   if (sources) void preloadSketch(sources.lineSrc, sources.colourSrc)
 }
-// from：'photo' 從照片畫起（第一次捲到、沒有預覽線稿時）；'sketch' 從預覽線稿接手。wash=false 只暈開（自動輪播）。
+// from：'photo' 用於沒有預覽線稿的手動切換；'sketch' 從線稿接手。wash=false 只暈開（自動輪播）。
 async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = true) {
   develop?.cancel()
   const campus = orderedCampuses.value[i]
   const registration = campus && sketchRegistration(campus)
   // 從預覽線稿接手卻畫不了：直接露出照片
-  const showPhoto = () => { if (campus && index.value === i) setLineArt(campus.key, false) }
+  const showPhoto = () => {
+    if (!campus || index.value !== i) return
+    setLineArt(campus.key, false)
+    if (initialSketch.value === campus.key) initialSketch.value = null
+  }
   if (!registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) { showPhoto(); return }
+  if (initialSketch.value === campus?.key) {
+    if (!await showLineArt(i)) { showPhoto(); return }
+    from = 'sketch'
+  }
   await nextTick()
   const card = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]
   const img = card?.querySelector('img')
@@ -115,6 +127,7 @@ async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = 
   })
   // from 'sketch' 時 developSketch 已同步接手蓋住照片，這時拿掉預覽狀態照片不會閃出來
   setLineArt(campus.key, false)
+  if (initialSketch.value === campus.key) initialSketch.value = null
   develop = handle
   // 只暈開（自動輪播）也暫停計時：照片完整露出後才開始算四秒
   developing.value = true
@@ -126,7 +139,7 @@ async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = 
   })
 }
 const canAuto = computed(() => orderedCampuses.value.length > 1 && !paused.value && (!reducedMotion.value || optedIn.value))
-const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !dragging.value && !developing.value && !hoveringDetails.value)
+const playing = computed(() => canAuto.value && visible.value && !hidden.value && !focused.value && !dragging.value && !developing.value && !initialSketch.value && !hoveringDetails.value)
 // 進度條改由 CSS 動畫走（合成器執行）：原本每 50ms 寫一次 scaleX，停在區塊不動時也每幀重繪、主執行緒一直忙。
 // 計時仍由 carouselClock 負責換校；進度條只在這裡換 key 重建、從 from（0–1）接著播：換校歸零，
 // 手動暫停（進度條滿格）後再開始，則接續暫停前的進度。播放／暫停跟 playing 同一個開關（data-run）。
@@ -177,6 +190,7 @@ function select(next: number, automatic = false) {
   if (changed) {
     stopUncovered()
     develop?.cancel()
+    initialSketch.value = null
     // 離開中央的那張褪回線稿；換進來的是預覽線稿就從線稿接手上色（自動輪播只暈開）。
     // 還沒有線稿（素材沒載到、後台換過照片）時照舊：手動換校從照片畫起，自動輪播只滑動。
     void showLineArt(previous)
@@ -320,6 +334,9 @@ watch(orderedCampuses, (list, previous) => {
   const key = previous[index.value]?.key
   // 後台換了照片或線稿：舊的預覽線稿可能對不上，拿掉重畫
   lineArt.value = new Set()
+  if (initialSketch.value && !list.some(campus => campus.key === initialSketch.value && sketchRegistration(campus))) {
+    initialSketch.value = null
+  }
   select(Math.max(0, list.findIndex(campus => campus.key === key)))
   refreshLineArt()
 })
@@ -334,6 +351,7 @@ onMounted(() => {
     if (media.matches || forcedColors.matches) {
       finishControlsReveal()
       lineArt.value = new Set()
+      initialSketch.value = null
     } else refreshLineArt()
   }
   const visibilityChanged = () => { hidden.value = document.hidden }
@@ -344,7 +362,7 @@ onMounted(() => {
     if (!entries.some(entry => entry.isIntersecting)) return
     preloadObserver.disconnect()
     preloadCampus(index.value)
-    // 左右預覽卡的線稿也在這時畫好，捲到時鄰卡已經是線稿
+    // 第一張與左右預覽卡一起畫好，捲到時先看到線稿
     lineArtStarted = true
     refreshLineArtOnResize()
   }, { rootMargin: '800px 0px' })
@@ -448,6 +466,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
             v-for="(campus, i) in orderedCampuses" :key="campus.key"
             class="photo-card" :class="{ 'is-current': i === index, 'is-neighbor': Math.abs(offset(i)) === 1, 'is-repositioning': repositioning.has(i) }"
             :style="{ '--offset': offset(i) }" :data-art="lineArt.has(campus.key) ? 'line' : undefined" :to="`/campuses/${campus.key}`"
+            :data-initial-sketch="initialSketch === campus.key ? '' : undefined"
             :tabindex="i === index ? 0 : -1" :aria-hidden="i !== index" :inert="Math.abs(offset(i)) > 1"
             :aria-label="i === index ? `認識${campus.name}，查看校園介紹` : `選擇${campus.name}`"
             draggable="false" @click.capture="onPhotoClick($event, i)"
@@ -590,6 +609,12 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
    換到中央由 campusSketch 掛 is-sketch 接手，上色後照片暈開回來。 */
 .photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}
 .photo-card[data-art=line] img{opacity:0;transition:opacity .6s ease}
+/* JS 由 head 啟用：第一張線稿尚未載好時保留紙底；無 JS 照常顯示照片。 */
+html[data-ivy-motion] .photo-card[data-initial-sketch]{background:var(--paper)}
+html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:none}
+@media(prefers-reduced-motion:reduce),(forced-colors:active){
+  html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:1}
+}
 .gallery-toolbar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:2;pointer-events:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;min-height:var(--toolbar-height)}
 .playback-controls{position:relative;grid-column:2;display:flex;align-items:center;gap:10px;pointer-events:auto}
 .pagination{display:flex;align-items:center;min-height:48px;padding:1px 4px;border:1px solid var(--control-border);border-radius:999px;background:var(--control)}

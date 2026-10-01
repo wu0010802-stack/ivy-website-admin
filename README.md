@@ -1,3 +1,13 @@
+## 2026-10-01 分校資訊首次從線稿進場（未部署）
+
+`CampusBoard.vue` 的預設中央校與左右預覽一起預畫線稿，首次露出後接續水彩上色、暈開成照片，移除「彩色 → 線稿 → 彩色」的順序。SSR 即標記首張等待狀態，素材載入與動畫期間暫停輪播計時；素材失敗、減少動態、強制色彩及無 JavaScript 保留照片 fallback。手動切換、自動輪播節奏沿用既有設定。
+
+修正位於獨立 worktree `/private/tmp/ivy-campus-first-sketch-20261001`，基底為 `origin/main` 的 `392a41c`；原 Desktop 工作目錄的未提交修改保持不動。
+
+驗證：Node 22，`npm --prefix web run typecheck` 通過；`npm run test:website` 65 檔 668 項通過；Playwright Chrome 桌機 1440×900、手機 390×844、線稿延遲下載、減少動態、強制色彩、無 JavaScript、線稿下載失敗共 7 種情境通過。桌機／手機逐幀確認首次上色前沒有彩色照片閃現，回捲不重播、手動切換正常，無水平溢出或 runtime error。截圖與狀態紀錄在 `output/playwright/campus-first-sketch/`；未測 Safari／iOS 實機，未 push 或部署。
+
+合併驗證：修正提交 `099f03a`，整合本機 `main` 的全人教育 A2 後，typecheck 與 65 檔 665 項測試通過（A2 已移除原轉盤的 3 項測試）。
+
 ## 2026-10-01 全人教育右側採用 A2（`feature/whole-person-a2-20261001`，已部署 web）
 
 依使用者指定，只替換 `/about#whole-child` 右側紙轉盤；左頁內容、DOM、列表、來源、連結、尺寸與元素位置保持。新增 `AboutWholePerson.vue`，六個透明圓聚合成全人，8.6 秒播放一次，依最新要求移除下方操作鈕，保留離開視窗暫停；減少動態、強制色彩和無 JS 顯示完成圖。移除原轉盤的樣式、事件、角度工具與 3 項專屬測試。
