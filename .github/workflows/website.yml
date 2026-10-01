@@ -53,7 +53,9 @@ jobs:
   backend:
     name: Backend / PostgreSQL / contracts
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # 2026-09-30 全套 pytest 約 1040 項，平常整個 job 17–19 分鐘；慢的 runner 光 pytest 就要 21 分鐘，
+    # 20 分鐘上限曾在 83%、零失敗時被取消，連帶略過部署。
+    timeout-minutes: 30
     services:
       postgres:
         # 以 digest 釘版（2026-09-29 讀自 Docker Hub 的 multi-arch index）；tag 留給人看。

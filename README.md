@@ -16,7 +16,7 @@
 - 驗證：Node 22.23.2 typecheck 成功；`npm run test:website` 65 檔 665 項全過（修改前 668 項，差額是已移除的轉盤測試）。Playwright 1440／1024／768／390／320px 左頁 DOM、所有元素尺寸與相對位置一致，無橫向溢出；移除按鈕後已重新驗證桌機與手機自動播放、離屏暫停與續播、減少動態、無 JS，無 page error。未驗 Safari／iOS 實機。
 - 本機修改前快照 `versions/before-whole-person-a2-20261001/`（不納入提交）；截圖、左頁基準、檢查腳本與結果 `output/playwright/whole-person-a2/`。已依最新要求只部署 web（`f24d6e9b-cf09-4e5c-9fd6-7e4ecd88fe69`，SUCCESS），線上 release 與桌機手機驗證完成；本次提交保存已上線的六檔差異與紀錄，未 push。API／DB 部署不變，詳細紀錄見 `deploy/README.md`。
 
-## 2026-09-30 下午已完成分支併入 main（`merge/branches-20260930b`）
+## 2026-09-30 下午已完成分支併入 main（`merge/branches-20260930b`，2026-09-30 經 main CI 部署）
 
 併入三個已提交、worktree 乾淨的分支，各自說明見下方同日段落：`feature/tassels-five-20260930`（開場布幕流蘇固定五顆）、`feature/height-ruler-20260930`（首頁拿掉桌機章節指示）、`feature/mobile-perf-20260930`（手機效能第三輪）。合併基底是 main `7189998`（首屏筆刷的部署紀錄）。
 
@@ -26,7 +26,7 @@
 
 驗證（Node 22.23.2）：web typecheck（0 警告）、`npm run test:website` 65 檔 668 項；admin typecheck、vitest 49 檔 679 項（整套跑時另有三個 session 在忙、load 23，16 項 5 秒逾時，那 7 檔單獨重跑 133 項全過）；backend pytest 1037 項（獨立測試庫、先 `alembic upgrade head`）；`npm run contract:check`；production build 的完整 stack e2e 61 項全過（真 API＋拋棄式 PostgreSQL）。未驗：Safari／iOS 實機、正式站。
 
-## 2026-09-30 首屏文字：「新發現」金色乾刷色塊、拿掉小標與找校區（`feature/hero-brush-20260930`，未部署）
+## 2026-09-30 首屏文字：「新發現」金色乾刷色塊、拿掉小標與找校區（`feature/hero-brush-20260930`，2026-09-30 經 main CI 部署）
 
 依 `design/hero-brush-mockup-20260930/watercolor.html` 的定案（筆刷／金／原位／滿版裁切／關鍵字 -2°）改 `web/`：
 
@@ -36,7 +36,7 @@
 - 後台首屏表單：說明改成「旁的標語」，小標欄位加「首頁不顯示」提示。
 - 測試：`ux-critique-20260929.spec.ts` 的「找校區」改成鎖住拿掉；新增 `hero-brush-20260930.spec.ts`。
 - 驗證：`npm --prefix web run typecheck`（0 警告）、`npm run test:website`（65 檔 668 項）、`npm --prefix admin run typecheck`、`npm --prefix admin run test:unit`（49 檔 679 項）；dev server 上 1440／1280／390 的 12 幀對比與九種寬度，數字見 DESIGN.md 同日章節。改版前快照 `versions/before-hero-brush-20260930-145859/`。
-## 2026-09-30 首頁拿掉桌機章節指示（`feature/height-ruler-20260930`，未部署）
+## 2026-09-30 首頁拿掉桌機章節指示（`feature/height-ruler-20260930`，2026-09-30 經 main CI 部署）
 
 使用者要把首頁右側的章節指示改成像身高尺。試了三個方向（`?ruler=a` 刻度＋滑動頭頂板、`b` 從上方填色、`c` 由下往上長高），看完決定整個不要：首頁不放章節／進度指示。
 
@@ -45,7 +45,7 @@
 - DESIGN.md「首頁四項效果」那條改成已拿掉、勿再提。修改前快照 `versions/before-remove-chapter-nav-20260930-143455/`。
 
 驗證：Node 22 `nuxt typecheck` 結束碼 0；`npm run test:website` 64 檔 660 項通過。dev server（fixture）Playwright 1440×900、390×844：首頁沒有章節指示，點頁尾「孩子的一天」網址變 `#life`、讀線元素在 `#life` 內，沒有 console／page error。
-## 2026-09-30 手機效能第三輪：環境頁載入中卡操作、首屏影片拉長 LCP、three 首屏預取、內頁沒有 CWV（`feature/mobile-perf-20260930`，未部署）
+## 2026-09-30 手機效能第三輪：環境頁載入中卡操作、首屏影片拉長 LCP、three 首屏預取、內頁沒有 CWV（`feature/mobile-perf-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/mobile-perf-deep-20260930/report.md`。報告量的是 main `0a00625`，這裡也從同一個 main 開 worktree 修（`/private/tmp/ivy-website-mobile-perf-20260930`）。規則見 DESIGN.md 最上方「手機效能第三輪」。改版前快照：`versions/before-mobile-perf-20260930-131548/`。
 
@@ -97,7 +97,7 @@
 
 使用者要求開場動畫的金色流蘇由四顆改成五顆。原本帷幔垂花數依畫面比例 `max(2, floor(aspect×2.4+0.5))`，流蘇掛在內側綁點，所以 1440×900 是三顆、較寬螢幕四顆、手機一顆。`web/app/utils/entranceCurtain.ts` 改成固定六段垂花（`VALANCE_SWAGS`），任何比例都是五顆；手機也跟著變五顆，垂花較窄、流蘇間距約一顆流蘇寬。五張首屏海報（`web/public/assets/entrance-poster-*.webp`）用 `render-posters.cjs` 重產並更新 `ENTRANCE_POSTERS` 版號，比例分檔不變；預覽 `velvet.js` 重新產生（main 上原本就落後，一併追上）。
 
-驗證：Node 22 `nuxt typecheck` 0 個 `error TS`；`npm run test:website` 64 檔 663 項通過（rebase 到 `7861fc6` 後重跑）。dev server（fixture）用 Playwright（Metal）實跑開場：1512×790、1440×900、390×844 倒數期間都是五顆，拉幕後帷幔連同流蘇飛出，無 console／shader error。Safari／iOS 實機未驗證。未部署。
+驗證：Node 22 `nuxt typecheck` 0 個 `error TS`；`npm run test:website` 64 檔 663 項通過（rebase 到 `7861fc6` 後重跑）。dev server（fixture）用 Playwright（Metal）實跑開場：1512×790、1440×900、390×844 倒數期間都是五顆，拉幕後帷幔連同流蘇飛出，無 console／shader error。Safari／iOS 實機未驗證。2026-09-30 經 main CI 部署。
 
 ## 2026-09-30 已完成分支併入 main（`merge/branches-20260930`）
 
