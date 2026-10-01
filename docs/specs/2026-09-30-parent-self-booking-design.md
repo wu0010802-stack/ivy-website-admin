@@ -60,31 +60,34 @@
   - 既有以 `secrets.token_urlsafe` 產生的舊 token 仍以 hash 查找，照常可兌換。
 - `access_service`（`access_service.py:38`）新增：
   - `issue_access_token(db, visit_request)`：撤銷該案既有 token 與 session，建新列，回傳 raw 與到期時間。
-  - `current_manage_url(db, visit_request, origin)`：找該案未撤銷、未到期的 token，重算 raw，組 `{origin}/visit/manage#token=<raw>`（`origin` 用 `WEBSITE_ADMIN_ORIGIN`）；沒有則回 None。
+  - `current_manage_path(db, visit_request_id, secret=…)`：找該案未撤銷、未到期的 token，重算 raw，回傳站內路徑 `/visit/manage#token=<raw>`；沒有、或重算不出來（舊隨機 token、密鑰已換）則回 None。信件與後台要完整網址時再接上 `origin`（`WEBSITE_ADMIN_ORIGIN`）。
 - 有效期：`expires_at = max(now + 14 天, 參觀開始 + 7 天)`。改場次時依新場次重算（只會延長或維持，不縮短已發出的連結）。
+- `ensure_access_token`（排入場次、補登、重寄確認信共用）：已有可重算的連結就沿用，有場次時依場次延長效期；有效連結重算不出來時撤銷換新，並寫歷程 `access_link_created`（`after={expires_at, replaced_previous: true}`，actor 為操作的園方人員，不記 raw token）。
 - 發放時機：
   - 公開送單成功時（同一交易內）。
   - 後台補登且案件成為 `confirmed` 時。
   - 後台「重新產生連結並寄出」時（撤銷舊的、發新的、排一封 `parent_visit_changed`）。
   - 舊案件（本案上線前建立、沒有 token）在後台「排入場次」時。
 - 撤銷：沿用 `revoke_access_for_visit_request`，在取消、完成、未到場時由 `workflow_service._close`（`workflow_service.py:139`）呼叫。
-- 送單回應 `VisitRequestOut`（`schemas.py:387`）新增 `manage_path: str | None`（相對路徑 `/visit/manage#token=…`，不是完整網址；信件才用 origin 組完整網址）。新建與重播都用 `current_manage_url` 取得，同一筆永遠是同一條。回應加 `Cache-Control: no-store`。
+- 送單回應 `VisitRequestOut`（`schemas.py:387`）新增 `manage_path: str | None`（相對路徑 `/visit/manage#token=…`，不是完整網址；信件才用 origin 組完整網址）。新建與重播都用 `current_manage_path` 取得，同一筆永遠是同一條。回應加 `Cache-Control: no-store`。
 - 更換 `WEBSITE_SESSION_SECRET` 的影響（寫進 `deploy/README.md`）：已發出的連結**仍可用到到期**（兌換只比對雜湊），但系統無法再重算這些連結（重送、寄信拿不到連結）；園方可在後台按「重新產生連結並寄出」補發。
 
 ### 3.3 家長端 API（`access_routes.py`）
 
 全部沿用現有 session cookie、`require_parent_request`（`X-Ivy-Parent: 1`、擋 cross-site、每分鐘 30 次）、`_require_same_visit_request`（`access_routes.py:74`）與截止檢查 `require_change_window`（`parent_policy.py`）。
 
-- `GET /public/visit-manage/me`：`ParentVisitRequestOut`（`schemas.py:504`）新增 `parent_name`、`phone`、`email`、`child_name`、`child_birthdate`、`party_size`、`questions`、`version`，以及 `can_edit`（與 `can_reschedule` 同條件）。移除 `phone_masked`（改回傳完整 `phone`）。
+- **每案每日上限**：每次改期、改資料都會寄信給家長並通知園方，持有連結的人不能無限重送。家長改期每案每日 5 次（`parent_reschedule_case`）、改資料每案每日 10 次（`parent_edit_case`），沿用 `ratelimit` 的 DB 計數器，key 為案件 id。超過回 429 `RATE_LIMITED`（「這筆預約今天已經修改很多次了，請明天再試，或直接聯絡園所」）＋`Retry-After`。只有操作成功（commit 後）才記一次，失敗的嘗試與沒有實際變更的改資料不吃額度；取消不設上限。
+
+- `GET /public/visit-manage/me`：`ParentVisitRequestOut`（`schemas.py:504`）新增 `parent_name`、`phone`、`email`、`child_name`、`child_birthdate`、`party_size`、`questions`、`version`，以及 `can_edit`（`confirmed`、截止前、分校啟用；`can_reschedule` 另外要求分校預約方式為 `slots`）。移除 `phone_masked`（改回傳完整 `phone`）。
 - `POST /public/visit-manage/reschedule`（新）：body `{visit_request_id, slot_id}`。
-  - 條件：案件 `confirmed`、分校啟用、在截止前、新時段 `is_publicly_bookable`、與原時段不同。
+  - 條件：案件 `confirmed`、分校啟用、分校預約方式為 `slots`、在截止前、新時段 `is_publicly_bookable`、與原時段不同。預約方式改成暫停、LINE、電話等非 `slots` 時官網沒有場次可選，回 409 `BOOKING_UNAVAILABLE`（「本校目前暫停線上預約，要改時間請來電」）；取消照常。
   - 呼叫 `workflow_service.reschedule(actor=PARENT)`（`workflow_service.py:270`），沿用「新舊時段依字串排序上鎖」與容量檢查。
   - 成功後重算 token 有效期。寄信由 `workflow_service.reschedule` 統一排（§3.4），給園方的 `visit_request_rescheduled` 照舊。
-  - 錯誤碼：`SLOT_FULL`、`SLOT_CLOSED`、`SLOT_NOT_FOUND`、`SLOT_NOT_BOOKABLE`、`SAME_SLOT`、`CHANGE_DEADLINE_PASSED`、`INVALID_TRANSITION`、`BOOKING_UNAVAILABLE`、`PARENT_SESSION_CHANGED`。
+  - 錯誤碼：`SLOT_FULL`、`SLOT_CLOSED`、`SLOT_NOT_FOUND`、`SLOT_NOT_BOOKABLE`、`SAME_SLOT`、`CHANGE_DEADLINE_PASSED`、`INVALID_TRANSITION`、`BOOKING_UNAVAILABLE`、`PARENT_SESSION_CHANGED`、`RATE_LIMITED`（429）。
 - `PATCH /public/visit-manage/me`（新）：body `{visit_request_id, expected_version, parent_name?, phone?, email?, child_name?, child_birthdate?, party_size?, questions?}`。
-  - 欄位驗證與公開送單相同（`schemas.py:231-317`）；`email` 不可清空。
+  - 欄位驗證與公開送單相同（`schemas.py:231-317`）；必填欄位（`parent_name`、`phone`、`email`、`child_name`、`party_size`）不可清空，422 逐欄位回報（`loc` 指到該欄，例如 `["body","email"]`，訊息如「Email 不能清空」）。
   - 鎖案件列，`version` 不符回 409 `VISIT_REQUEST_VERSION_CONFLICT`（沿用既有代碼）。
-  - 條件同改期（`confirmed`、截止前）。沒有實際變更時直接回目前資料，不寫歷程、不寄信。
+  - 條件：`confirmed`、截止前、分校啟用（停用回 409 `BOOKING_UNAVAILABLE`，與 `can_edit` 一致；不要求預約方式為 `slots`）。沒有實際變更時直接回目前資料，不寫歷程、不寄信。
   - 歷程事件 `details_updated`（actor=PARENT，只記改了哪些欄位名稱：`after={"fields": [...]}`，不記內容，歷程表規定不放個資）。不通知園方。
   - 有變更時排 `parent_visit_changed`，寄到**新的** Email。
 - `POST /public/visit-manage/cancel`：不變；另外寫 `cancel_reason=parent`。寄信由 `workflow_service.cancel` 統一排（§3.4）。
@@ -96,8 +99,10 @@
 - `notifications/service.py` 的 `dispatch_outbox_message`（`:232`）遇到 `parent_*` kind：
   - 只走 Email，不寫站內通知、不推 LINE。
   - 收件者：案件目前的 `email`；delivery 去重鍵 `parent:<visit_request_id>`（沿用 `notification_deliveries` 的唯一鍵）。
-  - 寄件當下用 `current_manage_url` 重算連結；已撤銷（取消後）就不放連結，改放重新預約網址 `{origin}/visit/{campus_key}`。
+  - 寄件當下用 `current_manage_path` 重算連結（接上 origin）；已撤銷（取消後）就不放連結，改放重新預約網址 `{origin}/visit/{campus_key}`。
   - 沒有 Email、或 adapter 為 None（沒設 SMTP 也沒設 sink），標為 `skipped`，不重試。
+  - 寄件當下案件已不是 `confirmed`（例如「預約成功」還在排隊就被取消）：`parent_visit_booked`／`parent_visit_changed` 標為 `skipped`，家長只會收到「已取消」。
+  - `parent_visit_changed` 不重複排：同案已有一封還沒被認領（`pending`）的變更信就不再新增，內容在寄件當下才依案件最新狀態組成，連續改好幾次只寄一封。已被認領（`leased`）的不算——worker 可能已組好內容，之後的變更要另外寄。
   - 沿用 `EXTERNAL_DELIVERY_STALE_AFTER`（超過 24 小時的舊訊息不寄）與既有重試退避。
 - 信件內容（`notifications/parent_email.py`，純文字＋簡單 HTML 的 multipart；若 `SmtpEmailAdapter` 只支援純文字，就先寄純文字，HTML 列為後續）：
   - 主旨：`【常春藤{校名}】參觀預約成功：10/02（五）上午場 10:00`；變更寫「參觀預約已變更」；取消寫「參觀預約已取消」。
@@ -113,7 +118,7 @@
 | 家長或園方改場次 | `workflow_service.reschedule`（不分 actor） | `parent_visit_changed` |
 | 家長改資料 | §3.3 `PATCH /public/visit-manage/me` | `parent_visit_changed` |
 | 後台重寄確認信 | 新端點 §3.6 | `parent_visit_booked`（新 outbox 列，不受去重影響） |
-| 後台重新產生連結並寄出 | 新端點 §3.6 | `parent_visit_changed` |
+| 後台重新產生連結並寄出（案件有場次時） | 新端點 §3.6 | `parent_visit_changed` |
 | 家長或園方取消（案件有場次時） | `workflow_service.cancel`（actor=parent／staff） | `parent_visit_cancelled` |
 | 舊的待確認占位逾期釋放 | `workflow_service.expire_holds` | 不寄 |
 
@@ -141,8 +146,9 @@
 - 移除 `POST .../contacting`（`routes.py:1517`）：回 410 `ENDPOINT_RETIRED`。`workflow_service.mark_contacting` 刪除。
 - `POST .../confirm`（`routes.py:1314`）保留，語意改為「排入場次」，只用於 pending 組的舊案件；成功後發修改連結（若無）並排 `parent_visit_booked`（有 Email 時）。
 - 補登 `POST /admin/visit-requests`（`routes.py:1036`）：`slot_id` 必填（schema 層，缺少回標準 422）；時段可在 24 小時預約窗內，但不可已關閉、已滿、已開始（與 `ManualVisitDialog.vue:103` 的 `openSlots` 一致）；成功即 `confirmed`、發修改連結、有 Email 時排 `parent_visit_booked`。
-- 新增 `POST /admin/visit-requests/{id}/resend-confirmation`（`booking.handle`）：案件須為 `confirmed` 且有 Email，否則 409。若沒有有效 token 先發一條。
-- 既有 `POST .../access-link`（`access_routes.py:229`）改為「重新產生並寄出」：撤銷舊連結、發新連結、有 Email 時排 `parent_visit_changed`；回應仍附新連結供園方複製。
+- 新增 `POST /admin/visit-requests/{id}/resend-confirmation`（`booking.handle`）：案件須為 `confirmed` 且有 Email，否則 409 `RESEND_NOT_AVAILABLE`。沒設 SMTP 時回 409 `PARENT_EMAIL_DISABLED`（「尚未設定寄信，無法寄出確認信；請把修改連結直接交給家長」），不排信、不記稽核。若沒有可重算的有效 token 先發一條（見 §3.2 `ensure_access_token`）。成功回 202 `ResendConfirmationOut {queued: true}`。
+- 既有 `POST .../access-link`（`access_routes.py:229`）改為「重新產生並寄出」：撤銷舊連結、發新連結、有 Email 且案件有場次時排 `parent_visit_changed`（沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑）；回應仍附新連結供園方複製。
+  - 回應的 `emailed` = 有 Email、案件有場次、而且有設 SMTP（與公開設定 `parent_email_enabled` 同一個判斷）。沒設 SMTP 時 `emailed` 為 false，但信照排——之後設好 SMTP，24 小時內仍會寄出。`emailed` 為 false 時園方要自行把連結交給家長。
 - 後台取消與改期的回應不變；寄信在 §3.4 觸發。
 
 ### 3.7 場次設定與停止申請
@@ -283,7 +289,7 @@
 
 **後端（pytest，真 PostgreSQL）**
 - 送單：一律 `confirmed`；缺 `slot_id` 422；缺 Email 422；`inquiry` 設定下公開端回 paused。
-- 修改連結：新建與重播的 `manage_path` 相同；raw 可兌換；撤銷後 `current_manage_url` 為 None；更換密鑰後舊連結仍可兌換但無法重算；有效期計算與改期延長；舊隨機 token 仍可兌換。
+- 修改連結：新建與重播的 `manage_path` 相同；raw 可兌換；撤銷後 `current_manage_path` 為 None；更換密鑰後舊連結仍可兌換但無法重算；有效期計算與改期延長；舊隨機 token 仍可兌換。
 - 家長改期：成功、截止後 409、同時段、非公開可訂；**最後一個名額「家長改期」與「新預約」並發只一方成功**（沿用 `test_booking_concurrency.py` 的做法）。
 - 家長改資料：版本衝突、欄位驗證、Email 不可清空、無變更不寫歷程、截止後 409、`PARENT_SESSION_CHANGED`。
 - 寄信：三種 kind 各自的觸發點（§3.4 表）；payload 不含 raw token；取消信沒有修改連結；無 Email／無 adapter 標 `skipped`；去重；sink adapter 內容含正確場次文字與連結。
