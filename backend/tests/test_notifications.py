@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest
 from app.workers import lease_service
@@ -79,6 +79,12 @@ async def test_max_attempts_marks_failed_for_manual_retry(
     await _book_and_get_id(admin_client, public_client)
 
     message = await _created_message(db_session)
+    # 預約同時排了其他 outbox（園方確認通知、家長信）。claim_next 只依 next_attempt_at
+    # 排序，迴圈可能先認領到別筆；先把其他筆標成已寄出，測試只依賴目標這一筆。
+    await db_session.execute(
+        update(OutboxMessage).where(OutboxMessage.id != message.id).values(status=OutboxStatus.SENT.value)
+    )
+    await db_session.commit()
 
     for _ in range(lease_service.MAX_ATTEMPTS):
         message.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
