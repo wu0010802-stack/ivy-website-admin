@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import importlib.util
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 
 from app.booking import schedule_service, service
-from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestEvent
+from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestEvent, VisitSlot
 from app.operations.models import AuditLogEntry
+from app.common.timezones import today_local
 from tests.conftest import legacy_request
 
 _MIGRATION = (
@@ -86,6 +87,42 @@ async def test_inquiry_campuses_switch_to_slots_or_paused(db_session):
     ).scalars().all()
     assert sorted(a.campus_key for a in audits) == ["chongde", "minghua", "yihua"]
     assert all(a.metadata_json["before"] == {"mode": "inquiry"} for a in audits)
+
+
+def _slot(campus_key: str, *, days_ahead: int, closed: bool = False) -> VisitSlot:
+    return VisitSlot(
+        id=uuid.uuid4(),
+        campus_key=campus_key,
+        slot_date=today_local() + timedelta(days=days_ahead),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        capacity=2,
+        closed=closed,
+        closed_source="manual" if closed else None,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+@pytest.mark.asyncio
+async def test_only_open_future_slots_without_rules_count_as_a_schedule(db_session):
+    """沒有每週規則時看場次：有一個未來、未關閉的場次 → slots；只有已關閉或過去的場次 → paused。"""
+    await _config(db_session, "minghua", mode=BookingMode.INQUIRY)
+    await _config(db_session, "chongde", mode=BookingMode.INQUIRY)
+    db_session.add_all(
+        [
+            _slot("minghua", days_ahead=5),
+            _slot("chongde", days_ahead=5, closed=True),
+            _slot("chongde", days_ahead=-1),
+        ]
+    )
+    await db_session.commit()
+
+    changes = await _run(db_session, _migration().migrate_booking_modes)
+
+    assert sorted((c["campus_key"], c["mode"]) for c in changes) == [("chongde", "paused"), ("minghua", "slots")]
+    db_session.expire_all()
+    assert (await db_session.get(BookingConfig, "minghua")).mode == BookingMode.SLOTS
+    assert (await db_session.get(BookingConfig, "chongde")).mode == BookingMode.PAUSED
 
 
 @pytest.mark.asyncio
