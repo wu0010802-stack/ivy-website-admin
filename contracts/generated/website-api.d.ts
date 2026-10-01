@@ -2451,12 +2451,19 @@ export interface components {
              */
             visit_request_id: string;
         };
-        /** ArrivalsOut */
+        /**
+         * ArrivalsOut
+         * @description 兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。
+         */
         ArrivalsOut: {
             /** Awaiting */
             awaiting: components["schemas"]["ArrivalRowOut"][];
+            /** Awaiting Total */
+            awaiting_total: number;
             /** Missing */
             missing: components["schemas"]["ArrivalRowOut"][];
+            /** Missing Total */
+            missing_total: number;
         };
         /**
          * AuditLogEntryOut

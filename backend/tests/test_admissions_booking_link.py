@@ -10,13 +10,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.admissions import academic, booking_link, constants, records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.booking import status_groups
-from app.booking.models import VisitRequest
+from app.booking.models import VisitRequest, VisitSlot
 from app.common.timezones import OPERATING_TZ, today_local
 from app.operations.models import AuditLogEntry
 from tests.admissions_helpers import (  # noqa: F401
@@ -375,3 +375,56 @@ async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client,
     # 之後開啟：關閉期間已到場的預約出現在「已到場但沒有招生訪視」，可以補建。
     missing = (await booking_link.arrivals(db_session, "yihua"))["missing"]
     assert booking["id"] in {str(row["visit_request_id"]) for row in missing}
+
+
+@pytest.mark.asyncio
+async def test_arrivals_caps_each_list_newest_first_with_totals(admin_client, db_session):
+    """F3：兩份清單各最多 ARRIVALS_LIMIT 筆。待確認依場次日期與開始時間新到舊；
+    已到場沒有招生訪視依場次日期（沒有場次用建立時間）新到舊；total 是截斷前的總數。"""
+    now = datetime.now(timezone.utc)
+    today = today_local()
+    slots = {}
+    for key, days_ago, start in (("oldest", 3, time(9, 0)), ("morning", 1, time(9, 0)), ("afternoon", 1, time(14, 0))):
+        slots[key] = uuid.uuid4()
+        db_session.add(
+            VisitSlot(
+                id=slots[key], campus_key="yihua", slot_date=today - timedelta(days=days_ago), start_time=start,
+                end_time=time(start.hour + 1, 0), capacity=10, created_at=now,
+            )
+        )
+    await db_session.flush()
+
+    def requests(count: int, parent_name: str, *, status: str, slot: str | None = None, created_at=now) -> list[dict]:
+        return [
+            {
+                "id": uuid.uuid4(), "campus_key": "yihua", "idempotency_key": f"cap-{uuid.uuid4().hex}",
+                "payload_hash": "0" * 64, "config_version": 0, "parent_name": parent_name, "phone": "0911000111",
+                "referral_sources": [], "party_size": 2, "consent_given": True, "status": status, "source": "web",
+                "slot_id": slots[slot] if slot else None, "created_at": created_at,
+            }
+            for _ in range(count)
+        ]
+
+    await db_session.execute(
+        insert(VisitRequest),
+        [
+            *requests(5, "三天前", status="confirmed", slot="oldest"),
+            *requests(100, "昨天上午", status="confirmed", slot="morning"),
+            *requests(100, "昨天下午", status="confirmed", slot="afternoon"),
+            *requests(1, "今天建立沒有場次", status="completed"),
+            *requests(200, "昨天上午到場", status="completed", slot="morning"),
+            *requests(2, "一個月前建立沒有場次", status="completed", created_at=now - timedelta(days=30)),
+        ],
+    )
+    await db_session.commit()
+
+    assert booking_link.ARRIVALS_LIMIT == 200
+    result = await booking_link.arrivals(db_session, "yihua", now=now)
+    assert (result["awaiting_total"], result["missing_total"]) == (205, 203)
+    assert [row["parent_name"] for row in result["awaiting"]] == ["昨天下午"] * 100 + ["昨天上午"] * 100
+    assert [row["parent_name"] for row in result["missing"]] == ["今天建立沒有場次"] + ["昨天上午到場"] * 199
+
+    response = await admin_client.get(ARRIVALS)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (len(body["awaiting"]), body["awaiting_total"], len(body["missing"]), body["missing_total"]) == (200, 205, 200, 203)

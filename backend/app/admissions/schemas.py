@@ -367,7 +367,12 @@ class ArrivalRowOut(BaseModel):
 
 
 class ArrivalsOut(BaseModel):
-    # confirmed 且場次已開始、還沒確認到場（分頁標籤上的待確認筆數）。
+    """兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。"""
+
+    # confirmed 且場次已開始、還沒確認到場；依場次日期與開始時間新到舊。
     awaiting: list[ArrivalRowOut]
-    # 已到場但沒有招生訪視，可以補建。
+    # 待確認的總筆數（分頁標籤上的數字）。
+    awaiting_total: int
+    # 已到場但沒有招生訪視，可以補建；依場次日期（沒有場次用建立時間）新到舊。
     missing: list[ArrivalRowOut]
+    missing_total: int

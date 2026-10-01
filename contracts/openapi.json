@@ -295,6 +295,7 @@
         "type": "object"
       },
       "ArrivalsOut": {
+        "description": "兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。",
         "properties": {
           "awaiting": {
             "items": {
@@ -303,17 +304,27 @@
             "title": "Awaiting",
             "type": "array"
           },
+          "awaiting_total": {
+            "title": "Awaiting Total",
+            "type": "integer"
+          },
           "missing": {
             "items": {
               "$ref": "#/components/schemas/ArrivalRowOut"
             },
             "title": "Missing",
             "type": "array"
+          },
+          "missing_total": {
+            "title": "Missing Total",
+            "type": "integer"
           }
         },
         "required": [
           "awaiting",
-          "missing"
+          "awaiting_total",
+          "missing",
+          "missing_total"
         ],
         "title": "ArrivalsOut",
         "type": "object"
