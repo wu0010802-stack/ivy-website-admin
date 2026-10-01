@@ -68,6 +68,14 @@ npm --prefix admin run test:unit -- --maxWorkers=2
 | 26 | 歷程照園務 | 標題「參觀→入學 歷程」；座位事件不寫「已預繳 → 已預繳」，改寫 metadata 的年級與學期（有才寫）；建立訪視不寫「— → 已訪視」；回應有 `actor_name` 才寫操作者 | 園務摘要第 10 節陷阱 ②；規格第 10 節「歷程不露英文代碼」 |
 | 27 | 明細日期格式未定 | 「參觀日期」顯示民國 `115.09.08`（同園務），月份篩選同為民國 | 與園務表格、月份欄、匯出格式一致 |
 | 28 | 409 提示只寫看板 | 狀態轉換一律用園務原文「狀態已被其他人變更，已自動重新載入」；編輯、刪除、保留座位用「這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作」（表單另說「你的修改沒有儲存」）；都自動重讀、不顯示錯誤 | 官網既有慣例：樂觀鎖衝突用 warning／info 並重讀，不顯示錯誤（VisitDetailView `reportError`） |
+| 29 | （A 階段整體審查後新增，2026-10-01）後端預設不開招生 | `WEBSITE_ADMISSIONS_ENABLED` 預設關閉：關閉時 `/admin/admissions/*` 全部 404、標記已到場不建招生訪視。頁面在 options 回 404 時顯示「招生入學尚未啟用」空狀態（不顯示錯誤）；本機 dev 與 stack e2e 要設 `WEBSITE_ADMISSIONS_ENABLED=true`（`tests/stack/start-api.sh` 已設） | 規格 §11、§15 Q1 裁定前正式環境不可啟用；防止批次合併進 main 後自動複製個資 |
+| 30 | `RecruitmentVisitOut` 欄位 | 多 `anonymized_at`；已匿名化的訪視編輯、狀態轉換、保留座位都回 409 `RECRUITMENT_VISIT_ANONYMIZED`（刪除可）。明細與表單對已匿名化的列顯示唯讀並標示「已匿名化」，不顯示編輯、註冊、保留座位按鈕；`errors.ts` 補這個代碼的備援文案 | A 階段 F2 |
+| 31 | 看板卡片 `FunnelCardOut` 沒有 `anonymized_at` | B3 拖曳或「移到…」收到 409 `RECRUITMENT_VISIT_ANONYMIZED` 時：提示「這筆招生訪視已依保存政策匿名化，不能再變更」並重載看板（不要當成一般錯誤） | A 階段整體審查裁定（若 B3 需要先擋，可請後端在卡片加欄位，屬小幅契約變更） |
+| 32 | `ArrivalsOut` 形狀 | 多 `awaiting_total`、`missing_total`；兩份清單各最多 200 筆，`awaiting` 依場次由新到舊、`missing` 依場次（無場次用建立時間）由新到舊。分頁標籤數字用 `awaiting_total`；超過 200 筆時清單上方寫「只列最近 200 筆，共 N 筆」 | A 階段 F3 |
+| 33 | `FunnelBoardOut`、`IntakePlanOut` | 多 `as_of`（UTC）與 `campus_key`；畫面可在看板與名額規劃下方顯示「資料時間 HH:MM」，並用回應的 `campus_key` 再確認沒有跨校殘留 | A 階段 F4、規格 §13 |
+| 34 | 刪除權限 | 刪除「已註冊」或「從已註冊退出」的訪視需要 `admissions.convert`（後端 403）；明細「更多」裡的刪除對這兩種列只在有 `admissions.convert` 時顯示 | A 階段 F5 裁定（官網沒有學生檔，刪除等於退註冊） |
+| 35 | 註冊日期 | `TransitionRequest.enrolled_on` 民國年須在 100–200 年（同參觀日期），日期選擇器限制範圍 | A 階段 F8 |
+| 36 | 「（未填姓名）」 | 後端 `constants.MISSING_CHILD_NAME`；B 的 `constants.ts` 以原始碼比對方式取得同一字串（同 `admissionsConstants.test.ts` 對其他列舉的做法），卡片與明細遇到時加「待補」標示 | A 階段整體審查 M10 |
 
 ## 檔案結構
 
