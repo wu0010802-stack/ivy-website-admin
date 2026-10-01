@@ -589,11 +589,13 @@ export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   target_semester: '入學學期',
 }
 
-// 個資保存政策會清理的案件類別（後端 retention_service.CATEGORIES）。
+// 個資保存政策會清理的類別（後端 retention_service.CATEGORIES 與 ADMISSIONS）。
+// 招生訪視只在設定了天數時才出現在試算與清理紀錄裡。
 export const RETENTION_CATEGORY_LABELS: Record<string, string> = {
   cancelled: '已取消',
   no_show: '未到場',
   completed: '已完成參觀',
+  admissions: '招生訪視',
 }
 
 // 清理紀錄與操作紀錄（retention.run 的 trigger）共用；「定期工作」是工程說法，
@@ -1031,6 +1033,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   cancelled_days: '已取消、未到場保留',
   completed_days: '已完成參觀保留',
   open_overdue_days: '未結案提醒',
+  admissions_days: '招生訪視保留',
   auto_run_enabled: '每天自動清理',
 }
 
@@ -1040,11 +1043,13 @@ const AUDIT_FIELD_UNITS: Record<string, string> = {
   cancelled_days: '天',
   completed_days: '天',
   open_overdue_days: '天',
+  admissions_days: '天',
   min_lead_hours: '小時',
   max_advance_days: '天',
 }
 
 function auditValueLabel(field: string, value: unknown): string {
+  if (field === 'admissions_days' && (value === null || value === undefined)) return '不自動清理'
   if (field === 'role' && typeof value === 'string') return roleLabel(value)
   if (field === 'closed' && typeof value === 'boolean') return value ? '已關閉' : '開放'
   if (field === 'auto_run_enabled' && typeof value === 'boolean') return value ? '開啟' : '關閉'
@@ -1264,12 +1269,17 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   days: (v) => {
     if (!v || typeof v !== 'object') return null
     const d = v as Record<string, unknown>
-    return `保留天數：取消／未到場 ${String(d.cancelled_days)} 天、完成 ${String(d.completed_days)} 天`
+    const admissions = typeof d.admissions_days === 'number' ? `、招生訪視 ${d.admissions_days} 天` : ''
+    return `保留天數：取消／未到場 ${String(d.cancelled_days)} 天、完成 ${String(d.completed_days)} 天${admissions}`
   },
   counts: (v) => {
     if (!v || typeof v !== 'object') return null
     const c = v as Record<string, unknown>
-    return Object.keys(RETENTION_CATEGORY_LABELS).map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${countOf(c[key])} 筆`).join('、')
+    // 招生訪視只有設定了天數的清理才有；舊紀錄與沒設定的不列，文字跟以前一樣。
+    return Object.keys(RETENTION_CATEGORY_LABELS)
+      .filter((key) => key !== 'admissions' || key in c)
+      .map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${countOf(c[key])} 筆`)
+      .join('、')
   },
   total: (v) => `共匿名化 ${countOf(v)} 筆`,
   open_overdue_count: (v) => (countOf(v) ? `另有 ${countOf(v)} 筆超過天數仍未結案` : null),

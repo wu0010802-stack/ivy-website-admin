@@ -9,7 +9,11 @@
 
 試算不改資料、不留紀錄；真的匿名化一定要部署設定
 WEBSITE_RETENTION_ALLOW_REAL_RUN=true，定期工作另外要政策開啟自動執行。每次
-真正執行都寫一筆 retention_runs（不記案件 id）。"""
+真正執行都寫一筆 retention_runs（不記案件 id）。
+
+招生訪視（2026-10 招生入學規格 11）是另一個用途的紀錄，不隨預約匿名化：天數另外
+設定（admissions_days，NULL＝不自動清理），只有設定了天數，試算與清理紀錄的
+counts 才會有 admissions 這一類（舊的清理紀錄與操作紀錄格式不變）。"""
 
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from sqlalchemy import Text, cast, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions import retention as admissions_retention
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.common.timezones import now_utc
@@ -39,6 +44,9 @@ COMPLETED = VisitRequestStatus.COMPLETED.value
 CATEGORIES = (CANCELLED, NO_SHOW, COMPLETED)
 # 各類用哪一個天數設定。
 _DAYS_FIELD = {CANCELLED: "cancelled_days", NO_SHOW: "cancelled_days", COMPLETED: "completed_days"}
+
+# 招生訪視的類別代碼（天數用 admissions_days，條件與清除欄位見 app/admissions/retention.py）。
+ADMISSIONS = "admissions"
 
 _OPEN_STATUSES = (
     VisitRequestStatus.NEW.value,
@@ -75,11 +83,13 @@ def _default_values() -> dict:
     }
 
 
-def policy_days(policy: RetentionPolicy) -> dict[str, int]:
+def policy_days(policy: RetentionPolicy) -> dict[str, int | None]:
     return {
         "cancelled_days": policy.cancelled_days,
         "completed_days": policy.completed_days,
         "open_overdue_days": policy.open_overdue_days,
+        # None＝招生訪視不自動清理。
+        "admissions_days": policy.admissions_days,
     }
 
 
@@ -136,7 +146,7 @@ async def count_open_overdue(db: AsyncSession, days: dict[str, int], *, now: dat
 
 @dataclass
 class RetentionReport:
-    days: dict[str, int]
+    days: dict[str, int | None]
     counts: dict[str, int] = field(default_factory=dict)
     open_overdue_count: int = 0
     dry_run: bool = True
@@ -147,13 +157,16 @@ class RetentionReport:
         return sum(self.counts.values())
 
 
-async def preview(db: AsyncSession, days: dict[str, int], *, now: datetime | None = None) -> RetentionReport:
+async def preview(db: AsyncSession, days: dict[str, int | None], *, now: datetime | None = None) -> RetentionReport:
     """只算筆數，不改資料、不留紀錄（保存政策頁的「現在執行會處理幾筆」）。"""
     current = now or now_utc()
     found = await find_candidates(db, days, now=current)
+    counts = {k: len(v) for k, v in found.items()}
+    if days.get("admissions_days") is not None:
+        counts[ADMISSIONS] = await admissions_retention.eligible_count(db, days["admissions_days"], now=current)
     return RetentionReport(
         days=days,
-        counts={k: len(v) for k, v in found.items()},
+        counts=counts,
         open_overdue_count=await count_open_overdue(db, days, now=current),
     )
 
@@ -203,26 +216,25 @@ async def _clear_free_text_reasons(db: AsyncSession, visit_request_ids) -> None:
 
 async def run_sweep(
     db: AsyncSession,
-    days: dict[str, int],
+    days: dict[str, int | None],
     *,
     trigger: RetentionRunTrigger,
     actor_user_id: uuid.UUID | None = None,
     now: datetime | None = None,
 ) -> RetentionReport:
-    """匿名化到期的已結案案件，並寫一筆 retention_runs。呼叫端負責確認部署
-    允許真正清理、寫稽核與 commit。"""
+    """匿名化到期的已結案案件（以及設定了天數時到期的招生訪視），並寫一筆
+    retention_runs。呼叫端負責確認部署允許真正清理、寫稽核與 commit。"""
     current = now or now_utc()
     found = await find_candidates(db, days, now=current)
-    report = RetentionReport(
-        days=days,
-        counts={k: len(v) for k, v in found.items()},
-        open_overdue_count=await count_open_overdue(db, days, now=current),
-        dry_run=False,
-    )
+    counts = {k: len(v) for k, v in found.items()}
+    open_overdue_count = await count_open_overdue(db, days, now=current)
     for candidates in found.values():
         for candidate in candidates:
             await anonymize(db, candidate)
     await _backfill_anonymized(db)
+    if days.get("admissions_days") is not None:
+        counts[ADMISSIONS] = await admissions_retention.anonymize_due(db, days["admissions_days"], now=current)
+    report = RetentionReport(days=days, counts=counts, open_overdue_count=open_overdue_count, dry_run=False)
     run = RetentionRun(
         id=uuid.uuid4(),
         created_at=current,
