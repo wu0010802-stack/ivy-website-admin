@@ -308,7 +308,7 @@ async function save() {
           <el-form-item v-if="form.mode === 'external'" label="外部預約網址" required :error="externalUrlError">
             <el-input v-model="form.external_url" placeholder="https://…" inputmode="url" maxlength="500" autocomplete="off" />
           </el-form-item>
-          <p v-if="form.mode === 'slots'" class="hint">
+          <p v-if="form.mode === 'slots'" class="hint booking-email-hint">
             {{ config.parent_email_enabled ? '確認信：已啟用。家長送出後會收到確認信與修改連結。' : '尚未設定寄信，家長只會在畫面上看到修改連結。' }}
             <router-link :to="sessionsPath">設定參觀場次</router-link>
           </p>
@@ -358,6 +358,7 @@ async function save() {
 </template>
 
 <style scoped>
+.booking-email-hint { margin: 0 0 16px; }
 .deadline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .deadline__input { width: 120px; }
 .modes {

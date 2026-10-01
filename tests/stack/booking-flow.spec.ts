@@ -1,15 +1,17 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { adminApi, findVisit, submitPublicRequest, type AdminApi } from './api'
-import { answerMessageBox, gotoAdmin, openAs } from './pages'
-import { INQUIRY_CAMPUS, SLOTS_CAMPUS } from './stack-env'
+import { readMail } from './mail'
+import { openAs } from './pages'
+import { SECOND_CAMPUS, SLOTS_CAMPUS } from './stack-env'
 
-// 預約主流程（計畫 Task 11 A11、A13）：家長在官網送出 → 後台看到並處理 → 產生家長管理
-// 連結 → 家長用連結改期或取消 → 後台核准。每一步都在畫面上操作，只用 API 核對結果。
+// 預約主流程（2026-09-30 家長自選場次）：家長在官網選場次送出即預約成功 → 從結果頁的修改連結
+// 改場次、改資料、取消；確認信寫進本機 sink。每一步都在畫面上操作，只用 API 與 sink 核對結果。
 
 interface ParentForm {
   childName: string
   parentName: string
   phone: string
+  email: string
 }
 
 async function fillParentForm(page: Page, form: ParentForm): Promise<void> {
@@ -18,39 +20,20 @@ async function fillParentForm(page: Page, form: ParentForm): Promise<void> {
   await page.getByLabel('家長稱呼').fill(form.parentName)
   await page.getByLabel('聯絡電話').fill(form.phone)
   await page.getByLabel('參觀人數').selectOption('2')
+  await page.getByLabel('聯絡 Email').fill(form.email)
   await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
 }
 
-async function openCase(page: Page, parentName: string): Promise<void> {
-  await gotoAdmin(page, '/visit-requests', '參觀案件')
-  await page.getByRole('link', { name: parentName }).first().click()
-  // 頁首的頁名是 h1，家長姓名是 h2（DESIGN 第六輪：一頁只有一個 h1）。
-  await expect(page.getByRole('heading', { level: 2, name: parentName })).toBeVisible()
-}
+const mailSubjects = (to: string) => async () => (await readMail(mail => mail.to === to)).map(mail => mail.subject)
 
-/** 已確認的案件：狀態標籤是「已確認」，處理區換成改期（場次開始前沒有完成／未到場）。 */
-async function expectConfirmed(page: Page): Promise<void> {
-  await expect(page.getByText('已確認', { exact: true })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: '改期的新時段' })).toBeVisible()
-}
-
-async function createParentLink(page: Page): Promise<string> {
-  const panel = page.locator('section.access')
-  await panel.getByRole('button', { name: '產生連結' }).click()
-  const input = panel.getByRole('textbox', { name: '家長管理連結' })
-  await expect(input).toHaveValue(/\/visit\/manage#token=/)
-  return input.inputValue()
-}
-
-test.describe('線上選場次（義華）', () => {
-  test('家長選場次送出 → 園方確認 → 家長用管理連結申請改期 → 園方核准', async ({ browser }) => {
-    const form = { childName: '林小芽', parentName: '林線上家長', phone: '0912000111' }
+test.describe('自選場次（義華）', () => {
+  test('家長選場次送出即預約成功 → 從結果頁改場次、改資料 → 取消；確認信寫進 sink', async ({ browser }) => {
+    const form = { childName: '自選寶貝', parentName: '自選媽媽', phone: '0955000111', email: 'self-book@example.com' }
     const parent = await openAs(browser, null)
-    const staff = await openAs(browser, 'reception')
     const api = await adminApi('super_admin')
+    const { page } = parent
 
-    await test.step('家長在官網選日期與場次、填資料送出', async () => {
-      const { page } = parent
+    await test.step('家長選日期與場次、填資料送出，結果頁寫預約成功與修改連結', async () => {
       await page.goto(`/visit/${SLOTS_CAMPUS}`)
       await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
       const date = page.getByLabel('預約日期')
@@ -58,134 +41,61 @@ test.describe('線上選場次（義華）', () => {
       await date.selectOption({ index: 1 })
       await page.locator('.visit-slot-options input[type="radio"]').first().check()
       await fillParentForm(page, form)
-      await page.getByRole('button', { name: '送出參觀需求' }).click()
-      const result = page.locator('#booking-result')
-      await expect(result.getByRole('heading', { name: '已經收到你的時段申請' })).toBeVisible()
-      await expect(result).toContainText('待園方確認')
-      await expect(result).toContainText(form.parentName)
-    })
-    const submitted = await findVisit(api, form.parentName)
-    expect(submitted.status).toBe('pending_confirmation')
-    expect(submitted.slot).not.toBeNull()
-
-    await test.step('接待人員在案件列表找到、確認家長選的場次並記下聯絡紀錄', async () => {
-      const { page } = staff
-      await openCase(page, form.parentName)
-      await expect(page.getByText('家長已選擇場次，名額暫時保留')).toBeVisible()
-      await page.getByRole('button', { name: '確認已選場次' }).click()
-      await answerMessageBox(page, '確認這筆預約？', '確認預約')
-      await expectConfirmed(page)
-      // 確認後聯絡紀錄框會預填「已致電家長…」，直接送出。
-      await expect(page.getByRole('textbox', { name: '新增聯絡紀錄' })).toHaveValue(/已致電家長/)
-      await page.getByRole('button', { name: '新增紀錄' }).click()
-      await expect(page.locator('.detail__pre').filter({ hasText: '已致電家長' })).toBeVisible()
+      await page.getByRole('button', { name: /送出/ }).click()
+      await expect(page.locator('#booking-result')).toContainText('預約成功')
+      await expect(page.getByRole('link', { name: '修改或取消預約' })).toHaveAttribute('href', /\/visit\/manage#token=/)
     })
     expect((await findVisit(api, form.parentName)).status).toBe('confirmed')
+    await expect.poll(mailSubjects(form.email), { timeout: 90_000 }).toContainEqual(expect.stringContaining('參觀預約成功'))
 
-    let manageUrl = ''
-    await test.step('產生家長管理連結（只顯示一次）', async () => {
-      manageUrl = await createParentLink(staff.page)
-    })
-
-    let requestedDate = ''
-    await test.step('家長打開連結，申請改到另一個場次', async () => {
-      const { page } = parent
-      await page.goto(manageUrl)
-      await expect(page.getByRole('heading', { level: 1, name: '管理參觀預約' })).toBeVisible()
-      await expect(page.locator('.parent-visit-status')).toHaveText('預約成立')
+    await test.step('用修改連結進管理頁，改場次', async () => {
+      await page.getByRole('link', { name: '修改或取消預約' }).click()
+      await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
       // 連結裡的 token 換成 session 後，網址的 fragment 會被清掉。
       await expect(page).toHaveURL(/\/visit\/manage$/)
-      await page.getByRole('button', { name: '申請改期' }).click()
-      const select = page.getByLabel('希望改期的場次')
-      await expect(select).toBeFocused()
-      await select.selectOption({ index: 1 })
-      requestedDate = (await select.locator('option:checked').textContent()) ?? ''
-      await page.getByRole('button', { name: '送出改期申請' }).click()
-      await expect(page.locator('.parent-visit-notice')).toBeVisible()
+      await page.getByRole('button', { name: '改場次' }).click()
+      await page.getByLabel('新的場次').selectOption({ index: 1 })
+      await page.getByRole('button', { name: '確認改到這個場次' }).click()
+      await expect(page.locator('.parent-visit-notice')).toContainText('已改到')
     })
 
-    await test.step('園方在案件明細核准改期', async () => {
-      const { page } = staff
-      await page.reload()
-      const request = page.getByRole('group', { name: '家長的改期申請' })
-      await expect(request).toBeVisible()
-      await request.getByRole('button', { name: '核准改期' }).click()
-      await answerMessageBox(page, '核准這筆改期？', '核准改期')
-      await expect(request).toBeHidden()
-    })
-    const rescheduled = await findVisit(api, form.parentName)
-    expect(rescheduled.status).toBe('confirmed')
-    expect(rescheduled.slot?.id).not.toBe(submitted.slot?.id)
-
-    await test.step('家長重新整理管理頁，看到新時段', async () => {
-      const { page } = parent
-      await page.reload()
-      await expect(page.locator('.parent-visit-details')).toContainText(requestedDate.trim())
+    await test.step('修改資料', async () => {
+      await page.getByRole('button', { name: '修改資料' }).click()
+      await page.getByLabel('參觀人數').selectOption('3')
+      await page.getByRole('button', { name: '儲存修改' }).click()
+      await expect(page.locator('.parent-visit-notice')).toContainText('資料已更新')
+      // 變更信在案件取消前要先寄出：已排隊還沒寄的變更信，案件取消後會略過。
+      await expect.poll(mailSubjects(form.email), { timeout: 90_000 }).toContainEqual(expect.stringContaining('參觀預約已變更'))
     })
 
-    await Promise.all([parent.context.close(), staff.context.close(), api.dispose()])
-  })
-})
-
-test.describe('只收需求（明華）', () => {
-  test('家長送出需求 → 園方聯絡後排入時段 → 家長用管理連結取消', async ({ browser }) => {
-    const form = { childName: '陳小樹', parentName: '陳需求家長', phone: '0912000222' }
-    const parent = await openAs(browser, null)
-    const staff = await openAs(browser, 'super_admin')
-    const api = await adminApi('super_admin')
-
-    await test.step('家長送出參觀需求（不選場次）', async () => {
-      const { page } = parent
-      await page.goto(`/visit/${INQUIRY_CAMPUS}`)
-      await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
-      await expect(page.getByLabel('預約日期')).toHaveCount(0)
-      await fillParentForm(page, form)
-      await page.getByRole('button', { name: '送出參觀需求' }).click()
-      await expect(page.locator('#booking-result').getByRole('heading', { name: '參觀需求已送出' })).toBeVisible()
-    })
-    expect((await findVisit(api, form.parentName)).status).toBe('new')
-
-    await test.step('園方標為聯絡中、記下聯絡紀錄、選時段確認', async () => {
-      const { page } = staff
-      await openCase(page, form.parentName)
-      await page.getByRole('button', { name: '開始聯絡（標為聯絡中）' }).click()
-      await expect(page.getByRole('button', { name: '開始聯絡（標為聯絡中）' })).toBeHidden()
-      await page.getByRole('textbox', { name: '新增聯絡紀錄' }).fill('已致電，家長希望下週上午參觀')
-      await page.getByRole('button', { name: '新增紀錄' }).click()
-      await expect(page.locator('.detail__pre').filter({ hasText: '家長希望下週上午參觀' })).toBeVisible()
-      await page.locator('.detail__actions .el-select').first().click()
-      await page.getByRole('option').first().click()
-      await page.getByRole('button', { name: '確認並排入時段' }).click()
-      await answerMessageBox(page, '確認這筆預約？', '確認預約')
-      await expectConfirmed(page)
-    })
-    const confirmed = await findVisit(api, form.parentName)
-    expect(confirmed.status).toBe('confirmed')
-    expect(confirmed.slot).not.toBeNull()
-
-    const manageUrl = await createParentLink(staff.page)
-
-    await test.step('家長用連結取消預約', async () => {
-      const { page } = parent
-      await page.goto(manageUrl)
-      await expect(page.locator('.parent-visit-status')).toHaveText('預約成立')
+    await test.step('取消預約', async () => {
       await page.getByRole('button', { name: '取消預約' }).click()
-      await expect(page.getByRole('heading', { name: '確定要取消這次預約嗎？' })).toBeVisible()
       await page.getByRole('button', { name: '確認取消預約' }).click()
       await expect(page.locator('.parent-visit-status')).toHaveText('預約已取消')
-      await expect(page.getByRole('link', { name: '重新預約' })).toBeVisible()
-    })
-
-    await test.step('園方看到家長已取消，歷程記錄是家長操作', async () => {
-      const { page } = staff
-      await page.reload()
-      await expect(page.getByText('已取消', { exact: true })).toBeVisible()
-      await expect(page.getByRole('button', { name: '重新預約（另建新案）' })).toBeVisible()
-      await expect(page.getByRole('list', { name: '案件歷程' }).getByRole('listitem').first()).toContainText('家長')
+      await expect.poll(mailSubjects(form.email), { timeout: 90_000 }).toContainEqual(expect.stringContaining('參觀預約已取消'))
     })
     expect((await findVisit(api, form.parentName)).status).toBe('cancelled')
+    await Promise.all([parent.context.close(), api.dispose()])
+  })
 
-    await Promise.all([parent.context.close(), staff.context.close(), api.dispose()])
+  test('園方在後台看到預約正常，取消後列表寫出家長取消', async ({ browser }) => {
+    const api = await adminApi('super_admin')
+    const created = await submitPublicRequest(SLOTS_CAMPUS, '後台對照家長', '0955000222')
+    const visit = await findVisit(api, '後台對照家長')
+    const staff = await openAs(browser, 'reception')
+    const { page } = staff
+    await page.goto('/admin/visit-requests')
+    await page.getByRole('textbox', { name: /搜尋家長/ }).fill('後台對照家長')
+    await expect(page.locator('.visit-state').first()).toHaveText('預約正常')
+    await page.getByRole('link', { name: '後台對照家長' }).first().click()
+    await expect(page.getByRole('heading', { level: 2, name: '後台對照家長' })).toBeVisible()
+    await page.getByRole('button', { name: '取消預約' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '取消預約' }).click()
+    await expect(page.getByText('已取消', { exact: true }).first()).toBeVisible()
+    expect((await findVisit(api, '後台對照家長')).status).toBe('cancelled')
+    expect(visit.id).toBeTruthy()
+    expect(created.receipt_id).toBeTruthy()
+    await Promise.all([staff.context.close(), api.dispose()])
   })
 })
 
@@ -194,10 +104,12 @@ test.describe('填寫中的即時驗證', () => {
   // 放開時已不在，第一次點擊落空（電話填錯直接點同意框要點兩次）。錯誤訊息要等點擊完成才出現。
   // 重現條件是剛填的欄位還在畫面上：目標在畫面外時 Playwright 會先捲動，Chrome 的 scroll
   // anchoring 剛好把位移補掉，測不出來。
-  async function openInquiryForm(page: Page): Promise<void> {
-    await page.goto(`/visit/${INQUIRY_CAMPUS}`)
+  async function openForm(page: Page): Promise<void> {
+    await page.goto(`/visit/${SECOND_CAMPUS}`)
     await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
     await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__))
+    await page.getByLabel('預約日期').selectOption({ index: 1 })
+    await page.locator('.visit-slot-options input[type="radio"]').first().check()
     await page.getByLabel('孩子姓名').fill('王小葉')
     await page.getByLabel('孩子出生年月日').fill('2022-03-15')
     await page.getByLabel('家長稱呼').fill('王驗證家長')
@@ -215,7 +127,7 @@ test.describe('填寫中的即時驗證', () => {
   for (const { name, device, touch } of devices) {
     test(`電話填錯直接點同意框，一次就勾到（${name}）`, async ({ browser }) => {
       const { context, page } = await openAs(browser, null, device)
-      await openInquiryForm(page)
+      await openForm(page)
       const phone = page.getByLabel('聯絡電話')
       await phone.fill('12345')
       await keepOnScreen(phone)
@@ -232,7 +144,7 @@ test.describe('填寫中的即時驗證', () => {
 
   test('Email 填錯直接按送出，一次就跑送出前檢查', async ({ browser }) => {
     const { context, page } = await openAs(browser, null)
-    await openInquiryForm(page)
+    await openForm(page)
     await page.getByLabel('聯絡電話').fill('0912000333')
     await page.getByLabel('參觀人數').selectOption('2')
     await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
@@ -258,23 +170,23 @@ test.describe('家長管理頁的邊界情況', () => {
     // 2026-09-30 E2E：分頁共用 session cookie，後開的連結蓋掉前一筆；回舊分頁按取消，
     // 畫面上的 A 沒變、另一筆 B 被取消了。
     const api = await adminApi('super_admin')
-    await submitPublicRequest(INQUIRY_CAMPUS, '分頁甲家長', '0912000661')
-    await submitPublicRequest(INQUIRY_CAMPUS, '分頁乙家長', '0912000662')
+    await submitPublicRequest(SECOND_CAMPUS, '分頁甲家長', '0912000661')
+    await submitPublicRequest(SECOND_CAMPUS, '分頁乙家長', '0912000662')
     const [first, second] = [await findVisit(api, '分頁甲家長'), await findVisit(api, '分頁乙家長')]
     const { context, page: firstTab } = await openAs(browser, null)
     await firstTab.goto(await manageLink(api, first.id))
-    await expect(firstTab.getByText('0912***661')).toBeVisible()
+    await expect(firstTab.locator('.parent-visit-details').getByText('0912000661', { exact: true })).toBeVisible()
     const secondTab = await context.newPage()
     await secondTab.goto(await manageLink(api, second.id))
-    await expect(secondTab.getByText('0912***662')).toBeVisible()
+    await expect(secondTab.locator('.parent-visit-details').getByText('0912000662', { exact: true })).toBeVisible()
 
     await firstTab.bringToFront()
     await firstTab.getByRole('button', { name: '取消預約' }).click()
     await firstTab.getByRole('button', { name: '確認取消預約' }).click()
     await expect(firstTab.locator('.parent-visit-error')).toContainText('其他分頁開啟了另一筆預約的管理連結')
     await expect(firstTab.locator('.parent-visit-status')).toHaveCount(0)
-    expect((await findVisit(api, '分頁甲家長')).status).toBe('new')
-    expect((await findVisit(api, '分頁乙家長')).status).toBe('new')
+    expect((await findVisit(api, '分頁甲家長')).status).toBe('confirmed')
+    expect((await findVisit(api, '分頁乙家長')).status).toBe('confirmed')
 
     // 後開的那一頁照常可以操作。
     await secondTab.bringToFront()
@@ -282,7 +194,7 @@ test.describe('家長管理頁的邊界情況', () => {
     await secondTab.getByRole('button', { name: '確認取消預約' }).click()
     await expect(secondTab.locator('.parent-visit-status')).toHaveText('預約已取消')
     expect((await findVisit(api, '分頁乙家長')).status).toBe('cancelled')
-    expect((await findVisit(api, '分頁甲家長')).status).toBe('new')
+    expect((await findVisit(api, '分頁甲家長')).status).toBe('confirmed')
     await Promise.all([context.close(), api.dispose()])
   })
 
@@ -292,32 +204,31 @@ test.describe('家長管理頁的邊界情況', () => {
     const api = await adminApi('super_admin')
     await submitPublicRequest(SLOTS_CAMPUS, '截止改期家長', '0912000663')
     const visit = await findVisit(api, '截止改期家長')
-    await api.send('POST', `/admin/visit-requests/${visit.id}/confirm`, { slot_id: visit.slot!.id })
     const { context, page } = await openAs(browser, null)
-    const config = await api.get<{ version: number; mode: string; slots_auto_confirm: boolean; parent_change_deadline_hours: number }>(
+    const config = await api.get<{ version: number; mode: string; parent_change_deadline_hours: number }>(
       `/admin/booking-config/${SLOTS_CAMPUS}`,
     )
     const setDeadline = async (hours: number) => {
       const current = await api.get<{ version: number }>(`/admin/booking-config/${SLOTS_CAMPUS}`)
       await api.send('PATCH', `/admin/booking-config/${SLOTS_CAMPUS}`, {
-        expected_version: current.version, mode: config.mode, slots_auto_confirm: config.slots_auto_confirm, parent_change_deadline_hours: hours,
+        expected_version: current.version, mode: config.mode, parent_change_deadline_hours: hours,
       })
     }
     try {
       await page.goto(await manageLink(api, visit.id))
-      await expect(page.locator('.parent-visit-status')).toHaveText('預約成立')
-      await page.getByRole('button', { name: '申請改期' }).click()
-      await page.getByLabel('希望改期的場次').selectOption({ index: 1 })
+      await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
+      await page.getByRole('button', { name: '改場次' }).click()
+      await page.getByLabel('新的場次').selectOption({ index: 1 })
       // 頁面開著的期間跨過截止：把這校的異動截止拉到參觀前 14 天（場次在 7–9 天後）。
       await setDeadline(24 * 14)
-      await page.getByRole('button', { name: '送出改期申請' }).click()
+      await page.getByRole('button', { name: '確認改到這個場次' }).click()
 
       await expect(page.locator('.parent-visit-error')).toContainText('目前已無法線上異動這筆預約')
       await expect(page.getByRole('button', { name: '重新載入預約' })).toBeVisible()
-      await expect(page.getByRole('button', { name: '申請改期' })).toHaveCount(0)
-      await expect(page.getByText('已超過線上異動時間')).toBeVisible()
-      const requests = await api.get<{ visit_request_id: string }[]>(`/admin/reschedule-requests?campus_key=${SLOTS_CAMPUS}`)
-      expect(requests.filter(request => request.visit_request_id === visit.id)).toEqual([])
+      await expect(page.getByRole('button', { name: '改場次' })).toHaveCount(0)
+      await expect(page.getByText('已超過線上修改時間')).toBeVisible()
+      // 改場次沒有成功：案件仍在原本的場次。
+      expect((await findVisit(api, '截止改期家長')).slot?.id).toBe(visit.slot?.id)
     } finally {
       await setDeadline(config.parent_change_deadline_hours)
       await Promise.all([context.close(), api.dispose()])

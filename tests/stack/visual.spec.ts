@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { adminApi, findVisit, submitPublicRequest } from './api'
 import { gotoAdmin } from './pages'
-import { INQUIRY_CAMPUS, storageStatePath } from './stack-env'
+import { SECOND_CAMPUS, storageStatePath } from './stack-env'
 
 // 後台關鍵頁面的像素回歸（計畫 Task 11）。資料固定（每次重建的測試庫＋這裡自己建的
 // 案件），動畫由 config 關掉；伺服器產生的時間與隨其他測試變動的數字一律遮罩。
@@ -28,7 +28,7 @@ test.describe('後台畫面基準', () => {
   let visitId = ''
 
   test.beforeAll(async () => {
-    await submitPublicRequest(INQUIRY_CAMPUS, PARENT, '0912000551')
+    await submitPublicRequest(SECOND_CAMPUS, PARENT, '0912000551')
     const api = await adminApi('super_admin')
     visitId = (await findVisit(api, PARENT)).id
     await api.dispose()

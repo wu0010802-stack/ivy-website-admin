@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { test as setup } from '@playwright/test'
 import { adminApi, taipeiDate, type AdminApi, type SlotOut } from './api'
-import { AUTH_DIR, INQUIRY_CAMPUS, SLOTS_CAMPUS, USERS, storageStatePath, type StackRole } from './stack-env'
+import { AUTH_DIR, SECOND_CAMPUS, SLOTS_CAMPUS, USERS, storageStatePath, type StackRole } from './stack-env'
 
 // 每次執行前 start-api.sh 已重建資料庫（migration、五校、initialize-content、總管理者）。
 // 這裡補上：三個分校角色帳號、各角色的登入狀態，以及兩校的預約方式與場次。
@@ -64,8 +64,8 @@ setup('角色帳號、登入狀態與兩校預約設定', async () => {
 
   // 場次放在一週後：避開最短提前 24 小時與家長線上異動期限（預設參觀前 24 小時）。
   await createSlots(admin, SLOTS_CAMPUS, [7, 8, 9])
-  await setMode(admin, SLOTS_CAMPUS, { mode: 'slots', slots_auto_confirm: false })
-  await createSlots(admin, INQUIRY_CAMPUS, [7, 8])
-  await setMode(admin, INQUIRY_CAMPUS, { mode: 'inquiry' })
+  await setMode(admin, SLOTS_CAMPUS, { mode: 'slots' })
+  await createSlots(admin, SECOND_CAMPUS, [7, 8, 9])
+  await setMode(admin, SECOND_CAMPUS, { mode: 'slots' })
   await admin.dispose()
 })

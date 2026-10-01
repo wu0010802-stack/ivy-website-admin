@@ -121,8 +121,7 @@ const PUBLIC_PAGES = ['/', '/campuses/yihua', '/curriculum', '/environment', '/a
 const ADMIN_PAGES: [string, string][] = [
   ['/', '營運總覽'],
   ['/visit-requests', '參觀案件'],
-  ['/visit-calendar', '接待月曆'],
-  ['/slots', '時段與容量'],
+  ['/visit-calendar', '參觀場次'],
   ['/booking', '各校預約方式'],
   ['/content/campus-profile?campus=yihua', '五校介紹'],
   ['/content/home-news', '最新消息與活動'],
