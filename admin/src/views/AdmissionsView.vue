@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import RecordsTab from '../components/admissions/RecordsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { getArrivals, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
@@ -13,7 +14,7 @@ import { isAdmissionsTab, useAdmissionsFilters, type AdmissionsTab, type Semeste
 
 // 招生入學（規格第 10 節）：頁首放校區與入學學年學期，五個分頁順序比照園務。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
-const { campus, schoolYear, semester, tab, visibleCampusKeys, defaultYear } = useAdmissionsFilters()
+const { campus, schoolYear, semester, tab, visitRequestId, month, visibleCampusKeys, defaultYear, clearTerm } = useAdmissionsFilters()
 const { can } = usePermissions()
 // 官網預約分頁讀 /admin/admissions/arrivals，需要 booking.read。
 const canSeeArrivals = computed(() => can('booking.read'))
@@ -117,6 +118,15 @@ function goTab(next: AdmissionsTab) {
       </el-tabs>
 
       <div class="admissions__body">
+        <RecordsTab
+          v-if="tab === 'records'"
+          v-model:month="month"
+          v-model:visitRequestId="visitRequestId"
+          :campus-key="campus"
+          :school-year="schoolYear"
+          :semester="semester"
+          @clear-term="clearTerm"
+        />
         <StatsTab v-if="tab === 'stats'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @go="goTab" />
       </div>
     </template>

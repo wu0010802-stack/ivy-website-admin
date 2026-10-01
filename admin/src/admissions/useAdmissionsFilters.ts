@@ -8,6 +8,8 @@ export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// 民國月份「115.09」（園務 ROC_MONTH_PATTERN 允許兩到三位數年份）。
+const ROC_MONTH = /^\d{2,3}\.(0[1-9]|1[0-2])$/
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 export function isAdmissionsTab(value: unknown): value is AdmissionsTab {
@@ -28,6 +30,7 @@ function queryKey(query: LocationQuery | Record<string, string>): string {
  * - sy：入學學年，預設目前學年（台北日期）；all＝不限學年。
  * - sem：入學學期 1／2；不帶＝整學年（同園務看板）。
  * - tab：分頁；vr：只看某筆預約的招生訪視（預約明細的連結用）。
+ * - month：訪視明細的參觀月份（民國 115.09）；統計分頁的「查看本月明細」帶這個切過來。
  * 畫面改條件用 replace 寫回網址，不堆瀏覽紀錄；網址被改（上一頁、連結）時讀回畫面。
  */
 export function useAdmissionsFilters() {
@@ -42,6 +45,7 @@ export function useAdmissionsFilters() {
   const semester = ref<Semester | null>(null)
   const tab = ref<AdmissionsTab>('funnel')
   const visitRequestId = ref('')
+  const month = ref('')
 
   function pickCampus(wanted: string): string {
     const keys = visibleCampusKeys.value
@@ -59,6 +63,8 @@ export function useAdmissionsFilters() {
     tab.value = isAdmissionsTab(query.tab) ? query.tab : 'funnel'
     const vr = text(query.vr)
     visitRequestId.value = UUID.test(vr) ? vr : ''
+    const roc = text(query.month)
+    month.value = ROC_MONTH.test(roc) ? roc : ''
   }
 
   function stateQuery(): Record<string, string> {
@@ -69,6 +75,7 @@ export function useAdmissionsFilters() {
     if (semester.value) query.sem = String(semester.value)
     if (tab.value !== 'funnel') query.tab = tab.value
     if (visitRequestId.value) query.vr = visitRequestId.value
+    if (month.value) query.month = month.value
     return query
   }
 
@@ -85,7 +92,7 @@ export function useAdmissionsFilters() {
   }
 
   apply(route.query)
-  watch([campus, schoolYear, semester, tab, visitRequestId], syncUrl, { immediate: true })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month], syncUrl, { immediate: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -101,5 +108,5 @@ export function useAdmissionsFilters() {
     semester.value = null
   }
 
-  return { campus, schoolYear, semester, tab, visitRequestId, visibleCampusKeys, defaultYear, clearTerm }
+  return { campus, schoolYear, semester, tab, visitRequestId, month, visibleCampusKeys, defaultYear, clearTerm }
 }
