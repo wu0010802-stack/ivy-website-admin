@@ -904,3 +904,24 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - run `36664641812`（`b74f525`）五個 job 全綠，Deploy Railway production 03:48:52–03:52:14 UTC。`/release.json` snapshot `03c857670339f4ac38c2913f985a57e29d2e05ec937330a39f5936c223f6d1f3`、`base_commit` `b74f525`、`web+api`、`created_at` 2026-09-30T03:49:14Z。
 - 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/visit/minghua`、`/visit/manage`、`/admin/login` 皆 200；正式站 `/visit/manage` 與 `/visit/minghua` 引用的 JS 含 `PARENT_SESSION_CHANGED`、多分頁提示文字、`visit_request_id` 與同意框的 `contextmenu` 釋放處理，確認是新版前端。
 - **未做**：Safari／iOS 實機；正式站沒有送出預約、沒有開家長管理連結，多分頁與截止情境只在本機 stack 驗過。
+
+## 家長自選場次（未部署，草稿）
+
+`feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。**尚未 push、尚未部署**；B–D 完成後由使用者決定何時合併上線（push main＝正式部署）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
+
+上線前人工步驟：
+1. **寄信帳號**：Railway api 設 `WEBSITE_SMTP_HOST／PORT／SECURITY／USERNAME／PASSWORD／FROM`（Gmail／Google Workspace 應用程式密碼最省事；用學校網域寄件要先設 SPF／DKIM）。不設也能上線，家長只在畫面上看到修改連結（`parent_email_enabled=false`）。
+2. **各校設定場次**：上線後各校到後台「參觀場次」按「套用常用場次」→ 調整 →「儲存並開放線上預約」。上線時沒設場次的校先顯示暫停；上線前若已有每週規則，migration 會直接切成自選場次。
+3. **同意文字**：確認各校已發布的預約同意文字提到 Email 用於寄送預約確認與修改連結（參觀後的招生用途寫法由業主裁定）。
+4. 依備份閘門備份正式 DB（改寫資料的 migration）；用 `railway` MCP 或使用者自己的終端機執行，不要在 auto 模式跑 railway ssh。
+5. **web 與 api 必須同一次上線**：舊官網表單送出會先收到 422（缺 `slot_id`／`email`）或 `BOOKING_CONFIG_CHANGED`。
+6. 更換 `WEBSITE_SESSION_SECRET`：已發出的修改連結仍可用到到期，但系統無法再重算（重送、寄信拿不到連結），園方可按「重新產生連結並寄出」。
+7. 家長端每案每日上限：改期 5 次、改資料 10 次；每個來源 24 小時最多占 5 個場次名額（`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`）。
+
+上線前用 SQL **唯讀**查兩件事：(1) 哪些 inquiry 校已有每週規則或未來場次（預先確認 migration 會把五校各切成 slots 或 paused）；(2) 未來、`closed_source IS NULL` 的已關閉場次上有沒有 confirmed 案件（這些不再列入待人工處理）。
+
+上線後唯讀檢查：對五校 `GET /api/website/v1/public/booking-config/{yihua,minghua,chongde,international,renwu}`，看 `mode` 與 `parent_email_enabled` 是否符合預期；smoke 逾時先查 `release.json` 與 railway http log。
+
+待業主決定：每筆官網預約同時通知園方「新的參觀需求」與「參觀預約已確認」兩則（LINE 群組一筆兩則推播），要不要合併成一則。
+
+合併前：origin/main 已前進（審查時為 392a41c，動到 `contracts/openapi.json` 與 `operations/routes.py`），先 rebase 並重跑 `npm run contract:generate` 與後端全套。**本節只是草稿，部署後才補「已部署」紀錄。**

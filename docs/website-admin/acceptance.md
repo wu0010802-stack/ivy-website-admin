@@ -376,3 +376,8 @@ npm run e2e:build && npm run test:e2e:stack
 - **家長端沒有通知管道**：核准／退回改期、園方改期都不會通知家長；家長管理頁看不到退回原因。
 - 需要使用者處理、本分支明確沒做（不可逆或需登入正式環境）：簡訊驗證（付費）、正式庫與媒體備份／PITR（需登入 Railway，可能付費）、斷開 Railway 原生部署、正式站執行 `initialize-content`（會建立並發布 `shared_faq`）、SMTP／Google／LINE／S3 正式環境變數、四校正式內容（園方提供）、CI 的 `e2e` job 是否要擋部署（目前只檢查）。
 - 各批次 followups 累積的細項（例如：接待人員能否標記通知已讀、個資匯出能否授予櫃台、待核准改期不會自己過期、`booking_configs.version` 因為改家長異動期限也會跳號、Google 解除綁定後同 Email 帳號登入會自動重新綁定等）散在各 commit 訊息，尚未整併成單一清單，需要時可以逐一搜尋 commit log。
+
+## 家長自選場次預約（2026-09-30 業主裁定，2026-10-01 實作，尚未部署）
+
+預約語意改為「官網只有自選場次、送出即預約成功」，A 表中與預約語意相關的驗收項（待確認、人工確認、inquiry、時段與容量頁）以新規格 `docs/specs/2026-09-30-parent-self-booking-design.md` 為準。對應驗證：後端 pytest（含真 PostgreSQL 最後名額並發）、`web` 與 `admin` 單元測試、`tests/stack`（真 API＋官網＋後台，確認信寫進 sink）。未驗證：Safari／iOS 實機、真實 SMTP 投遞。上線前人工步驟見 `deploy/README.md`「家長自選場次（未部署，草稿）」。
+
