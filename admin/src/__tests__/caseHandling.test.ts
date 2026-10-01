@@ -371,7 +371,7 @@ describe('標籤與小工具', () => {
     expect(visitEventTitle({
       id: 'e', event_type: 'reschedule_superseded', source: 'staff', actor_user_id: 'u1', actor_email: 'desk@ivy.example',
       before: null, after: { requested_slot: later }, reason: null, created_at: '2026-09-24T02:00:00Z',
-    })).toBe('家長的改期申請失效（園方已直接改期）')
+    })).toBe('家長的改期申請失效（已直接改期）')
     for (const action of ['visit_request.create_access_link', 'visit_request.revoke_access']) expect(AUDIT_ACTION_LABELS[action]).toBeTruthy()
     const slot = { slot_date: '2026-09-26', start_time: '10:00:00' }
     expect(slotStarted(slot, Date.parse('2026-09-26T01:59:00Z'))).toBe(false)

@@ -57,6 +57,12 @@ export function visitEventActor(event: VisitHistoryOut): string {
   return event.source ? (VISIT_EVENT_SOURCE_LABELS[event.source] ?? event.source) : ''
 }
 
+// 家長修改資料只記改了哪些欄位，不記內容（歷程會給多位同事看）。
+const PARENT_FIELD_LABELS: Record<string, string> = {
+  parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
+  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事',
+}
+
 /** 異動前後，一行一件事。 */
 export function visitEventChanges(
   event: VisitHistoryOut,
@@ -92,6 +98,8 @@ export function visitEventChanges(
   if (after && 'assigned_staff_id' in after) {
     lines.push(`${staffLabelById(text(before, 'assigned_staff_id'), staff)} → ${staffLabelById(text(after, 'assigned_staff_id'), staff)}`)
   }
+  const fields = after?.fields
+  if (Array.isArray(fields) && fields.length) lines.push(`修改欄位：${fields.map(f => PARENT_FIELD_LABELS[String(f)] ?? String(f)).join('、')}`)
   const followUp = text(after, 'follow_up_at')
   if (followUp) lines.push(`下次聯絡 ${formatDateTime(followUp)}`)
   const expires = text(after, 'expires_at')

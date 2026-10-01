@@ -37,7 +37,7 @@ function errorText(err: unknown, fallback: string): string {
 async function generate() {
   if (props.accessLink || created.value) {
     try {
-      await ElMessageBox.confirm('重新產生後，舊連結會立即失效，新連結會寄到家長信箱。', '重新產生家長管理連結？', {
+      await ElMessageBox.confirm(props.status === 'confirmed' && props.email ? '重新產生後，舊連結會立即失效，新連結會寄到家長信箱。' : '重新產生後，舊連結會立即失效，請把新連結直接交給家長。', '重新產生家長管理連結？', {
         confirmButtonText: '重新產生',
         cancelButtonText: '先不要',
         type: 'warning',
@@ -118,6 +118,7 @@ async function copy() {
         <el-input :model-value="linkText()" readonly aria-label="家長管理連結" @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
         <el-button type="primary" @click="copy">複製連結</el-button>
       </div>
+      <p v-if="!created.emailed" class="field-help">這次沒有寄信，請把連結直接交給家長（簡訊、LINE 或 Email）。</p>
       <p v-if="!created.manage_url" class="field-help">部署設定缺少 WEBSITE_ADMIN_ORIGIN，無法產生完整網址；請在官網網址後面接上這段再給家長。</p>
       <p class="hint">有效到 <span class="num">{{ formatDateTime(created.expires_at) }}</span></p>
     </div>

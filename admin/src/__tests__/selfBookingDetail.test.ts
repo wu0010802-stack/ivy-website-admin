@@ -58,3 +58,26 @@ describe('自選場次後的案件明細', () => {
     wrapper.unmount()
   })
 })
+
+describe('階段 A 帶過來的後台顯示', () => {
+  it('家長修改資料的歷程列出改了哪些欄位（不寫內容）', async () => {
+    const { visitEventChanges } = await import('../api/visitHistory')
+    const lines = visitEventChanges({ id: 'h1', event_type: 'details_updated', source: 'parent', before: null, after: { fields: ['phone', 'party_size', 'questions'] } } as never)
+    expect(lines).toEqual(['修改欄位：手機、參觀人數、想了解的事'])
+  })
+
+  it('改期申請失效的標籤不寫「園方」（家長自己改期也會讓它失效）', async () => {
+    const { visitEventLabel } = await import('../api/labels')
+    expect(visitEventLabel('reschedule_superseded')).toBe('家長的改期申請失效（已直接改期）')
+  })
+
+  it('重新產生連結沒寄信（emailed=false）時提示園方自行轉交，不說已寄出', async () => {
+    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: null, hold_expires_at: null, access_link: null }))
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    vi.spyOn(api, 'post').mockResolvedValue({ manage_url: 'https://x/visit/manage#token=abc', manage_url_fragment: '/visit/manage#token=abc', expires_at: '2026-10-20T00:00:00Z', replaced_previous: false, emailed: false } as never)
+    await wrapper.findAll('button').find(b => b.text() === '產生連結')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('沒有寄信，請把連結直接交給家長')
+    expect(wrapper.text()).not.toContain('已寄到家長信箱')
+  })
+})
