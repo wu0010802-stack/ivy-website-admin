@@ -62,7 +62,7 @@ const groups = computed(() => {
     const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
     if (!q) return { ...group, items: allowed, score: 0 }
     // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
-    // 搜「預約」要帶出參觀案件、時段與容量，不只名稱裡有「預約」的兩項。
+    // 搜「預約」要帶出參觀案件、參觀場次，不只名稱裡有「預約」的兩項。
     const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
     if (hits.length) {
       hits.sort((a, b) => b.score - a.score)

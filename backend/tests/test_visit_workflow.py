@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from tests.conftest import set_booking_mode
+from tests.conftest import legacy_request, set_booking_mode
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-async def _enable_slots(admin_client, campus_key="yihua", auto_confirm=True):
-    """預設開啟自動確認：本檔多數測試驗的是「已確認案件」之後的工作流
-    （改期／未到場／完成）。人工待確認（規格預設）的路徑另見
-    test_slots_manual_confirm.py。"""
-    resp = await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=auto_confirm)
+async def _enable_slots(admin_client, campus_key="yihua"):
+    """自選場次送單一律 confirmed：本檔多數測試驗的是「已確認案件」之後的工作流
+    （改期／未到場／完成）。先建自己的場次再呼叫，才不會被補每週規則產生場次干擾。"""
+    resp = await set_booking_mode(admin_client, campus_key, mode="slots")
     assert resp.status_code == 200, resp.text
     return resp.json()["version"]
 
@@ -51,8 +50,8 @@ def _slot_payload(campus_key, config_version, slot_id, parent_name="陳媽媽"):
 
 @pytest.mark.asyncio
 async def test_create_slot_and_book_it(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
+    version = await _enable_slots(admin_client)
 
     response = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -69,8 +68,8 @@ async def test_create_slot_and_book_it(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_full_slot_rejects_public_submission(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
+    version = await _enable_slots(admin_client)
 
     first = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -90,8 +89,8 @@ async def test_full_slot_rejects_public_submission(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_public_slot_list_hides_full_slots(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
+    version = await _enable_slots(admin_client)
 
     before = await public_client.get(
         f"/api/website/v1/public/slots?campus_key=yihua&date_from={slot['slot_date']}&date_to={slot['slot_date']}"
@@ -121,8 +120,8 @@ async def test_query_range_too_wide_rejected(admin_client):
 
 @pytest.mark.asyncio
 async def test_reduce_capacity_below_booked_rejected(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=2)
+    version = await _enable_slots(admin_client)
     await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_slot_payload("yihua", version, slot["id"]),
@@ -137,34 +136,10 @@ async def test_reduce_capacity_below_booked_rejected(admin_client, public_client
 
 
 @pytest.mark.asyncio
-async def test_manual_confirm_inquiry_into_slot(admin_client, public_client):
-    # 先用 inquiry 模式建立一筆案件
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    inquiry_version = me.json()["version"]
+async def test_manual_confirm_inquiry_into_slot(admin_client, db_session):
+    # 上線前留下的「已收到需求」舊案（new），園方仍可手動排進場次確認。
+    receipt_id = await legacy_request(db_session, status="new", parent_name="陳媽媽", phone="0912345678")
 
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": "yihua",
-            "config_version": inquiry_version,
-            "parent_name": "陳媽媽",
-            "phone": "0912345678",
-            "age": "3-4",
-            "preferred_time": "平日上午",
-            "questions": None,
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": "manual-confirm-01"},
-    )
-    receipt_id = created.json()["receipt_id"]
-
-    # 切到 slots 模式並建立時段（手動確認不需要公開端啟用 slots，
-    # 只要園方有時段可選即可）
     slot = await _create_slot(admin_client)
 
     confirm = await admin_client.post(
@@ -177,8 +152,8 @@ async def test_manual_confirm_inquiry_into_slot(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_cancel_is_idempotent(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
+    version = await _enable_slots(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_slot_payload("yihua", version, slot["id"]),
@@ -197,8 +172,8 @@ async def test_cancel_is_idempotent(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_cancel_frees_slot_for_new_booking(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
+    version = await _enable_slots(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_slot_payload("yihua", version, slot["id"]),
@@ -218,9 +193,9 @@ async def test_cancel_frees_slot_for_new_booking(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_reschedule_to_full_slot_rolls_back(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot_a = await _create_slot(admin_client, capacity=1, days_ahead=3)
     slot_b = await _create_slot(admin_client, capacity=1, days_ahead=4)
+    version = await _enable_slots(admin_client)
 
     booking_a = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -250,9 +225,9 @@ async def test_reschedule_to_full_slot_rolls_back(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_reschedule_success_moves_slot(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot_a = await _create_slot(admin_client, capacity=1, days_ahead=3)
     slot_b = await _create_slot(admin_client, capacity=1, days_ahead=4)
+    version = await _enable_slots(admin_client)
 
     booking = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -280,29 +255,9 @@ async def test_reschedule_success_moves_slot(admin_client, public_client):
 
 
 @pytest.mark.asyncio
-async def test_no_show_requires_confirmed_status(admin_client, public_client):
-    # 先建立一筆 inquiry（狀態是 new，不是 confirmed）
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    me = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": "yihua",
-            "config_version": me.json()["version"],
-            "parent_name": "陳媽媽",
-            "phone": "0912345678",
-            "age": None,
-            "preferred_time": None,
-            "questions": None,
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": "no-show-invalid-01"},
-    )
-    receipt_id = created.json()["receipt_id"]
+async def test_no_show_requires_confirmed_status(admin_client, db_session):
+    # 舊案（狀態是 new，不是 confirmed）
+    receipt_id = await legacy_request(db_session, status="new", parent_name="陳媽媽", phone="0912345678")
 
     resp = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/no-show")
     assert resp.status_code == 409
@@ -311,8 +266,8 @@ async def test_no_show_requires_confirmed_status(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_contact_note_and_follow_up(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
+    version = await _enable_slots(admin_client)
     created = await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_slot_payload("yihua", version, slot["id"]),
@@ -344,8 +299,8 @@ async def test_minghua_cannot_manage_yihua_slot(minghua_client, admin_client):
 
 @pytest.mark.asyncio
 async def test_csv_export_escapes_formula_injection(admin_client, public_client):
-    version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
+    version = await _enable_slots(admin_client)
     await public_client.post(
         "/api/website/v1/public/visit-requests",
         json=_slot_payload("yihua", version, slot["id"], parent_name="=cmd|' /C calc'!A0"),
@@ -362,30 +317,10 @@ async def test_csv_export_escapes_formula_injection(admin_client, public_client)
 
 
 @pytest.mark.asyncio
-async def test_confirmed_request_exposes_slot_time(admin_client, public_client):
+async def test_confirmed_request_exposes_slot_time(admin_client, db_session):
     """已確認的案件要看得到「約在哪一天幾點」。櫃台接到家長來電時，
     明細、列表、確認當下的回應三處都要有，不能只給一個 slot_id。"""
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    config = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": "yihua",
-            "config_version": config.json()["version"],
-            "parent_name": "林爸爸",
-            "phone": "0912345678",
-            "age": "3-4",
-            "preferred_time": "平日下午",
-            "questions": None,
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": "slot-expose-01"},
-    )
-    receipt_id = created.json()["receipt_id"]
+    receipt_id = await legacy_request(db_session, status="new", parent_name="林爸爸", phone="0912345678")
 
     # 還沒排時段前是「已收到需求」，沒有參觀時間可顯示。
     before = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
@@ -413,39 +348,19 @@ async def test_confirmed_request_exposes_slot_time(admin_client, public_client):
     assert row["slot"]["end_time"] == slot["end_time"]
 
 
-async def _submit_inquiry(admin_client, public_client, *, campus_key, parent_name, phone, key):
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    config = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": campus_key,
-            "config_version": config.json()["version"],
-            "parent_name": parent_name,
-            "phone": phone,
-            "age": "3-4",
-            "preferred_time": None,
-            "questions": None,
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": key},
-    )
-    assert created.status_code == 201, created.text
-    return created.json()["receipt_id"]
+async def _submit_inquiry(db_session, *, campus_key, parent_name, phone):
+    """上線前留下的「已收到需求」舊案（new）；新流程建不出這個狀態。"""
+    return await legacy_request(db_session, campus_key=campus_key, status="new", parent_name=parent_name, phone=phone)
 
 
 @pytest.mark.asyncio
-async def test_visit_request_search_by_name_and_phone(admin_client, public_client):
+async def test_visit_request_search_by_name_and_phone(admin_client, db_session):
     """櫃台接到電話時是拿姓名或號碼找人，不是一頁一頁翻。"""
     chen = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="陳小姐", phone="0933111222", key="search-01"
+        db_session, campus_key="yihua", parent_name="陳小姐", phone="0933111222"
     )
     lin = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="林爸爸", phone="0987654321", key="search-02"
+        db_session, campus_key="yihua", parent_name="林爸爸", phone="0987654321"
     )
 
     by_name = await admin_client.get("/api/website/v1/admin/visit-requests?q=陳")
@@ -464,10 +379,10 @@ async def test_visit_request_search_by_name_and_phone(admin_client, public_clien
 
 
 @pytest.mark.asyncio
-async def test_visit_request_search_treats_wildcards_as_text(admin_client, public_client):
+async def test_visit_request_search_treats_wildcards_as_text(admin_client, db_session):
     """`%` 和 `_` 是使用者打的字，不是萬用字元，不能因此撈出全部案件。"""
     await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="王媽媽", phone="0912345678", key="search-wild-01"
+        db_session, campus_key="yihua", parent_name="王媽媽", phone="0912345678"
     )
 
     percent = await admin_client.get("/api/website/v1/admin/visit-requests?q=%25")
@@ -480,11 +395,11 @@ async def test_visit_request_search_treats_wildcards_as_text(admin_client, publi
 
 @pytest.mark.asyncio
 async def test_visit_request_search_stays_inside_campus_scope(
-    admin_client, minghua_client, public_client
+    admin_client, minghua_client, db_session
 ):
     """搜尋不能變成跨校查人的後門。"""
     await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="義華的家長", phone="0911222333", key="search-scope-01"
+        db_session, campus_key="yihua", parent_name="義華的家長", phone="0911222333"
     )
 
     leaked = await minghua_client.get("/api/website/v1/admin/visit-requests?q=義華的家長")
@@ -493,13 +408,13 @@ async def test_visit_request_search_stays_inside_campus_scope(
 
 
 @pytest.mark.asyncio
-async def test_visit_request_follow_up_due_filter_and_order(admin_client, public_client):
+async def test_visit_request_follow_up_due_filter_and_order(admin_client, db_session):
     """總覽的「到期待追蹤」點進列表要看到同一批案件；櫃台要能改成最舊的先處理。"""
     older = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="到期家長", phone="0911000111", key="due-01"
+        db_session, campus_key="yihua", parent_name="到期家長", phone="0911000111"
     )
     newer = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="未到期家長", phone="0911000222", key="due-02"
+        db_session, campus_key="yihua", parent_name="未到期家長", phone="0911000222"
     )
     past = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{older}/contact-notes",
@@ -526,11 +441,11 @@ async def test_visit_request_follow_up_due_filter_and_order(admin_client, public
 
 
 @pytest.mark.asyncio
-async def test_contact_note_can_clear_follow_up(admin_client, public_client):
+async def test_contact_note_can_clear_follow_up(admin_client, db_session):
     """「不用再追」：送 null 並帶版本會清掉追蹤時間，到期待追蹤不再列出；沒帶
     版本的 null（舊版前端）只記一筆紀錄、不動追蹤時間。"""
     request_id = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="不用追家長", phone="0911000333", key="clear-01"
+        db_session, campus_key="yihua", parent_name="不用追家長", phone="0911000333"
     )
     notes_url = f"/api/website/v1/admin/visit-requests/{request_id}/contact-notes"
     due_url = "/api/website/v1/admin/visit-requests?follow_up_due=true"
@@ -566,26 +481,25 @@ async def test_contact_note_can_clear_follow_up(admin_client, public_client):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_counts_open_requests_with_hold_deadline(admin_client, minghua_client, public_client):
-    """總覽要看得到兩種還沒處理的案件：新需求與待園方確認。後者占名額、
+async def test_dashboard_counts_open_requests_with_hold_deadline(admin_client, minghua_client, db_session):
+    """總覽要看得到兩種還沒處理的舊案：新需求與待園方確認。後者占名額、
     到期會被釋出，要附最早到期時間；數字定義與案件列表的 status 篩選相同。"""
     await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", parent_name="新需求家長", phone="0911000333", key="dash-open-01"
+        db_session, campus_key="yihua", parent_name="新需求家長", phone="0911000333"
     )
-    version = await _enable_slots(admin_client, auto_confirm=False)
     slot = await _create_slot(admin_client, capacity=2)
-    held = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_slot_payload("yihua", version, slot["id"], parent_name="占位家長"),
-        headers={"Idempotency-Key": "dash-open-02"},
+    held_id = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot["id"],
+        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=20),
+        parent_name="占位家長",
     )
-    assert held.status_code == 201, held.text
-    assert held.json()["status"] == "pending_confirmation"
 
     summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
     assert summary["new_requests"] == 1
     assert summary["awaiting_confirmation"] == 1
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{held.json()['receipt_id']}")
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{held_id}")
     assert summary["next_hold_expires_at"] is not None
     assert summary["next_hold_expires_at"][:16] == detail.json()["hold_expires_at"][:16]
 

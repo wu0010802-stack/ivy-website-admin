@@ -5,38 +5,18 @@ from uuid import uuid4
 
 import pytest
 
-from app.booking.models import VisitRequest, VisitRequestStatus
+from app.booking.models import VisitRequest
 from app.operations import retention_service
-from tests.conftest import freeze_rate_limit_clock
+from tests.conftest import book_slot, create_slot, freeze_rate_limit_clock, legacy_request
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（切 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-async def _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-01"):
-    current = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    await admin_client.patch(
-        f"/api/website/v1/admin/booking-config/{campus_key}",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    me = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    response = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": campus_key,
-            "config_version": me.json()["version"],
-            "parent_name": "陳媽媽",
-            "phone": "0912345678",
-            "age": None,
-            "preferred_time": None,
-            "questions": None,
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": idempotency_key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["receipt_id"]
+async def _book_visit(admin_client, public_client, campus_key="yihua") -> str:
+    booked = await book_slot(admin_client, public_client, campus_key)
+    return booked["receipt_id"]
 
 
 @pytest.mark.asyncio
@@ -89,7 +69,7 @@ async def test_click_event_rate_limited(app, public_client):
 
 @pytest.mark.asyncio
 async def test_request_created_event_recorded_internally(admin_client, public_client):
-    await _submit_inquiry(admin_client, public_client, idempotency_key="ops-internal-01")
+    await _book_visit(admin_client, public_client)
     funnel = await admin_client.get("/api/website/v1/admin/analytics/funnel?campus_key=yihua")
     assert funnel.json()["counts"]["request_created"] == 1
 
@@ -98,7 +78,7 @@ async def test_request_created_event_recorded_internally(admin_client, public_cl
 async def test_dashboard_scoped_by_campus_no_cross_campus_leak(
     admin_client, minghua_client, public_client
 ):
-    await _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-dash-01")
+    await _book_visit(admin_client, public_client, campus_key="yihua")
 
     minghua_dashboard = await minghua_client.get("/api/website/v1/admin/dashboard")
     assert minghua_dashboard.status_code == 200
@@ -110,7 +90,7 @@ async def test_dashboard_scoped_by_campus_no_cross_campus_leak(
 async def test_export_visit_requests_does_not_leak_other_campus(
     admin_client, minghua_client, public_client
 ):
-    await _submit_inquiry(admin_client, public_client, campus_key="yihua", idempotency_key="ops-export-01")
+    await _book_visit(admin_client, public_client, campus_key="yihua")
     # 個資匯出是總管理者逐人授予的（2026-09-25 起），先授權再測校區範圍。
     minghua_me = (await minghua_client.get("/api/website/v1/auth/me")).json()["user"]
     granted = await admin_client.patch(
@@ -150,7 +130,7 @@ async def test_audit_log_records_booking_config_before_and_after(admin_client):
     assert metadata["mode"] == "phone" and metadata["version"] == 1
     assert metadata["before"] == {
         "mode": "paused", "line_url": None, "phone": None, "external_url": None, "message": None,
-        "slots_auto_confirm": False, "parent_change_deadline_hours": 24,
+        "parent_change_deadline_hours": 24,
     }
     assert metadata["after"]["phone"] == "07-392-8366"
     assert metadata["after"]["message"] == "請於上班時間來電"
@@ -167,7 +147,7 @@ async def test_audit_log_requires_permission(minghua_client):
 async def test_retention_dry_run_does_not_modify_data(admin_client, public_client, db_session):
     from uuid import UUID
 
-    receipt_id = await _submit_inquiry(admin_client, public_client, idempotency_key="ops-retention-01")
+    receipt_id = await _book_visit(admin_client, public_client)
     await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/cancel")
 
     request = await db_session.get(VisitRequest, UUID(receipt_id))
@@ -189,7 +169,7 @@ async def test_retention_dry_run_does_not_modify_data(admin_client, public_clien
 
 @pytest.mark.asyncio
 async def test_retention_real_run_disabled_by_default(admin_client, public_client):
-    await _submit_inquiry(admin_client, public_client, idempotency_key="ops-retention-02")
+    await _book_visit(admin_client, public_client)
     response = await admin_client.post("/api/website/v1/admin/retention/run")
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "RETENTION_REAL_RUN_DISABLED"
@@ -202,15 +182,17 @@ async def test_retention_does_not_touch_active_requests(admin_client, public_cli
     進行中的接待工作；只算進「超過天數未結案」的提醒。"""
     from uuid import UUID
 
-    receipt_id = await _submit_inquiry(admin_client, public_client, idempotency_key="ops-retention-03")
-    request = await db_session.get(VisitRequest, UUID(receipt_id))
-    request.created_at = datetime.now(timezone.utc) - timedelta(days=400)
+    booked_id = await _book_visit(admin_client, public_client)
+    legacy_id = await legacy_request(db_session, status="new")
+    for receipt_id in (booked_id, legacy_id):
+        request = await db_session.get(VisitRequest, UUID(receipt_id))
+        request.created_at = datetime.now(timezone.utc) - timedelta(days=400)
     await db_session.commit()
 
     days = {"cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365}
     candidates = await retention_service.find_candidates(db_session, days)
     assert all(found == [] for found in candidates.values())
-    assert await retention_service.count_open_overdue(db_session, days) == 1
+    assert await retention_service.count_open_overdue(db_session, days) == 2
 
 
 @pytest.mark.asyncio
@@ -270,30 +252,12 @@ async def test_site_settings_requires_super_admin(minghua_client):
 async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client, db_session):
     """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
     數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""
-    import uuid
-
-    from app.common.timezones import today_local
-
-    receipt_id = await _submit_inquiry(
-        admin_client, public_client, campus_key="yihua", idempotency_key="ops-dash-today-01"
-    )
-    slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={
-            "slot_date": today_local().isoformat(),
-            "start_time": "10:00:00",
-            "end_time": "11:00:00",
-            "capacity": 2,
-        },
-    )
-    assert slot.status_code == 201, slot.text
+    slot_id = await create_slot(admin_client, "yihua", days_ahead=0)
     # 今天 10:00 的場次過了 10 點就不能再用確認端點排入（已開始的時段會回
-    # 409），這裡直接寫成已確認，測試才不會因為執行時間而失敗。
-    visit = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-    visit.slot_id = uuid.UUID(slot.json()["id"])
-    visit.status = VisitRequestStatus.CONFIRMED.value
-    visit.confirmed_at = datetime.now(timezone.utc)
-    await db_session.commit()
+    # 409），這裡直接寫成已確認的案件，測試才不會因為執行時間而失敗。
+    receipt_id = await legacy_request(
+        db_session, status="confirmed", slot_id=slot_id, parent_name="陳媽媽"
+    )
 
     draft = await admin_client.post(
         "/api/website/v1/admin/content-items/home_about/revisions",

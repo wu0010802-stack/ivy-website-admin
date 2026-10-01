@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,27 +15,37 @@ from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import campus_scope, require_scope
 from app.booking import access_service, history, presenters, slot_service, workflow_service
+from app.booking.access_models import RescheduleRequest
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import PARENT, Actor
-from app.operations import audit_service
-from app.booking.access_models import RescheduleRequest
-from app.booking.models import VisitRequest, VisitRequestStatus
+from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
+from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
 from app.booking.parent_policy import change_deadline_hours, parent_change_open
-from app.common import ratelimit
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
+    ParentDetailsUpdate,
+    ParentRescheduleRequest,
     ParentVisitRequestOut,
     RescheduleDecisionRequest,
     RescheduleRequestOut,
+    ResendConfirmationOut,
     VisitRequestDetailOut,
 )
 from app.campuses.models import Campus
+from app.common import ratelimit
 from app.content import service as content_service
+from app.operations import audit_service
+
+logger = logging.getLogger("app.booking")
 
 router = APIRouter(prefix="/api/website/v1", tags=["parent-access"])
 
 PARENT_SESSION_COOKIE = "ivy_parent_session"
 PARENT_REQUEST_LIMIT = ratelimit.Limit("parent_request", window_seconds=60, max_per_window=30)
+# 每案每日上限：每次改期、改資料都會寄信給家長並通知園方，持有連結的人不能無限重送。
+# 只有成功（commit 後）才記一次，失敗的嘗試不吃額度。
+PARENT_RESCHEDULE_PER_CASE = ratelimit.Limit("parent_reschedule_case", window_seconds=86400, max_per_window=5)
+PARENT_EDIT_PER_CASE = ratelimit.Limit("parent_edit_case", window_seconds=86400, max_per_window=10)
 
 
 async def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
@@ -56,6 +68,32 @@ async def require_change_window(db: AsyncSession, visit_request: VisitRequest) -
         raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
 
 
+async def require_case_quota(request: Request, limit: ratelimit.Limit, visit_request_id: uuid.UUID) -> None:
+    """寫入前檢查這一案今天的次數（只看不記）。在案件上鎖之前呼叫：限流器用自己的
+    連線池，不能握著案件列鎖等它。"""
+    if await ratelimit.limiter(request).is_limited(limit, str(visit_request_id)):
+        # is_limited 不回剩餘秒數，Retry-After 給整個窗口（保守上限），與公開送單的手機上限相同。
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "這筆預約今天已經修改很多次了，請明天再試，或直接聯絡園所"},
+            headers={"Retry-After": str(limit.window_seconds)},
+        )
+
+
+async def count_case_change(request: Request, limit: ratelimit.Limit, visit_request_id: uuid.UUID) -> None:
+    """操作成功並 commit 之後才記一次。"""
+    try:
+        await ratelimit.limiter(request).record(limit, str(visit_request_id))
+    except SQLAlchemyError:
+        # 已經改好了：記不到次數不該讓家長看到失敗、再送一次。
+        logger.warning("家長異動的每案次數寫入失敗：bucket=%s", limit.bucket, exc_info=True)
+
+
+def parent_email_enabled(request: Request) -> bool:
+    """與公開預約設定的 parent_email_enabled 同一個判斷：沒設 SMTP 就不會真的寄給家長。"""
+    return bool(request.app.state.settings.smtp_host)
+
+
 class TokenExchangeRequest(BaseModel):
     token: str
 
@@ -63,12 +101,6 @@ class TokenExchangeRequest(BaseModel):
 class ParentCancelRequest(BaseModel):
     # 家長頁畫面上的案件；對不上目前 session 的案件就拒絕（_require_same_visit_request）。
     visit_request_id: uuid.UUID
-
-
-class RescheduleRequestCreate(BaseModel):
-    new_slot_id: uuid.UUID
-    # 同 ParentCancelRequest；舊版官網沒帶，見 _require_same_visit_request。
-    visit_request_id: uuid.UUID | None = None
 
 
 async def _require_parent_session(
@@ -100,6 +132,7 @@ def _require_same_visit_request(visit_request: VisitRequest, expected_id: uuid.U
 
 async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> ParentVisitRequestOut:
     campus = await db.get(Campus, visit_request.campus_key)
+    config = await db.get(BookingConfig, visit_request.campus_key)
     profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
     output = ParentVisitRequestOut.from_visit_request(
         visit_request,
@@ -107,6 +140,7 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
         campus_name=str(profile.get("name") or "").strip() or (campus.name if campus is not None else ""),
         campus_active=campus is None or campus.active,
         campus_phone=str(profile.get("phone") or "").strip() or None,
+        slots_open=config is not None and config.mode == BookingMode.SLOTS,
     )
     if visit_request.status == "confirmed":
         pending_id = await db.scalar(select(RescheduleRequest.id).where(
@@ -187,30 +221,110 @@ async def parent_cancel(
     return await _parent_output(db, visit_request)
 
 
-@router.post("/public/visit-manage/reschedule-request", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_parent_request)])
-async def parent_request_reschedule(
-    payload: RescheduleRequestCreate,
+@router.post("/public/visit-manage/reschedule-request", include_in_schema=False)
+async def parent_request_reschedule_retired() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"code": "ENDPOINT_RETIRED", "message": "改期已改成直接選新場次，請重新整理頁面"},
+    )
+
+
+def _conflict(code: str, message: str, **extra) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": code, "message": message, **extra})
+
+
+@router.post(
+    "/public/visit-manage/reschedule",
+    response_model=ParentVisitRequestOut,
+    dependencies=[Depends(require_parent_request)],
+)
+async def parent_reschedule(
+    payload: ParentRescheduleRequest,
     response: Response,
+    request: Request,
     session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。"""
+) -> ParentVisitRequestOut:
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     _require_same_visit_request(visit_request, payload.visit_request_id)
     await require_change_window(db, visit_request)
+    visit_request_id = visit_request.id
+    await require_case_quota(request, PARENT_RESCHEDULE_PER_CASE, visit_request_id)
     try:
-        record = await access_service.create_reschedule_request(
-            db, visit_request, payload.new_slot_id
-        )
+        await access_service.validate_parent_reschedule(db, visit_request, payload.slot_id)
+        await workflow_service.reschedule(db, visit_request, payload.slot_id, actor=PARENT)
     except access_service.RescheduleNotAllowed as exc:
         await db.rollback()
-        code = status.HTTP_404_NOT_FOUND if exc.code == "SLOT_NOT_FOUND" else status.HTTP_409_CONFLICT
+        if exc.code == "SLOT_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail={"code": exc.code, "message": exc.message}
+            ) from exc
+        raise _conflict(exc.code, exc.message) from exc
+    except workflow_service.SlotNotFound as exc:
+        await db.rollback()
         raise HTTPException(
-            status_code=code, detail={"code": exc.code, "message": exc.message}
+            status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SLOT_NOT_FOUND", "message": "找不到這個時段"}
+        ) from exc
+    except workflow_service.SlotClosed as exc:
+        await db.rollback()
+        raise _conflict("SLOT_CLOSED", "這個場次已停止申請") from exc
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise _conflict("SLOT_FULL", "這個場次剛好額滿了，請選擇其他場次") from exc
+    except slot_service.SlotNotBookable as exc:
+        await db.rollback()
+        raise _conflict("SLOT_NOT_BOOKABLE", "這個場次目前無法預約") from exc
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _conflict("INVALID_TRANSITION", exc.message) from exc
+    await db.commit()
+    await count_case_change(request, PARENT_RESCHEDULE_PER_CASE, visit_request_id)
+    await db.refresh(visit_request, attribute_names=["slot"])
+    return await _parent_output(db, visit_request)
+
+
+@router.patch(
+    "/public/visit-manage/me",
+    response_model=ParentVisitRequestOut,
+    dependencies=[Depends(require_parent_request)],
+)
+async def parent_update_details(
+    payload: ParentDetailsUpdate,
+    response: Response,
+    request: Request,
+    session_token: str | None = Cookie(default=None, alias=PARENT_SESSION_COOKIE),
+    db: AsyncSession = Depends(get_db_session),
+) -> ParentVisitRequestOut:
+    response.headers["Cache-Control"] = "private, no-store"
+    visit_request = await _require_parent_session(db, session_token)
+    _require_same_visit_request(visit_request, payload.visit_request_id)
+    await require_change_window(db, visit_request)
+    # 與 can_edit 同一個條件：停用的分校不接受線上異動（取消照常）。
+    campus = await db.get(Campus, visit_request.campus_key)
+    if campus is not None and not campus.active:
+        raise _conflict("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，要修改資料請來電洽詢")
+    visit_request_id = visit_request.id
+    await require_case_quota(request, PARENT_EDIT_PER_CASE, visit_request_id)
+    try:
+        changed = await workflow_service.update_details_by_parent(
+            db, visit_request, payload.changes(), expected_version=payload.expected_version
+        )
+    except workflow_service.InvalidTransition as exc:
+        await db.rollback()
+        raise _conflict("INVALID_TRANSITION", exc.message) from exc
+    except workflow_service.VersionConflict as exc:
+        await db.rollback()
+        raise _conflict(
+            "VISIT_REQUEST_VERSION_CONFLICT",
+            "這筆預約剛被修改過，請重新載入後再改",
+            current_version=exc.current_version,
         ) from exc
     await db.commit()
-    return {"id": str(record.id), "status": record.status}
+    if changed:
+        # 沒有實際變更時什麼都沒寫、也不寄信，不吃額度。
+        await count_case_change(request, PARENT_EDIT_PER_CASE, visit_request_id)
+    return await _parent_output(db, visit_request)
 
 
 # ---------------------------------------------------------------------------
@@ -233,12 +347,15 @@ async def create_parent_access_link(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> ParentAccessLinkCreatedOut:
-    """產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：
-    重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
+    """重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先
+    撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
 
-    完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。
-    原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。
-    不會自動寄給家長——由園方自行轉交。"""
+    完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token
+    不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
+
+    有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；
+    沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出
+    （另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。"""
     result = await db.execute(
         select(VisitRequest)
         .options(selectinload(VisitRequest.slot))
@@ -259,9 +376,15 @@ async def create_parent_access_link(
         )
 
     replaced = await access_service.active_access_token(db, visit_request_id) is not None
-    await access_service.revoke_access_for_visit_request(db, visit_request_id)
-    raw_token, expires_at = await access_service.create_access_token(db, visit_request_id)
-    fragment = f"/visit/manage#token={raw_token}"
+    raw_token, expires_at = await access_service.issue_access_token(
+        db, visit_request_id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+    )
+    mail_parent = bool(visit_request.email) and visit_request.slot_id is not None
+    if mail_parent:
+        # 沒設 SMTP 也照排：之後設好，24 小時內仍會寄出。
+        await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    emailed = mail_parent and parent_email_enabled(request)
+    fragment = access_service.manage_path(raw_token)
     origin = request.app.state.settings.admin_origin
     history.record_event(
         db,
@@ -285,7 +408,60 @@ async def create_parent_access_link(
         manage_url_fragment=fragment,
         expires_at=expires_at,
         replaced_previous=replaced,
+        emailed=emailed,
     )
+
+
+@router.post(
+    "/admin/visit-requests/{visit_request_id}/resend-confirmation",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ResendConfirmationOut,
+)
+async def resend_parent_confirmation(
+    visit_request_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ResendConfirmationOut:
+    """重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。
+    沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。"""
+    result = await db.execute(
+        select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_request_id)
+    )
+    visit_request = result.scalar_one_or_none()
+    if visit_request is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    await workflow_service.lock_status(db, visit_request)
+    if visit_request.status != VisitRequestStatus.CONFIRMED.value or not visit_request.email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "RESEND_NOT_AVAILABLE", "message": "只有已排入場次、有 Email 的預約可以重寄確認信"},
+        )
+    if not parent_email_enabled(request):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "PARENT_EMAIL_DISABLED", "message": "尚未設定寄信，無法寄出確認信；請把修改連結直接交給家長"},
+        )
+    await access_service.ensure_access_token(
+        db,
+        visit_request.id,
+        secret=request.app.state.settings.session_secret,
+        slot=visit_request.slot,
+        actor=Actor.staff(current_user.id),
+    )
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.resend_confirmation",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={},
+    )
+    await db.commit()
+    return ResendConfirmationOut(queued=True)
 
 
 @router.post("/admin/visit-requests/{visit_request_id}/revoke-access", status_code=status.HTTP_204_NO_CONTENT)

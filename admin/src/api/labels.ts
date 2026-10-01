@@ -65,6 +65,46 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
 
 export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
+// 列表分組（2026-09-30 業主裁定，參考義華舊後台）：資料庫狀態不變，只在顯示上歸組。
+export const VISIT_GROUPS = ['pending', 'upcoming', 'past', 'cancelled'] as const
+export type VisitGroup = typeof VISIT_GROUPS[number]
+export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { pending: '待處理', upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
+
+const LEGACY_STATUS_GROUP: Record<string, VisitGroup> = {
+  new: 'pending', contacting: 'pending', pending_confirmation: 'pending',
+  confirmed: 'upcoming', completed: 'past', no_show: 'past', cancelled: 'cancelled',
+}
+export function legacyStatusGroup(status: string): VisitGroup | '' {
+  return LEGACY_STATUS_GROUP[status] ?? ''
+}
+
+const CANCELLED_BY_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
+const PENDING_SUB: Record<string, string> = { contacting: '聯絡中', pending_confirmation: '待確認' }
+// confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
+const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
+
+// 與官網結果頁同規則：w***@domain。
+export function maskEmail(email: string): string {
+  const [name, domain] = email.split('@')
+  if (!name || !domain) return email
+  return `${name.slice(0, 1)}***@${domain}`
+}
+
+export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
+  switch (row.display_status) {
+    case 'upcoming':
+      return { label: '預約正常', tone: 'success', sub: '' }
+    case 'past':
+      return { label: '預約時間已過', tone: 'info', sub: PAST_SUB[row.status] ?? '' }
+    case 'cancelled': {
+      const who = (row.cancel_reason && CANCELLED_BY_LABELS[row.cancel_reason]) || '取消時間'
+      return { label: '預約已取消', tone: 'danger', sub: row.cancelled_at ? `${who}：${formatDateTime(row.cancelled_at)}` : '' }
+    }
+    default:
+      return { label: '待處理', tone: 'warning', sub: PENDING_SUB[row.status] ?? '' }
+  }
+}
+
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
 }
@@ -264,8 +304,8 @@ export function formatDuration(seconds: number | null | undefined): string {
 }
 
 export const BOOKING_MODE_LABELS: Record<string, string> = {
-  inquiry: '線上表單（收到需求後由園方聯絡）',
-  slots: '時段預約（家長自選場次）',
+  slots: '自選場次（家長線上預約）',
+  inquiry: '線上表單（已停用）',
   line: 'LINE 官方帳號',
   phone: '電話洽詢',
   external: '外部預約網站',
@@ -280,6 +320,9 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_cancelled: '參觀預約已取消',
   visit_request_rescheduled: '參觀預約已改期',
   visit_request_hold_expired: '時段占位已逾期，名額已釋放',
+  parent_visit_booked: '家長確認信（預約成功）',
+  parent_visit_changed: '家長確認信（預約已變更）',
+  parent_visit_cancelled: '家長確認信（預約已取消）',
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
   visit_upcoming: '即將參觀（24 小時內）',
@@ -360,6 +403,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.manual_create': '人工補登參觀案件',
   'visit_request.assign': '指派承辦人',
   'visit_request.create_access_link': '產生家長管理連結',
+  'visit_request.resend_confirmation': '重寄家長確認信',
+  'booking_config.migrate_self_booking': '改為家長自選場次（系統轉換）',
   'visit_request.revoke_access': '撤銷家長管理連結',
   'visit_request.contacting': '開始聯絡案件',
   'visit_request.add_contact_note': '新增聯絡紀錄',
@@ -458,9 +503,10 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   rebooked_as_new: '另建新案重新預約',
   reschedule_requested: '家長申請改期',
   reschedule_rejected: '退回改期申請',
-  reschedule_superseded: '家長的改期申請失效（園方已直接改期）',
+  reschedule_superseded: '家長的改期申請失效（已直接改期）',
   access_link_created: '產生家長管理連結',
   access_link_revoked: '撤銷家長管理連結',
+  details_updated: '家長修改資料',
 }
 
 export function visitEventLabel(eventType: string): string {
@@ -822,12 +868,24 @@ export function slotClosedLabel(source: string | null | undefined): string {
 // 存每週規則時，還沒被使用的舊規則時段跟著調整的結果（PUT visit-schedule 的
 // slot_sync，稽核紀錄的 metadata 也是同一份）。移除與停用對園方來說都是「這一
 // 場不再開放」，合在一起講。
-export interface SlotSyncResult { removed: number; closed: number; reopened: number; capacity_updated: number; kept_booked: number }
+export interface SlotSyncResult { created?: number; removed: number; closed: number; reopened: number; capacity_updated: number; kept_booked: number }
+
+export const LEAD_OPTIONS = [2, 12, 24, 48, 72] as const
+export const ADVANCE_OPTIONS = [14, 30, 60, 90] as const
+export function leadLabel(hours: number): string {
+  return hours >= 24 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
+}
+export function advanceLabel(days: number): string {
+  if (days === 14) return '2 週內'
+  if (days % 30 === 0) return `${days / 30} 個月內`
+  return `${days} 天內`
+}
 
 export function slotSyncLines(sync: Partial<SlotSyncResult> | null | undefined): string[] {
   if (!sync) return []
   const retired = (sync.removed ?? 0) + (sync.closed ?? 0)
   return [
+    sync.created ? `已排出 ${sync.created} 場` : '',
     retired ? `${retired} 場不符合新規則的時段不再開放` : '',
     sync.reopened ? `重新開放 ${sync.reopened} 場` : '',
     sync.capacity_updated ? `${sync.capacity_updated} 場名額改成新規則` : '',
@@ -1090,6 +1148,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     if (action === 'notification_outbox.retry') return OUTBOX_RETRY_SOURCE_LABELS[String(v)] ?? '重新寄送'
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
+  group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : '指定的同事'}`,
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),

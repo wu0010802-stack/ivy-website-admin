@@ -4,7 +4,7 @@ import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_STATUS, VISIT_STATUS_ORDER, visitSourceLabel, visitStatus, contactTimeLabel } from '../api/labels'
+import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
@@ -12,7 +12,6 @@ import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
-import StatusTag from '../components/StatusTag.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 
 const router = useRouter()
@@ -31,7 +30,7 @@ const openRequests = useOpenRequestsStore()
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
 
 const campusFilter = ref('')
-const statusFilter = ref('')
+const groupFilter = ref('')
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(false)
 // 承辦人：''＝全部、me＝我承辦的、none＝尚未指派。
@@ -64,8 +63,9 @@ const queryText = (value: unknown): string => (typeof value === 'string' ? value
 function applyQuery(query: LocationQuery) {
   const campus = queryText(query.campus)
   campusFilter.value = multiCampus.value && visibleCampusKeys.value.includes(campus) ? campus : ''
-  const status = queryText(query.status)
-  statusFilter.value = VISIT_STATUS[status] ? status : ''
+  const group = queryText(query.group)
+  // 舊書籤的 ?status= 轉成分組（資料庫狀態仍是七個，只有列表歸成四組）。
+  groupFilter.value = (VISIT_GROUPS as readonly string[]).includes(group) ? group : legacyStatusGroup(queryText(query.status))
   search.value = queryText(query.q)
   dueOnly.value = query.due === '1'
   const assignee = queryText(query.assignee)
@@ -85,7 +85,7 @@ function applyQuery(query: LocationQuery) {
 // 目前的條件 → 網址。預設值不寫，網址保持乾淨；搜尋照使用者打的字寫。
 function stateQuery(): Record<string, string> {
   const query: Record<string, string> = {}
-  if (statusFilter.value) query.status = statusFilter.value
+  if (groupFilter.value) query.group = groupFilter.value
   if (search.value.trim()) query.q = search.value.trim()
   if (campusFilter.value) query.campus = campusFilter.value
   if (assigneeFilter.value) query.assignee = assigneeFilter.value
@@ -122,10 +122,10 @@ function syncUrl() {
 
 applyQuery(route.query)
 
-const hasFilters = computed(() => Boolean(campusFilter.value || statusFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value || createdRange.value || attentionOnly.value))
+const hasFilters = computed(() => Boolean(campusFilter.value || groupFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value || createdRange.value || attentionOnly.value))
 function clearFilters() {
   campusFilter.value = ''
-  statusFilter.value = ''
+  groupFilter.value = ''
   search.value = ''
   dueOnly.value = false
   assigneeFilter.value = ''
@@ -134,17 +134,15 @@ function clearFilters() {
   attentionOnly.value = false
 }
 
-// 狀態是最常切的條件，攤成一排頁籤一鍵切換，不必每次打開下拉。兩個
-// 待處理狀態帶側欄同源的數字；數字是可見校區的總數，所以只在沒有縮小
-// 範圍（校區、搜尋、到期）時顯示，避免和清單對不上。
-const statusTabs = computed(() => {
-  const showCounts = !campusFilter.value && !search.value.trim() && !dueOnly.value && !assigneeFilter.value && !sourceFilter.value && !createdRange.value && !attentionOnly.value
-  const counts: Record<string, number> = { new: openRequests.newRequests, pending_confirmation: openRequests.awaiting }
-  return [
-    { value: '', label: '全部', count: 0 },
-    ...VISIT_STATUS_ORDER.map(value => ({ value, label: VISIT_STATUS[value]!.label, count: showCounts ? counts[value] ?? 0 : 0 })),
-  ]
-})
+// 分組是最常切的條件，攤成一排頁籤一鍵切換。數字來自 group-counts，
+// 套用目前其他條件（校區、搜尋…），所以和清單對得上；有舊案（待處理）才出現那一頁籤。
+const groupCounts = ref<Record<string, number>>({})
+const statusTabs = computed(() => [
+  { value: '', label: '全部', count: 0 },
+  ...VISIT_GROUPS
+    .filter(value => value !== 'pending' || (groupCounts.value.pending ?? 0) > 0 || groupFilter.value === 'pending')
+    .map(value => ({ value: value as string, label: VISIT_GROUP_LABELS[value], count: groupCounts.value[value] ?? 0 })),
+])
 // 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
 // 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
 const moreFiltersOpen = ref(false)
@@ -168,10 +166,10 @@ function searchTerm(): string {
 }
 
 // 清單與 CSV 匯出送同一組篩選條件：畫面上篩好什麼，匯出的就是那一批。
-function filterParams(): URLSearchParams {
+function filterParams(options: { withGroup?: boolean } = {}): URLSearchParams {
   const params = new URLSearchParams()
   if (campusFilter.value) params.set('campus_key', campusFilter.value)
-  if (statusFilter.value) params.set('status', statusFilter.value)
+  if (groupFilter.value && options.withGroup !== false) params.set('group', groupFilter.value)
   if (searchTerm()) params.set('q', searchTerm())
   if (dueOnly.value) params.set('follow_up_due', 'true')
   if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
@@ -182,6 +180,15 @@ function filterParams(): URLSearchParams {
   }
   if (attentionOnly.value) params.set('needs_attention', 'true')
   return params
+}
+
+async function loadCounts(version: number) {
+  try {
+    const counts = await api.get<Record<string, number>>(`/admin/visit-requests/group-counts?${filterParams({ withGroup: false })}`)
+    if (version === loadVersion) groupCounts.value = counts
+  } catch {
+    if (version === loadVersion) groupCounts.value = {}
+  }
 }
 
 // 上一次讀清單的時間：切回分頁時據此判斷要不要重抓。
@@ -202,6 +209,7 @@ async function load(options: { quiet?: boolean } = {}) {
   const byNextButton = pagedForward
   pagedForward = false
   syncUrl()
+  void loadCounts(version)
   if (!options.quiet) {
     loading.value = true
     error.value = null
@@ -246,7 +254,7 @@ function queueLoad() {
   })
 }
 
-watch([campusFilter, statusFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly], () => {
+watch([campusFilter, groupFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly], () => {
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
   queueLoad()
@@ -321,7 +329,7 @@ function exportCsv() {
 // 順序走。沒有篩狀態、到期或待人工處理時（例如「全部」）不帶：那份列表夾著已結案
 // 的案件，「下一筆」改用固定的處理優先序。
 function detailTo(id: string) {
-  const actionable = statusFilter.value || dueOnly.value || attentionOnly.value
+  const actionable = groupFilter.value || dueOnly.value || attentionOnly.value
   if (!actionable) return `/visit-requests/${id}`
   const params = filterParams()
   if (order.value !== 'newest') params.set('order', order.value)
@@ -348,7 +356,7 @@ const emptyText = computed(() => {
   if (dueOnly.value) return '沒有到期待追蹤的案件'
   if (assigneeFilter.value === 'me') return '目前沒有你承辦的案件'
   if (assigneeFilter.value === 'none') return '沒有尚未指派的案件'
-  if (statusFilter.value) return `沒有「${VISIT_STATUS[statusFilter.value]?.label ?? statusFilter.value}」的案件`
+  if (groupFilter.value) return `沒有「${(VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? groupFilter.value}」的案件`
   return '還沒有任何參觀需求'
 })
 
@@ -362,7 +370,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
+    <PageHeader lead="家長在官網選好場次送出，就是預約成功。這裡看每一筆預約，需要時改場次或取消；舊的待處理需求要排入場次才成立。">
       <template #actions>
         <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
         <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>
@@ -371,8 +379,8 @@ onMounted(() => {
     </PageHeader>
 
     <div class="status-tabs" role="group" aria-label="案件狀態">
-      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': statusFilter === tab.value }"
-        :aria-pressed="statusFilter === tab.value" @click="statusFilter = tab.value">
+      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': groupFilter === tab.value }"
+        :aria-pressed="groupFilter === tab.value" @click="groupFilter = tab.value">
         {{ tab.label }}<span v-if="tab.count" class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 件</span></span>
       </button>
     </div>
@@ -437,9 +445,10 @@ onMounted(() => {
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
         <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 760px，
              其餘給家長欄。參觀時間的字約 225px，欄寬 256 留一點餘裕；再壓窄大多數列會折成兩行。 -->
-        <el-table-column label="狀態" width="100">
+        <el-table-column label="狀態" width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <StatusTag :meta="visitStatus(row.status)" size="small" />
+            <span class="visit-state" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).label }}</span>
+            <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub">{{ visitDisplay(row).sub }}</span>
           </template>
         </el-table-column>
         <el-table-column v-if="multiCampus" label="校區" width="68">
@@ -480,7 +489,8 @@ onMounted(() => {
         <el-skeleton v-if="loading" animated :rows="4" class="panel__body" />
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
-            <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><StatusTag :meta="visitStatus(request.status)" /></div>
+            <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span></div>
+            <p v-if="visitDisplay(request).sub" class="hint">{{ visitDisplay(request).sub }}</p>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
@@ -513,6 +523,12 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.visit-state { font-weight: 600; }
+.visit-state[data-tone='success'] { color: var(--status-live-ink); }
+.visit-state[data-tone='danger'] { color: var(--el-color-danger); }
+.visit-state[data-tone='warning'] { color: var(--el-color-warning-dark-2); }
+.visit-state[data-tone='info'] { color: var(--ink-3); }
+.visit-state__sub { display: block; }
 .toolbar { align-items: flex-end; }
 /* 頁籤放不下就換行，不藏在看不見的橫向捲動裡（手機上後四個狀態會被忽略）。 */
 .status-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }

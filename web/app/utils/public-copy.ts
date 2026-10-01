@@ -19,7 +19,7 @@ export function publicCopy(site: SiteContent): SiteContent {
       const isLegacy = campus.faq.items.some((item) => item.a === OLD_BOOKING)
       if (!isLegacy) return campus
       const items = campus.faq.items.map((item) => {
-        if (item.a === OLD_BOOKING) return { ...item, a: `請先選擇${campus.name}，查看目前開放的參觀聯絡方式，也可致電 ${campus.phone} 詢問。若開放線上填寫，送出的是參觀需求，仍須由園方聯絡確認時間，才算預約成立。` }
+        if (item.a === OLD_BOOKING) return { ...item, a: `請先選擇${campus.name}，查看目前開放的參觀聯絡方式，也可致電 ${campus.phone} 詢問。若開放線上預約，可直接選擇日期與場次，送出後即預約成功。` }
         if (item.a === `招生年齡、名額與費用依校區與學年度而異。請向${campus.name}確認；這份提案不提供即時招生名額或費用報價。`) return { ...item, a: `招生年齡、名額與費用依校區與學年度而異。請致電 ${campus.phone} 向${campus.name}確認當期資訊。` }
         return item
       })

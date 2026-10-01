@@ -5,7 +5,6 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
 import CampusFaqView from '../views/CampusFaqView.vue'
-import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { contentPreviewPath } from '../api/labels'
@@ -83,23 +82,6 @@ describe('草稿預覽網址', () => {
     expect(contentPreviewPath('admission_content')).toBe('/preview?page=admission')
     expect(contentPreviewPath('home_hero')).toBe('/preview')
     expect(contentPreviewPath('booking_content')).toBe('/preview?page=visit')
-  })
-})
-
-describe('每週開放規則', () => {
-  it('新增規則後儲存會整份送出，並算出每天幾場', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue({ campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [] } as never)
-    const put = vi.spyOn(api, 'put').mockImplementation(async (_path, body) => ({ campus_key: 'yihua', exceptions: [], ...(body as object) }) as never)
-    const wrapper = await mountWith(VisitSchedulePanel, 'campus_admin', { campusKey: 'yihua', canManage: true })
-    await wrapper.findAll('button').find(b => b.text() === '新增規則')!.trigger('click')
-    expect(wrapper.text()).toContain('共 3 場')
-    await wrapper.findAll('button').find(b => b.text() === '儲存規則')!.trigger('click')
-    await flushPromises()
-    expect(put).toHaveBeenCalledWith('/admin/visit-schedule/yihua', {
-      min_lead_hours: 24,
-      max_advance_days: 60,
-      rules: [{ weekday: 2, start_time: '09:30:00', end_time: '11:00:00', slot_minutes: 30, capacity: 1 }],
-    })
   })
 })
 

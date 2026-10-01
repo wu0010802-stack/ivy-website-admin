@@ -10,10 +10,17 @@ from sqlalchemy import select
 from app.auth.models import Role
 from app.booking.models import OutboxMessage
 from app.operations.models import AnalyticsEvent, AuditLogEntry
-from tests.conftest import case_version, _create_user, _logged_in_client, start_visit_slot
+from tests.conftest import (
+    book_slot,
+    case_version,
+    _create_user,
+    _logged_in_client,
+    legacy_request,
+    start_visit_slot,
+)
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 BASE = "/api/website/v1/admin"
@@ -52,16 +59,18 @@ async def _me(client) -> str:
 
 
 @pytest.mark.asyncio
-async def test_manual_intake_creates_new_case_even_when_online_booking_paused(admin_client, db_session):
-    # 預設模式是 paused：官網不收單，但電話來的家長仍要能登錄。
+async def test_manual_intake_creates_confirmed_case_even_when_online_booking_paused(admin_client, db_session):
+    # 預設模式是 paused：官網不收單，但電話來的家長仍要能登錄（選場次即確認）。
+    slot = await _create_slot(admin_client, capacity=2)
     response = await admin_client.post(
         f"{BASE}/visit-requests",
-        json=_manual(note="家長來電，想週六參觀"),
+        json=_manual(note="家長來電，想週六參觀", slot_id=slot["id"], email="mom@example.com"),
         headers={"Idempotency-Key": "manual-1"},
     )
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["status"] == "new"
+    assert body["status"] == "confirmed"
+    assert body["slot_id"] == slot["id"]
     assert body["source"] == "phone"
     assert body["phone"] == "0912345678"
     me = await _me(admin_client)
@@ -71,20 +80,25 @@ async def test_manual_intake_creates_new_case_even_when_online_booking_paused(ad
     notes = await admin_client.get(f"{BASE}/visit-requests/{body['id']}/contact-notes")
     assert [n["note"] for n in notes.json()] == ["家長來電，想週六參觀"]
 
-    # 人員自己登錄的案件不發「新需求」通知、不算官網成效。
-    assert (await db_session.execute(select(OutboxMessage))).scalars().all() == []
-    assert (await db_session.execute(select(AnalyticsEvent))).scalars().all() == []
+    # 人員自己登錄的案件不發「新需求」通知、不算官網成效；但家長有 Email 就寄預約成功信。
+    kinds = [kind for kind in (await db_session.execute(select(OutboxMessage.kind))).scalars().all()]
+    assert "visit_request_created" not in kinds
+    assert "parent_visit_booked" in kinds
+    # 成效漏斗只算官網送單（request_created）；補登確認當下才記「已確認」。
+    events = (await db_session.execute(select(AnalyticsEvent.event_type))).scalars().all()
+    assert "request_created" not in [getattr(event, "value", event) for event in events]
     actions = (await db_session.execute(select(AuditLogEntry.action))).scalars().all()
     assert "visit_request.manual_create" in actions
 
 
 @pytest.mark.asyncio
 async def test_manual_intake_retry_returns_same_case(admin_client):
+    slot = await _create_slot(admin_client, capacity=2)
     first = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "dup"}
+        f"{BASE}/visit-requests", json=_manual(slot_id=slot["id"]), headers={"Idempotency-Key": "dup"}
     )
     again = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "dup"}
+        f"{BASE}/visit-requests", json=_manual(slot_id=slot["id"]), headers={"Idempotency-Key": "dup"}
     )
     assert first.status_code == 201
     assert again.status_code == 200
@@ -92,7 +106,7 @@ async def test_manual_intake_retry_returns_same_case(admin_client):
 
     changed = await admin_client.post(
         f"{BASE}/visit-requests",
-        json=_manual(parent_name="別人"),
+        json=_manual(parent_name="別人", slot_id=slot["id"]),
         headers={"Idempotency-Key": "dup"},
     )
     assert changed.status_code == 409
@@ -100,29 +114,15 @@ async def test_manual_intake_retry_returns_same_case(admin_client):
 
 @pytest.mark.asyncio
 async def test_manual_intake_key_cannot_collide_with_public_form_key(admin_client, public_client):
-    config = (await admin_client.get(f"{BASE}/booking-config/yihua")).json()
-    await admin_client.patch(
-        f"{BASE}/booking-config/yihua",
-        json={"expected_version": config["version"], "mode": "inquiry"},
+    public = await book_slot(
+        admin_client, public_client, parent_name="官網家長", phone="0922333444", idempotency_key="same-key"
     )
-    version = (await public_client.get("/api/website/v1/public/booking-config/yihua")).json()["version"]
-    public = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": "yihua",
-            "config_version": version,
-            "parent_name": "官網家長",
-            "phone": "0922333444",
-            "consent_given": True,
-        },
-        headers={"Idempotency-Key": "same-key"},
-    )
-    assert public.status_code == 201, public.text
+    manual_slot = await _create_slot(admin_client, capacity=2, days_ahead=5)
     manual = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "same-key"}
+        f"{BASE}/visit-requests", json=_manual(slot_id=manual_slot["id"]), headers={"Idempotency-Key": "same-key"}
     )
     assert manual.status_code == 201
-    assert manual.json()["id"] != public.json()["receipt_id"]
+    assert manual.json()["id"] != public["receipt_id"]
     listed = await admin_client.get(f"{BASE}/visit-requests?source=web")
     assert [r["parent_name"] for r in listed.json()] == ["官網家長"]
 
@@ -153,28 +153,43 @@ async def test_manual_intake_with_slot_confirms_and_respects_capacity(admin_clie
 
 @pytest.mark.asyncio
 async def test_manual_intake_validates_input(admin_client):
+    slot = await _create_slot(admin_client, capacity=5)
     bad_phone = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(phone="12345"), headers={"Idempotency-Key": "a"}
+        f"{BASE}/visit-requests", json=_manual(phone="12345", slot_id=slot["id"]), headers={"Idempotency-Key": "a"}
     )
     assert bad_phone.status_code == 422
     no_consent = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(consent_given=False), headers={"Idempotency-Key": "b"}
+        f"{BASE}/visit-requests",
+        json=_manual(consent_given=False, slot_id=slot["id"]),
+        headers={"Idempotency-Key": "b"},
     )
     assert no_consent.status_code == 422
     web_source = await admin_client.post(
-        f"{BASE}/visit-requests", json=_manual(source="web"), headers={"Idempotency-Key": "c"}
+        f"{BASE}/visit-requests", json=_manual(source="web", slot_id=slot["id"]), headers={"Idempotency-Key": "c"}
     )
     assert web_source.status_code == 422
+    # 補登一定要選場次：不帶 slot_id 是標準 422，指到 slot_id 欄位。
+    no_slot = await admin_client.post(
+        f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "d"}
+    )
+    assert no_slot.status_code == 422
+    assert ["body", "slot_id"] in [error["loc"] for error in no_slot.json()["detail"]]
 
 
 @pytest.mark.asyncio
-async def test_campus_admin_cannot_manually_create_for_other_campus(minghua_client):
+async def test_campus_admin_cannot_manually_create_for_other_campus(admin_client, minghua_client):
+    yihua_slot = await _create_slot(admin_client, campus_key="yihua", capacity=2)
+    minghua_slot = await _create_slot(minghua_client, campus_key="minghua", capacity=2)
     response = await minghua_client.post(
-        f"{BASE}/visit-requests", json=_manual(campus_key="yihua"), headers={"Idempotency-Key": "x"}
+        f"{BASE}/visit-requests",
+        json=_manual(campus_key="yihua", slot_id=yihua_slot["id"]),
+        headers={"Idempotency-Key": "x"},
     )
     assert response.status_code == 404
     own = await minghua_client.post(
-        f"{BASE}/visit-requests", json=_manual(campus_key="minghua"), headers={"Idempotency-Key": "y"}
+        f"{BASE}/visit-requests",
+        json=_manual(campus_key="minghua", slot_id=minghua_slot["id"]),
+        headers={"Idempotency-Key": "y"},
     )
     assert own.status_code == 201, own.text
 
@@ -184,9 +199,7 @@ async def test_assign_and_filter_by_assignee(app, admin_client, db_session):
     colleague = await _create_user(
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
-    case = (
-        await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "k"})
-    ).json()
+    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
 
     assigned = await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
@@ -227,9 +240,7 @@ async def test_cannot_assign_to_staff_without_campus_scope_or_inactive(admin_cli
     inactive.is_active = False
     await db_session.commit()
 
-    case = (
-        await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "k"})
-    ).json()
+    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
     for user in (other_campus, editor, inactive):
         response = await admin_client.patch(
             f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(user.id), "expected_version": await case_version(admin_client, case["id"])}
@@ -244,9 +255,7 @@ async def test_confirm_keeps_existing_assignee(admin_client, db_session):
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
     slot = await _create_slot(admin_client)
-    case = (
-        await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "k"})
-    ).json()
+    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
     await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
     )
@@ -341,9 +350,7 @@ async def test_calendar_is_scoped_and_range_limited(admin_client, minghua_client
 @pytest.mark.asyncio
 async def test_complete_only_from_confirmed(admin_client, db_session):
     slot = await _create_slot(admin_client)
-    pending = (
-        await admin_client.post(f"{BASE}/visit-requests", json=_manual(), headers={"Idempotency-Key": "p"})
-    ).json()
+    pending = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
     early = await admin_client.post(f"{BASE}/visit-requests/{pending['id']}/complete")
     assert early.status_code == 409
 

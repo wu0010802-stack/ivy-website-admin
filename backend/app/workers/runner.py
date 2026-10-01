@@ -20,6 +20,7 @@ async def process_outbox_batch(
     limit: int = 10,
     line: LineMessagingClient | None = None,
     admin_origin: str | None = None,
+    access_secret: str | None = None,
 ) -> dict[str, int]:
     """認領並處理最多 `limit` 筆到期的 outbox 工作。每筆工作獨立
     commit/rollback，一筆失敗不影響其他筆繼續處理。`adapter` 為 None 時
@@ -47,6 +48,7 @@ async def process_outbox_batch(
                 created_at=max(message.created_at, message.requeued_at or message.created_at),
                 line=line,
                 admin_origin=admin_origin,
+                access_secret=access_secret,
             )
         except Exception as exc:  # noqa: BLE001 - 任何寄送/處理失敗都走重試路徑
             # 先丟掉這一輪還沒提交的工作，再記錄失敗。少了這個 rollback，

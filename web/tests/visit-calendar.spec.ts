@@ -90,7 +90,7 @@ describe('只在預約成立時出現', () => {
   it('預約完成畫面與家長管理頁都以 confirmed 為條件', () => {
     const form = readFileSync(new URL('../app/components/VisitForm.vue', import.meta.url), 'utf8')
     const manage = readFileSync(new URL('../app/pages/visit/manage.vue', import.meta.url), 'utf8')
-    expect(form).toMatch(/<VisitCalendarActions\s+v-if="resultStatus === 'confirmed'/)
+    expect(form).toMatch(/<VisitCalendarActions\s+v-if="resultKind === 'booked'/)
     expect(manage).toMatch(/status !== 'confirmed'[^\n]*return null/)
   })
 })

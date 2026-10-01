@@ -33,8 +33,8 @@ watch(() => route.query.campus, (value) => {
   const key = campusFromQuery(value)
   if (key && key !== selectedCampus.value) void switchCampus(key)
 })
-// 連到時段與容量一律帶目前校區，不會落在預設的第一校、在錯的校區新增時段。
-const slotsPath = computed(() => `/slots?campus=${encodeURIComponent(selectedCampus.value)}`)
+// 連到參觀場次一律帶目前校區，不會落在預設的第一校、在錯的校區新增場次。
+const sessionsPath = computed(() => `/visit-calendar?campus=${encodeURIComponent(selectedCampus.value)}`)
 
 // 分校啟用狀態（CampusStatusCard 讀到後回報；undefined＝還在讀、null＝讀不到）。
 // 啟用中時「停用分校」放在表單下方、用分隔線隔開，不比日常要改的預約方式更顯眼；
@@ -61,7 +61,6 @@ const form = ref({
   external_url: '',
   message: '',
   // 預設由園方確認；明確開啟後才允許送出即成立。
-  slots_auto_confirm: false,
   // 家長線上取消／申請改期最晚到參觀前幾小時（規格 238，預設 24）。
   parent_change_deadline_hours: 24,
 })
@@ -74,12 +73,11 @@ const conflict = ref(false)
 const requests = useRequestSequence()
 
 const MODES: { value: Mode; label: string; help: string; disabled?: boolean }[] = [
-  { value: 'inquiry', label: BOOKING_MODE_LABELS.inquiry!, help: '家長填表後由園方致電確認，案件會出現在「參觀案件」。' },
+  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長看得到你開放的場次，選好送出即預約成功，並收到確認信與修改連結。場次在「參觀場次」設定。' },
   { value: 'line', label: BOOKING_MODE_LABELS.line!, help: '官網預約鈕直接開 LINE 官方帳號。' },
   { value: 'phone', label: BOOKING_MODE_LABELS.phone!, help: '官網只顯示電話，不提供表單。' },
   { value: 'external', label: BOOKING_MODE_LABELS.external!, help: '預約鈕連到外部系統，例如 Google 表單。' },
   { value: 'paused', label: BOOKING_MODE_LABELS.paused!, help: '官網顯示暫停說明，家長無法送出需求。' },
-  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長選擇此校已開放的日期與場次，需先在「時段與容量」新增時段。' },
 ]
 
 const isDirty = computed(() => Boolean(config.value && snapshot.value) && JSON.stringify(form.value) !== snapshot.value)
@@ -118,13 +116,13 @@ const selectedReasons = computed(() => reasonsFor(form.value.mode))
 const selectedReasonRows = computed(() =>
   selectedReasons.value.map((reason) => {
     const action = reasonAction(reason.code, authStore.user)
-    return { ...reason, action: action && 'to' in action && action.to === '/slots' ? { ...action, to: slotsPath.value } : action }
+    return { ...reason, action: action && 'to' in action && action.to === '/visit-calendar' ? { ...action, to: sessionsPath.value } : action }
   }),
 )
 const modeChanged = computed(() => Boolean(config.value) && form.value.mode !== config.value!.mode)
 // 這一頁任何欄位存檔都會讓預約設定的版本加一（含只改家長異動期限），正在
 // 官網填表單的家長送出時會被請確認一次再送。只有收表單的方式才有人在填。
-const formsInProgress = computed(() => config.value?.mode === 'inquiry' || config.value?.mode === 'slots')
+const formsInProgress = computed(() => config.value?.mode === 'slots')
 
 // 數字框清空時是 null；送出 null 後端會當成「不改」，所以先擋下來。
 const deadlineInvalid = computed(() => {
@@ -176,7 +174,6 @@ async function load(campusKey: string) {
       phone: config.value.phone ?? '',
       external_url: config.value.external_url ?? '',
       message: config.value.message ?? '',
-      slots_auto_confirm: config.value.slots_auto_confirm ?? false,
       parent_change_deadline_hours: config.value.parent_change_deadline_hours ?? 24,
     }
     snapshot.value = JSON.stringify(form.value)
@@ -243,7 +240,6 @@ async function save() {
       phone: form.value.phone || null,
       external_url: form.value.external_url || null,
       message: form.value.message || null,
-      slots_auto_confirm: form.value.slots_auto_confirm,
       parent_change_deadline_hours: form.value.parent_change_deadline_hours,
     })
     snapshot.value = JSON.stringify(form.value)
@@ -312,17 +308,17 @@ async function save() {
           <el-form-item v-if="form.mode === 'external'" label="外部預約網址" required :error="externalUrlError">
             <el-input v-model="form.external_url" placeholder="https://…" inputmode="url" maxlength="500" autocomplete="off" />
           </el-form-item>
-          <el-form-item v-if="form.mode === 'slots'" label="場次確認方式">
-            <el-switch v-model="form.slots_auto_confirm" active-text="送出後自動確認預約" aria-label="送出後自動確認預約" />
-            <p class="hint">{{ form.slots_auto_confirm ? '送出成功即成立，家長會看到「預約成立」。' : '目前由園方人工確認。家長送出後暫留名額，須於 24 小時內確認；逾期將釋出。' }} <router-link :to="slotsPath">管理此校日期與場次</router-link></p>
-          </el-form-item>
-          <el-form-item label="家長線上取消／改期期限">
+          <p v-if="form.mode === 'slots'" class="hint booking-email-hint">
+            {{ config.parent_email_enabled ? '確認信：已啟用。家長送出後會收到確認信與修改連結。' : '尚未設定寄信，家長只會在畫面上看到修改連結。' }}
+            <router-link :to="sessionsPath">設定參觀場次</router-link>
+          </p>
+          <el-form-item label="家長線上修改期限">
             <div class="deadline">
               <span>參觀前</span>
               <el-input-number v-model="form.parent_change_deadline_hours" :min="1" :max="336" :step="1" step-strictly controls-position="right" aria-label="參觀前幾小時截止" class="deadline__input" />
               <span>小時截止</span>
             </div>
-            <p class="hint">家長用園方給的管理連結取消或申請改期，最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}；之後頁面會請家長直接聯絡園所。</p>
+            <p class="hint">參觀前幾小時內，家長不能再線上改場次、修改資料或取消；最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}，之後頁面會請家長直接聯絡園所。</p>
           </el-form-item>
           <el-form-item :label="form.mode === 'paused' ? '暫停說明' : '顯示給家長的說明（選填）'" :required="form.mode === 'paused'">
             <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="500" show-word-limit :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />
@@ -362,6 +358,7 @@ async function save() {
 </template>
 
 <style scoped>
+.booking-email-hint { margin: 0 0 16px; }
 .deadline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .deadline__input { width: 120px; }
 .modes {

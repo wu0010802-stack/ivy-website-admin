@@ -17,19 +17,23 @@ from app.booking.service import _legacy_payload_hash
 from app.common.timezones import today_local
 from app.operations import audit_service, retention_service
 from app.operations.models import RetentionRunTrigger
-from tests.conftest import set_booking_mode
+from tests.conftest import book_slot, create_slot, legacy_request, set_booking_mode
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 _DETAIL_FIELDS = {"child_name", "child_birthdate", "email", "referral_sources"}
+# 送單一定要選場次、留 Email（2026-09-30）；純 schema 測試也要帶，否則會因缺欄位假綠。
+_SLOT_ID = "6f1c7e0a-3b52-4c8e-9a41-0d2c5e7f8a19"
 
 
 def _payload(version=1, **changes):
     return {
         "campus_key": "yihua",
         "config_version": version,
+        "slot_id": _SLOT_ID,
+        "email": "parent@example.com",
         "parent_name": "陳媽媽",
         "phone": "0912345678",
         "age": "3-4",
@@ -40,33 +44,30 @@ def _payload(version=1, **changes):
     }
 
 
-async def _enable_inquiry(admin_client):
-    current = await admin_client.get("/api/website/v1/admin/booking-config/yihua")
-    updated = await admin_client.patch(
-        "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": current.json()["version"], "mode": "inquiry"},
-    )
-    assert updated.status_code == 200, updated.text
-    return updated.json()["version"]
-
-
 async def _create_details(admin_client, public_client, key="visit-details-01", **changes):
-    version = await _enable_inquiry(admin_client)
-    body = _payload(
-        version,
-        child_name="陳小樹",
-        child_birthdate="2022-06-18",
-        email="parent@example.org",
-        referral_sources=["google_reviews", "facebook", "facebook"],
-    )
-    body.update(changes)
-    response = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=body,
-        headers={"Idempotency-Key": key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["receipt_id"], body
+    """官網家長選場次送出一筆帶孩子資料的預約；回傳（案件 id, 送出的內容）。"""
+    fields = {
+        "child_name": "陳小樹",
+        "child_birthdate": "2022-06-18",
+        "email": "parent@example.org",
+        "referral_sources": ["google_reviews", "facebook", "facebook"],
+        "age": "3-4",
+        "preferred_time": "平日上午",
+        "questions": "想了解課程安排",
+        **changes,
+    }
+    booked = await book_slot(admin_client, public_client, idempotency_key=key, **fields)
+    version = (await admin_client.get("/api/website/v1/admin/booking-config/yihua")).json()["version"]
+    body = {
+        "campus_key": "yihua",
+        "config_version": version,
+        "slot_id": booked["slot_id"],
+        "parent_name": "陳媽媽",
+        "phone": "0912345678",
+        "consent_given": True,
+        **fields,
+    }
+    return booked["receipt_id"], body
 
 
 def test_new_optional_defaults_preserve_legacy_payload_hash():
@@ -74,8 +75,11 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     body = VisitRequestCreate.model_validate(_payload()).model_dump(
         mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
     )
-    # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。
-    legacy_body = {key: value for key, value in body.items() if key not in _DETAIL_FIELDS | {"party_size"}}
+    # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。Email 現在必填、
+    # 一定有值，所以進 hash；孩子姓名、生日、得知管道與人數沒填時仍不進 hash。
+    optional_when_empty = (_DETAIL_FIELDS - {"email"}) | {"party_size"}
+    legacy_body = {key: value for key, value in body.items() if key not in optional_when_empty}
+    assert legacy_body["email"] == "parent@example.com"
     # 更新前存的 hash 用的是官網送來的中文標籤；現在欄位存代碼，hash 仍要一樣。
     assert body["preferred_time"] == "weekday_morning"
     legacy_body["preferred_time"] = "平日上午"
@@ -85,6 +89,7 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     assert _legacy_payload_hash(body) == legacy_hash
     assert body["referral_sources"] == []  # hashing must not mutate submitted data
     assert _legacy_payload_hash({**body, "child_name": "小樹"}) != legacy_hash
+    assert _legacy_payload_hash({**body, "email": "other@example.com"}) != legacy_hash
     # 人數是家長填的內容：同一把 key 改了人數就是不同的送單。
     assert _legacy_payload_hash({**body, "party_size": 3}) != _legacy_payload_hash({**body, "party_size": 2})
     # 同意說明版本不是家長填的資料，不影響 hash。
@@ -114,6 +119,7 @@ def test_details_normalize_names_email_and_referral_order():
     {"child_birthdate": lambda: (today_local() + timedelta(days=1)).isoformat()},
     {"email": "parent@"},
     {"email": ""},
+    {"email": None},
     {"referral_sources": ["untrusted_source"]},
     {"referral_sources": ["facebook"] * 6},
     {"referral_sources": "facebook"},
@@ -148,7 +154,7 @@ async def test_new_details_roundtrip_stays_private_and_within_campus(
     }
     assert {key: detail.json()[key] for key in _DETAIL_FIELDS} == expected
     assert detail.json()["questions"] == "想了解課程安排"
-    assert detail.json()["status"] == "new"
+    assert detail.json()["status"] == "confirmed"
 
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
     assert stored.child_birthdate == date(2022, 6, 18)
@@ -171,57 +177,22 @@ async def test_new_details_roundtrip_stays_private_and_within_campus(
         "/api/website/v1/public/visit-manage/exchange", json={"token": token}
     )
     assert exchange.status_code == 200, exchange.text
-    assert not (_DETAIL_FIELDS & exchange.json().keys())
+    # 2026-09-30 起家長從修改連結可以改自己填的資料，所以看得到自己的 Email、孩子姓名與生日；
+    # 得知管道是園方統計用的，家長端一律不回。
+    assert "referral_sources" not in exchange.json()
     parent_view = await public_client.get("/api/website/v1/public/visit-manage/me")
-    assert not (_DETAIL_FIELDS & parent_view.json().keys())
+    assert "referral_sources" not in parent_view.json()
+    assert {key: parent_view.json()[key] for key in ("child_name", "child_birthdate", "email")} == {
+        "child_name": "陳小樹", "child_birthdate": "2022-06-18", "email": "parent@example.org",
+    }
 
     messages = (await db_session.execute(select(OutboxMessage))).scalars().all()
-    assert len(messages) == 1
-    assert messages[0].payload == {"campus_key": "yihua", "receipt_id": receipt_id}
-
-
-@pytest.mark.asyncio
-async def test_legacy_replay_accepts_omitted_or_empty_new_details(
-    admin_client, public_client, db_session
-):
-    version = await _enable_inquiry(admin_client)
-    # 更新前的官網沒有參觀人數；明確送 None，測試 client 才不會補預設人數。
-    body = {**_payload(version), "party_size": None}
-    headers = {"Idempotency-Key": "legacy-details-replay"}
-    legacy_body = {
-        key: value for key, value in body.items() if key not in {"campus_key", "config_version", "party_size"}
-    }
-    legacy_body["slot_id"] = None
-    expected_legacy_hash = hashlib.sha256(
-        json.dumps(legacy_body, sort_keys=True, ensure_ascii=True).encode("utf-8")
-    ).hexdigest()
-    # 現在新送的需求一定要有人數；模擬更新前就建立的案件：照常建立後把人數
-    # 拿掉、hash 換成當時的算法。
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests", json={**body, "party_size": 2}, headers=headers
-    )
-    assert created.status_code == 201, created.text
-    receipt_id = created.json()["receipt_id"]
-    stored = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-    assert stored.payload_hash != expected_legacy_hash  # 人數算進 hash
-    stored.party_size = None
-    stored.payload_hash = expected_legacy_hash
-    await db_session.commit()
-
-    missing_size = await public_client.post(
-        "/api/website/v1/public/visit-requests", json=body, headers={"Idempotency-Key": "legacy-new-case"}
-    )
-    assert missing_size.status_code == 422
-    assert missing_size.json()["detail"][0]["loc"] == ["body", "party_size"]
-
-    for request_body in (body, {
-        **body, "child_name": None, "child_birthdate": None, "email": None, "referral_sources": [],
-    }):
-        replay = await public_client.post(
-            "/api/website/v1/public/visit-requests", json=request_body, headers=headers
-        )
-        assert replay.status_code == 200, replay.text
-        assert replay.json()["receipt_id"] == receipt_id
+    # 送單（園方通知、成立、家長成立信）加上後台重發修改連結的家長信；不管哪一種，
+    # payload 都只有校區與案件 id，不帶任何個資。
+    assert sorted(message.kind for message in messages) == [
+        "parent_visit_booked", "parent_visit_changed", "visit_request_confirmed", "visit_request_created",
+    ]
+    assert all(message.payload == {"campus_key": "yihua", "receipt_id": receipt_id} for message in messages)
 
 
 @pytest.mark.asyncio
@@ -247,16 +218,7 @@ async def test_csv_includes_details_and_slot_with_formula_protection(admin_clien
     receipt_id, _ = await _create_details(
         admin_client, public_client, child_name="=1+1", email="+parent@example.org"
     )
-    slot_date = (today_local() + timedelta(days=3)).isoformat()
-    slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": slot_date, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 2},
-    )
-    assert slot.status_code == 201, slot.text
-    confirmed = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot.json()["id"]}
-    )
-    assert confirmed.status_code == 200, confirmed.text
+    slot_date = (today_local() + timedelta(days=3)).isoformat()  # book_slot 預設的場次日期
     exported = await admin_client.get("/api/website/v1/admin/visit-requests/export?campus_key=yihua")
     assert exported.status_code == 200, exported.text
     rows = list(csv.DictReader(io.StringIO(exported.text)))
@@ -305,28 +267,28 @@ async def test_retention_clears_new_details_and_audit_rejects_personal_fields(
     assert entry.metadata_json == {"row_count": 1}
 
 
-async def _pending_last_slot(admin_client, public_client, *, key="pending-details"):
+async def _pending_last_slot(
+    admin_client, db_session, *, hold_expires_at=None
+):
+    """本案上線前留下的「待園方確認」舊案：占著只有一組名額的場次、有占位期限。
+    新流程建不出這種案件，直接寫進資料庫。"""
+    slot_id = await create_slot(admin_client, "yihua", days_ahead=3, capacity=1)
     config = await set_booking_mode(admin_client, "yihua", mode="slots")
     assert config.status_code == 200, config.text
-    assert config.json()["slots_auto_confirm"] is False
-    slot_date = (today_local() + timedelta(days=3)).isoformat()
-    slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": slot_date, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 1},
+    slot = {"id": slot_id, "slot_date": (today_local() + timedelta(days=3)).isoformat()}
+    receipt_id = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot_id,
+        hold_expires_at=hold_expires_at or datetime.now(timezone.utc) + timedelta(hours=12),
     )
-    assert slot.status_code == 201, slot.text
-    body = _payload(config.json()["version"], slot_id=slot.json()["id"])
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests", json=body, headers={"Idempotency-Key": key}
-    )
-    assert created.status_code == 201, created.text
-    assert created.json()["status"] == "pending_confirmation"
-    return created.json()["receipt_id"], slot.json(), body
+    body = _payload(config.json()["version"], slot_id=slot_id)
+    return receipt_id, slot, body
 
 
 @pytest.mark.asyncio
-async def test_pending_can_confirm_own_last_slot_without_opening_capacity(admin_client, public_client):
-    receipt_id, slot, body = await _pending_last_slot(admin_client, public_client)
+async def test_pending_can_confirm_own_last_slot_without_opening_capacity(admin_client, public_client, db_session):
+    receipt_id, slot, body = await _pending_last_slot(admin_client, db_session)
     # 等待人工確認期間，其他家庭仍不能取得同一個最後名額。
     other_body = {**body, "parent_name": "林爸爸", "phone": "0922345678"}
     before = await public_client.post(
@@ -357,8 +319,8 @@ async def test_pending_can_confirm_own_last_slot_without_opening_capacity(admin_
 
 
 @pytest.mark.asyncio
-async def test_pending_cannot_confirm_into_another_familys_full_slot(admin_client, public_client):
-    receipt_id, own_slot, body = await _pending_last_slot(admin_client, public_client)
+async def test_pending_cannot_confirm_into_another_familys_full_slot(admin_client, public_client, db_session):
+    receipt_id, own_slot, body = await _pending_last_slot(admin_client, db_session)
     other_slot = await admin_client.post(
         "/api/website/v1/admin/slots?campus_key=yihua",
         json={"slot_date": own_slot["slot_date"], "start_time": "14:00:00", "end_time": "15:00:00", "capacity": 1},
@@ -370,6 +332,7 @@ async def test_pending_cannot_confirm_into_another_familys_full_slot(admin_clien
         headers={"Idempotency-Key": "pending-different-other"},
     )
     assert other.status_code == 201, other.text
+    assert other.json()["status"] == "confirmed"
     changed = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm",
         json={"slot_id": other_slot.json()["id"]},
@@ -387,10 +350,10 @@ async def test_expired_pending_hold_cannot_be_confirmed_before_or_after_sweep(
 ):
     from app.booking import workflow_service
 
-    receipt_id, slot, _ = await _pending_last_slot(admin_client, public_client)
+    receipt_id, slot, _ = await _pending_last_slot(
+        admin_client, db_session, hold_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)
+    )
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-    stored.hold_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
-    await db_session.commit()
 
     before_sweep = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}

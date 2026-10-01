@@ -18,7 +18,7 @@ from app.auth.models import DISPLAY_NAME_MAX_LENGTH, Role, User
 from app.auth.schemas import DisplayName, normalize_display_name
 from app.operations import audit_service
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client
+from tests.conftest import _create_user, _logged_in_client, create_slot
 
 API = "/api/website/v1"
 BASE = f"{API}/admin"
@@ -287,9 +287,11 @@ async def test_visit_staff_notes_and_history_carry_display_names(admin_client, d
     assert staff["admin@ivy.example"]["display_name"] == ADMIN_NAME
     assert staff["desk-yihua@ivy.example"]["display_name"] is None
 
+    slot_id = await create_slot(admin_client)
     created = await admin_client.post(
         f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "林媽媽", "phone": "0912345678", "consent_given": True},
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "林媽媽", "phone": "0912345678",
+              "consent_given": True, "slot_id": slot_id},
         headers={"Idempotency-Key": "display-names-01"},
     )
     assert created.status_code == 201, created.text

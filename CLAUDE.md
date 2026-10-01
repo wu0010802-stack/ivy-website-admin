@@ -86,7 +86,7 @@
 - **技術棧**（不要再重開選型，背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。
 - **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`；部署後在 `deploy/README.md` 補紀錄。
 - 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
-- 預約語意（inquiry「已收到需求」／slots 人工確認「待確認」／只有已確認才叫「預約成立」）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」。
+- 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 必填、確認信與修改連結寄給家長；舊的 inquiry／待確認只剩舊資料）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
 - 排程發布、逾期占位、通知 outbox、清限流計數由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
 - **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相 TRUNCATE。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。

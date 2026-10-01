@@ -458,7 +458,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
         >
           <el-table-column width="24">
             <template #default="{ row }: { row: NotificationOut }">
-              <span v-if="!row.read_at" class="dot" aria-label="未讀" />
+              <span v-if="!row.read_at" class="dot" role="img" aria-label="未讀" />
             </template>
           </el-table-column>
           <el-table-column label="通知" min-width="260">

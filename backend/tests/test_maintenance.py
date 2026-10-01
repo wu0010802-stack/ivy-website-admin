@@ -21,33 +21,30 @@ from app.main import create_app
 from app.notifications.models import NotificationInboxItem
 from app.workers import maintenance
 from app.workers.maintenance import MaintenanceLoop, run_cycle
-from tests.test_security_hardening import _create_slot, _enable_slots, _expire_hold, _payload
+from tests.conftest import create_slot, legacy_request
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（切 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-async def _expired_hold(admin_client, public_client, db_session, key: str) -> str:
-    version = await _enable_slots(admin_client, auto_confirm=False)
-    slot = await _create_slot(admin_client, capacity=1)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"]),
-        headers={"Idempotency-Key": key},
+async def _expired_hold(admin_client, db_session) -> str:
+    """上線前留下的待確認舊案（占位已到期）；新流程不會再產生這種案件。"""
+    slot_id = await create_slot(admin_client, capacity=1)
+    return await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=slot_id,
+        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
     )
-    assert created.status_code == 201, created.text
-    receipt_id = created.json()["receipt_id"]
-    await _expire_hold(db_session, receipt_id)
-    return receipt_id
 
 
 def _without_email(app) -> Settings:
     return app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
 
 
-async def test_cycle_releases_holds_and_writes_inbox_even_without_email(app, admin_client, public_client, db_session):
-    receipt_id = await _expired_hold(admin_client, public_client, db_session, "maint-hold")
+async def test_cycle_releases_holds_and_writes_inbox_even_without_email(app, admin_client, db_session):
+    receipt_id = await _expired_hold(admin_client, db_session)
 
     result = await run_cycle(app.state.session_factory, _without_email(app), worker_id="test")
 
@@ -131,8 +128,8 @@ async def test_cycle_purges_expired_rate_limit_rows(app, db_session):
     assert (await db_session.execute(select(func.count()).select_from(RateLimitCounter))).scalar_one() == 0
 
 
-async def test_a_failing_step_does_not_block_the_others(app, admin_client, public_client, db_session, monkeypatch):
-    receipt_id = await _expired_hold(admin_client, public_client, db_session, "maint-step")
+async def test_a_failing_step_does_not_block_the_others(app, admin_client, db_session, monkeypatch):
+    receipt_id = await _expired_hold(admin_client, db_session)
 
     async def broken(db, **kwargs):
         raise RuntimeError("排程發布壞掉")
@@ -146,11 +143,10 @@ async def test_a_failing_step_does_not_block_the_others(app, admin_client, publi
     assert detail.json()["status"] == VisitRequestStatus.CANCELLED.value
 
 
-async def test_slow_smtp_does_not_block_the_event_loop(admin_client, public_client, db_session, run_outbox_once):
+async def test_slow_smtp_does_not_block_the_event_loop(admin_client, db_session, run_outbox_once):
     """定期工作跑在 API 的 event loop 上；SMTP 若直接同步呼叫，寄信期間
     所有請求都會卡住。"""
-    await _expired_hold(admin_client, public_client, db_session, "maint-smtp")
-    await run_outbox_once(None)  # 先把建立案件那則通知消化掉，只留逾期這則
+    await _expired_hold(admin_client, db_session)
 
     class SlowAdapter:
         def send(self, *, to: str, subject: str, body: str) -> None:
@@ -268,12 +264,17 @@ async def test_health_reports_disabled_when_loop_is_off(public_client):
 
 
 async def test_stale_backlog_writes_inbox_but_does_not_email(
-    admin_client, public_client, db_session, run_outbox_once, recording_mail_adapter
+    admin_client, db_session, run_outbox_once, recording_mail_adapter
 ):
     """定期工作第一次上線時，積壓好幾天的 outbox 不該一口氣寄給所有人。"""
     from sqlalchemy import update
 
-    await _expired_hold(admin_client, public_client, db_session, "maint-stale")
+    await _expired_hold(admin_client, db_session)
+    # 舊案本身不產生 outbox，先跑一次逾期釋放才有「占位逾期」那則通知。
+    from app.booking.workflow_service import expire_holds
+
+    await expire_holds(db_session)
+    await db_session.commit()
     await db_session.execute(
         update(OutboxMessage).values(created_at=datetime.now(timezone.utc) - timedelta(days=3))
     )

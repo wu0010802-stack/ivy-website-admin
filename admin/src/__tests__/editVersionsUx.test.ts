@@ -6,9 +6,9 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
-import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
-import VisitSlotsView from '../views/VisitSlotsView.vue'
-import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
+import ElementPlus, { ElMessage } from 'element-plus'
+import DayPanel from '../components/sessions/DayPanel.vue'
+import WeeklySessionsCard from '../components/sessions/WeeklySessionsCard.vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import { AUDIT_ACTION_LABELS, AUDIT_TARGET_LABELS } from '../api/labels'
@@ -65,61 +65,47 @@ describe('API 錯誤解析', () => {
   })
 })
 
-describe('時段：帶版本送出，別人先改過就重新讀取', () => {
-  const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-06', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 0, closed: false, closed_source: null, version: 4 }
+describe('場次：帶版本送出，別人先改過就重新讀取', () => {
+  const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-06', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 0, closed: false, closed_source: null, version: 4, visits: [] }
+  const panelProps = { day: '2099-01-06', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true, staff: [] }
 
-  it('關閉時段帶 expected_version；409 版本衝突時提示並重讀清單', async () => {
-    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
-      if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 1 } as never
-      return [slot] as never
-    })
+  it('停止申請帶 expected_version；409 版本衝突時提示並請父層重讀', async () => {
     const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', '這個時段剛被其他人修改（或因休假日關閉），請重新載入後再調整'))
     const warning = vi.spyOn(ElMessage, 'warning')
-    const wrapper = await mountAt(VisitSlotsView, '/slots')
-    const slotCalls = () => get.mock.calls.filter(([path]) => String(path).startsWith('/admin/slots?')).length
-    const before = slotCalls()
-    await wrapper.find('.slot-row').findAll('button').find(button => button.text() === '關閉')!.trigger('click')
+    const wrapper = await mountAt(DayPanel, '/', panelProps)
+    await wrapper.findAll('button').find(button => button.text() === '停止申請')!.trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { closed: true, expected_version: 4 })
-    // 畫面已經自動重讀：不接後端「請重新載入後再調整」，免得同一句話前後矛盾。
-    expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整')
-    expect(String(warning.mock.calls[0]![0])).not.toContain('請重新載入')
-    expect(slotCalls()).toBe(before + 1)
+    expect(warning).toHaveBeenCalledWith('這一場剛被其他人修改，已重新載入')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
-  it('調整名額遇到版本衝突也用「已載入最新」的提示並重讀清單', async () => {
-    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
-      if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 1 } as never
-      return [slot] as never
-    })
-    const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', '這個時段剛被其他人修改（或因休假日關閉），請重新載入後再調整'))
+  it('調整名額遇到版本衝突也提示並請父層重讀', async () => {
+    const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', 'x'))
     const warning = vi.spyOn(ElMessage, 'warning')
-    const wrapper = await mountAt(VisitSlotsView, '/slots')
-    const slotCalls = () => get.mock.calls.filter(([path]) => String(path).startsWith('/admin/slots?')).length
-    const before = slotCalls()
-    wrapper.find('.slot-row').findComponent({ name: 'ElInputNumber' }).vm.$emit('change', 5)
+    const wrapper = await mountAt(DayPanel, '/', panelProps)
+    wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.classes().includes('day-panel__capacity'))!.vm.$emit('update:modelValue', 5)
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { capacity: 5, expected_version: 4 })
-    expect(warning).toHaveBeenCalledWith('這個時段剛被其他人修改（或因休假日關閉），已載入最新的時段，請確認後再調整')
-    expect(slotCalls()).toBe(before + 1)
+    expect(warning).toHaveBeenCalledWith('這一場剛被其他人修改，已重新載入')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 })
 
-describe('每週開放規則：整份替換要帶版本，衝突時不蓋掉別人', () => {
-  const schedule = { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], rules_extended_on: null, version: 5 }
+describe('每週固定場次：整份替換要帶版本，衝突時不蓋掉別人', () => {
+  const schedule = { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 5 }
 
-  it('儲存帶 expected_version；衝突時詢問是否重新載入', async () => {
+  it('儲存帶 expected_version；衝突時提示並重新載入最新設定', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(schedule as never)
     const put = vi.spyOn(api, 'put').mockRejectedValue(conflict('VISIT_SCHEDULE_VERSION_CONFLICT', '開放規則剛被其他人修改，請重新載入後再編輯'))
-    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
-    const wrapper = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
-    await wrapper.findAll('button').find(button => button.text().includes('新增規則'))!.trigger('click')
-    await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '儲存規則')!.trigger('click')
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const wrapper = await mountAt(WeeklySessionsCard, '/', { campusKey: 'yihua', canManage: true, canConfigureBooking: false })
+    await wrapper.findAll('button').find(button => button.text() === '套用常用場次')!.trigger('click')
+    await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/admin/visit-schedule/yihua', expect.objectContaining({ expected_version: 5 }))
-    expect(String(confirm.mock.calls[0]![0])).toContain('還沒儲存的修改會捨棄')
-    // 確認後重新讀取規則。
-    expect(get).toHaveBeenCalledTimes(2)
+    expect(warning).toHaveBeenCalledWith('場次剛被其他人修改，已重新載入最新設定')
+    // 重新載入後再讀一次規則。
+    expect(get.mock.calls.filter(([path]) => String(path).startsWith('/admin/visit-schedule/')).length).toBeGreaterThanOrEqual(2)
   })
 })

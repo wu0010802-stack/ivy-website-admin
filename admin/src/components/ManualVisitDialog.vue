@@ -104,7 +104,7 @@ const openSlots = computed(() => slots.value.filter((s) => !s.closed && s.booked
 const phoneDigits = computed(() => form.phone.replace(/[\s\-－]/g, ''))
 const phoneValid = computed(() => /^09\d{8}$/.test(phoneDigits.value))
 const canSubmit = computed(
-  () => Boolean(form.campus_key && form.parent_name.trim() && phoneValid.value && form.consent_given),
+  () => Boolean(form.campus_key && form.parent_name.trim() && phoneValid.value && form.slot_id && form.consent_given),
 )
 
 // 送出鈕停用時說清楚還差什麼；最常漏的是最下面的同意勾選。
@@ -113,6 +113,7 @@ const missing = computed(() => {
     form.campus_key ? '' : '校區',
     form.parent_name.trim() ? '' : '家長稱呼',
     phoneDigits.value ? '' : '手機',
+    form.slot_id ? '' : '參觀場次',
   ].filter(Boolean)
   return [
     empty.length ? `還沒填${empty.join('、')}` : '',
@@ -167,6 +168,10 @@ function messageOf(err: unknown): string {
 }
 
 async function submit() {
+  if (!form.slot_id) {
+    ElMessage.warning('請選擇參觀場次')
+    return
+  }
   if (!canSubmit.value) return
   submitting.value = true
   error.value = null
@@ -183,7 +188,7 @@ async function submit() {
     party_size: form.party_size,
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
-    slot_id: form.slot_id || null,
+    slot_id: form.slot_id,
     consent_given: form.consent_given,
     related_request_id: props.relatedFrom?.id ?? null,
   }
@@ -191,7 +196,7 @@ async function submit() {
     const created = await api.post<VisitRequestDetailOut>('/admin/visit-requests', body, {
       headers: { 'Idempotency-Key': idempotencyKey },
     })
-    ElMessage.success(created.status === 'confirmed' ? `已補登並確認，參觀時間 ${formatSlotWhen(created.slot)}` : '已補登，案件狀態為待處理')
+    ElMessage.success(`已補登，參觀時間 ${formatSlotWhen(created.slot)}`)
     open.value = false
     emit('created', created)
   } catch (err) {
@@ -241,15 +246,15 @@ async function submit() {
       </div>
 
       <!-- 當場談好時間是送出前最重要的決定，排在必填欄位後面，選填的孩子資料再往下。 -->
-      <el-form-item label="直接排入時段（選填）">
-        <el-select v-model="form.slot_id" clearable :loading="slotsLoading" placeholder="還沒談好時間就留空" style="width: 100%">
+      <el-form-item label="參觀場次" required>
+        <el-select v-model="form.slot_id" :loading="slotsLoading" placeholder="選擇場次" style="width: 100%">
           <el-option v-for="slot in openSlots" :key="slot.id" :value="slot.id" :label="`${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 組`" />
         </el-select>
         <span v-if="slotsError" class="field-help">
           讀不到這個校區的時段。<el-button link type="primary" @click="loadSlots">重新讀取</el-button>
         </span>
-        <span v-else-if="!slotsLoading && openSlots.length === 0" class="field-help">未來 60 天沒有可以排入的時段，先補登成待處理，之後再排。</span>
-        <span v-else class="field-help">選了時段，送出後案件直接成為「已確認」。</span>
+        <span v-else-if="!slotsLoading && openSlots.length === 0" class="field-help">未來 60 天沒有可以排入的場次，請先到「參觀場次」開放場次。</span>
+        <span v-else class="field-help">送出後案件直接成為「預約正常」。</span>
       </el-form-item>
 
       <div class="manual__row">
@@ -264,6 +269,7 @@ async function submit() {
       <div class="manual__row">
         <el-form-item label="Email">
           <el-input v-model="form.email" type="email" maxlength="254" />
+          <span class="field-help">有填會寄確認信與修改連結給家長。</span>
         </el-form-item>
         <el-form-item label="方便接電話時段">
           <el-select v-model="form.preferred_time" clearable placeholder="選填" style="width: 100%">
@@ -299,7 +305,7 @@ async function submit() {
           <div class="manual__buttons">
             <el-button :disabled="submitting" @click="requestClose">取消</el-button>
             <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
-              {{ form.slot_id ? '補登並確認時段' : '補登案件' }}
+              補登案件
             </el-button>
           </div>
         </div>

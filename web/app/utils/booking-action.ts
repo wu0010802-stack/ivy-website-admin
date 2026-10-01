@@ -1,6 +1,6 @@
 import type { PrivacyNotice } from '../types/site-content'
 
-export type BookingMode = 'inquiry' | 'slots' | 'line' | 'phone' | 'external' | 'paused'
+export type BookingMode = 'slots' | 'line' | 'phone' | 'external' | 'paused'
 
 export interface BookingConfig {
   mode: BookingMode
@@ -16,6 +16,8 @@ export interface BookingConfig {
   privacy_notice?: PrivacyNotice | null
   /** 部署啟用 Cloudflare Turnstile 時的 site key；null 表示送單不需要機器人驗證 */
   turnstile_site_key?: string | null
+  /** 部署有開寄信時為 true：結果頁才能說「確認信已寄出」 */
+  parent_email_enabled?: boolean
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'
@@ -47,14 +49,6 @@ export function resolveBookingAction(
   }
 
   switch (config.mode) {
-    case 'inquiry':
-      return {
-        kind: 'form',
-        href: `/visit/${campusKey}`,
-        label: '填寫預約表單',
-        message: config.message ?? null
-      }
-
     case 'slots':
       // 2026-09-22 園方要求日期／場次：只有校方已設定 slots 才開放選時段。
       return {

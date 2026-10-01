@@ -105,11 +105,11 @@ describe('下一筆跟著來源列表', () => {
   it('列表點進案件時帶上條件；沒篩狀態（全部）就不帶', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([kase()] as never)
     const router = makeRouter()
-    await router.push('/visit-requests?status=new&order=oldest'); await router.isReady()
+    await router.push('/visit-requests?group=pending&order=oldest'); await router.isReady()
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     const link = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
-    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=status=new&order=oldest')
+    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=group=pending&order=oldest')
 
     await router.push('/visit-requests'); await flushPromises()
     const plain = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
@@ -149,7 +149,7 @@ describe('取消需求與取消預約', () => {
     expect(options).toMatchObject({ confirmButtonText: '取消需求', confirmButtonClass: 'el-button--danger', cancelButtonText: '先不要' })
   })
 
-  it('已確認：叫「取消預約」，說明名額會釋出、不會通知家長', async () => {
+  it('已確認：叫「取消預約」，說明名額會釋出、沒有 Email 時請電話通知', async () => {
     const prompt = promptSpy()
     const { wrapper } = await mountDetail(kase({ status: 'confirmed', slot_id: 'slot-1', slot }))
     await wrapper.findAll('button').find((b) => b.text() === '取消預約')!.trigger('click')
@@ -157,7 +157,7 @@ describe('取消需求與取消預約', () => {
     const [message, title, options] = prompt.mock.calls[0]!
     expect(title).toBe('取消這筆預約？')
     expect(String(message)).toContain('名額會釋出')
-    expect(String(message)).toContain('不會通知家長')
+    expect(String(message)).toContain('請電話通知家長')
     expect(options).toMatchObject({ confirmButtonText: '取消預約', confirmButtonClass: 'el-button--danger' })
   })
 })

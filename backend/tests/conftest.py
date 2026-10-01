@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
@@ -20,6 +20,7 @@ from app.auth import service
 from app.auth.models import Role, User
 from app.campuses.models import Campus
 from app.common.ratelimit import RateLimiter
+from app.common.timezones import today_local
 from app.config import Settings
 from app.main import create_app
 
@@ -204,6 +205,8 @@ class ParentClient(httpx.AsyncClient):
         if str(url).endswith(VISIT_SUBMIT_PATH) and isinstance(body, dict):
             body = dict(body)
             body.setdefault("party_size", 2)
+            # 2026-09-30 起官網送單 Email 必填；要驗缺 Email 的測試自己帶 None。
+            body.setdefault("email", "parent@example.com")
             if "consent_revision_id" not in body and body.get("campus_key"):
                 config = await self.get(f"/api/website/v1/public/booking-config/{body['campus_key']}")
                 if config.status_code == 200:
@@ -262,9 +265,10 @@ async def booking_consent(db_session) -> uuid.UUID:
 async def set_booking_mode(admin_client, campus_key: str = "yihua", **config) -> httpx.Response:
     """測試前置：把某校切到指定的預約方式（config 是 PATCH 的其餘欄位）。
 
-    切到 slots 卻因為「沒有可預約場次也沒有每週規則」被擋時，補一條每週規則
-    再送一次——很多測試是先開 slots 再建自己的場次。先建好場次的測試不會被補
-    規則，不影響依規則產生時段、休假日這類要算場次數的測試。"""
+    切到 slots 卻因為「沒有可預約場次也沒有每週規則」被擋時，補一個很遠的
+    手動場次（今天＋58 天 06:00，仍在預設 60 天公開窗內）再送一次——很多測試是
+    先開 slots 再建自己的場次。不補每週規則：規則會立刻產生未來 60 天的真實場次，
+    讓計算場次數的測試依賴今天是星期幾。先建好場次的測試不會被補。"""
     url = f"/api/website/v1/admin/booking-config/{campus_key}"
     current = await admin_client.get(url)
     body = {"expected_version": current.json()["version"], **config}
@@ -274,7 +278,12 @@ async def set_booking_mode(admin_client, campus_key: str = "yihua", **config) ->
         and config.get("mode") == "slots"
         and [r["code"] for r in response.json()["detail"].get("reasons", [])] == ["NO_SLOTS_OR_RULES"]
     ):
-        await add_weekly_rule(admin_client, campus_key)
+        far = date.today() + timedelta(days=58)
+        created = await admin_client.post(
+            f"/api/website/v1/admin/slots?campus_key={campus_key}",
+            json={"slot_date": far.isoformat(), "start_time": "06:00:00", "end_time": "06:30:00", "capacity": 1},
+        )
+        assert created.status_code == 201, created.text
         response = await admin_client.patch(url, json=body)
     return response
 
@@ -388,3 +397,126 @@ async def editor_client(app, db_session):
     client = await _logged_in_client(app, "editor-yihua@ivy.example", "editor-yihua-password-123")
     yield client
     await client.aclose()
+
+
+async def create_slot(
+    admin_client,
+    campus_key: str = "yihua",
+    *,
+    days_ahead: int = 3,
+    start_time: str = "10:00:00",
+    end_time: str = "11:00:00",
+    capacity: int = 2,
+) -> str:
+    slot_date = (today_local() + timedelta(days=days_ahead)).isoformat()
+    response = await admin_client.post(
+        f"/api/website/v1/admin/slots?campus_key={campus_key}",
+        json={"slot_date": slot_date, "start_time": start_time, "end_time": end_time, "capacity": capacity},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+async def book_slot(
+    admin_client,
+    public_client,
+    campus_key: str = "yihua",
+    *,
+    days_ahead: int = 3,
+    start_time: str = "10:00:00",
+    end_time: str = "11:00:00",
+    capacity: int = 2,
+    idempotency_key: str | None = None,
+    **fields,
+) -> dict:
+    """官網家長選一個場次送出（送出即 confirmed）。先建時段再切 slots，
+    set_booking_mode 就不會另外補每週規則。"""
+    slot_id = await create_slot(
+        admin_client, campus_key, days_ahead=days_ahead, start_time=start_time, end_time=end_time, capacity=capacity
+    )
+    mode = await set_booking_mode(admin_client, campus_key, mode="slots")
+    assert mode.status_code == 200, mode.text
+    body = {
+        "campus_key": campus_key,
+        "config_version": mode.json()["version"],
+        "parent_name": "陳媽媽",
+        "phone": "0912345678",
+        "consent_given": True,
+        "slot_id": slot_id,
+        **fields,
+    }
+    response = await public_client.post(
+        VISIT_SUBMIT_PATH, json=body, headers={"Idempotency-Key": idempotency_key or f"book-{slot_id}"}
+    )
+    assert response.status_code in (200, 201), response.text
+    return {
+        "receipt_id": response.json()["receipt_id"],
+        "slot_id": slot_id,
+        "slot_date": (today_local() + timedelta(days=days_ahead)).isoformat(),
+        "manage_path": response.json().get("manage_path"),
+        "response": response,
+    }
+
+
+async def legacy_request(
+    db: AsyncSession,
+    *,
+    campus_key: str = "yihua",
+    status: str = "new",
+    slot_id=None,
+    hold_expires_at: datetime | None = None,
+    email: str | None = None,
+    parent_name: str = "舊案家長",
+    phone: str = "0911000111",
+    source: str = "web",
+    party_size: int | None = 2,
+) -> str:
+    """本案上線前才會產生的案件（new／contacting／pending_confirmation 等）。
+    新流程沒有 API 能建出這些狀態，直接寫 DB；不產生 outbox、analytics、歷程。"""
+    from app.booking.models import VisitRequest
+
+    visit_request = VisitRequest(
+        id=uuid.uuid4(),
+        campus_key=campus_key,
+        idempotency_key=f"legacy-{uuid.uuid4().hex}",
+        payload_hash="0" * 64,
+        config_version=0,
+        parent_name=parent_name,
+        phone=phone,
+        email=email,
+        referral_sources=[],
+        party_size=party_size,
+        consent_given=True,
+        status=status,
+        source=source,
+        slot_id=uuid.UUID(str(slot_id)) if slot_id else None,
+        hold_expires_at=hold_expires_at,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(visit_request)
+    await db.commit()
+    return str(visit_request.id)
+
+
+async def legacy_reschedule_request(db: AsyncSession, visit_request_id, requested_slot_id) -> str:
+    """家長「申請改期」已退場；後台核准／退回仍要處理舊資料。"""
+    from app.booking.access_models import RescheduleRequest
+
+    record = RescheduleRequest(
+        id=uuid.uuid4(),
+        visit_request_id=uuid.UUID(str(visit_request_id)),
+        requested_slot_id=uuid.UUID(str(requested_slot_id)),
+        status="pending",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(record)
+    await db.commit()
+    return str(record.id)
+
+
+async def open_manage(public_client, manage_path: str) -> dict:
+    """用送單回應的修改連結換家長 session（cookie 留在 public_client）。"""
+    token = manage_path.split("token=", 1)[1]
+    response = await public_client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
+    assert response.status_code == 200, response.text
+    return response.json()

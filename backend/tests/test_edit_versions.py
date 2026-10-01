@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import _create_user
+from tests.conftest import _create_user, legacy_request
 from app.auth.models import Role
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
@@ -34,14 +34,9 @@ async def _slot(client, days_ahead=3) -> dict:
     return response.json()
 
 
-async def _case(client, key: str) -> dict:
-    response = await client.post(
-        f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345678", "consent_given": True},
-        headers={"Idempotency-Key": key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
+async def _case(db_session) -> dict:
+    """上線前留下的「已收到需求」舊案（new，version 1）。"""
+    return {"id": await legacy_request(db_session, status="new", parent_name="王媽媽"), "version": 1}
 
 
 @pytest.mark.asyncio
@@ -79,7 +74,7 @@ async def test_holiday_closing_bumps_slot_version(admin_client):
 @pytest.mark.asyncio
 async def test_assignee_and_follow_up_use_case_version(admin_client, db_session):
     colleague = await _create_user(db_session, "desk-v@ivy.example", "desk-password-123456", Role.RECEPTION, ["yihua"])
-    case = await _case(admin_client, "version-case-01")
+    case = await _case(db_session)
     assert case["version"] == 1
 
     assigned = await admin_client.patch(
@@ -120,7 +115,10 @@ async def test_assignee_and_follow_up_use_case_version(admin_client, db_session)
     assert detail["assigned_staff_id"] == str(colleague.id)
 
     # 狀態轉換不動版本：家長或同事改了狀態，開著的畫面仍可以改承辦人。
-    assert (await admin_client.post(f"{BASE}/visit-requests/{case['id']}/contacting")).status_code == 200
+    slot = await _slot(admin_client)
+    confirmed = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/confirm", json={"slot_id": slot["id"]})
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["version"] == 3
     again = await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": 3}
     )

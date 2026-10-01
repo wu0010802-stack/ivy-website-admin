@@ -1307,7 +1307,7 @@ export interface paths {
         put?: never;
         /**
          * Create Manual Visit Request
-         * @description 人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
+         * @description 人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡
          *     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
          *     人員改完再送一次即可。
          */
@@ -1330,6 +1330,26 @@ export interface paths {
          * @description 依畫面上目前的篩選條件匯出（不分頁）。
          */
         get: operations["export_visit_requests_api_website_v1_admin_visit_requests_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/group-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visit Request Group Counts
+         * @description 分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。
+         */
+        get: operations["visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1370,12 +1390,15 @@ export interface paths {
         put?: never;
         /**
          * Create Parent Access Link
-         * @description 產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：
-         *     重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
+         * @description 重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先
+         *     撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
          *
-         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。
-         *     原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。
-         *     不會自動寄給家長——由園方自行轉交。
+         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token
+         *     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
+         *
+         *     有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；
+         *     沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出
+         *     （另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。
          */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
@@ -1477,23 +1500,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Mark Contacting */
-        post: operations["mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
         parameters: {
             query?: never;
@@ -1526,6 +1532,27 @@ export interface paths {
          *     時段與原因，新時段額滿／關閉／已開始時整筆回滾、原預約不動。
          */
         post: operations["reschedule_visit_request_api_website_v1_admin_visit_requests__visit_request_id__reschedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/resend-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Parent Confirmation
+         * @description 重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。
+         *     沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。
+         */
+        post: operations["resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2051,10 +2078,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Parent Update Details */
+        patch: operations["parent_update_details_api_website_v1_public_visit_manage_me_patch"];
         trace?: never;
     };
-    "/api/website/v1/public/visit-manage/reschedule-request": {
+    "/api/website/v1/public/visit-manage/reschedule": {
         parameters: {
             query?: never;
             header?: never;
@@ -2063,11 +2091,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Parent Request Reschedule
-         * @description 只建立待核准紀錄，原時段維持不變，直到園方在 admin 端核准。
-         */
-        post: operations["parent_request_reschedule_api_website_v1_public_visit_manage_reschedule_request_post"];
+        /** Parent Reschedule */
+        post: operations["parent_reschedule_api_website_v1_public_visit_manage_reschedule_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2229,10 +2254,13 @@ export interface components {
             mode: components["schemas"]["BookingMode"];
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
+            /**
+             * Parent Email Enabled
+             * @default false
+             */
+            parent_email_enabled: boolean;
             /** Phone */
             phone: string | null;
-            /** Slots Auto Confirm */
-            slots_auto_confirm: boolean;
             /** Version */
             version: number;
         };
@@ -2251,11 +2279,6 @@ export interface components {
             parent_change_deadline_hours?: number | null;
             /** Phone */
             phone?: string | null;
-            /**
-             * Slots Auto Confirm
-             * @default false
-             */
-            slots_auto_confirm: boolean;
         };
         /** BookingConsentBriefOut */
         BookingConsentBriefOut: {
@@ -2334,6 +2357,8 @@ export interface components {
             capacity: number;
             /** Closed */
             closed: boolean;
+            /** Closed Source */
+            closed_source?: string | null;
             /**
              * End Time
              * Format: time
@@ -2354,6 +2379,8 @@ export interface components {
              * Format: time
              */
             start_time: string;
+            /** Version */
+            version: number;
             /** Visits */
             visits: components["schemas"]["CalendarVisitOut"][];
         };
@@ -2983,9 +3010,15 @@ export interface components {
          * ParentAccessLinkCreatedOut
          * @description manage_url 是可以直接給家長的完整網址（公開官網 origin＝
          *     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
-         *     manage_url_fragment 自行組網址。兩者都含 token，只回這一次。
+         *     manage_url_fragment 自行組網址。兩者都含 token：後台只在這個回應拿得到，
+         *     寄給家長的信由伺服器在寄件當下重算。
          */
         ParentAccessLinkCreatedOut: {
+            /**
+             * Emailed
+             * @default false
+             */
+            emailed: boolean;
             /**
              * Expires At
              * Format: date-time
@@ -3000,8 +3033,8 @@ export interface components {
         };
         /**
          * ParentAccessLinkOut
-         * @description 目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
-         *     後台「有沒有、什麼時候到期」。
+         * @description 目前有效的家長管理連結。案件明細只告訴後台「有沒有、什麼時候到期」，不回含
+         *     token 的網址；要給家長時用「重新產生連結並寄出」或重寄確認信。
          */
         ParentAccessLinkOut: {
             /**
@@ -3024,10 +3057,51 @@ export interface components {
             visit_request_id: string;
         };
         /**
+         * ParentDetailsUpdate
+         * @description 家長自己修改的欄位；只送有改的欄位。必填欄位不能清空。
+         */
+        ParentDetailsUpdate: {
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Parent Name */
+            parent_name?: string | null;
+            /** Party Size */
+            party_size?: number | null;
+            /** Phone */
+            phone?: string | null;
+            /** Questions */
+            questions?: string | null;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
+        /** ParentRescheduleRequest */
+        ParentRescheduleRequest: {
+            /**
+             * Slot Id
+             * Format: uuid
+             */
+            slot_id: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
+        /**
          * ParentVisitRequestOut
-         * @description 家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
-         *     那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
-         *     欄位，連結一旦外流就等於把整份個資交出去。
+         * @description 家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
+         *     含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+         *     孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+         *     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。
          */
         ParentVisitRequestOut: {
             /** Campus Active */
@@ -3040,6 +3114,11 @@ export interface components {
             campus_phone: string | null;
             /** Can Cancel */
             can_cancel: boolean;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
             /** Can Reschedule */
             can_reschedule: boolean;
             /** Cancelled At */
@@ -3048,6 +3127,10 @@ export interface components {
             change_deadline: string | null;
             /** Change Deadline Hours */
             change_deadline_hours: number;
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
             /**
@@ -3055,6 +3138,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Email */
+            email?: string | null;
             /** Hold Expires At */
             hold_expires_at: string | null;
             /**
@@ -3062,8 +3147,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Phone Masked */
-            phone_masked: string;
+            /** Parent Name */
+            parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
+            /** Phone */
+            phone: string;
+            /** Questions */
+            questions?: string | null;
             /**
              * Reschedule Pending
              * @default false
@@ -3072,6 +3163,8 @@ export interface components {
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Status */
             status: string;
+            /** Version */
+            version: number;
         };
         /**
          * PasswordChangeRequest
@@ -3143,11 +3236,14 @@ export interface components {
             /** Message */
             message: string | null;
             mode: components["schemas"]["BookingMode"];
+            /**
+             * Parent Email Enabled
+             * @default false
+             */
+            parent_email_enabled: boolean;
             /** Phone */
             phone: string | null;
             privacy_notice?: components["schemas"]["PrivacyNoticeOut"] | null;
-            /** Slots Auto Confirm */
-            slots_auto_confirm: boolean;
             /** Turnstile Site Key */
             turnstile_site_key?: string | null;
             /** Version */
@@ -3406,16 +3502,6 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
-        /** RescheduleRequestCreate */
-        RescheduleRequestCreate: {
-            /**
-             * New Slot Id
-             * Format: uuid
-             */
-            new_slot_id: string;
-            /** Visit Request Id */
-            visit_request_id?: string | null;
-        };
         /**
          * RescheduleRequestOut
          * @description 家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
@@ -3449,6 +3535,14 @@ export interface components {
              * Format: uuid
              */
             visit_request_id: string;
+        };
+        /**
+         * ResendConfirmationOut
+         * @description 重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。
+         */
+        ResendConfirmationOut: {
+            /** Queued */
+            queued: boolean;
         };
         /** RetentionCountsOut */
         RetentionCountsOut: {
@@ -3846,6 +3940,17 @@ export interface components {
             /** Reopened Slots */
             reopened_slots: number;
         };
+        /** VisitGroupCountsOut */
+        VisitGroupCountsOut: {
+            /** Cancelled */
+            cancelled: number;
+            /** Past */
+            past: number;
+            /** Pending */
+            pending: number;
+            /** Upcoming */
+            upcoming: number;
+        };
         /**
          * VisitHistoryOut
          * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
@@ -3921,8 +4026,11 @@ export interface components {
             consent_given: boolean;
             /** Consent Revision Id */
             consent_revision_id?: string | null;
-            /** Email */
-            email?: string | null;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -3935,8 +4043,11 @@ export interface components {
             questions?: string | null;
             /** Referral Sources */
             referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
-            /** Slot Id */
-            slot_id?: string | null;
+            /**
+             * Slot Id
+             * Format: uuid
+             */
+            slot_id: string;
             /** Turnstile Token */
             turnstile_token?: string | null;
         };
@@ -3948,6 +4059,8 @@ export interface components {
             assigned_staff_id: string | null;
             /** Campus Key */
             campus_key: string;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
             /** Cancelled At */
             cancelled_at: string | null;
             /** Child Birthdate */
@@ -3972,6 +4085,11 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by?: string | null;
+            /**
+             * Display Status
+             * @description pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。
+             */
+            readonly display_status: string;
             /** Email */
             email?: string | null;
             /** Follow Up At */
@@ -4024,6 +4142,8 @@ export interface components {
             assigned_staff_id: string | null;
             /** Campus Key */
             campus_key: string;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
             /** Cancelled At */
             cancelled_at: string | null;
             /** Child Birthdate */
@@ -4050,6 +4170,11 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by?: string | null;
+            /**
+             * Display Status
+             * @description pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。
+             */
+            readonly display_status: string;
             /** Email */
             email?: string | null;
             /** Follow Up At */
@@ -4130,8 +4255,11 @@ export interface components {
             referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
             /** Related Request Id */
             related_request_id?: string | null;
-            /** Slot Id */
-            slot_id?: string | null;
+            /**
+             * Slot Id
+             * Format: uuid
+             */
+            slot_id: string;
             /**
              * Source
              * @enum {string}
@@ -4145,6 +4273,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Manage Path */
+            manage_path?: string | null;
             /**
              * Receipt Id
              * Format: uuid
@@ -4236,6 +4366,11 @@ export interface components {
             capacity_updated: number;
             /** Closed */
             closed: number;
+            /**
+             * Created
+             * @default 0
+             */
+            created: number;
             /** Kept Booked */
             kept_booked: number;
             /** Removed */
@@ -7200,6 +7335,8 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
                 needs_attention?: boolean;
+                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                group?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -7288,6 +7425,8 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
                 needs_attention?: boolean;
+                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                group?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -7306,6 +7445,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+                status?: string | null;
+                /** @description 家長或寶貝姓名、電話或 Email 片段 */
+                q?: string | null;
+                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
+                follow_up_due?: boolean;
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                assignee?: string | null;
+                /** @description 案件來源：web／phone／line／walk_in／external */
+                source?: string | null;
+                /** @description 送出日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 送出日期迄（含），台灣日期 */
+                created_to?: string | null;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
+                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                group?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitGroupCountsOut"];
                 };
             };
             /** @description Validation Error */
@@ -7615,41 +7806,6 @@ export interface operations {
             };
         };
     };
-    mark_contacting_api_website_v1_admin_visit_requests__visit_request_id__contacting_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                visit_request_id: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     mark_no_show_api_website_v1_admin_visit_requests__visit_request_id__no_show_post: {
         parameters: {
             query?: never;
@@ -7711,6 +7867,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendConfirmationOut"];
                 };
             };
             /** @description Validation Error */
@@ -8720,7 +8911,7 @@ export interface operations {
             };
         };
     };
-    parent_request_reschedule_api_website_v1_public_visit_manage_reschedule_request_post: {
+    parent_update_details_api_website_v1_public_visit_manage_me_patch: {
         parameters: {
             query?: never;
             header?: {
@@ -8733,19 +8924,54 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RescheduleRequestCreate"];
+                "application/json": components["schemas"]["ParentDetailsUpdate"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parent_reschedule_api_website_v1_public_visit_manage_reschedule_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParentRescheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
                 };
             };
             /** @description Validation Error */

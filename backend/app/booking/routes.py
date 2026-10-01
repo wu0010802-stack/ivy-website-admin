@@ -16,7 +16,18 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
-from app.booking import attention, consent, presenters, readiness, service, slot_service, turnstile, workflow_service
+from app.booking import (
+    access_service,
+    attention,
+    consent,
+    presenters,
+    readiness,
+    service,
+    slot_service,
+    status_groups,
+    turnstile,
+    workflow_service,
+)
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
 from app.common import ratelimit
@@ -32,6 +43,7 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.schemas import (
+    VisitGroupCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
     BookingConsentBriefOut,
@@ -100,23 +112,35 @@ RESERVED_IDEMPOTENCY_PREFIXES = (service.MANUAL_IDEMPOTENCY_PREFIX, retention_se
 @router.get("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
 async def get_booking_config(
     campus_key: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
-    return BookingConfigOut.model_validate(config)
+    return BookingConfigOut.model_validate(config).model_copy(
+        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+    )
 
 
 @router.patch("/admin/booking-config/{campus_key}", response_model=BookingConfigOut)
 async def update_booking_config(
     campus_key: str,
     payload: BookingConfigUpdateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+    if payload.mode == BookingMode.INQUIRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "BOOKING_MODE_RETIRED",
+                "message": "「填表後由園方聯絡」已停用，請改用自選場次，或暫停線上預約",
+            },
+        )
     config = await service.get_or_create_config(db, campus_key, for_update=True)
     before = service.config_snapshot(config)
 
@@ -131,7 +155,6 @@ async def update_booking_config(
             message=payload.message,
             expected_version=payload.expected_version,
             updated_by=current_user.id,
-            slots_auto_confirm=payload.slots_auto_confirm,
             parent_change_deadline_hours=payload.parent_change_deadline_hours,
         )
     except service.ConfigVersionConflict as exc:
@@ -170,7 +193,9 @@ async def update_booking_config(
         },
     )
     await db.commit()
-    return BookingConfigOut.model_validate(config)
+    return BookingConfigOut.model_validate(config).model_copy(
+        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+    )
 
 
 @router.get("/admin/booking-config/{campus_key}/readiness", response_model=BookingReadinessOut)
@@ -228,6 +253,7 @@ async def get_public_booking_config(
     await db.commit()
     out = PublicBookingConfigOut.model_validate(config)
     settings = request.app.state.settings
+    out = out.model_copy(update={"parent_email_enabled": bool(settings.smtp_host)})
     if settings.turnstile_enabled:
         out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})
     if published is not None:
@@ -241,6 +267,12 @@ async def get_public_booking_config(
                 if published.has_privacy_notice
                 else None
             ),
+        })
+    # 上線前的舊設定：填表待聯絡已退場，官網一律當成暫停。
+    if out.mode == BookingMode.INQUIRY:
+        out = out.model_copy(update={
+            "mode": BookingMode.PAUSED,
+            "message": out.message or "線上預約即將開放，歡迎來電洽詢。",
         })
     if not campus.active:
         # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，
@@ -332,6 +364,12 @@ def _trusted_client_ip_header(request: Request) -> str | None:
     return ratelimit.trusted_client_ip(request)
 
 
+async def _manage_path(db: AsyncSession, request: Request, visit_request_id: uuid.UUID) -> str | None:
+    return await access_service.current_manage_path(
+        db, visit_request_id, secret=request.app.state.settings.session_secret
+    )
+
+
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
 async def create_visit_request(
     payload: VisitRequestCreate,
@@ -354,6 +392,7 @@ async def create_visit_request(
     連線）時再向連線池要連線，匿名併發就能讓鎖與連線池互等、卡死整個
     API；所以 3–6 做完先結束讀取交易、歸還連線，7 之後到 commit 前完全
     不碰限流器。"""
+    response.headers["Cache-Control"] = "no-store"
     if idempotency_key.startswith(RESERVED_IDEMPOTENCY_PREFIXES):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -400,7 +439,10 @@ async def create_visit_request(
             raise _submit_error(exc) from exc
         # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
         out = None if replay is None else VisitRequestOut(
-            receipt_id=replay.id, status=replay.status, created_at=replay.created_at
+            receipt_id=replay.id,
+            status=replay.status,
+            created_at=replay.created_at,
+            manage_path=await _manage_path(db, request, replay.id),
         )
         await db.rollback()
         if out is not None:
@@ -413,7 +455,12 @@ async def create_visit_request(
         )
         if replay is not None:
             response.status_code = status.HTTP_200_OK
-            return VisitRequestOut(receipt_id=replay.id, status=replay.status, created_at=replay.created_at)
+            return VisitRequestOut(
+                receipt_id=replay.id,
+                status=replay.status,
+                created_at=replay.created_at,
+                manage_path=await _manage_path(db, request, replay.id),
+            )
         holds_slot = await service.precheck_submission(
             db,
             campus_key=payload.campus_key,
@@ -512,10 +559,16 @@ async def create_visit_request(
             phone_limit=(
                 SUBMIT_LIMIT_BY_PHONE.max_per_window, timedelta(seconds=SUBMIT_LIMIT_BY_PHONE.window_seconds)
             ),
+            access_secret=settings.session_secret,
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
         raise _submit_error(exc) from exc
+    # commit 會讓 ORM 物件過期，先取出回應要的欄位；連結由 id 與密鑰重算，
+    # 新建與重播回的是同一條。
+    receipt_id = visit_request.id
+    receipt_status = visit_request.status
+    created_at = visit_request.created_at
     await db.commit()
 
     if is_new:
@@ -526,7 +579,10 @@ async def create_visit_request(
             logger.warning("公開送單的手機限流計數寫入失敗", exc_info=True)
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     return VisitRequestOut(
-        receipt_id=visit_request.id, status=visit_request.status, created_at=visit_request.created_at
+        receipt_id=receipt_id,
+        status=receipt_status,
+        created_at=created_at,
+        manage_path=await _manage_path(db, request, receipt_id),
     )
 
 
@@ -731,6 +787,8 @@ async def get_visit_calendar(
             end_time=slot.end_time,
             capacity=slot.capacity,
             closed=slot.closed,
+            version=slot.version,
+            closed_source=slot.closed_source,
             booked_count=booked.get(slot.id, 0),
             visits=visits_by_slot.get(slot.id, []),
         )
@@ -847,6 +905,11 @@ class VisitRequestFilters:
             default=False,
             description="只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
         ),
+        group: str | None = Query(
+            default=None,
+            pattern="^(pending|upcoming|past|cancelled)$",
+            description="案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -857,6 +920,7 @@ class VisitRequestFilters:
         self.created_from = created_from
         self.created_to = created_to
         self.needs_attention = needs_attention
+        self.group = group
 
     def apply(self, stmt, user: User, capability: str):
         if self.follow_up_due:
@@ -876,6 +940,8 @@ class VisitRequestFilters:
             stmt = stmt.where(VisitRequest.campus_key.in_(scope))
         if self.status:
             stmt = stmt.where(VisitRequest.status == self.status)
+        if self.group:
+            stmt = stmt.where(status_groups.group_condition(self.group))
         if self.assignee == "me":
             stmt = stmt.where(VisitRequest.assigned_staff_id == user.id)
         elif self.assignee == "none":
@@ -914,6 +980,7 @@ class VisitRequestFilters:
         搜尋」，不記內容，稽核紀錄不能變成另一份個資。"""
         applied = {
             "status": self.status,
+            "group": self.group,
             "source": self.source,
             "assignee": self.assignee,
             "created_from": self.created_from.isoformat() if self.created_from else None,
@@ -940,6 +1007,23 @@ async def list_visit_requests(
     stmt = stmt.order_by(ordering).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
+
+
+@router.get("/admin/visit-requests/group-counts", response_model=VisitGroupCountsOut)
+async def visit_request_group_counts(
+    filters: VisitRequestFilters = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitGroupCountsOut:
+    """分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。"""
+    require_scope(current_user, "booking.read")
+    filters.status = None
+    filters.group = None
+    base = filters.apply(select(func.count()).select_from(VisitRequest), current_user, "booking.read")
+    counts = {}
+    for group in status_groups.GROUPS:
+        counts[group] = (await db.execute(base.where(status_groups.group_condition(group)))).scalar_one()
+    return VisitGroupCountsOut(**counts)
 
 
 # 匯出欄位。每個欄位只出現一次：同名欄位在試算表樞紐分析或匯入其他系統時會
@@ -1046,7 +1130,7 @@ async def create_manual_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    """人工補登。可選擇當場排入時段（等同建立後立刻確認）與寫第一筆聯絡
+    """人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡
     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
     人員改完再送一次即可。"""
     require_scope(current_user, "booking.handle", campus_keys=[payload.campus_key])
@@ -1095,17 +1179,23 @@ async def create_manual_visit_request(
                 db, related.id, "rebooked_as_new", actor=actor,
                 after={"related_request_id": str(visit_request.id)},
             )
-        if payload.slot_id is not None:
-            try:
-                await workflow_service.confirm_with_slot(
-                    db, visit_request, payload.slot_id, current_user.id
-                )
-            except workflow_service.SlotFull as exc:
-                await db.rollback()
-                raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
-            except slot_service.SlotNotBookable as exc:
-                await db.rollback()
-                raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
+        try:
+            await workflow_service.confirm_with_slot(
+                db, visit_request, payload.slot_id, current_user.id
+            )
+        except workflow_service.SlotFull as exc:
+            await db.rollback()
+            raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
+        except slot_service.SlotNotBookable as exc:
+            await db.rollback()
+            raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
+        await access_service.ensure_access_token(
+            db,
+            visit_request.id,
+            secret=request.app.state.settings.session_secret,
+            slot=visit_request.slot,
+            actor=Actor.staff(current_user.id),
+        )
         if payload.note and payload.note.strip():
             await workflow_service.add_contact_note(
                 db,
@@ -1315,6 +1405,7 @@ async def assign_visit_request(
 async def confirm_visit_request(
     visit_request_id: uuid.UUID,
     payload: VisitRequestConfirmRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
@@ -1336,6 +1427,13 @@ async def confirm_visit_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
+    await access_service.ensure_access_token(
+        db,
+        visit_request.id,
+        secret=request.app.state.settings.session_secret,
+        slot=visit_request.slot,
+        actor=Actor.staff(current_user.id),
+    )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -1514,20 +1612,9 @@ def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPExceptio
     )
 
 
-@router.post("/admin/visit-requests/{visit_request_id}/contacting", response_model=VisitRequestDetailOut)
-async def mark_contacting(
-    visit_request_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
-    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
-    before_status = visit_request.status
-    try:
-        await workflow_service.mark_contacting(db, visit_request, actor=Actor.staff(current_user.id))
-    except workflow_service.InvalidTransition as exc:
-        await db.rollback()
-        raise _invalid_transition(exc) from exc
-    await _audit_transition(db, current_user, visit_request, before_status, action="visit_request.contacting")
-    await db.commit()
-    await db.refresh(visit_request, attribute_names=["slot"])
-    return VisitRequestDetailOut.model_validate(visit_request)
+@router.post("/admin/visit-requests/{visit_request_id}/contacting", include_in_schema=False)
+async def mark_contacting_retired(visit_request_id: uuid.UUID) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"code": "ENDPOINT_RETIRED", "message": "「聯絡中」已停用，請直接排入場次或取消"},
+    )

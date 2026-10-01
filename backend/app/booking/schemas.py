@@ -5,8 +5,18 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    EmailStr,
+    Field,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
+from app.booking import status_groups
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
     MAX_CHANGE_DEADLINE_HOURS,
@@ -119,9 +129,10 @@ class BookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
-    slots_auto_confirm: bool
     # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
     parent_change_deadline_hours: int
+    # 部署有設定寄信時，家長會收到確認信；官網與後台據此決定要不要講「已寄到信箱」。
+    parent_email_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -135,9 +146,6 @@ class BookingConfigUpdateRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     external_url: str | None = Field(default=None, max_length=500)
     message: str | None = Field(default=None, max_length=500)
-    # 規格 197／222：slots 預設為人工確認（家長看到「待園方確認」），
-    # 園方要自動確認才明確打開。
-    slots_auto_confirm: bool = False
     # 省略＝維持原設定（沒有這個欄位的舊版後台存檔時不會把它改回預設）。
     parent_change_deadline_hours: int | None = Field(
         default=None, ge=MIN_CHANGE_DEADLINE_HOURS, le=MAX_CHANGE_DEADLINE_HOURS
@@ -213,7 +221,7 @@ class PublicBookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
-    slots_auto_confirm: bool
+    parent_email_enabled: bool = False
     # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
     # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
     # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
@@ -262,7 +270,6 @@ class _VisitRequestFields(BaseModel):
     @classmethod
     def _time_code(cls, value):
         return _label_to_code(value, CONTACT_TIME_LABELS)
-    slot_id: uuid.UUID | None = None  # mode=slots 時必填
 
     @field_validator("parent_name")
     @classmethod
@@ -304,6 +311,9 @@ class _VisitRequestFields(BaseModel):
 
 
 class VisitRequestCreate(_VisitRequestFields):
+    # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
+    email: EmailStr = Field(max_length=254)
+    slot_id: uuid.UUID
     config_version: int
     # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
     # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
@@ -325,8 +335,8 @@ class VisitRequestManualCreate(_VisitRequestFields):
     家長說明並取得同意留存資料」，同樣必須為 true。"""
 
     source: ManualVisitSource
-    # 選填：當場就排定時段時直接確認，走與一般確認相同的容量檢查。
-    slot_id: uuid.UUID | None = None
+    # 必填：補登一律直接排入場次，走與一般確認相同的容量檢查。
+    slot_id: uuid.UUID
     # 選填：第一筆聯絡紀錄（例如「家長來電，想週六參觀」）。
     note: str | None = Field(default=None, max_length=1000)
     # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
@@ -380,6 +390,8 @@ class CalendarSlotOut(BaseModel):
     end_time: time
     capacity: int
     closed: bool
+    version: int
+    closed_source: str | None = None
     booked_count: int
     visits: list[CalendarVisitOut]
 
@@ -388,6 +400,8 @@ class VisitRequestOut(BaseModel):
     receipt_id: uuid.UUID
     status: str
     created_at: datetime
+    # 家長的修改連結（站內路徑，含 #token=）。已取消／已結案或連結已撤銷時為 None。
+    manage_path: str | None = None
 
 
 class VisitSlotOut(BaseModel):
@@ -482,6 +496,7 @@ class VisitRequestDetailOut(BaseModel):
     assigned_staff_id: uuid.UUID | None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
+    cancel_reason: str | None = None
     follow_up_at: datetime | None
     hold_expires_at: datetime | None = None
     source: VisitSource = "web"
@@ -493,23 +508,107 @@ class VisitRequestDetailOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def display_status(self) -> str:
+        """pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。"""
+        slot = self.slot
+        return status_groups.display_status(
+            self.status, slot.slot_date if slot else None, slot.start_time if slot else None
+        )
 
-def _mask_phone(phone: str) -> str:
-    """規格 6.4：家長頁只顯示遮罩手機。保留前 4 碼與後 3 碼供本人辨識。"""
-    if len(phone) < 7:
-        return "*" * len(phone)
-    return f"{phone[:4]}***{phone[-3:]}"
+
+class VisitGroupCountsOut(BaseModel):
+    pending: int
+    upcoming: int
+    past: int
+    cancelled: int
+
+
+class ParentRescheduleRequest(BaseModel):
+    visit_request_id: uuid.UUID
+    slot_id: uuid.UUID
+
+
+# 家長改資料時不能清空的欄位，與清空時的錯誤訊息。
+_PARENT_REQUIRED_MESSAGES = {
+    "parent_name": "家長稱呼不能清空",
+    "phone": "手機不能清空",
+    "email": "Email 不能清空",
+    "child_name": "寶貝姓名不能清空",
+    "party_size": "參觀人數不能清空",
+}
+
+
+class ParentDetailsUpdate(BaseModel):
+    """家長自己修改的欄位；只送有改的欄位。必填欄位不能清空。"""
+
+    visit_request_id: uuid.UUID
+    expected_version: int
+    parent_name: str | None = Field(default=None, min_length=1, max_length=64)
+    phone: str | None = None
+    email: EmailStr | None = Field(default=None, max_length=254)
+    child_name: str | None = Field(default=None, min_length=1, max_length=64)
+    child_birthdate: date | None = None
+    party_size: int | None = Field(default=None, ge=1, le=10)
+    questions: str | None = Field(default=None, max_length=500)
+
+    @field_validator("parent_name", "child_name", mode="before")
+    @classmethod
+    def _strip(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("parent_name", "child_name", "questions")
+    @classmethod
+    def _no_control_chars(cls, value):
+        return _reject_control_chars(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value) if value is not None else value
+
+    @field_validator("child_birthdate")
+    @classmethod
+    def _birthdate_not_future(cls, value: date | None) -> date | None:
+        if value is not None and value > today_local():
+            raise ValueError("寶貝出生日期不能晚於今天")
+        return value
+
+    @field_validator(*_PARENT_REQUIRED_MESSAGES, mode="before")
+    @classmethod
+    def _required_stay_filled(cls, value, info: ValidationInfo):
+        # 逐欄位回報：422 的 loc 指到被清空的那一欄（["body", "email"]），官網才能標在欄位旁。
+        if value is None:
+            raise ValueError(_PARENT_REQUIRED_MESSAGES[info.field_name])
+        return value
+
+    def changes(self) -> dict:
+        return {
+            field: getattr(self, field)
+            for field in self.model_fields_set
+            if field not in {"visit_request_id", "expected_version"}
+        }
 
 
 class ParentVisitRequestOut(BaseModel):
-    """家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
-    那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
-    欄位，連結一旦外流就等於把整份個資交出去。"""
+    """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
+    含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+    孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+    修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。"""
 
     id: uuid.UUID
     campus_key: str
     status: str
-    phone_masked: str
+    parent_name: str
+    phone: str
+    email: str | None = None
+    child_name: str | None = None
+    child_birthdate: date | None = None
+    party_size: int | None = None
+    questions: str | None = None
+    # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。
+    version: int
     slot: VisitSlotBriefOut | None = None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
@@ -520,6 +619,7 @@ class ParentVisitRequestOut(BaseModel):
     change_deadline_hours: int
     can_cancel: bool
     can_reschedule: bool
+    can_edit: bool = False
     reschedule_pending: bool = False
     # 預約的分校。停用的分校不在公開內容裡（官網沒有它的分校頁與預約頁），家長
     # 管理頁靠這三欄顯示校名、「暫停開放」與電話，不改列其他校區。校名與電話取自
@@ -537,6 +637,7 @@ class ParentVisitRequestOut(BaseModel):
         campus_name: str,
         campus_active: bool,
         campus_phone: str | None,
+        slots_open: bool = True,
     ) -> "ParentVisitRequestOut":
         change_open = parent_change_open(visit_request, deadline_hours)
         return cls(
@@ -546,7 +647,14 @@ class ParentVisitRequestOut(BaseModel):
             campus_active=campus_active,
             campus_phone=campus_phone,
             status=visit_request.status,
-            phone_masked=_mask_phone(visit_request.phone),
+            parent_name=visit_request.parent_name,
+            phone=visit_request.phone,
+            email=visit_request.email,
+            child_name=visit_request.child_name,
+            child_birthdate=visit_request.child_birthdate,
+            party_size=visit_request.party_size,
+            questions=visit_request.questions,
+            version=visit_request.version,
             slot=(
                 VisitSlotBriefOut.model_validate(visit_request.slot)
                 if visit_request.slot is not None
@@ -560,7 +668,9 @@ class ParentVisitRequestOut(BaseModel):
             change_deadline_hours=deadline_hours,
             can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
             # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
-            can_reschedule=visit_request.status == "confirmed" and change_open and campus_active,
+            # 預約方式不是自選場次（暫停、LINE、電話…）時官網沒有場次可選，也不給改期。
+            can_reschedule=visit_request.status == "confirmed" and change_open and campus_active and slots_open,
+            can_edit=visit_request.status == "confirmed" and change_open and campus_active,
         )
 
 
@@ -634,22 +744,31 @@ class RescheduleRequestOut(BaseModel):
 
 
 class ParentAccessLinkOut(BaseModel):
-    """目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
-    後台「有沒有、什麼時候到期」。"""
+    """目前有效的家長管理連結。案件明細只告訴後台「有沒有、什麼時候到期」，不回含
+    token 的網址；要給家長時用「重新產生連結並寄出」或重寄確認信。"""
 
     created_at: datetime
     expires_at: datetime
 
 
+class ResendConfirmationOut(BaseModel):
+    """重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。"""
+
+    queued: bool
+
+
 class ParentAccessLinkCreatedOut(BaseModel):
     """manage_url 是可以直接給家長的完整網址（公開官網 origin＝
     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
-    manage_url_fragment 自行組網址。兩者都含 token，只回這一次。"""
+    manage_url_fragment 自行組網址。兩者都含 token：後台只在這個回應拿得到，
+    寄給家長的信由伺服器在寄件當下重算。"""
 
     manage_url: str | None
     manage_url_fragment: str
     expires_at: datetime
     replaced_previous: bool
+    # 會寄信給家長：有 Email、案件有場次、而且有設定 SMTP。False 時園方要自行轉交連結。
+    emailed: bool = False
 
 
 class VisitRequestFullOut(VisitRequestDetailOut):
@@ -761,6 +880,8 @@ class VisitScheduleSlotSyncOut(BaseModel):
     capacity_updated: int
     # 不符合新規則，但已有家長排入（或有待核准改期申請）而維持原樣的場次。
     kept_booked: int
+    # 存檔當下依新規則補到最遠開放天數的新場次數。
+    created: int = 0
 
 
 class VisitScheduleOut(BaseModel):

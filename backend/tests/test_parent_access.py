@@ -1,48 +1,25 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 import uuid
 
 import httpx
 import pytest
 
-from tests.conftest import set_booking_mode, freeze_rate_limit_clock
+from tests.conftest import book_slot, freeze_rate_limit_clock
 
 
-# 預約表單要有已發布的同意文字（啟用 inquiry／slots、官網送單）。
+# 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
 async def _enable_slots_and_book(admin_client, public_client, campus_key="yihua"):
-    # 家長自助管理的測試需要一筆「已確認」的案件才能申請改期。
-    await set_booking_mode(admin_client, campus_key, mode="slots", slots_auto_confirm=True)
-    me = await admin_client.get(f"/api/website/v1/admin/booking-config/{campus_key}")
-    version = me.json()["version"]
-
-    slot_date = (date.today() + timedelta(days=3)).isoformat()
-    slot = await admin_client.post(
-        f"/api/website/v1/admin/slots?campus_key={campus_key}",
-        json={"slot_date": slot_date, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 2},
+    # 家長自助管理的測試需要一筆「已確認」的案件（自選場次送單即 confirmed）。
+    booked = await book_slot(
+        admin_client, public_client, campus_key, idempotency_key="parent-access-setup-01",
+        age=None, preferred_time=None, questions=None,
     )
-    slot_id = slot.json()["id"]
-
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json={
-            "campus_key": campus_key,
-            "config_version": version,
-            "parent_name": "陳媽媽",
-            "phone": "0912345678",
-            "age": None,
-            "preferred_time": None,
-            "questions": None,
-            "consent_given": True,
-            "slot_id": slot_id,
-        },
-        headers={"Idempotency-Key": "parent-access-setup-01"},
-    )
-    assert created.status_code == 201, created.text
-    return created.json()["receipt_id"], slot_id, slot_date
+    return booked["receipt_id"], booked["slot_id"], booked["slot_date"]
 
 
 @pytest.mark.asyncio
@@ -198,16 +175,17 @@ async def test_parent_mutation_refuses_request_switched_in_another_tab(admin_cli
     assert cancel.status_code == 409
     assert cancel.json()["detail"]["code"] == "PARENT_SESSION_CHANGED"
     moved = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"new_slot_id": target_slot.json()["id"], "visit_request_id": receipt_a},
+        "/api/website/v1/public/visit-manage/reschedule",
+        json={"slot_id": target_slot.json()["id"], "visit_request_id": receipt_a},
     )
     assert moved.status_code == 409
     assert moved.json()["detail"]["code"] == "PARENT_SESSION_CHANGED"
 
-    for receipt in (receipt_a, receipt_b):
+    # 兩筆都沒動：仍是已確認、場次也沒換。
+    for receipt, expected_slot in ((receipt_a, _slot_a), (receipt_b, second_slot.json()["id"])):
         detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt}")
         assert detail.json()["status"] == "confirmed"
-    assert (await admin_client.get("/api/website/v1/admin/reschedule-requests?campus_key=yihua")).json() == []
+        assert detail.json()["slot_id"] == expected_slot
 
     # 顯示 B 的分頁照常可以操作。
     cancel_b = await public_client.post("/api/website/v1/public/visit-manage/cancel", json={"visit_request_id": receipt_b})
@@ -218,19 +196,11 @@ async def test_parent_mutation_refuses_request_switched_in_another_tab(admin_cli
 @pytest.mark.asyncio
 async def test_parent_mutations_without_visit_request_id_still_work_for_old_pages(admin_client, public_client):
     """CD 先部署 API 再部署 web：部署前就開著的家長頁、web 上線前的空窗都是舊版官網，
-    取消不帶 body、改期不帶 visit_request_id，照舊依 session 處理（發布版本需前後相容）。"""
-    receipt, _slot_id, slot_date = await _enable_slots_and_book(admin_client, public_client)
-    other_slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": slot_date, "start_time": "16:00:00", "end_time": "17:00:00", "capacity": 1},
-    )
+    取消不帶 body，照舊依 session 處理（發布版本需前後相容）。"""
+    receipt, _slot_id, _slot_date = await _enable_slots_and_book(admin_client, public_client)
     await public_client.post(
         "/api/website/v1/public/visit-manage/exchange", json={"token": await _access_token(admin_client, receipt)}
     )
-    moved = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request", json={"new_slot_id": other_slot.json()["id"]}
-    )
-    assert moved.status_code == 201, moved.text
     cancelled = await public_client.post("/api/website/v1/public/visit-manage/cancel")
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["status"] == "cancelled"
@@ -251,49 +221,15 @@ async def test_parent_can_cancel_own_request(app, admin_client, public_client):
 
 
 @pytest.mark.asyncio
-async def test_parent_reschedule_request_does_not_move_slot_until_approved(
-    app, admin_client, public_client
-):
-    receipt_id, slot_a_id, slot_date = await _enable_slots_and_book(admin_client, public_client)
-    slot_b = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": slot_date, "start_time": "16:00:00", "end_time": "17:00:00", "capacity": 1},
-    )
-    slot_b_id = slot_b.json()["id"]
-
-    link = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/access-link")
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test", headers={"X-Ivy-Parent": "1"}) as client:
-        await client.post("/api/website/v1/public/visit-manage/exchange", json={"token": token})
-        req = await client.post(
-            "/api/website/v1/public/visit-manage/reschedule-request",
-            json={"visit_request_id": receipt_id, "new_slot_id": slot_b_id},
-        )
-        latest = await client.get("/api/website/v1/public/visit-manage/me")
-        assert latest.json()["reschedule_pending"] is True
-        assert req.status_code == 201
-
-    # 原時段完全不變，直到園方核准。
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert detail.json()["slot_id"] == slot_a_id
-
-    pending = await admin_client.get("/api/website/v1/admin/reschedule-requests?campus_key=yihua")
-    assert len(pending.json()) == 1
-    request_id = pending.json()[0]["id"]
-
-    approve = await admin_client.post(f"/api/website/v1/admin/reschedule-requests/{request_id}/approve")
-    assert approve.status_code == 200
-    assert approve.json()["slot_id"] == slot_b_id
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize('path', ['exchange', 'cancel', 'reschedule-request'])
-async def test_parent_mutations_require_non_simple_request_header(public_client, path):
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("POST", "exchange"), ("POST", "cancel"), ("POST", "reschedule"), ("PATCH", "me")],
+)
+async def test_parent_mutations_require_non_simple_request_header(public_client, method, path):
     public_client.headers.pop('X-Ivy-Parent')
-    response = await public_client.post(f'/api/website/v1/public/visit-manage/{path}', json={
-        'token': 'invalid-test-token', 'new_slot_id': str(uuid.uuid4())
+    response = await public_client.request(method, f'/api/website/v1/public/visit-manage/{path}', json={
+        'token': 'invalid-test-token', 'visit_request_id': str(uuid.uuid4()), 'slot_id': str(uuid.uuid4()),
+        'expected_version': 1,
     })
     assert response.status_code == 403
 
@@ -326,12 +262,13 @@ async def test_parent_change_deadline_is_enforced_by_api(admin_client, public_cl
     me = await public_client.get('/api/website/v1/public/visit-manage/me')
     assert me.json()['can_cancel'] is False
     assert me.json()['can_reschedule'] is False
-    for path, body in [
-        ('cancel', {'visit_request_id': receipt}),
-        ('reschedule-request', {'visit_request_id': receipt, 'new_slot_id': str(uuid.uuid4())}),
+    for method, path, body in [
+        ('POST', 'cancel', {'visit_request_id': receipt}),
+        ('POST', 'reschedule', {'visit_request_id': receipt, 'slot_id': str(uuid.uuid4())}),
+        ('PATCH', 'me', {'visit_request_id': receipt, 'expected_version': 1, 'parent_name': '陳爸爸'}),
     ]:
-        result = await public_client.post(f'/api/website/v1/public/visit-manage/{path}', json=body)
-        assert result.status_code == 409
+        result = await public_client.request(method, f'/api/website/v1/public/visit-manage/{path}', json=body)
+        assert result.status_code == 409, (path, result.text)
         assert result.json()['detail']['code'] == 'CHANGE_DEADLINE_PASSED'
 
 
@@ -369,7 +306,7 @@ async def test_parent_change_deadline_follows_campus_setting(admin_client, publi
     # 參觀在三天後；改成參觀前 5 天截止，線上就不能再取消或改期。
     updated = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": config["version"], "mode": "slots", "slots_auto_confirm": True, "parent_change_deadline_hours": 120},
+        json={"expected_version": config["version"], "mode": "slots", "parent_change_deadline_hours": 120},
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["parent_change_deadline_hours"] == 120
@@ -393,14 +330,14 @@ async def test_parent_change_deadline_follows_campus_setting(admin_client, publi
         assert rejected.status_code == 422
     kept = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": version, "mode": "slots", "slots_auto_confirm": True},
+        json={"expected_version": version, "mode": "slots"},
     )
     assert kept.json()["parent_change_deadline_hours"] == 120
 
     # 改回 24 小時後又能取消，取消回應也帶該校的期限。
     back = await admin_client.patch(
         "/api/website/v1/admin/booking-config/yihua",
-        json={"expected_version": kept.json()["version"], "mode": "slots", "slots_auto_confirm": True, "parent_change_deadline_hours": 24},
+        json={"expected_version": kept.json()["version"], "mode": "slots", "parent_change_deadline_hours": 24},
     )
     assert back.status_code == 200
     cancelled = await public_client.post("/api/website/v1/public/visit-manage/cancel", json={"visit_request_id": receipt})
@@ -452,8 +389,8 @@ async def test_parent_page_keeps_inactive_campus_name_and_phone(admin_client, pu
     assert me["can_cancel"] is True
     assert me["can_reschedule"] is False
     blocked = await public_client.post(
-        "/api/website/v1/public/visit-manage/reschedule-request",
-        json={"visit_request_id": receipt, "new_slot_id": other_slot.json()["id"]},
+        "/api/website/v1/public/visit-manage/reschedule",
+        json={"visit_request_id": receipt, "slot_id": other_slot.json()["id"]},
     )
     assert blocked.status_code == 409
     assert blocked.json()["detail"]["code"] == "BOOKING_UNAVAILABLE"

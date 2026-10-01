@@ -18,8 +18,15 @@ from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, _logged_in_client, _test_settings, parent_client, publish_booking_consent, freeze_rate_limit_clock
-from tests.test_maintenance import _expired_hold
+from tests.conftest import (
+    _create_user,
+    _logged_in_client,
+    _test_settings,
+    book_slot,
+    freeze_rate_limit_clock,
+    parent_client,
+    publish_booking_consent,
+)
 
 SECRET = "line-channel-secret-for-tests"
 TOKEN = "line-access-token-for-tests"
@@ -313,15 +320,15 @@ async def _run_outbox(line_app, fake_line, adapter=None) -> dict:
 async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
     admin, public = await _setup_case(line_app)
     try:
-        async with line_app.state.session_factory() as db:
-            receipt_id = await _expired_hold(admin, public, db, "line-case")
+        receipt_id = (await book_slot(admin, public))["receipt_id"]
         result = await _run_outbox(line_app, fake_line)
     finally:
         await admin.aclose()
         await public.aclose()
 
     assert result["failed"] == 0
-    assert len(fake_line.pushes) == result["sent"] >= 1
+    # 園方兩則（新需求、已確認）各推一次；家長確認信只走 Email，不推 LINE。
+    assert len(fake_line.pushes) == result["sent"] == 2
     push = fake_line.pushes[0]
     text = push["body"]["messages"][0]["text"]
     assert push["body"]["to"] == GROUP
@@ -339,11 +346,10 @@ async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
 async def test_outbox_retries_failed_push_with_same_retry_key(line_app, fake_line):
     admin, public = await _setup_case(line_app)
     try:
-        async with line_app.state.session_factory() as db:
-            await _expired_hold(admin, public, db, "line-retry")
+        await book_slot(admin, public)
         fake_line.push_status = [500]
         first = await _run_outbox(line_app, fake_line)
-        assert first["failed"] == 1
+        assert first["failed"] == 1  # 第一則推播失敗，第二則（已確認）照送
 
         async with line_app.state.session_factory() as db:
             from sqlalchemy import update
@@ -372,13 +378,13 @@ async def test_line_failure_does_not_block_email(line_app, fake_line, recording_
     重試時只補推 LINE，已寄出的人不會再收到第二封。"""
     admin, public = await _setup_case(line_app)
     try:
-        async with line_app.state.session_factory() as db:
-            await _expired_hold(admin, public, db, "line-quota")
+        await book_slot(admin, public)
         fake_line.push_status = [429] * 20
         first = await _run_outbox(line_app, fake_line, recording_mail_adapter)
         assert first["failed"] >= 1
         sent_once = len(recording_mail_adapter.sent)
-        assert sent_once >= 1, "LINE 失敗不能讓 email 一封都沒寄"
+        staff_mails = [mail for mail in recording_mail_adapter.sent if mail["to"] == "line-admin@ivy.example"]
+        assert staff_mails, "LINE 失敗不能讓園方的 email 一封都沒寄"
 
         async with line_app.state.session_factory() as db:
             from sqlalchemy import update
@@ -401,8 +407,7 @@ async def test_line_failure_does_not_block_email(line_app, fake_line, recording_
 async def test_outbox_skips_line_when_campus_has_no_group(line_app, fake_line):
     admin, public = await _setup_case(line_app, assign=False)
     try:
-        async with line_app.state.session_factory() as db:
-            await _expired_hold(admin, public, db, "line-none")
+        await book_slot(admin, public)
         result = await _run_outbox(line_app, fake_line)
     finally:
         await admin.aclose()
@@ -415,8 +420,7 @@ async def test_outbox_skips_group_the_bot_has_left(line_app, fake_line):
     admin, public = await _setup_case(line_app)
     try:
         await _webhook(line_app, [_event("leave")])
-        async with line_app.state.session_factory() as db:
-            await _expired_hold(admin, public, db, "line-left")
+        await book_slot(admin, public)
         result = await _run_outbox(line_app, fake_line)
     finally:
         await admin.aclose()
@@ -443,8 +447,7 @@ async def test_maintenance_cycle_pushes_when_line_is_configured(line_app, fake_l
 
     admin, public = await _setup_case(line_app)
     try:
-        async with line_app.state.session_factory() as db:
-            await _expired_hold(admin, public, db, "line-cycle")
+        await book_slot(admin, public)
     finally:
         await admin.aclose()
         await public.aclose()

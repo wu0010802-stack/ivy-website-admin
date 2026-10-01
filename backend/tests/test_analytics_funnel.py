@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import JSON, func, select
@@ -15,7 +15,7 @@ from app.booking.models import VisitRequest
 from app.common import timezones
 from app.operations import analytics_service
 from app.operations.models import CTA_ENTRIES, AnalyticsEvent, AnalyticsEventType
-from tests.conftest import set_booking_mode
+from tests.conftest import book_slot, create_slot, legacy_request, open_manage
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -31,25 +31,6 @@ async def _funnel(client, query: str = "") -> dict:
     response = await client.get(f"{BASE}/analytics/funnel?campus_key=yihua{query}")
     assert response.status_code == 200, response.text
     return response.json()
-
-
-async def _submit(admin_client, public_client, key: str, **extra) -> str:
-    response = await set_booking_mode(admin_client, "yihua", mode="inquiry")
-    assert response.status_code == 200, response.text
-    response = await public_client.post(
-        f"{API}/public/visit-requests",
-        json={
-            "campus_key": "yihua",
-            "config_version": response.json()["version"],
-            "parent_name": "陳媽媽",
-            "phone": "0912345678",
-            "consent_given": True,
-            **extra,
-        },
-        headers={"Idempotency-Key": key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["receipt_id"]
 
 
 # --- #63 公開點擊：event id 去重與入口代碼 ---------------------------------
@@ -111,34 +92,35 @@ async def test_public_endpoint_still_rejects_server_side_events(public_client):
 
 @pytest.mark.asyncio
 async def test_cancellations_are_recorded_with_reason(admin_client, public_client, db_session):
-    staff = await _submit(admin_client, public_client, "b11-cancel-staff")
+    staff = (await book_slot(admin_client, public_client, days_ahead=3))["receipt_id"]
     assert (await admin_client.post(f"{BASE}/visit-requests/{staff}/cancel")).status_code == 200
     # 重複取消是冪等的，不會多記一筆。
     assert (await admin_client.post(f"{BASE}/visit-requests/{staff}/cancel")).status_code == 200
 
-    parent = await _submit(admin_client, public_client, "b11-cancel-parent")
-    link = await admin_client.post(f"{BASE}/visit-requests/{parent}/access-link")
-    token = link.json()["manage_url_fragment"].split("token=")[1]
-    await public_client.post(f"{API}/public/visit-manage/exchange", json={"token": token})
+    parent_booking = await book_slot(admin_client, public_client, days_ahead=4)
+    parent = parent_booking["receipt_id"]
+    await open_manage(public_client, parent_booking["manage_path"])
     cancelled = await public_client.post(f"{API}/public/visit-manage/cancel", json={"visit_request_id": parent})
     assert cancelled.status_code == 200
 
-    response = await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=False)
-    version = response.json()["version"]
-    slot = await admin_client.post(
-        f"{BASE}/slots?campus_key=yihua",
-        json={"slot_date": (date.today() + timedelta(days=3)).isoformat(), "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 2},
+    # 上線前留下的待確認舊案，占位逾期後由系統釋放。
+    hold_slot = await create_slot(admin_client, days_ahead=5)
+    held = await legacy_request(
+        db_session,
+        status="pending_confirmation",
+        slot_id=hold_slot,
+        hold_expires_at=timezones.now_utc() - timedelta(minutes=1),
+        phone="0922333444",
     )
-    held = await public_client.post(
-        f"{API}/public/visit-requests",
-        json={"campus_key": "yihua", "config_version": version, "parent_name": "林爸爸", "phone": "0922333444", "consent_given": True, "slot_id": slot.json()["id"]},
-        headers={"Idempotency-Key": "b11-cancel-hold"},
-    )
-    row = await db_session.get(VisitRequest, uuid.UUID(held.json()["receipt_id"]))
-    row.hold_expires_at = timezones.now_utc() - timedelta(minutes=1)
-    await db_session.commit()
     assert await workflow_service.expire_holds(db_session) == 1
     await db_session.commit()
+
+    # 取消原因同時記在案件上，之後不必靠統計事件回推。
+    reasons = {
+        str(row.id): row.cancel_reason
+        for row in (await db_session.execute(select(VisitRequest))).scalars()
+    }
+    assert reasons == {staff: "staff", parent: "parent", held: "hold_expired"}
 
     funnel = await _funnel(admin_client)
     assert funnel["counts"]["visit_cancelled"] == 3
@@ -156,11 +138,17 @@ async def test_cancellations_are_recorded_with_reason(admin_client, public_clien
 
 @pytest.mark.asyncio
 async def test_funnel_groups_by_source_and_referral(admin_client, public_client, db_session):
-    web = await _submit(admin_client, public_client, "b11-src-web", referral_sources=["facebook", "friends_family"])
-    await _submit(admin_client, public_client, "b11-src-none")
+    web = (
+        await book_slot(admin_client, public_client, days_ahead=3, referral_sources=["facebook", "friends_family"])
+    )["receipt_id"]
+    await book_slot(admin_client, public_client, days_ahead=4, phone="0912345679")
+    manual_slot = await create_slot(admin_client, days_ahead=5)
     manual = await admin_client.post(
         f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0933444555", "consent_given": True},
+        json={
+            "campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0933444555",
+            "consent_given": True, "slot_id": manual_slot,
+        },
         headers={"Idempotency-Key": "b11-src-manual"},
     )
     assert manual.status_code == 201, manual.text

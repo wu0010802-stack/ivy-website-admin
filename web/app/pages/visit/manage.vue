@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, visitDateLabel } from '~/utils/visit-form'
+import { changeDeadlineRule, PARTY_SIZE_OPTIONS, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { slotWhen } from '~/utils/visit-session'
+import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
 import { parentVisitCampus } from '~/utils/parent-visit'
 
 const { data } = await usePublishedSite()
 const route = useRoute()
+const router = useRouter()
 const {
-  visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, reschedulePending,
-  initialize, reload, loadSlots, cancelVisit, requestReschedule, dispose
+  visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, detailErrors,
+  initialize, reload, loadSlots, cancelVisit, reschedule, updateDetails, dispose
 } = useParentVisit()
 const showCancel = ref(false)
 const showReschedule = ref(false)
+const showEdit = ref(false)
 const selectedSlotId = ref('')
 const slotError = ref('')
 const feedback = ref<HTMLElement | null>(null)
@@ -26,7 +30,7 @@ const calendarCampus = computed(() => {
 })
 const statusLabels: Record<string, string> = {
   new: '已收到需求', contacting: '園所聯繫中', pending_confirmation: '待園方確認',
-  confirmed: '預約成立', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
+  confirmed: '預約成功', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
 }
 const statusLabel = computed(() => statusLabels[visit.value?.status || ''] || '請聯絡園所確認')
 const deadlineLabel = computed(() => visit.value?.change_deadline
@@ -38,9 +42,11 @@ const deadlineRule = computed(() => changeDeadlineRule(visit.value?.change_deadl
 // 操作列要回來；原本操作列只看 showCancel／showReschedule，面板卻多看權限，兩邊都不顯示，
 // 重新載入與返回都消失（2026-09-30 E2E）。
 const cancelOpen = computed(() => showCancel.value && Boolean(visit.value?.can_cancel))
-const rescheduleOpen = computed(() => showReschedule.value && Boolean(visit.value?.can_reschedule) && !reschedulePending.value)
+const rescheduleOpen = computed(() => showReschedule.value && Boolean(visit.value?.can_reschedule))
+const editOpen = computed(() => showEdit.value && Boolean(visit.value?.can_edit))
 const changeClosed = computed(() => visit.value && !visit.value.can_cancel && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(visit.value.status))
-const slotLabel = (slot: { slot_date: string; start_time: string; end_time: string }) => `${visitDateLabel(slot.slot_date)} ${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
+const slotLabel = slotWhen
+const campusPhone = computed(() => visitCampus.value?.phone || visit.value?.campus_phone || '')
 
 useHead({
   title: '管理參觀預約｜常春藤幼兒園',
@@ -51,10 +57,12 @@ let mounted = false
 function consumeLink(initial = false) {
   const token = new URLSearchParams(window.location.hash.slice(1)).get('token')
   if (!initial && !token) return
-  // 保留 Router 的 history state；fragment 只用來交換 HttpOnly session。
-  if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+  // fragment 只用來交換 HttpOnly session。用 router.replace 清掉：router 自己記著目前位置（含 token），
+  // 只改瀏覽器網址的話，之後任何導覽寫進 history.state 的 back／current 還是帶著 token。
+  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '' })
   showCancel.value = false
   showReschedule.value = false
+  showEdit.value = false
   selectedSlotId.value = ''
   slotError.value = ''
   void initialize(token)
@@ -80,6 +88,7 @@ async function focusFeedback() {
 async function openCancel() {
   showCancel.value = true
   showReschedule.value = false
+  showEdit.value = false
   await nextTick()
   cancelPanel.value?.focus()
 }
@@ -91,19 +100,61 @@ async function confirmCancel() {
 async function openReschedule() {
   showReschedule.value = true
   showCancel.value = false
+  showEdit.value = false
   await loadSlots()
   await nextTick()
   slotSelect.value?.focus()
 }
 async function submitReschedule() {
   if (!slots.value.some(slot => slot.id === selectedSlotId.value)) {
-    slotError.value = '請選擇希望改期的場次。'
+    slotError.value = '請選擇新的場次。'
     slotSelect.value?.focus()
     return
   }
   slotError.value = ''
-  await requestReschedule(selectedSlotId.value)
-  if (!rescheduleOpen.value) showReschedule.value = false
+  const done = await reschedule(selectedSlotId.value)
+  if (done) showReschedule.value = false
+  await focusFeedback()
+}
+
+const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '', partySize: '', questions: '' })
+let editBase: EditForm = { ...editForm }
+const editErrors = ref<VisitErrors>({})
+const editPanel = ref<HTMLElement | null>(null)
+
+async function openEdit() {
+  if (!visit.value) return
+  editBase = editBaseFrom(visit.value)
+  Object.assign(editForm, editBase)
+  editErrors.value = {}
+  showEdit.value = true
+  showCancel.value = false
+  showReschedule.value = false
+  await nextTick()
+  editPanel.value?.querySelector<HTMLElement>('input')?.focus()
+}
+
+async function submitEdit() {
+  editErrors.value = validateEdit(visit.value!, editForm, editBase, taipeiDate())
+  if (Object.keys(editErrors.value).length) {
+    await nextTick()
+    editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    return
+  }
+  const versionBefore = visit.value?.version
+  const done = await updateDetails(editedChanges(visit.value!, editForm, editBase))
+  if (done) showEdit.value = false
+  else if (Object.keys(detailErrors.value).length) {
+    editErrors.value = { ...detailErrors.value }
+    await nextTick()
+    editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    return
+  } else if (visit.value && visit.value.version !== versionBefore) {
+    // 版本衝突：換成最新資料為底，保留家長自己改過的欄位，再次儲存不會把別人的修改改回去。
+    const next = rebaseEdit(editForm, editBase, visit.value)
+    editBase = next.base
+    Object.assign(editForm, next.form)
+  }
   await focusFeedback()
 }
 </script>
@@ -132,20 +183,27 @@ async function submitReschedule() {
               <strong class="parent-visit-status">{{ statusLabel }}</strong>
             </div>
             <dl class="parent-visit-details">
-              <div><dt>聯絡手機</dt><dd>{{ visit.phone_masked }}</dd></div>
-              <div><dt>{{ visit.status === 'cancelled' ? '原參觀時段' : '參觀時段' }}</dt><dd>{{ visit.slot ? slotLabel(visit.slot) : '待園所與你聯繫確認' }}</dd></div>
+              <div><dt>{{ visit.status === 'cancelled' ? '原參觀場次' : '參觀場次' }}</dt><dd>{{ visit.slot ? slotLabel(visit.slot) : '尚未排定，請聯絡園所' }}</dd></div>
+              <div v-if="visit.party_size"><dt>參觀人數</dt><dd>{{ visit.party_size }} 位</dd></div>
+              <div><dt>家長稱呼</dt><dd>{{ visit.parent_name }}</dd></div>
+              <div><dt>聯絡手機</dt><dd>{{ visit.phone }}</dd></div>
+              <div v-if="visit.email"><dt>Email</dt><dd>{{ visit.email }}</dd></div>
+              <div v-if="visit.child_name"><dt>孩子姓名</dt><dd>{{ visit.child_name }}</dd></div>
+              <div v-if="visit.child_birthdate"><dt>出生年月日</dt><dd>{{ visit.child_birthdate }}</dd></div>
+              <div v-if="visit.questions"><dt>想了解的事</dt><dd>{{ visit.questions }}</dd></div>
             </dl>
             <p v-if="visitCampus?.paused" class="parent-visit-notice">
               {{ visitCampus.name || '這所分校' }}目前暫停開放，暫不受理線上預約與改期。<template v-if="visitCampus.phone">如需協助，請來電 <a :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">{{ visitCampus.phone }}</a>。</template><template v-else>如需協助，請直接聯絡園所。</template>
             </p>
-            <p v-if="visit.status === 'pending_confirmation'" class="parent-visit-muted">這個時段尚待園方確認，預約還未成立。</p>
-            <p v-else-if="visit.status === 'new' || visit.status === 'contacting'" class="parent-visit-muted">園所會與你聯繫，確認合適的參觀時間。</p>
+            <p v-if="['new', 'contacting', 'pending_confirmation'].includes(visit.status)" class="parent-visit-muted">這筆需求還沒排定場次，園所會與你聯繫；也可以取消後重新選擇場次。</p>
             <VisitCalendarActions v-if="calendarCampus && visit.slot" :campus="calendarCampus" :slot="visit.slot" :uid="`visit-${visit.id}@ivy-website`" />
-            <p v-if="changeClosed" class="parent-visit-muted">已超過線上異動時間。如需取消或改期，請直接聯絡園所。</p>
-            <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上異動截止：{{ deadlineLabel }}（台灣時間{{ deadlineRule ? `，${deadlineRule}` : '' }}）。</p>
+            <p v-if="visit.can_edit && !visit.can_reschedule" class="parent-visit-muted">目前不開放線上改場次，要改時間請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>；資料修改與取消仍可在這裡進行。</p>
+            <p v-if="changeClosed" class="parent-visit-muted">已超過線上修改時間{{ deadlineRule ? `（${deadlineRule}截止）` : '' }}。要更改請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>。</p>
+            <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上修改截止：{{ deadlineLabel }}（台灣時間）。</p>
 
-            <div v-if="!cancelOpen && !rescheduleOpen" class="parent-visit-actions">
-              <button v-if="visit.can_reschedule && !reschedulePending" type="button" class="button primary" :disabled="busy" @click="openReschedule">申請改期</button>
+            <div v-if="!cancelOpen && !rescheduleOpen && !editOpen" class="parent-visit-actions">
+              <button v-if="visit.can_reschedule" type="button" class="button primary" :disabled="busy" @click="openReschedule">改場次</button>
+              <button v-if="visit.can_edit" type="button" class="button outline" :disabled="busy" @click="openEdit">修改資料</button>
               <button v-if="visit.can_cancel" type="button" class="button outline" :disabled="busy" @click="openCancel">取消預約</button>
               <button v-if="visit.status !== 'cancelled'" type="button" class="button outline" :disabled="busy" @click="reload">重新載入預約</button>
               <NuxtLink v-if="visit.status === 'cancelled' && visitCampus?.listed" class="button primary" :to="`/visit/${visit.campus_key}`">重新預約</NuxtLink>
@@ -153,7 +211,7 @@ async function submitReschedule() {
 
             <section v-if="cancelOpen" ref="cancelPanel" class="parent-visit-confirm" tabindex="-1" aria-labelledby="parent-cancel-title">
               <h3 id="parent-cancel-title">確定要取消這次預約嗎？</h3>
-              <p>取消後會釋出原時段；如需再次參觀，請重新預約。</p>
+              <p>取消後這個場次會釋出給其他家長，這條連結也會失效。</p>
               <div class="parent-visit-actions">
                 <button class="button outline" type="button" :disabled="busy" @click="showCancel = false">保留預約</button>
                 <button class="button primary" type="button" :disabled="busy" @click="confirmCancel">{{ busy ? '正在取消…' : '確認取消預約' }}</button>
@@ -161,25 +219,48 @@ async function submitReschedule() {
             </section>
 
             <form v-if="rescheduleOpen" class="parent-visit-confirm" @submit.prevent="submitReschedule">
-              <h3>申請其他參觀時段</h3>
-              <p>改期需由園所確認，核准前原時段仍保留。</p>
+              <h3>選擇新的場次</h3>
+              <p>按下確認就會改好，原本的場次會釋出。</p>
               <p v-if="slotsPending" role="status">正在讀取其他場次…</p>
               <div v-else-if="slotsError">
                 <p class="parent-visit-error" role="alert">{{ slotsError }}</p>
                 <button type="button" class="button outline" :disabled="busy" @click="loadSlots">重新載入場次</button>
               </div>
               <template v-else-if="slots.length">
-                <label for="parent-new-slot">希望改期的場次</label>
+                <label for="parent-new-slot">新的場次</label>
                 <select id="parent-new-slot" ref="slotSelect" v-model="selectedSlotId" :disabled="busy" :aria-invalid="Boolean(slotError)" aria-describedby="parent-slot-error" @change="slotError = ''">
                   <option value="">請選擇場次</option>
                   <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slotLabel(slot) }}</option>
                 </select>
                 <p id="parent-slot-error" class="parent-visit-error" role="alert">{{ slotError }}</p>
               </template>
-              <p v-else role="status">目前沒有其他可申請的場次，請直接聯絡園所。</p>
+              <p v-else role="status">目前沒有其他可選的場次，請直接聯絡園所。</p>
               <div class="parent-visit-actions">
-                <button class="button primary" type="submit" :disabled="busy || slotsPending || Boolean(slotsError) || !slots.length">{{ busy ? '正在送出…' : '送出改期申請' }}</button>
+                <button class="button primary" type="submit" :disabled="busy || slotsPending || Boolean(slotsError) || !slots.length">{{ busy ? '正在改…' : '確認改到這個場次' }}</button>
                 <button class="button outline" type="button" :disabled="busy" @click="showReschedule = false">返回預約</button>
+              </div>
+            </form>
+
+            <form v-if="editOpen" ref="editPanel" class="parent-visit-confirm parent-visit-edit" novalidate @submit.prevent="submitEdit">
+              <h3>修改預約資料</h3>
+              <div class="parent-visit-fields">
+                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" :aria-invalid="Boolean(editErrors.parentName)"></label>
+                <p class="parent-visit-error">{{ editErrors.parentName }}</p>
+                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" :aria-invalid="Boolean(editErrors.phone)"></label>
+                <p class="parent-visit-error">{{ editErrors.phone }}</p>
+                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" :aria-invalid="Boolean(editErrors.email)"></label>
+                <p class="parent-visit-error">{{ editErrors.email }}</p>
+                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" :aria-invalid="Boolean(editErrors.childName)"></label>
+                <p class="parent-visit-error">{{ editErrors.childName }}</p>
+                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
+                <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
+                <label>參觀人數<select v-model="editForm.partySize" :aria-invalid="Boolean(editErrors.partySize)"><option v-for="n in PARTY_SIZE_OPTIONS" :key="n" :value="String(n)">{{ n }} 位</option></select></label>
+                <p class="parent-visit-error">{{ editErrors.partySize }}</p>
+                <label>想了解的事<textarea v-model="editForm.questions" maxlength="500" rows="3" /></label>
+              </div>
+              <div class="parent-visit-actions">
+                <button class="button primary" type="submit" :disabled="busy">{{ busy ? '正在儲存…' : '儲存修改' }}</button>
+                <button class="button outline" type="button" :disabled="busy" @click="showEdit = false">返回預約</button>
               </div>
             </form>
           </template>
@@ -190,7 +271,7 @@ async function submitReschedule() {
 
         <aside class="parent-visit-contact" aria-labelledby="parent-contact-title">
           <h2 id="parent-contact-title">需要園所協助？</h2>
-          <p>若連結失效，或需要更改聯絡資料，請直接與園所聯繫。</p>
+          <p>若連結失效，或需要其他協助，請直接與園所聯繫。</p>
           <div class="parent-visit-actions">
             <NuxtLink v-if="visitCampus?.listed" class="text-link" :to="`/campuses/${visitCampus.key}`">聯絡{{ visitCampus.name }}</NuxtLink>
             <template v-else-if="visitCampus">
@@ -244,4 +325,7 @@ async function submitReschedule() {
   .parent-visit-details > div { grid-template-columns: 1fr; gap: 4px; }
   .parent-visit-actions .button { width: 100%; padding-inline: 16px; }
 }
+.parent-visit-fields{display:grid;gap:4px}
+.parent-visit-fields label{display:grid;gap:6px}
+.parent-visit-fields .parent-visit-error:empty{display:none}
 </style>

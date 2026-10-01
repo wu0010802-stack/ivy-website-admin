@@ -5,10 +5,9 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
-import VisitSlotsView from '../views/VisitSlotsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import BookingSettingsView from '../views/BookingSettingsView.vue'
-import VisitSchedulePanel from '../components/VisitSchedulePanel.vue'
+import DayPanel from '../components/sessions/DayPanel.vue'
 import CampusStatusCard from '../components/CampusStatusCard.vue'
 import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
 import { api } from '../api/client'
@@ -83,7 +82,7 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
   it('匯出送出畫面上全部的篩選（不含分頁），按鈕旁講清楚範圍', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
-    const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?status=confirmed&attention=1')
+    const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&attention=1')
     expect(wrapper.get('#export-scope').text()).toContain('目前篩選的全部結果')
     wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2026-09-01', '2026-09-07'])
     await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('王')
@@ -93,7 +92,7 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     expect(url.startsWith('/api/website/v1/admin/visit-requests/export?')).toBe(true)
     const query = new URLSearchParams(url.split('?')[1])
     expect(Object.fromEntries(query)).toEqual({
-      status: 'confirmed', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
+      group: 'upcoming', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
     })
 
     await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
@@ -116,63 +115,37 @@ describe('待人工處理的入口', () => {
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
   })
 
-  it('設休假日當天還有家長要來時，留下連到待人工處理的提醒', async () => {
-    const schedule = { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], rules_extended_on: null }
-    vi.spyOn(api, 'get').mockResolvedValue(schedule as never)
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ action: 'confirm' } as never)
-    vi.spyOn(api, 'post').mockResolvedValue({ id: 'e1', exception_date: '2099-01-07', reason: null, closed_slots: 3, affected_requests: 2 } as never)
-    const { wrapper } = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
-    await wrapper.findAll('button').find(button => button.text() === '設為休假')!.trigger('click')
+  it('設整天休假：當天還有家長預約時先說明不會自動取消，再送出', async () => {
+    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '研習', action: 'confirm' } as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'e1' } as never)
+    const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-07', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, closed_source: null, version: 1, booked_count: 2,
+      visits: [1, 2].map(n => ({ id: `v${n}`, status: 'confirmed', parent_name: `家長${n}`, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })) }
+    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true, staff: [] })
+    await wrapper.findAll('button').find(button => button.text() === '整天休假')!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('還有 2 組家庭已排入')
-    // 待確認的案件沒有「改期」按鈕，要告訴櫃台改走退回聯絡中。
-    expect(wrapper.text()).toContain('已確認的用「改期（換時段）」')
-    expect(wrapper.text()).toContain('待園方確認的先「退回聯絡中」再重新排入')
-    expect(wrapper.find('a[href="/visit-requests?attention=1&campus=yihua"]').exists()).toBe(true)
+    expect(String(prompt.mock.calls[0]![0])).toContain('這天還有 2 組家長預約，設為休假後不會自動取消')
+    expect(post).toHaveBeenCalledWith('/admin/visit-schedule/yihua/exceptions', { exception_date: '2099-01-07', reason: '研習' })
+    expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
-  it('取消休假先確認，再告訴園方重開與補上幾場', async () => {
-    const schedule = { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [{ id: 'e1', exception_date: '2099-01-07', reason: '研習' }], rules_extended_on: '2099-01-01' }
-    vi.spyOn(api, 'get').mockResolvedValue(schedule as never)
-    const del = vi.spyOn(api, 'delete').mockResolvedValue({ reopened_slots: 2, created_slots: 1 } as never)
+  it('取消休假先確認，選「先不要」什麼都不改', async () => {
+    const del = vi.spyOn(api, 'delete').mockResolvedValue({} as never)
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
     const success = vi.spyOn(ElMessage, 'success')
-    const { wrapper } = await mountAt(VisitSchedulePanel, '/', { campusKey: 'yihua', canManage: true })
+    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [], holiday: { id: 'e1', reason: '研習' }, canManage: true, staff: [] })
+    expect(wrapper.text()).toContain('休假：研習')
     const cancelHoliday = () => wrapper.findAll('button').find(button => button.text() === '取消休假')!
-    // 選「先不要」什麼都不改。
     await cancelHoliday().trigger('click')
     await flushPromises()
     expect(del).not.toHaveBeenCalled()
     const [message, title, options] = confirm.mock.calls[0]!
-    expect(String(title)).toContain('取消 2099/01/07 的休假')
-    expect(String(message)).toContain('當天的時段會重新開放給家長預約')
+    expect(String(title)).toContain('取消休假')
+    expect(String(message)).toContain('固定場次會重新開放')
     expect(options).toMatchObject({ confirmButtonText: '取消休假', cancelButtonText: '先不要' })
     await cancelHoliday().trigger('click')
     await flushPromises()
     expect(del).toHaveBeenCalledWith('/admin/visit-schedule/yihua/exceptions/e1')
-    expect(String(success.mock.calls.at(-1)![0])).toContain('重新開放 2 場、依規則補上 1 場')
-    expect(wrapper.text()).toContain('系統每天依規則把時段補到最遠開放天數')
-  })
-
-  it('關閉還有人排入的時段後可以直接去聯絡；休假日關的標成休假日關閉', async () => {
-    const slot = (id: string, extra: object) => ({ id, campus_key: 'yihua', slot_date: '2099-01-06', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 0, closed: false, closed_source: null, ...extra })
-    vi.spyOn(api, 'get').mockImplementation(async path => {
-      if (String(path).startsWith('/admin/visit-schedule/')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [] } as never
-      return [slot('booked', { booked_count: 2 }), slot('holiday', { slot_date: '2099-01-07', closed: true, closed_source: 'exception' })] as never
-    })
-    const patch = vi.spyOn(api, 'patch').mockResolvedValue({} as never)
-    const success = vi.spyOn(ElMessage, 'success')
-    const { wrapper } = await mountAt(VisitSlotsView, '/slots')
-    expect(wrapper.text()).toContain('休假日關閉')
-    const close = wrapper.findAll('.slot-row').find(row => row.text().includes('開放中'))!.findAll('button').find(button => button.text() === '關閉')!
-    await close.trigger('click')
-    await flushPromises()
-    await wrapper.findAll('.close-slot__actions button').find(button => button.text() === '關閉這一場')!.trigger('click')
-    await flushPromises()
-    expect(patch).toHaveBeenCalledWith('/admin/slots/booked', { closed: true })
-    expect(String(success.mock.calls.at(-1)![0])).toContain('請聯絡已排入的家長改期或取消')
-    expect(wrapper.text()).toContain('還有 2 組占用名額')
-    expect(wrapper.find('a[href="/visit-requests?attention=1&campus=yihua"]').exists()).toBe(true)
+    expect(String(success.mock.calls.at(-1)![0])).toContain('已取消休假')
   })
 
   it('停用中的分校連到該校待人工處理的案件', async () => {
@@ -205,7 +178,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('預約方式頁：啟用中的分校狀態放在表單下方，已停用時留在頁首', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let active = true
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
@@ -227,7 +200,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('分校狀態還在讀時不先擺空的標題；重新載入時原因留著', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let resolveStatus!: (value: unknown) => void
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return new Promise(resolve => { resolveStatus = resolve }) as never
@@ -252,7 +225,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('停用分校後卡片移到頁首，焦點落在「重新啟用」，不掉回頁面最上方', async () => {
-    const config = { campus_key: 'yihua', version: 3, mode: 'inquiry', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 24 }
+    const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let active = true
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).startsWith('/admin/campuses/')) return { key: 'yihua', name: '義華', active } as never
@@ -282,7 +255,7 @@ describe('待人工處理的入口', () => {
 describe('家長線上取消／改期期限', () => {
   const deadlineInput = (wrapper: VueWrapper) =>
     wrapper.findAllComponents({ name: 'ElInputNumber' }).find(item => item.find('input[aria-label="參觀前幾小時截止"]').exists())!
-  const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, slots_auto_confirm: false, parent_change_deadline_hours: 48 }
+  const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 48 }
 
   it('各校預約方式可以設定，存檔一起送出', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(config as never)
@@ -313,7 +286,7 @@ describe('家長線上取消／改期期限', () => {
   })
 
   it('案件的家長連結說明用該校的期限', async () => {
-    const { wrapper } = await mountAt(ParentAccessLinkPanel, '/', { visitId: 'v1', accessLink: null, canHandle: true, deadlineHours: 48 })
+    const { wrapper } = await mountAt(ParentAccessLinkPanel, '/', { visitId: 'v1', accessLink: null, canHandle: true, status: 'confirmed', email: null, deadlineHours: 48 })
     expect(wrapper.text()).toContain('參觀前 2 天截止')
     await wrapper.setProps({ deadlineHours: undefined })
     expect(wrapper.text()).toContain('截止時間依本校預約設定')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule, slotUnavailableMessage } from '../app/utils/visit-form'
+import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule, slotUnavailableMessage, apiFieldErrors } from '../app/utils/visit-form'
 
 describe('visit contact input', () => {
   it('accepts phone autofill spacing without changing the API format', () => {
@@ -67,5 +67,24 @@ describe('slot unavailable messages', () => {
   it('leaves other codes to the caller', () => {
     expect(slotUnavailableMessage('RATE_LIMITED')).toBeNull()
     expect(slotUnavailableMessage(null)).toBeNull()
+  })
+})
+
+describe('Email 必填與 422 欄位對應', () => {
+  const base = { parentName: '王媽媽', phone: '0912345678', consent: true, childName: '小安', childBirthdate: '2022-05-01', partySize: '2' }
+
+  it('表單有 Email 欄位時必填', () => {
+    expect(validateVisitContact({ ...base, email: '' }, '2026-09-30')).toHaveProperty('email')
+    expect(validateVisitContact({ ...base, email: 'a@b.co' }, '2026-09-30')).toEqual({})
+    expect(validateVisitContact(base, '2026-09-30')).not.toHaveProperty('email')
+  })
+
+  it('後端 422 的欄位位置轉成表單欄位錯誤', () => {
+    const errors = apiFieldErrors([
+      { loc: ['body', 'slot_id'], msg: 'Field required', type: 'missing' },
+      { loc: ['body', 'email'], msg: 'Field required', type: 'missing' }
+    ])
+    expect(Object.keys(errors).sort()).toEqual(['email', 'slotId'])
+    expect(apiFieldErrors({ code: 'X' })).toEqual({})
   })
 })

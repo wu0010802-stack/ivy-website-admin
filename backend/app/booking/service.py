@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import consent, history, readiness, slot_service
+from app.booking import access_service, consent, history, readiness, slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
@@ -21,15 +21,11 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.exceptions import SlotClosed, SlotFull, SlotNotFound
-from app.booking.outbox import enqueue_outbox
+from app.booking.outbox import PARENT_VISIT_BOOKED, enqueue_outbox, enqueue_parent_email
 from app.booking.schemas import CONTACT_TIME_LABELS
-from app.common.timezones import now_utc, slot_start_utc
+from app.common.timezones import now_utc
 from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
-
-
-# 規格 222：人工待確認的 slot 案件占位 24 小時。
-HOLD_TTL = timedelta(hours=24)
 
 
 class ConfigVersionConflict(Exception):
@@ -69,7 +65,6 @@ CONFIG_AUDIT_FIELDS = (
     "phone",
     "external_url",
     "message",
-    "slots_auto_confirm",
     "parent_change_deadline_hours",
 )
 
@@ -124,7 +119,6 @@ async def update_config(
     message: str | None,
     expected_version: int,
     updated_by: uuid.UUID,
-    slots_auto_confirm: bool = False,
     parent_change_deadline_hours: int | None = None,
 ) -> BookingConfig:
     if config.version != expected_version:
@@ -140,7 +134,8 @@ async def update_config(
     config.phone = phone
     config.external_url = external_url
     config.message = message
-    config.slots_auto_confirm = slots_auto_confirm
+    # 官網只剩自選場次、送出即成立；欄位保留（不刪），固定為 True。
+    config.slots_auto_confirm = True
     if parent_change_deadline_hours is not None:
         config.parent_change_deadline_hours = parent_change_deadline_hours
     config.version += 1
@@ -235,16 +230,16 @@ async def _validate_submission(
     consent_revision_id: uuid.UUID | None,
     now: datetime,
     lock_slot: bool,
-) -> tuple[uuid.UUID, VisitSlot | None]:
+) -> tuple[uuid.UUID, VisitSlot]:
     """送單的業務檢查（預檢與上鎖建立共用，錯誤順序一致）。回傳要存進案件的
-    同意說明版本，以及 slots 模式下要占用的時段。lock_slot=True 時鎖住時段列。"""
+    同意說明版本，以及要占用的時段。lock_slot=True 時鎖住時段列。"""
     if config is None:
         raise BookingUnavailable()
 
     if config.version != config_version:
         raise BookingConfigVersionChanged()
 
-    if config.mode not in (BookingMode.INQUIRY, BookingMode.SLOTS):
+    if config.mode != BookingMode.SLOTS:
         raise BookingUnavailable()
 
     if payload.get("party_size") is None:
@@ -255,12 +250,7 @@ async def _validate_submission(
     except consent.ConsentUnavailable as exc:
         raise BookingUnavailable() from exc
 
-    if config.mode != BookingMode.SLOTS:
-        return accepted_consent, None
-
-    slot_id = payload.get("slot_id")
-    if not slot_id:
-        raise BookingUnavailable()
+    slot_id = payload["slot_id"]
     if lock_slot:
         slot = await slot_service.get_slot_for_update(db, uuid.UUID(slot_id))
     else:
@@ -316,6 +306,7 @@ async def submit_visit_request(
     hash_key: bytes,
     consent_revision_id: uuid.UUID | None = None,
     phone_limit: tuple[int, timedelta] | None = None,
+    access_secret: str,
 ) -> tuple[VisitRequest, bool]:
     """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
     payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
@@ -377,23 +368,11 @@ async def submit_visit_request(
         if recent >= max_per_phone:
             raise PhoneSubmissionLimit(int(window.total_seconds()))
 
-    status = VisitRequestStatus.NEW.value
-    confirmed_at = None
+    # 2026-09-30 業主裁定：只有自選場次，送出即預約成立（不再有人工確認與占位）。
+    status = VisitRequestStatus.CONFIRMED.value
+    confirmed_at = now
     hold_expires_at = None
-    slot_id = str(slot.id) if slot is not None else None
-
-    if slot is not None:
-        if config.slots_auto_confirm:
-            status = VisitRequestStatus.CONFIRMED.value
-            confirmed_at = now
-        else:
-            # 規格 197：人工確認模式下送出只代表「已收到時段申請，待園方
-            # 確認」，不是「預約成立」。規格 222：占位 24 小時，且不得
-            # 超過參觀開始時間。
-            status = VisitRequestStatus.PENDING_CONFIRMATION.value
-            hold_expires_at = min(
-                now + HOLD_TTL, slot_start_utc(slot.slot_date, slot.start_time)
-            )
+    slot_id = str(slot.id)
 
     payload_hash = _payload_hash(payload, hash_key)
     visit_request = VisitRequest(
@@ -420,7 +399,7 @@ async def submit_visit_request(
         consent_revision_id=accepted_consent,
         consent_accepted_at=now,
         status=status,
-        slot_id=uuid.UUID(slot_id) if slot_id else None,
+        slot_id=uuid.UUID(slot_id),
         confirmed_at=confirmed_at,
         hold_expires_at=hold_expires_at,
         created_at=now,
@@ -448,8 +427,10 @@ async def submit_visit_request(
         visit_request.id,
         "created",
         actor=history.PARENT,
-        after={"status": status, "slot": history.slot_brief(slot) if slot_id else None},
+        after={"status": status, "slot": history.slot_brief(slot)},
     )
+    await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
     enqueue_outbox(
         db,
         visit_request.id,
@@ -459,25 +440,15 @@ async def submit_visit_request(
     await analytics_service.record_internal_event(
         db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key, visit_request=visit_request
     )
-    if status == VisitRequestStatus.CONFIRMED.value:
-        enqueue_outbox(
-            db,
-            visit_request.id,
-            "visit_request_confirmed",
-            {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
-        )
-        await analytics_service.record_internal_event(
-            db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key, visit_request=visit_request
-        )
-    elif status == VisitRequestStatus.PENDING_CONFIRMATION.value:
-        # 通知園方有一筆待確認的時段申請——不是「已確認」，文案不同，
-        # 也不計入 VISIT_CONFIRMED 成效統計。
-        enqueue_outbox(
-            db,
-            visit_request.id,
-            "visit_request_pending_confirmation",
-            {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
-        )
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_confirmed",
+        {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
+    )
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key, visit_request=visit_request
+    )
     await db.flush()
     return visit_request, True
 

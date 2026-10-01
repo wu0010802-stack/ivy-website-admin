@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { adminApi, findVisit, submitPublicRequest } from './api'
 import { gotoAdmin, openAs } from './pages'
-import { INQUIRY_CAMPUS, SLOTS_CAMPUS } from './stack-env'
+import { SECOND_CAMPUS, SLOTS_CAMPUS } from './stack-env'
 
 // 角色與校區範圍（規格 7 權限表）：側欄只列得到的頁面、直接輸入網址會被導回、
 // 他校案件在清單看不到，API 也回 404（後端才是真正的權限檢查）。
@@ -11,7 +11,7 @@ const MINGHUA_PARENT = '明華範圍家長'
 
 test.beforeAll(async () => {
   await submitPublicRequest(SLOTS_CAMPUS, YIHUA_PARENT, '0912000331')
-  await submitPublicRequest(INQUIRY_CAMPUS, MINGHUA_PARENT, '0912000332')
+  await submitPublicRequest(SECOND_CAMPUS, MINGHUA_PARENT, '0912000332')
 })
 
 test('接待人員：只有參觀預約相關頁面，只看得到義華的案件', async ({ browser }) => {

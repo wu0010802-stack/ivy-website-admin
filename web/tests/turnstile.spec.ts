@@ -64,7 +64,7 @@ describe('伺服器錯誤訊息', () => {
 describe('公開預約設定帶出 Turnstile site key', () => {
   async function configFrom(response: Record<string, unknown>) {
     vi.stubGlobal('computed', computed)
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'inquiry', version: 1, line_url: null, phone: null, external_url: null, message: null, ...response }))
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'slots', version: 1, line_url: null, phone: null, external_url: null, message: null, ...response }))
     let fetchConfig!: () => Promise<Record<string, unknown>>
     vi.stubGlobal('useAsyncData', (_key: unknown, handler: () => Promise<Record<string, unknown>>) => {
       fetchConfig = handler
@@ -73,6 +73,11 @@ describe('公開預約設定帶出 Turnstile site key', () => {
     useCampusBooking('yihua')
     return fetchConfig()
   }
+
+  it('寄信開關要透傳到結果頁（Important：原本被丟掉）', async () => {
+    expect((await configFrom({ parent_email_enabled: true })).parent_email_enabled).toBe(true)
+    expect((await configFrom({})).parent_email_enabled).toBe(false)
+  })
 
   it('有設定時帶出 site key', async () => {
     expect((await configFrom({ turnstile_site_key: '0x4AAAAAAA' })).turnstile_site_key).toBe('0x4AAAAAAA')

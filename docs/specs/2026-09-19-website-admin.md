@@ -38,7 +38,7 @@
 - 只修改本 repo，不連接或修改 ivy-backend、ivy-frontend、ivyManageSystem 的業務資料。
 - 官網資料使用獨立資料庫；不得使用 `ivymanagement` 或任何既有 staging/production DB。
 - 開發 migration 與整合測試只可用明確標示為本任務專用的隔離資料庫。
-- 不自動部署、push、對外發布、發送真實家長通知或建立付費服務。
+- 不自動部署、push、對外發布、發送真實家長通知或建立付費服務。（2026-09-30 業主裁定：預約確認信會寄給家長，見 `2026-09-30-parent-self-booking-design.md`；本機與測試一律寫進 sink 資料夾，不真的寄出。）
 - 不復原、不丟棄、不夾帶提交工作目錄原有未提交變更。
 - 缺漏校區聯絡資料保留待補，不借用其他校的 LINE、電話或預約網址。
 - 憑證只透過環境變數；不寫入 repo、範例資料、前端 bundle 或執行紀錄。
@@ -162,6 +162,8 @@
 
 ## 5. 分校預約設定
 
+> 2026-09-30 起以 `2026-09-30-parent-self-booking-design.md` 為準（官網只剩自選場次、送出即預約成功）。
+
 每校唯一一筆 `BookingConfig`，包含 `mode`、`version`、主要按鈕文案、說明、輔助聯絡入口、負責人、通知對象、表單設定與時段規則。
 
 `slots` 模式整體屬**階段 D**：現站 FAQ 目前寫「實際參觀請直接致電園所」，園方是否需要線上選時段尚未確認。階段 C 的 enum 仍含 `slots`，但後台不可啟用（顯示「尚未開放」而非缺件原因），公開 API 對 `slots` 提交回 `BOOKING_UNAVAILABLE`。第 6.3、6.4 節與 `VisitRule/VisitException/VisitSlot`、`RescheduleRequest`、`VisitAccessToken` 模型同屬階段 D。
@@ -189,6 +191,8 @@
 
 ### 6.1 表單與回應
 
+> 2026-09-30 起以 `2026-09-30-parent-self-booking-design.md` 為準（官網只剩自選場次、送出即預約成功）。
+
 保留目前欄位：分校必填、家長稱呼 1–40 字、台灣手機 09 開頭共 10 碼（先移除空格與連字號）、孩子年齡選項、方便聯絡時間、問題最多 500 字、同意勾選。API 的 age 固定為 `unknown|under_2|2-3|3-4|4-5|5-6`；contact_time 固定為 `flexible|weekday_morning|weekday_afternoon|other`，前端以目前繁體中文標籤顯示。
 
 依模式增加 `slot_id`、參觀人數（1–10）與選填 Email。Email 只有啟用家長 Email 通知時才設必填。預設不蒐集兒童姓名、證號或生日。方便聯絡時間不等於參觀時間。
@@ -201,6 +205,8 @@
 - `Idempotency-Key` 同一表單嘗試使用同一 key；相同 key 不同 payload 回 409。限流回 429，前端顯示可重試提示。
 
 ### 6.2 案件狀態與操作
+
+> 2026-09-30 起以 `2026-09-30-parent-self-booking-design.md` 為準（官網只剩自選場次、送出即預約成功）。
 
 狀態：`new`、`contacting`、`pending_confirmation`、`confirmed`、`completed`、`cancelled`、`no_show`。
 
@@ -232,6 +238,8 @@
 容量控制參考 [PostgreSQL Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html)，實際以 PostgreSQL 併發整合測試驗證。
 
 ### 6.4 家長自行管理（階段 D）
+
+> 2026-09-30 起以 `2026-09-30-parent-self-booking-design.md` 為準（官網只剩自選場次、送出即預約成功）。
 
 - 在案件成功建立後，可提供不包含 PII 的安全管理連結；無登入系統，不開放以電話查詢任意案件。
 - 使用高熵隨機 token，資料庫只存 hash、有期限、可撤銷；不得放進 analytics／access log，頁面 no-store、noindex、no-referrer。

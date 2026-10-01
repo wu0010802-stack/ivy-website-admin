@@ -1,30 +1,29 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, or_, select, update
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
 from app.booking import history, slot_service
-from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.outbox import enqueue_outbox
+from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
+from app.booking.history import Actor
+from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
+from app.common.timezones import slot_start_utc
 
-TOKEN_TTL = timedelta(days=14)
 SESSION_TTL = timedelta(hours=2)
 # 同一案件同時有效的家長 session 上限。連結可以重複兌換，每次都會新增
 # 一列；不設上限的話持有連結的人能無限累積資料列。家長正常使用（手機、
 # 電腦各開幾次）遠低於這個數字，超過時刪除最舊的。
 MAX_ACTIVE_SESSIONS_PER_REQUEST = 10
 _TOKEN_BYTES = 32
-# 家長送出改期申請時寫的 outbox kind；站內通知、LINE、Email 的標籤見
-# notifications/service.py 的 _KIND_LABELS 與後台 labels.ts。
-RESCHEDULE_REQUESTED_KIND = "visit_reschedule_requested"
 
 
 class TokenInvalid(Exception):
@@ -35,14 +34,42 @@ def _hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> tuple[str, datetime]:
-    """回傳 (原始 token, 到期時間)。原始 token 只有這一次拿得到。"""
-    raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
+# 修改連結的有效期：至少 14 天；參觀日較遠時延到參觀開始後 7 天。
+TOKEN_MIN_TTL = timedelta(days=14)
+TOKEN_AFTER_VISIT = timedelta(days=7)
+_ACCESS_KEY_LABEL = b"ivy-parent-access-v1"
+
+
+def _derive_raw(secret: str, token_id: uuid.UUID) -> str:
+    """原始 token 由伺服器密鑰與 token 列 id 算出：DB 只存雜湊，送單重播與寄信時
+    仍能重算出同一條連結；只有 DB 沒有密鑰算不出來。"""
+    key = hmac.new(secret.encode("utf-8"), _ACCESS_KEY_LABEL, hashlib.sha256).digest()
+    digest = hmac.new(key, token_id.bytes, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def token_expiry(slot: VisitSlot | None, now: datetime) -> datetime:
+    floor = now + TOKEN_MIN_TTL
+    if slot is None:
+        return floor
+    return max(floor, slot_start_utc(slot.slot_date, slot.start_time) + TOKEN_AFTER_VISIT)
+
+
+def manage_path(raw_token: str) -> str:
+    return f"/visit/manage#token={raw_token}"
+
+
+async def create_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+) -> tuple[str, datetime]:
+    """建一條修改連結，回傳 (原始 token, 到期時間)。呼叫端負責先撤銷舊連結。"""
     now = datetime.now(timezone.utc)
-    expires_at = now + TOKEN_TTL
+    token_id = uuid.uuid4()
+    raw_token = _derive_raw(secret, token_id)
+    expires_at = token_expiry(slot, now)
     db.add(
         ParentAccessToken(
-            id=uuid.uuid4(),
+            id=token_id,
             visit_request_id=visit_request_id,
             token_hash=_hash(raw_token),
             created_at=now,
@@ -51,6 +78,59 @@ async def create_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> 
     )
     await db.flush()
     return raw_token, expires_at
+
+
+async def issue_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+) -> tuple[str, datetime]:
+    await revoke_access_for_visit_request(db, visit_request_id)
+    return await create_access_token(db, visit_request_id, secret=secret, slot=slot)
+
+
+async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
+    """目前有效連結的站內路徑；已撤銷、已過期，或是 2026-09-30 以前隨機產生（重算不出來）
+    的連結，回傳 None。"""
+    token = await active_access_token(db, visit_request_id)
+    if token is None:
+        return None
+    raw_token = _derive_raw(secret, token.id)
+    if not hmac.compare_digest(_hash(raw_token), token.token_hash):
+        return None
+    return manage_path(raw_token)
+
+
+async def ensure_access_token(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None, actor: Actor
+) -> None:
+    """確保案件有一條系統重算得出來的修改連結（排入場次、補登、重寄確認信用）。
+
+    - 已有可重算的連結：沿用，有場次時依場次延長效期（不縮短）。
+    - 有效連結是 2026-09-30 以前隨機產生、或密鑰更換前發的（重算不出來，信裡放不進去）：
+      撤銷換新，並記一筆歷程——家長手上的舊連結會失效，園方要查得到是誰、何時換的。
+    - 沒有有效連結：發一條。"""
+    if await current_manage_path(db, visit_request_id, secret=secret) is not None:
+        if slot is not None:
+            await extend_token_expiry(db, visit_request_id, slot)
+        return
+    replaced = await active_access_token(db, visit_request_id) is not None
+    _, expires_at = await issue_access_token(db, visit_request_id, secret=secret, slot=slot)
+    if replaced:
+        # 只記到期時間，原始 token 不進歷程。
+        history.record_event(
+            db,
+            visit_request_id,
+            "access_link_created",
+            actor=actor,
+            after={"expires_at": expires_at.isoformat(), "replaced_previous": True},
+        )
+
+
+async def extend_token_expiry(db: AsyncSession, visit_request_id: uuid.UUID, slot: VisitSlot) -> None:
+    """改到較晚的場次時，連結跟著延長；不縮短已發出的期限。"""
+    token = await active_access_token(db, visit_request_id)
+    if token is not None:
+        token.expires_at = max(token.expires_at, token_expiry(slot, datetime.now(timezone.utc)))
+        await db.flush()
 
 
 async def revoke_access_for_visit_request(db: AsyncSession, visit_request_id: uuid.UUID) -> None:
@@ -169,81 +249,31 @@ class RescheduleNotAllowed(Exception):
         super().__init__(message)
 
 
-async def create_reschedule_request(
+async def validate_parent_reschedule(
     db: AsyncSession, visit_request: VisitRequest, requested_slot_id: uuid.UUID
-) -> RescheduleRequest:
-    """只建立待核准紀錄，不動任何時段——真正改期要等園方在 admin 端核准。
-
-    但「不動時段」不代表可以不驗證：原本直接把家長傳來的 UUID 寫進去，
-    不存在的 slot 會撞 FK 變成 500，別校的 slot 則會建立一筆永遠卡在
-    pending、園方核准時才炸的申請。驗證條件與初次預約共用同一份判準。
-
-    同一個交易寫歷程與 outbox（visit_reschedule_requested）：園方要從站內
-    通知、側欄與總覽的待核准數知道有人申請，不是等核准後才看到。"""
-    # 先鎖住案件列並重讀狀態：同一案件的並行申請排隊（否則兩個交易都看
-    # 不到對方尚未提交的 pending，會各自建立一筆），也不會替剛被園方取消
-    # 的案件建立申請。
+) -> VisitSlot:
+    """家長直接改期前的檢查（名額與鎖在 workflow_service.reschedule 內再驗一次）。"""
     await db.refresh(visit_request, attribute_names=["status", "slot_id"], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
-        raise RescheduleNotAllowed(
-            "INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能申請改期"
-        )
+        raise RescheduleNotAllowed("INVALID_TRANSITION", f"狀態 {visit_request.status} 的案件不能改期")
     campus = await db.get(Campus, visit_request.campus_key)
     if campus is not None and not campus.active:
-        # 停用的分校停止公開預約（規格 3.2）：公開時段不列，家長頁也不給改期。
         raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，請來電洽詢")
-
-    result = await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))
-    slot = result.scalar_one_or_none()
+    # 預約方式改成暫停、LINE、電話…時官網沒有場次可選，家長也不能線上改場次（取消照常）。
+    config = await db.get(BookingConfig, visit_request.campus_key)
+    if config is None or config.mode != BookingMode.SLOTS:
+        raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停線上預約，要改時間請來電")
+    slot = (await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))).scalar_one_or_none()
     if slot is None or slot.campus_key != visit_request.campus_key:
         # 不區分「不存在」與「別校的」，避免用回應差異探測其他校的時段。
         raise RescheduleNotAllowed("SLOT_NOT_FOUND", "找不到這個時段")
     if slot.closed:
-        raise RescheduleNotAllowed("SLOT_CLOSED", "這個時段已關閉")
-    config = await db.get(BookingConfig, visit_request.campus_key)
+        raise RescheduleNotAllowed("SLOT_CLOSED", "這個時段已停止申請")
     if not slot_service.is_publicly_bookable(slot, **slot_service.window_for(config)):
         raise RescheduleNotAllowed("SLOT_NOT_BOOKABLE", "這個時段目前無法預約")
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")
-
-    existing = await db.execute(
-        select(RescheduleRequest).where(
-            RescheduleRequest.visit_request_id == visit_request.id,
-            RescheduleRequest.status == "pending",
-        )
-    )
-    if existing.scalars().first() is not None:
-        raise RescheduleNotAllowed("RESCHEDULE_PENDING", "已經有一筆改期申請正在等待園方確認")
-
-    record = RescheduleRequest(
-        id=uuid.uuid4(),
-        visit_request_id=visit_request.id,
-        requested_slot_id=requested_slot_id,
-        status="pending",
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(record)
-    history.record_event(
-        db,
-        visit_request.id,
-        "reschedule_requested",
-        actor=history.PARENT,
-        before={"slot": history.slot_brief(await history.load_slot(db, visit_request.slot_id))},
-        after={"slot": history.slot_brief(slot)},
-    )
-    enqueue_outbox(
-        db,
-        visit_request.id,
-        RESCHEDULE_REQUESTED_KIND,
-        {
-            "campus_key": visit_request.campus_key,
-            "receipt_id": str(visit_request.id),
-            "reschedule_request_id": str(record.id),
-        },
-    )
-    await db.flush()
-    return record
-
+    return slot
 
 
 async def close_pending_reschedules(
@@ -273,8 +303,9 @@ async def close_pending_reschedules(
 
 
 async def active_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> ParentAccessToken | None:
-    """目前還能用的家長管理連結（未撤銷、未過期）中最新的一條；後台只顯示
-    有沒有、何時到期，原始連結產生後就查不回來。"""
+    """目前還能用的家長管理連結（未撤銷、未過期）中最新的一條；後台只顯示有沒有、
+    何時到期。原始連結不存資料庫，要用時由密鑰重算（current_manage_path）；2026-09-30
+    以前隨機產生、或密鑰更換前發的連結重算不出來。"""
     result = await db.execute(
         select(ParentAccessToken)
         .where(

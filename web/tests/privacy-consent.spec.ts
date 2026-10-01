@@ -67,7 +67,7 @@ describe('公開預約設定的同意版本', () => {
   it('勾選框文字與送單版本來自同一份公開預約設定', async () => {
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
-      campus_key: 'yihua', mode: 'inquiry', version: 3, line_url: null, phone: null, external_url: null, message: null,
+      campus_key: 'yihua', mode: 'slots', version: 3, line_url: null, phone: null, external_url: null, message: null,
       consent_revision_id: 'rev-7', consent_text: '同意文字第 7 版',
       privacy_notice: { title: '', sections: [{ heading: '蒐集目的', body: '安排參觀。' }] }
     }))
@@ -85,7 +85,7 @@ describe('公開預約設定的同意版本', () => {
 
   it('舊版 API 沒有同意欄位時為 null', async () => {
     vi.stubGlobal('computed', computed)
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'inquiry', version: 1, line_url: null, phone: null, external_url: null, message: null }))
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'slots', version: 1, line_url: null, phone: null, external_url: null, message: null }))
     let fetchConfig!: () => Promise<Record<string, unknown>>
     vi.stubGlobal('useAsyncData', (_key: unknown, handler: () => Promise<Record<string, unknown>>) => {
       fetchConfig = handler
@@ -99,11 +99,11 @@ describe('公開預約設定的同意版本', () => {
 })
 
 describe('勾選同意時看到的版本（B04-R2、R6）', () => {
-  const v5 = { mode: 'inquiry' as const, version: 3, consent_revision_id: 'rev-5', consent_text: '同意文字第 5 版', privacy_notice: null }
+  const v5 = { mode: 'slots' as const, version: 3, consent_revision_id: 'rev-5', consent_text: '同意文字第 5 版', privacy_notice: null }
 
   it('有版本就顯示公開預約設定的文字；舊版 API 沒有版本時不顯示原型示範文字', () => {
     expect(displayedConsentText(v5, '站台內容的文字')).toBe('同意文字第 5 版')
-    const legacyApi = { mode: 'inquiry' as const, version: 1 }
+    const legacyApi = { mode: 'slots' as const, version: 1 }
     expect(displayedConsentText(legacyApi, LEGACY_DEMO_CONSENT_TEXT)).toBe(FORMAL_CONSENT_TEXT)
     expect(displayedConsentText(null, LEGACY_DEMO_CONSENT_TEXT)).toBe(FORMAL_CONSENT_TEXT)
     expect(displayedConsentText(legacyApi, 'CMS 正式同意文字')).toBe('CMS 正式同意文字')
@@ -137,6 +137,6 @@ describe('勾選同意時看到的版本（B04-R2、R6）', () => {
     expect(submittedConsentRevision(null, republished)).toBe('rev-7')
     expect(submittedConsentRevision(null, null)).toBeNull()
     // 舊版 API 沒有版本。
-    expect(submittedConsentRevision(consentSeenNow({ mode: 'inquiry', version: 1 }, ''), null)).toBeNull()
+    expect(submittedConsentRevision(consentSeenNow({ mode: 'slots', version: 1 }, ''), null)).toBeNull()
   })
 })

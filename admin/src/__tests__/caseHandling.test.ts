@@ -78,7 +78,8 @@ describe('已確認案件的改期（第 13 條）', () => {
     await button(wrapper, '改到這個時段')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/reschedule', { new_slot_id: 'slot-b', reason: '家長來電改到週末' })
-    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('參觀改到 2099/10/03')
+    // 改期後系統會寄信給家長，不再預填「已致電家長」的紀錄。
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
   it('標記未到場不再說會釋出名額，結案後重抓側欄的待核准數', async () => {
@@ -98,21 +99,21 @@ describe('已確認案件的改期（第 13 條）', () => {
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
     get.mockClear()
-    await button(wrapper, '完成參觀')!.trigger('click')
+    await button(wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
 
-  it('場次還沒開始時不顯示完成參觀與標記未到場，提示改用取消預約', async () => {
+  it('場次還沒開始時不顯示標記已到場與標記未到場，提示改用取消預約', async () => {
     const { wrapper } = await mountDetail(confirmedCase())
-    expect(button(wrapper, '完成參觀')).toBeUndefined()
+    expect(button(wrapper, '標記已到場')).toBeUndefined()
     expect(button(wrapper, '標記未到場')).toBeUndefined()
-    expect(wrapper.text()).toContain('參觀時段開始後可以標記完成或未到場')
+    expect(wrapper.text()).toContain('參觀時段開始後可以標記已到場或未到場')
     expect(wrapper.text()).toContain('請用下方的「取消預約」')
     expect(button(wrapper, '取消預約')).toBeDefined()
   })
 
-  it('案件頁開著等到場次開始，完成參觀與標記未到場不必重新整理就出現', async () => {
+  it('案件頁開著等到場次開始，標記已到場與標記未到場不必重新整理就出現', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     try {
       // current 是 2099/10/01 10:00（台灣時間）開始，先停在開始前 10 秒。
@@ -121,7 +122,7 @@ describe('已確認案件的改期（第 13 條）', () => {
       expect(button(wrapper, '標記未到場')).toBeUndefined()
       vi.advanceTimersByTime(30_000)
       await flushPromises()
-      expect(button(wrapper, '完成參觀')).toBeDefined()
+      expect(button(wrapper, '標記已到場')).toBeDefined()
       expect(button(wrapper, '標記未到場')).toBeDefined()
     } finally {
       vi.useRealTimers()
@@ -198,15 +199,15 @@ describe('家長管理連結（第 20 條）', () => {
     expect(writeText).toHaveBeenCalledWith('https://www.ivy.example/visit/manage#token=abc')
 
     const confirm = confirmOk()
-    await button(wrapper, '重新產生連結')!.trigger('click')
+    await button(wrapper, '重新產生連結並寄出')!.trigger('click')
     await flushPromises()
-    expect(String(confirm.mock.calls[0]![0])).toContain('先前給家長的連結會立即失效')
+    expect(String(confirm.mock.calls[0]![0])).toContain('舊連結會立即失效')
   })
 
   it('已有有效連結時只顯示期限，可以撤銷；結案的案件不顯示', async () => {
     const link = { created_at: '2026-09-24T00:00:00Z', expires_at: '2026-10-08T00:00:00Z' }
     const { wrapper } = await mountDetail(confirmedCase({ access_link: link }))
-    expect(wrapper.text()).toContain('目前有一條有效連結')
+    expect(wrapper.text()).toContain('目前連結有效到')
     confirmOk()
     const post = vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
     await button(wrapper, '撤銷連結')!.trigger('click')
@@ -370,7 +371,7 @@ describe('標籤與小工具', () => {
     expect(visitEventTitle({
       id: 'e', event_type: 'reschedule_superseded', source: 'staff', actor_user_id: 'u1', actor_email: 'desk@ivy.example',
       before: null, after: { requested_slot: later }, reason: null, created_at: '2026-09-24T02:00:00Z',
-    })).toBe('家長的改期申請失效（園方已直接改期）')
+    })).toBe('家長的改期申請失效（已直接改期）')
     for (const action of ['visit_request.create_access_link', 'visit_request.revoke_access']) expect(AUDIT_ACTION_LABELS[action]).toBeTruthy()
     const slot = { slot_date: '2026-09-26', start_time: '10:00:00' }
     expect(slotStarted(slot, Date.parse('2026-09-26T01:59:00Z'))).toBe(false)

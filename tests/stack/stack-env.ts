@@ -30,7 +30,7 @@ export function storageStatePath(role: StackRole): string {
   return path.join(AUTH_DIR, `${role}.json`)
 }
 
-// 預約主流程用的兩校：義華開「線上選場次、園方人工確認」，明華開「只收需求、
-// 園方聯絡後排入」。其他三校維持初始化後的 paused。
+// 預約主流程用的兩校：官網只剩自選場次（送出即預約成功），義華與明華都開線上預約，
+// 測試各用各的校區避免互搶名額。其他三校維持初始化後的 paused。
 export const SLOTS_CAMPUS = 'yihua'
-export const INQUIRY_CAMPUS = 'minghua'
+export const SECOND_CAMPUS = 'minghua'

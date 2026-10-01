@@ -272,8 +272,8 @@ const shortcuts = computed(() =>
       ? [{ to: '/visit-requests', title: '查看參觀案件', hint: '電話或現場預約用「補登案件」記下來' }]
       : []),
     canManageBooking.value
-      ? { to: '/slots', title: '安排參觀時段', hint: '開放時間與可接待人數' }
-      : { to: '/slots', title: '查看參觀時段', hint: '各場次名額與已預約組數' },
+      ? { to: '/visit-calendar', title: '安排參觀時段', hint: '開放時間與可接待人數' }
+      : { to: '/visit-calendar', title: '查看參觀時段', hint: '各場次名額與已預約組數' },
     { to: '/visit-calendar', title: '查看接待月曆', hint: '每天有誰要來參觀' },
     { to: '/content/home-hero', title: '更新首頁文字', hint: '調整家長進站看到的標語' },
     { to: '/content/campus-profile', title: '修改各校資料', hint: '校園介紹與聯絡方式' },
@@ -412,7 +412,7 @@ const hasTodo = computed(() => {
               <span class="task__number">{{ formsWithoutConsent.length }}</span>
               <div><h3>開放線上表單，但沒有發布同意條款</h3><p>{{ campusLabels(formsWithoutConsent) }}的預約方式是線上表單，但「預約文案」沒有發布中的同意條款文字：官網對家長顯示暫停，收不到需求。請聯絡總管理者到「預約文案」發布同意條款。</p></div>
             </div>
-            <router-link v-if="slotsWithoutOpenings.length" class="task" to="/slots" v-bind="taskAria('slots')">
+            <router-link v-if="slotsWithoutOpenings.length" class="task" to="/visit-calendar" v-bind="taskAria('slots')">
               <span id="task-slots-n" class="task__number">{{ slotsWithoutOpenings.length }}</span>
               <div v-if="canManageBooking"><h3 id="task-slots-t">開放選時段，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。請新增場次或每週開放規則，或改用其他預約方式。</p><span id="task-slots-a" class="task__action">安排參觀時段 <span aria-hidden="true">→</span></span></div>
               <div v-else><h3 id="task-slots-t">開放選時段，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出時段申請。新增場次或每週開放規則由校區管理者處理。</p><span id="task-slots-a" class="task__action">查看參觀時段 <span aria-hidden="true">→</span></span></div>

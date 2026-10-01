@@ -60,6 +60,19 @@
 
 驗證：web `nuxt typecheck`、`npm run test:website` 64 檔 666 項；admin `vue-tsc`、vitest 679 項；backend 全套 pytest 1037 項（獨立測試庫、先 `alembic upgrade head`）；`npm run contract:check`；production build 的完整 stack e2e 61 項全過（含 hydration／a11y／keyboard 走到環境頁）。量測腳本與原始數據：`output/playwright/mobile-perf-deep-20260930/fix-20260930/`（`probe.cjs` 載入／點擊、`compare-svg.cjs` 手繪 svg 逐一比對、`cross.cjs` 跨模式比對照片框；已 gitignore）。未驗：iPhone Safari 與 Android 實機、線上 CMS 內容、真實網路下 downlink 的分布（門檻只在 DevTools 限速下定）。
 
+## 2026-09-30 家長自選場次預約（`feature/parent-self-booking-20260930`，尚未 push、未部署）
+
+業主裁定官網預約只剩「家長自選場次、送出即預約成功」。規格 `docs/specs/2026-09-30-parent-self-booking-design.md`，計畫 `docs/superpowers/plans/2026-09-30-parent-self-booking*.md`，規則見 DESIGN.md「家長自選場次預約」。
+
+- **後端（階段 A）**：Email 必填、送單即成立並回修改連結（HMAC 重算，不存原始 token）；家長可直接改場次、改資料、取消；確認信、變更信、取消信走 outbox；後台列表分組與 `group-counts`；migration 把有規則的 inquiry 校切 slots、其餘切 paused。
+- **官網（階段 B）**：表單只剩自選場次與 Email 必填、422 對到欄位；結果頁寫預約成功、修改連結與複製鈕；管理頁直接改場次、修改資料、取消。
+- **後台（階段 C）**：列表改預約正常／時間已過／已取消；明細拿掉聯絡中、可重寄確認信；補登必選場次；預約方式拿掉填表與人工確認；「時段與容量」與「接待月曆」併成「參觀場次」頁（固定場次卡＋月曆＋當天清單）。
+- **端到端（階段 D）**：`tests/stack` 改寫成真 API＋真官網＋真後台，確認信寫進本機 sink 資料夾核對；順手修未讀圓點缺 `role` 的 a11y 問題。
+
+驗證：backend／web／admin 單元測試與 `tests/stack` 60 項在隔離測試庫全過（指令與輸出見交審回報）；視覺基準 `visit-detail`、`booking-settings` 因後台改版重拍。
+
+**未驗證**：Safari／iOS 實機；真實 SMTP 投遞（本機只寫 sink，`parent_email_enabled` 以有無 `WEBSITE_SMTP_HOST` 判斷）；真後端上的後台畫面逐頁人工檢查只用 mock 與 stack 截圖。上線前人工步驟在 `deploy/README.md` 草稿。
+
 ## 2026-09-30 參觀報名第二輪 E2E：多分頁錯筆、同 key 重送誤報額滿、截止後操作列消失（`fix/visit-e2e-20260930`，2026-09-30 經 main CI 部署）
 
 處理 `output/playwright/visit-e2e-20260930-round2/REPORT.md`。報告同樣在落後 main 的 `5e34c5d` 上測，四項都對 main 重新查證：三項仍在、一項 main 已修。

@@ -13,6 +13,7 @@ from app.booking.models import VisitRequest, VisitRequestEvent
 from app.operations import retention_service
 from app.operations.models import AuditLogEntry, RetentionPolicy, RetentionRun
 from app.workers.maintenance import run_cycle
+from tests.conftest import legacy_request
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -25,14 +26,9 @@ def _ago(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
-async def _case(client, key: str, name: str = "王媽媽") -> str:
-    response = await client.post(
-        f"{BASE}/visit-requests",
-        json={"campus_key": "yihua", "source": "phone", "parent_name": name, "phone": "0912345678", "consent_given": True},
-        headers={"Idempotency-Key": key},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
+async def _case(db_session, name: str = "王媽媽") -> str:
+    """上線前留下的待處理舊案（新流程沒有 API 能建出 new 狀態）。"""
+    return await legacy_request(db_session, status="new", parent_name=name, phone="0912345678", source="phone")
 
 
 async def _slot(client) -> str:
@@ -132,15 +128,15 @@ async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin
     slot_id = await _slot(admin_client)
 
     # 很早建立、最近才取消：看 cancelled_at，還不到期。
-    recent_cancel = await _case(admin_client, "ret-01")
+    recent_cancel = await _case(db_session)
     await admin_client.post(f"{BASE}/visit-requests/{recent_cancel}/cancel")
     await _age(db_session, recent_cancel, created=800, events=800)
     # 取消超過一年。
-    old_cancel = await _case(admin_client, "ret-02")
+    old_cancel = await _case(db_session)
     await admin_client.post(f"{BASE}/visit-requests/{old_cancel}/cancel")
     await _age(db_session, old_cancel, created=500, cancelled=400)
     # 完成：看歷程裡 completed 那一筆。很早建立、最近才完成的不到期。
-    completed_recent, completed_old = await _case(admin_client, "ret-03"), await _case(admin_client, "ret-04")
+    completed_recent, completed_old = await _case(db_session), await _case(db_session)
     for case_id in (completed_recent, completed_old):
         confirmed = await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_id})
         assert confirmed.status_code == 200, confirmed.text
@@ -149,23 +145,23 @@ async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin
     await _age(db_session, completed_recent, events=10, event_types=("completed",))
     await _age(db_session, completed_old, created=900, events=400)
     # 未到場：看歷程裡 no_show 那一筆。
-    no_show = await _case(admin_client, "ret-05")
+    no_show = await _case(db_session)
     await db_session.execute(update(VisitRequest).where(VisitRequest.id == uuid.UUID(no_show)).values(status="no_show"))
     await db_session.commit()
     await _record(db_session, no_show, "no_show")
     await _age(db_session, no_show, created=30, events=400, event_types=("no_show",))
     # 沒有結案歷程的舊資料：退回 created_at。
-    legacy = await _case(admin_client, "ret-06")
+    legacy = await _case(db_session)
     await db_session.execute(update(VisitRequest).where(VisitRequest.id == uuid.UUID(legacy)).values(status="no_show"))
     await db_session.commit()
     await _age(db_session, legacy, created=400)
     # 還沒結案的：不論多舊都不清，只算進提醒。
-    stale_new = await _case(admin_client, "ret-07")
+    stale_new = await _case(db_session)
     await _age(db_session, stale_new, created=400, events=400)
-    stale_confirmed = await _case(admin_client, "ret-08")
+    stale_confirmed = await _case(db_session)
     await admin_client.post(f"{BASE}/visit-requests/{stale_confirmed}/confirm", json={"slot_id": slot_id})
     await _age(db_session, stale_confirmed, created=900, events=900)
-    fresh_new = await _case(admin_client, "ret-09")
+    fresh_new = await _case(db_session)
     assert fresh_new
 
     report = (await admin_client.post(f"{BASE}/retention/dry-run")).json()
@@ -207,10 +203,10 @@ async def _complete(db_session, case_id: str) -> None:
 @pytest.mark.asyncio
 async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_client, db_session):
     _allow_real_run(app)
-    old_cancel = await _case(admin_client, "ret-11", name="要清掉的媽媽")
+    old_cancel = await _case(db_session, name="要清掉的媽媽")
     await admin_client.post(f"{BASE}/visit-requests/{old_cancel}/cancel")
     await _age(db_session, old_cancel, cancelled=400)
-    stale = await _case(admin_client, "ret-12", name="很久沒聯絡的爸爸")
+    stale = await _case(db_session, name="很久沒聯絡的爸爸")
     await _age(db_session, stale, created=400, events=400)
 
     ran = await admin_client.post(f"{BASE}/retention/run")
@@ -250,7 +246,7 @@ async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_cli
 
 @pytest.mark.asyncio
 async def test_scheduled_run_needs_policy_and_deployment_flag_once_per_day(app, admin_client, db_session):
-    old_cancel = await _case(admin_client, "ret-21", name="定期清理的媽媽")
+    old_cancel = await _case(db_session, name="定期清理的媽媽")
     await admin_client.post(f"{BASE}/visit-requests/{old_cancel}/cancel")
     await _age(db_session, old_cancel, cancelled=400)
 

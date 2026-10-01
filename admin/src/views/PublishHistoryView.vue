@@ -315,7 +315,7 @@ refreshAll()
       </div>
       <ul class="notices__list">
         <li v-for="n in notices.slice(0, 20)" :key="n.id" class="notice" :class="{ 'is-read': n.read_at }">
-          <span v-if="!n.read_at" class="notice__dot" aria-label="未讀" />
+          <span v-if="!n.read_at" class="notice__dot" role="img" aria-label="未讀" />
           <div class="notice__body">
             <strong>{{ userNotificationLabel(n.kind) }}</strong>
             <router-link v-if="n.content_kind" :to="contentEditorPath(n.content_kind, n.campus_key)" class="notice__link" @click="openNotice(n)">

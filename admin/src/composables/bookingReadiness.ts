@@ -59,7 +59,7 @@ export const REASON_LINKS: Record<string, { to: string; label: string; otherwise
     label: '到預約文案發布同意文字',
     otherwise: '請聯絡總管理者到「預約文案」發布同意條款。',
   },
-  NO_SLOTS_OR_RULES: { to: '/slots', label: '到時段與容量新增場次', otherwise: '請聯絡校區管理者新增場次或每週規則。' },
+  NO_SLOTS_OR_RULES: { to: '/visit-calendar', label: '到參觀場次新增場次', otherwise: '請聯絡校區管理者新增場次或每週規則。' },
 }
 
 export type ReasonAction = { to: string; label: string } | { note: string } | null

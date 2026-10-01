@@ -3,7 +3,9 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { pickImage } from '~/utils/media-image'
-import { CONTACT_TIME_OPTIONS, contactTimeLabel, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { slotRange } from '~/utils/visit-session'
+import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { consentOutdated, consentSeenNow, consentView, displayedConsentText, submittedConsentRevision, type ConsentSeen } from '~/utils/visit-consent'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -24,7 +26,6 @@ const form = reactive({
   // 參觀人數：下拉選單預設不選（空字串），送出前必填 1–10。
   partySize: '',
   referralSources: [] as string[],
-  time: '',
   questions: '',
   consent: false
 })
@@ -130,7 +131,7 @@ const today = ref(taipeiDate())
 const slotDates = computed(() => [...new Set(availableSlots.value.map(slot => slot.slot_date))].sort())
 const daySlots = computed(() => availableSlots.value.filter(slot => slot.slot_date === selectedVisitDate.value))
 const selectedSlot = computed(() => availableSlots.value.find(slot => slot.id === selectedSlotId.value))
-const slotTime = (slot: PublicVisitSlot) => `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
+const slotTime = (slot: PublicVisitSlot) => slotRange(slot)
 let slotRequest = 0
 
 async function loadSlots() {
@@ -173,30 +174,23 @@ onBeforeUnmount(() => { slotsMounted = false; slotRequest++ })
 const submitted = ref(false)
 const resultStatus = ref<string | null>(null)
 const receiptId = ref('')
+const managePath = ref<string | null>(null)
+const linkCopied = ref(false)
+const resultKind = computed(() => visitResultKind(resultStatus.value))
+const resultCopy = computed(() => visitResultCopy(resultKind.value, {
+  emailEnabled: Boolean(bookingConfig.value?.parent_email_enabled),
+  email: form.email
+}))
 
-// 三種語意不能混用（規格 197）：inquiry 是「已收到需求」、slots 人工
-// 確認是「待園方確認」、只有自動確認成功才叫「預約成立」。
-const resultCopy = computed(() => {
-  if (resultStatus.value === 'confirmed') {
-    return {
-      eyebrow: '預約成立',
-      title: '已經幫你保留時段了',
-      body: '已經幫你保留這個時段，園所會再與你確認參觀當天的細節。'
-    }
+async function copyManageLink() {
+  if (!managePath.value) return
+  try {
+    await navigator.clipboard.writeText(new URL(managePath.value, window.location.origin).href)
+    linkCopied.value = true
+  } catch {
+    linkCopied.value = false
   }
-  if (resultStatus.value === 'pending_confirmation') {
-    return {
-      eyebrow: '待園方確認',
-      title: '已經收到你的時段申請',
-      body: '這個時段已先為你保留，但尚未確認成立；園所確認後會再通知你。'
-    }
-  }
-  return {
-    eyebrow: '已收到需求',
-    title: '參觀需求已送出',
-    body: '園所會再以電話與你聯繫，確認合適的參觀時間。時間經園所確認後，預約才會成立。'
-  }
-})
+}
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 // 連線或伺服器失敗時，錯誤在表單頂端、送出鈕在一千多 px 以下：鈕旁再補一行（視覺用，
@@ -214,8 +208,6 @@ const shortAddress = (campus: Campus) => campus.address?.replace(/^高雄市/, '
 const callFallback = computed(() => selectedCampus.value?.phone ? `也可以直接致電${selectedCampus.value.name} ${selectedCampus.value.phone}。` : '')
 // 第一步是薄荷色帶的迎賓區＋照片卡選校；第二步與送出後收成一行頁名，左側改放所選校園。
 const isPicking = computed(() => step.value === 1 && !submitted.value)
-// 選項固定（規格 190），不讀 fixture 的中文清單：送出的是代碼。
-const timeOptions = CONTACT_TIME_OPTIONS
 const nextLabel = computed(() => bookingPending.value ? '正在確認參觀方式…' : action.value.kind === 'form' || !selectedCampus.value ? '下一步：填寫資料' : '下一步：查看參觀方式')
 
 async function focusStage() {
@@ -346,10 +338,8 @@ async function onSubmit() {
   form.email = form.email.trim()
   form.phone = normalizeVisitPhone(form.phone)
   fieldErrors.value = validateVisitContact(form, taipeiDate())
-  if (bookingConfig.value?.mode === 'slots') {
-    if (!selectedVisitDate.value) fieldErrors.value.visitDate = '請選擇參觀日期。'
-    else if (!selectedSlot.value || selectedSlot.value.slot_date !== selectedVisitDate.value) fieldErrors.value.slotId = '請選擇這一天的參觀場次。'
-  }
+  if (!selectedVisitDate.value) fieldErrors.value.visitDate = '請選擇參觀日期。'
+  else if (!selectedSlot.value || selectedSlot.value.slot_date !== selectedVisitDate.value) fieldErrors.value.slotId = '請選擇這一天的參觀場次。'
   if (Object.keys(fieldErrors.value).length) {
     await nextTick()
     formRef.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -363,7 +353,7 @@ async function onSubmit() {
 
   submitting.value = true
   try {
-    const created = await $fetch<{ receipt_id: string; status: string }>('/api/website/v1/public/visit-requests', {
+    const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null }>('/api/website/v1/public/visit-requests', {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey.value },
       body: {
@@ -373,14 +363,13 @@ async function onSubmit() {
         phone: form.phone,
         child_name: form.childName,
         child_birthdate: form.childBirthdate,
-        email: form.email || null,
+        email: form.email,
         party_size: Number(form.partySize),
         referral_sources: form.referralSources,
-        preferred_time: form.time || null,
         questions: form.questions || null,
         consent_given: form.consent,
         consent_revision_id: submittedConsentRevision(consentSeen.value, bookingConfig.value),
-        slot_id: bookingConfig.value?.mode === 'slots' ? selectedSlotId.value : undefined,
+        slot_id: selectedSlotId.value,
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
@@ -390,6 +379,8 @@ async function onSubmit() {
     submittedSlot.value = selectedSlot.value ? { ...selectedSlot.value } : null
     resultStatus.value = created?.status ?? null
     receiptId.value = created?.receipt_id || idempotencyKey.value
+    managePath.value = created?.manage_path ?? null
+    linkCopied.value = false
     submitted.value = true
     idempotencyKey.value = crypto.randomUUID()
     await nextTick()
@@ -418,7 +409,9 @@ async function onSubmit() {
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
       idempotencyKey.value = crypto.randomUUID()
       submitError.value =
-        '你先前那一次其實已經送出成功了，園所會用第一次填的資料與你聯繫。如果要用修改後的內容再送一筆，請再按一次送出。'
+        (bookingConfig.value?.parent_email_enabled
+          ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'
+          : '你先前那一次其實已經預約成功了。要更正內容請直接聯絡園所，不要重複送出。') + callFallback.value
     } else if (code === 'BOT_CHECK_FAILED') {
       submitError.value = serverMessage(detail, '請完成機器人驗證後再送出。')
     } else if (code === 'BOOKING_LIMIT') {
@@ -433,7 +426,13 @@ async function onSubmit() {
     } else if (err?.response?.status === 429) {
       submitError.value = `送出太多次了，請稍後再試一次。${callFallback.value}`
     } else if (err?.response?.status === 422) {
-      submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
+      const fields = apiFieldErrors(detail)
+      if (Object.keys(fields).length) {
+        fieldErrors.value = { ...fieldErrors.value, ...fields }
+        submitError.value = '有幾個欄位需要修正，請看標示的地方。'
+      } else {
+        submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
+      }
     } else {
       submitError.value = `送出失敗，請稍後再試一次；你填寫的內容還保留著。${callFallback.value}`
       submitRetryHint.value = true
@@ -573,7 +572,7 @@ async function onSubmit() {
                       <div class="visit-field"><label for="parent-name">家長稱呼<small>必填</small></label><input id="parent-name" v-model="form.parentName" name="parentName" autocomplete="section-parent name" maxlength="40" enterkeyhint="next" required placeholder="例如：陳媽媽" :aria-invalid="Boolean(fieldErrors.parentName)" aria-describedby="visit-name-error" @blur="checkFieldOnBlur('parentName')" @input="clearFieldError('parentName')"><p id="visit-name-error" class="visit-field-error">{{ fieldErrors.parentName }}</p></div>
                       <div class="visit-field"><label for="parent-phone">聯絡電話<small>必填</small></label><input id="parent-phone" v-model="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="section-parent tel-national" maxlength="16" enterkeyhint="next" required pattern="09[0-9]{8}" placeholder="09xxxxxxxx" :aria-invalid="Boolean(fieldErrors.phone)" aria-describedby="phone-hint visit-phone-error" @blur="checkFieldOnBlur('phone')" @input="clearFieldError('phone')"><small id="phone-hint" class="visit-field-hint">09 開頭的 10 碼手機號碼</small><p id="visit-phone-error" class="visit-field-error">{{ fieldErrors.phone }}</p></div>
                       <div class="visit-field"><label for="party-size">參觀人數<small>必填</small></label><select id="party-size" v-model="form.partySize" name="partySize" required :aria-invalid="Boolean(fieldErrors.partySize)" aria-describedby="visit-party-hint visit-party-error" @change="checkField('partySize')"><option value="">請選擇</option><option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :value="String(size)">{{ size }} 位</option></select><small id="visit-party-hint" class="visit-field-hint">含大人與孩子，方便園所準備接待。</small><p id="visit-party-error" class="visit-field-error">{{ fieldErrors.partySize }}</p></div>
-                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>選填</small></label><input id="parent-email" v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" enterkeyhint="done" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-error" @blur="checkFieldOnBlur('email')" @input="clearFieldError('email')"><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
+                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>必填</small></label><input id="parent-email" required v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" enterkeyhint="done" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-error" @blur="checkFieldOnBlur('email')" @input="clearFieldError('email')"><p class="visit-field-hint">確認信與修改連結會寄到這裡。</p><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
                     </div>
                   </section>
 
@@ -581,7 +580,6 @@ async function onSubmit() {
                   <details class="visit-optional" :open="optionalOpen" @toggle="optionalOpen = ($event.target as HTMLDetailsElement).open">
                     <summary>其他想告訴我們的事<span>選填 <span class="visit-expand-mark" aria-hidden="true">＋</span></span></summary>
                     <div class="visit-field-grid">
-                      <div class="visit-field visit-full"><label for="contact-time">方便接電話的時段</label><select id="contact-time" v-model="form.time" name="time" aria-describedby="visit-time-hint"><option value="">請選擇（選填）</option><option v-for="option in timeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><p id="visit-time-hint" class="visit-field-hint">這是聯絡時段，與參觀場次分開。</p></div>
                       <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
                     </div>
                   </details>
@@ -594,22 +592,35 @@ async function onSubmit() {
                   <div ref="turnstileRef" class="visit-turnstile-widget" />
                   <p v-if="turnstileLoadError" class="visit-field-error" role="alert">{{ turnstileLoadError }}</p>
                 </div>
-                <div class="visit-submit-row"><p>送出後，請查看確認結果。<br>參觀時間以園所確認為準。</p><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
+                <div class="visit-submit-row"><p>送出後會直接保留你選的場次，<br>並顯示預約結果。</p><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
               </form>
             </template>
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
             <img v-if="selectedCampus" class="visit-result-art" v-bind="pickImage(`campus-line-art-${selectedCampus.key}`, selectedCampus.lineArtMedia, '240px')" alt="" decoding="async">
-            <span class="visit-result-status" :data-status="resultStatus === 'confirmed' ? 'confirmed' : 'waiting'"><svg class="icon" aria-hidden="true"><use :href="resultStatus === 'confirmed' ? '#i-check' : '#i-clock'" /></svg>{{ resultCopy.eyebrow }}</span>
+            <span class="visit-result-status" :data-status="resultKind === 'booked' ? 'confirmed' : 'closed'"><svg class="icon" aria-hidden="true"><use :href="resultKind === 'booked' ? '#i-check' : '#i-x'" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
-            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.time"><dt>接電話時段</dt><dd>{{ contactTimeLabel(form.time) }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
+            <dl class="visit-result-list"><div><dt>意向校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
             <VisitCalendarActions
-              v-if="resultStatus === 'confirmed' && submittedSlot && selectedCampus"
+              v-if="resultKind === 'booked' && submittedSlot && selectedCampus"
               :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"
             />
-            <div class="visit-result-next"><h3>接下來，等園所與你聯繫。</h3><p>需要補充、更正資料或調整安排，請直接聯絡{{ selectedCampus?.name }}。</p><div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><a v-if="selectedCampus?.line" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a></div></div>
+            <div v-if="resultKind === 'booked' && managePath" class="visit-result-next">
+              <h3>之後要改時間或取消</h3>
+              <p>用這個連結就能改場次、修改資料或取消預約，請收藏起來，不要轉給其他人。</p>
+              <div class="visit-contact-actions">
+                <!-- 整頁導覽：client 端導覽會把含 token 的網址存進 router 的 history.state。 -->
+                <a class="button primary" :href="managePath">修改或取消預約</a>
+                <button type="button" class="button outline" @click="copyManageLink">{{ linkCopied ? '已複製連結' : '複製連結' }}</button>
+              </div>
+            </div>
+            <div v-else class="visit-result-next">
+              <h3>需要協助？</h3>
+              <p>請直接聯絡{{ selectedCampus?.name }}。</p>
+              <div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><NuxtLink v-if="selectedCampus" class="visit-inline-link" :to="`/visit/${selectedCampus.key}`">重新選擇場次</NuxtLink></div>
+            </div>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>
         </div>

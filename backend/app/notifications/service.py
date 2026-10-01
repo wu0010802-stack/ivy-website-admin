@@ -13,12 +13,17 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
+from app.booking import access_service
 from app.booking.access_models import RescheduleRequest
-from app.booking.models import VisitRequest, VisitSlot
+from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED
+from app.booking.parent_policy import change_deadline_hours, parent_change_deadline
 from app.campuses.models import Campus
+from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import reminders
 from app.notifications.email_adapter import EmailAdapter
+from app.notifications.parent_email import ParentEmail, build_parent_email
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
 logger = logging.getLogger("app.notifications")
@@ -32,6 +37,9 @@ _KIND_LABELS = {
     "visit_request_cancelled": "參觀預約已取消",
     "visit_request_rescheduled": "參觀預約已改期",
     "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
+    "parent_visit_booked": "家長確認信（預約成功）",
+    "parent_visit_changed": "家長確認信（預約已變更）",
+    "parent_visit_cancelled": "家長確認信（預約已取消）",
     # 規格 L239、L268：家長線上申請改期只是申請，原時段仍有效，要園方核准。
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
     # 規格 L268：定期工作產生的提醒（notifications/reminders.py）。
@@ -229,6 +237,68 @@ async def email_content(
     return f"[常春藤官網] {campus_name}｜{label}", "\n".join(lines)
 
 
+async def _dispatch_parent_email(
+    db: AsyncSession,
+    *,
+    outbox_message_id: uuid.UUID,
+    kind: str,
+    payload: dict,
+    adapter: EmailAdapter | None,
+    created_at: datetime | None,
+    admin_origin: str | None,
+    access_secret: str | None,
+) -> bool:
+    """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
+    沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立），runner
+    會標成 skipped、不重試。"""
+    if adapter is None:
+        return False
+    if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
+        return False
+    visit_request = await _load_visit_request(db, payload.get("receipt_id"))
+    if visit_request is None or visit_request.anonymized_at is not None or not visit_request.email:
+        return False
+    # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
+    # 家長只該收到「已取消」。
+    if kind != PARENT_VISIT_CANCELLED and visit_request.status != VisitRequestStatus.CONFIRMED.value:
+        return False
+    recipient_key = f"parent:{visit_request.id}"
+    if await _already_delivered(db, outbox_message_id, "email", recipient_key):
+        return True
+    origin = admin_origin.rstrip("/") if admin_origin else None
+    manage_url = None
+    if kind != PARENT_VISIT_CANCELLED and origin and access_secret:
+        path = await access_service.current_manage_path(db, visit_request.id, secret=access_secret)
+        manage_url = f"{origin}{path}" if path else None
+    profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
+    slot = visit_request.slot
+    subject, body = build_parent_email(
+        ParentEmail(
+            kind=kind,
+            campus_name=await _campus_name(db, visit_request.campus_key),
+            salutation=parent_salutation(visit_request.parent_name),
+            slot_date=slot.slot_date if slot else None,
+            start_time=slot.start_time if slot else None,
+            end_time=slot.end_time if slot else None,
+            party_size=visit_request.party_size,
+            campus_address=str(profile.get("address") or "").strip() or None,
+            campus_phone=str(profile.get("phone") or "").strip() or None,
+            manage_url=manage_url,
+            change_deadline=parent_change_deadline(
+                visit_request, await change_deadline_hours(db, visit_request.campus_key)
+            ),
+            cancel_reason=visit_request.cancel_reason,
+            rebook_url=f"{origin}/visit/{visit_request.campus_key}" if origin else None,
+        )
+    )
+    await asyncio.to_thread(
+        adapter.send, to=_header_safe(visit_request.email), subject=_header_safe(subject), body=body
+    )
+    _record_delivery(db, outbox_message_id, "email", recipient_key)
+    await db.commit()
+    return True
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -240,6 +310,7 @@ async def dispatch_outbox_message(
     created_at: datetime | None = None,
     line: line_api.LineMessagingClient | None = None,
     admin_origin: str | None = None,
+    access_secret: str | None = None,
 ) -> bool:
     """處理一筆 outbox 訊息：寫站內通知 → 推播校區的 LINE 群組 → 寄信。
     任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
@@ -257,6 +328,17 @@ async def dispatch_outbox_message(
     `created_at` 是判斷「太舊不再推播寄信」的基準，人工重新排入的訊息由呼叫端
     傳重新排入的時間。定期工作產生的提醒在這裡先重新判斷是否仍然成立（改期、
     取消、已處理），不成立就什麼都不送並回傳 False，其他情況回傳 True。"""
+    if kind in PARENT_KINDS:
+        return await _dispatch_parent_email(
+            db,
+            outbox_message_id=outbox_message_id,
+            kind=kind,
+            payload=payload,
+            adapter=adapter,
+            created_at=created_at,
+            admin_origin=admin_origin,
+            access_secret=access_secret,
+        )
     if kind in reminders.REMINDER_KINDS and not await reminders.still_applies(db, kind, payload):
         return False
     label = notification_label(kind, payload)

@@ -71,11 +71,12 @@ export async function findVisit(api: AdminApi, parentName: string): Promise<Visi
 }
 
 /** 以家長身分從公開 API 送一筆需求（只用來準備資料；送單畫面由 booking-flow 驗證）。 */
-export async function submitPublicRequest(campus: string, parentName: string, phone: string): Promise<void> {
+export async function submitPublicRequest(campus: string, parentName: string, phone: string): Promise<{ manage_path: string | null; receipt_id: string }> {
   const context = await request.newContext({ baseURL: WEB_ORIGIN, storageState: EMPTY_STATE })
   const config = await (await context.get(`${API}/public/booking-config/${campus}`)).json()
   let slotId: string | undefined
-  if (config.mode === 'slots') {
+  if (config.mode !== 'slots') throw new Error('只支援自選場次')
+  {
     const slots = await context.get(`${API}/public/slots?campus_key=${campus}&date_from=${taipeiDate(0)}&date_to=${taipeiDate(30)}`)
     expect(slots.ok(), await slots.text()).toBe(true)
     slotId = ((await slots.json()) as { id: string }[])[0]?.id
@@ -94,9 +95,12 @@ export async function submitPublicRequest(campus: string, parentName: string, ph
       consent_revision_id: config.consent_revision_id,
       config_version: config.version,
       slot_id: slotId,
+      email: `e2e-${campus}-${phone}@example.com`,
     },
   })
   // 同一個 Idempotency-Key 重送（測試失敗後 beforeAll 重跑）回 200 與原案件。
   expect([200, 201], await response.text()).toContain(response.status())
+  const created = (await response.json()) as { manage_path: string | null; receipt_id: string }
   await context.dispose()
+  return created
 }

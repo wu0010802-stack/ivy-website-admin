@@ -13,6 +13,7 @@ interface PublicBookingConfigResponse {
   consent_text?: string | null
   privacy_notice?: { title: string; sections: { heading: string; body: string }[] } | null
   turnstile_site_key?: string | null
+  parent_email_enabled?: boolean
 }
 
 /**
@@ -44,7 +45,9 @@ export function useCampusBooking(campusKey: Ref<string | null> | string | null) 
         consent_text: response.consent_text ?? null,
         privacy_notice: privacyNotice(response.privacy_notice?.title, response.privacy_notice?.sections),
         // 有值時表單要先通過 Turnstile 才能送出（沒設定的部署維持原樣）。
-        turnstile_site_key: response.turnstile_site_key || null
+        turnstile_site_key: response.turnstile_site_key || null,
+        // 結果頁依此決定能不能說「確認信已寄出」；舊版 API 沒有這個欄位就當沒開。
+        parent_email_enabled: response.parent_email_enabled ?? false
       }
     },
     { watch: [key] }

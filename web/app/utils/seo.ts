@@ -264,6 +264,6 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
-  out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上送出參觀需求，園方聯絡並確認後才算預約成立。`, '')
+  out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上選擇日期與場次，送出後即預約成功，可從連結改場次、修改資料或取消。`, '')
   return out.join('\n')
 }
