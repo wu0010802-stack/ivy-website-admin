@@ -6,7 +6,7 @@ import RecordsTab from '../components/admissions/RecordsTab.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
 import { ApiError } from '../api/client'
 import {
-  admissionsViewer, arrivals, bodyOf, button, cleanup, deferred, hasButton, mockDelete, mockGet, mockPost, mountWith, options,
+  admissionsViewer, arrivals, bodyOf, button, cleanup, deferred, hasButton, mockDelete, mockGet, mockPost, mountWith, 
   pathsTo, queryOf, reception, visit, VR_ID,
 } from './admissionsTestKit'
 
@@ -43,7 +43,6 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
         visit({ id: 'v-3', child_name: '張小晴', withdrawn_at: '2026-09-20T02:00:00Z', withdrawn_from: 'deposited', stage: 'withdrawn' }),
         visit({ id: 'v-4', child_name: '（未填姓名）' }),
       ],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props({ semester: 1, month: '115.09' }) })
     expect(Object.fromEntries(lastQuery(get))).toEqual({
@@ -60,7 +59,7 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
   })
 
   it('沒有資料時說明原因；有篩選時改說篩選下沒有', async () => {
-    mockGet({ '/admin/admissions/records': [], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [] })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(wrapper.text()).toContain('義華在 115 學年還沒有招生訪視。')
     expect(wrapper.text()).not.toContain('0 筆')
@@ -76,7 +75,6 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
         if (fail) throw new Error('offline')
         return [visit()]
       },
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(wrapper.text()).toContain('載入明細失敗')
@@ -92,7 +90,6 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
     mockGet({
       '/admin/admissions/records': (path: string) =>
         queryOf(path).get('campus_key') === 'yihua' ? slow.promise : [visit({ id: 'v-r', campus_key: 'renwu', child_name: '林小美' })],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await wrapper.setProps({ campusKey: 'renwu' })
@@ -106,11 +103,27 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
 })
 
 describe('篩選、分頁與權限', () => {
+  it('第 2 頁以後拿到空列表：說「這一頁沒有訪視紀錄」並可回到第 1 頁，不說校區還沒有訪視', async () => {
+    const full = Array.from({ length: 50 }, (_, index) => visit({ id: `v-${index}` }))
+    const get = mockGet({ '/admin/admissions/records': (path: string) => (queryOf(path).get('page') === '1' ? full : []) })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    await button(wrapper, '下一頁')!.trigger('click')
+    await flushPromises()
+    expect(lastQuery(get).get('page')).toBe('2')
+    expect(wrapper.text()).toContain('這一頁沒有訪視紀錄。')
+    expect(wrapper.text()).not.toContain('還沒有招生訪視')
+
+    await button(wrapper, '回到第 1 頁')!.trigger('click')
+    await flushPromises()
+    expect(lastQuery(get).get('page')).toBe('1')
+    expect(rowTexts(wrapper)).toHaveLength(50)
+    expect(wrapper.text()).not.toContain('這一頁沒有訪視紀錄。')
+  })
+
   it('班別、預繳「否」送到 API 並回第一頁；滿 50 筆才有下一頁', async () => {
     const full = Array.from({ length: 50 }, (_, index) => visit({ id: `v-${index}` }))
     const get = mockGet({
       '/admin/admissions/records': (path: string) => (queryOf(path).get('page') === '1' ? full : [visit({ id: 'v-last' })]),
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await button(wrapper, '下一頁')!.trigger('click')
@@ -128,7 +141,7 @@ describe('篩選、分頁與權限', () => {
   })
 
   it('月份選項來自 options，選了就往上更新（由頁面寫進網址）', async () => {
-    mockGet({ '/admin/admissions/records': [visit()], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     const month = selectByPlaceholder(wrapper, '全部月份')
     expect(wrapper.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))).toEqual(expect.arrayContaining(['115.09', '115.08']))
@@ -137,7 +150,7 @@ describe('篩選、分頁與權限', () => {
   })
 
   it('從預約明細連進來（vr）只看那一筆；「顯示全部」清掉', async () => {
-    const get = mockGet({ '/admin/admissions/records': [visit()], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props({ schoolYear: null, visitRequestId: VR_ID }) })
     expect(lastQuery(get).get('visit_request_id')).toBe(VR_ID)
     expect(lastQuery(get).has('target_school_year')).toBe(false)
@@ -150,7 +163,6 @@ describe('篩選、分頁與權限', () => {
     const slow = deferred<unknown>()
     mockGet({
       '/admin/admissions/records': (path: string) => (queryOf(path).get('campus_key') === 'renwu' ? slow.promise : [visit()]),
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(rowTexts(wrapper)[0]).toContain('王小安')
@@ -163,13 +175,13 @@ describe('篩選、分頁與權限', () => {
   })
 
   it('F4：搜尋框限制 100 字（後端 q 上限）', async () => {
-    mockGet({ '/admin/admissions/records': [], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [] })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(wrapper.get('input[aria-label="搜尋訪視"]').attributes('maxlength')).toBe('100')
   })
 
   it('只能看招生的帳號：沒有新增、編輯、更多，仍可看歷程', async () => {
-    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     const { wrapper } = await mountWith(RecordsTab, { props: props(), user: admissionsViewer() })
     expect(hasButton(wrapper, '新增訪視')).toBe(false)
     expect(hasButton(wrapper, '編輯')).toBe(false)
@@ -183,7 +195,6 @@ describe('篩選、分頁與權限', () => {
         visit({ id: 'v-e', has_deposit: false, enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
         visit({ id: 'v-d', has_deposit: true, stage: 'deposited' }),
       ],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props(), user: reception() })
     // 沒有可做的動作（退註冊、刪除都要 convert），整列不出現「更多」。
@@ -196,11 +207,11 @@ describe('篩選、分頁與權限', () => {
       visit({ id: 'v-w', stage: 'withdrawn', withdrawn_at: '2026-09-20T02:00:00Z', withdrawn_from: 'enrolled' }),
       visit({ id: 'v-e', enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
     ]
-    mockGet({ '/admin/admissions/records': rows, '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': rows })
     const desk = await mountWith(RecordsTab, { props: props(), user: reception() })
     expect(desk.wrapper.find('[data-more="v-w"]').exists()).toBe(false)
     cleanup()
-    mockGet({ '/admin/admissions/records': rows, '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': rows })
     const admin = await mountWith(RecordsTab, { props: props() })
     expect(labelsOf(await moreItems(admin.wrapper, 'v-e'))).toContain('刪除')
   })
@@ -208,7 +219,6 @@ describe('篩選、分頁與權限', () => {
   it('已匿名化的列：有標籤、沒有編輯與退出，點列不開表單；歷程與刪除照常', async () => {
     mockGet({
       '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', anonymized_at: '2026-09-25T02:00:00Z' })],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(rowTexts(wrapper)[0]).toContain('已匿名化')
@@ -227,7 +237,7 @@ describe('篩選、分頁與權限', () => {
     vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '家長搬家', action: 'confirm' } as never)
     const warning = vi.spyOn(ElMessage, 'warning')
     const error = vi.spyOn(ElMessage, 'error')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     mockPost({
       '/admin/admissions/records/v-1/transition': () => {
         throw new ApiError(409, { code: 'RECRUITMENT_VISIT_ANONYMIZED' })
@@ -241,7 +251,7 @@ describe('篩選、分頁與權限', () => {
   })
 
   it('新增、編輯都開同一個表單；編輯帶入那一列', async () => {
-    mockGet({ '/admin/admissions/records': [visit()], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     const dialog = wrapper.getComponent(RecordDialog)
     await button(wrapper, '新增訪視')!.trigger('click')
@@ -258,7 +268,7 @@ describe('退出與刪除', () => {
   it('已預繳的列「更多 → 退預繳」要填原因，送狀態轉換並重新整理', async () => {
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '  家長搬家  ', action: 'confirm' } as never)
     const success = vi.spyOn(ElMessage, 'success')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', version: 3 })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', version: 3 })] })
     const post = mockPost({ '/admin/admissions/records/v-1/transition': visit({ stage: 'withdrawn' }) })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await chooseMore(wrapper, 'v-1', '退預繳')
@@ -276,7 +286,7 @@ describe('退出與刪除', () => {
     vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '家長搬家', action: 'confirm' } as never)
     const info = vi.spyOn(ElMessage, 'info')
     const error = vi.spyOn(ElMessage, 'error')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     mockPost({
       '/admin/admissions/records/v-1/transition': () => {
         throw new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 2 })
@@ -292,7 +302,7 @@ describe('退出與刪除', () => {
   it('刪除先確認、帶版本；別人剛改過就提示並重新整理', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const info = vi.spyOn(ElMessage, 'info')
-    const get = mockGet({ '/admin/admissions/records': [visit({ version: 2 })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ version: 2 })] })
     const remove = mockDelete({
       '/admin/admissions/records/v-1': () => {
         throw new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 3 })
@@ -309,7 +319,7 @@ describe('退出與刪除', () => {
   it('刪除成功提示並重新整理；按取消不送出', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel' as never)
     const success = vi.spyOn(ElMessage, 'success')
-    mockGet({ '/admin/admissions/records': [visit()], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit()] })
     const remove = mockDelete()
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await chooseMore(wrapper, 'v-1', '刪除')
@@ -325,7 +335,6 @@ describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔�
   const pageRoutes = () => ({
     '/admin/admissions/arrivals': arrivals(),
     '/admin/admissions/records': [visit()],
-    '/admin/admissions/options': options(),
     '/admin/admissions/stats': () => {
       throw new Error('統計不在這支測試的範圍')
     },

@@ -73,6 +73,8 @@ const monthOptions = computed(() => {
 })
 
 const emptyText = computed(() => {
+  // 後面的頁拿到空列表（最後一頁的資料被刪光）：不是「還沒有訪視」。
+  if (page.value > 1) return '這一頁沒有訪視紀錄。'
   if (filtered.value) return '目前篩選條件下沒有訪視紀錄。'
   const campus = campusLabel(props.campusKey)
   if (props.schoolYear) return `${campus}在 ${termLabel(props.schoolYear, props.semester)}還沒有招生訪視。`
@@ -398,7 +400,8 @@ async function remove(row: RecruitmentVisit) {
         <template #empty>
           <div v-if="!loading" class="records__empty">
             <strong>{{ emptyText }}</strong>
-            <span v-if="!filtered" class="hint">手動新增，或在「官網預約」標記家長已到場後，訪視會出現在這裡。</span>
+            <el-button v-if="page > 1" @click="page = 1">回到第 1 頁</el-button>
+            <span v-else-if="!filtered" class="hint">手動新增，或在「官網預約」標記家長已到場後，訪視會出現在這裡。</span>
           </div>
         </template>
         <el-table-column label="參觀日期" width="100">
