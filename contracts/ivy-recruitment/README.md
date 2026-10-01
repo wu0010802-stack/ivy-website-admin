@@ -18,7 +18,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 ```
 
 - `--campus 校區=租戶編號` 可以給多個；校區對租戶不寫死（明華、崇德、國際的租戶還不存在）。
-- 只讀：連線設成 `default_transaction_read_only`，不改任何資料。
+- 只讀：連線設成 `default_transaction_read_only`，不改任何資料；所有校區在同一個 REPEATABLE READ 交易內查詢，四份資料是同一個快照。
 - 每個校區一個資料夾，四個 JSONL：`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`、`extensions`。
 - 內容含幼生姓名、生日、家長電話：資料夾 0700、檔案 0600，已存在的檔案不覆寫。用完刪除，不要放進 repo 或雲端硬碟。
 

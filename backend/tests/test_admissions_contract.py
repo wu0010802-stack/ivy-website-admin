@@ -131,7 +131,8 @@ async def test_export_rows_match_ivy_snapshot(admin_client, db_session, tmp_path
         json={"school_year": 115, "semester": 1, "targets": {"小班": 10, "中班": 0}},
     )
     assert targets_saved.status_code == 200, targets_saved.text
-    await create_record(admin_client, "minghua", child_name="明華的")
+    # 他校的訪視有 created 以外的歷程，才驗得出歷程依校區取（F9）。
+    minghua = await record_at_stage(admin_client, "deposited", campus_key="minghua", child_name="明華的")
 
     result = await export.export_campus(db_session, "yihua", tenant_id=1)
     assert list(result) == list(export.FILES)
@@ -163,6 +164,12 @@ async def test_export_rows_match_ivy_snapshot(admin_client, db_session, tmp_path
         if actor is not None:
             assert set(actor) == {"user_id", "name"} and actor["name"] is None  # admin 沒設顯示名稱：不退而求其次放 Email
     assert "created" not in {row["columns"]["event_type"] for row in events}
+    # F9：歷程依校區 join 取，只屬於該校區。
+    assert minghua["id"] not in {row["mapping"]["recruitment_visit_website_id"] for row in events}
+    other = await export.export_campus(db_session, "minghua", tenant_id=2)
+    assert [
+        (row["mapping"]["recruitment_visit_website_id"], row["columns"]["event_type"]) for row in other["recruitment_event_log"]
+    ] == [(minghua["id"], "deposit_added")]
     assert any("website_actor" in row["columns"]["metadata_json"] for row in events if row["columns"]["metadata_json"])
     assert "@" not in json.dumps(result, ensure_ascii=False), "匯出檔不能帶 Email"
     await db_session.execute(text("UPDATE users SET display_name = '王園長' WHERE email = 'admin@ivy.example'"))
@@ -214,6 +221,9 @@ async def test_export_script_is_read_only(app, admin_client, tmp_path, monkeypat
     assert json.loads(line)["columns"]["tenant_id"] == 1
     engine = script.readonly_engine(app.state.settings)
     try:
+        # F9：所有校區在同一個 REPEATABLE READ 交易內查，四份資料是同一個快照。
+        async with engine.connect() as conn:
+            assert await conn.scalar(text("SHOW transaction_isolation")) == "repeatable read"
         async with engine.connect() as conn:
             with pytest.raises(DBAPIError):
                 await conn.execute(text("UPDATE recruitment_visits SET notes = '不該寫入'"))

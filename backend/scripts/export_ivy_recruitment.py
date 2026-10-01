@@ -3,7 +3,9 @@
 contracts/ivy-recruitment/README.md）。
 
 只讀：連線的 default_transaction_read_only 設成 on，寫入會被資料庫擋下；結束一律
-rollback。校區→租戶對照由命令列給（不寫死：明華、崇德、國際的租戶還不存在）。
+rollback。所有校區在同一個 REPEATABLE READ 交易內查詢，訪視、歷程、計畫名額是同一個
+快照（匯出途中有人改資料也不會對不上）。校區→租戶對照由命令列給（不寫死：明華、
+崇德、國際的租戶還不存在）。
 
 用法（在 backend/ 下，環境變數同 API）：
   uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=3 --out <輸出目錄>
@@ -31,10 +33,12 @@ from app.config import Settings, get_settings  # noqa: E402
 
 
 def readonly_engine(settings: Settings) -> AsyncEngine:
-    """每條連線一建立就是唯讀交易（asyncpg server_settings）。"""
+    """每條連線一建立就是唯讀交易（asyncpg server_settings），隔離等級 REPEATABLE READ：
+    同一個交易內的查詢都看同一個快照。"""
     return create_async_engine(
         settings.active_database_url(),
         hide_parameters=True,
+        isolation_level="REPEATABLE READ",
         connect_args={"server_settings": {"default_transaction_read_only": "on"}},
     )
 

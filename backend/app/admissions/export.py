@@ -135,7 +135,9 @@ def extension_row(visit: RecruitmentVisit) -> dict:
 
 
 async def export_campus(db: AsyncSession, campus_key: str, *, tenant_id: int | None = None) -> dict[str, list[dict]]:
-    """一個校區的四份資料（鍵與順序同 FILES）。訪視依建立時間、歷程依時間排序。"""
+    """一個校區的四份資料（鍵與順序同 FILES）。訪視依建立時間、歷程依時間排序；
+    歷程用 join 依校區取，不把全部訪視 id 塞進 IN。三次查詢要是同一個快照，呼叫端
+    須在 REPEATABLE READ 交易內呼叫（scripts/export_ivy_recruitment.py 的連線預設如此）。"""
     visits = list(
         (
             await db.execute(
@@ -146,10 +148,12 @@ async def export_campus(db: AsyncSession, campus_key: str, *, tenant_id: int | N
         ).scalars()
     )
     events = await db.execute(
-        select(RecruitmentEventLog, User.display_name, User.email)
+        # 匯出檔會交給園務系統，不帶同事 Email：只取顯示名稱，沒有就只留 user_id。
+        select(RecruitmentEventLog, User.display_name)
+        .join(RecruitmentVisit, RecruitmentVisit.id == RecruitmentEventLog.recruitment_visit_id)
         .outerjoin(User, User.id == RecruitmentEventLog.actor_user_id)
         .where(
-            RecruitmentEventLog.recruitment_visit_id.in_([visit.id for visit in visits]),
+            RecruitmentVisit.campus_key == campus_key,
             RecruitmentEventLog.event_type.not_in(constants.WEBSITE_ONLY_EVENT_TYPES),
         )
         .order_by(RecruitmentEventLog.created_at, RecruitmentEventLog.id)
@@ -161,10 +165,7 @@ async def export_campus(db: AsyncSession, campus_key: str, *, tenant_id: int | N
     )
     return {
         "recruitment_visits": [ivy_visit_row(visit, tenant_id=tenant_id) for visit in visits],
-        "recruitment_event_log": [
-            # 匯出檔會交給園務系統，不帶同事 Email；沒有顯示名稱就只留 user_id。
-            ivy_event_row(event, actor_name=display_name) for event, display_name, email in events.all()
-        ],
+        "recruitment_event_log": [ivy_event_row(event, actor_name=display_name) for event, display_name in events.all()],
         "grade_intake_targets": [ivy_target_row(target) for target in targets.scalars()],
         "extensions": [extension_row(visit) for visit in visits],
     }
