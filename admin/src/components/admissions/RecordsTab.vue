@@ -16,6 +16,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
 import TransitionDialog from './TransitionDialog.vue'
+import SeatDialog from './SeatDialog.vue'
 
 // 訪視明細（園務 RecruitmentDetailTab＋AdmissionsRecordsPanel）。入學學年學期用頁首的篩選，
 // 這裡不重複（本檔調整第 11 條）；月份與 vr 由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
@@ -224,8 +225,8 @@ function onSaved() {
   void loadOptions()
 }
 
-// ---- 列操作：更多（B4 在 withdraw 前面加 seat）----
-type MoreCommand = 'withdraw' | 'delete'
+// ---- 列操作：更多 ----
+type MoreCommand = 'seat' | 'withdraw' | 'delete'
 
 function needsConvert(row: RecruitmentVisit): boolean {
   return row.stage === 'enrolled' || (row.stage === 'withdrawn' && row.withdrawn_from === 'enrolled')
@@ -235,6 +236,8 @@ function moreCommands(row: RecruitmentVisit): { command: MoreCommand; label: str
   const items: { command: MoreCommand; label: string }[] = []
   // 已匿名化的列不能再變更（退出）；刪除與歷程照常。
   if (!row.anonymized_at) {
+    // 保留座位只給已預繳、未註冊、未退出（規格 6.5）；已註冊不能清除保留，要改年級請先取消註冊。
+    if (row.stage === 'deposited' && canWrite.value) items.push({ command: 'seat', label: row.provisional_grade ? '變更座位' : '保留座位' })
     // 退預繳要 write、退註冊要 convert（規格 6.3）；已訪視沒有可退的款項（園務 :610）。
     if (row.stage === 'deposited' && canWrite.value) items.push({ command: 'withdraw', label: '退預繳' })
     if (row.stage === 'enrolled' && canConvert.value) items.push({ command: 'withdraw', label: '退註冊' })
@@ -244,8 +247,14 @@ function moreCommands(row: RecruitmentVisit): { command: MoreCommand; label: str
   return items
 }
 
+const seatOpen = ref(false)
+const seatFor = ref<RecruitmentVisit | null>(null)
+
 function onMore(row: RecruitmentVisit, command: MoreCommand) {
-  if (command === 'withdraw') void withdraw(row)
+  if (command === 'seat') {
+    seatFor.value = row
+    seatOpen.value = true
+  } else if (command === 'withdraw') void withdraw(row)
   else void remove(row)
 }
 
@@ -484,7 +493,7 @@ async function remove(row: RecruitmentVisit) {
     <RecordDialog v-model="dialogOpen" :mode="dialogMode" :campus-key="campusKey" :record="editing" :options="options" @saved="onSaved" @stale="load" />
     <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" />
     <TransitionDialog v-model="transitionOpen" :target="transitionTarget" @done="load" @stale="load" />
-    <!-- B4：SeatDialog -->
+    <SeatDialog v-model="seatOpen" :record="seatFor" @saved="load" @stale="load" />
   </section>
 </template>
 

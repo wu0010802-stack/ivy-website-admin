@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
+import IntakePlanTab from '../components/admissions/IntakePlanTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { getArrivals, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
@@ -134,6 +135,7 @@ function showUnscoped() {
           :semester="semester"
           @clear-term="clearTerm"
         />
+        <IntakePlanTab v-if="tab === 'intake'" :campus-key="campus" :school-year="schoolYear" :semester="semester" />
         <StatsTab v-if="tab === 'stats'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @go="goTab" />
       </div>
     </template>
