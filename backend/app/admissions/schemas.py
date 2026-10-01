@@ -55,6 +55,13 @@ def _not_future(value: date | None) -> date | None:
     return value
 
 
+def _roc_visit_date(value: date | None) -> date | None:
+    """民國年要落在 SCHOOL_YEAR_MIN～MAX，month 才會是三位數年份（roc_month 直接 year-1911）。"""
+    if value is not None and not constants.SCHOOL_YEAR_MIN <= value.year - 1911 <= constants.SCHOOL_YEAR_MAX:
+        raise ValueError(f"參觀日期的民國年必須在 {constants.SCHOOL_YEAR_MIN}～{constants.SCHOOL_YEAR_MAX} 之間")
+    return value
+
+
 class _VisitEditable(BaseModel):
     """新增與編輯共用、表單可以直接填的欄位。預繳、註冊、退出、保留座位只能
     走狀態轉換與保留座位（規格 6.1 第 3 點、6.6），不在這裡。district、
@@ -96,6 +103,11 @@ class RecruitmentVisitCreate(_VisitEditable):
     def _child_name(cls, value: str) -> str:
         return _required_text(value, "請填寫幼生姓名")
 
+    @field_validator("visit_date")
+    @classmethod
+    def _visit_date(cls, value: date) -> date:
+        return _roc_visit_date(value)
+
     @field_validator("birthday")
     @classmethod
     def _birthday(cls, value: date) -> date:
@@ -125,6 +137,11 @@ class RecruitmentVisitUpdate(_VisitEditable):
         if value is None:
             raise ValueError("這個欄位不能清空")
         return value
+
+    @field_validator("visit_date")
+    @classmethod
+    def _visit_date(cls, value: date | None) -> date | None:
+        return _roc_visit_date(value)
 
     @field_validator("birthday")
     @classmethod

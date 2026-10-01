@@ -362,3 +362,25 @@ async def test_stage_condition_matches_derive_stage(db_session):
     with pytest.raises(ValueError):
         funnel.stage_condition("lost")
     assert funnel.STAGE_VALUES == constants.STAGES
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_date", ["2001-05-01", "2010-12-31", "2112-01-01"])
+async def test_visit_date_outside_roc_range_is_422(admin_client, bad_date):
+    """visit_date 的民國年必須在 SCHOOL_YEAR_MIN～MAX（三位數），否則 month 會違反格式。"""
+    created = await admin_client.post(f"{RECORDS}?campus_key=yihua", json=manual_fields(visit_date=bad_date))
+    assert created.status_code == 422, created.text
+    assert any(loc[-1] == "visit_date" for loc in _locations(created))
+    record = await create_record(admin_client)
+    patched = await admin_client.patch(f"{RECORDS}/{record['id']}", json={"expected_version": 1, "visit_date": bad_date})
+    assert patched.status_code == 422, patched.text
+    assert any(loc[-1] == "visit_date" for loc in _locations(patched))
+
+
+@pytest.mark.asyncio
+async def test_visit_date_roc_range_boundaries_pass(admin_client):
+    low = await create_record(admin_client, visit_date="2011-01-01")
+    high = await create_record(admin_client, visit_date="2111-12-31")
+    assert (low["month"], high["month"]) == ("100.01", "200.12")
+    moved = await admin_client.patch(f"{RECORDS}/{low['id']}", json={"expected_version": 1, "visit_date": "2011-02-01"})
+    assert moved.status_code == 200 and moved.json()["month"] == "100.02"
