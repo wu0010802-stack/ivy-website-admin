@@ -5,7 +5,16 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    EmailStr,
+    Field,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.booking import status_groups
 from app.booking.models import BookingMode
@@ -521,6 +530,16 @@ class ParentRescheduleRequest(BaseModel):
     slot_id: uuid.UUID
 
 
+# 家長改資料時不能清空的欄位，與清空時的錯誤訊息。
+_PARENT_REQUIRED_MESSAGES = {
+    "parent_name": "家長稱呼不能清空",
+    "phone": "手機不能清空",
+    "email": "Email 不能清空",
+    "child_name": "寶貝姓名不能清空",
+    "party_size": "參觀人數不能清空",
+}
+
+
 class ParentDetailsUpdate(BaseModel):
     """家長自己修改的欄位；只送有改的欄位。必填欄位不能清空。"""
 
@@ -556,12 +575,13 @@ class ParentDetailsUpdate(BaseModel):
             raise ValueError("寶貝出生日期不能晚於今天")
         return value
 
-    @model_validator(mode="after")
-    def _required_stay_filled(self):
-        for field in ("parent_name", "phone", "email", "child_name", "party_size"):
-            if field in self.model_fields_set and getattr(self, field) is None:
-                raise ValueError(f"{field} 不能清空")
-        return self
+    @field_validator(*_PARENT_REQUIRED_MESSAGES, mode="before")
+    @classmethod
+    def _required_stay_filled(cls, value, info: ValidationInfo):
+        # 逐欄位回報：422 的 loc 指到被清空的那一欄（["body", "email"]），官網才能標在欄位旁。
+        if value is None:
+            raise ValueError(_PARENT_REQUIRED_MESSAGES[info.field_name])
+        return value
 
     def changes(self) -> dict:
         return {
@@ -572,9 +592,10 @@ class ParentDetailsUpdate(BaseModel):
 
 
 class ParentVisitRequestOut(BaseModel):
-    """家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
-    那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
-    欄位，連結一旦外流就等於把整份個資交出去。"""
+    """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
+    含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+    孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+    修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。"""
 
     id: uuid.UUID
     campus_key: str
@@ -616,6 +637,7 @@ class ParentVisitRequestOut(BaseModel):
         campus_name: str,
         campus_active: bool,
         campus_phone: str | None,
+        slots_open: bool = True,
     ) -> "ParentVisitRequestOut":
         change_open = parent_change_open(visit_request, deadline_hours)
         return cls(
@@ -646,7 +668,8 @@ class ParentVisitRequestOut(BaseModel):
             change_deadline_hours=deadline_hours,
             can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
             # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
-            can_reschedule=visit_request.status == "confirmed" and change_open and campus_active,
+            # 預約方式不是自選場次（暫停、LINE、電話…）時官網沒有場次可選，也不給改期。
+            can_reschedule=visit_request.status == "confirmed" and change_open and campus_active and slots_open,
             can_edit=visit_request.status == "confirmed" and change_open and campus_active,
         )
 
@@ -721,23 +744,30 @@ class RescheduleRequestOut(BaseModel):
 
 
 class ParentAccessLinkOut(BaseModel):
-    """目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
-    後台「有沒有、什麼時候到期」。"""
+    """目前有效的家長管理連結。案件明細只告訴後台「有沒有、什麼時候到期」，不回含
+    token 的網址；要給家長時用「重新產生連結並寄出」或重寄確認信。"""
 
     created_at: datetime
     expires_at: datetime
 
 
+class ResendConfirmationOut(BaseModel):
+    """重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。"""
+
+    queued: bool
+
+
 class ParentAccessLinkCreatedOut(BaseModel):
     """manage_url 是可以直接給家長的完整網址（公開官網 origin＝
     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
-    manage_url_fragment 自行組網址。兩者都含 token，只回這一次。"""
+    manage_url_fragment 自行組網址。兩者都含 token：後台只在這個回應拿得到，
+    寄給家長的信由伺服器在寄件當下重算。"""
 
     manage_url: str | None
     manage_url_fragment: str
     expires_at: datetime
     replaced_previous: bool
-    # 已排入寄給家長的信（沒有 Email 時為 False，園方要自行轉交連結）。
+    # 會寄信給家長：有 Email、案件有場次、而且有設定 SMTP。False 時園方要自行轉交連結。
     emailed: bool = False
 
 

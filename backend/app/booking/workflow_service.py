@@ -118,7 +118,7 @@ async def confirm_with_slot(
         "visit_request_confirmed",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
-    enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
     await analytics_service.record_internal_event(
         db,
         event_type=AnalyticsEventType.VISIT_CONFIRMED,
@@ -192,7 +192,7 @@ async def cancel(
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
     if visit_request.slot_id is not None:
-        enqueue_parent_email(db, visit_request, PARENT_VISIT_CANCELLED)
+        await enqueue_parent_email(db, visit_request, PARENT_VISIT_CANCELLED)
     await analytics_service.record_cancelled(db, visit_request, reason=reason_code)
     await db.flush()
     return visit_request
@@ -320,7 +320,7 @@ async def reschedule(
         "visit_request_rescheduled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
-    enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return visit_request
 
@@ -489,6 +489,6 @@ async def update_details_by_parent(
         setattr(visit_request, field, changes[field])
     visit_request.version += 1
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
-    enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return changed

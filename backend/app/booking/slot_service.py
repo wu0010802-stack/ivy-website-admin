@@ -197,7 +197,15 @@ async def count_bookable_slots(db: AsyncSession, campus_key: str, config, now: d
 
 
 async def get_slot_for_update(db: AsyncSession, slot_id: uuid.UUID) -> VisitSlot | None:
-    result = await db.execute(select(VisitSlot).where(VisitSlot.id == slot_id).with_for_update())
+    """鎖住時段列並以資料庫為準重讀。同一個 session 可能在上鎖前就讀過這個時段
+    （例如家長改期先不上鎖檢查），identity map 裡的舊值不能沿用：等鎖期間別的
+    交易可能剛停止申請或降了名額。"""
+    result = await db.execute(
+        select(VisitSlot)
+        .where(VisitSlot.id == slot_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 

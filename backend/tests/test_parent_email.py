@@ -7,8 +7,9 @@ from sqlalchemy import select
 
 from app.booking.models import OutboxMessage
 from app.notifications.parent_email import ParentEmail, build_parent_email, session_label, visit_when
+from app.operations.models import AuditLogEntry
 from app.workers.runner import process_outbox_batch
-from tests.conftest import book_slot, create_slot, open_manage
+from tests.conftest import book_slot, create_slot, legacy_request, open_manage
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 API = "/api/website/v1"
@@ -110,6 +111,8 @@ async def test_staff_cancel_and_reschedule_mail_the_parent(
     recording_mail_adapter.sent.clear()
 
     await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/reschedule", json={"new_slot_id": later})
+    # 變更信要在取消前寄出：寄件當下案件已取消的話，變更信會略過（test_booked_mail_still_queued_at_cancel_is_not_sent）。
+    await _run(db_session, recording_mail_adapter, app)
     await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/cancel", json={})
     await _run(db_session, recording_mail_adapter, app)
 
@@ -148,14 +151,21 @@ async def test_outbox_payloads_only_carry_ids(admin_client, public_client, db_se
     assert payloads and all(set(p) == {"campus_key", "receipt_id"} for p in payloads)
 
 
+def _enable_smtp(app) -> None:
+    app.state.settings.smtp_host = "smtp.example.invalid"
+    app.state.settings.smtp_from = "noreply@ivy.example"
+
+
 @pytest.mark.asyncio
-async def test_resend_and_regenerate_queue_parent_mail(admin_client, public_client, db_session):
+async def test_resend_and_regenerate_queue_parent_mail(app, admin_client, public_client, db_session):
     booked = await book_slot(admin_client, public_client)
+    _enable_smtp(app)
 
     resend = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/resend-confirmation")
     regenerate = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/access-link")
 
     assert resend.status_code == 202, resend.text
+    assert resend.json() == {"queued": True}
     assert regenerate.json()["emailed"] is True
     kinds = (
         await db_session.execute(select(OutboxMessage.kind).where(OutboxMessage.kind.like("parent_%")))
@@ -185,3 +195,69 @@ async def test_booking_config_says_whether_parent_mail_is_on(app, admin_client, 
     assert off["parent_email_enabled"] is False
     assert on["parent_email_enabled"] is True
     assert admin["parent_email_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_booked_mail_still_queued_at_cancel_is_not_sent(
+    app, admin_client, public_client, db_session, recording_mail_adapter
+):
+    """「預約成功」還沒寄出案件就取消了：寄件當下案件已非 confirmed，只寄「已取消」。"""
+    booked = await book_slot(admin_client, public_client)
+    cancelled = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/cancel", json={})
+    assert cancelled.status_code == 200, cancelled.text
+
+    await _run(db_session, recording_mail_adapter, app)
+
+    subjects = [mail["subject"] for mail in _parent_mails(recording_mail_adapter)]
+    assert len(subjects) == 1 and "參觀預約已取消" in subjects[0]
+    statuses = dict(
+        (
+            await db_session.execute(
+                select(OutboxMessage.kind, OutboxMessage.status).where(OutboxMessage.kind.like("parent_%"))
+            )
+        ).tuples().all()
+    )
+    assert statuses == {"parent_visit_booked": "skipped", "parent_visit_cancelled": "sent"}
+
+
+async def _parent_kinds(db_session) -> list[str]:
+    return sorted(
+        (await db_session.execute(select(OutboxMessage.kind).where(OutboxMessage.kind.like("parent_%")))).scalars().all()
+    )
+
+
+@pytest.mark.asyncio
+async def test_without_smtp_staff_is_told_the_parent_gets_no_mail(admin_client, public_client, db_session):
+    """沒設 SMTP：重新產生連結不能說「已寄出」（仍排信，之後設好會寄）；重寄確認信直接拒絕、不排信、不記稽核。"""
+    booked = await book_slot(admin_client, public_client)
+
+    regenerate = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/access-link")
+    resend = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/resend-confirmation")
+
+    assert regenerate.status_code == 200, regenerate.text
+    assert regenerate.json()["emailed"] is False
+    assert resend.status_code == 409
+    detail = resend.json()["detail"]
+    assert detail["code"] == "PARENT_EMAIL_DISABLED"
+    assert detail["message"] == "尚未設定寄信，無法寄出確認信；請把修改連結直接交給家長"
+    assert await _parent_kinds(db_session) == ["parent_visit_booked", "parent_visit_changed"]
+    audits = (
+        await db_session.execute(
+            select(AuditLogEntry.action).where(AuditLogEntry.action == "visit_request.resend_confirmation")
+        )
+    ).scalars().all()
+    assert audits == []
+
+
+@pytest.mark.asyncio
+async def test_regenerating_a_link_without_a_slot_does_not_mail_the_parent(app, admin_client, db_session):
+    """沒有場次的舊案件：信裡沒有日期只會讓家長困惑，不排變更信，emailed 為 False。"""
+    visit_id = await legacy_request(db_session, email="legacy@example.com")
+    _enable_smtp(app)
+
+    regenerate = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/access-link")
+
+    assert regenerate.status_code == 200, regenerate.text
+    assert regenerate.json()["emailed"] is False
+    assert regenerate.json()["manage_url_fragment"].startswith("/visit/manage#token=")
+    assert await _parent_kinds(db_session) == []

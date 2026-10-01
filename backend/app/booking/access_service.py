@@ -8,13 +8,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, or_, select, update
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
 from app.booking import history, slot_service
-from app.booking.models import BookingConfig, VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.outbox import enqueue_outbox
+from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
+from app.booking.history import Actor
+from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc
 
@@ -24,9 +24,6 @@ SESSION_TTL = timedelta(hours=2)
 # 電腦各開幾次）遠低於這個數字，超過時刪除最舊的。
 MAX_ACTIVE_SESSIONS_PER_REQUEST = 10
 _TOKEN_BYTES = 32
-# 家長送出改期申請時寫的 outbox kind；站內通知、LINE、Email 的標籤見
-# notifications/service.py 的 _KIND_LABELS 與後台 labels.ts。
-RESCHEDULE_REQUESTED_KIND = "visit_reschedule_requested"
 
 
 class TokenInvalid(Exception):
@@ -103,10 +100,29 @@ async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, 
 
 
 async def ensure_access_token(
-    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None, actor: Actor
 ) -> None:
-    if await current_manage_path(db, visit_request_id, secret=secret) is None:
-        await issue_access_token(db, visit_request_id, secret=secret, slot=slot)
+    """確保案件有一條系統重算得出來的修改連結（排入場次、補登、重寄確認信用）。
+
+    - 已有可重算的連結：沿用，有場次時依場次延長效期（不縮短）。
+    - 有效連結是 2026-09-30 以前隨機產生、或密鑰更換前發的（重算不出來，信裡放不進去）：
+      撤銷換新，並記一筆歷程——家長手上的舊連結會失效，園方要查得到是誰、何時換的。
+    - 沒有有效連結：發一條。"""
+    if await current_manage_path(db, visit_request_id, secret=secret) is not None:
+        if slot is not None:
+            await extend_token_expiry(db, visit_request_id, slot)
+        return
+    replaced = await active_access_token(db, visit_request_id) is not None
+    _, expires_at = await issue_access_token(db, visit_request_id, secret=secret, slot=slot)
+    if replaced:
+        # 只記到期時間，原始 token 不進歷程。
+        history.record_event(
+            db,
+            visit_request_id,
+            "access_link_created",
+            actor=actor,
+            after={"expires_at": expires_at.isoformat(), "replaced_previous": True},
+        )
 
 
 async def extend_token_expiry(db: AsyncSession, visit_request_id: uuid.UUID, slot: VisitSlot) -> None:
@@ -243,13 +259,16 @@ async def validate_parent_reschedule(
     campus = await db.get(Campus, visit_request.campus_key)
     if campus is not None and not campus.active:
         raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，請來電洽詢")
+    # 預約方式改成暫停、LINE、電話…時官網沒有場次可選，家長也不能線上改場次（取消照常）。
+    config = await db.get(BookingConfig, visit_request.campus_key)
+    if config is None or config.mode != BookingMode.SLOTS:
+        raise RescheduleNotAllowed("BOOKING_UNAVAILABLE", "本校目前暫停線上預約，要改時間請來電")
     slot = (await db.execute(select(VisitSlot).where(VisitSlot.id == requested_slot_id))).scalar_one_or_none()
     if slot is None or slot.campus_key != visit_request.campus_key:
         # 不區分「不存在」與「別校的」，避免用回應差異探測其他校的時段。
         raise RescheduleNotAllowed("SLOT_NOT_FOUND", "找不到這個時段")
     if slot.closed:
         raise RescheduleNotAllowed("SLOT_CLOSED", "這個時段已停止申請")
-    config = await db.get(BookingConfig, visit_request.campus_key)
     if not slot_service.is_publicly_bookable(slot, **slot_service.window_for(config)):
         raise RescheduleNotAllowed("SLOT_NOT_BOOKABLE", "這個時段目前無法預約")
     if slot.id == visit_request.slot_id:
@@ -284,8 +303,9 @@ async def close_pending_reschedules(
 
 
 async def active_access_token(db: AsyncSession, visit_request_id: uuid.UUID) -> ParentAccessToken | None:
-    """目前還能用的家長管理連結（未撤銷、未過期）中最新的一條；後台只顯示
-    有沒有、何時到期，原始連結產生後就查不回來。"""
+    """目前還能用的家長管理連結（未撤銷、未過期）中最新的一條；後台只顯示有沒有、
+    何時到期。原始連結不存資料庫，要用時由密鑰重算（current_manage_path）；2026-09-30
+    以前隨機產生、或密鑰更換前發的連結重算不出來。"""
     result = await db.execute(
         select(ParentAccessToken)
         .where(

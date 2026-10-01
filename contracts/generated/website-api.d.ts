@@ -1390,12 +1390,15 @@ export interface paths {
         put?: never;
         /**
          * Create Parent Access Link
-         * @description 產生（或重新產生）家長管理連結（規格 6.4）。同一時間只有一條有效：
-         *     重新產生會先撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
+         * @description 重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先
+         *     撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。
          *
-         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。
-         *     原始 token 只在這個回應出現一次，資料庫、稽核與歷程都只記產生這件事。
-         *     不會自動寄給家長——由園方自行轉交。
+         *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token
+         *     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
+         *
+         *     有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；
+         *     沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出
+         *     （另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。
          */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
@@ -1547,6 +1550,7 @@ export interface paths {
         /**
          * Resend Parent Confirmation
          * @description 重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。
+         *     沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。
          */
         post: operations["resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post"];
         delete?: never;
@@ -3006,7 +3010,8 @@ export interface components {
          * ParentAccessLinkCreatedOut
          * @description manage_url 是可以直接給家長的完整網址（公開官網 origin＝
          *     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
-         *     manage_url_fragment 自行組網址。兩者都含 token，只回這一次。
+         *     manage_url_fragment 自行組網址。兩者都含 token：後台只在這個回應拿得到，
+         *     寄給家長的信由伺服器在寄件當下重算。
          */
         ParentAccessLinkCreatedOut: {
             /**
@@ -3028,8 +3033,8 @@ export interface components {
         };
         /**
          * ParentAccessLinkOut
-         * @description 目前有效的家長管理連結；原始網址只在產生當下回傳一次，這裡只告訴
-         *     後台「有沒有、什麼時候到期」。
+         * @description 目前有效的家長管理連結。案件明細只告訴後台「有沒有、什麼時候到期」，不回含
+         *     token 的網址；要給家長時用「重新產生連結並寄出」或重寄確認信。
          */
         ParentAccessLinkOut: {
             /**
@@ -3093,9 +3098,10 @@ export interface components {
         };
         /**
          * ParentVisitRequestOut
-         * @description 家長端（憑安全連結）看到的案件。刻意不沿用 VisitRequestDetailOut：
-         *     那是後台用的，含未遮罩手機、家長姓名、提問與 assigned_staff_id 等內部
-         *     欄位，連結一旦外流就等於把整份個資交出去。
+         * @description 家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
+         *     含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+         *     孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+         *     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。
          */
         ParentVisitRequestOut: {
             /** Campus Active */
@@ -3529,6 +3535,14 @@ export interface components {
              * Format: uuid
              */
             visit_request_id: string;
+        };
+        /**
+         * ResendConfirmationOut
+         * @description 重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。
+         */
+        ResendConfirmationOut: {
+            /** Queued */
+            queued: boolean;
         };
         /** RetentionCountsOut */
         RetentionCountsOut: {
@@ -7887,9 +7901,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ResendConfirmationOut"];
                 };
             };
             /** @description Validation Error */

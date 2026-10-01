@@ -15,7 +15,7 @@ from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
 from app.booking import access_service
 from app.booking.access_models import RescheduleRequest
-from app.booking.models import VisitRequest, VisitSlot
+from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED
 from app.booking.parent_policy import change_deadline_hours, parent_change_deadline
 from app.campuses.models import Campus
@@ -249,13 +249,18 @@ async def _dispatch_parent_email(
     access_secret: str | None,
 ) -> bool:
     """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
-    沒有 Email、已匿名化），runner 會標成 skipped、不重試。"""
+    沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立），runner
+    會標成 skipped、不重試。"""
     if adapter is None:
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return False
     visit_request = await _load_visit_request(db, payload.get("receipt_id"))
     if visit_request is None or visit_request.anonymized_at is not None or not visit_request.email:
+        return False
+    # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
+    # 家長只該收到「已取消」。
+    if kind != PARENT_VISIT_CANCELLED and visit_request.status != VisitRequestStatus.CONFIRMED.value:
         return False
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):

@@ -28,9 +28,6 @@ from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
 
 
-# 規格 222：人工待確認的 slot 案件占位 24 小時。
-
-
 class ConfigVersionConflict(Exception):
     pass
 
@@ -233,9 +230,9 @@ async def _validate_submission(
     consent_revision_id: uuid.UUID | None,
     now: datetime,
     lock_slot: bool,
-) -> tuple[uuid.UUID, VisitSlot | None]:
+) -> tuple[uuid.UUID, VisitSlot]:
     """送單的業務檢查（預檢與上鎖建立共用，錯誤順序一致）。回傳要存進案件的
-    同意說明版本，以及 slots 模式下要占用的時段。lock_slot=True 時鎖住時段列。"""
+    同意說明版本，以及要占用的時段。lock_slot=True 時鎖住時段列。"""
     if config is None:
         raise BookingUnavailable()
 
@@ -433,7 +430,7 @@ async def submit_visit_request(
         after={"status": status, "slot": history.slot_brief(slot)},
     )
     await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
-    enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
     enqueue_outbox(
         db,
         visit_request.id,

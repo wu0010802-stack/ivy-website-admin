@@ -1190,7 +1190,11 @@ async def create_manual_visit_request(
             await db.rollback()
             raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
         await access_service.ensure_access_token(
-            db, visit_request.id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+            db,
+            visit_request.id,
+            secret=request.app.state.settings.session_secret,
+            slot=visit_request.slot,
+            actor=Actor.staff(current_user.id),
         )
         if payload.note and payload.note.strip():
             await workflow_service.add_contact_note(
@@ -1424,7 +1428,11 @@ async def confirm_visit_request(
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
     await access_service.ensure_access_token(
-        db, visit_request.id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
+        db,
+        visit_request.id,
+        secret=request.app.state.settings.session_secret,
+        slot=visit_request.slot,
+        actor=Actor.staff(current_user.id),
     )
     await audit_service.log_action(
         db,

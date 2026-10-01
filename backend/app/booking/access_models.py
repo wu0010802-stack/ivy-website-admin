@@ -10,8 +10,8 @@ from app.db import Base
 
 
 class ParentAccessToken(Base):
-    """高熵分享連結對應的 token；只存 hash，原始 token 只在建立當下
-    回傳一次，之後查不到、也不記在任何 log。"""
+    """高熵分享連結對應的 token；只存 hash，原始 token 不進資料庫、也不記在
+    任何 log。要放進信裡時由伺服器密鑰與列 id 重算（access_service._derive_raw）。"""
 
     __tablename__ = "parent_access_tokens"
 
