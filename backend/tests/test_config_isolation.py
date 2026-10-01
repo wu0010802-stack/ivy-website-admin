@@ -80,6 +80,8 @@ def test_valid_settings_construct_successfully():
     assert settings.active_database_url() == "postgresql://localhost/ivy_website_test"
     assert settings.indexing_enabled is False
     assert settings.enable_fixture is False
+    # 招生入學預設關閉（規格 §15 Q1 裁定前正式站不可開）。
+    assert settings.admissions_enabled is False
 
 
 @pytest.mark.parametrize("overrides", [
@@ -155,3 +157,14 @@ def test_line_config_blank_values_disable_line():
         line_channel_id=" ", line_channel_secret="", line_redirect_uri="",
     )
     assert not settings.line_oauth_enabled
+
+
+def test_admissions_flag_reads_environment(monkeypatch):
+    monkeypatch.setenv("WEBSITE_ADMISSIONS_ENABLED", "true")
+    settings = Settings(
+        database_url="postgresql://localhost/ivy_website_dev",
+        environment="test",
+        test_database_url="postgresql://localhost/ivy_website_test",
+        session_secret="test-only-secret",
+    )
+    assert settings.admissions_enabled is True

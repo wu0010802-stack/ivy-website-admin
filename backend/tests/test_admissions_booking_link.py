@@ -27,7 +27,8 @@ from tests.admissions_helpers import (  # noqa: F401
     reception_yihua_client,
     started_booking,
 )
-from tests.conftest import legacy_request
+from app.main import create_app
+from tests.conftest import _logged_in_client, _test_settings, legacy_request
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -342,3 +343,35 @@ async def test_arrivals_and_rebuild_permissions(admin_client, reception_yihua_cl
     assert created.status_code == 200, created.text
     assert created.json()["visit_request_id"] == request_id
     assert created.json()["visit_date"] == today_local().isoformat()  # 舊案沒有場次：建立當天
+
+
+@pytest.mark.asyncio
+async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client, public_client, db_session):
+    """F1：招生功能開關關閉（正式站預設）時，標記已到場照常、不建招生訪視；
+    /admin/admissions/* 不掛路由，一律 404。"""
+    booking = await started_booking(admin_client, public_client, db_session)
+    request_id = await legacy_request(db_session, status="completed")
+    disabled = create_app(_test_settings().model_copy(update={"admissions_enabled": False}))
+    client = await _logged_in_client(disabled, "admin@ivy.example", "super-admin-password-123")
+    try:
+        done = await complete(client, booking["id"])
+        assert done.status_code == 200, done.text
+        assert done.json()["status"] == "completed"
+        assert await _visits_for(db_session, booking["id"]) == []
+        for method, path in (
+            ("GET", f"{ADMISSIONS}/records?campus_key=yihua"),
+            ("POST", f"{ADMISSIONS}/records?campus_key=yihua"),
+            ("GET", f"{ADMISSIONS}/board?campus_key=yihua"),
+            ("GET", f"{ADMISSIONS}/options?campus_key=yihua"),
+            ("GET", ARRIVALS),
+            ("POST", f"{ADMISSIONS}/from-visit-request/{request_id}"),
+        ):
+            response = await client.request(method, path, json={} if method == "POST" else None)
+            assert response.status_code == 404, (method, path, response.text)
+    finally:
+        await client.aclose()
+        await disabled.state.engine.dispose()
+        await disabled.state.rate_limit_engine.dispose()
+    # 之後開啟：關閉期間已到場的預約出現在「已到場但沒有招生訪視」，可以補建。
+    missing = (await booking_link.arrivals(db_session, "yihua"))["missing"]
+    assert booking["id"] in {str(row["visit_request_id"]) for row in missing}

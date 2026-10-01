@@ -212,7 +212,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(line_router)
     app.include_router(operations_router)
-    app.include_router(admissions_router)
+    if settings.admissions_enabled:
+        # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
+        app.include_router(admissions_router)
 
     return app
 

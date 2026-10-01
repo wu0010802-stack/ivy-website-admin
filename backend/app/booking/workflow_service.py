@@ -225,11 +225,17 @@ async def mark_no_show(
 
 
 async def mark_completed(
-    db: AsyncSession, visit_request: VisitRequest, *, actor: Actor | None = None
+    db: AsyncSession,
+    visit_request: VisitRequest,
+    *,
+    actor: Actor | None = None,
+    admissions_enabled: bool = False,
 ) -> VisitRequest:
     """規格 225：完成參觀後名額仍算已使用。
 
-    招生入學（2026-10 規格 6.1）：同一個交易建立這筆預約的招生訪視（已有就略過）。
+    招生入學（2026-10 規格 6.1）：admissions_enabled（路由傳入
+    Settings.admissions_enabled，預設關閉）時，同一個交易建立這筆預約的招生訪視
+    （已有就略過）；關閉時只標記已到場，之後開啟可從「官網預約」分頁補建。
     建立路徑不做會丟例外的資料檢查；不吞例外——資料庫錯誤就讓整個「標記已到場」
     回滾，不會出現已到場卻沒有招生訪視。這是確認到場的附帶效果，操作者只需要
     booking.handle。"""
@@ -243,7 +249,8 @@ async def mark_completed(
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.COMPLETED.value
     await _close(db, visit_request, "completed", before=before, actor=actor)
-    await booking_link.ensure_from_visit_request(db, visit_request, actor_user_id=_resolver_id(actor))
+    if admissions_enabled:
+        await booking_link.ensure_from_visit_request(db, visit_request, actor_user_id=_resolver_id(actor))
     await analytics_service.record_internal_event(
         db,
         event_type=AnalyticsEventType.VISIT_COMPLETED,

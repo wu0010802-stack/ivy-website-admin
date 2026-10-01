@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 招生入學（未部署）
+
+`feature/admissions-20261001` 階段 A（後端與轉移契約）已完成，後台畫面（B）與統計（C）還沒做。程式帶開關上線，**預設關閉**。
+
+- **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：`/api/website/v1/admin/admissions/*` 不掛路由、一律 404；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
+- **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天（`docs/specs/2026-09-30-website-admissions-design.md`）。
+- **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數，再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。開啟後，關閉期間已到場的預約會列在後台「官網預約」分頁的「已到場但沒有招生訪視」，可以逐筆補建。
+- **Migration `4a7e2c9d1b63`**（`backend/migrations/versions/4a7e2c9d1b63_admissions.py`）：新建 `recruitment_visits`、`recruitment_event_log`、`grade_intake_targets` 三張表，`retention_policies` 加可為 NULL 的 `admissions_days` 與 CHECK；不改寫既有資料，可以安全隨程式上線（API 啟動時自動 upgrade），開關關著時三張表維持空的。
+- 端到端測試（`tests/stack/start-api.sh`）設 `WEBSITE_ADMISSIONS_ENABLED=true`；pytest 的測試設定（`backend/tests/conftest.py`）也預設開啟。
+
 ## 2026-10-01 全人教育 A2 六圈、移除操作鈕（web-only，已部署）
 
 使用者定案採用 A2，保留全人教育左頁原樣，並要求移除「再看一次」按鈕及部署。右頁由紙轉盤換成六張透明圓片；進場播放一次，完成停住，沒有下方控制鈕。
@@ -55,6 +65,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
+| api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |

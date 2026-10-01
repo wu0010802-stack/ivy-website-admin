@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     line_messaging_channel_secret: str | None = Field(default=None, repr=False)
     line_messaging_access_token: str | None = Field(default=None, repr=False)
     retention_allow_real_run: bool = False
+    # 招生入學模組（2026-10）。預設關閉：規格 §15 Q1（預約同意書是否涵蓋參觀後的
+    # 招生聯繫、招生訪視保存幾天）裁定前，正式站不可開啟。關閉時「標記已到場」
+    # 不建招生訪視，/admin/admissions/* 不掛路由（404）；保存政策的招生類別照常。
+    admissions_enabled: bool = False
     # API 內建定期工作（排程發布、逾期占位、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None

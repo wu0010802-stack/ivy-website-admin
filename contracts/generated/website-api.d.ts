@@ -1683,7 +1683,8 @@ export interface paths {
         /**
          * Mark Completed
          * @description 家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
-         *     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。
+         *     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。招生入學開啟時
+         *     同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。
          */
         post: operations["mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post"];
         delete?: never;

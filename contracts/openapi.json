@@ -17570,7 +17570,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/complete": {
       "post": {
-        "description": "家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直\n沒有路由，已確認的案件只能停在「已確認」或被標成未到場。",
+        "description": "家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直\n沒有路由，已確認的案件只能停在「已確認」或被標成未到場。招生入學開啟時\n同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。",
         "operationId": "mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post",
         "parameters": [
           {
