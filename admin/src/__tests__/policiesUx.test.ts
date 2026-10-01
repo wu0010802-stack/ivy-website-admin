@@ -8,14 +8,16 @@ import PoliciesView from '../views/PoliciesView.vue'
 import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
+import { RETENTION_CATEGORY_LABELS } from '../api/labels'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 
 const site: { content: { site_meta?: Record<string, unknown> } } = { content: { site_meta: { description: '網站說明', share_image: '', allow_indexing: false } } }
 
-const counts = { cancelled: 2, no_show: 0, completed: 1 }
-const days = { cancelled_days: 365, completed_days: 730, open_overdue_days: 180 }
+// 後端一定帶 counts.admissions（預設 0）與 days.admissions_days（預設 null）。
+const counts = { cancelled: 2, no_show: 0, completed: 1, admissions: 0 }
+const days = { cancelled_days: 365, completed_days: 730, open_overdue_days: 180, admissions_days: null as number | null }
 const report = { days, counts, total: 3, open_overdue_count: 4, dry_run: true, run_id: null }
 
 function policy(overrides: Record<string, unknown> = {}) {
@@ -34,7 +36,7 @@ function policy(overrides: Record<string, unknown> = {}) {
 
 const runs = [
   { id: 'r1', created_at: '2026-09-25T01:00:00Z', trigger: 'scheduled', actor_email: null, days, counts, total: 3, open_overdue_count: 0 },
-  { id: 'r2', created_at: '2026-09-24T01:00:00Z', trigger: 'manual', actor_email: 'admin@ivy.example', days, counts: { cancelled: 4, no_show: 1, completed: 0 }, total: 5, open_overdue_count: 2 },
+  { id: 'r2', created_at: '2026-09-24T01:00:00Z', trigger: 'manual', actor_email: 'admin@ivy.example', days, counts: { cancelled: 4, no_show: 1, completed: 0, admissions: 0 }, total: 5, open_overdue_count: 2 },
 ]
 
 async function setup(firstError?: Error, currentPolicy = policy(), runsResponse: () => Promise<unknown> = async () => runs) {
@@ -305,5 +307,95 @@ describe('個資與搜尋設定：保存政策的保護', () => {
     const { wrapper } = await setup(new ApiError(503, 'Service Unavailable'))
     expect(wrapper.text()).toContain('無法讀取官網目前的設定')
     expect(wrapper.find('.site-unpublished').exists()).toBe(false)
+  })
+})
+
+describe('招生訪視的保存天數（規格第 11 節）', () => {
+  const withAdmissions = (overrides: Record<string, unknown> = {}) => {
+    const admissionsDays = (overrides.admissions_days as number | null | undefined) ?? null
+    return policy({ preview: { ...report, days: { ...days, admissions_days: admissionsDays } }, ...overrides })
+  }
+
+  it('報表類別有招生訪視', () => {
+    expect(RETENTION_CATEGORY_LABELS.admissions).toBe('招生訪視')
+  })
+
+  it('留空＝不自動清理；欄位放在未結案提醒之後，前三欄位置不變；天數 null 且 0 筆時試算不列招生訪視', async () => {
+    const { wrapper } = await setup(undefined, withAdmissions())
+    const fields = wrapper.findAll('.days-field').map((field) => field.text())
+    expect(fields[2]).toContain('天仍未結案')
+    expect(fields[3]).toContain('最後更新後保留')
+    expect(fields[3]).toContain('留空＝不自動清理')
+    const input = wrapper.findAll('.retention-form input')[3]!
+    expect((input.element as HTMLInputElement).value).toBe('')
+    expect(input.attributes('placeholder')).toBe('不自動清理')
+    expect(wrapper.get('.retention__preview').text()).not.toContain('招生訪視')
+    expect(button(wrapper, '儲存政策')!.attributes('disabled')).toBeDefined()
+  })
+
+  it('有設天數時，試算列出招生訪視（0 筆也列）', async () => {
+    const { wrapper } = await setup(undefined, withAdmissions({ admissions_days: 365 }))
+    expect(wrapper.get('.retention__preview').text()).toMatch(/招生訪視\s*0\s*筆/)
+  })
+
+  it('沒設天數但有筆數時，試算仍列出招生訪視', async () => {
+    const preview = { ...report, counts: { ...counts, admissions: 2 }, total: 5 }
+    const { wrapper } = await setup(undefined, withAdmissions({ preview }))
+    expect(wrapper.get('.retention__preview').text()).toMatch(/招生訪視\s*2\s*筆/)
+  })
+
+  it('填天數就送出；輸入框限制 30–3650，清空送 null', async () => {
+    const put = vi.spyOn(api, 'put').mockResolvedValue(withAdmissions({ admissions_days: 365, version: 2 }) as never)
+    const { wrapper } = await setup(undefined, withAdmissions())
+    const number = wrapper.findAllComponents({ name: 'ElInputNumber' })[3]!
+    expect(number.props()).toMatchObject({ min: 30, max: 3650, valueOnClear: null })
+    number.vm.$emit('update:modelValue', 365)
+    await flushPromises()
+    expect(wrapper.findAll('.days-field')[3]!.text()).toContain('（約 1 年）')
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/site-policies/retention', expect.objectContaining({ expected_version: 1, admissions_days: 365 }))
+
+    wrapper.findAllComponents({ name: 'ElInputNumber' })[3]!.vm.$emit('update:modelValue', null)
+    await flushPromises()
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/site-policies/retention', expect.objectContaining({ expected_version: 2, admissions_days: null }))
+  })
+
+  it('自動清理開著時，第一次設定招生訪視天數等於開始清理：先確認，按先不要就不儲存', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const put = vi.spyOn(api, 'put')
+    const { wrapper } = await setup(undefined, withAdmissions({ auto_run_enabled: true }))
+    wrapper.findAllComponents({ name: 'ElInputNumber' })[3]!.vm.$emit('update:modelValue', 730)
+    await flushPromises()
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledOnce()
+    const [message, title] = confirm.mock.calls[0]! as unknown as [string, string]
+    expect(title).toBe('確定縮短保留天數？')
+    expect(message).toContain('招生訪視到期會清除孩子與聯絡人的個資')
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('改成不自動清理（清空）不必確認', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const put = vi.spyOn(api, 'put').mockResolvedValue(withAdmissions({ auto_run_enabled: true, version: 2 }) as never)
+    const { wrapper } = await setup(undefined, withAdmissions({ auto_run_enabled: true, admissions_days: 365 }))
+    wrapper.findAllComponents({ name: 'ElInputNumber' })[3]!.vm.$emit('update:modelValue', null)
+    await flushPromises()
+    await button(wrapper, '儲存政策')!.trigger('click')
+    await flushPromises()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledOnce()
+  })
+
+  it('清理紀錄寫出招生訪視筆數與天數；天數 null 且 0 筆的舊紀錄文字不變', async () => {
+    const newer = { ...runs[0]!, counts: { ...counts, admissions: 2 }, days: { ...days, admissions_days: 365 } }
+    const { wrapper } = await setup(undefined, withAdmissions({ admissions_days: 365 }), async () => [newer, runs[1]!])
+    const items = wrapper.findAll('.retention-runs__item').map((item) => item.text())
+    expect(items[0]).toMatch(/招生訪視\s*2\s*筆/)
+    expect(items[0]).toContain('招生訪視 365 天')
+    expect(items[1]).not.toContain('招生訪視')
   })
 })

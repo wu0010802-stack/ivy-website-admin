@@ -44,12 +44,14 @@ async function loadSettings() {
 const allowIndexing = computed(() => siteMeta.value?.allow_indexing !== false)
 
 // ---- 個資保存政策（規格 L282）----
-// 會被清理的只有已結案的三種狀態；還沒結案的只算件數提醒。
+// 會被清理的只有已結案的三種狀態；還沒結案的只算件數提醒。招生訪視是另一類紀錄（規格第 11 節），
+// 天數可以留空＝不自動清理；試算與紀錄只在有設天數或有筆數時才列。
 const CATEGORY_KEYS = ['cancelled', 'no_show', 'completed'] as const
-type RetentionForm = Pick<RetentionPolicyOut, 'cancelled_days' | 'completed_days' | 'open_overdue_days' | 'auto_run_enabled'>
+type RetentionCountKey = keyof RetentionReportOut['counts']
+type RetentionForm = Pick<RetentionPolicyOut, 'cancelled_days' | 'completed_days' | 'open_overdue_days' | 'auto_run_enabled' | 'admissions_days'>
 
 const policy = ref<RetentionPolicyOut | null>(null)
-const form = ref<RetentionForm>({ cancelled_days: 365, completed_days: 365, open_overdue_days: 365, auto_run_enabled: false })
+const form = ref<RetentionForm>({ cancelled_days: 365, completed_days: 365, open_overdue_days: 365, auto_run_enabled: false, admissions_days: null })
 const policyError = ref<string | null>(null)
 const preview = ref<RetentionReportOut | null>(null)
 const runs = ref<RetentionRunOut[]>([])
@@ -60,6 +62,9 @@ const saving = ref(false)
 const running = ref(false)
 const busy = computed(() => saving.value || running.value)
 
+// undefined 與 null 都是「不自動清理」，不算修改。
+const admissionsChanged = computed(() => (policy.value?.admissions_days ?? null) !== (form.value.admissions_days ?? null))
+
 const dirty = computed(() => {
   const p = policy.value
   if (!p) return false
@@ -67,7 +72,8 @@ const dirty = computed(() => {
     p.cancelled_days !== form.value.cancelled_days ||
     p.completed_days !== form.value.completed_days ||
     p.open_overdue_days !== form.value.open_overdue_days ||
-    p.auto_run_enabled !== form.value.auto_run_enabled
+    p.auto_run_enabled !== form.value.auto_run_enabled ||
+    admissionsChanged.value
   )
 })
 useUnsavedChanges(dirty, busy)
@@ -79,7 +85,8 @@ const daysDirty = computed(() => {
   return (
     p.cancelled_days !== form.value.cancelled_days ||
     p.completed_days !== form.value.completed_days ||
-    p.open_overdue_days !== form.value.open_overdue_days
+    p.open_overdue_days !== form.value.open_overdue_days ||
+    admissionsChanged.value
   )
 })
 
@@ -98,6 +105,7 @@ function applyPolicy(result: RetentionPolicyOut) {
     completed_days: result.completed_days,
     open_overdue_days: result.open_overdue_days,
     auto_run_enabled: result.auto_run_enabled,
+    admissions_days: result.admissions_days ?? null,
   }
 }
 
@@ -137,8 +145,13 @@ const taipeiDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', y
 async function confirmAutoCleanup(): Promise<boolean> {
   const p = policy.value
   if (!p || !form.value.auto_run_enabled) return true
-  const shortened = form.value.cancelled_days < p.cancelled_days || form.value.completed_days < p.completed_days
-  const lengthened = form.value.cancelled_days > p.cancelled_days || form.value.completed_days > p.completed_days
+  const oldAdmissions = p.admissions_days ?? null
+  const newAdmissions = form.value.admissions_days ?? null
+  // 招生訪視從「不自動清理」改成有天數＝開始清理，當成縮短；改回留空＝不再清理，當成延長。
+  const admissionsShortened = newAdmissions !== null && (oldAdmissions === null || newAdmissions < oldAdmissions)
+  const admissionsLengthened = oldAdmissions !== null && (newAdmissions === null || newAdmissions > oldAdmissions)
+  const shortened = form.value.cancelled_days < p.cancelled_days || form.value.completed_days < p.completed_days || admissionsShortened
+  const lengthened = form.value.cancelled_days > p.cancelled_days || form.value.completed_days > p.completed_days || admissionsLengthened
   const enabling = !p.auto_run_enabled
   if (!enabling && !shortened) return true
   const report = preview.value
@@ -154,7 +167,7 @@ async function confirmAutoCleanup(): Promise<boolean> {
   else when = '儲存後約一分鐘內就會執行第一次，之後每天一次。'
   try {
     await ElMessageBox.confirm(
-      `${when}${count}到期案件的姓名、電話、孩子資料、問題與聯絡紀錄會改成匿名文字，無法復原。`,
+      `${when}${count}到期案件的姓名、電話、孩子資料、問題與聯絡紀錄會改成匿名文字，無法復原。${admissionsShortened ? '招生訪視到期會清除孩子與聯絡人的個資、備註、電訪回應與原因說明，統計數字保留。' : ''}`,
       enabling ? '確定開啟每天自動清理？' : '確定縮短保留天數？',
       {
         confirmButtonText: enabling ? '開啟自動清理' : '縮短保留天數',
@@ -221,8 +234,14 @@ const runBlockedReason = computed(() => {
   return ''
 })
 
-function countLines(report: { counts: Partial<Record<string, number>> }): string {
-  return CATEGORY_KEYS.map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${report.counts[key] ?? 0} 筆`).join('、')
+// 後端一定帶 counts.admissions（預設 0）與 admissions_days（預設 null）；有設天數或有筆數才列招生訪視，
+// 舊的清理紀錄（null／0）文字因此不變。
+function reportKeys(counts: RetentionReportOut['counts'], admissionsDays: number | null | undefined): RetentionCountKey[] {
+  return admissionsDays != null || counts.admissions > 0 ? [...CATEGORY_KEYS, 'admissions'] : [...CATEGORY_KEYS]
+}
+
+function countLines(report: Pick<RetentionReportOut, 'counts' | 'days'>): string {
+  return reportKeys(report.counts, report.days.admissions_days).map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${report.counts[key] ?? 0} 筆`).join('、')
 }
 
 async function runRetention() {
@@ -253,7 +272,8 @@ async function runRetention() {
 
 function runDays(run: RetentionRunOut): string {
   const d = run.days
-  return `取消／未到場 ${d.cancelled_days} 天、完成 ${d.completed_days} 天`
+  const base = `取消／未到場 ${d.cancelled_days} 天、完成 ${d.completed_days} 天`
+  return d.admissions_days != null ? `${base}、招生訪視 ${d.admissions_days} 天` : base
 }
 
 onMounted(() => {
@@ -299,6 +319,23 @@ onMounted(() => {
               </div>
               <span class="field-help">這些案件不會被清理，只在下方列出件數，提醒先到參觀案件結案（取消、完成或未到場）。</span>
             </el-form-item>
+            <el-form-item label="招生訪視">
+              <div class="days-field">
+                <span>最後更新後保留</span>
+                <el-input-number
+                  v-model="form.admissions_days"
+                  :min="30"
+                  :max="3650"
+                  :step="30"
+                  :value-on-clear="null"
+                  :disabled="busy"
+                  placeholder="不自動清理"
+                  aria-label="招生訪視：最後更新後保留幾天（留空＝不自動清理）"
+                />
+                <span>天<span class="days-field__hint">（{{ form.admissions_days ? daysHint(form.admissions_days) : '留空＝不自動清理' }}）</span></span>
+              </div>
+              <span class="field-help">招生入學頁的訪視紀錄，不隨參觀案件清理。到期會清除孩子姓名、生日、電話、聯絡人、地址、備註、電訪回應與原因說明，保留統計需要的欄位。天數請先跟園長確認；留空就不會自動清理。</span>
+            </el-form-item>
             <el-form-item label="每天自動清理">
               <el-switch v-model="form.auto_run_enabled" :disabled="busy" active-text="開啟" inactive-text="關閉" aria-label="每天自動清理" />
               <span class="field-help">開啟後，系統每天（台灣時間）依上面的天數自動匿名化一次，並記在清理紀錄。開啟或縮短天數時，儲存前會再確認一次。</span>
@@ -317,7 +354,7 @@ onMounted(() => {
               <template v-else-if="preview">
                 <p>依目前的政策，現在執行會處理 <strong class="num">{{ preview.total }}</strong> 筆：</p>
                 <ul class="retention__counts">
-                  <li v-for="key in CATEGORY_KEYS" :key="key">{{ RETENTION_CATEGORY_LABELS[key] }} <strong class="num">{{ preview.counts[key] ?? 0 }}</strong> 筆</li>
+                  <li v-for="key in reportKeys(preview.counts, policy.admissions_days)" :key="key">{{ RETENTION_CATEGORY_LABELS[key] }} <strong class="num">{{ preview.counts[key] ?? 0 }}</strong> 筆</li>
                 </ul>
                 <p v-if="preview.open_overdue_count > 0" class="retention__overdue">
                   另有 <strong class="num">{{ preview.open_overdue_count }}</strong> 筆送出超過 {{ policy.open_overdue_days }} 天仍未結案，不會被清理，請先到<router-link to="/visit-requests">參觀案件</router-link>處理。
