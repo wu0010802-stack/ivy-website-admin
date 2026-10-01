@@ -148,11 +148,11 @@ describe('左右預覽卡是線稿（2026-09-29 晚）', () => {
     ...parts, campusKey: 'yihua', registration: SKETCH_REGISTRATION.yihua!, lineSrc: '/a.webp', colourSrc: '/b.webp',
     objectPosition: 'center 55%', skyRgb: '', from, wash: false
   })
-  it('卡片依 lineArt 掛 data-art="line"：照片淡出、canvas 露出；中央那張不在集合裡', () => {
+  it('卡片依 lineArt 掛 data-art="line"：照片淡出、canvas 露出；首次中央也能預畫線稿', () => {
     expect(board).toContain(`:data-art="lineArt.has(campus.key) ? 'line' : undefined"`)
     expect(board).toContain('.photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}')
     expect(board).toContain('.photo-card[data-art=line] img{opacity:0;')
-    expect(board).toContain("wanted: () => current.value?.key !== campus.key")
+    expect(board).toContain('current.value?.key !== campus.key || initialSketch.value === campus.key')
   })
   it('換到中央：從預覽線稿接手，手動換校上水彩、自動輪播只暈開；離開中央的那張褪回線稿', () => {
     expect(board).toContain("void runDevelop(selected, 'sketch', !automatic)")
@@ -165,7 +165,7 @@ describe('左右預覽卡是線稿（2026-09-29 晚）', () => {
     handle.cancel()
     expect(parts.card.classList.contains('is-sketch')).toBe(false)
   })
-  it('從照片畫起時素材載好才蓋住（原本的第一次捲到）', () => {
+  it('沒有預覽線稿的手動切換：從照片畫起時素材載好才蓋住', () => {
     const parts = card()
     const handle = develop(parts, 'photo')
     expect(parts.card.classList.contains('is-sketch')).toBe(false)

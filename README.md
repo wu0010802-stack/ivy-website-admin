@@ -1,3 +1,11 @@
+## 2026-10-01 分校資訊首次從線稿進場（未部署）
+
+`CampusBoard.vue` 的預設中央校與左右預覽一起預畫線稿，首次露出後接續水彩上色、暈開成照片，移除「彩色 → 線稿 → 彩色」的順序。SSR 即標記首張等待狀態，素材載入與動畫期間暫停輪播計時；素材失敗、減少動態、強制色彩及無 JavaScript 保留照片 fallback。手動切換、自動輪播節奏沿用既有設定。
+
+修正位於獨立 worktree `/private/tmp/ivy-campus-first-sketch-20261001`，基底為 `origin/main` 的 `392a41c`；原 Desktop 工作目錄的未提交修改保持不動。
+
+驗證：Node 22，`npm --prefix web run typecheck` 通過；`npm run test:website` 65 檔 668 項通過；Playwright Chrome 桌機 1440×900、手機 390×844、線稿延遲下載、減少動態、強制色彩、無 JavaScript、線稿下載失敗共 7 種情境通過。桌機／手機逐幀確認首次上色前沒有彩色照片閃現，回捲不重播、手動切換正常，無水平溢出或 runtime error。截圖與狀態紀錄在 `output/playwright/campus-first-sketch/`；未測 Safari／iOS 實機，未 push 或部署。
+
 ## 2026-09-30 下午已完成分支併入 main（`merge/branches-20260930b`）
 
 併入三個已提交、worktree 乾淨的分支，各自說明見下方同日段落：`feature/tassels-five-20260930`（開場布幕流蘇固定五顆）、`feature/height-ruler-20260930`（首頁拿掉桌機章節指示）、`feature/mobile-perf-20260930`（手機效能第三輪）。合併基底是 main `7189998`（首屏筆刷的部署紀錄）。
