@@ -214,3 +214,12 @@ Playwright（`channel:'chrome'`）在 stack 環境截 1440×900、390×844：官
 - [ ] **Step 4：回報**
 
 列出：完成的 task、實際跑過的指令與結果、截圖路徑、未驗證項、上線前使用者要做的事（規格 §7）。**不 push、不部署**；是否開 PR、何時上線由使用者決定。
+
+## 階段 A 帶過來的事項（2026-10-01，D2 部署文件要寫）
+
+- 上線前用 SQL 唯讀查兩件事：(1) 哪些 inquiry 校已有每週規則或未來場次（預先確認 migration 會把五校各切成 slots 或 paused）；(2) 未來、`closed_source IS NULL` 的已關閉場次上有沒有 confirmed 案件（這些不再列入待人工處理）。
+- 部署空窗期：舊官網表單送出會先收到 422（缺 `slot_id`／`email`），或因 booking_configs `version` 遞增收到 `BOOKING_CONFIG_CHANGED`；web 與 api 必須同一次上線。
+- 更換 `WEBSITE_SESSION_SECRET`：已發出的修改連結仍可用到到期，但系統無法再重算（重送、寄信拿不到連結），園方可按「重新產生連結並寄出」。
+- 家長端每案每日上限：改期 5 次、改資料 10 次。
+- 待使用者決定（Ruling 9）：每筆官網預約同時通知園方「新的參觀需求」與「參觀預約已確認」兩則（LINE 群組一筆兩則推播），要不要合併成一則。
+- origin/main 已前進（審查時為 392a41c，動到 `contracts/openapi.json` 與 `operations/routes.py`）：合併前 rebase 並重跑 `npm run contract:generate`、後端全套。

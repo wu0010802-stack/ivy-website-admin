@@ -1450,3 +1450,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 cd admin && npm run typecheck && npx vitest run
 ```
 兩者成功輸出貼進回報。
+
+## 階段 A 帶過來的事項（2026-10-01，實作前讀）
+
+- `admin/src/api/labels.ts` 已有 `VISIT_GROUP_LABELS`（A6 加，型別 `Record<string, string>`，另有 `group` 的 audit metadata formatter）——C1 沿用或改成 `Record<VisitGroup, string>`，不要重複宣告。
+- `POST …/resend-confirmation` 未設 SMTP 時回 409 `PARENT_EMAIL_DISABLED`（訊息「尚未設定寄信，無法寄出確認信；請把修改連結直接交給家長」），有型別 `ResendConfirmationOut { queued }`；`access-link` 回應的 `emailed` 只在有 Email、有場次且已設 SMTP 時為 true。`ParentAccessLinkPanel` 要依 `emailed` 決定文案（false 時提示園方自行轉交連結），C2 的「新連結已寄到家長信箱」只在 `emailed` 為 true 時顯示。
+- 已知擱置：舊的 `pending_confirmation` 案件按「重新產生連結」會回 `emailed=true`，但寄件時因非 confirmed 被略過——面板文案對 pending 案件不要說「已寄出」。
+- 後台歷程 `admin/src/api/visitHistory.ts` 目前不顯示 `details_updated` 的 `after.fields`（家長改了哪些欄位），C2 補上（欄位名翻中文）。
+- 家長自己改期時，舊的 pending 改期申請會記成 `reschedule_superseded`，後台顯示「家長的改期申請失效（園方已直接改期）」——標籤改成不寫「園方」。
+- 案件列表目前只能依建立時間排序；「預約正常」分頁一般人會預期依參觀時間由近到遠（Ruling 10：在 C1 加排序選項，後端需要時加 `order=visit` 一類參數）。
+- `slotSyncLines` 要顯示 `slot_sync.created`（C5 已列）。

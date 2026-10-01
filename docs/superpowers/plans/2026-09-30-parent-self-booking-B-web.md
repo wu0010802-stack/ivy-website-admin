@@ -742,3 +742,12 @@ npm --prefix web run typecheck
 npm run test:website
 ```
 兩者成功輸出貼進回報。
+
+## 階段 A 帶過來的事項（2026-10-01，實作前讀）
+
+- 家長端 `POST /public/visit-manage/reschedule`、`PATCH /public/visit-manage/me` 有每案每日上限（改期 5 次、改資料 10 次），超過回 429 `RATE_LIMITED`（訊息「這筆預約今天已經修改很多次了…」）。`useParentVisit.operationFailed` 現有的 429 文案要改成顯示伺服器訊息（`detail.message`）。
+- `PATCH me` 在分校停用時回 409 `BOOKING_UNAVAILABLE`（既有分支會重抓 `/me`，確認文案合適）。
+- 分校預約方式不是 `slots` 時，`can_reschedule` 為 false、改期回 409 `BOOKING_UNAVAILABLE`「本校目前暫停線上預約，要改時間請來電」；管理頁要能顯示這種狀態（只剩取消）。
+- `PATCH me` 清空必填欄位的 422：`loc` 指到欄位（`["body","email"]`），但 `msg` 帶 Pydantic 前綴「Value error, 」——官網依 `loc` 顯示自己的中文訊息，不要直接顯示 `msg`。
+- 版本衝突碼是 `VISIT_REQUEST_VERSION_CONFLICT`（園方改承辦人／下次聯絡時間也會遞增同一個 version，所以家長可能在沒看到變化時收到 409，重新載入即可）。
+- 送單回應欄位是 `manage_path`（相對路徑），不是 `manage_url`。
