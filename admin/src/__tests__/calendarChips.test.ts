@@ -36,4 +36,9 @@ describe('月曆格子的色塊（參考義華行事曆）', () => {
     expect(dayAriaLabel('2026-10-06', [slot({ closed: true, closed_source: 'manual' })], null, NOW)).toContain('1 場停止申請')
     expect(dayAriaLabel('2026-10-06', [], '教師研習', NOW)).toContain('休假：教師研習')
   })
+
+  it('休假日關閉的場次仍有家長預約時，預約色塊照畫（待人工處理）', () => {
+    const chips = dayChips([slot({ closed: true, closed_source: 'exception', booked_count: 1, visits: [visit('v1', '王小明')] })], NOW)
+    expect(chips.map(c => [c.kind, c.text])).toEqual([['visit', '上午場 王小明']])
+  })
 })

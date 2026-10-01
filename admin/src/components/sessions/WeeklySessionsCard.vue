@@ -2,13 +2,14 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../../api/client'
-import { isVersionConflict } from '../../api/errors'
+import { apiErrorMessage, isVersionConflict } from '../../api/errors'
+import { useRequestSequence } from '../../composables/useRequestSequence'
 import { ADVANCE_OPTIONS, LEAD_OPTIONS, advanceLabel, leadLabel, slotSyncLines, type SlotSyncResult } from '../../api/labels'
 import { useUnsavedChanges } from '../../composables/useUnsavedChanges'
 import { COMMON_SESSIONS, WEEKDAY_NAMES, rulesToSessions, sessionName, sessionProblems, sessionsToRules, weekdaySummary, type RuleRow, type Session } from '../../utils/sessions'
 
 interface Schedule { campus_key: string; min_lead_hours: number; max_advance_days: number; rules: RuleRow[]; version: number; slot_sync?: Partial<SlotSyncResult> | null }
-interface BookingConfig { mode: string; version: number }
+interface BookingConfig { mode: string; version: number; line_url?: string | null; phone?: string | null; external_url?: string | null; message?: string | null }
 interface Reason { code: string; message: string }
 
 const props = defineProps<{ campusKey: string; canManage: boolean; canConfigureBooking: boolean }>()
@@ -31,6 +32,8 @@ const leadHours = ref(24)
 const advanceDays = ref(60)
 const snapshot = ref('')
 const notReady = ref<Reason[]>([])
+const keptBooked = ref(0)
+const requests = useRequestSequence()
 
 const savedSessions = computed(() => rulesToSessions(schedule.value?.rules ?? []))
 const uniformMinutes = computed(() => new Set(sessions.value.map(s => s.minutes)).size <= 1)
@@ -41,15 +44,20 @@ const { confirmLeave } = useUnsavedChanges(isDirty, saving)
 defineExpose({ confirmLeave })
 
 async function load() {
+  const request = requests.begin()
   loadError.value = ''
   try {
-    schedule.value = await api.get<Schedule>(`/admin/visit-schedule/${props.campusKey}`)
-    bookingConfig.value = props.canConfigureBooking ? await api.get<BookingConfig>(`/admin/booking-config/${props.campusKey}`) : null
+    const loaded = await api.get<Schedule>(`/admin/visit-schedule/${props.campusKey}`)
+    const config = props.canConfigureBooking ? await api.get<BookingConfig>(`/admin/booking-config/${props.campusKey}`) : null
+    // 快速換校時，晚到的上一校回應不能蓋掉目前這一校（否則會把 A 校的規則存到 B 校）。
+    if (!requests.isCurrent(request)) return
+    schedule.value = loaded
+    bookingConfig.value = config
   } catch {
-    loadError.value = '讀不到這個校區的場次設定，請重新載入。'
+    if (requests.isCurrent(request)) loadError.value = '讀不到這個校區的場次設定，請重新載入。'
   }
 }
-watch(() => props.campusKey, () => { editing.value = false; notReady.value = []; void load() }, { immediate: true })
+watch(() => props.campusKey, () => { editing.value = false; notReady.value = []; keptBooked.value = 0; schedule.value = null; bookingConfig.value = null; void load() }, { immediate: true })
 
 function startEdit(preset?: readonly Session[]) {
   sessions.value = (preset ?? savedSessions.value).map(s => ({ ...s, weekdays: [...s.weekdays] }))
@@ -73,15 +81,17 @@ function timeOptions(current: string) {
   return TIME_OPTIONS.includes(current) ? TIME_OPTIONS : [...TIME_OPTIONS, current].sort()
 }
 
-async function save() {
+async function save(options: { open?: boolean } = {}) {
   if (!schedule.value || problems.value.length || saving.value) return
-  if (opensBooking.value) {
+  const open = (options.open ?? true) && opensBooking.value
+  if (open) {
     try {
       await ElMessageBox.confirm('家長從現在起可以在官網預約這些場次。', '儲存並開放線上預約？', { confirmButtonText: '儲存並開放', cancelButtonText: '先不要', type: 'info' })
     } catch { return }
   }
   saving.value = true
   notReady.value = []
+  keptBooked.value = 0
   try {
     const result = await api.put<Schedule>(`/admin/visit-schedule/${props.campusKey}`, {
       expected_version: schedule.value.version,
@@ -93,15 +103,16 @@ async function save() {
     editing.value = false
     const lines = slotSyncLines(result.slot_sync)
     ElMessage.success(lines.length ? `已儲存，${lines.join('，')}` : '已儲存')
+    keptBooked.value = result.slot_sync?.kept_booked ?? 0
     emit('saved')
-    if (opensBooking.value) await openBooking()
+    if (open) await openBooking()
   } catch (err) {
     if (isVersionConflict(err)) {
       ElMessage.warning('場次剛被其他人修改，已重新載入最新設定')
       await load()
       startEdit()
     } else {
-      ElMessage.error('儲存失敗，請稍後再試')
+      ElMessage.error(apiErrorMessage(err, '儲存失敗，請稍後再試'))
     }
   } finally {
     saving.value = false
@@ -111,7 +122,15 @@ async function save() {
 async function openBooking() {
   try {
     const config = await api.get<BookingConfig>(`/admin/booking-config/${props.campusKey}`)
-    bookingConfig.value = await api.patch<BookingConfig>(`/admin/booking-config/${props.campusKey}`, { expected_version: config.version, mode: 'slots' })
+    // 後端一律寫入這四個欄位，沒帶的會被清成空：把原值帶回去，只改預約方式。
+    bookingConfig.value = await api.patch<BookingConfig>(`/admin/booking-config/${props.campusKey}`, {
+      expected_version: config.version,
+      mode: 'slots',
+      line_url: config.line_url ?? null,
+      phone: config.phone ?? null,
+      external_url: config.external_url ?? null,
+      message: config.message ?? null,
+    })
     ElMessage.success('已開放線上預約')
   } catch (err) {
     const detail = err instanceof ApiError ? (err.detail as { code?: string; reasons?: Reason[] } | null) : null
@@ -142,13 +161,16 @@ async function openBooking() {
           <el-button v-if="canManage" @click="startEdit([])">自己設定</el-button>
           <p v-else class="hint">場次由校區管理者設定。</p>
         </div>
+        <el-alert v-if="keptBooked" type="warning" :closable="false" show-icon :title="`${keptBooked} 場已有家長排入、但不在新規則內，仍會收新預約`">
+          <p>要讓這幾場不再收新預約，請在月曆上點那一天，按該場的「停止申請」；已約好的家長照常參觀。</p>
+        </el-alert>
         <el-alert v-if="notReady.length" type="warning" :closable="false" show-icon title="場次已儲存，但還不能開放線上預約">
           <ul><li v-for="r in notReady" :key="r.code">{{ r.message }}</li></ul>
           <router-link :to="`/booking?campus=${encodeURIComponent(campusKey)}`">到各校預約方式查看 →</router-link>
         </el-alert>
       </template>
 
-      <form v-else class="sessions-card__edit" @submit.prevent="save">
+      <form v-else class="sessions-card__edit" @submit.prevent="save()">
         <div v-for="(s, index) in sessions" :key="index" class="session-row">
           <label class="session-row__field"><span>場次時間</span>
             <el-select v-model="s.start" class="session-row__time" :aria-label="`第 ${index + 1} 個場次的時間`">
@@ -188,6 +210,7 @@ async function openBooking() {
         <div class="sessions-card__actions">
           <el-button @click="editing = false">取消</el-button>
           <el-button type="primary" native-type="submit" :loading="saving" :disabled="Boolean(problems.length) || !sessions.length">{{ opensBooking ? '儲存並開放線上預約' : '儲存' }}</el-button>
+          <el-button v-if="opensBooking" :loading="saving" :disabled="Boolean(problems.length) || !sessions.length" @click="save({ open: false })">只儲存場次</el-button>
           <span v-if="!canConfigureBooking" class="hint">要讓家長在官網預約，請校區管理者到「各校預約方式」開放。</span>
         </div>
       </form>

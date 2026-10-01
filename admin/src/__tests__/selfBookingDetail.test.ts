@@ -16,8 +16,12 @@ afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.lengt
 const slot = { id: 'held-slot', slot_date: '2026-09-26', start_time: '10:00:00', end_time: '10:30:00' }
 // 確認期限用遠在未來的時間：過了期限畫面會停用確認（後端也會拒絕）。
 const details = (changes: Record<string, unknown> = {}) => ({ ...({ id: 'local-case', campus_key: 'yihua', status: 'pending_confirmation', parent_name: '測試家長', phone: '0912345678', child_name: '測試孩子', child_birthdate: '2022-06-18', email: 'parent@example.org', referral_sources: ['facebook', 'friends_family'], age: null, preferred_time: null, questions: null, slot_id: slot.id, slot, created_at: '2026-09-22T00:00:00Z', hold_expires_at: '2099-09-23T00:00:00Z' }), display_status: 'pending', cancel_reason: null, access_link: { created_at: '2026-09-30T00:00:00Z', expires_at: '2026-10-20T00:00:00Z' }, ...changes })
-async function mountDetail(data: Record<string, unknown> = details(), user: UserOut = testUser('super_admin')) {
-  vi.spyOn(api, 'get').mockImplementation(async path => (path.endsWith('/contact-notes') || path.startsWith('/admin/slots') || path.startsWith('/admin/visit-staff') || path.startsWith('/admin/visit-requests?')) ? [] : data as never)
+// bookingConfig：undefined＝沿用 data（舊行為）、null＝讀不到（模擬沒有權限）、物件＝該校預約設定。
+async function mountDetail(data: Record<string, unknown> = details(), user: UserOut = testUser('super_admin'), bookingConfig?: Record<string, unknown> | null) {
+  vi.spyOn(api, 'get').mockImplementation(async path => {
+    if (path.startsWith('/admin/booking-config') && bookingConfig !== undefined) { if (bookingConfig === null) throw new Error('403'); return bookingConfig as never }
+    return (path.endsWith('/contact-notes') || path.startsWith('/admin/slots') || path.startsWith('/admin/visit-staff') || path.startsWith('/admin/visit-requests?')) ? [] : data as never
+  })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/visit-requests/local-case'); await router.isReady()
   const pinia = createPinia()
@@ -36,7 +40,7 @@ describe('自選場次後的案件明細', () => {
 
   it('已確認的案件：取消前說明會寄信給家長', async () => {
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
-    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null }))
+    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null }), testUser('super_admin'), { parent_email_enabled: true })
     await wrapper.findAll('button').find(b => b.text() === '取消預約')!.trigger('click')
     expect(String(prompt.mock.calls[0]?.[0])).toContain('會寄信通知家長（w***@example.com）')
   })
@@ -79,5 +83,55 @@ describe('階段 A 帶過來的後台顯示', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('沒有寄信，請把連結直接交給家長')
     expect(wrapper.text()).not.toContain('已寄到家長信箱')
+  })
+})
+
+describe('審查修正：寄信說明與下一筆', () => {
+  const confirmedCase = (changes: Record<string, unknown> = {}) => details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null, ...changes })
+  const cancelMessage = async (config: Record<string, unknown> | null, data: Record<string, unknown>) => {
+    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
+    const wrapper = await mountDetail(data, testUser('super_admin'), config)
+    await wrapper.findAll('button').find(b => b.text().includes('取消'))!.trigger('click')
+    return String(prompt.mock.calls[0]?.[0])
+  }
+
+  it('沒設定寄信：說請電話通知，不說會寄信', async () => {
+    const message = await cancelMessage({ mode: 'slots', parent_email_enabled: false }, confirmedCase())
+    expect(message).toContain('尚未設定寄信')
+    expect(message).not.toContain('會寄信通知家長')
+  })
+
+  it('寄信啟用：說會寄信；待確認但已有場次的舊案也一樣', async () => {
+    const message = await cancelMessage({ mode: 'slots', parent_email_enabled: true }, details({ status: 'pending_confirmation', display_status: 'pending' }))
+    expect(message).toContain('會寄信通知家長（p***@example.org）')
+  })
+
+  it('讀不到寄信設定（沒有權限）時不亂保證：提醒確認是否另外通知', async () => {
+    const message = await cancelMessage(null, confirmedCase())
+    expect(message).not.toContain('會寄信通知家長')
+    expect(message).toContain('請確認是否需要另外通知家長')
+  })
+
+  it('待確認的舊案重新產生連結：不說已寄出，提示自行轉交', async () => {
+    const wrapper = await mountDetail(details({ status: 'pending_confirmation', display_status: 'pending', email: 'wang@example.com' }))
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    vi.spyOn(api, 'post').mockResolvedValue({ manage_url: 'https://x/m#token=a', manage_url_fragment: '/m#token=a', expires_at: '2026-10-20T00:00:00Z', replaced_previous: true, emailed: true } as never)
+    await wrapper.findAll('button').find(b => b.text().startsWith('重新產生連結'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('這次沒有寄信，請把連結直接交給家長')
+  })
+
+  it('案件頁照列表的分組查「下一筆」，不把 group 丟掉', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/visit-requests?')) return [] as never
+      if (path.endsWith('/contact-notes') || path.startsWith('/admin/slots') || path.startsWith('/admin/visit-staff') || path.startsWith('/admin/booking-config')) return [] as never
+      return details({ status: 'confirmed', display_status: 'upcoming', hold_expires_at: null }) as never
+    })
+    const router = (await import('vue-router')).createRouter({ history: (await import('vue-router')).createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: { template: '<div />' } }] })
+    await router.push('/visit-requests/local-case?list=' + encodeURIComponent('group=upcoming&order=oldest')); await router.isReady()
+    const pinia = createPinia(); useAuthStore(pinia).user = testUser('super_admin')
+    wrappers.push(mount(VisitDetailView, { global: { plugins: [pinia, router, ElementPlus] } })); await flushPromises()
+    const listCalls = get.mock.calls.map(c => String(c[0])).filter(p => p.startsWith('/admin/visit-requests?'))
+    expect(listCalls.some(p => p.includes('group=upcoming'))).toBe(true)
   })
 })

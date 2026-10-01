@@ -170,7 +170,7 @@ function holdTime(request: VisitRequestDetailOut): number {
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'status', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'status', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
@@ -291,11 +291,27 @@ function slotLabel(slot: VisitSlotOut): string {
 }
 
 // 取消與改期會寄信給家長（有 Email 時）；說明寫在確認框裡，櫃台才知道不必再打電話。
+// 寄信是否啟用要看該校的預約設定；讀不到（沒有權限）時不保證，提醒自行確認。
+const emailEnabled = ref<boolean | null>(null)
+watch(() => detail.value?.campus_key, async (campus) => {
+  emailEnabled.value = null
+  if (!campus) return
+  try {
+    const config = await api.get<{ parent_email_enabled?: boolean }>(`/admin/booking-config/${campus}`)
+    if (detail.value?.campus_key === campus && typeof config?.parent_email_enabled === 'boolean') emailEnabled.value = config.parent_email_enabled
+  } catch {
+    emailEnabled.value = null
+  }
+}, { immediate: true })
 const parentMailNote = computed(() => {
   const email = detail.value?.email
-  return email ? `會寄信通知家長（${maskEmail(email)}）。` : '這筆沒有 Email，請電話通知家長。'
+  if (!email) return '這筆沒有 Email，請電話通知家長。'
+  if (emailEnabled.value === true) return `會寄信通知家長（${maskEmail(email)}）。`
+  if (emailEnabled.value === false) return '尚未設定寄信，請電話通知家長。'
+  return `有 Email（${maskEmail(email)}），但無法確認系統是否會寄信，請確認是否需要另外通知家長。`
 })
-const mailNoteIfConfirmed = computed(() => (detail.value?.status === 'confirmed' ? parentMailNote.value : '這筆還沒排場次，不會通知家長。'))
+// 取消與改期的信只在案件有場次時才會寄（後端依有沒有場次與 Email 決定）。
+const mailNoteIfConfirmed = computed(() => (detail.value?.slot ? parentMailNote.value : '這筆還沒排場次，不會通知家長。'))
 
 async function confirm() {
   if (!selectedSlotId.value && detail.value?.status !== 'pending_confirmation') {

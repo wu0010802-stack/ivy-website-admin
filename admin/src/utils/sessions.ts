@@ -54,7 +54,7 @@ export function rulesToSessions(rules: RuleRow[]): Session[] {
 }
 
 export function sessionsToRules(sessions: Session[]): RuleRow[] {
-  return sessions
+  const single = sessions
     .flatMap(s => s.weekdays.map(weekday => ({
       weekday,
       start_time: `${s.start}:00`,
@@ -63,6 +63,18 @@ export function sessionsToRules(sessions: Session[]): RuleRow[] {
       capacity: s.capacity,
     })))
     .sort((a, b) => a.weekday - b.weekday || a.start_time.localeCompare(b.start_time))
+  // 同一天首尾相接、長度與組數相同的場次合併成一條區間規則：產生的時段不變，
+  // 但規則條數少很多（後端上限 50 條；整天每 30 分鐘一格逐場展開會超過）。
+  const merged: RuleRow[] = []
+  for (const rule of single) {
+    const last = merged[merged.length - 1]
+    if (last && last.weekday === rule.weekday && last.slot_minutes === rule.slot_minutes && last.capacity === rule.capacity && last.end_time === rule.start_time) {
+      last.end_time = rule.end_time
+    } else {
+      merged.push({ ...rule })
+    }
+  }
+  return merged
 }
 
 export function sessionName(start: string): string {

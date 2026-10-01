@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { formatDateTime, parentDeadlineLabel } from '../api/labels'
@@ -21,6 +21,8 @@ const emit = defineEmits<{ changed: [] }>()
 
 const created = ref<ParentAccessLinkCreatedOut | null>(null)
 const busy = ref(false)
+// 後端回 emailed=true 但待確認的舊案實際不會寄（寄件時略過非已確認的案件）：只有已確認才說已寄出。
+const sentByMail = computed(() => Boolean(created.value?.emailed) && props.status === 'confirmed')
 
 // 換到另一筆案件時，不能留著上一筆的連結。
 watch(() => props.visitId, () => { created.value = null })
@@ -49,7 +51,7 @@ async function generate() {
   busy.value = true
   try {
     created.value = await api.post<ParentAccessLinkCreatedOut>(`/admin/visit-requests/${props.visitId}/access-link`)
-    if (created.value.emailed) ElMessage.success('新連結已寄到家長信箱')
+    if (sentByMail.value) ElMessage.success('新連結已寄到家長信箱')
     emit('changed')
   } catch (err) {
     ElMessage.error(errorText(err, '產生連結失敗'))
@@ -118,7 +120,7 @@ async function copy() {
         <el-input :model-value="linkText()" readonly aria-label="家長管理連結" @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
         <el-button type="primary" @click="copy">複製連結</el-button>
       </div>
-      <p v-if="!created.emailed" class="field-help">這次沒有寄信，請把連結直接交給家長（簡訊、LINE 或 Email）。</p>
+      <p v-if="!sentByMail" class="field-help">這次沒有寄信，請把連結直接交給家長（簡訊、LINE 或 Email）。</p>
       <p v-if="!created.manage_url" class="field-help">部署設定缺少 WEBSITE_ADMIN_ORIGIN，無法產生完整網址；請在官網網址後面接上這段再給家長。</p>
       <p class="hint">有效到 <span class="num">{{ formatDateTime(created.expires_at) }}</span></p>
     </div>

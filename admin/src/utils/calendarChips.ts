@@ -15,9 +15,10 @@ export function slotEnded(slot: CalendarSlot, now = Date.now()): boolean {
 export function dayChips(slots: CalendarSlot[], now = Date.now()): Chip[] {
   const chips: Chip[] = []
   for (const slot of [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time))) {
-    if (slot.closed && slot.closed_source === 'exception') continue
     const ended = slotEnded(slot, now)
+    // 休假日關閉的場次若還有家長預約（不會自動取消），預約色塊照畫，才看得出哪天要處理。
     for (const v of slot.visits) chips.push({ key: v.id, kind: 'visit', text: `${shortName(slot.start_time)} ${v.parent_name}`, ended, status: v.status })
+    if (slot.closed && slot.closed_source === 'exception') continue
     if (slot.closed) chips.push({ key: `${slot.id}-stopped`, kind: 'stopped', text: `${shortName(slot.start_time)}停止申請`, ended })
     else if (!ended && !slot.visits.length && slot.capacity > slot.booked_count) {
       chips.push({ key: `${slot.id}-open`, kind: 'open', text: `${shortName(slot.start_time)} 可約 ${slot.capacity - slot.booked_count}`, ended })

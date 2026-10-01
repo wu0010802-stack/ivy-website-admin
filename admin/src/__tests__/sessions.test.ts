@@ -65,4 +65,16 @@ describe('每週規則與場次互換', () => {
     expect(sessionProblems([{ start: '23:30', minutes: 60, capacity: 1, weekdays: [0] }])).toContain('下午場 23:30 會超過午夜')
     expect(sessionProblems(COMMON_SESSIONS as never)).toEqual([])
   })
+
+  it('連續、長度與組數相同的場次存回時合併成區間規則，不超過後端 50 條上限', () => {
+    const hourly = Array.from({ length: 11 }, (_, i) => ({ start: `${String(7 + i).padStart(2, '0')}:00`, minutes: 60, capacity: 1, weekdays: [0, 1, 2, 3, 4] }))
+    const rules = sessionsToRules(hourly)
+    expect(rules.length).toBeLessThanOrEqual(5)
+    // 合併後產生的時段與逐場展開完全相同。
+    const expanded = hourly.flatMap(s => s.weekdays.map(d => `${d} ${s.start}`)).sort()
+    expect(rules.flatMap(r => ruleWindows(r).map(w => `${r.weekday} ${w.start}`)).sort()).toEqual(expanded)
+    // 舊的整天區間規則來回不變多。
+    const legacy = [0, 1, 2, 3, 4].map(d => rule(d, '09:00', '17:00', 30))
+    expect(sessionsToRules(rulesToSessions(legacy)).length).toBeLessThanOrEqual(5)
+  })
 })
