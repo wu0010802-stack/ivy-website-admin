@@ -456,6 +456,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.transition': '變更招生階段',
   'recruitment_visit.seat': '保留或釋放座位',
   'grade_intake_target.update': '設定計畫名額',
+  'recruitment_visit.create_from_booking': '由官網預約建立招生訪視',
 }
 
 export function auditActionLabel(action: string): string {
@@ -1211,7 +1212,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   affected_requests: (v) => `影響 ${countOf(v)} 筆已排入的案件`,
   reopened_slots: (v) => `重新開放 ${countOf(v)} 場`,
   created_slots: (v) => `依規則補上 ${countOf(v)} 場`,
-  created: (v) => `新增 ${countOf(v)} 場`,
+  // 依規則產生時段（visit_slots.generate）是新增幾場；由官網預約建立招生訪視是有沒有新建。
+  created: (v, action) => {
+    if (action === 'recruitment_visit.create_from_booking') return v ? '建立招生訪視' : '這筆預約已有招生訪視，沒有重複建立'
+    return `新增 ${countOf(v)} 場`
+  },
   skipped_existing: (v) => (countOf(v) ? `${countOf(v)} 場已經有了` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校

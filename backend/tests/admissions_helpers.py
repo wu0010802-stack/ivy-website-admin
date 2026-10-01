@@ -10,11 +10,16 @@
 from __future__ import annotations
 
 import itertools
+import uuid
+from datetime import date, time, timedelta
 
 import pytest_asyncio
+from sqlalchemy import update
 
 from app.auth.models import Role
-from tests.conftest import _create_user, _logged_in_client
+from app.booking.models import VisitSlot
+from app.common.timezones import today_local
+from tests.conftest import _create_user, _logged_in_client, book_slot
 
 API = "/api/website/v1"
 ADMISSIONS = f"{API}/admin/admissions"
@@ -101,3 +106,43 @@ async def record_at_stage(
         if stage == "enrolled":
             return record
     return await transition(client, record, "withdrawn", reason="家長改送他校")
+
+
+async def move_slot(
+    db_session, slot_id, *, slot_date: date, starts_at: time | None = None, closed: bool | None = None
+) -> None:
+    """把場次移到指定日期（與開始時間），或改成停止申請。只改資料庫，不改系統時間（規格 14）。"""
+    values: dict = {"slot_date": slot_date}
+    if starts_at is not None:
+        values["start_time"] = starts_at
+    if closed is not None:
+        values["closed"] = closed
+        values["closed_source"] = "manual" if closed else None
+    await db_session.execute(update(VisitSlot).where(VisitSlot.id == uuid.UUID(str(slot_id))).values(**values))
+    await db_session.commit()
+
+
+async def started_booking(
+    admin_client,
+    public_client,
+    db_session,
+    *,
+    campus_key: str = "yihua",
+    slot_date: date | None = None,
+    starts_at: time | None = None,
+    **fields,
+) -> dict:
+    """「已開始場次的預約」（規格 14）：家長選未來場次送出（book_slot，送出即 confirmed），
+    再把那一場移到過去（預設昨天、開始時間不變）。回傳 book_slot 的內容，另加
+    id（預約 id）與 phone。每次自動換手機號碼，避開同手機 10 分鐘 5 筆的上限。"""
+    fields.setdefault("phone", unique_phone())
+    booking = await book_slot(admin_client, public_client, campus_key, **fields)
+    await move_slot(
+        db_session, booking["slot_id"], slot_date=slot_date or today_local() - timedelta(days=1), starts_at=starts_at
+    )
+    return {**booking, "id": booking["receipt_id"], "phone": fields["phone"]}
+
+
+async def complete(client, visit_request_id):
+    """預約既有的「標記已到場」。"""
+    return await client.post(f"{API}/admin/visit-requests/{visit_request_id}/complete")

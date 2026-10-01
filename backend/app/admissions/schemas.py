@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -349,3 +349,22 @@ class IntakeTargetsRequest(BaseModel):
     school_year: SchoolYear
     semester: Semester
     targets: dict[Grade, Annotated[int, Field(ge=0, le=999)] | None]
+
+
+class ArrivalRowOut(BaseModel):
+    """「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。"""
+
+    visit_request_id: uuid.UUID
+    slot_date: date | None
+    start_time: time | None
+    parent_name: str
+    child_name: str | None
+    party_size: int | None
+    status: str
+
+
+class ArrivalsOut(BaseModel):
+    # confirmed 且場次已開始、還沒確認到場（分頁標籤上的待確認筆數）。
+    awaiting: list[ArrivalRowOut]
+    # 已到場但沒有招生訪視，可以補建。
+    missing: list[ArrivalRowOut]

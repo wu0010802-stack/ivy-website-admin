@@ -16,10 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, constants, funnel, intake, records
+from app.admissions import academic, booking_link, constants, funnel, intake, records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsOptionsOut,
+    ArrivalsOut,
     FunnelBoardOut,
     IntakePlanOut,
     IntakeTargetsRequest,
@@ -34,6 +35,7 @@ from app.admissions.schemas import (
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, require_scope
+from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
 from app.operations import audit_service
@@ -413,3 +415,60 @@ async def save_intake_targets(
     plan = await intake.intake_plan(db, campus_key, payload.school_year, payload.semester)
     await db.commit()
     return IntakePlanOut.model_validate(plan)
+
+
+@router.get("/admin/admissions/arrivals", response_model=ArrivalsOut)
+async def get_arrivals(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ArrivalsOut:
+    """「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read
+    （規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。"""
+    _require_campus(current_user, "booking.read", campus_key)
+    return ArrivalsOut.model_validate(await booking_link.arrivals(db, campus_key))
+
+
+@router.post("/admin/admissions/from-visit-request/{visit_request_id}", response_model=RecruitmentVisitOut)
+async def create_from_visit_request(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    """補建：已到場但沒有招生訪視的預約建立一筆；已有就回傳那一筆，可以重複呼叫
+    （規格 6.1 第 2 點、6.6）。只接受已到場且未匿名化的預約（A 計畫調整第 13 條）。"""
+    visit_request = await db.scalar(
+        select(VisitRequest)
+        .where(VisitRequest.id == visit_request_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if visit_request is None:
+        await db.rollback()
+        raise ScopeDenied()
+    require_scope(current_user, "booking.read", campus_keys=[visit_request.campus_key])
+    require_scope(current_user, "admissions.write", campus_keys=[visit_request.campus_key])
+    if visit_request.anonymized_at is not None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "VISIT_REQUEST_ANONYMIZED", "message": "這筆預約已依保存政策匿名化，無法建立招生訪視"},
+        )
+    if visit_request.status != VisitRequestStatus.COMPLETED.value:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "VISIT_REQUEST_NOT_COMPLETED", "message": "只有已到場的預約可以建立招生訪視，請先標記已到場"},
+        )
+    visit, created = await booking_link.ensure_from_visit_request(db, visit_request, actor_user_id=current_user.id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.create_from_booking",
+        target_type="recruitment_visit",
+        target_id=str(visit.id),
+        campus_key=visit.campus_key,
+        metadata={"created": created},
+    )
+    await db.commit()
+    return RecruitmentVisitOut.model_validate(visit)
