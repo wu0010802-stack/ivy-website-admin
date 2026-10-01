@@ -64,7 +64,7 @@ describe('伺服器錯誤訊息', () => {
 describe('公開預約設定帶出 Turnstile site key', () => {
   async function configFrom(response: Record<string, unknown>) {
     vi.stubGlobal('computed', computed)
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'inquiry', version: 1, line_url: null, phone: null, external_url: null, message: null, ...response }))
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'slots', version: 1, line_url: null, phone: null, external_url: null, message: null, ...response }))
     let fetchConfig!: () => Promise<Record<string, unknown>>
     vi.stubGlobal('useAsyncData', (_key: unknown, handler: () => Promise<Record<string, unknown>>) => {
       fetchConfig = handler

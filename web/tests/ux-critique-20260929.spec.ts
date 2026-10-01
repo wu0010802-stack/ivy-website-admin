@@ -29,8 +29,9 @@ describe('預約頁', () => {
     expect(form).toContain('<small>{{ shortAddress(campus) }}</small>')
     expect(form).toMatch(/const shortAddress = \(campus: Campus\) => campus\.address\?\.replace\(\/\^高雄市\/, ''\)/)
   })
-  it('送出結果：只有預約成立用打勾，待確認與已收到需求用時鐘', () => {
-    expect(form).toContain(`:href="resultStatus === 'confirmed' ? '#i-check' : '#i-clock'"`)
+  it('送出結果：預約成功用打勾，已取消用叉號，不再有時鐘', () => {
+    expect(form).toContain(`:href="resultKind === 'booked' ? '#i-check' : '#i-x'"`)
+    expect(form).not.toContain('#i-clock')
   })
   it('送出失敗與送太多次時附上所選校區的電話', () => {
     expect(form).toContain('送出失敗，請稍後再試一次；你填寫的內容還保留著。${callFallback.value}')
