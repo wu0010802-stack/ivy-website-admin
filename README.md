@@ -1,4 +1,4 @@
-## 2026-10-01 品質檢查與招生分析報告的後續修正（`fix/report-followups-20261001`，未部署）
+## 2026-10-01 品質檢查與招生分析報告的後續修正（`fix/report-followups-20261001`，已部署 `6b76f11`）
 
 - **文件**：
   - `docs/analysis/2026-09-30-award-quality-report.md`：官網品質自我檢查，依線上 `b216133` 更新。截圖與數據在 `docs/analysis/assets/2026-09-30-award-quality/`。

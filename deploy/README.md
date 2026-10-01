@@ -13,6 +13,35 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-01 品質檢查後續：書籤對比、點擊範圍、後台確認率與流量說明（main CI 部署）
+
+使用者要求把 `fix/report-followups-20261001` 併入 main 並部署。分支從 `origin/main` `b216133` 開出，所以這次是 fast-forward 推上 main。
+
+- **提交**：`c5aaf04`（兩份報告與截圖）、`d97fe9a`（唯讀檢查腳本）、`2dea316`（web：書籤字色、點擊範圍）、`1ea1ce8`（admin：確認率、流量說明）、`6b76f11`（README／DESIGN 紀錄）。沒有 migration，也沒有 API 或 schema 變更，所以部署前不需要備份正式庫。
+- **CI**：run 36866196528 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（10-01 21:05–21:29 台灣時間）。
+- **正式 `release.json`**：base commit `6b76f112adfbbf748874a9979db8b6273879eeaf`，snapshot `e4d4324181107dc9b04ad2c8c537db541d35fde410c1dc743a13c8f4e5f1e8a8`，created 10-01 21:25 台灣時間。
+- **線上驗證**：所有檢查都只發 GET，非 GET 請求一律擋下。
+
+  | 項目 | 結果 |
+  |---|---|
+  | `/about` 五校書籤對比（390、1440 寬） | 仁武 5.22:1，其餘 ≥10:1 |
+  | 校區連結可點範圍 | 70×44 |
+  | `/visit` 與 `/campuses/yihua` 麵包屑「首頁」可點範圍 | 44×44（桌機 44×48），「五所校園」點擊不受影響 |
+  | 後台 `AnalyticsView` chunk | 有「不計確認率」與「2026/09/30 起也計入」，沒有舊的「還沒有計入」 |
+  | `scripts/audit-public-site.mjs routes` | 36 組 HTTP 200，沒有溢出、破圖或 pageerror |
+
+- **本機驗證**（Node 22.23.2）：
+
+  | 項目 | 結果 |
+  |---|---|
+  | web typecheck | 通過 |
+  | web vitest | 69 檔 689 項通過 |
+  | admin typecheck | 通過 |
+  | admin vitest | 54 檔 700 項通過 |
+  | admin build | 成功 |
+
+- **未做**：stack e2e 沒在本機跑。它的視覺基準只涵蓋後台的案件明細、預約方式、五校介紹、使用者、登入頁，而且 e2e 沒有碰到分析頁、關於頁或麵包屑；CI 的 E2E 是通過的。後台分析頁要登入才能看，所以線上只核對了 bundle 內容，沒有登入看畫面。Safari／iOS 實機也沒驗。
+
 ## 2026-10-01 全人教育 A2 六圈、移除操作鈕（web-only，已部署）
 
 使用者定案採用 A2，保留全人教育左頁原樣，並要求移除「再看一次」按鈕及部署。右頁由紙轉盤換成六張透明圓片；進場播放一次，完成停住，沒有下方控制鈕。
