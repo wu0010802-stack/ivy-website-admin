@@ -8,6 +8,8 @@ import RevisionHistoryDrawer from '../components/RevisionHistoryDrawer.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import VisitCalendarView from '../views/VisitCalendarView.vue'
 import { api } from '../api/client'
+import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 import { staffLabelById, visitSourceLabel } from '../api/labels'
 import { NAV_GROUPS } from '../router/nav'
 import type { RevisionHistoryHandle } from '../composables/useContentItem'
@@ -183,23 +185,22 @@ describe('接待月曆', () => {
       return [] as never
     })
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: defineComponent({ template: '<div />' }) }] })
-    await router.push('/visit-calendar')
+    await router.push('/visit-calendar?campus=yihua')
     await router.isReady()
-    const wrapper = mount(VisitCalendarView, { global: { plugins: [createPinia(), router, ElementPlus] } })
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin')
+    const wrapper = mount(VisitCalendarView, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper)
     await flushPromises()
 
     const calendarCall = get.mock.calls.find(([p]) => String(p).startsWith('/admin/visit-calendar'))
     expect(calendarCall).toBeTruthy()
     const todayCell = wrapper.find('.calendar__day.is-today')
-    expect(todayCell.text()).toContain('10:00')
-    expect(todayCell.text()).toContain('林爸爸')
-    // 名額以組家庭計，跟時段頁一樣寫「組」。
-    expect(todayCell.text()).toContain('可約 2 組')
+    expect(todayCell.text()).toContain('上午場 林爸爸')
 
     // 今天預設就是選取的日期，下方列出名單與電話補登來源。
     const detail = wrapper.find('.calendar__detail')
-    expect(detail.text()).toContain('已排 1／3 組')
+    expect(detail.text()).toContain('已約 1／3 組')
     expect(detail.find('a[href="/visit-requests/v1"]').exists()).toBe(true)
     expect(detail.text()).toContain('電話補登')
   })

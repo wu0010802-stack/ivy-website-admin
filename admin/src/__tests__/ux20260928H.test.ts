@@ -70,7 +70,7 @@ describe('操作紀錄細節翻成園方看得懂的中文', () => {
       before: { mode: 'paused', line_url: null, phone: null, parent_change_deadline_hours: 24 },
       after: { mode: 'slots', line_url: null, phone: '07-1234567', parent_change_deadline_hours: 24 },
     }, 'booking_config.update')
-    expect(summary).toBe('修改：預約方式：暫停預約 → 時段預約（家長自選場次）；洽詢電話：（空白） → 07-1234567')
+    expect(summary).toBe('修改：預約方式：暫停預約 → 自選場次（家長線上預約）；洽詢電話：（空白） → 07-1234567')
     expect(summary.match(/預約方式/g)).toHaveLength(1)
   })
 

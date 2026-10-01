@@ -189,7 +189,8 @@ describe('頁面點進去才下載（shell-9／cc-8）', () => {
     expect(routes[1]?.component).toBe(AdminLayout)
     const children = routes[1]?.children ?? []
     expect(children.length).toBeGreaterThan(25)
-    expect(children.every(child => typeof child.component === 'function')).toBe(true)
+    // 純轉址的舊網址（/slots → /visit-calendar）沒有元件，不算頁面。
+    expect(children.filter(child => !('redirect' in child)).every(child => typeof child.component === 'function')).toBe(true)
   })
 
   it('部署換掉舊檔時整頁重載一次；10 秒內同一頁再失敗就請使用者自己重新整理', () => {
@@ -535,23 +536,24 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     return { wrapper, router, search }
   }
 
-  it('搜「預約」帶出參觀案件、接待月曆、時段與容量，不只名稱有預約的兩項', async () => {
+  it('搜「預約」帶出參觀案件、參觀場次，不只名稱有預約的兩項', async () => {
     const { search } = await sidebar('super_admin')
     const results = await search('預約')
-    expect(results).toEqual(expect.arrayContaining(['參觀案件', '接待月曆', '時段與容量', '各校預約方式', '預約文案']))
+    expect(results).toEqual(expect.arrayContaining(['參觀案件', '參觀場次', '各校預約方式', '預約文案']))
   })
 
   it('照片、名額、FAQ（全形也可）、小寫 line 都找得到', async () => {
     const { search } = await sidebar('super_admin')
     expect(await search('照片')).toContain('素材庫')
-    expect(await search('名額')).toEqual(['時段與容量'])
+    expect(await search('名額')).toEqual(['參觀場次'])
+    for (const word of ['場次', '每週規則', '休假']) expect(await search(word)).toContain('參觀場次')
     expect(await search('ＦＡＱ')).toEqual(['各校常見問題', '共用常見問題'])
     expect(await search('line')).toEqual(expect.arrayContaining(['LINE 通知', '我的帳號']))
   })
 
   it('完全相同的說法排第一，按 Enter 開的就是它；同分維持側欄順序', async () => {
     const { wrapper, router, search } = await sidebar('super_admin')
-    expect(await search('預約')).toEqual(['參觀案件', '接待月曆', '時段與容量', '各校預約方式', '預約文案'])
+    expect(await search('預約')).toEqual(['參觀案件', '參觀場次', '各校預約方式', '預約文案'])
     expect(await search('line')).toEqual(['LINE 通知', '我的帳號'])
     await search('密碼')
     await wrapper.get('input').trigger('keydown', { key: 'Enter' })
@@ -568,7 +570,7 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     expect(SEARCH_ONLY_GROUP.items.map(item => item.path)).toEqual(['/account'])
     const reception = await sidebar('reception')
     expect(await reception.search('密碼')).toEqual(['我的帳號'])
-    expect(await reception.search('預約')).toEqual(['參觀案件', '接待月曆', '時段與容量'])
+    expect(await reception.search('預約')).toEqual(['參觀案件', '參觀場次'])
   })
 
   it('按 Enter 前往第一筆結果，選字中的 Enter 不算', async () => {
@@ -580,7 +582,7 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     expect(router.currentRoute.value.path).toBe('/media')
     await input.trigger('keydown', { key: 'Enter' })
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/slots')
+    expect(router.currentRoute.value.path).toBe('/visit-calendar')
     expect(input.element.value).toBe('')
   })
 

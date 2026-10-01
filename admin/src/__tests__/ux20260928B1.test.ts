@@ -279,93 +279,93 @@ describe('案件列表：切回分頁時更新', () => {
   })
 })
 
-describe('接待月曆', () => {
+describe('參觀場次月曆', () => {
   const slot = (changes: Record<string, unknown> = {}) => ({
-    id: 's1', campus_key: 'yihua', slot_date: '2026-09-24', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, booked_count: 0, visits: [], ...changes,
+    id: 's1', campus_key: 'yihua', slot_date: '2026-09-24', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, closed_source: null, version: 1, booked_count: 0, visits: [], ...changes,
   })
   const visit = (id: string, status: string, parent_name: string) => ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })
+  // 月曆、每週規則、預約方式三支 API 各回自己的資料。
+  const mockApis = (calendar: unknown[]) => vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+    if (path.startsWith('/admin/visit-calendar')) return calendar as never
+    if (path.startsWith('/admin/visit-schedule')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [], version: 1 } as never
+    if (path.startsWith('/admin/booking-config')) return { mode: 'slots', version: 1, parent_email_enabled: false } as never
+    return [] as never
+  })
 
-  it('有圖例；有待園方確認的日子數字點改暖色，格子的朗讀文字講組數', async () => {
+  it('有新圖例；格子的朗讀文字講組數，色塊寫場次名稱與家長', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-24T09:00:00+08:00'))
-    vi.spyOn(api, 'get').mockResolvedValue([
-      slot({ booked_count: 2, visits: [visit('v1', 'pending_confirmation', '王小姐'), visit('v2', 'confirmed', '林太太')] }),
+    mockApis([
+      slot({ booked_count: 2, visits: [visit('v1', 'confirmed', '王小姐'), visit('v2', 'confirmed', '林太太')] }),
       slot({ id: 's2', slot_date: '2026-09-25', booked_count: 1, visits: [visit('v3', 'confirmed', '陳先生')] }),
-    ] as never)
-    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
+    ])
+    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar?campus=yihua')
     const legend = wrapper.get('.calendar__legend').text()
-    for (const label of ['待園方確認', '已確認', '已完成或未到場', '還有名額可約']) expect(legend).toContain(label)
+    for (const label of ['有預約', '停止申請', '還可預約', '休假']) expect(legend).toContain(label)
 
     const day24 = wrapper.findAll('.calendar__day').find(cell => cell.attributes('aria-label')?.startsWith('2026/09/24'))!
     const day25 = wrapper.findAll('.calendar__day').find(cell => cell.attributes('aria-label')?.startsWith('2026/09/25'))!
-    // 朗讀文字取代格子內容，格內的「可約 N 組」也要講到。
-    expect(day24.attributes('aria-label')).toBe('2026/09/24，排入 2 組，其中 1 組待園方確認，可約 1 組')
+    expect(day24.attributes('aria-label')).toBe('2026/09/24，排入 2 組，可約 1 組')
     expect(day25.attributes('aria-label')).toBe('2026/09/25，排入 1 組，可約 2 組')
-    expect(day24.get('.calendar__dot').classes()).toContain('is-pending')
-    expect(day25.get('.calendar__dot').classes()).not.toContain('is-pending')
-    expect(day24.text()).toContain('可約 1 組')
-    // 全部校區時格內標出是哪一校的家長。
-    expect(day24.text()).toContain('10:00 義華 王小姐')
+    expect(day24.text()).toContain('上午場 王小姐')
   })
 
   it('已結束的場次不算可約；全部結束的日子不顯示可約', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-24T12:00:00+08:00'))
-    vi.spyOn(api, 'get').mockResolvedValue([
+    mockApis([
       slot({ id: 'morning', start_time: '09:00:00', end_time: '10:00:00' }),
       slot({ id: 'afternoon', start_time: '14:00:00', end_time: '15:00:00', capacity: 2 }),
       slot({ id: 'yesterday', slot_date: '2026-09-23' }),
-    ] as never)
-    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
+    ])
+    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar?campus=yihua')
     const cell = (date: string) => wrapper.findAll('.calendar__day').find(day => day.attributes('aria-label')?.startsWith(date))!
-    expect(cell('2026/09/24').text()).toContain('可約 2 組')
+    expect(cell('2026/09/24').text()).toContain('下午場 可約 2')
     expect(cell('2026/09/23').text()).not.toContain('可約')
   })
 
-  it('手機的日期底線只標還有名額可約的日子：休假日關閉、已結束、已額滿的都不算', async () => {
+  it('手機的日期底線只標還有名額可約的日子：停止申請、已結束、已額滿的都不算', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-24T09:00:00+08:00'))
-    vi.spyOn(api, 'get').mockResolvedValue([
+    mockApis([
       slot({ id: 'open' }),
-      slot({ id: 'holiday', slot_date: '2026-09-25', closed: true }),
+      slot({ id: 'stopped', slot_date: '2026-09-25', closed: true, closed_source: 'manual' }),
       slot({ id: 'past', slot_date: '2026-09-23' }),
       slot({ id: 'full', slot_date: '2026-09-26', capacity: 1, booked_count: 1, visits: [visit('v1', 'confirmed', '王小姐')] }),
-    ] as never)
-    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
+    ])
+    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar?campus=yihua')
     const cell = (date: string) => wrapper.findAll('.calendar__day').find(day => day.attributes('aria-label')?.startsWith(date))!
     expect(cell('2026/09/24').classes()).toContain('has-seats')
     for (const date of ['2026/09/25', '2026/09/23', '2026/09/26', '2026/09/27']) expect(cell(date).classes()).not.toContain('has-seats')
-    expect(cell('2026/09/25').attributes('aria-label')).toBe('2026/09/25，沒有排入的家長')
+    expect(cell('2026/09/25').attributes('aria-label')).toBe('2026/09/25，沒有排入的家長，1 場停止申請')
     expect(cell('2026/09/26').attributes('aria-label')).toBe('2026/09/26，排入 1 組')
   })
 
-  it('?campus= 帶進來就看那一校，切校寫回網址', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+  it('?campus= 帶進來就看那一校，切校寫回網址；沒指定就看第一個可見校區', async () => {
+    const get = mockApis([])
     const { wrapper, router } = await mountAt(VisitCalendarView, '/visit-calendar?campus=renwu')
     const calendarCalls = () => get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-calendar?'))
     expect(new URLSearchParams(calendarCalls().at(-1)!.split('?')[1]).get('campus_key')).toBe('renwu')
     const select = wrapper.findComponent({ name: 'CampusSelect' }).findComponent({ name: 'ElSelect' })
     expect(select.props('modelValue')).toBe('renwu')
-    // 這天沒有時段時，連到時段頁也帶著正在看的那一校。
-    expect(wrapper.get('.calendar__detail a').attributes('href')).toBe('/slots?campus=renwu')
     select.vm.$emit('update:modelValue', 'minghua')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ campus: 'minghua' })
     expect(new URLSearchParams(calendarCalls().at(-1)!.split('?')[1]).get('campus_key')).toBe('minghua')
-    select.vm.$emit('update:modelValue', '')
-    await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({})
+
+    const plain = await mountAt(VisitCalendarView, '/visit-calendar')
+    expect(plain.wrapper.findComponent({ name: 'CampusSelect' }).findComponent({ name: 'ElSelect' }).props('modelValue')).toBeTruthy()
   })
 
   it('只負責一校時校區是唯讀標籤', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    mockApis([])
     const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar', reception())
     expect(wrapper.find('.campus-single').text()).toContain('義華')
   })
 
   it('點日期後名單不在畫面裡（或只露出標題）就捲過去；已經看得到、或用鍵盤選日期就不動', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar')
+    mockApis([])
+    const { wrapper } = await mountAt(VisitCalendarView, '/visit-calendar?campus=yihua')
     const heading = wrapper.get('.calendar__detail h2').element as HTMLElement
     const scroll = vi.fn()
     heading.scrollIntoView = scroll

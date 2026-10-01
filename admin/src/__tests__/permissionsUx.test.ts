@@ -4,7 +4,7 @@ import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
-import VisitSlotsView from '../views/VisitSlotsView.vue'
+import VisitCalendarView from '../views/VisitCalendarView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
@@ -86,32 +86,28 @@ describe('依 effective_capabilities 判斷權限', () => {
   })
 })
 
-describe('時段與容量', () => {
-  const futureSlot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-05', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, booked_count: 1 }
+describe('參觀場次', () => {
+  const rule = { weekday: 0, start_time: '10:00:00', end_time: '11:00:00', slot_minutes: 60, capacity: 1 }
   function mockApi() {
-    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).startsWith('/admin/visit-schedule')
-      ? { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [], exceptions: [] }
-      : [futureSlot]) as never)
+    vi.spyOn(api, 'get').mockImplementation(async path => {
+      const text = String(path)
+      if (text.startsWith('/admin/visit-schedule')) return { campus_key: 'yihua', min_lead_hours: 24, max_advance_days: 60, rules: [rule], exceptions: [], version: 1 } as never
+      if (text.startsWith('/admin/booking-config')) return { mode: 'slots', version: 1, parent_email_enabled: false } as never
+      return [] as never
+    })
   }
 
-  it('櫃台看得到時段，但沒有新增、調整名額與關閉', async () => {
+  it('櫃台看得到月曆與場次摘要，但沒有修改場次、整天休假、加開', async () => {
     mockApi()
-    const { wrapper } = await mountAs(VisitSlotsView, desk(), '/slots')
-    expect(wrapper.text()).toContain('新增時段、調整名額或關閉由校區管理者處理')
-    expect(buttonTexts(wrapper)).not.toContain('新增時段')
-    expect(buttonTexts(wrapper)).not.toContain('關閉')
-    expect(buttonTexts(wrapper)).not.toContain('新增規則')
-    const capacity = wrapper.findAllComponents({ name: 'ElInputNumber' }).filter(input => input.props('modelValue') === 3)
-    expect(capacity.length).toBeGreaterThan(0)
-    expect(capacity.every(input => input.props('disabled'))).toBe(true)
+    const { wrapper } = await mountAs(VisitCalendarView, desk(), '/visit-calendar?campus=yihua')
+    expect(wrapper.text()).toContain('上午場 10:00・每場 1 組・週一')
+    for (const text of ['修改場次', '整天休假', '＋加開一場', '停止申請']) expect(buttonTexts(wrapper)).not.toContain(text)
   })
 
-  it('校區管理者可以新增、調整與關閉', async () => {
+  it('校區管理者可以修改場次、整天休假與加開', async () => {
     mockApi()
-    const { wrapper } = await mountAs(VisitSlotsView, campusAdmin(), '/slots')
-    expect(buttonTexts(wrapper)).toContain('新增時段')
-    expect(buttonTexts(wrapper)).toContain('關閉')
-    expect(wrapper.text()).not.toContain('由校區管理者處理')
+    const { wrapper } = await mountAs(VisitCalendarView, campusAdmin(), '/visit-calendar?campus=yihua')
+    for (const text of ['修改場次', '整天休假', '＋加開一場']) expect(buttonTexts(wrapper)).toContain(text)
   })
 })
 
@@ -365,7 +361,7 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
       expect(text).not.toContain(hidden)
     }
     const links = hrefs(wrapper)
-    expect(links).toContain('/slots')
+    expect(links).toContain('/visit-calendar')
     expect(links).toContain('/visit-calendar')
     for (const blocked of ['/booking', '/media', '/releases', '/users']) expect(links.some(href => href.startsWith(blocked))).toBe(false)
     expect(links.some(href => href.startsWith('/content/'))).toBe(false)

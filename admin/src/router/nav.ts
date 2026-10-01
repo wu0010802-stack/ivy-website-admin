@@ -60,8 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '參觀預約',
     items: [
       { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
-      { name: 'visit-calendar', path: '/visit-calendar', title: '接待月曆', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '當天參觀'] },
-      { name: 'slots', path: '/slots', title: '時段與容量', icon: 'Timer', roles: VISITS, keywords: ['場次', '名額', '預約', '參觀時間'] },
+      { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
