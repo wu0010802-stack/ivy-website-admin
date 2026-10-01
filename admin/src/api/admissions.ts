@@ -1,9 +1,9 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getCompare（C4）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, RecruitmentEvent, RecruitmentVisit,
+  AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -116,4 +116,20 @@ export function getStats(params: {
   reference_month: string | null
 }): Promise<AdmissionsStats> {
   return api.get<AdmissionsStats>(`/admin/admissions/stats?${toQuery(params)}`)
+}
+
+/** 未預繳明細（園務 /no-deposit-analysis）。priority 為 null＝全部潛力；overdue_days、cold_only 為 null＝不限。 */
+export function getNoDepositRecords(params: {
+  campus_key: string
+  school_year: number | null
+  semester: number | null
+  reason: string | null
+  grade: string | null
+  priority: 'high' | 'medium' | 'low' | null
+  overdue_days: number | null
+  cold_only: boolean | null
+  page: number
+  page_size: number
+}): Promise<NoDepositRecords> {
+  return api.get<NoDepositRecords>(`/admin/admissions/no-deposit-records?${toQuery(params)}`)
 }

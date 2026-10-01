@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import { ElSelect } from 'element-plus'
 import StatsTab from '../components/admissions/StatsTab.vue'
+import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { AdmissionsStats } from '../api/types'
 import { button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
 
@@ -172,7 +173,7 @@ describe('統計分頁：總覽', () => {
   })
 
   it('警示與行動入口：統計內的跳子分頁，「訪視明細」交給頁面切分頁並帶月份', async () => {
-    mockGet({ '/admin/admissions/stats': stats() })
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
     const alert = wrapper.get('.alert-item')
@@ -223,7 +224,7 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
   })
 
   it('未預繳原因：三張數字卡、優先度分組、原因 × 年級（名單不在 StatsTab 本身，由 C3b 的 NoDepositList 負責）', async () => {
-    mockGet({ '/admin/admissions/stats': stats() })
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '未預繳原因')
 
@@ -308,5 +309,56 @@ describe('統計分頁：狀態', () => {
     await flushPromises()
     const last = queryOf(pathsTo(get, '/admin/admissions/stats').at(-1)!)
     expect([last.get('campus_key'), last.get('reference_month')]).toEqual(['minghua', null])
+  })
+})
+
+// ── C3b：未預繳明細掛進「未預繳原因」 ──
+const NO_DEPOSIT_PATH = '/admin/admissions/no-deposit-records'
+const noDepositRecords = {
+  total: 1, page: 1, page_size: 50,
+  summary: { high_potential_count: 2, overdue_followup_count: 3, cold_count: 0 },
+  records: [{
+    id: '11111111-0000-4000-8000-000000000001', month: '115.09', seq_no: '3', child_name: '林小安', grade: '小班',
+    no_deposit_reason: '時程未到／仍在觀望', no_deposit_reason_detail: null, source: 'Facebook', referrer: '林老師',
+    parent_response: null, created_at: '2026-09-03T02:00:00Z', priority: 'high', cold: false,
+  }],
+}
+
+describe('統計分頁：未預繳明細（C3b）', () => {
+  it('打開「未預繳原因」才掛 NoDepositList，帶頁首校區與學期；不再叫人到訪視明細篩；名單的「查看」交給頁面', async () => {
+    const get = mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
+
+    const pane = await openSubTab(wrapper, '未預繳原因')
+    expect(wrapper.findComponent(NoDepositList).props()).toEqual({ campusKey: 'yihua', schoolYear: 115, semester: 1, preset: null })
+    expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(1)
+    expect(pane.text()).toContain('林小安')
+    expect(pane.text()).not.toContain('名單請到「訪視明細」')
+
+    await button(pane as DOMWrapper<Element>, '查看')!.trigger('click')
+    expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09' }]])
+  })
+
+  it('行動入口「查看高風險未預繳」把 target_filter 帶進名單（同園務 applyNoDepositFilter）', async () => {
+    const get = mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    await wrapper.findAll('.action-item')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findComponent(NoDepositList).props('preset')).toEqual({ priority: 'high', overdue_days: 14 })
+    const query = queryOf(pathsTo(get, NO_DEPOSIT_PATH).at(-1)!)
+    expect([query.get('priority'), query.get('overdue_days')]).toEqual(['high', '14'])
+  })
+
+  it('沒有未預繳的訪視：不掛名單、不讀名單', async () => {
+    const get = mockGet({ '/admin/admissions/stats': emptyStats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const pane = await openSubTab(wrapper, '未預繳原因')
+    expect(pane.text()).toContain('此區間尚無未預繳資料')
+    expect(wrapper.findComponent(NoDepositList).exists()).toBe(false)
+    expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
   })
 })

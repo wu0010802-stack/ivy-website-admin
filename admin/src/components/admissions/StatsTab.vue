@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
 import { getStats } from '../../api/admissions'
@@ -14,6 +15,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 // 子分頁與讀取。換校區或學期時先清空畫面再讀，只採用最後一次的回應（R15：不殘留別校的數字）。
 // 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、未預繳原因（園務的「區域分析」不做）。
 // 警示與行動入口指到統計內的子分頁就直接切；指到訪視明細就交給頁面（open-records）。
+// 「未預繳原因」另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
 
@@ -33,6 +35,9 @@ const loading = ref(false)
 const failed = ref(false)
 // null＝跟著後端取最新有資料的月份（園務 _select_reference_month）。
 const referenceMonth = ref<string | null>(null)
+// 警示或行動入口指到「未預繳原因」時帶的 target_filter（priority、overdue_days），交給名單套用
+// （同園務 applyNoDepositFilter）。每次都給新物件，同一個入口點第二次也會重新套用。
+const noDepositPreset = ref<Record<string, string | number> | null>(null)
 const requests = useRequestSequence()
 
 async function load(options: { reset?: boolean } = {}) {
@@ -62,11 +67,12 @@ async function load(options: { reset?: boolean } = {}) {
   }
 }
 
-// 換校區或學年學期：參考月份回到「最新」，畫面清空再讀（不留舊校區的數字）。
+// 換校區或學年學期：參考月份回到「最新」、名單的 preset 清掉，畫面清空再讀（不留舊校區的數字）。
 watch(
   [() => props.campusKey, () => props.schoolYear, () => props.semester],
   () => {
     referenceMonth.value = null
+    noDepositPreset.value = null
     void load({ reset: true })
   },
   { immediate: true },
@@ -100,6 +106,7 @@ function navigate(target: { tab: StatsTarget; filter: Record<string, string | nu
     if (typeof month === 'string' && month) emit('open-records', { month })
     return
   }
+  if (target.tab === 'nodeposit') noDepositPreset.value = { ...target.filter }
   setSubTab(`stats-${target.tab}`)
 }
 
@@ -294,7 +301,7 @@ const noDepositKpis = computed(() => {
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="未預繳原因" name="stats-nodeposit">
+        <el-tab-pane label="未預繳原因" name="stats-nodeposit" lazy>
           <div class="stats-pane">
             <template v-if="stats.no_deposit_total">
               <div class="nodeposit-summary">
@@ -319,9 +326,15 @@ const noDepositKpis = computed(() => {
               row-key="reason"
               empty-text="此區間尚無未預繳資料"
             />
-            <p class="hint">
-              名單請到「訪視明細」用「預繳：否」與「未預繳原因」篩選。已退預繳、退註冊的不算未預繳；冷名單＝建檔滿 90 天仍未預繳。
-            </p>
+            <p class="hint">已退預繳、退註冊的不算未預繳；冷名單＝建檔滿 90 天仍未預繳。</p>
+            <NoDepositList
+              v-if="stats.no_deposit_total"
+              :campus-key="campusKey"
+              :school-year="schoolYear"
+              :semester="semester"
+              :preset="noDepositPreset"
+              @open-records="emit('open-records', $event)"
+            />
           </div>
         </el-tab-pane>
       </el-tabs>

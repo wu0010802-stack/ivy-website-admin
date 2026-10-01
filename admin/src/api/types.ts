@@ -396,3 +396,7 @@ export type AdmissionsOptions = components['schemas']['AdmissionsOptionsOut']
 
 // 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
 export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']
+
+// 未預繳明細（C3b）。NoDepositRecordsOut 在 C2b 才進 OpenAPI。
+export type NoDepositRecords = components['schemas']['NoDepositRecordsOut']
+export type NoDepositRecord = components['schemas']['NoDepositRecordOut']
