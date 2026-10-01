@@ -16,6 +16,7 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Any, Callable, Iterable
 
@@ -584,3 +585,102 @@ async def compare(
             "grades_with_target": len(configured),
         })
     return {"as_of": now, "school_year": school_year, "semester": semester, "rows": result}
+
+
+_LEADING_DIGITS = re.compile(r"\d+")
+_NO_DEPOSIT_SUMMARY_FIELDS = ("high_potential_count", "overdue_followup_count", "cold_count")
+
+
+def seq_sort_key(seq_no: str | None) -> tuple[int, int, str]:
+    """序號依開頭數字升序（「2」在「10」前面）；沒有開頭數字的排在有數字的後面，沒有序號的排最後。"""
+    if seq_no is None:
+        return (2, 0, "")
+    digits = _LEADING_DIGITS.match(seq_no)
+    if digits is None:
+        return (1, 0, seq_no)
+    return (0, int(digits.group()), seq_no)
+
+
+async def no_deposit_records(
+    db: AsyncSession,
+    campus_key: str,
+    *,
+    school_year: int | None,
+    semester: int | None,
+    reason: str | None,
+    grade: str | None,
+    priority: str | None,
+    overdue_days: int | None,
+    cold_only: bool | None,
+    page: int,
+    page_size: int,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """未預繳明細（園務 GET /no-deposit-analysis，stats.py:938-1005）。只讀。
+
+    母體同 query_stats 的未預繳：篩校區與入學學年學期、未預繳且未退出（退預繳會清 has_deposit，
+    不排除的話統計寫 N 筆、名單會多出已退出的）。reason／grade 名單與 summary 都套；
+    priority／overdue_days／cold_only 只篩名單，其中 overdue_days 也決定 summary 的逾期天數（沒給用 14）。
+    排序與園務不同：園務 ORDER BY month DESC, seq_no 是字串排序（同月「10」在「2」前面），
+    官網用 roc_month_sort_key 降序、seq_sort_key 升序，再以 created_at、id 收尾，換頁結果可重現。
+    """
+    now = now or now_utc()
+    v = RecruitmentVisit
+    filters = [*_base_filters(campus_key, school_year, semester), v.has_deposit.is_(False), v.withdrawn_at.is_(None)]
+    if reason:
+        filters.append(v.no_deposit_reason == reason)
+    if grade:
+        filters.append(v.grade == grade)
+    overdue_cutoff = now - timedelta(days=overdue_days or DEFAULT_OVERDUE_DAYS)
+    cold_cutoff = now - timedelta(days=COLD_LEAD_DAYS)
+
+    summary_row = (
+        await db.execute(
+            select(
+                func.count(v.id).filter(v.no_deposit_reason.in_(NO_DEPOSIT_PRIORITY["high"])).label("high_potential_count"),
+                func.count(v.id).filter(v.created_at <= overdue_cutoff).label("overdue_followup_count"),
+                func.count(v.id).filter(v.created_at <= cold_cutoff).label("cold_count"),
+            ).where(*filters)
+        )
+    ).one()
+    summary = {name: int(getattr(summary_row, name) or 0) for name in _NO_DEPOSIT_SUMMARY_FIELDS}
+
+    list_filters = list(filters)
+    if priority:
+        list_filters.append(v.no_deposit_reason.in_(NO_DEPOSIT_PRIORITY[priority]))
+    if overdue_days is not None:
+        list_filters.append(v.created_at <= overdue_cutoff)
+    if cold_only:
+        list_filters.append(v.created_at <= cold_cutoff)
+    rows = (
+        await db.execute(
+            select(
+                v.id, v.month, v.seq_no, v.child_name, v.grade, v.no_deposit_reason, v.no_deposit_reason_detail,
+                v.source, v.referrer, v.parent_response, v.created_at,
+            ).where(*list_filters)
+        )
+    ).all()
+    # Python 的排序是穩定的（reverse=True 也是）：先排最次要的鍵，最後排月份。
+    ordered = sorted(rows, key=lambda row: (row.created_at, str(row.id)))
+    ordered.sort(key=lambda row: seq_sort_key(row.seq_no))
+    ordered.sort(key=lambda row: roc_month_sort_key(row.month), reverse=True)
+    start = (page - 1) * page_size
+    records = [
+        {
+            "id": row.id,
+            "month": row.month,
+            "seq_no": row.seq_no,
+            "child_name": row.child_name,
+            "grade": row.grade,
+            "no_deposit_reason": row.no_deposit_reason,
+            "no_deposit_reason_detail": row.no_deposit_reason_detail,
+            "source": row.source,
+            "referrer": row.referrer,
+            "parent_response": row.parent_response,
+            "created_at": row.created_at,
+            "priority": _REASON_PRIORITY.get(row.no_deposit_reason) if row.no_deposit_reason else None,
+            "cold": row.created_at <= cold_cutoff,
+        }
+        for row in ordered[start : start + page_size]
+    ]
+    return {"total": len(ordered), "page": page, "page_size": page_size, "summary": summary, "records": records}

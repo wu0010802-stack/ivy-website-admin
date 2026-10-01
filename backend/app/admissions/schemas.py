@@ -619,3 +619,43 @@ class AdmissionsCompareOut(BaseModel):
     school_year: int
     semester: int
     rows: list[AdmissionsCompareRow]
+
+
+# ── 未預繳明細（C2b）：園務 GET /no-deposit-analysis（stats.py:938-1005）。
+# 名單含孩子姓名（2026-10-01 使用者裁定統計頁要列名單），只放畫面要的欄位，不含電話、地址、生日。
+
+
+class NoDepositSummaryOut(BaseModel):
+    """只受 reason／grade 篩選影響（園務 base_query）；潛力、冷名單篩選不改這三個數字。"""
+
+    high_potential_count: int
+    # 建檔滿 overdue_days 天（沒給用 14）仍未預繳。
+    overdue_followup_count: int
+    # 建檔滿 90 天仍未預繳。
+    cold_count: int
+
+
+class NoDepositRecordOut(BaseModel):
+    id: uuid.UUID
+    month: str
+    seq_no: str | None
+    child_name: str
+    grade: str | None
+    no_deposit_reason: str | None
+    no_deposit_reason_detail: str | None
+    source: str | None
+    referrer: str | None
+    parent_response: str | None
+    created_at: datetime
+    # 「未註明／待追蹤」與沒填原因是 None（畫面寫「—」）。
+    priority: Literal["high", "medium", "low"] | None
+    # 建檔滿 90 天（園務 COLD_LEAD_DAYS）。
+    cold: bool
+
+
+class NoDepositRecordsOut(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    summary: NoDepositSummaryOut
+    records: list[NoDepositRecordOut]

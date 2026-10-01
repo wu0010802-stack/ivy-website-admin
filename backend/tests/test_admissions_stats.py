@@ -556,3 +556,213 @@ async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yi
     assert (await editor_client.get(path)).status_code == 403
     # 學期必填：名額剩餘要對到單一學期。
     assert (await admin_client.get(f"{API}/admin/admissions/compare?school_year=115")).status_code == 422
+
+
+# ── 未預繳明細（C2b）：園務 GET /no-deposit-analysis（stats.py:938-1005）──
+
+EVALUATING = "課程／環境仍在評估"
+COST = "費用考量"
+OTHER_SCHOOL = "已有其他就學選項／比較他校"
+UNSPECIFIED = "未註明／待追蹤"
+RECORD_KEYS = {
+    "id", "month", "seq_no", "child_name", "grade", "no_deposit_reason", "no_deposit_reason_detail",
+    "source", "referrer", "parent_response", "created_at", "priority", "cold",
+}
+# seed_no_deposit 的 N1–N7 依「月份降序、序號數字升序」排好的順序。
+ALL_SEVEN = ["陳小魚", "林小安", "黃小雨", "王小樹", "李小美", "周小宇", "鄭小芸"]
+
+
+def add_numbered(db, seq_no: str | None, **kwargs) -> RecruitmentVisit:
+    """add_visit 不配序號（seq_no=None）；名單要驗排序，這裡補上。"""
+    visit = add_visit(db, **kwargs)
+    visit.seq_no = seq_no
+    return visit
+
+
+async def seed_no_deposit(db) -> uuid.UUID:
+    """未預繳明細的合成資料：義華 115 學年上學期 N1–N7 在母體內，X1–X4 不在。回傳 N1 的 id。
+
+    | 筆 | 參觀日 → 月份 | 序號 | 姓名 | 年級 | 未預繳原因（潛力） | 建檔 |
+    | N1 | 09-03 → 115.09 | 2 | 林小安 | 小班 | 時程未到／仍在觀望（高） | 20 天前 |
+    | N2 | 09-05 → 115.09 | 10 | 黃小雨 | 幼幼班 | 費用考量（中） | 剛好 14 天前 |
+    | N3 | 09-08 → 115.09 | 1 | 陳小魚 | 中班 | 課程／環境仍在評估（高） | 14 天前再晚 1 秒 |
+    | N4 | 08-20 → 115.08 | 5 | 王小樹 | 大班 | （NULL，未分類） | 3 天前 |
+    | N5 | 07-02 → 115.07 | 3 | 周小宇 | 小班 | 已有其他就學選項／比較他校（低） | 剛好 90 天前 |
+    | N6 | 07-03 → 115.07 | 1 | 李小美 | 中班 | 未註明／待追蹤（—） | 90 天前再晚 1 秒 |
+    | N7 | 2025-12-15 → 114.12 | 4 | 鄭小芸 | 大班 | 時程未到／仍在觀望（高） | 290 天前 |
+
+    X1 已預繳、X2 退預繳（殘留高潛力原因）、X3 下學期、X4 明華。
+    """
+    y = 2026
+    n1 = add_numbered(db, "2", visit_date=date(y, 9, 3), child_name="林小安", birthday=date(2022, 6, 4), grade="小班",
+                      source="Facebook", referrer="林老師", no_deposit_reason=HIGH, created_at=days_ago(20))
+    n1.no_deposit_reason_detail = "想等明年再決定"
+    n1.parent_response = "下週再電訪"
+    n1.phone = "0912345678"
+    n1.address = "高雄市三民區測試路 1 號"
+    n1_id = n1.id  # commit 後再讀屬性會觸發 lazy refresh，先記下來
+    add_numbered(db, "10", visit_date=date(y, 9, 5), child_name="黃小雨", grade="幼幼班", no_deposit_reason=COST,
+                 created_at=days_ago(14))
+    add_numbered(db, "1", visit_date=date(y, 9, 8), child_name="陳小魚", grade="中班", no_deposit_reason=EVALUATING,
+                 created_at=days_ago(14) + timedelta(seconds=1))
+    add_numbered(db, "5", visit_date=date(y, 8, 20), child_name="王小樹", grade="大班", created_at=days_ago(3))
+    add_numbered(db, "3", visit_date=date(y, 7, 2), child_name="周小宇", grade="小班", no_deposit_reason=OTHER_SCHOOL,
+                 created_at=days_ago(90))
+    add_numbered(db, "1", visit_date=date(y, 7, 3), child_name="李小美", grade="中班", no_deposit_reason=UNSPECIFIED,
+                 created_at=days_ago(90) + timedelta(seconds=1))
+    add_numbered(db, "4", visit_date=date(2025, 12, 15), child_name="鄭小芸", grade="大班", no_deposit_reason=HIGH,
+                 created_at=days_ago(290))
+    add_numbered(db, "3", visit_date=date(y, 9, 10), child_name="何小森", grade="小班", has_deposit=True,
+                 created_at=days_ago(30))
+    add_numbered(db, "4", visit_date=date(y, 9, 12), child_name="許小樂", grade="小班", no_deposit_reason=HIGH,
+                 withdrawn_at=days_ago(2), created_at=days_ago(30))
+    add_numbered(db, "5", visit_date=date(y, 9, 15), child_name="蘇小晨", grade="小班", no_deposit_reason=HIGH,
+                 target_semester=2, created_at=days_ago(30))
+    add_numbered(db, "1", campus_key="minghua", visit_date=date(y, 9, 3), child_name="楊小禾", grade="小班",
+                 no_deposit_reason=HIGH, created_at=days_ago(30))
+    await db.commit()
+    return n1_id
+
+
+async def no_deposit(db, campus_key: str = "yihua", **changes) -> dict:
+    params = {
+        "school_year": 115, "semester": 1, "reason": None, "grade": None, "priority": None,
+        "overdue_days": None, "cold_only": None, "page": 1, "page_size": 100, **changes,
+    }
+    return await stats.no_deposit_records(db, campus_key, now=NOW, **params)
+
+
+def names(result: dict) -> list[str]:
+    return [row["child_name"] for row in result["records"]]
+
+
+async def test_no_deposit_records_population_order_and_fields(db_session):
+    """母體同 C1 的 no_deposit（未預繳且未退出、篩入學學年學期）；月份降序、序號依數字升序。"""
+    n1_id = await seed_no_deposit(db_session)
+
+    result = await no_deposit(db_session)
+
+    # X1 已預繳、X2 已退出、X3 下學期、X4 明華都不在。
+    # 115.09 的序號 1、2、10（字串排序會是 1、10、2）→ 115.08 → 115.07 的 1、3 → 114.12（跨民國年照月份降序）。
+    assert names(result) == ALL_SEVEN
+    assert (result["total"], result["page"], result["page_size"]) == (7, 1, 100)
+    # 高潛力 N1 N3 N7＝3；建檔 <= now－14 天：N1 N2 N5 N6 N7＝5（N3 晚 1 秒不算）；<= now－90 天：N5 N7＝2（N6 晚 1 秒不算）。
+    assert result["summary"] == {"high_potential_count": 3, "overdue_followup_count": 5, "cold_count": 2}
+    # 與 /stats 同口徑：統計寫幾筆，名單就是幾筆；三個數字也對得起來。
+    overall = await stats.query_stats(db_session, "yihua", school_year=115, semester=1, reference_month=None, now=NOW)
+    assert result["total"] == overall["no_deposit_total"]
+    assert {key: overall["no_deposit_summary"][key] for key in result["summary"]} == result["summary"]
+
+    lin = result["records"][1]
+    assert set(lin) == RECORD_KEYS  # 不含電話、地址、生日
+    assert lin == {
+        "id": n1_id, "month": "115.09", "seq_no": "2", "child_name": "林小安", "grade": "小班",
+        "no_deposit_reason": HIGH, "no_deposit_reason_detail": "想等明年再決定", "source": "Facebook",
+        "referrer": "林老師", "parent_response": "下週再電訪", "created_at": days_ago(20), "priority": "high", "cold": False,
+    }
+    # 潛力：「未註明／待追蹤」與沒填原因（未分類）都是 None；冷名單＝建檔滿 90 天。
+    assert [(row["priority"], row["cold"]) for row in result["records"]] == [
+        ("high", False), ("high", False), ("medium", False), (None, False), (None, False), ("low", True), ("high", True),
+    ]
+
+
+async def test_no_deposit_records_filters_keep_summary(db_session):
+    """潛力、冷名單只篩名單，summary 不變；逾期天數同園務：篩名單，也決定 summary 的逾期筆數；原因與班別兩邊都篩。"""
+    await seed_no_deposit(db_session)
+    base = (await no_deposit(db_session))["summary"]
+
+    high = await no_deposit(db_session, priority="high")
+    assert (names(high), high["total"], high["summary"]) == (["陳小魚", "林小安", "鄭小芸"], 3, base)
+    assert names(await no_deposit(db_session, priority="medium")) == ["黃小雨"]
+    assert names(await no_deposit(db_session, priority="low")) == ["周小宇"]
+
+    # 畫面的「逾 14 天」開關：summary 的逾期本來就用 14 天，所以不變。
+    overdue = await no_deposit(db_session, overdue_days=14)
+    assert (names(overdue), overdue["summary"]) == (["林小安", "黃小雨", "李小美", "周小宇", "鄭小芸"], base)
+    # 逾 25 天：名單只剩 N5 N6 N7；summary 只有逾期筆數跟著天數變（園務 effective_overdue_days）。
+    overdue_25 = await no_deposit(db_session, overdue_days=25)
+    assert names(overdue_25) == ["李小美", "周小宇", "鄭小芸"]
+    assert overdue_25["summary"] == {**base, "overdue_followup_count": 3}
+
+    cold = await no_deposit(db_session, cold_only=True)
+    assert (names(cold), cold["total"], cold["summary"]) == (["周小宇", "鄭小芸"], 2, base)
+    assert names(await no_deposit(db_session, cold_only=False)) == ALL_SEVEN  # 園務只在 true 時篩
+    assert names(await no_deposit(db_session, priority="high", overdue_days=14)) == ["林小安", "鄭小芸"]
+
+    # 原因、班別：名單與 summary 都只算符合的（園務 base_query）。
+    by_reason = await no_deposit(db_session, reason=HIGH)
+    assert names(by_reason) == ["林小安", "鄭小芸"]
+    assert by_reason["summary"] == {"high_potential_count": 2, "overdue_followup_count": 2, "cold_count": 1}
+    by_grade = await no_deposit(db_session, grade="小班")
+    assert names(by_grade) == ["林小安", "周小宇"]
+    assert by_grade["summary"] == {"high_potential_count": 1, "overdue_followup_count": 2, "cold_count": 1}
+
+
+async def test_no_deposit_records_cutoff_is_inclusive(db_session):
+    """建檔剛好滿 14／90 天就算逾期／冷名單（<=，同園務）；晚 1 秒就不算。"""
+    await seed_no_deposit(db_session)
+
+    overdue = names(await no_deposit(db_session, overdue_days=14))
+    assert "黃小雨" in overdue      # 剛好 14 天前
+    assert "陳小魚" not in overdue  # 14 天前再晚 1 秒
+    cold = {row["child_name"]: row["cold"] for row in (await no_deposit(db_session))["records"]}
+    assert (cold["周小宇"], cold["李小美"]) == (True, False)  # 剛好 90 天前／晚 1 秒
+    assert names(await no_deposit(db_session, cold_only=True)) == ["周小宇", "鄭小芸"]
+
+
+async def test_no_deposit_records_pagination(db_session):
+    await seed_no_deposit(db_session)
+
+    pages = [await no_deposit(db_session, page=page, page_size=3) for page in (1, 2, 3, 4)]
+
+    # 排序固定，換頁不重複、不漏；超過最後一頁回空陣列，total 照算。
+    assert [names(result) for result in pages] == [ALL_SEVEN[0:3], ALL_SEVEN[3:6], ALL_SEVEN[6:], []]
+    assert {(result["total"], result["page_size"]) for result in pages} == {(7, 3)}
+    assert [result["page"] for result in pages] == [1, 2, 3, 4]
+
+
+async def test_no_deposit_records_empty_campus(db_session):
+    await seed_no_deposit(db_session)
+
+    result = await no_deposit(db_session, "renwu", priority="high")
+
+    assert result == {
+        "total": 0, "page": 1, "page_size": 100,
+        "summary": {"high_potential_count": 0, "overdue_followup_count": 0, "cold_count": 0},
+        "records": [],
+    }
+
+
+async def test_no_deposit_records_endpoint(admin_client, db_session):
+    await seed_no_deposit(db_session)
+    path = f"{API}/admin/admissions/no-deposit-records?campus_key=yihua&school_year=115&semester=1"
+
+    response = await admin_client.get(path)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["total"], body["page"], body["page_size"]) == (7, 1, 100)
+    assert [row["child_name"] for row in body["records"]] == ALL_SEVEN
+    assert set(body["records"][1]) == RECORD_KEYS
+    # 電話、地址、生日不在回應裡（N1 三個都有填）。
+    for secret in ("0912345678", "測試路", "2022-06-04"):
+        assert secret not in response.text, secret
+
+    filtered = await admin_client.get(path + "&priority=high&page=1&page_size=2")
+    assert filtered.status_code == 200, filtered.text
+    assert (filtered.json()["total"], [row["child_name"] for row in filtered.json()["records"]]) == (3, ["陳小魚", "林小安"])
+
+    base = f"{API}/admin/admissions/no-deposit-records?campus_key=yihua"
+    for bad in ("priority=urgent", "overdue_days=0", "overdue_days=366", "page=0", "page_size=0", "page_size=501", "semester=3"):
+        assert (await admin_client.get(f"{base}&{bad}")).status_code == 422, bad
+
+
+async def test_no_deposit_records_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
+    """名單含孩子姓名：權限同統計（admissions.read＋校區範圍；越權 404、editor／readonly 403）。"""
+    path = f"{API}/admin/admissions/no-deposit-records?campus_key="
+    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
+    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
+    assert (await minghua_client.get(path + "yihua")).status_code == 404
+    assert (await minghua_client.get(path + "minghua")).status_code == 200
+    assert (await editor_client.get(path + "yihua")).status_code == 403
+    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
+    assert (await admin_client.get(path + "nowhere")).status_code == 404

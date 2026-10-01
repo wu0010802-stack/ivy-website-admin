@@ -120,6 +120,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/no-deposit-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions No Deposit Records
+         * @description 未預繳明細（園務 /no-deposit-analysis）。含孩子姓名，權限同統計；只讀，不寫稽核。
+         */
+        get: operations["get_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/options": {
         parameters: {
             query?: never;
@@ -3812,6 +3832,65 @@ export interface components {
              */
             value: "時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量";
         };
+        /** NoDepositRecordOut */
+        NoDepositRecordOut: {
+            /** Child Name */
+            child_name: string;
+            /** Cold */
+            cold: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Grade */
+            grade: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Month */
+            month: string;
+            /** No Deposit Reason */
+            no_deposit_reason: string | null;
+            /** No Deposit Reason Detail */
+            no_deposit_reason_detail: string | null;
+            /** Parent Response */
+            parent_response: string | null;
+            /** Priority */
+            priority: ("high" | "medium" | "low") | null;
+            /** Referrer */
+            referrer: string | null;
+            /** Seq No */
+            seq_no: string | null;
+            /** Source */
+            source: string | null;
+        };
+        /** NoDepositRecordsOut */
+        NoDepositRecordsOut: {
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Records */
+            records: components["schemas"]["NoDepositRecordOut"][];
+            summary: components["schemas"]["NoDepositSummaryOut"];
+            /** Total */
+            total: number;
+        };
+        /**
+         * NoDepositSummaryOut
+         * @description 只受 reason／grade 篩選影響（園務 base_query）；潛力、冷名單篩選不改這三個數字。
+         */
+        NoDepositSummaryOut: {
+            /** Cold Count */
+            cold_count: number;
+            /** High Potential Count */
+            high_potential_count: number;
+            /** Overdue Followup Count */
+            overdue_followup_count: number;
+        };
         /** NotificationOutboxOut */
         NotificationOutboxOut: {
             /** Attempts */
@@ -5941,6 +6020,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IntakePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year?: number | null;
+                semester?: number | null;
+                reason?: string | null;
+                grade?: string | null;
+                priority?: ("high" | "medium" | "low") | null;
+                overdue_days?: number | null;
+                cold_only?: boolean | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoDepositRecordsOut"];
                 };
             };
             /** @description Validation Error */

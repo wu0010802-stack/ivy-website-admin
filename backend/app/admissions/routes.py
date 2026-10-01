@@ -11,6 +11,7 @@ metadata 不放個資。
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from app.admissions.schemas import (
     FunnelBoardOut,
     IntakePlanOut,
     IntakeTargetsRequest,
+    NoDepositRecordsOut,
     RecruitmentEventOut,
     RecruitmentVisitCreate,
     RecruitmentVisitOut,
@@ -544,3 +546,36 @@ async def get_admissions_compare(
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     result = await stats_service.compare(db, campus_keys, school_year=school_year, semester=semester)
     return AdmissionsCompareOut.model_validate(result)
+
+
+@router.get("/admin/admissions/no-deposit-records", response_model=NoDepositRecordsOut)
+async def get_admissions_no_deposit_records(
+    campus_key: str,
+    school_year: int | None = Query(default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    reason: str | None = Query(default=None, max_length=60),
+    grade: str | None = Query(default=None, max_length=20),
+    priority: Literal["high", "medium", "low"] | None = Query(default=None),
+    overdue_days: int | None = Query(default=None, ge=1, le=365),
+    cold_only: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> NoDepositRecordsOut:
+    """未預繳明細（園務 /no-deposit-analysis）。含孩子姓名，權限同統計；只讀，不寫稽核。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    result = await stats_service.no_deposit_records(
+        db,
+        campus_key,
+        school_year=school_year,
+        semester=semester,
+        reason=reason,
+        grade=grade,
+        priority=priority,
+        overdue_days=overdue_days,
+        cold_only=cold_only,
+        page=page,
+        page_size=page_size,
+    )
+    return NoDepositRecordsOut.model_validate(result)
