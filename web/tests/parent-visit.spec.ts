@@ -5,7 +5,8 @@ import { useParentVisit } from '../app/composables/useParentVisit'
 import { parentVisitCampus } from '../app/utils/parent-visit'
 
 const visit = {
-  id: 'visit-1', campus_key: 'minghua', status: 'confirmed', phone_masked: '0999***001',
+  id: 'visit-1', campus_key: 'minghua', status: 'confirmed',
+  parent_name: '王媽媽', phone: '0999000001', email: 'wang@example.com', child_name: '小安', child_birthdate: '2022-05-01', party_size: 2, questions: null, version: 3, can_edit: true,
   campus_name: '明華校', campus_active: true, campus_phone: '07-3000000',
   slot: { id: 'slot-1', slot_date: '2026-10-10', start_time: '10:00:00', end_time: '11:00:00' },
   confirmed_at: null, cancelled_at: null, hold_expires_at: null, created_at: '2026-09-23T00:00:00Z',
@@ -25,7 +26,7 @@ describe('parent visit management', () => {
     expect(state.error.value).toContain('重新載入')
     await state.reload()
     expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', body: { token: 'test-link' }, headers: { 'X-Ivy-Parent': '1' } })
-    expect(state.visit.value?.phone_masked).toBe('0999***001')
+    expect(state.visit.value?.phone).toBe('0999000001')
     await state.reload()
     expect(fetch.mock.calls[2]?.[0]).toMatch(/\/me$/)
   })
@@ -59,17 +60,85 @@ describe('parent visit management', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the original confirmed slot after sending a reschedule request', async () => {
-    const fetch = vi.fn().mockResolvedValueOnce(visit).mockResolvedValueOnce({ id: 'change-1', status: 'pending' })
+  it('直接改場次：成功後換成新的預約內容', async () => {
+    const moved = { ...visit, slot: { id: 'slot-2', slot_date: '2026-10-12', start_time: '14:30:00', end_time: '15:30:00' } }
+    const fetch = vi.fn().mockResolvedValueOnce(visit).mockResolvedValueOnce(moved)
     vi.stubGlobal('$fetch', fetch)
     const state = useParentVisit()
-    await state.initialize()
-    await state.requestReschedule('slot-2')
-    expect(state.visit.value?.slot?.id).toBe('slot-1')
-    expect(state.reschedulePending.value).toBe(true)
-    expect(state.notice.value).toContain('原時段仍保留')
-    await state.requestReschedule('slot-2')
-    expect(fetch).toHaveBeenCalledTimes(2)
+    await state.initialize('link')
+
+    expect(await state.reschedule('slot-2')).toBe(true)
+
+    expect(fetch.mock.calls[1]?.[0]).toBe('/api/website/v1/public/visit-manage/reschedule')
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', headers: { 'X-Ivy-Parent': '1' }, body: { visit_request_id: 'visit-1', slot_id: 'slot-2' } })
+    expect(state.visit.value?.slot?.id).toBe('slot-2')
+    expect(state.notice.value).toContain('下午場 14:30')
+  })
+
+  it('修改資料只送有改的欄位並帶版本', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(visit).mockResolvedValueOnce({ ...visit, phone: '0922333444', version: 4 })
+    vi.stubGlobal('$fetch', fetch)
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.updateDetails({ phone: '0922333444' })).toBe(true)
+
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: 'PATCH', body: { visit_request_id: 'visit-1', expected_version: 3, phone: '0922333444' } })
+    expect(state.visit.value?.version).toBe(4)
+  })
+
+  it('沒有改任何欄位就不送出', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(visit)
+    vi.stubGlobal('$fetch', fetch)
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.updateDetails({})).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('停在頁面上跨過截止時間：重抓資料、收起操作並說明', async () => {
+    const closed = { ...visit, can_cancel: false, can_reschedule: false, can_edit: false }
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(visit)
+      .mockRejectedValueOnce(failure(409, 'CHANGE_DEADLINE_PASSED'))
+      .mockResolvedValueOnce(closed)
+    vi.stubGlobal('$fetch', fetch)
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.updateDetails({ party_size: 3 })).toBe(false)
+
+    expect(fetch.mock.calls[2]?.[0]).toBe('/api/website/v1/public/visit-manage/me')
+    expect(state.visit.value?.can_edit).toBe(false)
+    expect(state.error.value).toContain('已無法線上異動')
+  })
+
+  it('版本衝突時重新載入最新資料', async () => {
+    const fresh = { ...visit, phone: '0911111111', version: 5 }
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(visit)
+      .mockRejectedValueOnce(failure(409, 'VISIT_REQUEST_VERSION_CONFLICT'))
+      .mockResolvedValueOnce(fresh)
+    vi.stubGlobal('$fetch', fetch)
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.updateDetails({ party_size: 3 })).toBe(false)
+
+    expect(state.visit.value?.version).toBe(5)
+    expect(state.error.value).toContain('剛被修改過')
+  })
+
+  it('每日修改上限（429）顯示伺服器訊息', async () => {
+    const limited = { response: { status: 429 }, data: { detail: { code: 'RATE_LIMITED', message: '這筆預約今天已經修改很多次了，請明天再試。' } } }
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValueOnce(visit).mockRejectedValueOnce(limited))
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.reschedule('slot-2')).toBe(false)
+
+    expect(state.error.value).toBe('這筆預約今天已經修改很多次了，請明天再試。')
   })
 
   it('retains the cancellation receipt without reloading the revoked session', async () => {
@@ -81,14 +150,6 @@ describe('parent visit management', () => {
     await state.cancelVisit()
     expect(state.visit.value?.status).toBe('cancelled')
     expect(fetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('restores pending reschedule status after reloading the page', async () => {
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ ...visit, reschedule_pending: true }))
-    const state = useParentVisit()
-    await state.initialize()
-    expect(state.reschedulePending.value).toBe(true)
-    expect(state.notice.value).toContain('原時段仍保留')
   })
 
   it('clears displayed private data when an operation discovers an expired session', async () => {
@@ -167,6 +228,15 @@ describe('parent visit campus', () => {
     expect(parentVisitCampus(null, campuses)).toBeNull()
   })
 
+  it('管理頁有改場次、修改資料、取消三個操作，改期不再寫「申請」', () => {
+    const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
+    expect(page).toContain('>改場次</button>')
+    expect(page).toContain('>修改資料</button>')
+    expect(page).toContain('>取消預約</button>')
+    expect(page).not.toContain('申請改期')
+    expect(page).not.toContain('phone_masked')
+  })
+
   it('offers rebooking only when the campus booking page exists', () => {
     const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
     const rebook = page.split('\n').find(line => line.includes('>重新預約</NuxtLink>'))
@@ -188,7 +258,7 @@ describe('parent visit campus', () => {
       .mockResolvedValueOnce({ ...visit, campus_active: false, can_reschedule: false }))
     const state = useParentVisit()
     await state.initialize()
-    await state.requestReschedule('slot-2')
+    await state.reschedule('slot-2')
     expect(state.visit.value?.campus_active).toBe(false)
     expect(state.visit.value?.can_reschedule).toBe(false)
     expect(state.error.value).toContain('聯絡園所')
