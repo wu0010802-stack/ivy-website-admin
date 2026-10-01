@@ -109,7 +109,7 @@
 | `booking_link.py` | 由預約建立訪視、待確認清單 | A6 |
 | `retention.py` | 招生訪視匿名化與試算 | A7 |
 | `export.py` | 轉成園務欄位形狀 | A8 |
-| `stats.py` | 統計查詢、五校比較 | C1、C2 |
+| `stats.py` | 統計查詢、五校比較 | C1、C2、C2b |
 | `routes.py` | 全部 `/admin/admissions/*` 端點 | A3 起逐步加 |
 
 其他後端檔案：
@@ -125,7 +125,7 @@
   - `backend/tests/admissions_helpers.py`（A3 建、A6 擴充）
   - `test_admissions_academic.py`（A1）、`test_admissions_records.py`（A3）、`test_admissions_funnel.py`（A4）
   - `test_admissions_intake.py`（A5）、`test_admissions_booking_link.py`（A6）、`test_admissions_retention.py`（A7）
-  - `test_admissions_contract.py`（A8）、`test_admissions_stats.py`（C1、C2）
+  - `test_admissions_contract.py`（A8）、`test_admissions_stats.py`（C1、C2、C2b）
 - web：`web/tests/admission-grade-cases.spec.ts`（A1）。
 
 **後台 `admin/src/`**
@@ -301,7 +301,7 @@ async def export_campus(db, campus_key: str) -> dict[str, list[dict]]
     # {"recruitment_visits": [...], "recruitment_event_log": [...], "grade_intake_targets": [...], "extensions": [...]}
 ```
 
-### `app/admissions/stats.py`（C1、C2）：欄位與公式見 C 計畫
+### `app/admissions/stats.py`（C1、C2、C2b）：欄位與公式見 C 計畫
 
 ```python
 async def query_stats(db, campus_key: str, *, school_year: int | None, semester: int | None,
