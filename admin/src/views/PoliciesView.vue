@@ -334,7 +334,7 @@ onMounted(() => {
                 />
                 <span>天<span class="days-field__hint">（{{ form.admissions_days ? daysHint(form.admissions_days) : '留空＝不自動清理' }}）</span></span>
               </div>
-              <span class="field-help">招生入學頁的訪視紀錄，不隨參觀案件清理。到期會清除孩子姓名、生日、電話、聯絡人、地址、備註、電訪回應與原因說明，保留統計需要的欄位。天數請先跟園長確認；留空就不會自動清理。</span>
+              <span class="field-help">招生入學頁的訪視紀錄，不隨參觀案件清理。到期會清除孩子姓名、生日、電話、聯絡人、地址、備註、電訪回應與原因說明，保留統計需要的欄位。天數請先跟園長確認；留空就不會自動清理。招生入學功能啟用後才會有招生訪視資料。</span>
             </el-form-item>
             <el-form-item label="每天自動清理">
               <el-switch v-model="form.auto_run_enabled" :disabled="busy" active-text="開啟" inactive-text="關閉" aria-label="每天自動清理" />
