@@ -74,7 +74,8 @@ async def _next_seq_no(db: AsyncSession, campus_key: str, month: str) -> str:
 
 
 async def _resolve_tour_guide(db: AsyncSession, values: dict) -> None:
-    """有帶帳號就確認帳號存在；沒給姓名時用帳號的顯示名稱（沒設定就用 Email）當快照。"""
+    """有帶帳號就確認帳號存在（不存在丟 TourGuideNotFound）。沒給姓名時只用帳號的
+    顯示名稱當快照（截到 LEN_TOUR_GUIDE）；沒設定顯示名稱就是 None，絕不用 Email。"""
     user_id = values.get("tour_guide_user_id")
     if user_id is None:
         return

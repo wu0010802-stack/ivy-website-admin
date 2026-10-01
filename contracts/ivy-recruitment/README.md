@@ -62,8 +62,20 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 | `visit_request_id` | （沒有對應欄位） | 放在 `extensions`；官網預約模組併入時再對應新 id |
 | `enrolled` | 同名 | 園務以學生檔為準：`enrolled=true` 的依「姓名＋生日」唯一比對學生，設 `students.recruitment_visit_id`；比對不到或多筆的列入人工清單，不自動建學生 |
 | `version`、`anonymized_at`、`created` 事件 | — | 不轉（`created` 是官網延伸，建立時間以 `recruitment_visits.created_at` 為準） |
+| `grade_intake_targets.updated_by` | — | 不匯出：官網延伸（最後修改計畫名額的官網帳號），園務 `grade_intake_targets` 沒有對應欄位 |
 
 其餘欄位名稱、型別、長度與園務相同，原樣轉。
+
+## 歷程 metadata 與園務不同的地方（匯入端要對應）
+
+`recruitment_event_log.metadata_json` 原樣匯出（只多 `website_actor`），下列事件的形狀與園務不同，匯入端要轉：
+
+| 事件 | 官網寫法 | 園務寫法 | 匯入時 |
+|---|---|---|---|
+| `seat_reserved`、`seat_released` | `metadata_json` 是 `{"grade": 年級名稱, "school_year", "semester"}`；`from_stage`／`to_stage` 寫事件當下的階段（保留只會是 `deposited`；釋放也可能發生在 `visited`、`withdrawn`，保留座位在退預繳、取消預繳後不會自動清掉） | `{"grade_id": class_grades.id, "school_year", "semester"}`；`from_stage`／`to_stage` 固定 `deposited` | `grade` 依該租戶 `class_grades` 換成 `grade_id`（對不上留 null 並列入報告）；`from_stage`／`to_stage` 改寫成 `deposited` 與園務一致 |
+| `converted` | `{"website_manual": true, "grade": 年級名稱, "school_year", "semester"}`；`student_id` 為 null（官網沒有學生檔） | `{"enrollment_seq", "enrollment_school_year", "classroom_id"}`；`student_id` 指向轉化建立的學生 | `enrollment_school_year` 取 `school_year`；`enrollment_seq`、`classroom_id` 官網沒有，留 null；`student_id` 用上面「`enrolled`」那列比對到的學生填，比對不到留 null；`website_manual` 保留，標示這是官網手動標記的註冊、不是園務轉化流程產生的 |
+
+其他事件（`deposit_added`、`deposit_removed`、`revert_converted`、`withdrawn`、`withdraw_cancelled`）官網不寫 metadata（只有 `website_actor`）。
 
 ## 刻意與園務不同的地方（併入時由園務決定要不要跟進）
 
