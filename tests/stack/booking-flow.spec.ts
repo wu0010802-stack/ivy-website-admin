@@ -53,6 +53,13 @@ test.describe('自選場次（義華）', () => {
       await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
       // 連結裡的 token 換成 session 後，網址的 fragment 會被清掉。
       await expect(page).toHaveURL(/\/visit\/manage$/)
+      // router 自己記的位置也不能留著 token：導覽到別頁後，history.state 的 back／current 都不含 token。
+      await page.getByRole('link', { name: '回官網首頁' }).click()
+      await expect(page).toHaveURL(/\/$/)
+      expect(await page.evaluate(() => JSON.stringify(history.state))).not.toContain('token')
+      await page.goBack()
+      await expect(page).toHaveURL(/\/visit\/manage$/)
+      await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
       await page.getByRole('button', { name: '改場次' }).click()
       await page.getByLabel('新的場次').selectOption({ index: 1 })
       await page.getByRole('button', { name: '確認改到這個場次' }).click()

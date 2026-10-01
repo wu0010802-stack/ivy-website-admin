@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, normalizeVisitPhone, PARTY_SIZE_OPTIONS, taipeiDate, validateVisitContact, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, PARTY_SIZE_OPTIONS, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotWhen } from '~/utils/visit-session'
-import { editBaseFrom, editedChanges, rebaseEdit, type EditForm } from '~/utils/visit-edit'
+import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
 import { parentVisitCampus } from '~/utils/parent-visit'
 
 const { data } = await usePublishedSite()
 const route = useRoute()
+const router = useRouter()
 const {
   visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, detailErrors,
   initialize, reload, loadSlots, cancelVisit, reschedule, updateDetails, dispose
@@ -56,12 +57,9 @@ let mounted = false
 function consumeLink(initial = false) {
   const token = new URLSearchParams(window.location.hash.slice(1)).get('token')
   if (!initial && !token) return
-  // 保留 Router 的 history state；fragment 只用來交換 HttpOnly session。
-  // router 另在 history.state.current 存了含 token 的網址，不一併改寫的話，返回或下次導覽時 token 會重新出現在網址列。
-  if (window.location.hash) {
-    const clean = window.location.pathname + window.location.search
-    window.history.replaceState({ ...window.history.state, current: clean }, '', clean)
-  }
+  // fragment 只用來交換 HttpOnly session。用 router.replace 清掉：router 自己記著目前位置（含 token），
+  // 只改瀏覽器網址的話，之後任何導覽寫進 history.state 的 back／current 還是帶著 token。
+  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '' })
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
@@ -137,7 +135,7 @@ async function openEdit() {
 }
 
 async function submitEdit() {
-  editErrors.value = validateVisitContact({ ...editForm, consent: true }, taipeiDate())
+  editErrors.value = validateEdit(visit.value!, editForm, editBase, taipeiDate())
   if (Object.keys(editErrors.value).length) {
     await nextTick()
     editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()

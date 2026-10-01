@@ -263,7 +263,8 @@ describe('parent visit campus', () => {
 
   it('清掉網址 token 時一併改寫 router 的 history.state.current，返回時不會把 token 帶回網址列', () => {
     const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
-    expect(page).toMatch(/replaceState\(\{ \.\.\.window\.history\.state, current:/)
+    expect(page).toMatch(/router\.replace\(\{ path: route\.path, query: route\.query, hash: '' \}\)/)
+    expect(page).not.toContain('history.replaceState')
   })
 
   it('offers rebooking only when the campus booking page exists', () => {

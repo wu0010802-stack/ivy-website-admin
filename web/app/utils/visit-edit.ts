@@ -1,4 +1,4 @@
-import { normalizeVisitPhone } from './visit-form'
+import { normalizeVisitPhone, validateVisitContact, type VisitErrors, type VisitField } from './visit-form'
 
 export interface EditForm { parentName: string; phone: string; email: string; childName: string; childBirthdate: string; partySize: string; questions: string }
 interface EditRecord { parent_name: string; phone: string; email?: string | null; child_name?: string | null; child_birthdate?: string | null; party_size?: number | null; questions?: string | null }
@@ -41,4 +41,18 @@ export function rebaseEdit(form: EditForm, base: EditForm, fresh: EditRecord): {
   const nextForm = { ...form }
   for (const key of KEYS) if (form[key] === base[key]) nextForm[key] = nextBase[key]
   return { form: nextForm, base: nextBase }
+}
+
+const CHANGE_FIELD: Record<string, VisitField> = {
+  parent_name: 'parentName', phone: 'phone', email: 'email', child_name: 'childName', child_birthdate: 'childBirthdate', party_size: 'partySize'
+}
+
+/**
+ * 只驗證這次改過的欄位：後台補登的案件孩子資料、人數、Email 可能是空的（後端也允許維持空值），
+ * 家長只想改手機時，不能被沒碰過的欄位擋住。
+ */
+export function validateEdit(current: EditRecord, form: EditForm, base: EditForm, today: string): VisitErrors {
+  const touched = new Set(Object.keys(editedChanges(current, form, base)).map(key => CHANGE_FIELD[key]).filter(Boolean))
+  const errors = validateVisitContact({ ...form, consent: true }, today)
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => touched.has(field as VisitField))) as VisitErrors
 }
