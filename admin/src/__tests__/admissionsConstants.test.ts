@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   EVENT_LABELS, GRADES, NO_DEPOSIT_REASONS, STAGES, STAGE_LABELS, STAGE_TOKENS, canDragFrom, eventLabel, moveTargets,
@@ -60,18 +63,22 @@ describe('階段與事件文案（照園務，官網沒有學生檔的改寫）'
   })
 })
 
+// 後端唯一來源 funnel.py 的 _CAPABILITY：直接讀原始碼，前端表漂移就會紅燈。
+const funnelSource = readFileSync(resolve(__dirname, '../../../backend/app/admissions/funnel.py'), 'utf8')
+const capabilityBlock = /_CAPABILITY\s*:[^=]*=\s*\{([^}]*)\}/.exec(funnelSource)?.[1] ?? ''
+const BACKEND_CAPABILITY = [...capabilityBlock.matchAll(/\(\s*"(\w+)"\s*,\s*"(\w+)"\s*\)\s*:\s*"([\w.]+)"/g)].map((m) => [m[1], m[2], m[3]] as [Stage, Stage, string])
+
 describe('狀態轉換（規格 6.3）', () => {
-  const ALLOWED: [Stage, Stage, string][] = [
-    ['visited', 'deposited', 'admissions.write'], ['deposited', 'visited', 'admissions.write'],
-    ['deposited', 'enrolled', 'admissions.convert'], ['enrolled', 'deposited', 'admissions.convert'],
-    ['enrolled', 'visited', 'admissions.convert'], ['deposited', 'withdrawn', 'admissions.write'],
-    ['enrolled', 'withdrawn', 'admissions.convert'], ['withdrawn', 'visited', 'admissions.write'],
-    ['withdrawn', 'deposited', 'admissions.write'],
-  ]
+  it('讀得到後端權限表（防正規式失效變成空測）', () => {
+    expect(BACKEND_CAPABILITY.length).toBeGreaterThan(0)
+  })
+
   const BLOCKED: [Stage, Stage][] = [['visited', 'enrolled'], ['visited', 'withdrawn'], ['withdrawn', 'enrolled']]
 
   it('權限對照同後端 transition_capability；不允許的三種回 null 並說明原因', () => {
-    for (const [from, to, capability] of ALLOWED) expect(transitionCapability(from, to), `${from}→${to}`).toBe(capability)
+    for (const [from, to, capability] of BACKEND_CAPABILITY) expect(transitionCapability(from, to), `${from}→${to}`).toBe(capability)
+    const listed = new Set(BACKEND_CAPABILITY.map(([from, to]) => `${from}>${to}`))
+    for (const from of STAGES) for (const to of STAGES) if (!listed.has(`${from}>${to}`)) expect(transitionCapability(from, to), `${from}→${to}`).toBeNull()
     for (const [from, to] of BLOCKED) {
       expect(transitionCapability(from, to)).toBeNull()
       expect(transitionBlockedText(from, to)).not.toBe('')

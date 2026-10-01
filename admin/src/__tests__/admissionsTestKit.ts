@@ -63,9 +63,13 @@ async function respond(routes: Routes, path: string, body: unknown, fallback: un
   return typeof value === 'function' ? (value as Handler)(path, body) : value
 }
 
+const OPTIONS_PATH = '/admin/admissions/options'
+
 /** GET：值可以是資料，或 `(path) => 資料`（丟例外就是 API 失敗）。對不上的路徑回空陣列。 */
 export function mockGet(routes: Routes) {
-  return vi.spyOn(api, 'get').mockImplementation((async (path: string) => respond(routes, path, undefined, [])) as never)
+  // 招生頁靠 options 判定功能開關：呼叫者沒給就預設開啟；給了（含丟錯的函式）用呼叫者的。
+  const merged = pick(routes, OPTIONS_PATH).found ? routes : { ...routes, [OPTIONS_PATH]: options() }
+  return vi.spyOn(api, 'get').mockImplementation((async (path: string) => respond(merged, path, undefined, [])) as never)
 }
 export function mockPost(routes: Routes = {}) {
   return vi.spyOn(api, 'post').mockImplementation((async (path: string, body?: unknown) => respond(routes, path, body, {})) as never)
@@ -93,8 +97,10 @@ export const pathsTo = (spy: Spy, prefix: string): string[] => spy.mock.calls.ma
 export const queryOf = (path: string): URLSearchParams => new URLSearchParams(path.split('?')[1] ?? '')
 export const bodyOf = (spy: Spy, prefix: string): unknown => spy.mock.calls.find((call) => String(call[0]).startsWith(prefix))?.[1]
 
-export const button = (wrapper: VueWrapper | DOMWrapper<Element>, text: string) => wrapper.findAll('button').find((b) => b.text() === text)
-export const hasButton = (wrapper: VueWrapper | DOMWrapper<Element>, text: string) => button(wrapper, text) !== undefined
+// 只要求 findAll：測試裡 `Omit<DOMWrapper, 'exists'>` 之類的別名也能直接傳。
+type Findable = VueWrapper | Pick<DOMWrapper<Element>, 'findAll'>
+export const button = (wrapper: Findable, text: string) => wrapper.findAll('button').find((b) => b.text() === text)
+export const hasButton = (wrapper: Findable, text: string) => button(wrapper, text) !== undefined
 
 export const VR_ID = '11111111-2222-4333-8444-555555555555'
 export const VR_ID_2 = '66666666-7777-4888-9999-000000000000'

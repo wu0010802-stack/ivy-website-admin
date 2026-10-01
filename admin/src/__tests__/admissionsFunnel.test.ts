@@ -8,7 +8,7 @@ import TransitionDialog from '../components/admissions/TransitionDialog.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import { ApiError } from '../api/client'
 import {
-  admissionsViewer, board, bodyOf, button, card, cleanup, deferred, hasButton, mockGet, mockPost, mountWith, options, pathsTo,
+  admissionsViewer, board, bodyOf, button, card, cleanup, deferred, hasButton, mockGet, mockPost, mountWith, pathsTo,
   queryOf, reception, visit,
 } from './admissionsTestKit'
 
@@ -239,7 +239,6 @@ describe('看板權限與提示', () => {
       '/admin/admissions/arrivals': { awaiting: [], missing: [] },
       '/admin/admissions/board': board({}, { unscoped_count: 3 }),
       '/admin/admissions/records': [],
-      '/admin/admissions/options': options(),
     })
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?sem=1' })
     expect(wrapper.text()).toContain('另有 3 筆訪視沒有填入學學期，不會出現在任何學年的看板。')
@@ -255,7 +254,6 @@ describe('明細的「標記註冊」（本檔調整第 12 條）', () => {
   it('有 admissions.convert 且已預繳未註冊才顯示；開註冊確認框，完成後重新整理明細', async () => {
     const get = mockGet({
       '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', provisional_grade: '中班', version: 2 }), visit({ id: 'v-2', child_name: '李小樂' })],
-      '/admin/admissions/options': options(),
     })
     const post = mockPost({ '/admin/admissions/records/v-1/transition': visit({ stage: 'enrolled' }) })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
@@ -272,7 +270,7 @@ describe('明細的「標記註冊」（本檔調整第 12 條）', () => {
   })
 
   it('櫃台（沒有 admissions.convert）看不到標記註冊', async () => {
-    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps, user: reception() })
     expect(hasButton(wrapper, '標記註冊')).toBe(false)
   })
@@ -336,7 +334,6 @@ describe('裁定補充（R4、R5、R10、R12）', () => {
   it('R4：已匿名化的列不顯示標記註冊', async () => {
     mockGet({
       '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', anonymized_at: '2026-09-30T00:00:00Z' })],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: { campusKey: 'yihua', schoolYear: 115, semester: null, month: '', visitRequestId: '' } })
     expect(hasButton(wrapper, '標記註冊')).toBe(false)

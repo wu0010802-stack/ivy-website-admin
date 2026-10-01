@@ -6,7 +6,7 @@ import RecordsTab from '../components/admissions/RecordsTab.vue'
 import { ApiError } from '../api/client'
 import {
   admissionsViewer, bodyOf, button, cleanup, deferred, hasButton, intakePlan, intakeRow, mockGet, mockPost, mockPut, mountWith,
-  options, pathsTo, queryOf, reception, visit,
+  pathsTo, queryOf, reception, visit,
 } from './admissionsTestKit'
 
 afterEach(cleanup)
@@ -189,7 +189,6 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
         visit({ id: 'v-c', has_deposit: true, stage: 'deposited', provisional_grade: '小班' }),
         visit({ id: 'v-d', enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled', provisional_grade: '小班' }),
       ],
-      '/admin/admissions/options': options(),
     })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
     expect(await moreLabels(wrapper, 'v-a')).not.toContain('保留座位')
@@ -203,7 +202,7 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
 
   it('保留：預設適讀班級與入學學期，送出帶版本；成功後重新整理', async () => {
     const success = vi.spyOn(ElMessage, 'success')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', version: 6 })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', version: 6 })] })
     const post = mockPost({ '/admin/admissions/records/v-1/seat': { visit: visit({ provisional_grade: '小班' }), capacity_warning: false, warning_code: null } })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
     await chooseMore(wrapper, 'v-1', '保留座位')
@@ -218,7 +217,7 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
 
   it('超過計畫名額只提醒、不擋（後端回 capacity_warning）', async () => {
     const alert = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue('confirm' as never)
-    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     mockPost({ '/admin/admissions/records/v-1/seat': { visit: visit({ provisional_grade: '小班' }), capacity_warning: true, warning_code: 'SEAT_CAPACITY_WARNING' } })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
     await chooseMore(wrapper, 'v-1', '保留座位')
@@ -233,7 +232,6 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     const success = vi.spyOn(ElMessage, 'success')
     mockGet({
       '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', provisional_grade: '中班', target_semester: 2, version: 3 })],
-      '/admin/admissions/options': options(),
     })
     const post = mockPost({ '/admin/admissions/records/v-1/seat': { visit: visit(), capacity_warning: false, warning_code: null } })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
@@ -248,7 +246,7 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     const error = vi.spyOn(ElMessage, 'error')
     const info = vi.spyOn(ElMessage, 'info')
     let conflict = false
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })], '/admin/admissions/options': options() })
+    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     mockPost({
       '/admin/admissions/records/v-1/seat': () => {
         if (conflict) throw new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 2 })
@@ -273,7 +271,6 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
         visit({ id: 'v-e', enrolled: true, stage: 'enrolled', provisional_grade: '小班' }),
         visit({ id: 'v-w', stage: 'withdrawn', withdrawn_from: 'enrolled' }),
       ],
-      '/admin/admissions/options': options(),
     }
     mockGet(routes)
     const desk = await mountWith(RecordsTab, { props: recordsProps, user: reception() })
@@ -295,7 +292,6 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
         visit({ id: 'v-x', has_deposit: true, stage: 'deposited', anonymized_at: '2026-09-25T02:00:00Z' }),
         visit({ id: 'v-1', has_deposit: true, stage: 'deposited' }),
       ],
-      '/admin/admissions/options': options(),
     })
     mockPost({ '/admin/admissions/records/v-1/seat': () => { throw new ApiError(409, { code: 'RECRUITMENT_VISIT_ANONYMIZED' }) } })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })
@@ -315,7 +311,6 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     const error = vi.spyOn(ElMessage, 'error')
     const get = mockGet({
       '/admin/admissions/records': [visit({ id: 'v-1', has_deposit: true, stage: 'deposited' })],
-      '/admin/admissions/options': options(),
     })
     mockPost({ '/admin/admissions/records/v-1/seat': () => { throw new ApiError(404, { detail: 'not found' }) } })
     const { wrapper } = await mountWith(RecordsTab, { props: recordsProps })

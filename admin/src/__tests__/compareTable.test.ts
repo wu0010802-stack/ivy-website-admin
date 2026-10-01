@@ -3,7 +3,7 @@ import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils
 import CompareTable from '../components/admissions/CompareTable.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import type { AdmissionsCompare, AdmissionsCompareRow, AdmissionsStats } from '../api/types'
-import { cleanup, deferred, mockGet, mountWith, pathsTo } from './admissionsTestKit'
+import { button, cleanup, deferred, mockGet, mountWith, pathsTo } from './admissionsTestKit'
 
 afterEach(cleanup)
 
@@ -187,7 +187,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
 
     expect(pane.get('.el-alert').text()).toContain('無法讀取五校比較，請重新載入。')
     fail = false
-    await pane.findAll('button').find((b) => b.text() === '重新載入')!.trigger('click')
+    await button(pane, '重新載入')!.trigger('click')
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/compare')).toHaveLength(2)
     expect(bodyRows(wrapper.get('#pane-stats-compare'))[0]![0]).toBe('義華')

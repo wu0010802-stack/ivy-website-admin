@@ -336,7 +336,7 @@ describe('統計分頁：未預繳明細（C3b）', () => {
     expect(pane.text()).toContain('林小安')
     expect(pane.text()).not.toContain('名單請到「訪視明細」')
 
-    await button(pane as DOMWrapper<Element>, '查看')!.trigger('click')
+    await button(pane, '查看')!.trigger('click')
     expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09' }]])
   })
 
