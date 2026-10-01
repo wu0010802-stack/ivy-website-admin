@@ -162,7 +162,7 @@ export interface paths {
         head?: never;
         /**
          * Update Recruitment Visit
-         * @description 編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422。
+         * @description 編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422；已匿名化 409。
          */
         patch: operations["update_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__patch"];
         trace?: never;
@@ -199,7 +199,7 @@ export interface paths {
         put?: never;
         /**
          * Set Recruitment Seat
-         * @description 保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留。
+         * @description 保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留；已匿名化 409。
          */
         post: operations["set_recruitment_seat_api_website_v1_admin_admissions_records__visit_id__seat_post"];
         delete?: never;
@@ -219,10 +219,10 @@ export interface paths {
         put?: never;
         /**
          * Transition Recruitment Visit
-         * @description 狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 版本
-         *     （409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。版本放在
-         *     權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片已換欄
-         *     而誤回 403（A 計畫調整第 10 條）。
+         * @description 狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 已匿名化
+         *     （409）→ 版本（409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。
+         *     版本放在權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片
+         *     已換欄而誤回 403（A 計畫調整第 10 條）。
          */
         post: operations["transition_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__transition_post"];
         delete?: never;
@@ -3925,11 +3925,15 @@ export interface components {
         };
         /**
          * RecruitmentVisitOut
-         * @description 規格 5.1 全部欄位（不含 anonymized_at），另加推導的 stage 與 has_visit_request。
+         * @description 規格 5.1 全部欄位，另加推導的 stage 與 has_visit_request。anonymized_at 有值＝
+         *     已依保存政策匿名化：不能再編輯、轉換或保留座位（409 RECRUITMENT_VISIT_ANONYMIZED），
+         *     可以刪除。
          */
         RecruitmentVisitOut: {
             /** Address */
             address: string | null;
+            /** Anonymized At */
+            anonymized_at: string | null;
             /** Birthday */
             birthday: string | null;
             /** Campus Key */

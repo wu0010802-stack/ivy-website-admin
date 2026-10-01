@@ -150,7 +150,9 @@ class RecruitmentVisitUpdate(_VisitEditable):
 
 
 class RecruitmentVisitOut(BaseModel):
-    """規格 5.1 全部欄位（不含 anonymized_at），另加推導的 stage 與 has_visit_request。"""
+    """規格 5.1 全部欄位，另加推導的 stage 與 has_visit_request。anonymized_at 有值＝
+    已依保存政策匿名化：不能再編輯、轉換或保留座位（409 RECRUITMENT_VISIT_ANONYMIZED），
+    可以刪除。"""
 
     id: uuid.UUID
     campus_key: str
@@ -187,6 +189,7 @@ class RecruitmentVisitOut(BaseModel):
     withdrawn_at: datetime | None
     withdrawn_from: WithdrawnFrom | None
     withdraw_reason: str | None
+    anonymized_at: datetime | None
     version: int
     created_at: datetime
     updated_at: datetime

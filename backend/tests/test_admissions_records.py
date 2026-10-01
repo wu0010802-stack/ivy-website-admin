@@ -21,6 +21,7 @@ from tests.admissions_helpers import (  # noqa: F401
     manual_fields,
     readonly_yihua_client,
     reception_yihua_client,
+    record_at_stage,
 )
 from tests.conftest import _create_user, legacy_request
 
@@ -384,3 +385,36 @@ async def test_visit_date_roc_range_boundaries_pass(admin_client):
     assert (low["month"], high["month"]) == ("100.01", "200.12")
     moved = await admin_client.patch(f"{RECORDS}/{low['id']}", json={"expected_version": 1, "visit_date": "2011-02-01"})
     assert moved.status_code == 200 and moved.json()["month"] == "100.02"
+
+
+@pytest.mark.asyncio
+async def test_anonymized_visit_rejects_edit_transition_and_seat_but_can_be_deleted(admin_client, db_session):
+    """F2：保存政策匿名化後，編輯、狀態轉換、保留座位一律 409 RECRUITMENT_VISIT_ANONYMIZED，
+    資料與版本不動；刪除不擋。"""
+    fresh = await create_record(admin_client, child_name="還沒匿名化")
+    assert fresh["anonymized_at"] is None
+    record = await record_at_stage(admin_client, "deposited")
+    await db_session.execute(
+        update(RecruitmentVisit)
+        .where(RecruitmentVisit.id == uuid.UUID(record["id"]))
+        .values(anonymized_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+    url = f"{RECORDS}/{record['id']}"
+    current = (await admin_client.get(url)).json()
+    assert current["anonymized_at"] is not None
+    version = current["version"]
+    seat = {"grade": "小班", "target_school_year": 115, "target_semester": 1, "expected_version": version}
+    attempts = (
+        lambda: admin_client.patch(url, json={"expected_version": version, "notes": "補記"}),
+        lambda: admin_client.post(f"{url}/transition", json={"to_stage": "visited", "expected_version": version}),
+        lambda: admin_client.post(f"{url}/seat", json=seat),
+    )
+    for attempt in attempts:
+        response = await attempt()
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["code"] == "RECRUITMENT_VISIT_ANONYMIZED"
+        assert response.json()["detail"]["message"] == "這筆招生訪視已依保存政策匿名化，不能再修改"
+    after = (await admin_client.get(url)).json()
+    assert (after["version"], after["stage"], after["notes"], after["provisional_grade"]) == (version, "deposited", None, None)
+    assert (await admin_client.delete(f"{url}?expected_version={version}")).status_code == 204

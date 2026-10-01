@@ -69,6 +69,19 @@ async def _locked_visit_for(db: AsyncSession, user: User, visit_id: uuid.UUID, c
     return visit
 
 
+async def _writable_visit_for(db: AsyncSession, user: User, visit_id: uuid.UUID, capability: str) -> RecruitmentVisit:
+    """編輯、狀態轉換、保留座位用：鎖列、檢查權限後，已依保存政策匿名化的訪視
+    回 409（在版本比對之前：重新載入也改不了，直接告訴使用者原因）。刪除不擋。"""
+    visit = await _locked_visit_for(db, user, visit_id, capability)
+    if visit.anonymized_at is not None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "RECRUITMENT_VISIT_ANONYMIZED", "message": "這筆招生訪視已依保存政策匿名化，不能再修改"},
+        )
+    return visit
+
+
 def _version_conflict(exc: records.VersionConflict) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -158,8 +171,8 @@ async def update_recruitment_visit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecruitmentVisitOut:
-    """編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422。"""
-    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    """編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422；已匿名化 409。"""
+    visit = await _writable_visit_for(db, current_user, visit_id, "admissions.write")
     changes = payload.model_dump(exclude_unset=True, exclude={"expected_version"})
     try:
         changed = await records.update_visit(db, visit, changes=changes, expected_version=payload.expected_version)
@@ -254,11 +267,11 @@ async def transition_recruitment_visit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecruitmentVisitOut:
-    """狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 版本
-    （409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。版本放在
-    權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片已換欄
-    而誤回 403（A 計畫調整第 10 條）。"""
-    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.read")
+    """狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 已匿名化
+    （409）→ 版本（409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。
+    版本放在權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片
+    已換欄而誤回 403（A 計畫調整第 10 條）。"""
+    visit = await _writable_visit_for(db, current_user, visit_id, "admissions.read")
     if visit.version != payload.expected_version:
         current = visit.version
         await db.rollback()
@@ -340,8 +353,8 @@ async def set_recruitment_seat(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> SeatOut:
-    """保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留。"""
-    visit = await _locked_visit_for(db, current_user, visit_id, "admissions.write")
+    """保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留；已匿名化 409。"""
+    visit = await _writable_visit_for(db, current_user, visit_id, "admissions.write")
     try:
         warning = await intake.set_seat(
             db,
