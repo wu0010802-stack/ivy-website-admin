@@ -584,3 +584,38 @@ class AdmissionsStatsOut(BaseModel):
     no_deposit_total: int
     no_deposit_priority: AdmissionsNoDepositPriority
     no_deposit_summary: AdmissionsNoDepositSummary
+
+
+class AdmissionsRate(BaseModel):
+    # 百分比到小數一位；分母 0 為 None。五校比較同時顯示分子與分母（規格 9.3）。
+    value: float | None
+    numerator: int
+    denominator: int
+
+
+class AdmissionsCompareRow(BaseModel):
+    """五校比較的一列：所選學年學期的「招生案件數」，不是跨校去重後的孩子數。"""
+
+    campus_key: str
+    visit: int
+    deposit: int
+    enrolled: int
+    transfer_term: int
+    effective_deposit: int
+    pending_deposit: int
+    visit_to_deposit_rate: AdmissionsRate
+    visit_to_enrolled_rate: AdmissionsRate
+    deposit_to_enrolled_rate: AdmissionsRate
+    effective_to_enrolled_rate: AdmissionsRate
+    # 只加總有計畫名額列的年級（計畫 0 也算有設定）；一個都沒有＝None（畫面「未設定」）。
+    target_seats: int | None
+    remaining_seats: int | None
+    grades_with_target: int
+
+
+class AdmissionsCompareOut(BaseModel):
+    # 資料讀取時間（UTC）與實際套用的學年學期（規格 13）。
+    as_of: datetime
+    school_year: int
+    semester: int
+    rows: list[AdmissionsCompareRow]

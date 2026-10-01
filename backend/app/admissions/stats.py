@@ -22,6 +22,7 @@ from typing import Any, Callable, Iterable
 from sqlalchemy import String, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions import intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
 from app.admissions.constants import NO_DEPOSIT_PRIORITY
 from app.admissions.models import RecruitmentVisit
@@ -546,3 +547,40 @@ async def query_stats(
         "no_deposit_priority": _priority_totals(no_deposit_reasons),
         "no_deposit_summary": summary,
     }
+
+
+def _rate(numerator: int, denominator: int) -> dict[str, Any]:
+    return {"value": pct(numerator, denominator), "numerator": numerator, "denominator": denominator}
+
+
+async def compare(
+    db: AsyncSession, campus_keys: list[str], *, school_year: int, semester: int, now: datetime | None = None
+) -> dict[str, Any]:
+    """五校比較（官網延伸，規格 9.3）。依 campus_keys 的順序每校一列；呼叫端負責只傳授權範圍內的校區。"""
+    now = now or now_utc()
+    v = RecruitmentVisit
+    rows = (
+        await db.execute(
+            select(v.campus_key, *_count_columns())
+            .where(v.campus_key.in_(campus_keys), v.target_school_year == school_year, v.target_semester == semester)
+            .group_by(v.campus_key)
+        )
+    ).all()
+    counts_by_campus = {row.campus_key: _counts(row) for row in rows}
+    result: list[dict[str, Any]] = []
+    for campus_key in campus_keys:
+        c = counts_by_campus.get(campus_key, dict.fromkeys(COUNT_FIELDS, 0))
+        plan = await intake.intake_plan(db, campus_key, school_year, semester)
+        configured = [row for row in plan["rows"] if row["target_seats"] is not None]
+        result.append({
+            "campus_key": campus_key,
+            **c,
+            "visit_to_deposit_rate": _rate(c["deposit"], c["visit"]),
+            "visit_to_enrolled_rate": _rate(c["enrolled"], c["visit"]),
+            "deposit_to_enrolled_rate": _rate(c["enrolled"], c["deposit"]),
+            "effective_to_enrolled_rate": _rate(c["enrolled"], c["effective_deposit"]),
+            "target_seats": plan["totals"]["target_seats"],
+            "remaining_seats": plan["totals"]["remaining"],
+            "grades_with_target": len(configured),
+        })
+    return {"as_of": now, "school_year": school_year, "semester": semester, "rows": result}

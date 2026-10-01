@@ -20,6 +20,7 @@ from app.admissions import academic, booking_link, constants, funnel, intake, re
 from app.admissions import stats as stats_service
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
+    AdmissionsCompareOut,
     AdmissionsOptionsOut,
     AdmissionsStatsOut,
     ArrivalsOut,
@@ -36,7 +37,7 @@ from app.admissions.schemas import (
 )
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import ScopeDenied, require_scope
+from app.auth.permissions import ScopeDenied, covers_campus, require_scope
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
@@ -529,3 +530,17 @@ async def get_admissions_stats(
             detail={"code": "INVALID_REFERENCE_MONTH", "message": str(exc)},
         ) from exc
     return AdmissionsStatsOut.model_validate(result)
+
+
+@router.get("/admin/admissions/compare", response_model=AdmissionsCompareOut)
+async def get_admissions_compare(
+    school_year: int = Query(ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
+    semester: int = Query(ge=1, le=2),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdmissionsCompareOut:
+    """五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。"""
+    require_scope(current_user, "admissions.read")
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    result = await stats_service.compare(db, campus_keys, school_year=school_year, semester=semester)
+    return AdmissionsCompareOut.model_validate(result)

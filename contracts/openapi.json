@@ -1,6 +1,127 @@
 {
   "components": {
     "schemas": {
+      "AdmissionsCompareOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsCompareRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "title": "Semester",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "as_of",
+          "school_year",
+          "semester",
+          "rows"
+        ],
+        "title": "AdmissionsCompareOut",
+        "type": "object"
+      },
+      "AdmissionsCompareRow": {
+        "description": "五校比較的一列：所選學年學期的「招生案件數」，不是跨校去重後的孩子數。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "effective_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "grades_with_target": {
+            "title": "Grades With Target",
+            "type": "integer"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "remaining_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Seats"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "visit_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          }
+        },
+        "required": [
+          "campus_key",
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "effective_deposit",
+          "pending_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate",
+          "target_seats",
+          "remaining_seats",
+          "grades_with_target"
+        ],
+        "title": "AdmissionsCompareRow",
+        "type": "object"
+      },
       "AdmissionsCountDiff": {
         "properties": {
           "current": {
@@ -599,6 +720,36 @@
           "source_categories"
         ],
         "title": "AdmissionsOptionsOut",
+        "type": "object"
+      },
+      "AdmissionsRate": {
+        "properties": {
+          "denominator": {
+            "title": "Denominator",
+            "type": "integer"
+          },
+          "numerator": {
+            "title": "Numerator",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "numerator",
+          "denominator"
+        ],
+        "title": "AdmissionsRate",
         "type": "object"
       },
       "AdmissionsRateDiff": {
@@ -10166,6 +10317,94 @@
           }
         },
         "summary": "Get Funnel Board",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/compare": {
+      "get": {
+        "description": "五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。",
+        "operationId": "get_admissions_compare_api_website_v1_admin_admissions_compare_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "school_year",
+            "required": true,
+            "schema": {
+              "maximum": 200,
+              "minimum": 100,
+              "title": "School Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": true,
+            "schema": {
+              "maximum": 2,
+              "minimum": 1,
+              "title": "Semester",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsCompareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Compare",
         "tags": [
           "admissions"
         ]

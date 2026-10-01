@@ -7,7 +7,7 @@ import pytest
 
 from app.admissions import retention, stats
 from app.admissions.academic import roc_month
-from app.admissions.models import RecruitmentVisit
+from app.admissions.models import GradeIntakeTarget, RecruitmentVisit
 from tests.admissions_helpers import reception_yihua_client, readonly_yihua_client  # noqa: F401
 
 API = "/api/website/v1"
@@ -468,3 +468,91 @@ async def test_unique_counts_keep_anonymized_rows_apart(db_session):
     after = await stats.query_stats(db_session, "yihua", school_year=115, semester=1, reference_month=None, now=NOW)
     assert after["kpi"]["visit"] == 2
     assert (after["kpi"]["unique_visit"], after["kpi"]["unique_deposit"]) == (2, 2)
+
+
+def add_target(db, *, campus_key: str, grade: str, seats: int, school_year: int = 115, semester: int = 1) -> None:
+    db.add(GradeIntakeTarget(
+        id=uuid.uuid4(), campus_key=campus_key, grade=grade, school_year=school_year, semester=semester,
+        target_seats=seats, created_at=NOW, updated_at=NOW, updated_by=None,
+    ))
+
+
+def rate(value, numerator, denominator) -> dict:
+    return {"value": value, "numerator": numerator, "denominator": denominator}
+
+
+NO_RATE = rate(None, 0, 0)
+
+
+async def seed_compare(db) -> None:
+    # 義華 115 上：小班已保留 1、中班已註冊 1、大班已保留 1（大班沒計畫）、小班未預繳 1；另 1 筆是下學期。
+    add_visit(db, grade="小班", has_deposit=True, provisional_grade="小班")
+    add_visit(db, grade="中班", has_deposit=True, enrolled=True, provisional_grade="中班")
+    add_visit(db, grade="大班", has_deposit=True, provisional_grade="大班")
+    add_visit(db, grade="小班")
+    add_visit(db, grade="小班", has_deposit=True, target_semester=2)
+    add_target(db, campus_key="yihua", grade="小班", seats=10)
+    add_target(db, campus_key="yihua", grade="中班", seats=0)   # 設成 0 也算「有設定」
+    # 明華 115 上：1 筆未預繳，沒有任何計畫名額。
+    add_visit(db, campus_key="minghua", grade="中班")
+    await db.commit()
+
+
+async def test_compare_rows_and_seats(db_session):
+    await seed_compare(db_session)
+
+    result = await stats.compare(db_session, ["yihua", "minghua", "renwu"], school_year=115, semester=1, now=NOW)
+    rows = result["rows"]
+
+    assert (result["as_of"], result["school_year"], result["semester"]) == (NOW, 115, 1)
+    assert [row["campus_key"] for row in rows] == ["yihua", "minghua", "renwu"]
+    # 義華：4 筆、預繳 3、註冊 1、有效預繳 3、預繳未註冊 2（小班、大班保留中）
+    # → 3/4＝75.0、1/4＝25.0、1/3＝33.3、1/3＝33.3。
+    # 剩餘：小班 10－1－0＝9，中班 0－0－1＝－1，大班沒計畫不算 → 8；計畫合計 10＋0＝10。
+    assert rows[0] == {
+        "campus_key": "yihua", "visit": 4, "deposit": 3, "enrolled": 1, "transfer_term": 0,
+        "effective_deposit": 3, "pending_deposit": 2,
+        "visit_to_deposit_rate": rate(75.0, 3, 4), "visit_to_enrolled_rate": rate(25.0, 1, 4),
+        "deposit_to_enrolled_rate": rate(33.3, 1, 3), "effective_to_enrolled_rate": rate(33.3, 1, 3),
+        "target_seats": 10, "remaining_seats": 8, "grades_with_target": 2,
+    }
+
+
+async def test_compare_without_targets(db_session):
+    """Review Focus 5：沒設計畫名額＝未設定（None），不是 0；沒資料的比率是 None。"""
+    await seed_compare(db_session)
+
+    rows = (await stats.compare(db_session, ["minghua", "renwu"], school_year=115, semester=1))["rows"]
+
+    # 明華：1 筆未預繳 → 0/1＝0.0；預繳 0 → 後兩個比率分母 0＝None。
+    assert rows[0] == {
+        "campus_key": "minghua", "visit": 1, "deposit": 0, "enrolled": 0, "transfer_term": 0,
+        "effective_deposit": 0, "pending_deposit": 0,
+        "visit_to_deposit_rate": rate(0.0, 0, 1), "visit_to_enrolled_rate": rate(0.0, 0, 1),
+        "deposit_to_enrolled_rate": NO_RATE, "effective_to_enrolled_rate": NO_RATE,
+        "target_seats": None, "remaining_seats": None, "grades_with_target": 0,
+    }
+    # 仁武：沒有任何訪視。
+    assert rows[1]["visit"] == 0
+    assert rows[1]["visit_to_deposit_rate"] == NO_RATE
+    assert (rows[1]["target_seats"], rows[1]["remaining_seats"]) == (None, None)
+
+
+async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yihua_client, editor_client, db_session):
+    await seed_compare(db_session)
+    path = f"{API}/admin/admissions/compare?school_year=115&semester=1"
+
+    everyone = await admin_client.get(path)
+    assert everyone.status_code == 200, everyone.text
+    body = everyone.json()
+    assert body["as_of"]
+    assert (body["school_year"], body["semester"]) == (115, 1)
+    assert [row["campus_key"] for row in body["rows"]] == ["yihua", "minghua", "chongde", "international", "renwu"]
+    assert body["rows"][0]["remaining_seats"] == 8
+
+    # 分校帳號只看到自己的校區（規格 9.3、第 7 節）。
+    assert [row["campus_key"] for row in (await minghua_client.get(path)).json()["rows"]] == ["minghua"]
+    assert [row["campus_key"] for row in (await reception_yihua_client.get(path)).json()["rows"]] == ["yihua"]
+    assert (await editor_client.get(path)).status_code == 403
+    # 學期必填：名額剩餘要對到單一學期。
+    assert (await admin_client.get(f"{API}/admin/admissions/compare?school_year=115")).status_code == 422

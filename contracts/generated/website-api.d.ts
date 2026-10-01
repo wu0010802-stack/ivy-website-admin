@@ -42,6 +42,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Compare
+         * @description 五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_compare_api_website_v1_admin_admissions_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/from-visit-request/{visit_request_id}": {
         parameters: {
             query?: never;
@@ -2387,6 +2407,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdmissionsCompareOut */
+        AdmissionsCompareOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Rows */
+            rows: components["schemas"]["AdmissionsCompareRow"][];
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+        };
+        /**
+         * AdmissionsCompareRow
+         * @description 五校比較的一列：所選學年學期的「招生案件數」，不是跨校去重後的孩子數。
+         */
+        AdmissionsCompareRow: {
+            /** Campus Key */
+            campus_key: string;
+            /** Deposit */
+            deposit: number;
+            deposit_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+            /** Effective Deposit */
+            effective_deposit: number;
+            effective_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+            /** Enrolled */
+            enrolled: number;
+            /** Grades With Target */
+            grades_with_target: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Remaining Seats */
+            remaining_seats: number | null;
+            /** Target Seats */
+            target_seats: number | null;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            visit_to_deposit_rate: components["schemas"]["AdmissionsRate"];
+            visit_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+        };
         /** AdmissionsCountDiff */
         AdmissionsCountDiff: {
             /** Current */
@@ -2572,6 +2636,15 @@ export interface components {
             };
             /** Sources */
             sources: string[];
+        };
+        /** AdmissionsRate */
+        AdmissionsRate: {
+            /** Denominator */
+            denominator: number;
+            /** Numerator */
+            numerator: number;
+            /** Value */
+            value: number | null;
         };
         /** AdmissionsRateDiff */
         AdmissionsRateDiff: {
@@ -5721,6 +5794,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FunnelBoardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_compare_api_website_v1_admin_admissions_compare_get: {
+        parameters: {
+            query: {
+                school_year: number;
+                semester: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsCompareOut"];
                 };
             };
             /** @description Validation Error */
