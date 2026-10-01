@@ -370,7 +370,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長從官網送出的參觀需求。狀態「待處理」代表園方尚未聯絡，確認並排入時段後才算預約成立。">
+    <PageHeader lead="家長在官網選好場次送出，就是預約成功。這裡看每一筆預約，需要時改場次或取消；舊的待處理需求要排入場次才成立。">
       <template #actions>
         <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
         <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>

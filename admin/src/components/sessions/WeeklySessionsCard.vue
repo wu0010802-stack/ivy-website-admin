@@ -196,6 +196,7 @@ async function openBooking() {
 </template>
 
 <style scoped>
+.sessions-card { margin-bottom: 16px; }
 .sessions-card__summary { margin: 0 0 8px; padding-left: 1.2em; }
 .sessions-card__empty { display: grid; gap: 8px; justify-items: start; }
 .session-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
