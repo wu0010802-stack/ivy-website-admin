@@ -1,6 +1,543 @@
 {
   "components": {
     "schemas": {
+      "AdmissionsCountDiff": {
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "integer"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "integer"
+          },
+          "previous": {
+            "title": "Previous",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "current",
+          "previous",
+          "delta"
+        ],
+        "title": "AdmissionsCountDiff",
+        "type": "object"
+      },
+      "AdmissionsCrossRow": {
+        "properties": {
+          "referrer": {
+            "title": "Referrer",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "referrer",
+          "sources",
+          "total"
+        ],
+        "title": "AdmissionsCrossRow",
+        "type": "object"
+      },
+      "AdmissionsDecisionSummary": {
+        "properties": {
+          "current_month": {
+            "$ref": "#/components/schemas/AdmissionsMetricSnapshot"
+          },
+          "rolling_30d": {
+            "$ref": "#/components/schemas/AdmissionsMetricSnapshot"
+          },
+          "rolling_90d": {
+            "$ref": "#/components/schemas/AdmissionsMetricSnapshot"
+          },
+          "ytd": {
+            "$ref": "#/components/schemas/AdmissionsMetricSnapshot"
+          }
+        },
+        "required": [
+          "current_month",
+          "rolling_30d",
+          "rolling_90d",
+          "ytd"
+        ],
+        "title": "AdmissionsDecisionSummary",
+        "type": "object"
+      },
+      "AdmissionsFunnelSnapshot": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "effective_deposit",
+          "pending_deposit"
+        ],
+        "title": "AdmissionsFunnelSnapshot",
+        "type": "object"
+      },
+      "AdmissionsGradeCount": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit"
+        ],
+        "title": "AdmissionsGradeCount",
+        "type": "object"
+      },
+      "AdmissionsGradeRow": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          },
+          "visit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Enrolled Rate"
+          }
+        },
+        "required": [
+          "grade",
+          "visit",
+          "deposit",
+          "enrolled",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate"
+        ],
+        "title": "AdmissionsGradeRow",
+        "type": "object"
+      },
+      "AdmissionsMetricSnapshot": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "effective_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          },
+          "visit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Enrolled Rate"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "pending_deposit",
+          "effective_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate"
+        ],
+        "title": "AdmissionsMetricSnapshot",
+        "type": "object"
+      },
+      "AdmissionsMonthOverMonth": {
+        "properties": {
+          "current_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Month"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/AdmissionsCountDiff"
+          },
+          "deposit_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRateDiff"
+          },
+          "effective_deposit": {
+            "$ref": "#/components/schemas/AdmissionsCountDiff"
+          },
+          "effective_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRateDiff"
+          },
+          "enrolled": {
+            "$ref": "#/components/schemas/AdmissionsCountDiff"
+          },
+          "pending_deposit": {
+            "$ref": "#/components/schemas/AdmissionsCountDiff"
+          },
+          "previous_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Month"
+          },
+          "visit": {
+            "$ref": "#/components/schemas/AdmissionsCountDiff"
+          },
+          "visit_to_deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRateDiff"
+          },
+          "visit_to_enrolled_rate": {
+            "$ref": "#/components/schemas/AdmissionsRateDiff"
+          }
+        },
+        "required": [
+          "current_month",
+          "previous_month",
+          "visit",
+          "deposit",
+          "enrolled",
+          "effective_deposit",
+          "pending_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate"
+        ],
+        "title": "AdmissionsMonthOverMonth",
+        "type": "object"
+      },
+      "AdmissionsMonthlyRow": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "effective_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          },
+          "visit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Enrolled Rate"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "pending_deposit",
+          "effective_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate",
+          "month"
+        ],
+        "title": "AdmissionsMonthlyRow",
+        "type": "object"
+      },
+      "AdmissionsNoDepositPriority": {
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "integer"
+          },
+          "low": {
+            "title": "Low",
+            "type": "integer"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "integer"
+          },
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "high",
+          "medium",
+          "low",
+          "other"
+        ],
+        "title": "AdmissionsNoDepositPriority",
+        "type": "object"
+      },
+      "AdmissionsNoDepositReason": {
+        "properties": {
+          "by_grade": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Grade",
+            "type": "object"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "count",
+          "by_grade",
+          "priority"
+        ],
+        "title": "AdmissionsNoDepositReason",
+        "type": "object"
+      },
+      "AdmissionsNoDepositSummary": {
+        "properties": {
+          "cold_count": {
+            "title": "Cold Count",
+            "type": "integer"
+          },
+          "high_potential_backlog_count": {
+            "title": "High Potential Backlog Count",
+            "type": "integer"
+          },
+          "high_potential_count": {
+            "title": "High Potential Count",
+            "type": "integer"
+          },
+          "overdue_followup_count": {
+            "title": "Overdue Followup Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "high_potential_count",
+          "overdue_followup_count",
+          "cold_count",
+          "high_potential_backlog_count"
+        ],
+        "title": "AdmissionsNoDepositSummary",
+        "type": "object"
+      },
       "AdmissionsOptionsOut": {
         "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，\n以及園務的固定列舉與文案。",
         "properties": {
@@ -62,6 +599,650 @@
           "source_categories"
         ],
         "title": "AdmissionsOptionsOut",
+        "type": "object"
+      },
+      "AdmissionsRateDiff": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          }
+        },
+        "required": [
+          "current",
+          "previous",
+          "delta"
+        ],
+        "title": "AdmissionsRateDiff",
+        "type": "object"
+      },
+      "AdmissionsReferrerRow": {
+        "properties": {
+          "by_grade": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AdmissionsGradeCount"
+            },
+            "title": "By Grade",
+            "type": "object"
+          },
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "referrer": {
+            "title": "Referrer",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "referrer",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate",
+          "by_grade"
+        ],
+        "title": "AdmissionsReferrerRow",
+        "type": "object"
+      },
+      "AdmissionsReferrerSourceCross": {
+        "properties": {
+          "referrers": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsCrossRow"
+            },
+            "title": "Referrers",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "referrers",
+          "sources"
+        ],
+        "title": "AdmissionsReferrerSourceCross",
+        "type": "object"
+      },
+      "AdmissionsSourceRow": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "source",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate"
+        ],
+        "title": "AdmissionsSourceRow",
+        "type": "object"
+      },
+      "AdmissionsStatsAction": {
+        "properties": {
+          "code": {
+            "enum": [
+              "FOLLOW_HIGH_POTENTIAL",
+              "REVIEW_CURRENT_MONTH",
+              "REVIEW_SOURCE"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "target_filter": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Target Filter",
+            "type": "object"
+          },
+          "target_tab": {
+            "enum": [
+              "records",
+              "nodeposit",
+              "source"
+            ],
+            "title": "Target Tab",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "description",
+          "target_tab",
+          "target_filter"
+        ],
+        "title": "AdmissionsStatsAction",
+        "type": "object"
+      },
+      "AdmissionsStatsAlert": {
+        "properties": {
+          "code": {
+            "enum": [
+              "FUNNEL_DROP",
+              "HIGH_POTENTIAL_BACKLOG",
+              "SOURCE_IMBALANCE"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "warning",
+              "danger",
+              "info"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "target_filter": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Target Filter",
+            "type": "object"
+          },
+          "target_tab": {
+            "enum": [
+              "records",
+              "nodeposit",
+              "source"
+            ],
+            "title": "Target Tab",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "level",
+          "title",
+          "message",
+          "target_tab",
+          "target_filter"
+        ],
+        "title": "AdmissionsStatsAlert",
+        "type": "object"
+      },
+      "AdmissionsStatsFilters": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "reference_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Month"
+          },
+          "school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Year"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
+          }
+        },
+        "required": [
+          "campus_key",
+          "school_year",
+          "semester",
+          "reference_month"
+        ],
+        "title": "AdmissionsStatsFilters",
+        "type": "object"
+      },
+      "AdmissionsStatsKpi": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "effective_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "unique_deposit": {
+            "title": "Unique Deposit",
+            "type": "integer"
+          },
+          "unique_visit": {
+            "title": "Unique Visit",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          },
+          "visit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Enrolled Rate"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "pending_deposit",
+          "effective_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate",
+          "unique_visit",
+          "unique_deposit"
+        ],
+        "title": "AdmissionsStatsKpi",
+        "type": "object"
+      },
+      "AdmissionsStatsOut": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsStatsAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "by_grade": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsGradeRow"
+            },
+            "title": "By Grade",
+            "type": "array"
+          },
+          "by_referrer": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsReferrerRow"
+            },
+            "title": "By Referrer",
+            "type": "array"
+          },
+          "by_source": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsSourceRow"
+            },
+            "title": "By Source",
+            "type": "array"
+          },
+          "by_year": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsYearlyRow"
+            },
+            "title": "By Year",
+            "type": "array"
+          },
+          "decision_summary": {
+            "$ref": "#/components/schemas/AdmissionsDecisionSummary"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AdmissionsStatsFilters"
+          },
+          "funnel_snapshot": {
+            "$ref": "#/components/schemas/AdmissionsFunnelSnapshot"
+          },
+          "kpi": {
+            "$ref": "#/components/schemas/AdmissionsStatsKpi"
+          },
+          "month_grade": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Month Grade",
+            "type": "object"
+          },
+          "month_over_month": {
+            "$ref": "#/components/schemas/AdmissionsMonthOverMonth"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsMonthlyRow"
+            },
+            "title": "Monthly",
+            "type": "array"
+          },
+          "no_deposit_priority": {
+            "$ref": "#/components/schemas/AdmissionsNoDepositPriority"
+          },
+          "no_deposit_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsNoDepositReason"
+            },
+            "title": "No Deposit Reasons",
+            "type": "array"
+          },
+          "no_deposit_summary": {
+            "$ref": "#/components/schemas/AdmissionsNoDepositSummary"
+          },
+          "no_deposit_total": {
+            "title": "No Deposit Total",
+            "type": "integer"
+          },
+          "reference_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Month"
+          },
+          "referrer_source_cross": {
+            "$ref": "#/components/schemas/AdmissionsReferrerSourceCross"
+          },
+          "top_action_queue": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsStatsAction"
+            },
+            "title": "Top Action Queue",
+            "type": "array"
+          },
+          "top_source_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Top Source Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "filters",
+          "reference_month",
+          "kpi",
+          "decision_summary",
+          "funnel_snapshot",
+          "month_over_month",
+          "alerts",
+          "top_action_queue",
+          "monthly",
+          "by_year",
+          "by_grade",
+          "month_grade",
+          "by_source",
+          "top_source_names",
+          "by_referrer",
+          "referrer_source_cross",
+          "no_deposit_reasons",
+          "no_deposit_total",
+          "no_deposit_priority",
+          "no_deposit_summary"
+        ],
+        "title": "AdmissionsStatsOut",
+        "type": "object"
+      },
+      "AdmissionsYearlyRow": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "effective_deposit": {
+            "title": "Effective Deposit",
+            "type": "integer"
+          },
+          "effective_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "pending_deposit": {
+            "title": "Pending Deposit",
+            "type": "integer"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          },
+          "visit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Enrolled Rate"
+          },
+          "year": {
+            "title": "Year",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "transfer_term",
+          "pending_deposit",
+          "effective_deposit",
+          "visit_to_deposit_rate",
+          "visit_to_enrolled_rate",
+          "deposit_to_enrolled_rate",
+          "effective_to_enrolled_rate",
+          "year"
+        ],
+        "title": "AdmissionsYearlyRow",
         "type": "object"
       },
       "AnalyticsEventCreate": {
@@ -10211,6 +11392,138 @@
           }
         },
         "summary": "Transition Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/stats": {
+      "get": {
+        "description": "統計分析（規格第 9 節）。只讀，不寫稽核。",
+        "operationId": "get_admissions_stats_api_website_v1_admin_admissions_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "入學學年；不帶＝不篩",
+            "in": "query",
+            "name": "school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年；不帶＝不篩",
+              "title": "School Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          },
+          {
+            "description": "民國月份，例：115.09；不帶＝最新有資料的月份",
+            "in": "query",
+            "name": "reference_month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 10,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "民國月份，例：115.09；不帶＝最新有資料的月份",
+              "title": "Reference Month"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Stats",
         "tags": [
           "admissions"
         ]

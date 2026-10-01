@@ -236,6 +236,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Stats
+         * @description 統計分析（規格第 9 節）。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_stats_api_website_v1_admin_admissions_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/funnel": {
         parameters: {
             query?: never;
@@ -2367,6 +2387,171 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdmissionsCountDiff */
+        AdmissionsCountDiff: {
+            /** Current */
+            current: number;
+            /** Delta */
+            delta: number;
+            /** Previous */
+            previous: number;
+        };
+        /** AdmissionsCrossRow */
+        AdmissionsCrossRow: {
+            /** Referrer */
+            referrer: string;
+            /** Sources */
+            sources: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+        };
+        /** AdmissionsDecisionSummary */
+        AdmissionsDecisionSummary: {
+            current_month: components["schemas"]["AdmissionsMetricSnapshot"];
+            rolling_30d: components["schemas"]["AdmissionsMetricSnapshot"];
+            rolling_90d: components["schemas"]["AdmissionsMetricSnapshot"];
+            ytd: components["schemas"]["AdmissionsMetricSnapshot"];
+        };
+        /** AdmissionsFunnelSnapshot */
+        AdmissionsFunnelSnapshot: {
+            /** Deposit */
+            deposit: number;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AdmissionsGradeCount */
+        AdmissionsGradeCount: {
+            /** Deposit */
+            deposit: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AdmissionsGradeRow */
+        AdmissionsGradeRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Grade */
+            grade: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsMetricSnapshot */
+        AdmissionsMetricSnapshot: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsMonthOverMonth */
+        AdmissionsMonthOverMonth: {
+            /** Current Month */
+            current_month: string | null;
+            deposit: components["schemas"]["AdmissionsCountDiff"];
+            deposit_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+            effective_deposit: components["schemas"]["AdmissionsCountDiff"];
+            effective_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+            enrolled: components["schemas"]["AdmissionsCountDiff"];
+            pending_deposit: components["schemas"]["AdmissionsCountDiff"];
+            /** Previous Month */
+            previous_month: string | null;
+            visit: components["schemas"]["AdmissionsCountDiff"];
+            visit_to_deposit_rate: components["schemas"]["AdmissionsRateDiff"];
+            visit_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+        };
+        /** AdmissionsMonthlyRow */
+        AdmissionsMonthlyRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Month */
+            month: string;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsNoDepositPriority */
+        AdmissionsNoDepositPriority: {
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+            /** Medium */
+            medium: number;
+            /** Other */
+            other: number;
+        };
+        /** AdmissionsNoDepositReason */
+        AdmissionsNoDepositReason: {
+            /** By Grade */
+            by_grade: {
+                [key: string]: number;
+            };
+            /** Count */
+            count: number;
+            /** Priority */
+            priority: ("high" | "medium" | "low") | null;
+            /** Reason */
+            reason: string;
+        };
+        /** AdmissionsNoDepositSummary */
+        AdmissionsNoDepositSummary: {
+            /** Cold Count */
+            cold_count: number;
+            /** High Potential Backlog Count */
+            high_potential_backlog_count: number;
+            /** High Potential Count */
+            high_potential_count: number;
+            /** Overdue Followup Count */
+            overdue_followup_count: number;
+        };
         /**
          * AdmissionsOptionsOut
          * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，
@@ -2387,6 +2572,202 @@ export interface components {
             };
             /** Sources */
             sources: string[];
+        };
+        /** AdmissionsRateDiff */
+        AdmissionsRateDiff: {
+            /** Current */
+            current: number | null;
+            /** Delta */
+            delta: number | null;
+            /** Previous */
+            previous: number | null;
+        };
+        /** AdmissionsReferrerRow */
+        AdmissionsReferrerRow: {
+            /** By Grade */
+            by_grade: {
+                [key: string]: components["schemas"]["AdmissionsGradeCount"];
+            };
+            /** Deposit */
+            deposit: number;
+            /** Referrer */
+            referrer: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AdmissionsReferrerSourceCross */
+        AdmissionsReferrerSourceCross: {
+            /** Referrers */
+            referrers: components["schemas"]["AdmissionsCrossRow"][];
+            /** Sources */
+            sources: string[];
+        };
+        /** AdmissionsSourceRow */
+        AdmissionsSourceRow: {
+            /** Deposit */
+            deposit: number;
+            /** Source */
+            source: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AdmissionsStatsAction */
+        AdmissionsStatsAction: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "FOLLOW_HIGH_POTENTIAL" | "REVIEW_CURRENT_MONTH" | "REVIEW_SOURCE";
+            /** Description */
+            description: string;
+            /** Target Filter */
+            target_filter: {
+                [key: string]: string | number;
+            };
+            /**
+             * Target Tab
+             * @enum {string}
+             */
+            target_tab: "records" | "nodeposit" | "source";
+            /** Title */
+            title: string;
+        };
+        /** AdmissionsStatsAlert */
+        AdmissionsStatsAlert: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "FUNNEL_DROP" | "HIGH_POTENTIAL_BACKLOG" | "SOURCE_IMBALANCE";
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "warning" | "danger" | "info";
+            /** Message */
+            message: string;
+            /** Target Filter */
+            target_filter: {
+                [key: string]: string | number;
+            };
+            /**
+             * Target Tab
+             * @enum {string}
+             */
+            target_tab: "records" | "nodeposit" | "source";
+            /** Title */
+            title: string;
+        };
+        /** AdmissionsStatsFilters */
+        AdmissionsStatsFilters: {
+            /** Campus Key */
+            campus_key: string;
+            /** Reference Month */
+            reference_month: string | null;
+            /** School Year */
+            school_year: number | null;
+            /** Semester */
+            semester: number | null;
+        };
+        /** AdmissionsStatsKpi */
+        AdmissionsStatsKpi: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Unique Deposit */
+            unique_deposit: number;
+            /** Unique Visit */
+            unique_visit: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsStatsOut */
+        AdmissionsStatsOut: {
+            /** Alerts */
+            alerts: components["schemas"]["AdmissionsStatsAlert"][];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Grade */
+            by_grade: components["schemas"]["AdmissionsGradeRow"][];
+            /** By Referrer */
+            by_referrer: components["schemas"]["AdmissionsReferrerRow"][];
+            /** By Source */
+            by_source: components["schemas"]["AdmissionsSourceRow"][];
+            /** By Year */
+            by_year: components["schemas"]["AdmissionsYearlyRow"][];
+            decision_summary: components["schemas"]["AdmissionsDecisionSummary"];
+            filters: components["schemas"]["AdmissionsStatsFilters"];
+            funnel_snapshot: components["schemas"]["AdmissionsFunnelSnapshot"];
+            kpi: components["schemas"]["AdmissionsStatsKpi"];
+            /** Month Grade */
+            month_grade: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            month_over_month: components["schemas"]["AdmissionsMonthOverMonth"];
+            /** Monthly */
+            monthly: components["schemas"]["AdmissionsMonthlyRow"][];
+            no_deposit_priority: components["schemas"]["AdmissionsNoDepositPriority"];
+            /** No Deposit Reasons */
+            no_deposit_reasons: components["schemas"]["AdmissionsNoDepositReason"][];
+            no_deposit_summary: components["schemas"]["AdmissionsNoDepositSummary"];
+            /** No Deposit Total */
+            no_deposit_total: number;
+            /** Reference Month */
+            reference_month: string | null;
+            referrer_source_cross: components["schemas"]["AdmissionsReferrerSourceCross"];
+            /** Top Action Queue */
+            top_action_queue: components["schemas"]["AdmissionsStatsAction"][];
+            /** Top Source Names */
+            top_source_names: string[];
+        };
+        /** AdmissionsYearlyRow */
+        AdmissionsYearlyRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+            /** Year */
+            year: string;
         };
         /**
          * AnalyticsEventCreate
@@ -5802,6 +6183,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_stats_api_website_v1_admin_admissions_stats_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝不篩 */
+                school_year?: number | null;
+                semester?: number | null;
+                /** @description 民國月份，例：115.09；不帶＝最新有資料的月份 */
+                reference_month?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsStatsOut"];
                 };
             };
             /** @description Validation Error */

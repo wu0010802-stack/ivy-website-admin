@@ -17,9 +17,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, funnel, intake, records
+from app.admissions import stats as stats_service
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsOptionsOut,
+    AdmissionsStatsOut,
     ArrivalsOut,
     FunnelBoardOut,
     IntakePlanOut,
@@ -502,3 +504,28 @@ async def create_from_visit_request(
     )
     await db.commit()
     return RecruitmentVisitOut.model_validate(visit)
+
+
+@router.get("/admin/admissions/stats", response_model=AdmissionsStatsOut)
+async def get_admissions_stats(
+    campus_key: str,
+    school_year: int | None = Query(
+        default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX, description="入學學年；不帶＝不篩"
+    ),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    reference_month: str | None = Query(default=None, max_length=10, description="民國月份，例：115.09；不帶＝最新有資料的月份"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdmissionsStatsOut:
+    """統計分析（規格第 9 節）。只讀，不寫稽核。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    try:
+        result = await stats_service.query_stats(
+            db, campus_key, school_year=school_year, semester=semester, reference_month=reference_month
+        )
+    except stats_service.InvalidReferenceMonth as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_REFERENCE_MONTH", "message": str(exc)},
+        ) from exc
+    return AdmissionsStatsOut.model_validate(result)

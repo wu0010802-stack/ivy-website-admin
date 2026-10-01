@@ -363,6 +363,7 @@ async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client,
             ("POST", f"{ADMISSIONS}/records?campus_key=yihua"),
             ("GET", f"{ADMISSIONS}/board?campus_key=yihua"),
             ("GET", f"{ADMISSIONS}/options?campus_key=yihua"),
+            ("GET", f"{ADMISSIONS}/stats?campus_key=yihua"),
             ("GET", ARRIVALS),
             ("POST", f"{ADMISSIONS}/from-visit-request/{request_id}"),
         ):

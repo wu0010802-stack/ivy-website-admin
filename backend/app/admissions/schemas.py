@@ -394,3 +394,193 @@ class ArrivalsOut(BaseModel):
     # 已到場但沒有招生訪視，可以補建；依場次日期（沒有場次用建立時間）新到舊。
     missing: list[ArrivalRowOut]
     missing_total: int
+
+
+# ── 統計（C1）：欄位照園務 api/recruitment/stats.py::_query_stats，比率分母 0 為 None ──
+
+AdmissionsStatsTarget = Literal["records", "nodeposit", "source"]
+
+
+class AdmissionsMetricSnapshot(BaseModel):
+    visit: int
+    deposit: int
+    enrolled: int
+    transfer_term: int
+    pending_deposit: int
+    effective_deposit: int
+    visit_to_deposit_rate: float | None
+    visit_to_enrolled_rate: float | None
+    deposit_to_enrolled_rate: float | None
+    effective_to_enrolled_rate: float | None
+
+
+class AdmissionsStatsKpi(AdmissionsMetricSnapshot):
+    # 以「姓名|生日」去重（園務 stats.py:122-139）。
+    unique_visit: int
+    unique_deposit: int
+
+
+class AdmissionsMonthlyRow(AdmissionsMetricSnapshot):
+    month: str
+
+
+class AdmissionsYearlyRow(AdmissionsMetricSnapshot):
+    # 民國年（月份字串的年份部分），不是學年。
+    year: str
+
+
+class AdmissionsDecisionSummary(BaseModel):
+    current_month: AdmissionsMetricSnapshot
+    rolling_30d: AdmissionsMetricSnapshot
+    rolling_90d: AdmissionsMetricSnapshot
+    ytd: AdmissionsMetricSnapshot
+
+
+class AdmissionsFunnelSnapshot(BaseModel):
+    visit: int
+    deposit: int
+    enrolled: int
+    transfer_term: int
+    effective_deposit: int
+    pending_deposit: int
+
+
+class AdmissionsCountDiff(BaseModel):
+    current: int
+    previous: int
+    delta: int
+
+
+class AdmissionsRateDiff(BaseModel):
+    current: float | None
+    previous: float | None
+    # 任一邊是 None（分母 0）就是 None。
+    delta: float | None
+
+
+class AdmissionsMonthOverMonth(BaseModel):
+    current_month: str | None
+    previous_month: str | None
+    visit: AdmissionsCountDiff
+    deposit: AdmissionsCountDiff
+    enrolled: AdmissionsCountDiff
+    effective_deposit: AdmissionsCountDiff
+    pending_deposit: AdmissionsCountDiff
+    visit_to_deposit_rate: AdmissionsRateDiff
+    visit_to_enrolled_rate: AdmissionsRateDiff
+    deposit_to_enrolled_rate: AdmissionsRateDiff
+    effective_to_enrolled_rate: AdmissionsRateDiff
+
+
+class AdmissionsStatsAlert(BaseModel):
+    code: Literal["FUNNEL_DROP", "HIGH_POTENTIAL_BACKLOG", "SOURCE_IMBALANCE"]
+    level: Literal["warning", "danger", "info"]
+    title: str
+    message: str
+    # records＝訪視明細（帶 month）、nodeposit＝統計的未預繳原因、source＝統計的來源分析。
+    target_tab: AdmissionsStatsTarget
+    target_filter: dict[str, str | int]
+
+
+class AdmissionsStatsAction(BaseModel):
+    code: Literal["FOLLOW_HIGH_POTENTIAL", "REVIEW_CURRENT_MONTH", "REVIEW_SOURCE"]
+    title: str
+    description: str
+    target_tab: AdmissionsStatsTarget
+    target_filter: dict[str, str | int]
+
+
+class AdmissionsGradeRow(BaseModel):
+    grade: str
+    visit: int
+    deposit: int
+    enrolled: int
+    visit_to_deposit_rate: float | None
+    visit_to_enrolled_rate: float | None
+    deposit_to_enrolled_rate: float | None
+
+
+class AdmissionsSourceRow(BaseModel):
+    source: str
+    visit: int
+    deposit: int
+    visit_to_deposit_rate: float | None
+
+
+class AdmissionsGradeCount(BaseModel):
+    visit: int
+    deposit: int
+
+
+class AdmissionsReferrerRow(BaseModel):
+    referrer: str
+    visit: int
+    deposit: int
+    visit_to_deposit_rate: float | None
+    by_grade: dict[str, AdmissionsGradeCount]
+
+
+class AdmissionsCrossRow(BaseModel):
+    referrer: str
+    sources: dict[str, int]
+    # 該介紹者全部來源的合計（含前 10 名以外），不一定等於 sources 加總。
+    total: int
+
+
+class AdmissionsReferrerSourceCross(BaseModel):
+    referrers: list[AdmissionsCrossRow]
+    sources: list[str]
+
+
+class AdmissionsNoDepositReason(BaseModel):
+    reason: str
+    count: int
+    by_grade: dict[str, int]
+    priority: Literal["high", "medium", "low"] | None
+
+
+class AdmissionsNoDepositPriority(BaseModel):
+    high: int
+    medium: int
+    low: int
+    # 「未註明／待追蹤」與沒填原因（未分類）。
+    other: int
+
+
+class AdmissionsNoDepositSummary(BaseModel):
+    high_potential_count: int
+    overdue_followup_count: int
+    cold_count: int
+    high_potential_backlog_count: int
+
+
+class AdmissionsStatsFilters(BaseModel):
+    campus_key: str
+    school_year: int | None
+    semester: int | None
+    reference_month: str | None
+
+
+class AdmissionsStatsOut(BaseModel):
+    as_of: datetime
+    filters: AdmissionsStatsFilters
+    reference_month: str | None
+    kpi: AdmissionsStatsKpi
+    decision_summary: AdmissionsDecisionSummary
+    funnel_snapshot: AdmissionsFunnelSnapshot
+    month_over_month: AdmissionsMonthOverMonth
+    alerts: list[AdmissionsStatsAlert]
+    top_action_queue: list[AdmissionsStatsAction]
+    monthly: list[AdmissionsMonthlyRow]
+    by_year: list[AdmissionsYearlyRow]
+    by_grade: list[AdmissionsGradeRow]
+    # {民國月份: {年級: 筆數, "合計": 筆數}}；畫面依 monthly 的月份順序取用。
+    month_grade: dict[str, dict[str, int]]
+    by_source: list[AdmissionsSourceRow]
+    top_source_names: list[str]
+    by_referrer: list[AdmissionsReferrerRow]
+    referrer_source_cross: AdmissionsReferrerSourceCross
+    no_deposit_reasons: list[AdmissionsNoDepositReason]
+    no_deposit_total: int
+    no_deposit_priority: AdmissionsNoDepositPriority
+    no_deposit_summary: AdmissionsNoDepositSummary
