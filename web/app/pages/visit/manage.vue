@@ -2,13 +2,13 @@
 import { useParentVisit } from '~/composables/useParentVisit'
 import { changeDeadlineRule, normalizeVisitPhone, PARTY_SIZE_OPTIONS, taipeiDate, validateVisitContact, type VisitErrors } from '~/utils/visit-form'
 import { slotWhen } from '~/utils/visit-session'
-import type { ParentDetailChanges } from '~/composables/useParentVisit'
+import { editBaseFrom, editedChanges, rebaseEdit, type EditForm } from '~/utils/visit-edit'
 import { parentVisitCampus } from '~/utils/parent-visit'
 
 const { data } = await usePublishedSite()
 const route = useRoute()
 const {
-  visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError,
+  visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, detailErrors,
   initialize, reload, loadSlots, cancelVisit, reschedule, updateDetails, dispose
 } = useParentVisit()
 const showCancel = ref(false)
@@ -57,7 +57,11 @@ function consumeLink(initial = false) {
   const token = new URLSearchParams(window.location.hash.slice(1)).get('token')
   if (!initial && !token) return
   // 保留 Router 的 history state；fragment 只用來交換 HttpOnly session。
-  if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+  // router 另在 history.state.current 存了含 token 的網址，不一併改寫的話，返回或下次導覽時 token 會重新出現在網址列。
+  if (window.location.hash) {
+    const clean = window.location.pathname + window.location.search
+    window.history.replaceState({ ...window.history.state, current: clean }, '', clean)
+  }
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
@@ -115,35 +119,21 @@ async function submitReschedule() {
   await focusFeedback()
 }
 
-const editForm = reactive({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '', partySize: '', questions: '' })
+const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '', partySize: '', questions: '' })
+let editBase: EditForm = { ...editForm }
 const editErrors = ref<VisitErrors>({})
 const editPanel = ref<HTMLElement | null>(null)
 
 async function openEdit() {
   if (!visit.value) return
-  Object.assign(editForm, {
-    parentName: visit.value.parent_name, phone: visit.value.phone, email: visit.value.email ?? '',
-    childName: visit.value.child_name ?? '', childBirthdate: visit.value.child_birthdate ?? '',
-    partySize: visit.value.party_size ? String(visit.value.party_size) : '', questions: visit.value.questions ?? ''
-  })
+  editBase = editBaseFrom(visit.value)
+  Object.assign(editForm, editBase)
   editErrors.value = {}
   showEdit.value = true
   showCancel.value = false
   showReschedule.value = false
   await nextTick()
   editPanel.value?.querySelector<HTMLElement>('input')?.focus()
-}
-
-function editedChanges(): ParentDetailChanges {
-  const current = visit.value!
-  const next = {
-    parent_name: editForm.parentName.trim(), phone: normalizeVisitPhone(editForm.phone), email: editForm.email.trim(),
-    child_name: editForm.childName.trim(), child_birthdate: editForm.childBirthdate,
-    party_size: Number(editForm.partySize), questions: editForm.questions.trim() || null
-  }
-  return Object.fromEntries(
-    Object.entries(next).filter(([key, value]) => value !== (current[key as keyof typeof current] ?? (key === 'questions' ? null : '')))
-  ) as ParentDetailChanges
 }
 
 async function submitEdit() {
@@ -153,8 +143,20 @@ async function submitEdit() {
     editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     return
   }
-  const done = await updateDetails(editedChanges())
+  const versionBefore = visit.value?.version
+  const done = await updateDetails(editedChanges(visit.value!, editForm, editBase))
   if (done) showEdit.value = false
+  else if (Object.keys(detailErrors.value).length) {
+    editErrors.value = { ...detailErrors.value }
+    await nextTick()
+    editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    return
+  } else if (visit.value && visit.value.version !== versionBefore) {
+    // 版本衝突：換成最新資料為底，保留家長自己改過的欄位，再次儲存不會把別人的修改改回去。
+    const next = rebaseEdit(editForm, editBase, visit.value)
+    editBase = next.base
+    Object.assign(editForm, next.form)
+  }
   await focusFeedback()
 }
 </script>
@@ -197,6 +199,7 @@ async function submitEdit() {
             </p>
             <p v-if="['new', 'contacting', 'pending_confirmation'].includes(visit.status)" class="parent-visit-muted">這筆需求還沒排定場次，園所會與你聯繫；也可以取消後重新選擇場次。</p>
             <VisitCalendarActions v-if="calendarCampus && visit.slot" :campus="calendarCampus" :slot="visit.slot" :uid="`visit-${visit.id}@ivy-website`" />
+            <p v-if="visit.can_edit && !visit.can_reschedule" class="parent-visit-muted">目前不開放線上改場次，要改時間請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>；資料修改與取消仍可在這裡進行。</p>
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上修改時間{{ deadlineRule ? `（${deadlineRule}截止）` : '' }}。要更改請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>。</p>
             <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上修改截止：{{ deadlineLabel }}（台灣時間）。</p>
 

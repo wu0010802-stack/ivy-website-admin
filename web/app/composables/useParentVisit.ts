@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import type { components } from '../../../contracts/generated/website-api'
-import { taipeiDate } from '../utils/visit-form'
+import { apiFieldErrors, taipeiDate, type VisitErrors } from '../utils/visit-form'
 import { slotWhen } from '../utils/visit-session'
 
 export type ParentVisit = components['schemas']['ParentVisitRequestOut']
@@ -10,8 +10,9 @@ const base = '/api/website/v1/public/visit-manage'
 const requestOptions = { credentials: 'same-origin', cache: 'no-store', retry: 0, timeout: 15000 } as const
 
 function failureInfo(error: unknown) {
-  const failure = error as { response?: { status?: number }; data?: { detail?: { code?: string; message?: string } } }
-  return { status: failure?.response?.status, code: failure?.data?.detail?.code, message: failure?.data?.detail?.message }
+  const failure = error as { response?: { status?: number }; data?: { detail?: unknown } }
+  const detail = failure?.data?.detail as { code?: string; message?: string } | undefined
+  return { status: failure?.response?.status, code: detail?.code, message: detail?.message, detail: failure?.data?.detail }
 }
 
 export function useParentVisit() {
@@ -24,6 +25,8 @@ export function useParentVisit() {
   const slots = ref<ParentVisitSlot[]>([])
   const slotsPending = ref(false)
   const slotsError = ref('')
+  // 後端 422 依欄位位置對應回表單欄位（顯示自己的中文訊息，不用 Pydantic 的 msg）。
+  const detailErrors = ref<VisitErrors>({})
   // 不放入 Nuxt payload、URL query 或瀏覽器儲存空間；暫時斷線仍可重試。
   let linkToken: string | null = null
   let disposed = false
@@ -115,8 +118,13 @@ export function useParentVisit() {
   }
 
   async function operationFailed(cause: unknown, request: number) {
-    const { status, code, message } = failureInfo(cause)
+    const { status, code, message, detail } = failureInfo(cause)
     if (status === 401) { expire(); return }
+    if (status === 422) {
+      detailErrors.value = apiFieldErrors(detail)
+      error.value = Object.keys(detailErrors.value).length ? '有幾個欄位需要修正，請看標示的地方。' : '資料格式有誤，請檢查後再送出。'
+      return
+    }
     if (code === 'PARENT_SESSION_CHANGED') {
       // 同一個瀏覽器的分頁共用登入：別的分頁開了另一筆預約的連結，這一頁顯示的已不是
       // 目前登入的那一筆，後端拒絕異動、兩筆都沒動。不自動換成另一筆，請家長重開連結。
@@ -147,7 +155,7 @@ export function useParentVisit() {
         if (failureInfo(refreshError).status === 401) { expire(); return }
         visit.value = null
       }
-      error.value = '目前已無法線上異動這筆預約，請直接聯絡園所。'
+      error.value = code === 'BOOKING_UNAVAILABLE' && message ? message : '目前已無法線上異動這筆預約，請直接聯絡園所。'
     } else if (['SLOT_FULL', 'SLOT_CLOSED', 'SLOT_NOT_BOOKABLE', 'SLOT_NOT_FOUND', 'SAME_SLOT'].includes(code || '')) {
       error.value = '選擇的場次已無法預約，請重新選擇其他場次。'
       await loadSlots()
@@ -207,6 +215,7 @@ export function useParentVisit() {
     const request = revision
     error.value = ''
     notice.value = ''
+    detailErrors.value = {}
     try {
       const result = await $fetch<ParentVisit>(`${base}/me`, { ...requestOptions, signal: controller.signal, method: 'PATCH', headers: { 'X-Ivy-Parent': '1' }, body: { visit_request_id: visit.value.id, expected_version: visit.value.version, ...changes } })
       if (disposed || request !== revision) return false
@@ -229,5 +238,5 @@ export function useParentVisit() {
     visit.value = null
     slots.value = []
   }
-  return { visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, initialize, reload, loadSlots, cancelVisit, reschedule, updateDetails, dispose }
+  return { visit, pending, busy, unavailable, error, notice, slots, slotsPending, slotsError, detailErrors, initialize, reload, loadSlots, cancelVisit, reschedule, updateDetails, dispose }
 }

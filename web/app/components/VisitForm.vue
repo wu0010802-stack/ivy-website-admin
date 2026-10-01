@@ -409,7 +409,9 @@ async function onSubmit() {
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
       idempotencyKey.value = crypto.randomUUID()
       submitError.value =
-        '你先前那一次其實已經送出成功了，請查看確認信或聯絡園所。如果要用修改後的內容再預約一筆，請再按一次送出。'
+        (bookingConfig.value?.parent_email_enabled
+          ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'
+          : '你先前那一次其實已經預約成功了。要更正內容請直接聯絡園所，不要重複送出。') + callFallback.value
     } else if (code === 'BOT_CHECK_FAILED') {
       submitError.value = serverMessage(detail, '請完成機器人驗證後再送出。')
     } else if (code === 'BOOKING_LIMIT') {
@@ -590,7 +592,7 @@ async function onSubmit() {
                   <div ref="turnstileRef" class="visit-turnstile-widget" />
                   <p v-if="turnstileLoadError" class="visit-field-error" role="alert">{{ turnstileLoadError }}</p>
                 </div>
-                <div class="visit-submit-row"><p>送出後，請查看確認結果。<br>參觀時間以園所確認為準。</p><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
+                <div class="visit-submit-row"><p>送出後會直接保留你選的場次，<br>並顯示預約結果。</p><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在送出…' : '送出參觀需求' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
               </form>
             </template>
           </template>
@@ -609,7 +611,8 @@ async function onSubmit() {
               <h3>之後要改時間或取消</h3>
               <p>用這個連結就能改場次、修改資料或取消預約，請收藏起來，不要轉給其他人。</p>
               <div class="visit-contact-actions">
-                <NuxtLink class="button primary" :to="managePath">修改或取消預約</NuxtLink>
+                <!-- 整頁導覽：client 端導覽會把含 token 的網址存進 router 的 history.state。 -->
+                <a class="button primary" :href="managePath">修改或取消預約</a>
                 <button type="button" class="button outline" @click="copyManageLink">{{ linkCopied ? '已複製連結' : '複製連結' }}</button>
               </div>
             </div>

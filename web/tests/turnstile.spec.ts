@@ -74,6 +74,11 @@ describe('公開預約設定帶出 Turnstile site key', () => {
     return fetchConfig()
   }
 
+  it('寄信開關要透傳到結果頁（Important：原本被丟掉）', async () => {
+    expect((await configFrom({ parent_email_enabled: true })).parent_email_enabled).toBe(true)
+    expect((await configFrom({})).parent_email_enabled).toBe(false)
+  })
+
   it('有設定時帶出 site key', async () => {
     expect((await configFrom({ turnstile_site_key: '0x4AAAAAAA' })).turnstile_site_key).toBe('0x4AAAAAAA')
   })

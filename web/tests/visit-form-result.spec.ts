@@ -21,4 +21,10 @@ describe('預約表單接線', () => {
   it('422 依欄位標出錯誤', () => {
     expect(source).toContain('apiFieldErrors(detail)')
   })
+
+  it('修改連結用整頁導覽，不讓 token 存進 router 歷史狀態；送單區不再說以園所確認為準', () => {
+    expect(source).toMatch(/<a class="button primary" :href="managePath">修改或取消預約<\/a>/)
+    expect(source).not.toContain('參觀時間以園所確認為準')
+    expect(source).not.toContain('你先前那一次其實已經送出成功了，請查看確認信')
+  })
 })

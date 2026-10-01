@@ -141,6 +141,30 @@ describe('parent visit management', () => {
     expect(state.error.value).toBe('這筆預約今天已經修改很多次了，請明天再試。')
   })
 
+  it('後端 422 依欄位位置標到欄位，不叫家長重新載入', async () => {
+    const invalid = { response: { status: 422 }, data: { detail: [{ loc: ['body', 'email'], msg: 'Value error, x', type: 'value_error' }] } }
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValueOnce(visit).mockRejectedValueOnce(invalid))
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    expect(await state.updateDetails({ email: 'a..b@c.d' })).toBe(false)
+
+    expect(state.detailErrors.value).toHaveProperty('email')
+    expect(state.error.value).toContain('需要修正')
+    expect(state.error.value).not.toContain('重新載入')
+  })
+
+  it('改期遇到預約方式改變：顯示伺服器訊息', async () => {
+    const unavailable = { response: { status: 409 }, data: { detail: { code: 'BOOKING_UNAVAILABLE', message: '本校目前暫停線上預約，要改時間請來電' } } }
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValueOnce(visit).mockRejectedValueOnce(unavailable).mockResolvedValueOnce({ ...visit, can_reschedule: false }))
+    const state = useParentVisit()
+    await state.initialize('link')
+
+    await state.reschedule('slot-2')
+
+    expect(state.error.value).toBe('本校目前暫停線上預約，要改時間請來電')
+  })
+
   it('retains the cancellation receipt without reloading the revoked session', async () => {
     const cancelled = { ...visit, status: 'cancelled', can_cancel: false, can_reschedule: false }
     const fetch = vi.fn().mockResolvedValueOnce(visit).mockResolvedValueOnce(cancelled)
@@ -235,6 +259,11 @@ describe('parent visit campus', () => {
     expect(page).toContain('>取消預約</button>')
     expect(page).not.toContain('申請改期')
     expect(page).not.toContain('phone_masked')
+  })
+
+  it('清掉網址 token 時一併改寫 router 的 history.state.current，返回時不會把 token 帶回網址列', () => {
+    const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
+    expect(page).toMatch(/replaceState\(\{ \.\.\.window\.history\.state, current:/)
   })
 
   it('offers rebooking only when the campus booking page exists', () => {
