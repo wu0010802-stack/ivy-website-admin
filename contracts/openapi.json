@@ -1,6 +1,69 @@
 {
   "components": {
     "schemas": {
+      "AdmissionsOptionsOut": {
+        "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，\n以及園務的固定列舉與文案。",
+        "properties": {
+          "grades": {
+            "items": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班"
+              ],
+              "type": "string"
+            },
+            "title": "Grades",
+            "type": "array"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "no_deposit_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/NoDepositReasonOption"
+            },
+            "title": "No Deposit Reasons",
+            "type": "array"
+          },
+          "referrers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Referrers",
+            "type": "array"
+          },
+          "source_categories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Source Categories",
+            "type": "object"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "months",
+          "sources",
+          "referrers",
+          "grades",
+          "no_deposit_reasons",
+          "source_categories"
+        ],
+        "title": "AdmissionsOptionsOut",
+        "type": "object"
+      },
       "AnalyticsEventCreate": {
         "additionalProperties": false,
         "description": "規格 L279、L314：只收允許的點擊、event id、校區與入口代碼。\nevent_id 由瀏覽器每次點擊產生一個 UUID，重送同一個 id 只算一次。",
@@ -154,6 +217,105 @@
           "clicks_by_entry"
         ],
         "title": "AnalyticsFunnelOut",
+        "type": "object"
+      },
+      "ArrivalRowOut": {
+        "description": "「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。",
+        "properties": {
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
+          "slot_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Date"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "format": "uuid",
+            "title": "Visit Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_request_id",
+          "slot_date",
+          "start_time",
+          "parent_name",
+          "child_name",
+          "party_size",
+          "status"
+        ],
+        "title": "ArrivalRowOut",
+        "type": "object"
+      },
+      "ArrivalsOut": {
+        "properties": {
+          "awaiting": {
+            "items": {
+              "$ref": "#/components/schemas/ArrivalRowOut"
+            },
+            "title": "Awaiting",
+            "type": "array"
+          },
+          "missing": {
+            "items": {
+              "$ref": "#/components/schemas/ArrivalRowOut"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "awaiting",
+          "missing"
+        ],
+        "title": "ArrivalsOut",
         "type": "object"
       },
       "AuditLogEntryOut": {
@@ -1220,6 +1382,192 @@
         "title": "DisplayNameUpdateRequest",
         "type": "object"
       },
+      "FunnelBoardOut": {
+        "properties": {
+          "columns": {
+            "$ref": "#/components/schemas/FunnelColumnsOut"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
+          },
+          "unscoped_count": {
+            "title": "Unscoped Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "columns",
+          "unscoped_count",
+          "school_year",
+          "semester"
+        ],
+        "title": "FunnelBoardOut",
+        "type": "object"
+      },
+      "FunnelCardOut": {
+        "properties": {
+          "child_name": {
+            "title": "Child Name",
+            "type": "string"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "has_visit_request": {
+            "title": "Has Visit Request",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provisional_grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Grade"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visit_date": {
+            "format": "date",
+            "title": "Visit Date",
+            "type": "string"
+          },
+          "withdrawn_from": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deposited",
+                  "enrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn From"
+          }
+        },
+        "required": [
+          "id",
+          "child_name",
+          "grade",
+          "provisional_grade",
+          "target_school_year",
+          "target_semester",
+          "visit_date",
+          "has_visit_request",
+          "withdrawn_from",
+          "version"
+        ],
+        "title": "FunnelCardOut",
+        "type": "object"
+      },
+      "FunnelColumnsOut": {
+        "description": "四欄各自一個 list（A 計畫調整第 8 條：產生的 TS 型別不是索引簽章）。",
+        "properties": {
+          "deposited": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelCardOut"
+            },
+            "title": "Deposited",
+            "type": "array"
+          },
+          "enrolled": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelCardOut"
+            },
+            "title": "Enrolled",
+            "type": "array"
+          },
+          "visited": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelCardOut"
+            },
+            "title": "Visited",
+            "type": "array"
+          },
+          "withdrawn": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelCardOut"
+            },
+            "title": "Withdrawn",
+            "type": "array"
+          }
+        },
+        "required": [
+          "visited",
+          "deposited",
+          "enrolled",
+          "withdrawn"
+        ],
+        "title": "FunnelColumnsOut",
+        "type": "object"
+      },
       "FunnelEntryOut": {
         "properties": {
           "counts": {
@@ -1294,6 +1642,185 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IntakePlanOut": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/IntakePlanRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "title": "Semester",
+            "type": "integer"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/IntakePlanTotalsOut"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester",
+          "rows",
+          "totals"
+        ],
+        "title": "IntakePlanOut",
+        "type": "object"
+      },
+      "IntakePlanRowOut": {
+        "properties": {
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "over_capacity": {
+            "title": "Over Capacity",
+            "type": "boolean"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "reserved": {
+            "title": "Reserved",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "grade",
+          "target_seats",
+          "reserved",
+          "enrolled",
+          "remaining",
+          "over_capacity"
+        ],
+        "title": "IntakePlanRowOut",
+        "type": "object"
+      },
+      "IntakePlanTotalsOut": {
+        "properties": {
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "reserved": {
+            "title": "Reserved",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "target_seats",
+          "reserved",
+          "enrolled",
+          "remaining"
+        ],
+        "title": "IntakePlanTotalsOut",
+        "type": "object"
+      },
+      "IntakeTargetsRequest": {
+        "additionalProperties": false,
+        "description": "同校同學期一次送多個年級（規格 13 PUT /intake-targets）。值是 null＝刪除\n該年級的計畫（回到「未設定」）；沒送的年級不動。",
+        "properties": {
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Semester",
+            "type": "integer"
+          },
+          "targets": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "maximum": 999.0,
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班"
+              ]
+            },
+            "title": "Targets",
+            "type": "object"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester",
+          "targets"
+        ],
+        "title": "IntakeTargetsRequest",
         "type": "object"
       },
       "LineCampusTargetOut": {
@@ -2346,6 +2873,46 @@
           "height"
         ],
         "title": "MediaVariantOut",
+        "type": "object"
+      },
+      "NoDepositReasonOption": {
+        "properties": {
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "value": {
+            "enum": [
+              "時程未到／仍在觀望",
+              "已有其他就學選項／比較他校",
+              "未註明／待追蹤",
+              "距離／地點因素",
+              "家庭照顧安排考量",
+              "特殊需求／名額限制",
+              "課程／環境仍在評估",
+              "費用考量"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "priority"
+        ],
+        "title": "NoDepositReasonOption",
         "type": "object"
       },
       "NotificationOutboxOut": {
@@ -3663,6 +4230,1093 @@
         "title": "ReauthRequest",
         "type": "object"
       },
+      "RecruitmentEventOut": {
+        "description": "招生歷程一筆（規格 5.2），舊到新排序。",
+        "properties": {
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "created",
+              "deposit_added",
+              "deposit_removed",
+              "converted",
+              "revert_converted",
+              "withdrawn",
+              "withdraw_cancelled",
+              "seat_reserved",
+              "seat_released"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "from_stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "visited",
+                  "deposited",
+                  "enrolled",
+                  "withdrawn"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Stage"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Json"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "to_stage": {
+            "enum": [
+              "visited",
+              "deposited",
+              "enrolled",
+              "withdrawn"
+            ],
+            "title": "To Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "from_stage",
+          "to_stage",
+          "reason",
+          "metadata_json",
+          "actor_user_id",
+          "created_at"
+        ],
+        "title": "RecruitmentEventOut",
+        "type": "object"
+      },
+      "RecruitmentVisitCreate": {
+        "additionalProperties": false,
+        "description": "手動新增（規格 6.1 第 3 點）。必填同園務表單：參觀日期、幼生姓名、生日、\n入學學年學期。campus_key 放 query（同 POST /admin/slots）。",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "birthday": {
+            "format": "date",
+            "title": "Birthday",
+            "type": "string"
+          },
+          "child_name": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Child Name",
+            "type": "string"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "deposit_collector": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Collector"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "no_deposit_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "時程未到／仍在觀望",
+                  "已有其他就學選項／比較他校",
+                  "未註明／待追蹤",
+                  "距離／地點因素",
+                  "家庭照顧安排考量",
+                  "特殊需求／名額限制",
+                  "課程／環境仍在評估",
+                  "費用考量"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason"
+          },
+          "no_deposit_reason_detail": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason Detail"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "parent_response": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Response"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrer"
+          },
+          "rides_bus": {
+            "default": false,
+            "title": "Rides Bus",
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sibling_current",
+                  "sibling_split",
+                  "sibling_graduate",
+                  "self_report",
+                  "referral",
+                  "invite_success",
+                  "invite_origin",
+                  "home_deposit",
+                  "returning"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Category"
+          },
+          "target_school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "Target School Year",
+            "type": "integer"
+          },
+          "target_semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Target Semester",
+            "type": "integer"
+          },
+          "tour_guide_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide Name"
+          },
+          "tour_guide_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide User Id"
+          },
+          "transfer_term": {
+            "default": false,
+            "title": "Transfer Term",
+            "type": "boolean"
+          },
+          "visit_date": {
+            "format": "date",
+            "title": "Visit Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_date",
+          "child_name",
+          "birthday",
+          "target_school_year",
+          "target_semester"
+        ],
+        "title": "RecruitmentVisitCreate",
+        "type": "object"
+      },
+      "RecruitmentVisitOut": {
+        "description": "規格 5.1 全部欄位（不含 anonymized_at），另加推導的 stage 與 has_visit_request。",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "child_name": {
+            "title": "Child Name",
+            "type": "string"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deposit_collector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Collector"
+          },
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "enrolled_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled On"
+          },
+          "geocoding_consent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geocoding Consent At"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "has_deposit": {
+            "title": "Has Deposit",
+            "type": "boolean"
+          },
+          "has_visit_request": {
+            "readOnly": true,
+            "title": "Has Visit Request",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "no_deposit_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "時程未到／仍在觀望",
+                  "已有其他就學選項／比較他校",
+                  "未註明／待追蹤",
+                  "距離／地點因素",
+                  "家庭照顧安排考量",
+                  "特殊需求／名額限制",
+                  "課程／環境仍在評估",
+                  "費用考量"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason"
+          },
+          "no_deposit_reason_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason Detail"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "parent_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Response"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "provisional_grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Grade"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrer"
+          },
+          "rides_bus": {
+            "title": "Rides Bus",
+            "type": "boolean"
+          },
+          "seq_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq No"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sibling_current",
+                  "sibling_split",
+                  "sibling_graduate",
+                  "self_report",
+                  "referral",
+                  "invite_success",
+                  "invite_origin",
+                  "home_deposit",
+                  "returning"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Category"
+          },
+          "stage": {
+            "enum": [
+              "visited",
+              "deposited",
+              "enrolled",
+              "withdrawn"
+            ],
+            "readOnly": true,
+            "title": "Stage",
+            "type": "string"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "tour_guide_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide Name"
+          },
+          "tour_guide_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide User Id"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visit_date": {
+            "format": "date",
+            "title": "Visit Date",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
+          },
+          "withdraw_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdraw Reason"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          },
+          "withdrawn_from": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deposited",
+                  "enrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn From"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "visit_request_id",
+          "month",
+          "seq_no",
+          "visit_date",
+          "child_name",
+          "birthday",
+          "grade",
+          "phone",
+          "contact_name",
+          "address",
+          "district",
+          "source",
+          "referrer",
+          "deposit_collector",
+          "tour_guide_user_id",
+          "tour_guide_name",
+          "source_category",
+          "has_deposit",
+          "rides_bus",
+          "notes",
+          "parent_response",
+          "geocoding_consent_at",
+          "no_deposit_reason",
+          "no_deposit_reason_detail",
+          "enrolled",
+          "enrolled_on",
+          "transfer_term",
+          "provisional_grade",
+          "target_school_year",
+          "target_semester",
+          "withdrawn_at",
+          "withdrawn_from",
+          "withdraw_reason",
+          "version",
+          "created_at",
+          "updated_at",
+          "stage",
+          "has_visit_request"
+        ],
+        "title": "RecruitmentVisitOut",
+        "type": "object"
+      },
+      "RecruitmentVisitUpdate": {
+        "additionalProperties": false,
+        "description": "編輯（規格 6.6）。只改有送的欄位；送 null 代表清空，但姓名、參觀日期、\n入學學年學期不能清空。",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "deposit_collector": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Collector"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "no_deposit_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "時程未到／仍在觀望",
+                  "已有其他就學選項／比較他校",
+                  "未註明／待追蹤",
+                  "距離／地點因素",
+                  "家庭照顧安排考量",
+                  "特殊需求／名額限制",
+                  "課程／環境仍在評估",
+                  "費用考量"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason"
+          },
+          "no_deposit_reason_detail": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Deposit Reason Detail"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "parent_response": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Response"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrer"
+          },
+          "rides_bus": {
+            "default": false,
+            "title": "Rides Bus",
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "source_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sibling_current",
+                  "sibling_split",
+                  "sibling_graduate",
+                  "self_report",
+                  "referral",
+                  "invite_success",
+                  "invite_origin",
+                  "home_deposit",
+                  "returning"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Category"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "tour_guide_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide Name"
+          },
+          "tour_guide_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tour Guide User Id"
+          },
+          "transfer_term": {
+            "default": false,
+            "title": "Transfer Term",
+            "type": "boolean"
+          },
+          "visit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Date"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RecruitmentVisitUpdate",
+        "type": "object"
+      },
       "ReleaseChangeOut": {
         "properties": {
           "campus_key": {
@@ -3969,6 +5623,11 @@
       },
       "RetentionCountsOut": {
         "properties": {
+          "admissions": {
+            "default": 0,
+            "title": "Admissions",
+            "type": "integer"
+          },
           "cancelled": {
             "default": 0,
             "title": "Cancelled",
@@ -3990,6 +5649,17 @@
       },
       "RetentionDaysOut": {
         "properties": {
+          "admissions_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admissions Days"
+          },
           "cancelled_days": {
             "title": "Cancelled Days",
             "type": "integer"
@@ -4013,6 +5683,17 @@
       },
       "RetentionPolicyOut": {
         "properties": {
+          "admissions_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admissions Days"
+          },
           "auto_run_enabled": {
             "title": "Auto Run Enabled",
             "type": "boolean"
@@ -4104,6 +5785,19 @@
       },
       "RetentionPolicyUpdate": {
         "properties": {
+          "admissions_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 30.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admissions Days"
+          },
           "auto_run_enabled": {
             "title": "Auto Run Enabled",
             "type": "boolean"
@@ -4318,6 +6012,97 @@
         "title": "ScheduleRequest",
         "type": "object"
       },
+      "SeatOut": {
+        "description": "A 計畫調整第 12 條：超額只警示，警示代碼放在回應，不是錯誤。",
+        "properties": {
+          "capacity_warning": {
+            "title": "Capacity Warning",
+            "type": "boolean"
+          },
+          "visit": {
+            "$ref": "#/components/schemas/RecruitmentVisitOut"
+          },
+          "warning_code": {
+            "anyOf": [
+              {
+                "const": "SEAT_CAPACITY_WARNING",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Code"
+          }
+        },
+        "required": [
+          "visit",
+          "capacity_warning",
+          "warning_code"
+        ],
+        "title": "SeatOut",
+        "type": "object"
+      },
+      "SeatRequest": {
+        "additionalProperties": false,
+        "description": "保留座位（grade 有值）或釋放保留（grade 為 null）（規格 6.5）。",
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          }
+        },
+        "required": [
+          "grade",
+          "expected_version"
+        ],
+        "title": "SeatRequest",
+        "type": "object"
+      },
       "SiteSettingsUpdate": {
         "properties": {
           "description": {
@@ -4476,6 +6261,112 @@
           "token"
         ],
         "title": "TokenExchangeRequest",
+        "type": "object"
+      },
+      "TransitionRequest": {
+        "additionalProperties": false,
+        "description": "狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀\n自己需要的欄位。",
+        "properties": {
+          "deposit_collector": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Collector"
+          },
+          "enrolled_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled On"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "to_stage": {
+            "enum": [
+              "visited",
+              "deposited",
+              "enrolled",
+              "withdrawn"
+            ],
+            "title": "To Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to_stage",
+          "expected_version"
+        ],
+        "title": "TransitionRequest",
         "type": "object"
       },
       "UserCapabilitiesRequest": {
@@ -6864,6 +8755,1421 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/arrivals": {
+      "get": {
+        "description": "「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read\n（規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。",
+        "operationId": "get_arrivals_api_website_v1_admin_admissions_arrivals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrivalsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Arrivals",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/board": {
+      "get": {
+        "operationId": "get_funnel_board_api_website_v1_admin_admissions_board_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "入學學年；不帶＝目前學年",
+            "in": "query",
+            "name": "school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年；不帶＝目前學年",
+              "title": "School Year"
+            }
+          },
+          {
+            "description": "入學學期；不帶＝整學年",
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學期；不帶＝整學年",
+              "title": "Semester"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunnelBoardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Funnel Board",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/from-visit-request/{visit_request_id}": {
+      "post": {
+        "description": "補建：已到場但沒有招生訪視的預約建立一筆；已有就回傳那一筆，可以重複呼叫\n（規格 6.1 第 2 點、6.6）。只接受已到場且未匿名化的預約（A 計畫調整第 13 條）。",
+        "operationId": "create_from_visit_request_api_website_v1_admin_admissions_from_visit_request__visit_request_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create From Visit Request",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/intake-plan": {
+      "get": {
+        "operationId": "get_intake_plan_api_website_v1_admin_admissions_intake_plan_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "school_year",
+            "required": true,
+            "schema": {
+              "maximum": 200,
+              "minimum": 100,
+              "title": "School Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 2,
+              "minimum": 1,
+              "title": "Semester",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Intake Plan",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/intake-targets": {
+      "put": {
+        "description": "存計畫名額後回傳最新的名額規劃。沒有任何變動不寫稽核。",
+        "operationId": "save_intake_targets_api_website_v1_admin_admissions_intake_targets_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntakeTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Intake Targets",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/options": {
+      "get": {
+        "operationId": "get_admissions_options_api_website_v1_admin_admissions_options_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsOptionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Options",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records": {
+      "get": {
+        "description": "訪視明細：參觀日期新到舊；回裸 list，筆數等於 page_size 代表可能還有下一頁。",
+        "operationId": "list_recruitment_visits_api_website_v1_admin_admissions_records_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "民國月份，例：115.09",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(\\d{3})\\.(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "民國月份，例：115.09",
+              "title": "Month"
+            }
+          },
+          {
+            "description": "適讀班級",
+            "in": "query",
+            "name": "grade",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "幼幼班",
+                    "小班",
+                    "中班",
+                    "大班"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "適讀班級",
+              "title": "Grade"
+            }
+          },
+          {
+            "description": "入學學年（民國）",
+            "in": "query",
+            "name": "target_school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年（民國）",
+              "title": "Target School Year"
+            }
+          },
+          {
+            "description": "入學學期：1 上、2 下",
+            "in": "query",
+            "name": "target_semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學期：1 上、2 下",
+              "title": "Target Semester"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "referrer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Referrer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_deposit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Deposit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_deposit_reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "時程未到／仍在觀望",
+                    "已有其他就學選項／比較他校",
+                    "未註明／待追蹤",
+                    "距離／地點因素",
+                    "家庭照顧安排考量",
+                    "特殊需求／名額限制",
+                    "課程／環境仍在評估",
+                    "費用考量"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "No Deposit Reason"
+            }
+          },
+          {
+            "description": "漏斗階段（由狀態欄位推導）",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "visited",
+                    "deposited",
+                    "enrolled",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "漏斗階段（由狀態欄位推導）",
+              "title": "Stage"
+            }
+          },
+          {
+            "description": "連結的官網預約",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "連結的官網預約",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "description": "幼生姓名、聯絡人、電話、地址、備註、電訪回應",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "幼生姓名、聯絡人、電話、地址、備註、電訪回應",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecruitmentVisitOut"
+                  },
+                  "title": "Response List Recruitment Visits Api Website V1 Admin Admissions Records Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recruitment Visits",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "post": {
+        "description": "手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。",
+        "operationId": "create_recruitment_visit_api_website_v1_admin_admissions_records_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecruitmentVisitCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records/{visit_id}": {
+      "delete": {
+        "description": "刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的\n訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。",
+        "operationId": "delete_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "get": {
+        "operationId": "get_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "patch": {
+        "description": "編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422。",
+        "operationId": "update_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecruitmentVisitUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records/{visit_id}/events": {
+      "get": {
+        "description": "招生歷程，舊到新（園務 timeline 同順序）。操作者名稱讀取時才 join，帳號改名\n後跟著更新，歷程裡不存姓名。",
+        "operationId": "list_recruitment_events_api_website_v1_admin_admissions_records__visit_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecruitmentEventOut"
+                  },
+                  "title": "Response List Recruitment Events Api Website V1 Admin Admissions Records  Visit Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recruitment Events",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records/{visit_id}/seat": {
+      "post": {
+        "description": "保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留。",
+        "operationId": "set_recruitment_seat_api_website_v1_admin_admissions_records__visit_id__seat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Recruitment Seat",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records/{visit_id}/transition": {
+      "post": {
+        "description": "狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 版本\n（409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。版本放在\n權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片已換欄\n而誤回 403（A 計畫調整第 10 條）。",
+        "operationId": "transition_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__transition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/analytics/funnel": {
       "get": {
         "operationId": "get_analytics_funnel_api_website_v1_admin_analytics_funnel_get",
