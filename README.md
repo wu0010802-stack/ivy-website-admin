@@ -1,3 +1,25 @@
+## 2026-10-02 分校分頁線稿不再露出方塊底（`feature/mobile-ux-20261002`）
+
+使用者反映首頁「分校資訊」五校按鈕有方塊底圖。線稿原圖是米白紙底（約 250,248,242），靠 CSS `grayscale(1) brightness(.72) contrast(3.2)`＋`mix-blend-mode:multiply` 融掉。iPhone（WebKit）只要把圖或它的祖先移到獨立合成層，multiply 就碰不到底色，整塊紙底露出來。09-24 `0620470` 修過轉場那一段，但之後加的換校描線遮罩、環境頁選中時轉動的分頁，仍會觸發同樣狀況。改 SVG `filter:url()` 也不行：Safari 在合成層上不套參照濾鏡。
+
+- **墨線版素材**：`scripts/optimize-site-images.py` 從五校線稿另產 `campus-line-art-<校>-ink`，黑線、透明底，濃淡放在 alpha。
+  - 曲線同 CSS：v＝clamp(2.304Y − 1.1)，alpha＝1 − v。疊在任何底色上的結果都是底色 × v，和 multiply 相同，但不用混合模式。
+  - 每個尺寸縮圖後才套曲線（160／240／360／480／720w）。alpha 用有損 q70：和無損最多差 5/255，240w 約 5.5 KB，和原線稿相當。
+- **用到的地方**：首頁分校分頁、常春藤環境頁五校分頁、預約結果都改用墨線版，拿掉 filter＋multiply。
+  - 共用 `media-image.ts` 的 `lineArtInkImage()`。
+  - 後台換過線稿（`lineArtMedia`）時沒有墨線版，照舊用原圖並掛 `is-blend`。
+  - 淡彩速寫改從 manifest 取原線稿，不再讀分頁鈕的 srcset。
+  - 淡彩層（只在 hover 裝置）仍是 multiply。
+  - 桌機 hover 未選中分頁時，線條不再額外加深一級（brightness .72→.68），只保留不透明度變 1。
+- 新增 `web/tests/campus-line-ink.spec.ts`（4 項）。改前快照 `versions/before-campus-tab-ink-20261002-072912/`。
+
+驗證（Node 22）：
+- `npm --prefix web run typecheck` 通過；`npm run test:website` 70 檔 693 項通過；fixture 模式 `nuxt build` 通過。
+- Chromium 逐像素比對新舊做法（五校 × 48–220px × DPR 1–3 × 不透明度 .55–1）：平均差 1.9/255。較大的差異只出現在 DPR3 的 170／220px：原線稿 800×533 與 3:2 有些微比例差，造成 2px 垂直位移，肉眼看不出。
+- dev server 實頁前後截圖：首頁 390／320、環境頁 390，平均差 0.4–0.6/255。
+- 手機 390 實測：分頁載 240w 墨線版；淡彩速寫照舊載原線稿 480w；四張預覽卡畫成線稿；手動換校接手上色；無 console 錯誤。
+- 未驗證：iPhone Safari 實機（本機只有 Chromium）。
+
 ## 2026-10-01 品質檢查與招生分析報告的後續修正（`fix/report-followups-20261001`，已部署 `6b76f11`）
 
 - **文件**：

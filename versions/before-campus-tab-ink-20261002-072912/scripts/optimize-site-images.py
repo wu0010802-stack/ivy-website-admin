@@ -59,41 +59,6 @@ def encode(image: Image.Image, target: Path, quality: int) -> None:
     image.save(target, 'WEBP', quality=quality, method=6)
 
 
-# 2026-10-02：五校線稿另產「墨線」版 `<代號>-ink`（黑線、透明底，濃淡在 alpha），給首頁分校分頁、
-# 環境頁五校分頁、預約結果用。原本靠 CSS `grayscale(1) brightness(.72) contrast(3.2)`＋`mix-blend-mode:multiply`
-# 把米白紙底融掉；iPhone（WebKit）只要把圖或它的祖先移到獨立合成層，multiply 就碰不到底色，露出整塊紙底方塊。
-# 同一條曲線先算進 alpha：v＝clamp(2.304Y − 1.1)，黑線 alpha＝1 − v，疊在任何底色上＝底色 × v，與 multiply 相同，
-# 但不需要混合模式。曲線在每個尺寸縮圖之後才套（瀏覽器也是縮到顯示尺寸才套 filter），細線濃淡才跟原本一樣。
-# 寬度：首頁分頁 48–160px、環境頁 124–170px、預約結果 ≤220px，DPR 1–3。
-LINE_ART_INK = {f'campus-line-art-{key}' for key in ['yihua', 'minghua', 'chongde', 'international', 'renwu']}
-INK_WIDTHS = [160, 240, 360, 480, 720]
-# alpha 有損 q70：與無損的 alpha 最多差 5/255、檔案約減半（240w 約 5.5 KB，與原線稿相當）
-INK_ALPHA_QUALITY = 70
-INK_CURVE = [round(255 * (1 - min(1, max(0, 2.304 * y / 255 - 1.1)))) for y in range(256)]
-
-
-def ink_line_art(source: Path) -> None:
-    name = f'{source.stem}-ink'
-    digest = sha256(source.read_bytes() + f'ink-v1-aq{INK_ALPHA_QUALITY}-{"-".join(map(str, INK_WIDTHS))}'.encode()).hexdigest()[:12]
-    candidates = []
-    with Image.open(source) as original:
-        image = ImageOps.exif_transpose(original).convert('RGB')
-        width, height = image.size
-        for size in INK_WIDTHS:
-            scaled = image.resize((size, round(height * size / width)), Image.Resampling.LANCZOS)
-            # CSS grayscale(1) 用 sRGB 值的 Rec.709 權重
-            alpha = scaled.convert('L', matrix=(0.2126, 0.7152, 0.0722, 0)).point(INK_CURVE)
-            ink = Image.new('RGBA', scaled.size, (0, 0, 0, 0))
-            ink.putalpha(alpha)
-            target = OUTPUT / f'{name}-{digest}-{size}.webp'
-            if not target.exists():
-                ink.save(target, 'WEBP', quality=DEFAULT_QUALITY, alpha_quality=INK_ALPHA_QUALITY, method=6)
-            candidates.append({'src': f'/assets/responsive/{target.name}', 'width': size})
-    # 無 srcset 時的退路（responsiveImage 的 src 固定是 /assets/<代號>.webp）：最大一級
-    (ASSETS / f'{name}.webp').write_bytes(target.read_bytes())
-    manifest[name] = {'width': INK_WIDTHS[-1], 'height': round(height * INK_WIDTHS[-1] / width), 'candidates': candidates}
-
-
 # 非照片：logo.webp 是頁首校徽的無損版（PNG 轉檔、供 SVG 濾鏡去背），不做響應式衍生。
 SKIP = {'logo'}
 
@@ -104,11 +69,8 @@ manifest_path = ROOT / 'web/app/generated/image-manifest.json'
 manifest = json.loads(manifest_path.read_text()) if args.only and manifest_path.exists() else {}
 sources = [ASSETS / f'{name}.webp' for name in args.only] if args.only else sorted(ASSETS.glob('*.webp'))
 for source in sources:
-    # `-ink` 是下面 ink_line_art() 從線稿產生的，不當母檔
-    if source.stem in SKIP or source.stem.endswith('-ink'):
+    if source.stem in SKIP:
         continue
-    if source.stem in LINE_ART_INK:
-        ink_line_art(source)
     day = source.stem in DAY_PHOTOS
     override = OVERRIDES.get(source.stem, {})
     quality = DAY_QUALITY if day else override.get('quality', DEFAULT_QUALITY)

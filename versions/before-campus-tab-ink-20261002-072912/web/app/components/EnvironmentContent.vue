@@ -283,7 +283,7 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
             @click="selectTab(tour.campus.key)"
             @keydown="onTabKey($event, i)"
           >
-            <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 170px')" alt="" loading="lazy" decoding="async">
+            <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}`, '(max-width: 900px) 124px, 170px')" alt="" loading="lazy" decoding="async">
             <b>{{ tour.campus.name }}</b><small>{{ tour.campus.district }}・{{ tour.scenes.length }} 個角落</small>
           </button>
         </div>

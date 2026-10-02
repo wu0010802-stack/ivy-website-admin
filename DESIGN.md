@@ -1,5 +1,18 @@
 # Design
 
+## 五校線稿小圖用透明底墨線版（2026-10-02）
+
+- **白底／紙底圖不要再靠 `mix-blend-mode:multiply` 去底**：iPhone（WebKit）只要把圖或它任何一層祖先移到獨立合成層，multiply 就碰不到底色，會露出整塊紙底方塊。
+  - 會觸發的情況包括：opacity、filter、transform 轉場，遮罩動畫，祖先轉動。
+  - SVG `filter:url()` 也不行：Safari 在合成層上不套參照濾鏡。
+  - 要去底就把底色事先做進 alpha。
+- **五校線稿的小圖**（首頁分校分頁、環境頁五校分頁、預約結果）一律用 `campus-line-art-<校>-ink`，由 `scripts/optimize-site-images.py` 產生。
+  - 墨線版是黑線、透明底，alpha＝1 − clamp(2.304Y − 1.1)，等同原本的 `grayscale(1) brightness(.72) contrast(3.2)`＋multiply。
+  - 換線稿原圖後，重跑 `--only campus-line-art-<校>`。
+  - 後台換過線稿（`lineArtMedia`）時沒有墨線版，照舊 filter＋multiply（`is-blend`），iPhone 上仍可能露底。
+- 淡彩速寫（大照片）要原線稿，從 manifest 取 `campus-line-art-<校>`，不要讀分頁鈕的 srcset。
+- 桌機 hover 未選中分頁：只把不透明度提到 1，不再額外加深線條（墨線版無法用 brightness 加深）。
+
 ## 品質檢查後續：書籤字色、文字連結點擊範圍、後台確認率（2026-10-01）
 
 依 `docs/analysis/2026-09-30-award-quality-report.md` 的 E1、E3 與招生分析報告第 2.3 節處理。
@@ -108,7 +121,7 @@
     - 線稿跟著卡片尺寸畫：卡片變大小才重畫（手機網址列伸縮只改視窗高度，不重畫）。區塊離視窗 800px 內時連同其他四校的線稿一起載（桌機 1200w／1536w 約 0.1–0.2MB 一張，手機 480w 約 19KB）。減少動態、強制色彩不畫，鄰卡維持照片。
   - 顏色是線稿自帶的 `campus-line-art-*-colour` 層（照片色）透過水彩團遮罩上色，不另調色；線稿先 `brightness(.8) contrast(2.4)` 一次畫好（順序反過來紙會整張變灰，已實測）。紙色讀卡片 `--paper`，不寫色碼。
   - **對位**：線稿是從同一張校園照描的，`SKETCH_REGISTRATION` 是線稿框在照片原始像素上的位置（邊緣相關性算出；國際校線稿垂直多拉約 12%，已含在高度裡）。只對表上那五張照片成立（義華 2026-09-30 起是 `yihua-exterior-v2`，對位由舊表換算，見 `campusSketch.ts` 開頭註解）：後台換了照片、線稿或淡彩層（有 media 版位）時 `sketchRegistration()` 回 null，照片照常顯示、不畫。換新照片要重算：照片與線稿各取邊緣圖，逐一試縮放比例，用 FFT 互相關找位移。
-  - 素材：線稿從分頁鈕的 srcset 挑夠用的寬度（手機 480w 約 19KB，不下載 1536 原圖）；區塊離視窗 800px 內才預載目前這一校，滑到／按下分頁才載那一校；首次中央先保留紙底等待線稿，其他手動切換在素材沒載好之前照片不淡出。
+  - 素材：線稿從 manifest 的 `campus-line-art-<校>` 候選挑夠用的寬度（手機 480w 約 19KB，不下載 1536 原圖；2026-10-02 起分頁鈕改用墨線版 `-ink`，不再共用分頁鈕的 srcset）；區塊離視窗 800px 內才預載目前這一校，滑到／按下分頁才載那一校；首次中央先保留紙底等待線稿，其他手動切換在素材沒載好之前照片不淡出。
   - canvas 墊在照片底下用 `z-index:-1`（卡片有 transform、自成堆疊環境）。**照片本身不要加定位**，否則非當前卡的淡化 `::after` 會被照片蓋掉。
   - 減少動態、強制色彩不畫（強制色彩另把 canvas 藏掉）。
 - **B 水彩滲接**（`composables/useWatercolorSeep.ts`、`useCurtain` 的 `edge` 參數、`studio.css` 的 `.day-experience.is-seep`）：孩子的一天→五校的擦除邊從直線改成水彩濕邊往上滲。**關於→孩子的一天那道照舊**（接力維持 09-18 原樣）。

@@ -182,8 +182,7 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-tour-hint{margin-top:clamp(64px,6vw,88px);font-size:var(--fs-xl);color:var(--renv-pen);transform:rotate(-1.4deg);transform-origin:left}
 .renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-top:20px}
 .renv-tour-tab{display:grid;justify-items:center;align-content:start;gap:4px;min-height:44px;padding:12px 8px 16px;border:0;background:none;color:var(--renv-ink);font:inherit;cursor:pointer;transition:transform .45s var(--renv-ease)}
-/* 透明底墨線版線稿（2026-10-02）：原本 filter＋multiply 融紙底，選中時按鈕轉動、圖片淡入，iPhone 把它們移到合成層就露出紙底方塊。 */
-.renv-tour-tab img{width:100%;max-width:170px;height:auto;opacity:.55;transition:opacity .3s}
+.renv-tour-tab img{width:100%;max-width:170px;height:auto;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2);opacity:.55;transition:opacity .3s}
 .renv-tour-tab b{font-weight:700;font-size:var(--fs-lg)}
 .renv-tour-tab small{font-size:var(--fs-xs);color:var(--renv-ink-soft)}
 .renv-tour-tab[aria-selected="true"]{transform:rotate(-1.4deg) translateY(-4px)}
