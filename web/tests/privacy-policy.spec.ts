@@ -13,6 +13,7 @@ import {
   policyDateLabel
 } from '../app/utils/privacy-policy'
 import { privacySeo, sitemapXml } from '../app/utils/seo'
+import { previewPage } from '../app/utils/draft-preview'
 
 const site = fixture as unknown as SiteContent
 const text = (value: string) => ({ type: 'text', text: value })
@@ -151,5 +152,37 @@ describe('元件不用 v-html，連結另開並防 opener', () => {
     expect(source).not.toContain('v-html')
     expect(source).toContain('rel="noopener noreferrer"')
     expect(source).toContain('（另開新視窗）')
+  })
+})
+
+describe('草稿預覽', () => {
+  it('?page=privacy 是獨立頁；其餘照舊', () => {
+    expect(previewPage({ page: 'privacy' })).toBe('privacy')
+    expect(previewPage({ page: 'admission' })).toBe('admission')
+    expect(previewPage({ page: 'unknown' })).toBe('home')
+  })
+
+  it('預覽會讀 privacy_policy 草稿，預覽頁有對應分支', () => {
+    const composable = readFileSync(fileURLToPath(new URL('../app/composables/useDraftPreview.ts', import.meta.url)), 'utf8')
+    expect(composable).toContain("'privacy_policy'")
+    const page = readFileSync(fileURLToPath(new URL('../app/pages/preview.vue', import.meta.url)), 'utf8')
+    expect(page).toContain("page === 'privacy'")
+    expect(page).toContain('PrivacyPolicyContent')
+  })
+})
+
+describe('入口元件接線', () => {
+  const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
+  it('頁尾用 footerPrivacyEntry，表單用 formPrivacyEntry，政策連結都開新分頁', () => {
+    const footer = read('../app/components/SiteFooter.vue')
+    expect(footer).toContain('footerPrivacyEntry')
+    expect(footer).toContain('to="/privacy"')
+    const form = read('../app/components/VisitForm.vue')
+    expect(form).toContain('formPrivacyEntry')
+    expect(form).toContain('href="/privacy"')
+    expect(form).toContain('rel="noopener noreferrer"')
+    const dialog = read('../app/components/PrivacyNoticeDialog.vue')
+    expect(dialog).toContain('完整隱私權政策')
+    expect(dialog).toContain('rel="noopener noreferrer"')
   })
 })

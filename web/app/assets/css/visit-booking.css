@@ -188,6 +188,7 @@
 .visit-optional .visit-field-grid {margin-top:8px;padding-bottom:24px}
 /* 2026-10-02 拿掉同意勾選：「閱讀個資使用說明」接在選填區下方。 */
 .visit-contact-form :deep(.visit-privacy-link) {font-size:var(--fs-sm);color:var(--visit-ink)}
+.visit-contact-form a.visit-privacy-link {display:inline-flex;align-items:center;min-height:44px;font-size:var(--fs-sm);color:var(--visit-ink);text-decoration:underline;text-underline-offset:5px}
 .visit-form-fields:disabled {opacity:.7}
 /* 2026-10-02 拿掉同意勾選後，選填區的底線就是送出前的分隔，送出列不再畫第二條線。 */
 .visit-submit-row {margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:18px}

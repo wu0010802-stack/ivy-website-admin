@@ -99,6 +99,6 @@ describe('公開預約設定（2026-10-02 起官網預約不用勾選同意）',
     expect(form).not.toMatch(/type="checkbox"[^>]*name="consent"/)
     expect(form).not.toContain('consent_given')
     expect(form).not.toContain('consent_revision_id')
-    expect(form).toContain('<PrivacyNoticeDialog v-if="privacyNotice"')
+    expect(form).toMatch(/<PrivacyNoticeDialog\s+v-if="privacyNotice &&/)
   })
 })

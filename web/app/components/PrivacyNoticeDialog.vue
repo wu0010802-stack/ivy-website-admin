@@ -8,7 +8,9 @@ const props = withDefaults(defineProps<{
   notice: PrivacyNotice
   label?: string
   triggerClass?: string
-}>(), { label: '個資使用說明', triggerClass: '' })
+  /** 政策已發布時傳 '/privacy'：對話框底部多一個「完整隱私權政策」連結（開新分頁，已填的表單不見） */
+  policyHref?: string | null
+}>(), { label: '個資使用說明', triggerClass: '', policyHref: null })
 
 const triggerEl = ref<HTMLButtonElement | null>(null)
 const dialogEl = ref<HTMLDialogElement | null>(null)
@@ -57,6 +59,9 @@ function onClose() {
         <h3 v-if="section.heading">{{ section.heading }}</h3>
         <p v-for="(line, lineIndex) in privacyParagraphs(section.body)" :key="lineIndex">{{ line }}</p>
       </section>
+      <p v-if="props.policyHref" class="privacy-dialog-policy">
+        <a :href="props.policyHref" target="_blank" rel="noopener noreferrer">完整隱私權政策<span class="sr-only">（另開新視窗）</span><span aria-hidden="true"> ↗</span></a>
+      </p>
     </dialog>
   </ClientOnly>
 </template>
@@ -136,6 +141,8 @@ function onClose() {
 }
 .privacy-dialog-section p { margin: 0; overflow-wrap: anywhere; }
 .privacy-dialog-section p + p { margin-top: 8px; }
+.privacy-dialog-policy { margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--line); }
+.privacy-dialog-policy a { display: inline-flex; align-items: center; min-height: 44px; color: var(--green); text-decoration: underline; text-underline-offset: 4px; }
 :global(body:has(.privacy-dialog[open])) { overflow: hidden; }
 
 @media (max-width: 760px) {

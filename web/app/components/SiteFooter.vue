@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
 import { siteLink } from '~/utils/site-links'
+import { footerPrivacyEntry } from '~/utils/privacy-policy'
 
 const props = defineProps<{ content: SiteContent }>()
 const campuses = computed(() => props.content.campuses)
@@ -11,6 +12,8 @@ const links = computed(() => props.content.footer.links.flatMap((item) => {
 }))
 // 園方發布了隱私說明才顯示入口（規格 L130）。
 const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null)
+// 政策已發布：頁尾放固定的「隱私權政策」連結，取代個資使用說明的對話框按鈕（避免兩個隱私入口）。
+const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.privacyPolicy), Boolean(privacyNotice.value)))
 </script>
 
 <template>
@@ -43,9 +46,10 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
         </ul>
       </div>
     </div>
-    <div v-if="content.footer.copyright || content.footer.bottomNote || privacyNotice" class="container footer-bottom">
+    <div v-if="content.footer.copyright || content.footer.bottomNote || privacyEntry !== 'none'" class="container footer-bottom">
       <span v-if="content.footer.copyright">{{ content.footer.copyright }}</span>
-      <PrivacyNoticeDialog v-if="privacyNotice" :notice="privacyNotice" trigger-class="footer-privacy" />
+      <NuxtLink v-if="privacyEntry === 'policy-link'" to="/privacy" class="footer-privacy-link">隱私權政策</NuxtLink>
+      <PrivacyNoticeDialog v-else-if="privacyEntry === 'notice-dialog' && privacyNotice" :notice="privacyNotice" trigger-class="footer-privacy" />
       <span v-if="content.footer.bottomNote">{{ content.footer.bottomNote }}</span>
     </div>
   </footer>
@@ -66,6 +70,8 @@ const privacyNotice = computed(() => props.content.booking.privacyNotice ?? null
 .footer-bottom { color: var(--footer-text); }
 .footer-bottom { border-color: var(--footer-line); }
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
+.footer-privacy-link { text-decoration: underline; text-underline-offset: 5px; }
+.footer a.footer-privacy-link:focus-visible { outline-color: var(--footer-focus); }
 .footer a:focus-visible,
 .footer :deep(.footer-privacy:focus-visible) { outline-color: var(--footer-focus); }
 

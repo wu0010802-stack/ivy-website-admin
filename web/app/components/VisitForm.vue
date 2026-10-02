@@ -8,12 +8,15 @@ import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
 const props = defineProps<{
   booking: BookingContent
   campuses: Campus[]
   initialCampus?: string
+  /** 隱私權政策已發布時由頁面傳 '/privacy'（沒發布傳 null） */
+  policyPath?: string | null
 }>()
 
 const form = reactive({
@@ -52,6 +55,7 @@ function trackContactAction(event: MouseEvent) {
 }
 // 2026-10-02 業主裁定官網預約不用勾選同意；預約文案發布了個資使用說明時，表單仍給閱讀入口。
 const privacyNotice = computed(() => bookingConfig.value?.privacy_notice ?? null)
+const privacyEntry = computed(() => formPrivacyEntry(Boolean(props.policyPath), Boolean(privacyNotice.value)))
 
 // 機器人驗證（Cloudflare Turnstile，使用者 2026-09-29 裁定）：部署設定了
 // site key，公開預約設定才會帶出來；沒有就完全不載入、表單維持原樣。token
@@ -602,7 +606,14 @@ async function onSubmit() {
                       <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
                     </div>
                   </details>
-                  <PrivacyNoticeDialog v-if="privacyNotice" :notice="privacyNotice" label="閱讀個資使用說明" trigger-class="visit-privacy-link" />
+                  <PrivacyNoticeDialog
+                    v-if="privacyNotice && (privacyEntry === 'dialog' || privacyEntry === 'dialog-with-policy')"
+                    :notice="privacyNotice"
+                    label="閱讀個資使用說明"
+                    trigger-class="visit-privacy-link"
+                    :policy-href="privacyEntry === 'dialog-with-policy' ? policyPath : null"
+                  />
+                  <a v-else-if="privacyEntry === 'policy-link'" class="visit-privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">隱私權政策<span class="sr-only">（另開新視窗）</span></a>
                 </fieldset>
                 <p v-if="Object.keys(fieldErrors).length" class="sr-only" role="alert">請確認標示的欄位：{{ Object.values(fieldErrors).join(' ') }}</p>
                 <div v-if="turnstileSiteKey" class="visit-turnstile">
