@@ -170,6 +170,12 @@ export interface LiveCampusNews {
   events: LiveNewsEvent[]
 }
 
+export interface LivePrivacyPolicy {
+  title: string
+  updated_on?: string | null
+  sections: { heading: string; body: string }[]
+}
+
 export interface LiveAdmissionContent {
   notice: string
   intro: string
@@ -251,6 +257,7 @@ export interface ContentOverlay {
   day_experience?: LiveDayExperience | null
   home_news?: LiveHomeNews | null
   admission_content?: LiveAdmissionContent | null
+  privacy_policy?: LivePrivacyPolicy | null
   shared_faq?: LiveSharedFaq | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
@@ -609,6 +616,17 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         allowance: a.allowance.map((x) => ({ ...x })),
         allowanceNote: a.allowance_note,
         refunds: a.refunds.map((r) => ({ ...r, groups: r.groups.map((g) => ({ ...g, lines: [...g.lines] })) }))
+      }
+    }
+  })
+
+  guard('privacy_policy', () => {
+    if (overlay.privacy_policy) {
+      const policy = overlay.privacy_policy
+      next.privacyPolicy = {
+        title: policy.title,
+        updatedOn: policy.updated_on ?? '',
+        sections: policy.sections.map((section) => ({ heading: section.heading, body: section.body }))
       }
     }
   })

@@ -1,5 +1,5 @@
 import type { Campus, NewsArticle, SiteContent } from '~/types/site-content'
-import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
+import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
@@ -15,6 +15,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
   const seo = computed(() => {
     if (!site.value) return undefined
     if (page === 'admission') return admissionSeo(site.value, origin)
+    if (page === 'privacy') return privacySeo(site.value, origin)
     if (page === 'environment') return environmentSeo(site.value, origin)
     if (page === 'curriculum') return curriculumSeo(site.value, origin)
     if (page === 'about') return aboutSeo(site.value, origin)
@@ -33,7 +34,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
     if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)
     if (page === 'about') return responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)
     // 消息頁沒有滿版 hero，不預載。
-    if (page === 'news') return undefined
+    if (page === 'news' || page === 'privacy') return undefined
     return campus?.value ? campusHeroAttrs(campus.value) : heroImageAttrs(site.value.home.hero)
   })
   useSeoMeta({

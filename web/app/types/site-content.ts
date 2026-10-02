@@ -332,6 +332,15 @@ export interface AdmissionContent {
   refunds: AdmissionRefund[]
 }
 
+/** 隱私權政策頁（/privacy）。後台 kind：privacy_policy；沒發布過就沒有這個欄位。 */
+export interface PrivacyPolicySection { heading: string; body: string }
+export interface PrivacyPolicyContent {
+  title: string
+  /** YYYY-MM-DD；後台沒填為空字串 */
+  updatedOn: string
+  sections: PrivacyPolicySection[]
+}
+
 export interface SiteContent {
   schemaVersion: string
   isDemo: boolean
@@ -343,6 +352,7 @@ export interface SiteContent {
   booking: BookingContent
   footer: FooterContent
   siteMeta: SiteMetaContent
+  privacyPolicy?: PrivacyPolicyContent | null
 }
 
 export function isGeneratedTourScenes(

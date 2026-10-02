@@ -40,11 +40,12 @@ export function campusShareImagePath(campus: Campus): string {
 }
 
 /** 公開的單頁（非分校頁）：最新消息列表、關於常春藤、入學資訊、常春藤環境、特色教學。 */
-export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum'
+export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum' | 'privacy'
 export const ADMISSION_PATH = '/admission'
 export const ENVIRONMENT_PATH = '/environment'
 export const CURRICULUM_PATH = '/curriculum'
 export const ABOUT_PATH = '/about'
+export const PRIVACY_PATH = '/privacy'
 
 /** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
@@ -63,6 +64,25 @@ export function admissionSeo(site: SiteContent, siteOrigin: string) {
     ] }
   ] : []
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
+}
+
+/** 隱私權政策頁的 SEO：標題以後台標題為準，描述固定，分享圖沿用首頁，麵包屑兩層。 */
+export function privacySeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const policyTitle = site.privacyPolicy?.title || '隱私權政策'
+  const title = `${policyTitle}｜${site.siteMeta.brandName}`
+  const description = '常春藤幼兒園官網如何蒐集、使用與保護您的個人資料，以及 Cookie 的使用方式。'
+  const canonical = origin ? `${origin}${PRIVACY_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: policyTitle, item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
 /** 常春藤環境頁的 SEO（2026-09-25）：同入學資訊頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
@@ -270,9 +290,9 @@ export function robotsTxt(origin: string, indexable: boolean): string {
 export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
 /** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁與分校頁。 */
-export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[], news?: Pick<NewsContent, 'articles' | 'sampleNote'>): string {
+export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[], news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`),
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []), ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`),
     ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
