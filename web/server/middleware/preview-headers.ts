@@ -12,7 +12,7 @@ export default defineEventHandler((event) => {
     // 瀏覽器無法放進 back/forward cache，返回上一頁要整頁重載。
     setResponseHeader(event, 'Cache-Control', 'no-cache, max-age=0')
     setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')
-  } else if (path === '/' || path.startsWith('/campuses/')) {
+  } else if (path === '/') {
     setResponseHeader(event, 'Cache-Control', 'no-cache, max-age=0')
     const config = useRuntimeConfig()
     if (!config.public.indexingEnabled) setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')

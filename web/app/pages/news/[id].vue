@@ -12,7 +12,7 @@ if (!article.value) {
   throw createError({ statusCode: 404, message: '找不到這則消息' })
 }
 
-usePageSeo(computed(() => data.value?.content), undefined, 'news', article)
+usePageSeo(computed(() => data.value?.content), 'news', article)
 </script>
 
 <template>

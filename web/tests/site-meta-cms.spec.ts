@@ -20,13 +20,12 @@ describe('後台全站設定的分享圖與搜尋設定', () => {
     expect(pageSeo(next, 'https://ivy.example').imagePath).toMatch(/^\/assets\/og\//)
   })
 
-  it('設了分享圖：首頁與入學資訊頁改用素材庫圖，分校頁仍用各校照片', () => {
+  it('設了分享圖：首頁與入學資訊頁改用素材庫圖', () => {
     const next = applyContentOverlay(site, { site_meta: { ...liveMeta, share_image: MEDIA, share_image_alt: '孩子在園區' } })
     const home = pageSeo(next, 'https://ivy.example')
     expect(home.image).toBe(`https://ivy.example/api/website/v1/public/media/${MEDIA}/file`)
     expect(home.imageAlt).toBe('孩子在園區')
     expect(admissionSeo(next, 'https://ivy.example').imagePath).toBe(`/api/website/v1/public/media/${MEDIA}/file`)
-    expect(pageSeo(next, 'https://ivy.example', next.campuses[0]!).imagePath).toMatch(/^\/assets\/og\//)
   })
 
   it('入學資訊頁標題與描述可由後台覆寫，空字串沿用內建', () => {

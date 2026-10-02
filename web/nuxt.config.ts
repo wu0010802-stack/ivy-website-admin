@@ -56,6 +56,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    '/campuses': { redirect: { to: '/', statusCode: 301 } },
+    '/campuses/**': { redirect: { to: '/', statusCode: 301 } },
     // 沒有內容雜湊的檔名：字型子集很少變動，給一個月；圖片給一天並允許
     // 背景重新驗證，避免換圖後舊快取撐太久。有雜湊的衍生檔才能 immutable。
     '/assets/**': { headers: { 'cache-control': 'public, max-age=86400, stale-while-revalidate=604800' } },

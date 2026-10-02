@@ -47,7 +47,7 @@ describe('示意消息不給搜尋引擎（2026-09-26 裁定）', () => {
   })
 
   it('sitemap 列 /news 與真實消息，不列示意消息', () => {
-    const xml = sitemapXml('https://ivy.example', [], { articles: [real, fake], sampleNote: '示意' })
+    const xml = sitemapXml('https://ivy.example', { articles: [real, fake], sampleNote: '示意' })
     expect(xml).toContain('<loc>https://ivy.example/news</loc>')
     expect(xml).toContain('<loc>https://ivy.example/news/yihua%3Areal</loc>')
     expect(xml).not.toContain('/news/fake')
@@ -68,7 +68,7 @@ describe('示意消息不給搜尋引擎（2026-09-26 裁定）', () => {
   it('列表頁有 canonical；llms.txt 指向 /news', () => {
     expect(newsListSeo(site, 'https://ivy.example').canonical).toBe('https://ivy.example/news')
     expect(newsListSeo(site, '').graph).toEqual([])
-    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })).toContain('(https://ivy.example/news)')
+    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta })).toContain('(https://ivy.example/news)')
   })
 })
 

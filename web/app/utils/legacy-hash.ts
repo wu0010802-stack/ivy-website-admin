@@ -15,7 +15,7 @@ export function resolveLegacyHash(hash: string): string | null {
   const visitKey = visitMatch?.[1]
   if (visitKey && CAMPUS_KEYS.includes(visitKey)) return `/visit/${visitKey}`
 
-  if (CAMPUS_KEYS.includes(path.slice(1))) return `/campuses/${path.slice(1)}`
+  if (CAMPUS_KEYS.includes(path.slice(1))) return '/#campuses'
 
   return null
 }

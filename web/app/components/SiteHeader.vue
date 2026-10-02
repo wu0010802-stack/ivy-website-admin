@@ -224,11 +224,7 @@ onUnmounted(() => {
 })
 
 const campuses = computed(() => props.content.campuses)
-// 分校頁的頁首／膠囊預約直接帶入該校（/visit/<key>），其他頁仍連通用預約頁。
-const bookTo = computed(() => {
-  const key = route.path.match(/^\/campuses\/([^/]+)\/?$/)?.[1]
-  return key && campuses.value.some(campus => campus.key === key) ? `/visit/${key}` : '/visit'
-})
+const bookTo = '/visit'
 // 後台可編輯的主選單；外部連結（https）另開分頁並標 ↗。
 const primaryNav = computed(() => props.content.siteMeta.primaryNav.flatMap((item) => {
   const link = siteLink(item.href)
@@ -381,17 +377,17 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       <div class="menu-campuses">
         <p>找到你的校園</p>
         <div id="menu-campuses">
-          <NuxtLink
+          <button type="button"
             v-for="c in campuses"
             :key="c.key"
-            :to="`/campuses/${c.key}`"
             :class="{ 'is-active': contactCampus?.key === c.key }"
             @pointerenter="onCampusPointerEnter($event, c.key)"
             @focus="menuCampusKey = c.key"
+            @click="menuCampusKey = c.key"
           >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>
-          </NuxtLink>
+          </button>
         </div>
       </div>
       <div class="menu-foot">

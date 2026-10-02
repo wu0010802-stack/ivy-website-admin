@@ -5,7 +5,6 @@ import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveCampusProfile, type LiveDayMoment } from '../app/utils/content-overlay'
 import { publishedContent } from '../app/utils/published-content'
-import { sitemapXml } from '../app/utils/seo'
 import { campusMapUrl, isMapUrl, siteLink } from '../app/utils/site-links'
 
 const site = fixture as unknown as SiteContent
@@ -15,7 +14,7 @@ function profile(name: string, extra: Partial<LiveCampusProfile> = {}): LiveCamp
 }
 
 describe('停用的分校（後端不輸出那一校的內容）', () => {
-  it('首頁五校、頁尾、選單與 sitemap 都只列公開內容裡有的校區；重新啟用後恢復', () => {
+  it('首頁五校、頁尾與選單都只列公開內容裡有的校區；重新啟用後恢復', () => {
     const live = (keys: string[]) => ({
       schema_version: '1',
       release_id: 'r1',
@@ -24,11 +23,9 @@ describe('停用的分校（後端不輸出那一校的內容）', () => {
     const active = ['yihua', 'minghua', 'chongde', 'international']
     const off = publishedContent(site, live(active)).content
     expect(off.campuses.map((c) => c.key)).toEqual(active)
-    expect(sitemapXml('https://ivy.example', off.campuses)).not.toContain('/campuses/renwu')
-
+    
     const on = publishedContent(site, live([...active, 'renwu'])).content
     expect(on.campuses.map((c) => c.key)).toContain('renwu')
-    expect(sitemapXml('https://ivy.example', on.campuses)).toContain('/campuses/renwu')
   })
 })
 

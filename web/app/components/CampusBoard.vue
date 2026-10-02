@@ -465,13 +465,13 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         @pointerleave="endDrag" @dragstart.prevent
       >
         <div ref="galleryTrack" class="gallery-track" :class="{ 'is-dragging': dragging }">
-          <NuxtLink
+          <div
             v-for="(campus, i) in orderedCampuses" :key="campus.key"
             class="photo-card" :class="{ 'is-current': i === index, 'is-neighbor': Math.abs(offset(i)) === 1, 'is-repositioning': repositioning.has(i) }"
-            :style="{ '--offset': offset(i) }" :data-art="lineArt.has(campus.key) ? 'line' : undefined" :to="`/campuses/${campus.key}`"
+            :style="{ '--offset': offset(i) }" :data-art="lineArt.has(campus.key) ? 'line' : undefined"
             :data-initial-sketch="initialSketch === campus.key ? '' : undefined"
-            :tabindex="i === index ? 0 : -1" :aria-hidden="i !== index" :inert="Math.abs(offset(i)) > 1"
-            :aria-label="i === index ? `認識${campus.name}，查看校園介紹` : `選擇${campus.name}`"
+            tabindex="-1" :aria-hidden="i !== index" :inert="Math.abs(offset(i)) > 1"
+            :role="i === index ? undefined : 'button'" :aria-label="i === index ? undefined : `選擇${campus.name}`"
             draggable="false" @click.capture="onPhotoClick($event, i)"
           >
             <canvas v-if="sketchRegistration(campus)" class="sketch-canvas" aria-hidden="true" />
@@ -481,7 +481,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
               :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"
               :fetchpriority="i === index ? 'auto' : 'low'" loading="lazy" decoding="async" draggable="false"
             >
-          </NuxtLink>
+          </div>
         </div>
       </div>
       <span v-if="orderedCampuses.length > 1" ref="controlsTrigger" class="controls-reveal-trigger" aria-hidden="true" />
@@ -516,7 +516,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
     >
       <div class="campus-identity">
         <span class="campus-district">高雄 · {{ current.district }}</span>
-        <h3><NuxtLink :to="`/campuses/${current.key}`">{{ current.name }}</NuxtLink></h3>
+        <h3>{{ current.name }}</h3>
         <span lang="en">{{ current.key.toUpperCase() }} CAMPUS</span>
       </div>
       <div class="campus-contact">
@@ -598,10 +598,11 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .gallery-viewport{overflow:hidden;padding-block:4px;touch-action:pan-y;cursor:grab}
 .gallery-viewport:active{cursor:grabbing}
 .gallery-track{position:relative;width:100%;height:clamp(350px,37.5vw,540px)}
-.photo-card{position:absolute;left:calc((100% - var(--card-width))/2);top:0;width:var(--card-width);height:100%;margin:0;border:0;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--selected);transform:translateX(calc(var(--offset)*(100% + var(--card-gap)) + var(--drag,0px)));transition:transform .8s var(--ease);will-change:transform;cursor:pointer;pointer-events:none}
+.photo-card{position:absolute;left:calc((100% - var(--card-width))/2);top:0;width:var(--card-width);height:100%;margin:0;border:0;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--selected);transform:translateX(calc(var(--offset)*(100% + var(--card-gap)) + var(--drag,0px)));transition:transform .8s var(--ease);will-change:transform;pointer-events:none}
 .photo-card img{max-width:none;width:100%;height:100%;display:block;object-fit:cover;user-select:none;pointer-events:none}
 .photo-card:not(.is-current)::after{content:'';position:absolute;inset:0;background:var(--background);opacity:.18;pointer-events:none}
 .photo-card.is-current,.photo-card.is-neighbor{pointer-events:auto}
+.photo-card.is-neighbor{cursor:pointer}
 .photo-card:focus-visible{outline-offset:-7px}
 .photo-card.is-repositioning,.gallery-track.is-dragging .photo-card{transition:none}
 /* 淡彩速寫（utils/campusSketch.ts）：canvas 墊在照片下面；畫的時候照片淡出，最後照片以水彩團遮罩從中央暈開回來。
@@ -691,7 +692,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .campus-identity{min-width:0}
 .campus-district{display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--muted)}
 .campus-identity h3{margin:9px 0 12px;color:var(--heading-ink);font:500 var(--fs-campus-name)/1.25 var(--font-head);letter-spacing:.065em}
-.campus-identity h3 a:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:9px}
 .campus-identity [lang=en]{display:block;font-family:var(--font-latin);font-size:var(--fs-xs);letter-spacing:.15em;color:var(--heading-accent)}
 .campus-contact{min-width:0;padding:4px 0 4px clamp(24px,3vw,44px);border-inline-start:1px solid var(--line)}
 .contact-row{display:flex;align-items:center;gap:13px;min-height:44px;font-size:var(--fs-md)}

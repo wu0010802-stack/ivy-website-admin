@@ -715,22 +715,24 @@ export function contentFieldLabel(key: string): string {
 // 發布成功後「查看官網」要開到那段內容所在的頁面，不是一律開首頁。
 export function contentPublicPath(kind: string, campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
-    return campusKey ? `/campuses/${campusKey}` : '/'
+    // 分校頁已移除；分校資訊只剩首頁的五校區塊。
+    return '/#campuses'
   }
-  // 共用常見問題出現在每一校的分校頁，先開第一校（義華）。
-  if (kind === 'shared_faq') return '/campuses/yihua#faq'
+  // 共用常見問題目前沒有公開頁面顯示。
+  if (kind === 'shared_faq') return '/'
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   return '/'
 }
 
 // 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、
-// 入學資訊、分校頁與預約頁（預約文案：同意文字、個資說明、頁首按鈕）。
-export function contentPreviewPath(kind: string, campusKey?: string | null): string {
+// 入學資訊與預約頁（預約文案：同意文字、個資說明、頁首按鈕）。
+export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
-    return campusKey ? `/preview?page=campus&campus=${encodeURIComponent(campusKey)}` : ''
+    // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。
+    return '/preview'
   }
-  if (kind === 'shared_faq') return '/preview?page=campus&campus=yihua'
+  if (kind === 'shared_faq') return ''
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
   return '/preview'

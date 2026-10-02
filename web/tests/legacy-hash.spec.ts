@@ -11,9 +11,9 @@ describe('resolveLegacyHash 舊 hash 相容轉址', () => {
   })
 
   it.each(['yihua', 'minghua', 'chongde', 'international', 'renwu'])(
-    '#/%s 轉址到 /campuses/%s',
+    '#/%s 分校頁已移除，轉址到首頁五校區塊 /#campuses',
     (key) => {
-      expect(resolveLegacyHash(`#/${key}`)).toBe(`/campuses/${key}`)
+      expect(resolveLegacyHash(`#/${key}`)).toBe('/#campuses')
     }
   )
 

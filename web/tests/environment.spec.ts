@@ -52,8 +52,8 @@ describe('常春藤環境頁 SEO', () => {
     expect(seo.canonical).toBe('https://ivy.example/environment')
     expect(seo.title).toContain('常春藤環境')
     expect(JSON.stringify(seo.graph)).toContain('"name":"常春藤環境"')
-    expect(sitemapXml('https://ivy.example', [])).toContain('<loc>https://ivy.example/environment</loc>')
-    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })).toContain('(https://ivy.example/environment)')
+    expect(sitemapXml('https://ivy.example')).toContain('<loc>https://ivy.example/environment</loc>')
+    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta })).toContain('(https://ivy.example/environment)')
   })
   it('沒有正式 origin 時不輸出 canonical 與結構化資料', () => {
     const seo = environmentSeo(site, '')

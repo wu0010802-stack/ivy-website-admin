@@ -72,9 +72,9 @@ const SITE_PAGE_NAMES: Record<string, string> = {
 export function sitePageName(href: string): string | null {
   const value = href.trim().replace(/(.)\/$/, '$1')
   if (SITE_PAGE_NAMES[value]) return SITE_PAGE_NAMES[value]
-  const campus = /^\/(campuses|visit)\/([a-z]+)$/.exec(value)
-  const name = campus ? CAMPUS_LABELS[campus[2]!] : undefined
-  if (campus && name) return campus[1] === 'campuses' ? `${name}校分校頁` : `預約參觀${name}校`
+  const visit = /^\/visit\/([a-z]+)$/.exec(value)
+  const name = visit ? CAMPUS_LABELS[visit[1]!] : undefined
+  if (visit && name) return `預約參觀${name}校`
   return null
 }
 

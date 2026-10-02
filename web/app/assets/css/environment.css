@@ -57,7 +57,6 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:0 34px;isolation:isolate;font-size:var(--fs-md);font-weight:700;letter-spacing:.06em;color:var(--renv-ink);text-decoration:none;transition:transform .35s var(--renv-ease)}
 .renv-btn .icon{width:1.1em;height:1.1em}
 @media (hover:hover){.renv-btn:hover{transform:translateY(-2px) rotate(-.6deg)}}
-.renv-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:var(--fs-md);font-weight:700;color:var(--renv-ink);text-decoration:underline;text-decoration-color:var(--renv-pen);text-decoration-thickness:1.5px;text-underline-offset:7px}
 
 /* ---------- 照片：不留白邊，貼在一張蠟筆底紙上（底紙、外框由 JS 畫） ---------- */
 .renv-snap{margin:0;isolation:isolate}
@@ -191,7 +190,6 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-tour-tab[aria-selected="true"] img{opacity:1}
 @media (hover:hover){.renv-tour-tab:hover img{opacity:.9}}
 .renv-tour-panel{margin-top:clamp(56px,6vw,80px);outline-offset:10px}
-.renv-tour-panel .renv-link{margin-top:56px}
 .renv-scenes{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:80px clamp(40px,5vw,80px)}
 .renv-scenes:not(.is-2) .renv-scene:first-of-type{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(40px,5vw,80px);align-items:center}
 .renv-scene-photo{transform:rotate(-1deg)}

@@ -640,7 +640,7 @@ describe('主選單與頁尾連結', () => {
     expect(wrapper.text().split('站內頁面用 / 開頭的路徑').length - 1).toBe(1)
     expect(wrapper.text()).toContain('連到：首頁・孩子的一天')
     expect(wrapper.text()).toContain('連到：入學資訊頁')
-    expect(sitePageName('/campuses/minghua')).toBe('明華校分校頁')
+    expect(sitePageName('/campuses/minghua')).toBeNull()
     expect(sitePageName('/visit/renwu')).toBe('預約參觀仁武校')
     expect(sitePageName('/somewhere')).toBeNull()
   })

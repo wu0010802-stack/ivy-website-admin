@@ -125,9 +125,9 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
     await page.reload()
     await expect(page.locator('body')).toContainText(marker)
 
-    // 3) 站內換頁（先去分校頁，再點回首頁）也要讀到新內容，不是永久快取
+    // 3) 站內換頁（先去預約頁，再點回首頁）也要讀到新內容，不是永久快取
     //    同一個 useAsyncData key 而卡住舊資料。
-    await page.goto('/campuses/minghua')
+    await page.goto('/visit')
     await expect(page.locator('body')).not.toContainText(marker)
     await page.getByRole('link', { name: '首頁' }).first().click()
     await page.waitForURL('**/')

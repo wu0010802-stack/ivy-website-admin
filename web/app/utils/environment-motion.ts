@@ -370,11 +370,10 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
     deal(panel, tab) {
       if (reducedMotion || !started) return
       const scenes = [...panel.querySelectorAll<HTMLElement>('.renv-scene')]
-      const more = panel.querySelector<HTMLElement>('.renv-link')
       const from = (tab.querySelector('img') ?? tab).getBoundingClientRect()
       const fx = from.left + from.width / 2
       const fy = from.top + from.height / 2
-      gsap.killTweensOf([...scenes, more].filter(Boolean))
+      gsap.killTweensOf(scenes)
       ctx.add(() => {
         scenes.forEach((li, i) => {
           const r = li.getBoundingClientRect()
@@ -382,7 +381,6 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
             { x: fx - (r.left + r.width / 2), y: fy - (r.top + r.height / 2), scale: 0.16, rotation: i % 2 ? 18 : -15, autoAlpha: 0 },
             { x: 0, y: 0, scale: 1, rotation: 0, autoAlpha: 1, duration: 0.85, delay: i * 0.11, ease: 'back.out(1.1)', clearProps: 'transform,opacity,visibility' })
         })
-        if (more) gsap.fromTo(more, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.4, delay: scenes.length * 0.11 + 0.5, clearProps: 'transform,opacity,visibility' })
       })
     },
     destroy() {

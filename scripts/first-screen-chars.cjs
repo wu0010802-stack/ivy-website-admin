@@ -33,7 +33,7 @@ const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900, isMobile: false, hasTouch: false, dpr: 2 },
   { name: 'tablet', width: 768, height: 1024, isMobile: true, hasTouch: true, dpr: 2 }
 ]
-const PAGES = ['/', '/campuses/yihua', '/campuses/minghua', '/campuses/chongde', '/campuses/international', '/campuses/renwu', '/visit']
+const PAGES = ['/', '/visit']
 
 ;(async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true })

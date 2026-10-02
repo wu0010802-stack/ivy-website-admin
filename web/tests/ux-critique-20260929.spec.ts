@@ -45,19 +45,6 @@ describe('預約頁', () => {
   })
 })
 
-describe('分校頁', () => {
-  it('交通與聯絡列出其他校區，正式頁與草稿預覽都傳入五校', () => {
-    const main = read('../app/components/CampusPageMain.vue')
-    expect(main).toContain('item.key !== props.campus.key')
-    expect(main).toContain('id="contact-others-title">其他校區</h3>')
-    expect(read('../app/pages/campuses/[key].vue')).toContain(':campuses="data.content.campuses"')
-    expect(read('../app/pages/preview.vue')).toContain(':campuses="draft.campuses"')
-  })
-  it('頁內預約鈕都是金黃色', () => {
-    expect(read('../app/components/CampusPageMain.vue')).not.toContain('button-class="button primary"')
-  })
-})
-
 describe('最新消息頁', () => {
   it('示意活動不露出具體日期（比照首頁）', () => {
     const news = read('../app/components/NewsIndexContent.vue')

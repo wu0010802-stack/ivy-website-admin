@@ -43,8 +43,6 @@ async function seriousViolations(page: Page): Promise<Finding[]> {
 
 const PUBLIC_PAGES = [
   '/',
-  '/campuses/yihua',
-  '/campuses/renwu',
   '/curriculum',
   '/environment',
   '/admission',

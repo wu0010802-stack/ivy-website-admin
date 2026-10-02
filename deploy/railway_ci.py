@@ -145,12 +145,12 @@ def smoke(release: dict) -> None:
     content = get_json("/api/public-site")
     if not content.get("release_id") or not content.get("content"):
         raise RuntimeError("公開 CMS 尚無已發布內容")
-    for path in ("/", "/admin/login", "/campuses/yihua", "/campuses/minghua", "/campuses/chongde", "/campuses/international", "/campuses/renwu"):
+    for path in ("/", "/admin/login"):
         print(f"Check public page: {path}", flush=True)
         body, content_type = read_public(path)
         if not body or "text/html" not in content_type:
             raise RuntimeError(f"公開頁面檢查失敗：{path}")
-    print("Public smoke passed: release, live API, CMS, homepage, five campuses, admin entry", flush=True)
+    print("Public smoke passed: release, live API, CMS, homepage, admin entry", flush=True)
 
 
 def deploy(snapshot: Path) -> None:

@@ -4,22 +4,10 @@ test.describe('公開站：booking CTA 依後端 booking-config 即時反應', (
   // 仁武校的 booking_configs 沒有另外設定時，資料庫預設值就是 paused
   // （見 backend/app/booking/models.py），這裡故意不呼叫任何 admin API
   // 去改它，測的正是「什麼都沒設定時公開頁面也不會假裝可以預約」。
-  test('paused 校區：CTA 顯示暫停訊息，不產生可點的連結', async ({ page }) => {
-    // 仁武校在資料尚未設定時的預設狀態即為 paused（見 booking.py 預設值）。
-    await page.goto('/campuses/renwu')
-    const cta = page.locator('.hero-cta .is-disabled, .hero-cta [role="note"]').first()
-    await expect(cta).toBeVisible()
-  })
-
   test('/visit/renwu 直接進入也即時讀 paused 狀態，不落回表單', async ({ page }) => {
     await page.goto('/visit/renwu')
     await expect(page.locator('.booking-alt-cta')).toBeVisible()
     await expect(page.locator('.booking-alt-cta')).toContainText('暫停參觀預約')
-  })
-
-  test('未知校區的 booking-config 安全退回 paused，不假造可預約樣子', async ({ page }) => {
-    const response = await page.goto('/campuses/not-a-real-campus')
-    expect(response?.status()).toBe(404)
   })
 })
 
@@ -31,17 +19,12 @@ test.describe('SEO：canonical／OG／robots meta', () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(0)
   })
 
-  test('分校頁帶 og:title／og:description，且同樣是 noindex（索引未啟用）', async ({ page }) => {
-    await page.goto('/campuses/minghua')
-    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
-      'content',
-      /明華/
-    )
-    await expect(page.locator('meta[property="og:description"]')).toHaveCount(1)
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-      'content',
-      'noindex, nofollow'
-    )
+  test('已移除的分校頁網址 301 轉回首頁', async ({ request }) => {
+    for (const path of ['/campuses/minghua', '/campuses/not-a-real-campus']) {
+      const res = await request.get(path, { maxRedirects: 0 })
+      expect(res.status()).toBe(301)
+      expect(new URL(res.headers().location!, 'http://x').pathname).toBe('/')
+    }
   })
 
   test('/visit 頁一律 noindex，跟索引開關無關', async ({ page }) => {

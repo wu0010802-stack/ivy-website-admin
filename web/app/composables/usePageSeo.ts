@@ -1,12 +1,12 @@
-import type { Campus, NewsArticle, SiteContent } from '~/types/site-content'
+import type { NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
-import { campusHeroAttrs, heroImageAttrs } from '~/utils/media-image'
+import { heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 
 /** article：單篇消息頁（page 為 'news'）；示意消息照常顯示，但一律 noindex。 */
-export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Campus | undefined>, page?: StaticPage, article?: Ref<NewsArticle | undefined>) {
+export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage, article?: Ref<NewsArticle | undefined>) {
   const config = useRuntimeConfig()
   const origin = normalizeSiteOrigin(config.public.siteOrigin)
   // 後台「允許搜尋引擎收錄」只能收緊：部署沒開索引時一律 noindex。
@@ -23,9 +23,9 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
       return newsArticleSeo(site.value, origin, article.value, sampleArticle.value, cover)
     }
     if (page === 'news') return newsListSeo(site.value, origin)
-    return pageSeo(site.value, origin, campus?.value)
+    return pageSeo(site.value, origin)
   })
-  // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue／分校頁 hero-photo）。
+  // 預載的 imagesizes 要跟頁面上 <img sizes> 一致（首頁 HeroVideo.vue）。
   const hero = computed(() => {
     if (!site.value) return undefined
     if (page === 'admission') return admissionHeroImage()
@@ -34,7 +34,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, campus?: Ref<Camp
     if (page === 'about') return responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)
     // 消息頁沒有滿版 hero，不預載。
     if (page === 'news') return undefined
-    return campus?.value ? campusHeroAttrs(campus.value) : heroImageAttrs(site.value.home.hero)
+    return heroImageAttrs(site.value.home.hero)
   })
   useSeoMeta({
     title: () => seo.value?.title,
