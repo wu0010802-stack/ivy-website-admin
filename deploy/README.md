@@ -13,6 +13,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 後台補登也拿掉同意勾選（main CI 部署）
+
+使用者追加拿掉補登的「已向家長說明，並取得同意留存聯絡資料」，要求併入 main 並部署（PR #27，`feature/manual-no-consent-20261002`）。
+
+- **合併**：GitHub merge commit `4f9ba57`。
+  - 內容：`163113f` 補登拿掉同意勾選（後台、後端、契約、測試）；`4acbd50` 同步 main（後台第七輪 UX）；README 驗證紀錄。
+  - 沒有 migration。
+- **CI**：run 37029295379 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts（24 分鐘）、Deploy Railway production 全部 success（10-02 23:46 – 10-03 00:17 台灣時間）。
+- **正式 `release.json`**：base commit `4f9ba57f54d1c281550fca088c8b7a60591c7425`，snapshot `121f938e9805bbfdf8525d16f304f0133db5515a3a14acf2144d848221d3827f`，created 10-03 00:11 台灣時間。
+- **線上驗證**：補登要後台登入，所以只用 GET 抓正式站 `/admin/` 的 71 個 JS 檔比對：
+  - 「並取得同意留存聯絡資料」「還沒勾選同意」「manual__consent」都是 0 檔。
+  - 「補登不需勾選同意」「官網預約不需勾選同意」各 1 檔。
+  - 補登對話框在 `ManualVisitDialog-B01mISEz.js`。
+  - 沒有實際補登案件。
+
 ## 2026-10-02 關於常春藤頁立體書精修＋第四章「家長怎麼說」（main CI 部署）
 
 使用者要求「直接併入 main」。分支 `feature/about-refine-20261002` 從 origin/main `c01fb24` 開出，提交 `c893b4c` rebase 到 `ac79a03`（衝突只在 README.md，兩邊段落都保留）後推上 main。只動 `web/`（`AboutContent.vue`、`AboutWholePerson.vue`、`about.css`、`utils/about-popup.ts`、`tests/about.spec.ts`），沒有 migration、API 或 schema 變更，部署前不需要備份正式庫。
