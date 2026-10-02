@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // 2026-10-01 定案 A2：六張透色圓片靠近、交疊，最後由外圓包容。
 // 只負責全人教育的右頁；左頁的內容、排版與資料由 AboutContent 保留。
+// 2026-10-02：左頁滑過某個領域（focus＝第幾個），六圈播完後那一圈亮、其他圈與標籤淡掉；播放中不理會。
+const props = withDefaults(defineProps<{ focus?: number | null }>(), { focus: null })
 const domains = [
   { name: '身體動作與健康', lines: ['身體動作', '與健康'], color: 'var(--ivy-whole-body)' },
   { name: '認知', lines: ['認知'], color: 'var(--ivy-whole-cognition)' },
@@ -29,6 +31,7 @@ const circles = computed(() => domains.map((domain, i) => {
   return { ...domain, label: polar(215, i), dot: polar(278, i), transform: `translate(${point.x} ${point.y}) scale(${(79 + 77 * join) / 100})`, alpha: .32 - .03 * join }
 }))
 const titleOpacity = computed(() => portion(progress.value, .69, .89))
+const dimmed = (i: number) => props.focus !== null && progress.value >= 1 && props.focus !== i
 let frame = 0
 let previousTime = 0
 let wantsToPlay = false
@@ -109,13 +112,13 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
       <desc :id="`${id}-desc`">身體動作與健康、認知、語文、社會、情緒、美感，六個透明圓相互交疊，匯聚成完整的自己。</desc>
       <g aria-hidden="true">
         <circle class="abk-whole-outline" cx="360" cy="340" r="278" pathLength="1" :opacity="portion(progress, .6, .9)" :stroke-dashoffset="1 - portion(progress, .63, 1)" />
-        <circle v-for="domain in circles" :key="domain.name" class="abk-whole-circle" r="100" :transform="domain.transform" :fill="domain.color" :stroke="domain.color" :fill-opacity="domain.alpha" />
+        <circle v-for="(domain, i) in circles" :key="domain.name" class="abk-whole-circle" :class="{ 'is-dim': dimmed(i) }" r="100" :transform="domain.transform" :fill="domain.color" :stroke="domain.color" :fill-opacity="domain.alpha" />
         <circle v-for="domain in circles" :key="`dot-${domain.name}`" :cx="domain.dot.x" :cy="domain.dot.y" r="4" :fill="domain.color" :opacity="portion(progress, .67, .96)" />
         <g :opacity="titleOpacity" :transform="`translate(360 340) scale(${.8 + .2 * titleOpacity}) translate(-360 -340)`">
           <text class="abk-whole-title" x="360" y="350">全人</text>
           <text class="abk-whole-sub" x="360" y="390" :opacity="portion(progress, .85, 1)">完整的自己</text>
         </g>
-        <text v-for="domain in circles" :key="`label-${domain.name}`" class="abk-whole-label" :transform="`translate(${domain.label.x} ${domain.label.y})`">
+        <text v-for="(domain, i) in circles" :key="`label-${domain.name}`" class="abk-whole-label" :class="{ 'is-dim': dimmed(i) }" :transform="`translate(${domain.label.x} ${domain.label.y})`">
           <tspan v-for="(line, i) in domain.lines" :key="line" x="0" :y="domain.lines.length === 2 ? i * 40 - 2 : 7">{{ line }}</tspan>
         </text>
       </g>
@@ -127,12 +130,16 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
 .abk-whole{display:grid;align-content:center;justify-items:center;height:100%;min-height:inherit;min-width:0;color:var(--ivy-forest);container-type:inline-size}
 .abk-whole-diagram{display:block;width:100%;max-width:560px;height:auto;aspect-ratio:1;overflow:visible}
 .abk-whole-outline{fill:none;stroke:var(--ivy-forest);stroke-width:1.1;stroke-opacity:.6;stroke-dasharray:1;transform:rotate(-90deg);transform-origin:360px 340px}
-.abk-whole-circle{stroke-width:.9;stroke-opacity:.65}
+.abk-whole-circle{stroke-width:.9;stroke-opacity:.65;transition:fill-opacity .35s,stroke-opacity .35s}
+.abk-whole-circle.is-dim{fill-opacity:.07;stroke-opacity:.25}
+.abk-whole-label{transition:opacity .35s}
+.abk-whole-label.is-dim{opacity:.3}
 .abk-whole-title,.abk-whole-sub,.abk-whole-label{fill:var(--ivy-forest);text-anchor:middle}
 .abk-whole-title{font:800 70.4px var(--font-head);letter-spacing:-.04em}
 .abk-whole-sub{font-size:16px;letter-spacing:.18em}
 .abk-whole-label{font-size:22px;font-weight:600;letter-spacing:.07em}
 @container(max-width:380px){.abk-whole-label{font-size:38px}.abk-whole-sub{font-size:32px}}
-@media(max-width:900px){.abk-whole{min-height:0;padding-block:8px 28px}}
+@media(max-width:900px){.abk-whole{min-height:0;height:auto;padding-block:8px 28px}}
+@media(prefers-reduced-motion:reduce){.abk-whole-circle,.abk-whole-label{transition:none}}
 @media(forced-colors:active){.abk-whole-circle{fill:none;stroke:CanvasText;stroke-opacity:1}.abk-whole-outline{stroke:CanvasText;stroke-opacity:1}.abk-whole-title,.abk-whole-sub,.abk-whole-label{fill:CanvasText}}
 </style>

@@ -95,10 +95,6 @@ onMounted(editor.load)
           <el-input v-model="editor.form.value.cta_label_en" placeholder="Book a visit" />
         </el-form-item>
       </div>
-      <el-form-item label="同意條款文字">
-        <el-input v-model="editor.form.value.consent_text" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" />
-        <span class="field-help">顯示在表單送出鈕上方，家長勾選後才能送出。每筆官網案件會記下家長同意的是哪一版（發布後的版本），案件明細看得到；改了文字並發布後，正在填表的家長要重新勾選。</span>
-      </el-form-item>
 
       <h3 class="form-section">隱私／個資使用說明</h3>
       <p class="field-help privacy__lead">

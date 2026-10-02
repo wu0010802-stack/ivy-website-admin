@@ -40,7 +40,7 @@ test.describe('後台畫面基準', () => {
     await settle(page)
     await expect(page).toHaveScreenshot('visit-detail.png', {
       // 送出時間與同意時間是伺服器當下時間。
-      mask: [...dynamicParts(page), page.locator('.detail__head p').first(), page.getByRole('cell', { name: /家長勾選同意/ })],
+      mask: [...dynamicParts(page), page.locator('.detail__head p').first(), page.getByRole('cell', { name: /家長勾選同意|不需勾選同意/ })],
     })
   })
 

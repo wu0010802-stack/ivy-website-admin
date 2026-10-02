@@ -13,6 +13,29 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 官網預約拿掉同意勾選、手機場次卡一張一列（main CI 部署）
+
+業主裁定拿掉同意勾選，使用者要求併入 main 並部署（PR #25，`feature/no-consent-20261002`）。
+
+- **合併**：GitHub merge commit `a2ed829`。
+  - 內容：`cc6233a` 拿掉同意勾選（官網、後端、後台、契約、測試）；`d2f0121` 同步 main。
+  - 沒有 migration。
+  - 這次部署也帶上了 `c893b4c`（關於頁立體書精修）。它自己的 run 37011280568 因 Backend job 超過 30 分鐘被取消、沒有部署。
+- **CI**：run 37015343286 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts（24 分鐘）、Deploy Railway production 全部 success（10-02 21:47–22:16 台灣時間）。
+- **正式 `release.json`**：base commit `a2ed829eb62be1d35dd4dd00e8e789d4bd4eb710`，snapshot `62143148d6d81ed24c5f4dab9aa2d36699629e187190cc261a619c8cbbd38cd4`，created 10-02 22:12 台灣時間。
+- **線上驗證**：Playwright Chromium，1440×900 與 390×844。非 GET 一律擋下（只擋到 `POST /api/telemetry`），沒有送出預約。
+
+  | 項目 | 結果 |
+  |---|---|
+  | `GET /public/booking-config/yihua` | 欄位只剩 campus_key、mode、version、line_url、phone、external_url、message、parent_email_enabled、privacy_notice、turnstile_site_key（沒有 consent_*） |
+  | `/visit/yihua` 同意勾選框 | 0 個 |
+  | 場次卡 | 390 寬一欄（350px）；1440 寬在月曆右側一欄 |
+  | 送出列頂線 | 0px（只剩選填區底線） |
+  | 「閱讀個資使用說明」 | 0 個（正式站沒有發布個資說明） |
+  | 橫向溢出、pageerror | 兩種寬度都是 0 |
+
+- **部署後待園方**：預約文案還沒有個資使用說明，表單與頁尾都沒有入口。補登仍要人員勾選「已向家長說明」，要不要一起拿掉待決定。
+
 ## 2026-10-02 預約頁 UI／UX 優化：日期月曆、確認預約摘要、選校卡標參觀方式（main CI 部署）
 
 使用者要求把 PR #23（`feature/visit-ux-20261002`）併入 main 並部署。

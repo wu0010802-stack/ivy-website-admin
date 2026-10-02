@@ -46,7 +46,6 @@ from app.booking.schemas import (
     VisitGroupCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
-    BookingConsentBriefOut,
     BookingImpactOut,
     BookingReadinessOut,
     BookingReadinessReason,
@@ -210,22 +209,12 @@ async def get_booking_readiness(
     if await db.get(Campus, campus_key) is None:
         raise ScopeDenied()
     config = await service.get_or_create_config(db, campus_key)
-    published = await consent.current_consent(db)
     blockers = await readiness.data_blockers(db, campus_key, config)
     impact = await readiness.impact(db, campus_key, config)
     await db.commit()
     return BookingReadinessOut(
         campus_key=campus_key,
         current_mode=config.mode,
-        consent=(
-            BookingConsentBriefOut(
-                revision_id=published.revision_id,
-                version=published.version,
-                has_privacy_notice=published.has_privacy_notice,
-            )
-            if published is not None
-            else None
-        ),
         blockers={
             mode: [BookingReadinessReason(**reason.as_dict()) for reason in reasons]
             for mode, reasons in blockers.items()
@@ -249,24 +238,16 @@ async def get_public_booking_config(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
     config = await service.get_or_create_config(db, campus_key)
-    published = await consent.current_consent(db)
+    privacy = await consent.published_privacy_notice(db)
     await db.commit()
     out = PublicBookingConfigOut.model_validate(config)
     settings = request.app.state.settings
     out = out.model_copy(update={"parent_email_enabled": bool(settings.smtp_host)})
     if settings.turnstile_enabled:
         out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})
-    if published is not None:
+    if privacy is not None:
         out = out.model_copy(update={
-            "consent_revision_id": published.revision_id,
-            "consent_text": published.text,
-            "privacy_notice": (
-                PrivacyNoticeOut.model_validate(
-                    {"title": published.privacy_title, "sections": published.privacy_sections}
-                )
-                if published.has_privacy_notice
-                else None
-            ),
+            "privacy_notice": PrivacyNoticeOut.model_validate({"title": privacy.title, "sections": privacy.sections}),
         })
     # 上線前的舊設定：填表待聯絡已退場，官網一律當成暫停。
     if out.mode == BookingMode.INQUIRY:
@@ -280,16 +261,6 @@ async def get_public_booking_config(
         out = out.model_copy(update={
             "mode": BookingMode.PAUSED,
             "message": "本校目前暫停受理線上參觀預約，請來電洽詢。",
-            "line_url": None,
-            "external_url": None,
-        })
-    elif published is None and config.mode in readiness.FORM_MODES:
-        # 開放表單卻沒有發布中的同意文字（切換時會擋，這是更新前就開著表單的
-        # 舊資料）：送單端點一定回 BOOKING_UNAVAILABLE，對官網先講暫停，免得
-        # 家長填完整張表才被拒。總覽會列出這些校區。
-        out = out.model_copy(update={
-            "mode": BookingMode.PAUSED,
-            "message": "線上預約表單暫時無法使用，請來電洽詢。",
             "line_url": None,
             "external_url": None,
         })
@@ -311,7 +282,6 @@ _SUBMIT_ERRORS = (
     service.BookingUnavailable,
     service.PartySizeRequired,
     service.PhoneSubmissionLimit,
-    consent.ConsentVersionChanged,
     workflow_service.SlotFull,
     slot_service.SlotNotBookable,
 )
@@ -343,11 +313,6 @@ def _submit_error(exc: Exception) -> HTTPException:
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=[{"loc": ["body", "party_size"], "msg": "請選擇參觀人數", "type": "missing"}],
-        )
-    if isinstance(exc, consent.ConsentVersionChanged):
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "CONSENT_VERSION_CHANGED", "message": "同意說明已更新，請重新閱讀並勾選後再送出"},
         )
     if isinstance(exc, workflow_service.SlotFull):
         return slot_unavailable(exc, suffix="，請選擇其他時段")
@@ -466,7 +431,6 @@ async def create_visit_request(
             campus_key=payload.campus_key,
             payload=body,
             config_version=payload.config_version,
-            consent_revision_id=payload.consent_revision_id,
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
@@ -555,7 +519,6 @@ async def create_visit_request(
             payload=body,
             config_version=payload.config_version,
             hash_key=hash_key,
-            consent_revision_id=payload.consent_revision_id,
             phone_limit=(
                 SUBMIT_LIMIT_BY_PHONE.max_per_window, timedelta(seconds=SUBMIT_LIMIT_BY_PHONE.window_seconds)
             ),

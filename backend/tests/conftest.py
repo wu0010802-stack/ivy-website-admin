@@ -200,9 +200,9 @@ TEST_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排�
 
 
 class ParentClient(httpx.AsyncClient):
-    """官網家長端。官網送參觀需求一定會帶參觀人數，以及當時看到的同意說明版本
-    （公開預約設定的 consent_revision_id）；測試沒寫的就比照官網補上。要驗這兩個
-    欄位的測試自己帶值（包括明確帶 None）。"""
+    """官網家長端。官網送參觀需求一定會帶參觀人數與 Email；測試沒寫的就比照官網
+    補上，要驗這兩個欄位的測試自己帶值（包括明確帶 None）。2026-10-02 起官網不再
+    帶同意說明版本。"""
 
     async def post(self, url, *args, **kwargs):  # type: ignore[override]
         body = kwargs.get("json")
@@ -211,10 +211,6 @@ class ParentClient(httpx.AsyncClient):
             body.setdefault("party_size", 2)
             # 2026-09-30 起官網送單 Email 必填；要驗缺 Email 的測試自己帶 None。
             body.setdefault("email", "parent@example.com")
-            if "consent_revision_id" not in body and body.get("campus_key"):
-                config = await self.get(f"/api/website/v1/public/booking-config/{body['campus_key']}")
-                if config.status_code == 200:
-                    body["consent_revision_id"] = config.json().get("consent_revision_id")
             kwargs["json"] = body
         return await super().post(url, *args, **kwargs)
 
@@ -238,8 +234,8 @@ async def second_public_client(app):
 
 
 async def publish_booking_consent(db: AsyncSession, **overrides) -> uuid.UUID:
-    """發布一版「預約文案」（含同意文字）。啟用 inquiry／slots 與官網送單都要有
-    已發布的同意文字；回傳 revision id。"""
+    """發布一版「預約文案」，回傳 revision id。2026-10-02 起開放表單與送單都不再
+    需要它，留著給要驗預約文案、個資說明或舊案同意版本的測試用。"""
     from app.content import service as content_service
 
     payload = {

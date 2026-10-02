@@ -21,7 +21,8 @@ async function fillParentForm(page: Page, form: ParentForm): Promise<void> {
   await page.getByLabel('聯絡電話').fill(form.phone)
   await page.getByLabel('參觀人數').selectOption('2')
   await page.getByLabel('聯絡 Email').fill(form.email)
-  await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
+  // 2026-10-02 起不用勾選同意。
+  await expect(page.getByRole('checkbox', { name: /我同意/ })).toHaveCount(0)
 }
 
 const mailSubjects = (to: string) => async () => (await readMail(mail => mail.to === to)).map(mail => mail.subject)
@@ -109,7 +110,8 @@ test.describe('自選場次（義華）', () => {
 
 test.describe('填寫中的即時驗證', () => {
   // 2026-09-30 E2E：輸入框 blur 時插入的錯誤訊息把下方版面推下約 31px，按下時還在目標上、
-  // 放開時已不在，第一次點擊落空（電話填錯直接點同意框要點兩次）。錯誤訊息要等點擊完成才出現。
+  // 放開時已不在，第一次點擊落空（電話填錯直接點下方的勾選框要點兩次）。錯誤訊息要等點擊完成才出現。
+  // 原本點的是同意框；2026-10-02 拿掉同意勾選後，改點同樣在電話下方的「如何知道」勾選框。
   // 重現條件是剛填的欄位還在畫面上：目標在畫面外時 Playwright 會先捲動，Chrome 的 scroll
   // anchoring 剛好把位移補掉，測不出來。
   async function openForm(page: Page): Promise<void> {
@@ -133,19 +135,19 @@ test.describe('填寫中的即時驗證', () => {
     { name: '手機觸控', device: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, touch: true },
   ]
   for (const { name, device, touch } of devices) {
-    test(`電話填錯直接點同意框，一次就勾到（${name}）`, async ({ browser }) => {
+    test(`電話填錯直接點下方的勾選框，一次就勾到（${name}）`, async ({ browser }) => {
       const { context, page } = await openAs(browser, null, device)
       await openForm(page)
       const phone = page.getByLabel('聯絡電話')
       await phone.fill('12345')
       await keepOnScreen(phone)
 
-      const consent = page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ })
-      if (touch) await consent.tap()
-      else await consent.click()
+      const referral = page.getByRole('checkbox', { name: '親友介紹' })
+      if (touch) await referral.tap()
+      else await referral.click()
       // 錯誤訊息出現代表 Vue 已接手處理 blur，不是 hydration 前的原生勾選。
       await expect(page.locator('#visit-phone-error')).not.toBeEmpty()
-      await expect(consent).toBeChecked()
+      await expect(referral).toBeChecked()
       await context.close()
     })
   }
@@ -155,7 +157,6 @@ test.describe('填寫中的即時驗證', () => {
     await openForm(page)
     await page.getByLabel('聯絡電話').fill('0912000333')
     await page.getByLabel('參觀人數').selectOption('2')
-    await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
     const email = page.getByLabel('聯絡 Email')
     await email.fill('not-an-email')
     await keepOnScreen(email)
