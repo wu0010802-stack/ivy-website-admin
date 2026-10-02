@@ -13,6 +13,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 預約頁 UI／UX 優化：日期月曆、確認預約摘要、選校卡標參觀方式（main CI 部署）
+
+使用者要求把 PR #23（`feature/visit-ux-20261002`）併入 main 並部署。
+
+- **合併**：GitHub merge commit `c01fb24`。
+  - 內容：`a6753a2` 預約頁與管理頁改版；`0399fff` 同步 main（招生入學）；`ecd6080` 招生入學 stack 測試改用月曆；`8ab3a4b` README 驗證紀錄。
+  - 只動 `web/` 與 stack 測試，沒有 migration、沒有後端程式改動。
+- **CI**：run 37003438291 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（10-02 19:52–20:45 台灣時間）。它排在前一次部署（37001162130）之後才開始。
+- **正式 `release.json`**：base commit `c01fb24e0ef9186629edf300efe6afaa9d132141`，snapshot `e8f415915165bec7ac584d0a066374ec594f2c4e76758bdc82fc5c7be2cf8dbb`，created 10-02 20:42 台灣時間。
+- **線上驗證**：Playwright Chromium，1440×900 與 390×844。非 GET 請求一律擋下（只擋到 `POST /api/telemetry`），沒有送出預約。
+
+  | 項目 | 結果 |
+  |---|---|
+  | `/visit` 選校卡 | 義華「可線上預約」，其他四校「來電洽詢」；眉標「預約校園參觀」 |
+  | `/visit` 第一屏 | 步驟列頂端 1440 寬 671px、390 寬 398px（部署前截圖量約 890px，正好在 1440×900 第一屏下緣） |
+  | `/visit/yihua` 日期 | 月曆 20 個開放日，沒有 `select#visit-date`；選第一天出現 2 個場次 |
+  | 送出列 | 「確認預約」，摘要「義華校 10 月 5 日（週一）・上午場 10:00–10:30」 |
+  | Email 說明 | 「園所會用這個 Email 聯絡你；修改連結會顯示在預約完成頁。」（正式站 `parent_email_enabled` 為 false） |
+  | `/visit/minghua` | 步驟第二格「參觀方式」 |
+  | 橫向溢出、pageerror | 兩種寬度都是 0 |
+
+- **未在線上驗證**：`/visit/manage` 改場次要真的預約連結，只在本機假 API 與 stack e2e 驗過。
+- **部署後待園方**：後台「預約文案」的同意文字仍寫「送出需求後，仍須由園方確認參觀時間」，和自選場次矛盾，要發布新版。
+
 ## 2026-10-02 手機版第三輪優化：分校線稿墨線版、首頁 CLS、關於頁卡紙（main CI 部署）
 
 使用者要求把 PR #20（`feature/mobile-ux-20261002`）併入 main 並部署。
