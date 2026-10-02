@@ -210,7 +210,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 | P09 | 頁尾 | 已發布顯示「隱私權政策」連結並取代對話框按鈕；未發布維持原狀 |
 | P10 | 預約表單 | 對話框底部有完整政策連結（新分頁）；只有政策時直接顯示連結；都沒有時不顯示 |
 | P11 | 草稿預覽 | `/preview?page=privacy` 顯示草稿，含【待確認】照實顯示 |
-| P12 | stack e2e | 用後台 API 發布一份政策 → `/privacy` 與頁尾連結可用；1440／390 截圖不橫向溢出；`a11y.spec.ts` 加 `/privacy` |
+| P12 | stack e2e | 用後台 API 發布一份政策 → `/privacy` 與頁尾連結可用；1440／390 截圖不橫向溢出；`/privacy` 的 axe 檢查寫在 `privacy-policy.spec.ts`（發布後才有這一頁，`a11y.spec.ts` 在它之前執行） |
 
 驗證指令（Node 22）：
 

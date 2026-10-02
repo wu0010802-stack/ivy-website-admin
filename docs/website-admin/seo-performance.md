@@ -34,7 +34,7 @@ python3 scripts/optimize-site-fonts.py
 
 - `web-vitals` 標準版收集 LCP、INP、CLS；依 document 進入路徑及 mobile／desktop 分組，SPA 換頁不被誤認為新 CWV。
 - `/api/telemetry` 僅接受固定公開頁型、五校 key、裝置分類、事件、指標數值及暫時隨機 UUID。拒絕多餘欄位、跨站來源、超大請求與超額事件，每程序每分鐘上限 600 次。
-- 事件寫成 `website_telemetry` JSON 日誌，未新增 DB／migration。平台可能另外保存基礎 HTTP 存取日誌；這不在本程式事件欄位內。
+- 事件除了寫成 `website_telemetry` JSON 日誌，也會彙總存進資料庫：`page_view_daily`（日期、頁面、校區、裝置的瀏覽累計）、`web_vital_samples`（網頁速度樣本，保留 90 天，清理在 `backend/app/operations/traffic_service.py`）與去識別化的 `analytics_events`；都不存 IP 與 cookie。平台可能另外保存基礎 HTTP 存取日誌；這不在本程式事件欄位內。
 - 頁面與預約入口計數為 `page_view`／`visit_click`，不是唯一訪客或成功率。
 - 電話／LINE 點擊沿用既有後端 analytics；`request_created`／`visit_confirmed`／`visit_completed` 仍只能由後端真實流程記錄。既有後台 funnel 可看這些計數。
 - 新增 CWV 與 page_view 的檢視方式是下列日誌報表，尚未新增後台圖表。平台日誌保存期間依部署方案而定，需定期匯出相同期間資料；指標是客戶端觀測，不作財務或業務完成權威。

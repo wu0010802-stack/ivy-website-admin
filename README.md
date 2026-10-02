@@ -1,3 +1,13 @@
+## 2026-10-03 隱私權政策頁（`feature/privacy-policy-20261003`，未部署）
+
+使用者決定官網改用 cookie 做行銷分析（自建歸因＋GA4＋廣告像素）、不做 cookie 橫幅；拆三部分，本段是第 1 部分：後台可編輯的隱私權政策。
+
+- **後端**：新共用內容 `privacy_policy`（標題、最後更新日期、1–20 段）；含「【待確認」或沒填日期不能發布；沒有 migration。
+- **後台**：「全站與素材 → 隱私權政策」編輯頁，第一次打開帶入初稿（12 段，8 處待園方補）。
+- **官網**：`/privacy` 頁（目錄、條列、https 連結，不用 `v-html`；未發布 404）、頁尾連結取代個資使用說明按鈕、預約表單對話框加完整政策連結、草稿預覽 `?page=privacy`、sitemap。
+- **文件**：`docs/website-admin/seo-performance.md` 的統計儲存說明改成現況。
+- **驗證**：stack e2e `privacy-policy` ＋ `keyboard` 15 項全過（含 1440／390 截圖不溢出、axe 無 serious／critical）；整套 stack 73 項，72 過，`media.spec.ts` 整套跑時間歇失敗、單獨重跑通過；`contract:check`、admin／web typecheck 通過；admin 單元 957 項、`test:website` 761 項通過（admin 單元連跑曾兩次各 1 項間歇失敗，第三次全過）；`admin build` 成功；後端整套 pytest 由主控另跑。
+
 ## 2026-10-02 後台補登也拿掉同意勾選（`feature/manual-no-consent-20261002`）
 
 使用者追加：補登時「已向家長說明，並取得同意留存聯絡資料」也拿掉。

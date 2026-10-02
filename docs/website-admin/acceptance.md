@@ -410,3 +410,26 @@ npm run e2e:build && npm run test:e2e:stack
 Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台北日期與學期邊界、3 兩人同時拖同一張卡（後端）、4 退出後取消退出，都在上表的測試裡；5 空資料統計屬階段 C。
 
 上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。
+
+## 隱私權政策頁（2026-10-03 實作，尚未部署）
+
+規格 `docs/specs/2026-10-03-privacy-policy-page-design.md`，計畫 `docs/superpowers/plans/2026-10-03-privacy-policy-page.md`。
+
+| 編號 | 案例 | 狀態 | 證據 |
+|---|---|---|---|
+| P01 | payload 驗證 | 通過 | `backend/tests/test_privacy_policy_content.py`（`test_bad_payloads_are_rejected` 11 種、`test_api_returns_422_for_bad_payload`） |
+| P02 | 發布阻擋 | 通過 | 同檔 `test_pending_marker_blocks_publish_with_count`、`test_pending_marker_in_title_blocks_publish`、`test_missing_updated_on_blocks_publish` |
+| P03 | 權限 | 通過 | 同檔 `test_editor_can_read_but_not_edit_shared_policy`；`admin/src/__tests__/bugfixRegressions.test.ts`（`privacy-policy` 限 super_admin） |
+| P04 | 公開輸出 | 通過 | 同檔 `test_public_site_has_policy_only_after_publish`、`test_draft_with_pending_marker_does_not_replace_published` |
+| P05 | 後台編輯 | 部分 | `admin/src/__tests__/privacyPolicy.test.ts`（側欄、標籤、初稿 12 段與 8 處待確認、計數）；編輯畫面的互動未寫元件測試，由人工開頁確認 |
+| P06 | 內文渲染 | 通過 | `web/tests/privacy-policy.spec.ts`（分段、條列、https 連結、標點、HTML 字元、元件無 `v-html`） |
+| P07 | 頁面 | 通過 | `web/tests/privacy-policy.spec.ts`（SEO）；stack `privacy-policy.spec.ts`（未發布 404、發布後內容與目錄） |
+| P08 | sitemap | 通過 | `web/tests/privacy-policy.spec.ts`（`sitemapXml` 的 `privacy` 選項） |
+| P09 | 頁尾 | 通過 | `footerPrivacyEntry` 單元測試；stack 頁尾連結 |
+| P10 | 預約表單 | 通過 | `formPrivacyEntry` 單元測試；stack 對話框完整政策連結 |
+| P11 | 草稿預覽 | 部分 | `previewPage('privacy')`、預覽頁分支的原始碼檢查；登入後實際預覽未在 e2e 驗證 |
+| P12 | stack e2e／版面 | 通過 | `tests/stack/privacy-policy.spec.ts`（1440／390 不溢出、axe 無 serious／critical）；截圖 `output/playwright/privacy-{1440,390}.png` |
+
+實際驗證結果（2026-10-03，本分支）：stack e2e `privacy-policy` ＋ `keyboard` 15 項（含 setup）全過；整套 stack 73 項，72 過、`media.spec.ts` 1 項整套跑時失敗（main 既有的間歇失敗），單獨重跑 2 項（含 setup）全過；`contract:check` 通過；admin typecheck 通過；admin 單元 957 項（75 檔）通過，但同一環境連跑有兩次出現 1 項失敗（未查出是哪一項，第三次全過，疑為間歇逾時）；web typecheck 無錯誤輸出；`test:website` 761 項（75 檔）通過；`admin build` 成功。後端整套 pytest 本次未在此跑（由主控另跑）。
+
+**上線前必須由園方處理**：在後台補完 8 項【待確認】（規格第 8 節）、填最後更新日期、發布；並依政策第 7 段寫的保存天數設定保存政策、開啟自動清理（`WEBSITE_RETENTION_ALLOW_REAL_RUN`）。
