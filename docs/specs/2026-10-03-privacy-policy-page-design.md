@@ -276,7 +276,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 
 為了防止濫用（例如大量自動送出預約），我們會把連線來源 IP 經過不可逆的雜湊處理後，短暫保存，時間到就刪除。
 
-【待確認：若已啟用 Cloudflare Turnstile，保留這一段：送出預約時，本網站使用 Cloudflare Turnstile 判斷是不是自動程式，過程中會把您的 IP 提供給 Cloudflare。】
+【待確認：若已啟用 Cloudflare Turnstile，保留這一段：送出預約時，本網站使用 Cloudflare Turnstile 判斷是不是自動程式，過程中會把您的 IP 提供給 Cloudflare。未啟用就整段刪除。】
 
 本網站的主機服務商會依其作業保存連線紀錄（例如存取時間與網址）。
 
