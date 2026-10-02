@@ -495,9 +495,9 @@ async def create_manual_visit_request(
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
         party_size=payload.get("party_size"),
-        # 人員向家長說明並取得同意後代勾；沒有官網同意說明版本。
+        # 2026-10-02 起補登不用勾選同意；舊版後台送 True 時照實記下時間。沒有官網同意說明版本。
         consent_given=payload["consent_given"],
-        consent_accepted_at=now,
+        consent_accepted_at=now if payload["consent_given"] else None,
         status=VisitRequestStatus.NEW.value,
         source=source.value,
         created_by=created_by,

@@ -243,7 +243,9 @@ class _VisitRequestFields(BaseModel):
     questions: str | None = Field(default=None, max_length=500)
     # 規格 L194：參觀人數 1–10。補登沒問到可以不填；官網新送的需求必填（見 VisitRequestCreate）。
     party_size: int | None = Field(default=None, ge=1, le=10)
-    consent_given: bool
+    # 2026-10-02 業主裁定官網預約與後台補登都不用勾選同意：不送就是 False。
+    # 更新前快取的舊頁面、舊版後台仍會送 True，照實記下勾選時間。
+    consent_given: bool = False
 
     @field_validator("campus_key", "parent_name", "child_name", "questions")
     @classmethod
@@ -291,13 +293,6 @@ class _VisitRequestFields(BaseModel):
     def _validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
-    @field_validator("consent_given")
-    @classmethod
-    def _require_consent(cls, value: bool) -> bool:
-        if not value:
-            raise ValueError("需要勾選同意才能送出")
-        return value
-
 
 class VisitRequestCreate(_VisitRequestFields):
     # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
@@ -307,28 +302,20 @@ class VisitRequestCreate(_VisitRequestFields):
     # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
     # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
     # 需求重試時（當時表單沒有人數）仍能回到原案件。
-    # 2026-10-02 業主裁定官網預約不用勾選同意：不送 consent_given 就是 False。
-    # 更新前快取的舊頁面仍會送 consent_given／consent_revision_id，照收但不比對
-    # 版本（revision 不算進 idempotency 的 payload hash，見 service._canonical_payload）。
-    consent_given: bool = False
+    # 更新前快取的舊頁面仍會送 consent_revision_id：照收但不比對版本（2026-10-02 起
+    # 不用勾選同意；revision 不算進 idempotency 的 payload hash，見 service._canonical_payload）。
     consent_revision_id: uuid.UUID | None = None
     # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
-
-    @field_validator("consent_given")
-    @classmethod
-    def _require_consent(cls, value: bool) -> bool:
-        # 同名覆寫父類別的必勾檢查：官網表單不再要求勾選；補登仍要求（VisitRequestManualCreate 沿用父類別）。
-        return value
 
 
 
 class VisitRequestManualCreate(_VisitRequestFields):
     """後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
     預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上
-    收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向
-    家長說明並取得同意留存資料」，同樣必須為 true。"""
+    收件時仍要能記下打電話來的家長。2026-10-02 起不用再勾「已向家長說明並取得
+    同意」（舊版後台送的 consent_given=True 照實記下）。"""
 
     source: ManualVisitSource
     # 必填：補登一律直接排入場次，走與一般確認相同的容量檢查。

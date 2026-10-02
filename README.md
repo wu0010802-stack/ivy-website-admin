@@ -1,3 +1,17 @@
+## 2026-10-02 後台補登也拿掉同意勾選（`feature/manual-no-consent-20261002`）
+
+使用者追加：補登時「已向家長說明，並取得同意留存聯絡資料」也拿掉。
+
+- **後台**：補登對話框拿掉勾選，送出鈕只看必填欄位；送 `consent_given: false`。案件明細的同意紀錄寫「補登不需勾選同意」。「個資與搜尋設定」頁改寫「官網預約與後台補登都不用勾選同意」。
+- **後端**：`_VisitRequestFields.consent_given` 預設 false，拿掉 `_require_consent`。補登沒勾時不記同意時間。
+- **契約**：重新產生（`VisitRequestManualCreate` 說明與預設值）。
+
+**驗證**（Node 22）：
+- backend pytest 全套 1262 passed；`contract:check` 一致。
+- admin typecheck、vitest 69 檔 896 項。
+- stack e2e 整套 68 項全過。
+- 未驗證：線上補登（要後台登入），只在單元測試與 stack 驗過。
+
 ## 2026-10-02 官網預約拿掉同意勾選、手機場次卡一張一列（`feature/no-consent-20261002`）
 
 業主裁定：正式站同意文字「送出需求後，仍須由園方確認參觀時間」和自選場次矛盾，**整段拿掉、不用勾選**。規則見 DESIGN.md 同日段落。

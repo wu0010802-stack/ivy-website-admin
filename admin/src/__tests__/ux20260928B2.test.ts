@@ -462,20 +462,18 @@ describe('補登對話框', () => {
 
   const missingText = () => document.body.querySelector('.manual__missing')?.textContent?.trim() ?? ''
 
-  it('送出鈕停用時說出還差什麼，同意勾選固定在底部', async () => {
+  it('送出鈕停用時說出還差什麼；2026-10-02 起不用勾選同意', async () => {
     const wrapper = await mountDialog([{ ...future, campus_key: 'yihua', capacity: 3, booked_count: 1, closed: false }])
-    expect(missingText()).toBe('還不能送出：還沒填家長稱呼、手機、參觀場次；還沒勾選同意')
-    expect(document.body.querySelector('.el-dialog__footer .manual__consent')).not.toBeNull()
+    expect(missingText()).toBe('還不能送出：還沒填家長稱呼、手機、參觀場次')
+    expect(document.body.querySelector('.manual__consent')).toBeNull()
+    expect(document.body.textContent).not.toContain('取得同意')
     fill('例如：王媽媽', '王媽媽')
     fill('0912345678', '0912')
     await nextTick()
-    expect(missingText()).toBe('還不能送出：還沒填參觀場次；手機號碼格式不對；還沒勾選同意')
+    expect(missingText()).toBe('還不能送出：還沒填參觀場次；手機號碼格式不對')
     fill('0912345678', '0912345678')
     await nextTick()
     wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
-    await nextTick()
-    expect(missingText()).toBe('還不能送出：還沒勾選同意')
-    document.body.querySelector<HTMLInputElement>('.manual__consent input')!.click()
     await nextTick()
     expect(missingText()).toBe('')
   })

@@ -154,7 +154,7 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: null })).toContain('尚未記錄版本')
     // 2026-10-02 起官網預約不用勾選：官網新案不寫成「未同意」。
     expect(consentRecordLabel({ source: 'web', consent_given: false, consent_revision_id: null })).toBe('官網預約不需勾選同意')
-    expect(consentRecordLabel({ source: 'phone', consent_given: false })).toBe('未同意')
+    expect(consentRecordLabel({ source: 'phone', consent_given: false })).toBe('補登不需勾選同意')
   })
 
   it('示意段落都帶標記，後台可以提早提醒不能發布', () => {
@@ -419,7 +419,6 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
     partySelect.vm.$emit('update:modelValue', 3)
     wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
     expect(document.body.querySelector('textarea[maxlength="500"]')).not.toBeNull()
-    document.body.querySelector<HTMLInputElement>('.manual__consent input')!.click()
     await nextTick()
     ;[...document.body.querySelectorAll('button')].find((button) => button.textContent?.trim() === '補登案件')!.click()
     await flushPromises()
@@ -429,7 +428,7 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
   it('個資與搜尋設定頁說明家長同意記錄的是預約文案的版本，不再有沒作用的隱私政策版本欄位', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ content: { site_meta: { description: '', share_image: '', allow_indexing: true } } } as never)
     const wrapper = await mountAt(PoliciesView, '/policies')
-    expect(wrapper.text()).toContain('2026-10-02 起官網預約不用勾選同意')
+    expect(wrapper.text()).toContain('2026-10-02 起官網預約與後台補登都不用勾選同意')
     expect(wrapper.text()).toContain('案件明細仍看得到家長當時同意的')
     expect(wrapper.text()).not.toContain('隱私政策版本')
     expect(wrapper.text()).not.toContain('改版後家長送出表單時會記錄同意的是哪一版')

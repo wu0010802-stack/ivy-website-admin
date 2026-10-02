@@ -324,7 +324,7 @@ async def test_invalid_phone_rejected(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_unchecked_consent_is_accepted(admin_client, public_client):
-    """2026-10-02 業主裁定官網預約不用勾選同意（補登仍要人員勾選，見 test_visit_manual_and_assign）。"""
+    """2026-10-02 業主裁定官網預約與後台補登都不用勾選同意。"""
     version, slot_id = await _enable_slots(admin_client)
     payload = _slots_payload(slot_id, config_version=version)
     payload["consent_given"] = False

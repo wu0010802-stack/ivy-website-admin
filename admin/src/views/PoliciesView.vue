@@ -430,7 +430,7 @@ onMounted(() => {
             </div>
             <div>
               <dt>家長同意的版本</dt>
-              <dd><span>2026-10-02 起官網預約不用勾選同意。在那之前送出的案件，案件明細仍看得到家長當時同意的<router-link to="/content/booking-content">預約文案</router-link>版本。</span></dd>
+              <dd><span>2026-10-02 起官網預約與後台補登都不用勾選同意。在那之前送出的案件，案件明細仍看得到家長當時同意的<router-link to="/content/booking-content">預約文案</router-link>版本。</span></dd>
             </div>
           </dl>
           <p v-if="!siteMeta" class="field-help">官網還沒發布過網站標題與電話，目前沿用內建設定。</p>
