@@ -74,8 +74,7 @@
 .abk-track{position:absolute;left:0;right:0;top:26px;height:12px;border-radius:6px;background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px);box-shadow:inset 0 1px 2px rgb(var(--ink)/.2)}
 .abk-tick{position:absolute;top:-24px;left:calc(var(--t) * 100%);transform:translateX(-50%);font:700 var(--fs-xs)/1 var(--font-date);color:var(--muted)}
 .abk-tick::after{content:'';position:absolute;left:50%;top:18px;width:2px;height:18px;background:var(--line)}
-.abk-tab{position:absolute;left:0;top:10px;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 16px;border:0;border-radius:4px 22px 22px 4px;background:var(--studio-orange);color:rgb(var(--ink));font:800 var(--fs-sm)/1 var(--font);box-shadow:0 4px 10px rgb(var(--ink)/.25);cursor:grab;touch-action:none;transform:translateX(calc(var(--pull,0) * (100cqw - 100%)))}
-/* 字色 --ink：白字在 --studio-orange 只有 2.89:1，--ink 是 5.22:1（同 10-01 書籤，2026-10-02 手機審查）。 */
+.abk-tab{position:absolute;left:0;top:10px;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 16px;border:0;border-radius:4px 22px 22px 4px;background:var(--studio-orange);color:var(--white);font:800 var(--fs-sm)/1 var(--font);box-shadow:0 4px 10px rgb(var(--ink)/.25);cursor:grab;touch-action:none;transform:translateX(calc(var(--pull,0) * (100cqw - 100%)))}
 .abk-tab b{font:700 var(--fs-md)/1 var(--font-date)}
 .abk-tab:active{cursor:grabbing}
 .abk-tab:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:3px}
@@ -124,15 +123,6 @@
   .abk-hero .abk-stage{min-height:340px}
   .abk-story .abk-stage{min-height:480px}
   .abk-hope .abk-stage{min-height:440px}
-  /* 卡紙寬是舞台寬的百分比，舞台高原本固定：舞台寬過約 400px（橫拿手機、平板直拿）卡紙就比舞台高，往上壓到左頁文字與
-     「往下捲」連結（2026-10-02 實測 844×390 首屏疊 174px、紙房子疊 143px）。舞台最寬 480px 置中；高度下限跟著舞台寬長
-     （cqw＝右頁內容寬），係數由各頁卡紙實測反推、多留 24px。手機（舞台 ≤340px）仍是上面的固定高度，構圖不變；
-     不支援 cqw 的瀏覽器整條宣告無效，退回上面的固定高度。 */
-  .abk-page.is-right{container-type:inline-size}
-  .abk-stage{max-width:480px;margin-inline:auto}
-  .abk-hero .abk-stage{min-height:max(340px,calc(.66 * min(100cqw,480px) + 104px))}
-  .abk-story .abk-stage{min-height:max(480px,calc(.23 * min(100cqw,480px) + 385px))}
-  .abk-hope .abk-stage{min-height:max(440px,calc(.81 * min(100cqw,480px) + 66px))}
   .abk-list li{grid-template-columns:80px 1fr}
 }
 @media (max-width:420px){
