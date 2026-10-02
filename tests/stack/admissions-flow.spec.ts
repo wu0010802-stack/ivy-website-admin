@@ -62,7 +62,9 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
   })
 
   await test.step('家長在官網選第 12 天下午的場次，送出即預約成功', async () => {
-    const parent = await openAs(browser, null)
+    // 公開預約每來源每校每小時 5 筆（booking/routes.py SUBMIT_LIMIT_BY_SOURCE_CAMPUS），stack 全從
+    // 127.0.0.1 送，多這一筆會讓排在後面的 roles.spec 撞 429；用文件保留網段 IP 取得獨立額度。
+    const parent = await openAs(browser, null, { extraHTTPHeaders: { 'X-Forwarded-For': '198.51.100.17' } })
     const { page } = parent
     await page.goto(`/visit/${SLOTS_CAMPUS}`)
     await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
@@ -116,6 +118,8 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
     await expect.poll(() => boardStage(api)).toBe('enrolled')
   })
 
+  // 下面名額與統計的絕對值斷言：stack 每次重建資料庫（start-api.sh dropdb／createdb），且只有本 spec
+  // 建招生訪視；之後若有別的 spec 建招生訪視，改成比對差值。
   await test.step('名額規劃：小班「已註冊」是 1', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=${TERM.schoolYear}&sem=${TERM.semester}&tab=intake`, '招生入學')
     const plan = page.locator('.el-table').filter({ hasText: '已註冊' }).first()
