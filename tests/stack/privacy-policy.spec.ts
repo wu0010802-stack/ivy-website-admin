@@ -12,8 +12,8 @@ const POLICY = {
   title: '隱私權政策',
   updated_on: '2026-10-03',
   sections: [
-    { heading: '適用範圍', body: '本政策適用本網站。\n\n- 條列一\n- 條列二\n\n詳見 https://policies.google.com/privacy 與一段很長很長的網址 https://example.com/' + 'a'.repeat(120) },
-    { heading: '聯絡我們', body: '各校電話請見「五所校園」。<b>不是粗體</b>' },
+    { heading: '1. 適用範圍', body: '本政策適用本網站。\n\n- 條列一\n- 條列二\n\n詳見 https://policies.google.com/privacy 與一段很長很長的網址 https://example.com/' + 'a'.repeat(120) },
+    { heading: '2. 聯絡我們', body: '各校電話請見「五所校園」。<b>不是粗體</b>' },
   ],
 }
 
@@ -41,7 +41,8 @@ test('發布後：頁面、目錄、連結、頁尾與預約表單入口', async
   await page.goto('/privacy')
   await expect(page.getByRole('heading', { level: 1, name: '隱私權政策' })).toBeVisible()
   await expect(page.getByText('最後更新：2026 年 10 月 3 日')).toBeVisible()
-  await expect(page.getByRole('heading', { level: 2, name: '適用範圍' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '1. 適用範圍' })).toBeVisible()
+  await expect(page.locator('.policy-toc ol')).toHaveCSS('list-style-type', 'none')
   await expect(page.getByRole('listitem').filter({ hasText: '條列一' })).toBeVisible()
   // 只有 https:// 變連結；HTML 字元照原文顯示
   const link = page.getByRole('link', { name: /policies\.google\.com\/privacy/ })
@@ -49,7 +50,7 @@ test('發布後：頁面、目錄、連結、頁尾與預約表單入口', async
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   await expect(page.getByText('<b>不是粗體</b>', { exact: false })).toBeVisible()
   // 目錄跳到段落
-  await page.getByRole('navigation', { name: '本頁段落' }).getByRole('link', { name: '聯絡我們' }).click()
+  await page.getByRole('navigation', { name: '本頁段落' }).getByRole('link', { name: '2. 聯絡我們' }).click()
   await expect(page).toHaveURL(/#privacy-section-2$/)
 
   // SEO

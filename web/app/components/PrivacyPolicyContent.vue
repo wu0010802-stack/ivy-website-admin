@@ -51,7 +51,7 @@ const sections = computed(() => props.policy.sections.map((section, index) => ({
 .policy-body h1 { font-size: var(--fs-4xl); font-weight: 700; letter-spacing: .02em; }
 .policy-updated { margin-top: 12px; color: var(--muted); font-size: var(--fs-sm); }
 .policy-toc { margin: 32px 0 8px; padding: 20px 24px; background: var(--cream); border-radius: 5px; }
-.policy-toc ol { margin: 0; padding-left: 1.4em; display: grid; gap: 2px; }
+.policy-toc ol { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 2px; }
 .policy-toc a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
 .policy-section { margin-top: 40px; scroll-margin-top: 140px; }
 .policy-section h2 { font-size: var(--fs-2xl); font-weight: 700; }

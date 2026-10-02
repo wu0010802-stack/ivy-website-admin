@@ -10,8 +10,8 @@ export type PolicyBlock =
   | { type: 'paragraph'; inlines: PolicyInline[] }
   | { type: 'list'; items: PolicyInline[][] }
 
-// 網址在空白、角括號、引號與全形標點處結束；ASCII 括號也不算網址。
-const URL_PATTERN = /https:\/\/[^\s<>"'）)」』，。、；：]+/g
+// 網址只收 ASCII URL 字元，遇到中文、全形字元、空白、引號、括號與角括號就結束。
+const URL_PATTERN = /https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%]+/g
 const TRAILING_PUNCTUATION = /[.,;:!?\]]+$/
 
 function validHttps(url: string): boolean {

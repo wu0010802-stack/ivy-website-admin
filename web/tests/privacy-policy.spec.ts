@@ -74,6 +74,21 @@ describe('連結不吃標點', () => {
     ])
   })
 
+  it('網址只收 ASCII 字元：緊接的中文或全形字元留在文字', () => {
+    const link = (url: string) => ({ type: 'link', text: url, href: url })
+    expect(parseInlines('詳見https://ivy.example.com/privacy了解更多')).toEqual([
+      text('詳見'), link('https://ivy.example.com/privacy'), text('了解更多')
+    ])
+    expect(parseInlines('https://x.com/a！謝謝')).toEqual([link('https://x.com/a'), text('！謝謝')])
+    expect(parseInlines('https://policies.google.com/privacy（英文）')).toEqual([
+      link('https://policies.google.com/privacy'), text('（英文）')
+    ])
+    expect(parseInlines('【待確認：https://example.com/x】')).toEqual([
+      text('【待確認：'), link('https://example.com/x'), text('】')
+    ])
+    expect(parseInlines('只有 https:// 與 https://.')).toEqual([text('只有 https:// 與 https://.')])
+  })
+
   it('http://、javascript:、mailto: 一律照原文顯示、不變連結', () => {
     expect(parseInlines('http://a.example 與 javascript:alert(1) 與 mailto:a@b.c')).toEqual([
       text('http://a.example 與 javascript:alert(1) 與 mailto:a@b.c')
