@@ -67,10 +67,9 @@ async def test_many_concurrent_identical_submissions_still_one_request(app, admi
     import httpx
 
     version, slot_id = await _open_slot(admin_client)
-    # 這裡用一般 httpx client（不經測試用的家長 client），官網會帶的人數與同意
-    # 版本自己補上，十個請求才會同時打到建單。
-    config = await public_client.get("/api/website/v1/public/booking-config/yihua")
-    payload = {**_payload(version, slot_id), "party_size": 2, "consent_revision_id": config.json()["consent_revision_id"]}
+    # 這裡用一般 httpx client（不經測試用的家長 client），官網會帶的人數自己補上，
+    # 十個請求才會同時打到建單。
+    payload = {**_payload(version, slot_id), "party_size": 2}
     headers = {"Idempotency-Key": "race-test-many-01"}
 
     transport = httpx.ASGITransport(app=app)

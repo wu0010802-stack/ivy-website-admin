@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import access_service, consent, history, readiness, slot_service
+from app.booking import access_service, history, readiness, slot_service
 from app.booking.models import (
     BookingConfig,
     BookingMode,
@@ -227,12 +227,13 @@ async def _validate_submission(
     campus_key: str,
     payload: dict,
     config_version: int,
-    consent_revision_id: uuid.UUID | None,
     now: datetime,
     lock_slot: bool,
-) -> tuple[uuid.UUID, VisitSlot]:
-    """送單的業務檢查（預檢與上鎖建立共用，錯誤順序一致）。回傳要存進案件的
-    同意說明版本，以及要占用的時段。lock_slot=True 時鎖住時段列。"""
+) -> VisitSlot:
+    """送單的業務檢查（預檢與上鎖建立共用，錯誤順序一致）。回傳要占用的時段。
+    lock_slot=True 時鎖住時段列。
+
+    2026-10-02 業主裁定官網預約不用勾選同意：不再要求、也不再比對同意說明版本。"""
     if config is None:
         raise BookingUnavailable()
 
@@ -244,11 +245,6 @@ async def _validate_submission(
 
     if payload.get("party_size") is None:
         raise PartySizeRequired()
-
-    try:
-        accepted_consent = await consent.accept_submitted(db, consent_revision_id)
-    except consent.ConsentUnavailable as exc:
-        raise BookingUnavailable() from exc
 
     slot_id = payload["slot_id"]
     if lock_slot:
@@ -266,7 +262,7 @@ async def _validate_submission(
     booked = await slot_service.count_booked(db, slot.id)
     if booked >= slot.capacity:
         raise SlotFull()
-    return accepted_consent, slot
+    return slot
 
 
 async def precheck_submission(
@@ -275,21 +271,19 @@ async def precheck_submission(
     campus_key: str,
     payload: dict,
     config_version: int,
-    consent_revision_id: uuid.UUID | None,
 ) -> bool:
     """不上鎖的預檢：與上鎖建立同一份檢查、丟同樣的例外。註定失敗的送單
-    （設定已變、同意說明已改、時段已滿…）在機器人驗證與上限計數之前就擋掉，
+    （設定已變、時段已滿…）在機器人驗證與上限計數之前就擋掉，
     不會白白用掉 Turnstile token 或上限額度。上鎖建立時會再驗一次。
 
     回傳這筆送單會不會占用時段名額（slots 模式）。"""
     config = await db.get(BookingConfig, campus_key)
-    _, slot = await _validate_submission(
+    slot = await _validate_submission(
         db,
         config,
         campus_key=campus_key,
         payload=payload,
         config_version=config_version,
-        consent_revision_id=consent_revision_id,
         now=now_utc(),
         lock_slot=False,
     )
@@ -304,7 +298,6 @@ async def submit_visit_request(
     payload: dict,
     config_version: int,
     hash_key: bytes,
-    consent_revision_id: uuid.UUID | None = None,
     phone_limit: tuple[int, timedelta] | None = None,
     access_secret: str,
 ) -> tuple[VisitRequest, bool]:
@@ -315,10 +308,6 @@ async def submit_visit_request(
     PhoneSubmissionLimit。在校區設定列鎖內用請求自己的連線計數，同一校的送單
     在這裡排隊，併發送單不會一起越過上限（稽核 phone-bucket-lost-atomicity），
     也不必在鎖內呼叫限流器；重播在上鎖前就返回，不佔額度。
-
-    consent_revision_id 是家長看到的同意說明版本，新建案件時要是目前發布中
-    的內容（consent.accept_submitted），否則丟 consent.ConsentVersionChanged；
-    重播不檢查——已成功建立的案件先回原結果（規格 L183）。
 
     這裡會鎖住校區設定列直到呼叫端 commit：鎖住期間呼叫端不得再呼叫限流器
     （它另開連線；見 routes.create_visit_request）。"""
@@ -344,13 +333,12 @@ async def submit_visit_request(
     if existing is not None:
         return existing, False
     now = now_utc()
-    accepted_consent, slot = await _validate_submission(
+    slot = await _validate_submission(
         db,
         config,
         campus_key=campus_key,
         payload=payload,
         config_version=config_version,
-        consent_revision_id=consent_revision_id,
         now=now,
         lock_slot=True,
     )
@@ -395,9 +383,11 @@ async def submit_visit_request(
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
         party_size=payload.get("party_size"),
+        # 官網表單 2026-10-02 起不用勾選同意（consent_given 預設 False、不記版本）；
+        # 更新前快取的舊頁面仍會送 True，照實記下勾選時間。
         consent_given=payload["consent_given"],
-        consent_revision_id=accepted_consent,
-        consent_accepted_at=now,
+        consent_revision_id=None,
+        consent_accepted_at=now if payload["consent_given"] else None,
         status=status,
         slot_id=uuid.UUID(slot_id),
         confirmed_at=confirmed_at,

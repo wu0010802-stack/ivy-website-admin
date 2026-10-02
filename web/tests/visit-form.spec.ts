@@ -4,30 +4,30 @@ import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REF
 describe('visit contact input', () => {
   it('accepts phone autofill spacing without changing the API format', () => {
     expect(normalizeVisitPhone(' 0912-345-678 ')).toBe('0912345678')
-    expect(validateVisitContact({ parentName: '陳媽媽', phone: '0912 345 678', consent: true })).toEqual({})
+    expect(validateVisitContact({ parentName: '陳媽媽', phone: '0912 345 678' })).toEqual({})
   })
 
   it.each(['－', '‐', '‑', '‒', '–', '—', '―', '−'])('accepts pasted phone separator %s supported by the API', separator => {
     const phone = `0999${separator}000${separator}001`
     expect(normalizeVisitPhone(phone)).toBe('0999000001')
-    expect(validateVisitContact({ parentName: '測試家長', phone, consent: true })).toEqual({})
+    expect(validateVisitContact({ parentName: '測試家長', phone })).toEqual({})
   })
 
-  it('rejects an empty or whitespace-only name, malformed phone, and missing consent together', () => {
-    expect(Object.keys(validateVisitContact({ parentName: '　 ', phone: '12345678', consent: false }))).toEqual(['parentName', 'phone', 'consent'])
+  it('rejects an empty or whitespace-only name and malformed phone together (no consent to check since 2026-10-02)', () => {
+    expect(Object.keys(validateVisitContact({ parentName: '　 ', phone: '12345678' }))).toEqual(['parentName', 'phone'])
   })
 
   it.each(['091234567', '09123456789', '0812345678', '09abcdefgh', '0912345678x'])('does not silently truncate invalid phone %s', phone => {
-    expect(validateVisitContact({ parentName: '測試家長', phone, consent: true }).phone).toBeTruthy()
+    expect(validateVisitContact({ parentName: '測試家長', phone }).phone).toBeTruthy()
   })
 
   it('accepts a single name and validates its length', () => {
-    expect(validateVisitContact({ parentName: '林', phone: '0912345678', consent: true })).toEqual({})
-    expect(validateVisitContact({ parentName: '陳'.repeat(41), phone: '0912345678', consent: true }).parentName).toBeTruthy()
+    expect(validateVisitContact({ parentName: '林', phone: '0912345678' })).toEqual({})
+    expect(validateVisitContact({ parentName: '陳'.repeat(41), phone: '0912345678' }).parentName).toBeTruthy()
   })
 
   it('validates child identity and birthday without rejecting legacy input', () => {
-    const parent = { parentName: '陳媽媽', phone: '0912345678', consent: true }
+    const parent = { parentName: '陳媽媽', phone: '0912345678' }
     expect(validateVisitContact({ ...parent, childName: '  ', childBirthdate: '' }, '2026-09-22')).toHaveProperty('childName')
     expect(validateVisitContact({ ...parent, childName: '測試孩子', childBirthdate: '2027-01-01' }, '2026-09-22')).toHaveProperty('childBirthdate')
     expect(validateVisitContact({ ...parent, childName: '測試孩子', childBirthdate: '2024-02-29', email: 'parent@example.com' }, '2026-09-22')).toEqual({})
@@ -71,7 +71,7 @@ describe('slot unavailable messages', () => {
 })
 
 describe('Email 必填與 422 欄位對應', () => {
-  const base = { parentName: '王媽媽', phone: '0912345678', consent: true, childName: '小安', childBirthdate: '2022-05-01', partySize: '2' }
+  const base = { parentName: '王媽媽', phone: '0912345678', childName: '小安', childBirthdate: '2022-05-01', partySize: '2' }
 
   it('表單有 Email 欄位時必填', () => {
     expect(validateVisitContact({ ...base, email: '' }, '2026-09-30')).toHaveProperty('email')

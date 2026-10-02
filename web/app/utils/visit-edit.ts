@@ -53,6 +53,6 @@ const CHANGE_FIELD: Record<string, VisitField> = {
  */
 export function validateEdit(current: EditRecord, form: EditForm, base: EditForm, today: string): VisitErrors {
   const touched = new Set(Object.keys(editedChanges(current, form, base)).map(key => CHANGE_FIELD[key]).filter(Boolean))
-  const errors = validateVisitContact({ ...form, consent: true }, today)
+  const errors = validateVisitContact(form, today)
   return Object.fromEntries(Object.entries(errors).filter(([field]) => touched.has(field as VisitField))) as VisitErrors
 }

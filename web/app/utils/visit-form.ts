@@ -1,7 +1,6 @@
 export interface VisitContact {
   parentName: string
   phone: string
-  consent: boolean
   childName?: string
   childBirthdate?: string
   email?: string
@@ -86,7 +85,6 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
   if (!contact.parentName.trim()) errors.parentName = '請填寫家長稱呼，讓我們知道怎麼稱呼你。'
   else if (contact.parentName.trim().length > 40) errors.parentName = '家長稱呼請在 40 字以內。'
   if (!/^09[0-9]{8}$/.test(normalizeVisitPhone(contact.phone))) errors.phone = '請填寫 09 開頭的 10 碼手機號碼。'
-  if (!contact.consent) errors.consent = '請勾選同意，讓園所能聯繫本次參觀需求。'
   // 舊呼叫端不帶兒童欄位；新版表單帶空字串時才套用必填驗證。
   if (contact.childName !== undefined) {
     if (!contact.childName.trim()) errors.childName = '請填寫孩子姓名。'
@@ -109,7 +107,7 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
 
 const API_FIELDS: Record<string, VisitField> = {
   slot_id: 'slotId', email: 'email', phone: 'phone', parent_name: 'parentName', child_name: 'childName',
-  child_birthdate: 'childBirthdate', party_size: 'partySize', consent_given: 'consent'
+  child_birthdate: 'childBirthdate', party_size: 'partySize'
 }
 const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   slotId: '請選擇這一天的參觀場次。',
@@ -118,8 +116,7 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   parentName: '請填寫家長稱呼。',
   childName: '請填寫孩子姓名。',
   childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
-  partySize: '請選擇參觀人數。',
-  consent: '請勾選同意。'
+  partySize: '請選擇參觀人數。'
 }
 
 // 後端 422 是 FastAPI 的標準格式：detail 是陣列，loc[1] 是欄位名稱。
