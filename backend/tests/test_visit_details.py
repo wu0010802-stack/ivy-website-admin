@@ -218,18 +218,18 @@ async def test_csv_includes_details_and_slot_with_formula_protection(admin_clien
     receipt_id, _ = await _create_details(
         admin_client, public_client, child_name="=1+1", email="+parent@example.org"
     )
-    slot_date = (today_local() + timedelta(days=3)).isoformat()  # book_slot 預設的場次日期
+    slot_date = f"{today_local() + timedelta(days=3):%Y/%m/%d}"  # book_slot 預設的場次日期
     exported = await admin_client.get("/api/website/v1/admin/visit-requests/export?campus_key=yihua")
     assert exported.status_code == 200, exported.text
-    rows = list(csv.DictReader(io.StringIO(exported.text)))
+    rows = list(csv.DictReader(io.StringIO(exported.content.decode("utf-8-sig"))))
     assert len(rows) == 1
-    assert rows[0]["child_name"] == "'=1+1"
-    assert rows[0]["child_birthdate"] == "2022-06-18"
-    assert rows[0]["email"] == "'+parent@example.org"
-    assert rows[0]["referral_sources"] == "facebook;google_reviews"
-    assert rows[0]["slot_date"] == slot_date
-    assert rows[0]["start_time"] == "10:00:00"
-    assert rows[0]["end_time"] == "11:00:00"
+    assert rows[0]["孩子姓名"] == "'=1+1"
+    assert rows[0]["孩子生日"] == "2022/06/18"
+    assert rows[0]["Email"] == "'+parent@example.org"
+    assert rows[0]["得知管道"] == "Facebook、Google 評論"
+    assert rows[0]["參觀日期"] == slot_date
+    assert rows[0]["開始"] == "10:00"
+    assert rows[0]["結束"] == "11:00"
 
 
 @pytest.mark.asyncio

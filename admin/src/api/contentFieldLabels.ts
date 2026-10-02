@@ -86,3 +86,96 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
 export function contentFieldLabelFor(kind: string | undefined, key: string): string {
   return (kind && KIND_FIELD_LABELS[kind]?.[key]) || contentFieldLabel(key)
 }
+
+// 存檔被後端擋下（422）時，錯誤指到清單裡的某一項：「最新消息第 4 則・標題」。
+// 清單裡的欄位名照編輯頁每一項的表單標籤寫，和最外層同名欄位的叫法不一定一樣
+// （消息的 description 在表單上叫「摘要」）。沒列到的退回全站通用名稱。
+const LIST_UNITS: Record<string, string> = {
+  articles: '則',
+  events: '筆',
+  moments: '張',
+  items: '題',
+  body: '段',
+  copy_lines: '行',
+}
+
+const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
+  articles: {
+    date: '日期',
+    category: '分類',
+    title: '標題',
+    description: '摘要',
+    body: '內文',
+    image: '照片',
+    alt: '圖片說明',
+    scope: '適用校區',
+    campus_keys: '適用校區',
+    show_from: '上架日期',
+    show_until: '下架日期',
+  },
+  events: {
+    date: '日期',
+    title: '活動名稱',
+    description: '活動說明',
+    location: '地點',
+    link_url: '相關連結',
+    link_label: '連結文字',
+    start_time: '時間',
+    end_time: '時間',
+    scope: '適用校區',
+    campus_keys: '適用校區',
+    show_from: '開始宣傳日期',
+    show_until: '提前下架日期',
+  },
+  moments: {
+    time: '時間',
+    label: '時段名稱',
+    title: '拍立得標題',
+    story: '翻面後的故事',
+    photo: '照片',
+    alt: '圖片說明',
+    tint: '相紙色調',
+    question: '家長常問',
+    answer: '我們的回答',
+  },
+  items: { q: '問題', a: '回答' },
+  body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', alt: '圖片說明', caption: '圖說' },
+}
+
+/**
+ * 422 的 loc（已去掉 body／payload 前綴）寫成中文位置，數字索引 +1：
+ * ["articles", 3, "title"] →「最新消息第 4 則・標題」；["facebook"] →「Facebook 粉絲專頁網址」。
+ */
+export function contentPathLabel(kind: string | undefined, path: readonly (string | number)[]): string {
+  const parts: string[] = []
+  let parentList: string | undefined
+  for (let i = 0; i < path.length; i++) {
+    const segment = path[i]!
+    if (typeof segment === 'number') {
+      // 前一段已經把清單名寫進去了，這裡接「第 N 則」。
+      const unit = (parentList && LIST_UNITS[parentList]) || '項'
+      parts[parts.length - 1] = `${parts[parts.length - 1] ?? ''}第 ${segment + 1} ${unit}`
+      continue
+    }
+    const label = (parentList && LIST_FIELD_LABELS[parentList]?.[segment]) || (parts.length ? contentFieldLabel(segment) : contentFieldLabelFor(kind, segment))
+    parts.push(label)
+    if (typeof path[i + 1] === 'number') parentList = segment
+  }
+  return parts.join('・')
+}
+
+/** 錯誤指到的那一欄在表單上的標籤（最後一段），定位欄位時比對 el-form-item 的標籤用。 */
+export function contentPathFieldLabel(kind: string | undefined, path: readonly (string | number)[]): string {
+  const last = path[path.length - 1]
+  if (typeof last !== 'string') return ''
+  // 最靠近這一欄的清單名：後面接著數字索引的那一段。
+  let list: string | undefined
+  for (let i = path.length - 3; i >= 0; i--) {
+    const segment = path[i]
+    if (typeof segment === 'string' && typeof path[i + 1] === 'number') {
+      list = segment
+      break
+    }
+  }
+  return (list && LIST_FIELD_LABELS[list]?.[last]) || (path.length === 1 ? contentFieldLabelFor(kind, last) : contentFieldLabel(last))
+}

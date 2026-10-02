@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, useTemplateRef } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { computed, onMounted, useId, useTemplateRef } from 'vue'
+import { ArrowRight, Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { DAY_MOMENT_TINTS, type DayExperiencePayload, type DayMomentPayload, type MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
@@ -11,7 +11,7 @@ import MediaSlotField from '../components/MediaSlotField.vue'
 import { momentTimeError, normalizeMomentTime } from '../composables/contentHints'
 import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
-import { revealListItem } from '../composables/newsContent'
+import { revealListItem, useCollapsibleItems } from '../composables/newsContent'
 
 const MAX_MOMENTS = 12
 
@@ -101,6 +101,12 @@ function toggleCaption(on: boolean) {
 
 const momentsList = useTemplateRef<HTMLElement>('momentsList')
 
+// 每張卡十個欄位，六張全部攤開頁面要捲好幾屏：預設收合成「時間・時段名稱」一行。
+// 新增的、存檔錯誤指到的會自動展開（revealListItem／revealContentPath）。
+const collapse = useCollapsibleItems()
+const uid = useId()
+const allMomentsOpen = computed(() => editor.form.value.moments.every((m) => collapse.isOpen(m.key)))
+
 // 新卡片加在最後（官網照這裡的順序），加完捲過去並聚焦時間欄；要插到中間用上移。
 function addMoment() {
   editor.form.value.moments.push(newMoment())
@@ -186,13 +192,36 @@ onMounted(editor.load)
       <p class="field-help moments-lead">
         官網照這裡的順序排列，可以用上移、下移調整。時間用 24 小時制（例如 08:05），官網依時間調整背景影片的光線。新增的卡片沒選色調時，依位置輪流套用內建的色調，調整順序後顏色可能跟著換。
       </p>
-      <div ref="momentsList">
-      <div v-for="(moment, index) in editor.form.value.moments" :key="moment.key" class="repeat-item" :data-list-item="index">
+      <el-button
+        v-if="editor.form.value.moments.length > 1"
+        text
+        size="small"
+        class="moments-toggle-all"
+        @click="collapse.setMany(editor.form.value.moments.map((m) => m.key), !allMomentsOpen)"
+      >
+        {{ allMomentsOpen ? '全部收合' : '全部展開' }}
+      </el-button>
+      <div ref="momentsList" data-list="moments">
+      <div
+        v-for="(moment, index) in editor.form.value.moments"
+        :key="moment.key"
+        class="repeat-item"
+        :class="{ 'is-collapsed': !collapse.isOpen(moment.key) }"
+        :data-list-item="index"
+        @list-item-reveal="collapse.expand(moment.key)"
+      >
         <div class="repeat-item__head">
-          <span class="repeat-item__index">
+          <button
+            type="button"
+            class="repeat-item__index repeat-item__toggle"
+            :aria-expanded="collapse.isOpen(moment.key)"
+            :aria-controls="`${uid}-moment-${moment.key}`"
+            @click="collapse.toggle(moment.key)"
+          >
+            <el-icon class="repeat-item__caret" aria-hidden="true"><ArrowRight /></el-icon>
             <b>{{ index + 1 }}</b>
-            {{ moment.time || '時間未填' }}{{ moment.label ? `・${moment.label}` : '' }}
-          </span>
+            {{ moment.time || '時間未填' }}{{ moment.label ? `・${moment.label}` : '' }}{{ moment.title ? `・${moment.title}` : '' }}
+          </button>
           <span v-if="!editor.readOnly.value" class="moment-actions">
             <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${momentName(moment, index)}」`" @click="moveMoment(index, -1)">上移</el-button>
             <el-button text size="small" :disabled="index === editor.form.value.moments.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${momentName(moment, index)}」`" @click="moveMoment(index, 1)">下移</el-button>
@@ -208,6 +237,7 @@ onMounted(editor.load)
             </el-button>
           </span>
         </div>
+        <div v-show="collapse.isOpen(moment.key)" :id="`${uid}-moment-${moment.key}`">
         <div class="field-row">
           <el-form-item label="時間（24 小時制）" :error="momentTimeError(moment.time)">
             <el-input v-model="moment.time" placeholder="例如：08:00" @blur="moment.time = normalizeMomentTime(moment.time)" />
@@ -263,6 +293,7 @@ onMounted(editor.load)
             <el-input v-model="moment.answer" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
           </el-form-item>
         </div>
+        </div>
       </div>
       </div>
 
@@ -286,6 +317,10 @@ onMounted(editor.load)
 
 .moment-actions .el-button + .el-button {
   margin-left: 0;
+}
+
+.moments-toggle-all {
+  margin-bottom: 8px;
 }
 
 .form-section {

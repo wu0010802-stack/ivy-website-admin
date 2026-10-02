@@ -1,12 +1,13 @@
 import { computed, h, ref, unref, watch, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyError } from './notify'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
 import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
 import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
-import { apiErrorMessage, isVersionConflict } from '../api/errors'
+import { contentFieldErrors, contentSaveErrorMessage, isVersionConflict, type ContentFieldError } from '../api/errors'
 import { hasCapability } from './usePermissions'
 import { useAuthStore } from '../stores/auth'
 
@@ -190,6 +191,8 @@ export interface RevisionHistoryHandle {
 // ContentEditor 外殼需要的狀態與動作；useContentItem 的回傳值結構上符合，
 // 頁面把整個 handle 傳給 <ContentEditor :editor> 即可。
 export interface ContentEditorState {
+  /** 內容種類：存檔錯誤定位欄位時，欄位名依它和表單標籤對上 */
+  kind?: string
   loading: Ref<boolean>
   loadError: Ref<string | null>
   saving: Ref<boolean>
@@ -238,6 +241,20 @@ export interface ContentEditorState {
   /** 沒有發布的排程按「知道了」：編輯頁與總覽不再提示 */
   acknowledgeSchedule?: (jobId: string) => Promise<boolean>
   history?: RevisionHistoryHandle
+  /** 上次存檔被後端擋下的欄位（422）；ContentEditor 列成可以點的清單 */
+  fieldErrors?: Ref<ContentFieldError[]>
+  /** 存檔或發布時發現別人先存了（版本衝突）：表單還在，儲存與發布先停用 */
+  conflict?: Ref<boolean>
+  /** 衝突時讀最新一版，列出對方改了哪些欄位（和自己開始編輯時的內容比）；讀不到回 null */
+  inspectConflict?: () => Promise<FieldChange[] | null>
+  /** 衝突時載入最新內容；自己的修改先記在畫面裡，之後可以套回 */
+  reloadLatest?: () => Promise<boolean>
+  /** 載入最新內容後還記著的自己的修改（和開始編輯時相比）；沒有時是空陣列 */
+  stashedChanges?: ComputedRef<FieldChange[]>
+  /** 記著的修改裡，對方也改過的欄位名：套回會蓋掉對方在這些欄位的修改 */
+  stashOverlap?: ComputedRef<string[]>
+  restoreStash?: () => void
+  discardStash?: () => void
   load: () => Promise<void>
   save: (options?: SaveOptions) => Promise<boolean>
   saveAndPublish: () => Promise<boolean>
@@ -265,6 +282,11 @@ export function useContentItem<TPayload extends object>(
   // 最近一次從伺服器載入或儲存成功後的表單快照，用來判斷有沒有未儲存的修改。
   const snapshot = ref('')
   const requests = useRequestSequence()
+  const fieldErrors = ref<ContentFieldError[]>([])
+  const conflict = ref(false)
+  // 版本衝突後載入最新內容前的表單：base＝開始編輯時（上次載入或儲存）的內容，
+  // mine＝當時畫面上的內容。只記在這個畫面，離開或切校就沒了。
+  const stash = ref<{ base: Record<string, unknown>; mine: Record<string, unknown> } | null>(null)
 
   function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T
@@ -353,6 +375,9 @@ export function useContentItem<TPayload extends object>(
     const request = requests.begin()
     loading.value = true
     loadError.value = null
+    conflict.value = false
+    fieldErrors.value = []
+    stash.value = null
     try {
       const result = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
       if (!requests.isCurrent(request)) return
@@ -374,7 +399,21 @@ export function useContentItem<TPayload extends object>(
     // 只有「別人先存了」才請使用者重新載入；其他 409（素材未就緒、分校停用、
     // 內容規則不符…）要顯示後端說的原因，不能一律說成被別人更新。
     if (isVersionConflict(err)) return '內容已被其他人更新，請重新載入後再試'
-    return apiErrorMessage(err, fallback)
+    // 422 寫出「最新消息第 4 則・標題：不能空白」，不是只丟英文的 pydantic 訊息。
+    return contentSaveErrorMessage(err, kind, fallback)
+  }
+
+  // 存檔、發布失敗的訊息要看得完、找得到欄位：不自動消失，自己按關閉。
+  function showError(message: string) {
+    notifyError(message, { duration: 0 })
+  }
+
+  // 別人先存或先發布（版本衝突）：不跳一下就消失的 toast，改由 ContentEditor 顯示
+  // 持續的提示，表單內容留著。回傳 true 表示已經處理。
+  function markConflict(err: unknown): boolean {
+    if (!isVersionConflict(err)) return false
+    conflict.value = true
+    return true
   }
 
   // 「儲存並發布」這類兩段動作：先儲存成功、後一段失敗時，要講清楚草稿已經
@@ -393,10 +432,14 @@ export function useContentItem<TPayload extends object>(
       })
       isPublished.value = false
       takeSnapshot()
+      fieldErrors.value = []
+      // 存成新的一版後，衝突前記著的修改就不再對得上這一版，不再提供套回。
+      stash.value = null
       if (!options.silent) ElMessage.success('已儲存草稿，官網尚未更新')
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '儲存失敗'))
+      fieldErrors.value = contentFieldErrors(err, kind)
+      if (!markConflict(err)) showError(errorMessage(err, '儲存失敗'))
       return false
     } finally {
       saving.value = false
@@ -432,7 +475,7 @@ export function useContentItem<TPayload extends object>(
       })
       return true
     } catch (err) {
-      ElMessage.error(afterSaveError(savedFirst, err, '發布'))
+      if (!markConflict(err) || savedFirst) showError(afterSaveError(savedFirst, err, '發布'))
       return false
     } finally {
       publishing.value = false
@@ -459,7 +502,7 @@ export function useContentItem<TPayload extends object>(
       ElMessage.success(`已送審，${approver}核准後才會出現在官網`)
       return true
     } catch (err) {
-      ElMessage.error(afterSaveError(savedFirst, err, '送審'))
+      if (!markConflict(err) || savedFirst) showError(afterSaveError(savedFirst, err, '送審'))
       return false
     } finally {
       publishing.value = false
@@ -480,7 +523,7 @@ export function useContentItem<TPayload extends object>(
       ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，內容編輯會看到你寫的原因')
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
+      if (!markConflict(err)) showError(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
       return false
     } finally {
       publishing.value = false
@@ -528,7 +571,7 @@ export function useContentItem<TPayload extends object>(
       ElMessage.success('已排程，時間到會自動發布')
       return true
     } catch (err) {
-      ElMessage.error(afterSaveError(savedFirst, err, '排程'))
+      showError(afterSaveError(savedFirst, err, '排程'))
       return false
     } finally {
       publishing.value = false
@@ -542,7 +585,7 @@ export function useContentItem<TPayload extends object>(
       ElMessage.success('已取消排程')
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '取消失敗'))
+      notifyError(errorMessage(err, '取消失敗'))
       return false
     }
   }
@@ -553,7 +596,7 @@ export function useContentItem<TPayload extends object>(
       await loadSchedules()
       return true
     } catch (err) {
-      ElMessage.error(errorMessage(err, '操作失敗'))
+      notifyError(errorMessage(err, '操作失敗'))
       return false
     }
   }
@@ -590,7 +633,7 @@ export function useContentItem<TPayload extends object>(
         ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
         return true
       } catch (err) {
-        ElMessage.error(errorMessage(err, '還原失敗'))
+        notifyError(errorMessage(err, '還原失敗'))
         return false
       } finally {
         busyFlag.value = false
@@ -635,7 +678,56 @@ export function useContentItem<TPayload extends object>(
     form.value = JSON.parse(snapshot.value) as TPayload
   }
 
+  async function inspectConflict(): Promise<FieldChange[] | null> {
+    if (!snapshot.value) return null
+    try {
+      const latest = await api.get<ContentItemOut>(`/admin/content-items/${kind}${query()}`)
+      const base = JSON.parse(snapshot.value) as Record<string, unknown>
+      return diffPayload(base, withDefaults(latest?.latest_revision?.payload) as Record<string, unknown>, kind)
+    } catch {
+      return null
+    }
+  }
+
+  // 載入最新內容；畫面上的修改先記著，載完由使用者決定要不要套回。
+  async function reloadLatest(): Promise<boolean> {
+    const saved = snapshot.value
+      ? { base: JSON.parse(snapshot.value) as Record<string, unknown>, mine: clone(form.value) as Record<string, unknown> }
+      : null
+    await load()
+    if (loadError.value) return false
+    if (saved && JSON.stringify(saved.base) !== JSON.stringify(saved.mine)) stash.value = saved
+    return true
+  }
+
+  const stashedChanges = computed<FieldChange[]>(() => (stash.value ? diffPayload(stash.value.base, stash.value.mine, kind) : []))
+
+  const stashOverlap = computed<string[]>(() => {
+    if (!stash.value || !snapshot.value) return []
+    const latest = JSON.parse(snapshot.value) as Record<string, unknown>
+    const base = stash.value.base
+    return stashedChanges.value
+      .filter((change) => JSON.stringify(base[change.key]) !== JSON.stringify(latest[change.key]))
+      .map((change) => change.label)
+  })
+
+  // 只套回自己改過的欄位（以最外層欄位為單位）；對方改的其他欄位保留。套回後是
+  // 未儲存的修改，要自己再按儲存，發布前的確認框照樣列出和官網的差異。
+  function restoreStash() {
+    const saved = stash.value
+    if (!saved) return
+    const next = clone(form.value) as Record<string, unknown>
+    for (const change of stashedChanges.value) next[change.key] = clone(saved.mine[change.key])
+    form.value = next as TPayload
+    stash.value = null
+  }
+
+  function discardStash() {
+    stash.value = null
+  }
+
   return {
+    kind,
     item,
     form,
     readOnly,
@@ -671,5 +763,13 @@ export function useContentItem<TPayload extends object>(
     cancelSchedule,
     acknowledgeSchedule,
     reset,
+    fieldErrors,
+    conflict,
+    inspectConflict,
+    reloadLatest,
+    stashedChanges,
+    stashOverlap,
+    restoreStash,
+    discardStash,
   }
 }

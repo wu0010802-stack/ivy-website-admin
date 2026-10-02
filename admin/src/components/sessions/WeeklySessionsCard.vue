@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../../composables/notify'
 import { api, ApiError } from '../../api/client'
 import { apiErrorMessage, isVersionConflict } from '../../api/errors'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -108,11 +109,11 @@ async function save(options: { open?: boolean } = {}) {
     if (open) await openBooking()
   } catch (err) {
     if (isVersionConflict(err)) {
-      ElMessage.warning('場次剛被其他人修改，已重新載入最新設定')
+      notifyWarning('場次剛被其他人修改，已重新載入最新設定')
       await load()
       startEdit()
     } else {
-      ElMessage.error(apiErrorMessage(err, '儲存失敗，請稍後再試'))
+      notifyError(apiErrorMessage(err, '儲存失敗，請稍後再試'))
     }
   } finally {
     saving.value = false

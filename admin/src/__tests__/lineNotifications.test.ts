@@ -126,6 +126,16 @@ describe('LINE 通知設定頁', () => {
     expect(info).toHaveBeenCalledWith(expect.stringContaining('沒有偵測到新群組'))
   })
 
+  it('區塊順序照步驟：先驗證群組（含重新整理），再替各校選群組', async () => {
+    const wrapper = await setup(settings())
+    const headings = wrapper.findAll('section.panel h2').map(h2 => h2.text())
+    expect(headings.indexOf('官方帳號所在的群組')).toBeLessThan(headings.indexOf('各校通知群組'))
+    const groupsHead = wrapper.findAll('section.panel').find(section => section.find('h2').text() === '官方帳號所在的群組')!.get('.panel__head')
+    expect(groupsHead.findAll('button').map(button => button.text())).toContain('重新整理')
+    const html = wrapper.html()
+    expect(html.indexOf('data-test="line-generate-code"')).toBeLessThan(html.indexOf('class="target-row"'))
+  })
+
   it('送測試訊息成功與失敗都給可操作的提示', async () => {
     const post = vi.spyOn(api, 'post')
       .mockResolvedValueOnce(undefined)
@@ -139,7 +149,7 @@ describe('LINE 通知設定頁', () => {
     expect(success).toHaveBeenCalledWith('已送出測試訊息，請到義華校的群組確認')
     await testButtons(wrapper)[0].trigger('click')
     await flushPromises()
-    expect(error).toHaveBeenCalledWith('LINE 推播失敗，請確認金鑰與官方帳號仍在群組裡')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'LINE 推播失敗，請確認金鑰與官方帳號仍在群組裡' }))
   })
 
   it('改群組時送出 PUT，清除時送 null', async () => {
@@ -213,6 +223,6 @@ describe('LINE 群組驗證（2026-09-29）', () => {
     const wrapper = await setup()
     wrapper.findAllComponents({ name: 'ElSelect' })[1]!.vm.$emit('change', ROOM)
     await flushPromises()
-    expect(error).toHaveBeenCalledWith('這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組' }))
   })
 })

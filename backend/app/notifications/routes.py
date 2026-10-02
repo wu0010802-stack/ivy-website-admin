@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import campus_scope, covers_campus, require_scope
-from app.booking.models import OutboxStatus
+from app.booking.models import OutboxStatus, VisitRequest, VisitSlot
 from app.notifications import outbox_admin
 from app.notifications.models import NotificationInboxItem, UserNotification
 
@@ -61,12 +61,58 @@ class NotificationRetryBatchOut(BaseModel):
     skipped: int
 
 
-@router.get("/admin/notifications", response_model=list[dict])
+class NotificationSlotOut(BaseModel):
+    slot_date: date
+    start_time: time
+    end_time: time
+
+
+class NotificationInboxItemOut(BaseModel):
+    """依校區共用的案件通知（新的參觀需求、已確認、已改期、已取消、逾期提醒…）。"""
+
+    id: uuid.UUID
+    campus_key: str
+    kind: str
+    # outbox 排入時的內容：receipt_id（案件編號）與少數摘要欄位，不放家長個資。
+    payload: dict
+    # 案件目前的參觀場次，讀取時依 payload.receipt_id 查，不寫進 payload；
+    # 只有日期時段、不含家長個資。案件還沒排場次、已匿名化或已刪除時為 null。
+    slot: NotificationSlotOut | None = None
+    created_at: datetime
+    read_at: datetime | None
+
+
+def _receipt_uuid(payload: dict | None) -> uuid.UUID | None:
+    value = (payload or {}).get("receipt_id")
+    try:
+        return uuid.UUID(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+async def _visit_slots(db: AsyncSession, items: list[NotificationInboxItem]) -> dict[uuid.UUID, NotificationSlotOut]:
+    """一次 IN 查詢把整頁通知對應的案件場次查出來，不逐筆查。"""
+    ids = {visit_id for item in items if (visit_id := _receipt_uuid(item.payload)) is not None}
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(VisitRequest.id, VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.end_time)
+        .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        # 匿名化後的案件不再對應到任何一天的參觀。
+        .where(VisitRequest.id.in_(ids), VisitRequest.anonymized_at.is_(None))
+    )
+    return {
+        visit_id: NotificationSlotOut(slot_date=slot_date, start_time=start_time, end_time=end_time)
+        for visit_id, slot_date, start_time, end_time in result.all()
+    }
+
+
+@router.get("/admin/notifications", response_model=list[NotificationInboxItemOut])
 async def list_notifications(
     campus_key: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> list[dict]:
+) -> list[NotificationInboxItemOut]:
     require_scope(current_user, "booking.read")
     stmt = select(NotificationInboxItem)
     if campus_key:
@@ -75,17 +121,19 @@ async def list_notifications(
     elif (scope := campus_scope(current_user)) is not None:
         stmt = stmt.where(NotificationInboxItem.campus_key.in_(scope))
     stmt = stmt.order_by(NotificationInboxItem.created_at.desc()).limit(100)
-    result = await db.execute(stmt)
+    items = list((await db.execute(stmt)).scalars())
+    slots = await _visit_slots(db, items)
     return [
-        {
-            "id": str(item.id),
-            "campus_key": item.campus_key,
-            "kind": item.kind,
-            "payload": item.payload,
-            "created_at": item.created_at.isoformat(),
-            "read_at": item.read_at.isoformat() if item.read_at else None,
-        }
-        for item in result.scalars()
+        NotificationInboxItemOut(
+            id=item.id,
+            campus_key=item.campus_key,
+            kind=item.kind,
+            payload=item.payload or {},
+            slot=slots.get(visit_id) if (visit_id := _receipt_uuid(item.payload)) else None,
+            created_at=item.created_at,
+            read_at=item.read_at,
+        )
+        for item in items
     ]
 
 

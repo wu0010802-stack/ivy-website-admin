@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import { formatDateTime } from '../api/labels'
@@ -54,7 +55,7 @@ async function generateCode() {
   try {
     verification.value = await api.post<LineVerificationCodeOut>('/admin/line/verification-codes')
   } catch (err) {
-    ElMessage.error(errorMessage(err, '驗證碼產生失敗，請稍後再試'))
+    notifyError(errorMessage(err, '驗證碼產生失敗，請稍後再試'))
   } finally {
     generating.value = false
   }
@@ -66,7 +67,7 @@ async function copyCode() {
     await navigator.clipboard.writeText(verification.value.code)
     ElMessage.success('已複製驗證碼，請貼到要綁定的 LINE 群組')
   } catch {
-    ElMessage.warning('無法自動複製，請手動選取驗證碼')
+    notifyWarning('無法自動複製，請手動選取驗證碼')
   }
 }
 
@@ -93,7 +94,7 @@ async function load(options: { announce?: boolean } = {}) {
     }
   } catch {
     if (first) loadError.value = '無法讀取 LINE 通知設定，請重新載入。'
-    else ElMessage.error('重新整理失敗，畫面上是先前讀到的設定，請再試一次。')
+    else notifyError('重新整理失敗，畫面上是先前讀到的設定，請再試一次。')
   } finally {
     loading.value = false
     refreshing.value = false
@@ -107,7 +108,7 @@ async function assign(campusKey: string, campusName: string, targetId: string | 
     data.value = await api.put<LineSettingsOut>(`/admin/line/campus-targets/${campusKey}`, { target_id: targetId })
     ElMessage.success(targetId ? `已設定${campusName}的通知群組，請按「送測試訊息」確認群組收得到` : `${campusName}已停止 LINE 通知`)
   } catch (err) {
-    ElMessage.error(errorMessage(err, '更新失敗'))
+    notifyError(errorMessage(err, '更新失敗'))
     await load()
   } finally {
     saving.value = { ...saving.value, [campusKey]: false }
@@ -121,7 +122,7 @@ async function sendTest(campusKey: string, campusName: string) {
     await api.post(`/admin/line/campus-targets/${campusKey}/test`)
     ElMessage.success(`已送出測試訊息，請到${campusName}的群組確認`)
   } catch (err) {
-    ElMessage.error(errorMessage(err, '測試訊息送出失敗'))
+    notifyError(errorMessage(err, '測試訊息送出失敗'))
   } finally {
     testing.value = { ...testing.value, [campusKey]: false }
   }
@@ -133,7 +134,7 @@ async function copyWebhook() {
     await navigator.clipboard.writeText(data.value.webhook_url)
     ElMessage.success('已複製 Webhook 網址')
   } catch {
-    ElMessage.warning('無法自動複製，請手動選取網址')
+    notifyWarning('無法自動複製，請手動選取網址')
   }
 }
 
@@ -186,59 +187,12 @@ onMounted(() => load())
         </div>
       </section>
 
+      <!-- 先驗證群組、再替各校選群組，和上方步驟 4、5 的順序一致；重新整理跟著群組清單。 -->
       <section class="panel">
         <div class="panel__head">
-          <h2>各校通知群組</h2>
+          <h2>官方帳號所在的群組</h2>
           <el-button :loading="refreshing" @click="load({ announce: true })">重新整理</el-button>
         </div>
-        <div class="panel__body">
-          <p v-if="!data.enabled" class="field-help empty">完成上方設定後才能選群組；下面先列出各校目前的設定。</p>
-          <el-alert
-            v-if="leftTargets.length"
-            type="warning"
-            show-icon
-            :closable="false"
-            class="left-alert"
-            :title="`${leftTargets.map(target => target.campus_name).join('、')}的群組已把官方帳號移出，目前收不到 LINE 通知`"
-            description="請重新把官方帳號拉進原本的群組，或替這些校區改選其他群組。站內通知與 Email 不受影響。"
-          />
-          <p v-if="activeGroups.length === 0" class="field-help empty">
-            官方帳號目前不在任何群組裡。把它拉進群組後按「重新整理」。
-          </p>
-          <div v-for="target in data.targets" :key="target.campus_key" class="target-row">
-            <span class="target-row__campus">{{ target.campus_name }}</span>
-            <el-select
-              :model-value="target.target_id ?? ''"
-              :disabled="saving[target.campus_key] || activeGroups.length === 0 && !target.target_id"
-              :aria-label="`${target.campus_name}的通知群組`"
-              placeholder="不推播"
-              class="target-row__select"
-              @change="(value: string) => assign(target.campus_key, target.campus_name, value || null)"
-            >
-              <el-option label="不推播" value="" />
-              <el-option v-if="leftGroup(target)" :label="`${groupLabel(leftGroup(target)!)}（已離開）`" :value="target.target_id!" disabled />
-              <el-option
-                v-for="group in activeGroups"
-                :key="group.target_id"
-                :label="optionLabel(group)"
-                :value="group.target_id"
-                :disabled="optionDisabled(group, target)"
-              />
-            </el-select>
-            <el-button
-              :loading="testing[target.campus_key]"
-              :disabled="!data.enabled || !target.target_id || Boolean(leftGroup(target))"
-              @click="sendTest(target.campus_key, target.campus_name)"
-            >
-              送測試訊息
-            </el-button>
-            <el-tag v-if="leftGroup(target)" type="warning" class="target-row__left">群組已離開，目前不會推播</el-tag>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel__head"><h2>官方帳號所在的群組</h2></div>
         <div class="panel__body">
           <div class="verify">
             <p class="verify__lead">
@@ -276,6 +230,54 @@ onMounted(() => load())
           <p class="field-help">官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
         </div>
       </section>
+      <section class="panel">
+        <div class="panel__head"><h2>各校通知群組</h2></div>
+        <div class="panel__body">
+          <p v-if="!data.enabled" class="field-help empty">完成上方設定後才能選群組；下面先列出各校目前的設定。</p>
+          <el-alert
+            v-if="leftTargets.length"
+            type="warning"
+            show-icon
+            :closable="false"
+            class="left-alert"
+            :title="`${leftTargets.map(target => target.campus_name).join('、')}的群組已把官方帳號移出，目前收不到 LINE 通知`"
+            description="請重新把官方帳號拉進原本的群組，或替這些校區改選其他群組。站內通知與 Email 不受影響。"
+          />
+          <p v-if="activeGroups.length === 0" class="field-help empty">
+            官方帳號目前不在任何群組裡。把它拉進群組後按上方「重新整理」。
+          </p>
+          <div v-for="target in data.targets" :key="target.campus_key" class="target-row">
+            <span class="target-row__campus">{{ target.campus_name }}</span>
+            <el-select
+              :model-value="target.target_id ?? ''"
+              :disabled="saving[target.campus_key] || activeGroups.length === 0 && !target.target_id"
+              :aria-label="`${target.campus_name}的通知群組`"
+              placeholder="不推播"
+              class="target-row__select"
+              @change="(value: string) => assign(target.campus_key, target.campus_name, value || null)"
+            >
+              <el-option label="不推播" value="" />
+              <el-option v-if="leftGroup(target)" :label="`${groupLabel(leftGroup(target)!)}（已離開）`" :value="target.target_id!" disabled />
+              <el-option
+                v-for="group in activeGroups"
+                :key="group.target_id"
+                :label="optionLabel(group)"
+                :value="group.target_id"
+                :disabled="optionDisabled(group, target)"
+              />
+            </el-select>
+            <el-button
+              :loading="testing[target.campus_key]"
+              :disabled="!data.enabled || !target.target_id || Boolean(leftGroup(target))"
+              @click="sendTest(target.campus_key, target.campus_name)"
+            >
+              送測試訊息
+            </el-button>
+            <el-tag v-if="leftGroup(target)" type="warning" class="target-row__left">群組已離開，目前不會推播</el-tag>
+          </div>
+        </div>
+      </section>
+
     </template>
   </div>
 </template>

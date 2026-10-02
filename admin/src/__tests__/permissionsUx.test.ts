@@ -355,9 +355,10 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
     expect(text).toContain('校區尚未開放預約')
     expect(text).toContain('預約方式由校區管理者設定')
     expect(text).toContain('新增場次或每週開放規則由校區管理者處理')
-    expect(text).toContain('查看參觀時段')
-    expect(text).toContain('查看接待月曆')
-    for (const hidden of ['安排參觀時段', '草稿尚未公開', '內容缺少素材', '排程發布沒有執行', '內容等你審核', '更新首頁文字', '修改各校資料', '整理照片與影片', '管理使用者', '整理官網內容']) {
+    expect(text).toContain('查看參觀場次')
+    // 參觀場次已和接待月曆合併成一頁，常用工作只留一個入口（2026-10-02）。
+    expect(wrapper.findAll('.dash__links a').filter(a => a.attributes('href') === '/visit-calendar')).toHaveLength(1)
+    for (const hidden of ['設定參觀場次', '查看接待月曆', '草稿尚未公開', '內容缺少素材', '排程發布沒有執行', '內容等你審核', '更新首頁文字', '修改各校資料', '整理照片與影片', '管理使用者', '整理官網內容']) {
       expect(text).not.toContain(hidden)
     }
     const links = hrefs(wrapper)
@@ -374,7 +375,7 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
     const text = wrapper.text()
     const links = hrefs(wrapper)
     expect(links).toContain('/booking')
-    expect(text).toContain('安排參觀時段')
+    expect(text).toContain('設定參觀場次')
     expect(links).toContain('/content/campus-faq?campus=yihua')
     expect(links).toContain('/content/campus-tour?campus=yihua')
     expect(links).toContain('/content/campus-profile?campus=yihua')

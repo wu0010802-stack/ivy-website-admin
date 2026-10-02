@@ -362,7 +362,7 @@ describe('登出前先問未儲存的修改（shell-2b）', () => {
     await flushPromises()
     expect(auth.user).not.toBeNull()
     expect(router.currentRoute.value.path).toBe('/content/home-about')
-    expect(error).toHaveBeenCalledWith(expect.stringContaining('請再按一次登出'))
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('請再按一次登出') }))
   })
 
   it('登出還沒回應時點了別的連結：登出完成後仍回到登入頁，不停在沒有登入者的頁面', async () => {

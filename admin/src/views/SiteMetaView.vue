@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
+import { legacyCopyHint } from '../composables/contentHints'
 import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
 import { altAfterPick, BUILTIN_PHOTO, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
@@ -71,6 +72,7 @@ onMounted(editor.load)
       <el-form-item label="網站描述">
         <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="160" show-word-limit />
         <span class="field-help">搜尋結果標題下方那段摘要，建議 60 到 120 字。</span>
+        <p v-if="legacyCopyHint('siteDescription', editor.form.value.description)" class="legacy-hint">{{ legacyCopyHint('siteDescription', editor.form.value.description) }}</p>
       </el-form-item>
       <div class="field-row">
         <el-form-item label="頁首電話">
@@ -128,6 +130,14 @@ onMounted(editor.load)
 </template>
 
 <style scoped>
+/* 原型原文提示：官網顯示的和這裡不同，改了之後才會照這裡顯示。 */
+.legacy-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-color-warning-dark-2);
+}
+
 .meta-section { margin: 24px 0 8px; font-size: 15px; }
 .share { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .share__img { width: 240px; max-width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }

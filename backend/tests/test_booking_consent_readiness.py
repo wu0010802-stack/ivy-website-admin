@@ -503,8 +503,8 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
     )).status_code == 422
 
     export = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
-    rows = list(csv.DictReader(io.StringIO(export.text)))
-    assert {row["party_size"] for row in rows} == {"10", "3"}
+    rows = list(csv.DictReader(io.StringIO(export.content.decode("utf-8-sig"))))
+    assert {row["人數"] for row in rows} == {"10", "3"}
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt))
     assert stored.party_size == 10
 
@@ -514,7 +514,7 @@ async def test_legacy_case_without_party_size_exports_blank(admin_client, db_ses
     # 參觀人數是後來才加的欄位；舊案沒有值，匯出留空。
     await legacy_request(db_session, status="new", party_size=None)
     export = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
-    assert [row["party_size"] for row in csv.DictReader(io.StringIO(export.text))] == [""]
+    assert [row["人數"] for row in csv.DictReader(io.StringIO(export.content.decode("utf-8-sig")))] == [""]
 
 
 # ---------------------------------------------------------------------------

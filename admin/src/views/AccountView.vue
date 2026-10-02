@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { notifyError } from '../composables/notify'
 import PageHeader from '../components/PageHeader.vue'
 import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import DisplayNameField from '../components/DisplayNameField.vue'
@@ -155,7 +156,7 @@ async function saveName() {
       nameServerError.value = fieldError
       nameInput.value?.focus()
     } else {
-      ElMessage.error(apiErrorMessage(err, '顯示名稱沒有更新，請再試一次'))
+      notifyError(apiErrorMessage(err, '顯示名稱沒有更新，請再試一次'))
     }
   } finally {
     nameSaving.value = false

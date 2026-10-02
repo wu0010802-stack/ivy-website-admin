@@ -2,10 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { TopRight } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { NAV_GROUPS, canOpenPath } from '../router/nav'
+import { NAV_GROUPS, SEARCH_ONLY_GROUP, canOpenPath } from '../router/nav'
 import { WEBSITE_ASSET_BASE } from '../config'
 import AdminSidebar from '../components/AdminSidebar.vue'
 
@@ -37,12 +37,13 @@ const unreadLinks = computed(() => {
   return links
 })
 // 內容分成首頁／分校頁／全站三個子組，麵包屑顯示共用的「官網內容」，
-// 沒有區段的分組才用自己的名稱。
+// 沒有區段的分組才用自己的名稱。我的帳號跟側欄搜尋一樣歸在「個人」；找不到頁面
+// 這類不屬於任何分組的頁面不顯示這一行，不寫一個沒有資訊的「管理後台」。
 const groupLabel = computed(() => {
-  const group = NAV_GROUPS.find(group => group.items.some(item =>
+  const group = [...NAV_GROUPS, SEARCH_ONLY_GROUP].find(group => group.items.some(item =>
     item.path === route.path || (route.name === 'visit-detail' && item.name === 'visit-requests'),
   ))
-  return group?.section ?? group?.label ?? '管理後台'
+  return group?.section ?? group?.label ?? ''
 })
 function updateViewport(event: MediaQueryListEvent) {
   isMobile.value = event.matches
@@ -74,11 +75,7 @@ watch(() => route.fullPath, () => {
   if (announcedDenied !== name) {
     announcedDenied = name
     const title = router.getRoutes().find(record => record.name === name)?.meta.title
-    ElMessage.warning({
-      message: `你的帳號沒有${title ? `「${title}」` : '這個頁面'}的權限，已回到起始頁；需要的話請洽總管理者`,
-      duration: 6000,
-      showClose: true,
-    })
+    notifyWarning(`你的帳號沒有${title ? `「${title}」` : '這個頁面'}的權限，已回到起始頁；需要的話請洽總管理者`)
   }
   const { denied: _, ...rest } = route.query
   void router.replace({ query: rest })
@@ -99,7 +96,7 @@ async function handleLogout() {
       void router.replace({ name: 'login' })
     }
   } catch {
-    ElMessage.error('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
+    notifyError('登出沒有完成（連線或伺服器錯誤），你仍是登入狀態，請再按一次登出')
     return
   } finally {
     auth.logoutPending = false
@@ -123,7 +120,7 @@ async function handleLogout() {
           <!-- 三條線的漢堡圖示；Element Plus 的 Menu 是四格方塊，看起來像「應用程式」。 -->
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
         </button>
-        <div class="top__heading"><span class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
+        <div class="top__heading"><span v-if="groupLabel" class="top__group">{{ groupLabel }}</span><h1>{{ pageTitle }}</h1></div>
         <nav v-if="unreadLinks.length" class="top__alerts" aria-label="未讀通知">
           <router-link v-for="link in unreadLinks" :key="link.to" :to="link.to" class="top__alert" :aria-label="`${link.label} ${link.count}`">
             <span class="top__alert-count num">{{ link.count > 99 ? '99+' : link.count }}</span><span class="top__alert-long">{{ link.label }}</span><span class="top__alert-short" aria-hidden="true">{{ link.short }}</span>

@@ -87,7 +87,7 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     await flushPromises()
     expect(confirmAgain).not.toHaveBeenCalled()
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VR_ID}/complete`)
-    expect(successAgain).toHaveBeenCalledWith('已標記完成參觀')
+    expect(successAgain).toHaveBeenCalledWith('已標記已到場')
   })
 
   it('查招生失敗（非 404）：不確定招生是否可用，維持改版前的行為', async () => {
@@ -99,7 +99,7 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     await button(wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
     expect(confirm).not.toHaveBeenCalled()
-    expect(success).toHaveBeenCalledWith('已標記完成參觀')
+    expect(success).toHaveBeenCalledWith('已標記已到場')
   })
 
   it('F6c：已到場但查招生回 500：不顯示招生訪視區塊', async () => {
@@ -136,7 +136,7 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     await button(wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
     expect(confirm).not.toHaveBeenCalled()
-    expect(success).toHaveBeenCalledWith('已標記完成參觀')
+    expect(success).toHaveBeenCalledWith('已標記已到場')
   })
 })
 
@@ -174,7 +174,7 @@ describe('預約明細的招生訪視連結', () => {
     const { wrapper } = await mountDetail()
     await button(wrapper, '建立招生訪視')!.trigger('click')
     await flushPromises()
-    expect(error).toHaveBeenCalledWith('這筆預約已依保存政策匿名化，不能再建立招生訪視')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆預約已依保存政策匿名化，不能再建立招生訪視' }))
   })
 
   it('還沒到場、也沒有招生訪視：不顯示這一區', async () => {

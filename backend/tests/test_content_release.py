@@ -248,6 +248,25 @@ async def test_campus_admin_can_edit_own_campus_profile(minghua_client):
 
 
 @pytest.mark.asyncio
+async def test_campus_profile_blank_name_address_phone_saves_but_cannot_publish(admin_client):
+    """校名、地址、參觀專線清空：草稿照存，發布擋下並講出哪幾欄（官網五校卡、
+    分校頁、預約頁會出現空白）。"""
+    draft = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_profile/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": _campus_profile_payload("義華") | {"address": "  ", "phone": ""}},
+    )
+    assert draft.status_code == 201, draft.text
+    publish = await admin_client.post(
+        "/api/website/v1/admin/content-items/campus_profile/publish?campus_key=yihua",
+        json={"revision_id": draft.json()["latest_revision"]["id"]},
+    )
+    assert publish.status_code == 409, publish.text
+    message = publish.json()["detail"]["message"]
+    assert "地址、參觀專線不能空白" in message
+    assert "校名" not in message
+
+
+@pytest.mark.asyncio
 async def test_campus_profile_instagram_youtube_published(admin_client, public_client):
     """2026-09-25 新增 IG／YouTube：有值照存照發布；舊版本沒有這兩欄仍可存（上面
     _campus_profile_payload 就沒帶），存下來補成空字串。"""

@@ -1740,6 +1740,17 @@
             "title": "Metadata",
             "type": "object"
           },
+          "target_exists": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Exists"
+          },
           "target_id": {
             "title": "Target Id",
             "type": "string"
@@ -4474,6 +4485,66 @@
         "title": "NoDepositSummaryOut",
         "type": "object"
       },
+      "NotificationInboxItemOut": {
+        "description": "依校區共用的案件通知（新的參觀需求、已確認、已改期、已取消、逾期提醒…）。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationSlotOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "kind",
+          "payload",
+          "created_at",
+          "read_at"
+        ],
+        "title": "NotificationInboxItemOut",
+        "type": "object"
+      },
       "NotificationOutboxOut": {
         "properties": {
           "attempts": {
@@ -4623,6 +4694,32 @@
           "ids"
         ],
         "title": "NotificationRetryBatchRequest",
+        "type": "object"
+      },
+      "NotificationSlotOut": {
+        "properties": {
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "slot_date": {
+            "format": "date",
+            "title": "Slot Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_date",
+          "start_time",
+          "end_time"
+        ],
+        "title": "NotificationSlotOut",
         "type": "object"
       },
       "OutboxDeliveredOut": {
@@ -12362,6 +12459,7 @@
     },
     "/api/website/v1/admin/audit-log": {
       "get": {
+        "description": "新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。",
         "operationId": "get_audit_log_api_website_v1_admin_audit_log_get",
         "parameters": [
           {
@@ -12378,6 +12476,56 @@
                 }
               ],
               "title": "Campus Key"
+            }
+          },
+          {
+            "description": "上一頁最後一筆的 created_at；和 before_id 一起傳，讀更早的紀錄",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "上一頁最後一筆的 created_at；和 before_id 一起傳，讀更早的紀錄",
+              "title": "Before"
+            }
+          },
+          {
+            "description": "上一頁最後一筆的 id",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "上一頁最後一筆的 id",
+              "title": "Before Id"
+            }
+          },
+          {
+            "description": "不列例行的登入登出（登入失敗、帳號鎖定照列）",
+            "in": "query",
+            "name": "exclude_login",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "不列例行的登入登出（登入失敗、帳號鎖定照列）",
+              "title": "Exclude Login",
+              "type": "boolean"
             }
           },
           {
@@ -16212,8 +16360,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/NotificationInboxItemOut"
                   },
                   "title": "Response List Notifications Api Website V1 Admin Notifications Get",
                   "type": "array"

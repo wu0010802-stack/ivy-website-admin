@@ -2,6 +2,8 @@
 // 換算必須和後端 schedule_service.rule_windows／rule_window_map 產生完全相同的時段，
 // 否則存檔時 sync_rule_slots 會刪建場次。weekday 0＝週一（Python weekday）。
 
+import { formatDate, formatTime, formatWeekday } from '../api/labels'
+
 export interface RuleRow { weekday: number; start_time: string; end_time: string; slot_minutes: number; capacity: number }
 export interface Session { start: string; minutes: number; capacity: number; weekdays: number[] }
 
@@ -107,4 +109,23 @@ export function sessionProblems(sessions: Session[]): string[] {
     }
   }
   return [...new Set(problems)]
+}
+
+// 後台改期、補登、舊需求排入的場次選單：60 天內的場次一長串，依日期分組，
+// 組名寫日期，選項只寫時間與剩幾組。選中後輸入框顯示的仍是完整的 label（含日期）。
+export interface SlotChoice { id: string; slot_date: string; start_time: string; end_time: string; capacity: number; booked_count: number }
+export function slotDayLabel(day: string): string {
+  return `${formatDate(day)}（${formatWeekday(day)}）`
+}
+export function slotChoiceTime(slot: SlotChoice): string {
+  return `${formatTime(slot.start_time)}–${formatTime(slot.end_time)}，剩 ${slot.capacity - slot.booked_count} 組`
+}
+export function groupSlotsByDay<T extends SlotChoice>(slots: readonly T[]): { day: string; label: string; slots: T[] }[] {
+  const groups = new Map<string, T[]>()
+  for (const slot of [...slots].sort((a, b) => a.slot_date.localeCompare(b.slot_date) || a.start_time.localeCompare(b.start_time))) {
+    const list = groups.get(slot.slot_date) ?? []
+    list.push(slot)
+    groups.set(slot.slot_date, list)
+  }
+  return [...groups].map(([day, list]) => ({ day, label: slotDayLabel(day), slots: list }))
 }

@@ -11,6 +11,7 @@ from app.booking import slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.status_groups import group_condition
 from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -72,6 +73,17 @@ async def get_dashboard_summary(
         for row in (await db.execute(today_rows_stmt)).all()
     ]
     today_visits = len(today_visit_list)
+
+    # 參觀時間已過、還沒標到場或未到的案件（已確認＋時段已開始，和案件列表
+    # 「時間已過」那一組的已確認部分同一個條件）。總覽提醒有人去補標記。
+    awaiting_attendance_stmt = _scope(
+        select(func.count()).select_from(VisitRequest).where(
+            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
+            group_condition("past", now),
+        ),
+        VisitRequest.campus_key,
+    )
+    awaiting_attendance = (await db.execute(awaiting_attendance_stmt)).scalar_one()
 
     pending_follow_up_stmt = select(func.count()).select_from(VisitRequest).where(
         VisitRequest.follow_up_at.is_not(None),
@@ -220,6 +232,7 @@ async def get_dashboard_summary(
     return {
         "today_visits": today_visits,
         "today_visit_list": today_visit_list,
+        "awaiting_attendance": awaiting_attendance,
         "new_requests": new_requests,
         "awaiting_confirmation": awaiting_confirmation,
         "next_hold_expires_at": next_hold_expires_at.isoformat() if next_hold_expires_at else None,

@@ -400,6 +400,7 @@ a:hover {
 }
 
 /* 夾在說明文字裡的連結只靠顏色分辨不夠（WCAG 1.4.1），一律加底線。 */
+.page-lead a,
 .hint a,
 .field-help a {
   text-decoration: underline;
@@ -483,6 +484,49 @@ a:hover {
   color: var(--ink-2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+/* 可收合的重複項目（消息、活動、拍立得時刻卡）：收合後只剩標題列那一行，
+   項目之間不留展開時的下方空白。 */
+.repeat-item.is-collapsed {
+  padding-bottom: 12px;
+}
+
+.repeat-item.is-collapsed .repeat-item__head {
+  margin-bottom: 0;
+}
+
+/* 標題列整行是收合鈕：沿用 repeat-item__index 的字樣，去掉按鈕外觀。 */
+.repeat-item__toggle {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.repeat-item__toggle:hover {
+  color: var(--ink);
+}
+
+.repeat-item__caret {
+  transition: transform 0.15s;
+}
+
+.repeat-item__toggle[aria-expanded='true'] .repeat-item__caret {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .repeat-item__caret {
+    transition: none;
+  }
 }
 
 /* 狀態膠囊 */
@@ -629,6 +673,11 @@ a.stat:hover {
   /* 會自動長高的文字框（一行起跳）跟旁邊 44px 的輸入框一樣高：16px×1.5 行高＋上下各 10px。
      自動長高是照這裡的內距量出來的，多行時也會跟著算。 */
   .el-textarea__inner { padding-block: 10px; }
+  /* 數字欄右側上下疊的微調鈕在觸控上只有十幾 px 高，點不到；拿掉，直接輸入數字
+     （手機跳數字鍵盤，鍵盤上下鍵照樣能加減）。左右兩側的微調鈕是整個欄高，不動。 */
+  .el-input-number.is-controls-right .el-input-number__increase,
+  .el-input-number.is-controls-right .el-input-number__decrease { display: none; }
+  .el-input-number.is-controls-right .el-input__wrapper { padding-right: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -694,6 +743,9 @@ a.stat:hover {
 
 /* 發布確認框：列出會變動的欄位，寬一點才擺得下「之前 → 之後」。 */
 .el-message-box.publish-confirm { width: min(560px, calc(100vw - 32px)); }
+/* 容器是 flex 置中，列了好幾欄差異時警告圖示會對到中間某一欄旁邊，像在指那一欄
+   有問題。改成對齊第一段文字（內容編輯與預約方式的確認框共用）。 */
+.el-message-box.publish-confirm .el-message-box__status { align-self: flex-start; margin-top: 2px; }
 .publish-diff p { margin: 0 0 8px; }
 .publish-diff ul { list-style: none; margin: 0 0 10px; padding: 0; }
 .publish-diff li { display: grid; grid-template-columns: 6em minmax(0, 1fr) auto minmax(0, 1fr); gap: 0 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }

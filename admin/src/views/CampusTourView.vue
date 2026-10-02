@@ -404,7 +404,19 @@ function nudge(i: number, event: KeyboardEvent) {
         </div>
 
         <div class="tour__scene-actions" v-if="scenes.length > 1 && !editor.readOnly.value">
-          <el-button text type="danger" :icon="Delete" @click="removeScene(sceneIndex)">刪除「{{ currentScene.name || `場景 ${sceneIndex + 1}` }}」</el-button>
+          <!-- 場景裡有照片和熱點，重做很費工：刪除前先問一次（按鈕「先不要／刪除」）。 -->
+          <el-popconfirm
+            :title="`刪除「${currentScene.name || `場景 ${sceneIndex + 1}`}」？照片和 ${currentScene.spots.length} 個熱點會一起拿掉。`"
+            confirm-button-text="刪除"
+            cancel-button-text="先不要"
+            confirm-button-type="danger"
+            width="280"
+            @confirm="removeScene(sceneIndex)"
+          >
+            <template #reference>
+              <el-button text type="danger" :icon="Delete">刪除「{{ currentScene.name || `場景 ${sceneIndex + 1}` }}」</el-button>
+            </template>
+          </el-popconfirm>
         </div>
       </template>
     </div>

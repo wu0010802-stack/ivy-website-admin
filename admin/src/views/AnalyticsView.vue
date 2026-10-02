@@ -152,13 +152,18 @@ const stages = computed(() => {
   const cancelled = count('visit_cancelled')
   const max = Math.max(created, confirmed, completed, cancelled, 1)
   const completedRate = percent(completed, confirmed)
+  // 補登的案件沒有「送出需求」，確認、完成、取消卻會算進去；條上把補登畫成淡色的
+  // 一段，深色段和「已送出需求」同一個口徑，才不會看起來像漏斗倒過來。
+  const manual = (key: string, value: number) => Math.min(sourceCount(key, isManualSource), value) / max
   return [
-    { key: 'created', label: '已送出需求', value: created, ratio: created / max, note: '家長在官網填表' },
-    { key: 'confirmed', label: '已確認預約', value: confirmed, ratio: confirmed / max, note: webShareNote('visit_confirmed', (rate) => `官網需求的 ${rate}`, coversSelfBooking.value ? '2026/10/01 起官網送出即預約成功，不計確認率' : undefined) },
-    { key: 'completed', label: '已完成參觀', value: completed, ratio: completed / max, note: confirmed ? (completedRate ? `${completedRate} 的確認` : '含之前確認的預約，不計比例') : '' },
-    { key: 'cancelled', label: '已取消', value: cancelled, ratio: cancelled / max, note: webShareNote('visit_cancelled', (rate) => `官網需求取消率 ${rate}`) },
+    { key: 'created', label: '已送出需求', value: created, ratio: created / max, manualRatio: 0, note: '只算家長在官網填表' },
+    { key: 'confirmed', label: '已確認預約', value: confirmed, ratio: confirmed / max, manualRatio: manual('visit_confirmed', confirmed), note: webShareNote('visit_confirmed', (rate) => `官網需求的 ${rate}`, coversSelfBooking.value ? '2026/10/01 起官網送出即預約成功，不計確認率' : undefined) },
+    { key: 'completed', label: '已完成參觀', value: completed, ratio: completed / max, manualRatio: manual('visit_completed', completed), note: confirmed ? (completedRate ? `${completedRate} 的確認` : '含之前確認的預約，不計比例') : '' },
+    { key: 'cancelled', label: '已取消', value: cancelled, ratio: cancelled / max, manualRatio: manual('visit_cancelled', cancelled), note: webShareNote('visit_cancelled', (rate) => `官網需求取消率 ${rate}`) },
   ]
 })
+
+const hasManualBars = computed(() => stages.value.some((stage) => stage.manualRatio > 0))
 
 const cancelReasons = computed(() =>
   Object.entries(funnel.value?.cancelled_by_reason ?? {})
@@ -253,11 +258,15 @@ const entryRows = computed(() =>
         <ol class="funnel">
           <li v-for="s in stages" :key="s.key" class="funnel__row" :class="{ 'funnel__row--cancelled': s.key === 'cancelled' }">
             <span class="funnel__label">{{ s.label }}</span>
-            <span class="funnel__track" aria-hidden="true"><span class="funnel__bar" :style="{ width: `${s.ratio * 100}%` }" /></span>
+            <span class="funnel__track" aria-hidden="true">
+              <span class="funnel__bar" :class="{ 'has-manual': s.manualRatio > 0 }" :style="{ width: `${(s.ratio - s.manualRatio) * 100}%` }" />
+              <span v-if="s.manualRatio > 0" class="funnel__bar funnel__bar--manual" :style="{ width: `${s.manualRatio * 100}%` }" />
+            </span>
             <span class="funnel__value num">{{ s.value }}</span>
             <span class="funnel__note">{{ s.note }}</span>
           </li>
         </ol>
+        <p v-if="hasManualBars" class="analytics__note">條上淡色的一段是後台補登，深色是官網表單。</p>
         <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
         <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
       </section>
@@ -429,6 +438,10 @@ const entryRows = computed(() =>
   background: var(--ink-3);
 }
 
+.funnel__row--cancelled .funnel__bar--manual {
+  background: color-mix(in oklch, var(--ink-3), var(--surface) 55%);
+}
+
 .funnel {
   list-style: none;
   margin: 0;
@@ -452,6 +465,7 @@ const entryRows = computed(() =>
 }
 
 .funnel__track {
+  display: flex;
   height: 10px;
   border-radius: 999px;
   background: var(--surface-3);
@@ -464,6 +478,16 @@ const entryRows = computed(() =>
   border-radius: 999px;
   background: var(--el-color-primary);
   transition: width 300ms var(--ease-out);
+}
+
+/* 官網段後面接補登段：接縫不畫圓角。 */
+.funnel__bar.has-manual {
+  border-radius: 999px 0 0 999px;
+}
+
+.funnel__bar--manual {
+  border-radius: 0 999px 999px 0;
+  background: var(--el-color-primary-light-5);
 }
 
 .funnel__value {

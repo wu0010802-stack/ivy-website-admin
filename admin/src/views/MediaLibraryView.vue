@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { ArrowDown, Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
@@ -142,7 +143,7 @@ function openUpload() {
 
 async function submitUpload() {
   if (!pendingCount.value) {
-    ElMessage.warning('請先選擇檔案')
+    notifyWarning('請先選擇檔案')
     return
   }
   const uploaded = await queue.start()
@@ -152,7 +153,7 @@ async function submitUpload() {
     else await load()
   }
   if (failed) {
-    ElMessage.warning(`${uploaded.length} 個上傳完成、${failed} 個失敗，失敗原因列在清單裡`)
+    notifyWarning(`${uploaded.length} 個上傳完成、${failed} 個失敗，失敗原因列在清單裡`)
   } else {
     ElMessage.success(`已上傳 ${uploaded.length} 個檔案`)
     uploadDialogVisible.value = false
@@ -208,6 +209,8 @@ async function beforeCloseEdit(done: () => void) {
         confirmButtonText: '放棄修改',
         cancelButtonText: '先不要',
         type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        autofocus: false,
       })
     } catch {
       return
@@ -241,7 +244,7 @@ async function submitEdit() {
     await load()
   } catch (err) {
     if (isVersionConflict(err)) await reloadEditing(err)
-    else ElMessage.error(apiErrorMessage(err, '儲存失敗'))
+    else notifyError(apiErrorMessage(err, '儲存失敗'))
   } finally {
     saving.value = false
   }
@@ -263,7 +266,7 @@ async function reloadEditing(err: unknown) {
   try {
     openEditDialog(await api.get<MediaAssetOut>(`/admin/media/${current.id}`))
   } catch (loadErr) {
-    ElMessage.error(apiErrorMessage(loadErr, '重新載入失敗'))
+    notifyError(apiErrorMessage(loadErr, '重新載入失敗'))
   }
   await load()
 }
@@ -317,7 +320,7 @@ async function setArchived(asset: MediaAssetOut, archived: boolean) {
     await load()
   } catch (err) {
     const detail = errorDetail(err)
-    ElMessage.error(detail.message ?? (archived ? '封存失敗' : '取消封存失敗'))
+    notifyError(detail.message ?? (archived ? '封存失敗' : '取消封存失敗'))
     if (detail.code === 'MEDIA_IN_USE') openUsages(asset)
   }
 }
@@ -328,7 +331,7 @@ async function removeAsset(asset: MediaAssetOut) {
     await ElMessageBox.confirm(
       `刪除後會先移到「待清理」，${purgeDays.value} 天內都可以復原，之後檔案會永久刪除。`,
       `刪除「${asset.original_filename}」？`,
-      { confirmButtonText: '刪除', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger' },
+      { confirmButtonText: '刪除', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger', autofocus: false },
     )
   } catch {
     return
@@ -352,7 +355,7 @@ async function removeAsset(asset: MediaAssetOut) {
       await setArchived(asset, true)
       return
     }
-    ElMessage.error(detail.message ?? '刪除失敗')
+    notifyError(detail.message ?? '刪除失敗')
     if (detail.code === 'MEDIA_IN_USE' || detail.code === 'MEDIA_IN_HISTORY') openUsages(asset)
   }
 }
@@ -363,7 +366,7 @@ async function restoreAsset(asset: MediaAssetOut) {
     ElMessage.success('已復原')
     await load()
   } catch (err) {
-    ElMessage.error(errorDetail(err).message ?? '復原失敗')
+    notifyError(errorDetail(err).message ?? '復原失敗')
   }
 }
 
@@ -391,7 +394,7 @@ onMounted(async () => {
     <p v-else-if="listState === 'archived'" class="hint state-hint">封存的素材不會出現在選圖器，檔案與舊版本的引用都保留，隨時可以取消封存。</p>
 
     <div class="filter-bar">
-      <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、圖片說明、圖說或標籤" clearable /></label>
+      <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、圖片說明、內部備註或標籤" clearable /></label>
       <!-- 可清除的下拉選單不能包在 label 裡：按 × 清除後，label 會再點一次選單，清單又自己打開。 -->
       <div class="filter-field"><span>校區</span>
         <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
@@ -559,8 +562,9 @@ onMounted(async () => {
           <el-input v-model="editAltText" maxlength="500" :placeholder="editingAsset.kind === 'image' ? '簡短描述照片內容，例如：孩子在戶外沙坑玩耍' : '簡短描述影片內容，例如：孩子在菜園澆水'" />
           <span class="field-help">給看不見畫面的家長與搜尋引擎用，也是素材庫搜尋的依據。</span>
         </el-form-item>
-        <el-form-item label="圖說">
-          <el-input v-model="editCaption" maxlength="500" placeholder="顯示在照片或影片旁的說明文字（選填）" />
+        <el-form-item label="內部備註（不會顯示在官網）">
+          <el-input v-model="editCaption" maxlength="500" placeholder="方便搜尋，例如：2025 畢業典禮大合照" />
+          <span class="field-help">只給後台搜尋用。照片下方要顯示的字，在各內容頁的「照片下方文字」填。</span>
         </el-form-item>
         <el-form-item label="標籤">
           <el-select v-model="editTags" multiple filterable allow-create default-first-option :reserve-keyword="false" placeholder="輸入後按 Enter，例如：戶外、畢業典禮" style="width: 100%">

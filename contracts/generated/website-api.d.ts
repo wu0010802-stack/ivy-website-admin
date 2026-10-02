@@ -338,7 +338,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Audit Log */
+        /**
+         * Get Audit Log
+         * @description 新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。
+         */
         get: operations["get_audit_log_api_website_v1_admin_audit_log_get"];
         put?: never;
         post?: never;
@@ -2977,6 +2980,8 @@ export interface components {
             metadata: {
                 [key: string]: unknown;
             };
+            /** Target Exists */
+            target_exists?: boolean | null;
             /** Target Id */
             target_id: string;
             /** Target Label */
@@ -3891,6 +3896,33 @@ export interface components {
             /** Overdue Followup Count */
             overdue_followup_count: number;
         };
+        /**
+         * NotificationInboxItemOut
+         * @description 依校區共用的案件通知（新的參觀需求、已確認、已改期、已取消、逾期提醒…）。
+         */
+        NotificationInboxItemOut: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Read At */
+            read_at: string | null;
+            slot?: components["schemas"]["NotificationSlotOut"] | null;
+        };
         /** NotificationOutboxOut */
         NotificationOutboxOut: {
             /** Attempts */
@@ -3947,6 +3979,24 @@ export interface components {
         NotificationRetryBatchRequest: {
             /** Ids */
             ids: string[];
+        };
+        /** NotificationSlotOut */
+        NotificationSlotOut: {
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Slot Date
+             * Format: date
+             */
+            slot_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
         };
         /**
          * OutboxDeliveredOut
@@ -6550,6 +6600,12 @@ export interface operations {
         parameters: {
             query?: {
                 campus_key?: string | null;
+                /** @description 上一頁最後一筆的 created_at；和 before_id 一起傳，讀更早的紀錄 */
+                before?: string | null;
+                /** @description 上一頁最後一筆的 id */
+                before_id?: string | null;
+                /** @description 不列例行的登入登出（登入失敗、帳號鎖定照列） */
+                exclude_login?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -8242,9 +8298,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["NotificationInboxItemOut"][];
                 };
             };
             /** @description Validation Error */

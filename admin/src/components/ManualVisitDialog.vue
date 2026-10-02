@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
-import { CONTACT_TIME_LABELS, MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, formatSlotWhen, slotStarted } from '../api/labels'
+import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, formatSlotWhen, slotStarted } from '../api/labels'
+import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import CampusSelect from './CampusSelect.vue'
 
 // 人工補登：家長打電話、傳 LINE、直接到園或從外部網站來的參觀需求。
-// 預設只建成「待處理」；當場談好時間可以直接選時段，送出即確認。
+// 一定要選場次（2026-09-30 家長自選場次裁定），送出即「預約正常」。
 const props = defineProps<{
   campusKeys: readonly string[]
   defaultCampus?: string
@@ -28,7 +30,6 @@ function blank() {
     child_name: '',
     child_birthdate: null as string | null,
     email: '',
-    preferred_time: '',
     // 參觀人數 1–10；電話裡沒問到可以留空（明細顯示「未填寫」）。
     party_size: null as number | null,
     questions: '',
@@ -41,6 +42,8 @@ const form = reactive(blank())
 const slots = ref<VisitSlotOut[]>([])
 const slotsLoading = ref(false)
 const slotsError = ref(false)
+// 該校有沒有設定寄信（預約設定 parent_email_enabled）；null＝讀不到（例如沒有權限）或還在讀。
+const emailEnabled = ref<boolean | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 // 打開當下的表單內容（重新預約會先帶入舊案資料）；和它不同就是有輸入，關閉前要先問。
@@ -71,12 +74,39 @@ watch(open, (value) => {
   error.value = null
   idempotencyKey = newKey()
   void loadSlots()
+  void loadEmailEnabled()
 })
 
 watch(() => form.campus_key, () => {
   form.slot_id = ''
-  if (open.value) void loadSlots()
+  if (open.value) {
+    void loadSlots()
+    void loadEmailEnabled()
+  }
 })
+
+async function loadEmailEnabled() {
+  const campus = form.campus_key
+  emailEnabled.value = null
+  if (!campus) return
+  try {
+    const config = await api.get<{ parent_email_enabled?: boolean }>(`/admin/booking-config/${campus}`)
+    if (form.campus_key === campus && typeof config?.parent_email_enabled === 'boolean') emailEnabled.value = config.parent_email_enabled
+  } catch {
+    emailEnabled.value = null
+  }
+}
+
+// Email 欄的說明跟著寄信設定走：沒設定時不能說會寄信（DESIGN.md 2026-10-02）。
+const emailHelp = computed(() => {
+  if (emailEnabled.value === true) return '有填會寄確認信與修改連結給家長。'
+  if (emailEnabled.value === false) return '尚未設定寄信。補登後請到案件頁產生家長管理連結，用簡訊或 LINE 交給家長。'
+  return '設定寄信後會寄確認信與修改連結；沒設定時請到案件頁產生連結交給家長。'
+})
+
+// 選好後在選單下面整行寫出完整場次，選單收起來時被截斷也看得到。
+const chosenSlot = computed(() => openSlots.value.find((s) => s.id === form.slot_id) ?? null)
+const slotOptionLabel = (slot: VisitSlotOut) => `${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 組`
 
 // 內容一改就換 key：改過的表單是新的一次送出，不能被當成重播而撞 409。
 watch(form, () => { if (!submitting.value) idempotencyKey = newKey() }, { deep: true })
@@ -134,6 +164,8 @@ async function beforeClose(done: () => void) {
       confirmButtonText: '放棄填寫',
       cancelButtonText: '先不要',
       type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+      autofocus: false,
     })
   } catch {
     return
@@ -167,7 +199,7 @@ function messageOf(err: unknown): string {
 
 async function submit() {
   if (!form.slot_id) {
-    ElMessage.warning('請選擇參觀場次')
+    notifyWarning('請選擇參觀場次')
     return
   }
   if (!canSubmit.value) return
@@ -181,8 +213,8 @@ async function submit() {
     child_name: form.child_name.trim() || null,
     child_birthdate: form.child_birthdate || null,
     email: form.email.trim() || null,
-    // 規格 190 固定選項，送代碼。
-    preferred_time: (form.preferred_time || null) as VisitRequestManualCreate['preferred_time'],
+    // 家長自選場次之後不再問方便接電話時段（DESIGN.md 2026-09-30）；欄位仍在 API 上，一律不送值。
+    preferred_time: null,
     party_size: form.party_size,
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
@@ -208,7 +240,7 @@ async function submit() {
 </script>
 
 <template>
-  <!-- 內容區自己捲動、底部（同意勾選與送出）固定在對話框下緣，欄位再多也不用捲到最底才找得到。 -->
+  <!-- 內容區自己捲動、底部（送出列）固定在對話框下緣，欄位再多也不用捲到最底才找得到。 -->
   <el-dialog
     v-model="open"
     class="manual-dialog"
@@ -246,13 +278,16 @@ async function submit() {
 
       <!-- 當場談好時間是送出前最重要的決定，排在必填欄位後面，選填的孩子資料再往下。 -->
       <el-form-item label="參觀場次" required>
-        <el-select v-model="form.slot_id" :loading="slotsLoading" placeholder="選擇場次" style="width: 100%">
-          <el-option v-for="slot in openSlots" :key="slot.id" :value="slot.id" :label="`${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 組`" />
+        <el-select v-model="form.slot_id" :loading="slotsLoading" placeholder="選擇場次" filterable style="width: 100%">
+          <el-option-group v-for="group in groupSlotsByDay(openSlots)" :key="group.day" :label="group.label">
+            <el-option v-for="slot in group.slots" :key="slot.id" :value="slot.id" :label="slotOptionLabel(slot)">{{ slotChoiceTime(slot) }}</el-option>
+          </el-option-group>
         </el-select>
         <span v-if="slotsError" class="field-help">
-          讀不到這個校區的時段。<el-button link type="primary" @click="loadSlots">重新讀取</el-button>
+          讀不到這個校區的場次。<el-button link type="primary" @click="loadSlots">重新讀取</el-button>
         </span>
         <span v-else-if="!slotsLoading && openSlots.length === 0" class="field-help">未來 60 天沒有可以排入的場次，請先到「參觀場次」開放場次。</span>
+        <span v-else-if="chosenSlot" class="field-help">已選：{{ slotOptionLabel(chosenSlot) }}。送出後案件直接成為「預約正常」。</span>
         <span v-else class="field-help">送出後案件直接成為「預約正常」。</span>
       </el-form-item>
 
@@ -268,16 +303,8 @@ async function submit() {
       <div class="manual__row">
         <el-form-item label="Email">
           <el-input v-model="form.email" type="email" maxlength="254" />
-          <span class="field-help">有填會寄確認信與修改連結給家長。</span>
+          <span class="field-help">{{ emailHelp }}</span>
         </el-form-item>
-        <el-form-item label="方便接電話時段">
-          <el-select v-model="form.preferred_time" clearable placeholder="選填" style="width: 100%">
-            <el-option v-for="(label, code) in CONTACT_TIME_LABELS" :key="code" :label="label" :value="code" />
-          </el-select>
-        </el-form-item>
-      </div>
-
-      <div class="manual__row">
         <el-form-item label="參觀人數">
           <el-select v-model="form.party_size" clearable placeholder="選填，含大人與孩子" style="width: 100%">
             <el-option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :label="`${size} 位`" :value="size" />

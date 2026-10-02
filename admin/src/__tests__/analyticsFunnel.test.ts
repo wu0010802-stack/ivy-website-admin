@@ -110,6 +110,30 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(wrapper.text()).toContain('不計取消率')
   })
 
+  it('補登在條上畫成淡色一段，深色段和「已送出需求」同口徑，漏斗不會看起來倒過來', async () => {
+    const { wrapper } = await setup({
+      ...funnel,
+      counts: { ...outcome(7, 9, 0, 0) },
+      by_source: [
+        { source: 'web', counts: outcome(7, 7, 0, 0) },
+        { source: 'phone', counts: outcome(0, 1, 0, 0) },
+        { source: 'line', counts: outcome(0, 1, 0, 0) },
+      ],
+    })
+    const rows = wrapper.findAll('.funnel__row')
+    expect(rows[0]!.text()).toContain('只算家長在官網填表')
+    const width = (el: { attributes: (name: string) => string | undefined }) => Number(/width:\s*([\d.]+)%/.exec(el.attributes('style') ?? '')![1])
+    const created = rows[0]!.findAll('.funnel__bar')
+    const confirmed = rows[1]!.findAll('.funnel__bar')
+    expect(created).toHaveLength(1)
+    expect(confirmed).toHaveLength(2)
+    // 官網段一樣長（7 ÷ 9），補登 2 筆是淡色段。
+    expect(width(confirmed[0]!)).toBeCloseTo(width(created[0]!))
+    expect(confirmed[1]!.classes()).toContain('funnel__bar--manual')
+    expect(width(confirmed[1]!)).toBeCloseTo((2 / 9) * 100)
+    expect(wrapper.text()).toContain('條上淡色的一段是後台補登')
+  })
+
   it('沒有記錄來源的舊資料不算進官網比例也不算補登，另外寫件數；手機小卡寫明取消率', async () => {
     const { wrapper } = await setup({
       ...funnel,

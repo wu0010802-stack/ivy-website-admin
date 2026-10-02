@@ -1,5 +1,5 @@
 // 2026-09-28 系統頁 UX（操作紀錄）：細節欄翻成中文、識別碼不顯示、未知欄位收進
-// 「其他細節」；依日期分段、校區欄沒有校區時寫「全站」、說明只載入最近 100 筆。
+// 「其他細節」；依日期分段、校區欄沒有校區時寫「全站」、筆數寫已載入幾筆（10-02 起可載入更早的紀錄，見 auditUx.test.ts）。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -22,19 +22,19 @@ describe('操作紀錄細節翻成園方看得懂的中文', () => {
   it('狀態、時段、內容種類、時間與布林都翻成中文，不出現識別碼與內部版本號', () => {
     const cases: [string, Record<string, unknown>, string][] = [
       ['content.publish', { kind: 'home_news', revision_version: 2 }, '內容：最新消息與活動'],
-      ['visit_request.no_show', { from_status: 'confirmed', to_status: 'no_show' }, '狀態：已確認 → 未到場'],
-      ['visit_request.confirm', { from_status: 'contacting', slot: slot('2026-10-02', '09:30', '10:30') }, '原本狀態：聯絡中，時段：10/02 09:30–10:30'],
-      ['visit_slot.create', { slot: slot('2026-10-02', '09:30', '10:30') }, '時段：10/02 09:30–10:30'],
+      ['visit_request.no_show', { from_status: 'confirmed', to_status: 'no_show' }, '狀態：預約正常 → 未到場'],
+      ['visit_request.confirm', { from_status: 'contacting', slot: slot('2026-10-02', '09:30', '10:30') }, '原本狀態：聯絡中，場次：10/02 09:30–10:30'],
+      ['visit_slot.create', { slot: slot('2026-10-02', '09:30', '10:30') }, '場次：10/02 09:30–10:30'],
       ['visit_request.add_contact_note', { note_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', follow_up_set: true }, '設定了下次聯絡時間'],
       ['visit_request.create_access_link', { expires_at: '2026-10-12T13:41:57.541646+00:00', replaced_previous: false }, '連結到期：2026/10/12 21:41'],
       ['user.set_active', { is_active: false }, '帳號改為停用'],
       ['user.reset_password', { revoked_sessions: 2 }, '同時登出 2 個已登入的裝置'],
-      ['visit_request.reschedule', { from_slot: slot('2026-10-02', '09:30', '10:30'), to_slot: slot('2026-10-03', '10:00', '11:00'), has_reason: true }, '時段：10/02 09:30–10:30 → 10/03 10:00–11:00，有填寫原因'],
-      ['visit_request.export', { row_count: 12, status: 'confirmed', has_search: true }, '匯出 12 筆，篩選狀態：已確認，有用搜尋字篩選'],
+      ['visit_request.reschedule', { from_slot: slot('2026-10-02', '09:30', '10:30'), to_slot: slot('2026-10-03', '10:00', '11:00'), has_reason: true }, '場次：10/02 09:30–10:30 → 10/03 10:00–11:00，有填寫原因'],
+      ['visit_request.export', { row_count: 12, status: 'confirmed', has_search: true }, '匯出 12 筆，篩選狀態：預約正常，有用搜尋字篩選'],
       ['campus.deactivate', { before: true, after: false, reason: '暑假整修', open_requests: 2 }, '分校：啟用 → 停用，原因：暑假整修，尚未結案的案件 2 筆'],
       ['media.upload', { kind: 'image', content_type: 'image/jpeg', size_bytes: 204800, status: 'ready' }, '類型：圖片，檔案大小：200 KB，素材狀態：可用'],
-      ['visit_slot.update', { slot: slot('2026-10-02', '09:30', '10:30'), before: { capacity: 3, closed: false }, after: { capacity: 5, closed: false } }, '時段：10/02 09:30–10:30，修改：名額：3 位 → 5 位'],
-      ['visit_slot.update', { slot: slot('2026-10-08', '10:00', '11:00'), before: { capacity: 3, closed: false }, after: { capacity: 3, closed: true } }, '時段：10/08 10:00–11:00，修改：時段狀態：開放 → 已關閉'],
+      ['visit_slot.update', { slot: slot('2026-10-02', '09:30', '10:30'), before: { capacity: 3, closed: false }, after: { capacity: 5, closed: false } }, '場次：10/02 09:30–10:30，修改：名額：3 位 → 5 位'],
+      ['visit_slot.update', { slot: slot('2026-10-08', '10:00', '11:00'), before: { capacity: 3, closed: false }, after: { capacity: 3, closed: true } }, '場次：10/08 10:00–11:00，修改：場次狀態：開放 → 已關閉'],
       ['visit_request.add_contact_note', { note_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', follow_up_set: false }, '沒有設定下次聯絡時間'],
       ['retention_policy.update', { before: { cancelled_days: 365, completed_days: 365, open_overdue_days: 180, auto_run_enabled: false }, after: { cancelled_days: 180, completed_days: 365, open_overdue_days: 180, auto_run_enabled: true } }, '修改：已取消、未到場保留：365 天 → 180 天；每天自動清理：關閉 → 開啟'],
       ['content.reject', { kind: 'home_hero', revision_version: 3, note: '標語太長' }, '內容：首頁大圖標語，退回理由：標語太長'],
@@ -109,7 +109,7 @@ const entries = [
 ]
 
 describe('操作紀錄頁', () => {
-  it('依台灣日期分段、日期標題固定在上方；筆數旁說明只載入最近 100 筆', async () => {
+  it('依台灣日期分段、日期標題固定在上方；筆數寫已載入幾筆', async () => {
     const wrapper = await mountAudit(entries)
     const days = wrapper.findAll('.audit-day')
     expect(days).toHaveLength(2)
@@ -118,7 +118,9 @@ describe('操作紀錄頁', () => {
     // 2026-09-26T15:30Z 是台灣 9/26 23:30。
     expect(days[1]!.get('.audit-day__head').text()).toContain('9月26日')
     expect(days[1]!.text()).toContain('23:30')
-    expect(wrapper.get('.list-summary').text()).toContain('只載入最近 100 筆')
+    expect(wrapper.get('.list-summary').text()).toContain('已載入 3 筆')
+    // 不到 100 筆就是全部了，不給「載入更早的紀錄」。
+    expect(wrapper.find('[data-test="audit-load-more"]').exists()).toBe(false)
   })
 
   it('桌機表格的校區欄沒有校區時寫「全站」，細節不用等寬字、不截斷', async () => {
@@ -129,7 +131,7 @@ describe('操作紀錄頁', () => {
     expect(wrapper.find('.data-table .mono').exists()).toBe(false)
     expect(wrapper.find('.data-table .el-tooltip').exists()).toBe(false)
     const text = wrapper.text()
-    expect(text).toContain('狀態：已確認 → 未到場')
+    expect(text).toContain('狀態：預約正常 → 未到場')
     expect(text).toContain('內容：最新消息與活動')
     expect(text).toContain('帳號改為停用')
     expect(text).not.toContain('revision_version')

@@ -61,7 +61,7 @@ describe('API 錯誤解析', () => {
     for (const action of ['visit_request.confirm', 'visit_request.cancel', 'visit_slot.update', 'media.upload', 'media.update', 'media.replace', 'retention_policy.update']) {
       expect(AUDIT_ACTION_LABELS[action], action).toBeTruthy()
     }
-    expect(AUDIT_TARGET_LABELS.visit_slot).toBe('參觀時段')
+    expect(AUDIT_TARGET_LABELS.visit_slot).toBe('參觀場次')
   })
 })
 
@@ -76,7 +76,7 @@ describe('場次：帶版本送出，別人先改過就重新讀取', () => {
     await wrapper.findAll('button').find(button => button.text() === '停止申請')!.trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { closed: true, expected_version: 4 })
-    expect(warning).toHaveBeenCalledWith('這一場剛被其他人修改，已重新載入')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這一場剛被其他人修改，已重新載入' }))
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
@@ -87,7 +87,7 @@ describe('場次：帶版本送出，別人先改過就重新讀取', () => {
     wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.classes().includes('day-panel__capacity'))!.vm.$emit('update:modelValue', 5)
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/slots/s1', { capacity: 5, expected_version: 4 })
-    expect(warning).toHaveBeenCalledWith('這一場剛被其他人修改，已重新載入')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這一場剛被其他人修改，已重新載入' }))
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 })
@@ -104,7 +104,7 @@ describe('每週固定場次：整份替換要帶版本，衝突時不蓋掉別�
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(put).toHaveBeenCalledWith('/admin/visit-schedule/yihua', expect.objectContaining({ expected_version: 5 }))
-    expect(warning).toHaveBeenCalledWith('場次剛被其他人修改，已重新載入最新設定')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '場次剛被其他人修改，已重新載入最新設定' }))
     // 重新載入後再讀一次規則。
     expect(get.mock.calls.filter(([path]) => String(path).startsWith('/admin/visit-schedule/')).length).toBeGreaterThanOrEqual(2)
   })

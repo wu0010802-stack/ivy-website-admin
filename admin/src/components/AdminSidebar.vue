@@ -60,17 +60,20 @@ const groups = computed(() => {
   // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
   const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
     const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
-    if (!q) return { ...group, items: allowed, score: 0 }
+    // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項。
+    // 看 nav.ts 原本的項目數，不看過濾後的：角色剛好只剩一項的分組仍保留標題；搜尋時也照常顯示分組名。
+    const flat = !q && group.items.length === 1 && !group.section
+    if (!q) return { ...group, items: allowed, score: 0, flat }
     // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
     // 搜「預約」要帶出參觀案件、參觀場次，不只名稱裡有「預約」的兩項。
     const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
     if (hits.length) {
       hits.sort((a, b) => b.score - a.score)
-      return { ...group, items: hits.map(hit => hit.item), score: hits[0]!.score }
+      return { ...group, items: hits.map(hit => hit.item), score: hits[0]!.score, flat }
     }
     // 這組沒有功能中才看分組或區段名，讓搜「參觀預約」能看到整組。
     const byGroup = [group.label, group.section ?? ''].some(label => label && normalizeSearch(label).includes(q))
-    return { ...group, items: byGroup ? allowed : [], score: 0 }
+    return { ...group, items: byGroup ? allowed : [], score: 0, flat }
   }).filter(group => group.items.length)
   // 最接近的一組排前面（sort 是穩定排序，同分維持側欄原本的順序）。
   return q ? results.sort((a, b) => b.score - a.score) : results
@@ -140,14 +143,14 @@ const userLine = computed(() => {
       <template v-for="block in blocks" :key="block.key">
       <p v-if="block.section" class="sidebar__section">{{ block.section }}</p>
       <section v-for="group in block.groups" :key="group.key" class="sidebar__group" :class="{ 'is-nested': block.section }">
-        <h2>
+        <h2 v-if="!group.flat">
           <button type="button" class="sidebar__group-toggle" :disabled="hasQuery" :aria-expanded="hasQuery || expanded[group.key]"
             :aria-controls="`nav-${group.key}`" @click="expanded[group.key] = !expanded[group.key]">
             {{ group.label }}
             <el-icon class="sidebar__chevron" :class="{ 'is-open': hasQuery || expanded[group.key] }"><ArrowDown /></el-icon>
           </button>
         </h2>
-        <ul v-show="hasQuery || expanded[group.key]" :id="`nav-${group.key}`">
+        <ul v-show="group.flat || hasQuery || expanded[group.key]" :id="`nav-${group.key}`">
           <li v-for="item in group.items" :key="item.name">
             <router-link :to="item.path" class="sidebar__link" :class="{ 'is-active': activePath === item.path }"
               :aria-current="activePath === item.path ? 'page' : undefined">

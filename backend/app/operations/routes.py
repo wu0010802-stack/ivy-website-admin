@@ -286,22 +286,44 @@ class AuditLogEntryOut(BaseModel):
     # 對哪個帳號（target_type 為 user 時）：對方的顯示名稱，沒填就用 email；
     # 其他對象或找不到帳號時為 null。
     target_label: str | None
+    # 對參觀案件（target_type 為 visit_request）時：那筆案件現在還在不在，
+    # 個資清理刪掉的案件為 false；其他對象為 null。不帶家長個資。
+    target_exists: bool | None = None
     campus_key: str | None
     metadata: dict
     created_at: datetime
 
 
+def _as_utc(value: datetime) -> datetime:
+    # 沒帶時區的游標當成 UTC（API 回的 created_at 都有時區）。
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
 @router.get("/admin/audit-log", response_model=list[AuditLogEntryOut])
 async def get_audit_log(
     campus_key: str | None = None,
+    before: datetime | None = Query(None, description="上一頁最後一筆的 created_at；和 before_id 一起傳，讀更早的紀錄"),
+    before_id: uuid.UUID | None = Query(None, description="上一頁最後一筆的 id"),
+    exclude_login: bool = Query(False, description="不列例行的登入登出（登入失敗、帳號鎖定照列）"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[AuditLogEntryOut]:
+    """新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。"""
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
-    rows = await audit_service.list_recent(db, campus_key)
+    if (before is None) != (before_id is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_CURSOR", "message": "before 與 before_id 要一起傳"},
+        )
+    rows = await audit_service.list_recent(
+        db,
+        campus_key,
+        before=(_as_utc(before), before_id) if before is not None and before_id is not None else None,
+        exclude_login=exclude_login,
+    )
     return [
         AuditLogEntryOut(
             id=row.entry.id,
@@ -312,6 +334,7 @@ async def get_audit_log(
             target_type=row.entry.target_type,
             target_id=row.entry.target_id,
             target_label=row.target_label,
+            target_exists=row.target_exists,
             campus_key=row.entry.campus_key,
             metadata=row.entry.metadata_json or {},
             created_at=row.entry.created_at,

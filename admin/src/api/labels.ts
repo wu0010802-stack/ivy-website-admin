@@ -50,15 +50,17 @@ export interface StatusMeta {
   tone: TagTone
 }
 
-// 參觀案件狀態。語意沿用規格：inquiry 只是「已收到需求」，只有 confirmed
-// 才叫「預約成立」，文字不能把 new 寫成「已預約」。
+// 參觀案件狀態（資料庫的七種）。歷程與操作紀錄寫「A → B」時用；列表、明細與
+// 參觀場次的狀態標籤用下方 visitDisplay 的分組說法。兩邊用同一組詞：confirmed
+// 叫「預約正常」、completed 叫「已到場」（2026-09-30 自選場次裁定、明細按鈕「標記已到場」）。
+// new 只是舊流程「已收到需求」，文字不能寫成「已預約」。
 export const VISIT_STATUS: Record<string, StatusMeta> = {
   pending_confirmation: { label: '待園方確認', tone: 'warning' },
   // 新需求用操作色、待園方確認用暖黃（有期限），和總覽待辦的兩種數字底色一致。
   new: { label: '待處理', tone: 'primary' },
   contacting: { label: '聯絡中', tone: 'primary' },
-  confirmed: { label: '已確認', tone: 'success' },
-  completed: { label: '已完成', tone: 'info' },
+  confirmed: { label: '預約正常', tone: 'success' },
+  completed: { label: '已到場', tone: 'info' },
   cancelled: { label: '已取消', tone: 'info' },
   no_show: { label: '未到場', tone: 'danger' },
 }
@@ -90,15 +92,16 @@ export function maskEmail(email: string): string {
   return `${name.slice(0, 1)}***@${domain}`
 }
 
+// 時間已過但還沒標記到場的是接待要處理的事，用暖黃和已到場、未到場（灰）分開。
 export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
   switch (row.display_status) {
     case 'upcoming':
       return { label: '預約正常', tone: 'success', sub: '' }
     case 'past':
-      return { label: '預約時間已過', tone: 'info', sub: PAST_SUB[row.status] ?? '' }
+      return { label: '預約時間已過', tone: row.status === 'confirmed' ? 'warning' : 'info', sub: PAST_SUB[row.status] ?? '' }
     case 'cancelled': {
       const who = (row.cancel_reason && CANCELLED_BY_LABELS[row.cancel_reason]) || '取消時間'
-      return { label: '預約已取消', tone: 'danger', sub: row.cancelled_at ? `${who}：${formatDateTime(row.cancelled_at)}` : '' }
+      return { label: '預約已取消', tone: 'danger', sub: row.cancelled_at ? `${who}：${formatShortDateTime(row.cancelled_at)}` : '' }
     }
     default:
       return { label: '待處理', tone: 'warning', sub: PENDING_SUB[row.status] ?? '' }
@@ -107,6 +110,17 @@ export function visitDisplay(row: { status: string; display_status: string; canc
 
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
+}
+
+// 前端自己算分組，和後端 status_groups.display_status 同一個判準：場次開始的那一刻起
+// 算「時間已過」。參觀場次的當天清單沒有 display_status；案件明細開著等家長來時，
+// 也要跟著時鐘從「預約正常」換成「預約時間已過」。
+export function visitDisplayStatus(status: string, slot: { slot_date: string; start_time: string } | null | undefined, now: number = Date.now()): string {
+  if (status === 'new' || status === 'contacting' || status === 'pending_confirmation') return 'pending'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'completed' || status === 'no_show') return 'past'
+  if (!slot) return 'pending'
+  return slotStarted(slot, now) ? 'past' : 'upcoming'
 }
 
 // 規格 190 固定選項。API 存代碼；更新前的舊案件可能還是中文原字，照原字顯示。
@@ -412,11 +426,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.reschedule': '改期',
   'visit_request.cancel': '取消預約',
   'visit_request.no_show': '標記未到場',
-  'visit_request.complete': '標記完成參觀',
+  'visit_request.complete': '標記已到場',
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',
-  'visit_slot.create': '新增參觀時段',
-  'visit_slot.update': '調整時段名額或開關',
+  'visit_slot.create': '新增參觀場次',
+  'visit_slot.update': '調整場次名額或開關',
   'retention_policy.update': '更新個資保存政策',
   'user.link_google': '綁定 Google 登入',
   'user.unlink_google': '解除 Google 登入綁定',
@@ -432,7 +446,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.logout': '登出',
   'user.clear_external_logins': '解除外部登入綁定',
   'visit_schedule.update': '更新每週開放規則',
-  'visit_slots.generate': '依規則產生時段',
+  'visit_slots.generate': '依規則產生場次',
   'visit_exception.create': '設定休假日',
   'visit_exception.delete': '取消休假日',
   'campus.activate': '重新啟用分校',
@@ -502,7 +516,7 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   rescheduled: '改期',
   cancelled: '取消預約',
   no_show: '標記未到場',
-  completed: '完成參觀',
+  completed: '標記已到場',
   hold_expired: '占位逾期，名額釋出',
   contact_logged: '新增聯絡紀錄',
   assigned: '指派承辦人',
@@ -542,7 +556,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   visit_requests: '參觀案件（批次清理）',
   visit_schedule: '開放規則',
   visit_exception: '休假日',
-  visit_slot: '參觀時段',
+  visit_slot: '參觀場次',
   retention_policy: '個資保存政策',
   line_group: 'LINE 群組',
   line_verification_code: 'LINE 群組驗證碼',
@@ -827,6 +841,13 @@ export function formatDateTime(value: string | null | undefined): string {
   return dateTimeFormatter.format(d).replace(/\s+/g, ' ')
 }
 
+// 列表欄位用：今年的省略年份（09/28 21:41），跨年的照寫年份（DESIGN.md 2026-09-28 案件表格）。
+const thisYear = new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Taipei' }).format(new Date())
+export function formatShortDateTime(value: string | null | undefined): string {
+  const text = formatDateTime(value)
+  return text.startsWith(`${thisYear}/`) ? text.slice(thisYear.length + 1) : text
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   // 純日期字串（YYYY-MM-DD）直接以本地日期解讀，避免時區往前退一天。
@@ -866,6 +887,13 @@ export function formatSlotWhen(
 ): string {
   if (!slot) return '—'
   return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${formatTime(slot.start_time)}–${formatTime(slot.end_time)}`
+}
+
+// 列表欄位用的短寫法：今年的場次省略年份（10/22（週四）09:30–10:30）。明細、確認框
+// 與歷程照用 formatSlotWhen，跨年的案件才看得出是哪一年。
+export function formatShortSlotWhen(slot: { slot_date: string; start_time: string; end_time: string } | null | undefined): string {
+  const text = formatSlotWhen(slot)
+  return text.startsWith(`${thisYear}/`) ? text.slice(thisYear.length + 1) : text
 }
 
 
@@ -937,7 +965,7 @@ export function slotSyncLines(sync: Partial<SlotSyncResult> | null | undefined):
   const retired = (sync.removed ?? 0) + (sync.closed ?? 0)
   return [
     sync.created ? `已排出 ${sync.created} 場` : '',
-    retired ? `${retired} 場不符合新規則的時段不再開放` : '',
+    retired ? `${retired} 場不符合新規則的場次不再開放` : '',
     sync.reopened ? `重新開放 ${sync.reopened} 場` : '',
     sync.capacity_updated ? `${sync.capacity_updated} 場名額改成新規則` : '',
     sync.kept_booked ? `${sync.kept_booked} 場已有家長排入，維持原樣` : '',
@@ -1030,7 +1058,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   campus_keys: '負責校區',
   capabilities: '授權',
   capacity: '名額',
-  closed: '時段狀態',
+  closed: '場次狀態',
   cancelled_days: '已取消、未到場保留',
   completed_days: '已完成參觀保留',
   open_overdue_days: '未結案提醒',
@@ -1142,7 +1170,7 @@ function contentItemsLabel(value: unknown): string {
 // 素材說明被改了哪些欄位（media.update 的 fields）。
 const MEDIA_FIELD_LABELS: Record<string, string> = {
   alt_text: '說明',
-  caption: '圖說',
+  caption: '內部備註',
   source_attribution: '來源標示',
   license_note: '授權說明',
   tags: '標籤',
@@ -1192,7 +1220,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // （後端刻意不存），改成什麼要看「使用者」頁。
   self: (v) => (v ? '本人自己修改' : '由總管理者修改'),
   // 時段與案件
-  slot: (v) => `時段：${auditSlotLabel(v)}`,
+  slot: (v) => `場次：${auditSlotLabel(v)}`,
   row_count: (v) => `匯出 ${countOf(v)} 筆`,
   status: (v, action) => {
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
@@ -1208,13 +1236,13 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),
   has_search: (v) => (v ? '有用搜尋字篩選' : null),
-  with_slot: (v) => (v ? '同時排入時段' : '還沒排時段'),
+  with_slot: (v) => (v ? '同時排入場次' : '還沒排場次'),
   follow_up_set: (v) => (v ? '設定了下次聯絡時間' : '沒有設定下次聯絡時間'),
   follow_up_cleared: (v) => (v ? '清除下次聯絡時間' : null),
   // 開放規則、休假日、產生時段
   rule_count: (v) => `每週規則 ${countOf(v)} 條`,
   date: (v) => `日期：${auditWhen(v)}`,
-  closed_slots: (v) => `關閉 ${countOf(v)} 場時段`,
+  closed_slots: (v) => `關閉 ${countOf(v)} 場`,
   affected_requests: (v) => `影響 ${countOf(v)} 筆已排入的案件`,
   reopened_slots: (v) => `重新開放 ${countOf(v)} 場`,
   created_slots: (v) => `依規則補上 ${countOf(v)} 場`,
@@ -1309,7 +1337,7 @@ function pairedLines(m: Record<string, unknown>): string[] {
     lines.push(from && to ? `狀態：${from} → ${to}` : from ? `原本狀態：${from}` : `狀態改為：${to}`)
   }
   if (has('from_slot') || has('to_slot')) {
-    lines.push(`時段：${m.from_slot ? auditSlotLabel(m.from_slot) : '未排時段'} → ${m.to_slot ? auditSlotLabel(m.to_slot) : '未排時段'}`)
+    lines.push(`場次：${m.from_slot ? auditSlotLabel(m.from_slot) : '未排場次'} → ${m.to_slot ? auditSlotLabel(m.to_slot) : '未排場次'}`)
   }
   if (has('from_stage') || has('to_stage')) {
     const stage = (value: unknown) => RECRUITMENT_STAGE_LABELS[String(value)] ?? String(value)
@@ -1380,7 +1408,7 @@ export function auditMetadataDetails(metadata: Record<string, unknown> | null | 
   }
   if (changes) lines.push(`修改：${changes}`)
   const slotSync = m.slot_sync && typeof m.slot_sync === 'object' ? slotSyncLines(m.slot_sync as Partial<SlotSyncResult>) : []
-  if (slotSync.length) lines.push(`時段：${slotSync.join('、')}`)
+  if (slotSync.length) lines.push(`場次：${slotSync.join('、')}`)
   return { lines, others }
 }
 

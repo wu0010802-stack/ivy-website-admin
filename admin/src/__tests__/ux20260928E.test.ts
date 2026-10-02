@@ -449,16 +449,29 @@ describe('自訂開關與刪除場景', () => {
     expect(films.value?.map((f) => f.title)).toEqual(['一起跑', '運動會'])
   })
 
+  // 刪除場景要先在 popconfirm 按「刪除」（2026-10-02：場景有照片和熱點，不再一按就刪）。
+  async function confirmPop(text: string) {
+    await flushPromises()
+    const confirm = [...document.body.querySelectorAll<HTMLButtonElement>('.el-popconfirm button')].find((b) => b.textContent?.trim() === text)
+    if (!confirm) throw new Error(`找不到確認鈕：${text}`)
+    confirm.click()
+    await flushPromises()
+  }
+
   it('刪除場景後選旁邊那一個，不跳回第一個', async () => {
     const scene = (key: string, name: string) => ({ key, name, image: '', intro: '', spots: [{ name: '點', x: 50, y: 50, text: '', question: '' }] })
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_tour', { scenes: [scene('a', '廣場'), scene('b', '教室'), scene('c', '菜園')] }, 'yihua') as never)
     const wrapper = await mountView(CampusTourView)
     await wrapper.findAll('.tour__scene-tab')[1]!.trigger('click')
     await button(wrapper, '刪除「教室」').trigger('click')
+    // 還沒確認就不刪
+    expect(wrapper.get('.tour__scene-tab.is-active').text()).toContain('教室')
+    await confirmPop('刪除')
     const active = wrapper.get('.tour__scene-tab.is-active')
     expect(active.text()).toContain('菜園')
     expect(wrapper.get('.tour__side-title').text()).toContain('場景 2 / 2')
     await button(wrapper, '刪除「菜園」').trigger('click')
+    await confirmPop('刪除')
     expect(wrapper.get('.tour__scene-tab.is-active').text()).toContain('廣場')
   })
 })

@@ -6,7 +6,7 @@ import {
   type RouteRecordRaw,
   type RouteRecordSingleView,
 } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { notifyError } from '../composables/notify'
 import { useAuthStore } from '../stores/auth'
 // 登入頁與外框直接打包進入口，打開後台第一眼就要用到；其他頁面點進去時才下載，
 // 不必讓櫃台在手機上先下載一整包用不到的內容編輯頁。
@@ -180,7 +180,7 @@ export function reloadAfterChunkError(
     reloadedJustNow = true
   }
   if (reloadedJustNow) {
-    ElMessage.error({ message: '頁面沒有載入成功，請確認網路後重新整理這一頁', duration: 0, showClose: true })
+    notifyError('頁面沒有載入成功，請確認網路後重新整理這一頁', { duration: 0 })
     return true
   }
   navigate(href)

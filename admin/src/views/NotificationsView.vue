@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import { campusLabel, formatDateTime, formatSlotWhen, notificationLabel, outboxErrorLabel } from '../api/labels'
-import type { NotificationOutboxOut, NotificationOutboxPageOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
+import type { NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
 import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
@@ -11,14 +12,7 @@ import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
-interface NotificationOut {
-  id: string
-  campus_key: string
-  kind: string
-  payload: Record<string, unknown>
-  created_at: string
-  read_at: string | null
-}
+type NotificationOut = NotificationInboxItemOut
 
 // 管多校的人預設看「全部校區」（''），和下面寄送失敗、改期申請的範圍一致，不必
 // 切五次才看完；只管一校的人直接是那一校。
@@ -158,12 +152,10 @@ function visitRequestId(n: NotificationOut): string | null {
   return typeof id === 'string' ? id : null
 }
 
+// 案件的參觀場次是後端讀取時查的（不存在通知裡），只有日期時段、不含家長
+// 個資；還沒排場次或案件已清除時不顯示。
 function summary(n: NotificationOut): string {
-  const p = n.payload ?? {}
-  const parts: string[] = []
-  if (typeof p.parent_name === 'string') parts.push(p.parent_name)
-  if (typeof p.slot_date === 'string') parts.push(String(p.slot_date))
-  return parts.join('・')
+  return n.slot ? `參觀 ${formatSlotWhen(n.slot)}` : ''
 }
 
 function listMatches(campus: string): boolean {
@@ -179,7 +171,7 @@ async function markRead(n: NotificationOut) {
     await api.post(`/admin/notifications/${n.id}/read`)
     if (alive && campus === campusFilter.value) n.read_at = new Date().toISOString()
   } catch {
-    if (alive) ElMessage.error('標記失敗，請重試')
+    if (alive) notifyError('標記失敗，請重試')
   } finally {
     busyId.value = null
   }
@@ -253,7 +245,7 @@ async function retryOne(row: NotificationOutboxOut) {
     failedTotal.value = Math.max(failedTotal.value - 1, failedOutbox.value.length)
   } catch (err) {
     if (!alive) return
-    ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
+    notifyError(apiMessage(err, '重新寄送失敗，請重試'))
     await loadFailed()
   } finally { busyId.value = null }
 }
@@ -277,7 +269,7 @@ async function retryAll() {
       ? `${done}還有 ${failedTotal.value} 則寄送失敗，請再按一次「全部重新寄送」。`
       : done
   } catch (err) {
-    if (alive) ElMessage.error(apiMessage(err, '重新寄送失敗，請重試'))
+    if (alive) notifyError(apiMessage(err, '重新寄送失敗，請重試'))
   } finally { retryAllBusy.value = false }
 }
 
@@ -296,7 +288,7 @@ async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAct
     await loadReschedules()
   } catch (err) {
     if (!alive) return
-    ElMessage.error(apiMessage(err, '操作失敗，請重試'))
+    notifyError(apiMessage(err, '操作失敗，請重試'))
     // 可能剛被別人處理或已失效：重讀清單，側欄數字也跟著更新。
     openRequests.refresh(true)
     await loadReschedules()
@@ -384,7 +376,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
       <el-alert v-if="rescheduleError" :title="rescheduleError" type="error" show-icon :closable="false" class="inline-error" />
       <section v-if="pendingReschedules.length > 0" class="panel reschedule">
         <div class="panel__head"><h2>待核准的改期申請（{{ pendingReschedules.length }}）</h2></div>
-        <p class="section-lead">家長線上申請、等園方核准的改期（含你負責的所有校區）。核准前原時段仍有效。</p>
+        <p class="section-lead">家長線上申請、等園方核准的改期（含你負責的所有校區）。核准前原場次仍有效。</p>
         <el-table :data="pendingReschedules" class="data-table">
           <el-table-column label="家長" min-width="140">
             <template #default="{ row }: { row: RescheduleRequestOut }">
@@ -395,7 +387,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <el-table-column label="校區" width="80">
             <template #default="{ row }: { row: RescheduleRequestOut }">{{ campusLabel(row.campus_key) }}</template>
           </el-table-column>
-          <el-table-column label="原時段" min-width="190">
+          <el-table-column label="原場次" min-width="190">
             <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num">{{ formatSlotWhen(row.current_slot) }}</span></template>
           </el-table-column>
           <el-table-column label="申請改到" min-width="210">
@@ -421,7 +413,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
             <div class="record-heading"><strong>{{ row.parent_name }}</strong><el-tag type="warning">待核准</el-tag></div>
             <dl class="record-meta">
               <dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd>
-              <dt>原時段</dt><dd>{{ formatSlotWhen(row.current_slot) }}</dd>
+              <dt>原場次</dt><dd>{{ formatSlotWhen(row.current_slot) }}</dd>
               <dt>申請改到</dt><dd>{{ formatSlotWhen(row.requested_slot) }}（{{ requestedSlotNote(row) }}）</dd>
               <dt>申請時間</dt><dd>{{ formatDateTime(row.created_at) }}</dd>
             </dl>

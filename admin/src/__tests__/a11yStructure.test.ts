@@ -85,3 +85,18 @@ describe('開關都有可及名稱', () => {
     expect(missing).toEqual([])
   })
 })
+
+describe('段落連結與觸控的數字欄（style.css）', () => {
+  const css = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
+
+  it('頁首說明與提示裡的連結有底線，不只靠顏色分辨（WCAG 1.4.1）', () => {
+    const rule = /\.page-lead a,\s*\.hint a,\s*\.field-help a\s*\{[^}]*text-decoration:\s*underline/
+    expect(css).toMatch(rule)
+  })
+
+  it('觸控裝置拿掉右側上下疊的小微調鈕，改直接輸入', () => {
+    const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
+    const block = coarse.slice(0, coarse.indexOf('\n}\n'))
+    expect(block).toMatch(/\.el-input-number\.is-controls-right \.el-input-number__increase,\s*\.el-input-number\.is-controls-right \.el-input-number__decrease \{ display: none; \}/)
+  })
+})

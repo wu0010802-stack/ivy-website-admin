@@ -270,6 +270,18 @@ def _campus_faq_publish_blocker(payload: dict) -> str | None:
     return None
 
 
+_CAMPUS_PROFILE_REQUIRED = (("name", "校名"), ("address", "地址"), ("phone", "參觀專線"))
+
+
+def _campus_profile_publish_blocker(payload: dict) -> str | None:
+    """校名、地址、參觀專線清空後，官網的五校卡、分校頁和預約頁會出現空白。
+    存草稿照常放行，只擋發布（排程到期、還原也走同一個檢查）。"""
+    blank = [label for key, label in _CAMPUS_PROFILE_REQUIRED if not str(payload.get(key) or "").strip()]
+    if blank:
+        return f"{'、'.join(blank)}不能空白，官網的五校卡、分校頁和預約頁會出現空白，請填寫後再發布"
+    return None
+
+
 @dataclass(frozen=True)
 class ContentKindConfig:
     payload_model: type[BaseModel]
@@ -331,7 +343,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
     # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(
-        CampusProfilePayload, shared_only=False, extract_media_refs=_extract_campus_profile_media_refs
+        CampusProfilePayload,
+        shared_only=False,
+        extract_media_refs=_extract_campus_profile_media_refs,
+        publish_blocker=_campus_profile_publish_blocker,
     ),
     "campus_faq": ContentKindConfig(
         CampusFaqPayload,

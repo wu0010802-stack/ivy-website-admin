@@ -311,7 +311,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 .calendar__chip[data-kind='stopped'], .calendar__swatch[data-kind='stopped'] { background: var(--el-color-danger); box-shadow: none; color: var(--surface); }
 .calendar__chip[data-kind='open'], .calendar__swatch[data-kind='open'] { background: transparent; box-shadow: none; border: 1px solid var(--line); color: var(--ink-3); }
 .calendar__chip[data-status='completed'], .calendar__chip[data-status='no_show'] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--line-strong); color: var(--ink-3); }
-.calendar__chip.is-ended { opacity: 0.6; }
+/* 已結束的色塊不調淡：12px 小字一淡化就不到 4.5:1（DESIGN.md 規則）；已到場、未到場本來就是灰底。 */
 .calendar__swatch.is-holiday { background: var(--surface-3); box-shadow: none; border: 1px solid var(--line-strong); }
 .calendar__day.is-holiday { background: var(--surface-3); }
 .calendar__holiday { font-size: 12px; color: var(--ink-3); }

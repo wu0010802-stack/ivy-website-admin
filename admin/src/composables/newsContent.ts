@@ -1,7 +1,7 @@
 // 消息與活動（全站 home_news、各校 campus_news）與共用常見問題編輯頁共用的
 // 欄位預設值、舊資料換算與檢查。規則與後端 content/schemas.py 相同，前端先
 // 提示，真正的驗證仍在後端。
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import { CAMPUS_LABELS } from '../api/labels'
 import type {
   CampusNewsArticlePayload,
@@ -186,15 +186,90 @@ export function moveItem<T>(list: T[], index: number, delta: number): void {
 const FIRST_FIELD = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([disabled]), textarea:not([disabled])'
 
 /**
+ * 可以收合的清單項目（消息、活動、時刻卡）收合時欄位用 v-show 藏著；要捲過去、
+ * 聚焦之前先對那一項發這個事件，項目自己展開（display:none 的欄位聚焦不了）。
+ */
+export const LIST_ITEM_REVEAL_EVENT = 'list-item-reveal'
+
+async function expandItem(item: HTMLElement): Promise<void> {
+  item.dispatchEvent(new CustomEvent(LIST_ITEM_REVEAL_EVENT))
+  await nextTick()
+}
+
+function scrollAndFocus(target: HTMLElement, field: string) {
+  const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+  const focusable = target.matches(field) ? target : target.querySelector<HTMLElement>(field)
+  focusable?.focus({ preventScroll: true })
+}
+
+/**
  * 按了「新增」之後：等新的一項畫出來，把它捲到畫面中間並聚焦第一個欄位（或
  * field 指定的元素）。清單很長時新的一項可能在畫面外，不這樣做看起來像沒反應。
- * 用 selector 在 root 裡找那一項，例如 `[data-list-item="3"]`。
+ * 用 selector 在 root 裡找那一項，例如 `[data-list-item="3"]`；收合的項目先展開。
  */
 export async function revealListItem(root: ParentNode | null | undefined, selector: string, field = FIRST_FIELD): Promise<void> {
   await nextTick()
   const item = root?.querySelector<HTMLElement>(selector)
   if (!item) return
-  const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  item.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
-  item.querySelector<HTMLElement>(field)?.focus({ preventScroll: true })
+  await expandItem(item)
+  scrollAndFocus(item, field)
+}
+
+/**
+ * 存檔被擋下時，錯誤清單點一條就捲到那一欄：照 422 的 loc 一層層找。清單用
+ * `[data-list="articles"]` 包住、每一項帶 `[data-list-item="3"]`（沒有 data-list
+ * 時找 root 裡第一個對得上的項目）；欄位先找 `[data-field="title"]`，再找標籤以
+ * fieldLabel 開頭的 el-form-item。找不到欄位就停在那一項；什麼都找不到回 false。
+ */
+export async function revealContentPath(root: HTMLElement | null | undefined, path: readonly (string | number)[], fieldLabel = ''): Promise<boolean> {
+  if (!root) return false
+  let scope: HTMLElement = root
+  let i = 0
+  while (i < path.length - 1 && typeof path[i] === 'string' && typeof path[i + 1] === 'number') {
+    const list = scope.querySelector<HTMLElement>(`[data-list="${String(path[i])}"]`) ?? scope
+    const item = list.querySelector<HTMLElement>(`[data-list-item="${String(path[i + 1])}"]`)
+    if (!item) break
+    await expandItem(item)
+    scope = item
+    i += 2
+  }
+  const key = path[i]
+  let target: HTMLElement | null = null
+  if (typeof key === 'string' && i === path.length - 1) {
+    target = scope.querySelector<HTMLElement>(`[data-field="${key}"]`)
+    if (!target && fieldLabel) {
+      target = Array.from(scope.querySelectorAll<HTMLElement>('.el-form-item')).find((formItem) => {
+        const text = formItem.querySelector('.el-form-item__label')?.textContent?.trim() ?? ''
+        return text.startsWith(fieldLabel)
+      }) ?? null
+    }
+  }
+  target ??= scope === root ? null : scope
+  if (!target) return false
+  scrollAndFocus(target, FIRST_FIELD)
+  return true
+}
+
+/**
+ * 長清單（消息、活動、時刻卡）每一項可以收合。預設全部收合，只展開這次打開過、
+ * 新增的、存檔錯誤指到的項目（後兩者經 revealListItem／revealContentPath 自動展開）；
+ * 展開過的不會自己收回，所以這次改過的項目一直開著。用項目的 id／key 記，上移下移
+ * 會跟著走。
+ */
+export function useCollapsibleItems() {
+  const open = ref<Record<string, boolean>>({})
+  return {
+    isOpen: (id: string) => Boolean(open.value[id]),
+    expand(id: string) {
+      if (!open.value[id]) open.value = { ...open.value, [id]: true }
+    },
+    toggle(id: string) {
+      open.value = { ...open.value, [id]: !open.value[id] }
+    },
+    /** 「全部展開／全部收合」：只動這份清單的項目 */
+    setMany(ids: string[], value: boolean) {
+      open.value = { ...open.value, ...Object.fromEntries(ids.map((id) => [id, value])) }
+    },
+  }
 }

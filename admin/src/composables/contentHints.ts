@@ -93,3 +93,40 @@ export function momentTimeError(value: string | null | undefined): string {
   // 錯誤訊息在半欄寬的欄位下方，只放得下一行；為什麼要這樣填寫在時刻卡清單的說明裡。
   return '請用「時:分」，例如 08:05、13:30'
 }
+
+// 原型留下的示範文字：官網（web/app/utils/public-copy.ts 的 publicCopy）遇到「一字不差」
+// 的原文時換成正式文案，後台看到的仍是原文。這裡只認那幾段原文，不用「示意」這類
+// 關鍵字（消息的示意說明、時刻卡的「情境示意」是刻意保留的標示，DESIGN.md 286／302）。
+// 原文要和 public-copy.ts 保持一致；那邊改了這裡也要改。
+export const LEGACY_SITE_DESCRIPTION = '走進常春藤，認識五校的環境與孩子的校園生活。官網設計互動提案。'
+export const LEGACY_FOOTER_NOTE = '官網設計提案 · 預約為操作示範，不會送出資料'
+export const LEGACY_FAQ_BOOKING = '先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。'
+const LEGACY_FAQ_FEE = /^招生年齡、名額與費用依校區與學年度而異。請向.+確認；這份提案不提供即時招生名額或費用報價。$/
+
+/**
+ * 欄位值是原型原文（官網目前顯示替換後的正式文案）時的提示；不是就回空字串。
+ * 分校 FAQ 只有在這一校還留著原型的預約回答時才整組替換（public-copy.ts），所以
+ * faqAnswer 要帶同一校全部的回答（answers）；沒帶時當作還留著。
+ */
+export function legacyCopyHint(field: 'siteDescription' | 'footerNote' | 'faqAnswer', value: string | null | undefined, answers?: readonly string[]): string {
+  const text = value ?? ''
+  switch (field) {
+    case 'siteDescription':
+      return text === LEGACY_SITE_DESCRIPTION
+        ? '這是原型留下的文字，官網目前顯示替換後的正式描述；改了這段之後就不再自動替換，官網會照這裡顯示。'
+        : ''
+    case 'footerNote':
+      return text === LEGACY_FOOTER_NOTE
+        ? '這是原型留下的文字，官網目前不顯示這段；改了這段之後官網就會照這裡顯示。'
+        : ''
+    case 'faqAnswer': {
+      if (answers && !answers.includes(LEGACY_FAQ_BOOKING)) return ''
+      if (text === LEGACY_FAQ_BOOKING) {
+        return '這是原型留下的回答，官網目前顯示替換後的正式回答，並在最後多一題「在哪裡？如何聯絡？」；改了這一題之後，這一校的回答都照這裡顯示，那一題也不再加上。'
+      }
+      return LEGACY_FAQ_FEE.test(text)
+        ? '這是原型留下的回答，官網目前顯示替換後的正式回答；預約那一題改掉之後就不再替換，官網會照這裡顯示。'
+        : ''
+    }
+  }
+}

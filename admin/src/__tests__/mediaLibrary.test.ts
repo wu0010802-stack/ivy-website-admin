@@ -391,6 +391,20 @@ describe('素材庫頁', () => {
     expect(body.expected_version).toBe(1)
   })
 
+  it('素材的 caption 叫「內部備註」並講明不顯示在官網，舊值照原樣存回', async () => {
+    mockGet([asset({ caption: '2025 畢業典禮大合照' })])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    expect(wrapper.find('input[placeholder="檔名、圖片說明、內部備註或標籤"]').exists()).toBe(true)
+    await wrapper.findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('內部備註（不會顯示在官網）')
+    expect(wrapper.text()).not.toContain('圖說')
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue(asset() as never)
+    await wrapper.findAll('button').find((b) => b.text() === '儲存')!.trigger('click')
+    await flushPromises()
+    expect((patch.mock.calls[0]![1] as Record<string, unknown>).caption).toBe('2025 畢業典禮大合照')
+  })
+
   it('別人先改過說明時不蓋掉，確認後載入最新的說明重新編輯', async () => {
     const get = mockGet([asset({ version: 3 })])
     const wrapper = await mountAs(MediaLibraryView, admin())

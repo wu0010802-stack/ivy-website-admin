@@ -359,7 +359,7 @@ describe('預約文案：隱私說明本文', () => {
 })
 
 describe('總覽、案件明細、補登、個資與搜尋設定', () => {
-  it('開放選時段卻沒有場次的校區列入待辦', async () => {
+  it('開放選場次卻沒有場次的校區列入待辦', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/dashboard') {
         return { today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], campuses_slots_without_openings: ['yihua', 'renwu'], failed_notifications: 0 } as never
@@ -367,7 +367,7 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
       return [] as never
     })
     const wrapper = await mountAt(DashboardView, '/')
-    expect(wrapper.text()).toContain('開放選時段，但沒有可預約的場次')
+    expect(wrapper.text()).toContain('開放選場次，但沒有可預約的場次')
     expect(wrapper.text()).toContain('義華、仁武官網顯示「目前沒有開放的參觀場次」')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
   })

@@ -144,7 +144,7 @@ describe('到期待追蹤有來源也有入口', () => {
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-b/contact-notes', { note: '已致電' })
   })
 
-  it('排入場次後不再預填「已致電家長」（確認信由系統寄出），並提供下一筆待處理', async () => {
+  it('排入場次後不再預填「已致電家長」（確認信由系統寄出），並提供下一筆（舊需求）', async () => {
     const data = { ...base(), follow_up_at: null }
     vi.spyOn(api, 'get').mockImplementation(async path => {
       if (path.endsWith('/contact-notes')) return [] as never
@@ -159,7 +159,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await router.push('/visit-requests/case-a'); await router.isReady()
     const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.text()).toContain('下一筆（待處理 1）')
+    expect(wrapper.text()).toContain('下一筆（舊需求 1）')
     wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', slot.id)
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '排入場次')!.trigger('click')

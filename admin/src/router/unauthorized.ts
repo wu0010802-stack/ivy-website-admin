@@ -1,5 +1,6 @@
 import type { Router } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyWarning } from '../composables/notify'
 import { useAuthStore } from '../stores/auth'
 import { hasUnsavedChanges, leaveWithoutAsking } from '../composables/useUnsavedChanges'
 
@@ -77,7 +78,7 @@ async function recoverInPlace(router: Router): Promise<void> {
         ElMessage.success('已恢復登入，請再按一次儲存。')
         return
       }
-      ElMessage.warning('還沒有重新登入：請先在新分頁登入後台，再回來按「我已重新登入」。')
+      notifyWarning('還沒有重新登入：請先在新分頁登入後台，再回來按「我已重新登入」。')
     }
   } finally {
     recovering = false

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
+import { legacyCopyHint } from '../composables/contentHints'
 import type { SiteFooterPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
@@ -48,6 +49,7 @@ onMounted(editor.load)
       </el-form-item>
       <el-form-item label="底部備註">
         <el-input v-model="editor.form.value.bottom_note" />
+        <p v-if="legacyCopyHint('footerNote', editor.form.value.bottom_note)" class="legacy-hint">{{ legacyCopyHint('footerNote', editor.form.value.bottom_note) }}</p>
       </el-form-item>
 
       <h3 class="footer-section">頁尾連結</h3>
@@ -58,5 +60,13 @@ onMounted(editor.load)
 </template>
 
 <style scoped>
+/* 原型原文提示：官網顯示的和這裡不同，改了之後才會照這裡顯示。 */
+.legacy-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-color-warning-dark-2);
+}
+
 .footer-section { margin: 24px 0 8px; font-size: 15px; }
 </style>

@@ -4,7 +4,7 @@ import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
+import { campusLabel, formatHoldRemaining, formatShortDateTime, formatShortSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
@@ -40,8 +40,11 @@ const sourceFilter = ref('')
 // 一個月，雙月面板約 646px 會超出 390px 螢幕。
 const createdRange = ref<[string, string] | null>(null)
 const narrow = useNarrowScreen()
-// 待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
+// 待人工處理：場次已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
 const attentionOnly = ref(false)
+// 「時間已過」裡還沒標記到場的（status=confirmed）。後端 status 與 group 可以疊加，
+// 網址寫成 ?group=past&status=confirmed；切到其他分頁就自動取消。
+const attendanceOnly = ref(false)
 // 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
 const order = ref<'newest' | 'oldest'>('newest')
 const page = ref(1)
@@ -66,6 +69,7 @@ function applyQuery(query: LocationQuery) {
   const group = queryText(query.group)
   // 舊書籤的 ?status= 轉成分組（資料庫狀態仍是七個，只有列表歸成四組）。
   groupFilter.value = (VISIT_GROUPS as readonly string[]).includes(group) ? group : legacyStatusGroup(queryText(query.status))
+  attendanceOnly.value = group === 'past' && query.status === 'confirmed'
   search.value = queryText(query.q)
   dueOnly.value = query.due === '1'
   const assignee = queryText(query.assignee)
@@ -86,6 +90,7 @@ function applyQuery(query: LocationQuery) {
 function stateQuery(): Record<string, string> {
   const query: Record<string, string> = {}
   if (groupFilter.value) query.group = groupFilter.value
+  if (attendanceOnly.value) query.status = 'confirmed'
   if (search.value.trim()) query.q = search.value.trim()
   if (campusFilter.value) query.campus = campusFilter.value
   if (assigneeFilter.value) query.assignee = assigneeFilter.value
@@ -126,6 +131,7 @@ const hasFilters = computed(() => Boolean(campusFilter.value || groupFilter.valu
 function clearFilters() {
   campusFilter.value = ''
   groupFilter.value = ''
+  attendanceOnly.value = false
   search.value = ''
   dueOnly.value = false
   assigneeFilter.value = ''
@@ -170,6 +176,8 @@ function filterParams(options: { withGroup?: boolean } = {}): URLSearchParams {
   const params = new URLSearchParams()
   if (campusFilter.value) params.set('campus_key', campusFilter.value)
   if (groupFilter.value && options.withGroup !== false) params.set('group', groupFilter.value)
+  // 分頁數字（withGroup: false）要算各組全部，不能只算還沒標記到場的。
+  if (attendanceOnly.value && options.withGroup !== false) params.set('status', 'confirmed')
   if (searchTerm()) params.set('q', searchTerm())
   if (dueOnly.value) params.set('follow_up_due', 'true')
   if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
@@ -254,7 +262,13 @@ function queueLoad() {
   })
 }
 
-watch([campusFilter, groupFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly], () => {
+watch(groupFilter, (group) => { if (group !== 'past') attendanceOnly.value = false })
+function toggleAttendance(on: boolean) {
+  attendanceOnly.value = on
+  if (on) groupFilter.value = 'past'
+}
+
+watch([campusFilter, groupFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly, attendanceOnly], () => {
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
   queueLoad()
@@ -302,12 +316,8 @@ function holdLabel(row: VisitRequestDetailOut): string {
   return row.status === 'pending_confirmation' ? formatHoldRemaining(row.hold_expires_at) : ''
 }
 
-// 送出時間與預定聯絡：今年的省略年份（09/28 21:41），表格欄位才放得下；跨年的照寫年份。
-const thisYear = new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Taipei' }).format(new Date())
-function formatShortDateTime(value: string | null | undefined): string {
-  const text = formatDateTime(value)
-  return text.startsWith(`${thisYear}/`) ? text.slice(thisYear.length + 1) : text
-}
+// 送出時間、預定聯絡與參觀時間：今年的省略年份（labels.ts formatShortDateTime／
+// formatShortSlotWhen），表格欄位才放得下；跨年的照寫年份。
 
 // 補登（電話、LINE、現場）才標來源；官網表單是預設，不佔字。
 const manualSource = (row: VisitRequestDetailOut): string => (row.source && row.source !== 'web' ? `${visitSourceLabel(row.source)}補登` : '')
@@ -353,11 +363,12 @@ const emptyText = computed(() => {
   if (page.value > 1) return '後面沒有更多案件了'
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
   if (attentionOnly.value) return '沒有待人工處理的案件'
+  if (attendanceOnly.value) return '沒有尚未確認到場的案件'
   if (dueOnly.value) return '沒有到期待追蹤的案件'
   if (assigneeFilter.value === 'me') return '目前沒有你承辦的案件'
   if (assigneeFilter.value === 'none') return '沒有尚未指派的案件'
   if (groupFilter.value) return `沒有「${(VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? groupFilter.value}」的案件`
-  return '還沒有任何參觀需求'
+  return '還沒有任何參觀案件'
 })
 
 onMounted(() => {
@@ -370,7 +381,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長在官網選好場次送出，就是預約成功。這裡看每一筆預約，需要時改場次或取消；舊的待處理需求要排入場次才成立。">
+    <PageHeader lead="家長在官網選好場次送出，就是預約成功。這裡看每一筆預約，需要時改場次或取消。">
       <template #actions>
         <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
         <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>
@@ -418,6 +429,7 @@ onMounted(() => {
         <el-date-picker v-model="createdRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
           start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="送出日期區間" />
         </div>
+        <el-checkbox :model-value="attendanceOnly" class="filter-due" @update:model-value="(on: string | number | boolean) => toggleAttendance(Boolean(on))">只看尚未確認到場</el-checkbox>
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
         <el-checkbox v-model="attentionOnly" class="filter-due">只看待人工處理</el-checkbox>
       </div>
@@ -425,7 +437,7 @@ onMounted(() => {
     </div>
 
     <el-alert v-if="attentionOnly" class="attention-note" type="warning" :closable="false" show-icon title="待人工處理的案件">
-      <p>排入的時段已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。那一場其實照常接待的話，到參觀時段頁重新開放，並把名額調成已占用的組數（不再收新預約）。</p>
+      <p>排入的場次已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。那一場其實照常接待的話，到參觀場次頁恢復開放，並把名額調成已占用的組數（不再收新預約）。</p>
     </el-alert>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">
@@ -433,7 +445,7 @@ onMounted(() => {
     </el-alert>
 
     <div v-if="!error" class="panel" :aria-busy="loading">
-      <div class="panel__head"><h2>參觀需求</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
+      <div class="panel__head"><h2>參觀案件</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
       <el-table
         :data="requests"
         v-loading="loading"
@@ -444,11 +456,11 @@ onMounted(() => {
         <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
         <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 760px，
-             其餘給家長欄。參觀時間的字約 225px，欄寬 256 留一點餘裕；再壓窄大多數列會折成兩行。 -->
+             其餘給家長欄。參觀時間今年的省略年份（約 180px），欄寬 210；省下的寬度給承辦人。 -->
         <el-table-column label="狀態" width="150">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span class="visit-state" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).label }}</span>
-            <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub">{{ visitDisplay(row).sub }}</span>
+            <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).sub }}</span>
           </template>
         </el-table-column>
         <el-table-column v-if="multiCampus" label="校區" width="68">
@@ -463,9 +475,9 @@ onMounted(() => {
             <span v-if="row.preferred_time" class="muted cell-sub">方便接電話時段：{{ contactTimeLabel(row.preferred_time) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="參觀時間" width="256">
+        <el-table-column label="參觀時間" width="210">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <span v-if="row.slot" class="num">{{ formatSlotWhen(row.slot) }}</span>
+            <span v-if="row.slot" class="num">{{ formatShortSlotWhen(row.slot) }}</span>
             <span v-else class="muted">尚未排定</span>
             <span v-if="holdLabel(row)" class="cell-sub num hold" :class="{ 'is-due': holdIsUrgent(row.hold_expires_at) }">確認期限{{ holdLabel(row) }}</span>
           </template>
@@ -473,7 +485,7 @@ onMounted(() => {
         <el-table-column label="電話" width="116">
           <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
         </el-table-column>
-        <el-table-column label="承辦人" width="110" show-overflow-tooltip>
+        <el-table-column label="承辦人" width="156" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span :class="{ muted: !row.assigned_staff_id }" :title="staffEmailById(row.assigned_staff_id, staff) || undefined">{{ staffLabelById(row.assigned_staff_id, staff) }}</span>
           </template>
@@ -490,8 +502,8 @@ onMounted(() => {
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span></div>
-            <p v-if="visitDisplay(request).sub" class="hint">{{ visitDisplay(request).sub }}</p>
-            <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatSlotWhen(request.slot) }}</p>
+            <p v-if="visitDisplay(request).sub" class="hint visit-state__sub" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).sub }}</p>
+            <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatShortSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
             <p><template v-if="multiCampus">{{ campusLabel(request.campus_key) }}校 · </template>{{ request.child_name || '孩子姓名未填寫' }} · 承辦：{{ staffLabelById(request.assigned_staff_id, staff) }}<template v-if="manualSource(request)"> · {{ manualSource(request) }}</template></p>
@@ -529,6 +541,8 @@ onMounted(() => {
 .visit-state[data-tone='warning'] { color: var(--el-color-warning-dark-2); }
 .visit-state[data-tone='info'] { color: var(--ink-3); }
 .visit-state__sub { display: block; }
+/* 尚未確認到場是接待要處理的事：副行跟著暖黃、加粗，和已到場、未到場的灰字分開。 */
+.visit-state__sub[data-tone='warning'] { color: var(--el-color-warning-dark-2); font-weight: 600; }
 .toolbar { align-items: flex-end; }
 /* 頁籤放不下就換行，不藏在看不見的橫向捲動裡（手機上後四個狀態會被忽略）。 */
 .status-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }

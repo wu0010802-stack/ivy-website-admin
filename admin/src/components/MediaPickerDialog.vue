@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyWarning } from '../composables/notify'
 import { api, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
 import { campusLabel, contentItemLabel } from '../api/labels'
@@ -102,18 +103,13 @@ async function onUploadChange(event: Event) {
     if (picked!.alt_text) {
       ElMessage.success('已上傳並選用')
     } else {
-      // 句子較長，多留一點時間並可以自己關掉，不會還沒看完就消失。
-      ElMessage.warning({
-        message: `已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`,
-        duration: 8000,
-        showClose: true,
-      })
+      notifyWarning(`已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`)
     }
     choose(picked!)
     return
   }
   if (uploaded.length) await load()
-  if (failed) ElMessage.warning(`${uploaded.length} 張上傳完成、${failed} 張失敗`)
+  if (failed) notifyWarning(`${uploaded.length} 張上傳完成、${failed} 張失敗`)
   else if (uploaded.length) ElMessage.success(`已上傳 ${uploaded.length} 張，請點選要用的照片`)
 }
 </script>
