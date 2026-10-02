@@ -17,15 +17,15 @@
 
 **待園方**：正式站同意文字「送出需求後，仍須由園方確認參觀時間」與自選場次矛盾，要在後台「預約文案」發布新版。
 
-**驗證**（Node 22）：
-- `npm --prefix web run typecheck` 通過；`npm run test:website` 73 檔 714 項通過（新增 `visit-month.spec.ts`、`visit-ux-20261002.spec.ts`）。
-- stack e2e（production build＋真後端＋獨立測試庫）跑 `booking-flow`、`schedule-flow`、`a11y`、`keyboard` 共 40 項全過。
-- dev server＋假 API，1440×900／1280×720／390×844 走完選校 → 選日期場次 → 送出 → 結果頁：
-  - 未選日期就送出，焦點到月曆第一個開放日並顯示錯誤。
+**驗證**（Node 22，已合併 main 的招生入學之後重跑）：
+- `npm --prefix web run typecheck` 通過；`npm run test:website` 74 檔 732 項通過（新增 `visit-month.spec.ts`、`visit-ux-20261002.spec.ts`）。
+- stack e2e 整套（production build＋真後端＋獨立測試庫 `ivy_website_e2e_visitux_test`）68 項全過。第一次整套是 67 過、1 敗：main 新加的 `admissions-flow.spec` 還用日期下拉，改用 `pickVisitDay` 後重跑全過。
+- dev server＋假 API，1440×900／1280×720／390×844 走完選校 → 選日期場次 → 送出 → 結果頁，以及管理頁改場次：
+  - 未選日期就送出，焦點到月曆第一個開放日並顯示錯誤；管理頁沒選日／沒選場次分別提示並聚焦。
   - 方向鍵換日會跳過沒開放的日子；翻月到最後一個有場次的月份為止。
   - 320／390 沒有橫向溢出；axe 只有 Nuxt devtools 工具列本身的問題；沒有 hydration 警告。
   - 選校卡標示讀進來前後 CLS 相同（0.0173，來自 dev 模式頁首）。
-- 未驗證：`hydration.spec.ts`（dev 模式）、整套 stack、iPhone Safari／Android 實機。
+- 未驗證：iPhone Safari／Android 實機。
 
 ## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 併入 main，功能開關預設關閉）
 
