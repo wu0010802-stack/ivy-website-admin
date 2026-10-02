@@ -45,6 +45,7 @@ export const routes: RouteRecordRaw[] = [
       page('content/site-meta', 'site-meta', () => import('../views/SiteMetaView.vue')),
       page('content/home-campus-board', 'home-campus-board', () => import('../views/HomeCampusBoardView.vue')),
       page('content/booking-content', 'booking-content', () => import('../views/BookingContentView.vue')),
+      page('content/privacy-policy', 'privacy-policy', () => import('../views/PrivacyPolicyView.vue')),
       page('content/day-experience', 'day-experience', () => import('../views/DayExperienceView.vue')),
       page('content/home-news', 'home-news', () => import('../views/HomeNewsView.vue')),
       page('content/admission', 'admission-content', () => import('../views/AdmissionContentView.vue')),

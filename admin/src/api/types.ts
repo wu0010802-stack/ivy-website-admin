@@ -114,6 +114,19 @@ export interface BookingContentPayload {
   privacy_sections: PrivacySectionPayload[]
 }
 
+/** 隱私權政策（後端 content/schemas.py 的 PrivacyPolicyPayload）；內文純文字，空行分段、「- 」條列、https:// 連結 */
+export interface PrivacyPolicySectionPayload {
+  heading: string
+  body: string
+}
+
+export interface PrivacyPolicyPayload {
+  title: string
+  /** YYYY-MM-DD；存草稿可為 null，發布必填 */
+  updated_on: string | null
+  sections: PrivacyPolicySectionPayload[]
+}
+
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock）；不收 HTML。 */
 export type NewsBodyBlock =
   | { type: 'paragraph'; text: string }

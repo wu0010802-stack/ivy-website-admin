@@ -69,6 +69,13 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     film_poster: '影片封面',
     moments: '時刻卡',
   },
+  privacy_policy: {
+    title: '標題',
+    updated_on: '最後更新日期',
+    sections: '政策段落',
+    heading: '段落小標',
+    body: '段落內文',
+  },
   admission_content: {
     notice: '頁面提醒',
     intro: '頁首介紹',

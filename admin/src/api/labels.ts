@@ -632,6 +632,7 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   cta_label: '按鈕文字',
   cta_label_en: '英文按鈕文字',
   title: '標題',
+  updated_on: '最後更新日期',
   since_label: '創校標籤',
   body_text: '內文',
   caption: '照片下方文字',
@@ -721,6 +722,7 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'shared_faq') return '/campuses/yihua#faq'
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
+  if (kind === 'privacy_policy') return '/privacy'
   return '/'
 }
 
@@ -733,6 +735,7 @@ export function contentPreviewPath(kind: string, campusKey?: string | null): str
   if (kind === 'shared_faq') return '/preview?page=campus&campus=yihua'
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
+  if (kind === 'privacy_policy') return '/preview?page=privacy'
   return '/preview'
 }
 
@@ -811,6 +814,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   campus_news: '各校消息與活動',
   campus_tour: '校園探索',
   booking_content: '預約文案',
+  privacy_policy: '隱私權政策',
   site_footer: '頁尾文字',
   site_meta: '網站標題與電話',
 }
