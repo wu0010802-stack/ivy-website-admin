@@ -40,7 +40,7 @@
 - 320／390／600／768／844×390／1280×720／1440×900 量卡紙都在舞台內；1440×900 首屏跨頁底 863px。
 - axe（WCAG 2.1 AA，`#main`）1440、390 都沒有違規。
 - 未驗證：iPhone Safari／Android 實機的 3D 翻頁與 `backface-visibility`；production build 的 LCP（首屏多一張 lazy 小圖）。
-## 2026-10-02 招生入學後續修正（`feature/admissions-followups-20261002`）
+## 2026-10-02 招生入學後續修正（`feature/admissions-followups-20261002`，已部署：推送 `ac79a03`，隨 main `a2ed829` 上線）
 
 招生入學併入 main 後使用者選定的五項後續修正，在同一分支完成（尚未部署）：
 

@@ -86,11 +86,11 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **之後的部署**：部署完成前，另一個 session 已把招生入學併入 main（`71820a4`），並同步了本次修正（`2eafc1b`）。那次 CI（run 36999602663）會再部署一次，招生入學的說明見下節；本次改動的檔案在 `2eafc1b` 與 `f520031` 相同。
 - **未驗證**：iPhone Safari 實機的方塊底，本機只有 Chromium。
 
-## 招生入學（2026-10-02 已部署 `2eafc1b`，功能開關關閉）
+## 招生入學（2026-10-02 已部署 `2eafc1b`，後續修正隨 `a2ed829` 上線，功能開關關閉）
 
 `feature/admissions-20261001`：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）。2026-10-02 使用者要求併入 main 並部署（合併提交 `71820a4`，同步 main 後 `2eafc1b`）；正式站**開關仍關閉**。規格 `docs/specs/2026-09-30-website-admissions-design.md`。
 
-- **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：`/api/website/v1/admin/admissions/*`（含 `stats`、`compare`、`no-deposit-records`）不掛路由、一律 404，後台「招生入學」頁顯示「招生入學尚未啟用」；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
+- **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：後台側欄與側欄搜尋不列「招生入學」（`/auth/me` 的 `features.admissions`）；`/api/website/v1/admin/admissions/*`（含 `stats`、`compare`、`no-deposit-records`）不掛路由、一律 404，後台「招生入學」頁顯示「招生入學尚未啟用」；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
 - **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天。同意文字建議跟家長自選場次改版的同意文字同一次改。
 - **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數（預設空白＝不自動清理，業主裁定天數後由總管理者設定），再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。
 - **舊的已到場預約不會自動補建**：開啟後，關閉期間（或本功能上線前）已到場的預約會列在後台「招生入學 → 官網預約」下方「已到場但沒有招生訪視」，逐筆按「建立招生訪視」。
@@ -113,7 +113,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **migration**：api 部署 log「Running upgrade c7d2e9f4a1b8 -> 4a7e2c9d1b63」、「Database schema ready: 4a7e2c9d1b63」。只新增表與欄位，照 `deploy/CICD.md` 不需事先備份。
 - **線上唯讀檢查**：`/api/website/v1/health` 200；`/api/website/v1/admin/admissions/options` 404（開關關閉、路由未掛）、`/api/website/v1/admin/visit-requests` 401（對照：路由有掛）；後台 bundle 有 `AdmissionsView` chunk。
 - **未做**：正式站沒有登入看畫面（開關關閉時頁面只會顯示尚未啟用）；Safari／iOS 實機。
-- **之後的修正**：`feature/admissions-followups-20261002`（頁首學年 +3…−2、統計子分頁 `sub` 進網址、390px 名額欄寬、開關關閉時側欄不顯示招生入學、五校比較件數跟頁首學期）隨下一次推送上線，紀錄見下一段。
+- **之後的修正**：`feature/admissions-followups-20261002`（頁首學年 +3…−2、統計子分頁 `sub` 進網址、390px 名額欄寬、開關關閉時側欄不顯示招生入學、五校比較件數跟頁首學期）隨 `a2ed829` 上線，紀錄見下一段。
+
+### 2026-10-02 後續修正部署紀錄（推送 `ac79a03`，隨 main `a2ed829` 部署）
+
+使用者裁定 1A–5A 並要求做完一起推 main。
+- **內容**：`e572fb3`（頁首學年選項 +3…−2；統計子分頁寫進網址 `sub`，未預繳名單「查看」後上一頁回到名單）、`7053d5f`（390px 名額規劃「計畫名額」欄 min-width 152，不再截出省略號）、`b246839`（`/auth/me` 與登入回應帶 `features.admissions`，開關關閉時側欄與側欄搜尋不列「招生入學」，直接開網址仍到「尚未啟用」頁）、`978004f`（`/compare` 的 `semester` 選填：不帶時件數算整學年、名額剩餘用上學期，回應多 `seat_semester`；說明句依回應組）、`3c76cee`（README）。沒有 migration。
+- **推送前本機驗證**：`3c76cee` 時 `contract:check` 一致、admin typecheck 0、admin vitest 69 檔／897 passed、admin build 成功、後端 `test_admissions_*.py`＋`test_auth*.py`＋`test_permission*.py` 193 passed；同步 main `c01fb24`（預約頁 UI／UX）後 `adad9cd`：web typecheck 0 錯 0 WARN、web vitest 732 passed、`e2e:build` 成功、stack e2e 整套 68 passed（`E2E_DB_NAME=ivy_website_e2e_test_admfollow`、埠 8741／3741，因 8731 被另一個 session 占用）。再同步只改 `deploy/README.md` 的 `182ee2e` 後推 `ac79a03`。
+- **CI**：`ac79a03` 的 run 37009424665 排隊時被後到的 run 取代（main 不取消進行中、只保留最新排隊）；`c893b4c`（另一個 session，含 `ac79a03`）的 run 37011280568 Backend 在「Install uv and media test dependency」異常花 13.8 分、pytest 23 分，撞 `timeout-minutes: 30` 被取消（pytest 62% 時零失敗），Deploy 略過；`a2ed829`（含 `ac79a03`）的 run 37015343286 全部 success（Backend 13:47–14:12 UTC，Deploy 14:12–14:16 UTC）。
+- **正式 `release.json`**：base commit `a2ed829`，created `2026-10-02T14:12:45Z`。
+- **線上唯讀檢查**：health 200；`/api/website/v1/admin/admissions/compare?school_year=115` 404（開關關閉）；後台 bundle：`AdmissionsView` chunk 有「同名額規劃」、`seat_semester`、`[3,2,1,0,-1,-2]`、計畫名額欄 `152`、`nodeposit` 子分頁網址；`auth` chunk 有 `features`。
+- **未做**：正式站沒登入看側欄（要帳號；以 bundle 確認）；開關開啟後的 `/compare` 實際回應。
+- **提醒**：後端 pytest 在 CI 約 23 分，`timeout-minutes: 30` 只剩約 7 分餘裕，安裝步驟一慢就逾時；可考慮放寬到 45 或拆分。
 
 ## 2026-10-01 品質檢查後續：書籤對比、點擊範圍、後台確認率與流量說明（main CI 部署）
 
