@@ -13,6 +13,35 @@
 - `npm run contract:check` 一致；`npm --prefix admin run typecheck` 無錯誤；`npm --prefix admin run test:unit -- --maxWorkers=2` 69 檔／897 測試全過。
 - X2a 的 e2e:build＋admissions-flow 4 項通過、390／1440 截圖已檢視（見 X2a 報告）。
 
+## 2026-10-02 預約頁 UI／UX 優化（`feature/visit-ux-20261002`）
+
+使用者要「優化預約分頁（/visit）的 UI/UX」。先在正式站截 1440×900、390×844 兩種尺寸的選校、表單、聯絡方式三種畫面（沒有送出），再在本機用假 API 改版。規則與理由見 DESIGN.md 同日段落。
+
+**改了什麼**（只動 `web/` 與 stack 測試，沒有後端與 migration）：
+- **預約日期改月曆**（新元件 `VisitDatePicker.vue`、`utils/visit-month.ts`）：原本義華一次列 41 個日期的原生下拉。現在一次一個月，只有開放的日子能點，格內寫當天幾場；桌機月曆與當天場次並排。
+- **參觀人數**移到「參觀安排」。
+- **送出前確認**：送出鈕「送出參觀需求」改「確認預約」，旁邊寫出校區、日期、場次、人數。
+- **Email 說明**：正式站沒開寄信（`parent_email_enabled: false`），原本卻寫「確認信與修改連結會寄到這裡」，現在依設定切換。
+- **選校卡**標出「可線上預約」「來電洽詢」；所選校不開放線上預約時，步驟第二格寫「參觀方式」。
+- **迎賓區收短**：1440×900、1280×720 的第一屏都看得到步驟列與選校卡上緣（原本整屏都是迎賓區）。
+- 眉標「VISIT IVY」改「預約校園參觀」。
+- 手機「下一步」黏在畫面底部。
+- 結果頁標題下直接寫參觀時間與地址。
+- `/visit/manage` 改場次也從「列出全部場次的下拉」換成同一個月曆＋當天場次。
+- stack 測試：`tests/stack/pages.ts` 加 `pickVisitDate`／`pickVisitDay`（會自動翻月），`booking-flow`、`schedule-flow` 改用它與「確認預約」。
+
+**待園方**：正式站同意文字「送出需求後，仍須由園方確認參觀時間」與自選場次矛盾，要在後台「預約文案」發布新版。
+
+**驗證**（Node 22，已合併 main 的招生入學之後重跑）：
+- `npm --prefix web run typecheck` 通過；`npm run test:website` 74 檔 732 項通過（新增 `visit-month.spec.ts`、`visit-ux-20261002.spec.ts`）。
+- stack e2e 整套（production build＋真後端＋獨立測試庫 `ivy_website_e2e_visitux_test`）68 項全過。第一次整套是 67 過、1 敗：main 新加的 `admissions-flow.spec` 還用日期下拉，改用 `pickVisitDay` 後重跑全過。
+- dev server＋假 API，1440×900／1280×720／390×844 走完選校 → 選日期場次 → 送出 → 結果頁，以及管理頁改場次：
+  - 未選日期就送出，焦點到月曆第一個開放日並顯示錯誤；管理頁沒選日／沒選場次分別提示並聚焦。
+  - 方向鍵換日會跳過沒開放的日子；翻月到最後一個有場次的月份為止。
+  - 320／390 沒有橫向溢出；axe 只有 Nuxt devtools 工具列本身的問題；沒有 hydration 警告。
+  - 選校卡標示讀進來前後 CLS 相同（0.0173，來自 dev 模式頁首）。
+- 未驗證：iPhone Safari／Android 實機。
+
 ## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 已部署 `2eafc1b`，功能開關關閉）
 
 比照園務系統「招生入學」，在官網後台加參觀後的招生追蹤：已訪視 → 已預繳 → 已註冊 ｜ 退預繳／退註冊、名額規劃、統計分析與五校比較。三張表沿用園務名稱（`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`），併入園務時可整批轉移。規格 `docs/specs/2026-09-30-website-admissions-design.md`（第 17 節是計畫回寫對照），計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`，規則見 DESIGN.md「招生入學（2026-10-01）」。分支疊在家長自選場次改版（`feature/parent-self-booking-20260930`）上。功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關。
@@ -33,7 +62,7 @@
 
 **未驗證**：Safari／iOS 實機；看板的原生拖曳只在單元測試以事件模擬（e2e 走「移到…」）；正式庫 migration 與真實資料量下的統計速度。**已知小瑕疵**：390px 名額規劃「計畫名額」欄的輸入框被欄寬截出省略號（`IntakePlanTab.vue`，頁面不溢出）。**上線前必須裁定**規格 Q1（預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數），在那之前只在本機與測試環境使用。上線步驟在 `deploy/README.md`「招生入學（A／B／C 完成，仍未部署）」。
 
-## 2026-10-02 手機版第三輪審查修正（`feature/mobile-ux-20261002`）
+## 2026-10-02 手機版第三輪審查修正（`feature/mobile-ux-20261002`，已部署 `f520031`）
 
 使用者要「看看手機版還能怎麼優化」。
 
@@ -72,7 +101,7 @@
   - 入學頁 320／360／390 印章都在欄內。
 - 未驗證：iPhone Safari／Android 實機。
 
-## 2026-10-02 分校分頁線稿不再露出方塊底（`feature/mobile-ux-20261002`）
+## 2026-10-02 分校分頁線稿不再露出方塊底（`feature/mobile-ux-20261002`，已部署 `f520031`）
 
 使用者反映首頁「分校資訊」五校按鈕有方塊底圖。線稿原圖是米白紙底（約 250,248,242），靠 CSS `grayscale(1) brightness(.72) contrast(3.2)`＋`mix-blend-mode:multiply` 融掉。iPhone（WebKit）只要把圖或它的祖先移到獨立合成層，multiply 就碰不到底色，整塊紙底露出來。09-24 `0620470` 修過轉場那一段，但之後加的換校描線遮罩、環境頁選中時轉動的分頁，仍會觸發同樣狀況。改 SVG `filter:url()` 也不行：Safari 在合成層上不套參照濾鏡。
 

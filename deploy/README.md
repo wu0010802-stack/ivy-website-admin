@@ -13,6 +13,32 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 手機版第三輪優化：分校線稿墨線版、首頁 CLS、關於頁卡紙（main CI 部署）
+
+使用者要求把 PR #20（`feature/mobile-ux-20261002`）併入 main 並部署。
+
+- **合併**：GitHub merge commit `f520031`。內容：
+  - `622d192`：五校線稿小圖改透明底墨線版。
+  - `f75bfd7`：手機版第三輪審查修正。
+  - `31e4482`：同步 main（#19 SEO）。
+  - 沒有 migration、沒有後端程式改動。
+- **CI**：run 36998071531 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（10-02 18:54–19:18 台灣時間）。
+- **正式 `release.json`**：base commit `f520031099017c92782fe0fe59b46371e9d016ae`，snapshot `e7fa236a438a7e0a43382f1b646ec5c8a81346f62b799bb22a6dd190f3dab1e2`，created 10-02 19:15 台灣時間。
+- **線上驗證**：Playwright Chromium，非 GET 請求一律擋下（只擋到 `POST /api/telemetry`）。
+
+  | 項目 | 結果 |
+  |---|---|
+  | 首頁分校分頁線稿 | 五張都是 `-ink` 墨線版（390 寬 240w、1440 寬 160w），`mix-blend-mode:normal`、無 filter |
+  | 環境頁五校分頁 | 五張都是 `-ink`，無混合模式 |
+  | 首頁捲完 CLS | 390 寬 0.0014、1440 寬 0.0005（部署前 390 寬實測 0.29，全來自拍立得畫布） |
+  | 關於頁卡紙與舞台 | 844×390、768×1024 卡紙頂端都在舞台內（距離 13–22px），390 與 1440 跟部署前相同 |
+  | 「拉拉看」紙條字色 | `rgb(17, 42, 33)`（`--ink`） |
+  | `/news` 麵包屑「首頁」 | 透明偽元素左右各補 8px（28→44） |
+  | 12 頁 × 390／1440 | 全部 200，沒有水平溢出、沒有 pageerror |
+
+- **之後的部署**：部署完成前，另一個 session 已把招生入學併入 main（`71820a4`），並同步了本次修正（`2eafc1b`）。那次 CI（run 36999602663）會再部署一次，招生入學的說明見下節；本次改動的檔案在 `2eafc1b` 與 `f520031` 相同。
+- **未驗證**：iPhone Safari 實機的方塊底，本機只有 Chromium。
+
 ## 招生入學（2026-10-02 已部署 `2eafc1b`，功能開關關閉）
 
 `feature/admissions-20261001`：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）。2026-10-02 使用者要求併入 main 並部署（合併提交 `71820a4`，同步 main 後 `2eafc1b`）；正式站**開關仍關閉**。規格 `docs/specs/2026-09-30-website-admissions-design.md`。

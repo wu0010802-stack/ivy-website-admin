@@ -40,6 +40,38 @@ export async function skipEntrance(page: Page): Promise<void> {
   if (await skip.count()) await skip.first().click()
 }
 
+/**
+ * 官網預約月曆（2026-10-02 取代原生下拉）：一次只顯示一個月，選第 index 個（0 起算）開放日期，
+ * 不在這個月就往後翻。回傳選到的日期（YYYY-MM-DD）。
+ */
+export async function pickVisitDate(page: Page, index = 0): Promise<string> {
+  const picker = page.getByRole('group', { name: /預約日期/ })
+  await expect(picker.getByRole('radio').first()).toBeVisible()
+  let passed = 0
+  for (;;) {
+    const days = picker.getByRole('radio')
+    const count = await days.count()
+    if (index - passed < count) {
+      const day = days.nth(index - passed)
+      await day.check()
+      return day.inputValue()
+    }
+    passed += count
+    const next = picker.getByRole('button', { name: '下個月' })
+    if (await next.isDisabled()) throw new Error(`預約月曆只有 ${passed} 個開放日期，選不到第 ${index + 1} 個`)
+    await next.click()
+  }
+}
+
+/** 官網預約月曆選指定日期（YYYY-MM-DD），不在這個月就往後翻。 */
+export async function pickVisitDay(page: Page, date: string): Promise<void> {
+  const picker = page.getByRole('group', { name: /預約日期/ })
+  await expect(picker.getByRole('radio').first()).toBeVisible()
+  const day = picker.locator(`input[name="visitDate"][value="${date}"]`)
+  while (!(await day.count())) await picker.getByRole('button', { name: '下個月' }).click()
+  await day.check()
+}
+
 /** 頁面不橫向溢出（R16）：文件寬度不超過視窗。 */
 export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({

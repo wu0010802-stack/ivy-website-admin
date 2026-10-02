@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { currentTerm, gradeForBirthday } from '../../admin/src/admissions/academic'
 import { adminApi, findVisit, taipeiDate, type AdminApi, type SlotOut } from './api'
 import { startVisitSlot } from './db'
-import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
+import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs, pickVisitDay } from './pages'
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了出現在「官網預約」待確認 →
@@ -68,7 +68,7 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
     const { page } = parent
     await page.goto(`/visit/${SLOTS_CAMPUS}`)
     await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
-    await page.getByLabel('預約日期').selectOption(slotDate)
+    await pickVisitDay(page, slotDate)
     await expect(page.locator('.visit-slot-options input[type="radio"]')).toHaveCount(1)
     await page.locator('.visit-slot-options input[type="radio"]').first().check()
     await page.getByLabel('孩子姓名').fill(CHILD)
@@ -78,7 +78,7 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
     await page.getByLabel('參觀人數').selectOption('2')
     await page.getByLabel('聯絡 Email').fill(EMAIL)
     await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
-    await page.getByRole('button', { name: /送出/ }).click()
+    await page.getByRole('button', { name: '確認預約' }).click()
     await expect(page.locator('#booking-result')).toContainText('預約成功')
     await parent.context.close()
   })
