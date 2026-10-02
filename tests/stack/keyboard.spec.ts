@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { gotoAdmin, openAs, skipEntrance } from './pages'
+import { expectNoHorizontalOverflow, gotoAdmin, openAs, skipEntrance } from './pages'
 import { SLOTS_CAMPUS, storageStatePath } from './stack-env'
 
 // 鍵盤操作與版面（規格 L37、§9.4）：選單與對話框的 Tab／Escape／焦點返回，以及
@@ -23,14 +23,6 @@ async function expectTabTrapped(page: Page, container: Locator, presses: number,
     const toBrowserUi = nativeDialog && (await page.evaluate(() => !document.hasFocus() && document.activeElement === document.body))
     expect(inside || toBrowserUi, `第 ${i + 1} 次 Tab 跑到背景頁面了`).toBe(true)
   }
-}
-
-async function expectNoHorizontalOverflow(page: Page): Promise<void> {
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }))
-  expect(scrollWidth, `頁面寬 ${scrollWidth}px，超出視窗 ${clientWidth}px`).toBeLessThanOrEqual(clientWidth)
 }
 
 test.describe('官網選單', () => {
@@ -122,6 +114,8 @@ const ADMIN_PAGES: [string, string][] = [
   ['/', '營運總覽'],
   ['/visit-requests', '參觀案件'],
   ['/visit-calendar', '參觀場次'],
+  ['/admissions', '招生入學'],
+  ['/admissions?tab=stats', '招生入學'],
   ['/booking', '各校預約方式'],
   ['/content/campus-profile?campus=yihua', '五校介紹'],
   ['/content/home-news', '最新消息與活動'],
