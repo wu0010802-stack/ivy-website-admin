@@ -6,7 +6,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
 import manifest from '../app/generated/image-manifest.json'
-import { pullIndex } from '../app/utils/about-popup'
+import { pullIndex, turnState } from '../app/utils/about-popup'
 
 const site = fixture as unknown as SiteContent
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -98,5 +98,69 @@ describe('立體書：沒有 JS 也看得到內容', () => {
   it('頁面內容不放預約參觀（頁首全站共用的預約鈕除外）', () => {
     expect(template).not.toContain('to="/visit"')
     expect(template).toContain('data-cta-entry="about"')
+  })
+})
+
+// 2026-10-02 精修（design/about-refine-mockup-20261002/，使用者「先這樣實作」）
+describe('立體書精修：章節與目次', () => {
+  const css = read('../app/assets/css/about.css')
+  it('章名用中文「第○章」，不再用寬字距英文眉標（09-30 被評 AI 感）', () => {
+    expect(component).toContain("label: `第${NUMERALS[i]}章`")
+    expect(template).not.toMatch(/Our story|Whole child|Our hope/)
+  })
+  it('首屏有目次，點了跳到各章；結尾錨點是 #campuses', () => {
+    expect(template).toContain('<nav class="abk-toc"')
+    expect(template).toContain(':href="`#${item.id}`"')
+    expect(template).toContain('id="campuses"')
+  })
+  it('首屏照片裡的長輩是創辦人（使用者確認，不寫姓名）', () => {
+    expect(template).toContain('alt="孩子們笑著圍在創辦人身邊，大家擠在一起"')
+  })
+  it('引言不用左側色條（側條），改用括號', () => {
+    expect(css).not.toMatch(/\.abk-quote\{[^}]*border-left/)
+    expect(css).toMatch(/\.abk-quote::before\{content:'「'/)
+  })
+  it('頁緣厚度跟著跨頁位置：右邊是 --last − --n', () => {
+    expect(css).toContain('--th:calc(4px + (var(--last,4) - var(--n)) * 3px)')
+    expect(template).toContain(":style=\"{ '--last': chapters.length }\"")
+  })
+})
+
+describe('立體書精修：翻頁的封面與明暗', () => {
+  it('翻開程度用 smoothstep；頭尾不背光，還壓在左頁上方（未過 90°）才有左頁影子', () => {
+    expect(turnState(0)).toEqual({ open: 0, shade: 0, cast: 0 })
+    expect(turnState(1).open).toBe(1)
+    expect(turnState(1).shade).toBeCloseTo(0, 5)
+    expect(turnState(0.5).open).toBe(0.5)
+    expect(turnState(0.5).shade).toBeCloseTo(0.55, 5)
+    expect(turnState(0.25).cast).toBeGreaterThan(0)
+    expect(turnState(0.75).cast).toBe(0)
+    expect(turnState(-1).open).toBe(0)
+    expect(turnState(2).open).toBe(1)
+  })
+  it('右頁背面是章節封面，只給螢幕閱讀器看正面', () => {
+    expect(template.match(/<div class="abk-cover" aria-hidden="true">/g)?.length).toBe(4)
+  })
+  it('紙條連按方向鍵以「正要去的那一站」為準', () => {
+    const popup = read('../app/utils/about-popup.ts')
+    expect(popup).toContain('toStop(goal + step)')
+  })
+})
+
+describe('立體書精修：家長怎麼說', () => {
+  it('讀各校後台的 testimonials，最多四位；沒有資料時整章不出現', () => {
+    expect(component).toContain('campus.testimonials ?? []')
+    expect(component).toContain('.slice(0, 4)')
+    expect(template).toContain('<section v-if="voices.length" id="voices"')
+  })
+  it('按播放才插 youtube-nocookie；沒有 JS 時是連到 YouTube 的連結', () => {
+    expect(template).toMatch(/<iframe\s+v-if="playing" :src="youtubeEmbed\(/)
+    expect(template).toContain('@click.prevent="playing = true"')
+    expect(template).toContain(':href="`https://www.youtube.com/watch?v=${voices[shownVoice]!.youtubeId}`"')
+  })
+  it('目前內建資料只有義華校家長，頁面標出校名', () => {
+    const withVoices = site.campuses.filter((c) => c.testimonials?.length)
+    expect(withVoices.map((c) => c.key)).toEqual(['yihua'])
+    expect(template).toContain('{{ voices[shownVoice]!.campus.name }}家長')
   })
 })
