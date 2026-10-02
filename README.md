@@ -20,6 +20,26 @@
 - dev server＋假 API 390 寬：表單沒有同意勾選，不勾也能送出、結果頁「預約成功」；送單 body 不含 `consent_given`／`consent_revision_id`。場次卡一欄。
 - 未驗證：iPhone Safari 實機。
 
+## 2026-10-02 關於常春藤頁精修＋「家長怎麼說」（`feature/about-refine-20261002`）
+
+使用者要「優化 /about 的 UI/UX、做精緻一點，先給 mock-up」，看過 `design/about-refine-mockup-20261002/` 後要「多加內容」，選了「家長怎麼說」，再說「先這樣實作」。J 立體書與 A2 六圈不換，規則與理由見 DESIGN.md 同日段落。
+
+**改了什麼**（只動 `web/`：`AboutContent.vue`、`AboutWholePerson.vue`、`about.css`、`utils/about-popup.ts`、`tests/about.spec.ts`）：
+- 首屏一屏放得下整本書、拿掉頁首下的米白縫；右頁兩張卡紙前後站；左頁下半放目次。
+- 章名改中文（第一章～第四章）；右頁背面是章節封面，翻頁有背光與左頁影子；書脊改窄折痕；頁緣厚度跟著讀到哪裡變。
+- 卡紙平躺時只看得到色紙；紙條改成有年份與校名的紙槽，左頁沿革跟著上色；鍵盤連按不再少走一站。
+- 全人教育：領域圓點與六圈同色，滑過時那一圈亮。
+- 我們的期許：引言側條改括號；紙房子加瓦片、煙囪、門把與沿牆長出來的常春藤。
+- **新增第四章「家長怎麼說」**：讀各校後台的家長分享影片（目前義華 4 支），換人時卡紙倒下再站起來，按播放才載入 YouTube。
+- 結尾五校書籤改成書底垂下的緞帶（含行政區），國際校的薄荷色看得見、手機一排五條。
+- 首屏照片 alt 改「孩子們笑著圍在創辦人身邊」（使用者確認照片裡是創辦人）。
+
+**驗證**（Node 22，dev server＋fixture）：
+- `npm --prefix web run typecheck` 通過；`npm run test:website` 74 檔 743 項通過（`about.spec.ts` 新增 11 項）。
+- Playwright 1440×900、390×844（DPR 2）與減少動態：四章翻開、卡紙站好、紙槽到第 5 站且左頁同步、常春藤長好、目次與頁碼 1–10 正確；第四章點第二位後清單與大卡紙、後排小卡正確，手機自動捲到影片，按播放插入 `youtube-nocookie.com/embed/U5kRPt7By90`；紙條 Home → →→ 停在 2005 崇德校；沒有 console error／page error、沒有水平溢出。
+- 320／390／600／768／844×390／1280×720／1440×900 量卡紙都在舞台內；1440×900 首屏跨頁底 863px。
+- axe（WCAG 2.1 AA，`#main`）1440、390 都沒有違規。
+- 未驗證：iPhone Safari／Android 實機的 3D 翻頁與 `backface-visibility`；production build 的 LCP（首屏多一張 lazy 小圖）。
 ## 2026-10-02 招生入學後續修正（`feature/admissions-followups-20261002`）
 
 招生入學併入 main 後使用者選定的五項後續修正，在同一分支完成（尚未部署）：
