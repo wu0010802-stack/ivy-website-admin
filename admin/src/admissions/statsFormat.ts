@@ -19,7 +19,7 @@ export function formatRate(value: number | null | undefined): string {
   return value === null || value === undefined ? NO_VALUE : `${value.toFixed(1)}%`
 }
 
-/** 前端自己算的比率（接待人員 × 年級的格子），同後端：一位小數、分母 0 為 null。 */
+/** 前端自己算的比率，只給後端沒有提供的組合（接待人員 × 年級的格子）；後端已有的比率一律直接讀，不要重算。一位小數、分母 0 為 null。 */
 export function ratio(num: number, den: number): number | null {
   return den ? Math.round((num / den) * 1000) / 10 : null
 }
@@ -31,7 +31,12 @@ export function formatPoints(value: number | null | undefined): string {
 }
 
 export type Trend = 'up' | 'down' | 'flat' | 'none'
-export const TREND_MARK: Record<Trend, string> = { up: '▲', down: '▼', flat: '–', none: '–' }
+export const TREND_MARK: Record<Trend, string> = { up: '▲', down: '▼', flat: '–', none: '' }
+
+/** 月比顯示：符號＋百分點；沒有值（none）不放符號，只寫「—」。 */
+export function trendLabel(delta: number | null | undefined): string {
+  return `${TREND_MARK[trendOf(delta)]} ${formatPoints(delta)}`.trim()
+}
 
 export function trendOf(value: number | null | undefined): Trend {
   if (value === null || value === undefined) return 'none'

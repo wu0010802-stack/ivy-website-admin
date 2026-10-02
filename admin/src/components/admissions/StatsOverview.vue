@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import type { AdmissionsStats } from '../../api/types'
 import {
-  NO_VALUE, TREND_MARK, alertLevelLabel, formatPoints, formatRate, rateLevel, ratio, trendOf,
+  NO_VALUE, TREND_MARK, alertLevelLabel, formatPoints, formatRate, rateLevel, trendLabel, trendOf,
   type StatsColumn, type StatsTarget,
 } from '../../admissions/statsFormat'
 
@@ -27,6 +27,8 @@ const cards = computed<{ key: string; title: string; snapshot: Snapshot }[]>(() 
 
 const mom = computed(() => props.stats.month_over_month)
 const funnel = computed(() => props.stats.funnel_snapshot)
+// 漏斗快照的比率與「本月」卡同源，讀後端已算好的值，避免前端五入與後端差 0.1。
+const rates = computed(() => props.stats.decision_summary.current_month)
 const badgeTrend = computed(() => trendOf(mom.value.visit_to_deposit_rate.delta))
 
 const kpiItems = computed(() => {
@@ -84,7 +86,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           <h3>主管決策摘要</h3>
           <p class="hint">參考月份：{{ stats.reference_month ?? '尚未指定' }}</p>
         </div>
-        <span class="decision__badge" :class="`decision__badge--${badgeTrend}`">{{ TREND_MARK[badgeTrend] }} 月比預繳率 {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</span>
+        <span class="decision__badge" :class="`decision__badge--${badgeTrend}`">{{ badgeTrend === 'none' ? '' : `${TREND_MARK[badgeTrend]} ` }}月比預繳率 {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</span>
       </div>
       <div class="decision__cards">
         <article v-for="card in cards" :key="card.key" class="decision__card">
@@ -143,7 +145,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           </li>
           <li class="snapshot__rate">
             <span>轉預繳</span>
-            <span class="num">{{ formatRate(ratio(funnel.deposit, funnel.visit)) }}</span>
+            <span class="num">{{ formatRate(rates.visit_to_deposit_rate) }}</span>
           </li>
           <li class="snapshot__step">
             <span>預繳</span>
@@ -151,7 +153,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           </li>
           <li class="snapshot__rate">
             <span>轉註冊</span>
-            <span class="num">{{ formatRate(ratio(funnel.enrolled, funnel.deposit)) }}</span>
+            <span class="num">{{ formatRate(rates.deposit_to_enrolled_rate) }}</span>
           </li>
           <li class="snapshot__step">
             <span>註冊</span>
@@ -168,11 +170,11 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
         <dl class="mom__list">
           <div>
             <dt>參觀→預繳率</dt>
-            <dd class="num" :class="`trend--${trendOf(mom.visit_to_deposit_rate.delta)}`">{{ TREND_MARK[trendOf(mom.visit_to_deposit_rate.delta)] }} {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</dd>
+            <dd class="num" :class="`trend--${trendOf(mom.visit_to_deposit_rate.delta)}`">{{ trendLabel(mom.visit_to_deposit_rate.delta) }}</dd>
           </div>
           <div>
             <dt>參觀→註冊率</dt>
-            <dd class="num" :class="`trend--${trendOf(mom.visit_to_enrolled_rate.delta)}`">{{ TREND_MARK[trendOf(mom.visit_to_enrolled_rate.delta)] }} {{ formatPoints(mom.visit_to_enrolled_rate.delta) }}</dd>
+            <dd class="num" :class="`trend--${trendOf(mom.visit_to_enrolled_rate.delta)}`">{{ trendLabel(mom.visit_to_enrolled_rate.delta) }}</dd>
           </div>
           <div>
             <dt>有效預繳</dt>

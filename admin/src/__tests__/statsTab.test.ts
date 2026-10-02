@@ -169,7 +169,43 @@ describe('統計分頁：總覽', () => {
     expect(rolling.text()).toContain('預繳率—')
     expect(rolling.text()).toContain('註冊率—')
     expect(rolling.text()).not.toContain('0.0%')
-    expect(wrapper.get('.decision__badge').text()).toBe('– 月比預繳率 —')
+    expect(wrapper.get('.decision__badge').text()).toBe('月比預繳率 —')
+  })
+
+  it('月比沒有值：只寫「—」不加趨勢符號；有值時符號照舊', async () => {
+    mockGet({
+      '/admin/admissions/stats': stats({
+        month_over_month: {
+          ...stats().month_over_month,
+          visit_to_deposit_rate: rateDiff(20, null, null), visit_to_enrolled_rate: rateDiff(0, 33.3, -33.3),
+        },
+      }),
+    })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const badge = wrapper.get('.decision__badge').text()
+    expect(badge).not.toContain('–')
+    expect(badge).toContain('—')
+    const [noValue, withValue] = wrapper.findAll('.mom__list dd').map((n) => n.text())
+    expect(noValue).not.toContain('–')
+    expect(noValue).toContain('—')
+    expect(withValue).toBe('▼ -33.3pt')
+  })
+
+  it('本月漏斗快照的轉換率與「本月」卡同一個值（讀後端，不自己五入）', async () => {
+    const base = stats()
+    mockGet({
+      '/admin/admissions/stats': stats({
+        decision_summary: { ...base.decision_summary, current_month: snap(16, 1, 0, 0, 1, 1, 6.2, 0, 0, 0) },
+        funnel_snapshot: { visit: 16, deposit: 1, enrolled: 0, transfer_term: 0, effective_deposit: 1, pending_deposit: 1 },
+      }),
+    })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    expect(wrapper.findAll('.decision__card')[0]!.text()).toContain('預繳率6.2%')
+    const snapshot = wrapper.get('.snapshot').text().replace(/\s+/g, '')
+    expect(snapshot).toContain('轉預繳6.2%')
+    expect(snapshot).not.toContain('6.3%')
   })
 
   it('警示與行動入口：統計內的跳子分頁，「訪視明細」交給頁面切分頁並帶月份', async () => {

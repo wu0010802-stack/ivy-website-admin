@@ -125,7 +125,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
     expect(pane.find('.compare-note').exists()).toBe(false)
   })
 
-  it('頁首沒選學年學期：用目前學期（台北日期）並寫明；沒選學期一律用上學期', async () => {
+  it('頁首沒選學年學期：沒選學年用目前學年（台北日期）並寫明、沒選學期用上學期', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
     const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]) })
