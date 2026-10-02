@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, ArrowRight, Phone } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
-import type { VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
+import type { RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
 import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, maskEmail, partySizeLabel, visitStatus, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitSourceLabel } from '../api/labels'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
@@ -18,6 +18,8 @@ import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
 import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
+import { createFromVisitRequest, listRecords } from '../api/admissions'
+import { stageLabel } from '../admissions/constants'
 
 const route = useRoute()
 const openRequests = useOpenRequestsStore()
@@ -510,17 +512,99 @@ async function onRebooked(created: VisitRequestDetailOut) {
   if (failure) ElMessage.info('新案件已建立，記完這筆紀錄後可以到參觀案件列表開啟')
 }
 
+// 招生入學可用時，標記已到場會在同一個交易裡建立招生訪視（規格 6.1），所以先確認（規格第 10 節原文）。
+// 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
 async function markCompleted() {
+  // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
+  if (canReadAdmissions.value && admissionsLookup) await admissionsLookup
+  const withAdmissions = admissionsAvailable.value === 'yes'
+  if (withAdmissions) {
+    try {
+      await ElMessageBox.confirm('會同時建立一筆招生訪視，之後在招生入學頁追蹤。', '標記已到場？', {
+        confirmButtonText: '標記已到場',
+        cancelButtonText: '先不要',
+        type: 'info',
+      })
+    } catch {
+      return
+    }
+  }
   pendingAction.value = 'complete'
   try {
     await api.post(`/admin/visit-requests/${id.value}/complete`)
-    ElMessage.success('已標記完成參觀')
+    ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記完成參觀')
     openRequests.refresh(true)
     await load({ quiet: true })
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
     pendingAction.value = null
+  }
+}
+
+// ---- 招生訪視（規格第 10 節）----
+// 有 admissions.read 才查；已到場但還沒有招生訪視（上線前的舊預約、或招生訪視被刪掉）時，
+// 有 admissions.write 的人可以補建（後端另要 booking.read，能看到這頁就有）。
+// 查詢成功＝招生可用；404＝招生未啟用；其他錯誤或沒查＝不確定（markCompleted 照舊）。
+const canReadAdmissions = computed(() => can('admissions.read'))
+const canCreateAdmissions = computed(() => can('admissions.write'))
+const admissionsVisit = ref<RecruitmentVisit | null>(null)
+const admissionsAvailable = ref<'yes' | 'no' | 'unknown'>('unknown')
+const creatingAdmissions = ref(false)
+
+// 進行中的查詢：markCompleted 要等它（只在查完仍是 unknown 才沿用舊行為）。
+let admissionsLookup: Promise<void> | null = null
+
+function loadAdmissionsVisit(): Promise<void> {
+  const run = fetchAdmissionsVisit().finally(() => {
+    if (admissionsLookup === run) admissionsLookup = null
+  })
+  admissionsLookup = run
+  return run
+}
+
+async function fetchAdmissionsVisit() {
+  const current = detail.value
+  admissionsVisit.value = null
+  admissionsAvailable.value = 'unknown'
+  if (!current || !canReadAdmissions.value) return
+  const gen = generation
+  try {
+    const rows = await listRecords({ campus_key: current.campus_key, visit_request_id: current.id, page: 1, page_size: 1 })
+    if (gen !== generation || detail.value?.id !== current.id) return
+    admissionsVisit.value = Array.isArray(rows) ? (rows[0] ?? null) : null
+    admissionsAvailable.value = 'yes'
+  } catch (err) {
+    if (gen !== generation || detail.value?.id !== current.id) return
+    // 404：招生入學未啟用，整區不顯示；其他錯誤讀不到也不影響處理案件。
+    if (err instanceof ApiError && err.status === 404) admissionsAvailable.value = 'no'
+  }
+}
+
+// 換案件或狀態變了（例如剛標記已到場）才重查；只是重讀明細不重查。
+watch(() => `${detail.value?.id ?? ''}|${detail.value?.status ?? ''}`, () => void loadAdmissionsVisit())
+
+// 帶 sy=all：到場當下寫入的入學學期不一定是招生頁預設的學年（本檔調整第 22 條）。
+const admissionsLink = computed(() => ({
+  path: '/admissions',
+  query: { campus: detail.value?.campus_key ?? '', tab: 'records', vr: detail.value?.id ?? '', sy: 'all' },
+}))
+
+async function createAdmissionsVisit() {
+  const current = detail.value
+  if (!current || creatingAdmissions.value) return
+  creatingAdmissions.value = true
+  try {
+    const created = await createFromVisitRequest(current.id)
+    if (detail.value?.id !== current.id) return
+    admissionsVisit.value = created
+    ElMessage.success('已建立招生訪視')
+  } catch (err) {
+    ElMessage.error(apiErrorMessage(err, '建立招生訪視失敗'))
+    // 409：預約已不是已到場或已匿名化，重讀讓畫面跟上。
+    if (err instanceof ApiError && err.status === 409) await load({ quiet: true })
+  } finally {
+    creatingAdmissions.value = false
   }
 }
 
@@ -856,6 +940,15 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 <el-button :disabled="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
               </template>
             </div>
+            <div v-if="canReadAdmissions && admissionsAvailable === 'yes' && (admissionsVisit || detail.status === 'completed')" class="detail__admissions">
+              <span class="detail__admissions-label">招生訪視</span>
+              <router-link v-if="admissionsVisit" :to="admissionsLink">{{ stageLabel(admissionsVisit.stage) }}・在招生入學查看</router-link>
+              <template v-else-if="canCreateAdmissions">
+                <span class="hint">已到場，但還沒有招生訪視。</span>
+                <el-button size="small" :loading="creatingAdmissions" :disabled="busy" @click="createAdmissionsVisit">建立招生訪視</el-button>
+              </template>
+              <span v-else class="hint">已到場，但還沒有招生訪視；請有招生權限的同事建立。</span>
+            </div>
             <div class="detail__assignee">
               <label for="visit-assignee">承辦人</label>
               <!-- 選項寫名字，下面一行小字是完整 Email：同名或同 Email 前綴的同事才分得出來。 -->
@@ -978,6 +1071,28 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   border-top: 1px solid var(--line);
   font-size: 13px;
   color: var(--ink-2);
+}
+
+/* 招生訪視：與承辦人同一種分隔與留白。 */
+.detail__admissions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.detail__admissions-label {
+  flex-basis: 100%;
+  font-weight: 500;
+}
+
+.detail__admissions a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* 取消預約與主動作隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
@@ -1170,7 +1285,8 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 }
 
 @media (max-width: 720px) {
-  .detail__assignee {
+  .detail__assignee,
+  .detail__admissions {
     padding: 12px 16px;
   }
 

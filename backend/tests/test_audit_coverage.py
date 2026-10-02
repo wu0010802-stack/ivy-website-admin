@@ -83,6 +83,8 @@ def _write_routes() -> list[tuple[str, str, object]]:
             database_url="postgresql+asyncpg://localhost/ivy_website_dev",
             test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
             session_secret="test-only-secret-please-rotate",
+            # 招生入學預設關閉不掛路由；打開才檢查得到招生的寫入端點。
+            admissions_enabled=True,
         )
     )
     routes = []
@@ -100,6 +102,7 @@ def test_every_admin_write_endpoint_writes_audit():
     routes = _write_routes()
     # 避免路由表讀錯變成空轉。
     assert len(routes) > 50
+    assert any(path.startswith("/api/website/v1/admin/admissions/") for _, path, _ in routes)
     missing = [
         f"{method} {path}"
         for method, path, endpoint in routes

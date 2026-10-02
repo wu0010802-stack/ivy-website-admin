@@ -449,6 +449,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.import_site_assets': '匯入官網內建素材',
   'media.regenerate_variants': '重新產生素材縮圖與大圖',
   'media.strip_metadata': '去除素材原檔的拍攝資訊',
+  // 招生入學（2026-10）
+  'recruitment_visit.create': '新增招生訪視',
+  'recruitment_visit.update': '修改招生訪視',
+  'recruitment_visit.delete': '刪除招生訪視',
+  'recruitment_visit.transition': '變更招生階段',
+  'recruitment_visit.seat': '保留或釋放座位',
+  'grade_intake_target.update': '設定計畫名額',
+  'recruitment_visit.create_from_booking': '由官網預約建立招生訪視',
 }
 
 export function auditActionLabel(action: string): string {
@@ -538,13 +546,56 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   retention_policy: '個資保存政策',
   line_group: 'LINE 群組',
   line_verification_code: 'LINE 群組驗證碼',
+  recruitment_visit: '招生訪視',
+  grade_intake_target: '計畫名額',
 }
 
-// 個資保存政策會清理的案件類別（後端 retention_service.CATEGORIES）。
+// 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。
+export const RECRUITMENT_STAGE_LABELS: Record<string, string> = {
+  visited: '已訪視',
+  deposited: '已預繳',
+  enrolled: '已註冊',
+  withdrawn: '退預繳／退註冊',
+}
+
+// 招生訪視怎麼建立的（後端 constants.ORIGINS，created 事件與稽核的 origin）。
+export const RECRUITMENT_ORIGIN_LABELS: Record<string, string> = {
+  manual: '手動新增',
+  visit_request: '官網預約到場',
+}
+
+// 招生訪視編輯了哪些欄位（recruitment_visit.update 的 fields；只記欄位名，不記內容）。
+export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
+  visit_date: '參觀日期',
+  child_name: '幼生姓名',
+  birthday: '生日',
+  grade: '適讀班級',
+  phone: '電話',
+  contact_name: '聯絡人',
+  address: '地址',
+  source: '幼生來源',
+  referrer: '介紹者',
+  deposit_collector: '收預繳人員',
+  tour_guide_user_id: '帶參觀老師',
+  tour_guide_name: '帶參觀老師',
+  source_category: '來源分類',
+  rides_bus: '娃娃車',
+  transfer_term: '轉其他學期',
+  notes: '備註',
+  parent_response: '電訪回應',
+  no_deposit_reason: '未預繳原因',
+  no_deposit_reason_detail: '未預繳原因說明',
+  target_school_year: '入學學年',
+  target_semester: '入學學期',
+}
+
+// 個資保存政策會清理的類別（後端 retention_service.CATEGORIES 與 ADMISSIONS）。
+// 招生訪視只在設定了天數時才出現在試算與清理紀錄裡。
 export const RETENTION_CATEGORY_LABELS: Record<string, string> = {
   cancelled: '已取消',
   no_show: '未到場',
   completed: '已完成參觀',
+  admissions: '招生訪視',
 }
 
 // 清理紀錄與操作紀錄（retention.run 的 trigger）共用；「定期工作」是工程說法，
@@ -982,6 +1033,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   cancelled_days: '已取消、未到場保留',
   completed_days: '已完成參觀保留',
   open_overdue_days: '未結案提醒',
+  admissions_days: '招生訪視保留',
   auto_run_enabled: '每天自動清理',
 }
 
@@ -991,11 +1043,13 @@ const AUDIT_FIELD_UNITS: Record<string, string> = {
   cancelled_days: '天',
   completed_days: '天',
   open_overdue_days: '天',
+  admissions_days: '天',
   min_lead_hours: '小時',
   max_advance_days: '天',
 }
 
 function auditValueLabel(field: string, value: unknown): string {
+  if (field === 'admissions_days' && (value === null || value === undefined)) return '不自動清理'
   if (field === 'role' && typeof value === 'string') return roleLabel(value)
   if (field === 'closed' && typeof value === 'boolean') return value ? '已關閉' : '開放'
   if (field === 'auto_run_enabled' && typeof value === 'boolean') return value ? '開啟' : '關閉'
@@ -1163,7 +1217,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   affected_requests: (v) => `影響 ${countOf(v)} 筆已排入的案件`,
   reopened_slots: (v) => `重新開放 ${countOf(v)} 場`,
   created_slots: (v) => `依規則補上 ${countOf(v)} 場`,
-  created: (v) => `新增 ${countOf(v)} 場`,
+  // 依規則產生時段（visit_slots.generate）是新增幾場；由官網預約建立招生訪視是有沒有新建。
+  created: (v, action) => {
+    if (action === 'recruitment_visit.create_from_booking') return v ? '建立招生訪視' : '這筆預約已有招生訪視，沒有重複建立'
+    return `新增 ${countOf(v)} 場`
+  },
   skipped_existing: (v) => (countOf(v) ? `${countOf(v)} 場已經有了` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
@@ -1186,7 +1244,12 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   filename: (v) => `檔名：${String(v)}`,
   size_bytes: (v) => `檔案大小：${formatFileSize(countOf(v))}`,
   deleted_at: (v) => `刪除時間：${auditWhen(v)}`,
-  fields: (v) => (Array.isArray(v) ? `修改：${Array.from(new Set(v.map((field) => MEDIA_FIELD_LABELS[String(field)] ?? String(field)))).join('、')}` : null),
+  // 素材說明（media.update）或招生訪視（recruitment_visit.update）被改了哪些欄位。
+  fields: (v, action) => {
+    if (!Array.isArray(v)) return null
+    const names = action.startsWith('recruitment_visit.') ? RECRUITMENT_FIELD_LABELS : MEDIA_FIELD_LABELS
+    return `修改：${Array.from(new Set(v.map((field) => names[String(field)] ?? String(field)))).join('、')}`
+  },
   imported: (v) => `匯入 ${countOf(v)} 個`,
   reused: (v) => (countOf(v) ? `${countOf(v)} 個已在素材庫` : null),
   failed: (v) => (countOf(v) ? `失敗 ${countOf(v)} 個` : null),
@@ -1206,19 +1269,32 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   days: (v) => {
     if (!v || typeof v !== 'object') return null
     const d = v as Record<string, unknown>
-    return `保留天數：取消／未到場 ${String(d.cancelled_days)} 天、完成 ${String(d.completed_days)} 天`
+    const admissions = typeof d.admissions_days === 'number' ? `、招生訪視 ${d.admissions_days} 天` : ''
+    return `保留天數：取消／未到場 ${String(d.cancelled_days)} 天、完成 ${String(d.completed_days)} 天${admissions}`
   },
   counts: (v) => {
     if (!v || typeof v !== 'object') return null
     const c = v as Record<string, unknown>
-    return Object.keys(RETENTION_CATEGORY_LABELS).map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${countOf(c[key])} 筆`).join('、')
+    // 招生訪視只有設定了天數的清理才有；舊紀錄與沒設定的不列，文字跟以前一樣。
+    return Object.keys(RETENTION_CATEGORY_LABELS)
+      .filter((key) => key !== 'admissions' || key in c)
+      .map((key) => `${RETENTION_CATEGORY_LABELS[key]} ${countOf(c[key])} 筆`)
+      .join('、')
   },
   total: (v) => `共匿名化 ${countOf(v)} 筆`,
   open_overdue_count: (v) => (countOf(v) ? `另有 ${countOf(v)} 筆超過天數仍未結案` : null),
+  // 招生入學
+  origin: (v) => `建立方式：${RECRUITMENT_ORIGIN_LABELS[String(v)] ?? String(v)}`,
+  stage: (v) => `刪除時的階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
+  grade_set: (v) => (v ? '保留座位' : '釋放保留座位'),
+  capacity_warning: (v) => (v ? '超過計畫名額（只提醒，沒有擋下）' : null),
+  school_year: (v) => `入學學年：${String(v)} 學年`,
+  semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
+  grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。
-const AUDIT_PAIRED_KEYS = ['from_status', 'to_status', 'from_slot', 'to_slot', 'created_from', 'created_to', 'date_from', 'date_to', 'from', 'to'] as const
+const AUDIT_PAIRED_KEYS = ['from_status', 'to_status', 'from_slot', 'to_slot', 'from_stage', 'to_stage', 'created_from', 'created_to', 'date_from', 'date_to', 'from', 'to'] as const
 
 /** 後台看得懂的 metadata 鍵（有中文寫法，或成對、before／after 另外處理）。 */
 export const AUDIT_METADATA_KEYS = new Set([...Object.keys(AUDIT_METADATA_FORMATTERS), ...AUDIT_PAIRED_KEYS, 'before', 'after', 'slot_sync'])
@@ -1233,6 +1309,10 @@ function pairedLines(m: Record<string, unknown>): string[] {
   }
   if (has('from_slot') || has('to_slot')) {
     lines.push(`時段：${m.from_slot ? auditSlotLabel(m.from_slot) : '未排時段'} → ${m.to_slot ? auditSlotLabel(m.to_slot) : '未排時段'}`)
+  }
+  if (has('from_stage') || has('to_stage')) {
+    const stage = (value: unknown) => RECRUITMENT_STAGE_LABELS[String(value)] ?? String(value)
+    lines.push(m.from_stage && m.to_stage ? `招生階段：${stage(m.from_stage)} → ${stage(m.to_stage)}` : `招生階段：${stage(m.from_stage ?? m.to_stage)}`)
   }
   if (m.created_from || m.created_to) {
     lines.push(`篩選送出日期：${m.created_from ? auditWhen(m.created_from) : '不限'} – ${m.created_to ? auditWhen(m.created_to) : '不限'}`)

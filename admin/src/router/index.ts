@@ -59,6 +59,7 @@ export const routes: RouteRecordRaw[] = [
       { path: 'slots', redirect: to => ({ path: '/visit-calendar', query: to.query }) },
       page('visit-requests', 'visit-requests', () => import('../views/VisitRequestsView.vue')),
       page('visit-calendar', 'visit-calendar', () => import('../views/VisitCalendarView.vue')),
+      page('admissions', 'admissions', () => import('../views/AdmissionsView.vue')),
       {
         path: 'visit-requests/:id',
         name: 'visit-detail',

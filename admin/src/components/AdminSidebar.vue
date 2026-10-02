@@ -5,7 +5,7 @@ import {
   ArrowDown, Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
   Document as DocumentIcon, EditPen, Files, Grid, HomeFilled, Key, List, Location as LocationIcon,
   Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
-  SwitchButton, Tickets, Timer, User,
+  SwitchButton, Tickets, Timer, TrendCharts, User,
 } from '@element-plus/icons-vue'
 import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
@@ -51,7 +51,7 @@ watch(expanded, value => {
 const icons: Record<string, Component> = {
   Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
   EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Notification: NotificationIcon, Phone, Picture,
-  Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, User,
+  Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, TrendCharts, User,
 }
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)
 const normalizedQuery = computed(() => normalizeSearch(query.value))

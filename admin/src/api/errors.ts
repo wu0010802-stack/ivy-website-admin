@@ -26,6 +26,11 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   LINE_NOT_CONFIGURED: '尚未設定 LINE 官方帳號的 Messaging API 金鑰',
   LINE_GROUP_UNAVAILABLE: '官方帳號不在這個群組裡，請重新把它拉進群組',
   LINE_GROUP_UNVERIFIED: '這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組',
+  RECRUITMENT_VISIT_VERSION_CONFLICT: '這筆招生訪視剛被其他人修改，請重新載入後再操作',
+  RECRUITMENT_VISIT_ANONYMIZED: '這筆招生訪視已依保存政策匿名化，不能再修改',
+  TRANSITION_NOT_ALLOWED: '這個階段不能直接移過去',
+  VISIT_REQUEST_NOT_COMPLETED: '這筆預約不是「已到場」，不能建立招生訪視',
+  VISIT_REQUEST_ANONYMIZED: '這筆預約已依保存政策匿名化，不能再建立招生訪視',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 

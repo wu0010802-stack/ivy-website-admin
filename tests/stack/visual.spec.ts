@@ -47,7 +47,13 @@ test.describe('後台畫面基準', () => {
   test('各校預約方式', async ({ page }) => {
     await gotoAdmin(page, '/booking', '各校預約方式')
     await settle(page)
-    await expect(page).toHaveScreenshot('booking-settings.png', { mask: dynamicParts(page) })
+    // 頁首「內容通知未讀」鈕有沒有出現取決於 content-flow 是否先跑（順序相依）；遮罩只能塗色、擋不住
+    // 「有或沒有」的差異，所以截圖時隱藏（visibility 不改版面），也不遮罩它裡面的 .num。
+    // 這裡的 style 會取代 config 的 style，所以 config 原本那條要一併帶上。
+    await expect(page).toHaveScreenshot('booking-settings.png', {
+      mask: [page.locator('.sidebar__badge'), page.locator('time'), page.locator('.num:not(.top__alert-count)')],
+      style: '.top__alerts { visibility: hidden !important; } .top__alert, .top__alert * { visibility: hidden !important; }',
+    })
   })
 
   test('五校介紹（崇德，其他測試不會改）', async ({ page }) => {

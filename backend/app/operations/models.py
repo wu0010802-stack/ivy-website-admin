@@ -189,6 +189,10 @@ class RetentionPolicy(Base):
             f"AND open_overdue_days BETWEEN {RETENTION_MIN_DAYS} AND {RETENTION_MAX_DAYS}",
             name="ck_retention_policies_days",
         ),
+        CheckConstraint(
+            f"admissions_days IS NULL OR admissions_days BETWEEN {RETENTION_MIN_DAYS} AND {RETENTION_MAX_DAYS}",
+            name="ck_retention_policies_admissions_days",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
@@ -199,6 +203,9 @@ class RetentionPolicy(Base):
     # 還沒結案的案件不會被清理；送出超過這個天數仍沒結案的，只算件數提醒
     # 園方先處理（open_overdue_count）。
     open_overdue_days: Mapped[int] = mapped_column(Integer, nullable=False, default=DEFAULT_RETENTION_DAYS)
+    # 招生訪視（2026-10 招生入學規格 11）：最後更新後幾天匿名化。NULL＝不自動清理
+    # （預設；天數待業主裁定）。
+    admissions_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 定期工作要不要每天自動匿名化；另外還要部署設定
     # WEBSITE_RETENTION_ALLOW_REAL_RUN=true，兩個都開才會執行。
     auto_run_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
