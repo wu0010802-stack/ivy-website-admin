@@ -414,6 +414,9 @@ class RetentionDaysOut(BaseModel):
     completed_days: int
     # 送出超過幾天仍未結案就列入提醒（不會被清理）。
     open_overdue_days: int
+    # 招生訪視：最後更新後幾天匿名化；None＝不自動清理（預設，天數待業主裁定）。
+    # 舊的清理紀錄沒有這個鍵，讀出來也是 None。
+    admissions_days: int | None = None
 
 
 class RetentionCountsOut(BaseModel):
@@ -421,6 +424,8 @@ class RetentionCountsOut(BaseModel):
     cancelled: int = 0
     no_show: int = 0
     completed: int = 0
+    # 招生訪視；沒設定天數時不清，為 0。
+    admissions: int = 0
 
 
 class RetentionReportOut(BaseModel):
@@ -453,6 +458,9 @@ class RetentionPolicyUpdate(BaseModel):
     completed_days: int = Field(ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
     open_overdue_days: int = Field(ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
     auto_run_enabled: bool
+    # 只有請求帶了這個鍵才寫入（model_fields_set）：後台保存政策頁加上這個欄位
+    # 之前（B6），現行畫面存檔不會把它清成 NULL。送 null＝不自動清理。
+    admissions_days: int | None = Field(default=None, ge=RETENTION_MIN_DAYS, le=RETENTION_MAX_DAYS)
 
 
 class RetentionRunOut(BaseModel):
@@ -535,6 +543,8 @@ async def update_retention_policy(
     policy.completed_days = payload.completed_days
     policy.open_overdue_days = payload.open_overdue_days
     policy.auto_run_enabled = payload.auto_run_enabled
+    if "admissions_days" in payload.model_fields_set:
+        policy.admissions_days = payload.admissions_days
     after = {**retention_service.policy_days(policy), "auto_run_enabled": policy.auto_run_enabled}
     if after != before:
         policy.version += 1

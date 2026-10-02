@@ -1502,15 +1502,22 @@ async def mark_no_show(
 @router.post("/admin/visit-requests/{visit_request_id}/complete", response_model=VisitRequestDetailOut)
 async def mark_completed(
     visit_request_id: uuid.UUID,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
     """家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
-    沒有路由，已確認的案件只能停在「已確認」或被標成未到場。"""
+    沒有路由，已確認的案件只能停在「已確認」或被標成未到場。招生入學開啟時
+    同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。"""
     visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
     try:
-        await workflow_service.mark_completed(db, visit_request, actor=Actor.staff(current_user.id))
+        await workflow_service.mark_completed(
+            db,
+            visit_request,
+            actor=Actor.staff(current_user.id),
+            admissions_enabled=request.app.state.settings.admissions_enabled,
+        )
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
         raise HTTPException(

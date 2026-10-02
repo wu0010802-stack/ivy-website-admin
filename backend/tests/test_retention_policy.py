@@ -112,7 +112,8 @@ async def test_policy_defaults_update_and_version(admin_client, db_session):
     ).scalars().all()
     assert entry.metadata_json["before"]["cancelled_days"] == 365
     assert entry.metadata_json["after"] == {
-        "cancelled_days": 180, "completed_days": 730, "open_overdue_days": 90, "auto_run_enabled": True,
+        "cancelled_days": 180, "completed_days": 730, "open_overdue_days": 90, "admissions_days": None,
+        "auto_run_enabled": True,
     }
 
 
@@ -165,7 +166,7 @@ async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin
     assert fresh_new
 
     report = (await admin_client.post(f"{BASE}/retention/dry-run")).json()
-    assert report["counts"] == {"cancelled": 1, "no_show": 2, "completed": 1}
+    assert report["counts"] == {"cancelled": 1, "no_show": 2, "completed": 1, "admissions": 0}
     assert report["total"] == 4
     assert report["open_overdue_count"] == 2
     assert report["dry_run"] is True
@@ -212,7 +213,7 @@ async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_cli
     ran = await admin_client.post(f"{BASE}/retention/run")
     assert ran.status_code == 200, ran.text
     assert ran.json()["dry_run"] is False
-    assert ran.json()["counts"] == {"cancelled": 1, "no_show": 0, "completed": 0}
+    assert ran.json()["counts"] == {"cancelled": 1, "no_show": 0, "completed": 0, "admissions": 0}
     assert ran.json()["open_overdue_count"] == 1
     assert ran.json()["run_id"]
 
@@ -230,7 +231,9 @@ async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_cli
     assert runs[0]["actor_email"] == "admin@ivy.example"
     assert runs[0]["total"] == 1
     assert runs[0]["open_overdue_count"] == 1
-    assert runs[0]["days"] == {"cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365}
+    assert runs[0]["days"] == {
+        "cancelled_days": 365, "completed_days": 365, "open_overdue_days": 365, "admissions_days": None,
+    }
     # 紀錄不存案件 id。
     row = (await db_session.execute(select(RetentionRun))).scalar_one()
     assert old_cancel not in str(row.counts) and old_cancel not in str(row.policy)

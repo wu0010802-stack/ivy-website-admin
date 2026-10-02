@@ -70,6 +70,7 @@
 - 首頁捲過 40px 頁首收成靠右的深綠膠囊；分校頁與預約頁在 900px 以下也收，桌機內頁不收。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
+- 後台「招生入學」（`/admin/admissions`，分支 `feature/admissions-20261001`）階段 A／B／C 於 2026-10-02 完成，**未併 main、未部署**；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視）。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（同意書與保存天數），步驟見 `deploy/README.md`「招生入學」。
 
 ## 驗證工具的本機繞法
 

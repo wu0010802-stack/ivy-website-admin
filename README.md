@@ -1,3 +1,23 @@
+## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 併入 main，功能開關預設關閉）
+
+比照園務系統「招生入學」，在官網後台加參觀後的招生追蹤：已訪視 → 已預繳 → 已註冊 ｜ 退預繳／退註冊、名額規劃、統計分析與五校比較。三張表沿用園務名稱（`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`），併入園務時可整批轉移。規格 `docs/specs/2026-09-30-website-admissions-design.md`（第 17 節是計畫回寫對照），計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`，規則見 DESIGN.md「招生入學（2026-10-01）」。分支疊在家長自選場次改版（`feature/parent-self-booking-20260930`）上。功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關。
+
+- **後端（階段 A）**：migration `4a7e2c9d1b63`（接 `c7d2e9f4a1b8`，三張新表＋`retention_policies.admissions_days`，只新增、不改寫既有資料）；訪視 CRUD、狀態轉換（不允許的 422、版本衝突 409）、保留座位與名額；預約標記「已到場」時在同一個交易建立招生訪視，時間已過還沒確認的預約列成待辦；保存政策新類別（預設不自動清理）；轉移契約 `contracts/ivy-recruitment/`、匯出程式與契約測試。
+- **後台（階段 B）**：「招生入學」頁五個分頁（漏斗看板、訪視明細、名額規劃、官網預約、統計分析），篩選與分頁同步網址；看板可拖曳，也能用卡片選單「移到…」；預約明細的「標記已到場」加確認框並連到招生訪視；保存政策頁多「招生訪視」天數。
+- **統計與驗收（階段 C）**：移植園務 `_query_stats`（KPI、四個比率、月度、年度、班別、來源、接待、未預繳原因、主管決策摘要、月比、警示、行動入口）與五校比較（`GET /compare` 回 `{as_of, school_year, semester, rows}`）；分母 0 回 `null`、畫面寫「—」；「未預繳原因」列未預繳明細（`/no-deposit-records`，含孩子姓名，不含電話、地址、生日）。stack e2e 跑通「家長自選場次 → 時間過後出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 名額已註冊 → 統計」；1440／390 截圖 12 張在 `output/playwright/admissions-*-{1440,390}.png`。
+- **X1（B 留下的小項）**：testkit 預設 options 與 button 型別、轉換權限表測試改讀後端 `funnel.py`、訪視明細第 2 頁以後空狀態、保存政策「啟用後才有資料」。
+- **C5 的 stack 調整**：招生流程的家長 context 帶獨立來源 IP，避開「每來源每校每小時 5 筆」的上限；「各校預約方式」截圖隱藏順序相依的通知鈕並重拍基準（含招生入學側欄）。
+- 刻意與園務不同、併入時要決定的：`contracts/ivy-recruitment/README.md` 的差異清單（分母 0、月比、同票排序、來源不合併、警示指向、未預繳名單的排序與欄位、唯一幼生對匿名化的列以列 id 計等）。
+
+驗證（實際跑過，log 在 `output/admissions-c6/`）：
+- backend pytest 全套（`ivy_website_test_admissions`，先 `alembic upgrade head`）：**1 failed, 1261 passed, 163 warnings in 951.68s (0:15:51)**。唯一失敗 `tests/test_booking_consent_readiness.py::test_dashboard_lists_slots_campuses_without_openings` 是 main 既有、與招生無關的日期相依問題（2026-10-02 週五：規則 weekday=5、`max_advance_days=1`，存規則時場次同步補出明天週六的場次，未套 `min_lead_hours`；預約模組的場次同步程式與 `origin/main` 相同），本階段沒有修。
+- `npm run contract:check`：契約型別與 openapi.json 一致。
+- admin typecheck 與 build 通過；admin vitest：Test Files  68 passed (68)、Tests  884 passed (884)。
+- web vitest（`npm run test:website`）：Test Files  70 passed (70)、Tests  707 passed (707)。
+- production build 的 stack e2e 全套（`E2E_DB_NAME=ivy_website_e2e_test_admissions`）：68 passed (2.5m)；第一次整套是 64 passed (2.6m)、2 failed（roles 429、visual 各校預約方式），C5 修正後重跑全過。
+
+**未驗證**：Safari／iOS 實機；看板的原生拖曳只在單元測試以事件模擬（e2e 走「移到…」）；正式庫 migration 與真實資料量下的統計速度。**已知小瑕疵**：390px 名額規劃「計畫名額」欄的輸入框被欄寬截出省略號（`IntakePlanTab.vue`，頁面不溢出）。**上線前必須裁定**規格 Q1（預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數），在那之前只在本機與測試環境使用。上線步驟在 `deploy/README.md`「招生入學（A／B／C 完成，仍未部署）」。
+
 ## 2026-10-02 SEO／GEO 結構化資料補強（`feature/seo-geo-structured-data`，未部署）
 
 - **web**（`web/app/utils/seo.ts`，只用已發布內容，不杜撰）：

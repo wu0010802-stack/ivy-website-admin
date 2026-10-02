@@ -4,6 +4,298 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/arrivals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Arrivals
+         * @description 「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read
+         *     （規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。
+         */
+        get: operations["get_arrivals_api_website_v1_admin_admissions_arrivals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Funnel Board */
+        get: operations["get_funnel_board_api_website_v1_admin_admissions_board_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Compare
+         * @description 五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_compare_api_website_v1_admin_admissions_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/from-visit-request/{visit_request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create From Visit Request
+         * @description 補建：已到場但沒有招生訪視的預約建立一筆；已有就回傳那一筆，可以重複呼叫
+         *     （規格 6.1 第 2 點、6.6）。只接受已到場且未匿名化的預約（A 計畫調整第 13 條）。
+         */
+        post: operations["create_from_visit_request_api_website_v1_admin_admissions_from_visit_request__visit_request_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/intake-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Intake Plan */
+        get: operations["get_intake_plan_api_website_v1_admin_admissions_intake_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/intake-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Intake Targets
+         * @description 存計畫名額後回傳最新的名額規劃。沒有任何變動不寫稽核。
+         */
+        put: operations["save_intake_targets_api_website_v1_admin_admissions_intake_targets_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/no-deposit-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions No Deposit Records
+         * @description 未預繳明細（園務 /no-deposit-analysis）。含孩子姓名，權限同統計；只讀，不寫稽核。
+         */
+        get: operations["get_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admissions Options */
+        get: operations["get_admissions_options_api_website_v1_admin_admissions_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Recruitment Visits
+         * @description 訪視明細：參觀日期新到舊（同日依建立時間、再依 id，分頁穩定）；回裸 list，
+         *     筆數等於 page_size 代表可能還有下一頁。
+         */
+        get: operations["list_recruitment_visits_api_website_v1_admin_admissions_records_get"];
+        put?: never;
+        /**
+         * Create Recruitment Visit
+         * @description 手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。
+         */
+        post: operations["create_recruitment_visit_api_website_v1_admin_admissions_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records/{visit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recruitment Visit */
+        get: operations["get_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Recruitment Visit
+         * @description 刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
+         *     訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。
+         *
+         *     檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、
+         *     或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，
+         *     與取消註冊、退註冊同一個權限。
+         */
+        delete: operations["delete_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Recruitment Visit
+         * @description 編輯表單欄位（規格 6.6）：狀態欄位不在 schema 裡，送了就 422；已匿名化 409。
+         */
+        patch: operations["update_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records/{visit_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Recruitment Events
+         * @description 招生歷程，舊到新（園務 timeline 同順序）。操作者名稱讀取時才 join，帳號改名
+         *     後跟著更新，歷程裡不存姓名。
+         */
+        get: operations["list_recruitment_events_api_website_v1_admin_admissions_records__visit_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records/{visit_id}/seat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Recruitment Seat
+         * @description 保留或釋放座位（規格 6.5）。超過計畫名額只警示，照樣保留；已匿名化 409。
+         */
+        post: operations["set_recruitment_seat_api_website_v1_admin_admissions_records__visit_id__seat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records/{visit_id}/transition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Recruitment Visit
+         * @description 狀態轉換（規格 6.3）。檢查順序：鎖列並確認讀得到這筆（404／403）→ 已匿名化
+         *     （409）→ 版本（409）→ 這個轉換允不允許（422）→ 這個轉換要的 capability（403）。
+         *     版本放在權限之前：別人剛把卡片拖到別欄，這次一律 409 重新載入，不會因為卡片
+         *     已換欄而誤回 403（A 計畫調整第 10 條）。
+         */
+        post: operations["transition_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__transition_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Stats
+         * @description 統計分析（規格第 9 節）。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_stats_api_website_v1_admin_admissions_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/funnel": {
         parameters: {
             query?: never;
@@ -1456,7 +1748,8 @@ export interface paths {
         /**
          * Mark Completed
          * @description 家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
-         *     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。
+         *     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。招生入學開啟時
+         *     同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。
          */
         post: operations["mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post"];
         delete?: never;
@@ -2134,6 +2427,441 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdmissionsCompareOut */
+        AdmissionsCompareOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Rows */
+            rows: components["schemas"]["AdmissionsCompareRow"][];
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+        };
+        /**
+         * AdmissionsCompareRow
+         * @description 五校比較的一列：所選學年學期的「招生案件數」，不是跨校去重後的孩子數。
+         */
+        AdmissionsCompareRow: {
+            /** Campus Key */
+            campus_key: string;
+            /** Deposit */
+            deposit: number;
+            deposit_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+            /** Effective Deposit */
+            effective_deposit: number;
+            effective_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+            /** Enrolled */
+            enrolled: number;
+            /** Grades With Target */
+            grades_with_target: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Remaining Seats */
+            remaining_seats: number | null;
+            /** Target Seats */
+            target_seats: number | null;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            visit_to_deposit_rate: components["schemas"]["AdmissionsRate"];
+            visit_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
+        };
+        /** AdmissionsCountDiff */
+        AdmissionsCountDiff: {
+            /** Current */
+            current: number;
+            /** Delta */
+            delta: number;
+            /** Previous */
+            previous: number;
+        };
+        /** AdmissionsCrossRow */
+        AdmissionsCrossRow: {
+            /** Referrer */
+            referrer: string;
+            /** Sources */
+            sources: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+        };
+        /** AdmissionsDecisionSummary */
+        AdmissionsDecisionSummary: {
+            current_month: components["schemas"]["AdmissionsMetricSnapshot"];
+            rolling_30d: components["schemas"]["AdmissionsMetricSnapshot"];
+            rolling_90d: components["schemas"]["AdmissionsMetricSnapshot"];
+            ytd: components["schemas"]["AdmissionsMetricSnapshot"];
+        };
+        /** AdmissionsFunnelSnapshot */
+        AdmissionsFunnelSnapshot: {
+            /** Deposit */
+            deposit: number;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AdmissionsGradeCount */
+        AdmissionsGradeCount: {
+            /** Deposit */
+            deposit: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AdmissionsGradeRow */
+        AdmissionsGradeRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Grade */
+            grade: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsMetricSnapshot */
+        AdmissionsMetricSnapshot: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsMonthOverMonth */
+        AdmissionsMonthOverMonth: {
+            /** Current Month */
+            current_month: string | null;
+            deposit: components["schemas"]["AdmissionsCountDiff"];
+            deposit_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+            effective_deposit: components["schemas"]["AdmissionsCountDiff"];
+            effective_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+            enrolled: components["schemas"]["AdmissionsCountDiff"];
+            pending_deposit: components["schemas"]["AdmissionsCountDiff"];
+            /** Previous Month */
+            previous_month: string | null;
+            visit: components["schemas"]["AdmissionsCountDiff"];
+            visit_to_deposit_rate: components["schemas"]["AdmissionsRateDiff"];
+            visit_to_enrolled_rate: components["schemas"]["AdmissionsRateDiff"];
+        };
+        /** AdmissionsMonthlyRow */
+        AdmissionsMonthlyRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Month */
+            month: string;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsNoDepositPriority */
+        AdmissionsNoDepositPriority: {
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+            /** Medium */
+            medium: number;
+            /** Other */
+            other: number;
+        };
+        /** AdmissionsNoDepositReason */
+        AdmissionsNoDepositReason: {
+            /** By Grade */
+            by_grade: {
+                [key: string]: number;
+            };
+            /** Count */
+            count: number;
+            /** Priority */
+            priority: ("high" | "medium" | "low") | null;
+            /** Reason */
+            reason: string;
+        };
+        /** AdmissionsNoDepositSummary */
+        AdmissionsNoDepositSummary: {
+            /** Cold Count */
+            cold_count: number;
+            /** High Potential Backlog Count */
+            high_potential_backlog_count: number;
+            /** High Potential Count */
+            high_potential_count: number;
+            /** Overdue Followup Count */
+            overdue_followup_count: number;
+        };
+        /**
+         * AdmissionsOptionsOut
+         * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，
+         *     以及園務的固定列舉與文案。
+         */
+        AdmissionsOptionsOut: {
+            /** Grades */
+            grades: ("幼幼班" | "小班" | "中班" | "大班")[];
+            /** Months */
+            months: string[];
+            /** No Deposit Reasons */
+            no_deposit_reasons: components["schemas"]["NoDepositReasonOption"][];
+            /** Referrers */
+            referrers: string[];
+            /** Source Categories */
+            source_categories: {
+                [key: string]: string;
+            };
+            /** Sources */
+            sources: string[];
+        };
+        /** AdmissionsRate */
+        AdmissionsRate: {
+            /** Denominator */
+            denominator: number;
+            /** Numerator */
+            numerator: number;
+            /** Value */
+            value: number | null;
+        };
+        /** AdmissionsRateDiff */
+        AdmissionsRateDiff: {
+            /** Current */
+            current: number | null;
+            /** Delta */
+            delta: number | null;
+            /** Previous */
+            previous: number | null;
+        };
+        /** AdmissionsReferrerRow */
+        AdmissionsReferrerRow: {
+            /** By Grade */
+            by_grade: {
+                [key: string]: components["schemas"]["AdmissionsGradeCount"];
+            };
+            /** Deposit */
+            deposit: number;
+            /** Referrer */
+            referrer: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AdmissionsReferrerSourceCross */
+        AdmissionsReferrerSourceCross: {
+            /** Referrers */
+            referrers: components["schemas"]["AdmissionsCrossRow"][];
+            /** Sources */
+            sources: string[];
+        };
+        /** AdmissionsSourceRow */
+        AdmissionsSourceRow: {
+            /** Deposit */
+            deposit: number;
+            /** Source */
+            source: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AdmissionsStatsAction */
+        AdmissionsStatsAction: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "FOLLOW_HIGH_POTENTIAL" | "REVIEW_CURRENT_MONTH" | "REVIEW_SOURCE";
+            /** Description */
+            description: string;
+            /** Target Filter */
+            target_filter: {
+                [key: string]: string | number;
+            };
+            /**
+             * Target Tab
+             * @enum {string}
+             */
+            target_tab: "records" | "nodeposit" | "source";
+            /** Title */
+            title: string;
+        };
+        /** AdmissionsStatsAlert */
+        AdmissionsStatsAlert: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "FUNNEL_DROP" | "HIGH_POTENTIAL_BACKLOG" | "SOURCE_IMBALANCE";
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "warning" | "danger" | "info";
+            /** Message */
+            message: string;
+            /** Target Filter */
+            target_filter: {
+                [key: string]: string | number;
+            };
+            /**
+             * Target Tab
+             * @enum {string}
+             */
+            target_tab: "records" | "nodeposit" | "source";
+            /** Title */
+            title: string;
+        };
+        /** AdmissionsStatsFilters */
+        AdmissionsStatsFilters: {
+            /** Campus Key */
+            campus_key: string;
+            /** Reference Month */
+            reference_month: string | null;
+            /** School Year */
+            school_year: number | null;
+            /** Semester */
+            semester: number | null;
+        };
+        /** AdmissionsStatsKpi */
+        AdmissionsStatsKpi: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Unique Deposit */
+            unique_deposit: number;
+            /** Unique Visit */
+            unique_visit: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+        };
+        /** AdmissionsStatsOut */
+        AdmissionsStatsOut: {
+            /** Alerts */
+            alerts: components["schemas"]["AdmissionsStatsAlert"][];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Grade */
+            by_grade: components["schemas"]["AdmissionsGradeRow"][];
+            /** By Referrer */
+            by_referrer: components["schemas"]["AdmissionsReferrerRow"][];
+            /** By Source */
+            by_source: components["schemas"]["AdmissionsSourceRow"][];
+            /** By Year */
+            by_year: components["schemas"]["AdmissionsYearlyRow"][];
+            decision_summary: components["schemas"]["AdmissionsDecisionSummary"];
+            filters: components["schemas"]["AdmissionsStatsFilters"];
+            funnel_snapshot: components["schemas"]["AdmissionsFunnelSnapshot"];
+            kpi: components["schemas"]["AdmissionsStatsKpi"];
+            /** Month Grade */
+            month_grade: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            month_over_month: components["schemas"]["AdmissionsMonthOverMonth"];
+            /** Monthly */
+            monthly: components["schemas"]["AdmissionsMonthlyRow"][];
+            no_deposit_priority: components["schemas"]["AdmissionsNoDepositPriority"];
+            /** No Deposit Reasons */
+            no_deposit_reasons: components["schemas"]["AdmissionsNoDepositReason"][];
+            no_deposit_summary: components["schemas"]["AdmissionsNoDepositSummary"];
+            /** No Deposit Total */
+            no_deposit_total: number;
+            /** Reference Month */
+            reference_month: string | null;
+            referrer_source_cross: components["schemas"]["AdmissionsReferrerSourceCross"];
+            /** Top Action Queue */
+            top_action_queue: components["schemas"]["AdmissionsStatsAction"][];
+            /** Top Source Names */
+            top_source_names: string[];
+        };
+        /** AdmissionsYearlyRow */
+        AdmissionsYearlyRow: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Effective Deposit */
+            effective_deposit: number;
+            /** Effective To Enrolled Rate */
+            effective_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Pending Deposit */
+            pending_deposit: number;
+            /** Transfer Term */
+            transfer_term: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+            /** Visit To Enrolled Rate */
+            visit_to_enrolled_rate: number | null;
+            /** Year */
+            year: string;
+        };
         /**
          * AnalyticsEventCreate
          * @description 規格 L279、L314：只收允許的點擊、event id、校區與入口代碼。
@@ -2178,6 +2906,43 @@ export interface components {
             unassigned_clicks?: {
                 [key: string]: number;
             } | null;
+        };
+        /**
+         * ArrivalRowOut
+         * @description 「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。
+         */
+        ArrivalRowOut: {
+            /** Child Name */
+            child_name: string | null;
+            /** Parent Name */
+            parent_name: string;
+            /** Party Size */
+            party_size: number | null;
+            /** Slot Date */
+            slot_date: string | null;
+            /** Start Time */
+            start_time: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Visit Request Id
+             * Format: uuid
+             */
+            visit_request_id: string;
+        };
+        /**
+         * ArrivalsOut
+         * @description 兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。
+         */
+        ArrivalsOut: {
+            /** Awaiting */
+            awaiting: components["schemas"]["ArrivalRowOut"][];
+            /** Awaiting Total */
+            awaiting_total: number;
+            /** Missing */
+            missing: components["schemas"]["ArrivalRowOut"][];
+            /** Missing Total */
+            missing_total: number;
         };
         /**
          * AuditLogEntryOut
@@ -2569,6 +3334,66 @@ export interface components {
             /** Display Name */
             display_name: string | null;
         };
+        /** FunnelBoardOut */
+        FunnelBoardOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            columns: components["schemas"]["FunnelColumnsOut"];
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number | null;
+            /** Unscoped Count */
+            unscoped_count: number;
+        };
+        /** FunnelCardOut */
+        FunnelCardOut: {
+            /** Child Name */
+            child_name: string;
+            /** Grade */
+            grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Has Visit Request */
+            has_visit_request: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provisional Grade */
+            provisional_grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Target School Year */
+            target_school_year: number | null;
+            /** Target Semester */
+            target_semester: number | null;
+            /** Version */
+            version: number;
+            /**
+             * Visit Date
+             * Format: date
+             */
+            visit_date: string;
+            /** Withdrawn From */
+            withdrawn_from: ("deposited" | "enrolled") | null;
+        };
+        /**
+         * FunnelColumnsOut
+         * @description 四欄各自一個 list（A 計畫調整第 8 條：產生的 TS 型別不是索引簽章）。
+         */
+        FunnelColumnsOut: {
+            /** Deposited */
+            deposited: components["schemas"]["FunnelCardOut"][];
+            /** Enrolled */
+            enrolled: components["schemas"]["FunnelCardOut"][];
+            /** Visited */
+            visited: components["schemas"]["FunnelCardOut"][];
+            /** Withdrawn */
+            withdrawn: components["schemas"]["FunnelCardOut"][];
+        };
         /** FunnelEntryOut */
         FunnelEntryOut: {
             /** Counts */
@@ -2600,6 +3425,67 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IntakePlanOut */
+        IntakePlanOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Rows */
+            rows: components["schemas"]["IntakePlanRowOut"][];
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+            totals: components["schemas"]["IntakePlanTotalsOut"];
+        };
+        /** IntakePlanRowOut */
+        IntakePlanRowOut: {
+            /** Enrolled */
+            enrolled: number;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班";
+            /** Over Capacity */
+            over_capacity: boolean;
+            /** Remaining */
+            remaining: number | null;
+            /** Reserved */
+            reserved: number;
+            /** Target Seats */
+            target_seats: number | null;
+        };
+        /** IntakePlanTotalsOut */
+        IntakePlanTotalsOut: {
+            /** Enrolled */
+            enrolled: number;
+            /** Remaining */
+            remaining: number | null;
+            /** Reserved */
+            reserved: number;
+            /** Target Seats */
+            target_seats: number | null;
+        };
+        /**
+         * IntakeTargetsRequest
+         * @description 同校同學期一次送多個年級（規格 13 PUT /intake-targets）。值是 null＝刪除
+         *     該年級的計畫（回到「未設定」）；沒送的年級不動。
+         */
+        IntakeTargetsRequest: {
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+            /** Targets */
+            targets: {
+                [key: string]: number | null;
+            };
         };
         /** LineCampusTargetOut */
         LineCampusTargetOut: {
@@ -2935,6 +3821,75 @@ export interface components {
             kind: components["schemas"]["VariantKind"];
             /** Width */
             width: number | null;
+        };
+        /** NoDepositReasonOption */
+        NoDepositReasonOption: {
+            /** Priority */
+            priority: ("high" | "medium" | "low") | null;
+            /**
+             * Value
+             * @enum {string}
+             */
+            value: "時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量";
+        };
+        /** NoDepositRecordOut */
+        NoDepositRecordOut: {
+            /** Child Name */
+            child_name: string;
+            /** Cold */
+            cold: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Grade */
+            grade: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Month */
+            month: string;
+            /** No Deposit Reason */
+            no_deposit_reason: string | null;
+            /** No Deposit Reason Detail */
+            no_deposit_reason_detail: string | null;
+            /** Parent Response */
+            parent_response: string | null;
+            /** Priority */
+            priority: ("high" | "medium" | "low") | null;
+            /** Referrer */
+            referrer: string | null;
+            /** Seq No */
+            seq_no: string | null;
+            /** Source */
+            source: string | null;
+        };
+        /** NoDepositRecordsOut */
+        NoDepositRecordsOut: {
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Records */
+            records: components["schemas"]["NoDepositRecordOut"][];
+            summary: components["schemas"]["NoDepositSummaryOut"];
+            /** Total */
+            total: number;
+        };
+        /**
+         * NoDepositSummaryOut
+         * @description 只受 reason／grade 篩選影響（園務 base_query）；潛力、冷名單篩選不改這三個數字。
+         */
+        NoDepositSummaryOut: {
+            /** Cold Count */
+            cold_count: number;
+            /** High Potential Count */
+            high_potential_count: number;
+            /** Overdue Followup Count */
+            overdue_followup_count: number;
         };
         /** NotificationOutboxOut */
         NotificationOutboxOut: {
@@ -3428,6 +4383,267 @@ export interface components {
             /** Current Password */
             current_password?: string | null;
         };
+        /**
+         * RecruitmentEventOut
+         * @description 招生歷程一筆（規格 5.2），舊到新排序。
+         */
+        RecruitmentEventOut: {
+            /** Actor Name */
+            actor_name?: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "created" | "deposit_added" | "deposit_removed" | "converted" | "revert_converted" | "withdrawn" | "withdraw_cancelled" | "seat_reserved" | "seat_released";
+            /** From Stage */
+            from_stage: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata Json */
+            metadata_json: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * To Stage
+             * @enum {string}
+             */
+            to_stage: "visited" | "deposited" | "enrolled" | "withdrawn";
+        };
+        /**
+         * RecruitmentVisitCreate
+         * @description 手動新增（規格 6.1 第 3 點）。必填同園務表單：參觀日期、幼生姓名、生日、
+         *     入學學年學期。campus_key 放 query（同 POST /admin/slots）。
+         */
+        RecruitmentVisitCreate: {
+            /** Address */
+            address?: string | null;
+            /**
+             * Birthday
+             * Format: date
+             */
+            birthday: string;
+            /** Child Name */
+            child_name: string;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Deposit Collector */
+            deposit_collector?: string | null;
+            /** Grade */
+            grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** No Deposit Reason */
+            no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+            /** No Deposit Reason Detail */
+            no_deposit_reason_detail?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Parent Response */
+            parent_response?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Referrer */
+            referrer?: string | null;
+            /**
+             * Rides Bus
+             * @default false
+             */
+            rides_bus: boolean;
+            /** Source */
+            source?: string | null;
+            /** Source Category */
+            source_category?: ("sibling_current" | "sibling_split" | "sibling_graduate" | "self_report" | "referral" | "invite_success" | "invite_origin" | "home_deposit" | "returning") | null;
+            /** Target School Year */
+            target_school_year: number;
+            /** Target Semester */
+            target_semester: number;
+            /** Tour Guide Name */
+            tour_guide_name?: string | null;
+            /** Tour Guide User Id */
+            tour_guide_user_id?: string | null;
+            /**
+             * Transfer Term
+             * @default false
+             */
+            transfer_term: boolean;
+            /**
+             * Visit Date
+             * Format: date
+             */
+            visit_date: string;
+        };
+        /**
+         * RecruitmentVisitOut
+         * @description 規格 5.1 全部欄位，另加推導的 stage 與 has_visit_request。anonymized_at 有值＝
+         *     已依保存政策匿名化：不能再編輯、轉換或保留座位（409 RECRUITMENT_VISIT_ANONYMIZED），
+         *     可以刪除。
+         */
+        RecruitmentVisitOut: {
+            /** Address */
+            address: string | null;
+            /** Anonymized At */
+            anonymized_at: string | null;
+            /** Birthday */
+            birthday: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Child Name */
+            child_name: string;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deposit Collector */
+            deposit_collector: string | null;
+            /** District */
+            district: string | null;
+            /** Enrolled */
+            enrolled: boolean;
+            /** Enrolled On */
+            enrolled_on: string | null;
+            /** Geocoding Consent At */
+            geocoding_consent_at: string | null;
+            /** Grade */
+            grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Has Deposit */
+            has_deposit: boolean;
+            /** Has Visit Request */
+            readonly has_visit_request: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Month */
+            month: string;
+            /** No Deposit Reason */
+            no_deposit_reason: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+            /** No Deposit Reason Detail */
+            no_deposit_reason_detail: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Parent Response */
+            parent_response: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Provisional Grade */
+            provisional_grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Referrer */
+            referrer: string | null;
+            /** Rides Bus */
+            rides_bus: boolean;
+            /** Seq No */
+            seq_no: string | null;
+            /** Source */
+            source: string | null;
+            /** Source Category */
+            source_category: ("sibling_current" | "sibling_split" | "sibling_graduate" | "self_report" | "referral" | "invite_success" | "invite_origin" | "home_deposit" | "returning") | null;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            readonly stage: "visited" | "deposited" | "enrolled" | "withdrawn";
+            /** Target School Year */
+            target_school_year: number | null;
+            /** Target Semester */
+            target_semester: number | null;
+            /** Tour Guide Name */
+            tour_guide_name: string | null;
+            /** Tour Guide User Id */
+            tour_guide_user_id: string | null;
+            /** Transfer Term */
+            transfer_term: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Visit Date
+             * Format: date
+             */
+            visit_date: string;
+            /** Visit Request Id */
+            visit_request_id: string | null;
+            /** Withdraw Reason */
+            withdraw_reason: string | null;
+            /** Withdrawn At */
+            withdrawn_at: string | null;
+            /** Withdrawn From */
+            withdrawn_from: ("deposited" | "enrolled") | null;
+        };
+        /**
+         * RecruitmentVisitUpdate
+         * @description 編輯（規格 6.6）。只改有送的欄位；送 null 代表清空，但姓名、參觀日期、
+         *     入學學年學期不能清空。
+         */
+        RecruitmentVisitUpdate: {
+            /** Address */
+            address?: string | null;
+            /** Birthday */
+            birthday?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Deposit Collector */
+            deposit_collector?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Grade */
+            grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** No Deposit Reason */
+            no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+            /** No Deposit Reason Detail */
+            no_deposit_reason_detail?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Parent Response */
+            parent_response?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Referrer */
+            referrer?: string | null;
+            /**
+             * Rides Bus
+             * @default false
+             */
+            rides_bus: boolean;
+            /** Source */
+            source?: string | null;
+            /** Source Category */
+            source_category?: ("sibling_current" | "sibling_split" | "sibling_graduate" | "self_report" | "referral" | "invite_success" | "invite_origin" | "home_deposit" | "returning") | null;
+            /** Target School Year */
+            target_school_year?: number | null;
+            /** Target Semester */
+            target_semester?: number | null;
+            /** Tour Guide Name */
+            tour_guide_name?: string | null;
+            /** Tour Guide User Id */
+            tour_guide_user_id?: string | null;
+            /**
+             * Transfer Term
+             * @default false
+             */
+            transfer_term: boolean;
+            /** Visit Date */
+            visit_date?: string | null;
+        };
         /** ReleaseChangeOut */
         ReleaseChangeOut: {
             /** Campus Key */
@@ -3547,6 +4763,11 @@ export interface components {
         /** RetentionCountsOut */
         RetentionCountsOut: {
             /**
+             * Admissions
+             * @default 0
+             */
+            admissions: number;
+            /**
              * Cancelled
              * @default 0
              */
@@ -3564,6 +4785,8 @@ export interface components {
         };
         /** RetentionDaysOut */
         RetentionDaysOut: {
+            /** Admissions Days */
+            admissions_days?: number | null;
             /** Cancelled Days */
             cancelled_days: number;
             /** Completed Days */
@@ -3573,6 +4796,8 @@ export interface components {
         };
         /** RetentionPolicyOut */
         RetentionPolicyOut: {
+            /** Admissions Days */
+            admissions_days?: number | null;
             /** Auto Run Enabled */
             auto_run_enabled: boolean;
             /** Cancelled Days */
@@ -3597,6 +4822,8 @@ export interface components {
         };
         /** RetentionPolicyUpdate */
         RetentionPolicyUpdate: {
+            /** Admissions Days */
+            admissions_days?: number | null;
             /** Auto Run Enabled */
             auto_run_enabled: boolean;
             /** Cancelled Days */
@@ -3681,6 +4908,31 @@ export interface components {
              */
             revision_id: string;
         };
+        /**
+         * SeatOut
+         * @description A 計畫調整第 12 條：超額只警示，警示代碼放在回應，不是錯誤。
+         */
+        SeatOut: {
+            /** Capacity Warning */
+            capacity_warning: boolean;
+            visit: components["schemas"]["RecruitmentVisitOut"];
+            /** Warning Code */
+            warning_code: "SEAT_CAPACITY_WARNING" | null;
+        };
+        /**
+         * SeatRequest
+         * @description 保留座位（grade 有值）或釋放保留（grade 為 null）（規格 6.5）。
+         */
+        SeatRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Grade */
+            grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Target School Year */
+            target_school_year?: number | null;
+            /** Target Semester */
+            target_semester?: number | null;
+        };
         /** SiteSettingsUpdate */
         SiteSettingsUpdate: {
             /** Description */
@@ -3736,6 +4988,32 @@ export interface components {
         TokenExchangeRequest: {
             /** Token */
             token: string;
+        };
+        /**
+         * TransitionRequest
+         * @description 狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀
+         *     自己需要的欄位。
+         */
+        TransitionRequest: {
+            /** Deposit Collector */
+            deposit_collector?: string | null;
+            /** Enrolled On */
+            enrolled_on?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Grade */
+            grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Reason */
+            reason?: string | null;
+            /** Target School Year */
+            target_school_year?: number | null;
+            /** Target Semester */
+            target_semester?: number | null;
+            /**
+             * To Stage
+             * @enum {string}
+             */
+            to_stage: "visited" | "deposited" | "enrolled" | "withdrawn";
         };
         /** UserCapabilitiesRequest */
         UserCapabilitiesRequest: {
@@ -4534,6 +5812,662 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_arrivals_api_website_v1_admin_admissions_arrivals_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrivalsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_funnel_board_api_website_v1_admin_admissions_board_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝目前學年 */
+                school_year?: number | null;
+                /** @description 入學學期；不帶＝整學年 */
+                semester?: number | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunnelBoardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_compare_api_website_v1_admin_admissions_compare_get: {
+        parameters: {
+            query: {
+                school_year: number;
+                semester: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsCompareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_from_visit_request_api_website_v1_admin_admissions_from_visit_request__visit_request_id__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_intake_plan_api_website_v1_admin_admissions_intake_plan_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year: number;
+                semester?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_intake_targets_api_website_v1_admin_admissions_intake_targets_put: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntakeTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year?: number | null;
+                semester?: number | null;
+                reason?: string | null;
+                grade?: string | null;
+                priority?: ("high" | "medium" | "low") | null;
+                overdue_days?: number | null;
+                cold_only?: boolean | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoDepositRecordsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_options_api_website_v1_admin_admissions_options_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsOptionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recruitment_visits_api_website_v1_admin_admissions_records_get: {
+        parameters: {
+            query: {
+                page?: number;
+                page_size?: number;
+                campus_key: string;
+                /** @description 民國月份，例：115.09 */
+                month?: string | null;
+                /** @description 適讀班級 */
+                grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+                /** @description 入學學年（民國） */
+                target_school_year?: number | null;
+                /** @description 入學學期：1 上、2 下 */
+                target_semester?: number | null;
+                source?: string | null;
+                referrer?: string | null;
+                has_deposit?: boolean | null;
+                no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+                /** @description 漏斗階段（由狀態欄位推導） */
+                stage?: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
+                /** @description 連結的官網預約 */
+                visit_request_id?: string | null;
+                /** @description 幼生姓名、聯絡人、電話、地址、備註、電訪回應 */
+                q?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_recruitment_visit_api_website_v1_admin_admissions_records_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecruitmentVisitCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__delete: {
+        parameters: {
+            query: {
+                expected_version: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecruitmentVisitUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recruitment_events_api_website_v1_admin_admissions_records__visit_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_recruitment_seat_api_website_v1_admin_admissions_records__visit_id__seat_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transition_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__transition_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_stats_api_website_v1_admin_admissions_stats_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝不篩 */
+                school_year?: number | null;
+                semester?: number | null;
+                /** @description 民國月份，例：115.09；不帶＝最新有資料的月份 */
+                reference_month?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_analytics_funnel_api_website_v1_admin_analytics_funnel_get: {
         parameters: {
             query: {

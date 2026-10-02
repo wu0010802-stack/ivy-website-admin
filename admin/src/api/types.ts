@@ -375,3 +375,33 @@ export type RetentionReportOut = components['schemas']['RetentionReportOut']
 export type RetentionRunOut = components['schemas']['RetentionRunOut']
 export type AuditLogEntryOut = components['schemas']['AuditLogEntryOut']
 export type DisplayNameUpdateRequest = components['schemas']['DisplayNameUpdateRequest']
+
+// 招生入學（2026-10 規格 13）。名稱去掉 Out；B 階段的 api/admissions.ts 從這裡匯入。
+export type RecruitmentVisit = components['schemas']['RecruitmentVisitOut']
+export type RecruitmentVisitCreate = components['schemas']['RecruitmentVisitCreate']
+export type RecruitmentVisitUpdate = components['schemas']['RecruitmentVisitUpdate']
+export type RecruitmentEvent = components['schemas']['RecruitmentEventOut']
+export type TransitionRequest = components['schemas']['TransitionRequest']
+export type SeatRequest = components['schemas']['SeatRequest']
+export type SeatResult = components['schemas']['SeatOut']
+export type FunnelBoard = components['schemas']['FunnelBoardOut']
+export type FunnelColumns = components['schemas']['FunnelColumnsOut']
+export type FunnelCard = components['schemas']['FunnelCardOut']
+export type IntakePlan = components['schemas']['IntakePlanOut']
+export type IntakePlanRow = components['schemas']['IntakePlanRowOut']
+export type IntakeTargetsRequest = components['schemas']['IntakeTargetsRequest']
+export type Arrivals = components['schemas']['ArrivalsOut']
+export type ArrivalRow = components['schemas']['ArrivalRowOut']
+export type AdmissionsOptions = components['schemas']['AdmissionsOptionsOut']
+
+// 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
+export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']
+
+// 五校比較（C4）。後端回 {as_of, school_year, semester, rows}；AdmissionsRate 是 {value, numerator, denominator}，畫面同時寫分子分母。
+export type AdmissionsCompare = components['schemas']['AdmissionsCompareOut']
+export type AdmissionsCompareRow = components['schemas']['AdmissionsCompareRow']
+export type AdmissionsRate = components['schemas']['AdmissionsRate']
+
+// 未預繳明細（C3b）。NoDepositRecordsOut 在 C2b 才進 OpenAPI。
+export type NoDepositRecords = components['schemas']['NoDepositRecordsOut']
+export type NoDepositRecord = components['schemas']['NoDepositRecordOut']

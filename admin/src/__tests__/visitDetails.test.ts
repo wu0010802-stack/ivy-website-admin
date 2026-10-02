@@ -43,6 +43,8 @@ describe('參觀資料與已選場次', () => {
 
 describe('案件流程補完', () => {
   it('已確認的案件可以標記完成，也保留未到場', async () => {
+    // 招生入學可用時，標記已到場會先跳確認框（B5）。
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
     // 參觀時段開始後才能標完成或未到場（後端也會拒絕），所以用已過的場次。
     const past = { ...slot, slot_date: '2026-01-05' }

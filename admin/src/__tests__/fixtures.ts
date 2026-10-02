@@ -5,16 +5,17 @@ import type { Role, UserOut } from '../api/types'
 const CAMPUS_READ = ['analytics.read', 'campuses.read', 'content.read', 'media.read']
 export const ROLE_CAPABILITIES: Record<Role, string[]> = {
   super_admin: [
-    ...CAMPUS_READ, 'audit.read_all', 'booking.cross_campus', 'booking.export', 'booking.handle', 'booking.manage',
-    'booking.read', 'campuses.activate', 'campuses.manage', 'content.manage', 'content.publish', 'content.release_restore', 'content.shared',
-    'media.manage', 'notifications.manage', 'retention.manage', 'site_settings.manage', 'users.manage',
+    ...CAMPUS_READ, 'admissions.convert', 'admissions.read', 'admissions.write', 'audit.read_all', 'booking.cross_campus',
+    'booking.export', 'booking.handle', 'booking.manage', 'booking.read', 'campuses.activate', 'campuses.manage',
+    'content.manage', 'content.publish', 'content.release_restore', 'content.shared', 'media.manage',
+    'notifications.manage', 'retention.manage', 'site_settings.manage', 'users.manage',
   ],
   campus_admin: [
-    ...CAMPUS_READ, 'booking.handle', 'booking.manage', 'booking.read', 'campuses.manage', 'content.manage',
-    'content.publish', 'media.manage',
+    ...CAMPUS_READ, 'admissions.convert', 'admissions.read', 'admissions.write', 'booking.handle', 'booking.manage',
+    'booking.read', 'campuses.manage', 'content.manage', 'content.publish', 'media.manage',
   ],
   editor: [...CAMPUS_READ, 'content.manage', 'media.manage'],
-  reception: [...CAMPUS_READ, 'booking.handle', 'booking.read'],
+  reception: [...CAMPUS_READ, 'admissions.read', 'admissions.write', 'booking.handle', 'booking.read'],
   readonly: [...CAMPUS_READ],
 }
 

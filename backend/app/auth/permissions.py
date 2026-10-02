@@ -45,6 +45,13 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 以及指派承辦人。仍限總管理者與分校管理者。站內通知標為已處理（全校
     # 共用的狀態）裁定沒有開放給櫃台，業主確認前也用這一項。
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
+    # 招生入學（2026-10 規格 7；對應園務 RECRUITMENT_READ／WRITE／CONVERT）。訪視含
+    # 孩子姓名、生日與家長手機，跟預約案件一樣只給總管理、分校管理與接待。
+    "admissions.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
+    # 新增／編輯／刪除訪視、標記與取消預繳、退預繳、取消退出、保留座位、設定計畫名額。
+    "admissions.write": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
+    # 標記註冊、取消註冊、退註冊（園務另要 STUDENTS_WRITE；官網沒有學生檔）。
+    "admissions.convert": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 批次匯出家長姓名與手機是另一個層級的事，不該跟「看得到案件」綁在
     # 一起。這裡列的是「可以接受授權」的角色；除了總管理者，其他人還要
     # 總管理者逐人授予（見 _GRANT_REQUIRED），不因角色自動取得。

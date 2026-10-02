@@ -87,6 +87,9 @@ def _test_settings() -> Settings:
         session_secret="test-only-secret-please-rotate",
         media_root="/tmp/ivy-website-test-media",
         notification_email_sink_dir="/tmp/ivy-website-test-mail",
+        # 正式站預設關閉；測試預設開啟，招生測試照常。關閉時的行為另有測試
+        # （test_admissions_booking_link.py::test_admissions_disabled_skips_visit_and_hides_endpoints）。
+        admissions_enabled=True,
     )
 
 
@@ -126,7 +129,8 @@ async def _clean_tables(app):
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
                 "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
-                "retention_policies, retention_runs "
+                "retention_policies, retention_runs, "
+                "recruitment_event_log, recruitment_visits, grade_intake_targets "
                 "RESTART IDENTITY CASCADE"
             )
         )

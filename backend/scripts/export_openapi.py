@@ -32,6 +32,8 @@ def main() -> int:
         database_url="postgresql+asyncpg://localhost/ivy_website_dev",
         test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
         session_secret="openapi-export-only-not-a-real-secret",
+        # 招生入學預設關閉不掛路由；契約一律包含招生端點，後台型別才產得出來。
+        admissions_enabled=True,
     )
     app = create_app(settings)
     schema = app.openapi()

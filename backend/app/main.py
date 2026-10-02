@@ -21,6 +21,7 @@ from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
 from app.booking.access_routes import router as booking_access_router
+from app.admissions.routes import router as admissions_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
@@ -211,6 +212,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(line_router)
     app.include_router(operations_router)
+    if settings.admissions_enabled:
+        # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
+        app.include_router(admissions_router)
 
     return app
 

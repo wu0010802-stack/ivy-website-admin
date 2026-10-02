@@ -381,3 +381,32 @@ npm run e2e:build && npm run test:e2e:stack
 
 預約語意改為「官網只有自選場次、送出即預約成功」，A 表中與預約語意相關的驗收項（待確認、人工確認、inquiry、時段與容量頁）以新規格 `docs/specs/2026-09-30-parent-self-booking-design.md` 為準。對應驗證：後端 pytest（含真 PostgreSQL 最後名額並發）、`web` 與 `admin` 單元測試、`tests/stack`（真 API＋官網＋後台，確認信寫進 sink）。未驗證：Safari／iOS 實機、真實 SMTP 投遞。上線前人工步驟見 `deploy/README.md`「家長自選場次（未部署，草稿）」。
 
+
+## 招生入學（2026-10-01 實作，階段 A–C 完成，尚未部署）
+
+規格 `docs/specs/2026-09-30-website-admissions-design.md`；計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`（A 後端、B 後台、C 統計）。分支 `feature/admissions-20261001` 疊在家長自選場次預約（`0be93ea`）上。後端驗證都用真 PostgreSQL（隔離測試庫 `ivy_website_test_admissions`）。
+
+| 編號 | 案例 | 狀態 | 證據 |
+|---|---|---|---|
+| R01 | 標記已到場建立招生訪視；重複標記或補建只有一筆；已取消、未到場不產生 | 通過（階段 A） | `backend/tests/test_admissions_booking_link.py`：`test_completion_creates_exactly_one_visit_and_rebuild_returns_it`、`test_only_completed_and_not_anonymized_requests_can_be_rebuilt`、`test_completion_never_fails_on_long_or_missing_fields`、`test_database_error_rolls_back_the_whole_completion` |
+| R01a | 官網預約待確認清單：剛好開始、已到場、未到場、已取消、他校、停止申請、沒有場次 | 通過（階段 A） | `test_admissions_booking_link.py::test_arrivals_lists_started_confirmed_and_completed_without_visit`（與 `status_groups.group_condition("past")` 比對） |
+| R02 | 手動新增缺必填、年級／未預繳原因／來源分類不合法 | 通過（階段 A） | `test_admissions_records.py::test_create_requires_the_four_ivy_fields`、`test_create_rejects_invalid_and_state_fields` |
+| R03 | 同校同月份並行新增，序號不重複 | 通過（階段 A） | `test_admissions_records.py::test_concurrent_creates_get_distinct_seq_numbers` |
+| R04 | 規格 6.3 每一種轉換與不允許的組合 | 通過（階段 A） | `test_admissions_funnel.py::test_capability_table_matches_spec`、`test_each_allowed_transition`（9 種）、`test_disallowed_transitions_return_422`、`test_withdraw_and_revert_require_reason`、`test_enroll_uses_reserved_seat_or_requires_grade_and_year` |
+| R05 | 兩人同時轉換或編輯同一筆，後送者 409 | 通過（階段 A） | `test_admissions_funnel.py::test_concurrent_transition_conflict`、`test_admissions_records.py::test_patch_uses_fields_set_and_optimistic_lock` |
+| R06 | 接待不能標記註冊／退註冊；editor、readonly 讀招生 API 403 | 通過（階段 A） | `test_admissions_funnel.py::test_reception_writes_but_cannot_convert`、`test_stale_version_is_409_before_capability_check`、`test_admissions_records.py::test_reception_writes_but_editor_and_readonly_get_403`、`test_admissions_schema.py::test_admissions_capabilities` |
+| R07 | 分校帳號用 campus_key、訪視 id、預約 id 存取他校 404 | 通過（階段 A） | `test_admissions_records.py::test_other_campus_and_unknown_ids_get_404`、`test_admissions_intake.py::test_intake_permissions_and_scope`、`test_admissions_booking_link.py::test_arrivals_and_rebuild_permissions` |
+| R08 | 保留座位：未預繳、未給學年拒絕；超額只警示 | 通過（階段 A） | `test_admissions_intake.py::test_seat_requires_deposit_year_and_not_enrolled`、`test_over_capacity_only_warns` |
+| R09 | 名額計算：已保留、已註冊、退出、轉學期、未設定；已註冊者清除保留被拒 | 通過（階段 A） | `test_admissions_intake.py::test_intake_plan_counts_match_spec`、`test_cancel_withdraw_restores_reserved_seat`、`test_save_targets_upserts_and_null_deletes` |
+| R10 | 統計合成資料、分母 0 | 通過（階段 C） | `backend/tests/test_admissions_stats.py`：`test_stats_matches_ivy_semantics`（逐項手算，含退出後殘留的高潛力原因不算進未預繳母體）、`test_stats_empty_campus`、`test_unique_counts_keep_anonymized_rows_apart`、`test_compare_rows_and_seats`、`test_compare_without_targets`、`test_no_deposit_records_*`（母體、排序、篩選、分頁、空校區）；後台 `statsFormat.test.ts`、`statsTab.test.ts`（「無資料」寫原因、null 寫「—」）、`compareTable.test.ts`（「未設定」）、`noDepositList.test.ts` |
+| R11 | 近 30／90 天在台北午夜邊界、參考月份與上月 | 通過（階段 C） | `test_admissions_stats.py::test_rolling_windows_cut_at_exact_instant_across_taipei_midnight`（瞬間比較：`created_at >= now − N 天`，同園務 `stats.py:502-507`，跨台北午夜不重不漏）、`test_reference_month_previous_month_and_ytd_cross_year`、`test_invalid_reference_month_is_422`、`test_funnel_drop_alert_at_exact_threshold`、`test_no_deposit_records_cutoff_is_inclusive` |
+| R12 | 年級換算共用案例 | 通過（A、B、C 三邊） | `contracts/ivy-recruitment/grade-cases.json`；`test_admissions_academic.py`、`admin/src/__tests__/admissionsAcademic.test.ts`、`web/tests/admission-grade-cases.spec.ts`（`npm run test:website` 70 檔 707 項全過、admin 68 檔 884 項全過；後端 `test_admissions_academic.py` 在整套 pytest 內通過） |
+| R13 | 匯出程式契約測試 | 通過（階段 A） | `test_admissions_contract.py`（7 支）；漂移檢查對 `ivy-backend` `dfd230c3` 一致 |
+| R14 | 保存政策試算與執行 | 通過（階段 A，天數待業主裁定） | `test_admissions_retention.py`（5 支）；`test_retention_policy.py` 期望值補上招生類別 |
+| R15 | 後台看板拖曳與鍵盤、確認框、409 重載、快速切換校區、URL 還原 | 通過（階段 B、C） | 後台 `admissionsView.test.ts`、`admissionsFunnel.test.ts`（409 時重載並還原卡片）、`statsTab.test.ts`「快速切換校區只顯示最後一次」、`noDepositList.test.ts`「快速切換校區只顯示最後一次」；stack `admissions-flow.spec.ts` 在真瀏覽器用「移到…」完成預繳與註冊（原生拖曳只在單元測試以事件模擬） |
+| R16 | 1440px 桌機、390px 手機 | 通過（階段 B、C） | stack `tests/stack/admissions-flow.spec.ts`（五個分頁與五校比較兩種寬度截圖 12 張，存 `output/playwright/admissions-*-{1440,390}.png`，逐頁檢查不橫向溢出）、`a11y.spec.ts`（招生頁五個分頁沒有 serious／critical）、`keyboard.spec.ts`。已知小瑕疵：390px 名額規劃「計畫名額」欄的輸入框被欄寬截出省略號（`IntakePlanTab.vue`，B4；頁面不溢出，未修） |
+| R17 | stack e2e：預約 → 待確認 → 已到場 → 看板 → 預繳 → 註冊 → 名額 | 通過（階段 C） | `tests/stack/admissions-flow.spec.ts`（家長自選場次 → 時間過後出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 名額已註冊 → 統計；場次時間已過用 psql 移本測試自建的場次，`tests/stack/db.ts`）；stack 全套 68 passed（第一次整套 64 passed／2 failed：roles 429、visual 各校預約方式，C5 修正後重跑全過） |
+
+Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台北日期與學期邊界、3 兩人同時拖同一張卡（後端）、4 退出後取消退出，都在上表的測試裡；5 空資料統計屬階段 C。
+
+上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。

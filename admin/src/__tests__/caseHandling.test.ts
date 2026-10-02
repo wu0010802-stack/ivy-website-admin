@@ -96,6 +96,7 @@ describe('已確認案件的改期（第 13 條）', () => {
   })
 
   it('完成參觀後也重抓側欄的待核准數', async () => {
+    confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
     get.mockClear()
