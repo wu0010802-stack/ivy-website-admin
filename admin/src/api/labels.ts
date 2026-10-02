@@ -957,8 +957,9 @@ export function partySizeLabel(value: number | null | undefined): string {
   return value ? `${value} 位` : '未填'
 }
 
-// 案件的同意紀錄（規格 L196）：官網送單記錄家長看到的「預約文案」版本與伺服器
-// 接受時間；補登是人員向家長說明後代勾；2026-09-25 以前的官網案件沒有版本。
+// 案件的同意紀錄（規格 L196）：2026-10-02 起官網預約不用勾選同意；在那之前的官網
+// 送單記錄家長看到的「預約文案」版本與伺服器接受時間（2026-09-25 以前沒有版本）；
+// 補登是人員向家長說明後代勾。
 export function consentRecordLabel(detail: {
   source?: string | null
   consent_given?: boolean
@@ -966,7 +967,7 @@ export function consentRecordLabel(detail: {
   consent_revision_version?: number | null
   consent_accepted_at?: string | null
 }): string {
-  if (detail.consent_given === false) return '未同意'
+  if (detail.consent_given === false) return !detail.source || detail.source === 'web' ? '官網預約不需勾選同意' : '未同意'
   const when = detail.consent_accepted_at ? `・${formatDateTime(detail.consent_accepted_at)}` : ''
   if (detail.consent_revision_id) {
     const version = detail.consent_revision_version ? '當時的預約文案' : '當時的預約文案已無法查到'

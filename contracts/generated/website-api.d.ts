@@ -3048,18 +3048,6 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
-        /** BookingConsentBriefOut */
-        BookingConsentBriefOut: {
-            /** Has Privacy Notice */
-            has_privacy_notice: boolean;
-            /**
-             * Revision Id
-             * Format: uuid
-             */
-            revision_id: string;
-            /** Version */
-            version: number;
-        };
         /**
          * BookingImpactOut
          * @description 切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
@@ -3090,7 +3078,7 @@ export interface components {
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
         /**
          * BookingReadinessOut
-         * @description 各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+         * @description 各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。
          *     連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
          *     條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。
          */
@@ -3101,7 +3089,6 @@ export interface components {
             };
             /** Campus Key */
             campus_key: string;
-            consent: components["schemas"]["BookingConsentBriefOut"] | null;
             current_mode: components["schemas"]["BookingMode"];
             impact: components["schemas"]["BookingImpactOut"];
         };
@@ -4193,10 +4180,6 @@ export interface components {
         PublicBookingConfigOut: {
             /** Campus Key */
             campus_key: string;
-            /** Consent Revision Id */
-            consent_revision_id?: string | null;
-            /** Consent Text */
-            consent_text?: string | null;
             /** External Url */
             external_url: string | null;
             /** Line Url */
@@ -5313,7 +5296,10 @@ export interface components {
             child_name?: string | null;
             /** Config Version */
             config_version: number;
-            /** Consent Given */
+            /**
+             * Consent Given
+             * @default false
+             */
             consent_given: boolean;
             /** Consent Revision Id */
             consent_revision_id?: string | null;

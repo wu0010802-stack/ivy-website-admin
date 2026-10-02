@@ -1,3 +1,25 @@
+## 2026-10-02 官網預約拿掉同意勾選、手機場次卡一張一列（`feature/no-consent-20261002`）
+
+業主裁定：正式站同意文字「送出需求後，仍須由園方確認參觀時間」和自選場次矛盾，**整段拿掉、不用勾選**。規則見 DESIGN.md 同日段落。
+
+- **官網**：預約表單拿掉同意勾選框與同意版本邏輯（`utils/visit-consent.ts` 刪除）。有個資使用說明時仍保留「閱讀個資使用說明」。後台草稿預覽改成只預覽個資說明。手機場次卡一張一列。
+- **後端**：
+  - 公開送單不再要求勾選、不比對版本。
+  - readiness、公開設定、總覽都不再因「沒發布同意文字」擋表單或列待辦。
+  - 個資說明改成直接讀已發布預約文案，不綁同意文字；`consent_text` 改選填、不擋發布。
+  - 補登仍要人員勾選。
+- **後台**：拿掉「同意條款文字」欄位與總覽待辦；官網新案的同意紀錄寫「官網預約不需勾選同意」。
+- **契約**：重新產生 `contracts/openapi.json`、`website-api.d.ts`。公開設定少了 `consent_revision_id`／`consent_text`，readiness 少了 `consent`，公開送單的 `consent_given` 預設 false。
+- **stack 測試**：送單 helper 不帶同意欄位。原本「電話填錯直接點同意框」的位移回歸，改點同樣在電話下方的「親友介紹」勾選框。
+
+**驗證**（Node 22）：
+- backend pytest 全套（獨立測試庫 `ivy_website_test_noconsent`）1262 passed。
+- `npm run contract:check` 一致。
+- admin typecheck、vitest 69 檔 896 項；web typecheck、vitest 74 檔 730 項。
+- stack e2e 整套 68 項全過；送出區分隔線修正後重 build，預約相關 5 支 spec 48 項全過。
+- dev server＋假 API 390 寬：表單沒有同意勾選，不勾也能送出、結果頁「預約成功」；送單 body 不含 `consent_given`／`consent_revision_id`。場次卡一欄。
+- 未驗證：iPhone Safari 實機。
+
 ## 2026-10-02 關於常春藤頁精修＋「家長怎麼說」（`feature/about-refine-20261002`）
 
 使用者要「優化 /about 的 UI/UX、做精緻一點，先給 mock-up」，看過 `design/about-refine-mockup-20261002/` 後要「多加內容」，選了「家長怎麼說」，再說「先這樣實作」。J 立體書與 A2 六圈不換，規則與理由見 DESIGN.md 同日段落。

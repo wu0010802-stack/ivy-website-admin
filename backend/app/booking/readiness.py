@@ -21,7 +21,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.booking import consent, slot_service
+from app.booking import slot_service
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus, VisitRule, VisitSlot
 from app.common.timezones import now_utc, slot_start_utc, today_local
 
@@ -52,9 +52,6 @@ PHONE_REQUIRED = NotReadyReason("PHONE_REQUIRED", "啟用電話洽詢前必須�
 EXTERNAL_URL_REQUIRED = NotReadyReason("EXTERNAL_URL_REQUIRED", "啟用外部預約前必須先填寫「外部預約網址」")
 PAUSED_MESSAGE_REQUIRED = NotReadyReason(
     "PAUSED_MESSAGE_REQUIRED", "暫停預約時請填寫給家長看的暫停說明，例如何時恢復、可以怎麼聯絡"
-)
-CONSENT_NOT_PUBLISHED = NotReadyReason(
-    "CONSENT_NOT_PUBLISHED", "「預約文案」還沒有發布同意條款文字，家長無法勾選同意，請先到預約文案發布"
 )
 NO_SLOTS_OR_RULES = NotReadyReason(
     "NO_SLOTS_OR_RULES", "目前沒有官網可預約的場次，也沒有每週開放規則，請先到「時段與容量」新增場次或規則"
@@ -98,13 +95,12 @@ async def data_blockers(
 ) -> dict[BookingMode, list[NotReadyReason]]:
     """每個方式要讀資料才知道的條件。line／phone／external／paused 沒有這類條件。"""
     current = now or now_utc()
-    published = await consent.current_consent(db)
-    common = [] if published is not None else [CONSENT_NOT_PUBLISHED]
-    slots = list(common)
+    # 2026-10-02 起官網預約不用勾選同意，不再要求先發布同意文字。
+    slots = []
     if not await _slots_available(db, campus_key, config, current):
         slots.append(NO_SLOTS_OR_RULES)
     return {
-        BookingMode.INQUIRY: list(common),
+        BookingMode.INQUIRY: [],
         BookingMode.SLOTS: slots,
         BookingMode.LINE: [],
         BookingMode.PHONE: [],

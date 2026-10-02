@@ -77,7 +77,6 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
     await page.getByLabel('聯絡電話').fill(PHONE)
     await page.getByLabel('參觀人數').selectOption('2')
     await page.getByLabel('聯絡 Email').fill(EMAIL)
-    await page.getByRole('checkbox', { name: /我同意園方使用本次填寫的資料/ }).check()
     await page.getByRole('button', { name: '確認預約' }).click()
     await expect(page.locator('#booking-result')).toContainText('預約成功')
     await parent.context.close()

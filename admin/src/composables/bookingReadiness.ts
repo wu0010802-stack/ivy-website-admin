@@ -54,11 +54,6 @@ export function modeReasons(
 // 不可啟用原因對應的處理頁面，讓園方可以直接過去補。進不去那一頁的人（例如
 // 沒有「全站共用內容」授權的分校管理者，路由守衛會導回首頁）改顯示要找誰處理。
 export const REASON_LINKS: Record<string, { to: string; label: string; otherwise: string }> = {
-  CONSENT_NOT_PUBLISHED: {
-    to: '/content/booking-content',
-    label: '到預約文案發布同意文字',
-    otherwise: '請聯絡總管理者到「預約文案」發布同意條款。',
-  },
   NO_SLOTS_OR_RULES: { to: '/visit-calendar', label: '到參觀場次新增場次', otherwise: '請聯絡校區管理者新增場次或每週規則。' },
 }
 

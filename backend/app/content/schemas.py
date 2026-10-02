@@ -374,7 +374,9 @@ class PrivacySectionPayload(_ContentPayload):
 class BookingContentPayload(_ContentPayload):
     cta_label: str
     cta_label_en: str
-    consent_text: str
+    # 2026-10-02 起官網預約不用勾選同意，官網與後台都不再顯示這段文字；欄位留著讓
+    # 已發布的舊版本照常通過驗證。
+    consent_text: str = ""
     banner_title_template: str
     banner_body: str
     banner_button_label: str
