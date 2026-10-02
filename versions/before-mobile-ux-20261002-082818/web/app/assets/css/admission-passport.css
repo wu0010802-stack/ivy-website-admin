@@ -345,11 +345,6 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-refunds summary { grid-template-columns: 52px minmax(0, 1fr) 24px; }
   .ap-clause-body { padding-left: 0; }
 }
-/* 320 寬一欄只有 56px，62px 的印章左右壓進鄰欄、最後一枚超出內容區（2026-10-02 手機審查）：360 以下印章最寬等於欄寬。 */
-@media (max-width: 360px) {
-  .ap-wear { display: block; width: 100%; }
-  .ap-wear .ap-stamp svg { width: min(62px, 100%); height: auto; margin-inline: auto; }
-}
 @media (prefers-reduced-motion: reduce) {
   .ap-action, .ap-stampzone::before, .ap-stamp-hint, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-refunds summary .icon { transition: none; }
 }
