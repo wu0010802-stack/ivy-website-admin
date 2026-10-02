@@ -59,6 +59,18 @@
 - 手機 390 實測：分頁載 240w 墨線版；淡彩速寫照舊載原線稿 480w；四張預覽卡畫成線稿；手動換校接手上色；無 console 錯誤。
 - 未驗證：iPhone Safari 實機（本機只有 Chromium）。
 
+## 2026-10-02 SEO／GEO 結構化資料補強（`feature/seo-geo-structured-data`，未部署）
+
+- **web**（`web/app/utils/seo.ts`，只用已發布內容，不杜撰）：
+  - 分校 `Preschool` 地址拆出 `addressRegion`（高雄市）與 `addressLocality`（行政區），地址與區名對不上就不拆；後台有填 Google 地圖網址時輸出 `hasMap`。
+  - 分校 `sameAs` 只列該校自己的社群（目前只有義華）；沿用機構粉專的四校不列，不拿義華代填。
+  - 首頁 `EducationalOrganization` 補 `logo`、`alternateName`（英文名）、`foundingDate`（1997，同關於頁）、全站 `socialLinks` 當 `sameAs`。
+  - `NewsArticle` 補 `author`，`publisher` 帶 logo。
+  - `llms.txt` 逐條列出各校常見問答（與分校頁 FAQPage 同一份）。
+- **刻意不做**：經緯度、營業時間、評分（沒有已發布資料）；sitemap `lastmod`（維持既有「不虛構 lastmod」規則）；AI 爬蟲個別放行（`User-agent: *` 已放行）。
+- **前提**：正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，開放索引前以上都不會被搜尋引擎看到。
+- **驗證**（Node 22.22.0）：web typecheck 0 錯誤；`npm --prefix web run test:unit` 69 檔 692 項通過（新增 3 項）。
+
 ## 2026-10-01 品質檢查與招生分析報告的後續修正（`fix/report-followups-20261001`，已部署 `6b76f11`）
 
 - **文件**：
