@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
 import { changeDeadlineRule, PARTY_SIZE_OPTIONS, taipeiDate, type VisitErrors } from '~/utils/visit-form'
-import { slotWhen } from '~/utils/visit-session'
+import { slotRange, slotWhen } from '~/utils/visit-session'
+import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
 import { parentVisitCampus } from '~/utils/parent-visit'
 
@@ -19,7 +20,12 @@ const selectedSlotId = ref('')
 const slotError = ref('')
 const feedback = ref<HTMLElement | null>(null)
 const cancelPanel = ref<HTMLElement | null>(null)
-const slotSelect = ref<HTMLSelectElement | null>(null)
+const rescheduleForm = ref<HTMLFormElement | null>(null)
+// 改場次和預約頁同一個月曆（2026-10-02 取代列出全部場次的下拉）：先選一天，再選當天的場次。
+const selectedDate = ref('')
+const slotCounts = computed(() => slotCountsByDate(slots.value))
+const daySlots = computed(() => slots.value.filter(slot => slot.slot_date === selectedDate.value))
+const selectedNewSlot = computed(() => slots.value.find(slot => slot.id === selectedSlotId.value))
 // 停用的分校不在公開內容裡：校名、電話改用預約回應帶的，不改列其他校區。
 const visitCampus = computed(() => parentVisitCampus(visit.value, data.value?.content.campuses))
 // 預約成立才給「加入行事曆／導航」（規格 197）。地址只取公開中的分校資料；停用的分校沒有地址，就只給行事曆。
@@ -63,6 +69,7 @@ function consumeLink(initial = false) {
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
+  selectedDate.value = ''
   selectedSlotId.value = ''
   slotError.value = ''
   void initialize(token)
@@ -79,7 +86,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('hashchange', onHashChange)
   dispose()
 })
-watch(slots, () => { if (!slots.value.some(slot => slot.id === selectedSlotId.value)) selectedSlotId.value = '' })
+watch(slots, () => {
+  if (!slotCounts.value[selectedDate.value]) selectedDate.value = ''
+  if (!slots.value.some(slot => slot.id === selectedSlotId.value)) selectedSlotId.value = ''
+})
+watch(selectedDate, () => { selectedSlotId.value = ''; slotError.value = '' })
+const firstInput = (name: string) => rescheduleForm.value?.querySelector<HTMLInputElement>(`input[name="${name}"]`)
 
 async function focusFeedback() {
   await nextTick()
@@ -103,12 +115,12 @@ async function openReschedule() {
   showEdit.value = false
   await loadSlots()
   await nextTick()
-  slotSelect.value?.focus()
+  firstInput('visitDate')?.focus()
 }
 async function submitReschedule() {
-  if (!slots.value.some(slot => slot.id === selectedSlotId.value)) {
-    slotError.value = '請選擇新的場次。'
-    slotSelect.value?.focus()
+  if (!selectedNewSlot.value) {
+    slotError.value = selectedDate.value ? '請選擇這一天的場次。' : '請先在月曆選一天。'
+    firstInput(selectedDate.value ? 'newSlotId' : 'visitDate')?.focus()
     return
   }
   slotError.value = ''
@@ -218,7 +230,7 @@ async function submitEdit() {
               </div>
             </section>
 
-            <form v-if="rescheduleOpen" class="parent-visit-confirm" @submit.prevent="submitReschedule">
+            <form v-if="rescheduleOpen" ref="rescheduleForm" class="parent-visit-confirm parent-visit-reschedule" novalidate @submit.prevent="submitReschedule">
               <h3>選擇新的場次</h3>
               <p>按下確認就會改好，原本的場次會釋出。</p>
               <p v-if="slotsPending" role="status">正在讀取其他場次…</p>
@@ -226,14 +238,15 @@ async function submitEdit() {
                 <p class="parent-visit-error" role="alert">{{ slotsError }}</p>
                 <button type="button" class="button outline" :disabled="busy" @click="loadSlots">重新載入場次</button>
               </div>
-              <template v-else-if="slots.length">
-                <label for="parent-new-slot">新的場次</label>
-                <select id="parent-new-slot" ref="slotSelect" v-model="selectedSlotId" :disabled="busy" :aria-invalid="Boolean(slotError)" aria-describedby="parent-slot-error" @change="slotError = ''">
-                  <option value="">請選擇場次</option>
-                  <option v-for="slot in slots" :key="slot.id" :value="slot.id">{{ slotLabel(slot) }}</option>
-                </select>
+              <fieldset v-else-if="slots.length" class="parent-visit-pick" :disabled="busy">
+                <VisitDatePicker v-model="selectedDate" :counts="slotCounts" :invalid="Boolean(slotError) && !selectedDate" describedby="parent-slot-error" />
+                <fieldset v-if="selectedDate" class="parent-visit-slots" aria-describedby="parent-slot-error">
+                  <legend>新的場次</legend>
+                  <label v-for="slot in daySlots" :key="slot.id"><input v-model="selectedSlotId" type="radio" name="newSlotId" :value="slot.id" :aria-invalid="Boolean(slotError)" @change="slotError = ''"><span>{{ slotRange(slot) }}<small>尚可預約 {{ slot.remaining }} 組</small></span></label>
+                </fieldset>
+                <p v-if="selectedNewSlot" class="parent-visit-moving">改到 <strong><span>{{ shortDateLabel(selectedNewSlot.slot_date) }}</span> <span>{{ slotRange(selectedNewSlot) }}</span></strong></p>
                 <p id="parent-slot-error" class="parent-visit-error" role="alert">{{ slotError }}</p>
-              </template>
+              </fieldset>
               <p v-else role="status">目前沒有其他可選的場次，請直接聯絡園所。</p>
               <div class="parent-visit-actions">
                 <button class="button primary" type="submit" :disabled="busy || slotsPending || Boolean(slotsError) || !slots.length">{{ busy ? '正在改…' : '確認改到這個場次' }}</button>
@@ -314,6 +327,18 @@ async function submitEdit() {
 .parent-visit-confirm { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
 .parent-visit-confirm h3 { font-size: 1.2rem; margin-bottom: 12px; }
 .parent-visit-confirm label { display: block; margin-top: 20px; }
+/* 月曆（VisitDatePicker）讀預約頁的 --visit-* 色票；管理頁不在 .visit-page 裡，這裡補上。 */
+.parent-visit-reschedule { --visit-ink: var(--green); --visit-muted: var(--muted); --visit-line: var(--line); --visit-surface: var(--white); --visit-soft: var(--cream); --visit-bg: var(--white); }
+.parent-visit-pick { min-width: 0; margin: 20px 0 0; padding: 0; border: 0; }
+.parent-visit-slots { min-width: 0; margin: 20px 0 0; padding: 0; border: 0; }
+.parent-visit-slots legend { padding: 0; margin-bottom: 8px; font-weight: 600; }
+.parent-visit-slots label { display: flex; align-items: center; gap: 12px; min-height: 56px; margin-top: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.parent-visit-slots label:has(input:checked) { border-color: var(--green); background: var(--cream); box-shadow: inset 0 0 0 1px var(--green); }
+.parent-visit-slots input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
+.parent-visit-slots small { display: block; font-size: var(--fs-xs); color: var(--muted); }
+.parent-visit-moving { margin-top: 16px; color: var(--muted); }
+.parent-visit-moving strong { color: var(--green); }
+.parent-visit-moving strong span { white-space: nowrap; }
 .parent-visit-confirm select { display: block; width: 100%; min-width: 0; min-height: 48px; margin: 8px 0; padding: 10px; border: 1px solid var(--line); background: var(--paper); color: var(--text); border-radius: 4px; }
 .parent-visit-confirm select[aria-invalid="true"] { border-color: var(--error); }
 .parent-visit-contact { margin-top: 32px; }
