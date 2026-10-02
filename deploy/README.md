@@ -40,6 +40,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 補登對話框在 `ManualVisitDialog-B01mISEz.js`。
   - 沒有實際補登案件。
 
+## 2026-10-02 官網後台第七輪 UI／UX（main CI 部署）
+
+使用者要求「commit 並同步 main」後「push 上線」。分支 `feature/admin-ux-20261002` 的功能提交 `d237737`，合併 main 的 PR #25（拿掉同意勾選）。衝突在 `AdminSidebar.vue` 與 README，已解。之後再合兩次 main 的部署紀錄，最後 `dbf7b4f` 推上 main。這次沒有 migration：API 改了 dashboard 的 `awaiting_attendance`、audit-log 游標、通知加 `slot`、CSV 改中文欄名，契約已同步，部署前不需要備份正式庫。
+
+- **推送前本機驗證**（Node 22）：
+  - admin typecheck 通過，vitest 74 檔 952 項通過。
+  - 後端全套 pytest 1270 passed，用獨立測試庫。
+  - `npm run contract:check` 一致。
+  - stack e2e 跑兩輪：第一輪 64 項通過，案件明細的視覺基準因為文案改動失敗（預期內），另一項是連帶失敗。重拍案件明細、五校介紹兩張基準（`022d52f`），重跑 visual 6 項通過。
+- **CI**：run 37024872322，Backend／PostgreSQL／contracts、Frontend admin／web、E2E、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `dbf7b4f`，created `2026-10-02T15:38:53Z`。
+- **線上驗證**（唯讀）：API health 200。後台 lazy chunk 已有新文案：`DashboardView` 有「看今天的名單」「還沒標記到場」，`AuditView` 有「載入更早的紀錄」，`VisitDetailView` 有「家長到了嗎」。沒有用正式帳號登入操作。
+
 ## 2026-10-02 關於常春藤頁立體書精修＋第四章「家長怎麼說」（main CI 部署）
 
 使用者要求「直接併入 main」。分支 `feature/about-refine-20261002` 從 origin/main `c01fb24` 開出，提交 `c893b4c` rebase 到 `ac79a03`（衝突只在 README.md，兩邊段落都保留）後推上 main。只動 `web/`（`AboutContent.vue`、`AboutWholePerson.vue`、`about.css`、`utils/about-popup.ts`、`tests/about.spec.ts`），沒有 migration、API 或 schema 變更，部署前不需要備份正式庫。
