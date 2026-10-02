@@ -617,7 +617,10 @@ class AdmissionsCompareOut(BaseModel):
     # 資料讀取時間（UTC）與實際套用的學年學期（規格 13）。
     as_of: datetime
     school_year: int
-    semester: int
+    # 請求的學期；null＝件數算整學年。
+    semester: int | None
+    # 名額剩餘實際用的學期（名額規劃逐學期設定；沒帶學期時用上學期）。
+    seat_semester: int
     rows: list[AdmissionsCompareRow]
 
 

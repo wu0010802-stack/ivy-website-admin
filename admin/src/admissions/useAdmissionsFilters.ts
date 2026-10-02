@@ -6,6 +6,9 @@ import { currentTerm } from './academic'
 export const ADMISSIONS_TABS = ['funnel', 'records', 'intake', 'arrivals', 'stats'] as const
 export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
+// 統計分析的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
+export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'nodeposit', 'compare'] as const
+export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // 民國月份「115.09」：三位數年份，同後端 academic.py 的 ROC_MONTH。
@@ -14,6 +17,10 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 
 export function isAdmissionsTab(value: unknown): value is AdmissionsTab {
   return typeof value === 'string' && (ADMISSIONS_TABS as readonly string[]).includes(value)
+}
+
+export function isStatsSub(value: unknown): value is StatsSub {
+  return typeof value === 'string' && (STATS_SUBS as readonly string[]).includes(value)
 }
 
 function queryKey(query: LocationQuery | Record<string, string>): string {
@@ -31,6 +38,8 @@ function queryKey(query: LocationQuery | Record<string, string>): string {
  * - sem：入學學期 1／2；不帶＝整學年（同園務看板）。
  * - tab：分頁；vr：只看某筆預約的招生訪視（預約明細的連結用）。
  * - month：訪視明細的參觀月份（民國 115.09）；統計分頁的「查看本月明細」帶這個切過來。
+ * - sub：統計分頁的子分頁，只在 tab=stats 時有意義，總覽不寫進網址；切子分頁用 replace，
+ *   「查看」明細用 push，所以上一頁回到離開時的子分頁。
  * 畫面改條件用 replace 寫回網址，不堆瀏覽紀錄；網址被改（上一頁、連結）時讀回畫面。
  */
 export function useAdmissionsFilters() {
@@ -46,6 +55,7 @@ export function useAdmissionsFilters() {
   const tab = ref<AdmissionsTab>('funnel')
   const visitRequestId = ref('')
   const month = ref('')
+  const sub = ref<StatsSub>('overview')
 
   function pickCampus(wanted: string): string {
     const keys = visibleCampusKeys.value
@@ -65,6 +75,7 @@ export function useAdmissionsFilters() {
     visitRequestId.value = UUID.test(vr) ? vr : ''
     const roc = text(query.month)
     month.value = ROC_MONTH.test(roc) ? roc : ''
+    sub.value = tab.value === 'stats' && isStatsSub(query.sub) ? query.sub : 'overview'
   }
 
   function stateQuery(): Record<string, string> {
@@ -76,6 +87,7 @@ export function useAdmissionsFilters() {
     if (tab.value !== 'funnel') query.tab = tab.value
     if (visitRequestId.value) query.vr = visitRequestId.value
     if (month.value) query.month = month.value
+    if (tab.value === 'stats' && sub.value !== 'overview') query.sub = sub.value
     return query
   }
 
@@ -92,7 +104,9 @@ export function useAdmissionsFilters() {
   }
 
   apply(route.query)
-  watch([campus, schoolYear, semester, tab, visitRequestId, month], syncUrl, { immediate: true })
+  // 離開統計分頁就把子分頁收回總覽，下次進來從總覽開始。
+  watch(tab, (value) => { if (value !== 'stats') sub.value = 'overview' })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month, sub], syncUrl, { immediate: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -108,5 +122,5 @@ export function useAdmissionsFilters() {
     semester.value = null
   }
 
-  return { campus, schoolYear, semester, tab, visitRequestId, month, visibleCampusKeys, defaultYear, clearTerm }
+  return { campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm }
 }

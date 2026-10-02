@@ -59,7 +59,6 @@ function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadine
   return {
     campus_key: 'yihua',
     current_mode: 'paused',
-    consent: { revision_id: 'rev-1', version: 3, has_privacy_notice: false },
     blockers: {
       inquiry: [], slots: [{ code: 'NO_SLOTS_OR_RULES', message: '目前沒有官網可預約的場次，也沒有每週開放規則' }],
       line: [], phone: [], external: [], paused: [],
@@ -129,9 +128,10 @@ describe('啟用條件與影響範圍（純函式）', () => {
     const superAdmin = testUser('super_admin')
     const campusAdmin = testUser('campus_admin', { campus_keys: ['yihua'] })
     const grantedCampusAdmin = testUser('campus_admin', { campus_keys: ['yihua'], capabilities: ['content.shared'] })
-    expect(reasonAction('CONSENT_NOT_PUBLISHED', superAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
-    expect(reasonAction('CONSENT_NOT_PUBLISHED', grantedCampusAdmin)).toEqual({ to: '/content/booking-content', label: '到預約文案發布同意文字' })
-    expect(reasonAction('CONSENT_NOT_PUBLISHED', campusAdmin)).toEqual({ note: '請聯絡總管理者到「預約文案」發布同意條款。' })
+    // 2026-10-02 起官網預約不用勾選同意，不再有「沒發布同意文字」這個原因。
+    expect(reasonAction('CONSENT_NOT_PUBLISHED', superAdmin)).toBeNull()
+    expect(reasonAction('CONSENT_NOT_PUBLISHED', grantedCampusAdmin)).toBeNull()
+    expect(reasonAction('NO_SLOTS_OR_RULES', superAdmin)).toEqual({ to: '/visit-calendar', label: '到參觀場次新增場次' })
     expect(reasonAction('NO_SLOTS_OR_RULES', campusAdmin)).toEqual({ to: '/visit-calendar', label: '到參觀場次新增場次' })
     expect(reasonAction('FIELD', superAdmin)).toBeNull()
   })
@@ -152,6 +152,9 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: 'r', consent_revision_version: 5, consent_accepted_at: '2026-09-25T02:00:00Z' })).toBe('家長勾選同意（當時的預約文案）・2026/09/25 10:00')
     expect(consentRecordLabel({ source: 'phone', consent_given: true, consent_revision_id: null, consent_accepted_at: null })).toBe('人員說明後代為勾選')
     expect(consentRecordLabel({ source: 'web', consent_given: true, consent_revision_id: null })).toContain('尚未記錄版本')
+    // 2026-10-02 起官網預約不用勾選：官網新案不寫成「未同意」。
+    expect(consentRecordLabel({ source: 'web', consent_given: false, consent_revision_id: null })).toBe('官網預約不需勾選同意')
+    expect(consentRecordLabel({ source: 'phone', consent_given: false })).toBe('未同意')
   })
 
   it('示意段落都帶標記，後台可以提早提醒不能發布', () => {
@@ -178,25 +181,6 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
     await saveButton(wrapper).trigger('click')
     expect(patch).not.toHaveBeenCalled()
-  })
-
-  it('沒有共用內容授權的分校管理者不會拿到進不去的預約文案連結（B04-R5）', async () => {
-    const blocked = readiness({
-      current_mode: 'paused',
-      consent: null,
-      blockers: {
-        inquiry: [], slots: [{ code: 'CONSENT_NOT_PUBLISHED', message: '「預約文案」還沒有發布同意條款文字' }],
-        line: [], phone: [], external: [], paused: [],
-      },
-    })
-    mockBookingApi(blocked, config('paused', '暑假暫停'))
-    const campusAdmin = testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] })
-    const wrapper = await mountAt(BookingSettingsView, '/booking', '/:pathMatch(.*)*', campusAdmin)
-    await wrapper.get('input[type="radio"][value="slots"]').setValue(true)
-    await nextTick()
-    const reasons = wrapper.get('.blocked-reasons')
-    expect(reasons.find('a[href="/content/booking-content"]').exists()).toBe(false)
-    expect(reasons.text()).toContain('請聯絡總管理者到「預約文案」發布同意條款。')
   })
 
   it('暫停預約要填暫停說明', async () => {
@@ -388,21 +372,12 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
   })
 
-  it('開放線上表單卻沒有發布同意條款的校區列入待辦，連結只給進得去的人（B04-R1）', async () => {
-    const summary = { today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], campuses_slots_without_openings: [], campuses_form_without_consent: ['yihua'], failed_notifications: 0 }
+  it('總覽不再列「沒有發布同意條款」的待辦（2026-10-02 起官網預約不用勾選同意）', async () => {
+    const summary = { today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], campuses_slots_without_openings: [], failed_notifications: 0 }
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => (path === '/admin/dashboard' ? summary : []) as never)
-    let wrapper = await mountAt(DashboardView, '/')
-    expect(wrapper.text()).toContain('開放線上表單，但沒有發布同意條款')
-    expect(wrapper.text()).toContain('義華的預約方式是線上表單')
-    expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('目前沒有待處理事項')
-    wrapper.unmount()
-
-    const campusAdmin = testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] })
-    wrapper = await mountAt(DashboardView, '/', '/:pathMatch(.*)*', campusAdmin)
-    expect(wrapper.text()).toContain('開放線上表單，但沒有發布同意條款')
-    expect(wrapper.text()).toContain('請聯絡總管理者到「預約文案」發布同意條款')
-    expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(false)
+    const wrapper = await mountAt(DashboardView, '/')
+    expect(wrapper.text()).not.toContain('同意條款')
+    expect(wrapper.text()).toContain('目前沒有待處理事項')
   })
 
   it('案件明細顯示參觀人數與同意紀錄；舊案顯示未填', async () => {
@@ -419,6 +394,13 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
     wrapper = await mountAt(VisitDetailView, '/visit-requests/case', '/visit-requests/:id')
     expect(wrapper.text()).toContain('參觀人數未填')
     expect(wrapper.text()).toContain('尚未記錄版本')
+    wrapper.unmount()
+
+    vi.restoreAllMocks()
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => (path.startsWith('/admin/visit-requests/case') && !path.endsWith('/contact-notes') ? { ...base, party_size: 2, consent_given: false, consent_revision_id: null, consent_accepted_at: null } : []) as never)
+    wrapper = await mountAt(VisitDetailView, '/visit-requests/case', '/visit-requests/:id')
+    expect(wrapper.text()).toContain('官網預約不需勾選同意')
+    expect(wrapper.text()).not.toContain('未同意')
   })
 
   it('補登可以填參觀人數，問題上限 500 字', async () => {
@@ -447,7 +429,8 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
   it('個資與搜尋設定頁說明家長同意記錄的是預約文案的版本，不再有沒作用的隱私政策版本欄位', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ content: { site_meta: { description: '', share_image: '', allow_indexing: true } } } as never)
     const wrapper = await mountAt(PoliciesView, '/policies')
-    expect(wrapper.text()).toContain('案件會記錄當時發布中的')
+    expect(wrapper.text()).toContain('2026-10-02 起官網預約不用勾選同意')
+    expect(wrapper.text()).toContain('案件明細仍看得到家長當時同意的')
     expect(wrapper.text()).not.toContain('隱私政策版本')
     expect(wrapper.text()).not.toContain('改版後家長送出表單時會記錄同意的是哪一版')
     expect(wrapper.find('a[href="/content/booking-content"]').exists()).toBe(true)

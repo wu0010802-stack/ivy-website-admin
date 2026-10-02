@@ -432,7 +432,7 @@ onMounted(() => {
             </div>
             <div>
               <dt>家長同意的版本</dt>
-              <dd><span>家長送出參觀需求時，案件會記錄當時發布中的<router-link to="/content/booking-content">預約文案</router-link>同意說明版本，在案件明細可以看到。</span></dd>
+              <dd><span>2026-10-02 起官網預約不用勾選同意。在那之前送出的案件，案件明細仍看得到家長當時同意的<router-link to="/content/booking-content">預約文案</router-link>版本。</span></dd>
             </div>
           </dl>
           <p v-if="!siteMeta" class="field-help">官網還沒發布過網站標題與電話，目前沿用內建設定。</p>

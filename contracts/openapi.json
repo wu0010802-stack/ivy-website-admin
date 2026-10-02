@@ -19,15 +19,27 @@
             "title": "School Year",
             "type": "integer"
           },
-          "semester": {
-            "title": "Semester",
+          "seat_semester": {
+            "title": "Seat Semester",
             "type": "integer"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
           }
         },
         "required": [
           "as_of",
           "school_year",
           "semester",
+          "seat_semester",
           "rows"
         ],
         "title": "AdmissionsCompareOut",
@@ -2017,30 +2029,6 @@
         "title": "BookingConfigUpdateRequest",
         "type": "object"
       },
-      "BookingConsentBriefOut": {
-        "properties": {
-          "has_privacy_notice": {
-            "title": "Has Privacy Notice",
-            "type": "boolean"
-          },
-          "revision_id": {
-            "format": "uuid",
-            "title": "Revision Id",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "revision_id",
-          "version",
-          "has_privacy_notice"
-        ],
-        "title": "BookingConsentBriefOut",
-        "type": "object"
-      },
       "BookingImpactOut": {
         "description": "切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件\n照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。",
         "properties": {
@@ -2103,7 +2091,7 @@
         "type": "string"
       },
       "BookingReadinessOut": {
-        "description": "各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。\n連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部\n條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。",
+        "description": "各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。\n連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部\n條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。",
         "properties": {
           "blockers": {
             "additionalProperties": {
@@ -2122,16 +2110,6 @@
             "title": "Campus Key",
             "type": "string"
           },
-          "consent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BookingConsentBriefOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "current_mode": {
             "$ref": "#/components/schemas/BookingMode"
           },
@@ -2142,7 +2120,6 @@
         "required": [
           "campus_key",
           "current_mode",
-          "consent",
           "blockers",
           "impact"
         ],
@@ -2734,6 +2711,20 @@
           "display_name"
         ],
         "title": "DisplayNameUpdateRequest",
+        "type": "object"
+      },
+      "FeatureFlags": {
+        "description": "後台依部署開關決定要不要顯示的功能（目前只有招生入學）。",
+        "properties": {
+          "admissions": {
+            "title": "Admissions",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "admissions"
+        ],
+        "title": "FeatureFlags",
         "type": "object"
       },
       "FunnelBoardOut": {
@@ -3416,13 +3407,17 @@
             "title": "Csrf Token",
             "type": "string"
           },
+          "features": {
+            "$ref": "#/components/schemas/FeatureFlags"
+          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
         },
         "required": [
           "csrf_token",
-          "user"
+          "user",
+          "features"
         ],
         "title": "LoginResponse",
         "type": "object"
@@ -3433,13 +3428,17 @@
             "title": "Csrf Token",
             "type": "string"
           },
+          "features": {
+            "$ref": "#/components/schemas/FeatureFlags"
+          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
         },
         "required": [
           "csrf_token",
-          "user"
+          "user",
+          "features"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -5317,29 +5316,6 @@
           "campus_key": {
             "title": "Campus Key",
             "type": "string"
-          },
-          "consent_revision_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consent Revision Id"
-          },
-          "consent_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consent Text"
           },
           "external_url": {
             "anyOf": [
@@ -8890,6 +8866,7 @@
             "type": "integer"
           },
           "consent_given": {
+            "default": false,
             "title": "Consent Given",
             "type": "boolean"
           },
@@ -9001,7 +8978,6 @@
           "parent_name",
           "phone",
           "email",
-          "consent_given",
           "slot_id",
           "config_version"
         ],
@@ -10616,7 +10592,7 @@
     },
     "/api/website/v1/admin/admissions/compare": {
       "get": {
-        "description": "五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。",
+        "description": "五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。\nsemester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。",
         "operationId": "get_admissions_compare_api_website_v1_admin_admissions_compare_get",
         "parameters": [
           {
@@ -10633,12 +10609,19 @@
           {
             "in": "query",
             "name": "semester",
-            "required": true,
+            "required": false,
             "schema": {
-              "maximum": 2,
-              "minimum": 1,
-              "title": "Semester",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
             }
           },
           {

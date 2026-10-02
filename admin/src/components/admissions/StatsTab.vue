@@ -10,6 +10,7 @@ import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
 import { currentTerm, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS } from '../../admissions/constants'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
+import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 
 // 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
@@ -20,15 +21,13 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
 
-const SUB_TABS = ['stats-overview', 'stats-class', 'stats-source', 'stats-staff', 'stats-nodeposit', 'stats-compare'] as const
-type SubTab = (typeof SUB_TABS)[number]
-const subTab = ref<SubTab>('stats-overview')
+// 子分頁由頁面放在網址（sub，見 useAdmissionsFilters）；單獨掛載（測試）時沒有父層就用元件自己的值。
+const sub = defineModel<StatsSub>('sub', { default: 'overview' })
+const subTab = computed(() => `stats-${sub.value}`)
 
-function isSubTab(value: unknown): value is SubTab {
-  return typeof value === 'string' && (SUB_TABS as readonly string[]).includes(value)
-}
 function setSubTab(name: string | number) {
-  if (isSubTab(name)) subTab.value = name
+  const value = String(name).replace(/^stats-/, '')
+  if (isStatsSub(value)) sub.value = value
 }
 
 const stats = ref<AdmissionsStats | null>(null)
@@ -111,18 +110,29 @@ function navigate(target: { tab: StatsTarget; filter: Record<string, string | nu
   setSubTab(`stats-${target.tab}`)
 }
 
-// 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。名額剩餘要對到單一學期，
-// 規則同名額規劃（IntakePlanTab）：沒選學年用目前學年、沒選學期一律用上學期，兩個分頁看的是同一學期。
-// 頁首有沒選的部分就在表格上方寫明用的是哪個學期。
+// 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。學年跟頁首（沒選用目前學年）；
+// 學期跟頁首：沒選就不帶，件數算整學年，和總覽對得起來。名額規劃是逐學期設定，名額剩餘沒帶學期時
+// 後端用上學期（同 IntakePlanTab），實際用的學期由回應的 seat_semester 告知，寫在表格上方。
 const showCompare = computed(() => props.campusKeys.length > 1)
 const compareTerm = computed(() => ({
   schoolYear: props.schoolYear ?? currentTerm().schoolYear,
-  semester: props.semester ?? 1,
-  defaulted: props.schoolYear === null || props.semester === null,
+  semester: props.semester,
 }))
 const compareResult = ref<AdmissionsCompare | null>(null)
 const compareFailed = ref(false)
 const compareRequests = useRequestSequence()
+
+// 說明句用回應的學年、學期、名額學期組，不用請求前推算的值。
+const compareNote = computed(() => {
+  const result = compareResult.value
+  if (!result) return ''
+  const yearNote = props.schoolYear === null ? `頁首沒選學年，用目前的 ${result.school_year} 學年。` : ''
+  const seats = termLabel(result.school_year, result.seat_semester)
+  if (result.semester === null) {
+    return `${yearNote}件數為 ${result.school_year} 學年整學年；名額剩餘為 ${seats}（同名額規劃）。`
+  }
+  return `${yearNote}件數與名額剩餘都是 ${termLabel(result.school_year, result.semester)}。`
+})
 
 async function loadCompare() {
   const request = compareRequests.begin()
@@ -138,12 +148,13 @@ async function loadCompare() {
 }
 
 watch([subTab, () => compareTerm.value.schoolYear, () => compareTerm.value.semester], () => {
-  if (subTab.value === 'stats-compare') void loadCompare()
-})
+  if (subTab.value === 'stats-compare' && showCompare.value) void loadCompare()
+}, { immediate: true })
 // 權限更新後只剩一校：子分頁消失，退回總覽。
+// 網址帶 sub=compare 但只看得到一校：掛載時也要退回。
 watch(showCompare, (visible) => {
-  if (!visible && subTab.value === 'stats-compare') subTab.value = 'stats-overview'
-})
+  if (!visible && sub.value === 'compare') sub.value = 'overview'
+}, { immediate: true })
 
 // 表頭照園務 Recruitment{Class,Source,Staff,NoDeposit}Tab 原文。
 const GRADE_COLUMNS: StatsColumn[] = [
@@ -375,9 +386,7 @@ const noDepositKpis = computed(() => {
 
         <el-tab-pane v-if="showCompare" label="五校比較" name="stats-compare" lazy>
           <div class="stats-pane">
-            <p v-if="compareTerm.defaulted" class="hint compare-note">
-              五校比較要對到單一學期的名額：頁首沒選的部分用 {{ termLabel(compareTerm.schoolYear, compareTerm.semester) }}。
-            </p>
+            <p v-if="compareNote" class="hint compare-note">{{ compareNote }}</p>
             <el-alert v-if="compareFailed" type="error" :closable="false" show-icon title="無法讀取五校比較，請重新載入。">
               <el-button size="small" @click="loadCompare()">重新載入</el-button>
             </el-alert>

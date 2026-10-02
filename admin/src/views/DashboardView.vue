@@ -66,7 +66,6 @@ interface DashboardSummary {
   // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
   campuses_slots_without_openings?: string[]
   // 開放線上表單，但「預約文案」沒有發布中的同意文字：官網對家長顯示暫停（2026-09-26 起）。
-  campuses_form_without_consent?: string[]
   failed_notifications: number
 }
 
@@ -262,7 +261,6 @@ const primary = computed(() => {
 const openCount = computed(() => newRequests.value + awaiting.value)
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
 const campusesWithoutBooking = computed(() => summary.value?.campuses_without_active_booking ?? [])
-const formsWithoutConsent = computed(() => summary.value?.campuses_form_without_consent ?? [])
 const openableContent = <T extends { kind: string; campus_key: string | null }>(rows: T[] | undefined): T[] =>
   canEditContent.value ? (rows ?? []).filter((row) => canOpen(contentEditorPath(row.kind, row.campus_key))) : []
 const pendingPublishItems = computed(() => openableContent(summary.value?.pending_publish_items))
@@ -349,7 +347,6 @@ const hasTodo = computed(() => {
     mediaIssues.value.length > 0 ||
     failedJobs.value.length > 0 ||
     campusesWithoutBooking.value.length > 0 ||
-    formsWithoutConsent.value.length > 0 ||
     slotsWithoutOpenings.value.length > 0
   )
 })
@@ -431,14 +428,6 @@ const hasTodo = computed(() => {
             <div v-else-if="campusesWithoutBooking.length" class="task">
               <span class="task__number">{{ campusesWithoutBooking.length }}</span>
               <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法從官網送出需求。預約方式由校區管理者設定。</p></div>
-            </div>
-            <router-link v-if="formsWithoutConsent.length && canOpen('/content/booking-content')" class="task task--urgent" to="/content/booking-content" v-bind="taskAria('consent')">
-              <span id="task-consent-n" class="task__number">{{ formsWithoutConsent.length }}</span>
-              <div><h3 id="task-consent-t">開放線上表單，但沒有發布同意條款</h3><p id="task-consent-d">{{ campusLabels(formsWithoutConsent) }}的預約方式是線上表單，但「預約文案」沒有發布中的同意條款文字：官網對家長顯示暫停，收不到需求。請發布同意條款文字。</p><span id="task-consent-a" class="task__action">到預約文案發布 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <div v-else-if="formsWithoutConsent.length" class="task task--urgent">
-              <span class="task__number">{{ formsWithoutConsent.length }}</span>
-              <div><h3>開放線上表單，但沒有發布同意條款</h3><p>{{ campusLabels(formsWithoutConsent) }}的預約方式是線上表單，但「預約文案」沒有發布中的同意條款文字：官網對家長顯示暫停，收不到需求。請聯絡總管理者到「預約文案」發布同意條款。</p></div>
             </div>
             <router-link v-if="slotsWithoutOpenings.length" class="task" to="/visit-calendar" v-bind="taskAria('slots')">
               <span id="task-slots-n" class="task__number">{{ slotsWithoutOpenings.length }}</span>

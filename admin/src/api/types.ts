@@ -6,6 +6,9 @@ import type { components } from '../../../contracts/generated/website-api'
 
 export type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 export type UserOut = components['schemas']['UserOut']
+export type FeatureFlags = components['schemas']['FeatureFlags']
+export type MeResponse = components['schemas']['MeResponse']
+export type LoginResponse = components['schemas']['LoginResponse']
 export type AuthProviders = components['schemas']['AuthProviders']
 export type LineLinkStart = components['schemas']['LineLinkStart']
 export type CampusOut = components['schemas']['CampusOut']
@@ -101,7 +104,8 @@ export interface PrivacySectionPayload {
 export interface BookingContentPayload {
   cta_label: string
   cta_label_en: string
-  consent_text: string
+  // 2026-10-02 起官網不再顯示，後台也不再編輯；載入的舊值原樣帶回。
+  consent_text?: string
   banner_title_template: string
   banner_body: string
   banner_button_label: string

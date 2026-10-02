@@ -1,8 +1,10 @@
-"""預約設定、同意版本與表單（2026-09-25 缺口 B04）：案件記錄同意說明版本、
-隱私說明本文、預約方式啟用條件與切換前影響範圍、稽核前後紀錄、參觀人數、
-問題字數上限。
+"""預約設定、同意與表單（2026-09-25 缺口 B04）：隱私說明本文、預約方式啟用條件與
+切換前影響範圍、稽核前後紀錄、參觀人數、問題字數上限。
 
-這個檔案刻意不預先發布同意文字（不帶 booking_consent），要用的測試自己發布。"""
+2026-10-02 業主裁定官網預約不用勾選同意：送單不再要求、不再比對同意說明版本，
+開放表單也不必先發布同意文字（舊案的版本照樣顯示在後台明細）。
+
+這個檔案刻意不預先發布預約文案（不帶 booking_consent），要用的測試自己發布。"""
 from __future__ import annotations
 
 import csv
@@ -116,97 +118,60 @@ async def _open_slot(admin_client, *, capacity: int = 20, days_ahead: int = 5) -
 
 
 @pytest.mark.asyncio
-async def test_public_config_exposes_the_published_consent_version(admin_client, public_client):
+async def test_public_config_no_longer_exposes_consent(admin_client, public_client):
+    """2026-10-02 業主裁定官網預約不用勾選同意：公開設定不再回同意文字與版本。"""
     before = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert before["consent_revision_id"] is None and before["consent_text"] is None
+    assert "consent_revision_id" not in before and "consent_text" not in before
     assert before["privacy_notice"] is None
 
-    # 草稿不算：家長只會看到已發布的版本。
-    await _save_booking(admin_client)
-    assert (await public_client.get(f"{API}/public/booking-config/yihua")).json()["consent_revision_id"] is None
-
-    revision_id = await _publish_booking(admin_client)
+    await _publish_booking(admin_client)
     after = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert after["consent_revision_id"] == revision_id
-    assert after["consent_text"] == TEST_CONSENT_TEXT
+    assert "consent_revision_id" not in after and "consent_text" not in after
     # 沒有隱私說明本文時不顯示入口。
     assert after["privacy_notice"] is None
 
 
 @pytest.mark.asyncio
-async def test_submission_records_consent_revision_and_server_time(admin_client, public_client, db_session):
-    revision_id = await _publish_booking(admin_client)
+async def test_submission_without_consent_is_accepted(admin_client, public_client, db_session):
+    """不勾同意、不帶版本也收；案件記成「沒有勾選同意」，不記版本與時間。
+    沒發布過預約文案也一樣能開放、能送單。"""
     version, slot_id = await _open_slot(admin_client)
-
-    created = await _submit(public_client, version, "consent-record-01", slot_id, party_size=3)
+    form = _form(version, slot_id, party_size=3)
+    del form["consent_given"]
+    created = await public_client.post(
+        f"{API}/public/visit-requests", json=form, headers={"Idempotency-Key": "no-consent-01"}
+    )
     assert created.status_code == 201, created.text
     receipt = created.json()["receipt_id"]
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt))
-    assert str(stored.consent_revision_id) == revision_id
-    assert stored.consent_given is True
-    assert stored.consent_accepted_at is not None
-    assert abs((stored.consent_accepted_at - stored.created_at).total_seconds()) < 1
+    assert stored.consent_given is False
+    assert stored.consent_revision_id is None
+    assert stored.consent_accepted_at is None
 
     detail = (await admin_client.get(f"{API}/admin/visit-requests/{receipt}")).json()
-    assert detail["consent_revision_id"] == revision_id
-    assert detail["consent_revision_version"] == 1
-    assert detail["consent_accepted_at"] is not None
+    assert detail["consent_given"] is False
+    assert detail["consent_revision_version"] is None
     assert detail["party_size"] == 3
 
 
 @pytest.mark.asyncio
-async def test_missing_or_outdated_consent_version_is_rejected(admin_client, public_client):
-    first = await _publish_booking(admin_client)
+async def test_cached_page_with_consent_is_still_accepted(admin_client, public_client, db_session):
+    """更新前快取的舊頁面仍會送勾選與版本：照收、照實記下勾選時間，但不比對版本
+    （改版過、草稿或亂填的版本都不再回 CONSENT_VERSION_CHANGED）。"""
+    await _publish_booking(admin_client)
     version, slot_id = await _open_slot(admin_client)
-
-    missing = await _submit(public_client, version, "consent-missing", slot_id, consent_revision_id=None)
-    assert missing.status_code == 409
-    assert missing.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
-
-    # 同意文字改版後，舊版本不再收，家長要重新閱讀、勾選。
-    await _publish_booking(admin_client, consent_text="我同意園方使用資料安排參觀（新版）。")
-    stale = await _submit(public_client, version, "consent-stale", slot_id, consent_revision_id=first)
-    assert stale.status_code == 409
-    assert stale.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
-
-    # 只是草稿（沒發布過）的版本也不收。
-    draft = await _save_booking(admin_client, consent_text="草稿文字")
-    unpublished = await _submit(public_client, version, "consent-draft", slot_id, consent_revision_id=draft["id"])
-    assert unpublished.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
-
-    garbage = await _submit(public_client, version, "consent-garbage", slot_id, consent_revision_id=str(uuid.uuid4()))
-    assert garbage.json()["detail"]["code"] == "CONSENT_VERSION_CHANGED"
+    for key, revision in (("cached-garbage", str(uuid.uuid4())), ("cached-none", None)):
+        created = await _submit(public_client, version, key, slot_id, consent_revision_id=revision)
+        assert created.status_code == 201, created.text
+        stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))
+        assert stored.consent_given is True
+        assert stored.consent_revision_id is None
+        assert stored.consent_accepted_at is not None
 
 
 @pytest.mark.asyncio
-async def test_republish_without_consent_change_keeps_filled_forms_valid(admin_client, public_client, db_session):
-    seen = await _publish_booking(admin_client)
-    version, slot_id = await _open_slot(admin_client)
-    # 只改預約按鈕文字再發布：同意說明沒變，家長手上的版本照收，並記下他看到的那一版。
-    await _publish_booking(admin_client, cta_label="預約來園參觀")
-
-    created = await _submit(public_client, version, "consent-cta-only", slot_id, consent_revision_id=seen)
-    assert created.status_code == 201, created.text
-    stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))
-    assert str(stored.consent_revision_id) == seen
-
-
-@pytest.mark.asyncio
-async def test_replay_returns_original_case_even_after_consent_changes(admin_client, public_client):
-    first = await _publish_booking(admin_client)
-    version, slot_id = await _open_slot(admin_client)
-    created = await _submit(public_client, version, "consent-replay", slot_id, consent_revision_id=first)
-    assert created.status_code == 201
-
-    await _publish_booking(admin_client, consent_text="改版後的同意文字。")
-    replay = await _submit(public_client, version, "consent-replay", slot_id, consent_revision_id=first)
-    assert replay.status_code == 200
-    assert replay.json()["receipt_id"] == created.json()["receipt_id"]
-
-
-@pytest.mark.asyncio
-async def test_form_modes_reject_submissions_without_a_published_consent(admin_client, public_client, db_session):
-    """legacy：更新前就開了 slots、但從沒發布同意文字的校區。"""
+async def test_form_mode_without_published_booking_content_stays_open(admin_client, public_client, db_session):
+    """legacy：更新前就開了 slots、但從沒發布預約文案的校區，官網照常顯示表單、照常收件。"""
     from app.booking.models import BookingConfig, BookingMode
 
     config = await db_session.get(BookingConfig, "yihua")
@@ -218,23 +183,12 @@ async def test_form_modes_reject_submissions_without_a_published_consent(admin_c
     await db_session.commit()
     slot_id = (await _slot(admin_client))["id"]
 
-    response = await _submit(public_client, version, "no-consent-published", slot_id, consent_revision_id=None)
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "BOOKING_UNAVAILABLE"
-
-    # B04-R1：送單一定被擋，官網就不顯示表單（講暫停），總覽另外列出這些校區。
     public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert public["mode"] == "paused"
-    assert public["message"] == "線上預約表單暫時無法使用，請來電洽詢。"
-    assert public["consent_revision_id"] is None
+    assert public["mode"] == "slots"
+    response = await _submit(public_client, version, "no-booking-content", slot_id, consent_given=False)
+    assert response.status_code == 201, response.text
     summary = (await admin_client.get(f"{API}/admin/dashboard")).json()
-    assert summary["campuses_form_without_consent"] == ["yihua"]
-    assert "yihua" not in summary["campuses_without_active_booking"]
-
-    await _publish_booking(admin_client)
-    public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert public["mode"] == "slots" and public["consent_text"] == TEST_CONSENT_TEXT
-    assert (await admin_client.get(f"{API}/admin/dashboard")).json()["campuses_form_without_consent"] == []
+    assert "campuses_form_without_consent" not in summary
 
 
 @pytest.mark.asyncio
@@ -284,7 +238,7 @@ async def test_privacy_sections_are_validated(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_sample_privacy_text_and_prototype_consent_cannot_be_published(admin_client):
+async def test_sample_privacy_text_cannot_be_published(admin_client):
     sample = await _save_booking(
         admin_client,
         privacy_title="個資使用說明",
@@ -295,26 +249,31 @@ async def test_sample_privacy_text_and_prototype_consent_cannot_be_published(adm
     assert blocked.json()["detail"]["code"] == "CONTENT_NOT_READY"
     assert "示意" in blocked.json()["detail"]["message"]
 
-    demo = await _save_booking(admin_client, consent_text="我了解這是操作示範，資料不會傳送給學校，不代表預約成立。")
-    blocked = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": demo["id"]})
-    assert blocked.status_code == 409
-    assert "示範" in blocked.json()["detail"]["message"]
+    # 同意條款文字 2026-10-02 起不再顯示：原型的示範文字也不擋。
+    demo = await _save_booking(admin_client, consent_text=LEGACY_DEMO_CONSENT_TEXT)
+    published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": demo["id"]})
+    assert published.status_code == 200, published.text
 
 
 @pytest.mark.asyncio
-async def test_blank_consent_text_cannot_be_published(admin_client, public_client):
-    """B04-R1：空白的同意文字發布出去，已開放表單的校區送單全部會被擋。"""
-    revision_id = await _publish_booking(admin_client)
+async def test_blank_or_missing_consent_text_can_be_published(admin_client, public_client):
+    """2026-10-02 起同意條款文字不再顯示：空白或不帶都能發布，個資說明照常公開。"""
     for blank in ("", "  \n "):
         draft = await _save_booking(admin_client, consent_text=blank)
-        blocked = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": draft["id"]})
-        assert blocked.status_code == 409, blank
-        assert blocked.json()["detail"]["code"] == "CONTENT_NOT_READY"
-        assert "不能空白" in blocked.json()["detail"]["message"]
-    # 官網仍是原本那一版。
+        published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": draft["id"]})
+        assert published.status_code == 200, (blank, published.text)
+
+    item = (await admin_client.get(BOOKING)).json()
+    payload = {key: value for key, value in _BOOKING_PAYLOAD.items() if key != "consent_text"}
+    saved = await admin_client.post(
+        f"{BOOKING}/revisions",
+        json={"expected_version": item["latest_version"], "payload": {**payload, "privacy_title": "個資使用說明", "privacy_sections": _PRIVACY}},
+    )
+    assert saved.status_code == 201, saved.text
+    published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": saved.json()["latest_revision"]["id"]})
+    assert published.status_code == 200, published.text
     config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert config["consent_revision_id"] == revision_id
-    assert config["consent_text"] == TEST_CONSENT_TEXT
+    assert config["privacy_notice"] == {"title": "個資使用說明", "sections": _PRIVACY}
 
 
 # ---------------------------------------------------------------------------
@@ -323,22 +282,15 @@ async def test_blank_consent_text_cannot_be_published(admin_client, public_clien
 
 
 @pytest.mark.asyncio
-async def test_form_modes_need_a_published_consent(admin_client):
-    # slots 兩個條件都缺時兩條原因都列。
+async def test_slots_mode_only_needs_slots_or_rules(admin_client):
+    # 2026-10-02 起不必先發布同意文字，只缺可預約的場次或規則。
     blocked = await admin_client.patch(
         f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "slots"}
     )
     assert blocked.status_code == 400
     detail = blocked.json()["detail"]
     assert detail["code"] == "BOOKING_MODE_NOT_READY"
-    assert [r["code"] for r in detail["reasons"]] == ["CONSENT_NOT_PUBLISHED", "NO_SLOTS_OR_RULES"]
-
-    # 同意文字發布了，還缺可預約的場次。
-    await _publish_booking(admin_client)
-    blocked = await admin_client.patch(
-        f"{API}/admin/booking-config/yihua", json={"expected_version": 0, "mode": "slots"}
-    )
-    assert [r["code"] for r in blocked.json()["detail"]["reasons"]] == ["NO_SLOTS_OR_RULES"]
+    assert [r["code"] for r in detail["reasons"]] == ["NO_SLOTS_OR_RULES"]
 
     await _slot(admin_client)
     enabled = await admin_client.patch(
@@ -376,15 +328,14 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     assert readiness.status_code == 200, readiness.text
     body = readiness.json()
     assert body["current_mode"] == "paused"
-    assert body["consent"] is None
-    assert [r["code"] for r in body["blockers"]["slots"]] == ["CONSENT_NOT_PUBLISHED", "NO_SLOTS_OR_RULES"]
+    assert "consent" not in body
+    assert [r["code"] for r in body["blockers"]["slots"]] == ["NO_SLOTS_OR_RULES"]
     assert body["blockers"]["line"] == [] and body["blockers"]["paused"] == []
     assert body["impact"] == {
         "open_requests": 0, "new_requests": 0, "contacting": 0, "pending_confirmation": 0,
         "upcoming_confirmed": 0, "past_confirmed": 0, "bookable_slots": 0, "weekly_rules": 0,
     }
 
-    revision_id = await _publish_booking(admin_client, privacy_sections=_PRIVACY)
     slot = await _slot(admin_client, capacity=3)
     await _slot(admin_client, days_ahead=6)
     version = (await set_booking_mode(admin_client, mode="slots")).json()["version"]
@@ -396,7 +347,6 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
 
     body = (await admin_client.get(f"{API}/admin/booking-config/yihua/readiness")).json()
     assert body["current_mode"] == "slots"
-    assert body["consent"] == {"revision_id": revision_id, "version": 1, "has_privacy_notice": True}
     assert body["blockers"]["slots"] == []
     assert body["impact"] == {
         "open_requests": 3, "new_requests": 1, "contacting": 1, "pending_confirmation": 0,
@@ -673,9 +623,6 @@ async def test_formal_consent_migration_republishes_the_demo_text(app, public_cl
     assert site["content"]["booking_content"]["consent_text"] == FORMAL_CONSENT_TEXT
     # 其他內容沿用原本的發布版本。
     assert site["content"]["home_about"] == about_payload
-    config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert config["consent_revision_id"] == str(published.id)
-    assert config["consent_text"] == FORMAL_CONSENT_TEXT
 
     audit = (
         await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "content.publish"))
@@ -744,9 +691,6 @@ async def test_formal_consent_migration_without_draft_only_adds_the_published_ve
         await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "content.publish"))
     ).scalar_one()
     assert audit.metadata_json == {"kind": "booking_content", "revision_version": 2, "reason": "formal_consent_migration"}
-    # 新發布的版本可以直接拿來送單（家長看到的就是這一版）。
-    config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert config["consent_revision_id"] == str(published.id)
 
 
 @pytest.mark.asyncio
@@ -757,8 +701,10 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
 
     - 排程到期時 migration 已發布了較新的版本，照「不蓋回較新版本」的規則記
       skipped（不是被 publish_blocker 擋成 failed），排程的人會收到通知；
-    - 送審中的舊版核准時回 CONTENT_NOT_READY（核准會把示範文字發布到官網），
-      接續的最新草稿（已換成正式文字）可以直接送審、核准。"""
+    - 接續的最新草稿（已換成正式文字）可以直接送審、核准。
+
+    2026-10-02 起同意條款文字不再顯示，示範文字也不再擋發布，所以不再驗「核准舊版回
+    CONTENT_NOT_READY」。"""
     from datetime import datetime, timezone
 
     from app.content import publish_jobs
@@ -775,7 +721,7 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
         id=uuid.uuid4(), content_item_id=item.id, revision_id=draft.id, publish_at=now + timedelta(days=1), created_at=now - timedelta(minutes=5)
     )
     db_session.add(job)
-    item_id, draft_id, draft_version, job_id = item.id, draft.id, draft.version, job.id
+    item_id, draft_version, job_id = item.id, draft.version, job.id
     await db_session.commit()
 
     await _run_formal_consent_migration(app)
@@ -791,11 +737,6 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
     assert job.status == "skipped"
     assert f"較新的第 {draft_version + 1} 版" in job.error
 
-    approve_old = await admin_client.post(f"{BOOKING}/review", json={"revision_id": str(draft_id), "decision": "approve"})
-    assert approve_old.status_code == 409
-    assert approve_old.json()["detail"]["code"] == "CONTENT_NOT_READY"
-    assert "示範" in approve_old.json()["detail"]["message"]
-
     item = await db_session.get(ContentItem, item_id)
     carried = await db_session.scalar(
         select(ContentRevision).where(ContentRevision.content_item_id == item_id, ContentRevision.version == item.latest_version)
@@ -805,6 +746,8 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
     assert submitted.status_code == 200, submitted.text
     approved = await admin_client.post(f"{BOOKING}/review", json={"revision_id": carried_id, "decision": "approve"})
     assert approved.status_code == 200, approved.text
-    config = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-    assert config["consent_revision_id"] == carried_id
-    assert config["consent_text"] == FORMAL_CONSENT_TEXT
+    db_session.expire_all()
+    item = await db_session.get(ContentItem, item_id)
+    assert str(item.current_published_revision_id) == carried_id
+    published = await db_session.get(ContentRevision, item.current_published_revision_id)
+    assert published.payload["consent_text"] == FORMAL_CONSENT_TEXT

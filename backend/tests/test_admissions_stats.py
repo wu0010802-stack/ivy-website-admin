@@ -504,7 +504,7 @@ async def test_compare_rows_and_seats(db_session):
     result = await stats.compare(db_session, ["yihua", "minghua", "renwu"], school_year=115, semester=1, now=NOW)
     rows = result["rows"]
 
-    assert (result["as_of"], result["school_year"], result["semester"]) == (NOW, 115, 1)
+    assert (result["as_of"], result["school_year"], result["semester"], result["seat_semester"]) == (NOW, 115, 1, 1)
     assert [row["campus_key"] for row in rows] == ["yihua", "minghua", "renwu"]
     # 義華：4 筆、預繳 3、註冊 1、有效預繳 3、預繳未註冊 2（小班、大班保留中）
     # → 3/4＝75.0、1/4＝25.0、1/3＝33.3、1/3＝33.3。
@@ -516,6 +516,26 @@ async def test_compare_rows_and_seats(db_session):
         "deposit_to_enrolled_rate": rate(33.3, 1, 3), "effective_to_enrolled_rate": rate(33.3, 1, 3),
         "target_seats": 10, "remaining_seats": 8, "grades_with_target": 2,
     }
+
+
+async def test_compare_whole_year_counts_all_terms_and_seats_use_first_term(db_session):
+    """5A：不帶學期＝件數算整學年；名額剩餘仍用名額規劃的上學期，seat_semester 標明。"""
+    await seed_compare(db_session)
+
+    result = await stats.compare(db_session, ["yihua"], school_year=115, semester=None, now=NOW)
+    row = result["rows"][0]
+
+    assert (result["school_year"], result["semester"], result["seat_semester"]) == (115, None, 1)
+    # 上學期 4 筆（預繳 3）＋下學期 1 筆（預繳 1）＝5 筆、預繳 4。
+    assert (row["visit"], row["deposit"], row["enrolled"]) == (5, 4, 1)
+    assert row["visit_to_deposit_rate"] == rate(80.0, 4, 5)
+    # 名額剩餘與上學期相同：小班 10－1＝9、中班 0－1＝－1 → 8；下學期的保留不扣上學期名額。
+    assert (row["target_seats"], row["remaining_seats"]) == (10, 8)
+
+    second = await stats.compare(db_session, ["yihua"], school_year=115, semester=2, now=NOW)
+    assert (second["semester"], second["seat_semester"]) == (2, 2)
+    assert (second["rows"][0]["visit"], second["rows"][0]["deposit"]) == (1, 1)
+    assert second["rows"][0]["target_seats"] is None
 
 
 async def test_compare_without_targets(db_session):
@@ -554,8 +574,18 @@ async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yi
     assert [row["campus_key"] for row in (await minghua_client.get(path)).json()["rows"]] == ["minghua"]
     assert [row["campus_key"] for row in (await reception_yihua_client.get(path)).json()["rows"]] == ["yihua"]
     assert (await editor_client.get(path)).status_code == 403
-    # 學期必填：名額剩餘要對到單一學期。
-    assert (await admin_client.get(f"{API}/admin/admissions/compare?school_year=115")).status_code == 422
+    assert body["seat_semester"] == 1
+
+    # 學期選填：只帶學年＝件數整學年（上下學期都算）、名額用上學期、seat_semester 標 1。
+    whole = await admin_client.get(f"{API}/admin/admissions/compare?school_year=115")
+    assert whole.status_code == 200, whole.text
+    whole_body = whole.json()
+    assert (whole_body["semester"], whole_body["seat_semester"]) == (None, 1)
+    assert (whole_body["rows"][0]["visit"], whole_body["rows"][0]["remaining_seats"]) == (5, 8)
+    second = (await admin_client.get(f"{API}/admin/admissions/compare?school_year=115&semester=2")).json()
+    assert (second["semester"], second["seat_semester"]) == (2, 2)
+    # 學年仍必填。
+    assert (await admin_client.get(f"{API}/admin/admissions/compare?semester=1")).status_code == 422
 
 
 # ── 未預繳明細（C2b）：園務 GET /no-deposit-analysis（stats.py:938-1005）──

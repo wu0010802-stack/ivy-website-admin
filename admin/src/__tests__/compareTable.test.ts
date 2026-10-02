@@ -39,8 +39,8 @@ const CHONGDE = row('chongde', {
 })
 const RENWU = row('renwu')
 
-const compare = (rows: AdmissionsCompareRow[], schoolYear = 115, semester = 1): AdmissionsCompare => ({
-  as_of: '2026-10-01T04:00:00Z', school_year: schoolYear, semester, rows,
+const compare = (rows: AdmissionsCompareRow[], schoolYear = 115, semester: number | null = 1): AdmissionsCompare => ({
+  as_of: '2026-10-01T04:00:00Z', school_year: schoolYear, semester, seat_semester: semester ?? 1, rows,
 })
 
 const cells = (tr: Dom) => tr.findAll('th, td').map((cell) => cell.text())
@@ -122,33 +122,54 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual(['/admin/admissions/compare?school_year=115&semester=1'])
     expect(bodyRows(pane).map((tr) => tr[0])).toEqual(['義華', '明華', '崇德', '仁武'])
-    expect(pane.find('.compare-note').exists()).toBe(false)
+    expect(pane.get('.compare-note').text()).toBe('件數與名額剩餘都是 115 上學期。')
   })
 
-  it('頁首沒選學年學期：沒選學年用目前學年（台北日期）並寫明、沒選學期用上學期', async () => {
+  it('頁首整學年：請求不帶 semester，件數寫整學年、名額剩餘寫上學期（同名額規劃）', async () => {
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
+
+    const pane = await openCompare(wrapper)
+    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
+    expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 學年）')
+    expect(pane.get('.compare-note').text()).toBe('件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。')
+  })
+
+  it('頁首選下學期：請求帶 semester=2，件數與名額剩餘都是下學期', async () => {
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, 2) })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: 2 }) })
+
+    const pane = await openCompare(wrapper)
+    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115&semester=2')
+    expect(pane.get('.compare-note').text()).toBe('件數與名額剩餘都是 115 下學期。')
+  })
+
+  it('頁首沒選學年學期：沒選學年用目前學年（台北日期）並寫明、沒選學期件數算整學年', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ schoolYear: null, semester: null }) })
 
     const pane = await openCompare(wrapper)
-    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115&semester=1')
-    expect(pane.get('.compare-note').text()).toBe('五校比較要對到單一學期的名額：頁首沒選的部分用 115 上學期。')
+    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
+    expect(pane.get('.compare-note').text()).toBe(
+      '頁首沒選學年，用目前的 115 學年。件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。',
+    )
 
     await wrapper.setProps({ schoolYear: 116 })
     await flushPromises()
-    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=116&semester=1')
+    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=116')
   })
 
-  it('下學期期間只選了今年：沒選學期一律用上學期（同名額規劃）', async () => {
+  it('下學期期間只選了今年：沒選學期不帶 semester（件數整學年）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2027-02-10T09:00:00+08:00'))
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ schoolYear: 115, semester: null }) })
 
     const pane = await openCompare(wrapper)
-    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115&semester=1')
-    expect(pane.get('.compare-note').text()).toContain('115 上學期')
+    expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
+    expect(pane.get('.compare-note').text()).toBe('件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。')
   })
 
   it('在五校比較時換學期：重讀，舊學期的回應晚到也不會蓋掉', async () => {

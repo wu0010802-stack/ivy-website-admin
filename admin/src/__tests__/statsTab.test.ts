@@ -223,6 +223,23 @@ describe('統計分頁：總覽', () => {
   })
 })
 
+describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
+  it('sub 決定現在的子分頁；點子分頁回報 update:sub，不自己改（父層放網址）', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'nodeposit' }) })
+    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳原因')
+    const tab = wrapper.findAll('.stats-subtabs .el-tabs__item').find((item) => item.text() === '來源分析')!
+    await tab.trigger('click')
+    expect(wrapper.emitted('update:sub')).toEqual([['source']])
+  })
+
+  it('只看得到一校卻帶 sub=compare：退回總覽', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'compare' }) })
+    expect(wrapper.emitted('update:sub')).toEqual([['overview']])
+  })
+})
+
 describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
   it('班別分析：班別統計與月份 × 班別', async () => {
     mockGet({ '/admin/admissions/stats': stats() })

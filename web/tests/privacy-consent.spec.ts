@@ -8,7 +8,6 @@ import { applyContentOverlay } from '../app/utils/content-overlay'
 import { DEFAULT_PRIVACY_TITLE, privacyNotice, privacyParagraphs } from '../app/utils/privacy-notice'
 import { isValidPartySize, PARTY_SIZE_OPTIONS, validateVisitContact } from '../app/utils/visit-form'
 import { useCampusBooking } from '../app/composables/useCampusBooking'
-import { consentOutdated, consentSeenNow, consentView, displayedConsentText, FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT, submittedConsentRevision } from '../app/utils/visit-consent'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -53,7 +52,7 @@ describe('隱私／個資使用說明', () => {
 describe('參觀人數', () => {
   it('下拉選項 1–10，未選或超出範圍都要提示', () => {
     expect(PARTY_SIZE_OPTIONS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    const contact = { parentName: '陳媽媽', phone: '0912345678', consent: true }
+    const contact = { parentName: '陳媽媽', phone: '0912345678' }
     expect(validateVisitContact({ ...contact, partySize: '' }).partySize).toBe('請選擇參觀人數。')
     expect(validateVisitContact({ ...contact, partySize: '3' })).toEqual({})
     // 舊呼叫端不帶人數時不檢查。
@@ -63,12 +62,11 @@ describe('參觀人數', () => {
   })
 })
 
-describe('公開預約設定的同意版本', () => {
-  it('勾選框文字與送單版本來自同一份公開預約設定', async () => {
+describe('公開預約設定（2026-10-02 起官網預約不用勾選同意）', () => {
+  it('只帶個資使用說明，不再帶同意文字與版本', async () => {
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
       campus_key: 'yihua', mode: 'slots', version: 3, line_url: null, phone: null, external_url: null, message: null,
-      consent_revision_id: 'rev-7', consent_text: '同意文字第 7 版',
       privacy_notice: { title: '', sections: [{ heading: '蒐集目的', body: '安排參觀。' }] }
     }))
     let fetchConfig!: () => Promise<Record<string, unknown>>
@@ -78,12 +76,12 @@ describe('公開預約設定的同意版本', () => {
     })
     useCampusBooking('yihua')
     const config = await fetchConfig()
-    expect(config.consent_revision_id).toBe('rev-7')
-    expect(config.consent_text).toBe('同意文字第 7 版')
+    expect(config).not.toHaveProperty('consent_revision_id')
+    expect(config).not.toHaveProperty('consent_text')
     expect(config.privacy_notice).toEqual({ title: DEFAULT_PRIVACY_TITLE, sections: [{ heading: '蒐集目的', body: '安排參觀。' }] })
   })
 
-  it('舊版 API 沒有同意欄位時為 null', async () => {
+  it('沒有個資說明時為 null', async () => {
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ campus_key: 'yihua', mode: 'slots', version: 1, line_url: null, phone: null, external_url: null, message: null }))
     let fetchConfig!: () => Promise<Record<string, unknown>>
@@ -93,50 +91,14 @@ describe('公開預約設定的同意版本', () => {
     })
     useCampusBooking('yihua')
     const config = await fetchConfig()
-    expect(config.consent_revision_id).toBeNull()
     expect(config.privacy_notice).toBeNull()
   })
-})
 
-describe('勾選同意時看到的版本（B04-R2、R6）', () => {
-  const v5 = { mode: 'slots' as const, version: 3, consent_revision_id: 'rev-5', consent_text: '同意文字第 5 版', privacy_notice: null }
-
-  it('有版本就顯示公開預約設定的文字；舊版 API 沒有版本時不顯示原型示範文字', () => {
-    expect(displayedConsentText(v5, '站台內容的文字')).toBe('同意文字第 5 版')
-    const legacyApi = { mode: 'slots' as const, version: 1 }
-    expect(displayedConsentText(legacyApi, LEGACY_DEMO_CONSENT_TEXT)).toBe(FORMAL_CONSENT_TEXT)
-    expect(displayedConsentText(null, LEGACY_DEMO_CONSENT_TEXT)).toBe(FORMAL_CONSENT_TEXT)
-    expect(displayedConsentText(legacyApi, 'CMS 正式同意文字')).toBe('CMS 正式同意文字')
-    expect(fixture.booking.consentText).toBe(LEGACY_DEMO_CONSENT_TEXT)
-    // 與後端的兩段文字一致（migration 31eb94190b1c 發布的就是這段正式文字）。
-    const backendSchemas = readFileSync(fileURLToPath(new URL('../../backend/app/content/schemas.py', import.meta.url)), 'utf8')
-    expect(backendSchemas).toContain(`LEGACY_DEMO_CONSENT_TEXT = "${LEGACY_DEMO_CONSENT_TEXT}"`)
-    expect(backendSchemas).toContain(`FORMAL_CONSENT_TEXT = "${FORMAL_CONSENT_TEXT}"`)
-  })
-
-  it('勾選後同意說明換了內容就要重新勾選；只換版本（改按鈕文字）或讀取中不算', () => {
-    const seen = consentSeenNow(v5, '')
-    expect(seen).toEqual({ revisionId: 'rev-5', view: consentView(v5, '') })
-    // 預約設定剛更新而重新讀取，拿到第 6 版不同的文字：原本的勾選不算數。
-    const v6 = { ...v5, version: 4, consent_revision_id: 'rev-6', consent_text: '同意文字第 6 版' }
-    expect(consentOutdated(seen, consentView(v6, ''))).toBe(true)
-    // 隱私說明換了也一樣。
-    const withNotice = { ...v5, privacy_notice: { title: '個資使用說明', sections: [{ heading: '', body: '新段落' }] } }
-    expect(consentOutdated(seen, consentView(withNotice, ''))).toBe(true)
-    // 只改預約按鈕文字重新發布：版本不同但內容相同，不必重勾。
-    expect(consentOutdated(seen, consentView({ ...v5, consent_revision_id: 'rev-7' }, ''))).toBe(false)
-    expect(consentOutdated(seen, consentView(null, ''))).toBe(false)
-    expect(consentOutdated(null, consentView(v6, ''))).toBe(false)
-  })
-
-  it('送單帶勾選當下的版本，不是設定目前的版本', () => {
-    const seen = consentSeenNow(v5, '')
-    const republished = { ...v5, consent_revision_id: 'rev-7' }
-    expect(submittedConsentRevision(seen, republished)).toBe('rev-5')
-    // 沒有勾選紀錄（例如瀏覽器還原了勾選狀態）才用目前的版本，伺服器會再比對。
-    expect(submittedConsentRevision(null, republished)).toBe('rev-7')
-    expect(submittedConsentRevision(null, null)).toBeNull()
-    // 舊版 API 沒有版本。
-    expect(submittedConsentRevision(consentSeenNow({ mode: 'slots', version: 1 }, ''), null)).toBeNull()
+  it('預約表單沒有同意勾選，也不送同意欄位；有個資說明才給閱讀入口', () => {
+    const form = readFileSync(fileURLToPath(new URL('../app/components/VisitForm.vue', import.meta.url)), 'utf8')
+    expect(form).not.toMatch(/type="checkbox"[^>]*name="consent"/)
+    expect(form).not.toContain('consent_given')
+    expect(form).not.toContain('consent_revision_id')
+    expect(form).toContain('<PrivacyNoticeDialog v-if="privacyNotice"')
   })
 })

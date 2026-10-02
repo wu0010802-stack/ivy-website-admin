@@ -347,9 +347,9 @@
 - **接待分析**：依 `referrer`，同園務 `RecruitmentStaffTab`。
 - **未預繳原因**：依 `no_deposit_reason`，含優先度分組。母體是「未預繳且未退出」：退預繳後 `has_deposit` 雖然是 false，殘留的高潛力原因不算。數字卡（高潛力未預繳、逾 14 天待追、冷名單）與分布來自 `/stats`。
   - **未預繳明細**（名單，同園務 `RecruitmentNoDepositTab`）：母體同上。篩選：轉換潛力（預設「高潛力優先」，另有全部潛力、中潛力、低潛力）、原因、班別、「逾 14 天」開關、「冷名單」開關；每頁 50 筆。欄位：月份、姓名、班別、原因分類、轉換潛力（高／中／低／—）、冷名單（建檔滿 90 天標「冷」）、說明、來源、介紹者、電訪回應，另有「查看」切到訪視明細並篩該筆的月份。排序：民國月份新到舊、同月序號依數字小到大（園務是字串排序）。警示與行動入口指到未預繳原因時，帶的潛力與逾期天數套進名單（同園務）。已匿名化的列不另標示（姓名欄已是「（已依保存政策匿名化）」），列為已知限制。
-- **五校比較**（官網延伸）：授權範圍內每校一列，列出參觀、預繳、註冊、有效預繳、預繳未註冊、四個比率，以及所選學年學期的名額剩餘合計。
+- **五校比較**（官網延伸）：授權範圍內每校一列，列出參觀、預繳、註冊、有效預繳、預繳未註冊、四個比率，以及名額剩餘合計。
   - 名額剩餘合計只加總已設定計畫名額的年級；一個年級都沒設定時顯示「未設定」。
-  - 名額要對到單一學期，預設照「名額規劃」：沒選學期用上學期（第 6.5 節的預設），沒選學年用目前學年（台北日期）；頁首有任一沒選，表格上方寫明用的是哪個學期。同一組頁首篩選下，名額規劃與五校比較的名額剩餘是同一學期。
+  - 學年跟頁首，沒選學年用目前學年（台北日期）。件數跟頁首學期：沒選學期就算整學年（和總覽對得起來）。名額規劃是逐學期設定，名額剩餘要對到單一學期：頁首有選學期用該學期，沒選用上學期（同「名額規劃」，第 6.5 節的預設），實際用的學期由回應的 `seat_semester` 告知。表格上方依回應寫明，例如「件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。」「件數與名額剩餘都是 115 下學期。」；頁首沒選學年時句首加「頁首沒選學年，用目前的 115 學年。」。
   - 比率同時顯示分子與分母。
   - 標示這是「招生案件數」，不是跨校去重後的孩子數。
 
@@ -361,7 +361,7 @@
 
 ## 10. 後台畫面
 
-路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
+路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。功能開關（`WEBSITE_ADMISSIONS_ENABLED`）關閉時側欄與側欄搜尋不列出這項：`/auth/me` 與登入回應帶 `features.admissions`，`nav.ts` 項目的 `feature` 欄位對應；路由守衛不擋，直接開網址仍到「招生入學尚未啟用」說明頁。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶；`sub`＝統計分頁的子分頁〔`class`／`source`／`staff`／`nodeposit`／`compare`，只在統計分頁使用，總覽不寫進網址，不合法或看不到就退回總覽〕），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
 
 | 分頁 | 內容 |
 |---|---|
@@ -484,7 +484,7 @@
 | PUT `/intake-targets` | write | 同校同學期一次送多個年級 |
 | GET `/stats` | read | 第 9 節；`reference_month` 必須是三位數民國年月（`115.09`），格式錯（含 `99.12`）回 422 `INVALID_REFERENCE_MONTH`（訊息照園務原文；園務是未處理的 ValueError） |
 | GET `/no-deposit-records` | read | 未預繳明細（園務 `/no-deposit-analysis`）：`campus_key` 必填，`school_year`、`semester`、`reason`、`grade`、`priority`（high／medium／low）、`overdue_days`（1–365）、`cold_only`、`page`（預設 1）、`page_size`（1–500，預設 100）；回分頁名單（同 `/records`，不帶 `as_of`）：`total`、`page`、`page_size`、`summary`（只受原因與班別影響）、`records`（含孩子姓名，不含電話、地址、生日） |
-| GET `/compare` | read | 五校比較，只含授權校區；`school_year`、`semester` 必填（名額剩餘要對到單一學期）；回物件 `{as_of, school_year, semester, rows}`，`rows` 每個授權校區一列（super_admin 為五列） |
+| GET `/compare` | read | 五校比較，只含授權校區；`school_year` 必填、`semester` 選填（沒帶＝件數算整學年；名額剩餘用上學期，`seat_semester` 標明實際學期）；回物件 `{as_of, school_year, semester, seat_semester, rows}`，`semester` 照請求回（可為 null），`rows` 每個授權校區一列（super_admin 為五列） |
 | GET `/options` | read | 篩選選項：月份（新到舊）、來源、介紹者（各前 50 個）；列舉值文案，`source_categories` 是「代碼 → 園務文案」的 dict（順序同園務）；另有 `grades`、`no_deposit_reasons`（`{value, priority}`，priority 是 `high`／`medium`／`low`，「未註明／待追蹤」為 null） |
 
 聚合回應帶 `as_of` 與實際套用的篩選。所有 API 變更都要跑 `npm run contract:generate`，並通過 `npm run contract:check`。
@@ -636,10 +636,10 @@
 | C 調整 2 | `AdmissionsView.vue` 在 C3 改 `<StatsTab>` 一處 | 總覽「檔案配置」 |
 | C 調整 3 | `StatsTab` 的 props 與事件 | 總覽「統計分頁」 |
 | C 調整 4 | 警示與行動入口的 `target_tab`、`REVIEW_SOURCE` | 第 9.3 節；`contracts/ivy-recruitment/README.md` |
-| C 調整 5 | `GET /compare` 的學年學期必填；回物件 `{as_of, school_year, semester, rows}` | 第 13 節；總覽 API 表、「介面」stats.py |
+| C 調整 5 | `GET /compare` 的學年必填、學期選填（2026-10-02 X2b 改，原為兩者必填）；回物件 `{as_of, school_year, semester, seat_semester, rows}` | 第 13 節；總覽 API 表、「介面」stats.py |
 | C 調整 6 | `StatsTab` 多 `campusKeys`、`go` 換成 `open-records` | 總覽「統計分頁」 |
 | C 調整 7 | 統計切到訪視明細帶 `month`，用 `router.push` | 第 10 節（網址參數、統計分析） |
-| C 調整 8 | 五校比較頁首沒選學年學期時的預設：沒選學期用上學期、沒選學年用目前學年（照名額規劃） | 第 9.3 節；總覽「統計分頁」 |
+| C 調整 8 | 五校比較頁首沒選學年學期時的預設：沒選學年用目前學年；沒選學期件數算整學年、名額剩餘用上學期（2026-10-02 X2b 改，原為兩者都用上學期） | 第 9.3 節；總覽「統計分頁」 |
 | C 調整 9 | 同票排序加第二鍵 | 第 9.2 節；契約 README |
 | C 調整 10 | 月比任一邊 null，差值也是 null | 第 9.2 節；契約 README |
 | C 調整 11 | 統計回應只有數字；未預繳名單另由 `/no-deposit-records` 提供，含孩子姓名（2026-10-01 使用者裁定統計頁列名單） | 第 7 節、第 9.3 節、第 13 節；契約 README |

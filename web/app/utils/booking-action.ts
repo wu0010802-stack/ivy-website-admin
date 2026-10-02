@@ -9,10 +9,7 @@ export interface BookingConfig {
   line_url?: string | null
   phone?: string | null
   external_url?: string | null
-  /** 目前發布中的同意文字與版本（規格 L196）；送單時帶版本，伺服器確認仍是這一版才收 */
-  consent_revision_id?: string | null
-  consent_text?: string | null
-  /** 同一版的隱私說明；沒有正式說明時為 null */
+  /** 預約文案發布中的隱私說明；沒有正式說明時為 null（2026-10-02 起官網預約不用勾選同意） */
   privacy_notice?: PrivacyNotice | null
   /** 部署啟用 Cloudflare Turnstile 時的 site key；null 表示送單不需要機器人驗證 */
   turnstile_site_key?: string | null

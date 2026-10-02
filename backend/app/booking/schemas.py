@@ -183,20 +183,13 @@ class BookingImpactOut(BaseModel):
     weekly_rules: int
 
 
-class BookingConsentBriefOut(BaseModel):
-    revision_id: uuid.UUID
-    version: int
-    has_privacy_notice: bool
-
-
 class BookingReadinessOut(BaseModel):
-    """各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+    """各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。
     連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
     條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。"""
 
     campus_key: str
     current_mode: BookingMode
-    consent: BookingConsentBriefOut | None
     blockers: dict[BookingMode, list[BookingReadinessReason]]
     impact: BookingImpactOut
 
@@ -222,12 +215,8 @@ class PublicBookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     parent_email_enabled: bool = False
-    # 規格 L130、L196：表單勾選框顯示的同意文字與它的版本。送單時帶
-    # consent_revision_id，伺服器確認仍是發布中的內容才收。沒有已發布的
-    # 同意文字時兩者為 None（這時也不能啟用表單類的預約方式）。
-    consent_revision_id: uuid.UUID | None = None
-    consent_text: str | None = None
-    # 同一版的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
+    # 2026-10-02 起官網預約不用勾選同意，不再回同意文字與版本。
+    # 預約文案發布中的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
     privacy_notice: PrivacyNoticeOut | None = None
     # Cloudflare Turnstile 的 site key。部署有設定 Turnstile 時才有值，官網
     # 據此顯示驗證元件並在送單時帶 turnstile_token；None＝不需要驗證。
@@ -318,13 +307,20 @@ class VisitRequestCreate(_VisitRequestFields):
     # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
     # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
     # 需求重試時（當時表單沒有人數）仍能回到原案件。
-    # 家長看到的同意說明版本（公開預約設定的 consent_revision_id）。沒帶或
-    # 已不是發布中的內容回 409 CONSENT_VERSION_CHANGED，前端重新載入後請家長
-    # 重新閱讀、勾選。不算進 idempotency 的 payload hash，見 service._canonical_payload。
+    # 2026-10-02 業主裁定官網預約不用勾選同意：不送 consent_given 就是 False。
+    # 更新前快取的舊頁面仍會送 consent_given／consent_revision_id，照收但不比對
+    # 版本（revision 不算進 idempotency 的 payload hash，見 service._canonical_payload）。
+    consent_given: bool = False
     consent_revision_id: uuid.UUID | None = None
     # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("consent_given")
+    @classmethod
+    def _require_consent(cls, value: bool) -> bool:
+        # 同名覆寫父類別的必勾檢查：官網表單不再要求勾選；補登仍要求（VisitRequestManualCreate 沿用父類別）。
+        return value
 
 
 

@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, api, setCsrfToken } from '../api/client'
-import type { UserOut } from '../api/types'
+import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/types'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { clearVisitNoteDrafts } from '../composables/visitNoteDraft'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
   const csrfToken = ref<string | null>(null)
+  // 部署開關；讀不到（尚未登入、舊後端）一律當關閉。
+  const features = ref<FeatureFlags>({ admissions: false })
   const isLoading = ref(false)
   /**
    * 按下登出時先換到登入頁、不先打 API：頁面有未儲存的修改時，離頁攔截會先問
@@ -20,11 +22,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email: string, password: string): Promise<void> {
     isLoading.value = true
     try {
-      const result = await api.post<{ csrf_token: string; user: UserOut }>('/auth/login', {
+      const result = await api.post<LoginResponse>('/auth/login', {
         email,
         password,
       })
       user.value = result.user
+      features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
     } finally {
@@ -36,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSession(): void {
     resetVisitStaff()
     user.value = null
+    features.value = { admissions: false }
     csrfToken.value = null
     setCsrfToken(null)
   }
@@ -65,12 +69,14 @@ export const useAuthStore = defineStore('auth', () => {
   async function restoreSession(): Promise<void> {
     isLoading.value = true
     try {
-      const result = await api.get<{ csrf_token: string; user: UserOut }>('/auth/me')
+      const result = await api.get<MeResponse>('/auth/me')
       user.value = result.user
+      features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
     } catch (error) {
       user.value = null
+      features.value = { admissions: false }
       csrfToken.value = null
       setCsrfToken(null)
       if (!(error instanceof ApiError && error.status === 401)) throw error
@@ -86,8 +92,9 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function refreshSession(): Promise<boolean> {
     try {
-      const result = await api.get<{ csrf_token: string; user: UserOut }>('/auth/me')
+      const result = await api.get<MeResponse>('/auth/me')
       user.value = result.user
+      features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       return true
@@ -96,5 +103,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, csrfToken, isLoading, logoutPending, login, logout, restoreSession, refreshSession, clearSession }
+  return { user, features, csrfToken, isLoading, logoutPending, login, logout, restoreSession, refreshSession, clearSession }
 })

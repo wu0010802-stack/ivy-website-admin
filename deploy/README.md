@@ -13,6 +13,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 預約頁 UI／UX 優化：日期月曆、確認預約摘要、選校卡標參觀方式（main CI 部署）
+
+使用者要求把 PR #23（`feature/visit-ux-20261002`）併入 main 並部署。
+
+- **合併**：GitHub merge commit `c01fb24`。
+  - 內容：`a6753a2` 預約頁與管理頁改版；`0399fff` 同步 main（招生入學）；`ecd6080` 招生入學 stack 測試改用月曆；`8ab3a4b` README 驗證紀錄。
+  - 只動 `web/` 與 stack 測試，沒有 migration、沒有後端程式改動。
+- **CI**：run 37003438291 的 Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（10-02 19:52–20:45 台灣時間）。它排在前一次部署（37001162130）之後才開始。
+- **正式 `release.json`**：base commit `c01fb24e0ef9186629edf300efe6afaa9d132141`，snapshot `e8f415915165bec7ac584d0a066374ec594f2c4e76758bdc82fc5c7be2cf8dbb`，created 10-02 20:42 台灣時間。
+- **線上驗證**：Playwright Chromium，1440×900 與 390×844。非 GET 請求一律擋下（只擋到 `POST /api/telemetry`），沒有送出預約。
+
+  | 項目 | 結果 |
+  |---|---|
+  | `/visit` 選校卡 | 義華「可線上預約」，其他四校「來電洽詢」；眉標「預約校園參觀」 |
+  | `/visit` 第一屏 | 步驟列頂端 1440 寬 671px、390 寬 398px（部署前截圖量約 890px，正好在 1440×900 第一屏下緣） |
+  | `/visit/yihua` 日期 | 月曆 20 個開放日，沒有 `select#visit-date`；選第一天出現 2 個場次 |
+  | 送出列 | 「確認預約」，摘要「義華校 10 月 5 日（週一）・上午場 10:00–10:30」 |
+  | Email 說明 | 「園所會用這個 Email 聯絡你；修改連結會顯示在預約完成頁。」（正式站 `parent_email_enabled` 為 false） |
+  | `/visit/minghua` | 步驟第二格「參觀方式」 |
+  | 橫向溢出、pageerror | 兩種寬度都是 0 |
+
+- **未在線上驗證**：`/visit/manage` 改場次要真的預約連結，只在本機假 API 與 stack e2e 驗過。
+- **部署後待園方**：後台「預約文案」的同意文字仍寫「送出需求後，仍須由園方確認參觀時間」，和自選場次矛盾，要發布新版。
+
 ## 2026-10-02 手機版第三輪優化：分校線稿墨線版、首頁 CLS、關於頁卡紙（main CI 部署）
 
 使用者要求把 PR #20（`feature/mobile-ux-20261002`）併入 main 並部署。
@@ -39,9 +63,9 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **之後的部署**：部署完成前，另一個 session 已把招生入學併入 main（`71820a4`），並同步了本次修正（`2eafc1b`）。那次 CI（run 36999602663）會再部署一次，招生入學的說明見下節；本次改動的檔案在 `2eafc1b` 與 `f520031` 相同。
 - **未驗證**：iPhone Safari 實機的方塊底，本機只有 Chromium。
 
-## 招生入學（A／B／C 完成，仍未部署）
+## 招生入學（2026-10-02 已部署 `2eafc1b`，功能開關關閉）
 
-`feature/admissions-20261001`（疊在 `feature/parent-self-booking-20260930` 上）：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）都已完成。**尚未 push、尚未部署**；家長自選場次改版要先上線或一起上線，何時合併由使用者決定（push main＝正式部署）。規格 `docs/specs/2026-09-30-website-admissions-design.md`。程式帶開關上線，**預設關閉**。
+`feature/admissions-20261001`：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）。2026-10-02 使用者要求併入 main 並部署（合併提交 `71820a4`，同步 main 後 `2eafc1b`）；正式站**開關仍關閉**。規格 `docs/specs/2026-09-30-website-admissions-design.md`。
 
 - **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：`/api/website/v1/admin/admissions/*`（含 `stats`、`compare`、`no-deposit-records`）不掛路由、一律 404，後台「招生入學」頁顯示「招生入學尚未啟用」；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
 - **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天。同意文字建議跟家長自選場次改版的同意文字同一次改。
@@ -55,9 +79,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - `/api/website/v1/health` 200。
 - 開關關著時，`/admin/admissions/*` 一律 404、後台頁面顯示尚未啟用。
 - 開關開啟後，總管理者開 `/admin/admissions?tab=stats`，沒有資料時寫原因、不報錯。
-- `GET /api/website/v1/admin/admissions/compare?school_year=115&semester=1`（115 學年上學期上線時；其他學期換成當時的學年學期）回物件，`rows` 有五列。
+- `GET /api/website/v1/admin/admissions/compare?school_year=115`（換成當時的學年；不帶 `semester`＝件數算整學年、名額剩餘用上學期，回應 `seat_semester: 1`）回物件，`rows` 有五列。
 
-**本節尚未部署，部署後才補部署紀錄。**
+### 2026-10-02 部署紀錄（main `2eafc1b`）
+
+- **合併**：整合分支 `merge/admissions-20261002` 從 origin/main `6270d3c` 開出，`--no-ff` 併入招生分支（`71820a4`，衝突只在 README.md、deploy/README.md 兩份文件，兩邊段落都保留）；推送前 main 被推進到 `f520031`（手機版第三輪修正、五校線稿、預約測試星期），再同步一次（`2eafc1b`，衝突只在 README.md）。alembic 單一 head `4a7e2c9d1b63`。
+- **推送前本機驗證**（`2eafc1b`，Node 22）：`contract:check` 一致；web typecheck 0 錯 0 WARN、web vitest 720 passed；後端 `test_booking_consent_readiness.py`＋`test_admissions_stats.py` 46 passed（`71820a4` 時另跑招生全部測試檔＋預約 196 passed）；`e2e:build` 成功、stack e2e 整套 68 passed。admin 在合併中沒有變動，沿用招生分支 886 passed。
+- **CI**：run 36999602663 的 Backend／PostgreSQL／contracts、E2E／Playwright、Frontend web／admin、Deploy Railway production 全部 success（2026-10-02 19:11–19:47 台灣時間；Backend 19:18–19:42）。
+- **正式 `release.json`**：base commit `2eafc1b`，created `2026-10-02T11:43:34Z`。
+- **migration**：api 部署 log「Running upgrade c7d2e9f4a1b8 -> 4a7e2c9d1b63」、「Database schema ready: 4a7e2c9d1b63」。只新增表與欄位，照 `deploy/CICD.md` 不需事先備份。
+- **線上唯讀檢查**：`/api/website/v1/health` 200；`/api/website/v1/admin/admissions/options` 404（開關關閉、路由未掛）、`/api/website/v1/admin/visit-requests` 401（對照：路由有掛）；後台 bundle 有 `AdmissionsView` chunk。
+- **未做**：正式站沒有登入看畫面（開關關閉時頁面只會顯示尚未啟用）；Safari／iOS 實機。
+- **之後的修正**：`feature/admissions-followups-20261002`（頁首學年 +3…−2、統計子分頁 `sub` 進網址、390px 名額欄寬、開關關閉時側欄不顯示招生入學、五校比較件數跟頁首學期）隨下一次推送上線，紀錄見下一段。
 
 ## 2026-10-01 品質檢查後續：書籤對比、點擊範圍、後台確認率與流量說明（main CI 部署）
 

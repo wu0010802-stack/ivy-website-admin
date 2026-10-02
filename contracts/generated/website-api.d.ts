@@ -52,6 +52,7 @@ export interface paths {
         /**
          * Get Admissions Compare
          * @description 五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
+         *     semester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。
          */
         get: operations["get_admissions_compare_api_website_v1_admin_admissions_compare_get"];
         put?: never;
@@ -2441,8 +2442,10 @@ export interface components {
             rows: components["schemas"]["AdmissionsCompareRow"][];
             /** School Year */
             school_year: number;
+            /** Seat Semester */
+            seat_semester: number;
             /** Semester */
-            semester: number;
+            semester: number | null;
         };
         /**
          * AdmissionsCompareRow
@@ -3050,18 +3053,6 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
-        /** BookingConsentBriefOut */
-        BookingConsentBriefOut: {
-            /** Has Privacy Notice */
-            has_privacy_notice: boolean;
-            /**
-             * Revision Id
-             * Format: uuid
-             */
-            revision_id: string;
-            /** Version */
-            version: number;
-        };
         /**
          * BookingImpactOut
          * @description 切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
@@ -3092,7 +3083,7 @@ export interface components {
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
         /**
          * BookingReadinessOut
-         * @description 各預約方式要讀資料才知道的啟用條件（同意文字、場次或規則）與影響範圍。
+         * @description 各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。
          *     連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部
          *     條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。
          */
@@ -3103,7 +3094,6 @@ export interface components {
             };
             /** Campus Key */
             campus_key: string;
-            consent: components["schemas"]["BookingConsentBriefOut"] | null;
             current_mode: components["schemas"]["BookingMode"];
             impact: components["schemas"]["BookingImpactOut"];
         };
@@ -3339,6 +3329,14 @@ export interface components {
             /** Display Name */
             display_name: string | null;
         };
+        /**
+         * FeatureFlags
+         * @description 後台依部署開關決定要不要顯示的功能（目前只有招生入學）。
+         */
+        FeatureFlags: {
+            /** Admissions */
+            admissions: boolean;
+        };
         /** FunnelBoardOut */
         FunnelBoardOut: {
             /**
@@ -3569,12 +3567,14 @@ export interface components {
         LoginResponse: {
             /** Csrf Token */
             csrf_token: string;
+            features: components["schemas"]["FeatureFlags"];
             user: components["schemas"]["UserOut"];
         };
         /** MeResponse */
         MeResponse: {
             /** Csrf Token */
             csrf_token: string;
+            features: components["schemas"]["FeatureFlags"];
             user: components["schemas"]["UserOut"];
         };
         /** MediaAssetOut */
@@ -4230,10 +4230,6 @@ export interface components {
         PublicBookingConfigOut: {
             /** Campus Key */
             campus_key: string;
-            /** Consent Revision Id */
-            consent_revision_id?: string | null;
-            /** Consent Text */
-            consent_text?: string | null;
             /** External Url */
             external_url: string | null;
             /** Line Url */
@@ -5350,7 +5346,10 @@ export interface components {
             child_name?: string | null;
             /** Config Version */
             config_version: number;
-            /** Consent Given */
+            /**
+             * Consent Given
+             * @default false
+             */
             consent_given: boolean;
             /** Consent Revision Id */
             consent_revision_id?: string | null;
@@ -5940,7 +5939,7 @@ export interface operations {
         parameters: {
             query: {
                 school_year: number;
-                semester: number;
+                semester?: number | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

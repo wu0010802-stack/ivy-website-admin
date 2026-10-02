@@ -36,6 +36,63 @@
 
 **待裁定**：總覽固定為 0 的兩格、送單兩則通知、通知是否顯示家長姓名、整站還原要不要用危險色。另外，CSV 改成中文欄名之後，若有外部流程讀英文欄名要先確認。
 
+## 2026-10-02 官網預約拿掉同意勾選、手機場次卡一張一列（`feature/no-consent-20261002`）
+
+業主裁定：正式站同意文字「送出需求後，仍須由園方確認參觀時間」和自選場次矛盾，**整段拿掉、不用勾選**。規則見 DESIGN.md 同日段落。
+
+- **官網**：預約表單拿掉同意勾選框與同意版本邏輯（`utils/visit-consent.ts` 刪除）。有個資使用說明時仍保留「閱讀個資使用說明」。後台草稿預覽改成只預覽個資說明。手機場次卡一張一列。
+- **後端**：
+  - 公開送單不再要求勾選、不比對版本。
+  - readiness、公開設定、總覽都不再因「沒發布同意文字」擋表單或列待辦。
+  - 個資說明改成直接讀已發布預約文案，不綁同意文字；`consent_text` 改選填、不擋發布。
+  - 補登仍要人員勾選。
+- **後台**：拿掉「同意條款文字」欄位與總覽待辦；官網新案的同意紀錄寫「官網預約不需勾選同意」。
+- **契約**：重新產生 `contracts/openapi.json`、`website-api.d.ts`。公開設定少了 `consent_revision_id`／`consent_text`，readiness 少了 `consent`，公開送單的 `consent_given` 預設 false。
+- **stack 測試**：送單 helper 不帶同意欄位。原本「電話填錯直接點同意框」的位移回歸，改點同樣在電話下方的「親友介紹」勾選框。
+
+**驗證**（Node 22）：
+- backend pytest 全套（獨立測試庫 `ivy_website_test_noconsent`）1262 passed。
+- `npm run contract:check` 一致。
+- admin typecheck、vitest 69 檔 896 項；web typecheck、vitest 74 檔 730 項。
+- stack e2e 整套 68 項全過；送出區分隔線修正後重 build，預約相關 5 支 spec 48 項全過。
+- dev server＋假 API 390 寬：表單沒有同意勾選，不勾也能送出、結果頁「預約成功」；送單 body 不含 `consent_given`／`consent_revision_id`。場次卡一欄。
+- 未驗證：iPhone Safari 實機。
+
+## 2026-10-02 關於常春藤頁精修＋「家長怎麼說」（`feature/about-refine-20261002`）
+
+使用者要「優化 /about 的 UI/UX、做精緻一點，先給 mock-up」，看過 `design/about-refine-mockup-20261002/` 後要「多加內容」，選了「家長怎麼說」，再說「先這樣實作」。J 立體書與 A2 六圈不換，規則與理由見 DESIGN.md 同日段落。
+
+**改了什麼**（只動 `web/`：`AboutContent.vue`、`AboutWholePerson.vue`、`about.css`、`utils/about-popup.ts`、`tests/about.spec.ts`）：
+- 首屏一屏放得下整本書、拿掉頁首下的米白縫；右頁兩張卡紙前後站；左頁下半放目次。
+- 章名改中文（第一章～第四章）；右頁背面是章節封面，翻頁有背光與左頁影子；書脊改窄折痕；頁緣厚度跟著讀到哪裡變。
+- 卡紙平躺時只看得到色紙；紙條改成有年份與校名的紙槽，左頁沿革跟著上色；鍵盤連按不再少走一站。
+- 全人教育：領域圓點與六圈同色，滑過時那一圈亮。
+- 我們的期許：引言側條改括號；紙房子加瓦片、煙囪、門把與沿牆長出來的常春藤。
+- **新增第四章「家長怎麼說」**：讀各校後台的家長分享影片（目前義華 4 支），換人時卡紙倒下再站起來，按播放才載入 YouTube。
+- 結尾五校書籤改成書底垂下的緞帶（含行政區），國際校的薄荷色看得見、手機一排五條。
+- 首屏照片 alt 改「孩子們笑著圍在創辦人身邊」（使用者確認照片裡是創辦人）。
+
+**驗證**（Node 22，dev server＋fixture）：
+- `npm --prefix web run typecheck` 通過；`npm run test:website` 74 檔 743 項通過（`about.spec.ts` 新增 11 項）。
+- Playwright 1440×900、390×844（DPR 2）與減少動態：四章翻開、卡紙站好、紙槽到第 5 站且左頁同步、常春藤長好、目次與頁碼 1–10 正確；第四章點第二位後清單與大卡紙、後排小卡正確，手機自動捲到影片，按播放插入 `youtube-nocookie.com/embed/U5kRPt7By90`；紙條 Home → →→ 停在 2005 崇德校；沒有 console error／page error、沒有水平溢出。
+- 320／390／600／768／844×390／1280×720／1440×900 量卡紙都在舞台內；1440×900 首屏跨頁底 863px。
+- axe（WCAG 2.1 AA，`#main`）1440、390 都沒有違規。
+- 未驗證：iPhone Safari／Android 實機的 3D 翻頁與 `backface-visibility`；production build 的 LCP（首屏多一張 lazy 小圖）。
+## 2026-10-02 招生入學後續修正（`feature/admissions-followups-20261002`）
+
+招生入學併入 main 後使用者選定的五項後續修正，在同一分支完成（尚未部署）：
+
+- **頁首學年選項放寬、統計子分頁寫進網址（X2a，e572fb3）**：頁首學年選項改為 [3,2,1,0,-1,-2]；統計分頁的子分頁用網址參數 `sub`（只在 `tab=stats` 且非總覽時寫入），重新整理或分享連結會停在同一個子分頁；網址帶 `sub=compare` 但只看得到一校時退回總覽。
+- **名額規劃「計畫名額」欄加寬（X2a，7053d5f）**：欄寬 `min-width` 改 152，390px 輸入框不再被截成「..」。
+- **功能開關關閉時側欄不顯示招生入學（X2b，b246839）**：`/auth/me` 與登入回應新增 `features.admissions`（取 `WEBSITE_ADMISSIONS_ENABLED`）；後台 auth store 存下（讀不到當關閉），側欄與側欄搜尋用 `canListNavItem` 過濾 `feature: 'admissions'` 的項目。路由守衛不擋，直接輸入網址仍看到「招生入學尚未啟用」。
+- **五校比較件數跟頁首學期（X2b，978004f）**：`GET /admin/admissions/compare` 的 `semester` 改選填，沒帶＝件數算整學年（和總覽對得起來），名額剩餘用名額規劃的上學期；回應新增 `seat_semester`，表格上方依回應組說明句（例如「件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。」）。
+
+驗證（實際跑過）：
+
+- 後端單檔 `pytest -q tests/test_auth_scope.py`（14 通過）、`tests/test_admissions_stats.py`（22 通過）。
+- `npm run contract:check` 一致；`npm --prefix admin run typecheck` 無錯誤；`npm --prefix admin run test:unit -- --maxWorkers=2` 69 檔／897 測試全過。
+- X2a 的 e2e:build＋admissions-flow 4 項通過、390／1440 截圖已檢視（見 X2a 報告）。
+
 ## 2026-10-02 預約頁 UI／UX 優化（`feature/visit-ux-20261002`）
 
 使用者要「優化預約分頁（/visit）的 UI/UX」。先在正式站截 1440×900、390×844 兩種尺寸的選校、表單、聯絡方式三種畫面（沒有送出），再在本機用假 API 改版。規則與理由見 DESIGN.md 同日段落。
@@ -65,7 +122,7 @@
   - 選校卡標示讀進來前後 CLS 相同（0.0173，來自 dev 模式頁首）。
 - 未驗證：iPhone Safari／Android 實機。
 
-## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 併入 main，功能開關預設關閉）
+## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 已部署 `2eafc1b`，功能開關關閉）
 
 比照園務系統「招生入學」，在官網後台加參觀後的招生追蹤：已訪視 → 已預繳 → 已註冊 ｜ 退預繳／退註冊、名額規劃、統計分析與五校比較。三張表沿用園務名稱（`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`），併入園務時可整批轉移。規格 `docs/specs/2026-09-30-website-admissions-design.md`（第 17 節是計畫回寫對照），計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`，規則見 DESIGN.md「招生入學（2026-10-01）」。分支疊在家長自選場次改版（`feature/parent-self-booking-20260930`）上。功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關。
 

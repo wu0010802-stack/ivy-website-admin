@@ -26,6 +26,7 @@ from app.auth.reauth import login_rate_limited
 from app.auth.schemas import (
     AuthProviders,
     DisplayNameUpdateRequest,
+    FeatureFlags,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -118,6 +119,10 @@ def _set_session_cookie(response: Response, settings: Settings, raw_token: str) 
     )
 
 
+def _features(settings: Settings) -> FeatureFlags:
+    return FeatureFlags(admissions=settings.admissions_enabled)
+
+
 @router.get("/auth/providers", response_model=AuthProviders)
 async def providers(request: Request, response: Response) -> AuthProviders:
     private(response)
@@ -161,7 +166,7 @@ async def login(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user.id)
     )
     user = result.scalar_one()
-    return LoginResponse(csrf_token=csrf_token, user=_user_out(user))
+    return LoginResponse(csrf_token=csrf_token, user=_user_out(user), features=_features(settings))
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -193,12 +198,16 @@ async def logout(
 
 @router.get("/auth/me", response_model=MeResponse)
 async def me(
+    request: Request,
     current_user: User = Depends(get_current_user),
     session: AuthSession = Depends(get_current_session),
 ) -> MeResponse:
     # 回傳目前 session 的 csrf_token，讓前端重新整理頁面後也能恢復
     # mutating 請求所需的 CSRF header，不用強迫使用者重新登入。
-    return MeResponse(csrf_token=session.csrf_token, user=_user_out(current_user))
+    settings: Settings = request.app.state.settings
+    return MeResponse(
+        csrf_token=session.csrf_token, user=_user_out(current_user), features=_features(settings)
+    )
 
 
 async def _set_display_name(db: AsyncSession, actor: User, user: User, display_name: str | None) -> None:

@@ -135,6 +135,6 @@ export function getNoDepositRecords(params: {
 }
 
 /** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年學期必填（名額剩餘要對到單一學期）。 */
-export function getCompare(schoolYear: number, semester: number): Promise<AdmissionsCompare> {
+export function getCompare(schoolYear: number, semester?: number | null): Promise<AdmissionsCompare> {
   return api.get<AdmissionsCompare>(`/admin/admissions/compare?${toQuery({ school_year: schoolYear, semester })}`)
 }

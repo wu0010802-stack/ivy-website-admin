@@ -7,7 +7,7 @@ import {
   Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, TrendCharts, User,
 } from '@element-plus/icons-vue'
-import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
+import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
@@ -59,7 +59,7 @@ const groups = computed(() => {
   const q = normalizedQuery.value
   // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
   const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
-    const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
+    const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
     // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項。
     // 看 nav.ts 原本的項目數，不看過濾後的：角色剛好只剩一項的分組仍保留標題；搜尋時也照常顯示分組名。
     const flat = !q && group.items.length === 1 && !group.section

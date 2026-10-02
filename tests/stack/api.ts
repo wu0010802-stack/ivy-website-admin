@@ -91,8 +91,6 @@ export async function submitPublicRequest(campus: string, parentName: string, ph
       child_name: '測試寶貝',
       child_birthdate: '2022-05-01',
       party_size: 2,
-      consent_given: true,
-      consent_revision_id: config.consent_revision_id,
       config_version: config.version,
       slot_id: slotId,
       email: `e2e-${campus}-${phone}@example.com`,

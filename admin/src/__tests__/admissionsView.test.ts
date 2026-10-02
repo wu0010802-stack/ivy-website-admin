@@ -171,7 +171,7 @@ describe('統計分析與頁面的接縫（C3）', () => {
     mockGet(noArrivals)
     const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=renwu&sy=114&sem=2&tab=stats' })
     expect(wrapper.findComponent(StatsTab).props()).toEqual({
-      campusKey: 'renwu', schoolYear: 114, semester: 2, campusKeys: ['yihua', 'minghua', 'chongde', 'international', 'renwu'],
+      campusKey: 'renwu', schoolYear: 114, semester: 2, sub: 'overview', campusKeys: ['yihua', 'minghua', 'chongde', 'international', 'renwu'],
     })
   })
 
@@ -182,5 +182,75 @@ describe('統計分析與頁面的接縫（C3）', () => {
     wrapper.findComponent(StatsTab).vm.$emit('open-records', { month: '115.09' })
     await flushPromises()
     expect(push).toHaveBeenCalledWith({ query: { campus: 'yihua', tab: 'records', month: '115.09' } })
+  })
+})
+
+describe('頁首學年選項與網址（X2a 1A）', () => {
+  const yearLabels = (wrapper: VueWrapper) => {
+    const select = wrapper.findAllComponents({ name: 'ElSelect' })[1]!
+    return select.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))
+  }
+
+  it('選項和新增／編輯表單一致：目前學年 +3 到 −2；網址帶 sy=+3 能還原', async () => {
+    freezeToday()
+    mockGet(noArrivals)
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?sy=118' })
+    expect(yearLabels(wrapper)).toEqual([118, 117, 116, 115, 114, 113])
+    const select = wrapper.findAllComponents({ name: 'ElSelect' })[1]!
+    expect(select.props('modelValue')).toBe(118)
+  })
+})
+
+describe('統計子分頁寫進網址（X2a 3A）', () => {
+  it('(a) 網址 tab=stats&sub=nodeposit 掛載：子分頁是未預繳原因', async () => {
+    mockGet(noArrivals)
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=nodeposit' })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('nodeposit')
+  })
+
+  it('(b) 切子分頁用 replace 寫 sub；切回總覽不帶 sub；離開統計分頁也拿掉', async () => {
+    mockGet(noArrivals)
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats' })
+    const push = vi.spyOn(router, 'push')
+    const replace = vi.spyOn(router, 'replace')
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'yihua', tab: 'stats', sub: 'source' } })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('source')
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'yihua', tab: 'stats' } })
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'staff')
+    await flushPromises()
+    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'records')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records' })
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('(c) 名單「查看」push 前的網址帶 sub=nodeposit，上一頁回到未預繳原因', async () => {
+    mockGet({ ...noArrivals, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=nodeposit' })
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { month: '115.09' })
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBe('records')
+    expect(wrapper.findComponent(StatsTab).exists()).toBe(false)
+    router.back()
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats', sub: 'nodeposit' })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('nodeposit')
+  })
+
+  it('(d) 不合法的 sub 與沒有權限看的 sub=compare 退回總覽', async () => {
+    mockGet(noArrivals)
+    const bad = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=hack' })
+    expect(bad.wrapper.findComponent(StatsTab).props('sub')).toBe('overview')
+    expect(bad.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats' })
+    cleanup()
+    mockGet(noArrivals)
+    const single = testUser('campus_admin', { campus_keys: ['renwu'] })
+    const compare = await mountWith(AdmissionsView, { path: '/admissions?campus=renwu&tab=stats&sub=compare', user: single })
+    expect(compare.wrapper.findComponent(StatsTab).props('sub')).toBe('overview')
+    expect(compare.router.currentRoute.value.query).toEqual({ campus: 'renwu', tab: 'stats' })
   })
 })

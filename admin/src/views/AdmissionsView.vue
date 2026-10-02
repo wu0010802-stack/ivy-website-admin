@@ -18,7 +18,7 @@ import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissi
 
 // 招生入學（規格第 10 節）：頁首放校區與入學學年學期，五個分頁順序比照園務。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
-const { campus, schoolYear, semester, tab, visitRequestId, month, visibleCampusKeys, defaultYear, clearTerm } = useAdmissionsFilters()
+const { campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm } = useAdmissionsFilters()
 const { can } = usePermissions()
 const route = useRoute()
 const router = useRouter()
@@ -31,8 +31,8 @@ function openRecords(filter: { month: string }) {
 // 官網預約分頁讀 /admin/admissions/arrivals，需要 booking.read。
 const canSeeArrivals = computed(() => can('booking.read'))
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
-// 園務看板的學年選項：明年、今年、前一年、前兩年。
-const yearOptions = computed(() => schoolYearOptions(defaultYear, [1, 0, -1, -2]))
+// 學年選項取新增／編輯表單（+3…−1）與原本頁首（+1…−2）的聯集：入學學年填到後年、大後年的訪視也選得到。
+const yearOptions = computed(() => schoolYearOptions(defaultYear, [3, 2, 1, 0, -1, -2]))
 
 // 招生開關（WEBSITE_ADMISSIONS_ENABLED）：關閉時後端整組 /admin/admissions/* 回 404。
 // 選定校區後先讀 options 判定：404 顯示「尚未啟用」空狀態，其他錯誤照常掛分頁
@@ -156,6 +156,7 @@ function onArrivalsCount(count: number) {
         <ArrivalsTab v-if="tab === 'arrivals' && canSeeArrivals" :campus-key="campus" @count="onArrivalsCount" />
         <StatsTab
           v-if="tab === 'stats'"
+          v-model:sub="sub"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"

@@ -9,7 +9,7 @@ import { formatRate, type StatsColumn } from '../../admissions/statsFormat'
 // 五校比較（官網延伸，規格 9.3）。數字是「招生案件數」：同一個孩子在兩校各參觀一次算兩筆，
 // 不是跨校去重後的孩子數。比率同時寫分子分母；名額只加總有設定計畫名額的年級，一個都沒有寫
 // 「未設定」（不是 0，Review Focus 5）；剩餘是負的代表超額。
-const props = defineProps<{ rows: readonly AdmissionsCompareRow[]; schoolYear: number; semester: number }>()
+const props = defineProps<{ rows: readonly AdmissionsCompareRow[]; schoolYear: number; semester: number | null }>()
 
 const COLUMNS: StatsColumn[] = [
   { key: 'campus', label: '校區', sticky: true },

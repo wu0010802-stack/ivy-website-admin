@@ -755,9 +755,6 @@ async def test_sweep_scrubs_rows_anonymized_before_the_fix(admin_client, public_
 async def test_public_submit_rejects_control_characters_with_422(admin_client, public_client, field, value):
     version, slot_id = await _open(admin_client)
     body = {**_payload(version, slot_id), field: value}
-    if field == "campus_key":
-        # 測試用家長 client 會拿 campus_key 組網址去讀同意版本；自己帶，免得 httpx 先擋掉網址。
-        body["consent_revision_id"] = None
     response = await public_client.post(SUBMIT, json=body, headers={"Idempotency-Key": f"ctrl-{field}"})
     assert response.status_code == 422, response.text
 

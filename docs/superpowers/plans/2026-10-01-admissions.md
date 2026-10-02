@@ -319,7 +319,7 @@ def write_jsonl(result, out_dir) -> None   # 匯出程式用 default_transaction
 ```python
 async def query_stats(db, campus_key: str, *, school_year: int | None, semester: int | None,
                       reference_month: str | None, now: datetime | None = None) -> dict
-async def compare(db, campus_keys: list[str], *, school_year: int, semester: int, now: datetime | None = None) -> dict
+async def compare(db, campus_keys: list[str], *, school_year: int, semester: int | None, now: datetime | None = None) -> dict  # semester 為 None＝件數整學年；名額剩餘用 semester or 1
     # {"as_of", "school_year", "semester", "rows": [五校各一列…]}（回物件，不是裸 list）
 async def no_deposit_records(db, campus_key: str, *, school_year: int | None, semester: int | None, reason: str | None,
                              grade: str | None, priority: str | None, overdue_days: int | None, cold_only: bool | None,
@@ -345,7 +345,7 @@ async def no_deposit_records(db, campus_key: str, *, school_year: int | None, se
 | GET `/admin/admissions/arrivals` | booking.read | `campus_key` | `ArrivalsOut` | A6 |
 | POST `/admin/admissions/from-visit-request/{visit_request_id}` | admissions.write＋booking.read | — | `RecruitmentVisitOut`；非 `completed` 409 `VISIT_REQUEST_NOT_COMPLETED`、已匿名化 409 `VISIT_REQUEST_ANONYMIZED` | A6 |
 | GET `/admin/admissions/stats` | admissions.read | `campus_key`、`school_year`、`semester`、`reference_month` | `AdmissionsStatsOut` | C1 |
-| GET `/admin/admissions/compare` | admissions.read | `school_year`、`semester`（兩者必填） | `AdmissionsCompareOut`（`{as_of, school_year, semester, rows: list[AdmissionsCompareRow]}`） | C2 |
+| GET `/admin/admissions/compare` | admissions.read | `school_year`（必填）、`semester`（選填；沒帶＝件數整學年、名額剩餘用上學期） | `AdmissionsCompareOut`（`{as_of, school_year, semester: int \| null, seat_semester, rows: list[AdmissionsCompareRow]}`） | C2 |
 | GET `/admin/admissions/no-deposit-records` | admissions.read | `campus_key`、`school_year`、`semester`、`reason`、`grade`、`priority`、`overdue_days`、`cold_only`、`page`、`page_size` | `NoDepositRecordsOut`（含 `total`、`summary`、`records`，records 有孩子姓名） | C2b |
 
 Schema 名稱（`app/admissions/schemas.py`）：
@@ -418,8 +418,8 @@ defineEmits<{ 'open-records': [filter: { month: string }] }>()
 ```
 
 - 警示與行動入口的 `target_tab`：`records`（切到訪視明細並帶 `month`）、`nodeposit`、`source`（切統計子分頁）；園務的 `AREA_OPPORTUNITY` 改成 `REVIEW_SOURCE`（C 計畫調整第 4 條）。
-- 五校比較的學期照名額規劃（`IntakePlanTab`）：沒選學期用上學期（1），沒選學年用目前學年（`currentTerm().schoolYear`，台北日期）；頁首有任一沒選，表格上方寫明用哪個學期。同一組頁首篩選下，名額規劃與五校比較的名額剩餘必須是同一學期（C 計畫調整第 8 條，C 階段裁定改成這個做法）。
-- `GET /compare` 回物件 `AdmissionsCompareOut = { as_of, school_year, semester, rows }`（規格 13「聚合回應帶 `as_of` 與實際套用的篩選」），型別別名 `AdmissionsCompare`；`/no-deposit-records` 是分頁名單（同 `/records`），不帶 `as_of`。
+- 五校比較：學年跟頁首（沒選用 `currentTerm().schoolYear`，台北日期）；件數跟頁首學期，沒選學期就不帶 `semester`、算整學年；名額剩餘沒帶學期時用名額規劃的上學期，後端回 `seat_semester`，表格上方用回應的 `school_year`／`semester`／`seat_semester` 組說明句（2026-10-02 X2b，取代 C 計畫調整第 8 條「兩者都用上學期」）。
+- `GET /compare` 回物件 `AdmissionsCompareOut = { as_of, school_year, semester（可為 null）, seat_semester, rows }`（規格 13「聚合回應帶 `as_of` 與實際套用的篩選」），型別別名 `AdmissionsCompare`；`/no-deposit-records` 是分頁名單（同 `/records`），不帶 `as_of`。
 - 未預繳明細：「未預繳原因」子分頁 `lazy`，有未預繳才掛 `NoDepositList`；指向 `nodeposit` 的警示與行動入口把 `target_filter` 當 `preset` 傳下去；名單「查看」發 `open-records`，由 StatsTab 轉給頁面（C 計畫調整第 17–19 條）。
 
 ## Review Focus

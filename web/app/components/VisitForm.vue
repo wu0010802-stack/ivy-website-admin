@@ -7,7 +7,6 @@ import { apiFieldErrors, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitC
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
-import { consentOutdated, consentSeenNow, consentView, displayedConsentText, submittedConsentRevision, type ConsentSeen } from '~/utils/visit-consent'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
@@ -27,8 +26,7 @@ const form = reactive({
   // 參觀人數：下拉選單預設不選（空字串），送出前必填 1–10。
   partySize: '',
   referralSources: [] as string[],
-  questions: '',
-  consent: false
+  questions: ''
 })
 
 const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
@@ -52,9 +50,7 @@ const runtimeConfig = useRuntimeConfig()
 function trackContactAction(event: MouseEvent) {
   reportBookingActionClick(action.value.kind, form.campus || null, event.currentTarget as Element | null, runtimeConfig.public.telemetryEnabled)
 }
-// 規格 L196：勾選框顯示的是公開預約設定回傳的那一版同意文字；讀不到（舊版
-// API）才退回站台內容的文字。
-const consentText = computed(() => displayedConsentText(bookingConfig.value, props.booking.consentText))
+// 2026-10-02 業主裁定官網預約不用勾選同意；預約文案發布了個資使用說明時，表單仍給閱讀入口。
 const privacyNotice = computed(() => bookingConfig.value?.privacy_notice ?? null)
 
 // 機器人驗證（Cloudflare Turnstile，使用者 2026-09-29 裁定）：部署設定了
@@ -351,20 +347,6 @@ async function focusError() {
   errorRef.value?.focus()
 }
 
-// 規格 L130：送單綁定家長勾選當下看到的同意說明版本。勾選時記下版本與內容；
-// 之後任何一條重新載入設定的路徑（預約設定剛更新、重試讀取）拿到內容不同的
-// 同意說明，就取消勾選，請家長重新閱讀。
-const consentSeen = ref<ConsentSeen | null>(null)
-const currentConsentView = computed(() => consentView(bookingConfig.value, props.booking.consentText))
-watch(() => form.consent, (checked) => {
-  consentSeen.value = checked ? consentSeenNow(bookingConfig.value, props.booking.consentText) : null
-})
-watch(currentConsentView, (view) => {
-  if (!form.consent || !consentOutdated(consentSeen.value, view)) return
-  form.consent = false
-  fieldErrors.value.consent = '同意說明剛剛更新了，請閱讀新的說明後重新勾選。'
-})
-
 watch(() => form.campus, () => {
   submitError.value = null
   selectedSlotId.value = ''
@@ -411,8 +393,6 @@ async function onSubmit() {
         party_size: Number(form.partySize),
         referral_sources: form.referralSources,
         questions: form.questions || null,
-        consent_given: form.consent,
-        consent_revision_id: submittedConsentRevision(consentSeen.value, bookingConfig.value),
         slot_id: selectedSlotId.value,
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
@@ -435,12 +415,7 @@ async function onSubmit() {
   } catch (err: any) {
     const detail = err?.data?.detail
     const code = typeof detail === 'object' ? detail.code : null
-    if (code === 'CONSENT_VERSION_CHANGED') {
-      // 園方剛改了同意說明：換上新的文字，請家長重新閱讀、勾選，其他欄位都保留。
-      form.consent = false
-      await refreshBookingConfig()
-      submitError.value = '同意說明剛剛更新了，請閱讀下方新的說明並重新勾選同意後再送出。'
-    } else if (code === 'BOOKING_CONFIG_CHANGED') {
+    if (code === 'BOOKING_CONFIG_CHANGED') {
       submitError.value = '這個校區的預約設定剛剛更新了，請確認以下資訊後再送出一次。'
       await refreshBookingConfig()
       await loadSlots()
@@ -627,9 +602,7 @@ async function onSubmit() {
                       <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
                     </div>
                   </details>
-                  <label class="visit-consent"><input v-model="form.consent" name="consent" type="checkbox" required :aria-invalid="Boolean(fieldErrors.consent)" aria-describedby="visit-consent-error" @change="checkField('consent')"><span>{{ consentText }}</span></label>
                   <PrivacyNoticeDialog v-if="privacyNotice" :notice="privacyNotice" label="閱讀個資使用說明" trigger-class="visit-privacy-link" />
-                  <p id="visit-consent-error" class="visit-field-error">{{ fieldErrors.consent }}</p>
                 </fieldset>
                 <p v-if="Object.keys(fieldErrors).length" class="sr-only" role="alert">請確認標示的欄位：{{ Object.values(fieldErrors).join(' ') }}</p>
                 <div v-if="turnstileSiteKey" class="visit-turnstile">
