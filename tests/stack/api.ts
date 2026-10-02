@@ -90,7 +90,6 @@ export async function submitPublicRequest(campus: string, parentName: string, ph
       phone,
       child_name: '測試寶貝',
       child_birthdate: '2022-05-01',
-      party_size: 2,
       config_version: config.version,
       slot_id: slotId,
       email: `e2e-${campus}-${phone}@example.com`,

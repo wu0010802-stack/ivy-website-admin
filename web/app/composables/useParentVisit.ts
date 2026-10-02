@@ -4,7 +4,7 @@ import { apiFieldErrors, taipeiDate, type VisitErrors } from '../utils/visit-for
 import { slotWhen } from '../utils/visit-session'
 
 export type ParentVisit = components['schemas']['ParentVisitRequestOut']
-export type ParentDetailChanges = Partial<Pick<ParentVisit, 'parent_name' | 'phone' | 'email' | 'child_name' | 'child_birthdate' | 'party_size' | 'questions'>>
+export type ParentDetailChanges = Partial<Pick<ParentVisit, 'parent_name' | 'phone' | 'email' | 'child_name' | 'child_birthdate'>>
 export interface ParentVisitSlot { id: string; slot_date: string; start_time: string; end_time: string; remaining: number }
 const base = '/api/website/v1/public/visit-manage'
 const requestOptions = { credentials: 'same-origin', cache: 'no-store', retry: 0, timeout: 15000 } as const

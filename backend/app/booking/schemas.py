@@ -26,8 +26,12 @@ from app.booking.parent_policy import (
 )
 from app.common.timezones import today_local
 
-ReferralSource = Literal["facebook", "google_reviews", "parent_community", "friends_family", "other"]
-_REFERRAL_SOURCE_ORDER = ("facebook", "google_reviews", "parent_community", "friends_family", "other")
+# 2026-10-03 起官網只問追蹤看不到的管道：friends_family、nearby、online、other。
+# facebook／google_reviews／parent_community 是舊選項，照收（更新前快取的舊頁面）也照樣顯示舊案件。
+ReferralSource = Literal["friends_family", "nearby", "online", "other", "facebook", "google_reviews", "parent_community"]
+_REFERRAL_SOURCE_ORDER = (
+    "friends_family", "nearby", "online", "other", "facebook", "google_reviews", "parent_community"
+)
 
 _PHONE_PATTERN = re.compile(r"09[0-9]{8}")
 # 規格 190：「先移除空格與連字號」。含全形空白與各種破折號變體，家長從
@@ -235,13 +239,13 @@ class _VisitRequestFields(BaseModel):
     child_name: str | None = Field(default=None, min_length=1, max_length=64)
     child_birthdate: date | None = None
     email: EmailStr | None = Field(default=None, max_length=254)
-    referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=5)
+    referral_sources: list[ReferralSource] = Field(default_factory=list, max_length=len(_REFERRAL_SOURCE_ORDER))
     age: AgeCode | None = None
     preferred_time: ContactTimeCode | None = None
     # 規格 L192：問題最多 500 字（官網表單與補登都是）。DB 欄位仍是 1000，
     # 以前收過的長問題照常讀得出來。
     questions: str | None = Field(default=None, max_length=500)
-    # 規格 L194：參觀人數 1–10。補登沒問到可以不填；官網新送的需求必填（見 VisitRequestCreate）。
+    # 規格 L194：參觀人數 1–10，選填。2026-10-03 起官網表單不問，只剩後台補登與舊案件會有。
     party_size: int | None = Field(default=None, ge=1, le=10)
     # 2026-10-02 業主裁定官網預約與後台補登都不用勾選同意：不送就是 False。
     # 更新前快取的舊頁面、舊版後台仍會送 True，照實記下勾選時間。
@@ -299,9 +303,8 @@ class VisitRequestCreate(_VisitRequestFields):
     email: EmailStr = Field(max_length=254)
     slot_id: uuid.UUID
     config_version: int
-    # party_size（繼承）：官網新送的需求一定要選人數，由 service 在確認不是
-    # 重送之後檢查（缺了回 422）。schema 維持選填，是為了更新前送出的同一筆
-    # 需求重試時（當時表單沒有人數）仍能回到原案件。
+    # party_size（繼承）：2026-10-03 起官網表單不再問參觀人數，維持選填只為了
+    # 更新前快取的舊頁面仍會帶這個欄位；有帶照樣驗 1–10 並存起來。
     # 更新前快取的舊頁面仍會送 consent_revision_id：照收但不比對版本（2026-10-02 起
     # 不用勾選同意；revision 不算進 idempotency 的 payload hash，見 service._canonical_payload）。
     consent_revision_id: uuid.UUID | None = None

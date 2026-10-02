@@ -42,7 +42,7 @@ describe('visit contact input', () => {
   })
 
   it('uses stable values for the requested referral channels', () => {
-    expect(REFERRAL_OPTIONS.map(source => source.value)).toEqual(['facebook', 'google_reviews', 'parent_community', 'friends_family', 'other'])
+    expect(REFERRAL_OPTIONS.map(source => source.value)).toEqual(['friends_family', 'nearby', 'online', 'other'])
   })
 })
 
@@ -71,7 +71,7 @@ describe('slot unavailable messages', () => {
 })
 
 describe('Email 必填與 422 欄位對應', () => {
-  const base = { parentName: '王媽媽', phone: '0912345678', childName: '小安', childBirthdate: '2022-05-01', partySize: '2' }
+  const base = { parentName: '王媽媽', phone: '0912345678', childName: '小安', childBirthdate: '2022-05-01' }
 
   it('表單有 Email 欄位時必填', () => {
     expect(validateVisitContact({ ...base, email: '' }, '2026-09-30')).toHaveProperty('email')

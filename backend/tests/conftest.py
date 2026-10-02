@@ -200,15 +200,14 @@ TEST_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排�
 
 
 class ParentClient(httpx.AsyncClient):
-    """官網家長端。官網送參觀需求一定會帶參觀人數與 Email；測試沒寫的就比照官網
-    補上，要驗這兩個欄位的測試自己帶值（包括明確帶 None）。2026-10-02 起官網不再
-    帶同意說明版本。"""
+    """官網家長端。官網送參觀需求一定會帶 Email；測試沒寫的就比照官網補上，要驗
+    缺 Email 的測試自己帶 None。2026-10-02 起官網不再帶同意說明版本，2026-10-03
+    起不再帶參觀人數。"""
 
     async def post(self, url, *args, **kwargs):  # type: ignore[override]
         body = kwargs.get("json")
         if str(url).endswith(VISIT_SUBMIT_PATH) and isinstance(body, dict):
             body = dict(body)
-            body.setdefault("party_size", 2)
             # 2026-09-30 起官網送單 Email 必填；要驗缺 Email 的測試自己帶 None。
             body.setdefault("email", "parent@example.com")
             kwargs["json"] = body

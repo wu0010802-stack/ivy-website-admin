@@ -1417,7 +1417,8 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
   return auditMetadataDetails(metadata, action).lines.join('，')
 }
 
-export const REFERRAL_SOURCE_LABELS: Record<string, string> = { facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團', friends_family: '親友介紹', other: '其他' }
+// 2026-10-03 起官網只問前四個；後三個是舊選項，舊案件仍會有。
+export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: '親友介紹', nearby: '住附近／路過看到', online: '網路上看到', other: '其他', facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團' }
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {
   return sources?.length ? sources.map(source => REFERRAL_SOURCE_LABELS[source] || source).join('、') : '未填寫'

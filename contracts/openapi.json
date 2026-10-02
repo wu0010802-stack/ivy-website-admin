@@ -8943,15 +8943,17 @@
           "referral_sources": {
             "items": {
               "enum": [
+                "friends_family",
+                "nearby",
+                "online",
+                "other",
                 "facebook",
                 "google_reviews",
-                "parent_community",
-                "friends_family",
-                "other"
+                "parent_community"
               ],
               "type": "string"
             },
-            "maxItems": 5,
+            "maxItems": 7,
             "title": "Referral Sources",
             "type": "array"
           },
@@ -9207,11 +9209,13 @@
           "referral_sources": {
             "items": {
               "enum": [
+                "friends_family",
+                "nearby",
+                "online",
+                "other",
                 "facebook",
                 "google_reviews",
-                "parent_community",
-                "friends_family",
-                "other"
+                "parent_community"
               ],
               "type": "string"
             },
@@ -9560,11 +9564,13 @@
           "referral_sources": {
             "items": {
               "enum": [
+                "friends_family",
+                "nearby",
+                "online",
+                "other",
                 "facebook",
                 "google_reviews",
-                "parent_community",
-                "friends_family",
-                "other"
+                "parent_community"
               ],
               "type": "string"
             },
@@ -9787,15 +9793,17 @@
           "referral_sources": {
             "items": {
               "enum": [
+                "friends_family",
+                "nearby",
+                "online",
+                "other",
                 "facebook",
                 "google_reviews",
-                "parent_community",
-                "friends_family",
-                "other"
+                "parent_community"
               ],
               "type": "string"
             },
-            "maxItems": 5,
+            "maxItems": 7,
             "title": "Referral Sources",
             "type": "array"
           },

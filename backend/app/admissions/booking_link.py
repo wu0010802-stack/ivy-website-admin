@@ -26,11 +26,14 @@ from app.common.timezones import OPERATING_TZ, today_local
 # 「從哪裡知道我們」的後台顯示文案（與 admin labels.ts 的 REFERRAL_SOURCE_LABELS
 # 同一組字，tests/test_admissions_booking_link.py 比對）。
 REFERRAL_SOURCE_TEXT: dict[str, str] = {
+    "friends_family": "親友介紹",
+    "nearby": "住附近／路過看到",
+    "online": "網路上看到",
+    "other": "其他",
+    # 2026-10-03 以前的選項，舊案件仍會有。
     "facebook": "Facebook",
     "google_reviews": "Google 評論",
     "parent_community": "媽媽社團",
-    "friends_family": "親友介紹",
-    "other": "其他",
 }
 NOTES_PREFIX = "家長想了解："
 # 「官網預約」分頁兩份清單各最多回幾筆（另回截斷前的總數）。

@@ -140,7 +140,7 @@
 .visit-form-section .visit-field-grid,.visit-schedule-fields {margin-top:18px}
 .visit-slots-empty {padding-top:16px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted)}
 .visit-slots-empty .visit-contact-actions {margin-top:10px}
-.visit-referrals {border:0;padding:0;margin:26px 0 0;min-width:0}
+.visit-referrals {border:0;padding:0;margin:26px 0 32px;min-width:0}
 .visit-referrals legend,.visit-slot-list legend {font-size:var(--fs-md);font-weight:600;line-height:1.8;padding:0;margin-bottom:10px}
 .visit-referrals legend small,.visit-slot-list legend small {display:inline-block;font-size:var(--fs-xs);font-weight:400;color:var(--visit-muted);margin-left:9px}
 .visit-referrals>div {display:flex;flex-wrap:wrap;gap:10px}
@@ -156,7 +156,6 @@
   .visit-schedule-fields .visit-slot-list {margin-top:0}
   .visit-schedule-fields .visit-slot-options {grid-template-columns:1fr}
 }
-.visit-party-field {max-width:calc(50% - 10px);margin-top:24px}
 .visit-slot-options {display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .visit-slot-options label {display:flex;gap:12px;align-items:center;min-height:64px;padding:11px 12px;border:1px solid var(--visit-line);border-radius:14px;background:var(--visit-surface);font-size:var(--fs-md);line-height:1.7;cursor:pointer}
 .visit-slot-options input {accent-color:var(--green);width:18px;height:18px;flex-shrink:0;margin:0}
@@ -178,14 +177,7 @@
 .visit-field-error {color:var(--error);font-size:var(--fs-sm);line-height:1.75;margin:7px 0 0}
 .visit-field-error:empty {display:none}
 .visit-submit-error {padding:14px 16px;border:1px solid var(--error);border-radius:12px;font-size:var(--fs-sm);line-height:1.8;color:var(--error);margin-bottom:24px}
-.visit-optional {border-block:1px solid var(--visit-line);margin:24px 0 22px}
-.visit-optional summary {list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;font-size:var(--fs-md);color:var(--visit-ink)}
-.visit-optional summary::-webkit-details-marker {display:none}
-.visit-optional summary>span {display:flex;align-items:center;gap:17px;font-size:var(--fs-xs);color:var(--visit-muted)}
 /* 用 em：100% 時同為 20×24；文字放大 200% 時框跟著變大，「＋」不會凸出右緣撐出橫向捲動。 */
-.visit-expand-mark {display:block;width:1em;height:1.2em;background:transparent;font-size:var(--fs-xl);line-height:1.2;font-weight:400;color:var(--visit-ink)}
-.visit-optional[open] .visit-expand-mark {transform:rotate(45deg)}
-.visit-optional .visit-field-grid {margin-top:8px;padding-bottom:24px}
 /* 2026-10-02 拿掉同意勾選：「閱讀個資使用說明」接在選填區下方。 */
 .visit-contact-form :deep(.visit-privacy-link) {font-size:var(--fs-sm);color:var(--visit-ink)}
 .visit-form-fields:disabled {opacity:.7}
@@ -300,10 +292,8 @@
   .visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}
   .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:72%;padding:0 18px;background:linear-gradient(to right,rgb(var(--ink) / .8),rgb(var(--ink) / 0))}
   .visit-campus-check {top:50%;translate:0 -50%}
-  .visit-optional {margin-block:22px}
   .visit-submit-row {flex-direction:column;align-items:stretch;gap:13px;margin-top:4px}
   .visit-submit-row>p {font-size:var(--fs-xs);text-align:center}
-  .visit-party-field {max-width:none}
   .visit-submit-row>.visit-submit-retry {flex:none;font-size:var(--fs-sm);text-align:center}
   .visit-contact-actions {align-items:stretch;flex-direction:column;gap:12px}
   .visit-contact-actions .button {width:100%;min-height:52px}

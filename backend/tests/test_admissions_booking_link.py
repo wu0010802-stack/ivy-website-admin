@@ -94,7 +94,7 @@ def test_fields_from_visit_request_truncates_and_defaults():
         today=date(2026, 9, 8),
     )
     assert (len(long["child_name"]), len(long["contact_name"])) == (constants.LEN_CHILD_NAME, constants.LEN_CONTACT)
-    assert long["source"] == "Facebook、Google 評論、媽媽社團、親友介紹、其他"
+    assert long["source"] == "親友介紹、住附近／路過看到、網路上看到、其他、Facebook、Google 評論、媽媽社團"
     assert len(long["source"]) <= constants.LEN_SOURCE
     assert long["notes"] == booking_link.NOTES_PREFIX + "問" * 1000
     assert long["visit_date"] == date(2026, 9, 8)  # 沒有場次：確認當天
@@ -221,7 +221,7 @@ async def test_completion_never_fails_on_long_or_missing_fields(admin_client, pu
         assert response.json()["status"] == "completed"
     [long_visit] = await _visits_for(db_session, full["id"])
     assert (long_visit.child_name, long_visit.contact_name) == ("王" * 50, "陳" * 50)
-    assert long_visit.source == "Facebook、Google 評論、媽媽社團、親友介紹、其他"
+    assert long_visit.source == "親友介紹、住附近／路過看到、網路上看到、其他、Facebook、Google 評論、媽媽社團"
     assert long_visit.notes == "家長想了解：" + "問" * 500
     [bare_visit] = await _visits_for(db_session, bare["id"])
     assert (bare_visit.child_name, bare_visit.birthday, bare_visit.grade, bare_visit.source, bare_visit.notes) == (
@@ -316,7 +316,7 @@ async def test_arrivals_lists_started_confirmed_and_completed_without_visit(admi
     assert [str(row["visit_request_id"]) for row in result["missing"]] == [legacy_done]
     assert result["missing"][0]["parent_name"] == "上線前到場的家長"
     row = next(row for row in result["awaiting"] if str(row["visit_request_id"]) == yesterday["id"])
-    assert (row["child_name"], row["parent_name"], row["party_size"], row["status"]) == ("昨天", "陳媽媽", 2, "confirmed")
+    assert (row["child_name"], row["parent_name"], row["party_size"], row["status"]) == ("昨天", "陳媽媽", None, "confirmed")
     assert row["slot_date"] == today_local() - timedelta(days=1)
 
     # API 用現在時間：上面確定已開始的幾筆一定在。

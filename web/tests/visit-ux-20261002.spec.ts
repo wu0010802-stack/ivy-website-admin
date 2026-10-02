@@ -32,16 +32,10 @@ describe('預約日期改用月曆', () => {
     // 管理頁不在 .visit-page 裡，月曆要的 --visit-* 色票在這裡補。
     expect(manage).toMatch(/\.parent-visit-reschedule \{ --visit-ink: var\(--green\);/)
   })
-
-  it('參觀人數屬於這次參觀的安排，排在場次後、孩子資料前', () => {
-    const party = form.indexOf('id="party-size"')
-    expect(party).toBeGreaterThan(form.indexOf('class="visit-slot-list"'))
-    expect(party).toBeLessThan(form.indexOf('id="visit-child-title"'))
-  })
 })
 
 describe('送出前確認', () => {
-  it('送出鈕寫「確認預約」，旁邊寫出所選日期、場次與人數', () => {
+  it('送出鈕寫「確認預約」，旁邊寫出所選日期與場次', () => {
     expect(form).not.toContain('送出參觀需求')
     expect(form).toContain("{{ submitting ? '正在預約…' : '確認預約' }}")
     expect(form).toContain('<p class="visit-summary-what"><strong>{{ selectedCampus.name }}</strong>')
