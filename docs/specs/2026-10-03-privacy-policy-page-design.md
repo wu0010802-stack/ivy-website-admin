@@ -88,7 +88,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 - **編輯畫面** `admin/src/views/PrivacyPolicyView.vue`：
   - 以 `useContentItem('privacy_policy', …)` 與 `ContentEditor.vue` 組成（範本 `SiteFooterView.vue`）。
   - 段落的新增、刪除、上下移動照 `BookingContentView.vue:36-51` 的做法。
-  - 每欄用 `LengthHint` 顯示字數。
+  - 輸入欄用 `maxlength` 與字數計數（內文 2000 字、小標 60 字、標題 40 字），不另做 `LengthHint` 規則。
   - 最後更新日期用日期選擇器，預設空白。
   - 內文欄位下方說明三種寫法（空行分段、「- 」條列、`https://` 連結）。
 - **初稿**：`admin/src/composables/privacyPolicyDraft.ts` 匯出附錄 A 的全文。
