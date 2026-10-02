@@ -5550,8 +5550,8 @@ export interface components {
          * VisitRequestManualCreate
          * @description 後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部
          *     預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上
-         *     收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向
-         *     家長說明並取得同意留存資料」，同樣必須為 true。
+         *     收件時仍要能記下打電話來的家長。2026-10-02 起不用再勾「已向家長說明並取得
+         *     同意」（舊版後台送的 consent_given=True 照實記下）。
          */
         VisitRequestManualCreate: {
             /** Age */
@@ -5562,7 +5562,10 @@ export interface components {
             child_birthdate?: string | null;
             /** Child Name */
             child_name?: string | null;
-            /** Consent Given */
+            /**
+             * Consent Given
+             * @default false
+             */
             consent_given: boolean;
             /** Email */
             email?: string | null;

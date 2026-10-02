@@ -9652,7 +9652,7 @@
         "type": "object"
       },
       "VisitRequestManualCreate": {
-        "description": "後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部\n預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上\n收件時仍要能記下打電話來的家長。consent_given 在這裡代表「人員已向\n家長說明並取得同意留存資料」，同樣必須為 true。",
+        "description": "後台人工補登（規格 6.2）：家長打電話、傳 LINE、直接到園或從外部\n預約網站來的需求，由園方人員登錄。不受官網預約模式限制——暫停線上\n收件時仍要能記下打電話來的家長。2026-10-02 起不用再勾「已向家長說明並取得\n同意」（舊版後台送的 consent_given=True 照實記下）。",
         "properties": {
           "age": {
             "anyOf": [
@@ -9703,6 +9703,7 @@
             "title": "Child Name"
           },
           "consent_given": {
+            "default": false,
             "title": "Consent Given",
             "type": "boolean"
           },
@@ -9830,7 +9831,6 @@
           "campus_key",
           "parent_name",
           "phone",
-          "consent_given",
           "source",
           "slot_id"
         ],

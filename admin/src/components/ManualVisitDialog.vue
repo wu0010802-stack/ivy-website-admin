@@ -35,7 +35,6 @@ function blank() {
     questions: '',
     note: '',
     slot_id: '',
-    consent_given: false,
   }
 }
 
@@ -134,10 +133,10 @@ const openSlots = computed(() => slots.value.filter((s) => !s.closed && s.booked
 const phoneDigits = computed(() => form.phone.replace(/[\s\-－]/g, ''))
 const phoneValid = computed(() => /^09\d{8}$/.test(phoneDigits.value))
 const canSubmit = computed(
-  () => Boolean(form.campus_key && form.parent_name.trim() && phoneValid.value && form.slot_id && form.consent_given),
+  () => Boolean(form.campus_key && form.parent_name.trim() && phoneValid.value && form.slot_id),
 )
 
-// 送出鈕停用時說清楚還差什麼；最常漏的是最下面的同意勾選。
+// 送出鈕停用時說清楚還差什麼。2026-10-02 起補登不用勾選「已向家長說明並取得同意」。
 const missing = computed(() => {
   const empty = [
     form.campus_key ? '' : '校區',
@@ -148,7 +147,6 @@ const missing = computed(() => {
   return [
     empty.length ? `還沒填${empty.join('、')}` : '',
     phoneDigits.value && !phoneValid.value ? '手機號碼格式不對' : '',
-    form.consent_given ? '' : '還沒勾選同意',
   ].filter(Boolean).join('；')
 })
 
@@ -221,7 +219,8 @@ async function submit() {
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
     slot_id: form.slot_id,
-    consent_given: form.consent_given,
+    // 2026-10-02 起補登不用勾選同意，明確送 false（案件明細寫「補登不需勾選同意」）。
+    consent_given: false,
     related_request_id: props.relatedFrom?.id ?? null,
   }
   try {
@@ -241,7 +240,7 @@ async function submit() {
 </script>
 
 <template>
-  <!-- 內容區自己捲動、底部（同意勾選與送出）固定在對話框下緣，欄位再多也不用捲到最底才找得到。 -->
+  <!-- 內容區自己捲動、底部（送出列）固定在對話框下緣，欄位再多也不用捲到最底才找得到。 -->
   <el-dialog
     v-model="open"
     class="manual-dialog"
@@ -324,9 +323,6 @@ async function submit() {
 
     <template #footer>
       <div class="manual__footer">
-        <el-checkbox v-model="form.consent_given" :disabled="submitting" class="manual__consent">
-          已向家長說明，並取得同意留存聯絡資料
-        </el-checkbox>
         <div class="manual__submit">
           <p class="manual__missing" aria-live="polite">{{ missing ? `還不能送出：${missing}` : '' }}</p>
           <div class="manual__buttons">
@@ -347,7 +343,6 @@ async function submit() {
 .manual__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
 .manual__last { margin-bottom: 0; }
 .manual__footer { display: grid; gap: 10px; width: 100%; text-align: left; }
-.manual__consent { white-space: normal; height: auto; align-items: flex-start; }
 .manual__submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
 .manual__missing { flex: 1 1 200px; margin: 0; color: var(--ink-3); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
 /* 沒有要說的時候不占寬度，但仍留在頁面上：報讀區被 display: none 拿掉後再出現，報讀軟體常常不念。 */

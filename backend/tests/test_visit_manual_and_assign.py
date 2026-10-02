@@ -158,12 +158,15 @@ async def test_manual_intake_validates_input(admin_client):
         f"{BASE}/visit-requests", json=_manual(phone="12345", slot_id=slot["id"]), headers={"Idempotency-Key": "a"}
     )
     assert bad_phone.status_code == 422
+    # 2026-10-02 起補登不用勾選同意。
     no_consent = await admin_client.post(
         f"{BASE}/visit-requests",
         json=_manual(consent_given=False, slot_id=slot["id"]),
         headers={"Idempotency-Key": "b"},
     )
-    assert no_consent.status_code == 422
+    assert no_consent.status_code == 201, no_consent.text
+    assert no_consent.json()["consent_given"] is False
+    assert no_consent.json()["consent_accepted_at"] is None
     web_source = await admin_client.post(
         f"{BASE}/visit-requests", json=_manual(source="web", slot_id=slot["id"]), headers={"Idempotency-Key": "c"}
     )

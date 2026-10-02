@@ -138,7 +138,7 @@ describe('補登案件對話框', () => {
     input.dispatchEvent(new Event('input'))
   }
 
-  it('沒勾同意前不能送出；送出時帶 Idempotency-Key 並正規化手機', async () => {
+  it('必填填完就能送出（2026-10-02 起不用勾同意）；送出時帶 Idempotency-Key 並正規化手機', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'new-case', status: 'confirmed', slot: { slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' } } as never)
     const wrapper = await mountDialog()
     fill('例如：王媽媽', '王媽媽')
@@ -147,18 +147,15 @@ describe('補登案件對話框', () => {
     expect(buttonByText('補登案件').disabled).toBe(true)
     wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('placeholder') === '選擇場次')!.vm.$emit('update:modelValue', 'slot-f')
     await nextTick()
-    expect(buttonByText('補登案件').disabled).toBe(true) // 還沒勾同意
-
-    const consent = document.body.querySelector<HTMLInputElement>('.manual__consent input')!
-    consent.click()
-    await nextTick()
+    expect(buttonByText('補登案件').disabled).toBe(false)
+    expect(document.body.querySelector('.manual__consent')).toBeNull()
     buttonByText('補登案件').click()
     await flushPromises()
 
     expect(post).toHaveBeenCalledOnce()
     const [path, body, options] = post.mock.calls[0]!
     expect(path).toBe('/admin/visit-requests')
-    expect(body).toMatchObject({ campus_key: 'yihua', source: 'phone', parent_name: '王媽媽', phone: '0912345678', consent_given: true, slot_id: 'slot-f' })
+    expect(body).toMatchObject({ campus_key: 'yihua', source: 'phone', parent_name: '王媽媽', phone: '0912345678', slot_id: 'slot-f', consent_given: false })
     expect(options?.headers?.['Idempotency-Key']).toBeTruthy()
     expect(wrapper.emitted('created')?.[0]?.[0]).toMatchObject({ id: 'new-case' })
   })
