@@ -13,15 +13,25 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
-## 招生入學（未部署）
+## 招生入學（A／B／C 完成，仍未部署）
 
-`feature/admissions-20261001` 階段 A（後端與轉移契約）已完成，後台畫面（B）與統計（C）還沒做。程式帶開關上線，**預設關閉**。
+`feature/admissions-20261001`（疊在 `feature/parent-self-booking-20260930` 上）：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）都已完成。**尚未 push、尚未部署**；家長自選場次改版要先上線或一起上線，何時合併由使用者決定（push main＝正式部署）。規格 `docs/specs/2026-09-30-website-admissions-design.md`。程式帶開關上線，**預設關閉**。
 
-- **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：`/api/website/v1/admin/admissions/*` 不掛路由、一律 404；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
-- **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天（`docs/specs/2026-09-30-website-admissions-design.md`）。
-- **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數，再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。開啟後，關閉期間已到場的預約會列在後台「官網預約」分頁的「已到場但沒有招生訪視」，可以逐筆補建。
-- **Migration `4a7e2c9d1b63`**（`backend/migrations/versions/4a7e2c9d1b63_admissions.py`）：新建 `recruitment_visits`、`recruitment_event_log`、`grade_intake_targets` 三張表，`retention_policies` 加可為 NULL 的 `admissions_days` 與 CHECK；不改寫既有資料，可以安全隨程式上線（API 啟動時自動 upgrade），開關關著時三張表維持空的。
+- **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：`/api/website/v1/admin/admissions/*`（含 `stats`、`compare`、`no-deposit-records`）不掛路由、一律 404，後台「招生入學」頁顯示「招生入學尚未啟用」；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
+- **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天。同意文字建議跟家長自選場次改版的同意文字同一次改。
+- **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數（預設空白＝不自動清理，業主裁定天數後由總管理者設定），再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。
+- **舊的已到場預約不會自動補建**：開啟後，關閉期間（或本功能上線前）已到場的預約會列在後台「招生入學 → 官網預約」下方「已到場但沒有招生訪視」，逐筆按「建立招生訪視」。
+- **權限不用改帳號**：新增 `admissions.read／write／convert`，預設總管理者、分校管理者全有，接待人員有 read／write（規格 Q2 未回覆照預設）；內容編輯、唯讀沒有。
+- **Migration `4a7e2c9d1b63`**（`backend/migrations/versions/4a7e2c9d1b63_admissions.py`，接在 `c7d2e9f4a1b8`〔家長自選場次〕之後）：新建 `recruitment_visits`、`recruitment_event_log`、`grade_intake_targets` 三張表，`retention_policies` 加可為 NULL 的 `admissions_days` 與 CHECK；不改寫既有資料，可以安全隨程式上線（API 啟動時自動 upgrade），開關關著時三張表維持空的。和家長自選場次一起上線時，那一支改寫資料的 migration 仍要先備份。合併前 rebase 到 main、重跑 `npm run contract:generate`，並用 `alembic heads` 確認只有一個 head。
 - 端到端測試（`tests/stack/start-api.sh`）設 `WEBSITE_ADMISSIONS_ENABLED=true`；pytest 的測試設定（`backend/tests/conftest.py`）也預設開啟。
+
+上線後唯讀檢查：
+- `/api/website/v1/health` 200。
+- 開關關著時，`/admin/admissions/*` 一律 404、後台頁面顯示尚未啟用。
+- 開關開啟後，總管理者開 `/admin/admissions?tab=stats`，沒有資料時寫原因、不報錯。
+- `GET /api/website/v1/admin/admissions/compare?school_year=115&semester=1`（115 學年上學期上線時；其他學期換成當時的學年學期）回物件，`rows` 有五列。
+
+**本節尚未部署，部署後才補部署紀錄。**
 
 ## 2026-10-01 全人教育 A2 六圈、移除操作鈕（web-only，已部署）
 
@@ -967,4 +977,4 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 
 待業主決定：每筆官網預約同時通知園方「新的參觀需求」與「參觀預約已確認」兩則（LINE 群組一筆兩則推播），要不要合併成一則。
 
-合併前：origin/main 已前進（審查時為 392a41c，動到 `contracts/openapi.json` 與 `operations/routes.py`），先 rebase 並重跑 `npm run contract:generate` 與後端全套。**本節只是草稿，部署後才補「已部署」紀錄。**
+合併前：origin/main 已前進（審查時為 392a41c，動到 `contracts/openapi.json` 與 `operations/routes.py`），先 rebase 並重跑 `npm run contract:generate` 與後端全套。**本節只是草稿，部署後才補部署紀錄。**
