@@ -13,6 +13,27 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-02 關於常春藤頁立體書精修＋第四章「家長怎麼說」（main CI 部署）
+
+使用者要求「直接併入 main」。分支 `feature/about-refine-20261002` 從 origin/main `c01fb24` 開出，提交 `c893b4c` rebase 到 `ac79a03`（衝突只在 README.md，兩邊段落都保留）後推上 main。只動 `web/`（`AboutContent.vue`、`AboutWholePerson.vue`、`about.css`、`utils/about-popup.ts`、`tests/about.spec.ts`），沒有 migration、API 或 schema 變更，部署前不需要備份正式庫。
+
+- **推送前本機驗證**（rebase 後，Node 22）：web typecheck 0 錯 0 WARN；`npm run test:website` 74 檔 743 項通過。rebase 前另在 dev server＋fixture 用 Playwright 驗 1440×900、390×844、減少動態，量 320／390／600／768／844×390／1280×720／1440×900 卡紙都在舞台內，axe（WCAG 2.1 AA）無違規。
+- **CI**：`c893b4c` 的 run 37011280568 前端、E2E 都 success，Backend 跑到第 30 分鐘時被 PR #25（預約拿掉同意勾選）推上 main 觸發的新 run 取消（concurrency）。新 run 37015343286（`a2ed829`，已含 `c893b4c`，/about 相關檔案與 `c893b4c` 相同）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（22:12–22:17 台灣時間部署）。
+- **正式 `release.json`**：base commit `a2ed829`，created `2026-10-02T14:12:45Z`。
+- **線上驗證**（Playwright，只放行 GET，統計回報 POST 一律擋下；唯一失敗的請求是被擋的 `POST /api/telemetry`）：
+
+  | 項目 | 1440×900 | 390×844 |
+  |---|---|---|
+  | 四章翻開、卡紙站好、常春藤長好 | 通過 | 通過 |
+  | 目次「一路走來 3／全人教育 5／我們的期許 7／家長怎麼說 9／五所校園 書籤」、頁碼 1–10 | 通過 | 通過 |
+  | 紙槽示範拉到第 5 站、左頁沿革同步；鍵盤 Home → →→ 停在 2005 崇德校 | 通過 | 通過 |
+  | 第四章點第二位：清單與大卡紙換成榕榕媽咪、後排小卡換成其他三位、影片在畫面內；按播放插入 `youtube-nocookie.com/embed/U5kRPt7By90` | 通過 | 通過 |
+  | 水平溢出、console／page error | 無 | 無 |
+  | axe（WCAG 2.1 AA，`#main`） | 無違規 | 無違規 |
+
+- **注意**：axe 那兩次載入沒有擋統計回報，正式庫的瀏覽次數多記了 2 筆 /about（2026-10-02 約 22:30 台灣時間）。
+- **未做**：iPhone Safari／Android 實機的 3D 翻頁；1280×720 首屏跨頁下緣約 68px 在視窗外（已記在 DESIGN.md）。
+
 ## 2026-10-02 官網預約拿掉同意勾選、手機場次卡一張一列（main CI 部署）
 
 業主裁定拿掉同意勾選，使用者要求併入 main 並部署（PR #25，`feature/no-consent-20261002`）。
