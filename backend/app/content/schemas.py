@@ -401,6 +401,50 @@ class BookingContentPayload(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+# 隱私權政策（privacy_policy）：不分校的共用內容。內文是純文字；官網依約定寫法解析
+# （空行分段、「- 」條列、https:// 連結），後端不轉換。後台初稿裡需要園方補的地方標
+# 「【待確認：…】」，含標記的版本不能發布（registry 的 publish_blocker）。
+PRIVACY_POLICY_PENDING_MARKER = "【待確認"
+PRIVACY_POLICY_SECTIONS_MAX = 20
+
+
+class PrivacyPolicySectionPayload(_ContentPayload):
+    heading: str = Field(min_length=1, max_length=60)
+    body: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("heading", "body")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("heading", "body")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("不能空白")
+        return value
+
+
+class PrivacyPolicyPayload(_ContentPayload):
+    title: str = Field(default="隱私權政策", min_length=1, max_length=40)
+    # 存草稿可以留空；發布時必填（registry 的 publish_blocker）。
+    # 存字串（YYYY-MM-DD）：存檔路徑用 python 模式 model_dump 寫進 JSON 欄位，date 物件寫不進去。
+    updated_on: str | None = None
+    sections: list[PrivacyPolicySectionPayload] = Field(min_length=1, max_length=PRIVACY_POLICY_SECTIONS_MAX)
+
+    @field_validator("updated_on")
+    @classmethod
+    def _updated_on_iso(cls, value: str | None) -> str | None:
+        return _require_optional_iso_date(value)
+
+    @field_validator("title")
+    @classmethod
+    def _title_safe(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("標題不能空白")
+        return _reject_unsafe_scheme(value)
+
+
 # 拍立得相紙的色調：只能選官網既有的色票（規格 L91：不能輸入 CSS）。
 DAY_MOMENT_TINTS = ("yellow", "mint", "peach", "cream")
 

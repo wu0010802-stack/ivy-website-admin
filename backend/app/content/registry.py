@@ -19,7 +19,9 @@ from app.content.schemas import (
     HomeCampusBoardPayload,
     HomeHeroPayload,
     HomeNewsPayload,
+    PRIVACY_POLICY_PENDING_MARKER,
     PRIVACY_SAMPLE_MARKER,
+    PrivacyPolicyPayload,
     SiteFooterPayload,
     SharedFaqPayload,
     SiteMetaPayload,
@@ -197,6 +199,19 @@ def _booking_publish_blocker(payload: dict) -> str | None:
     return None
 
 
+def _privacy_policy_publish_blocker(payload: dict) -> str | None:
+    """政策還留著「【待確認」或沒填最後更新日期時不能發布（正式內容由園方補完）。"""
+    texts = [payload.get("title", "")]
+    for section in payload.get("sections", []):
+        texts += [section.get("heading", ""), section.get("body", "")]
+    pending = sum((text or "").count(PRIVACY_POLICY_PENDING_MARKER) for text in texts)
+    if pending:
+        return f"還有 {pending} 處「【待確認】」要補完才能發布"
+    if not payload.get("updated_on"):
+        return "請填最後更新日期再發布"
+    return None
+
+
 _SCHEDULE_KEYS = ("show_from", "show_until")
 
 
@@ -325,6 +340,9 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
     "booking_content": ContentKindConfig(
         BookingContentPayload, shared_only=True, publish_blocker=_booking_publish_blocker
+    ),
+    "privacy_policy": ContentKindConfig(
+        PrivacyPolicyPayload, shared_only=True, publish_blocker=_privacy_policy_publish_blocker
     ),
     "day_experience": ContentKindConfig(
         DayExperiencePayload, shared_only=True, extract_media_refs=_extract_day_media_refs
