@@ -27,7 +27,7 @@ async function setup(data: Record<string, unknown> = details(), user: UserOut = 
 describe('參觀資料與已選場次', () => {
   it('明細可閱讀孩子、生日、Email、得知管道與待確認狀態', async () => {
     const wrapper = await setup()
-    for (const text of ['測試孩子', '2022-06-18', 'parent@example.org', 'Facebook、親友介紹', '待園方確認', '10:00–10:30']) expect(wrapper.text()).toContain(text)
+    for (const text of ['測試孩子', '2022-06-18', 'parent@example.org', 'Facebook、親友介紹', '待確認', '10:00–10:30']) expect(wrapper.text()).toContain(text)
     expect(wrapper.find('a[href="mailto:parent@example.org"]').exists()).toBe(true)
   })
   it('人工確認使用家長已選的場次，不需再次選擇或新增預約', async () => {
@@ -93,8 +93,8 @@ describe('案件流程補完', () => {
     wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('id') === 'visit-assignee')!.vm.$emit('change', 'staff-b')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/visit-requests/local-case/assignee', { assigned_staff_id: 'staff-b', expected_version: 2 })
-    expect(warning).toHaveBeenCalledWith('這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
-    expect(String(warning.mock.calls[0]![0])).not.toContain('請重新載入')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作' }))
+    expect(String((warning.mock.calls[0]![0] as { message: string }).message)).not.toContain('請重新載入')
     expect(detailCalls()).toBe(before + 1)
   })
 })

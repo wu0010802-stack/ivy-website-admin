@@ -20,6 +20,7 @@ from app.booking import (
     access_service,
     attention,
     consent,
+    export_labels,
     presenters,
     readiness,
     service,
@@ -31,7 +32,7 @@ from app.booking import (
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
 from app.common import ratelimit
-from app.common.timezones import local_day_bounds_utc, today_local
+from app.common.timezones import OPERATING_TZ, local_day_bounds_utc, today_local
 from app.operations import audit_service, retention_service
 from app.booking.models import (
     BookingConfig,
@@ -1026,15 +1027,6 @@ async def visit_request_group_counts(
     return VisitGroupCountsOut(**counts)
 
 
-# 匯出欄位。每個欄位只出現一次：同名欄位在試算表樞紐分析或匯入其他系統時會
-# 混淆或直接報錯（原本 source 重複兩次）。
-EXPORT_COLUMNS = (
-    "campus_key", "status", "source", "parent_name", "phone", "created_at",
-    "child_name", "child_birthdate", "email", "referral_sources", "party_size",
-    "slot_date", "start_time", "end_time",
-)
-
-
 _SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
 
 
@@ -1065,28 +1057,31 @@ async def export_visit_requests(
             return "'" + text
         return text
 
+    # 給園方用 Excel 直接開：中文欄名與代碼對照、台北時間；開頭加 BOM，
+    # Excel 才認得是 UTF-8，不然中文整份亂碼。每個欄位只出現一次（同名欄位
+    # 在樞紐分析或匯入其他系統時會混淆）。
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(EXPORT_COLUMNS)
+    writer.writerow(export_labels.EXPORT_HEADERS)
     exported = 0
     for r in result.scalars():
         writer.writerow(
             [
-                _safe_cell(r.campus_key),
-                _safe_cell(r.status),
-                _safe_cell(r.source),
+                _safe_cell(export_labels.campus_label(r.campus_key)),
+                _safe_cell(export_labels.status_label(r.status)),
+                _safe_cell(export_labels.source_label(r.source)),
                 _safe_cell(r.parent_name),
-                _safe_cell(r.phone),
-                r.created_at.isoformat(),
+                _safe_cell(export_labels.format_phone(r.phone)),
+                r.created_at.astimezone(OPERATING_TZ).strftime("%Y/%m/%d %H:%M"),
                 _safe_cell(r.child_name),
-                r.child_birthdate.isoformat() if r.child_birthdate else "",
+                r.child_birthdate.strftime("%Y/%m/%d") if r.child_birthdate else "",
                 _safe_cell(r.email),
-                _safe_cell(";".join(r.referral_sources)),
+                _safe_cell(export_labels.referral_label(r.referral_sources)),
                 # 舊案件沒有人數，留空。
                 str(r.party_size) if r.party_size is not None else "",
-                r.slot.slot_date.isoformat() if r.slot else "",
-                r.slot.start_time.isoformat() if r.slot else "",
-                r.slot.end_time.isoformat() if r.slot else "",
+                r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
+                r.slot.start_time.strftime("%H:%M") if r.slot else "",
+                r.slot.end_time.strftime("%H:%M") if r.slot else "",
             ]
         )
         exported += 1
@@ -1108,8 +1103,8 @@ async def export_visit_requests(
     campus_part = filters.campus_key if filters.campus_key and _SAFE_FILENAME_PART.fullmatch(filters.campus_key) else "all"
     filename = f"visit-requests-{campus_part}-{today_local():%Y%m%d}.csv"
     return Response(
-        content=buffer.getvalue(),
-        media_type="text/csv",
+        content="\ufeff" + buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "private, no-store",

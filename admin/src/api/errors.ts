@@ -1,4 +1,5 @@
 import { ApiError } from './client'
+import { contentPathLabel } from './contentFieldLabels'
 
 // API 錯誤的共用解析。後端錯誤本文是 {detail: {code, message, request_id}}
 // （字串 detail 與 422 陣列另外在最外層帶 request_id），訊息本身已是中文；
@@ -7,10 +8,10 @@ import { ApiError } from './client'
 
 // 後端錯誤碼 → 中文（只在 detail 沒有 message 時使用）。
 export const ERROR_CODE_MESSAGES: Record<string, string> = {
-  SLOT_FULL: '這個時段名額已滿',
-  SLOT_CLOSED: '這個時段已關閉',
-  SLOT_NOT_FOUND: '找不到這個時段',
-  SLOT_NOT_BOOKABLE: '這個時段目前無法預約',
+  SLOT_FULL: '這個場次名額已滿',
+  SLOT_CLOSED: '這個場次已關閉',
+  SLOT_NOT_FOUND: '找不到這個場次',
+  SLOT_NOT_BOOKABLE: '這個場次目前無法預約',
   MEDIA_NOT_READY: '引用的素材還沒處理完成或已被刪除',
   CAMPUS_INACTIVE: '分校已停用，內容不會發布',
   CONTENT_NOT_READY: '內容還不能發布',
@@ -18,7 +19,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   CONTENT_VERSION_CONFLICT: '內容已被其他人更新，請重新載入後再試',
   SCHEDULE_REVISION_NOT_NEWER: '官網已經是這一版或更新的版本，排程到時候不會發布',
   BOOKING_CONFIG_VERSION_CONFLICT: '設定已被其他人更新，請重新載入',
-  SLOT_VERSION_CONFLICT: '這個時段剛被其他人修改，請重新載入後再調整',
+  SLOT_VERSION_CONFLICT: '這個場次剛被其他人修改，請重新載入後再調整',
   VISIT_REQUEST_VERSION_CONFLICT: '這筆案件剛被其他人修改，請重新載入後再操作',
   VISIT_SCHEDULE_VERSION_CONFLICT: '開放規則剛被其他人修改，請重新載入後再編輯',
   MEDIA_VERSION_CONFLICT: '這個素材的說明剛被其他人修改，請重新載入後再編輯',
@@ -101,4 +102,77 @@ export function apiFieldError(err: unknown, field: string): string {
     })
     .map((e) => String(e.msg).replace(/^Value error,\s*/, ''))
     .join('；')
+}
+
+/** 內容存檔被擋下（422）的一筆：錯在哪裡（loc）、中文位置、中文原因 */
+export interface ContentFieldError {
+  path: (string | number)[]
+  label: string
+  message: string
+}
+
+const CJK = /[\u3400-\u9fff]/
+
+// pydantic 的英文訊息翻成中文；後端自己寫的（value_error）已經是中文，只拿掉前綴。
+function validationMessage(type: string, msg: string): string {
+  const n = /(\d+(?:\.\d+)?)/.exec(msg)?.[1]
+  switch (type) {
+    case 'string_too_short':
+      return !n || n === '1' ? '不能空白' : `至少要 ${n} 個字`
+    case 'string_too_long':
+      return n ? `不能超過 ${n} 字` : '字數太多'
+    case 'too_short':
+      return n ? `至少要 ${n} 項` : '項目太少'
+    case 'too_long':
+      return n ? `最多 ${n} 項` : '項目太多'
+    case 'missing':
+      return '必填'
+    case 'greater_than_equal':
+    case 'greater_than':
+      return n ? `不能小於 ${n}` : '數字太小'
+    case 'less_than_equal':
+    case 'less_than':
+      return n ? `不能大於 ${n}` : '數字太大'
+    case 'int_parsing':
+    case 'int_type':
+    case 'float_parsing':
+    case 'float_type':
+      return '要填數字'
+    case 'literal_error':
+    case 'enum':
+      return '不是可以選的選項'
+  }
+  if (type.startsWith('date')) return '日期格式不正確'
+  if (type.startsWith('time')) return '時間格式不正確'
+  const text = msg.replace(/^(Value error|Assertion failed),\s*/, '')
+  return CJK.test(text) ? text : '格式不正確'
+}
+
+/**
+ * 內容存檔被後端擋下時，逐筆寫出「哪一則的哪一欄、為什麼」；不是 422 驗證錯誤回空陣列。
+ * 和 apiErrorMessage 分開：其他頁面靠那邊的 join 格式，不能跟著改。
+ */
+export function contentFieldErrors(err: unknown, kind?: string): ContentFieldError[] {
+  if (!(err instanceof ApiError) || err.status !== 422 || !Array.isArray(err.detail)) return []
+  return err.detail
+    .filter((e): e is { loc?: unknown; msg?: unknown; type?: unknown } => Boolean(e) && typeof e === 'object')
+    .map((e) => {
+      const loc = Array.isArray(e.loc) ? e.loc.filter((s): s is string | number => typeof s === 'string' || typeof s === 'number') : []
+      // 整包請求驗證的 loc 以 body／payload 開頭；內容存檔的 loc 直接從欄位開始。
+      const path = loc[0] === 'body' ? loc.slice(1) : loc
+      if (path[0] === 'payload') path.shift()
+      return {
+        path,
+        label: path.length ? contentPathLabel(kind, path) : '',
+        message: validationMessage(typeof e.type === 'string' ? e.type : '', typeof e.msg === 'string' ? e.msg : ''),
+      }
+    })
+}
+
+/** 內容編輯頁存檔、發布失敗的 toast 文字：422 寫出位置與中文原因，其他沿用 apiErrorMessage。 */
+export function contentSaveErrorMessage(err: unknown, kind: string | undefined, fallback: string): string {
+  const errors = contentFieldErrors(err, kind)
+  if (!errors.length) return apiErrorMessage(err, fallback)
+  const lines = errors.map((e) => (e.label ? `${e.label}：${e.message}` : e.message))
+  return lines.length > 3 ? `${lines.slice(0, 3).join('；')}；還有 ${lines.length - 3} 個地方` : lines.join('；')
 }

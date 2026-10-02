@@ -4,11 +4,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.auth.models import User
+from app.booking.models import VisitRequest
 from app.operations.models import AuditLogEntry
 
 # 這些欄位絕不能出現在 metadata_json 裡（就算呼叫端不小心傳進來也擋掉），
@@ -60,6 +61,9 @@ class AuditRow:
     actor_display_name: str | None
     # 被操作的帳號：顯示名稱，沒有就用 email；不是帳號或已找不到時為 None。
     target_label: str | None
+    # target_type 為 visit_request 時：那筆案件現在還在不在（個資清理會刪掉
+    # 案件）；其他對象為 None。後台用它決定要不要給「查看案件」連結。
+    target_exists: bool | None = None
 
 
 def _uuid_or_none(value: str) -> uuid.UUID | None:
@@ -70,16 +74,41 @@ def _uuid_or_none(value: str) -> uuid.UUID | None:
         return None
 
 
-async def list_recent(db: AsyncSession, campus_key: str | None, limit: int = 100) -> list[AuditRow]:
+# 例行的登入登出：每人每天都有，操作紀錄頁可以勾選隱藏。登入失敗與帳號
+# 鎖定不算在內，那是要留意的事。
+ROUTINE_LOGIN_ACTIONS = ("user.login_password", "user.login_google", "user.login_line", "user.logout")
+
+
+def _visit_exists(entry: AuditLogEntry, existing: set[uuid.UUID]) -> bool | None:
+    # 匯出這類動作的 target_id 是校區代號或 "all"，不是哪一筆案件。
+    if entry.target_type != "visit_request" or (visit_id := _uuid_or_none(entry.target_id)) is None:
+        return None
+    return visit_id in existing
+
+
+async def list_recent(
+    db: AsyncSession,
+    campus_key: str | None,
+    limit: int = 100,
+    *,
+    before: tuple[datetime, uuid.UUID] | None = None,
+    exclude_login: bool = False,
+) -> list[AuditRow]:
+    """新的在前，一次 limit 筆。before 是上一頁最後一筆的 (created_at, id)，
+    傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。"""
     actor = aliased(User)
     stmt = (
         select(AuditLogEntry, actor.email, actor.display_name)
         .outerjoin(actor, actor.id == AuditLogEntry.actor_user_id)
-        .order_by(AuditLogEntry.created_at.desc())
+        .order_by(AuditLogEntry.created_at.desc(), AuditLogEntry.id.desc())
         .limit(limit)
     )
     if campus_key:
         stmt = stmt.where(AuditLogEntry.campus_key == campus_key)
+    if before is not None:
+        stmt = stmt.where(tuple_(AuditLogEntry.created_at, AuditLogEntry.id) < tuple_(*before))
+    if exclude_login:
+        stmt = stmt.where(AuditLogEntry.action.not_in(ROUTINE_LOGIN_ACTIONS))
     rows = (await db.execute(stmt)).all()
 
     target_ids = {
@@ -92,6 +121,16 @@ async def list_recent(db: AsyncSession, campus_key: str | None, limit: int = 100
         result = await db.execute(select(User.id, User.email, User.display_name).where(User.id.in_(target_ids)))
         targets = {user_id: display_name or email for user_id, email, display_name in result.all()}
 
+    visit_ids = {
+        target_id
+        for entry, _, _ in rows
+        if entry.target_type == "visit_request" and (target_id := _uuid_or_none(entry.target_id)) is not None
+    }
+    existing_visits: set[uuid.UUID] = set()
+    if visit_ids:
+        result = await db.execute(select(VisitRequest.id).where(VisitRequest.id.in_(visit_ids)))
+        existing_visits = set(result.scalars())
+
     return [
         AuditRow(
             entry=entry,
@@ -100,6 +139,7 @@ async def list_recent(db: AsyncSession, campus_key: str | None, limit: int = 100
             target_label=(
                 targets.get(_uuid_or_none(entry.target_id)) if entry.target_type == "user" else None
             ),
+            target_exists=_visit_exists(entry, existing_visits),
         )
         for entry, actor_email, actor_display_name in rows
     ]

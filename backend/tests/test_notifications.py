@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select, update
 
-from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest
+from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitSlot
 from app.workers import lease_service
 from app.workers.runner import process_outbox_batch
 from tests.conftest import book_slot
@@ -165,3 +166,34 @@ async def test_inactive_user_excluded_from_recipients(
     recipients = [entry["to"] for entry in recording_mail_adapter.sent]
     assert "other-super@ivy.example" not in recipients
     assert "admin@ivy.example" in recipients
+
+
+@pytest.mark.asyncio
+async def test_notification_list_shows_visit_slot_without_personal_data(
+    admin_client, public_client, db_session, run_outbox_once, recording_mail_adapter
+):
+    receipt_id = await _book_and_get_id(admin_client, public_client)
+    await run_outbox_once(recording_mail_adapter)
+    stored = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
+    slot = await db_session.get(VisitSlot, stored.slot_id)
+
+    items = (await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")).json()
+    assert items
+    for item in items:
+        assert item["payload"]["receipt_id"] == receipt_id
+        # 讀取時查出的參觀場次，只有日期時段。
+        assert item["slot"] == {
+            "slot_date": slot.slot_date.isoformat(),
+            "start_time": slot.start_time.isoformat(),
+            "end_time": slot.end_time.isoformat(),
+        }
+        assert stored.parent_name not in str(item)
+        assert stored.phone not in str(item)
+
+    # 匿名化之後不再對應到參觀日期。
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == stored.id).values(anonymized_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+    items = (await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")).json()
+    assert all(item["slot"] is None for item in items)

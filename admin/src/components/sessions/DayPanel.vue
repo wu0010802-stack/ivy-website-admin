@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../../composables/notify'
 import { api } from '../../api/client'
 import { isVersionConflict, apiErrorMessage } from '../../api/errors'
-import { formatDate, formatTime, formatWeekday, staffEmailById, staffLabelById, visitSourceLabel, visitStatus } from '../../api/labels'
+import { formatDate, formatTime, formatWeekday, staffEmailById, staffLabelById, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
 import type { VisitStaffOut } from '../../api/types'
 import StatusTag from '../StatusTag.vue'
 import { slotEnded, type CalendarSlot } from '../../utils/calendarChips'
@@ -20,6 +21,13 @@ const sorted = computed(() => [...props.slots].sort((a, b) => a.start_time.local
 const bookedToday = computed(() => props.slots.reduce((sum, s) => sum + s.visits.filter(v => v.status === 'confirmed').length, 0))
 const dayPast = computed(() => new Date(`${props.day}T23:59:59+08:00`).getTime() < Date.now())
 
+// 狀態和案件列表、明細同一組詞：預約正常；場次開始後是「尚未確認到場」（暖黃）、
+// 已到場、未到場。這裡已經按場次分好，不再重複寫「預約時間已過」。
+function visitMeta(slot: CalendarSlot, status: string): StatusMeta {
+  const shown = visitDisplay({ status, display_status: visitDisplayStatus(status, slot) })
+  return { label: shown.sub || shown.label, tone: shown.tone }
+}
+
 function endTime(start: string, minutes: number) {
   const [h, m] = start.split(':').map(Number)
   const total = h! * 60 + m! + minutes
@@ -33,8 +41,8 @@ async function patchSlot(slot: CalendarSlot, body: { closed?: boolean; capacity?
     ElMessage.success(success)
     emit('changed')
   } catch (err) {
-    if (isVersionConflict(err)) { ElMessage.warning('這一場剛被其他人修改，已重新載入'); emit('changed') }
-    else ElMessage.error(apiErrorMessage(err, '更新失敗，請稍後再試'))
+    if (isVersionConflict(err)) { notifyWarning('這一場剛被其他人修改，已重新載入'); emit('changed') }
+    else notifyError(apiErrorMessage(err, '更新失敗，請稍後再試'))
   } finally {
     busyId.value = ''
   }
@@ -63,7 +71,7 @@ async function setHoliday() {
     ElMessage.success('已設為休假')
     emit('changed')
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '設定休假失敗'))
+    notifyError(apiErrorMessage(err, '設定休假失敗'))
   }
 }
 
@@ -77,7 +85,7 @@ async function cancelHoliday() {
     ElMessage.success('已取消休假')
     emit('changed')
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '取消休假失敗'))
+    notifyError(apiErrorMessage(err, '取消休假失敗'))
   }
 }
 
@@ -93,7 +101,7 @@ async function addSlot() {
     adding.value = false
     emit('changed')
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '加開失敗'))
+    notifyError(apiErrorMessage(err, '加開失敗'))
   }
 }
 </script>
@@ -111,7 +119,7 @@ async function addSlot() {
     <div v-for="slot in sorted" :key="slot.id" class="panel calendar__slot" :class="{ 'is-ended': slotEnded(slot) }">
       <div class="panel__head">
         <h3 class="num">{{ sessionName(slot.start_time) }}–{{ formatTime(slot.end_time) }}</h3>
-        <span class="hint">{{ slot.closed ? (slot.closed_source === 'exception' ? '休假' : '已停止申請') : `已約 ${slot.booked_count}／${slot.capacity} 組` }}</span>
+        <span class="hint"><template v-if="slotEnded(slot)">已結束 · </template>{{ slot.closed ? (slot.closed_source === 'exception' ? '休假' : '已停止申請') : `已約 ${slot.booked_count}／${slot.capacity} 組` }}</span>
         <div v-if="canManage && !slotEnded(slot)" class="day-panel__actions">
           <el-select v-if="!slot.closed" :model-value="slot.capacity" size="small" class="day-panel__capacity" :aria-label="`${sessionName(slot.start_time)}名額`" :disabled="busyId === slot.id" @update:model-value="(n: number) => setCapacity(slot, n)">
             <el-option v-for="n in Array.from({ length: 10 }, (_, i) => i + 1).filter(n => n >= slot.booked_count)" :key="n" :label="`${n} 組`" :value="n" />
@@ -123,10 +131,10 @@ async function addSlot() {
       <ul v-if="slot.visits.length" class="calendar__visits">
         <li v-for="v in slot.visits" :key="v.id">
           <router-link :to="`/visit-requests/${v.id}`" class="calendar__visit-name">{{ v.parent_name }}</router-link>
-          <span class="muted">{{ v.child_name || '孩子姓名未填寫' }}<template v-if="v.party_size"> · {{ v.party_size }} 人參觀</template></span>
-          <a class="num" :href="`tel:${v.phone}`">{{ v.phone }}</a>
-          <span class="muted" :title="staffEmailById(v.assigned_staff_id, staff) || undefined">承辦：{{ staffLabelById(v.assigned_staff_id, staff) }}<template v-if="v.source !== 'web'"> · {{ visitSourceLabel(v.source) }}補登</template></span>
-          <StatusTag :meta="visitStatus(v.status)" size="small" />
+          <span class="muted calendar__visit-child">{{ v.child_name || '孩子姓名未填寫' }}<template v-if="v.party_size"> · {{ v.party_size }} 人參觀</template></span>
+          <a class="num calendar__visit-phone" :href="`tel:${v.phone}`">{{ v.phone }}</a>
+          <span class="muted calendar__visit-staff" :title="staffEmailById(v.assigned_staff_id, staff) || undefined">承辦：{{ staffLabelById(v.assigned_staff_id, staff) }}<template v-if="v.source !== 'web'"> · {{ visitSourceLabel(v.source) }}補登</template></span>
+          <StatusTag :meta="visitMeta(slot, v.status)" size="small" />
         </li>
       </ul>
     </div>
@@ -166,7 +174,7 @@ async function addSlot() {
 .calendar__visits li > .el-tag { justify-self: start; }
 .calendar__empty { padding: 0 16px 12px; }
 
-.calendar__slot.is-ended { opacity: 0.7; }
+/* 已結束的場次不整塊調淡（小字會掉到 4.5:1 以下，DESIGN.md 規則），只在標題旁寫「已結束」。 */
 
 @media (max-width: 720px) {
   /* 每筆：家長＋狀態、可撥號的電話、灰字的孩子與承辦。 */

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, h, provide, ref, useId, watch, type VNode } from 'vue'
+import { computed, h, provide, ref, useId, useTemplateRef, watch, type VNode } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
-import { formatDateTime } from '../api/labels'
+import { formatDateTime, staffLabel, staffOf } from '../api/labels'
+import { contentPathFieldLabel } from '../api/contentFieldLabels'
+import type { ContentFieldError } from '../api/errors'
 import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 
@@ -29,6 +32,12 @@ const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const latestRevisionId = computed(() => props.editor.latestRevisionId?.value ?? null)
 const liveVersion = computed(() => props.editor.liveVersion?.value ?? null)
 const busy = computed(() => saving.value || publishing.value)
+// 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
+// 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
+const conflict = computed(() => props.editor.conflict?.value ?? false)
+const fieldErrors = computed(() => props.editor.fieldErrors?.value ?? [])
+const stashedChanges = computed(() => props.editor.stashedChanges?.value ?? [])
+const stashOverlap = computed(() => props.editor.stashOverlap?.value ?? [])
 const changes = computed(() => props.editor.changes?.value ?? [])
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
@@ -164,6 +173,7 @@ async function submitSchedule() {
 // 跟處理中一樣先鎖住（DESIGN：處理中鎖住表單及重複操作）。
 const preparing = ref(false)
 const locked = computed(() => busy.value || preparing.value)
+const actionsBlocked = computed(() => locked.value || conflict.value)
 
 interface ConfirmSummary {
   intro: string
@@ -285,12 +295,36 @@ async function discardEdits() {
     await ElMessageBox.confirm(
       `${named.value || '這一頁'}還沒儲存的修改會清掉，回到上次儲存的內容，沒辦法復原。`,
       count ? `放棄 ${count} 個欄位的修改？` : '放棄這些修改？',
-      { confirmButtonText: '放棄修改', cancelButtonText: '先不要', type: 'warning' },
+      { confirmButtonText: '放棄修改', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger', autofocus: false },
     )
   } catch {
     return
   }
   props.editor.reset()
+}
+
+// 狀態列寫出最新草稿是誰存的（DESIGN 09-29：版本一律寫日期時間＋編輯者）。版本
+// 摘要沒有編輯者，從版本紀錄列表找這一版；讀不到就只寫時間。
+const latestEditor = ref('')
+watch(
+  () => [latestRevisionId.value, isPublished.value] as const,
+  async ([id, published]) => {
+    latestEditor.value = ''
+    const history = props.editor.history
+    if (!id || published || !history) return
+    try {
+      const list = await history.list()
+      const revision = Array.isArray(list) ? list.find((r) => r.id === id) : undefined
+      if (revision && latestRevisionId.value === id) latestEditor.value = staffLabel(staffOf(revision, 'created_by'), '')
+    } catch {
+      /* 讀不到版本紀錄：狀態列照舊只寫時間 */
+    }
+  },
+  { immediate: true },
+)
+function draftSaved(): string {
+  const at = formatDateTime(latestRevisionAt.value)
+  return latestEditor.value ? `${latestEditor.value} 於 ${at} 存的草稿` : `草稿儲存於 ${at}`
 }
 
 type Tone = 'success' | 'warning' | 'info'
@@ -338,15 +372,15 @@ const status = computed<{ tone: Tone; label: string; detail: string }>(() => {
     return {
       tone: 'warning',
       label: '草稿還沒送審',
-      detail: `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}。按「送審」後${approver.value}才看得到，核准後才會出現在官網。`,
+      detail: `${draftSaved()}。按「送審」後${approver.value}才看得到，核准後才會出現在官網。`,
     }
   }
   return {
     tone: 'warning',
     label: '草稿尚未發布',
     detail: neverPublished.value
-      ? `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}，官網仍顯示預設文字。`
-      : `草稿儲存於 ${formatDateTime(latestRevisionAt.value)}，官網仍是上一版。`,
+      ? `${draftSaved()}，官網仍顯示預設文字。`
+      : `${draftSaved()}，官網仍是上一版。`,
   }
 })
 const statusLabelId = useId()
@@ -371,7 +405,68 @@ const actionNote = computed(() =>
   canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。',
 )
 
-const { confirmLeave } = useUnsavedChanges(computed(() => !loading.value && !loadError.value && isDirty.value), busy)
+// 真的離開這一頁時多一顆「儲存草稿並離開」（存草稿不會動到官網）；唯讀、版本
+// 衝突時存不了，維持兩個選項。
+const { confirmLeave } = useUnsavedChanges(computed(() => !loading.value && !loadError.value && isDirty.value), busy, {
+  saveDraft: () => props.editor.save(),
+  canSaveDraft: computed(() => !readOnly.value && !conflict.value),
+})
+
+// 存檔被擋下的欄位清單：點一條就展開那一則、捲過去並聚焦。
+const bodyEl = useTemplateRef<HTMLElement>('body')
+async function jumpToError(error: ContentFieldError) {
+  const kind = props.editor.kind ?? props.editor.history?.kind
+  await revealContentPath(bodyEl.value, error.path, contentPathFieldLabel(kind, error.path))
+}
+
+// 版本衝突：看對方改了什麼（和自己開始編輯時的內容比），或載入最新內容。
+const otherChanges = ref<FieldChange[] | null>(null)
+const inspecting = ref(false)
+const inspectFailed = ref(false)
+watch(conflict, (value) => {
+  if (!value) {
+    otherChanges.value = null
+    inspectFailed.value = false
+  }
+})
+async function inspectConflict() {
+  if (!props.editor.inspectConflict) return
+  inspecting.value = true
+  try {
+    otherChanges.value = await props.editor.inspectConflict()
+    inspectFailed.value = otherChanges.value === null
+  } finally {
+    inspecting.value = false
+  }
+}
+
+async function reloadLatest() {
+  try {
+    await ElMessageBox.confirm(
+      '表單會換成最新的內容。你這次的修改會先記在這個畫面，載入後可以選擇套回；離開這一頁就不會保留。',
+      '載入最新內容？',
+      { confirmButtonText: '載入最新內容', cancelButtonText: '先不要', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  await props.editor.reloadLatest?.()
+}
+
+async function discardStash() {
+  try {
+    await ElMessageBox.confirm('你剛才的修改會清掉，沒辦法復原。', '不套回你的修改？', {
+      confirmButtonText: '清掉我的修改',
+      cancelButtonText: '先不要',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+      autofocus: false,
+    })
+  } catch {
+    return
+  }
+  props.editor.discardStash?.()
+}
 
 defineExpose({ confirmLeave })
 </script>
@@ -457,6 +552,51 @@ defineExpose({ confirmLeave })
         </p>
         <router-link to="/releases?tab=schedules" class="editor__schedules-all">查看全站排程</router-link>
       </div>
+      <el-alert v-if="conflict" type="error" :closable="false" show-icon title="其他人已經更新這項內容" class="editor__alert editor__conflict">
+        <p>你的修改還在畫面上、還沒存進去，儲存和發布先停用。可以先看對方改了什麼，再載入最新內容；載入後可以把你的修改套回。</p>
+        <template v-if="otherChanges">
+          <p v-if="!otherChanges.length">最新一版和你開始編輯時的內容一樣，可能是對方發布了同一份內容。</p>
+          <ul v-else class="editor__change-list">
+            <li v-for="change in otherChanges" :key="change.key">
+              <strong>{{ change.label }}</strong>：{{ change.before }} → {{ change.after }}<span v-if="change.detail">（{{ change.detail }}）</span>
+            </li>
+          </ul>
+        </template>
+        <p v-else-if="inspectFailed">讀不到最新一版，請稍後再試，或直接載入最新內容。</p>
+        <div class="editor__alert-actions">
+          <el-button v-if="editor.inspectConflict && !otherChanges" size="small" :loading="inspecting" @click="inspectConflict">看對方改了什麼</el-button>
+          <el-button size="small" type="primary" @click="reloadLatest">載入最新內容</el-button>
+        </div>
+      </el-alert>
+      <el-alert
+        v-if="stashedChanges.length"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="已載入最新內容，你剛才的修改還沒套回"
+        class="editor__alert"
+      >
+        <p>
+          你改過：{{ stashedChanges.map((c) => c.label).join('、') }}。
+          <template v-if="stashOverlap.length">其中「{{ stashOverlap.join('、') }}」對方也改過，套回會蓋掉對方在這幾欄的修改。</template>
+          套回後還要按儲存才會保留。
+        </p>
+        <div class="editor__alert-actions">
+          <el-button size="small" type="primary" @click="editor.restoreStash?.()">套回我的修改</el-button>
+          <el-button size="small" @click="discardStash">不要了</el-button>
+        </div>
+      </el-alert>
+      <div v-if="fieldErrors.length" class="editor__errors" role="alert">
+        <p class="editor__errors-title">存檔沒有成功，有 {{ fieldErrors.length }} 個地方要修改{{ fieldErrors.some((e) => e.path.length) ? '（點一下就會跳到那一欄）' : '' }}：</p>
+        <ul>
+          <li v-for="(error, index) in fieldErrors" :key="index">
+            <button v-if="error.path.length" type="button" class="editor__error-link" @click="jumpToError(error)">
+              {{ error.label }}：{{ error.message }}
+            </button>
+            <span v-else>{{ error.message }}</span>
+          </li>
+        </ul>
+      </div>
       <RevisionHistoryDrawer
         v-if="editor.history"
         v-model="historyOpen"
@@ -470,7 +610,7 @@ defineExpose({ confirmLeave })
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
 
-      <div class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
+      <div ref="body" class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
         <div class="panel__body">
           <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
                刪除、拖曳等操作由頁面自己隱藏。 -->
@@ -481,7 +621,7 @@ defineExpose({ confirmLeave })
       <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy }">
         <!-- 「放棄修改」放在說明這一側，離儲存、發布遠一點（破壞性動作不與主動作相鄰）。 -->
         <div class="editor__actions-state">
-          <p class="editor__actions-text">
+          <p class="editor__actions-text" :title="isDirty ? actionNote : undefined">
             <template v-if="busy">正在處理，請稍候…</template>
             <template v-else>
               <span v-if="isDirty" class="editor__actions-count">{{ changes.length ? `改了 ${changes.length} 個欄位。` : '有未儲存的修改。' }}</span>
@@ -494,7 +634,7 @@ defineExpose({ confirmLeave })
           <el-button
             :type="primaryAction === 'save' ? 'primary' : 'default'"
             :loading="saving"
-            :disabled="locked || !isDirty"
+            :disabled="actionsBlocked || !isDirty"
             @click="editor.save()"
           >
             儲存草稿
@@ -503,7 +643,7 @@ defineExpose({ confirmLeave })
             <el-button
               :type="primaryAction === 'submit' ? 'primary' : 'default'"
               :loading="publishing"
-              :disabled="busy || !latestRevisionAt && !isDirty || pendingReview"
+              :disabled="busy || conflict || !latestRevisionAt && !isDirty || pendingReview"
               class="editor__publish"
               @click="editor.submitForReview?.()"
             >
@@ -511,15 +651,15 @@ defineExpose({ confirmLeave })
             </el-button>
           </template>
           <template v-else-if="pendingReview">
-            <el-button :disabled="busy || preparing" @click="rejectWithNote">退回</el-button>
-            <el-button type="success" :loading="publishing || preparing" :disabled="busy" @click="approve">核准並發布</el-button>
+            <el-button :disabled="busy || preparing || conflict" @click="rejectWithNote">退回</el-button>
+            <el-button type="success" :loading="publishing || preparing" :disabled="busy || conflict" @click="approve">核准並發布</el-button>
           </template>
           <template v-else>
-            <el-button v-if="editor.schedule" :disabled="busy || preparing || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
+            <el-button v-if="editor.schedule" :disabled="busy || preparing || conflict || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
             <el-button
               :type="primaryAction === 'publish' ? 'primary' : 'default'"
               :loading="publishing || preparing"
-              :disabled="busy || !canPublish"
+              :disabled="busy || conflict || !canPublish"
               class="editor__publish"
               :aria-label="isDirty ? '儲存並發布到官網' : '發布到官網'"
               @click="publishWithConfirm()"
@@ -571,6 +711,59 @@ defineExpose({ confirmLeave })
 
 .editor__alert {
   margin-bottom: 16px;
+}
+
+.editor__alert p {
+  margin: 4px 0 0;
+}
+
+.editor__alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.editor__alert-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.editor__change-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+/* 存檔被擋下的欄位：放在狀態列下方、表單上方，一條一個可以點的位置。 */
+.editor__errors {
+  margin: -8px 0 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--el-color-danger-light-5);
+  border-radius: var(--radius);
+  background: var(--el-color-danger-light-9);
+  font-size: 13px;
+  color: var(--el-color-danger);
+}
+
+.editor__errors-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.editor__errors ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.editor__error-link {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .editor__status {
@@ -666,6 +859,9 @@ defineExpose({ confirmLeave })
 .editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: 13px; color: var(--ink-3); }
 .editor__actions-text { margin: 0; }
 .editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
+/* 有修改時說明那句收起來（和手機一樣），「改了 N 個欄位」＋放棄修改＋三顆按鈕在
+   720px 內排得下一行，黏底列不會變兩行多蓋住表單。 */
+.editor__actions.is-dirty .editor__actions-note { display: none; }
 .editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
 /* 手機：狀態文字佔滿一行，預覽與版本紀錄換到下一行、做成 44px 的次要按鈕；

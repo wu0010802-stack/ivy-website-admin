@@ -11,12 +11,15 @@ import csv
 import io
 import uuid
 from datetime import timedelta
+from typing import get_args
 
 import pytest
 from sqlalchemy import select
 
-from app.booking.routes import EXPORT_COLUMNS
-from app.common.timezones import today_local
+from app.booking import export_labels
+from app.booking.models import VisitRequest, VisitRequestSource, VisitRequestStatus
+from app.booking.schemas import ReferralSource
+from app.common.timezones import OPERATING_TZ, today_local
 from app.operations.models import AuditLogEntry
 from tests.conftest import create_slot, legacy_request
 from tests.test_visit_workflow import _create_slot
@@ -100,23 +103,44 @@ async def test_needs_attention_lists_closed_slots_holidays_and_inactive_campuses
 
 
 @pytest.mark.asyncio
-async def test_export_header_has_each_column_once(admin_client):
-    await _manual(admin_client, slot_id=await create_slot(admin_client))
+async def test_export_header_has_each_column_once(admin_client, db_session):
+    """園方用 Excel 直接開：BOM、中文欄名、代碼換中文、台北時間、手機保留開頭的 0。"""
+    visit_id = await _manual(admin_client, slot_id=await create_slot(admin_client), phone="0912345601")
     resp = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
     assert resp.status_code == 200, resp.text
-    header = next(csv.reader(io.StringIO(resp.text)))
+    assert resp.content.startswith("\ufeff".encode())
+    assert resp.headers["content-type"] == "text/csv; charset=utf-8"
+    text = resp.content.decode("utf-8-sig")
+    header = next(csv.reader(io.StringIO(text)))
     assert header == [
-        "campus_key", "status", "source", "parent_name", "phone", "created_at",
-        "child_name", "child_birthdate", "email", "referral_sources", "party_size",
-        "slot_date", "start_time", "end_time",
+        "校區", "狀態", "來源", "家長", "手機", "送出時間",
+        "孩子姓名", "孩子生日", "Email", "得知管道", "人數",
+        "參觀日期", "開始", "結束",
     ]
-    assert list(EXPORT_COLUMNS) == header
+    assert list(export_labels.EXPORT_HEADERS) == header
     assert len(set(header)) == len(header)
-    row = next(csv.DictReader(io.StringIO(resp.text)))
-    assert row["source"] == "phone"
+    row = next(csv.DictReader(io.StringIO(text)))
+    assert row["校區"] == "義華"
+    assert row["狀態"] == "預約正常"
+    assert row["來源"] == "電話"
+    assert row["手機"] == "0912-345-601"
+    stored = await db_session.get(VisitRequest, uuid.UUID(visit_id))
+    assert row["送出時間"] == stored.created_at.astimezone(OPERATING_TZ).strftime("%Y/%m/%d %H:%M")
 
 
-@pytest.mark.asyncio
+def test_export_labels_cover_every_code():
+    # 新增狀態、來源或得知管道代碼時，CSV 對照表要一起補，不然匯出會出現英文代碼。
+    assert set(export_labels.STATUS_LABELS) == {s.value for s in VisitRequestStatus}
+    assert set(export_labels.SOURCE_LABELS) == {s.value for s in VisitRequestSource}
+    assert set(export_labels.REFERRAL_LABELS) == set(get_args(ReferralSource))
+
+
+def test_export_phone_format_keeps_unknown_shapes():
+    assert export_labels.format_phone("0912345601") == "0912-345-601"
+    # 舊資料或市話不是 09 開頭十碼，照原樣輸出。
+    assert export_labels.format_phone("072345678") == "072345678"
+
+
 async def test_export_applies_screen_filters_and_audits_them(admin_client, db_session):
     slot = await _create_slot(admin_client, capacity=3)
     confirmed = await _manual(admin_client, slot_id=slot["id"], parent_name="王媽媽", phone="0922000111")
@@ -127,14 +151,14 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
     async def export(query: str) -> list[dict]:
         resp = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua&{query}")
         assert resp.status_code == 200, resp.text
-        return list(csv.DictReader(io.StringIO(resp.text)))
+        return list(csv.DictReader(io.StringIO(resp.content.decode("utf-8-sig"))))
 
     everything = await export("")
-    assert {r["parent_name"] for r in everything} == {"王媽媽", "李爸爸", "張媽媽"}
-    assert [r["parent_name"] for r in await export("status=confirmed")] == ["王媽媽"]
-    assert [r["parent_name"] for r in await export("source=line")] == ["李爸爸"]
-    assert [r["parent_name"] for r in await export("q=0922000333")] == ["張媽媽"]
-    assert [r["parent_name"] for r in await export("assignee=me&status=confirmed")] == ["王媽媽"]
+    assert {r["家長"] for r in everything} == {"王媽媽", "李爸爸", "張媽媽"}
+    assert [r["家長"] for r in await export("status=confirmed")] == ["王媽媽"]
+    assert [r["家長"] for r in await export("source=line")] == ["李爸爸"]
+    assert [r["家長"] for r in await export("q=0922000333")] == ["張媽媽"]
+    assert [r["家長"] for r in await export("assignee=me&status=confirmed")] == ["王媽媽"]
     today = today_local()
     assert len(await export(f"created_from={today - timedelta(days=1)}&created_to={today}")) == 3
     assert await export(f"created_from={today + timedelta(days=1)}") == []
@@ -142,7 +166,7 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
         f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": slot["slot_date"]}
     )
     assert holiday.status_code == 201, holiday.text
-    assert [r["parent_name"] for r in await export("needs_attention=true")] == ["王媽媽"]
+    assert [r["家長"] for r in await export("needs_attention=true")] == ["王媽媽"]
 
     # 清單與匯出同一組條件得到同一批案件。
     assert await _ids(admin_client, "campus_key=yihua&status=confirmed&needs_attention=true") == {confirmed}

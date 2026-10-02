@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
-import { Delete, Picture, Plus } from '@element-plus/icons-vue'
+import { computed, ref, useId, useTemplateRef } from 'vue'
+import { ArrowRight, Delete, Picture, Plus } from '@element-plus/icons-vue'
 import type { CampusNewsArticlePayload, CampusNewsEventPayload, MediaAssetOut, NewsArticlePayload, NewsEventPayload } from '../api/types'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { IMAGE_HINTS } from '../composables/contentHints'
@@ -16,6 +16,7 @@ import {
   scheduleInvalid,
   scheduleState,
   taipeiToday,
+  useCollapsibleItems,
   webUrlError,
   type NewsMode,
 } from '../composables/newsContent'
@@ -51,6 +52,21 @@ function asGlobal<T>(entry: T): T & NewsArticlePayload & NewsEventPayload {
 
 const articlesList = useTemplateRef<HTMLElement>('articlesList')
 const eventsList = useTemplateRef<HTMLElement>('eventsList')
+
+// 每一則有十幾個欄位，全部攤開頁面會長到七八千 px：預設收合成「日期・標題」一行，
+// 點開才編輯。新增的、存檔錯誤指到的會自動展開（revealListItem／revealContentPath）。
+const collapse = useCollapsibleItems()
+const uid = useId()
+const allArticlesOpen = computed(() => props.articles.length > 0 && props.articles.every((a) => collapse.isOpen(a.id)))
+const allEventsOpen = computed(() => props.events.length > 0 && props.events.every((e) => collapse.isOpen(e.id)))
+function toggleAll(ids: string[], open: boolean) {
+  collapse.setMany(ids, open)
+}
+
+// 有內文或照片的消息重打很費工，移除前先問一次；只有標題摘要的照舊一按就移除。
+function articleHasContent(article: NewsArticlePayload | CampusNewsArticlePayload): boolean {
+  return Boolean(article.image) || article.body.length > 0
+}
 
 // 新增的放最上面：官網依日期排序（推薦的消息依這裡的順序），這裡只是讓剛加的
 // 那則不用捲到底才找得到。加完捲過去並聚焦標題（日期已預填今天）。
@@ -103,26 +119,60 @@ function onPickMedia(asset: MediaAssetOut) {
     一則都沒勾時，首頁照舊依日期新到舊輪播全部消息。
     <template v-if="featuredCount">目前推薦 {{ featuredCount }} 則。</template>
   </p>
-  <el-button v-if="!readOnly" :icon="Plus" :disabled="articles.length >= maxArticles" @click="addArticle">新增一則消息</el-button>
+  <div class="news-toolbar">
+    <el-button v-if="!readOnly" :icon="Plus" :disabled="articles.length >= maxArticles" @click="addArticle">新增一則消息</el-button>
+    <el-button v-if="articles.length > 1" text size="small" @click="toggleAll(articles.map((a) => a.id), !allArticlesOpen)">
+      {{ allArticlesOpen ? '全部收合' : '全部展開' }}
+    </el-button>
+  </div>
   <p v-if="!articles.length" class="hint news-empty">目前沒有消息。</p>
 
-  <div ref="articlesList">
-  <div v-for="(article, index) in articles" :key="article.id" class="repeat-item news-item" :data-list-item="index">
+  <div ref="articlesList" data-list="articles">
+  <div
+    v-for="(article, index) in articles"
+    :key="article.id"
+    class="repeat-item news-item"
+    :class="{ 'is-collapsed': !collapse.isOpen(article.id) }"
+    :data-list-item="index"
+    @list-item-reveal="collapse.expand(article.id)"
+  >
     <div class="repeat-item__head">
-      <span class="repeat-item__index">
+      <button
+        type="button"
+        class="repeat-item__index repeat-item__toggle"
+        :aria-expanded="collapse.isOpen(article.id)"
+        :aria-controls="`${uid}-article-${article.id}`"
+        @click="collapse.toggle(article.id)"
+      >
+        <el-icon class="repeat-item__caret" aria-hidden="true"><ArrowRight /></el-icon>
         <b>{{ index + 1 }}</b>
-        {{ article.date || '日期未填' }}{{ article.title ? `・${article.title}` : '' }}
+        {{ article.date || '日期未填' }}{{ article.title ? `・${article.title}` : '・標題未填' }}
         <el-tag v-if="isGlobal && asGlobal(article).featured" size="small" type="success">首頁推薦</el-tag>
         <el-tag v-if="scheduleState(article, today) === 'upcoming'" size="small" type="warning">{{ article.show_from }} 起顯示</el-tag>
         <el-tag v-else-if="scheduleState(article, today) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
-      </span>
+        <!-- 收合時欄位底下的錯誤看不到，標題列先標出來。 -->
+        <el-tag v-if="scheduleInvalid(article)" size="small" type="danger">有欄位要修改</el-tag>
+      </button>
       <span v-if="!readOnly" class="cell-actions">
         <el-button text size="small" :disabled="index === 0" :data-move-row="index" data-move-dir="-1" :aria-label="`上移「${article.title || `第 ${index + 1} 則消息`}」`" @click="moveArticle(index, -1)">上移</el-button>
         <el-button text size="small" :disabled="index === articles.length - 1" :data-move-row="index" data-move-dir="1" :aria-label="`下移「${article.title || `第 ${index + 1} 則消息`}」`" @click="moveArticle(index, 1)">下移</el-button>
-        <el-button text size="small" type="danger" :icon="Delete" @click="articles.splice(index, 1)">移除</el-button>
+        <el-popconfirm
+          v-if="articleHasContent(article)"
+          :title="`移除「${article.title || `第 ${index + 1} 則消息`}」？內文和照片要重新填。`"
+          confirm-button-text="移除"
+          cancel-button-text="先不要"
+          confirm-button-type="danger"
+          width="260"
+          @confirm="articles.splice(index, 1)"
+        >
+          <template #reference>
+            <el-button text size="small" type="danger" :icon="Delete" class="remove-action">移除</el-button>
+          </template>
+        </el-popconfirm>
+        <el-button v-else text size="small" type="danger" :icon="Delete" class="remove-action" @click="articles.splice(index, 1)">移除</el-button>
       </span>
     </div>
-    <div class="news-item__grid">
+    <div v-show="collapse.isOpen(article.id)" :id="`${uid}-article-${article.id}`" class="news-item__grid">
       <div class="news-item__photo">
         <button
           type="button"
@@ -193,21 +243,42 @@ function onPickMedia(asset: MediaAssetOut) {
     <h2>近期活動</h2>
     <span class="hint">{{ events.length }} / {{ maxEvents }} 筆</span>
   </div>
-  <el-button v-if="!readOnly" :icon="Plus" :disabled="events.length >= maxEvents" @click="addEvent">新增一筆活動</el-button>
+  <div class="news-toolbar">
+    <el-button v-if="!readOnly" :icon="Plus" :disabled="events.length >= maxEvents" @click="addEvent">新增一筆活動</el-button>
+    <el-button v-if="events.length > 1" text size="small" @click="toggleAll(events.map((e) => e.id), !allEventsOpen)">
+      {{ allEventsOpen ? '全部收合' : '全部展開' }}
+    </el-button>
+  </div>
   <p v-if="!events.length" class="hint news-empty">目前沒有活動。</p>
 
-  <div ref="eventsList">
-  <div v-for="(event, index) in events" :key="event.id" class="repeat-item" :data-list-item="index">
+  <div ref="eventsList" data-list="events">
+  <div
+    v-for="(event, index) in events"
+    :key="event.id"
+    class="repeat-item"
+    :class="{ 'is-collapsed': !collapse.isOpen(event.id) }"
+    :data-list-item="index"
+    @list-item-reveal="collapse.expand(event.id)"
+  >
     <div class="repeat-item__head">
-      <span class="repeat-item__index">
+      <button
+        type="button"
+        class="repeat-item__index repeat-item__toggle"
+        :aria-expanded="collapse.isOpen(event.id)"
+        :aria-controls="`${uid}-event-${event.id}`"
+        @click="collapse.toggle(event.id)"
+      >
+        <el-icon class="repeat-item__caret" aria-hidden="true"><ArrowRight /></el-icon>
         <b>{{ index + 1 }}</b>
-        {{ event.date || '日期未填' }}{{ event.title ? `・${event.title}` : '' }}
+        {{ event.date || '日期未填' }}{{ event.title ? `・${event.title}` : '・名稱未填' }}
         <el-tag v-if="event.date && event.date < today" size="small" type="info">已過，官網不顯示</el-tag>
         <el-tag v-else-if="scheduleState(event, today) === 'upcoming'" size="small" type="warning">{{ event.show_from }} 起顯示</el-tag>
         <el-tag v-else-if="scheduleState(event, today) === 'expired'" size="small" type="info">已下架，官網不顯示</el-tag>
-      </span>
+        <el-tag v-if="scheduleInvalid(event) || webUrlError(event.link_url)" size="small" type="danger">有欄位要修改</el-tag>
+      </button>
       <el-button v-if="!readOnly" text size="small" type="danger" :icon="Delete" @click="events.splice(index, 1)">移除</el-button>
     </div>
+    <div v-show="collapse.isOpen(event.id)" :id="`${uid}-event-${event.id}`" class="news-event__body">
     <div class="field-row">
       <el-form-item label="日期">
         <el-date-picker v-model="event.date" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :clearable="false" style="width: 100%" />
@@ -252,6 +323,7 @@ function onPickMedia(asset: MediaAssetOut) {
         <el-date-picker v-model="event.show_until" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="活動日過後自動下架" clearable style="width: 100%" />
       </el-form-item>
     </div>
+    </div>
   </div>
   </div>
 
@@ -273,6 +345,22 @@ function onPickMedia(asset: MediaAssetOut) {
 
 .repeat-item__head {
   flex-wrap: wrap;
+}
+
+.news-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-toolbar .el-button + .el-button {
+  margin-left: 0;
+}
+
+/* 移除和下移之間多留一點距離，少一點誤點。 */
+.cell-actions .remove-action {
+  margin-left: 8px;
 }
 
 .news-item__grid {

@@ -100,6 +100,13 @@ const mapPreviewUrl = computed(() => {
   if (form.map_url.trim()) return mapUrlError(form.map_url) ? '' : form.map_url.trim()
   return form.address.trim() ? addressSearchUrl(form.address) : ''
 })
+
+// 校名、地址、參觀專線清空後官網的五校卡、分校頁和預約頁會出現空白；存草稿照常
+// 可以，發布由後端擋（publish_blocker）。這裡先在欄位下方講。
+function blankError(value: string | null | undefined): string {
+  if (editor.readOnly.value) return ''
+  return (value ?? '').trim() ? '' : '官網會顯示空白，發布前要填'
+}
 </script>
 
 <template>
@@ -115,7 +122,7 @@ const mapPreviewUrl = computed(() => {
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <div class="field-row">
-        <el-form-item label="校名">
+        <el-form-item label="校名" required :error="blankError(editor.form.value.name)">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
           <!-- 首頁五校與分校頁大標用明體子集，分校頁「來認識…」小標用標題字型。 -->
           <GlyphHint :value="editor.form.value.name" :fonts="['serif', 'bd']" />
@@ -124,7 +131,7 @@ const mapPreviewUrl = computed(() => {
           <el-input v-model="editor.form.value.district" placeholder="例如：鳳山區" />
         </el-form-item>
       </div>
-      <el-form-item label="地址">
+      <el-form-item label="地址" required :error="blankError(editor.form.value.address)">
         <el-input v-model="editor.form.value.address" />
       </el-form-item>
       <el-form-item label="地圖連結（選填）" :error="mapUrlError(editor.form.value.map_url) ?? ''">
@@ -134,8 +141,9 @@ const mapPreviewUrl = computed(() => {
           <a v-if="mapPreviewUrl" :href="mapPreviewUrl" target="_blank" rel="noopener noreferrer">開啟看看 ↗</a>
         </span>
       </el-form-item>
-      <el-form-item label="參觀專線">
+      <el-form-item label="參觀專線" required :error="blankError(editor.form.value.phone)">
         <el-input v-model="editor.form.value.phone" inputmode="tel" placeholder="07-000-0000" />
+        <span class="field-help">也會出現在頁首選單、頁尾、預約表單與家長修改頁。</span>
       </el-form-item>
       <el-form-item label="一句話簡介">
         <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />

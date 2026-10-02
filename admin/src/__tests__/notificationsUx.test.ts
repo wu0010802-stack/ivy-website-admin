@@ -12,8 +12,8 @@ import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
-function notification(id: string, campus_key = 'yihua') {
-  return { id, campus_key, kind: 'visit_request_created', payload: { parent_name: id }, created_at: '2026-09-22T00:00:00Z', read_at: null }
+function notification(id: string, campus_key = 'yihua', slot_date = '2026-10-24') {
+  return { id, campus_key, kind: 'visit_request_created', payload: { receipt_id: `case-${id}` }, slot: { slot_date, start_time: '14:00:00', end_time: '15:00:00' }, created_at: '2026-09-22T00:00:00Z', read_at: null }
 }
 async function setup(user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua', 'renwu'] })) {
   const pinia = createPinia()
@@ -33,7 +33,7 @@ describe('通知操作與回應競態', () => {
     vi.spyOn(api, 'get').mockImplementation(url => {
       if (String(url).includes('notification-outbox')) return Promise.resolve({ items: [], total: 0 }) as Promise<never>
       if (String(url).includes('reschedule-requests')) return Promise.resolve([]) as Promise<never>
-      if (String(url).includes('renwu')) return Promise.resolve([notification('仁武新通知', 'renwu')]) as Promise<never>
+      if (String(url).includes('renwu')) return Promise.resolve([notification('仁武新通知', 'renwu', '2026-10-24')]) as Promise<never>
       return old as Promise<never>
     })
     const wrapper = await setup()
@@ -41,11 +41,11 @@ describe('通知操作與回應競態', () => {
     expect(wrapper.text()).not.toContain('還沒有通知')
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
-    expect(wrapper.text()).toContain('仁武新通知')
-    resolveOld([notification('過時通知')])
+    expect(wrapper.text()).toContain('2026/10/24')
+    resolveOld([notification('過時通知', 'yihua', '2026-10-31')])
     await flushPromises()
-    expect(wrapper.text()).not.toContain('過時通知')
-    expect(wrapper.text()).toContain('仁武新通知')
+    expect(wrapper.text()).not.toContain('2026/10/31')
+    expect(wrapper.text()).toContain('2026/10/24')
   })
 
   it('批次期間鎖住重複操作與校區切換，部分失敗保持未讀', async () => {
@@ -213,5 +213,20 @@ describe('寄送失敗的通知（第 2 條）', () => {
     expect(wrapper.text()).toContain('案件逾期未處理：新的參觀需求超過 24 小時尚未處理')
     expect(wrapper.text()).toContain('即將參觀（24 小時內）')
     expect(wrapper.text()).not.toContain('visit_upcoming')
+  })
+})
+
+describe('站內通知的參觀場次', () => {
+  it('每列寫出參觀日期時段（後端讀取時查的），沒有場次就不寫', async () => {
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : [
+      notification('n1', 'yihua', '2026-10-24'),
+      { ...notification('n2'), slot: null },
+    ]) as Promise<never>)
+    const wrapper = await setup()
+    await flushPromises()
+    const rows = wrapper.findAll('.mobile-records .mobile-record')
+    expect(rows[0]!.text()).toContain('參觀 2026/10/24（週六）14:00–15:00')
+    expect(rows[1]!.text()).not.toContain('參觀 2026')
+    expect(rows[0]!.find('a').attributes('href')).toContain('/visit-requests/case-n1')
   })
 })

@@ -177,6 +177,38 @@ describe('待人工處理的入口', () => {
     expect(failed.text()).toContain('分校啟用中')
   })
 
+  it('停用確認框按下當下讀進行中件數：有件數、0 件、讀不到各自說清楚', async () => {
+    const impact = { open_requests: 9, new_requests: 1, contacting: 0, pending_confirmation: 1, upcoming_confirmed: 7, past_confirmed: 0, bookable_slots: 3, weekly_rules: 0 }
+    let readiness: unknown = { blockers: {}, impact }
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
+      if (String(path).endsWith('/readiness')) {
+        if (readiness instanceof Error) throw readiness
+        return readiness as never
+      }
+      return { key: 'yihua', name: '義華', active: true } as never
+    })
+    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
+    const { wrapper } = await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })
+    const stop = () => wrapper.findAll('button').find(button => button.text() === '停用分校')!
+    await stop().trigger('click')
+    await flushPromises()
+    expect(get).toHaveBeenCalledWith('/admin/booking-config/yihua/readiness')
+    const first = String(prompt.mock.calls[0]![0])
+    expect(first).toContain('進行中的案件 9 件（已確認、還沒參觀 7、待園方確認 1、待處理／聯絡中 1）')
+    expect(first).toContain('停用後官網不會通知這些家長，要另外逐一聯絡')
+    expect(prompt.mock.calls[0]![2]).toMatchObject({ confirmButtonText: '停用分校', cancelButtonText: '先不要' })
+
+    readiness = { blockers: {}, impact: { ...impact, open_requests: 0, new_requests: 0, pending_confirmation: 0, upcoming_confirmed: 0 } }
+    await stop().trigger('click')
+    await flushPromises()
+    expect(String(prompt.mock.calls[1]![0])).toContain('目前沒有進行中的案件。')
+
+    readiness = new Error('offline')
+    await stop().trigger('click')
+    await flushPromises()
+    expect(String(prompt.mock.calls[2]![0])).toContain('目前無法讀取進行中的案件數，停用後請到「待人工處理」確認。')
+  })
+
   it('預約方式頁：啟用中的分校狀態放在表單下方，已停用時留在頁首', async () => {
     const config = { campus_key: 'yihua', version: 3, mode: 'slots', line_url: null, phone: null, external_url: null, message: null, parent_change_deadline_hours: 24 }
     let active = true
@@ -269,6 +301,20 @@ describe('家長線上取消／改期期限', () => {
     await wrapper.findAll('button').find(button => button.text() === '儲存並套用到官網')!.trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/booking-config/yihua', expect.objectContaining({ parent_change_deadline_hours: 72, expected_version: 3 }))
+  })
+
+  it('自選場次的說明不先說會寄信；其他方式仍顯示期限並說明已排定的家長仍適用', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...config, parent_email_enabled: false } as never)
+    const { wrapper } = await mountAt(BookingSettingsView, '/booking')
+    expect(wrapper.text()).toContain('選好送出即預約成功，並拿到修改連結')
+    expect(wrapper.text()).not.toContain('收到確認信與修改連結')
+    expect(wrapper.text()).toContain('尚未設定寄信')
+    expect(wrapper.text()).not.toContain('已排定場次的家長仍照這個期限')
+
+    vi.spyOn(api, 'get').mockResolvedValue({ ...config, mode: 'line', line_url: 'https://lin.ee/x' } as never)
+    const line = (await mountAt(BookingSettingsView, '/booking')).wrapper
+    expect(deadlineInput(line)).toBeTruthy()
+    expect(line.text()).toContain('改成其他預約方式後，已排定場次的家長仍照這個期限')
   })
 
   it('清空期限時不能存檔', async () => {

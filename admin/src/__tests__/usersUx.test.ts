@@ -163,7 +163,7 @@ describe('重設與新增後密碼留在畫面上', () => {
     await button(wrapper, '複製密碼').trigger('click')
     await flushPromises()
     expect(select).toHaveBeenCalled()
-    expect(warning).toHaveBeenCalledWith('無法自動複製，已選取密碼，請手動複製')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '無法自動複製，已選取密碼，請手動複製' }))
   })
 
   it('建立帳號成功後顯示密碼與複製鈕，不直接關掉', async () => {

@@ -6,9 +6,12 @@
 import { nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { api } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import { attentionListPath, campusLabel, formatDateTime } from '../api/labels'
+import type { BookingImpactOut } from '../api/types'
+import { asReadiness } from '../composables/bookingReadiness'
 
 interface CampusStatus {
   key: string
@@ -67,12 +70,36 @@ async function load(retry = false) {
 }
 watch(() => props.campusKey, () => load(), { immediate: true })
 
+// 停用確認框裡的進行中件數。readiness 的 open_requests 與停用 API 回傳的件數
+// 用同一組狀態（待處理、聯絡中、待園方確認、已確認），確認框和停用後的提示對得上。
+function deactivateImpactLine(impact: BookingImpactOut | null | undefined): string {
+  if (!impact) return '目前無法讀取進行中的案件數，停用後請到「待人工處理」確認。'
+  if (impact.open_requests <= 0) return '目前沒有進行中的案件。'
+  const parts = [
+    impact.upcoming_confirmed ? `已確認、還沒參觀 ${impact.upcoming_confirmed}` : '',
+    impact.past_confirmed ? `已過參觀時間、尚未結案 ${impact.past_confirmed}` : '',
+    impact.pending_confirmation ? `待園方確認 ${impact.pending_confirmation}` : '',
+    impact.new_requests || impact.contacting ? `待處理／聯絡中 ${impact.new_requests + impact.contacting}` : '',
+  ].filter(Boolean)
+  return `進行中的案件 ${impact.open_requests} 件${parts.length ? `（${parts.join('、')}）` : ''}。停用後官網不會通知這些家長，要另外逐一聯絡。`
+}
+
 async function deactivate() {
   const name = `${campusLabel(props.campusKey)}校`
   let reason = ''
+  // 件數按下當下才讀，不沿用頁面上可能已過期的資料。
+  busy.value = true
+  let impact: BookingImpactOut | null = null
+  try {
+    impact = asReadiness(await api.get(`/admin/booking-config/${props.campusKey}/readiness`))?.impact ?? null
+  } catch {
+    impact = null
+  } finally {
+    busy.value = false
+  }
   try {
     const result = await ElMessageBox.prompt(
-      `停用後${name}會從官網下架：分校網址會顯示找不到頁面，首頁五校區塊、選單與頁尾都不再列出，家長也不能再預約。已收到的案件不會被取消，會列入參觀案件的「待人工處理」，需要另外聯絡。重新啟用後恢復顯示。`,
+      `停用後${name}會從官網下架：分校網址會顯示找不到頁面，首頁五校區塊、選單與頁尾都不再列出，家長也不能再預約。已收到的案件不會被取消，會列入參觀案件的「待人工處理」。${deactivateImpactLine(impact)}重新啟用後恢復顯示。`,
       `停用${name}？`,
       { confirmButtonText: '停用分校', cancelButtonText: '先不要', confirmButtonClass: 'el-button--danger', inputPlaceholder: '原因（選填），例如：整修中', type: 'warning', inputValidator: (v: string) => (v ?? '').length <= 200 || '最多 200 字' },
     )
@@ -90,14 +117,14 @@ async function update(active: boolean, reason: string | null) {
     const result = await api.patch<CampusStatus>(`/admin/campuses/${props.campusKey}/status`, { active, reason })
     campus.value = result
     if (!active && (result.open_requests ?? 0) > 0) {
-      ElMessage.warning(`已停用，${name}已從官網下架。還有 ${result.open_requests} 件進行中的案件，已列入「待人工處理」，請逐一聯絡。`)
+      notifyWarning(`已停用，${name}已從官網下架。還有 ${result.open_requests} 件進行中的案件，已列入「待人工處理」，請逐一聯絡。`)
     } else {
       ElMessage.success(active ? `已重新啟用，官網恢復顯示${name}，並依原本的預約方式開放` : `已停用，${name}已從官網下架`)
     }
     emit('changed')
     emit('status', typeof result.active === 'boolean' ? result.active : active)
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '更新失敗，請再試一次'))
+    notifyError(apiErrorMessage(err, '更新失敗，請再試一次'))
   } finally {
     busy.value = false
   }

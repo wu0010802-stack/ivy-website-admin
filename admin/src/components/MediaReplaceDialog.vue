@@ -254,7 +254,7 @@ async function applyReplacement() {
       </el-steps>
 
       <div v-if="step === 'upload'" class="replace__body">
-        <p class="hint">新檔案會成為另一個素材，沿用「{{ asset.original_filename }}」的說明、圖說、授權與標籤；舊素材保留不動。</p>
+        <p class="hint">新檔案會成為另一個素材，沿用「{{ asset.original_filename }}」的說明、內部備註、授權與標籤；舊素材保留不動。</p>
         <label class="drop" :class="{ 'has-file': file }">
           <input type="file" :accept="accept" class="drop__input" :disabled="busy" @change="onFileChange" />
           <strong>{{ file ? file.name : '點擊選擇新檔案' }}</strong>

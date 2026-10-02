@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
@@ -211,7 +212,7 @@ async function copyPassword(value: string, input: SelectableInput) {
   } catch {
     input?.focus()
     input?.select()
-    ElMessage.warning('無法自動複製，已選取密碼，請手動複製')
+    notifyWarning('無法自動複製，已選取密碼，請手動複製')
   }
 }
 
@@ -264,7 +265,7 @@ async function submitCreate() {
       createErrors.display_name = nameError
       await focusFirstCreateError()
     } else {
-      ElMessage.error(apiErrorMessage(err, '新增使用者失敗'))
+      notifyError(apiErrorMessage(err, '新增使用者失敗'))
     }
   } finally {
     creating.value = false
@@ -282,7 +283,7 @@ async function toggleActive(target: UserOut) {
     if (idx !== -1) users.value[idx] = updated
     ElMessage.success(updated.is_active ? `已恢復 ${staffWithEmail(updated)} 的登入` : `已停用 ${staffWithEmail(updated)}`)
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '更新啟用狀態失敗'))
+    notifyError(apiErrorMessage(err, '更新啟用狀態失敗'))
   } finally {
     togglingId.value = null
   }
@@ -372,7 +373,7 @@ async function submitScope() {
       scopeNameServerError.value = nameError
       scopeNameInput.value?.focus()
     } else {
-      ElMessage.error(apiErrorMessage(err, '更新角色、校區與權限失敗'))
+      notifyError(apiErrorMessage(err, '更新角色、校區與權限失敗'))
     }
   } finally {
     savingScope.value = false
@@ -399,7 +400,7 @@ async function submitReset() {
   } catch (err) {
     // 自己的那一列沒有「重設密碼」（UserActions 只指到「我的帳號」）；後端對自己重設
     // 回 409 USE_CHANGE_PASSWORD 時，訊息本身就指向「我的帳號」。
-    ElMessage.error(apiErrorMessage(err, '重設密碼失敗'))
+    notifyError(apiErrorMessage(err, '重設密碼失敗'))
   } finally {
     resetting.value = false
   }
@@ -416,7 +417,7 @@ async function clearExternalLogins(target: UserOut) {
     if (idx !== -1) users.value[idx] = updated
     ElMessage.success(`已解除 ${updated.email} 的 Google／LINE 綁定，對方所有裝置都已登出。`)
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '解除綁定失敗'))
+    notifyError(apiErrorMessage(err, '解除綁定失敗'))
   } finally {
     clearingId.value = null
   }

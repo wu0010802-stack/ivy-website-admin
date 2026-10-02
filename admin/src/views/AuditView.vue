@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, formatDateTime, type AuditDetails, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
+import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, type AuditDetails, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
 import type { AuditLogEntryOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -10,7 +10,8 @@ import CampusSelect from '../components/CampusSelect.vue'
 
 type AuditEntry = AuditLogEntryOut
 
-// 後端 list_recent 一次只回最近 100 筆（backend/app/operations/audit_service.py）。
+// 後端 list_recent 一次回 100 筆（backend/app/operations/audit_service.py）；
+// 回滿 100 筆就可能還有更早的，用最後一筆當游標再讀下一批。
 const AUDIT_LIMIT = 100
 
 const { isSuperAdmin, visibleCampusKeys, selected: campusFilter } = useCampusScope({ autoSelect: false })
@@ -18,6 +19,11 @@ const entries = ref<AuditEntry[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const search = ref('')
+// 每人每天都有的登入登出，勾了就不列（登入失敗、帳號鎖定照列）。預設照舊全部列出。
+const hideLogins = ref(false)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const moreError = ref<string | null>(null)
 const requests = useRequestSequence()
 
 // 預約設定、開放規則這類有修改前後值的紀錄直接列出改了什麼；授權變更講清楚
@@ -56,6 +62,20 @@ function targetText(entry: AuditEntry): string {
   return person ? staffLabel(person) : ''
 }
 
+// 「查看案件」：只連到後端確認還在的案件（target_exists 是讀取時查的，個資
+// 清理刪掉的為 false）。不顯示家長姓名或案件編號，紀錄裡不含家長個資。
+function caseLink(entry: AuditEntry): string | null {
+  return entry.target_type === 'visit_request' && entry.target_exists === true ? `/visit-requests/${entry.target_id}` : null
+}
+function caseRemoved(entry: AuditEntry): boolean {
+  return entry.target_type === 'visit_request' && entry.target_exists === false
+}
+// 內容類連到那項內容的編輯頁（target_id 是內容項的 UUID，編輯頁看種類與校區）。
+function contentLink(entry: AuditEntry): string | null {
+  const kind = entry.metadata?.kind
+  return entry.target_type === 'content_item' && typeof kind === 'string' ? contentEditorPath(kind, entry.campus_key) : null
+}
+
 const visibleEntries = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
   return entries.value.filter(entry => {
@@ -91,16 +111,33 @@ const groups = computed(() => {
   return result
 })
 
+function auditPath(before?: AuditEntry): string {
+  const params = new URLSearchParams()
+  if (campusFilter.value) params.set('campus_key', campusFilter.value)
+  if (hideLogins.value) params.set('exclude_login', 'true')
+  if (before) {
+    params.set('before', before.created_at)
+    params.set('before_id', before.id)
+  }
+  const query = params.toString()
+  return `/admin/audit-log${query ? `?${query}` : ''}`
+}
+
 async function load() {
   const request = requests.begin()
   entries.value = []
+  hasMore.value = false
+  moreError.value = null
+  loadingMore.value = false
   if (!isSuperAdmin.value && !campusFilter.value) { loading.value = false; return }
   loading.value = true
   error.value = null
   try {
-    const params = campusFilter.value ? `?campus_key=${campusFilter.value}` : ''
-    const result = await api.get<AuditEntry[]>(`/admin/audit-log${params}`)
-    if (requests.isCurrent(request)) entries.value = result
+    const result = await api.get<AuditEntry[]>(auditPath())
+    if (requests.isCurrent(request)) {
+      entries.value = result
+      hasMore.value = result.length >= AUDIT_LIMIT
+    }
   } catch {
     if (requests.isCurrent(request)) error.value = '無法讀取操作紀錄，請重新載入。'
   } finally {
@@ -108,7 +145,27 @@ async function load() {
   }
 }
 
-watch(campusFilter, load)
+// 接著讀更早的 100 筆，接在目前清單後面。途中換校區或重新整理，舊的回應不寫回。
+async function loadMore() {
+  const last = entries.value[entries.value.length - 1]
+  if (!last || loadingMore.value) return
+  const request = requests.begin()
+  loadingMore.value = true
+  moreError.value = null
+  try {
+    const result = await api.get<AuditEntry[]>(auditPath(last))
+    if (requests.isCurrent(request)) {
+      entries.value = [...entries.value, ...result]
+      hasMore.value = result.length >= AUDIT_LIMIT
+    }
+  } catch {
+    if (requests.isCurrent(request)) moreError.value = '讀不到更早的紀錄，請再試一次。'
+  } finally {
+    if (requests.isCurrent(request)) loadingMore.value = false
+  }
+}
+
+watch([campusFilter, hideLogins], load)
 
 onMounted(() => {
   if (!isSuperAdmin.value && visibleCampusKeys.value.length > 0) {
@@ -126,9 +183,10 @@ onMounted(() => {
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
       <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
+      <el-checkbox v-model="hideLogins" class="filter-check" data-test="audit-hide-logins">不列登入登出</el-checkbox>
     </div>
     <div class="list-summary" role="status">
-      <span>{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : `顯示 ${visibleEntries.length} / ${entries.length} 筆已載入紀錄・只載入最近 ${AUDIT_LIMIT} 筆，更早的不會列出` }}</span>
+      <span>{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : search ? `符合 ${visibleEntries.length} 筆・已載入 ${entries.length} 筆` : `已載入 ${entries.length} 筆` }}</span>
       <el-button :loading="loading" @click="load">重新整理</el-button>
     </div>
     <el-empty v-if="!isSuperAdmin && !visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
@@ -154,6 +212,9 @@ onMounted(() => {
               <template #default="{ row }: { row: AuditEntry }">
                 <strong>{{ auditActionLabel(row.action) }}</strong>
                 <span class="muted">・{{ auditTargetLabel(row.target_type) }}<template v-if="targetText(row)">「<span :title="staffEmail(targetPerson(row)) || undefined" data-test="audit-target">{{ targetText(row) }}</span>」</template></span>
+                <router-link v-if="caseLink(row)" :to="caseLink(row)!" class="audit-link" data-test="audit-case-link">查看案件</router-link>
+                <span v-else-if="caseRemoved(row)" class="audit-link muted">案件已清除</span>
+                <router-link v-else-if="contentLink(row)" :to="contentLink(row)!" class="audit-link">開啟內容</router-link>
               </template>
             </el-table-column>
             <el-table-column label="校區" width="90">
@@ -170,25 +231,33 @@ onMounted(() => {
             </el-table-column>
           </el-table>
           <ul class="mobile-records" :aria-label="`${group.label}的操作紀錄`">
-            <li v-for="entry in group.entries" :key="entry.id" class="mobile-record">
-              <div class="record-heading"><strong>{{ auditActionLabel(entry.action) }}</strong><el-tag type="info">{{ campusText(entry) }}</el-tag></div>
-              <dl class="record-meta">
-                <dt>時間</dt><dd class="num">{{ entryTime(entry) }}</dd>
-                <dt>操作者</dt><dd :class="{ muted: !entry.actor_user_id }" :title="actorEmail(entry) || undefined" data-test="audit-actor-mobile">{{ actorText(entry) }}</dd>
-                <dt>操作項目</dt><dd>{{ auditTargetLabel(entry.target_type) }}<template v-if="targetText(entry)">「<span :title="staffEmail(targetPerson(entry)) || undefined">{{ targetText(entry) }}</span>」</template></dd>
-                <dt>細節</dt>
-                <dd>
-                  {{ detailText(entry) || '—' }}
-                  <details v-if="details(entry).others.length" class="audit-others">
-                    <summary>其他細節</summary>
-                    <ul><li v-for="line in details(entry).others" :key="line">{{ line }}</li></ul>
-                  </details>
-                </dd>
-              </dl>
+            <li v-for="entry in group.entries" :key="entry.id" class="mobile-record audit-record">
+              <div class="record-heading">
+                <p class="audit-record__title">
+                  <strong>{{ auditActionLabel(entry.action) }}</strong>
+                  <span class="muted">・{{ auditTargetLabel(entry.target_type) }}<template v-if="targetText(entry)">「<span :title="staffEmail(targetPerson(entry)) || undefined">{{ targetText(entry) }}</span>」</template></span>
+                </p>
+                <el-tag type="info">{{ campusText(entry) }}</el-tag>
+              </div>
+              <p class="audit-record__meta">
+                <span class="num">{{ entryTime(entry) }}</span> · <span :class="{ muted: !entry.actor_user_id }" :title="actorEmail(entry) || undefined" data-test="audit-actor-mobile">{{ actorText(entry) }}</span>
+                <router-link v-if="caseLink(entry)" :to="caseLink(entry)!" class="audit-link">查看案件</router-link>
+                <span v-else-if="caseRemoved(entry)" class="audit-link muted">案件已清除</span>
+                <router-link v-else-if="contentLink(entry)" :to="contentLink(entry)!" class="audit-link">開啟內容</router-link>
+              </p>
+              <p v-if="detailText(entry)" class="audit-detail" data-test="audit-detail-mobile">{{ detailText(entry) }}</p>
+              <details v-if="details(entry).others.length" class="audit-others">
+                <summary>其他細節</summary>
+                <ul><li v-for="line in details(entry).others" :key="line">{{ line }}</li></ul>
+              </details>
             </li>
           </ul>
         </div>
       </section>
+      <div v-if="hasMore || moreError" class="audit-more">
+        <el-alert v-if="moreError" class="inline-error" type="error" :closable="false" show-icon :title="moreError" />
+        <el-button :loading="loadingMore" data-test="audit-load-more" @click="loadMore">載入更早的紀錄</el-button>
+      </div>
     </template>
   </div>
 </template>
@@ -229,6 +298,45 @@ onMounted(() => {
   color: var(--ink-3);
 }
 
+.audit-link {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.audit-link.muted {
+  color: var(--ink-3);
+}
+
+/* 和旁邊的輸入框一樣高，底線對齊。 */
+.filter-check {
+  min-height: var(--control-h);
+}
+
+.audit-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* 手機一筆兩三行：動作＋對象／時間・操作者／細節（有才寫）。 */
+.audit-record__title,
+.audit-record__meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-record__meta {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.audit-record .audit-detail {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
 .audit-others {
   margin-top: 4px;
   color: var(--ink-3);
@@ -252,6 +360,12 @@ onMounted(() => {
 
 @media (max-width: 720px) {
   .audit-others summary {
+    min-height: 44px;
+  }
+
+  .audit-record__meta .audit-link {
+    display: inline-flex;
+    align-items: center;
     min-height: 44px;
   }
 }

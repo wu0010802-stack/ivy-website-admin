@@ -6,6 +6,8 @@ export interface CalendarSlot { id: string; campus_key: string; slot_date: strin
 export type ChipKind = 'visit' | 'stopped' | 'open'
 export interface Chip { key: string; kind: ChipKind; text: string; ended: boolean; status?: string }
 
+// 色塊寬度有限，平常只寫「上午場」「下午場」；同一天有兩場以上同名時（例如 09:30 與
+// 10:30 兩個上午場）改寫完整名稱「上午場 09:30」，才分得出是哪一場。
 const shortName = (start: string) => sessionName(start).split(' ')[0]!
 
 export function slotEnded(slot: CalendarSlot, now = Date.now()): boolean {
@@ -14,14 +16,19 @@ export function slotEnded(slot: CalendarSlot, now = Date.now()): boolean {
 
 export function dayChips(slots: CalendarSlot[], now = Date.now()): Chip[] {
   const chips: Chip[] = []
+  // 只算真的會畫出色塊的場次：已結束又沒人約的場次不畫，不會跟別場混淆。
+  const drawn = (slot: CalendarSlot) => slot.visits.length > 0 || (slot.closed ? slot.closed_source !== 'exception' : !slotEnded(slot, now) && slot.capacity > slot.booked_count)
+  const nameCount = new Map<string, number>()
+  for (const slot of slots.filter(drawn)) nameCount.set(shortName(slot.start_time), (nameCount.get(shortName(slot.start_time)) ?? 0) + 1)
   for (const slot of [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time))) {
     const ended = slotEnded(slot, now)
+    const name = (nameCount.get(shortName(slot.start_time)) ?? 0) > 1 ? sessionName(slot.start_time) : shortName(slot.start_time)
     // 休假日關閉的場次若還有家長預約（不會自動取消），預約色塊照畫，才看得出哪天要處理。
-    for (const v of slot.visits) chips.push({ key: v.id, kind: 'visit', text: `${shortName(slot.start_time)} ${v.parent_name}`, ended, status: v.status })
+    for (const v of slot.visits) chips.push({ key: v.id, kind: 'visit', text: `${name} ${v.parent_name}`, ended, status: v.status })
     if (slot.closed && slot.closed_source === 'exception') continue
-    if (slot.closed) chips.push({ key: `${slot.id}-stopped`, kind: 'stopped', text: `${shortName(slot.start_time)}停止申請`, ended })
+    if (slot.closed) chips.push({ key: `${slot.id}-stopped`, kind: 'stopped', text: name.includes(' ') ? `${name} 停止申請` : `${name}停止申請`, ended })
     else if (!ended && !slot.visits.length && slot.capacity > slot.booked_count) {
-      chips.push({ key: `${slot.id}-open`, kind: 'open', text: `${shortName(slot.start_time)} 可約 ${slot.capacity - slot.booked_count}`, ended })
+      chips.push({ key: `${slot.id}-open`, kind: 'open', text: `${name} 可約 ${slot.capacity - slot.booked_count}`, ended })
     }
   }
   return chips

@@ -36,12 +36,14 @@ const request = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-type Lists = { held?: unknown[]; fresh?: unknown[] }
+type Lists = { attendance?: unknown[]; due?: unknown[]; held?: unknown[]; fresh?: unknown[] }
 
 function mockApi(data: Record<string, unknown> | ((path: string) => unknown), lists: Lists = {}, slots: unknown[] = []) {
   return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.endsWith('/contact-notes')) return [] as never
     if (path.startsWith('/admin/slots')) return slots as never
+    if (path.startsWith('/admin/visit-requests?group=past&status=confirmed')) return (lists.attendance ?? []) as never
+    if (path.startsWith('/admin/visit-requests?follow_up_due=true')) return (lists.due ?? []) as never
     if (path.startsWith('/admin/visit-requests?status=pending_confirmation')) return (lists.held ?? []) as never
     if (path.startsWith('/admin/visit-requests?status=new')) return (lists.fresh ?? []) as never
     if (path.startsWith('/admin/visit-requests?') || path.startsWith('/admin/visit-staff')) return [] as never
@@ -136,32 +138,35 @@ describe('未送出的聯絡紀錄', () => {
   })
 })
 
-describe('下一筆：同校待確認在前、再接待處理', () => {
-  it('待確認依確認期限由早到晚，按鈕寫出兩種各幾件，換筆用 replace', async () => {
+describe('下一筆：沒有來源列表時，先待標記到場、再到期追蹤、最後舊需求', () => {
+  const at = (date: string, time: string) => ({ id: `slot-${date}-${time}`, slot_date: date, start_time: `${time}:00`, end_time: '23:00:00' })
+  it('待標記到場依參觀時間由早到晚，到期追蹤重複的只算一次，按鈕寫出各幾件，換筆用 replace', async () => {
     const get = mockApi((path) => request({ id: path.split('/').pop() }), {
-      held: [
-        request({ id: 'held-late', status: 'pending_confirmation', hold_expires_at: '2099-01-02T00:00:00Z' }),
-        request({ id: 'held-early', status: 'pending_confirmation', hold_expires_at: '2099-01-01T00:00:00Z' }),
+      attendance: [
+        request({ id: 'late', status: 'confirmed', slot: at('2026-09-30', '16:00') }),
+        request({ id: 'early', status: 'confirmed', slot: at('2026-09-30', '10:00') }),
+        request({ id: 'case-a', status: 'confirmed', slot: at('2026-09-29', '10:00') }),
       ],
-      fresh: [request({ id: 'case-a' }), request({ id: 'fresh-1' })],
+      due: [request({ id: 'late', status: 'confirmed' }), request({ id: 'due-1', status: 'confirmed', follow_up_at: '2026-09-01T00:00:00Z' })],
     })
     const { wrapper, router } = await mountDetail()
     const listCalls = get.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/visit-requests?'))
-    expect(listCalls.some((path) => path.includes('status=pending_confirmation') && path.includes('campus_key=yihua'))).toBe(true)
-    expect(listCalls.some((path) => path.includes('status=new') && path.includes('campus_key=yihua'))).toBe(true)
+    expect(listCalls.some((path) => path.includes('group=past') && path.includes('status=confirmed') && path.includes('campus_key=yihua'))).toBe(true)
+    expect(listCalls.some((path) => path.includes('follow_up_due=true') && path.includes('campus_key=yihua'))).toBe(true)
     const next = wrapper.find('.detail__next')
-    expect(next.text()).toBe('下一筆（待確認 2・待處理 1）')
-    expect(next.attributes('title')).toContain('義華還有待園方確認 2 件、待處理 1 件')
+    expect(next.text()).toBe('下一筆（待標記到場 2・到期追蹤 1）')
+    expect(next.attributes('title')).toContain('義華還有參觀時間已過、尚未確認到場 2 件，到期待追蹤 1 件')
+    expect(next.text()).not.toContain('待確認')
     const replace = vi.spyOn(router, 'replace')
     const push = vi.spyOn(router, 'push')
     await next.trigger('click')
     await flushPromises()
-    expect(replace).toHaveBeenCalledWith('/visit-requests/held-early')
+    expect(replace).toHaveBeenCalledWith('/visit-requests/early')
     expect(push).not.toHaveBeenCalled()
-    expect(router.currentRoute.value.fullPath).toBe('/visit-requests/held-early')
+    expect(router.currentRoute.value.fullPath).toBe('/visit-requests/early')
   })
 
-  it('確認期限已過、系統還沒取消的待確認不排進下一筆', async () => {
+  it('舊需求排最後；確認期限已過、系統還沒取消的待確認不排進下一筆', async () => {
     mockApi((path) => request({ id: path.split('/').pop() }), {
       held: [
         request({ id: 'held-expired', status: 'pending_confirmation', hold_expires_at: '2020-01-01T00:00:00Z' }),
@@ -170,13 +175,13 @@ describe('下一筆：同校待確認在前、再接待處理', () => {
     })
     const { wrapper, router } = await mountDetail()
     const next = wrapper.find('.detail__next')
-    expect(next.text()).toBe('下一筆（待確認 1）')
+    expect(next.text()).toBe('下一筆（舊需求 1）')
     await next.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.fullPath).toBe('/visit-requests/held-ok')
   })
 
-  it('同校沒有其他待確認或待處理的案件就不顯示', async () => {
+  it('同校沒有其他要處理的案件就不顯示', async () => {
     mockApi(request(), { fresh: [request({ id: 'case-a' })] })
     const { wrapper } = await mountDetail()
     expect(wrapper.find('.detail__next').exists()).toBe(false)
@@ -208,12 +213,12 @@ describe('返回案件列表', () => {
 })
 
 describe('明細的欄位與手機撥號', () => {
-  it('官網案件叫「家長填寫的資料」，補登的叫「案件資料」；空值一律「未填寫」', async () => {
+  it('官網案件叫「家長填寫的資料」，補登的叫「案件資料」；空值一律「未填寫」；方便接電話時段只有舊資料有值才列', async () => {
     mockApi(request())
     const web = await mountDetail()
     const text = web.wrapper.text()
     expect(text).toContain('家長填寫的資料')
-    expect(text).toContain('方便接電話時段未填寫')
+    expect(text).not.toContain('方便接電話時段')
     expect(text).toContain('想了解的事未填寫')
     expect(text).toContain('參觀人數未填寫')
     expect(text).not.toContain('—')
@@ -316,7 +321,7 @@ describe('家長申請改期時的手動改期', () => {
   it('展開後焦點移到新時段選單，不會掉回頁面最上面', async () => {
     mockApi(confirmedWithRequest(), {}, [{ ...slotB, campus_key: 'yihua', capacity: 2, booked_count: 0, closed: false }])
     const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
-    const toggle = button(wrapper, '不照申請，改到其他時段…')!
+    const toggle = button(wrapper, '不照申請，改到其他場次…')!
     expect(toggle.attributes('aria-expanded')).toBe('false')
     await toggle.trigger('click')
     await flushPromises()
@@ -330,10 +335,10 @@ describe('家長申請改期時的手動改期', () => {
   it('沒有其他時段可選時，焦點放在改期標題', async () => {
     mockApi(confirmedWithRequest(), {}, [])
     const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
-    await button(wrapper, '不照申請，改到其他時段…')!.trigger('click')
+    await button(wrapper, '不照申請，改到其他場次…')!.trigger('click')
     await flushPromises()
     expect(document.activeElement?.classList.contains('reschedule__title')).toBe(true)
-    expect(document.activeElement?.textContent).toBe('改期（換時段）')
+    expect(document.activeElement?.textContent).toBe('改期（換場次）')
   })
 })
 
@@ -528,14 +533,14 @@ describe('補登對話框', () => {
     wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks(); document.body.innerHTML = ''
 
     await mountDialog(new Error('offline'))
-    expect(document.body.textContent).toContain('讀不到這個校區的時段')
+    expect(document.body.textContent).toContain('讀不到這個校區的場次')
     expect([...document.body.querySelectorAll('button')].some((b) => b.textContent?.trim() === '重新讀取')).toBe(true)
   })
 
-  it('欄位叫「方便接電話時段」', async () => {
+  it('家長自選場次之後不再問方便接電話時段（DESIGN.md 2026-09-30）', async () => {
     await mountDialog()
     const labels = [...document.body.querySelectorAll('.el-form-item__label')].map((l) => l.textContent?.trim())
-    expect(labels).toContain('方便接電話時段')
+    expect(labels).not.toContain('方便接電話時段')
     expect(labels).not.toContain('方便聯絡時段')
   })
 })

@@ -73,7 +73,7 @@ const conflict = ref(false)
 const requests = useRequestSequence()
 
 const MODES: { value: Mode; label: string; help: string; disabled?: boolean }[] = [
-  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長看得到你開放的場次，選好送出即預約成功，並收到確認信與修改連結。場次在「參觀場次」設定。' },
+  { value: 'slots', label: BOOKING_MODE_LABELS.slots!, help: '家長看得到你開放的場次，選好送出即預約成功，並拿到修改連結。場次在「參觀場次」設定。' },
   { value: 'line', label: BOOKING_MODE_LABELS.line!, help: '官網預約鈕直接開 LINE 官方帳號。' },
   { value: 'phone', label: BOOKING_MODE_LABELS.phone!, help: '官網只顯示電話，不提供表單。' },
   { value: 'external', label: BOOKING_MODE_LABELS.external!, help: '預約鈕連到外部系統，例如 Google 表單。' },
@@ -212,7 +212,7 @@ async function confirmModeSwitch(campusKey: string): Promise<boolean> {
   ])
   try {
     await ElMessageBox.confirm(message, '切換預約方式？', {
-      confirmButtonText: '確認切換',
+      confirmButtonText: '切換預約方式',
       cancelButtonText: '先不要',
       type: 'warning',
       customClass: 'publish-confirm',
@@ -318,7 +318,7 @@ async function save() {
               <el-input-number v-model="form.parent_change_deadline_hours" :min="1" :max="336" :step="1" step-strictly controls-position="right" aria-label="參觀前幾小時截止" class="deadline__input" />
               <span>小時截止</span>
             </div>
-            <p class="hint">參觀前幾小時內，家長不能再線上改場次、修改資料或取消；最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}，之後頁面會請家長直接聯絡園所。</p>
+            <p class="hint">參觀前幾小時內，家長不能再線上改場次、修改資料或取消；最晚到{{ parentDeadlineLabel(form.parent_change_deadline_hours || 24) }}，之後頁面會請家長直接聯絡園所。<template v-if="form.mode !== 'slots'">改成其他預約方式後，已排定場次的家長仍照這個期限。</template></p>
           </el-form-item>
           <el-form-item :label="form.mode === 'paused' ? '暫停說明' : '顯示給家長的說明（選填）'" :required="form.mode === 'paused'">
             <el-input v-model="form.message" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" maxlength="500" show-word-limit :placeholder="form.mode === 'paused' ? '例如：暑假期間暫停參觀，9 月起恢復' : '顯示在預約鈕附近的一句提醒'" />

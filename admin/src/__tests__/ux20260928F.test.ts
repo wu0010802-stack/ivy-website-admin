@@ -65,10 +65,10 @@ describe('總覽開著也跟著時間走', () => {
     await flushPromises()
     expect(dashboardCalls(get)).toBe(2)
     expect(wrapper.find('.el-skeleton').exists()).toBe(false)
-    expect(wrapper.text()).toContain('時段預約等園方確認')
+    expect(wrapper.text()).toContain('場次預約等園方確認')
     resolve(summary({ awaiting_confirmation: 2, next_hold_expires_at: expires }))
     await flushPromises()
-    expect(wrapper.find('.dash__primary').text()).toContain('確認時段預約2')
+    expect(wrapper.find('.dash__primary').text()).toContain('確認場次預約2')
     expect(wrapper.text()).toContain('更新於 11:30')
   })
 

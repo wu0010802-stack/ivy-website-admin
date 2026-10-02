@@ -270,7 +270,7 @@ describe('儲存並發布／送審／排程只跳最後結果那一則 toast', (
     expect(await editor.saveAndPublish()).toBe(false)
     expect(success).not.toHaveBeenCalled()
     expect(error).toHaveBeenCalledTimes(1)
-    expect(error).toHaveBeenCalledWith('已存成草稿，但發布失敗：素材還沒處理好')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '已存成草稿，但發布失敗：素材還沒處理好', showClose: true, duration: 0 }))
     expect(editor.isDirty.value).toBe(false)
   })
 
@@ -290,7 +290,7 @@ describe('儲存並發布／送審／排程只跳最後結果那一則 toast', (
     success.mockClear()
     expect(await editor.schedule('2026-10-01T09:00:00+08:00')).toBe(false)
     expect(success).not.toHaveBeenCalled()
-    expect(error).toHaveBeenCalledWith('已存成草稿，但排程失敗：時間要在現在之後')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '已存成草稿，但排程失敗：時間要在現在之後', showClose: true, duration: 0 }))
   })
 
   it('單純儲存草稿仍會提示官網尚未更新', async () => {

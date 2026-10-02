@@ -31,6 +31,15 @@ describe('月曆格子的色塊（參考義華行事曆）', () => {
     expect(dayChips([slot({ slot_date: '2026-10-04', booked_count: 1, visits: [visit('v1', '王小明', 'completed')] })], NOW)[0]!.ended).toBe(true)
   })
 
+  it('同一天兩個上午場：色塊改寫完整名稱，分得出是哪一場；只有一場同名時仍寫「上午場」', () => {
+    const chips = dayChips([
+      slot({ id: 'a', start_time: '09:30:00', end_time: '10:30:00' }),
+      slot({ id: 'b', start_time: '10:30:00', end_time: '11:30:00', booked_count: 1, visits: [visit('v1', '張雅婷')] }),
+      slot({ id: 'c', start_time: '14:30:00', end_time: '15:30:00', closed: true, closed_source: 'manual' }),
+    ], NOW)
+    expect(chips.map(c => c.text)).toEqual(['上午場 09:30 可約 2', '上午場 10:30 張雅婷', '下午場停止申請'])
+  })
+
   it('朗讀文字說出預約、停止申請與休假', () => {
     expect(dayAriaLabel('2026-10-06', [slot({ booked_count: 1, visits: [visit('v1', '王小明')] })], null, NOW)).toContain('排入 1 組，可約 1 組')
     expect(dayAriaLabel('2026-10-06', [slot({ closed: true, closed_source: 'manual' })], null, NOW)).toContain('1 場停止申請')

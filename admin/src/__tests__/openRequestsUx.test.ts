@@ -64,14 +64,14 @@ describe('總覽看得到還沒處理的參觀案件', () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 3, awaiting_confirmation: 2, next_hold_expires_at: expires }) as never)
     const { wrapper } = await mountAt('/')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
-    expect(wrapper.text()).toContain('時段預約等園方確認')
+    expect(wrapper.text()).toContain('場次預約等園方確認')
     expect(wrapper.text()).toContain('新的參觀需求還沒聯絡')
     expect(wrapper.text()).toContain('最早一筆還剩 5 小時')
     const hrefs = wrapper.findAll('a').map(a => a.attributes('href'))
     expect(hrefs).toContain('/visit-requests?status=new&order=oldest')
     expect(hrefs).toContain('/visit-requests?status=pending_confirmation&order=oldest')
     // 主按鈕只帶去最急的那批（待確認），數字也只算那一批，不是 3＋2。
-    expect(wrapper.find('.dash__primary').text()).toContain('確認時段預約2')
+    expect(wrapper.find('.dash__primary').text()).toContain('確認場次預約2')
     expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests?status=pending_confirmation&order=oldest')
   })
 
@@ -90,7 +90,7 @@ describe('總覽看得到還沒處理的參觀案件', () => {
 
   it('主按鈕依序：待確認 → 家長還要來 → 改期申請 → 新需求 → 到期追蹤，字講的是點進去那一批', async () => {
     const cases: [Record<string, number>, string, string][] = [
-      [{ awaiting_confirmation: 1, needs_attention: 2 }, '確認時段預約1', '/visit-requests?status=pending_confirmation&order=oldest'],
+      [{ awaiting_confirmation: 1, needs_attention: 2 }, '確認場次預約1', '/visit-requests?status=pending_confirmation&order=oldest'],
       [{ needs_attention: 2, pending_reschedule_requests: 3, new_requests: 4, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1'],
       [{ pending_reschedule_requests: 3, new_requests: 4, pending_follow_up: 5 }, '核准改期申請3', '/notifications'],
       [{ new_requests: 4, pending_follow_up: 5 }, '聯絡新需求4', '/visit-requests?status=new&order=oldest'],
@@ -191,7 +191,7 @@ describe('側欄的待處理數字', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1, awaiting_confirmation: 1 }) as never)
     const { wrapper } = await mountAt('/')
     expect(get).toHaveBeenCalledOnce()
-    expect(wrapper.text()).toContain('確認時段預約1')
+    expect(wrapper.text()).toContain('確認場次預約1')
   })
 
   it('連同外殼一起掛上時，進一次總覽只打一次 /admin/dashboard', async () => {

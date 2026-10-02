@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import {
   contentEditorPath,
@@ -86,7 +87,7 @@ async function markNoticeRead(n: UserNotificationOut) {
     const updated = await api.post<UserNotificationOut>(`/admin/my-notifications/${n.id}/read`)
     n.read_at = updated.read_at ?? new Date().toISOString()
   } catch {
-    if (alive) ElMessage.error('標記失敗，請重試')
+    if (alive) notifyError('標記失敗，請重試')
   } finally {
     noticeBusy.value = null
   }
@@ -100,7 +101,7 @@ async function markAllNoticesRead() {
     const now = new Date().toISOString()
     for (const n of notices.value) if (!n.read_at) n.read_at = now
   } catch {
-    if (alive) ElMessage.error('標記失敗，請重試')
+    if (alive) notifyError('標記失敗，請重試')
   } finally {
     noticeBusy.value = null
   }
@@ -150,7 +151,7 @@ async function loadMore() {
     releases.value = [...releases.value, ...page.items.filter((r) => !seen.has(r.id))]
     nextBefore.value = page.next_before
   } catch {
-    if (alive) ElMessage.error('讀取更早的紀錄失敗，請重試')
+    if (alive) notifyError('讀取更早的紀錄失敗，請重試')
   } finally {
     if (alive) moreLoading.value = false
   }
@@ -207,6 +208,10 @@ async function restoreRelease(release: ReleaseOut) {
       confirmButtonText: '整站還原',
       cancelButtonText: '先不要',
       type: 'warning',
+      // 一次換掉整站已發布的內容：和停用分校、刪除素材一樣用危險色，焦點不放在確認鈕，
+      // 按 Enter 不會直接執行。
+      confirmButtonClass: 'el-button--danger',
+      autofocus: false,
       customStyle: { whiteSpace: 'pre-line' },
     })
   } catch {
@@ -230,11 +235,12 @@ async function restoreRelease(release: ReleaseOut) {
     if (detail.code === 'RELEASE_NOT_RESTORABLE' && detail.items?.length) {
       const list = detail.items.map((p) => `・${contentItemLabel(p.kind, p.campus_key)}：${p.message}`).join('\n')
       void ElMessageBox.alert(`${detail.message ?? '有些內容不能發布，整站沒有變動'}\n${list}`, '沒有還原', {
+        confirmButtonText: '知道了',
         type: 'error',
         customStyle: { whiteSpace: 'pre-line' },
       })
     } else {
-      ElMessage.error(detail.message ?? '還原失敗，請重試')
+      notifyError(detail.message ?? '還原失敗，請重試')
     }
     await loadReleases()
   } finally {
@@ -283,7 +289,7 @@ async function cancelJob(job: PublishJobListOut) {
     await api.delete(`/admin/content-items/${job.kind}/schedules/${job.id}${query}`)
     if (alive) ElMessage.success('已取消排程')
   } catch (err) {
-    if (alive) ElMessage.error(apiDetail(err).message ?? '取消失敗，請重試')
+    if (alive) notifyError(apiDetail(err).message ?? '取消失敗，請重試')
   } finally {
     if (alive) cancellingId.value = null
     await loadJobs()

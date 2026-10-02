@@ -31,12 +31,26 @@ export async function leaveWithoutAsking<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export interface UnsavedChangesOptions {
+  /**
+   * 離頁時可以先存草稿：只有內容編輯頁傳（存草稿不會動到官網）。預約設定、個資
+   * 政策這些一存就直接上線的頁面不傳，離頁框維持「放棄修改／留在這頁」。
+   */
+  saveDraft?: () => Promise<boolean>
+  /** 現在能不能存草稿（唯讀、版本衝突時不行）；沒給就當可以 */
+  canSaveDraft?: Readonly<Ref<boolean>>
+}
+
 /** 設定頁與內容頁共用離頁保護；同時觸發的離頁動作只詢問一次。 */
-export function useUnsavedChanges(isDirty: Readonly<Ref<boolean>>, busy?: Readonly<Ref<boolean>>) {
+export function useUnsavedChanges(isDirty: Readonly<Ref<boolean>>, busy?: Readonly<Ref<boolean>>, options: UnsavedChangesOptions = {}) {
   let pending: Promise<boolean> | null = null
   let unregister: (() => void) | null = null
 
-  function confirmLeave(): Promise<boolean> {
+  /**
+   * allowSave：真的離開這個路由時才給「儲存草稿並離開」。分校內容切校也會呼叫
+   * confirmLeave，那時校區已經換成新的一校，存草稿會把舊校的表單送到新校，所以不給。
+   */
+  function confirmLeave(opts: { allowSave?: boolean } = {}): Promise<boolean> {
     if (discarding) return Promise.resolve(true)
     if (busy?.value) {
       ElMessage.info('正在儲存，請稍候再離開。')
@@ -44,10 +58,38 @@ export function useUnsavedChanges(isDirty: Readonly<Ref<boolean>>, busy?: Readon
     }
     if (!isDirty.value) return Promise.resolve(true)
     if (pending) return pending
-    pending = ElMessageBox.confirm('這一頁有尚未儲存的修改，離開後會遺失。', '放棄修改？', {
-      confirmButtonText: '放棄修改', cancelButtonText: '留在這頁', type: 'warning',
-    }).then(() => true, () => false).finally(() => { pending = null })
+    const saveDraft = opts.allowSave && (options.canSaveDraft?.value ?? true) ? options.saveDraft : undefined
+    pending = (saveDraft ? askSaveOrDiscard(saveDraft) : ElMessageBox.confirm('這一頁有尚未儲存的修改，離開後會遺失。', '放棄修改？', {
+      confirmButtonText: '放棄修改', cancelButtonText: '留在這頁', type: 'warning', confirmButtonClass: 'el-button--danger', autofocus: false,
+    }).then(() => true, () => false)).finally(() => { pending = null })
     return pending
+  }
+
+  // 三個選擇：儲存草稿並離開（存成功才離開；失敗就留在原頁，錯誤沿用存檔的提示）、
+  // 放棄修改、關掉對話框（X／Esc）就是留在這頁。
+  async function askSaveOrDiscard(saveDraft: () => Promise<boolean>): Promise<boolean> {
+    let saved = false
+    try {
+      await ElMessageBox.confirm('這一頁有尚未儲存的修改。儲存草稿不會更動官網；放棄修改就會遺失。', '離開前要儲存嗎？', {
+        confirmButtonText: '儲存草稿並離開',
+        cancelButtonText: '放棄修改',
+        distinguishCancelAndClose: true,
+        type: 'warning',
+        beforeClose: (action, instance, done) => {
+          if (action !== 'confirm') return done()
+          instance.confirmButtonLoading = true
+          void saveDraft().then((ok) => {
+            saved = ok
+          }).finally(() => {
+            instance.confirmButtonLoading = false
+            done()
+          })
+        },
+      })
+      return saved
+    } catch (action) {
+      return action === 'cancel'
+    }
   }
 
   function beforeUnload(event: BeforeUnloadEvent) {
@@ -56,7 +98,7 @@ export function useUnsavedChanges(isDirty: Readonly<Ref<boolean>>, busy?: Readon
     event.returnValue = ''
   }
 
-  onBeforeRouteLeave(confirmLeave)
+  onBeforeRouteLeave(() => confirmLeave({ allowSave: true }))
   onMounted(() => {
     window.addEventListener('beforeunload', beforeUnload)
     unregister = registerUnsavedChanges(isDirty)

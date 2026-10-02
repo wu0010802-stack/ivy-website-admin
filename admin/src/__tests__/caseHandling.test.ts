@@ -75,7 +75,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     select.vm.$emit('update:modelValue', 'slot-b')
     await wrapper.find('input[aria-label="改期原因"]').setValue('家長來電改到週末')
     await flushPromises()
-    await button(wrapper, '改到這個時段')!.trigger('click')
+    await button(wrapper, '改到這一場')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/reschedule', { new_slot_id: 'slot-b', reason: '家長來電改到週末' })
     // 改期後系統會寄信給家長，不再預填「已致電家長」的紀錄。
@@ -109,7 +109,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase())
     expect(button(wrapper, '標記已到場')).toBeUndefined()
     expect(button(wrapper, '標記未到場')).toBeUndefined()
-    expect(wrapper.text()).toContain('參觀時段開始後可以標記已到場或未到場')
+    expect(wrapper.text()).toContain('參觀場次開始後可以標記已到場或未到場')
     expect(wrapper.text()).toContain('請用下方的「取消預約」')
     expect(button(wrapper, '取消預約')).toBeDefined()
   })
@@ -133,14 +133,14 @@ describe('已確認案件的改期（第 13 條）', () => {
   it('園方直接改期後重抓側欄的待核准數（家長先前的申請已失效）', async () => {
     const { wrapper, get } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }), [listSlot(later)])
     // 有家長的改期申請時，手動改期先收起來，主動作是核准或退回。
-    expect(button(wrapper, '改到這個時段')).toBeUndefined()
-    await button(wrapper, '不照申請，改到其他時段…')!.trigger('click')
+    expect(button(wrapper, '改到這一場')).toBeUndefined()
+    await button(wrapper, '不照申請，改到其他場次…')!.trigger('click')
     confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     wrapper.findAllComponents({ name: 'ElSelect' })[0]!.vm.$emit('update:modelValue', 'slot-b')
     await flushPromises()
     get.mockClear()
-    await button(wrapper, '改到這個時段')!.trigger('click')
+    await button(wrapper, '改到這一場')!.trigger('click')
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
@@ -149,7 +149,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }))
     expect(wrapper.text()).toContain('家長申請改期')
     expect(wrapper.text()).toContain('2099/10/03（週六）14:00–15:00')
-    expect(wrapper.text()).toContain('新時段剩 2 組')
+    expect(wrapper.text()).toContain('新場次剩 2 組')
     const confirm = confirmOk()
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
     await button(wrapper, '核准改期')!.trigger('click')
@@ -175,7 +175,7 @@ describe('已確認案件的改期（第 13 條）', () => {
   it('沒有處理權的帳號看不到改期與連結操作', async () => {
     const viewer = testUser('readonly', { campus_keys: ['yihua'], effective_capabilities: ['booking.read'] })
     const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }), [listSlot(later)], viewer)
-    for (const label of ['改到這個時段', '核准改期', '退回申請', '產生連結']) expect(button(wrapper, label)).toBeUndefined()
+    for (const label of ['改到這一場', '核准改期', '退回申請', '產生連結']) expect(button(wrapper, label)).toBeUndefined()
   })
 })
 
@@ -200,7 +200,8 @@ describe('家長管理連結（第 20 條）', () => {
     expect(writeText).toHaveBeenCalledWith('https://www.ivy.example/visit/manage#token=abc')
 
     const confirm = confirmOk()
-    await button(wrapper, '重新產生連結並寄出')!.trigger('click')
+    // 這筆沒有 Email，不會寄信：按鈕不寫「並寄出」。
+    await button(wrapper, '重新產生連結')!.trigger('click')
     await flushPromises()
     expect(String(confirm.mock.calls[0]![0])).toContain('舊連結會立即失效')
   })
@@ -249,7 +250,7 @@ describe('案件歷程（第 15 條）', () => {
 
     const cancelled = event({ event_type: 'cancelled', source: 'parent', before: { status: 'confirmed', slot: current }, after: { status: 'cancelled' } })
     expect(visitEventActor(cancelled)).toBe('家長')
-    expect(visitEventChanges(cancelled)).toEqual(['已確認 → 已取消', '原參觀時間 2099/10/01（週四）10:00–11:00'])
+    expect(visitEventChanges(cancelled)).toEqual(['預約正常 → 已取消', '原參觀時間 2099/10/01（週四）10:00–11:00'])
 
     expect(visitEventActor(event({ event_type: 'hold_expired', source: 'system' }))).toBe('系統自動')
     expect(visitEventActor(event({ source: 'staff', actor_user_id: 'gone' }))).toBe('已移除的帳號')
@@ -299,7 +300,7 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     return wrapper
   }
 
-  it('清單顯示家長、原時段、申請的新時段與剩餘名額；通知連得到案件', async () => {
+  it('清單顯示家長、原場次、申請的新場次與剩餘名額；通知連得到案件', async () => {
     vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : String(path).includes('reschedule-requests')
       ? [pendingReschedule()]
       : [{ id: 'n1', campus_key: 'yihua', kind: 'visit_reschedule_requested', payload: { campus_key: 'yihua', receipt_id: 'case-a', reschedule_request_id: 'req-1' }, created_at: '2026-09-24T02:00:00Z', read_at: null }]) as never)

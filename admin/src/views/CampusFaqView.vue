@@ -12,6 +12,7 @@ import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import { revealListItem } from '../composables/newsContent'
+import { legacyCopyHint } from '../composables/contentHints'
 
 const MAX_ITEMS = 20
 
@@ -33,6 +34,8 @@ const editor = useContentItem<CampusFaqPayload>(
 )
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
+// 原型原文提示要看整校：官網只在預約那一題還是原文時才替換這一校的回答。
+const faqAnswers = computed(() => editor.form.value.items.map((item) => item.a))
 
 // 全站共用題目：顯示官網上（已發布）的版本；還沒發布過就顯示最新草稿並註明。
 // 讀取中與讀取失敗不能落到「沒有適用本校的共用題目」：分校同仁會以為總部沒設、
@@ -222,6 +225,7 @@ function move(index: number, delta: number) {
         <el-form-item label="回答" :error="blankError(qa, 'a')">
           <el-input v-model="qa.a" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" />
           <LengthHint :value="qa.a" rule="faqAnswer" />
+          <p v-if="legacyCopyHint('faqAnswer', qa.a, faqAnswers)" class="legacy-hint">{{ legacyCopyHint('faqAnswer', qa.a, faqAnswers) }}</p>
         </el-form-item>
       </div>
       </div>
@@ -237,6 +241,14 @@ function move(index: number, delta: number) {
 </template>
 
 <style scoped>
+/* 原型原文提示：官網顯示的和這裡不同，改了之後才會照這裡顯示。 */
+.legacy-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-color-warning-dark-2);
+}
+
 .repeat-item__head {
   flex-wrap: wrap;
 }

@@ -288,3 +288,121 @@ async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public
     # 草稿要指名是哪一項內容，前端才能直接連過去。
     assert body["pending_publish"] >= 1
     assert "home_about" in body["pending_publish_kinds"]
+
+
+async def _past_slot(db_session, campus_key="yihua", days_ago=1):
+    from datetime import time
+
+    from app.booking.models import VisitSlot
+    from app.common.timezones import today_local
+
+    slot = VisitSlot(
+        id=uuid4(), campus_key=campus_key, slot_date=today_local() - timedelta(days=days_ago),
+        start_time=time(10, 0), end_time=time(11, 0), capacity=5, created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(slot)
+    await db_session.commit()
+    return slot.id
+
+
+@pytest.mark.asyncio
+async def test_dashboard_counts_past_visits_awaiting_attendance(admin_client, minghua_client, db_session):
+    # 參觀時間已過、還是「已確認」的才算；已標到場或未到場、還沒到的都不算。
+    past = await _past_slot(db_session)
+    await legacy_request(db_session, status="confirmed", slot_id=past)
+    await legacy_request(db_session, status="confirmed", slot_id=past)
+    await legacy_request(db_session, status="completed", slot_id=past)
+    await legacy_request(db_session, status="no_show", slot_id=past)
+    await legacy_request(db_session, status="confirmed", slot_id=await create_slot(admin_client))
+    await legacy_request(db_session, campus_key="minghua", status="confirmed", slot_id=await _past_slot(db_session, "minghua"))
+
+    assert (await admin_client.get("/api/website/v1/admin/dashboard")).json()["awaiting_attendance"] == 3
+    # 分校帳號只算自己校。
+    assert (await minghua_client.get("/api/website/v1/admin/dashboard")).json()["awaiting_attendance"] == 1
+
+
+async def _audit(db_session, *, action, created_at, campus_key="yihua", target_type="site", target_id="x"):
+    from app.operations.models import AuditLogEntry
+
+    entry = AuditLogEntry(
+        id=uuid4(), actor_user_id=None, action=action, target_type=target_type, target_id=target_id,
+        campus_key=campus_key, metadata_json={}, created_at=created_at,
+    )
+    db_session.add(entry)
+    return entry
+
+
+@pytest.mark.asyncio
+async def test_audit_log_pages_older_entries_with_cursor(admin_client, db_session):
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    base = datetime(2026, 9, 1, 2, 0, tzinfo=timezone.utc)
+    # 105 筆，其中有兩筆時間完全相同，跨頁時要靠 id 排出固定順序。
+    for index in range(104):
+        await _audit(db_session, action="site_settings.update", created_at=base + timedelta(minutes=index))
+    await _audit(db_session, action="site_settings.update", created_at=base)
+    await _audit(db_session, action="site_settings.update", created_at=base, campus_key="minghua")
+    await db_session.commit()
+
+    first = (await admin_client.get("/api/website/v1/admin/audit-log?campus_key=yihua")).json()
+    assert len(first) == 100
+    last = first[-1]
+    params = {"campus_key": "yihua", "before": last["created_at"], "before_id": last["id"]}
+    second = await admin_client.get("/api/website/v1/admin/audit-log", params=params)
+    assert second.status_code == 200, second.text
+    ids = [e["id"] for e in first] + [e["id"] for e in second.json()]
+    # 一共 105 筆 yihua，不漏、不重複，也不混進明華的。
+    assert len(ids) == len(set(ids)) == 105
+    assert all(e["campus_key"] == "yihua" for e in second.json())
+
+    only_time = await admin_client.get("/api/website/v1/admin/audit-log", params={"before": last["created_at"]})
+    assert only_time.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_audit_log_can_hide_routine_logins(admin_client, db_session):
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    now = datetime.now(timezone.utc)
+    for offset, action in enumerate(
+        ["user.login_password", "user.login_line", "user.logout", "user.login_password_failed", "site_settings.update"]
+    ):
+        await _audit(db_session, action=action, created_at=now - timedelta(minutes=offset), campus_key=None)
+    await db_session.commit()
+
+    everything = (await admin_client.get("/api/website/v1/admin/audit-log")).json()
+    assert len(everything) == 5
+    hidden = (await admin_client.get("/api/website/v1/admin/audit-log?exclude_login=true")).json()
+    # 登入失敗照列，那是要留意的事。
+    assert [e["action"] for e in hidden] == ["user.login_password_failed", "site_settings.update"]
+
+
+@pytest.mark.asyncio
+async def test_audit_log_says_whether_case_still_exists(admin_client, db_session):
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    kept = await legacy_request(db_session, status="new")
+    now = datetime.now(timezone.utc)
+    await _audit(db_session, action="visit_request.assign", created_at=now, target_type="visit_request", target_id=kept)
+    await _audit(
+        db_session, action="visit_request.assign", created_at=now - timedelta(minutes=1),
+        target_type="visit_request", target_id=str(uuid4()),
+    )
+    await _audit(
+        db_session, action="visit_request.export", created_at=now - timedelta(minutes=2),
+        target_type="visit_request", target_id="yihua",
+    )
+    await _audit(db_session, action="site_settings.update", created_at=now - timedelta(minutes=3))
+    await db_session.commit()
+
+    entries = (await admin_client.get("/api/website/v1/admin/audit-log?campus_key=yihua")).json()
+    # 匯出的 target_id 是校區代號，不是哪一筆案件，不回在不在。
+    assert [e["target_exists"] for e in entries] == [True, False, None, None]
+    # 只回在不在，不帶家長個資。
+    assert "舊案家長" not in str(entries)

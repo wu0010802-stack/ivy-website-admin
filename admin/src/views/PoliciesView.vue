@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import type { RetentionPolicyOut, RetentionReportOut, RetentionRunOut } from '../api/types'
@@ -174,6 +175,7 @@ async function confirmAutoCleanup(): Promise<boolean> {
         cancelButtonText: '先不要',
         type: 'warning',
         confirmButtonClass: 'el-button--danger',
+        autofocus: false,
       },
     )
     return true
@@ -197,10 +199,10 @@ async function savePolicy() {
   } catch (err) {
     if (isVersionConflict(err)) {
       // 畫面會自動重讀，不顯示後端「請重新載入」的訊息，免得前後矛盾。
-      ElMessage.warning('保存政策剛被其他人修改，已載入最新的設定；你的修改沒有儲存，請確認後再調整')
+      notifyWarning('保存政策剛被其他人修改，已載入最新的設定；你的修改沒有儲存，請確認後再調整')
       await loadPolicy()
     } else {
-      ElMessage.error(apiErrorMessage(err, '儲存失敗'))
+      notifyError(apiErrorMessage(err, '儲存失敗'))
     }
   } finally {
     saving.value = false
@@ -214,7 +216,7 @@ async function refreshPreview(): Promise<boolean> {
     return true
   } catch {
     preview.value = null
-    ElMessage.error('試算失敗，請重新整理後再試')
+    notifyError('試算失敗，請重新整理後再試')
     return false
   }
 }
@@ -253,7 +255,7 @@ async function runRetention() {
       await ElMessageBox.confirm(
         `將匿名化 ${preview.value.total} 筆案件（${countLines(preview.value)}）：姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字。無法復原。`,
         '確定執行清理？',
-        { confirmButtonText: '執行清理', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger' },
+        { confirmButtonText: '執行清理', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger', autofocus: false },
       )
     } catch {
       return
@@ -262,7 +264,7 @@ async function runRetention() {
       const result = await api.post<RetentionReportOut>('/admin/retention/run')
       ElMessage.success(`已匿名化 ${result.total} 筆案件`)
     } catch (err) {
-      ElMessage.error(apiErrorMessage(err, '無法確認清理結果，請看下方清理紀錄後再操作。'))
+      notifyError(apiErrorMessage(err, '無法確認清理結果，請看下方清理紀錄後再操作。'))
     }
     await Promise.all([loadPolicy(), loadRuns()])
   } finally {
@@ -291,7 +293,7 @@ onMounted(() => {
       <div class="panel__head"><h2>個資保存政策</h2></div>
       <div class="panel__body">
         <p class="page-lead">
-          已結案的參觀案件，家長個資保留多久。保存期限從結案時間（取消、完成或標記未到場的時間）起算；到期的案件會把姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字，案件本身與統計數字保留。還沒結案的案件（新案、聯絡中、待確認、已確認）不論多久都不會清理。
+          已結案的參觀案件，家長個資保留多久。保存期限從結案時間（取消、完成或標記未到場的時間）起算；到期的案件會把姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字，案件本身與統計數字保留。還沒結案的案件（預約正常，或參觀時間已過、還沒標記到場或未到場的）不論多久都不會清理。
         </p>
         <el-alert v-if="policyError" type="error" :closable="false" show-icon :title="policyError"><el-button @click="loadPolicy">重新載入</el-button></el-alert>
         <el-skeleton v-else-if="!policy" animated :rows="4" />
