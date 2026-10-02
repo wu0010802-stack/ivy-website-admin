@@ -1,3 +1,18 @@
+## 2026-10-02 招生入學後續修正（`feature/admissions-followups-20261002`）
+
+招生入學併入 main 後使用者選定的五項後續修正，在同一分支完成（尚未部署）：
+
+- **頁首學年選項放寬、統計子分頁寫進網址（X2a，e572fb3）**：頁首學年選項改為 [3,2,1,0,-1,-2]；統計分頁的子分頁用網址參數 `sub`（只在 `tab=stats` 且非總覽時寫入），重新整理或分享連結會停在同一個子分頁；網址帶 `sub=compare` 但只看得到一校時退回總覽。
+- **名額規劃「計畫名額」欄加寬（X2a，7053d5f）**：欄寬 `min-width` 改 152，390px 輸入框不再被截成「..」。
+- **功能開關關閉時側欄不顯示招生入學（X2b，b246839）**：`/auth/me` 與登入回應新增 `features.admissions`（取 `WEBSITE_ADMISSIONS_ENABLED`）；後台 auth store 存下（讀不到當關閉），側欄與側欄搜尋用 `canListNavItem` 過濾 `feature: 'admissions'` 的項目。路由守衛不擋，直接輸入網址仍看到「招生入學尚未啟用」。
+- **五校比較件數跟頁首學期（X2b，978004f）**：`GET /admin/admissions/compare` 的 `semester` 改選填，沒帶＝件數算整學年（和總覽對得起來），名額剩餘用名額規劃的上學期；回應新增 `seat_semester`，表格上方依回應組說明句（例如「件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。」）。
+
+驗證（實際跑過）：
+
+- 後端單檔 `pytest -q tests/test_auth_scope.py`（14 通過）、`tests/test_admissions_stats.py`（22 通過）。
+- `npm run contract:check` 一致；`npm --prefix admin run typecheck` 無錯誤；`npm --prefix admin run test:unit -- --maxWorkers=2` 69 檔／897 測試全過。
+- X2a 的 e2e:build＋admissions-flow 4 項通過、390／1440 截圖已檢視（見 X2a 報告）。
+
 ## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 併入 main，功能開關預設關閉）
 
 比照園務系統「招生入學」，在官網後台加參觀後的招生追蹤：已訪視 → 已預繳 → 已註冊 ｜ 退預繳／退註冊、名額規劃、統計分析與五校比較。三張表沿用園務名稱（`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`），併入園務時可整批轉移。規格 `docs/specs/2026-09-30-website-admissions-design.md`（第 17 節是計畫回寫對照），計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`，規則見 DESIGN.md「招生入學（2026-10-01）」。分支疊在家長自選場次改版（`feature/parent-self-booking-20260930`）上。功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關。
