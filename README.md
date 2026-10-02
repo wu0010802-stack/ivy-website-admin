@@ -13,7 +13,7 @@
 - `npm run contract:check` 一致；`npm --prefix admin run typecheck` 無錯誤；`npm --prefix admin run test:unit -- --maxWorkers=2` 69 檔／897 測試全過。
 - X2a 的 e2e:build＋admissions-flow 4 項通過、390／1440 截圖已檢視（見 X2a 報告）。
 
-## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 併入 main，功能開關預設關閉）
+## 2026-10-02 招生入學模組（`feature/admissions-20261001`，階段 A–C 完成，2026-10-02 已部署 `2eafc1b`，功能開關關閉）
 
 比照園務系統「招生入學」，在官網後台加參觀後的招生追蹤：已訪視 → 已預繳 → 已註冊 ｜ 退預繳／退註冊、名額規劃、統計分析與五校比較。三張表沿用園務名稱（`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`），併入園務時可整批轉移。規格 `docs/specs/2026-09-30-website-admissions-design.md`（第 17 節是計畫回寫對照），計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`，規則見 DESIGN.md「招生入學（2026-10-01）」。分支疊在家長自選場次改版（`feature/parent-self-booking-20260930`）上。功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關。
 
