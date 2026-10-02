@@ -120,7 +120,7 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
       </p>
       <el-table :data="rows" class="intake-table" :row-class-name="rowClass">
         <el-table-column label="年級" min-width="96" prop="grade" />
-        <el-table-column label="計畫名額" min-width="140">
+        <el-table-column label="計畫名額" min-width="152">
           <template #default="{ row }: { row: IntakePlanRow }">
             <el-input-number
               v-if="canWrite"
