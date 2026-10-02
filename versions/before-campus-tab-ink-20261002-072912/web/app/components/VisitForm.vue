@@ -2,7 +2,7 @@
 import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
-import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
+import { pickImage } from '~/utils/media-image'
 import { apiFieldErrors, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
@@ -598,7 +598,7 @@ async function onSubmit() {
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
-            <img v-if="selectedCampus" class="visit-result-art" :class="{ 'is-blend': lineArtBlends(selectedCampus) }" v-bind="lineArtInkImage(selectedCampus, '220px')" alt="" decoding="async">
+            <img v-if="selectedCampus" class="visit-result-art" v-bind="pickImage(`campus-line-art-${selectedCampus.key}`, selectedCampus.lineArtMedia, '240px')" alt="" decoding="async">
             <span class="visit-result-status" :data-status="resultKind === 'booked' ? 'confirmed' : 'closed'"><svg class="icon" aria-hidden="true"><use :href="resultKind === 'booked' ? '#i-check' : '#i-x'" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>

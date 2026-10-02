@@ -5,9 +5,7 @@
 .np-wrap{width:min(1080px,calc(100% - 96px));margin-inline:auto}
 .np-narrow{width:min(760px,calc(100% - 96px))}
 .np-crumb{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:var(--fs-sm);color:var(--ivy-news-muted)}
-.np-crumb a{position:relative;display:inline-flex;align-items:center;min-height:44px;color:inherit;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
-/* 「首頁」只有 28px 寬：透明偽元素左右補到 44px，外觀不變（同 styles.css 的 .breadcrumb a，2026-10-02）。 */
-.np-crumb a::before{content:"";position:absolute;inset:0 min(0px,calc(50% - 22px))}
+.np-crumb a{display:inline-flex;align-items:center;min-height:44px;color:inherit;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
 
 /* ---------- 列表頁 ---------- */
 .np-head{margin-top:40px}

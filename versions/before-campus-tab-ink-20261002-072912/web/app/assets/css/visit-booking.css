@@ -198,9 +198,7 @@
 
 /* 送出後 ------------------------------------------------------------------ */
 .visit-result {padding-top:6px;scroll-margin-top:116px}
-.visit-result-art {display:block;width:min(220px,60%);height:auto;margin:0 0 18px}
-/* 內建線稿是透明底墨線版（media-image.ts lineArtInkImage）；只有後台換過的線稿要靠 multiply 融掉紙底。 */
-.visit-result-art.is-blend {mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2)}
+.visit-result-art {display:block;width:min(220px,60%);height:auto;margin:0 0 18px;mix-blend-mode:multiply;filter:grayscale(1) brightness(.72) contrast(3.2)}
 .visit-result-status {display:inline-flex;align-items:center;gap:9px;font-size:var(--fs-sm);color:var(--visit-ink);background:var(--visit-soft);border-radius:99px;padding:8px 14px;margin-bottom:23px}
 .visit-result-status .icon {width:16px;height:16px}
 .visit-result-list {border-block:1px solid var(--visit-line);padding:20px 0;margin:27px 0;display:grid;gap:13px;font-size:var(--fs-sm)}

@@ -374,9 +374,6 @@ export async function mountPaper(
   const view = document.createElement('canvas')
   view.className = 'paper-view'
   view.setAttribute('aria-hidden', 'true')
-  // 插入前就放在最終位置：之後 sizeView 只改大小、不移動起點，不算版面位移
-  // （原本先停在靜態位置、場景建好才移到 -MARGIN，手機首頁 CLS 0.29 全來自這裡，2026-10-02）
-  view.style.left = view.style.top = `${-MARGIN}px`
   wrap.append(view)
   const viewCtx = view.getContext('2d')
   if (!viewCtx) {

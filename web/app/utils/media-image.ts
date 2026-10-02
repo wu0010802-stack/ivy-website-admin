@@ -141,6 +141,20 @@ export function pickImage(name: string, media: MediaImage | undefined, sizes = '
   return media ? mediaImageAttrs(media, sizes) : responsiveImage(name, sizes)
 }
 
+/**
+ * 五校線稿的小圖（首頁分校分頁、預約結果）：內建線稿用透明底的墨線版 `<代號>-ink`
+ * （scripts/optimize-site-images.py 產生），不再靠 filter＋mix-blend-mode:multiply 融掉紙底——
+ * iPhone 把圖或祖先移到獨立合成層時 multiply 碰不到底色，會露出整塊紙底方塊。
+ * 後台換過線稿（lineArtMedia）時沒有墨線版，照舊用原圖，呼叫端依 lineArtBlends() 掛 `is-blend` 走 filter＋multiply。
+ */
+export function lineArtInkImage(campus: Pick<Campus, 'key' | 'lineArtMedia'>, sizes: string) {
+  return campus.lineArtMedia ? mediaImageAttrs(campus.lineArtMedia, sizes) : responsiveImage(`campus-line-art-${campus.key}-ink`, sizes)
+}
+
+export function lineArtBlends(campus: Pick<Campus, 'lineArtMedia'>) {
+  return Boolean(campus.lineArtMedia)
+}
+
 /** 首頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用，才不會多下載一張。 */
 export function heroImageAttrs(hero: Pick<HeroContent, 'heroImage' | 'heroImageMedia'>) {
   return pickImage(hero.heroImage, hero.heroImageMedia, HOME_HERO_SIZES)

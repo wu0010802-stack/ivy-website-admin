@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { responsiveImage } from '~/utils/responsive-image'
+import { pickImage } from '~/utils/media-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
@@ -85,15 +84,13 @@ function refreshLineArtOnResize() {
   lineArtSize = size
   refreshLineArt()
 }
-// 分頁鈕 2026-10-02 起是透明底墨線版，淡彩速寫要原線稿：照 manifest 的候選挑夠用的寬度。
-// 只有內建線稿會畫（後台換過線稿時 sketchRegistration 回 null）。
 function sketchSources(i: number) {
   const campus = orderedCampuses.value[i]
+  const tabArt = root.value?.querySelector<HTMLImageElement>(`[data-campus-tab="${i}"] .campus-tab-art`)
   const card = root.value?.querySelector<HTMLElement>('.photo-card')
-  if (!campus) return null
-  const lineArt = responsiveImage(`campus-line-art-${campus.key}`)
+  if (!campus || !tabArt) return null
   const needed = (card?.clientWidth ?? 1200) * sketchScale() * 1.1
-  return { lineSrc: pickLineArt(lineArt.srcset ?? '', lineArt.src, needed), colourSrc: `/assets/campus-line-art-${campus.key}-colour.webp` }
+  return { lineSrc: pickLineArt(tabArt.srcset, tabArt.src, needed), colourSrc: `/assets/campus-line-art-${campus.key}-colour.webp` }
 }
 function preloadCampus(i: number) {
   const campus = orderedCampuses.value[i]
@@ -444,8 +441,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         >
           <span class="campus-tab-figure" aria-hidden="true">
             <img
-              class="campus-tab-art" :class="{ 'is-blend': lineArtBlends(campus) }"
-              v-bind="lineArtInkImage(campus, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
+              class="campus-tab-art"
+              v-bind="pickImage(`campus-line-art-${campus.key}`, campus.lineArtMedia, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
               alt="" aria-hidden="true" loading="lazy" decoding="async"
             >
             <img
@@ -565,17 +562,13 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
 @media(hover:hover){.campus-tabs button:hover:not([aria-selected=true]){color:var(--heading-ink)}}
 .campus-tab-figure{position:relative;display:block;width:160px;max-width:100%;aspect-ratio:3/2}
-/* 線稿（2026-10-02 起）是透明底墨線版 `-ink`（media-image.ts lineArtInkImage），不用混合模式：原本白底圖靠 filter＋multiply
-   融進底色，iPhone 只要把圖或祖先移到獨立合成層，multiply 就碰不到底色，露出整塊紙底方塊。後台換過的線稿沒有墨線版，
-   掛 is-blend 照舊 filter＋multiply。淡彩層（只在 hover 裝置顯示）仍是白底圖靠 multiply。
-   直接對 opacity／filter 做 transition 時，WebKit（iPhone、Safari）會把圖移到獨立合成層，multiply 碰不到底色，轉場那
-   0.2–0.35 秒露出白底長方形（每次自動輪播切換都閃）。所以轉場註冊過的數值變數，由主執行緒逐幀更新，不升合成層；
-   未支援 @property 的瀏覽器退回瞬間切換（var 的後備值即靜止狀態）。 */
+/* 線稿與淡彩層都是白底圖靠 multiply 融進底色。直接對 opacity／filter 做 transition 時，WebKit（iPhone、Safari）會把圖移到
+   獨立合成層，multiply 碰不到底色，轉場那 0.2–0.35 秒露出白底長方形（每次自動輪播切換都閃）。改成轉場註冊過的數值變數，
+   由主執行緒逐幀更新，不升合成層；淡入曲線不變。未支援 @property 的瀏覽器退回瞬間切換（var 的後備值即靜止狀態）。 */
 @property --tab-art-opacity{syntax:'<number>';inherits:false;initial-value:.75}
 @property --tab-art-brightness{syntax:'<number>';inherits:false;initial-value:.72}
 @property --tab-colour-opacity{syntax:'<number>';inherits:false;initial-value:0}
-.campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;opacity:var(--tab-art-opacity,.75);transition:--tab-art-opacity .2s,--tab-art-brightness .2s}
-.campus-tab-art.is-blend{mix-blend-mode:multiply;filter:grayscale(1) brightness(var(--tab-art-brightness,.72)) contrast(3.2)}
+.campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:grayscale(1) brightness(var(--tab-art-brightness,.72)) contrast(3.2);pointer-events:none;user-select:none;opacity:var(--tab-art-opacity,.75);transition:--tab-art-opacity .2s,--tab-art-brightness .2s}
 .campus-tabs button[aria-selected=true] .campus-tab-art{--tab-art-opacity:1}
 @media(hover:hover){.campus-tabs button:hover .campus-tab-art{--tab-art-opacity:1;--tab-art-brightness:.68}}
 /* 淡彩層只有顏色、不含線條，multiply 疊在線稿上，淡入時線條濃淡不變；觸控裝置不載入 */
