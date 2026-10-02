@@ -151,7 +151,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 
 - **發布後又存了含【待確認】的草稿**：官網仍顯示已發布的版本；草稿要補完才能再發布。
 - **還原成舊版**：沿用共用內容的還原流程。單一內容的還原會經過 `publish_jobs.check_publishable`（`routes.py:458`），舊版若含【待確認】就不能還原成線上版本。
-- **整站還原到政策發布前的 release**：`content.privacy_policy` 消失，頁面回 404、頁尾退回原本的對話框。這是預期行為。
+- **整站還原到政策發布前的 release**：政策會留在線上，頁面與頁尾連結都不變。整站還原只把還原目標當時已上線的內容項換回舊版，「目標之後才第一次上線」的內容項維持現狀（`backend/app/content/service.py:213-215`）；政策發布晚於目標 release，所以不受影響。這比較不會讓政策在整站還原時意外消失；要下架政策得另外處理。
 - **快取**：公開資料由 server 端快取 3 秒（`usePublishedSite`），發布後最多 3 秒生效。
 
 ## 8. 初稿大綱
@@ -171,9 +171,9 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 | 9 | 您的權利 | 個資法第 3 條；修改連結自行更正；不提供必填的影響 |
 | 10 | 孩子的資料 | 由家長提供，用於安排參觀與班別 |
 | 11 | 政策修訂 | 公告於本頁並更新日期 |
-| 12 | 聯絡我們 | 各校電話見「五所校園」；統一 Email【待確認】 |
+| 12 | 聯絡我們 | 各校電話見頁尾；統一 Email【待確認】 |
 
-需要園方補的 8 項（發布前必須補完）：
+初稿共有 9 處【待確認】標記，要園方補的事項是 8 項（發布前必須補完；第 3 項的 Turnstile 在第 4 段與第 6 段各有一處標記，算同一項）：
 
 1. 蒐集者的法人或各校登記名稱。
 2. 參觀後招生聯繫與紀錄的寫法（招生規格 §15 Q1；2026-10-02 拿掉同意勾選後，告知全靠這段）。
@@ -225,7 +225,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 - 分支 `feature/privacy-policy-20261003`，worktree `~/Desktop/ivy-website-privacy`（sparse checkout，從 origin/main `94e18c1` 開出）。
 - 不需要 migration。推 main 部署前先問使用者。
 - 上線後要園方做（記在 `deploy/README.md`）：
-  1. 在後台補完 8 項【待確認】，填最後更新日期，發布。
+  1. 在後台補完 9 處【待確認】（8 項事項），填最後更新日期，發布。
   2. 依第 7 段寫的保存天數設定保存政策，並開啟自動清理；部署設定 `WEBSITE_RETENTION_ALLOW_REAL_RUN` 也要開。
 - 驗收紀錄寫進 `docs/website-admin/acceptance.md`，新增「隱私權政策頁」一節（P01–P12）。
 
@@ -301,7 +301,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 
 - Railway：網站主機與資料庫【待確認：資料所在地區】
 - 【待確認：寄信服務商】：寄送預約確認信
-- Cloudflare：判斷自動程式（若已啟用）
+- 【待確認：若已啟用 Cloudflare Turnstile 才保留這一行；未啟用就刪除】Cloudflare：判斷自動程式
 
 在我們內部，只有負責您預約校區的人員看得到您的預約資料。除了法律規定或主管機關依法要求之外，我們不會提供給其他人。
 
@@ -341,7 +341,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 對本政策或您的個人資料有任何問題，請聯絡：
 
 - Email：【待確認：統一的聯絡 Email】
-- 各校電話：請見本網站「五所校園」頁面
+- 各校電話：請見本頁下方頁尾的各校電話
 
 ## 附錄 B：初稿的事實依據
 
