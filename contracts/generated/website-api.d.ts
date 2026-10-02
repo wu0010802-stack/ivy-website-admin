@@ -52,6 +52,7 @@ export interface paths {
         /**
          * Get Admissions Compare
          * @description 五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
+         *     semester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。
          */
         get: operations["get_admissions_compare_api_website_v1_admin_admissions_compare_get"];
         put?: never;
@@ -2438,8 +2439,10 @@ export interface components {
             rows: components["schemas"]["AdmissionsCompareRow"][];
             /** School Year */
             school_year: number;
+            /** Seat Semester */
+            seat_semester: number;
             /** Semester */
-            semester: number;
+            semester: number | null;
         };
         /**
          * AdmissionsCompareRow
@@ -5900,7 +5903,7 @@ export interface operations {
         parameters: {
             query: {
                 school_year: number;
-                semester: number;
+                semester?: number | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

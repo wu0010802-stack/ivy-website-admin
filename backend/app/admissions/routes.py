@@ -537,11 +537,12 @@ async def get_admissions_stats(
 @router.get("/admin/admissions/compare", response_model=AdmissionsCompareOut)
 async def get_admissions_compare(
     school_year: int = Query(ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
-    semester: int = Query(ge=1, le=2),
+    semester: int | None = Query(default=None, ge=1, le=2),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdmissionsCompareOut:
-    """五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。"""
+    """五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
+    semester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。"""
     require_scope(current_user, "admissions.read")
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     result = await stats_service.compare(db, campus_keys, school_year=school_year, semester=semester)

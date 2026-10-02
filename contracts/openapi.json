@@ -19,15 +19,27 @@
             "title": "School Year",
             "type": "integer"
           },
-          "semester": {
-            "title": "Semester",
+          "seat_semester": {
+            "title": "Seat Semester",
             "type": "integer"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
           }
         },
         "required": [
           "as_of",
           "school_year",
           "semester",
+          "seat_semester",
           "rows"
         ],
         "title": "AdmissionsCompareOut",
@@ -10541,7 +10553,7 @@
     },
     "/api/website/v1/admin/admissions/compare": {
       "get": {
-        "description": "五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。",
+        "description": "五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。\nsemester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。",
         "operationId": "get_admissions_compare_api_website_v1_admin_admissions_compare_get",
         "parameters": [
           {
@@ -10558,12 +10570,19 @@
           {
             "in": "query",
             "name": "semester",
-            "required": true,
+            "required": false,
             "schema": {
-              "maximum": 2,
-              "minimum": 1,
-              "title": "Semester",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
             }
           },
           {

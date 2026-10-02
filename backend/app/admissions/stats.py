@@ -555,15 +555,20 @@ def _rate(numerator: int, denominator: int) -> dict[str, Any]:
 
 
 async def compare(
-    db: AsyncSession, campus_keys: list[str], *, school_year: int, semester: int, now: datetime | None = None
+    db: AsyncSession, campus_keys: list[str], *, school_year: int, semester: int | None, now: datetime | None = None
 ) -> dict[str, Any]:
-    """五校比較（官網延伸，規格 9.3）。依 campus_keys 的順序每校一列；呼叫端負責只傳授權範圍內的校區。"""
+    """五校比較（官網延伸，規格 9.3）。依 campus_keys 的順序每校一列；呼叫端負責只傳授權範圍內的校區。
+
+    件數：semester 有帶就只算該學期，沒帶就算整學年（母體規則同 query_stats）。
+    名額剩餘：名額規劃是逐學期設定，沒帶 semester 時用上學期，實際用的學期放 seat_semester。"""
     now = now or now_utc()
+    seat_semester = semester or 1
     v = RecruitmentVisit
+    term_filters = [v.target_semester == semester] if semester is not None else []
     rows = (
         await db.execute(
             select(v.campus_key, *_count_columns())
-            .where(v.campus_key.in_(campus_keys), v.target_school_year == school_year, v.target_semester == semester)
+            .where(v.campus_key.in_(campus_keys), v.target_school_year == school_year, *term_filters)
             .group_by(v.campus_key)
         )
     ).all()
@@ -571,7 +576,7 @@ async def compare(
     result: list[dict[str, Any]] = []
     for campus_key in campus_keys:
         c = counts_by_campus.get(campus_key, dict.fromkeys(COUNT_FIELDS, 0))
-        plan = await intake.intake_plan(db, campus_key, school_year, semester)
+        plan = await intake.intake_plan(db, campus_key, school_year, seat_semester)
         configured = [row for row in plan["rows"] if row["target_seats"] is not None]
         result.append({
             "campus_key": campus_key,
@@ -584,7 +589,9 @@ async def compare(
             "remaining_seats": plan["totals"]["remaining"],
             "grades_with_target": len(configured),
         })
-    return {"as_of": now, "school_year": school_year, "semester": semester, "rows": result}
+    return {
+        "as_of": now, "school_year": school_year, "semester": semester, "seat_semester": seat_semester, "rows": result,
+    }
 
 
 _LEADING_DIGITS = re.compile(r"\d+")

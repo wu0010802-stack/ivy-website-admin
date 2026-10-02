@@ -110,18 +110,29 @@ function navigate(target: { tab: StatsTarget; filter: Record<string, string | nu
   setSubTab(`stats-${target.tab}`)
 }
 
-// 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。名額剩餘要對到單一學期，
-// 規則同名額規劃（IntakePlanTab）：沒選學年用目前學年、沒選學期一律用上學期，兩個分頁看的是同一學期。
-// 頁首有沒選的部分就在表格上方寫明用的是哪個學期。
+// 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。學年跟頁首（沒選用目前學年）；
+// 學期跟頁首：沒選就不帶，件數算整學年，和總覽對得起來。名額規劃是逐學期設定，名額剩餘沒帶學期時
+// 後端用上學期（同 IntakePlanTab），實際用的學期由回應的 seat_semester 告知，寫在表格上方。
 const showCompare = computed(() => props.campusKeys.length > 1)
 const compareTerm = computed(() => ({
   schoolYear: props.schoolYear ?? currentTerm().schoolYear,
-  semester: props.semester ?? 1,
-  defaulted: props.schoolYear === null || props.semester === null,
+  semester: props.semester,
 }))
 const compareResult = ref<AdmissionsCompare | null>(null)
 const compareFailed = ref(false)
 const compareRequests = useRequestSequence()
+
+// 說明句用回應的學年、學期、名額學期組，不用請求前推算的值。
+const compareNote = computed(() => {
+  const result = compareResult.value
+  if (!result) return ''
+  const yearNote = props.schoolYear === null ? `頁首沒選學年，用目前的 ${result.school_year} 學年。` : ''
+  const seats = termLabel(result.school_year, result.seat_semester)
+  if (result.semester === null) {
+    return `${yearNote}件數為 ${result.school_year} 學年整學年；名額剩餘為 ${seats}（同名額規劃）。`
+  }
+  return `${yearNote}件數與名額剩餘都是 ${termLabel(result.school_year, result.semester)}。`
+})
 
 async function loadCompare() {
   const request = compareRequests.begin()
@@ -375,9 +386,7 @@ const noDepositKpis = computed(() => {
 
         <el-tab-pane v-if="showCompare" label="五校比較" name="stats-compare" lazy>
           <div class="stats-pane">
-            <p v-if="compareTerm.defaulted" class="hint compare-note">
-              五校比較要對到單一學期的名額：頁首沒選的部分用 {{ termLabel(compareTerm.schoolYear, compareTerm.semester) }}。
-            </p>
+            <p v-if="compareNote" class="hint compare-note">{{ compareNote }}</p>
             <el-alert v-if="compareFailed" type="error" :closable="false" show-icon title="無法讀取五校比較，請重新載入。">
               <el-button size="small" @click="loadCompare()">重新載入</el-button>
             </el-alert>
