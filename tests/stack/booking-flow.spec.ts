@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { adminApi, findVisit, submitPublicRequest, type AdminApi } from './api'
 import { readMail } from './mail'
-import { openAs } from './pages'
+import { openAs, pickVisitDate } from './pages'
 import { SECOND_CAMPUS, SLOTS_CAMPUS } from './stack-env'
 
 // 預約主流程（2026-09-30 家長自選場次）：家長在官網選場次送出即預約成功 → 從結果頁的修改連結
@@ -36,12 +36,12 @@ test.describe('自選場次（義華）', () => {
     await test.step('家長選日期與場次、填資料送出，結果頁寫預約成功與修改連結', async () => {
       await page.goto(`/visit/${SLOTS_CAMPUS}`)
       await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
-      const date = page.getByLabel('預約日期')
-      await expect(date.locator('option')).not.toHaveCount(1)
-      await date.selectOption({ index: 1 })
+      await pickVisitDate(page)
       await page.locator('.visit-slot-options input[type="radio"]').first().check()
       await fillParentForm(page, form)
-      await page.getByRole('button', { name: /送出/ }).click()
+      // 送出前的摘要寫出所選校區與場次。
+      await expect(page.locator('.visit-summary-what')).toContainText(/(上|下)午場/)
+      await page.getByRole('button', { name: '確認預約' }).click()
       await expect(page.locator('#booking-result')).toContainText('預約成功')
       await expect(page.getByRole('link', { name: '修改或取消預約' })).toHaveAttribute('href', /\/visit\/manage#token=/)
     })
@@ -61,7 +61,8 @@ test.describe('自選場次（義華）', () => {
       await expect(page).toHaveURL(/\/visit\/manage$/)
       await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
       await page.getByRole('button', { name: '改場次' }).click()
-      await page.getByLabel('新的場次').selectOption({ index: 1 })
+      await pickVisitDate(page)
+      await page.getByRole('group', { name: '新的場次' }).getByRole('radio').first().check()
       await page.getByRole('button', { name: '確認改到這個場次' }).click()
       await expect(page.locator('.parent-visit-notice')).toContainText('已改到')
     })
@@ -115,7 +116,7 @@ test.describe('填寫中的即時驗證', () => {
     await page.goto(`/visit/${SECOND_CAMPUS}`)
     await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
     await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__))
-    await page.getByLabel('預約日期').selectOption({ index: 1 })
+    await pickVisitDate(page)
     await page.locator('.visit-slot-options input[type="radio"]').first().check()
     await page.getByLabel('孩子姓名').fill('王小葉')
     await page.getByLabel('孩子出生年月日').fill('2022-03-15')
@@ -159,7 +160,7 @@ test.describe('填寫中的即時驗證', () => {
     await email.fill('not-an-email')
     await keepOnScreen(email)
 
-    await page.getByRole('button', { name: '送出參觀需求' }).click()
+    await page.getByRole('button', { name: '確認預約' }).click()
     // 送出前檢查擋下後把焦點帶回第一個錯誤欄位；點擊落空的話焦點會停在送出鈕上。
     await expect(page.locator('#visit-email-error')).not.toBeEmpty()
     await expect(email).toBeFocused()
@@ -225,7 +226,8 @@ test.describe('家長管理頁的邊界情況', () => {
       await page.goto(await manageLink(api, visit.id))
       await expect(page.locator('.parent-visit-status')).toHaveText('預約成功')
       await page.getByRole('button', { name: '改場次' }).click()
-      await page.getByLabel('新的場次').selectOption({ index: 1 })
+      await pickVisitDate(page)
+      await page.getByRole('group', { name: '新的場次' }).getByRole('radio').first().check()
       // 頁面開著的期間跨過截止：把這校的異動截止拉到參觀前 14 天（場次在 7–9 天後）。
       await setDeadline(24 * 14)
       await page.getByRole('button', { name: '確認改到這個場次' }).click()
