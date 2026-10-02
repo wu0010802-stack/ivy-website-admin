@@ -5,7 +5,7 @@
 _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalance）。
 只讀：不 flush、不 commit、不寫稽核。
 
-刻意與園務不同（contracts/ivy-recruitment/README.md「統計與園務的差異」）：
+刻意與園務不同（contracts/ivy-recruitment/README.md「## 刻意與園務不同的地方」）：
 - 比率分母 0 回 None（園務回 0）；月比任一邊是 None，delta 也是 None。
 - 來源不做別名合併；不做童年綠地、行政區、預計就讀月份。
 - 同票排序加第二鍵：標籤字串升序。
@@ -205,7 +205,7 @@ def _merge(rows: Iterable[Any], key: Callable[[Any], Any]) -> dict[Any, dict[str
 async def _unique_counts(db: AsyncSession, filters: list[Any]) -> tuple[int, int]:
     """園務 stats.py:122-139：coalesce(姓名,'')||'|'||coalesce(生日字串,'')，不 trim、不分大小寫。
     已匿名化的列姓名都是同一段固定文字、生日為空，照園務的鍵會被併成同一個孩子；
-    改用列 id 當鍵，一筆算一個（2026-10-01 主 session 補，對應 A 調整第 30 條）。"""
+    改用列 id 當鍵，一筆算一個。"""
     person_key = func.coalesce(RecruitmentVisit.child_name, "") + "|" + func.coalesce(cast(RecruitmentVisit.birthday, String), "")
     key = case(
         (RecruitmentVisit.anonymized_at.is_not(None), "anonymized|" + cast(RecruitmentVisit.id, String)),

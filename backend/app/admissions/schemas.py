@@ -415,7 +415,7 @@ class AdmissionsMetricSnapshot(BaseModel):
 
 
 class AdmissionsStatsKpi(AdmissionsMetricSnapshot):
-    # 以「姓名|生日」去重（園務 stats.py:122-139）。
+    # 以「姓名|生日」去重，匿名化的列以列 id 計（園務 stats.py:122-139）。
     unique_visit: int
     unique_deposit: int
 
