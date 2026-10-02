@@ -6,9 +6,9 @@
 - **後端**：`_VisitRequestFields.consent_given` 預設 false，拿掉 `_require_consent`。補登沒勾時不記同意時間。
 - **契約**：重新產生（`VisitRequestManualCreate` 說明與預設值）。
 
-**驗證**（Node 22）：
-- backend pytest 全套 1262 passed；`contract:check` 一致。
-- admin typecheck、vitest 69 檔 896 項。
+**驗證**（Node 22，已合併 main 的後台第七輪 UX 後重跑）：
+- backend pytest 全套 1270 passed；`contract:check` 一致。
+- admin typecheck、vitest 74 檔 952 項；web vitest 741 項。
 - stack e2e 整套 68 項全過。
 - 未驗證：線上補登（要後台登入），只在單元測試與 stack 驗過。
 
