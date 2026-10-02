@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.booking.models import VisitRequest
+from app.common.timezones import today_local
 from app.content import service as content_service
 from app.content.models import ContentItem, ContentRevision, SiteState
 from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
@@ -440,6 +441,9 @@ async def test_impact_counts_confirmed_visits_already_past_separately(admin_clie
 async def test_dashboard_lists_slots_campuses_without_openings(admin_client, public_client, db_session):
     await publish_booking_consent(db_session)
     # 有每週規則，但預約提前量比開放天數還長：存規則時補不出任何場次（A7 起存規則就會補場次）。
+    # 規則排在三天後的星期：開放天數只有 1 天，不論今天星期幾都補不到（固定寫星期六的話，
+    # 週五跑測試時明天就是星期六，會補出一場）。
+    weekday = (today_local().weekday() + 3) % 7
     schedule = (await admin_client.get(f"{API}/admin/visit-schedule/yihua")).json()
     saved = await admin_client.put(
         f"{API}/admin/visit-schedule/yihua",
@@ -447,7 +451,7 @@ async def test_dashboard_lists_slots_campuses_without_openings(admin_client, pub
             "expected_version": schedule["version"],
             "min_lead_hours": 24 * 14,
             "max_advance_days": 1,
-            "rules": [{"weekday": 5, "start_time": "09:00:00", "end_time": "10:00:00", "slot_minutes": 60, "capacity": 1}],
+            "rules": [{"weekday": weekday, "start_time": "09:00:00", "end_time": "10:00:00", "slot_minutes": 60, "capacity": 1}],
         },
     )
     assert saved.status_code == 200, saved.text
