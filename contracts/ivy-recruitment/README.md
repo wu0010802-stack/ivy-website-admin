@@ -86,6 +86,14 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 5. 年級固定四個名稱（幼幼班、小班、中班、大班），存名稱不存 `class_grades.id`。
 6. 官網多寫 `created` 事件（`metadata_json.origin` 為 `manual` 或 `visit_request`）；園務不寫，匯出時略過。
 7. 狀態不允許的轉換回 422 `TRANSITION_NOT_ALLOWED`；園務回 400。
+8. 月比（本月對上月）任一邊是 `null`，差值也是 `null`，不判定「本月漏斗轉換下滑」；園務會算成 100.0－0，上月沒資料就誤報。
+9. 同票排序：園務的班別、接待人員、介紹者 × 來源、未預繳原因只有單鍵降序，同票順序看資料庫；官網一律加第二鍵「標籤字串升序（Python 字碼順序）」。來源分析照園務三鍵（參觀降、預繳降、來源升）。來源失衡同占比時取標籤升序的第一個（園務取 SQL 回傳順序）。
+10. 警示與行動入口的 `target_tab`：官網是 `records`（`target_filter.month`）／`nodeposit`／`source`，園務是 `detail`／`nodeposit`／`area`。行動入口「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現：官網不做行政區（`district` 不填），照抄的話園務會寫出「優先檢查 未填寫 的來源分布與通勤熱區。」。
+11. 未預繳：`/stats` 只回分布與數字（`no_deposit_reasons`、`no_deposit_priority`、`no_deposit_summary`）；名單是 `GET /no-deposit-records`（對應園務 `/no-deposit-analysis`），query 與 `summary` 口徑照抄，另篩入學學年學期，每列只回畫面要的欄位（不含電話、地址、生日）。母體同園務：未預繳且未退出（退預繳後殘留的高潛力原因不算）。排序：園務 `ORDER BY month DESC, seq_no` 是字串排序（同月「10」排在「2」前面，`99.12` 排在 `115.01` 前面），官網改成民國月份排序鍵降序、序號開頭數字升序（沒有數字的排在後面），再以 `created_at`、`id` 收尾。已匿名化的列不另標示（姓名欄已是匿名化文字）。
+12. 統計的參考月份必須是三位數民國年月（`115.09`）；格式錯（含 `99.12`）回 422 `INVALID_REFERENCE_MONTH`（訊息照園務原文），園務是未處理的 `ValueError`（500）。
+13. 唯一幼生 `unique_visit`／`unique_deposit` 對已匿名化的列以列 id 計：匿名化後姓名與生日都被清掉，照「姓名｜生日」去重會把不同孩子併成同一個；代價是同一個孩子的一筆訪視匿名化後，唯一幼生由 1 變 2（六個計數與比率不受影響）。
+14. 五校比較（`GET /compare`）是官網延伸，數字是招生案件數（同一個孩子在兩校各參觀一次算兩筆）；回物件 `{as_of, school_year, semester, rows}`，比率附分子分母；併入後對應園務平台層的跨租戶報表。
+15. 同階段轉換（X→X）回 422 `TRANSITION_NOT_ALLOWED`；園務回 409 `STAGE_ALREADY`。
 
 ## 漂移檢查（手動，不進 CI）
 

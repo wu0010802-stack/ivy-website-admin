@@ -1,7 +1,7 @@
 # 官網後台招生入學模組設計（比照園務系統）
 
 日期：2026-09-30
-狀態：草案，待使用者審閱
+狀態：草案，待使用者審閱；2026-10-01 實作計畫（總覽與 A／B／C 三份）的技術調整已回寫，對照表見第 17 節
 對象：業主、接手實作的 Claude
 基準：
 
@@ -112,7 +112,7 @@
 | `source` | String(50) | 是 | 同 | 幼生來源，自由文字 |
 | `referrer` | String(50) | 是 | 同 | 園務表單稱「介紹者」、統計稱「接待人員」，兩處沿用園務文案 |
 | `deposit_collector` | String(50) | 是 | 同 | 收預繳人員 |
-| `tour_guide_user_id` | uuid FK `users.id` ON DELETE SET NULL | 是 | `tour_guide_employee_id` | 延伸對應；本次畫面可選填 |
+| `tour_guide_user_id` | uuid FK `users.id` ON DELETE SET NULL | 是 | `tour_guide_employee_id` | 延伸對應。API 可選填：指到不存在的帳號回 422 `TOUR_GUIDE_INVALID`；只帶帳號、沒帶姓名時以該帳號顯示名稱當快照。本次後台畫面不放這個欄位 |
 | `tour_guide_name` | String(50) | 是 | 延伸 | 帶參觀老師姓名快照，轉移時用來對應園務員工 |
 | `source_category` | String(30) | 是 | 同 | 只接受園務九類代碼（第 5.4 節）；NULL＝待歸類 |
 | `has_deposit` | Boolean | 否，預設 false | 同 | 只能由狀態轉換改變 |
@@ -150,7 +150,7 @@
 | `to_stage` | String(20) | 同 | |
 | `reason` | Text，可空 | 同 | |
 | `actor_user_id` | uuid FK `users.id` ON DELETE SET NULL | 同（園務 users） | 轉移時官網帳號沒有對應園務帳號，改記入 `metadata_json.website_actor` |
-| `metadata_json` | JSONB，可空 | 同 | |
+| `metadata_json` | JSON，可空 | 同（園務為 JSONB） | 官網慣例用 `sqlalchemy.JSON`，匯出內容相同 |
 | `created_at` | timestamptz | 同 | |
 
 不建 `student_id`（官網沒有學生檔）。
@@ -193,7 +193,7 @@
    - 欄位對應如下：
      - `campus_key`、`visit_request_id`：取自預約。
      - `visit_date`：場次日期。後端對沒有場次的案件不擋標記，萬一遇到，取確認當天的台北日期；但後台畫面對沒有場次的案件不顯示到場按鈕，正常操作不會走到。
-     - `child_name` 取孩子姓名；預約未填則寫「（未填姓名）」，在明細標示待補。
+     - `child_name` 取孩子姓名；預約未填則寫「（未填姓名）」，在明細標示待補。預約的孩子姓名、家長稱呼最長 64 字，招生的 `child_name`、`contact_name` 對齊園務 50 字：自動建立時截斷到 50，不報錯。
      - `birthday` 取孩子生日；`phone`、`contact_name` 取家長手機與稱呼。
      - `source`：家長勾選的「從哪裡知道我們」（`referral_sources`），照後台顯示文案（Facebook、Google 評論、媽媽社團、親友介紹、其他）以「、」串接，最長約 31 字；保留 50 字截斷作防線。
      - `grade`：有生日時依第 6.4 節規則，按目標學年換算。
@@ -209,7 +209,7 @@
      - 「已到場」：呼叫既有 `/complete`，觸發第 1 點。
      - 「未到場」：呼叫既有 `/no-show`，不建立招生訪視。
    - 兩者都需要 `booking.handle`。
-   - 另列「已到場但沒有招生訪視」的舊預約（本模組上線前已標 `completed`，或招生訪視被刪除），每列「建立招生訪視」。規則同第 1 點，需要 `booking.read` 與 `admissions.write`，重複呼叫回傳同一筆。
+   - 另列「已到場但沒有招生訪視」的舊預約（本模組上線前已標 `completed`，或招生訪視被刪除），每列「建立招生訪視」。規則同第 1 點，需要 `booking.read` 與 `admissions.write`，重複呼叫回傳同一筆。只接受 `completed` 且未匿名化的預約：其他狀態回 409 `VISIT_REQUEST_NOT_COMPLETED`，已匿名化回 409 `VISIT_REQUEST_ANONYMIZED`；清單也排除已匿名化的預約。舊預約可能沒有場次（`slot_date`、`start_time` 為 null），補建時訪視日期用補建當天（台北）。
 3. **手動新增**：沒有預約的現場參觀，從招生頁新增。
    - 電話來問的家長，照預約改版由園方在後台「補登」並選場次，到場後走第 1 點。
    - 補登不能選已開始的場次，所以已經到場的現場參觀只能在這裡手動新增。
@@ -244,7 +244,11 @@
 | withdrawn → visited／deposited | 取消退出 | write | 確認 | 清空 `withdrawn_*`，`has_deposit` 依目標階段 | `withdraw_cancelled` |
 | visited → enrolled、visited → withdrawn、withdrawn → enrolled | 不允許 | — | — | 回 422 `TRANSITION_NOT_ALLOWED` | — |
 
-- 以列鎖＋`expected_version` 處理並行；版本不符回 409 `VERSION_CONFLICT`，畫面重新載入看板（同園務收到 409 強制重載）。
+- 以列鎖＋`expected_version` 處理並行；版本不符回 409 `RECRUITMENT_VISIT_VERSION_CONFLICT`（帶 `current_version`），畫面重新載入看板（同園務收到 409 強制重載）。路由先比對版本、再判斷權限：別人剛改過的卡片一律 409，不會因為卡片已換欄而誤回 403。
+- 不允許的轉換回 422 `TRANSITION_NOT_ALLOWED`（請求內容不合法，附中文說明，visited→withdrawn 用園務原文）。同階段轉換（X→X）也是這個碼（園務是 409 `STAGE_ALREADY`；版本先比對，只有同版本送同階段才會走到）。預約既有的 `INVALID_TRANSITION` 是 409（狀態剛被別人改了），兩者不混用。
+- 缺必填欄位回 422 `TRANSITION_FIELDS_REQUIRED`（帶 `fields`，值是 `reason`、`grade`、`target_school_year`）。
+- 已匿名化的訪視（`anonymized_at` 有值）不能編輯、轉換狀態、保留座位，一律回 409 `RECRUITMENT_VISIT_ANONYMIZED`；刪除可以。
+- 標記註冊：`grade`、`target_school_year` 沒給時用保留座位與訪視上的值，都沒有才回 `TRANSITION_FIELDS_REQUIRED`；給了就覆寫 `provisional_grade` 與 `target_*`（註冊的年級為準，同園務以班級年級為準）；學期沒給用訪視上的、再沒有用 1；`enrolled_on` 沒給用台北今天，民國年須在 100–200（同參觀日期）。`converted` 事件 `metadata_json` 是 `{"website_manual": true, "grade", "school_year", "semester"}`。取消註冊與退註冊不清 `provisional_grade`；取消退出回已預繳時，保留座位仍在。
 - 園務退註冊還需要 `STUDENTS_WRITE`，並會刪除學生檔；官網沒有學生檔，只需 `convert`。
 - 園務的預繳對帳警示（`active_prepayment_needs_refund`）與同名同生日學生檢查不適用，不移植。
 
@@ -255,7 +259,7 @@
 - 園務 `ivy-frontend/src/constants/recruitment.ts:23-32`：學年 N 以西元 (N+1911)/9/1（含）為足歲基準，2 歲幼幼班、3 歲小班、4 歲中班、5 歲大班。
 - 官網 `web/app/utils/admission-classes.ts`：屆別 Y＝民國 Y/9/2～Y+1/9/1 出生，學年度減屆別 3＝幼幼班。
 
-兩者在 9/1、9/2 等邊界結果相同。用一份共用的 JSON 測試案例鎖定：9/1、9/2 生日，學年切換日 7/31、8/1，以及範圍外生日。後端 pytest 與 web vitest 都讀這份案例。只在表單的「適讀班級」為空、或上次是自動帶入時才覆寫，並提示「已依生日 × N 學年自動判定，可手動修改」（同園務）。
+兩者在 9/1、9/2 等邊界結果相同。用一份共用的 JSON 測試案例鎖定：9/1、9/2 生日，學年切換日 7/31、8/1，以及範圍外生日。案例放在 `contracts/ivy-recruitment/grade-cases.json`，形狀 `{"cases": [{"name", "birthday", "today", "expected_term": [學年, 學期], "expected_grade": 年級或 null}]}`（年級用 `expected_term` 的學年換算）；後端 pytest、web vitest、admin vitest 三邊都讀這份。只在表單的「適讀班級」為空、或上次是自動帶入時才覆寫，並提示「已依生日 × N 學年自動判定，可手動修改」（同園務）。
 
 學期規則同園務 `utils/academic.py::term_bounds`：上學期 8/1～隔年 1/31，下學期 2/1～7/31，一律以台北日期判斷。
 
@@ -265,14 +269,15 @@
 
 - 只有已預繳、未註冊、未退出的訪視可以保留。
 - 保留時必須指定年級與目標學年，學期預設上學期。
-- 寫 `seat_reserved`；清除保留寫 `seat_released`。
+- 寫 `seat_reserved`；清除保留寫 `seat_released`。釋放沒有保留的訪視回 422 `SEAT_NOT_ALLOWED`（「這筆訪視目前沒有保留座位」）。兩種事件的 `from_stage`／`to_stage` 寫當下的階段（園務固定寫 `deposited`），`metadata_json` 是 `{"grade", "school_year", "semester"}`，年級存名稱、不是 id。
 - 已註冊的訪視不可清除保留，要改年級或學期請先取消註冊。
-- 超過計畫名額只警示（`SEAT_CAPACITY_WARNING`），不阻擋。
+- 超過計畫名額只警示、不阻擋：回應 `SeatOut = {visit, capacity_warning, warning_code}`，超額時 `warning_code` 是 `SEAT_CAPACITY_WARNING`（在回應裡，不是錯誤）。
 
 ### 6.6 編輯與刪除
 
-- 編輯：狀態欄位（`has_deposit`、`enrolled`、`enrolled_on`、`withdrawn_*`）不可編輯，其餘欄位需帶 `expected_version`。
-- 刪除：需要 `admissions.write`，歷程一併刪除（同園務）。另寫一筆官網稽核紀錄 `audit_log_entries`：記動作、操作者、校區、訪視 id，不記姓名電話。
+- 編輯：狀態欄位（`has_deposit`、`enrolled`、`enrolled_on`、`withdrawn_*`）不可編輯，其餘欄位需帶 `expected_version`。建立、編輯、狀態轉換、座位、計畫名額的請求 schema 一律 `extra="forbid"`：送 `has_deposit`、`enrolled`、`enrolled_on`、`withdrawn_*`、`provisional_grade`、`month`、`seq_no` 得到標準 422（`loc` 指到該欄位）。
+- 建立與編輯不收 `district`、`geocoding_consent_at`（本次不填）；編輯不能把 `child_name`、`visit_date`、`target_school_year`、`target_semester` 清成 null（422）；生日不能晚於今天。編輯把參觀日期改到別的月份時，`month` 跟著換，並在新月份的鎖內重新配 `seq_no`（舊序號在新月份可能已被用掉）。
+- 刪除：需要 `admissions.write`，歷程一併刪除（同園務）。刪除「已註冊」或「從已註冊退出」的訪視另需 `admissions.convert`（官網沒有學生檔，刪除等於撤銷註冊紀錄；缺權限回 403）。另寫一筆官網稽核紀錄 `audit_log_entries`：記動作、操作者、校區、訪視 id，不記姓名電話。
 - 自動建立的訪視被刪除後，可從預約詳情再補建。
 
 ## 7. 權限
@@ -285,8 +290,8 @@
 | `admissions.write` | super_admin、campus_admin、reception | 新增／編輯／刪除訪視、預繳與退預繳、保留座位、設定計畫名額 | `RECRUITMENT_WRITE` |
 | `admissions.convert` | super_admin、campus_admin | 標記註冊、取消註冊、退註冊 | `RECRUITMENT_CONVERT` |
 
-- 每個 API 都用 `require_scope(user, capability, [campus_key])`：capability 不符回 403，越權校區回 404。以訪視 id、預約 id 直接存取時也照此檢查。
-- editor、readonly 沒有招生權限；招生統計含孩子姓名（行動清單）與接待人員名字，不開給只有 `analytics.read` 的角色。
+- 每個 API 都用 `require_scope(user, capability, [campus_key])`：capability 不符回 403，越權校區回 404。以訪視 id、預約 id 直接存取時也照此檢查。`campus_key` 不在五校內時，總管理者也回 404（不是空清單或外鍵錯誤）。
+- editor、readonly 沒有招生權限；招生統計含孩子姓名（未預繳名單）、接待人員名字與來源原文，不開給只有 `analytics.read` 的角色。統計回應（`/stats`、`/compare`）只有數字；未預繳名單由 `GET /no-deposit-records` 提供（對應園務 `/no-deposit-analysis`），權限同其他招生 API（`admissions.read`＋校區範圍），每列只回畫面要的欄位，不含電話、地址、生日。
 - 五校比較只列使用者授權範圍內的校區；super_admin 為五校。
 - 前端一律用 `usePermissions().can(...)`，不抄角色表。
 
@@ -299,6 +304,7 @@
 - **已註冊**：`enrolled=true`，年級取 `COALESCE(provisional_grade, grade)`，且目標學年學期相符。這對應園務的「未編班」路徑；官網沒有班級，所以沒有「已編班」路徑。
 - **剩餘**：計畫名額 − 已保留 − 已註冊；計畫未設定時不算剩餘。
 - **超額**：已保留＋已註冊 > 計畫名額時標示，只警示。
+- **合計**：回應另有 `totals`：計畫名額與剩餘只加總有設定計畫的年級（一個都沒設定是 null，畫面「未設定」；計畫 0 也算有設定），已保留、已註冊加總全部年級。`transfer_term` 不影響名額（同園務 `compute_intake_plan`）。
 
 標記註冊時必填年級與目標學年學期（第 6.3 節），所以已註冊的訪視一定歸得進某一列。園務在未保留座位也未編班時，會因 inner join 少算，官網沒有這個情況。
 
@@ -322,26 +328,28 @@
 | 轉學期 `transfer_term` | `transfer_term=true` |
 | 有效預繳 `effective_deposit` | 預繳且未轉學期 |
 | 預繳未註冊 `pending_deposit` | 預繳、未註冊、未轉學期 |
-| 唯一幼生 `unique_visit`／`unique_deposit` | 以「姓名｜生日」去重 |
+| 唯一幼生 `unique_visit`／`unique_deposit` | 以「姓名｜生日」去重；已匿名化的列以列 id 計（匿名化後姓名與生日都被清掉，照「姓名｜生日」會把不同孩子併成同一個），所以同一個孩子的一筆訪視匿名化後，唯一幼生會由 1 變 2 |
 | 參觀→預繳率 | deposit ÷ visit |
 | 參觀→註冊率 | enrolled ÷ visit |
 | 預繳→註冊率 | enrolled ÷ deposit |
 | 有效預繳→註冊率 | enrolled ÷ effective_deposit |
 
-比率計算到小數一位。**與園務不同**：分母為 0 時回 `null`，畫面顯示「—」。園務會回 0，會把「沒有資料」誤看成「轉換率零」。這一點和第 9.3 節不移植來源別名，都記入轉移契約，併入時由園務決定是否跟進。
+比率計算到小數一位。**與園務不同**：分母為 0 時回 `null`，畫面顯示「—」。園務會回 0，會把「沒有資料」誤看成「轉換率零」。這一點、月比任一邊是 null 時差值也是 null（園務會算成 100.0－0）、同票排序加第二鍵「標籤字串升序」（園務只有單鍵、同票順序不固定）、唯一幼生對匿名化的列以列 id 計，以及第 9.3 節不移植來源別名，都記入轉移契約，併入時由園務決定是否跟進。
 
 ### 9.3 維度與區塊
 
 - **總覽**：
   - 主管決策摘要：本月看參考月份；近 30 天、近 90 天依 `created_at` 計算，同園務 `stats.py:502-507`；年度累計同園務。
-  - 月比變化、本月漏斗快照、月度明細、年度統計。
-  - 異常警示與行動入口：逐條移植園務 `shared.py` 的規則與門檻，包括逾期 14 天、冷名單 90 天、掉點 10 個百分點、高潛力積壓 5 筆、行動清單 3 筆。
+  - 月比變化、本月漏斗快照、月度明細、年度統計，以及「本範圍合計」（六個計數、唯一幼生與四個比率）。園務的兩張圖（月度量體、轉換率走勢）由月度明細表的 CSS 長條取代；「全管道彙整」是園務自家官網報名，不做。
+  - 異常警示與行動入口：逐條移植園務 `shared.py` 的規則與門檻，包括逾期 14 天、冷名單 90 天、掉點 10 個百分點、高潛力積壓 5 筆、行動清單 3 筆。官網的 `target_tab` 是 `records`（訪視明細，帶 `month`）、`nodeposit`、`source`（園務是 `detail`／`nodeposit`／`area`）；園務的「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現（官網不做行政區，`district` 不填）。
 - **班別分析**：依 `grade`，含月份 × 班別。
-- **來源分析**：依 `source`，另有介紹者 × 來源交叉。園務的來源別名合併表 `_SOURCE_GROUP_ALIASES` 是義華專屬字詞，本次不移植，改依原文分組。
+- **來源分析**：依 `source`；介紹者 × 來源交叉表放在「接待分析」（同園務 `RecruitmentStaffTab`，介紹者就是接待人員）。園務的來源別名合併表 `_SOURCE_GROUP_ALIASES` 是義華專屬字詞，本次不移植，改依原文分組。
 - **接待分析**：依 `referrer`，同園務 `RecruitmentStaffTab`。
-- **未預繳原因**：依 `no_deposit_reason`，含優先度分組。
+- **未預繳原因**：依 `no_deposit_reason`，含優先度分組。母體是「未預繳且未退出」：退預繳後 `has_deposit` 雖然是 false，殘留的高潛力原因不算。數字卡（高潛力未預繳、逾 14 天待追、冷名單）與分布來自 `/stats`。
+  - **未預繳明細**（名單，同園務 `RecruitmentNoDepositTab`）：母體同上。篩選：轉換潛力（預設「高潛力優先」，另有全部潛力、中潛力、低潛力）、原因、班別、「逾 14 天」開關、「冷名單」開關；每頁 50 筆。欄位：月份、姓名、班別、原因分類、轉換潛力（高／中／低／—）、冷名單（建檔滿 90 天標「冷」）、說明、來源、介紹者、電訪回應，另有「查看」切到訪視明細並篩該筆的月份。排序：民國月份新到舊、同月序號依數字小到大（園務是字串排序）。警示與行動入口指到未預繳原因時，帶的潛力與逾期天數套進名單（同園務）。已匿名化的列不另標示（姓名欄已是「（已依保存政策匿名化）」），列為已知限制。
 - **五校比較**（官網延伸）：授權範圍內每校一列，列出參觀、預繳、註冊、有效預繳、預繳未註冊、四個比率，以及所選學年學期的名額剩餘合計。
   - 名額剩餘合計只加總已設定計畫名額的年級；一個年級都沒設定時顯示「未設定」。
+  - 名額要對到單一學期，預設照「名額規劃」：沒選學期用上學期（第 6.5 節的預設），沒選學年用目前學年（台北日期）；頁首有任一沒選，表格上方寫明用的是哪個學期。同一組頁首篩選下，名額規劃與五校比較的名額剩餘是同一學期。
   - 比率同時顯示分子與分母。
   - 標示這是「招生案件數」，不是跨校去重後的孩子數。
 
@@ -353,25 +361,48 @@
 
 ## 10. 後台畫面
 
-路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），需要 `admissions.read`。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`、`sem`、`tab`），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
+路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
 
 | 分頁 | 內容 |
 |---|---|
 | 漏斗看板 | 已訪視、已預繳、已註冊、退預繳／退註冊四欄，上方摘要列顯示各欄數量與三個比率。卡片顯示幼生姓名、年級、入學學期、來自官網預約的標記。拖曳換欄，也能用鍵盤：卡片選單「移到…」。各轉換跳對應確認框（第 6.3 節）。另提示「另有 N 筆沒有填入學學期」，可跳到明細。點卡片開歷程抽屜。 |
-| 訪視明細 | 篩選：月份、班別、入學學年、學期、來源、介紹者、預繳是／否、未預繳原因、關鍵字。表格每頁 50 筆。列操作：編輯、歷程、標記註冊（有 convert 且已預繳未註冊才顯示）、更多（保留座位、退出、刪除）。編輯表單分區同園務：基本資料、聯絡與來源、預繳狀態、備註。有連結預約的，顯示「查看預約」。 |
+| 訪視明細 | 篩選：月份、班別、來源、介紹者、預繳是／否、未預繳原因、關鍵字；入學學年學期用頁首的共用篩選，不在明細重複，「清除篩選」連學年學期一起清（同園務）。表單與明細不放來源分類（`source_category`）、帶參觀老師、娃娃車（`rides_bus`）、地址分析同意（欄位照存、照匯出）。表格每頁 50 筆。列操作：編輯、歷程、標記註冊（有 convert 且已預繳未註冊才顯示）、更多（保留座位、退出、刪除）。編輯表單分區同園務：基本資料、聯絡與來源、預繳狀態、備註。有連結預約的，顯示「查看預約」。 |
 | 名額規劃 | 選學年學期；每個年級可編輯計畫名額，顯示已保留、已註冊、剩餘、超額警示。 |
 | 官網預約 | 第 6.1 節第 2 點的待確認清單。欄位：場次（「上午場 10:00」格式，import 預約改版的 `admin/src/utils/sessions.ts`，不另寫一份）、家長稱呼、孩子姓名、參觀人數。每列「已到場」「未到場」「查看預約」。分頁標籤顯示待確認筆數。下方另一區是「已到場但沒有招生訪視」，每列「建立招生訪視」。 |
-| 統計分析 | 子分頁：總覽、班別分析、來源分析、接待分析、未預繳原因；多校權限者另有「五校比較」。本次以表格加 CSS 長條呈現，不新增圖表套件。 |
+| 統計分析 | 子分頁：總覽、班別分析、來源分析、接待分析、未預繳原因；多校權限者另有「五校比較」。本次以表格加 CSS 長條呈現，不新增圖表套件。另有「參考月份」選單（預設最新有資料的月份）。警示與行動入口指到統計內的子分頁就直接切過去；指到訪視明細就切到「訪視明細」並帶 `month`（`router.push`，上一頁回到統計）。「未預繳原因」另列「未預繳明細」名單（第 9.3 節），每列「查看」同樣切到訪視明細並帶該筆的月份（明細只吃 `month`、`vr`，沒有單筆連結）。 |
 
 - 預約詳情頁：已連結招生訪視時顯示連結；已到場但尚未建立的，顯示「建立招生訪視」。「標記已到場」目前沒有確認框（預約改版 `VisitDetailView.vue:513` 直接送出），新增一個確認框：「標記已到場？會同時建立一筆招生訪視，之後在招生入學頁追蹤。」
 - 各區塊沿用後台既有的 loading、空資料、錯誤、衝突提示規範。沒有資料時說明原因，不顯示假的 0。
+- 園務文案照抄，但提到學生檔、監護人、學號、學費管理、班級的改寫成官網的說法（官網沒有學生檔與學費模組）：事件 `converted` 寫「標記註冊」、`revert_converted` 寫「取消註冊」，並補上園務缺的 `seat_reserved`「保留座位」、`seat_released`「釋放保留」，歷程不露英文代碼。其餘畫面細節見第 10.1 節。
 - 手機 390px：看板四欄改成直向堆疊，表格可受控橫捲，頁面不能整體溢出。
+
+## 10.1 畫面細節（實作回寫，2026-10-01）
+
+實作計畫 B 階段對第 10 節的補充與調整；每條對應第 17 節的一列。
+
+- **篩選與網址**（B15、B16）：訪視明細的月份篩選與網址 `month` 雙向同步；「清除篩選」連 `month`、`vr`、學年學期一起清。`useAdmissionsFilters` 一頁只能有一份（兩份會互相改寫網址），所以 `RecordsTab` 只吃 props（`campusKey`、`schoolYear`、`semester`、`month`、`visitRequestId`），用 `update:month`、`update:visitRequestId`、`clear-term` 往上改。
+- **表單送出**（B17）：新增不送狀態欄位與 `month`、`seq_no`、`provisional_grade`；編輯只送改過的欄位與 `expected_version`（後端以 `model_fields_set` 區分沒送與清空）；生日只在新增時必填（預約到場自動建立的訪視可能沒有生日，改備註不能被擋）；收預繳人員只在已預繳時可改，未預繳原因只在未預繳時出現。
+- **看板與名額規劃的學年學期**（B18）：頁首「不限學年」時，兩者都用目前學年；名額規劃在頁首沒選學期時用上學期；兩者都在畫面寫明。
+- **新增訪視的入口**（B19）：看板工具列（右上角）與明細面板頭都有「新增訪視」，共用同一個表單；看板「已訪視」空欄文案（園務原文）叫使用者用右上角的「新增訪視」。
+- **看板摘要列的三個比率**（B20）：照園務用各欄目前張數相除：預繳率＝已預繳 ÷ 已訪視、註冊率＝已註冊 ÷ 已預繳、退費率＝退出 ÷ 已註冊（名稱照抄，滑鼠移上去寫公式）；分母 0 顯示「—」（園務顯示 0）。「退費率」易誤讀，列入待決定。
+- **官網預約分頁**（B21、B22、B32）：每次讀完清單就把筆數交給頁面更新分頁標籤（標記到場後標籤立刻少一筆）；標籤數字用 `awaiting_total`；超過 200 筆時清單上方寫「只列最近 200 筆，共 N 筆」。預約明細的「招生訪視」連結是 `/admissions?campus=…&tab=records&vr=…&sy=all`：到場當下寫入的入學學期不一定是頁首預設學年（例如 7 月到場是上一學年下學期），不帶 `sy=all` 會被學年篩掉。
+- **名額規劃的超額**（B24）：整列淡紅之外另加「超過計畫名額」標籤；保留座位成功但 `capacity_warning` 為真時跳提醒框（文案自擬，列入待決定）。
+- **保存政策欄位**（B25）：「招生訪視」放在「未結案提醒」之後、「每天自動清理」之前；試算與清理紀錄只在回應有 `admissions` 時列出（舊紀錄的文字不變）；自動清理開著時，把天數從留空改成有值視同「縮短」，要確認。
+- **歷程**（B26）：標題「參觀→入學 歷程」；座位事件不寫「已預繳 → 已預繳」，改寫 metadata 的年級與學期（有才寫）；建立訪視不寫「— → 已訪視」；回應有 `actor_name` 才寫操作者。
+- **日期格式**（B27）：明細的「參觀日期」顯示民國 `115.09.08`（同園務），月份篩選同為民國。
+- **409 提示**（B28）：狀態轉換一律用園務原文「狀態已被其他人變更，已自動重新載入」；編輯、刪除、保留座位用「這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作」（表單另說「你的修改沒有儲存」）；都自動重讀、不顯示錯誤（官網既有慣例：樂觀鎖衝突用 warning／info 並重讀）。
+- **功能未啟用**（B29）：頁面在 options 回 404 時顯示「招生入學尚未啟用」空狀態，不顯示錯誤（開關見第 11 節）。
+- **已匿名化的訪視**（B30、B31）：明細與表單對已匿名化的列顯示唯讀並標示「已匿名化」，不顯示編輯、註冊、保留座位按鈕。看板拖曳或「移到…」收到 409 `RECRUITMENT_VISIT_ANONYMIZED` 時，提示「這筆招生訪視已依保存政策匿名化，不能再變更」並重載看板，不當成一般錯誤。
+- **刪除按鈕**（B34）：「更多」裡的刪除，對「已註冊」與「從已註冊退出」的列只在有 `admissions.convert` 時顯示。
+- **註冊日期**（B35）：日期選擇器限制民國 100–200 年（後端同範圍，第 6.3 節）。
+- **「（未填姓名）」**（B36）：後端 `constants.MISSING_CHILD_NAME`；後台 `constants.ts` 以原始碼比對方式取得同一字串（同 `admissionsConstants.test.ts` 對其他列舉的做法），卡片與明細遇到時加「待補」標示。
+- **資料時間**（B33）：看板與名額規劃可顯示「資料時間 HH:MM」（回應的 `as_of`），並用回應的 `campus_key` 確認沒有跨校殘留。
 
 ## 11. 個資與保存
 
 - 招生訪視複製了預約的孩子姓名、生日、家長手機與稱呼，並可另記地址、電訪回應。
 - 官網現行保存政策（`operations/retention_service.py`）會在預約結案後一段時間匿名化預約本身；招生訪視是另一個用途的紀錄，**不隨預約匿名化**。
-- 保存政策新增「招生訪視」類別與天數設定，匿名化時清除：
+- 保存政策新增「招生訪視」類別與天數設定（`retention_policies.admissions_days`，Integer，可空，NULL＝不自動清理，DB CHECK 限 30–3650；報表類別 `admissions`；符合條件 `anonymized_at IS NULL AND updated_at < now − admissions_days`；更新請求沒帶這個鍵就不動它），匿名化時清除：
   - 姓名、生日、電話、聯絡人、地址、備註、電訪回應、未預繳原因說明、退出原因。
   - 歷程裡的自由文字原因。
 
@@ -379,6 +410,8 @@
 - 稽核紀錄與分析事件不寫入孩子或家長個資。
 
 **上線前必須裁定**：官網預約的同意書是否涵蓋「參觀後續招生聯繫與紀錄」，以及招生訪視的保存天數（第 15 節）。在此之前，本功能只在本機與測試環境使用。
+
+程式層的保險是開關 `WEBSITE_ADMISSIONS_ENABLED`（預設關）：關閉時 `/admin/admissions/*`（含統計的三個 GET）一律 404，預約標記已到場也不建招生訪視，後台頁面顯示「招生入學尚未啟用」；本機與 stack e2e 要設為 true。Q1 裁定前正式環境不可開，避免合併進 main 後自動複製個資。
 
 ## 12. 轉移契約
 
@@ -395,10 +428,10 @@
 ### 12.2 匯出程式與檢查
 
 - `backend/scripts/export_ivy_recruitment.py`：
-  - 讀官網資料庫，依校區輸出三張表的 JSONL，欄位形狀照園務。
+  - 讀官網資料庫，依校區輸出三張表的 JSONL。每列 `{"website_id": ..., "columns": {園務欄位}, "mapping": {匯入時要對應的官網值}}`；`columns` 的外鍵與年級 id（`recruitment_visit_id`、`grade_id`、`provisional_grade_id`、`tour_guide_employee_id`）留 `null`，由匯入端依 `mapping` 填入；`created` 事件不匯出。
   - 校區→租戶對照由命令列參數提供，不寫死，因為三校的租戶尚未存在。
   - 延伸欄位另輸出一份 `extensions.jsonl`。
-  - 只讀，不改資料。
+  - 只讀，不改資料：連線設成 `default_transaction_read_only=on`，每條連線一建立就是唯讀，不靠交易裡第一句的順序。
 - **契約測試**（backend pytest，進 CI）：用合成資料跑匯出，逐列驗證：
   - 欄位齊全。
   - 型別可轉換、長度不超過園務欄位、NOT NULL 成立。
@@ -415,7 +448,7 @@
 | `enrolled_on` | 建立或連結學生檔時作為入學日期依據 |
 | `tour_guide_user_id`／`tour_guide_name` | 依姓名對應園務員工 `tour_guide_employee_id`；對不上留空並列入報告 |
 | `provisional_grade`、`grade_intake_targets.grade` | 依名稱對應該租戶的 `class_grades.id` |
-| `actor_user_id` | 寫入 `metadata_json.website_actor`，園務欄位留空 |
+| `actor_user_id` | 寫入 `metadata_json.website_actor`（`{"user_id", "name"}`），園務欄位留空 |
 | `version`、`anonymized_at`、`created` 事件 | 不轉 |
 
 ### 12.4 併入時的轉移順序（規劃，不在本次實作）
@@ -434,24 +467,25 @@
 
 | 方法與路徑 | 權限 | 說明 |
 |---|---|---|
-| GET `/records` | read | 篩選、分頁；`campus_key` 必填 |
-| POST `/records` | write | 手動新增 |
+| GET `/records` | read | 篩選、分頁（`page`／`page_size`，預設 50、上限 100）；回裸 list、不回 total，前端以「回傳筆數＝page_size」判斷有下一頁；`campus_key` 必填 |
+| POST `/records` | write | 手動新增；`campus_key` 放 query（同 `POST /admin/slots`） |
 | GET `/records/{id}` | read | |
 | PATCH `/records/{id}` | write | 帶 `expected_version`；不可改狀態欄位 |
-| DELETE `/records/{id}` | write | |
-| GET `/records/{id}/events` | read | 歷程 |
+| DELETE `/records/{id}` | write（已註冊或從已註冊退出的另需 convert） | 帶 `expected_version` |
+| GET `/records/{id}/events` | read | 歷程，舊到新；每筆帶 `actor_user_id`、`actor_name`（讀取時 join users，顯示名稱沒有就用 Email；帳號刪除或自動建立時為 null） |
 | POST `/records/{id}/transition` | 依第 6.3 節 | `to_stage`、`expected_version`，以及各轉換的必填欄位 |
 | POST `/records/{id}/seat` | write | 保留或清除座位 |
-| GET `/arrivals` | booking.read | 官網預約待確認清單與「已到場但沒有招生訪視」；`campus_key` 必填 |
-| POST `/from-visit-request/{visit_request_id}` | write＋booking.read | 補建，可重複呼叫 |
+| GET `/arrivals` | booking.read | 官網預約待確認清單與「已到場但沒有招生訪視」；`campus_key` 必填。兩份清單各最多 200 筆（待確認依場次新到舊；缺訪視依場次〔無場次用建立時間〕新到舊），另回 `awaiting_total`、`missing_total`；`slot_date`、`start_time` 可為 null |
+| POST `/from-visit-request/{visit_request_id}` | write＋booking.read | 補建，可重複呼叫；非 `completed` 回 409 `VISIT_REQUEST_NOT_COMPLETED`、已匿名化回 409 `VISIT_REQUEST_ANONYMIZED` |
 
 「已到場」「未到場」不另開端點，沿用預約既有的 `POST /admin/visit-requests/{id}/complete`、`/no-show`（`booking.handle`）。
-| GET `/board` | read | 四欄看板與未填入學學期筆數 |
-| GET `/intake-plan` | read | |
+| GET `/board` | read | 四欄看板與未填入學學期筆數；`school_year` 預設台北今天所在學年，`semester` 不帶＝整學年；回應帶 `campus_key`、`as_of` |
+| GET `/intake-plan` | read | `semester` 預設 1（上學期）；回應帶 `campus_key`、`as_of`、`totals`（第 8 節） |
 | PUT `/intake-targets` | write | 同校同學期一次送多個年級 |
-| GET `/stats` | read | 第 9 節 |
-| GET `/compare` | read | 五校比較，只含授權校區 |
-| GET `/options` | read | 篩選選項：月份、來源、介紹者；列舉值文案 |
+| GET `/stats` | read | 第 9 節；`reference_month` 必須是三位數民國年月（`115.09`），格式錯（含 `99.12`）回 422 `INVALID_REFERENCE_MONTH`（訊息照園務原文；園務是未處理的 ValueError） |
+| GET `/no-deposit-records` | read | 未預繳明細（園務 `/no-deposit-analysis`）：`campus_key` 必填，`school_year`、`semester`、`reason`、`grade`、`priority`（high／medium／low）、`overdue_days`（1–365）、`cold_only`、`page`（預設 1）、`page_size`（1–500，預設 100）；回分頁名單（同 `/records`，不帶 `as_of`）：`total`、`page`、`page_size`、`summary`（只受原因與班別影響）、`records`（含孩子姓名，不含電話、地址、生日） |
+| GET `/compare` | read | 五校比較，只含授權校區；`school_year`、`semester` 必填（名額剩餘要對到單一學期）；回物件 `{as_of, school_year, semester, rows}`，`rows` 每個授權校區一列（super_admin 為五列） |
+| GET `/options` | read | 篩選選項：月份（新到舊）、來源、介紹者（各前 50 個）；列舉值文案，`source_categories` 是「代碼 → 園務文案」的 dict（順序同園務）；另有 `grades`、`no_deposit_reasons`（`{value, priority}`，priority 是 `high`／`medium`／`low`，「未註明／待追蹤」為 null） |
 
 聚合回應帶 `as_of` 與實際套用的篩選。所有 API 變更都要跑 `npm run contract:generate`，並通過 `npm run contract:check`。
 
@@ -474,13 +508,13 @@
 | R08 | 保留座位：未預繳、未給學年、超額 | 前兩者拒絕；超額只警示 |
 | R09 | 名額計算：已保留、已註冊、退出、轉學期、未設定計畫；已註冊者清除保留 | 數字與第 8 節一致；未設定與 0 分開；已註冊者清除保留被拒 |
 | R10 | 統計合成資料（以園務 `_visit_metric_cases` 語意手算期望值），含分母 0 | 所有指標一致；分母 0 為 null |
-| R11 | 近 30／90 天在台北午夜邊界；參考月份與上月 | 不重不漏 |
+| R11 | 近 30／90 天在台北午夜邊界；參考月份與上月 | 近 30／90 天為瞬間比較（`created_at >= now − N 天`，同園務 `stats.py:502-507`），跨台北午夜不重不漏 |
 | R12 | 年級換算共用案例（9/1、9/2、7/31、8/1、範圍外） | 後端與 web helper 結果相同 |
 | R13 | 匯出程式契約測試 | 第 12.2 節各項全過 |
-| R14 | 保存政策試算與執行 | 只清第 11 節欄位；統計結果不變；預約匿名化不連動 |
+| R14 | 保存政策試算與執行 | 只清第 11 節欄位；統計結果不變（六個計數與比率；唯一幼生以列 id 計，匿名化後會增加，見第 9.2 節）；預約匿名化不連動 |
 | R15 | 後台：看板拖曳與鍵盤「移到…」、確認框、409 重載、快速切換校區、URL 篩選還原 | 畫面只顯示最後一次選取，無跨校殘留 |
-| R16 | 1440px 桌機、390px 手機 | 看板、表格、表單、空狀態可用，頁面不溢出 |
-| R17 | stack e2e：家長自選場次預約成功 → 場次時間過後出現在「官網預約」待確認 → 按已到場 → 看板已訪視 → 預繳 → 註冊 → 名額顯示已註冊 | 全程成立 |
+| R16 | 1440px 桌機、390px 手機 | 看板、表格、表單、空狀態可用，頁面不溢出（`tests/stack/admissions-flow.spec.ts` 五個分頁與五校比較兩種寬度截圖存 `output/playwright/`，並檢查不橫向溢出） |
+| R17 | stack e2e：家長自選場次預約成功 → 場次時間過後出現在「官網預約」待確認 → 按已到場 → 看板已訪視 → 預繳 → 註冊 → 名額顯示已註冊。「場次時間過後」用 psql 把本測試自己建的場次移到昨天（同後端 `start_visit_slot`），不改系統時間 | 全程成立 |
 
 驗證指令（Node 22）：
 
@@ -518,3 +552,102 @@
 - 從預約改版分支建立隔離 worktree，不要放在 `/private/tmp`（重開機會清空未 commit 的工作）。sparse checkout，backend 用自己的 venv，測試庫另建（例如 `ivy_website_test_admissions`）。把本規格複製進去（本規格目前只存在舊工作樹）。
 - 每個任務在 feature 分支 commit，需使用者先授權；不 push、不部署。
 - 進度與驗收狀態記在 `docs/website-admin/acceptance.md` 新增的「招生入學」段落。
+
+## 17. 實作計畫回寫對照（2026-10-01）
+
+實作計畫：總覽 `docs/superpowers/plans/2026-10-01-admissions.md`，階段 A／B／C 各一份（`-A-backend`、`-B-admin`、`-C-stats`）。計畫裡「以計畫為準」的調整逐條列在下面（總覽技術調整 7 條、A 30 條、B 36 列、C 19 列，共 92 列）；有規格對應的已就地改進該節，只影響程式介面的寫在總覽的「檔案配置」「介面」。另有 C 階段執行時的裁定（`/compare` 回物件、五校比較預設學期、唯一幼生對匿名化的列以列 id 計、功能關閉時統計三個 GET 也是 404），已併入上列各列的回寫位置。
+
+| 來源 | 調整 | 回寫位置 |
+|---|---|---|
+| 總覽技術調整 1 | 列表回裸 list，`page`／`page_size`，不回 total | 第 13 節 `GET /records` |
+| 總覽技術調整 2 | `metadata_json` 用 JSON | 第 5.2 節 |
+| 總覽技術調整 3 | 不允許的轉換 422 `TRANSITION_NOT_ALLOWED`，與預約的 409 `INVALID_TRANSITION` 分開；版本衝突碼 `RECRUITMENT_VISIT_VERSION_CONFLICT` | 第 6.3 節 |
+| 總覽技術調整 4 | 建立訪視的 `campus_key` 放 query | 第 13 節 `POST /records` |
+| 總覽技術調整 5 | 自動建立時姓名截斷到 50 字 | 第 6.1 節第 1 點 |
+| 總覽技術調整 6 | 共用年級案例的位置與形狀 | 第 6.4 節 |
+| 總覽技術調整 7 | `retention_policies.admissions_days` | 第 11 節 |
+| A 調整 1 | 不設 `records.stage_of`；階段用 `funnel.derive_stage`／`stage_condition`，`funnel.py` 由 A3 先建 | 總覽「檔案配置」`funnel.py`、「介面」records.py、funnel.py |
+| A 調整 2 | `RecruitmentVisit.events` 加 `passive_deletes=True` | 總覽「介面」models.py |
+| A 調整 3 | `write_event` 多 `created_at` | 總覽「介面」records.py |
+| A 調整 4 | `fields_from_visit_request` 多 `slot_date` | 總覽「介面」booking_link.py |
+| A 調整 5 | `arrivals`、`eligible_count`、`anonymize_due` 多 `now` | 總覽「介面」booking_link.py、retention.py |
+| A 調整 6 | 保存政策的 schema 在 `operations/routes.py` | 總覽「檔案配置」 |
+| A 調整 7 | 新增 `test_admissions_schema.py` | 總覽「檔案配置」測試清單 |
+| A 調整 8 | `FunnelColumnsOut` | 總覽「介面」Schema 名稱 |
+| A 調整 9 | `TOUR_GUIDE_INVALID`、以帳號顯示名稱當姓名快照 | 第 5.1 節 `tour_guide_user_id`；總覽「介面」records.py |
+| A 調整 10 | `not_allowed_reason`；先比對版本再判權限 | 第 6.3 節；總覽「介面」funnel.py |
+| A 調整 11 | request schema 一律 `extra="forbid"` | 第 6.6 節；總覽「介面」Schema 名稱 |
+| A 調整 12 | `SeatOut` 帶 `warning_code` | 第 6.5 節；總覽「介面」Schema 名稱 |
+| A 調整 13 | 補建只收 `completed` 且未匿名化 | 第 6.1 節第 2 點、第 13 節；總覽 API 表 |
+| A 調整 14 | `labels.ts` 同名 metadata 鍵依 action 分開翻 | 總覽「稽核代碼」 |
+| A 調整 15 | `admissions_days` 的 DB CHECK 與只在有帶鍵時寫入 | 第 11 節；總覽技術調整 7 |
+| A 調整 16 | 匯出每列 `website_id`／`columns`／`mapping` | 第 12.2 節 |
+| A 調整 17 | `source_categories` 是 dict | 第 13 節 `GET /options`；總覽 API 表 |
+| A 調整 18 | `AdmissionsOptionsOut` 另有 `grades`、`no_deposit_reasons`（`NoDepositReasonOption`） | 第 13 節 `GET /options`；總覽 API 表、Schema 名稱 |
+| A 調整 19 | `RecruitmentEventOut` 多 `actor_user_id`、`actor_name`，歷程舊到新 | 第 13 節 `GET /records/{id}/events`；總覽「介面」Schema 名稱 |
+| A 調整 20 | 新增錯誤碼 `TRANSITION_FIELDS_REQUIRED`、`SEAT_NOT_ALLOWED`；同階段轉換 422 | 第 6.3 節、第 6.5 節；總覽 Global Constraints |
+| A 調整 21 | 標記註冊的欄位預設與 `converted` 事件 metadata | 第 6.3 節 |
+| A 調整 22 | 建立與編輯不收 `district`、`geocoding_consent_at`；改日期換月份重配序號 | 第 6.6 節 |
+| A 調整 23 | 保留座位：釋放無保留 422；事件階段與 metadata | 第 6.5 節 |
+| A 調整 24 | 名額規劃 `totals`；`/intake-plan`、`/board` 的預設學期 | 第 8 節、第 13 節 |
+| A 調整 25 | `campus_key` 不在五校內，總管理者也回 404 | 第 7 節；總覽 Global Constraints |
+| A 調整 26 | `labels.ts` 匯出招生階段、來源、欄位標籤，`AUDIT_PAIRED_KEYS` 加階段 | 總覽「檔案配置」`labels.ts` |
+| A 調整 27 | `ArrivalRowOut.slot_date`、`start_time` 可為 null；補建無場次用當天 | 第 6.1 節第 2 點、第 13 節；總覽「介面」booking_link.py |
+| A 調整 28 | 匯出程式的簽章、`write_jsonl`、`website_actor` 形狀、唯讀連線 | 第 12.2、12.3 節；總覽「介面」export.py |
+| A 調整 29 | 測試共用 fixture 都在 `admissions_helpers.py` | 總覽「檔案配置」測試清單 |
+| A 調整 30 | R14 統計不變的範圍；唯一幼生對匿名化的列以列 id 計 | 第 9.2 節、第 14 節 R14；契約 README |
+| B 調整 1 | `academic.ts` 多匯出 `taipeiToday`、`rocDate`、`schoolYearOptions`、`Term` | 總覽「檔案配置」 |
+| B 調整 2 | 網址 `sy=all`、`vr` | 第 10 節；總覽「檔案配置」 |
+| B 調整 3 | `StatsTab.vue` 由 B1 先放空狀態，C3 覆寫 | 總覽「檔案配置」、「統計分頁」 |
+| B 調整 4 | `admissionsTestKit.ts` | 總覽「檔案配置」 |
+| B 調整 5 | 側欄位置與圖示 | 第 10 節；總覽「檔案配置」 |
+| B 調整 6 | `grade-cases.json` 的形狀 | 第 6.4 節；總覽技術調整 6 |
+| B 調整 7 | 後台依賴的 schema 欄位 | 總覽「介面」Schema 名稱 |
+| B 調整 8 | 型別別名的名稱 | 總覽「介面」後台 API 模組 |
+| B 調整 9 | 園務文案改寫成官網說法（沒有學生檔、學費模組） | 第 10 節 |
+| B 調整 10 | 畫面不放來源分類、帶參觀老師、娃娃車、地址分析同意 | 第 5.1 節、第 10 節訪視明細 |
+| B 調整 11 | 明細用頁首的學年學期 | 第 10 節訪視明細 |
+| B 調整 12 | 明細列操作分在 B2–B4 | 總覽「檔案配置」 |
+| B 調整 13 | `errors.ts` 的備援文案 | 總覽「檔案配置」 |
+| B 調整 14 | `RETENTION_CATEGORY_LABELS.admissions` 由 B6 核對 | 總覽「檔案配置」 |
+| B 調整 15 | 網址另有 `month`（格式不對就丟掉）；明細月份與網址雙向同步 | 第 10 節；第 10.1 節；總覽「檔案配置」 |
+| B 調整 16 | `RecordsTab` 只吃 props，用 `update:*`、`clear-term` 往上改 | 第 10.1 節；總覽「檔案配置」 |
+| B 調整 17 | 表單送出的欄位（不送狀態欄位；編輯只送改過的） | 第 10.1 節 |
+| B 調整 18 | 看板、名額規劃在不限學年或沒選學期時的預設 | 第 10.1 節 |
+| B 調整 19 | 新增訪視的兩個入口 | 第 10.1 節 |
+| B 調整 20 | 看板摘要列三個比率的算法與分母 0 | 第 10.1 節 |
+| B 調整 21 | 官網預約分頁每次讀完更新標籤筆數 | 第 10.1 節 |
+| B 調整 22 | 預約明細的招生訪視連結帶 `sy=all` | 第 10.1 節 |
+| B 調整 23 | `errors.ts` 補 `VISIT_REQUEST_NOT_COMPLETED`、`VISIT_REQUEST_ANONYMIZED` | 總覽「檔案配置」 |
+| B 調整 24 | 超額標籤與提醒框 | 第 10.1 節 |
+| B 調整 25 | 保存政策欄位位置與縮短確認 | 第 10.1 節 |
+| B 調整 26 | 歷程標題與事件文案規則 | 第 10.1 節 |
+| B 調整 27 | 明細日期用民國格式 | 第 10.1 節 |
+| B 調整 28 | 409 提示的兩種文案 | 第 10.1 節 |
+| B 調整 29 | 功能開關 `WEBSITE_ADMISSIONS_ENABLED`；頁面顯示「尚未啟用」 | 第 11 節、第 10.1 節；`deploy/README.md` |
+| B 調整 30 | `anonymized_at`；已匿名化的列唯讀；409 `RECRUITMENT_VISIT_ANONYMIZED` | 第 6.3 節、第 10.1 節；總覽「介面」`RecruitmentVisitOut` |
+| B 調整 31 | 看板收到匿名化 409 的提示與重載 | 第 10.1 節 |
+| B 調整 32 | `ArrivalsOut` 多 `awaiting_total`、`missing_total`，各最多 200 筆 | 第 10.1 節、第 13 節；總覽「介面」booking_link.py |
+| B 調整 33 | 看板與名額規劃回應多 `as_of`、`campus_key` | 第 13 節；總覽「介面」funnel.py、intake.py |
+| B 調整 34 | 刪除已註冊或從已註冊退出的訪視需 `admissions.convert` | 第 6.6 節、第 13 節；總覽 API 表 |
+| B 調整 35 | 註冊日期民國年限 100–200 | 第 6.3 節、第 10.1 節 |
+| B 調整 36 | 「（未填姓名）」的常數與「待補」標示 | 第 10.1 節 |
+| C 調整 1 | 統計型別別名在 C3、C3b、C4 加（另有 `AdmissionsCompare`） | 總覽「檔案配置」、「介面」後台 API 模組 |
+| C 調整 2 | `AdmissionsView.vue` 在 C3 改 `<StatsTab>` 一處 | 總覽「檔案配置」 |
+| C 調整 3 | `StatsTab` 的 props 與事件 | 總覽「統計分頁」 |
+| C 調整 4 | 警示與行動入口的 `target_tab`、`REVIEW_SOURCE` | 第 9.3 節；`contracts/ivy-recruitment/README.md` |
+| C 調整 5 | `GET /compare` 的學年學期必填；回物件 `{as_of, school_year, semester, rows}` | 第 13 節；總覽 API 表、「介面」stats.py |
+| C 調整 6 | `StatsTab` 多 `campusKeys`、`go` 換成 `open-records` | 總覽「統計分頁」 |
+| C 調整 7 | 統計切到訪視明細帶 `month`，用 `router.push` | 第 10 節（網址參數、統計分析） |
+| C 調整 8 | 五校比較頁首沒選學年學期時的預設：沒選學期用上學期、沒選學年用目前學年（照名額規劃） | 第 9.3 節；總覽「統計分頁」 |
+| C 調整 9 | 同票排序加第二鍵 | 第 9.2 節；契約 README |
+| C 調整 10 | 月比任一邊 null，差值也是 null | 第 9.2 節；契約 README |
+| C 調整 11 | 統計回應只有數字；未預繳名單另由 `/no-deposit-records` 提供，含孩子姓名（2026-10-01 使用者裁定統計頁列名單） | 第 7 節、第 9.3 節、第 13 節；契約 README |
+| C 調整 12 | 總覽另加「本範圍合計」，不做兩張圖與全管道彙整 | 第 9.3 節 |
+| C 調整 13 | 參考月份格式錯 422 `INVALID_REFERENCE_MONTH`（三位數民國年月） | 第 13 節；契約 README |
+| C 調整 14 | R17 的「場次時間已過」用 psql 移本測試自建的場次 | 第 14 節 R17 |
+| C 調整 15 | R16 的截圖與溢出檢查 | 第 14 節 R16 |
+| C 調整 16 | 介紹者 × 來源交叉表放在接待分析 | 第 9.3 節 |
+| C 調整 17 | 未預繳名單排序可重現：民國月份排序鍵降序、序號開頭數字升序 | 第 9.3 節；契約 README |
+| C 調整 18 | 名單「查看」切到訪視明細並帶該筆月份（明細只吃 `month`、`vr`） | 第 10 節統計分析 |
+| C 調整 19 | `NoDepositList` 介面；警示與行動入口的 `target_filter` 帶進名單；數字卡沿用 `/stats` | 第 9.3 節；總覽「統計分頁」 |

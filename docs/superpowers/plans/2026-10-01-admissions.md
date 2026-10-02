@@ -10,7 +10,7 @@
 
 **Spec:** `docs/specs/2026-09-30-website-admissions-design.md`（實作前必讀，下稱「規格」）。本計畫與規格衝突時以規格為準並回報。例外：本總覽「技術調整」一節列出的項目以本計畫為準，Task C6 回寫規格。
 
-**優先順序**：各階段檔開頭的「對總覽的調整」優先於本總覽的「介面」一節（2026-10-01：A 30 條、B 28 列、C 16 列；跨階段的接縫已由主 session 對齊）。實作某個 task 時，先讀該階段檔的調整，再讀本總覽。Task C6 把三份調整回寫進規格與本總覽。
+**優先順序**：各階段檔開頭的「對總覽的調整」優先於本總覽的「介面」一節（2026-10-01：A 30 條、B 36 列、C 19 列；跨階段的接縫已由主 session 對齊）。實作某個 task 時，先讀該階段檔的調整，再讀本總覽。Task C6 把三份調整回寫進規格與本總覽。
 
 ## 分階段（一次 session 只做一個階段，階段間有硬閘）
 
@@ -54,6 +54,7 @@
 - FastAPI 釘在 0.136.1，不升任何相依套件；不新增 Python 或 npm 套件（圖表用表格加 CSS 長條，不裝圖表庫）。
 - Node 22（`.nvmrc`）。
 - 不 push、不部署、不改正式 DB、不發真實通知。
+- 招生功能由 `WEBSITE_ADMISSIONS_ENABLED` 控制（預設關）：關閉時 `/admin/admissions/*`（含統計三個 GET）一律 404、標記已到場不建招生訪視（B29）。pytest 與 stack e2e 都設為開。
 - **commit 需使用者授權**（repo 規則「未經要求不 commit」）。使用者授權「在 feature 分支逐 task commit」後，才照各 task 的 commit 步驟做。
   - commit 訊息：Conventional Commit、繁體中文，結尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
   - 只 `git add` 列出的檔案，禁止 `git add .`／`-A`／`commit -a`。
@@ -66,10 +67,11 @@
 - 營運日期一律台北：用 `app.common.timezones` 的 `today_local()`／`OPERATING_TZ`，不用 `date.today()`、`datetime.now()`（無時區）。
 - service 只 `flush`，不 `commit`、不寫稽核；路由在成功時 `log_action` → `await db.commit()`，失敗時先 `await db.rollback()` 再 raise。
 - 錯誤格式：`HTTPException(status_code, detail={"code": "UPPER_SNAKE", "message": "中文", ...})`。
-  - 校區越權或查無資料用 `raise ScopeDenied()`（404）。
+  - 校區越權或查無資料用 `raise ScopeDenied()`（404）；校區層級端點的 `campus_key` 不在 `CAMPUS_KEYS` 時，總管理者也回 404（A 調整 25）。
   - 缺 capability 由 `require_scope` 丟 403。
   - 版本不符 409 `RECRUITMENT_VISIT_VERSION_CONFLICT`，帶 `current_version`。
-  - 不允許的轉換 422 `TRANSITION_NOT_ALLOWED`。
+  - 不允許的轉換 422 `TRANSITION_NOT_ALLOWED`（同階段 X→X 也是）。
+  - 缺必填 422 `TRANSITION_FIELDS_REQUIRED`（帶 `fields`）、保留座位不合規則 422 `SEAT_NOT_ALLOWED`、已匿名化的訪視編輯／轉換／保留座位 409 `RECRUITMENT_VISIT_ANONYMIZED`、補建 409 `VISIT_REQUEST_NOT_COMPLETED`／`VISIT_REQUEST_ANONYMIZED`、統計參考月份格式錯 422 `INVALID_REFERENCE_MONTH`。
 - **稽核**：每個 `/admin/` 底下的 POST／PUT／PATCH／DELETE 都要呼叫 `audit_service.log_action(`。
   - `action=`、`target_type=` 寫字面值，`metadata=` 寫字面值 dict。
   - metadata 不放個資（姓名、生日、電話、地址、聯絡人、家長回應、備註、原因全文都不行）。
@@ -82,15 +84,15 @@
 - 招生 service 在 `mark_completed` 內被呼叫時**不得丟例外**。欄位超長就截斷，缺值就用預設，絕不能讓「標記已到場」因為招生資料失敗。
 - 統計比率分母為 0 回 `None`（前端顯示「—」），不是 0。這是規格第 9.2 節刻意與園務不同的地方。
 
-## 技術調整（本計畫為準，Task C6 回寫規格）
+## 技術調整（本計畫為準；C6 已回寫規格，對照表見規格第 17 節）
 
 1. 列表端點照官網慣例回**裸 list**，用 `page`／`page_size` 分頁，前端以「回傳筆數 == page_size」判斷有下一頁；不另回 total。
 2. `recruitment_event_log.metadata_json` 用 `JSON`，不是 JSONB（官網慣例）。
 3. 狀態不允許的轉換回 **422** `TRANSITION_NOT_ALLOWED`（請求內容不合法）。預約既有的 `INVALID_TRANSITION` 是 409，代表「狀態剛被別人改了」，兩者語意不同，不要混用。
 4. 建立訪視的 `campus_key` 放 query 參數，同 `POST /admin/slots` 慣例。
 5. 預約的 `child_name`、`parent_name` 最長 64 字，招生的 `child_name`、`contact_name` 對齊園務是 50 字。自動建立時截斷到 50，不報錯。
-6. 共用年級案例放在 `contracts/ivy-recruitment/grade-cases.json`，後端 pytest、web vitest、admin vitest 三邊都讀這份。
-7. 保存政策新增欄位 `retention_policies.admissions_days`（Integer，可空，NULL＝不自動清理），以及報表類別 `admissions`。符合條件：`anonymized_at IS NULL AND updated_at < now - admissions_days`。
+6. 共用年級案例放在 `contracts/ivy-recruitment/grade-cases.json`，後端 pytest、web vitest、admin vitest 三邊都讀這份。形狀 `{"cases": [{"name", "birthday", "today", "expected_term": [學年, 學期], "expected_grade": 年級或 null}]}`，年級用 `expected_term` 的學年換算（A1 鎖定）。
+7. 保存政策新增欄位 `retention_policies.admissions_days`（Integer，可空，NULL＝不自動清理），以及報表類別 `admissions`。符合條件：`anonymized_at IS NULL AND updated_at < now - admissions_days`。另有 DB CHECK `ck_retention_policies_admissions_days`（NULL 或 30–3650）；更新請求沒帶這個鍵就不動它（`model_fields_set`）。
 
 ## 檔案配置（鎖定）
 
@@ -104,7 +106,7 @@
 | `models.py` | `RecruitmentVisit`、`RecruitmentEventLog`、`GradeIntakeTarget` | A2 |
 | `schemas.py` | 所有 In／Out schema | A3 起逐步加 |
 | `records.py` | 訪視建立、編輯、刪除、查詢、序號、歷程寫入 | A3 |
-| `funnel.py` | 階段推導、狀態轉換、權限對照、看板 | A4 |
+| `funnel.py` | 階段推導（A3 先建：`Stage`、`derive_stage`、`stage_condition`）、狀態轉換、權限對照、看板 | A3、A4 |
 | `intake.py` | 保留座位、名額計算、計畫名額存檔 | A5 |
 | `booking_link.py` | 由預約建立訪視、待確認清單 | A6 |
 | `retention.py` | 招生訪視匿名化與試算 | A7 |
@@ -118,14 +120,15 @@
 - `backend/app/main.py`（A3）：`include_router(admissions_router)`。
 - `backend/app/auth/permissions.py`（A2）：三個 capability。
 - `backend/app/booking/workflow_service.py`（A6）：`mark_completed` 呼叫 `booking_link.ensure_from_visit_request`。
-- `backend/app/operations/{models,retention_service,routes,schemas}.py`（A7）：`admissions_days` 與報表類別。
+- `backend/app/operations/{models,retention_service,routes}.py`（A7）：`admissions_days` 與報表類別（保存政策的 schema 在 `routes.py`，沒有 `operations/schemas.py`）。
 - `backend/scripts/export_ivy_recruitment.py`、`backend/scripts/check_ivy_recruitment_contract.py`（A8）。
 - `contracts/ivy-recruitment/README.md`、`ivy-schema.json`（A8）；`grade-cases.json`（A1）。
 - 測試：
   - `backend/tests/admissions_helpers.py`（A3 建、A6 擴充）
-  - `test_admissions_academic.py`（A1）、`test_admissions_records.py`（A3）、`test_admissions_funnel.py`（A4）
+  - `test_admissions_academic.py`（A1）、`test_admissions_schema.py`（A2：單一 head、約束建在 DB、CheckConstraint 字串與 model 一致、capability）、`test_admissions_records.py`（A3）、`test_admissions_funnel.py`（A4）
   - `test_admissions_intake.py`（A5）、`test_admissions_booking_link.py`（A6）、`test_admissions_retention.py`（A7）
   - `test_admissions_contract.py`（A8）、`test_admissions_stats.py`（C1、C2、C2b）
+  - 共用 fixture `campus_admin_yihua_client`、`reception_yihua_client`、`readonly_yihua_client` 與 helper `transition`、`record_at_stage`、`started_booking`、`move_slot`、`complete` 都在 `tests/admissions_helpers.py`；`test_admissions_stats.py` 自己定義的 `reception_client`、`readonly_client` 名稱不同，不衝突（A 調整 29）。
 - web：`web/tests/admission-grade-cases.spec.ts`（A1）。
 
 **後台 `admin/src/`**
@@ -133,21 +136,24 @@
 | 檔案 | 責任 | 負責 task |
 |---|---|---|
 | `api/admissions.ts` | 所有招生 API 呼叫（型別取自 generated） | B1 起逐步加 |
-| `api/types.ts` | 匯出招生 schema 型別別名 | B1 |
-| `api/labels.ts` | 稽核標籤（A 階段）、保存政策欄位標籤（A7） | A3–A7 |
+| `api/types.ts` | 匯出招生 schema 型別別名 | A9（B1 核對）、C3（`AdmissionsStats`）、C3b（`NoDepositRecords`、`NoDepositRecord`）、C4（`AdmissionsCompare`、`AdmissionsCompareRow`、`AdmissionsRate`） |
+| `api/labels.ts` | 稽核標籤（A 階段）、保存政策欄位標籤（A7）；B6 核對 `RETENTION_CATEGORY_LABELS.admissions`；匯出 `RECRUITMENT_STAGE_LABELS`、`RECRUITMENT_ORIGIN_LABELS`、`RECRUITMENT_FIELD_LABELS`，`AUDIT_PAIRED_KEYS` 加 `from_stage`／`to_stage`（`admissions/constants.ts` 要階段文案時從這裡匯入，不另抄一份） | A3–A7、B6 |
 | `admissions/constants.ts` | 階段、事件、年級文案與顏色 token 名稱 | B1 |
-| `admissions/academic.ts` | `currentTerm`、`termLabel`、`gradeForBirthday`、`rocMonth` | B1 |
-| `admissions/useAdmissionsFilters.ts` | 校區、學年、學期、分頁 ↔ URL query | B1 |
-| `views/AdmissionsView.vue` | 頁首、篩選、五個分頁 | B1 |
-| `components/admissions/RecordsTab.vue`、`RecordDialog.vue`、`EventsDrawer.vue` | 訪視明細 | B2 |
+| `admissions/academic.ts` | `taipeiToday`、`currentTerm`、`termLabel`、`gradeForBirthday`、`rocMonth`、`rocDate`、`schoolYearOptions`、型別 `Term` | B1 |
+| `admissions/useAdmissionsFilters.ts` | 校區、學年（`sy=all`＝不限學年）、學期、分頁、`vr`（某筆預約）、`month`（民國月份，格式不對就丟掉）↔ URL query；一頁只能有一份，子元件只吃 props | B1 |
+| `views/AdmissionsView.vue` | 頁首、篩選、五個分頁；C3 改 `<StatsTab>`（加 `campus-keys`，`@open-records` 切到訪視明細並帶 `month`） | B1、C3 |
+| `components/admissions/RecordsTab.vue`、`RecordDialog.vue`、`EventsDrawer.vue` | 訪視明細（列操作「標記註冊」在 B3、「保留座位／變更座位」在 B4 補上；`RecordsTab` 只吃 props `campusKey`、`schoolYear`、`semester`、`month`、`visitRequestId`，用 `update:month`、`update:visitRequestId`、`clear-term` 往上改） | B2–B4 |
 | `components/admissions/FunnelBoard.vue`、`FunnelCard.vue`、`TransitionDialog.vue` | 漏斗看板 | B3 |
 | `components/admissions/IntakePlanTab.vue`、`SeatDialog.vue` | 名額規劃 | B4 |
 | `components/admissions/ArrivalsTab.vue` | 官網預約 | B5 |
 | `views/VisitDetailView.vue` | 已到場確認框、招生訪視連結 | B5 |
 | `views/PoliciesView.vue` | `admissions_days` 欄位 | B6 |
-| `components/admissions/StatsTab.vue`、`StatsOverview.vue`、`StatsDimensionTable.vue`、`CompareTable.vue` | 統計分析 | C3、C4 |
+| `components/admissions/StatsTab.vue`、`StatsOverview.vue`、`StatsDimensionTable.vue`、`CompareTable.vue` | 統計分析（`StatsTab.vue` 由 B1 先放可運作的空狀態，C3 整檔覆寫；另有 `admissions/statsFormat.ts`） | B1、C3、C4 |
 | `components/admissions/NoDepositList.vue` | 統計「未預繳原因」分頁的未預繳明細（名單） | C3b |
 | `router/index.ts`、`router/nav.ts`、`__tests__/fixtures.ts` | 路由、側欄、測試權限表 | B1 |
+| `components/AdminSidebar.vue` | 側欄圖示 `TrendCharts`（「參觀預約」組、「參觀場次」之後） | B1 |
+| `api/errors.ts` | 備援文案：`RECRUITMENT_VISIT_VERSION_CONFLICT`、`TRANSITION_NOT_ALLOWED`（B1）；`VISIT_REQUEST_NOT_COMPLETED`、`VISIT_REQUEST_ANONYMIZED`（B5）；`RECRUITMENT_VISIT_ANONYMIZED`（B 調整 30） | B1、B5 |
+| `__tests__/admissionsTestKit.ts` | 招生測試共用：掛載、依路徑 mock `api`、假資料工廠（不是 `*.test.ts`） | B1 |
 
 ## 介面（各 task 照這裡的名稱與型別實作）
 
@@ -201,7 +207,7 @@ def shift_roc_month(month: str, delta: int) -> str: ...  # "115.01", -1 → "114
 
 ### `app/admissions/models.py`（A2）：欄位完全照規格第 5.1–5.3 節
 
-`RecruitmentVisit` 另有 `events: Mapped[list[RecruitmentEventLog]] = relationship(back_populates="visit", cascade="all, delete-orphan", order_by=...created_at)`。CheckConstraint 名稱：
+`RecruitmentVisit` 另有 `events: Mapped[list[RecruitmentEventLog]] = relationship(back_populates="visit", cascade="all, delete-orphan", passive_deletes=True, order_by=...created_at)`（刪除交給 DB 的 `ON DELETE CASCADE`，async session 不能 lazy load 歷程）。CheckConstraint 名稱：
 - `ck_recruitment_visits_grade`、`ck_recruitment_visits_provisional_grade`
 - `ck_recruitment_visits_source_category`、`ck_recruitment_visits_no_deposit_reason`
 - `ck_recruitment_visits_withdrawn_from`、`ck_recruitment_visits_target_semester`
@@ -219,7 +225,9 @@ def shift_roc_month(month: str, delta: int) -> str: ...  # "115.01", -1 → "114
 class RecordNotFound(Exception): ...
 class VersionConflict(Exception):
     def __init__(self, current_version: int): ...
-def stage_of(visit: RecruitmentVisit) -> str: ...           # 規格 6.2（定義在 funnel.py，records 從 funnel 匯入）
+class TourGuideNotFound(Exception): ...     # tour_guide_user_id 指到不存在的帳號；路由轉 422 TOUR_GUIDE_INVALID
+# 不定義 stage_of：階段一律用 funnel.derive_stage(visit)（Python）與 funnel.stage_condition(stage)（SQL）；
+# RecruitmentVisitFilters.apply 在函式內匯入 stage_condition，避免 records ↔ funnel 循環匯入
 async def create_visit(db, *, campus_key: str, fields: dict, actor_user_id: uuid.UUID | None, origin: str,
                        visit_request_id: uuid.UUID | None = None, today: date | None = None) -> RecruitmentVisit
     # origin ∈ {"manual","visit_request"}；算 month、seq_no（pg_advisory_xact_lock(hashtext(campus_key||month))）；
@@ -228,7 +236,8 @@ async def get_visit_for_update(db, visit_id: uuid.UUID) -> RecruitmentVisit | No
 async def update_visit(db, visit, *, changes: dict, expected_version: int) -> list[str]  # 回傳實際改變的欄位名
 async def delete_visit(db, visit, *, expected_version: int) -> None
 def write_event(db, visit, *, event_type: str, from_stage: str | None, to_stage: str,
-                actor_user_id, reason: str | None = None, metadata: dict | None = None) -> RecruitmentEventLog
+                actor_user_id, reason: str | None = None, metadata: dict | None = None,
+                created_at: datetime | None = None) -> RecruitmentEventLog   # 一次寫兩筆事件時讓第二筆排在後面
 class RecruitmentVisitFilters:   # Depends() 類別，同 booking 的 VisitRequestFilters
     def __init__(self, campus_key: str, month: str | None = None, grade: str | None = None,
                  target_school_year: int | None = None, target_semester: int | None = None,
@@ -243,8 +252,10 @@ async def options(db, campus_key: str) -> dict   # months（新到舊）、sourc
 
 ```python
 Stage = Literal["visited", "deposited", "enrolled", "withdrawn"]
-def derive_stage(visit) -> Stage
+def derive_stage(visit) -> Stage                    # A3 先建
+def stage_condition(stage: Stage)                   # A3 先建：列表 stage 篩選的 SQL 條件
 def transition_capability(from_stage: Stage, to_stage: Stage) -> str | None   # None＝不允許；否則 "admissions.write" 或 "admissions.convert"
+def not_allowed_reason(from_stage: Stage, to_stage: Stage) -> str   # 422 的中文說明；路由先比對 expected_version 再判斷權限
 class TransitionNotAllowed(Exception): ...
 class TransitionFieldsMissing(Exception):
     def __init__(self, fields: list[str]): ...
@@ -254,7 +265,7 @@ async def transition(db, visit, *, to_stage: Stage, expected_version: int, actor
                      target_school_year: int | None = None, target_semester: int | None = None) -> Stage  # 回傳 from_stage
 async def board(db, campus_key: str, school_year: int, semester: int | None) -> dict
     # {"columns": {"visited": [card...], "deposited": [...], "enrolled": [...], "withdrawn": [...]},
-    #  "unscoped_count": int, "school_year": int, "semester": int | None}
+    #  "unscoped_count": int, "school_year": int, "semester": int | None, "campus_key": str, "as_of": datetime}   # campus_key、as_of 為 B33
 ```
 
 card：`{"id","child_name","grade","provisional_grade","target_school_year","target_semester","visit_date","has_visit_request","withdrawn_from","version"}`
@@ -267,7 +278,8 @@ async def set_seat(db, visit, *, grade: str | None, target_school_year: int | No
                    target_semester: int, expected_version: int, actor_user_id) -> bool   # 回傳是否超額警示
 async def intake_plan(db, campus_key: str, school_year: int, semester: int) -> dict
     # {"school_year","semester","rows":[{"grade","target_seats":int|None,"reserved","enrolled","remaining":int|None,"over_capacity":bool}],
-    #  "totals":{"target_seats":int|None,"reserved","enrolled","remaining":int|None}}
+    #  "totals":{"target_seats":int|None,"reserved","enrolled","remaining":int|None},
+    #  "campus_key": str, "as_of": datetime}   # semester 在 API 預設 1；totals 見 A 調整 24
 async def save_targets(db, campus_key: str, school_year: int, semester: int,
                        targets: dict[str, int | None], actor_user_id) -> list[str]   # 回傳有變動的年級
 ```
@@ -275,18 +287,18 @@ async def save_targets(db, campus_key: str, school_year: int, semester: int,
 ### `app/admissions/booking_link.py`（A6）
 
 ```python
-def fields_from_visit_request(visit_request, *, today: date) -> dict   # 規格 6.1 的對應（純函式，截斷、補預設，不丟例外）
+def fields_from_visit_request(visit_request, *, today: date, slot_date: date | None = None) -> dict   # 規格 6.1 的對應（純函式，截斷、補預設，不丟例外；不碰 visit_request.slot，場次日期由 ensure_from_visit_request 用 history.load_slot 取來傳入）
 async def ensure_from_visit_request(db, visit_request, *, actor_user_id) -> tuple[RecruitmentVisit, bool]  # (visit, created)
-async def arrivals(db, campus_key: str) -> dict
-    # {"awaiting": [row...], "missing": [row...]}
-    # row = {"visit_request_id","slot_date","start_time","parent_name","child_name","party_size","status"}
+async def arrivals(db, campus_key: str, *, now: datetime | None = None) -> dict
+    # {"awaiting": [row...], "missing": [row...], "awaiting_total": int, "missing_total": int}   # 兩份各最多 200 筆、新到舊
+    # row = {"visit_request_id","slot_date","start_time","parent_name","child_name","party_size","status"}   # slot_date、start_time 可為 None（舊預約沒有場次）
 ```
 
 ### `app/admissions/retention.py`（A7）
 
 ```python
-async def eligible_count(db, days: int | None) -> int
-async def anonymize_due(db, days: int | None) -> int       # days 為 None 時回 0，不動資料
+async def eligible_count(db, days: int | None, *, now: datetime | None = None) -> int
+async def anonymize_due(db, days: int | None, *, now: datetime | None = None) -> int       # days 為 None 時回 0，不動資料
 def anonymize_visit(visit, events: list) -> None
 ```
 
@@ -294,11 +306,12 @@ def anonymize_visit(visit, events: list) -> None
 
 ```python
 def ivy_visit_row(visit) -> dict        # 園務 recruitment_visits 欄位形狀（不含 id／tenant_id）
-def ivy_event_row(event) -> dict
+def ivy_event_row(event, *, actor_name: str | None = None) -> dict   # 歷程 metadata_json.website_actor 是 {"user_id", "name"}
 def ivy_target_row(target) -> dict
 def extension_row(visit) -> dict        # 規格 12.3 的延伸欄位
-async def export_campus(db, campus_key: str) -> dict[str, list[dict]]
+async def export_campus(db, campus_key: str, *, tenant_id: int | None = None) -> dict[str, list[dict]]
     # {"recruitment_visits": [...], "recruitment_event_log": [...], "grade_intake_targets": [...], "extensions": [...]}
+def write_jsonl(result, out_dir) -> None   # 匯出程式用 default_transaction_read_only=on 的連線，保證只讀
 ```
 
 ### `app/admissions/stats.py`（C1、C2、C2b）：欄位與公式見 C 計畫
@@ -306,39 +319,45 @@ async def export_campus(db, campus_key: str) -> dict[str, list[dict]]
 ```python
 async def query_stats(db, campus_key: str, *, school_year: int | None, semester: int | None,
                       reference_month: str | None, now: datetime | None = None) -> dict
-async def compare(db, campus_keys: list[str], *, school_year: int, semester: int) -> list[dict]
+async def compare(db, campus_keys: list[str], *, school_year: int, semester: int, now: datetime | None = None) -> dict
+    # {"as_of", "school_year", "semester", "rows": [五校各一列…]}（回物件，不是裸 list）
+async def no_deposit_records(db, campus_key: str, *, school_year: int | None, semester: int | None, reason: str | None,
+                             grade: str | None, priority: str | None, overdue_days: int | None, cold_only: bool | None,
+                             page: int, page_size: int, now: datetime | None = None) -> dict   # C2b
 ```
 
 ### API（prefix `/api/website/v1`，全部 `tags=["admissions"]`）
 
 | 方法與路徑 | capability | request | response | task |
 |---|---|---|---|---|
-| GET `/admin/admissions/options` | admissions.read | `campus_key` | `AdmissionsOptionsOut` | A3 |
+| GET `/admin/admissions/options` | admissions.read | `campus_key` | `AdmissionsOptionsOut`（`source_categories` 是「代碼 → 園務文案」的 dict；另有 `grades`、`no_deposit_reasons: list[NoDepositReasonOption]`，`{value, priority}`） | A3 |
 | GET `/admin/admissions/records` | admissions.read | `RecruitmentVisitFilters`＋`page`＋`page_size`（預設 50，上限 100） | `list[RecruitmentVisitOut]` | A3 |
 | POST `/admin/admissions/records` | admissions.write | `campus_key` query＋`RecruitmentVisitCreate` | 201 `RecruitmentVisitOut` | A3 |
 | GET `/admin/admissions/records/{visit_id}` | admissions.read | — | `RecruitmentVisitOut` | A3 |
 | PATCH `/admin/admissions/records/{visit_id}` | admissions.write | `RecruitmentVisitUpdate` | `RecruitmentVisitOut` | A3 |
-| DELETE `/admin/admissions/records/{visit_id}` | admissions.write | `expected_version` query | 204 | A3 |
+| DELETE `/admin/admissions/records/{visit_id}` | admissions.write（已註冊或從已註冊退出的另需 admissions.convert） | `expected_version` query | 204 | A3 |
 | GET `/admin/admissions/records/{visit_id}/events` | admissions.read | — | `list[RecruitmentEventOut]` | A3 |
 | POST `/admin/admissions/records/{visit_id}/transition` | 依 `transition_capability` | `TransitionRequest` | `RecruitmentVisitOut` | A4 |
 | GET `/admin/admissions/board` | admissions.read | `campus_key`、`school_year`（預設目前學年）、`semester` | `FunnelBoardOut` | A4 |
 | POST `/admin/admissions/records/{visit_id}/seat` | admissions.write | `SeatRequest` | `SeatOut` | A5 |
-| GET `/admin/admissions/intake-plan` | admissions.read | `campus_key`、`school_year`、`semester` | `IntakePlanOut` | A5 |
+| GET `/admin/admissions/intake-plan` | admissions.read | `campus_key`、`school_year`、`semester`（預設 1） | `IntakePlanOut` | A5 |
 | PUT `/admin/admissions/intake-targets` | admissions.write | `campus_key` query＋`IntakeTargetsRequest` | `IntakePlanOut` | A5 |
 | GET `/admin/admissions/arrivals` | booking.read | `campus_key` | `ArrivalsOut` | A6 |
-| POST `/admin/admissions/from-visit-request/{visit_request_id}` | admissions.write＋booking.read | — | `RecruitmentVisitOut` | A6 |
+| POST `/admin/admissions/from-visit-request/{visit_request_id}` | admissions.write＋booking.read | — | `RecruitmentVisitOut`；非 `completed` 409 `VISIT_REQUEST_NOT_COMPLETED`、已匿名化 409 `VISIT_REQUEST_ANONYMIZED` | A6 |
 | GET `/admin/admissions/stats` | admissions.read | `campus_key`、`school_year`、`semester`、`reference_month` | `AdmissionsStatsOut` | C1 |
-| GET `/admin/admissions/compare` | admissions.read | `school_year`、`semester` | `list[AdmissionsCompareRow]` | C2 |
+| GET `/admin/admissions/compare` | admissions.read | `school_year`、`semester`（兩者必填） | `AdmissionsCompareOut`（`{as_of, school_year, semester, rows: list[AdmissionsCompareRow]}`） | C2 |
 | GET `/admin/admissions/no-deposit-records` | admissions.read | `campus_key`、`school_year`、`semester`、`reason`、`grade`、`priority`、`overdue_days`、`cold_only`、`page`、`page_size` | `NoDepositRecordsOut`（含 `total`、`summary`、`records`，records 有孩子姓名） | C2b |
 
 Schema 名稱（`app/admissions/schemas.py`）：
 - 訪視：`RecruitmentVisitCreate`、`RecruitmentVisitUpdate`、`RecruitmentVisitOut`、`RecruitmentEventOut`
-- 狀態與座位：`TransitionRequest`、`SeatRequest`、`SeatOut`、`FunnelBoardOut`、`FunnelCardOut`
-- 名額：`IntakePlanOut`、`IntakePlanRowOut`、`IntakeTargetsRequest`
-- 其他：`ArrivalsOut`、`ArrivalRowOut`、`AdmissionsOptionsOut`、`AdmissionsStatsOut`、`AdmissionsCompareRow`
+- 狀態與座位：`TransitionRequest`、`SeatRequest`、`SeatOut`（`{visit, capacity_warning, warning_code}`，超額時 `warning_code="SEAT_CAPACITY_WARNING"`）、`FunnelBoardOut`、`FunnelColumnsOut`（四欄各 `list[FunnelCardOut]`，`FunnelBoardOut.columns` 用它，TS 才不是索引簽章）、`FunnelCardOut`
+- 名額：`IntakePlanOut`、`IntakePlanRowOut`、`IntakePlanTotalsOut`、`IntakeTargetsRequest`
+- 其他：`ArrivalsOut`、`ArrivalRowOut`、`AdmissionsOptionsOut`、`NoDepositReasonOption`、`AdmissionsStatsOut`、`AdmissionsCompareOut`、`AdmissionsCompareRow`、`AdmissionsRate`、`NoDepositRecordsOut`、`NoDepositRecordOut`、`NoDepositSummaryOut`
+- 建立、編輯、狀態轉換、座位、名額的 request schema 一律 `extra="forbid"`（送狀態欄位得到標準 422）。
+- 後台依賴的欄位：`SeatOut.capacity_warning: bool`；`IntakeTargetsRequest = {school_year, semester, targets: {年級: int | null}}`（null＝刪除該年級計畫，回到「未設定」）；`TransitionRequest = {to_stage, expected_version, reason, deposit_collector, enrolled_on, grade, target_school_year, target_semester}`（後六個可為 null）；`SeatRequest = {grade（null＝釋放）, target_school_year, target_semester, expected_version}`；`RecruitmentEventOut = {id, event_type, from_stage, to_stage, reason, metadata_json, actor_user_id, actor_name, created_at}`（`actor_*` 讀取時 join users，歷程舊到新）；`AdmissionsOptionsOut` 至少有 `months`、`sources`、`referrers`，另有 `grades`、`no_deposit_reasons`；`ArrivalsOut` 多 `awaiting_total`、`missing_total`；`FunnelBoardOut`、`IntakePlanOut` 多 `campus_key`、`as_of`。
 
 `RecruitmentVisitOut` 欄位：
-- 規格 5.1 全部欄位（`id` 起到 `updated_at`），不含 `anonymized_at`。
+- 規格 5.1 全部欄位（`id` 起到 `updated_at`），含 `anonymized_at`（A 階段整體審查加入：有值＝已依保存政策匿名化，後台據此唯讀，B 調整 30）。
 - 另加 `stage: str`、`has_visit_request: bool`、`tour_guide_user_id`。
 - `RecruitmentVisitUpdate` 用 `model_fields_set` 區分「沒送」和「送 null 清空」。
 
@@ -355,6 +374,8 @@ Schema 名稱（`app/admissions/schemas.py`）：
 | `recruitment_visit.create_from_booking` | `recruitment_visit` | `created`（bool） | A6 |
 
 保存政策：`retention_policy.update` 的 before／after 多了 `admissions_days`。`AUDIT_FIELD_LABELS` 加 `admissions_days: '招生訪視保留'`（A7）。
+
+`labels.ts` 既有的 metadata 鍵 `created`（時段產生的「新增 N 場」）、`fields`（素材欄位）與招生同名：翻譯改成依 action 分開，`action.startsWith('recruitment_visit.')` 走招生的寫法（A3 起）。
 
 ### 後台 API 模組 `admin/src/api/admissions.ts`（B1 起）
 
@@ -374,10 +395,32 @@ export function getArrivals(campusKey: string): Promise<Arrivals>
 export function createFromVisitRequest(visitRequestId: string): Promise<RecruitmentVisit>
 export function getOptions(campusKey: string): Promise<AdmissionsOptions>
 export function getStats(params: { campus_key: string; school_year: number | null; semester: number | null; reference_month: string | null }): Promise<AdmissionsStats>   // C3
-export function getCompare(schoolYear: number, semester: number): Promise<AdmissionsCompareRow[]>                                                                       // C4
+export function getCompare(schoolYear: number, semester: number): Promise<AdmissionsCompare>                                                                       // C4
 ```
 
-型別在 `admin/src/api/types.ts` 以 `components['schemas']['RecruitmentVisitOut']` 等別名匯出，名稱去掉 `Out`。
+型別在 `admin/src/api/types.ts` 以 `components['schemas']['RecruitmentVisitOut']` 等別名匯出，名稱去掉 `Out`（`FunnelCard`、`IntakePlanRow`、`ArrivalRow`；`SeatOut` 的別名是 `SeatResult`；`AdmissionsCompareOut` 的別名是 `AdmissionsCompare`）。A9 加訪視與名額的別名；統計的 `AdmissionsStats`（C3）、`NoDepositRecords`、`NoDepositRecord`（C3b）、`AdmissionsCompare`、`AdmissionsCompareRow`、`AdmissionsRate`（C4）在 C1／C2b／C2 進 OpenAPI 之後才加。
+
+### 統計分頁（C3、C3b、C4）
+
+```ts
+// admin/src/components/admissions/StatsTab.vue（B1 先放可運作的空狀態，C3 整檔覆寫）
+defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
+defineEmits<{ 'open-records': [filter: { month: string }] }>()
+// AdmissionsView：@open-records → router.push({ query: { ...route.query, tab: 'records', month } })（上一頁回到統計）
+// 子分頁 stats-overview／stats-class／stats-source／stats-staff／stats-nodeposit，campusKeys.length > 1 另有 stats-compare
+// StatsOverview.vue：props { stats: AdmissionsStats }；emits navigate({ tab: 'records' | 'nodeposit' | 'source', filter })
+// StatsDimensionTable.vue：props { title, rows, columns: StatsColumn[], rowKey, emptyText, numbered?, caption? }
+// CompareTable.vue：props { rows: AdmissionsCompareRow[], schoolYear: number, semester: number }（rows 取自 AdmissionsCompare.rows）
+// NoDepositList.vue（C3b，「未預繳原因」的未預繳明細，資料來自 GET /no-deposit-records）：
+//   props { campusKey, schoolYear, semester, preset?: Record<string, string | number> | null }；emits open-records({ month })
+// admin/src/admissions/statsFormat.ts：NO_VALUE、formatRate、ratio、formatPoints、trendOf、TREND_MARK、rateLevel、
+//   barWidth、alertLevelLabel、priorityLabel、gradeColumns、StatsColumn、StatsTarget
+```
+
+- 警示與行動入口的 `target_tab`：`records`（切到訪視明細並帶 `month`）、`nodeposit`、`source`（切統計子分頁）；園務的 `AREA_OPPORTUNITY` 改成 `REVIEW_SOURCE`（C 計畫調整第 4 條）。
+- 五校比較的學期照名額規劃（`IntakePlanTab`）：沒選學期用上學期（1），沒選學年用目前學年（`currentTerm().schoolYear`，台北日期）；頁首有任一沒選，表格上方寫明用哪個學期。同一組頁首篩選下，名額規劃與五校比較的名額剩餘必須是同一學期（C 計畫調整第 8 條，C 階段裁定改成這個做法）。
+- `GET /compare` 回物件 `AdmissionsCompareOut = { as_of, school_year, semester, rows }`（規格 13「聚合回應帶 `as_of` 與實際套用的篩選」），型別別名 `AdmissionsCompare`；`/no-deposit-records` 是分頁名單（同 `/records`），不帶 `as_of`。
+- 未預繳明細：「未預繳原因」子分頁 `lazy`，有未預繳才掛 `NoDepositList`；指向 `nodeposit` 的警示與行動入口把 `target_filter` 當 `preset` 傳下去；名單「查看」發 `open-records`，由 StatsTab 轉給頁面（C 計畫調整第 17–19 條）。
 
 ## Review Focus
 
