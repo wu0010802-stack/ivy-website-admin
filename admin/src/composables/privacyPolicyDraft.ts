@@ -91,7 +91,7 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
           '為了提供服務，我們委託下列廠商處理資料，並要求他們只依我們的指示處理：',
           '- Railway：網站主機與資料庫【待確認：資料所在地區】',
           '- 【待確認：寄信服務商】：寄送預約確認信',
-          '- Cloudflare：判斷自動程式（若已啟用）',
+          '- 【待確認：若已啟用 Cloudflare Turnstile 才保留這一行；未啟用就刪除】Cloudflare：判斷自動程式',
           '',
           '在我們內部，只有負責您預約校區的人員看得到您的預約資料。除了法律規定或主管機關依法要求之外，我們不會提供給其他人。',
         ].join('\n'),
@@ -135,7 +135,7 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
         body: [
           '對本政策或您的個人資料有任何問題，請聯絡：',
           '- Email：【待確認：統一的聯絡 Email】',
-          '- 各校電話：請見本網站「五所校園」頁面',
+          '- 各校電話：請見本頁下方頁尾的各校電話',
         ].join('\n'),
       },
     ],

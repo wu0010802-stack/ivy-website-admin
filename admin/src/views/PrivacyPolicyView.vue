@@ -78,7 +78,7 @@ onMounted(loadWithDraft)
       </el-alert>
 
       <el-form-item label="標題" required>
-        <el-input v-model="form.title" maxlength="40" />
+        <el-input v-model="form.title" maxlength="40" show-word-limit />
       </el-form-item>
       <el-form-item label="最後更新日期" required>
         <el-date-picker
@@ -107,7 +107,7 @@ onMounted(loadWithDraft)
             </span>
           </div>
           <el-form-item label="小標" required>
-            <el-input v-model="section.heading" maxlength="60" placeholder="例如：蒐集的資料" />
+            <el-input v-model="section.heading" maxlength="60" show-word-limit placeholder="例如：蒐集的資料" />
           </el-form-item>
           <el-form-item label="內文" required>
             <el-input v-model="section.body" type="textarea" maxlength="2000" show-word-limit :autosize="{ minRows: 3, maxRows: 14 }" />
