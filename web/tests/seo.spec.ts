@@ -42,6 +42,27 @@ describe('公開搜尋資料', () => {
     // 分校頁只列該校，不重複整份清單。
     expect(pageSeo(site, 'https://ivy.example', site.campuses[0]!).graph.filter((item) => item['@type'] === 'Preschool')).toHaveLength(1)
   })
+  it('在地資料：地址拆出縣市與行政區、只列該校自己的社群，沿用機構粉專的校區不列 sameAs', () => {
+    const schools = pageSeo(site, 'https://ivy.example').graph.filter((item) => item['@type'] === 'Preschool')
+    const byId = (key: string) => schools.find((item) => item['@id'] === `https://ivy.example/campuses/${key}#school`)!
+    expect(byId('renwu').address).toEqual({ '@type': 'PostalAddress', streetAddress: '高雄市仁武區京吉一路102號', addressLocality: '仁武區', addressRegion: '高雄市', addressCountry: 'TW' })
+    const yihua = site.campuses.find((c) => c.key === 'yihua')!
+    expect(byId('yihua').sameAs).toEqual([yihua.facebook, yihua.line, yihua.instagram, yihua.youtube])
+    for (const key of ['minghua', 'chongde', 'international', 'renwu']) expect(byId(key)).not.toHaveProperty('sameAs')
+    // 地址跟區名對不上時不硬拆。
+    const odd = { ...site.campuses[4]!, address: '仁武京吉一路102號', mapUrl: 'javascript:alert(1)' }
+    const oddSchool = pageSeo(site, 'https://ivy.example', odd).graph.find((item) => item['@type'] === 'Preschool')!
+    expect(oddSchool.address).toEqual({ '@type': 'PostalAddress', streetAddress: '仁武京吉一路102號', addressCountry: 'TW' })
+    expect(oddSchool).not.toHaveProperty('hasMap')
+  })
+  it('機構節點帶 logo、英文名、創立年份與全站社群', () => {
+    const org = pageSeo(site, 'https://ivy.example').graph.find((item) => item['@type'] === 'EducationalOrganization')!
+    expect(org.logo).toBe('https://ivy.example/assets/logo.png')
+    expect(existsSync(new URL('../public/assets/logo.png', import.meta.url))).toBe(true)
+    expect(org.alternateName).toBe(site.siteMeta.brandNameEn)
+    expect(org.foundingDate).toBe('1997')
+    expect(org.sameAs).toEqual(site.siteMeta.socialLinks!.map((link) => link.url))
+  })
   it('CMS 文字不能關閉 JSON-LD script；解析後保留原文', () => {
     const value = { name: '</script><script>alert(1)</script>&' }
     const encoded = serializeJsonLd(value)
@@ -70,6 +91,14 @@ describe('公開搜尋資料', () => {
     expect(text).toContain(c.phone)
     expect(text).not.toContain('yihua')
     expect(text).toContain('常見問題見 https://ivy.example/campuses/renwu#faq')
+  })
+  it('llms.txt 逐條列出分校頁上的常見問答，空白題目不列', () => {
+    const c = site.campuses[4]!
+    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [c] })
+    expect(text).toContain(`## ${c.name}常見問題`)
+    for (const item of c.faq.items) expect(text).toContain(`### ${item.q.replace(/\s+/g, ' ').trim()}`)
+    const blank = { ...c, faq: { ...c.faq, items: [{ q: ' ', a: '空白題目' }] } }
+    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [blank] })).not.toContain('常見問題\n')
   })
   it('llms.txt 在分校頁沒有常見問題時不指向不存在的 #faq', () => {
     const c = site.campuses[4]!
