@@ -200,3 +200,25 @@ async def test_login_rate_limited_after_repeated_failures(app, db_session):
             )
             last_status = resp.status_code
         assert last_status == 429
+
+
+@pytest.mark.asyncio
+async def test_login_and_me_carry_admissions_feature_flag(app, db_session):
+    """登入與 /auth/me 帶功能開關：後台側欄靠它決定要不要顯示「招生入學」。"""
+    from app.main import create_app
+    from tests.conftest import _create_user, _test_settings
+
+    await _create_user(db_session, "flags@ivy.example", "flags-password-123", Role.SUPER_ADMIN)
+    creds = {"email": "flags@ivy.example", "password": "flags-password-123"}
+
+    for enabled in (True, False):
+        flagged = create_app(_test_settings().model_copy(update={"admissions_enabled": enabled}))
+        transport = httpx.ASGITransport(app=flagged)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            login = await client.post("/api/website/v1/auth/login", json=creds)
+            assert login.status_code == 200, login.text
+            assert login.json()["features"] == {"admissions": enabled}
+            me = await client.get("/api/website/v1/auth/me")
+            assert me.status_code == 200
+            assert me.json()["features"] == {"admissions": enabled}
+            assert "features" not in me.json()["user"]

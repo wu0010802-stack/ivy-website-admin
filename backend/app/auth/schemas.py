@@ -68,14 +68,22 @@ class LoginRequest(BaseModel):
     password: ExistingPassword
 
 
+class FeatureFlags(BaseModel):
+    """後台依部署開關決定要不要顯示的功能（目前只有招生入學）。"""
+
+    admissions: bool
+
+
 class LoginResponse(BaseModel):
     csrf_token: str
     user: "UserOut"
+    features: FeatureFlags
 
 
 class MeResponse(BaseModel):
     csrf_token: str
     user: "UserOut"
+    features: FeatureFlags
 
 
 class UserOut(BaseModel):

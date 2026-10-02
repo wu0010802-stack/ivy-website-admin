@@ -7,7 +7,7 @@ import {
   Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, TrendCharts, User,
 } from '@element-plus/icons-vue'
-import { canSeeNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
+import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
@@ -59,7 +59,7 @@ const groups = computed(() => {
   const q = normalizedQuery.value
   // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
   const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
-    const allowed = group.items.filter(item => canSeeNavItem(item, auth.user))
+    const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
     if (!q) return { ...group, items: allowed, score: 0 }
     // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
     // 搜「預約」要帶出參觀案件、參觀場次，不只名稱裡有「預約」的兩項。

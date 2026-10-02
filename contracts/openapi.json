@@ -2725,6 +2725,20 @@
         "title": "DisplayNameUpdateRequest",
         "type": "object"
       },
+      "FeatureFlags": {
+        "description": "後台依部署開關決定要不要顯示的功能（目前只有招生入學）。",
+        "properties": {
+          "admissions": {
+            "title": "Admissions",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "admissions"
+        ],
+        "title": "FeatureFlags",
+        "type": "object"
+      },
       "FunnelBoardOut": {
         "properties": {
           "as_of": {
@@ -3405,13 +3419,17 @@
             "title": "Csrf Token",
             "type": "string"
           },
+          "features": {
+            "$ref": "#/components/schemas/FeatureFlags"
+          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
         },
         "required": [
           "csrf_token",
-          "user"
+          "user",
+          "features"
         ],
         "title": "LoginResponse",
         "type": "object"
@@ -3422,13 +3440,17 @@
             "title": "Csrf Token",
             "type": "string"
           },
+          "features": {
+            "$ref": "#/components/schemas/FeatureFlags"
+          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
         },
         "required": [
           "csrf_token",
-          "user"
+          "user",
+          "features"
         ],
         "title": "MeResponse",
         "type": "object"

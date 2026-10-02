@@ -3334,6 +3334,14 @@ export interface components {
             /** Display Name */
             display_name: string | null;
         };
+        /**
+         * FeatureFlags
+         * @description 後台依部署開關決定要不要顯示的功能（目前只有招生入學）。
+         */
+        FeatureFlags: {
+            /** Admissions */
+            admissions: boolean;
+        };
         /** FunnelBoardOut */
         FunnelBoardOut: {
             /**
@@ -3564,12 +3572,14 @@ export interface components {
         LoginResponse: {
             /** Csrf Token */
             csrf_token: string;
+            features: components["schemas"]["FeatureFlags"];
             user: components["schemas"]["UserOut"];
         };
         /** MeResponse */
         MeResponse: {
             /** Csrf Token */
             csrf_token: string;
+            features: components["schemas"]["FeatureFlags"];
             user: components["schemas"]["UserOut"];
         };
         /** MediaAssetOut */

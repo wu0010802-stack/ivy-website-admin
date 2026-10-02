@@ -6,6 +6,9 @@ import type { components } from '../../../contracts/generated/website-api'
 
 export type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 export type UserOut = components['schemas']['UserOut']
+export type FeatureFlags = components['schemas']['FeatureFlags']
+export type MeResponse = components['schemas']['MeResponse']
+export type LoginResponse = components['schemas']['LoginResponse']
 export type AuthProviders = components['schemas']['AuthProviders']
 export type LineLinkStart = components['schemas']['LineLinkStart']
 export type CampusOut = components['schemas']['CampusOut']
