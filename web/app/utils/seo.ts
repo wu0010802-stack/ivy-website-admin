@@ -150,7 +150,8 @@ export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: N
   const image = origin && imagePath ? `${origin}${imagePath}` : undefined
   const graph: Record<string, unknown>[] = canonical ? [
     { '@type': 'NewsArticle', '@id': `${canonical}#article`, url: canonical, headline: article.title, description, datePublished: article.date, inLanguage: 'zh-Hant-TW',
-      ...(image ? { image: [image] } : {}), publisher: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/` }, isPartOf: { '@id': `${origin}/#website` } },
+      ...(image ? { image: [image] } : {}), author: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/` },
+      publisher: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/`, ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}) }, isPartOf: { '@id': `${origin}/#website` } },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '最新消息', item: `${origin}${NEWS_PATH}` },
@@ -158,6 +159,34 @@ export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: N
     ] }
   ] : []
   return { title, description, canonical, image, imagePath, imageAlt: article.alt, graph }
+}
+
+/** 結構化資料只收公開的 https 連結（社群、地圖）；CMS 留空或填錯格式就不列。 */
+function httpsUrl(value: string | null | undefined): string | undefined {
+  if (!value) return undefined
+  try { return new URL(value).protocol === 'https:' ? value.trim() : undefined } catch { return undefined }
+}
+
+/** 機構本身的社群（全站設定的 socialLinks），首頁 EducationalOrganization 的 sameAs。 */
+function organizationSameAs(site: SiteContent): string[] {
+  return (site.siteMeta.socialLinks ?? []).map((link) => httpsUrl(link.url)).filter((url): url is string => Boolean(url))
+}
+
+/**
+ * 分校自己的社群帳號。沿用機構粉專的校區（facebook 填的就是機構那一個）不算
+ * 該校的帳號，不列；目前只有義華有自己的 LINE／FB／IG／YouTube。
+ */
+function campusSameAs(site: SiteContent, campus: Campus): string[] {
+  const shared = new Set(organizationSameAs(site))
+  return [campus.facebook, campus.line, campus.instagram, campus.youtube]
+    .map(httpsUrl).filter((url): url is string => Boolean(url) && !shared.has(url!))
+}
+
+/** 地址拆出縣市與行政區給在地搜尋用；只從已發布的地址與區名取，對不上就不輸出。 */
+function postalAddress(campus: Campus) {
+  const region = campus.address.match(/^(\S{2}[市縣])/)?.[1]
+  const locality = campus.district && campus.address.includes(campus.district) ? campus.district : undefined
+  return { '@type': 'PostalAddress', streetAddress: campus.address, ...(locality ? { addressLocality: locality } : {}), ...(region ? { addressRegion: region } : {}), addressCountry: 'TW' }
 }
 
 export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
@@ -174,13 +203,20 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
   const graph: Record<string, unknown>[] = []
   if (origin) {
     const organization = `${origin}/#organization`
-    graph.push({ '@type': 'EducationalOrganization', '@id': organization, name: site.siteMeta.brandName, url: `${origin}/` })
+    const orgSameAs = organizationSameAs(site)
+    // 創立年份同關於常春藤頁（aboutSeo）的公開文字。
+    graph.push({ '@type': 'EducationalOrganization', '@id': organization, name: site.siteMeta.brandName, url: `${origin}/`,
+      ...(site.siteMeta.brandNameEn ? { alternateName: site.siteMeta.brandNameEn } : {}),
+      ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}),
+      foundingDate: '1997', ...(orgSameAs.length ? { sameAs: orgSameAs } : {}) })
     const school = (c: Campus) => {
       const url = `${origin}/campuses/${encodeURIComponent(c.key)}`
+      const sameAs = campusSameAs(site, c)
+      const map = httpsUrl(c.mapUrl)
       return {
         '@type': 'Preschool', '@id': `${url}#school`, name: `${site.siteMeta.brandName} ${c.name}`,
         url, description: c.description ?? site.siteMeta.description, image: `${origin}${campusShareImagePath(c)}`, telephone: c.phone,
-        address: { '@type': 'PostalAddress', streetAddress: c.address, addressCountry: 'TW' },
+        address: postalAddress(c), ...(map ? { hasMap: map } : {}), ...(sameAs.length ? { sameAs } : {}),
         parentOrganization: { '@id': organization }
       }
     }
@@ -259,6 +295,12 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'ca
     ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}${c.faq.items.length ? `；常見問題見 ${campusUrl(c)}#faq` : ''}`),
     ''
   ]
+  // 各校常見問答直接列出（與分校頁 FAQPage 同一份），AI 助理不必再爬頁面也能引用。
+  for (const c of site.campuses) {
+    const faq = c.faq.items.filter((item) => item.q.trim() && item.a.trim())
+    if (!faq.length) continue
+    out.push(`## ${line(c.name)}常見問題`, '', ...faq.flatMap((item) => [`### ${line(item.q)}`, '', line(item.a), '']), `來源：${campusUrl(c)}#faq`, '')
+  }
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
