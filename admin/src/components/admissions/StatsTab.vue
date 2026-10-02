@@ -10,6 +10,7 @@ import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
 import { currentTerm, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS } from '../../admissions/constants'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
+import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 
 // 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
@@ -20,15 +21,13 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
 
-const SUB_TABS = ['stats-overview', 'stats-class', 'stats-source', 'stats-staff', 'stats-nodeposit', 'stats-compare'] as const
-type SubTab = (typeof SUB_TABS)[number]
-const subTab = ref<SubTab>('stats-overview')
+// 子分頁由頁面放在網址（sub，見 useAdmissionsFilters）；單獨掛載（測試）時沒有父層就用元件自己的值。
+const sub = defineModel<StatsSub>('sub', { default: 'overview' })
+const subTab = computed(() => `stats-${sub.value}`)
 
-function isSubTab(value: unknown): value is SubTab {
-  return typeof value === 'string' && (SUB_TABS as readonly string[]).includes(value)
-}
 function setSubTab(name: string | number) {
-  if (isSubTab(name)) subTab.value = name
+  const value = String(name).replace(/^stats-/, '')
+  if (isStatsSub(value)) sub.value = value
 }
 
 const stats = ref<AdmissionsStats | null>(null)
@@ -138,12 +137,13 @@ async function loadCompare() {
 }
 
 watch([subTab, () => compareTerm.value.schoolYear, () => compareTerm.value.semester], () => {
-  if (subTab.value === 'stats-compare') void loadCompare()
-})
+  if (subTab.value === 'stats-compare' && showCompare.value) void loadCompare()
+}, { immediate: true })
 // 權限更新後只剩一校：子分頁消失，退回總覽。
+// 網址帶 sub=compare 但只看得到一校：掛載時也要退回。
 watch(showCompare, (visible) => {
-  if (!visible && subTab.value === 'stats-compare') subTab.value = 'stats-overview'
-})
+  if (!visible && sub.value === 'compare') sub.value = 'overview'
+}, { immediate: true })
 
 // 表頭照園務 Recruitment{Class,Source,Staff,NoDeposit}Tab 原文。
 const GRADE_COLUMNS: StatsColumn[] = [

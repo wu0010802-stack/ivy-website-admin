@@ -361,7 +361,7 @@
 
 ## 10. 後台畫面
 
-路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
+路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶；`sub`＝統計分頁的子分頁〔`class`／`source`／`staff`／`nodeposit`／`compare`，只在統計分頁使用，總覽不寫進網址，不合法或看不到就退回總覽〕），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
 
 | 分頁 | 內容 |
 |---|---|
