@@ -1156,6 +1156,13 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 部署後（唯讀、未登入）：`/api/website/v1/health` 200、`background_jobs` 正常、`last_failed_steps` 空；`/`、`/environment`、`/about`、`/curriculum`、`/admission`、`/campuses/yihua`、`/admin/login` 皆 200。首頁 HTML 不含 `home-chapters`、流蘇海報是新版號（`entrance-poster-wide.webp?v=5184d415`，舊版號不見）、首屏 12 個 prefetch／modulepreload 都不含 three。Playwright（Chrome，1440×900 與 390×844）開 `/`、`/environment`、`/about`：零 page error、沒有章節指示；遙測請求在瀏覽器端攔下不送出（不寫正式庫），三頁分別帶 `page` `home`／`environment`／`about`，確認內頁回報已上線。
 - **未做**：Safari／iOS 實機；開場流蘇數只以海報版號確認，未在正式站實跑 WebGL 開場；慢速網路下首屏留靜態封面、環境頁載入中點選單的 INP 未在正式站量測（數字見 README mobile-perf 段落，為本機 production build）。
 
+## 2026-10-03 拿掉各校分校資訊頁（`feature/remove-campus-pages`，main CI 部署）
+
+- main `26eb29d`（拿掉分校頁）＋`27b2fa2`（併發測試場次日期改台北日期）；部署 run 37080768171。第一次 Backend job 紅（`test_booking_concurrency` 在 UTC 跑、台北已跨日時差一天，Deploy 被跳過），改測試後 Frontend（admin）的 `ux20260928E`「刪除場景」偶發失敗，重跑失敗 job 後全綠、Deploy Railway production success。
+- 未執行 migration、未寫入業務資料。
+- 線上核對（唯讀）：`/`、`/about`、`/environment`、`/visit`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health`、`/sitemap.xml` 皆 200；`/campuses/yihua`、`/campuses/renwu`、不存在的校區皆 301 轉 `/`；首頁 HTML 沒有 `/campuses` 連結，JSON-LD 只有 EducationalOrganization 與 WebSite。未做瀏覽器檢查。
+- 後台分校簡介、常見問題、環境導覽、預約橫幅文案仍可編輯，但公開站已沒有頁面顯示。
+
 ## 家長自選場次（未部署，草稿）
 
 `feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。**尚未 push、尚未部署**；B–D 完成後由使用者決定何時合併上線（push main＝正式部署）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
