@@ -93,7 +93,7 @@ onMounted(editor.load)
             <el-button v-if="editor.form.value.share_image" size="small" text @click="clearShareImage">改回首頁大圖</el-button>
           </div>
         </div>
-        <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖；分校頁一律用各校照片。</span>
+        <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖。</span>
       </el-form-item>
       <el-form-item v-if="editor.form.value.share_image" label="分享圖說明">
         <el-input v-model="editor.form.value.share_image_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子在戶外遊戲場玩耍" />

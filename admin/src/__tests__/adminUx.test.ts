@@ -117,9 +117,9 @@ describe('後台導覽與編輯操作', () => {
     wrappers.push(wrapper)
     await wrapper.get('input').setValue('素材')
     expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['素材庫'])
-    // 分組名仍可搜：沒有功能叫「分校頁」，但該組每一項都要出來
-    await wrapper.get('input').setValue('分校頁')
-    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['五校介紹', '各校常見問題', '共用常見問題', '各校消息與活動', '校園探索'])
+    // 常見問題頁已移除（官網沒有顯示的地方），搜不到
+    await wrapper.get('input').setValue('常見問題')
+    expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual([])
   })
 
   it('載入期間不誤報未儲存，儲存期間禁止編輯及重複發布', async () => {

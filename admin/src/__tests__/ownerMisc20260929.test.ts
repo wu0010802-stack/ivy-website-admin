@@ -9,16 +9,15 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import type { UserOut } from '../api/types'
-import { bannerTitlePreview, BANNER_CAMPUS_TOKEN, BANNER_DEFAULTS, LENGTH_HINTS } from '../composables/contentHints'
+import { bannerTitlePreview, BANNER_DEFAULTS, LENGTH_HINTS } from '../composables/contentHints'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { NAV_GROUPS, navItem } from '../router/nav'
 import AdminSidebar from '../components/AdminSidebar.vue'
-import BookingContentView from '../views/BookingContentView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
 import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
 import { useAuthStore } from '../stores/auth'
-import { ROLE_CAPABILITIES, testUser } from './fixtures'
+import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 beforeEach(() => {
@@ -152,60 +151,7 @@ describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () =
   })
 })
 
-describe('分校頁底部的預約橫幅', () => {
-  const booking = (overrides: Record<string, unknown> = {}) => ({
-    cta_label: '', cta_label_en: '', consent_text: '', banner_title_template: '', banner_body: '', banner_button_label: '',
-    privacy_title: '', privacy_sections: [], ...overrides,
-  })
-  const titleField = (wrapper: VueWrapper) => wrapper.findAll('.el-form-item').find((item) => item.find('.el-form-item__label').text() === '橫幅標題')!
-  const preview = (wrapper: VueWrapper) => wrapper.get('[data-banner-preview]').text()
-
-  it('預覽用看得到的第一校換掉校名記號，留空時預覽原本的標題', async () => {
-    mockContent('booking_content', booking({ banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。' }))
-    const wrapper = await mountView(BookingContentView)
-    expect(preview(wrapper)).toBe('義華校分校頁會顯示：親自走一趟，感受義華校的日常。')
-    // 字數以換成校名之後的長度算（15 字），不是含大括號的原文。
-    expect(titleField(wrapper).find('.length-hint').text()).toBe('15 字・建議 24 字內')
-
-    await titleField(wrapper).get('textarea').setValue('')
-    expect(preview(wrapper)).toBe('留空時沿用原本的標題，義華校分校頁會顯示：親自走一趟，感受義華校的日常。')
-    expect(titleField(wrapper).find('.length-hint').text()).toBe('建議 24 字內')
-    expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
-  })
-
-  it('分校帳號（有全站共用內容授權）預覽自己那一校', async () => {
-    mockContent('booking_content', booking({ banner_title_template: '歡迎來{campusNameOrIvy}走走' }))
-    const user = testUser('campus_admin', { campus_keys: ['renwu'], effective_capabilities: [...ROLE_CAPABILITIES.campus_admin, 'content.shared'] })
-    const wrapper = await mountView(BookingContentView, user)
-    expect(preview(wrapper)).toBe('仁武校分校頁會顯示：歡迎來仁武校走走')
-  })
-
-  it('「插入校名」在游標位置放入記號，游標停在記號後面；存檔送出的是記號', async () => {
-    mockContent('booking_content', booking({ banner_title_template: '親自走一趟，感受的日常。' }))
-    const wrapper = await mountView(BookingContentView)
-    const textarea = titleField(wrapper).get('textarea').element as HTMLTextAreaElement
-    textarea.focus()
-    textarea.setSelectionRange(8, 8)
-    await wrapper.findAll('button').find((button) => button.text() === '插入校名')!.trigger('click')
-    await flushPromises()
-    expect(textarea.value).toBe('親自走一趟，感受{campusNameOrIvy}的日常。')
-    expect(textarea.selectionStart).toBe(8 + BANNER_CAMPUS_TOKEN.length)
-    expect(document.activeElement).toBe(textarea)
-    expect(preview(wrapper)).toBe('義華校分校頁會顯示：親自走一趟，感受義華校的日常。')
-
-    const payload = await savedPayload(wrapper, 'booking_content')
-    expect(payload.banner_title_template).toBe('親自走一趟，感受{campusNameOrIvy}的日常。')
-  })
-
-  it('內文與按鈕寫出留空時官網的文字；唯讀帳號看得到預覽、沒有插入鈕', async () => {
-    mockContent('booking_content', booking({ banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。' }))
-    const wrapper = await mountView(BookingContentView, testUser('readonly', { campus_keys: ['yihua'] }))
-    expect(wrapper.findAll('button').some((button) => button.text() === '插入校名')).toBe(false)
-    expect(preview(wrapper)).toBe('義華校分校頁會顯示：親自走一趟，感受義華校的日常。')
-    expect(wrapper.text()).toContain(`留空時官網用原本的內文：${BANNER_DEFAULTS.body}`)
-    expect(wrapper.text()).toContain(`留空時官網用原本的按鈕文字：${BANNER_DEFAULTS.button}`)
-  })
-
+describe('預約橫幅的字數與預覽規則（官網分校頁已移除，只剩規則函式）', () => {
   it('預覽規則：兩種校名記號都換、校名裡的特殊字元照原樣；字數建議有上限', () => {
     expect(bannerTitlePreview('歡迎預約參觀{campus}', '明華校')).toBe('歡迎預約參觀明華校')
     expect(bannerTitlePreview('{campusNameOrIvy}・{campusNameOrIvy}', '$&校')).toBe('$&校・$&校')

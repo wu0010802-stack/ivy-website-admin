@@ -14,6 +14,17 @@
 - **保留**：點下去翻面時角先捲起、顯影後輕掀一次、F 第一張翻開進場、游標傾斜、顯影。
 - **驗證**（Node 22）：web typecheck 通過；`test:website` 743 項通過（`corner-wind.spec.ts` 改寫成守「捲動不動」與起手／輕掀）；dev server Playwright 桌機 1440、手機 390 快速上下捲約 180 格取樣，掀角 0 格、微擺 0 格、傾角固定，F 與點擊翻面照常、無 page error。
 
+## 2026-10-03 後台拿掉官網已沒有頁面顯示的編輯頁（`feature/remove-campus-editors`）
+
+接續「拿掉分校資訊頁」：公開站沒有顯示的地方，後台就不留編輯入口。
+
+- **拿掉**：「各校常見問題」「共用常見問題」編輯頁（舊網址轉到五校介紹）、「預約文案」裡的分校頁預約橫幅欄位、「五校介紹」的一句話簡介／詳細介紹／分校頁首屏焦點；web 的草稿預覽不再附橫幅例子，刪除 `CampusVisitBanner`、`campus-banner.ts`。
+- **保留**：「五校介紹」的校名、地址、電話、社群、封面（首頁五校卡、選單、頁尾與預約頁在用）；「校園探索」（常春藤環境頁在用，說明改成環境頁）。側欄分組「分校頁」改名「各校」。
+- **不動後端**：campus_faq、shared_faq 等內容種類與已存資料、API 契約都沒改，沒有 migration；之後要找回只要補回後台頁面。
+- **未處理**：web 的 `CampusFaq`、`CampusTestimonials`、`CampusTour` 元件目前沒有使用者；後台流量圖表仍保留歷史的分校頁入口名稱。
+
+**驗證**（Node 22）：admin vue-tsc、vitest 75 檔 946 項；web typecheck、vitest 749 項。stack content-flow 改用「地址」欄位並以 `/api/public-site` 驗證，尚未在本機跑 stack。
+
 ## 2026-10-03 官網預約拿掉「參觀人數」「想先了解的事」，得知管道改四選項（`feature/visit-no-party-size-20261003`）
 
 使用者要求：/visit 表單拿掉參觀人數；接著也拿掉整個「想先了解的事」欄位；「如何知道常春藤幼兒園？」改成只問來源追蹤看不到的管道，留四個。

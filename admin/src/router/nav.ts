@@ -91,13 +91,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: 'campus',
-    label: '分校頁',
+    label: '各校',
     section: '官網內容',
     items: [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
-      { name: 'campus-faq', path: '/content/campus-faq', title: '各校常見問題', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['FAQ', '問答', 'Q&A'] },
-      // 五校共用的常見問題是共用內容：總管理者或有「全站共用內容」授權的人。
-      { name: 'shared-faq', path: '/content/shared-faq', title: '共用常見問題', icon: 'ChatDotSquare', roles: ['super_admin'], shared: true, keywords: ['FAQ', '問答', 'Q&A'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
       { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
       { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT, keywords: ['環境照片', '熱點', '導覽'] },

@@ -4,7 +4,7 @@ import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
-import CampusFaqView from '../views/CampusFaqView.vue'
+import CampusProfileView from '../views/CampusProfileView.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { contentPreviewPath } from '../api/labels'
@@ -25,8 +25,8 @@ async function mountWith(component: unknown, role: Role, props: Record<string, u
 }
 
 const faqItem = (review_status: string, review_note: string | null = null) => ({
-  id: 'item', kind: 'campus_faq', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'rev-1',
-  latest_revision: { id: 'rev-2', version: 2, created_at: '2026-09-24T01:00:00Z', payload: { items: [{ q: '問', a: '答' }] }, review_status, review_note },
+  id: 'item', kind: 'campus_profile', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'rev-1',
+  latest_revision: { id: 'rev-2', version: 2, created_at: '2026-09-24T01:00:00Z', payload: { name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07-392-8366', intro: '', description: '', facebook: '', fb_note: '', line: '' }, review_status, review_note },
 })
 
 function mockContent(item: unknown) {
@@ -44,16 +44,16 @@ describe('內容送審與審核', () => {
   it('內容編輯看不到發布，只能送審', async () => {
     mockContent(faqItem('draft'))
     const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem('pending_review'))
-    const wrapper = await mountWith(CampusFaqView, 'editor')
+    const wrapper = await mountWith(CampusProfileView, 'editor')
     expect(buttonTexts(wrapper)).not.toContain('發布到官網')
     await wrapper.findAll('button').find(b => b.text() === '送審')!.trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/submit?campus_key=yihua', { revision_id: 'rev-2' })
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_profile/submit?campus_key=yihua', { revision_id: 'rev-2' })
   })
 
   it('被退回時顯示原因', async () => {
     mockContent(faqItem('rejected', '答案請寫電話'))
-    const wrapper = await mountWith(CampusFaqView, 'editor')
+    const wrapper = await mountWith(CampusProfileView, 'editor')
     expect(wrapper.text()).toContain('被退回')
     expect(wrapper.text()).toContain('答案請寫電話')
   })
@@ -62,23 +62,23 @@ describe('內容送審與審核', () => {
     mockContent(faqItem('pending_review'))
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem('approved'))
-    const wrapper = await mountWith(CampusFaqView, 'campus_admin')
+    const wrapper = await mountWith(CampusProfileView, 'campus_admin')
     expect(buttonTexts(wrapper)).toEqual(expect.arrayContaining(['退回', '核准並發布']))
     await wrapper.findAll('button').find(b => b.text() === '核准並發布')!.trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/review?campus_key=yihua', { revision_id: 'rev-2', decision: 'approve', note: null })
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_profile/review?campus_key=yihua', { revision_id: 'rev-2', decision: 'approve', note: null })
   })
 
   it('可以直接發布的角色看得到排程發布與版本紀錄', async () => {
     mockContent(faqItem('draft'))
-    const wrapper = await mountWith(CampusFaqView, 'campus_admin')
+    const wrapper = await mountWith(CampusProfileView, 'campus_admin')
     expect(buttonTexts(wrapper)).toEqual(expect.arrayContaining(['排程發布', '發布到官網', '版本紀錄']))
   })
 })
 
 describe('草稿預覽網址', () => {
   it('分校內容預覽分校頁，預約文案預覽預約頁', () => {
-    expect(contentPreviewPath('campus_faq', 'renwu')).toBe('/preview')
+    expect(contentPreviewPath('campus_profile', 'renwu')).toBe('/preview')
     expect(contentPreviewPath('admission_content')).toBe('/preview?page=admission')
     expect(contentPreviewPath('home_hero')).toBe('/preview')
     expect(contentPreviewPath('booking_content')).toBe('/preview?page=visit')

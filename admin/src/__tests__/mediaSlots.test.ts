@@ -313,7 +313,7 @@ describe('內容頁的素材版位', () => {
     expect(payload.film_caption_zh).toBeNull()
   })
 
-  it('分校：沒換封面也能調兩個版位的焦點，送出 0–100 的座標', async () => {
+  it('分校：沒換封面也能調首頁卡片的焦點，送出 0–100 的座標', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
       name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
     }, 'yihua') as never)
@@ -321,7 +321,7 @@ describe('內容頁的素材版位', () => {
     expect(wrapper.text()).not.toContain('有未儲存的修改')
     // 沒換封面：焦點示意為官網原本的位置（義華卡片是上方 12%）。
     const pins = wrapper.findAll('.focus-picker__pin')
-    expect(pins).toHaveLength(2)
+    expect(pins).toHaveLength(1)
     expect(pins[0]!.attributes('style')).toContain('top: 12%')
     expect(wrapper.text()).toContain('官網原本的位置')
     const card = wrapper.findAll('.focus-picker__stage')[0]!
@@ -343,7 +343,7 @@ describe('內容頁的素材版位', () => {
     const wrapper = await mountView(CampusProfileView, '/content/campus-profile')
     await flushPromises()
     const pins = wrapper.findAll('.focus-picker__pin')
-    expect(pins).toHaveLength(2)
+    expect(pins).toHaveLength(1)
     for (const pin of pins) {
       expect(pin.attributes('style')).toContain('left: 30%')
       expect(pin.attributes('style')).toContain('top: 70%')
