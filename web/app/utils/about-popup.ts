@@ -4,8 +4,9 @@
 //   2026-10-02 起右頁背面是章節封面；同時寫 --shade（立起來時紙面背光）與 --cast（還壓在左頁上方時，左頁靠書脊的影子）。
 // - 卡紙：--up 0 平躺 → 1 站好，用 spring 寫進 CSS 變數；彈簧會超過 1 一點（往前晃一下）。
 // - 一路走來（2026-10-03 取代拉紙條；比稿 design/about-medal-directions-20261003/，使用者選「章名旁＋連續轉」）：
-//   章名旁的紀念章（AboutMedal）跟著捲動翻面：校徽正面 → 1997 義華 → … → 2021 仁武，翻到哪一站、那一校的卡紙站起來、
-//   左頁沿革那一列上色。放得下「紀念章頂端到沿革底」時跨頁釘住（手機釘右頁），多捲 6 × 0.4 個畫面；放不下就照常捲，
+//   章名旁的紀念章（AboutMedal）跟著捲動翻面：大校徽 → 1997 義華（反面）→ 2001 明華（正面）→ … → 2021 仁武（反面），
+//   像硬幣一樣正反交替（2026-10-04 使用者要保留正面）；翻到哪一站、那一校的卡紙站起來、
+//   左頁沿革那一列上色。放得下「紀念章頂端到沿革底」時跨頁釘住（手機釘右頁），多捲 2.4 個畫面；放不下就照常捲，
 //   跨頁經過時走完五站。每站中間 40% 停住讓人看清楚，兩站之間才轉；背對讀者的那一面先換成下一站。
 // - 全人教育：A2 六圈由 AboutWholePerson.vue 管理，收到 abk-open 後才播放。
 // - 我們的期許：房子站好後，牆角的常春藤長出來（.abk-scene 加 is-grown）。
@@ -28,8 +29,18 @@ export interface AboutPopup {
 
 /** 紀念章靜止時往左偏的角度（AboutMedal.vue 的 rotateY(… - 18deg) 要同步）。 */
 export const MEDAL_YAW = -18
-/** 紀念章每一站佔幾個畫面高的捲動距離（釘住時）。 */
-export const MEDAL_STOP_SCREENS = 0.4
+/** 紀念章翻完整段佔幾個畫面高的捲動距離（釘住時）。 */
+export const MEDAL_RUN_SCREENS = 2.4
+
+/** 紀念章翻到的每一步：look＝大校徽正面／米白正面帶字／墨綠反面帶字，stop＝第幾所校園（0 起算），up＝站起來幾張卡紙。 */
+export interface MedalStep { look: 'crest' | 'front' | 'back', stop: number | null, up: number }
+/** 翻面順序（2026-10-04 使用者選「正反交替」，比過「年與年之間翻回校徽」「最後翻回校徽」）：先是大校徽正面、卡紙全倒，
+ *  之後像硬幣一樣每翻一次換一面：A 面印偶數步＝米白正面（2001、2020），B 面印奇數步＝墨綠反面（1997、2005、2021）。 */
+export function medalSequence(stops: number): MedalStep[] {
+  const steps: MedalStep[] = [{ look: 'crest', stop: null, up: 0 }]
+  for (let i = 0; i < stops; i++) steps.push({ look: i % 2 ? 'front' : 'back', stop: i, up: i + 1 })
+  return steps
+}
 
 /** 捲動位置 c（0＝校徽正面，k＝第 k 所校園，可以是小數）→ 紀念章轉了幾個半圈：每站中間 40% 停住，兩站之間 smoothstep 轉過去。 */
 export function medalTurn(c: number) {
@@ -150,14 +161,17 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
   const medals = [...(story?.querySelectorAll<HTMLElement>('[data-medal]') ?? [])]
   // 減少動態：不釘住、不轉，卡紙照 CSS 預設站好，紀念章停在校徽正面
   if (track && story && left && right && cards.length && medals.length && !reducedMotion) {
-    const states = cards.length + 1
+    const sequence = medalSequence(cards.length)
+    const states = sequence.length
     const stops = cards.map((card) => ({ name: card.dataset.stop ?? '', year: card.dataset.year ?? '' }))
     const rows = [...story.querySelectorAll<HTMLElement>('.abk-list > li')]
     const faces = medals.flatMap((medal) => [...medal.querySelectorAll<HTMLElement>('[data-face]')])
     const print = (face: HTMLElement, k: number) => {
       if (face.dataset.state === String(k)) return
       face.dataset.state = String(k)
-      const stop = stops[k - 1]
+      const step = sequence[k]!
+      face.dataset.look = step.look
+      const stop = step.stop === null ? undefined : stops[step.stop]
       if (!stop) return
       face.querySelector('.is-name')!.textContent = stop.name
       face.querySelector('.is-year')!.textContent = stop.year
@@ -166,12 +180,13 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
     const show = (k: number, instant: boolean) => {
       if (k === shown) return
       shown = k
+      const step = sequence[k]!
       cards.forEach((card, i) => {
-        if (!instant) { stand(card, i < k); return }
-        aimOf.set(card, i < k ? 1 : 0)
-        setUp(card, i < k ? 1 : 0)
+        if (!instant) { stand(card, i < step.up); return }
+        aimOf.set(card, i < step.up ? 1 : 0)
+        setUp(card, i < step.up ? 1 : 0)
       })
-      rows.forEach((row, i) => row.classList.toggle('is-on', i === k - 1))
+      rows.forEach((row, i) => row.classList.toggle('is-on', i === step.stop))
     }
     const paint = (turn: number, instant = false) => {
       const { a, b } = medalFaces(turn, states)
@@ -204,7 +219,7 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
       pinTop = top ?? 0
       track.style.setProperty('--abk-pin-top', `${Math.round(pinTop)}px`)
       // 撐高度的那一列和釘住的元素重疊（元素跨兩列），所以要加回元素自己的高度；用 svh，手機網址列收合時不跟著變
-      track.style.setProperty('--abk-pin-run', `calc(${Math.round(states * MEDAL_STOP_SCREENS * 100)}svh + ${Math.round(box.height)}px)`)
+      track.style.setProperty('--abk-pin-run', `calc(${Math.round(MEDAL_RUN_SCREENS * 100)}svh + ${Math.round(box.height)}px)`)
       track.classList.toggle('is-pinned', pinned && wideNow)
       story.classList.toggle('is-pinned', pinned && !wideNow)
     }

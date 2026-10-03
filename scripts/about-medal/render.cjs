@@ -7,7 +7,7 @@ const [port, outDir] = process.argv.slice(2)
   const browser = await chromium.launch({ channel: 'chrome' })
   const page = await browser.newPage({ deviceScaleFactor: 2, viewport: { width: 800, height: 800 } })
   page.on('pageerror', (e) => { console.error(e); process.exitCode = 1 })
-  for (const side of ['front', 'back']) {
+  for (const side of ['front', 'label', 'back']) {
     const q = new URLSearchParams({ side, size: '320', crest: '/scripts/about-medal/.crest.png' })
     await page.goto(`http://127.0.0.1:${port}/scripts/about-medal/render.html?${q}`)
     await page.waitForFunction(() => window.__ready === true, null, { timeout: 30000 })

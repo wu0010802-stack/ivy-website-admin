@@ -1,9 +1,10 @@
-"""關於頁第一章紀念章的兩張面圖（2026-10-03，取代拉紙條）：正面米白校徽、背面金色校徽剪影（校名與年份由 HTML 疊上）。
+"""關於頁第一章紀念章的三張面圖（2026-10-03 取代拉紙條；10-04 正反交替）：正面大校徽、正面帶字版（小校徽）、背面金色校徽剪影。
+校名與年份由 AboutMedal.vue 的 SVG 疊上。
 
 流程：從開場布幕的高解析校徽去背（同 404 立體書的來源，只取 y<876、不含 30 週年緞帶）→ 本機伺服器開 render.html，
 three.js 正面視角渲染（比稿 C 紀念章的材質）→ Playwright 截透明 PNG → 裁到徽章外框、縮成 256px WebP。
 執行（repo 根目錄，Node 22、已 npm ci）：python3 scripts/about-medal/build.py
-輸出 web/public/assets/about-medal/{front,back}.webp（給 web/app/components/AboutMedal.vue）。需 Pillow、numpy、Chrome。
+輸出 web/public/assets/about-medal/{front,label,back}.webp（給 web/app/components/AboutMedal.vue）。需 Pillow、numpy、Chrome。
 比稿：design/about-medal-directions-20261003/（本機工作檔）。
 """
 from functools import partial
@@ -69,7 +70,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(['node', str(HERE / 'render.cjs'), str(server.server_address[1]), tmp], cwd=ROOT, check=True)
-            for side in ['front', 'back']:
+            for side in ['front', 'label', 'back']:
                 im = Image.open(Path(tmp) / f'{side}.png').convert('RGBA')
                 im = im.crop(im.getchannel('A').point(lambda v: 255 if v > 4 else 0).getbbox())
                 im.resize((SIZE, SIZE), Image.LANCZOS).save(OUT / f'{side}.webp', 'WEBP', quality=88, method=6)

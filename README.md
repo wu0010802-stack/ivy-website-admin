@@ -1,11 +1,11 @@
 ## 2026-10-03 關於頁第一章：紀念章取代「拉拉看」（`feature/about-medal-20261003`，未部署）
 
-使用者要拿掉第一章右頁的拉鍊時間軸、改用紀念章，比過點擊版與捲動版後選「章名旁＋連續轉」。規則見 DESIGN.md「關於頁第一章：紀念章取代『拉拉看』」。
+使用者要拿掉第一章右頁的拉鍊時間軸、改用紀念章，比過點擊版與捲動版後選「章名旁＋連續轉」。10-04 使用者發現捲動時只剩反面、想保留正面，比過四種後選**正反交替**（像硬幣，2001／2020 落在米白正面）。規則見 DESIGN.md「關於頁第一章：紀念章取代『拉拉看』」。
 
-- **官網**：新元件 `AboutMedal.vue`（CSS 3D，不載 three）；`AboutContent.vue` 拿掉紙條、第一章外包 `.abk-track`；`about-popup.ts` 的紙條段改成紀念章捲動（`medalTurn`／`medalFaces`／`medalShown`／`medalPinTop`），翻頁進度改量軌道；`about.css` 拿掉紙槽樣式、加紀念章位置與釘住規則。面圖 `web/public/assets/about-medal/`（兩張共 41KB，`scripts/about-medal/build.py` 產生）。
+- **官網**：新元件 `AboutMedal.vue`（CSS 3D，不載 three）；`AboutContent.vue` 拿掉紙條、第一章外包 `.abk-track`；`about-popup.ts` 的紙條段改成紀念章捲動（`medalTurn`／`medalFaces`／`medalShown`／`medalPinTop`），翻頁進度改量軌道；`about.css` 拿掉紙槽樣式、加紀念章位置與釘住規則。面圖 `web/public/assets/about-medal/`（大校徽、米白正面帶字、墨綠反面三張共 63KB，`scripts/about-medal/build.py` 產生）；翻面順序是 `medalSequence()`。
 - **驗證**（Node 22）：
-  - `npm --prefix web run typecheck` 0 錯 0 警告；`test:website` 75 檔 752 項（`about.spec.ts` 換成紀念章 9 項，拿掉紙條 4 項與 `mobile-ux-20261002` 的拉拉看字色 1 項）。
-  - dev server（fixture）＋Playwright：1440×900 釘住（pin top 52）、1440×780 往上推 8px 釘住、1366×650 不釘（經過時走完五站）、390×844 與 375×667 釘右頁；各捲動點紀念章站數、卡紙 `--up`、沿革上色一致，往回捲倒著翻；都沒有橫向捲動、沒有 pageerror。減少動態：不釘、卡紙全站、紀念章停在校徽。
+  - `npm --prefix web run typecheck` 0 錯 0 警告；`test:website` 75 檔 753 項（`about.spec.ts` 換成紀念章 10 項，拿掉紙條 4 項與 `mobile-ux-20261002` 的拉拉看字色 1 項）。
+  - dev server（fixture）＋Playwright：1440×900 釘住（pin top 52）、1440×780 往上推 8px 釘住、1366×650 不釘（經過時走完五站）、390×844 與 375×667 釘右頁；各捲動點紀念章站數、正反面、卡紙 `--up`、沿革上色一致，往回捲倒著翻；都沒有橫向捲動、沒有 pageerror。減少動態：不釘、卡紙全站、紀念章停在校徽。10-04 正反交替後同一組尺寸重跑一次，並截六步確認米白正面的字在圓心內。
   - 未驗證：`nuxt build`／stack e2e、實機 iOS Safari 的 sticky 與網址列收合、Android。
 
 ## 2026-10-03 404 頁加立體書校徽（`feature/404-crest-popup-20261003`，未部署）

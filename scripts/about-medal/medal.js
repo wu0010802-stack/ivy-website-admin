@@ -95,6 +95,22 @@ function back(crest) {
   })
 }
 
+// 正面帶字版（2026-10-04 正反交替）：米白圓心、原色校徽縮成 0.68R 放在上方，下方留給 HTML 疊的校名與年份（墨綠字）
+function label(crest) {
+  return paint(1024, (ctx, mode, S) => {
+    const R = S / 2
+    ring(ctx, mode, R)
+    ctx.fillStyle = tone.ivory[mode]
+    ctx.beginPath()
+    ctx.arc(R, R, R * 0.775, 0, TAU)
+    ctx.fill()
+    if (mode === 'color') {
+      const s = R * 0.68
+      ctx.drawImage(crest, R - s / 2, R * 0.2, s, s)
+    }
+  })
+}
+
 export async function render(host, { size, side, crestUrl }) {
   const box = Math.round(size * FRAME)
   const canvas = document.createElement('canvas')
@@ -139,7 +155,7 @@ export async function render(host, { size, side, crestUrl }) {
   }
 
   const crest = await loadImage(crestUrl)
-  const maps = side === 'back' ? back(crest) : front(crest)
+  const maps = side === 'back' ? back(crest) : side === 'label' ? label(crest) : front(crest)
   const body = new THREE.CylinderGeometry(1, 1, THICK, 96, 1)
   body.rotateX(Math.PI / 2) // 頂面朝 +z（面向鏡頭）
   const pos = body.attributes.position

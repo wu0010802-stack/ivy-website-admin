@@ -6,7 +6,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
 import manifest from '../app/generated/image-manifest.json'
-import { MEDAL_YAW, medalFaces, medalPinTop, medalShown, medalTurn, turnState } from '../app/utils/about-popup'
+import { MEDAL_YAW, medalFaces, medalPinTop, medalSequence, medalShown, medalTurn, turnState } from '../app/utils/about-popup'
 
 const site = fixture as unknown as SiteContent
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -73,7 +73,15 @@ describe('立體書：紀念章跟著捲動翻面', () => {
     const samples = Array.from({ length: 101 }, (_, i) => medalTurn(i * 0.05))
     samples.slice(1).forEach((v, i) => expect(v).toBeGreaterThanOrEqual(samples[i]!))
   })
-  it('A 面印偶數站、B 面印奇數站，背對讀者的那一面先換成下一站', () => {
+  it('正反交替（2026-10-04）：先是大校徽、卡紙全倒，之後 1997／2005／2021 在墨綠反面、2001／2020 在米白正面', () => {
+    const steps = medalSequence(5)
+    expect(steps.map((s) => s.look)).toEqual(['crest', 'back', 'front', 'back', 'front', 'back'])
+    expect(steps.map((s) => s.stop)).toEqual([null, 0, 1, 2, 3, 4])
+    expect(steps.map((s) => s.up)).toEqual([0, 1, 2, 3, 4, 5])
+    // A 面印偶數步：大校徽與米白正面；B 面印奇數步：都是墨綠反面
+    steps.forEach((s, k) => expect(k % 2 ? s.look === 'back' : s.look !== 'back').toBe(true))
+  })
+  it('A 面印偶數步、B 面印奇數步，背對讀者的那一面先換成下一步', () => {
     expect(medalFaces(0, 6)).toEqual({ a: 0, b: 1 })
     expect(medalFaces(1, 6)).toEqual({ a: 2, b: 1 })
     expect(medalFaces(2, 6)).toEqual({ a: 2, b: 3 })
@@ -104,15 +112,15 @@ describe('立體書：紀念章跟著捲動翻面', () => {
   })
   it('紀念章純裝飾、對報讀器隱藏；沒有 JS 時停在校徽正面；強制色彩不顯示', () => {
     expect(medal).toContain('data-medal aria-hidden="true"')
-    expect(medal).toContain(":data-state=\"side === 'a' ? 0 : 1\"")
+    expect(medal).toContain(":data-state=\"side === 'a' ? 0 : 1\" :data-look=\"side === 'a' ? 'crest' : 'back'\"")
     expect(medal).toMatch(/@media \(forced-colors:active\) \{\s*\.abk-medal \{display:none\}/)
   })
   it('減少動態不釘住也不轉；翻頁的捲動進度量外層軌道（跨頁 sticky 時位置不準）', () => {
     expect(popup).toContain('medals.length && !reducedMotion')
     expect(popup).toContain("spread.closest<HTMLElement>('[data-medal-track]') ?? spread")
   })
-  it('面圖只有正面、背面兩張（校名年份用 SVG 疊），不載 three', () => {
-    for (const side of ['front', 'back']) expect(existsSync(fileURLToPath(new URL(`../public/assets/about-medal/${side}.webp`, import.meta.url)))).toBe(true)
+  it('面圖三張：大校徽、米白正面帶字、墨綠反面（校名年份用 SVG 疊），不載 three', () => {
+    for (const side of ['front', 'label', 'back']) expect(existsSync(fileURLToPath(new URL(`../public/assets/about-medal/${side}.webp`, import.meta.url)))).toBe(true)
     expect(medal).toContain('<text class="is-name"')
     expect(`${medal}\n${popup}`).not.toMatch(/from 'three'|import\('three'\)/)
   })
