@@ -13,7 +13,22 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
-## 隱私權政策頁（`feature/privacy-policy-20261003`，尚未部署）
+## 2026-10-03 隱私權政策頁與一批已完成分支（main CI 部署）
+
+使用者要求先把隱私權政策頁併入 main 部署，接著把「已完成的分支」一起併入部署。兩次推送：`60240c1`（隱私權政策頁，含同步 main 的「拿掉各校分校資訊頁」）與 `a749480`（下列分支）。`60240c1` 的 CI 在排隊時被 `a749480` 的 run 取代而取消，內容由 `a749480` 一起部署。
+
+- **隱私權政策頁**：後端共用內容 `privacy_policy`（沒有 migration）、後台「全站與素材 → 隱私權政策」、官網 `/privacy`、頁尾連結取代個資使用說明按鈕、預約表單對話框加完整政策連結。**園方還沒發布，所以正式站 `/privacy` 目前是 404、頁尾沒有連結。**
+- **一起併入的分支**：`feature/remove-map-hint-20261003`（首頁分校地址旁「地圖 ↗」字樣拿掉）、`feature/visit-no-party-size-20261003`（預約表單拿掉參觀人數與想先了解的事，得知管道改四選項；後端 `party_size` 維持選填、舊代碼照收）、`feature/website-admin` 上的 `4cb2835`（明華、崇德、仁武、國際校改用各自的 FB 粉專連結）、`feature/admin-ux-20261002` 的部署紀錄（純文件）。
+- **刻意沒併**：`cb9bc89`（預約頁背景大字修正，寫在舊版面上，和 main 已重排的預約頁衝突）、`fix/visit-consent-blur-20260930`（同意勾選已拿掉）、舊的 deploy／wip／renovate／merge-attempt 分支。
+- **衝突處理**：隱私頁併 main 時，`usePageSeo`、`sitemapXml`、`draft-preview.ts`、`preview.vue`、`sitemap.xml.get.ts` 對齊 main 新簽章（拿掉校區參數）；預約表單改版與政策入口並存（`VisitForm.vue` 拿掉「想先了解」區塊、保留政策入口）。隱私政策初稿同步改成「不再蒐集參觀人數與想了解的事、得知管道四選項」。沒有 migration。
+- **CI**：run 37082027328（`a749480`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-03 00:32–01:00 UTC）。
+- **正式 `release.json`**：base commit `a749480`，created `2026-10-03T00:57:08Z`。
+- **本機驗證**（`a749480`，Node 22）：`contract:check` 一致；web／admin typecheck 0 錯、web 754 passed；後端相關 90 passed、先前隱私頁分支全套 1293 passed；`e2e:build` 成功、stack 整套 67 passed、`media.spec.ts` 間歇失敗單獨重跑通過。admin 單元 957／958：`ux20260928E`「刪除場景後選旁邊那一個」間歇失敗（找不到確認鈕：刪除，連跑兩次一次過一次失敗），隱私頁分支與前一次整合時也出現過，疑為時序不穩定，不是這批改動造成。
+- **線上唯讀檢查**：health 200；`/privacy` 404；首頁頁尾沒有 `/privacy` 連結；`/visit` 200 且表單沒有「參觀人數」；`/campuses/yihua` 301（分校頁已拿掉）；後台 bundle 有 `PrivacyPolicyView`。
+- **未做**：正式站沒登入看後台畫面；Safari／iOS 實機。
+- **園方接下來**：後台補完隱私權政策的【待確認】（9 處標記、8 項事項）、填最後更新日期、發布；保存天數要在保存政策設定並開啟自動清理，政策文字才算與實際一致。
+
+## 隱私權政策頁（`feature/privacy-policy-20261003`，已併入並部署，見上一節）
 
 後台「全站與素材 → 隱私權政策」編輯，發布後官網多 `/privacy` 頁、頁尾多「隱私權政策」連結、預約表單的個資使用說明對話框多「完整隱私權政策」連結。**沒有 migration、沒有新環境變數、沒有新端點。**
 
