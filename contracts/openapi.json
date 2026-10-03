@@ -1472,6 +1472,11 @@
       },
       "AnalyticsFunnelOut": {
         "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
           "by_referral": {
             "items": {
               "$ref": "#/components/schemas/FunnelReferralOut"
@@ -1551,6 +1556,7 @@
           }
         },
         "required": [
+          "as_of",
           "campus_key",
           "date_from",
           "date_to",
@@ -2090,6 +2096,68 @@
         "title": "BookingMode",
         "type": "string"
       },
+      "BookingOutcomesOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/CampusOutcomeOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "open_now_totals": {
+            "$ref": "#/components/schemas/PendingNowOut"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/OutcomeCountsOut"
+          },
+          "unit": {
+            "const": "visit_request",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "date_from",
+          "date_to",
+          "unit",
+          "campuses",
+          "totals",
+          "open_now_totals"
+        ],
+        "title": "BookingOutcomesOut",
+        "type": "object"
+      },
       "BookingReadinessOut": {
         "description": "各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。\n連結、電話、暫停說明這類表單欄位由後台畫面即時判斷；存檔時後端會把全部\n條件再驗一次，不符回 400 BOOKING_MODE_NOT_READY。",
         "properties": {
@@ -2338,6 +2406,105 @@
         "title": "CampusOut",
         "type": "object"
       },
+      "CampusOutcomeOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "awaiting_attendance": {
+            "title": "Awaiting Attendance",
+            "type": "integer"
+          },
+          "booking_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Mode"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancel_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "cancelled_by_reason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Cancelled By Reason",
+            "type": "object"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "no_show_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "open_now": {
+            "$ref": "#/components/schemas/PendingNowOut"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "unscheduled": {
+            "title": "Unscheduled",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          },
+          "web_cases": {
+            "title": "Web Cases",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "web_cases",
+          "pending",
+          "upcoming",
+          "awaiting_attendance",
+          "completed",
+          "no_show",
+          "cancelled",
+          "unscheduled",
+          "cancelled_by_reason",
+          "attendance_rate",
+          "no_show_rate",
+          "cancel_rate",
+          "campus_key",
+          "active",
+          "booking_mode",
+          "open_now"
+        ],
+        "title": "CampusOutcomeOut",
+        "type": "object"
+      },
       "CampusStatusOut": {
         "properties": {
           "active": {
@@ -2412,6 +2579,85 @@
           "active"
         ],
         "title": "CampusStatusUpdate",
+        "type": "object"
+      },
+      "ClassDistributionOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/GradeCountOut"
+            },
+            "title": "Grades",
+            "type": "array"
+          },
+          "out_of_range": {
+            "title": "Out Of Range",
+            "type": "integer"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unit": {
+            "const": "visit_request",
+            "title": "Unit",
+            "type": "string"
+          },
+          "unrecorded": {
+            "title": "Unrecorded",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "as_of",
+          "campus_key",
+          "date_from",
+          "date_to",
+          "school_year",
+          "unit",
+          "total",
+          "grades",
+          "out_of_range",
+          "unrecorded"
+        ],
+        "title": "ClassDistributionOut",
         "type": "object"
       },
       "ContentItemOut": {
@@ -2713,6 +2959,90 @@
         "title": "DisplayNameUpdateRequest",
         "type": "object"
       },
+      "EventTrendDayOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "request_created": {
+            "title": "Request Created",
+            "type": "integer"
+          },
+          "visit_cancelled": {
+            "title": "Visit Cancelled",
+            "type": "integer"
+          },
+          "visit_completed": {
+            "title": "Visit Completed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "request_created",
+          "visit_completed",
+          "visit_cancelled",
+          "clicks"
+        ],
+        "title": "EventTrendDayOut",
+        "type": "object"
+      },
+      "EventTrendOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/EventTrendDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "unit": {
+            "const": "event",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "campus_key",
+          "date_from",
+          "date_to",
+          "truncated",
+          "unit",
+          "days"
+        ],
+        "title": "EventTrendOut",
+        "type": "object"
+      },
       "FeatureFlags": {
         "description": "後台依部署設定決定要不要顯示或啟用的功能。",
         "properties": {
@@ -2990,6 +3320,24 @@
           "counts"
         ],
         "title": "FunnelSourceOut",
+        "type": "object"
+      },
+      "GradeCountOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grade",
+          "count"
+        ],
+        "title": "GradeCountOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -4763,6 +5111,80 @@
         "title": "OutboxDeliveredOut",
         "type": "object"
       },
+      "OutcomeCountsOut": {
+        "description": "一批預約案件（期間內送出）現在的結果；各結果加總＝cases。單位是預約案件，\n同一個孩子預約兩校算兩筆，不依電話合併。",
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "awaiting_attendance": {
+            "title": "Awaiting Attendance",
+            "type": "integer"
+          },
+          "cancel_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "cancelled_by_reason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Cancelled By Reason",
+            "type": "object"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "no_show_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "unscheduled": {
+            "title": "Unscheduled",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          },
+          "web_cases": {
+            "title": "Web Cases",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "web_cases",
+          "pending",
+          "upcoming",
+          "awaiting_attendance",
+          "completed",
+          "no_show",
+          "cancelled",
+          "unscheduled",
+          "cancelled_by_reason",
+          "attendance_rate",
+          "no_show_rate",
+          "cancel_rate"
+        ],
+        "title": "OutcomeCountsOut",
+        "type": "object"
+      },
       "ParentAccessLinkCreatedOut": {
         "description": "manage_url 是可以直接給家長的完整網址（公開官網 origin＝\nWEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用\nmanage_url_fragment 自行組網址。兩者都含 token：後台只在這個回應拿得到，\n寄給家長的信由伺服器在寄件當下重算。",
         "properties": {
@@ -5296,6 +5718,30 @@
           "expires_at"
         ],
         "title": "PasswordResetVerifyOut",
+        "type": "object"
+      },
+      "PendingNowOut": {
+        "description": "現在的待處理三種（booking/pending_kinds.py），不受期間影響。",
+        "properties": {
+          "awaiting_attendance": {
+            "title": "Awaiting Attendance",
+            "type": "integer"
+          },
+          "follow_up_due": {
+            "title": "Follow Up Due",
+            "type": "integer"
+          },
+          "legacy_pending": {
+            "title": "Legacy Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "legacy_pending",
+          "awaiting_attendance",
+          "follow_up_due"
+        ],
+        "title": "PendingNowOut",
         "type": "object"
       },
       "PendingReviewOut": {
@@ -12370,6 +12816,347 @@
         "summary": "Get Admissions Stats",
         "tags": [
           "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/booking-outcomes": {
+      "get": {
+        "description": "五校並排與各校的預約結果（去識別統計）。只列授權範圍內的校區，沒有校區參數。",
+        "operationId": "get_booking_outcomes_api_website_v1_admin_analytics_booking_outcomes_get",
+        "parameters": [
+          {
+            "description": "送出日期起（台北，含），省略＝不限",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（台北，含），省略＝不限",
+              "title": "From"
+            }
+          },
+          {
+            "description": "送出日期迄（台北，含），省略＝不限",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（台北，含），省略＝不限",
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOutcomesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Outcomes",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/class-distribution": {
+      "get": {
+        "operationId": "get_class_distribution_api_website_v1_admin_analytics_class_distribution_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "換算用的民國學年度",
+            "in": "query",
+            "name": "school_year",
+            "required": true,
+            "schema": {
+              "description": "換算用的民國學年度",
+              "maximum": 200,
+              "minimum": 100,
+              "title": "School Year",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "送出日期起（台北，含）",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（台北，含）",
+              "title": "From"
+            }
+          },
+          {
+            "description": "送出日期迄（台北，含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（台北，含）",
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassDistributionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Class Distribution",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/event-trend": {
+      "get": {
+        "operationId": "get_event_trend_api_website_v1_admin_analytics_event_trend_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝從第一筆事件",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝從第一筆事件",
+              "title": "From"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝今天",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝今天",
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTrendOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Event Trend",
+        "tags": [
+          "operations"
         ]
       }
     },

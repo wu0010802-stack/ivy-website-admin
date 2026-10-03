@@ -11,19 +11,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
+from app.admissions.constants import SCHOOL_YEAR_MAX, SCHOOL_YEAR_MIN
+from app.admissions.schemas import AdmissionsRate
 from app.auth.permissions import (
     campus_scope,
     can_edit_shared_content,
     can_publish_shared_content,
+    covers_campus,
     has_capability,
     require_scope,
 )
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
+from app.common.timezones import now_utc, today_local
 from app.notifications.models import UserNotification
 from app.operations import (
     analytics_service,
     audit_service,
+    booking_outcomes_service,
     dashboard_service,
     public_caps,
     retention_service,
@@ -173,7 +178,9 @@ async def get_traffic(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
-    return await traffic_service.get_traffic_summary(db, days)
+    summary = await traffic_service.get_traffic_summary(db, days)
+    summary["as_of"] = now_utc()
+    return summary
 
 
 @router.get("/admin/dashboard")
@@ -230,6 +237,8 @@ class FunnelEntryOut(BaseModel):
 
 
 class AnalyticsFunnelOut(BaseModel):
+    # 伺服器產生這份統計的時間（畫面寫「更新」）。
+    as_of: datetime
     campus_key: str
     date_from: date | None
     date_to: date | None
@@ -251,6 +260,22 @@ class AnalyticsFunnelOut(BaseModel):
 FUNNEL_MAX_DAYS = 400
 
 
+def _validate_range(date_from: date | None, date_to: date | None) -> None:
+    """成效統計共用的台北日期區間檢查（兩端都有才檢查）。"""
+    if date_from is None or date_to is None:
+        return
+    if date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
+        )
+    if (date_to - date_from).days + 1 > FUNNEL_MAX_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {FUNNEL_MAX_DAYS} 天"},
+        )
+
+
 @router.get("/admin/analytics/funnel", response_model=AnalyticsFunnelOut)
 async def get_analytics_funnel(
     campus_key: str,
@@ -260,22 +285,158 @@ async def get_analytics_funnel(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     require_scope(current_user, "analytics.read", campus_keys=[campus_key])
-    if date_from is not None and date_to is not None:
-        if date_from > date_to:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
-            )
-        if (date_to - date_from).days + 1 > FUNNEL_MAX_DAYS:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {FUNNEL_MAX_DAYS} 天"},
-            )
+    _validate_range(date_from, date_to)
     period = analytics_service.FunnelRange(date_from, date_to)
     funnel = await analytics_service.get_campus_funnel(db, campus_key, period)
     if campus_scope(current_user) is None:
         funnel["unassigned_clicks"] = await analytics_service.get_unassigned_clicks(db, period)
+    funnel["as_of"] = now_utc()
     return funnel
+
+
+class OutcomeCountsOut(BaseModel):
+    """一批預約案件（期間內送出）現在的結果；各結果加總＝cases。單位是預約案件，
+    同一個孩子預約兩校算兩筆，不依電話合併。"""
+
+    cases: int
+    # 官網表單送出的；其餘是後台補登（電話、LINE、親自到園、外部網站）。
+    web_cases: int
+    # 上線前的舊流程狀態（new／contacting／pending_confirmation）。
+    pending: int
+    # 已確認、場次還沒開始。
+    upcoming: int
+    # 已確認、場次已開始，還沒標記到場或未到場。
+    awaiting_attendance: int
+    completed: int
+    no_show: int
+    cancelled: int
+    # 已確認卻沒有場次（舊流程資料，通常是 0）。
+    unscheduled: int
+    # parent／staff／hold_expired／unknown（舊案沒記原因）。
+    cancelled_by_reason: dict[str, int]
+    # 已到場 ÷（已到場＋未到場）；還沒標記的不算進分母。
+    attendance_rate: AdmissionsRate
+    no_show_rate: AdmissionsRate
+    # 已取消 ÷ cases。
+    cancel_rate: AdmissionsRate
+
+
+class PendingNowOut(BaseModel):
+    """現在的待處理三種（booking/pending_kinds.py），不受期間影響。"""
+
+    legacy_pending: int
+    awaiting_attendance: int
+    follow_up_due: int
+
+
+class CampusOutcomeOut(OutcomeCountsOut):
+    campus_key: str
+    active: bool
+    # booking_configs.mode；還沒設定過為 null。
+    booking_mode: str | None
+    open_now: PendingNowOut
+
+
+class BookingOutcomesOut(BaseModel):
+    as_of: datetime
+    date_from: date | None
+    date_to: date | None
+    unit: Literal["visit_request"]
+    # 只有授權範圍內的校區，順序同 CAMPUS_KEYS。
+    campuses: list[CampusOutcomeOut]
+    totals: OutcomeCountsOut
+    open_now_totals: PendingNowOut
+
+
+@router.get("/admin/analytics/booking-outcomes", response_model=BookingOutcomesOut)
+async def get_booking_outcomes(
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含），省略＝不限"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含），省略＝不限"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """五校並排與各校的預約結果（去識別統計）。只列授權範圍內的校區，沒有校區參數。"""
+    require_scope(current_user, "analytics.read")
+    _validate_range(date_from, date_to)
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    return await booking_outcomes_service.booking_outcomes(
+        db, campus_keys, analytics_service.FunnelRange(date_from, date_to)
+    )
+
+
+class EventTrendDayOut(BaseModel):
+    day: date
+    request_created: int
+    visit_completed: int
+    visit_cancelled: int
+    # 四種預約鈕點擊的合計（表單、LINE、電話、外部網站）。
+    clicks: int
+
+
+class EventTrendOut(BaseModel):
+    as_of: datetime
+    campus_key: str
+    # 實際畫出的區間（沒給開始日＝從這校第一筆事件那天起）。
+    date_from: date
+    date_to: date
+    # 超過 400 天時只回最近 400 天。
+    truncated: bool
+    unit: Literal["event"]
+    # 每天一列，沒有事件的日子也列（全是 0）。
+    days: list[EventTrendDayOut]
+
+
+@router.get("/admin/analytics/event-trend", response_model=EventTrendOut)
+async def get_event_trend(
+    campus_key: str,
+    date_from: date | None = Query(None, alias="from", description="台北日期（含），省略＝從第一筆事件"),
+    date_to: date | None = Query(None, alias="to", description="台北日期（含），省略＝今天"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    _validate_range(date_from, date_to)
+    trend = await analytics_service.get_event_trend(
+        db, campus_key, analytics_service.FunnelRange(date_from, date_to), today_local()
+    )
+    return {**trend, "as_of": now_utc(), "unit": "event"}
+
+
+class GradeCountOut(BaseModel):
+    grade: str
+    count: int
+
+
+class ClassDistributionOut(BaseModel):
+    as_of: datetime
+    campus_key: str
+    date_from: date | None
+    date_to: date | None
+    school_year: int
+    unit: Literal["visit_request"]
+    total: int
+    # 幼幼班～大班固定四列（0 也列）。
+    grades: list[GradeCountOut]
+    # 有生日但不在幼幼班～大班。
+    out_of_range: int
+    # 沒有生日：舊案只有年齡文字、補登沒問，或已匿名化。
+    unrecorded: int
+
+
+@router.get("/admin/analytics/class-distribution", response_model=ClassDistributionOut)
+async def get_class_distribution(
+    campus_key: str,
+    school_year: int = Query(ge=SCHOOL_YEAR_MIN, le=SCHOOL_YEAR_MAX, description="換算用的民國學年度"),
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含）"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含）"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    _validate_range(date_from, date_to)
+    return await booking_outcomes_service.class_distribution(
+        db, campus_key, analytics_service.FunnelRange(date_from, date_to), school_year
+    )
 
 
 class AuditLogEntryOut(BaseModel):

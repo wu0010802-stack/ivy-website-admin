@@ -33,6 +33,7 @@ export interface TrafficSummary {
   pages: TrafficPage[]
   devices: Record<string, number>
   vitals: TrafficVital[]
+  as_of: string
 }
 
 export function trafficPageLabel(item: Pick<TrafficPage, 'page' | 'campus_key'>): string {
@@ -86,3 +87,6 @@ export function formatVital(metric: TrafficVital['metric'], value: number): stri
   if (metric === 'LCP') return `${(value / 1000).toFixed(1)} 秒`
   return `${Math.round(value)} 毫秒`
 }
+
+// 2026-09-30 下午起內頁（關於、特色教學、環境、入學、消息）也回報瀏覽，前後的瀏覽次數不能直接比。
+export const TRAFFIC_COVERAGE_EXPANDED_ON = '2026-09-30'

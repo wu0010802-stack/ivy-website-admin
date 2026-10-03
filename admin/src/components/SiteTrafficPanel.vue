@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { MIN_VITAL_SAMPLES, RATING_LABELS, formatVital, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
+import { MIN_VITAL_SAMPLES, RATING_LABELS, TRAFFIC_COVERAGE_EXPANDED_ON, formatVital, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
+import DailyBars from './analytics/DailyBars.vue'
 
 // 後端只接受 7～90 天（速度資料只留 90 天），所以和下方各校預約的期間分開選；
 // 28 天對齊 Google 量測網頁速度的區間。
@@ -38,6 +40,9 @@ const periodLabel = computed(() => DAY_OPTIONS.find((option) => option.value ===
 // 換期間時保留上一次的數字、淡一點並寫「更新中…」；只有第一次載入用骨架。
 const updating = computed(() => loading.value && summary.value !== null)
 const today = computed(() => summary.value?.daily.at(-1)?.views ?? 0)
+const dailyPoints = computed(() => (summary.value?.daily ?? []).map((item) => ({ day: item.day, value: item.views })))
+const TRAFFIC_MARKERS = [{ day: TRAFFIC_COVERAGE_EXPANDED_ON, label: '內頁也開始計入瀏覽，這天前後的次數不能直接比較' }]
+const rangeText = computed(() => (summary.value ? `${summary.value.since.replaceAll('-', '/')}–${summary.value.until.replaceAll('-', '/')}` : ''))
 const mobileShare = computed(() => {
   const total = summary.value?.total_views ?? 0
   return total ? Math.round(((summary.value?.devices.mobile ?? 0) / total) * 100) : 0
@@ -97,6 +102,9 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
             <span class="stat__value">{{ summary.total_views ? `${mobileShare}%` : '—' }}</span>
           </div>
         </div>
+
+        <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" />
+        <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
 
         <h3 class="traffic__title">各頁瀏覽</h3>
         <p v-if="!pages.length" class="hint">這段期間還沒有瀏覽紀錄。</p>

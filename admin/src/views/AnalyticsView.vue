@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { AnalyticsFunnelOut } from '../api/types'
+import { SELF_BOOKING_SINCE } from '../api/analytics'
 import { MANUAL_VISIT_SOURCES, cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabel } from '../api/labels'
 import { taipeiToday } from '../composables/newsContent'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -10,6 +11,10 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import AnalyticsMeta from '../components/analytics/AnalyticsMeta.vue'
+import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
+import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
+import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
 type Dimension = 'source' | 'referral'
@@ -28,6 +33,8 @@ const customRange = ref<[string, string] | null>(null)
 const dimension = ref<Dimension>('source')
 const funnel = ref<AnalyticsFunnelOut | null>(null)
 const loading = ref(false)
+// 「重新整理」遞增它，讓不靠預約流程請求的三個面板也一起重抓。
+const refreshToken = ref(0)
 const error = ref<string | null>(null)
 const requests = useRequestSequence()
 // 手機上日期區間只顯示一個月，雙月面板約 646px 會超出 390px 螢幕。
@@ -63,6 +70,17 @@ const rangeTooLong = computed(() => {
   const [from, to] = customRange.value.map((day) => Date.parse(`${day}T00:00:00Z`))
   return (to! - from!) / 86_400_000 + 1 > MAX_RANGE_DAYS
 })
+
+// 自訂區間還沒選好或太長時，各面板都不送請求（和預約流程同一個條件）。
+const rangeReady = computed(() => period.value !== 'custom' || (customRange.value !== null && !rangeTooLong.value))
+const panelsReady = computed(() => visibleCampusKeys.value.length > 0 && !!campusKey.value && rangeReady.value)
+// 預約流程與依來源、預約鈕點擊三塊要等 funnel 回來才有東西顯示；錯誤時整塊收起。
+const showFunnel = computed(() => visibleCampusKeys.value.length > 0 && !error.value && funnel.value !== null)
+
+function refresh() {
+  refreshToken.value += 1
+  void load()
+}
 
 // 重新整理或換條件時保留上一次的數字、淡一點並寫「更新中…」（和上方瀏覽統計一致），
 // 只有第一次載入用骨架，整區不會消失再出現。
@@ -128,7 +146,6 @@ const sourceCount = (key: string, match: (source: string) => boolean) =>
 // 2026-10-01 起家長自選場次：官網送出即預約成功，同時記「已送出需求」與「已確認預約」，
 // 官網確認率必為 100%。期間的結束日在這天以後（含開站至今）就不算確認率，免得和舊流程的
 // 人工確認混在一起；取消率照算。
-const SELF_BOOKING_SINCE = '2026-10-01'
 const coversSelfBooking = computed(() => !range.value || range.value.to >= SELF_BOOKING_SINCE)
 
 // 舊資料沒有記來源（「未記錄來源」）：不算進官網比例也不算補登，另外寫，總數才對得起來。
@@ -221,7 +238,7 @@ const entryRows = computed(() =>
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="官網瀏覽量與網頁速度，以及各校參觀需求、預約確認、完成參觀與取消的紀錄，可以依期間與來源查看，協助掌握家長從看網站到到訪的情況。" />
+    <PageHeader lead="官網瀏覽量與網頁速度，以及各校參觀預約的結果（到場、未到、取消）、每日變化、來源與預約孩子的班別，可以依期間與校區查看。" />
 
     <SiteTrafficPanel />
 
@@ -243,8 +260,17 @@ const entryRows = computed(() =>
         <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
           :disabled-date="isFutureDate" :clearable="false" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="統計日期區間" />
       </label>
-      <el-button :loading="loading" :disabled="!campusKey" @click="load">重新整理</el-button>
+      <el-button :loading="loading" :disabled="!campusKey" @click="refresh">重新整理</el-button>
     </div>
+
+    <BookingOutcomesSection
+      v-if="panelsReady"
+      :range="range"
+      :campus-key="campusKey"
+      :period-label="periodLabel"
+      :refresh-token="refreshToken"
+      :show-compare="visibleCampusKeys.length > 1"
+    />
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
     <el-alert v-else-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
@@ -252,7 +278,7 @@ const entryRows = computed(() =>
     <p v-else-if="period === 'custom' && !customRange" class="field-help">請選擇開始與結束日期。</p>
     <p v-else-if="rangeTooLong" class="field-help">自訂區間最長 {{ MAX_RANGE_DAYS }} 天，請把開始或結束日期調近一點。</p>
 
-    <div v-else-if="funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
+    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
       <section class="panel">
         <div class="panel__head"><h2>預約流程</h2><span class="analytics__period num">{{ periodLabel }}</span></div>
         <ol class="funnel">
@@ -269,8 +295,14 @@ const entryRows = computed(() =>
         <p v-if="hasManualBars" class="analytics__note">條上淡色的一段是後台補登，深色是官網表單。</p>
         <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
         <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
+        <div class="analytics__meta"><AnalyticsMeta :period="periodLabel" unit="事件次數（依發生日期）" :as-of="funnel.as_of" /></div>
       </section>
 
+    </div>
+
+    <EventTrendPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+
+    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
       <section class="panel">
         <div class="panel__head analytics__dims-head">
           <h2>依來源</h2>
@@ -342,6 +374,8 @@ const entryRows = computed(() =>
         </div>
       </section>
     </div>
+
+    <ClassDistributionPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
   </div>
 </template>
 
@@ -424,6 +458,10 @@ const entryRows = computed(() =>
   padding: 0 24px 16px;
   font-size: 12px;
   color: var(--ink-3);
+}
+
+.analytics__meta {
+  padding: 0 24px 16px;
 }
 
 .panel__body .analytics__note {

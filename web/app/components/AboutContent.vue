@@ -7,14 +7,17 @@
 // - 03 我們的期許：舊站首頁「Our Goals」與「幼兒園是孩童第一所學校也是孩童第二個家」。
 // 內容寫在元件裡，不進後台。不綁 30 週年（週年版尚未拍板）。校名、照片跟著後台發布的分校資料；年份是固定的沿革。
 // 2026-09-29 改成「立體書」（使用者選定 J：design/about-style-directions-20260929/j-popup.*）：每段是一個跨頁，
-// 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來拉紙條、全人教育六圈聚合、期許是折起來的紙房子。
-// 使用者要求不特別強調 2005 → 2020 相隔十五年：紙條上五站等距。頁面內容不放預約參觀（同常春藤環境、特色教學；
+// 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來的五校、全人教育六圈聚合、期許是折起來的紙房子。
+// 使用者要求不特別強調 2005 → 2020 相隔十五年：五站等距（紀念章每站捲動距離一樣）。頁面內容不放預約參觀（同常春藤環境、特色教學；
 // 頁首全站共用的預約鈕照舊）。立體書由 utils/about-popup.ts 管理，Motion 只在這頁動態載入。
 // 2026-10-01 只將右頁轉盤換成 AboutWholePerson 的 A2 六圈；沒有 JS 時書攤開、六圈顯示完成圖。
 // 2026-10-02 精修（design/about-refine-mockup-20261002/，使用者「先這樣實作」）：首屏放目次與第二張卡紙、章名改中文、
 // 右頁背面是章節封面、頁緣厚度跟著讀到哪裡變、紙條改成有站名的紙槽、紙房子加常春藤、結尾改成書底垂下的緞帶，
 // 並新增「家長怎麼說」：讀各校後台的 testimonials（目前只有義華），沒有資料時整章不出現。
 // 首屏照片裡的長輩是創辦人（使用者 2026-10-02 確認；姓名未提供，頁面不寫名字）。
+// 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
+// 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。手機章名和卡紙不在同一個畫面，
+// 紀念章改到右頁上緣接縫。義華創校年份 1997（業主 2026-10-03 裁定）。
 import type { Campus, CampusTestimonial } from '~/types/site-content'
 import { pickImage } from '~/utils/media-image'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
@@ -33,6 +36,8 @@ const MILESTONES = [
 
 // 分校停用或下架時，那一年仍留在沿革裡，只是不放照片與連結。
 const milestones = computed(() => MILESTONES.map((item) => ({ ...item, campus: props.campuses.find((c) => c.key === item.key) })))
+// 紀念章背面：校名／年份（沒有 JS 時第二面先印第一所）
+const medalStops = computed(() => milestones.value.map((item) => ({ name: item.campus?.name ?? '', year: item.year })))
 
 // 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色，左頁沿革同一列用同色小方塊
 // 五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
@@ -176,11 +181,14 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       <span class="abk-no is-l" lang="en" aria-hidden="true">1</span><span class="abk-no is-r" lang="en" aria-hidden="true">2</span>
     </section>
 
-    <!-- 第一章 一路走來：左頁沿革，右頁拉紙條、五校卡紙一校一校站起來 -->
+    <!-- 第一章 一路走來：左頁沿革，章名旁是紀念章；跨頁釘住時往下捲，紀念章一年一年翻、五校卡紙一校一校站起來。
+         外層軌道給釘住用（about-popup.ts 放得下才加 is-pinned，多一列撐出捲動距離）。 -->
+    <div class="abk-track" data-medal-track>
     <section id="story" class="abk-spread abk-story" data-spread :style="chapterOf('story').style" aria-labelledby="story-title">
       <div class="abk-page is-left">
         <p class="abk-chap">{{ chapterOf('story').label }}<span>{{ chapterOf('story').name }}</span></p>
         <h2 id="story-title" class="abk-title">近三十年，<br>長出五所校園。</h2>
+        <AboutMedal class="is-title" :stops="medalStops" />
         <p class="abk-text">我們秉持不變的教育理念，堅持專業的保育，也不斷精進、嘗試新的教學方式，努力為孩子營造安心的環境，讓每個孩子都擁有獨一無二的童年。</p>
         <ol class="abk-list">
           <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color }">
@@ -197,6 +205,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
       <div class="abk-page is-right">
         <div class="abk-face">
+          <AboutMedal class="is-seam" :stops="medalStops" />
           <div class="abk-stage" aria-hidden="true">
             <div v-for="(item, i) in milestones" :key="item.key" class="abk-pop" :data-stop="item.campus?.name ?? ''" :data-year="item.year" :style="cardStyle(i)">
               <div class="abk-card">
@@ -208,13 +217,6 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
               <span class="abk-fold" />
             </div>
           </div>
-          <!-- 紙槽：一道割開的縫，五站等距，站名印在旁邊 -->
-          <div class="abk-pull" data-pull>
-            <div class="abk-slot" aria-hidden="true">
-              <span v-for="(item, i) in milestones" :key="item.key" class="abk-stop" :style="{ '--t': i / (milestones.length - 1) }"><b lang="en">{{ item.year }}</b>{{ item.campus?.name.replace(/校$/, '') ?? '' }}</span>
-            </div>
-            <button class="abk-tab" type="button" role="slider" aria-label="拉紙條，五所校園一校一校站起來" aria-valuemin="1" :aria-valuemax="milestones.length" aria-valuenow="1">拉拉看<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></button>
-          </div>
           <span class="abk-shade" aria-hidden="true" />
           <span class="abk-edge" aria-hidden="true" />
           <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('story').page + 1 }}</span>
@@ -222,6 +224,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <div class="abk-cover" aria-hidden="true"><p>{{ chapterOf('story').label }}</p><b>{{ chapterOf('story').name }}</b><span class="abk-shade" /></div>
       </div>
     </section>
+    </div>
 
     <!-- 第二章 全人教育：左頁兩份清單（領域圓點與右頁六圈同色），右頁 A2 透色六圈 -->
     <section id="whole-child" class="abk-spread" data-spread :style="chapterOf('whole-child').style" aria-labelledby="whole-title">

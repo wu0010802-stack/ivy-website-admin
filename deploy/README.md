@@ -13,6 +13,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 關於頁第一章：紀念章取代「拉拉看」、正反交替（main CI 部署）
+
+使用者要求上線 `feature/about-medal-20261003` 的兩個提交：`3c9e1fd`（章名旁紀念章跟著捲動翻面，取代拉紙條）與 `e3a76001`（正反交替，2001／2020 落在米白正面）。推送 `66a77a1c..e3a76001`（快轉）。規則見 DESIGN.md「關於頁第一章：紀念章取代『拉拉看』」。
+
+- **內容**：新元件 `AboutMedal.vue`（CSS 3D，不載 three）；`about-popup.ts` 紙條段改成紀念章捲動（`medalSequence`／`medalTurn`／`medalFaces`／`medalShown`／`medalPinTop`），第一章外包 `.abk-track` 釘住；面圖 `web/public/assets/about-medal/{front,label,back}.webp` 共 63KB（`scripts/about-medal/build.py`）。義華創校 1997 為業主 10-03 裁定。
+- **沒有 migration**：只動 `web/`、`scripts/` 與文件。
+- **CI**：run 37160587018（`e3a76001`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-03 23:04–23:19 UTC）。
+- **正式 `release.json`**：base commit `e3a76001`，created `2026-10-03T23:17:13Z`；health 200；三張面圖 200 `image/webp`。
+- **本機驗證**（推送前，Node 22）：web typecheck 0 錯 0 警告、`test:website` 75 檔 753 項、`npm run build` 成功（postcss「Lexical error」警告是首頁 hero 既有的 `--motion-vh` 寫法，非本次）。
+- **線上唯讀檢查**（Playwright，擋 `POST /api/telemetry`，唯一失敗請求就是它）：1440×900 釘住（pin top 52）、1440×780 往上推 8px 釘住、1366×650 不釘（經過時走完五站）、390×844 與 375×667 釘右頁；各捲動點紀念章步數與正反面、卡紙 `--up`、沿革上色一致，往回捲倒著翻；都沒有橫向捲動、沒有 pageerror。
+- **未做**：iOS Safari／Android 實機（sticky 與網址列收合）；減少動態只在本機驗過。
+
 ## 2026-10-03 404 頁立體書校徽，連同上一批未部署的分支（main CI 部署）
 
 使用者要求部署 `aa7b380`（feat(web): 404 頁加立體書校徽）。推送前查到 main `15fd9a5` 的 run 37088224504 是紅的：Frontend (admin) `ux20260928E`「刪除場景後選旁邊那一個」間歇失敗（找不到確認鈕：刪除），Deploy 被略過，正式站還停在 `899196b`。所以 `15fd9a5` 那一批（關於頁五校卡紙等大、拍立得捲動不再飄動、後台拿掉官網已沒有頁面顯示的編輯頁、CI 的 bcrypt rounds 4 與 paths-ignore）這次才第一次上線。推送 `15fd9a5..c8d2e33`。

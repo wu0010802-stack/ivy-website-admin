@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <title>紀念章面圖</title>
+  <style>html,body{margin:0;background:transparent}#art{display:inline-block}canvas{display:block}</style>
+  <script type="importmap">
+    { "imports": { "three": "/web/node_modules/three/build/three.module.js", "three/addons/": "/web/node_modules/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <!-- ?side=front|back&size=320&crest=/scripts/about-medal/.crest.png：由 build.py 開本機伺服器（repo 根目錄）後截圖 -->
+  <div id="art"></div>
+  <script type="module">
+    import { render } from './medal.js'
+    const q = new URLSearchParams(location.search)
+    await render(document.getElementById('art'), { size: Number(q.get('size')) || 320, side: q.get('side') || 'front', crestUrl: q.get('crest') })
+    window.__ready = true
+  </script>
+</body>
+</html>

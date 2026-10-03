@@ -22,6 +22,7 @@ const clicks = (form: number, line = 0, phone = 0, external = 0) => ({
 })
 
 const funnel: AnalyticsFunnelOut = {
+  as_of: '2026-10-03T06:05:00Z',
   campus_key: 'yihua',
   date_from: null,
   date_to: null,
@@ -53,7 +54,7 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
   const wrapper = mount(AnalyticsView, {
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { SiteTrafficPanel: true },
+      stubs: { SiteTrafficPanel: true, BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -72,6 +73,13 @@ async function pickRange(wrapper: VueWrapper, from: string, to: string) {
 }
 
 describe('成效漏斗：期間、取消與來源維度', () => {
+  it('預約結果面板拿到目前的校區與期間；看得到兩校以上才畫五校比較', async () => {
+    const { wrapper } = await setup()
+    const section = wrapper.findComponent({ name: 'BookingOutcomesSection' })
+    expect(section.exists()).toBe(true)
+    expect(section.props()).toMatchObject({ campusKey: 'yihua', range: null, periodLabel: '開站至今', showCompare: true })
+  })
+
   it('預設看開站至今，列出取消數、取消率與取消原因', async () => {
     const { wrapper, get } = await setup()
     expect(get).toHaveBeenCalledWith('/admin/analytics/funnel?campus_key=yihua')
@@ -201,6 +209,41 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(wrapper.text()).not.toContain('更新中…')
   })
 
+  it('重新整理遞增 refreshToken，三個面板一起重抓，預約流程也重抓', async () => {
+    const { wrapper, get } = await setup()
+    const tokens = () => ['BookingOutcomesSection', 'EventTrendPanel', 'ClassDistributionPanel'].map((name) => wrapper.findComponent({ name }).props('refreshToken'))
+    expect(tokens()).toEqual([0, 0, 0])
+    const calls = get.mock.calls.length
+    await wrapper.findAll('button').find((button) => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(get.mock.calls.length).toBe(calls + 1)
+    expect(tokens()).toEqual([1, 1, 1])
+  })
+
+  it('自訂區間未選完或超過上限時三個面板都不顯示', async () => {
+    const { wrapper } = await setup()
+    const names = ['BookingOutcomesSection', 'EventTrendPanel', 'ClassDistributionPanel']
+    const shown = () => names.map((name) => wrapper.findComponent({ name }).exists())
+    expect(shown()).toEqual([true, true, true])
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '期間' || item.attributes('aria-label') === '期間')!
+    select.vm.$emit('update:modelValue', 'custom')
+    await flushPromises()
+    expect(shown()).toEqual([false, false, false])
+    wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2024-01-01', '2026-06-30'])
+    await flushPromises()
+    expect(shown()).toEqual([false, false, false])
+  })
+
+  it('預約流程讀取失敗時，每日變化與班別面板仍在', async () => {
+    const { wrapper, get } = await setup()
+    get.mockRejectedValueOnce(new Error('boom'))
+    await wrapper.findAll('button').find((button) => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.funnel').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'EventTrendPanel' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ClassDistributionPanel' }).exists()).toBe(true)
+  })
+
   it('自訂區間不能選未來日期，超過 400 天先在前端擋下', async () => {
     const { wrapper, get } = await setup()
     const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '期間' || item.attributes('aria-label') === '期間')!
@@ -270,5 +313,12 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(entries[0]).toContain('首頁五校卡')
     expect(entries[1]).toContain('分校頁首屏')
     expect(wrapper.text()).toContain('另有 7 次點擊沒有指定校區')
+  })
+
+  it('預約流程寫出單位與更新時間', async () => {
+    const { wrapper } = await setup()
+    const panel = wrapper.findAll('.panel').find((item) => item.text().includes('預約流程'))!
+    expect(panel.text()).toContain('單位：事件次數（依發生日期）')
+    expect(panel.text()).toContain('10/03 14:05')
   })
 })
