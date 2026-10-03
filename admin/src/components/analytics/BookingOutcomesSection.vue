@@ -22,6 +22,8 @@ const COVERAGE = '依送出日期取這段期間的案件，看它們現在的�
 
 const { can } = usePermissions()
 const data = ref<BookingOutcomesOut | null>(null)
+// 畫面上這批資料的期間標籤：重抓期間時舊數字還在，標題與說明列不能先換成新期間。
+const loadedLabel = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const requests = useRequestSequence()
@@ -30,11 +32,16 @@ async function load() {
   const request = requests.begin()
   loading.value = true
   error.value = null
+  const label = props.periodLabel
   try {
     const result = await getBookingOutcomes(props.range)
-    if (requests.isCurrent(request)) data.value = result
+    if (requests.isCurrent(request)) {
+      data.value = result
+      loadedLabel.value = label
+    }
   } catch (err) {
     if (!requests.isCurrent(request)) return
+    data.value = null
     const detail = err instanceof ApiError ? (err.detail as { message?: string } | null) : null
     error.value = detail && typeof detail === 'object' && detail.message ? detail.message : '無法讀取預約結果，請重新載入。'
   } finally {
@@ -119,10 +126,10 @@ const compareRows = computed(() => {
 </script>
 
 <template>
-  <div class="outcomes-section">
+  <div class="outcomes-section" :class="{ 'is-updating': loading && data }" :aria-busy="loading">
     <StatsDimensionTable
       v-if="showCompare && data"
-      :title="`五校比較（${periodLabel}）`"
+      :title="`五校比較（${loadedLabel}）`"
       :rows="compareRows"
       :columns="COLUMNS"
       row-key="key"
@@ -130,7 +137,7 @@ const compareRows = computed(() => {
       caption="數字是預約案件數，同一個孩子預約兩校算兩筆；比率括號內是分子／分母。「現在」三欄是此刻的待處理，不受期間影響。不受上方「查看校區」影響。"
     />
 
-    <section class="panel" aria-labelledby="outcomes-title" :aria-busy="loading">
+    <section class="panel" aria-labelledby="outcomes-title">
       <div class="panel__head">
         <h2 id="outcomes-title">預約結果{{ row ? `・${campusLabel(row.campus_key)}校` : '' }}</h2>
         <span class="hint" role="status">{{ loading && data ? '更新中…' : '' }}</span>
@@ -176,7 +183,7 @@ const compareRows = computed(() => {
             </ul>
             <p v-if="!canOpenCases" class="hint">你的帳號只能看統計數字，看不到是哪幾筆案件。</p>
           </template>
-          <AnalyticsMeta :period="periodLabel" :unit="UNIT" :as-of="data.as_of" :coverage="COVERAGE" />
+          <AnalyticsMeta :period="loadedLabel" :unit="UNIT" :as-of="data.as_of" :coverage="COVERAGE" />
         </template>
       </div>
     </section>
@@ -188,6 +195,10 @@ const compareRows = computed(() => {
   display: grid;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.outcomes-section.is-updating {
+  opacity: 0.6;
 }
 
 .outcomes__body {

@@ -161,4 +161,47 @@ describe('預約結果', () => {
     expect(wrapper.text()).toContain('無法讀取預約結果')
     expect(wrapper.find('.stat__value').exists()).toBe(false)
   })
+
+  async function mountPending(responses: (() => Promise<unknown>)[]) {
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin')
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/analytics')
+    await router.isReady()
+    let call = 0
+    vi.spyOn(api, 'get').mockImplementation(() => responses[call++]!() as never)
+    const wrapper = mount(BookingOutcomesSection, {
+      props: { range: null, campusKey: 'yihua', periodLabel: '開站至今', showCompare: true },
+      global: { plugins: [pinia, router, ElementPlus] },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+    return wrapper
+  }
+
+  it('換期間重抓失敗：不留上一期間的數字與比較表，只顯示錯誤', async () => {
+    const wrapper = await mountPending([
+      () => Promise.resolve(outcomes()),
+      () => Promise.reject(new ApiError(500, null)),
+    ])
+    expect(wrapper.find('.stats-table').exists()).toBe(true)
+    await wrapper.setProps({ range: { from: '2026-09-01', to: '2026-09-30' }, periodLabel: '2026/09/01–2026/09/30' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('無法讀取預約結果')
+    expect(wrapper.find('.stats-table').exists()).toBe(false)
+    expect(wrapper.find('.stat__value').exists()).toBe(false)
+  })
+
+  it('換期間重抓中：標題與說明列仍是舊期間，整區變淡並標示忙碌', async () => {
+    const wrapper = await mountPending([
+      () => Promise.resolve(outcomes()),
+      () => new Promise(() => {}),
+    ])
+    await wrapper.setProps({ range: { from: '2026-09-01', to: '2026-09-30' }, periodLabel: '2026/09/01–2026/09/30' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('五校比較（開站至今）')
+    expect(wrapper.text()).not.toContain('2026/09/01')
+    expect(wrapper.find('.outcomes-section').classes()).toContain('is-updating')
+    expect(wrapper.find('.outcomes-section').attributes('aria-busy')).toBe('true')
+  })
 })
