@@ -7,7 +7,7 @@ import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
 import { warmPaper, warmPaperWhenIdle } from '~/utils/paper-warm'
 import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
-import { CORNER_REST, PUFF_MS, cornerPose, fadePose, leadPose, puffPose, strongest, subscribeCornerWind, type CornerPose, type WindState } from '~/utils/cornerWind'
+import { CORNER_REST, PUFF_MS, leadPose, puffPose, strongest, type CornerPose } from '~/utils/cornerWind'
 import { curlAngle } from '~/utils/cornerCurl'
 import { OPENER_DELAY_MS, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown, tapDuringOpen } from '~/utils/printOpener'
 
@@ -23,7 +23,6 @@ const isSnapping = ref(false)
 const webglReady = ref(false)
 const isCornering = ref(false)
 const cardEl = ref<HTMLLIElement | null>(null)
-const swayEl = ref<HTMLDivElement | null>(null)
 const wrapEl = ref<HTMLDivElement | null>(null)
 const printEl = ref<HTMLDivElement | null>(null)
 const frontCornerEl = ref<HTMLSpanElement | null>(null)
@@ -51,8 +50,6 @@ function detachPaper() {
 }
 let turnFrom = 0
 let turningTimer = 0
-let windObserver: IntersectionObserver | null = null
-let stopWind: (() => void) | null = null
 let openerObserver: IntersectionObserver | null = null
 let openerTimer = 0
 // F 第一張翻開進場（utils/printOpener.ts）：背面朝上等讀者，翻開前不顯影、不做進場輕掀
@@ -61,22 +58,18 @@ let openedAt = Number.NEGATIVE_INFINITY
 // 翻面後這段時間暫停游標傾斜與 WebGL 初始化（WebGL 版另有約 0.2 秒紙張回彈）
 const FLIP_SETTLE_MS = FLIP_MS + 150
 
-// 翻面暗示 A 角落捲起（utils/cornerWind.ts）：沒有折角，觀者看到的右下角被掀起。三個來源取最大的那個：
-// 捲動的風（共用時鐘）、點下去時翻面起手（角先捲，翻面本身不變）、顯影完成後輕掀一次。
+// 翻面暗示 A 角落捲起（utils/cornerWind.ts）：沒有折角，觀者看到的右下角被掀起。兩個來源取大的那個：
+// 點下去時翻面起手（角先捲，翻面本身不變）、顯影完成後輕掀一次。捲動時不動（2026-10-03 拿掉捲動起風）。
 // WebGL 版把角度餵給 paperPrints.ts 彎網格；CSS 版用兩片 3D 三角紙近似（styles.css 的 .print-corner）。
 // 首張偷看已由 F 第一張翻開進場取代（見下方 faceDownQuietly／runOpener）。
-const seed = props.index * 7.31 + 3.7
-let windCorner: CornerPose = CORNER_REST
 let leadAt = 0
 let puffAt = 0
 // 翻面起手捲的是點下去那一刻朝向觀者的那一面
 let leadSide: 'front' | 'back' = 'front'
 
 function cornerNow(now: number): { pose: CornerPose; side: 'front' | 'back' } {
-  const sinceFlip = now - lastFlipAt
-  const flying = sinceFlip < FLIP_MS
-  // 翻面途中，風的捲曲在前 30% 淡出，讓給起手捲曲
-  let pose = fadePose(windCorner, flying ? 1 - sinceFlip / (FLIP_MS * 0.3) : 1)
+  const flying = now - lastFlipAt < FLIP_MS
+  let pose: CornerPose = CORNER_REST
   if (leadAt) pose = strongest(pose, leadPose(now - leadAt))
   if (puffAt) pose = strongest(pose, puffPose(now - puffAt))
   return { pose, side: flying ? leadSide : isFlipped.value ? 'back' : 'front' }
@@ -97,7 +90,7 @@ const CORNER_VARS = ['--corner-a', '--corner-t', '--corner-lift', '--corner-shad
 
 function writeCssCorner(pose: CornerPose, side: 'front' | 'back') {
   const on = pose.hinge > 0.002
-  // 已經收平就不再每幀清變數（風收尾那幾秒）
+  // 已經收平就不再每幀清變數（輕掀收尾那幾格）
   if (!on && !isCornering.value) return
   if (isCornering.value !== on) isCornering.value = on
   const active = side === 'front' ? frontCornerEl.value : backCornerEl.value
@@ -127,34 +120,6 @@ function renderCorner(now = performance.now()) {
   const { pose, side } = cornerNow(now)
   if (paper) paper.setCorner(pose)
   else writeCssCorner(pose, side)
-}
-
-// --sway 註冊成不繼承（styles.css），要寫在讀它的 .print-card 本身；值沒變就不寫。
-let sway = ''
-function writeSway(value: string) {
-  if (value === sway) return
-  sway = value
-  swayEl.value?.style.setProperty('--sway', value)
-}
-
-function applyWind(wind: Readonly<WindState>, t: number) {
-  windCorner = cornerPose(wind, t, seed)
-  renderCorner()
-  writeSway(`${wind.sway.toFixed(3)}deg`)
-}
-
-// 只有畫面附近的卡片訂閱；離開就收回靜止，不替看不到的卡片重畫。
-function listenWind(on: boolean) {
-  if (on === Boolean(stopWind)) return
-  if (on) {
-    stopWind = subscribeCornerWind(applyWind)
-    return
-  }
-  stopWind?.()
-  stopWind = null
-  windCorner = CORNER_REST
-  renderCorner()
-  writeSway('0.000deg')
 }
 
 // 翻面起手與進場輕掀的時鐘：跑完就收掉
@@ -373,8 +338,6 @@ onMounted(() => {
     isRevealed.value = true
     return
   }
-  windObserver = new IntersectionObserver((entries) => listenWind(entries.at(-1)?.isIntersecting ?? false), { rootMargin: '10% 0px' })
-  windObserver.observe(cardEl.value)
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   const motionAllowed = mayAutoplay(prefersReducedMotion, connection)
   // three 不進首屏 prefetch：整頁載完閒置時暖載，卡片先接近就提早（見 utils/paper-warm.ts）
@@ -420,12 +383,8 @@ onUnmounted(() => {
   observer = null
   nearObserver?.disconnect()
   nearObserver = null
-  windObserver?.disconnect()
-  windObserver = null
   openerObserver?.disconnect()
   openerObserver = null
-  stopWind?.()
-  stopWind = null
   cancelPaper?.()
   cancelPaper = null
   cancelAnimationFrame(tiltFrame)
@@ -509,7 +468,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
     :class="[`tint-${moment.tint}`, { 'is-revealed': isRevealed, 'is-active': active }]"
     :id="`day-${moment.key}`"
   >
-    <div ref="swayEl" class="print-card">
+    <div class="print-card">
       <div
         ref="wrapEl"
         class="print-wrap"
@@ -545,7 +504,7 @@ const titleLines = computed(() => props.moment.title.split('\n'))
               <p class="print-answer">{{ moment.answer }}</p>
             </div>
           </div>
-          <!-- A 角落捲起的 CSS 版：正反面各一片，貼在各自朝向觀者時的右下角；起風或翻面起手時才切開紙角換上它（.is-cornering）。WebGL 版不用。 -->
+          <!-- A 角落捲起的 CSS 版：正反面各一片，貼在各自朝向觀者時的右下角；翻面起手或進場輕掀時才切開紙角換上它（.is-cornering）。WebGL 版不用。 -->
           <span ref="frontCornerEl" class="print-corner is-front" aria-hidden="true">
             <span class="print-corner-shadow" />
             <span class="print-corner-flap"><i class="print-corner-a" /><i class="print-corner-b" /><span class="print-corner-tip"><i class="print-corner-a" /><i class="print-corner-b" /></span></span>

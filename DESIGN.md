@@ -408,7 +408,7 @@
 手機滑動不順的量測結論，之後新增捲動連動效果都照這幾條。量測方法與數字見 README 同日段落。
 
 - 捲動／rAF 每幀寫的自訂屬性，要寫在讀它的元素上，不要寫在 `<html>`、`body` 或區塊祖先。自訂屬性會繼承，寫在祖先上，整棵子樹每幀都要重算樣式。「關於」接縫原本寫在 `<html>`，每幀重算五百多個元素。
-- 只有元素自己讀的變數，用 `@property … inherits:false` 註冊，寫在該元素上（例：`--sway` 在 `.print-card`）。後代要讀的變數才保留繼承，寫入點放在最小的共同祖先（例：`.print-corner` 的角度與受光）。
+- 只有元素自己讀的變數，用 `@property … inherits:false` 註冊，寫在該元素上（例：環境頁曬衣繩的 `--renv-tilt`；拍立得原本的 `--sway` 已於 10-03 拿掉）。後代要讀的變數才保留繼承，寫入點放在最小的共同祖先（例：`.print-corner` 的角度與受光）。
 - 值沒變就不寫。捲動中大部分幀的值都停在 0 或 1。
 - WebGL 紙每幀的變形路徑不要用 three 的通用 `computeVertexNormals()`，改用 `web/app/utils/gridNormals.ts`。改網格、變形或 three 版本時，`tests/grid-normals.spec.ts` 的逐位元比對要維持通過。
 
@@ -1166,7 +1166,7 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 - 效能：WebGL 每次折角變動會整張重傳正反面貼圖（與顯影期同級成本）。M2 GPU 實測兩張 WebGL 卡在畫面內、折角掀到 47.6px 時 p95 16.8ms，與沒有拍立得的區段相同；手機捲動中本來就是 CSS 版。SwiftShader 量不出效能，驗證腳本預設用 Metal。
 - 驗證 `output/playwright/ear-gust-20260923/`（`check.cjs` 功能、`perf.cjs` 幀時間）；改版前快照 `versions/before-ear-gust-20260923-143901/`。A／C 未採用，留作比稿。凍結的 vanilla 原型不回寫。
 
-### A「角落捲起」定案（2026-09-23 晚，取代上面的淡折角與捲動飄角）
+### A「角落捲起」定案（2026-09-23 晚，取代上面的淡折角與捲動飄角；其中「捲動起風」與整張微擺已於 10-03 拿掉，見下方）
 
 使用者要翻面提示有「風吹的感覺」：先比 `design/flip-wind-20260923/`（第一版誤解成折角被風拍動，使用者更正為「把折角拿掉，改用風掀起來」），選 A 後再比依 A 做的翻面三版 `design/flip-corner-turn-20260923/`，最後裁定 **A 角落捲起＋點下去也從右下角先捲，翻面效果維持不變**（翻面三版 A1／A2／A3 皆未採用）。
 
@@ -1192,6 +1192,15 @@ Image gate: skipped. 現有 prototype 框架、兩個官網參考與色彩方向
 - **首張偷看已移除**：`DayMomentCard.vue` 的 `runPeek`／`isPeeking`、`paperPrints.ts` 的 `peek()`／`PEEK_*`、`styles.css` 的 `.is-peeking` 與 `@keyframes card-peek` 全部刪除，勿再加回。
 - 看過未選：A 讀到才掀（停留 1.2 秒，角落翻過約 160° 露出背面；只掀到 117° 時角落側對鏡頭看不到背面，要改用 (1−u)⁶ 的緊捲剖面）、B 區塊引言「每張相片翻過來，都寫著那一刻的故事，和參觀時可以問的事。」、C 正面抄一行家長提問、D 04 安靜片刻常駐背面朝上、E 每張背後黏一張稍大的橫線便條露出紙邊。
 - 驗證 `output/playwright/flip-opener-20260924/`（`check.cjs`：桌機 WebGL 假時鐘逐格、強制 CSS、手機 390、減少動態、同工作階段重新整理、讀者先點、錨點直達）；改版前快照 `versions/before-flip-opener-20260924-204501/`。凍結的 vanilla 原型不回寫。
+
+### 拿掉捲動起風（2026-10-03）
+
+使用者附「05 午後玩耍」截圖：拍立得不要捲動時的動畫，要的是相紙靜靜貼著的感覺；讓人知道可以翻面已由 F 第一張翻開進場負責。
+
+- **拿掉**：A 角落捲起裡的「捲動起風」（右下角隨捲動速度掀起、強風翻過 90°）與整張順風微擺（`--sway`、`@property --sway`）。`utils/cornerWind.ts` 只留翻面起手與進場輕掀；`subscribeCornerWind`、`stepWind`、`cornerPose`、`fadePose`、`CornerPose.tilt` 刪除，`WIND_REACH` 改名 `CORNER_REACH`（檔名照舊，免得斷掉既有紀錄的指向）。WebGL 版折線固定 45°。
+- **保留**：點下去翻面時右下角先捲起、顯影完成後輕掀一次、F 第一張翻開進場、游標傾斜、顯影與翻面本身。
+- **勿再加回**任何由捲動驅動的拍立得動態（`tests/corner-wind.spec.ts` 守：卡片不聽 scroll、`.print-card` 只有自己的傾角）。
+- 驗證：dev server（fixture）Playwright 桌機 1440（WebGL）／手機 390（CSS 與 WebGL 混合），慢走六張後以約 6000px/s 上下快捲，約 180 格取樣 `.is-cornering` 0 格、`--sway` 0 格、六張傾角各自固定；F 照常背面朝上、停留後自己翻開；點擊翻面照常。
 
 ### 日常照片畫質（2026-09-23，僅 Nuxt）
 
