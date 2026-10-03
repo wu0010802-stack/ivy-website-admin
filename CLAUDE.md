@@ -58,7 +58,7 @@
 - 頁首貼視窗右緣的做法是 `.header-top` 滿版＋補 gutter，包在 `@media(min-width:901px)`；**禁止**用 `.header-book` 負邊距（自訂屬性裡的 % 在使用端解析）。
 - 膠囊內任何 `span` 規則要明寫 `width/height/background`，否則被站內選擇器壓成白條。
 - 五校底板卡地圖抽屜桌機固定 `order:99`，不要改成插在被點卡片下方（Grid 斷行整批跑版，已實測）。
-- 已否決、勿再主動提：孩子的一天大標鏤空／白框、logo 雙濾鏡疊圖去背。
+- 已否決、勿再主動提：孩子的一天大標鏤空／白框、logo 雙濾鏡疊圖去背、拍立得捲動時的動態（起風掀角、順風微擺，10-03 拿掉）。
 - 圖示只用 Phosphor Regular，sprite 內嵌 `index.html`；英文只留 `lang="en"` 副標與外部連結 ↗。
 - `ui-ux-pro-max` 之類的通用 UI 套件對本案不適用（會撞 PRODUCT.md 的反參考）。
 

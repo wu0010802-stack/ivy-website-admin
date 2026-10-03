@@ -13,14 +13,14 @@
  * - 減少動態、無 WebGL、three 載入失敗：回傳 null，元件維持 CSS 3D 版。
  * - 翻面（2026-09-23）：永遠右緣掀起往左翻（printFlip.ts），紙張依轉速做單側懸臂彎曲、
  *   停下時遠端輕輕回彈；紙膠帶畫進貼圖，跟著紙一起翻，不再停在原位。
- * - 翻面暗示 A 角落捲起（2026-09-23 晚）：沒有折角，觀者看到的右下角被風掀起（網格沿對角折線彎曲，
- *   cornerCurl.ts），角度由 DayMomentCard 取風、翻面起手、進場輕掀最大值後經 setCorner 餵進來。
+ * - 翻面暗示 A 角落捲起（2026-09-23 晚）：沒有折角，觀者看到的右下角被掀起（網格沿對角折線彎曲，
+ *   cornerCurl.ts），角度由 DayMomentCard 取翻面起手、進場輕掀較大者後經 setCorner 餵進來（捲動起風 10-03 拿掉）。
  */
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
 import { createCurl, curlPoint, setCurl } from './cornerCurl'
 import { computeIndexedNormals } from './gridNormals'
-import { CORNER_REST, REACH_REFERENCE_WIDTH, WIND_REACH, type CornerPose } from './cornerWind'
+import { CORNER_REACH, CORNER_REST, REACH_REFERENCE_WIDTH, type CornerPose } from './cornerWind'
 
 type Three = typeof ThreeNS
 
@@ -39,7 +39,7 @@ export interface PaperHandle {
   setActive(active: boolean): void
   pointerMove(clientX: number, clientY: number): void
   pointerLeave(): void
-  /** 觀者看到的右下角被掀起的程度（風、翻面起手、進場輕掀取最大值）；翻面途中固定掀起點那一面。 */
+  /** 觀者看到的右下角被掀起的程度（翻面起手、進場輕掀取較大者）；翻面途中固定掀起點那一面。 */
   setCorner(pose: CornerPose): void
   dispose(): void
 }
@@ -826,7 +826,7 @@ export async function mountPaper(
     let shaped = false
     const isBackTurn = (value: number) => Math.abs(Math.round(value)) % 2 === 1
 
-    // 紙張變形＝右下角捲曲（風／翻面起手／進場輕掀）＋翻面時的單側懸臂彎曲。
+    // 紙張變形＝右下角捲曲（翻面起手／進場輕掀）＋翻面時的單側懸臂彎曲。
     // 角落在「觀者看到的那一面」的座標裡算：翻到背面時 x、z 反過來，永遠是觀者右下角被掀起；
     // 翻面途中固定是起點那一面，才不會翻到一半換到另一個角。
     // 懸臂：手捏的那一側平直，遠端因慣性落後、往起翻時朝向觀者的那一面彎。
@@ -839,10 +839,10 @@ export async function mountPaper(
       const depth = grip * bent * W
       const facing = isBackTurn(turn === turnGoal ? turn : turnFrom) ? -1 : 1
       const scale = W / REACH_REFERENCE_WIDTH
-      const reach = (WIND_REACH[0] + WIND_REACH[1] * corner.reach) * scale
-      const angle = -Math.PI / 4 + corner.tilt
-      const nx = Math.cos(angle)
-      const ny = Math.sin(angle)
+      const reach = (CORNER_REACH[0] + CORNER_REACH[1] * corner.reach) * scale
+      // 折線固定沿 45° 對角
+      const nx = Math.SQRT1_2
+      const ny = -Math.SQRT1_2
       setCurl(curl, { hinge: corner.hinge, tip: corner.tip, nx, ny, ox: halfW - nx * reach, oy: -H / 2 - ny * reach, reach, ripple: 0.12, rippleK: 0.045 / scale, rippleW: 9 })
       if (!curl.active && !depth) {
         if (!shaped) return
@@ -1098,7 +1098,7 @@ export async function mountPaper(
       scene?.rest()
     },
     setCorner(pose) {
-      // 前後都是平的就不必重畫（風收尾那幾秒，角度已經小到看不出來）
+      // 前後都是平的就不必重畫（輕掀收尾那幾格，角度已經小到看不出來）
       const flat = (p: CornerPose) => p.hinge < 1e-3 && Math.abs(p.tip) < 1e-3
       const skip = pose === corner || (flat(pose) && flat(corner))
       corner = pose

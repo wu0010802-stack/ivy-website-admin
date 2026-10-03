@@ -71,10 +71,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-print.tint-mint{--print-tint:var(--mint)}
 .day-print.tint-peach{--print-tint:var(--ivy-print-tint)}
 .day-print.tint-cream{--print-tint:var(--cream)}
-/* 卡片傾角走 --card-tilt；--sway 是角落捲起時整張順風的微擺（utils/cornerWind.ts，≤0.4°）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。
-   --sway 捲動中每幀由 DayMomentCard 直接寫在 .print-card 上；註冊成不繼承，只重算這一個元素，不連整張卡片的子樹一起重算。 */
-@property --sway{syntax:'<angle>';inherits:false;initial-value:0deg}
-.print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:calc(var(--card-tilt) + var(--sway,0deg))}
+/* 卡片傾角走 --card-tilt，捲動時不擺動（2026-10-03 拿掉捲動起風的 --sway）。paperPrints.ts 量紙時會連同 rotate 一起拿掉。 */
+.print-card{--card-tilt:-2.2deg;position:relative;width:min(460px,100%);rotate:var(--card-tilt)}
 .day-print:nth-child(odd) .print-card{grid-column:1;justify-self:start;margin-left:6%}
 .day-print:nth-child(even) .print-card{grid-column:3;justify-self:end;margin-right:4%;--card-tilt:2.4deg}
 .day-print:nth-child(3n) .print-card{--card-tilt:-.8deg}
@@ -99,7 +97,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .paper-view{position:absolute;z-index:4;display:block;pointer-events:none}
 .print-wrap.webgl-ready .print-turn{z-index:8}
 .print-face{position:relative;background:var(--print-face-bg);color:var(--text);backface-visibility:hidden;-webkit-backface-visibility:hidden}
-/* 翻面暗示 A 角落捲起的 CSS 版（WebGL 版由 paperPrints.ts 彎網格）：起風、翻面起手或進場輕掀時（.is-cornering）才把兩面各自的右下角
+/* 翻面暗示 A 角落捲起的 CSS 版（WebGL 版由 paperPrints.ts 彎網格）：翻面起手或進場輕掀時（.is-cornering）才把兩面各自的右下角
    沿對角線切掉，換成 .print-corner 那片會掀起的紙；平常紙面完整、不多開圖層。邊長 20cqw＝紙寬兩成；角度與受光由 DayMomentCard 每幀寫入。 */
 .print-wrap.is-cornering:not(.webgl-ready) .print-face{clip-path:polygon(0 0,100% 0,100% calc(100% - 20cqw),calc(100% - 20cqw) 100%,0 100%)}
 .print-corner{position:absolute;bottom:0;z-index:7;display:none;width:20cqw;height:20cqw;pointer-events:none;transform-style:preserve-3d}
