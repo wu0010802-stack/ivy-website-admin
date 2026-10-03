@@ -12,6 +12,7 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
+import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
 import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
@@ -356,6 +357,8 @@ const entryRows = computed(() =>
           <p class="analytics__note">點擊次數不等於預約數；LINE、電話與外部網站的點擊之後有沒有真的預約，官網無法得知。</p>
         </div>
       </section>
+
+      <ClassDistributionPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" />
     </div>
   </div>
 </template>
