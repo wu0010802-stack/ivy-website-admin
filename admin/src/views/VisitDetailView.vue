@@ -5,9 +5,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { ArrowLeft, ArrowRight, Phone } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
-import { apiErrorMessage, isVersionConflict } from '../api/errors'
+import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
+import { lastHandled } from '../api/visitHistory'
+import { useAuthStore } from '../stores/auth'
 import type { RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, maskEmail, partySizeLabel, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitDisplay, visitDisplayStatus, visitSourceLabel } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, maskEmail, partySizeLabel, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitDisplay, visitDisplayStatus, visitSourceLabel, visitStatus } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
@@ -24,11 +26,14 @@ import { createFromVisitRequest, listRecords } from '../api/admissions'
 import { stageLabel } from '../admissions/constants'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 
 const detail = ref<VisitRequestFullOut | null>(null)
+// 頁首「最後處理」：同事最近一次動這筆案件（api/visitHistory.ts）。
+const handled = computed(() => (detail.value ? lastHandled(detail.value.history ?? [], authStore.user?.id ?? null) : null))
 const notes = ref<VisitContactNoteOut[]>([])
 const availableSlots = ref<VisitSlotOut[]>([])
 const selectedSlotId = ref('')
@@ -100,6 +105,9 @@ const error = ref<string | null>(null)
 // 「下一筆」換 id 時元件不重新掛載：換案件就加一，舊案件較晚回來的
 // 回應不能蓋掉畫面（否則畫面是家長 A、送出卻寫到案件 B）。
 let generation = 0
+// 上次讀到案件的時間：切回分頁時超過 DETAIL_STALE_MS 才靜默重讀（不做固定輪詢）。
+let loadedAt = 0
+const DETAIL_STALE_MS = 30_000
 
 // 日期選擇器用台灣時間的字串（value-format），案件上的是 UTC ISO。
 function toPickerValue(iso: string | null | undefined): string | null {
@@ -131,6 +139,7 @@ async function load(options: { quiet?: boolean } = {}) {
     if (gen !== generation) return
     const loaded = caseResult.value
     detail.value = loaded
+    loadedAt = Date.now()
     notes.value = notesResult.value
     if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
     void loadNextCases(loaded.campus_key)
@@ -147,6 +156,11 @@ async function load(options: { quiet?: boolean } = {}) {
     availableSlots.value = slots
   } catch (err) {
     if (gen !== generation) return
+    if (options.quiet) {
+      // 靜默重讀失敗不能換掉整個畫面（正在打的聯絡紀錄草稿會消失），保留現況並提醒。
+      notifyWarning('無法更新案件，畫面可能不是最新。')
+      return
+    }
     error.value = err instanceof ApiError && err.status === 404 ? '找不到這筆案件，可能已被移除或不在你的校區範圍。' : '無法讀取案件'
   } finally {
     if (gen === generation) loading.value = false
@@ -297,7 +311,61 @@ function reportError(err: unknown, fallback: string) {
     void refreshDetail()
     return
   }
+  if (apiErrorCode(err) === 'INVALID_TRANSITION') {
+    void reloadAfterTransitionConflict(err, fallback)
+    return
+  }
   notifyError(apiErrorMessage(err, fallback))
+}
+
+// 狀態轉換被擋：多半是同事剛處理過（兩人同時開著同一筆）。重讀後狀態真的變了就寫
+// 現在是什麼、誰在什麼時候做的；狀態沒變（例如場次還沒開始就標記未到場）照後端原因講。
+async function reloadAfterTransitionConflict(err: unknown, fallback: string) {
+  const before = detail.value?.status
+  const handledBefore = handled.value?.at ?? null
+  await load({ quiet: true })
+  const current = detail.value
+  if (!current || !before || current.status === before) {
+    notifyError(apiErrorMessage(err, fallback))
+    return
+  }
+  // 只有同事有比重讀前更新的動作才點名；狀態是家長（修改連結）或系統改的就用中性說法。
+  const latest = handled.value
+  const newer = latest !== null && (handledBefore === null || Date.parse(latest.at) > Date.parse(handledBefore))
+  const label = statusDisplay.value?.label ?? visitStatus(current.status).label
+  if (newer && !latest.self) {
+    notifyWarning(`這筆案件剛被處理過：${latest.who}在 ${formatDateTime(latest.at)} ${latest.what}，現在是「${label}」。已載入最新內容，請確認後再操作。`)
+  } else {
+    notifyWarning(`這筆案件剛被更新，現在是「${label}」。已載入最新內容，請確認後再操作。`)
+  }
+}
+
+// 切回這個分頁或視窗：距上次讀取超過 30 秒就靜默重讀（不閃骨架、不動聯絡紀錄草稿與
+// 「下次聯絡」的選擇），同事剛處理過就提示一句。
+function activityKey(): string {
+  const d = detail.value
+  return d ? `${d.status}|${d.slot_id ?? ''}|${d.assigned_staff_id ?? ''}|${d.history?.length ?? 0}` : ''
+}
+// 切回時 focus 與 visibilitychange 通常連續觸發：重讀進行中就略過，只讀一次、只提示一次。
+let refreshing = false
+async function refreshIfStale() {
+  if (refreshing || document.visibilityState === 'hidden' || loading.value || busy.value || !detail.value) return
+  if (Date.now() - loadedAt < DETAIL_STALE_MS) return
+  refreshing = true
+  try {
+    const before = activityKey()
+    const handledBefore = handled.value?.at ?? null
+    const gen = generation
+    await load({ quiet: true })
+    if (gen !== generation || !before || activityKey() === before) return
+    const latest = handled.value
+    // 只有同事有比重讀前更新的動作才點名；變動來自家長或系統就用中性說法。
+    const newer = latest !== null && (handledBefore === null || Date.parse(latest.at) > Date.parse(handledBefore))
+    if (newer && latest.self) return
+    notifyWarning(newer ? `${latest.who}剛剛${latest.what}，畫面已更新。` : '這筆案件剛有更新，畫面已重新整理。')
+  } finally {
+    refreshing = false
+  }
 }
 
 // 已經開始的場次不能再排人（後端也會拒絕），名額滿或關閉的也不列。
@@ -748,6 +816,12 @@ const followUpShortcuts = [
 onMounted(() => {
   load()
   void loadStaff()
+  document.addEventListener('visibilitychange', refreshIfStale)
+  window.addEventListener('focus', refreshIfStale)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', refreshIfStale)
+  window.removeEventListener('focus', refreshIfStale)
 })
 // 「下一筆」是同一個元件換 id，router 不會重新掛載。
 watch(id, () => {
@@ -793,6 +867,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
             {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>
           </p>
+          <p v-if="handled" class="hint detail__handled">最後處理：{{ handled.who }}・{{ formatDateTime(handled.at) }}・{{ handled.what }}</p>
           <p v-if="detail.related_request_id" class="hint">
             重新預約自 <router-link :to="`/visit-requests/${detail.related_request_id}`">先前的案件</router-link>
           </p>

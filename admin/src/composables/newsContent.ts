@@ -25,6 +25,9 @@ export const NEWS_LIMITS = {
   displayCount: 30,
 } as const
 
+/** 消息清單兩段的標題 id（段落目錄用，composables/editorSections.ts）。一頁只有一個 NewsEntriesEditor。 */
+export const NEWS_SECTION_IDS = { articles: 'section-news-articles', events: 'section-news-events' } as const
+
 export type NewsMode = 'global' | 'campus'
 
 export function taipeiToday(): string {

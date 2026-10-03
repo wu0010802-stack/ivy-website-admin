@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, useId, useTemplateRef } from 'vue'
-import { ArrowRight, Delete, Picture, Plus } from '@element-plus/icons-vue'
-import type { CampusNewsArticlePayload, CampusNewsEventPayload, MediaAssetOut, NewsArticlePayload, NewsEventPayload } from '../api/types'
+import { computed, useId, useTemplateRef } from 'vue'
+import { ArrowRight, Delete, Plus } from '@element-plus/icons-vue'
+import type { CampusNewsArticlePayload, CampusNewsEventPayload, NewsArticlePayload, NewsEventPayload } from '../api/types'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { IMAGE_HINTS } from '../composables/contentHints'
-import { altAfterPick, isMediaId, useMediaThumbs } from '../composables/mediaThumbs'
+import { altAfterPick } from '../composables/mediaThumbs'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
 import {
   eventTimeError,
@@ -18,10 +18,11 @@ import {
   taipeiToday,
   useCollapsibleItems,
   webUrlError,
+  NEWS_SECTION_IDS,
   type NewsMode,
 } from '../composables/newsContent'
 import LengthHint from './LengthHint.vue'
-import MediaPickerDialog from './MediaPickerDialog.vue'
+import MediaRefField from './MediaRefField.vue'
 import NewsBodyEditor from './NewsBodyEditor.vue'
 import ScopeField from './ScopeField.vue'
 
@@ -41,10 +42,6 @@ const missingGlyphs = useTitleFontCoverage()
 const today = taipeiToday()
 const isGlobal = computed(() => props.mode === 'global')
 const featuredCount = computed(() => props.articles.filter((a) => (a as NewsArticlePayload).featured).length)
-
-// 封面縮圖：素材庫照片載縮圖（讀不到退回原檔），舊示意消息的代號走官網靜態素材；
-// 都讀不到時在框裡寫出來，不是只剩一個空白框。
-const thumbs = useMediaThumbs()
 
 function asGlobal<T>(entry: T): T & NewsArticlePayload & NewsEventPayload {
   return entry as T & NewsArticlePayload & NewsEventPayload
@@ -90,28 +87,11 @@ function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
     event.end_time = null
   }
 }
-
-const pickerVisible = ref(false)
-const pickingIndex = ref<number | null>(null)
-
-function pickImage(index: number) {
-  pickingIndex.value = index
-  pickerVisible.value = true
-}
-
-function onPickMedia(asset: MediaAssetOut) {
-  const article = pickingIndex.value === null ? null : props.articles[pickingIndex.value]
-  if (!article) return
-  // 素材庫已經填了圖片說明的話直接帶入，園方不用再打一次；換成另一張時換成新照片的說明。
-  article.alt = altAfterPick(article.alt, article.image, asset)
-  article.image = asset.id
-  thumbs.forget(asset.id)
-}
 </script>
 
 <template>
   <div class="section__title" style="margin-top: 20px">
-    <h2>最新消息</h2>
+    <h2 :id="NEWS_SECTION_IDS.articles" data-section-anchor tabindex="-1">最新消息</h2>
     <span class="hint">{{ articles.length }} / {{ maxArticles }} 則</span>
   </div>
   <p v-if="isGlobal" class="hint news-lead">
@@ -174,22 +154,18 @@ function onPickMedia(asset: MediaAssetOut) {
     </div>
     <div v-show="collapse.isOpen(article.id)" :id="`${uid}-article-${article.id}`" class="news-item__grid">
       <div class="news-item__photo">
-        <button
-          type="button"
-          class="news-item__thumb"
-          :class="{ 'is-broken': article.image && thumbs.isBroken(article.image) }"
+        <MediaRefField
+          v-model="article.image"
+          :campus-key="campusKey"
+          layout="stack"
+          ratio="1.55"
+          :clearable="false"
+          required
           :disabled="readOnly"
-          :aria-label="article.image && thumbs.isBroken(article.image) ? '讀不到這張照片，請重新選擇' : article.image ? '更換照片' : '從素材庫選擇照片'"
-          @click="pickImage(index)"
+          @picked="(asset, previous) => (article.alt = altAfterPick(article.alt, previous, asset))"
         >
-          <span v-if="article.image && thumbs.isBroken(article.image)" class="news-item__thumb-empty news-item__thumb-broken">
-            <el-icon><Picture /></el-icon>讀不到這張照片，請重新選擇
-          </span>
-          <img v-else-if="article.image" :src="thumbs.src(article.image)" alt="" loading="lazy" @error="thumbs.onError(article.image)" />
-          <span v-else class="news-item__thumb-empty"><el-icon><Picture /></el-icon>選擇照片</span>
-        </button>
-        <span v-if="article.image && !isMediaId(article.image)" class="hint">官網內建示意照片</span>
-        <span class="field-help">{{ IMAGE_HINTS.news }}</span>
+          <template #hint><span class="field-help">{{ IMAGE_HINTS.news }}</span></template>
+        </MediaRefField>
       </div>
       <div class="news-item__fields">
         <div class="field-row">
@@ -240,7 +216,7 @@ function onPickMedia(asset: MediaAssetOut) {
   </div>
 
   <div class="section__title" style="margin-top: 28px">
-    <h2>近期活動</h2>
+    <h2 :id="NEWS_SECTION_IDS.events" data-section-anchor tabindex="-1">近期活動</h2>
     <span class="hint">{{ events.length }} / {{ maxEvents }} 筆</span>
   </div>
   <div class="news-toolbar">
@@ -326,8 +302,6 @@ function onPickMedia(asset: MediaAssetOut) {
     </div>
   </div>
   </div>
-
-  <MediaPickerDialog v-model="pickerVisible" :campus-key="campusKey" @select="onPickMedia" />
 </template>
 
 <style scoped>
@@ -377,48 +351,6 @@ function onPickMedia(asset: MediaAssetOut) {
 .news-item__photo {
   display: grid;
   gap: 6px;
-}
-
-.news-item__thumb {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1.55;
-  padding: 0;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-2);
-  cursor: pointer;
-}
-
-.news-item__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.news-item__thumb-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 100%;
-  color: var(--ink-2);
-  font-size: 13px;
-}
-
-/* 素材讀不到：比照版位的失效提示，用錯誤色把框和字標出來。 */
-.news-item__thumb.is-broken {
-  border-color: var(--el-color-danger);
-}
-
-.news-item__thumb-broken {
-  padding: 8px;
-  color: var(--el-color-danger);
-  text-align: center;
-  line-height: 1.4;
 }
 
 .event-time {

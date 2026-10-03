@@ -855,7 +855,7 @@ class VisitRequestFilters:
         q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
         follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
         assignee: str | None = Query(
-            default=None, description="承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id"
+            default=None, description="承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id"
         ),
         source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
         created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
@@ -869,6 +869,11 @@ class VisitRequestFilters:
             pattern="^(pending|upcoming|past|cancelled)$",
             description="案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
         ),
+        open_only: bool = Query(
+            default=False,
+            alias="open",
+            description="只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -880,6 +885,7 @@ class VisitRequestFilters:
         self.created_to = created_to
         self.needs_attention = needs_attention
         self.group = group
+        self.open_only = open_only
 
     def apply(self, stmt, user: User, capability: str):
         if self.follow_up_due:
@@ -897,10 +903,15 @@ class VisitRequestFilters:
             stmt = stmt.where(VisitRequest.status == self.status)
         if self.group:
             stmt = stmt.where(status_groups.group_condition(self.group))
+        if self.open_only:
+            stmt = stmt.where(status_groups.open_condition())
         if self.assignee == "me":
             stmt = stmt.where(VisitRequest.assigned_staff_id == user.id)
         elif self.assignee == "none":
             stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
+        elif self.assignee == "inactive":
+            # 承辦人帳號已停用、案件還掛在他名下：要有人重新指派。
+            stmt = stmt.where(VisitRequest.assigned_staff_id.in_(select(User.id).where(User.is_active.is_(False))))
         elif self.assignee:
             try:
                 assignee_id = uuid.UUID(self.assignee)
@@ -936,6 +947,7 @@ class VisitRequestFilters:
         applied = {
             "status": self.status,
             "group": self.group,
+            "open": True if self.open_only else None,
             "source": self.source,
             "assignee": self.assignee,
             "created_from": self.created_from.isoformat() if self.created_from else None,

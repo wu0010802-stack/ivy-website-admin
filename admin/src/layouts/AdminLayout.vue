@@ -8,6 +8,7 @@ import { useOpenRequestsStore } from '../stores/openRequests'
 import { NAV_GROUPS, SEARCH_ONLY_GROUP, canOpenPath } from '../router/nav'
 import { WEBSITE_ASSET_BASE } from '../config'
 import AdminSidebar from '../components/AdminSidebar.vue'
+import SessionLimitNotice from '../components/SessionLimitNotice.vue'
 
 const auth = useAuthStore()
 const openRequests = useOpenRequestsStore()
@@ -131,7 +132,7 @@ async function handleLogout() {
         <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
         <span id="top-site-note" class="visually-hidden">{{ websiteNote }}</span>
       </header>
-      <main id="main" ref="main" class="main" tabindex="-1"><router-view /></main>
+      <main id="main" ref="main" class="main" tabindex="-1"><SessionLimitNotice /><router-view /></main>
     </div>
   </div>
 </template>

@@ -1238,7 +1238,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
   group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
-  assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : '指定的同事'}`,
+  assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : v === 'inactive' ? '承辦人已停用' : '指定的同事'}`,
+  open: (v) => (v ? '只匯出還沒結案的案件' : null),
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
   needs_attention: (v) => (v ? '只匯出待人工處理的案件' : null),
   has_search: (v) => (v ? '有用搜尋字篩選' : null),

@@ -223,7 +223,7 @@ describe('MediaSlotField', () => {
     slot.value = { media_id: 'm1', focus_x: 10, focus_y: 20 }
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/media/m1')
-    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
+    expect(wrapper.find('.media-field__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v1')
     expect(wrapper.text()).toContain('garden.jpg')
     expect(wrapper.get('.focus-picker__pin').attributes('style')).toContain('left: 10%')
 
@@ -251,7 +251,7 @@ describe('MediaSlotField', () => {
     await flushPromises()
     expect(wrapper.find('.focus-picker').exists()).toBe(false)
     expect(wrapper.text()).toContain('0:12')
-    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
+    expect(wrapper.find('.media-field__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
   })
 
   it('舊縮圖（寬度不明）只當小圖，點焦點改在原檔上點；載入的素材回報給頁面', async () => {
@@ -262,7 +262,7 @@ describe('MediaSlotField', () => {
       modelValue: { media_id: 'm1', focus_x: null, focus_y: null }, builtin: 'x', onAsset: (a: MediaAssetOut | null) => reported.push(a),
     }))
     await flushPromises()
-    expect(wrapper.find('.slot__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v9')
+    expect(wrapper.find('.media-field__thumb img').attributes('src')).toBe('/api/website/v1/admin/media/m1/variants/thumbnail?v=v9')
     expect(wrapper.find('.focus-picker__stage img').attributes('src')).toBe('/api/website/v1/admin/media/m1/file')
     expect(reported.map((a) => a?.id)).toEqual(['m1'])
   })

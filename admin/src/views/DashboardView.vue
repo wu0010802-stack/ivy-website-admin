@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatTime } from '../api/labels'
+import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
+import type { VisitRequestDetailOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
@@ -67,6 +68,10 @@ interface DashboardSummary {
   campuses_slots_without_openings?: string[]
   // 開放線上表單，但「預約文案」沒有發布中的同意文字：官網對家長顯示暫停（2026-09-26 起）。
   failed_notifications: number
+  // 指派給我、還沒結案的件數（2026-10-03 第八輪，和列表 ?assignee=me&open=1 同一批）。
+  my_open_cases?: number
+  // 承辦人帳號已停用、還沒結案的件數；只有能重新指派的人（booking.manage）才有。
+  inactive_assignee_open_cases?: number
 }
 
 interface PendingReview { kind: string; campus_key: string | null; revision_id: string; submitted_by_email: string | null }
@@ -82,6 +87,24 @@ const authStore = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const { can } = usePermissions()
 const summary = ref<DashboardSummary | null>(null)
+// 我承辦的案件：最多列 5 筆（最早送出的在前），其餘點「查看全部」。不算待辦。
+const MINE_LIMIT = 5
+const MINE_LIST_PATH = '/visit-requests?assignee=me&open=1&order=oldest'
+const mine = ref<VisitRequestDetailOut[]>([])
+const myOpenCases = computed(() => summary.value?.my_open_cases ?? 0)
+const inactiveAssigneeCases = computed(() => summary.value?.inactive_assignee_open_cases ?? 0)
+async function loadMine() {
+  if (!(myOpenCases.value > 0 && can('booking.read'))) {
+    mine.value = []
+    return
+  }
+  try {
+    mine.value = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?assignee=me&open=true&order=oldest&page_size=${MINE_LIMIT}`)
+  } catch {
+    // 讀不到名單時這一區不顯示；總覽其他部分照常。
+    mine.value = []
+  }
+}
 const loading = ref(true)
 const error = ref<string | null>(null)
 // 背景重讀（切回這個分頁、按「重新整理」）：畫面保留舊資料，不閃骨架。
@@ -118,6 +141,7 @@ async function load(options: { quiet?: boolean } = {}) {
     refreshFailed.value = false
     // 待審清單在背景補上，最急的參觀數字不用等它。
     void loadReviews()
+    void loadMine()
   } catch {
     if (quiet) refreshFailed.value = true
     else error.value = '無法讀取總覽資料'
@@ -335,6 +359,7 @@ const hasTodo = computed(() => {
   if (!s) return false
   return (
     openCount.value > 0 ||
+    inactiveAssigneeCases.value > 0 ||
     reschedules.value > 0 ||
     (myNotices.value > 0 && canOpen('/releases')) ||
     needsAttention.value > 0 ||
@@ -382,6 +407,21 @@ const hasTodo = computed(() => {
           </li>
         </ol>
       </section>
+      <section v-if="mine.length" class="dash__mine" aria-labelledby="mine-title">
+        <div class="section__title">
+          <h2 id="mine-title">我承辦的案件</h2>
+          <router-link class="dash__mine-all" :to="MINE_LIST_PATH">查看全部 {{ myOpenCases }} 件 <span aria-hidden="true">→</span></router-link>
+        </div>
+        <ol class="panel today mine">
+          <li v-for="row in mine" :key="row.id">
+            <router-link :to="`/visit-requests/${row.id}`">
+              <strong class="today__name">{{ row.parent_name }}</strong>
+              <span class="today__campus">{{ visitDisplay(row).label }}<template v-if="row.slot"><span aria-hidden="true">・</span>{{ formatShortSlotWhen(row.slot) }}</template></span>
+              <span class="today__go" aria-hidden="true">→</span>
+            </router-link>
+          </li>
+        </ol>
+      </section>
       <div class="dash__workspace">
         <section class="dash__tasks" aria-labelledby="tasks-title">
           <div class="section__title">
@@ -416,6 +456,10 @@ const hasTodo = computed(() => {
             <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
               <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
               <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><p id="task-arrival-d">家長來了就標記「已到場」，沒來就標記「未到場」；沒標記的話，成效統計的到場數字會偏低。</p><span id="task-arrival-a" class="task__action">查看待標記的案件 <span aria-hidden="true">→</span></span></div>
+            </router-link>
+            <router-link v-if="inactiveAssigneeCases > 0" class="task" to="/visit-requests?assignee=inactive&open=1" v-bind="taskAria('orphaned')">
+              <span id="task-orphaned-n" class="task__number">{{ inactiveAssigneeCases }}</span>
+              <div><h3 id="task-orphaned-t">承辦人已停用，案件還沒結案</h3><p id="task-orphaned-d">這些案件的承辦人帳號已經停用，沒有人會收到提醒。請點進去重新指派給其他同事。</p><span id="task-orphaned-a" class="task__action">查看要重新指派的案件 <span aria-hidden="true">→</span></span></div>
             </router-link>
             <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
               <span id="task-notices-n" class="task__number">{{ myNotices }}</span>
@@ -538,6 +582,9 @@ const hasTodo = computed(() => {
 .dash__summary dd.dash__more { display: block; margin: 0; font-size: 13px; font-weight: 400; line-height: inherit; }
 .dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
 .dash__today { margin-bottom: 28px; }
+.dash__mine { margin-bottom: 28px; }
+.dash__mine-all { font-size: 13px; text-decoration: underline; }
+.mine a { grid-template-columns: minmax(0, 1fr) auto auto; }
 /* 從「看今天的名單」捲過來時，標題不要被頂欄蓋住。 */
 .dash__today h2 { scroll-margin-top: calc(var(--top-h) + 16px); outline: none; }
 .today { list-style: none; margin: 0; padding: 0; }

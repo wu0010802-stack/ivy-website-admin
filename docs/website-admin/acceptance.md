@@ -451,3 +451,16 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | E25 | 1440／390、鍵盤 | 通過（1440／390 截圖與 keyboard 溢出檢查；Safari／iOS 未驗證） | stack `keyboard.spec.ts` 後台溢出（含 `/analytics`）；截圖 `output/playwright/analytics-{1440,390}.png` |
 | E26 | 期間跨 10-01 | 通過 | `test_period_crossing_self_booking_switch_has_no_confirmation_rate`；既有 `analyticsFunnel.test.ts` 確認率測試 |
 | E27 | 流量期間跨 09-30 | 通過 | `traffic.test.ts`「每日瀏覽趨勢」兩項 |
+
+## 後台第八輪 UX（2026-10-04 實作，尚未部署）
+
+| 項目 | 狀態 | 驗證 |
+|---|---|---|
+| 長編輯頁段落目錄（5 頁） | 通過 | `uxRound8Nav.test.ts`；Playwright 1440／1280／390 無橫捲 |
+| 選圖統一（MediaFieldCard／MediaRefField，4 處改用） | 通過 | `mediaField.test.ts`、`mediaSlots.test.ts`、`ux20260928E.test.ts` |
+| 存檔錯誤定位到哪一則哪一欄 | 已於 10-02 第七輪完成 | `ContentEditor.vue:415-420,589-599` |
+| 兩人同時處理（最後處理、衝突重讀、切回更新、中文訊息） | 通過 | `uxRound8Cases.test.ts`、`test_visit_workflow.py` |
+| 我承辦的未結案、承辦人已停用 | 通過 | `uxRound8Cases.test.ts`、`test_dashboard_my_cases.py` |
+| 登入逾時接續、12 小時前提醒 | 通過（單元測試；兩分頁換帳號實機未驗證） | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py` |
+
+未驗證：Safari／iOS 實機；正式站（未部署）。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。

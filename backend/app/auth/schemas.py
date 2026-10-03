@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unicodedata
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
@@ -84,6 +85,8 @@ class MeResponse(BaseModel):
     csrf_token: str
     user: "UserOut"
     features: FeatureFlags
+    # 這次登入最晚到什麼時候（登入滿 12 小時，不含閒置逾時）；後台剩 15 分鐘時提醒先儲存。
+    session_max_expires_at: datetime | None = None
 
 
 class UserOut(BaseModel):

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, useTemplateRef } from 'vue'
+import { computed, onMounted, useTemplateRef } from 'vue'
+import type { EditorSection } from '../composables/editorSections'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useTitleFontCoverage } from '../composables/useTitleFontCoverage'
@@ -28,6 +29,11 @@ const EMPTY: AdmissionContentPayload = {
 const editor = useContentItem<AdmissionContentPayload>('admission_content', EMPTY)
 const missingGlyphs = useTitleFontCoverage()
 const form = editor.form
+const navSections = computed<EditorSection[]>(() => [
+  { id: 'section-admission-steps', label: '入學流程', note: `${form.value.steps.length} 步` },
+  { id: 'section-admission-phases', label: '新生入園須知', note: `${form.value.phases.length} 個階段` },
+  { id: 'section-admission-fees', label: '收退費辦法' },
+])
 // 草稿預覽讀的是最新「已儲存」的版本，未儲存的修改看不到。
 const draftPreviewUrl = `${WEBSITE_ASSET_BASE}/preview?page=admission`
 
@@ -79,7 +85,7 @@ onMounted(editor.load)
 </script>
 
 <template>
-  <ContentEditor :editor="editor">
+  <ContentEditor :editor="editor" :sections="navSections">
     <template #lead>
       官網「入學資訊」頁（/admission）的內容：入學流程、新生入園須知、補助與退費規定。
       各區大標與「分班對照」的計算規則固定在官網上，這裡不用填。
@@ -97,7 +103,7 @@ onMounted(editor.load)
 
       <!-- 入學流程 -->
       <div class="section__title" style="margin-top: 20px">
-        <h2>入學流程</h2>
+        <h2 id="section-admission-steps" data-section-anchor tabindex="-1">入學流程</h2>
         <span class="hint">{{ form.steps.length }} / {{ MAX_STEPS }} 步</span>
       </div>
       <div ref="stepsList">
@@ -130,7 +136,7 @@ onMounted(editor.load)
 
       <!-- 新生入園須知 -->
       <div class="section__title" style="margin-top: 28px">
-        <h2>新生入園須知</h2>
+        <h2 id="section-admission-phases" data-section-anchor tabindex="-1">新生入園須知</h2>
         <span class="hint">{{ form.phases.length }} / {{ MAX_PHASES }} 個階段</span>
       </div>
       <div ref="phasesList">
@@ -189,7 +195,7 @@ onMounted(editor.load)
 
       <!-- 收退費辦法 -->
       <div class="section__title" style="margin-top: 28px">
-        <h2>收退費辦法</h2>
+        <h2 id="section-admission-fees" data-section-anchor tabindex="-1">收退費辦法</h2>
       </div>
       <el-form-item label="說明（大標旁的一段話）">
         <el-input v-model="form.fee_intro" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" />

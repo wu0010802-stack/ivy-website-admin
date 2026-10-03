@@ -282,10 +282,25 @@ async function toggleActive(target: UserOut) {
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     ElMessage.success(updated.is_active ? `已恢復 ${staffWithEmail(updated)} 的登入` : `已停用 ${staffWithEmail(updated)}`)
+    if (!updated.is_active) void warnOpenCases(updated)
   } catch (err) {
     notifyError(apiErrorMessage(err, '更新啟用狀態失敗'))
   } finally {
     togglingId.value = null
+  }
+}
+
+// 停用不會自動改指派（2026-10-03 第八輪 D10）：對方還有沒結案的案件就提醒件數，請人到
+// 列表用「承辦人已停用」篩出來重新指派。查不到件數時不另外跳錯，停用本身已經成功。
+async function warnOpenCases(target: UserOut) {
+  try {
+    const counts = await api.get<Record<string, number>>(`/admin/visit-requests/group-counts?assignee=${target.id}&open=true`)
+    const total = Object.values(counts ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+    if (total > 0) {
+      notifyWarning(`${staffLabel(target)}還有 ${total} 件沒結案的參觀案件：到「參觀案件」的承辦人篩選選「承辦人已停用」，重新指派給其他同事。`)
+    }
+  } catch {
+    /* 停用已成功；件數查不到就不提醒 */
   }
 }
 

@@ -62,3 +62,11 @@ export function altAfterPick(currentAlt: string | null | undefined, previousId: 
   if (previousId && previousId !== asset.id) return assetAlt
   return currentAlt?.trim() ? currentAlt : assetAlt
 }
+
+/**
+ * 選圖欄位的狀態（components/MediaFieldCard.vue）：
+ * empty＝沒選也沒有內建、builtin＝沒選、官網用內建素材、legacy＝舊示意內容的內建代號、
+ * media＝素材庫的素材、broken＝素材庫的素材但縮圖與原檔都讀不到、missing＝讀不到素材資料
+ * （已刪除或沒有權限）。
+ */
+export type MediaFieldState = 'empty' | 'builtin' | 'legacy' | 'media' | 'broken' | 'missing'

@@ -511,3 +511,49 @@ async def test_dashboard_counts_open_requests_with_hold_deadline(admin_client, m
     assert other_campus["new_requests"] == 0
     assert other_campus["awaiting_confirmation"] == 0
     assert other_campus["next_hold_expires_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_invalid_transition_message_names_status_in_chinese(admin_client, db_session):
+    """兩位櫃台同時處理：另一位已經結案時，錯誤訊息寫中文狀態，不寫 cancelled 之類的代碼。"""
+    done = await legacy_request(db_session, status="completed", parent_name="陳媽媽", phone="0912000801")
+    resp = await admin_client.post(f"/api/website/v1/admin/visit-requests/{done}/cancel")
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "INVALID_TRANSITION"
+    assert resp.json()["detail"]["message"] == "這筆案件現在是「已到場」，不能取消"
+
+    cancelled = await legacy_request(db_session, status="cancelled", parent_name="林媽媽", phone="0912000802")
+    slot = await _create_slot(admin_client)
+    resp = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{cancelled}/confirm", json={"slot_id": slot["id"]}
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["message"] == "這筆案件現在是「已取消」，不能排入場次"
+
+
+@pytest.mark.asyncio
+async def test_invalid_transition_message_update_details_status_in_chinese(db_session):
+    """家長改資料時，如果案件已不是已確認狀態，錯誤訊息寫中文狀態，不寫代碼。"""
+    from app.booking import workflow_service
+
+    cancelled = await legacy_request(db_session, status="cancelled", parent_name="王媽媽", phone="0912000803")
+
+    # 取得案件物件以傳給 workflow_service
+    from sqlalchemy import select
+    from app.booking.models import VisitRequest
+    result = await db_session.execute(select(VisitRequest).where(VisitRequest.id == cancelled))
+    visit_request = result.scalar_one()
+
+    # 嘗試修改資料，應該因為狀態不是 CONFIRMED 而失敗
+    with pytest.raises(workflow_service.InvalidTransition) as exc_info:
+        await workflow_service.update_details_by_parent(
+            db_session,
+            visit_request,
+            {"parent_name": "新家長名稱"},
+            expected_version=0
+        )
+
+    # 驗證訊息中有中文狀態名、沒有英文狀態代碼
+    message = exc_info.value.message
+    assert "已取消" in message
+    assert "cancelled" not in message

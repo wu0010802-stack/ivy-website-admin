@@ -1,20 +1,34 @@
+import { h } from 'vue'
 import type { Router } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { UnauthorizedReason } from '../api/client'
 import { notifyWarning } from '../composables/notify'
+import { waitForSignIn } from '../composables/sessionChannel'
 import { useAuthStore } from '../stores/auth'
 import { hasUnsavedChanges, leaveWithoutAsking } from '../composables/useUnsavedChanges'
 
 let recovering = false
 
+const RECOVER_LEAD: Record<UnauthorizedReason, string> = {
+  expired: '登入已逾時，',
+  'other-user': '這台電腦已經換成別的帳號登入，',
+  'session-changed': '這台電腦的登入狀態已經改變（多半是換了別的帳號登入），',
+}
+
+/** 測試用：上一個測試若停在等待登入的對話框，recovering 會一直是 true，吞掉之後的 401。 */
+export function resetUnauthorizedForTests(): void {
+  recovering = false
+}
+
 /**
- * 導回登入頁時帶 reason=expired（跟 router/index.ts 的 signin／offline 同一組），
+ * 導回登入頁時帶 reason（預設 expired，跟 router/index.ts 的 signin／offline 同一組），
  * 登入頁據此說明是逾時、登入後會回到剛才的頁面。
  */
-function loginRoute(router: Router) {
+function loginRoute(router: Router, reason: UnauthorizedReason) {
   const current = router.currentRoute.value
   return {
     name: 'login',
-    query: { ...(current.fullPath !== '/' ? { redirect: current.fullPath } : {}), reason: 'expired' },
+    query: { ...(current.fullPath !== '/' ? { redirect: current.fullPath } : {}), reason },
   }
 }
 
@@ -27,17 +41,17 @@ function loginRoute(router: Router) {
  *
  * 目前頁面有未儲存的修改時不導頁（見 recoverInPlace）。
  */
-export function redirectToLoginOnUnauthorized(router: Router): () => void {
-  return () => {
+export function redirectToLoginOnUnauthorized(router: Router): (reason?: UnauthorizedReason) => void {
+  return (reason = 'expired') => {
     const authStore = useAuthStore()
     if (!authStore.user) return
     if (hasUnsavedChanges()) {
-      void recoverInPlace(router)
+      void recoverInPlace(router, reason)
       return
     }
     authStore.clearSession()
     if (router.currentRoute.value.name === 'login') return
-    void router.replace(loginRoute(router))
+    void router.replace(loginRoute(router, reason))
   }
 }
 
@@ -49,16 +63,24 @@ export function redirectToLoginOnUnauthorized(router: Router): () => void {
  * 改成留在原頁：請本人在新分頁重新登入，回來按「我已重新登入」，這個分頁
  * 重新取得登入狀態與新的 CSRF token 後再按一次儲存。選「放棄修改並重新登入」
  * 才照原本的流程導去登入頁（不再問一次放棄修改）。
+ * 別的分頁登入成功時（composables/sessionChannel.ts）自動接續；登入的不是同一個帳號就不接續。
  */
-async function recoverInPlace(router: Router): Promise<void> {
+async function recoverInPlace(router: Router, reason: UnauthorizedReason): Promise<void> {
   if (recovering) return
   recovering = true
   const authStore = useAuthStore()
+  // 逾時前登入的是誰：別的分頁登入的若不是同一人，不能接續（修改會用別人的名義存）。
+  const expectedUserId = authStore.user?.id ?? null
+  let signIn = waitForSignIn()
   try {
     for (;;) {
-      const resumed = await ElMessageBox.confirm(
-        '登入已逾時，這一頁的修改還沒儲存。請在新分頁打開後台重新登入，回到這裡按「我已重新登入」，再按一次儲存。',
-        '登入已逾時',
+      const loginHref = router.resolve({ name: 'login', query: { reason } }).href
+      const dialog = ElMessageBox.confirm(
+        h('div', null, [
+          h('p', null, `${RECOVER_LEAD[reason]}這一頁的修改還沒儲存。請在新分頁用原本的帳號重新登入：登入後這裡會自動接續，再按一次儲存。`),
+          h('p', null, [h('a', { href: loginHref, target: '_blank', rel: 'noopener' }, '在新分頁打開登入頁 ↗')]),
+        ]),
+        reason === 'expired' ? '登入已逾時' : '登入帳號已改變',
         {
           confirmButtonText: '我已重新登入',
           cancelButtonText: '放棄修改並重新登入',
@@ -67,20 +89,36 @@ async function recoverInPlace(router: Router): Promise<void> {
           closeOnClickModal: false,
           closeOnPressEscape: false,
         },
-      ).then(() => true, () => false)
-      if (!resumed) {
-        const route = loginRoute(router)
+      ).then(() => 'confirm' as const, () => 'cancel' as const)
+      // 使用者按按鈕，或別的分頁登入成功（sessionChannel），哪個先到就照哪個走。
+      const outcome = await Promise.race([dialog, signIn.promise.then(() => 'signed-in' as const)])
+      if (outcome === 'cancel') {
+        const route = loginRoute(router, reason)
         authStore.clearSession()
         await leaveWithoutAsking(() => router.replace(route))
         return
       }
-      if (await authStore.refreshSession()) {
+      if (outcome === 'signed-in') {
+        // 對話框還開著：關掉它（之後它的 promise 結果已經沒人等，不影響）。
+        ElMessageBox.close()
+        signIn.cancel()
+        signIn = waitForSignIn()
+      }
+      const refreshed = await authStore.refreshSession(expectedUserId ?? undefined)
+      if (refreshed === 'ok') {
         ElMessage.success('已恢復登入，請再按一次儲存。')
         return
+      }
+      if (refreshed === 'other-user') {
+        // 這個瀏覽器現在登入的是別人：refreshSession 沒有寫入任何對方的資料。
+        // 對方的 session 在 cookie 裡，按儲存會被當成對方，所以不接續，等原本的人登入。
+        notifyWarning('新分頁登入的是另一個帳號。這一頁的修改要用原本的帳號儲存，請先登出那個帳號，再用原本的帳號登入。')
+        continue
       }
       notifyWarning('還沒有重新登入：請先在新分頁登入後台，再回來按「我已重新登入」。')
     }
   } finally {
+    signIn.cancel()
     recovering = false
   }
 }

@@ -22,6 +22,13 @@ logger = logging.getLogger("app.auth")
 # 閒置逾時另見 settings.session_idle_minutes；expires_at 存的是「滑動」的
 # 到期時間（最後一次活動＋閒置分鐘數，但不超過 created_at＋SESSION_TTL）。
 SESSION_TTL = timedelta(hours=12)
+
+
+def session_max_expiry(session: Session) -> datetime:
+    """登入滿 12 小時的時間：閒置延長推不過這個上限（_sliding_expiry）。"""
+    return session.created_at + SESSION_TTL
+
+
 # 每個請求都寫一次 DB 太浪費：到期時間至少能往後推這麼多（且不超過閒置
 # 窗口的四分之一）才寫。代價是實際閒置逾時最多提早這麼多分鐘，可以接受。
 SESSION_REFRESH_STEP = timedelta(minutes=5)
