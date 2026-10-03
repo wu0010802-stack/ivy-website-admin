@@ -3,16 +3,16 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import Text, cast, func, select
+from sqlalchemy import Date, Text, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.history import Actor
 from app.booking.models import VisitEventSource, VisitRequest
 from app.common import ratelimit
-from app.common.timezones import local_day_bounds_utc
+from app.common.timezones import OPERATING_TZ, local_day_bounds_utc
 from app.operations import public_caps
 from app.operations.models import (
     CANCEL_REASON_PARENT,
@@ -232,3 +232,56 @@ async def get_unassigned_clicks(db: AsyncSession, period: FunnelRange = FunnelRa
     for event_type, count in rows:
         counts[event_type.value] = count
     return counts
+
+
+# 每日趨勢最多畫幾天（和漏斗的自訂區間上限相同）。
+TREND_MAX_DAYS = 400
+
+
+async def get_event_trend(db: AsyncSession, campus_key: str, period: FunnelRange, today: date) -> dict:
+    """每日事件數（台北日期），沒有事件的日子也列。沒給開始日時從這校第一筆事件那天起；
+    超過 TREND_MAX_DAYS 天時只回最近的（truncated）。確認事件不列：2026-10-01 起它和
+    送出需求同時發生，畫出來只是同一條線。"""
+    date_to = period.date_to or today
+    date_from = period.date_from
+    if date_from is None:
+        first = await db.scalar(select(func.min(AnalyticsEvent.created_at)).where(AnalyticsEvent.campus_key == campus_key))
+        date_from = min(first.astimezone(OPERATING_TZ).date(), date_to) if first is not None else date_to
+    truncated = (date_to - date_from).days + 1 > TREND_MAX_DAYS
+    if truncated:
+        date_from = date_to - timedelta(days=TREND_MAX_DAYS - 1)
+
+    # 先在子查詢換成台北日期再分組：時區字串若在 SELECT 與 GROUP BY 各綁一次，
+    # PostgreSQL 會當成兩個不同的式子。
+    per_event = (
+        select(
+            cast(func.timezone(OPERATING_TZ.key, AnalyticsEvent.created_at), Date).label("day"),
+            AnalyticsEvent.event_type.label("event_type"),
+        )
+        .where(AnalyticsEvent.campus_key == campus_key, *FunnelRange(date_from, date_to).conditions())
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(per_event.c.day, per_event.c.event_type, func.count()).group_by(per_event.c.day, per_event.c.event_type)
+        )
+    ).all()
+    days = {
+        date_from + timedelta(days=offset): {"request_created": 0, "visit_completed": 0, "visit_cancelled": 0, "clicks": 0}
+        for offset in range((date_to - date_from).days + 1)
+    }
+    for day, event_type, count in rows:
+        bucket = days.get(day)
+        if bucket is None:
+            continue
+        if event_type in PUBLIC_REPORTABLE_EVENT_TYPES:
+            bucket["clicks"] += count
+        elif event_type.value in bucket:
+            bucket[event_type.value] += count
+    return {
+        "campus_key": campus_key,
+        "date_from": date_from,
+        "date_to": date_to,
+        "truncated": truncated,
+        "days": [{"day": day, **values} for day, values in sorted(days.items())],
+    }

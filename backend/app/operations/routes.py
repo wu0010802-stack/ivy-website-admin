@@ -22,6 +22,7 @@ from app.auth.permissions import (
 )
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
+from app.common.timezones import now_utc, today_local
 from app.notifications.models import UserNotification
 from app.operations import (
     analytics_service,
@@ -176,7 +177,9 @@ async def get_traffic(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
-    return await traffic_service.get_traffic_summary(db, days)
+    summary = await traffic_service.get_traffic_summary(db, days)
+    summary["as_of"] = now_utc()
+    return summary
 
 
 @router.get("/admin/dashboard")
@@ -226,6 +229,8 @@ class FunnelEntryOut(BaseModel):
 
 
 class AnalyticsFunnelOut(BaseModel):
+    # 伺服器產生這份統計的時間（畫面寫「更新」）。
+    as_of: datetime
     campus_key: str
     date_from: date | None
     date_to: date | None
@@ -277,6 +282,7 @@ async def get_analytics_funnel(
     funnel = await analytics_service.get_campus_funnel(db, campus_key, period)
     if campus_scope(current_user) is None:
         funnel["unassigned_clicks"] = await analytics_service.get_unassigned_clicks(db, period)
+    funnel["as_of"] = now_utc()
     return funnel
 
 
@@ -348,6 +354,44 @@ async def get_booking_outcomes(
     return await booking_outcomes_service.booking_outcomes(
         db, campus_keys, analytics_service.FunnelRange(date_from, date_to)
     )
+
+
+class EventTrendDayOut(BaseModel):
+    day: date
+    request_created: int
+    visit_completed: int
+    visit_cancelled: int
+    # 四種預約鈕點擊的合計（表單、LINE、電話、外部網站）。
+    clicks: int
+
+
+class EventTrendOut(BaseModel):
+    as_of: datetime
+    campus_key: str
+    # 實際畫出的區間（沒給開始日＝從這校第一筆事件那天起）。
+    date_from: date
+    date_to: date
+    # 超過 400 天時只回最近 400 天。
+    truncated: bool
+    unit: Literal["event"]
+    # 每天一列，沒有事件的日子也列（全是 0）。
+    days: list[EventTrendDayOut]
+
+
+@router.get("/admin/analytics/event-trend", response_model=EventTrendOut)
+async def get_event_trend(
+    campus_key: str,
+    date_from: date | None = Query(None, alias="from", description="台北日期（含），省略＝從第一筆事件"),
+    date_to: date | None = Query(None, alias="to", description="台北日期（含），省略＝今天"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    _validate_range(date_from, date_to)
+    trend = await analytics_service.get_event_trend(
+        db, campus_key, analytics_service.FunnelRange(date_from, date_to), today_local()
+    )
+    return {**trend, "as_of": now_utc(), "unit": "event"}
 
 
 class AuditLogEntryOut(BaseModel):
