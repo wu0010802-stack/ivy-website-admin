@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.auth.routes import router as auth_router
+from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware
 from app.common.request_id import REQUEST_ID_HEADER, RequestIdMiddleware, request_id_of
 from app.common.ratelimit import RateLimiter
@@ -199,6 +200,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(auth_router)
+    app.include_router(password_reset_router)
     app.include_router(google_auth_router)
     app.include_router(line_auth_router)
     app.include_router(campuses_router)

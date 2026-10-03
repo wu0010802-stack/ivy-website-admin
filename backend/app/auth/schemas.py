@@ -70,9 +70,11 @@ class LoginRequest(BaseModel):
 
 
 class FeatureFlags(BaseModel):
-    """後台依部署開關決定要不要顯示的功能（目前只有招生入學）。"""
+    """後台依部署設定決定要不要顯示或啟用的功能。"""
 
     admissions: bool
+    # 能不能寄重設密碼連結：有後台網址與寄信管道才是 True（password_reset.email_enabled）。
+    password_reset_email: bool = False
 
 
 class LoginResponse(BaseModel):
@@ -179,3 +181,27 @@ class PasswordChangeRequest(BaseModel):
 
 class UserCapabilitiesRequest(BaseModel):
     capabilities: list[str] = Field(default_factory=list, max_length=5)
+
+
+class PasswordResetLinkOut(BaseModel):
+    """寄出重設密碼連結的結果：寄到哪個 Email、幾點前有效、有沒有讓舊連結失效。"""
+
+    sent_to: str
+    expires_at: datetime
+    replaced_previous: bool
+
+
+class PasswordResetTokenRequest(BaseModel):
+    """打開重設連結時確認連結；token 放本文，不放網址，免得進 access log。"""
+
+    token: str = Field(min_length=1, max_length=128)
+
+
+class PasswordResetVerifyOut(BaseModel):
+    email: str
+    expires_at: datetime
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=128)
+    new_password: NewPassword

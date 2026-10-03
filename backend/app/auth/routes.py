@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import service
+from app.auth import password_reset, service
 from app.auth.deps import (
     CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
@@ -120,7 +120,10 @@ def _set_session_cookie(response: Response, settings: Settings, raw_token: str) 
 
 
 def _features(settings: Settings) -> FeatureFlags:
-    return FeatureFlags(admissions=settings.admissions_enabled)
+    return FeatureFlags(
+        admissions=settings.admissions_enabled,
+        password_reset_email=password_reset.email_enabled(settings),
+    )
 
 
 @router.get("/auth/providers", response_model=AuthProviders)

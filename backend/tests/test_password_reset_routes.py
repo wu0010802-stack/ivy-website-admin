@@ -1,0 +1,180 @@
+"""總管理者寄重設密碼連結（2026-10-03）：寄出、確認連結、設定新密碼。"""
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+from datetime import datetime, timedelta, timezone
+
+import httpx
+import pytest
+from sqlalchemy import select, update
+
+from app.auth import password_reset
+from app.auth.models import PasswordResetToken, Role, User
+from app.operations.models import AuditLogEntry
+from tests.conftest import _create_user, _logged_in_client, freeze_rate_limit_clock
+
+API = "/api/website/v1"
+STAFF = "staff@ivy.example"
+STAFF_PW = "staff-password-123"
+NEW_PW = "brand-new-password-456"
+LOGIN = f"{API}/auth/login"
+VERIFY = f"{API}/auth/password-reset/verify"
+COMPLETE = f"{API}/auth/password-reset/complete"
+
+
+@pytest.fixture
+def mailer(app, monkeypatch, recording_mail_adapter):
+    """有後台網址、有寄信管道；寄出的信記在 recording_mail_adapter.sent。"""
+    app.state.settings = app.state.settings.model_copy(update={"admin_origin": "http://test"})
+    monkeypatch.setattr(password_reset, "mail_adapter", lambda settings: recording_mail_adapter)
+    return recording_mail_adapter
+
+
+def _anon(app) -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+
+
+def _token_from(mail: dict) -> str:
+    match = re.search(r"/admin/reset-password#token=([A-Za-z0-9_\-]+)", mail["body"])
+    assert match, mail["body"]
+    return match.group(1)
+
+
+async def _send(admin_client, user_id, mailer) -> str:
+    response = await admin_client.post(f"{API}/admin/users/{user_id}/password-reset-link")
+    assert response.status_code == 200, response.text
+    return _token_from(mailer.sent[-1])
+
+
+async def _audits(db_session, action: str) -> list[AuditLogEntry]:
+    db_session.expire_all()
+    result = await db_session.execute(
+        select(AuditLogEntry).where(AuditLogEntry.action == action).order_by(AuditLogEntry.created_at)
+    )
+    return list(result.scalars())
+
+
+async def _live_tokens(db_session, user_id) -> list[PasswordResetToken]:
+    db_session.expire_all()
+    result = await db_session.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.revoked_at.is_(None),
+        )
+    )
+    return list(result.scalars())
+
+
+# ------------------------------------------------------------ 寄出
+
+
+async def test_super_admin_sends_link_to_colleague(admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    target_id = target.id  # _audits 會 expire_all，之後不能再讀 target 的屬性
+    response = await admin_client.post(f"{API}/admin/users/{target_id}/password-reset-link")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["sent_to"] == STAFF
+    assert body["replaced_previous"] is False
+    expires = datetime.fromisoformat(body["expires_at"])
+    assert timedelta(minutes=29) < expires - datetime.now(timezone.utc) <= timedelta(minutes=30)
+
+    assert len(mailer.sent) == 1
+    mail = mailer.sent[0]
+    assert mail["to"] == STAFF
+    assert mail["subject"] == "【常春藤官網後台】重設密碼連結"
+    token = _token_from(mail)
+    assert "http://test/admin/reset-password#token=" in mail["body"]
+
+    sent = await _audits(db_session, "user.password_reset_link_sent")
+    assert len(sent) == 1
+    assert sent[0].target_id == str(target_id)
+    assert set(sent[0].metadata_json) == {"expires_at", "replaced_previous"}
+    assert token not in json.dumps(sent[0].metadata_json)
+
+
+async def test_sending_again_replaces_previous_link(admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    await _send(admin_client, target.id, mailer)
+    again = await admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link")
+    assert again.json()["replaced_previous"] is True
+    assert len(await _live_tokens(db_session, target.id)) == 1
+
+
+async def test_only_super_admin_can_send_and_not_to_self(admin_client, minghua_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.CAMPUS_ADMIN, ["minghua"])
+    denied = await minghua_client.post(f"{API}/admin/users/{target.id}/password-reset-link")
+    assert denied.status_code == 403
+    me = (await admin_client.get(f"{API}/auth/me")).json()["user"]
+    self_send = await admin_client.post(f"{API}/admin/users/{me['id']}/password-reset-link")
+    assert self_send.status_code == 409
+    assert self_send.json()["detail"]["code"] == "USE_CHANGE_PASSWORD"
+    assert mailer.sent == []
+
+
+async def test_unknown_or_inactive_account(admin_client, db_session, mailer):
+    missing = await admin_client.post(f"{API}/admin/users/00000000-0000-0000-0000-000000000000/password-reset-link")
+    assert missing.status_code == 404
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    off = await admin_client.patch(f"{API}/admin/users/{target.id}/active", json={"is_active": False})
+    assert off.status_code == 200, off.text
+    inactive = await admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link")
+    assert inactive.status_code == 409
+    assert inactive.json()["detail"]["code"] == "USER_INACTIVE"
+    assert mailer.sent == []
+
+
+async def test_disabled_without_mail_channel_and_reported_in_features(app, admin_client, db_session, mailer):
+    on = (await admin_client.get(f"{API}/auth/me")).json()["features"]
+    assert on["password_reset_email"] is True
+    app.state.settings = app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
+    off = (await admin_client.get(f"{API}/auth/me")).json()["features"]
+    assert off["password_reset_email"] is False
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    response = await admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link")
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "RESET_EMAIL_DISABLED"
+    assert await _live_tokens(db_session, target.id) == []
+
+
+async def test_send_failure_revokes_link_and_is_audited(admin_client, db_session, mailer, monkeypatch, failing_mail_adapter):
+    monkeypatch.setattr(password_reset, "mail_adapter", lambda settings: failing_mail_adapter)
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    response = await admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link")
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert detail["code"] == "RESET_EMAIL_FAILED"
+    assert detail["error_code"] == "RuntimeError"
+    assert await _live_tokens(db_session, target.id) == []
+    failed = await _audits(db_session, "user.password_reset_link_failed")
+    assert [entry.metadata_json for entry in failed] == [{"error_code": "RuntimeError"}]
+    assert await _audits(db_session, "user.password_reset_link_sent") == []
+
+
+async def test_at_most_three_links_per_account_per_15_minutes(app, admin_client, db_session, mailer):
+    freeze_rate_limit_clock(app)
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    statuses = [
+        (await admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link")).status_code for _ in range(4)
+    ]
+    assert statuses == [200, 200, 200, 429]
+    assert len(mailer.sent) == 3
+
+
+async def test_two_super_admins_sending_at_once_leave_one_live_link(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    await _create_user(db_session, "boss2@ivy.example", "second-boss-password-1", Role.SUPER_ADMIN)
+    second = await _logged_in_client(app, "boss2@ivy.example", "second-boss-password-1")
+    try:
+        results = await asyncio.gather(
+            admin_client.post(f"{API}/admin/users/{target.id}/password-reset-link"),
+            second.post(f"{API}/admin/users/{target.id}/password-reset-link"),
+        )
+    finally:
+        await second.aclose()
+    assert [r.status_code for r in results] == [200, 200]
+    assert sorted(r.json()["replaced_previous"] for r in results) == [False, True]
+    assert len(await _live_tokens(db_session, target.id)) == 1
