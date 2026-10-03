@@ -12,7 +12,7 @@ import AnalyticsMeta from './AnalyticsMeta.vue'
 // 預約孩子的生日換算成某學年度的班別（GET /admin/analytics/class-distribution）。換算在後端
 // （admissions/academic.grade_for_birthday，和招生入學、官網入學資訊頁共用案例
 // contracts/ivy-recruitment/grade-cases.json），這裡只顯示。是年齡對照，不是報名或入學結果。
-const props = defineProps<{ campusKey: string; range: DateRange | null; periodLabel: string }>()
+const props = defineProps<{ campusKey: string; range: DateRange | null; periodLabel: string; refreshToken?: number }>()
 
 const baseYear = currentTerm().schoolYear
 const yearOptions = schoolYearOptions(baseYear, [2, 1, 0, -1])
@@ -47,7 +47,7 @@ async function load() {
   }
 }
 
-watch(() => `${props.campusKey}|${rangeKey(props.range)}|${schoolYear.value}`, load, { immediate: true })
+watch(() => `${props.campusKey}|${rangeKey(props.range)}|${schoolYear.value}|${props.refreshToken ?? 0}`, load, { immediate: true })
 
 const COLUMNS: StatsColumn[] = [
   { key: 'label', label: '班別', sticky: true },

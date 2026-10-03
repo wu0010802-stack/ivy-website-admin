@@ -209,6 +209,41 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(wrapper.text()).not.toContain('更新中…')
   })
 
+  it('重新整理遞增 refreshToken，三個面板一起重抓，預約流程也重抓', async () => {
+    const { wrapper, get } = await setup()
+    const tokens = () => ['BookingOutcomesSection', 'EventTrendPanel', 'ClassDistributionPanel'].map((name) => wrapper.findComponent({ name }).props('refreshToken'))
+    expect(tokens()).toEqual([0, 0, 0])
+    const calls = get.mock.calls.length
+    await wrapper.findAll('button').find((button) => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(get.mock.calls.length).toBe(calls + 1)
+    expect(tokens()).toEqual([1, 1, 1])
+  })
+
+  it('自訂區間未選完或超過上限時三個面板都不顯示', async () => {
+    const { wrapper } = await setup()
+    const names = ['BookingOutcomesSection', 'EventTrendPanel', 'ClassDistributionPanel']
+    const shown = () => names.map((name) => wrapper.findComponent({ name }).exists())
+    expect(shown()).toEqual([true, true, true])
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '期間' || item.attributes('aria-label') === '期間')!
+    select.vm.$emit('update:modelValue', 'custom')
+    await flushPromises()
+    expect(shown()).toEqual([false, false, false])
+    wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2024-01-01', '2026-06-30'])
+    await flushPromises()
+    expect(shown()).toEqual([false, false, false])
+  })
+
+  it('預約流程讀取失敗時，每日變化與班別面板仍在', async () => {
+    const { wrapper, get } = await setup()
+    get.mockRejectedValueOnce(new Error('boom'))
+    await wrapper.findAll('button').find((button) => button.text() === '重新整理')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.funnel').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'EventTrendPanel' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ClassDistributionPanel' }).exists()).toBe(true)
+  })
+
   it('自訂區間不能選未來日期，超過 400 天先在前端擋下', async () => {
     const { wrapper, get } = await setup()
     const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '期間' || item.attributes('aria-label') === '期間')!

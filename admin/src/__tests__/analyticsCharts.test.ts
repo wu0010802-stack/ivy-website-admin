@@ -41,6 +41,27 @@ describe('每日直條', () => {
     expect(wrapper.text()).not.toContain('不在期間內')
   })
 
+  it('長期間每一天都有一根直條，點數多時不留縫，有數字的日子標最小高度，口徑標記仍在', () => {
+    const many = Array.from({ length: 400 }, (_, i) => {
+      const date = new Date(Date.UTC(2025, 8, 1 + i)).toISOString().slice(0, 10)
+      return { day: date, value: i === 399 ? 300 : i === 10 ? 1 : 0 }
+    })
+    const wrapper = mountBars({ points: many, markers: [{ day: many[200]!.day, label: '口徑改變' }] })
+    expect(wrapper.findAll('.daily-bars__col')).toHaveLength(400)
+    const plot = wrapper.find('.daily-bars__plot')
+    expect(plot.classes()).toContain('is-dense')
+    expect(plot.attributes('style')).toContain('--n: 400')
+    const fills = wrapper.findAll('.daily-bars__fill')
+    expect(fills[10]!.attributes('style')).toContain('height: 0%')
+    expect(fills[10]!.classes()).toContain('has-value')
+    expect(fills[11]!.classes()).not.toContain('has-value')
+    expect(wrapper.findAll('.daily-bars__col')[200]!.classes()).toContain('is-marked')
+  })
+
+  it('點數少時保留直條間的縫', () => {
+    expect(mountBars({ points }).find('.daily-bars__plot').classes()).not.toContain('is-dense')
+  })
+
   it('沒有資料時寫出來，不畫空圖', () => {
     const wrapper = mountBars({ points: [] })
     expect(wrapper.text()).toContain('這段期間沒有資料。')

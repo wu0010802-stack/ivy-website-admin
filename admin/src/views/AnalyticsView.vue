@@ -33,6 +33,8 @@ const customRange = ref<[string, string] | null>(null)
 const dimension = ref<Dimension>('source')
 const funnel = ref<AnalyticsFunnelOut | null>(null)
 const loading = ref(false)
+// 「重新整理」遞增它，讓不靠預約流程請求的三個面板也一起重抓。
+const refreshToken = ref(0)
 const error = ref<string | null>(null)
 const requests = useRequestSequence()
 // 手機上日期區間只顯示一個月，雙月面板約 646px 會超出 390px 螢幕。
@@ -71,6 +73,14 @@ const rangeTooLong = computed(() => {
 
 // 自訂區間還沒選好或太長時，各面板都不送請求（和預約流程同一個條件）。
 const rangeReady = computed(() => period.value !== 'custom' || (customRange.value !== null && !rangeTooLong.value))
+const panelsReady = computed(() => visibleCampusKeys.value.length > 0 && !!campusKey.value && rangeReady.value)
+// 預約流程與依來源、預約鈕點擊三塊要等 funnel 回來才有東西顯示；錯誤時整塊收起。
+const showFunnel = computed(() => visibleCampusKeys.value.length > 0 && !error.value && funnel.value !== null)
+
+function refresh() {
+  refreshToken.value += 1
+  void load()
+}
 
 // 重新整理或換條件時保留上一次的數字、淡一點並寫「更新中…」（和上方瀏覽統計一致），
 // 只有第一次載入用骨架，整區不會消失再出現。
@@ -250,14 +260,15 @@ const entryRows = computed(() =>
         <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
           :disabled-date="isFutureDate" :clearable="false" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="統計日期區間" />
       </label>
-      <el-button :loading="loading" :disabled="!campusKey" @click="load">重新整理</el-button>
+      <el-button :loading="loading" :disabled="!campusKey" @click="refresh">重新整理</el-button>
     </div>
 
     <BookingOutcomesSection
-      v-if="visibleCampusKeys.length && campusKey && rangeReady"
+      v-if="panelsReady"
       :range="range"
       :campus-key="campusKey"
       :period-label="periodLabel"
+      :refresh-token="refreshToken"
       :show-compare="visibleCampusKeys.length > 1"
     />
 
@@ -267,7 +278,7 @@ const entryRows = computed(() =>
     <p v-else-if="period === 'custom' && !customRange" class="field-help">請選擇開始與結束日期。</p>
     <p v-else-if="rangeTooLong" class="field-help">自訂區間最長 {{ MAX_RANGE_DAYS }} 天，請把開始或結束日期調近一點。</p>
 
-    <div v-else-if="funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
+    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
       <section class="panel">
         <div class="panel__head"><h2>預約流程</h2><span class="analytics__period num">{{ periodLabel }}</span></div>
         <ol class="funnel">
@@ -287,8 +298,11 @@ const entryRows = computed(() =>
         <div class="analytics__meta"><AnalyticsMeta :period="periodLabel" unit="事件次數（依發生日期）" :as-of="funnel.as_of" /></div>
       </section>
 
-      <EventTrendPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" />
+    </div>
 
+    <EventTrendPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+
+    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
       <section class="panel">
         <div class="panel__head analytics__dims-head">
           <h2>依來源</h2>
@@ -359,9 +373,9 @@ const entryRows = computed(() =>
           <p class="analytics__note">點擊次數不等於預約數；LINE、電話與外部網站的點擊之後有沒有真的預約，官網無法得知。</p>
         </div>
       </section>
-
-      <ClassDistributionPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" />
     </div>
+
+    <ClassDistributionPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
   </div>
 </template>
 

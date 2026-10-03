@@ -18,7 +18,7 @@ const SERIES: { value: Series; label: string }[] = [
 ]
 const MARKERS = [{ day: SELF_BOOKING_SINCE, label: '家長自選場次上線，送出即預約成功' }]
 
-const props = defineProps<{ campusKey: string; range: DateRange | null; periodLabel: string }>()
+const props = defineProps<{ campusKey: string; range: DateRange | null; periodLabel: string; refreshToken?: number }>()
 const series = ref<Series>('request_created')
 const trend = ref<EventTrendOut | null>(null)
 // 畫面上這批資料的校區：重抓時舊資料還在，標題不能先換成新校區。
@@ -47,7 +47,7 @@ async function load() {
   }
 }
 
-watch(() => `${props.campusKey}|${rangeKey(props.range)}`, load, { immediate: true })
+watch(() => `${props.campusKey}|${rangeKey(props.range)}|${props.refreshToken ?? 0}`, load, { immediate: true })
 
 const seriesLabel = computed(() => SERIES.find((item) => item.value === series.value)!.label)
 const points = computed(() => (trend.value?.days ?? []).map((item) => ({ day: item.day, value: item[series.value] })))

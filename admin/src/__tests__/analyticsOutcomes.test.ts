@@ -102,6 +102,33 @@ describe('預約結果', () => {
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-outcomes?from=2026-09-01&to=2026-09-30')
   })
 
+  it('重新整理（refreshToken 變）時重抓，換校仍不重抓', async () => {
+    const { wrapper, get } = await mountSection('reception')
+    await wrapper.setProps({ campusKey: 'minghua' })
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('五校比較表的比率：分母少寫「樣本較少」，夠多不寫，分母 0 只寫「—」', async () => {
+    const data = outcomes([
+      row('yihua', { completed: 2, no_show: 1, cancelled: 1, cases: 8 }),
+      row('minghua', { completed: 15, no_show: 5, cancelled: 2, cases: 30 }),
+      row('chongde', EMPTY),
+    ])
+    const { wrapper } = await mountSection('reception', {}, data)
+    const cells = (key: string) => {
+      const index = wrapper.findAll('thead th').findIndex((th) => th.text().includes('到場率'))
+      const tr = wrapper.findAll('tbody tr').find((r) => r.text().includes(key))!
+      return tr.findAll('td')[index - 1]!.text()
+    }
+    expect(cells('義華')).toContain('樣本較少')
+    expect(cells('明華')).not.toContain('樣本較少')
+    expect(cells('崇德')).toBe('—')
+  })
+
   it('父層重算出同一段期間不會重抓', async () => {
     const { wrapper, get } = await mountSection('reception', { range: { from: '2026-09-01', to: '2026-09-30' } })
     await wrapper.setProps({ range: { from: '2026-09-01', to: '2026-09-30' } })

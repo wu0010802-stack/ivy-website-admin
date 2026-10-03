@@ -23,6 +23,10 @@ const peak = computed(() =>
 )
 const visibleMarkers = computed(() => props.markers.filter((marker) => marker.day >= first.value && marker.day <= last.value))
 const markedDays = computed(() => new Set(visibleMarkers.value.map((marker) => marker.day)))
+// 點數多時不留縫：390px 手機圖表內寬約 324px，一年 365 天加 1px 縫會讓每根寬度歸零。
+const DENSE_POINTS = 60
+const dense = computed(() => props.points.length > DENSE_POINTS)
+// 有數字的日子至少 1px 高，免得 1/300 四捨五入成 0% 看不見。
 const height = (value: number) => (max.value ? `${Math.round((value / max.value) * 100)}%` : '0%')
 const summary = computed(() =>
   peak.value
@@ -37,7 +41,13 @@ const newestFirst = computed(() => [...props.points].reverse())
     <figcaption :id="titleId" class="daily-bars__title">{{ title }}</figcaption>
     <p v-if="!points.length" class="hint">這段期間沒有資料。</p>
     <template v-else>
-      <div class="daily-bars__plot" role="img" :aria-label="summary">
+      <div
+        class="daily-bars__plot"
+        :class="{ 'is-dense': dense }"
+        :style="{ '--n': points.length }"
+        role="img"
+        :aria-label="summary"
+      >
         <span
           v-for="point in points"
           :key="point.day"
@@ -45,7 +55,7 @@ const newestFirst = computed(() => [...props.points].reverse())
           :class="{ 'is-marked': markedDays.has(point.day) }"
           :title="`${short(point.day)}：${point.value} ${unit}`"
         >
-          <span class="daily-bars__fill" :style="{ height: height(point.value) }" />
+          <span class="daily-bars__fill" :class="{ 'has-value': point.value > 0 }" :style="{ height: height(point.value) }" />
         </span>
       </div>
       <div class="daily-bars__axis hint num">
@@ -78,16 +88,20 @@ const newestFirst = computed(() => [...props.points].reverse())
 }
 
 .daily-bars__plot {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  align-items: end;
   gap: 1px;
   height: 96px;
   border-bottom: 1px solid var(--line);
 }
 
+.daily-bars__plot.is-dense {
+  gap: 0;
+}
+
 .daily-bars__col {
   display: flex;
-  flex: 1 1 0;
   align-items: flex-end;
   position: relative;
   min-width: 0;
@@ -112,6 +126,10 @@ const newestFirst = computed(() => [...props.points].reverse())
   width: 100%;
   border-radius: 2px 2px 0 0;
   background: var(--el-color-primary);
+}
+
+.daily-bars__fill.has-value {
+  min-height: 1px;
 }
 
 .daily-bars__axis {

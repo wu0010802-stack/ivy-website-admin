@@ -58,6 +58,13 @@ describe('每日變化', () => {
     ])
   })
 
+  it('重新整理（refreshToken 變）時重抓', async () => {
+    const { wrapper, get } = await mountPanel()
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
   it('超過 400 天寫明只畫最近 400 天', async () => {
     const { wrapper } = await mountPanel(trend({ truncated: true }))
     expect(wrapper.text()).toContain('只畫最近 400 天')

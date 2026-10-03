@@ -50,6 +50,13 @@ describe('預約孩子的班別', () => {
     expect(get).toHaveBeenLastCalledWith(`/admin/analytics/class-distribution?campus_key=yihua&school_year=${next}`)
   })
 
+  it('重新整理（refreshToken 變）時重抓', async () => {
+    const { wrapper, get } = await mountPanel()
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
   it('沒有預約案件時寫出來，不列一排 0', async () => {
     const { wrapper } = await mountPanel(dist({ total: 0, grades: dist().grades.map((row) => ({ ...row, count: 0 })), out_of_range: 0, unrecorded: 0 }))
     expect(wrapper.text()).toContain('這段期間沒有預約案件。')

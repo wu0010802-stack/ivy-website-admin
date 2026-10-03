@@ -15,7 +15,7 @@ import AnalyticsMeta from './AnalyticsMeta.vue'
 // 預約結果（GET /admin/analytics/booking-outcomes，招生分析報告階段 1 第 1、4、5 項）：期間內
 // 送出的案件現在各是什麼結果。一次回全部授權校區，換校只換顯示的列、不重抓；換期間才重抓。
 // 和下方「預約流程」（依事件發生日期）口徑不同，畫面寫明不能互相相除。
-const props = defineProps<{ range: DateRange | null; campusKey: string; periodLabel: string; showCompare: boolean }>()
+const props = defineProps<{ range: DateRange | null; campusKey: string; periodLabel: string; showCompare: boolean; refreshToken?: number }>()
 
 const UNIT = '預約案件數（同一個孩子預約兩校算兩筆，不是家庭數）'
 const COVERAGE = '依送出日期取這段期間的案件，看它們現在的結果；和下方「預約流程」依事件發生日期計算不同，兩邊的數字不能互相相除。'
@@ -49,7 +49,7 @@ async function load() {
   }
 }
 
-watch(() => rangeKey(props.range), load, { immediate: true })
+watch(() => `${rangeKey(props.range)}|${props.refreshToken ?? 0}`, load, { immediate: true })
 
 const row = computed<CampusOutcomeOut | null>(() => data.value?.campuses.find((item) => item.campus_key === props.campusKey) ?? null)
 const canOpenCases = computed(() => can('booking.read'))
@@ -64,7 +64,7 @@ const stats = computed(() => {
     { label: '預約案件', value: current.cases, note: `官網 ${current.web_cases}・補登 ${current.cases - current.web_cases}` },
     { label: '已到場', value: current.completed, note: '' },
     { label: '未到場', value: current.no_show, note: '' },
-    { label: '參觀時間過了，還沒標記', value: current.awaiting_attendance, note: '' },
+    { label: '參觀時間過了，還沒標記（這批）', value: current.awaiting_attendance, note: '' },
     { label: '預約正常（還沒到參觀日）', value: current.upcoming, note: '' },
     { label: '已取消', value: current.cancelled, note: reasonText(current.cancelled_by_reason) },
     ...(current.pending ? [{ label: '舊資料的待處理', value: current.pending, note: '' }] : []),
@@ -97,6 +97,8 @@ const COLUMNS: StatsColumn[] = [
   { key: 'legacy_now', label: '舊資料待處理（現在）', kind: 'count' },
 ]
 
+const rateCell = (rate: Parameters<typeof rateText>[0]) => `${rateText(rate)}${isSmallSample(rate) ? '・樣本較少' : ''}`
+
 const compareRows = computed(() => {
   if (!data.value) return []
   const rows: Record<string, unknown>[] = data.value.campuses.map((item) => ({
@@ -106,10 +108,10 @@ const compareRows = computed(() => {
     cases: item.cases,
     completed: item.completed,
     no_show: item.no_show,
-    attendance: rateText(item.attendance_rate),
+    attendance: rateCell(item.attendance_rate),
     cancelled: item.cancelled,
     reasons: reasonText(item.cancelled_by_reason),
-    cancel: rateText(item.cancel_rate),
+    cancel: rateCell(item.cancel_rate),
     awaiting_now: item.open_now.awaiting_attendance,
     follow_up_now: item.open_now.follow_up_due,
     legacy_now: item.open_now.legacy_pending,
@@ -118,8 +120,8 @@ const compareRows = computed(() => {
   const open = data.value.open_now_totals
   rows.push({
     key: 'total', campus: '合計', mode: '', cases: totals.cases, completed: totals.completed, no_show: totals.no_show,
-    attendance: rateText(totals.attendance_rate), cancelled: totals.cancelled, reasons: reasonText(totals.cancelled_by_reason),
-    cancel: rateText(totals.cancel_rate), awaiting_now: open.awaiting_attendance, follow_up_now: open.follow_up_due, legacy_now: open.legacy_pending,
+    attendance: rateCell(totals.attendance_rate), cancelled: totals.cancelled, reasons: reasonText(totals.cancelled_by_reason),
+    cancel: rateCell(totals.cancel_rate), awaiting_now: open.awaiting_attendance, follow_up_now: open.follow_up_due, legacy_now: open.legacy_pending,
   })
   return rows
 })
