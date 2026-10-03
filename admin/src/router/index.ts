@@ -21,6 +21,8 @@ declare module 'vue-router' {
     roles?: string[]
     /** 共用內容頁，有「全站共用內容」授權也可進入 */
     shared?: boolean
+    /** 不用登入就能開（重設密碼連結）；不恢復 session、不導去登入頁 */
+    public?: boolean
   }
 }
 
@@ -33,6 +35,8 @@ function page(path: string, name: string, component: RouteRecordSingleView['comp
 
 export const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登入' } },
+  // 總管理者寄的重設密碼連結（2026-10-03）。不用登入，也不在側欄；點進來才下載。
+  { path: '/reset-password', name: 'reset-password', component: () => import('../views/ResetPasswordView.vue'), meta: { title: '設定新密碼', public: true } },
   {
     path: '/',
     component: AdminLayout,
@@ -88,6 +92,8 @@ export const routes: RouteRecordRaw[] = [
  * offline＝連不上伺服器（session 可能還有效）、expired＝用到一半逾時（router/unauthorized.ts）。
  */
 export async function authGuard(to: RouteLocationNormalized): Promise<boolean | RouteLocationRaw> {
+  // 不用登入的頁面：不恢復 session、不導去登入頁（重設連結常從信箱 App 的內建瀏覽器開）。
+  if (to.meta.public) return true
   const authStore = useAuthStore()
 
   if (to.name === 'login') {

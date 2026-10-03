@@ -186,8 +186,10 @@ describe('沒有權限的深連結（shell-4）', () => {
 describe('頁面點進去才下載（shell-9／cc-8）', () => {
   it('登入頁與外框直接打包，其餘頁面都是延遲載入', () => {
     expect(routes[0]?.component).toBe(LoginView)
-    expect(routes[1]?.component).toBe(AdminLayout)
-    const children = routes[1]?.children ?? []
+    // reset-password（public）跟 login 一樣在外框之外、自己延遲載入，所以用元件找外框，不用位置。
+    const shell = routes.find(route => route.component === AdminLayout)
+    expect(shell).toBeDefined()
+    const children = shell?.children ?? []
     expect(children.length).toBeGreaterThan(25)
     // 純轉址的舊網址（/slots → /visit-calendar）沒有元件，不算頁面。
     expect(children.filter(child => !('redirect' in child)).every(child => typeof child.component === 'function')).toBe(true)
