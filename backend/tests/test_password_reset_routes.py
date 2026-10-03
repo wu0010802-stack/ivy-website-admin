@@ -164,7 +164,20 @@ async def test_at_most_three_links_per_account_per_15_minutes(app, admin_client,
     assert len(mailer.sent) == 3
 
 
-async def test_two_super_admins_sending_at_once_leave_one_live_link(app, admin_client, db_session, mailer):
+async def test_two_super_admins_sending_at_once_leave_one_live_link(app, admin_client, db_session, mailer, monkeypatch):
+    # 強制兩個請求重疊：第一個請求作廢舊連結後停 0.2 秒才往下提交。
+    # 有帳號列鎖時第二個請求會卡在 FOR UPDATE；沒鎖就會在第一個提交前跑完作廢，兩邊都以為沒有舊連結。
+    original = password_reset.revoke_outstanding
+    calls = {"n": 0}
+
+    async def slow_first(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        calls["n"] += 1
+        if calls["n"] == 1:
+            await asyncio.sleep(0.2)
+        return result
+
+    monkeypatch.setattr(password_reset, "revoke_outstanding", slow_first)
     target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
     await _create_user(db_session, "boss2@ivy.example", "second-boss-password-1", Role.SUPER_ADMIN)
     second = await _logged_in_client(app, "boss2@ivy.example", "second-boss-password-1")
