@@ -111,3 +111,31 @@ export function visitEventChanges(
 export function visitEventRelatedId(event: VisitHistoryOut): string | null {
   return text(event.after, 'related_request_id')
 }
+
+export interface LastHandled {
+  /** 誰：同事的顯示名稱（沒設時 Email 前段），自己是「你」 */
+  who: string
+  at: string
+  /** 做了什麼，和歷程列表同一個詞（visitEventTitle） */
+  what: string
+  self: boolean
+}
+
+/**
+ * 案件頁首的「最後處理」：後台同事最近一次動這筆案件（歷程裡 source=staff 的事件）。
+ * 新增聯絡紀錄也會寫一筆 contact_logged 歷程，所以只看歷程就夠。家長自己改、系統排程
+ * 的不算——櫃台要知道的是「同事是不是剛處理過」。
+ */
+export function lastHandled(history: VisitHistoryOut[], selfId: string | null): LastHandled | null {
+  let best: LastHandled | null = null
+  let bestAt = Number.NEGATIVE_INFINITY
+  for (const event of history) {
+    if (event.source !== 'staff') continue
+    const at = Date.parse(event.created_at)
+    if (Number.isNaN(at) || at <= bestAt) continue
+    const self = Boolean(selfId) && event.actor_user_id === selfId
+    best = { who: self ? '你' : visitEventActor(event), at: event.created_at, what: visitEventTitle(event), self }
+    bestAt = at
+  }
+  return best
+}
