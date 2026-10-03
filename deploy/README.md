@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-03 404 頁立體書校徽，連同上一批未部署的分支（main CI 部署）
+
+使用者要求部署 `aa7b380`（feat(web): 404 頁加立體書校徽）。推送前查到 main `15fd9a5` 的 run 37088224504 是紅的：Frontend (admin) `ux20260928E`「刪除場景後選旁邊那一個」間歇失敗（找不到確認鈕：刪除），Deploy 被略過，正式站還停在 `899196b`。所以 `15fd9a5` 那一批（關於頁五校卡紙等大、拍立得捲動不再飄動、後台拿掉官網已沒有頁面顯示的編輯頁、CI 的 bcrypt rounds 4 與 paths-ignore）這次才第一次上線。推送 `15fd9a5..c8d2e33`。
+
+- **404 立體書校徽**：`CrestPopup`（純 CSS 3D，不載 three），只有 404 放、503 不放；素材 `web/public/assets/crest-popup/*.webp` 五張共 54KB。
+- **測試修正 `c8d2e33`**：popconfirm 由計時器延後打開，負載高時一輪 `flushPromises` 還沒渲染出確認鈕（本機加診斷證實：失敗當下 `.el-popconfirm` 為 0，200ms 後兩顆按鈕都在）；`confirmPop` 改用 `vi.waitFor`。修正前整檔 7 次失敗 3 次，修正後連跑 8 次全過。上一節記的「admin 957／958 間歇失敗」就是這一項。
+- **沒有 migration**：`899196b..c8d2e33` 後端只動 `backend/tests/conftest.py`，不需要先備份正式 DB。
+- **CI**：run 37130938511（`c8d2e33`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-03 14:48–15:05 UTC）；Backend job 12.5 分鐘（先前約 22 分）。
+- **正式 `release.json`**：base commit `c8d2e33`，created `2026-10-03T15:01:29Z`。
+- **本機驗證**（`c8d2e33`，Node 22）：admin typecheck 0 錯、946 passed；web typecheck 0 錯 0 警告、748 passed、`npm run build` 成功且 `.output/public/assets/crest-popup/` 五張都在。沒有重跑 stack e2e（CI 的 E2E job 有過）。
+- **線上唯讀檢查**（Playwright，擋 telemetry）：不存在的網址回 404，桌機 1440 校徽 220px 在文字欄右側外、手機 390 132px 在 404 字樣上方，五張紙片都載入、`aria-hidden="true"`、兩種寬度都沒有橫向捲動；五張 webp 直接取 200 `image/webp`；`/`、`/about`、`/visit`、`/environment` 200；後台入口 bundle 沒有 `SharedFaqView`／`CampusFaqView`，`CampusTourView`、`PrivacyPolicyView` 仍在。
+- **未做**：Safari／iOS 實機；正式站沒登入看後台畫面；滑鼠轉向與點擊闔上再打開沒有在正式站操作驗證（單元測試 `web/tests/crest-popup.spec.ts` 有涵蓋）。
+
 ## 2026-10-03 隱私權政策頁與一批已完成分支（main CI 部署）
 
 使用者要求先把隱私權政策頁併入 main 部署，接著把「已完成的分支」一起併入部署。兩次推送：`60240c1`（隱私權政策頁，含同步 main 的「拿掉各校分校資訊頁」）與 `a749480`（下列分支）。`60240c1` 的 CI 在排隊時被 `a749480` 的 run 取代而取消，內容由 `a749480` 一起部署。
