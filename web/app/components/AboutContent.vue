@@ -35,12 +35,13 @@ const MILESTONES = [
 const milestones = computed(() => MILESTONES.map((item) => ({ ...item, campus: props.campuses.find((c) => c.key === item.key) })))
 
 // 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色，左頁沿革同一列用同色小方塊
+// 五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
 const STAGE = [
-  { x: 0, y: 50, w: 31, r: -1.5, color: 'var(--yellow)' },
-  { x: 34.5, y: 56, w: 31, r: 0.8, color: 'var(--studio-blue)' },
-  { x: 69, y: 50, w: 31, r: 1.6, color: 'var(--studio-sage)' },
-  { x: 6, y: 4, w: 42, r: -1, color: 'var(--mint)' },
-  { x: 52, y: 4, w: 42, r: 1.2, color: 'var(--studio-orange)' }
+  { x: 0, y: 46, w: 31, r: -1.5, color: 'var(--yellow)' },
+  { x: 34.5, y: 52, w: 31, r: 0.8, color: 'var(--studio-blue)' },
+  { x: 69, y: 46, w: 31, r: 1.6, color: 'var(--studio-sage)' },
+  { x: 17.25, y: 4, w: 31, r: -1, color: 'var(--mint)' },
+  { x: 51.75, y: 4, w: 31, r: 1.2, color: 'var(--studio-orange)' }
 ]
 const cardStyle = (i: number) => {
   const s = STAGE[i]!
