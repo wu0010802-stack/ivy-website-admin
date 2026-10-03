@@ -322,15 +322,22 @@ function reportError(err: unknown, fallback: string) {
 // 現在是什麼、誰在什麼時候做的；狀態沒變（例如場次還沒開始就標記未到場）照後端原因講。
 async function reloadAfterTransitionConflict(err: unknown, fallback: string) {
   const before = detail.value?.status
+  const handledBefore = handled.value?.at ?? null
   await load({ quiet: true })
   const current = detail.value
   if (!current || !before || current.status === before) {
     notifyError(apiErrorMessage(err, fallback))
     return
   }
-  const by = handled.value && !handled.value.self ? `${handled.value.who}在 ${formatDateTime(handled.value.at)} ${handled.value.what}，` : ''
+  // 只有同事有比重讀前更新的動作才點名；狀態是家長（修改連結）或系統改的就用中性說法。
+  const latest = handled.value
+  const newer = latest !== null && (handledBefore === null || Date.parse(latest.at) > Date.parse(handledBefore))
   const label = statusDisplay.value?.label ?? visitStatus(current.status).label
-  notifyWarning(`這筆案件剛被處理過：${by}現在是「${label}」。已載入最新內容，請確認後再操作。`)
+  if (newer && !latest.self) {
+    notifyWarning(`這筆案件剛被處理過：${latest.who}在 ${formatDateTime(latest.at)} ${latest.what}，現在是「${label}」。已載入最新內容，請確認後再操作。`)
+  } else {
+    notifyWarning(`這筆案件剛被更新，現在是「${label}」。已載入最新內容，請確認後再操作。`)
+  }
 }
 
 // 切回這個分頁或視窗：距上次讀取超過 30 秒就靜默重讀（不閃骨架、不動聯絡紀錄草稿與

@@ -86,6 +86,28 @@ describe('案件明細：同時處理', () => {
     expect(wrapper.get('.detail__status').text()).toContain('已取消')
   })
 
+  it('狀態是家長自己取消的，同事先前的紀錄比較舊：提示不點名同事', async () => {
+    let current = caseOf({ history: [event({ created_at: '2026-10-01T02:00:00Z' })] })
+    const wrapper = await mountDetail(() => current)
+    vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '' } as never)
+    vi.spyOn(api, 'post').mockImplementation(async () => {
+      current = caseOf({
+        status: 'cancelled', display_status: 'cancelled', cancelled_at: '2026-10-03T02:00:00Z',
+        history: [
+          event({ created_at: '2026-10-01T02:00:00Z' }),
+          event({ created_at: '2026-10-03T03:00:00Z', source: 'parent', actor_user_id: null, actor_email: null, actor_display_name: null, event_type: 'cancelled' }),
+        ],
+      })
+      throw new ApiError(409, { code: 'INVALID_TRANSITION', message: '這筆案件現在是「已取消」，不能取消' })
+    })
+    const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    await wrapper.get('.detail__cancel').trigger('click')
+    await flushPromises()
+    const message = String((warning.mock.calls[0]![0] as { message: string }).message)
+    expect(message).not.toContain('王老師')
+    expect(message).toContain('已取消')
+  })
+
   it('狀態沒變的 INVALID_TRANSITION：照後端原因提示，不說被別人處理', async () => {
     const wrapper = await mountDetail(() => caseOf())
     vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '' } as never)
