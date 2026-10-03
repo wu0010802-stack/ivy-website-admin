@@ -10,6 +10,7 @@ import { redirectToLoginOnUnauthorized, resetUnauthorizedForTests } from '../rou
 import { registerUnsavedChanges } from '../composables/useUnsavedChanges'
 import { announceSignedIn, setSessionChannelFactory, type SessionChannelLike } from '../composables/sessionChannel'
 import SessionLimitNotice from '../components/SessionLimitNotice.vue'
+import { startSessionKeepAlive, KEEPALIVE_INTERVAL_MS } from '../composables/sessionKeepAlive'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -176,5 +177,112 @@ describe('登入滿 12 小時前提醒', () => {
     expect(auth.sessionMaxExpiresAt).toBe('2026-10-03T12:00:00Z')
     auth.clearSession()
     expect(auth.sessionMaxExpiresAt).toBeNull()
+  })
+})
+
+async function keepAliveOtherUser(dirty: boolean) {
+  setActivePinia(createPinia())
+  const auth = useAuthStore()
+  auth.user = testUser('editor', { id: 'u1', email: 'editor@example.invalid', campus_keys: ['yihua'] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [
+    { path: '/login', name: 'login', component: defineComponent({ template: '<div />' }) },
+    { path: '/:p(.*)*', component: defineComponent({ template: '<div />' }) },
+  ] })
+  await router.push('/content/news'); await router.isReady()
+  setUnauthorizedHandler(redirectToLoginOnUnauthorized(router))
+  if (dirty) cleanups.push(registerUnsavedChanges(ref(true)))
+  vi.spyOn(api, 'get').mockResolvedValue({ csrf_token: 'x', user: testUser('editor', { id: 'u2' }), features: { admissions: false } } as never)
+  const target = new EventTarget()
+  let now = 1_000_000
+  const stop = startSessionKeepAlive({ now: () => now, target: target as unknown as Window })
+  cleanups.push(stop)
+  now += KEEPALIVE_INTERVAL_MS
+  target.dispatchEvent(new Event('keydown'))
+  await flushPromises()
+  return { auth, router }
+}
+
+describe('同一台電腦換了帳號：舊分頁走集中處理', () => {
+  it('keepalive 發現換帳號、沒有未儲存修改：清登入狀態、導登入頁並說明', async () => {
+    const { auth, router } = await keepAliveOtherUser(false)
+    expect(auth.user).toBeNull()
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.reason).toBe('other-user')
+    expect(router.currentRoute.value.query.redirect).toBe('/content/news')
+  })
+
+  it('keepalive 發現換帳號、有未儲存修改：留在原頁、顯示接續對話框，不寫入對方身分', async () => {
+    fakeBus()
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(new Promise(() => {}) as never)
+    const { auth, router } = await keepAliveOtherUser(true)
+    expect(auth.user?.id).toBe('u1')
+    expect(router.currentRoute.value.fullPath).toBe('/content/news')
+    expect(textOf(confirm.mock.calls[0]![0])).toContain('這台電腦已經換成別的帳號登入')
+  })
+
+  it('API 回 403「CSRF token 無效」、有未儲存修改：留在原頁走接續流程，不是只顯示原字', async () => {
+    fakeBus()
+    const { auth, router } = await dirtyEditorAt('/content/news')
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(new Promise(() => {}) as never)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'CSRF token 無效' }), { status: 403 }) as never)
+    await expect(api.post('/admin/content-items/home_news/revisions', {})).rejects.toMatchObject({ status: 403 })
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(textOf(confirm.mock.calls[0]![0])).toContain('登入狀態已經改變')
+    expect(auth.user?.id).toBe('u1')
+    expect(router.currentRoute.value.fullPath).toBe('/content/news')
+  })
+
+  it('API 回 403「CSRF token 無效」、沒有未儲存修改：清登入狀態並導登入頁', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.user = testUser('editor', { id: 'u1' })
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/login', name: 'login', component: defineComponent({ template: '<div />' }) },
+      { path: '/:p(.*)*', component: defineComponent({ template: '<div />' }) },
+    ] })
+    await router.push('/content/news'); await router.isReady()
+    setUnauthorizedHandler(redirectToLoginOnUnauthorized(router))
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'CSRF token 無效' }), { status: 403 }) as never)
+    await expect(api.post('/admin/content-items/home_news/revisions', {})).rejects.toBeInstanceOf(ApiError)
+    await flushPromises()
+    expect(auth.user).toBeNull()
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.reason).toBe('session-changed')
+  })
+
+  it('其他 403（沒權限、Origin 不符）：行為不變，不觸發登入處理', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '沒有權限' }), { status: 403 }) as never)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'Origin 不符' }), { status: 403 }) as never)
+    await expect(api.post('/x', {})).rejects.toMatchObject({ status: 403, detail: '沒有權限' })
+    await expect(api.post('/x', {})).rejects.toMatchObject({ status: 403, detail: 'Origin 不符' })
+    expect(handler).not.toHaveBeenCalled()
+  })
+})
+
+describe('登入成功會廣播給別的分頁', () => {
+  function spyChannel() {
+    const postMessage = vi.fn()
+    setSessionChannelFactory(() => ({ onmessage: null, postMessage, close: () => undefined }))
+    return postMessage
+  }
+
+  it('login() 成功', async () => {
+    const postMessage = spyChannel()
+    setActivePinia(createPinia())
+    vi.spyOn(api, 'post').mockResolvedValue({ csrf_token: 't', user: testUser('editor'), features: { admissions: false } } as never)
+    await useAuthStore().login('a@example.invalid', 'pw')
+    expect(postMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('restoreSession() 成功', async () => {
+    const postMessage = spyChannel()
+    setActivePinia(createPinia())
+    vi.spyOn(api, 'get').mockResolvedValue({ csrf_token: 't', user: testUser('editor'), features: { admissions: false } } as never)
+    await useAuthStore().restoreSession()
+    expect(postMessage).toHaveBeenCalledTimes(1)
   })
 })

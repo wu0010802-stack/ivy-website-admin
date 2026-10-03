@@ -9,20 +9,38 @@ export function setCsrfToken(token: string | null): void {
 // 401 的集中處理。client.ts 不直接 import stores/auth 與 router（會造成
 // 循環相依），改成讓 main.ts 註冊一個回呼。原本完全沒有這一層：session
 // 過期或帳號被停權之後，SPA 會卡在各頁自己的錯誤訊息，永遠不會回登入頁。
-let unauthorizedHandler: (() => void) | null = null
+// reason 決定登入頁與留在原頁的對話框怎麼說明：expired＝逾時（預設）、other-user＝這台
+// 電腦已經換成別的帳號登入、session-changed＝CSRF token 對不上（多半也是換了帳號）。
+export type UnauthorizedReason = 'expired' | 'other-user' | 'session-changed'
+let unauthorizedHandler: ((reason?: UnauthorizedReason) => void) | null = null
 
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
+export function setUnauthorizedHandler(handler: ((reason?: UnauthorizedReason) => void) | null): void {
   unauthorizedHandler = handler
 }
 
-function handleUnauthorized(path: string): void {
+/** 不是 API 回應而是前端自己發現登入已失效（例如 keepalive 發現換了帳號）時走同一條集中處理。 */
+export function triggerUnauthorized(reason: UnauthorizedReason = 'expired'): void {
+  unauthorizedHandler?.(reason)
+}
+
+// 後端對「CSRF token 對不上」回 403 與固定字串（backend/app/auth/deps.py 的
+// check_csrf_and_origin），沒有機器可讀的 code，所以只能比對字串。同一台電腦在別的
+// 分頁換了帳號後，舊分頁的 token 就屬於這種：視同登入失效，不能只印「CSRF token 無效」。
+const CSRF_INVALID_DETAIL = 'CSRF token 無效'
+
+function handleAuthFailure(path: string, status: number, detail: unknown): void {
+  if (status === 401) handleUnauthorized(path)
+  else if (status === 403 && detail === CSRF_INVALID_DETAIL) handleUnauthorized(path, 'session-changed')
+}
+
+function handleUnauthorized(path: string, reason?: UnauthorizedReason): void {
   // 登入端點自己回 401 是「帳號密碼錯誤」，不是 session 過期，
   // 不能把使用者從登入頁再導回登入頁並清掉輸入。
   if (path.startsWith('/auth/login')) return
   // 登出端點回 401 代表 session 本來就失效了，logout() 自己當成已登出、接著
   // 換到登入頁；這裡再導一次會和那次換頁撞在一起，未儲存的提示也會多問一次。
   if (path.startsWith('/auth/logout')) return
-  unauthorizedHandler?.()
+  unauthorizedHandler?.(reason)
 }
 
 export class ApiError extends Error {
@@ -65,11 +83,11 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    if (response.status === 401) handleUnauthorized(path)
     const detail =
       payload && typeof payload === 'object' && 'detail' in payload
         ? (payload as { detail: unknown }).detail
         : payload
+    handleAuthFailure(path, response.status, detail)
     throw new ApiError(response.status, detail)
   }
 
@@ -98,11 +116,11 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
   }
 
   if (!response.ok) {
-    if (response.status === 401) handleUnauthorized(path)
     const detail =
       payload && typeof payload === 'object' && 'detail' in payload
         ? (payload as { detail: unknown }).detail
         : payload
+    handleAuthFailure(path, response.status, detail)
     throw new ApiError(response.status, detail)
   }
 

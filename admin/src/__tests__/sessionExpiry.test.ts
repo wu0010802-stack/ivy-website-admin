@@ -250,6 +250,7 @@ describe('操作中自動延長閒置期限', () => {
       target.dispatchEvent(new Event('keydown'))
       await flushPromises()
       expect(refresh).toHaveBeenCalledTimes(1)
+      expect(refresh).toHaveBeenCalledWith('u1')
 
       now += KEEPALIVE_INTERVAL_MS - 1
       target.dispatchEvent(new Event('input'))

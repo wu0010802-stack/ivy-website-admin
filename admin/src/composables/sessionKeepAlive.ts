@@ -1,3 +1,4 @@
+import { triggerUnauthorized } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 /**
@@ -25,8 +26,11 @@ export function startSessionKeepAlive(
     lastPing = now()
     inflight = true
     // 401 時 client.ts 的集中處理會接手（有未儲存修改時不導頁）。
-    // 傳目前帳號：cookie 被別的分頁換成別人時不把對方身分寫進這一頁。
-    void authStore.refreshSession(authStore.user.id).finally(() => {
+    // 傳目前帳號：cookie 被別的分頁換成別人時不把對方身分寫進這一頁，並且走同一條
+    // 集中處理（否則這一頁會一直以舊帳號顯示，存檔才得到 403）。
+    void authStore.refreshSession(authStore.user.id).then((result) => {
+      if (result === 'other-user') triggerUnauthorized('other-user')
+    }).finally(() => {
       inflight = false
     })
   }
