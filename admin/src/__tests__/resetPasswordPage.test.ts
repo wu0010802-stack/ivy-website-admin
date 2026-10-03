@@ -61,6 +61,9 @@ describe('設定新密碼頁', () => {
     const { wrapper } = await setup('/reset-password#token=abc123')
     await wrapper.find('#reset-new-password').setValue(NEW_PW)
     await wrapper.find('#reset-confirm-password').setValue('something-else-123')
+    // el-form-item 的錯誤訊息用 100ms debounce 才顯示（validateStateDebounced），所以真的等一下。
+    await new Promise(resolve => setTimeout(resolve, 150))
+    await flushPromises()
     expect(wrapper.text()).toContain('兩次輸入的新密碼不一樣')
     await wrapper.find('form').trigger('submit')
     await flushPromises()

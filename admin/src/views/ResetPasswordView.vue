@@ -108,10 +108,8 @@ async function submit() {
             <el-input id="reset-new-password" v-model="form.next" type="password" show-password autocomplete="new-password" :maxlength="PASSWORD_MAX_CHARS" />
             <span class="field-help" data-test="reset-password-hint">{{ passwordHint(form.next) }}</span>
           </el-form-item>
-          <el-form-item label="再輸入一次新密碼" for="reset-confirm-password">
+          <el-form-item label="再輸入一次新密碼" for="reset-confirm-password" :error="mismatch ? '兩次輸入的新密碼不一樣' : ''">
             <el-input id="reset-confirm-password" v-model="form.confirm" type="password" show-password autocomplete="new-password" :maxlength="PASSWORD_MAX_CHARS" />
-            <!-- 不用 el-form-item 的 error 屬性：它要多等一個 tick 才畫出來，輸入時會慢半拍。 -->
-            <span v-if="mismatch" class="reset__mismatch" role="alert">兩次輸入的新密碼不一樣</span>
           </el-form-item>
           <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="reset__error" />
           <el-button type="primary" size="large" native-type="submit" :loading="saving" :disabled="!valid" class="reset__submit">設定新密碼</el-button>
@@ -165,12 +163,6 @@ async function submit() {
 .reset__back {
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.reset__mismatch {
-  color: var(--el-color-danger);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .reset__error {
