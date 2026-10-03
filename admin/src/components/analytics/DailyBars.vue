@@ -89,13 +89,22 @@ const newestFirst = computed(() => [...props.points].reverse())
   display: flex;
   flex: 1 1 0;
   align-items: flex-end;
+  position: relative;
   min-width: 0;
   height: 100%;
 }
 
-/* 口徑改變的那天：左緣一條警示色細線。 */
-.daily-bars__col.is-marked {
-  box-shadow: inset 2px 0 0 var(--el-color-warning);
+/* 口徑改變的那天：左緣一條警示色細線，畫在直條上面才不會被填色蓋住。 */
+.daily-bars__col.is-marked::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 2px;
+  background: var(--el-color-warning);
+  pointer-events: none;
 }
 
 .daily-bars__fill {
