@@ -40,7 +40,7 @@ test('素材庫上傳照片，在「關於常春藤」選用並發布到官網',
     const picker = page.getByRole('dialog', { name: '選擇照片' })
     await picker.getByRole('button', { name: new RegExp(FILE_NAME) }).click()
     await expect(picker).toBeHidden()
-    await expect(page.locator('.slot__name', { hasText: FILE_NAME })).toBeVisible()
+    await expect(page.locator('.media-field__name', { hasText: FILE_NAME })).toBeVisible()
     await page.getByRole('button', { name: '儲存並發布到官網' }).click()
     // 確認框標題寫出是哪一項內容。
     await answerMessageBox(page, '發布首頁「關於常春藤」到官網？', '儲存並發布')

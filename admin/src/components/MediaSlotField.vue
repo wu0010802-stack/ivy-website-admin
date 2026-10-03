@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { api, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { FocusPointPayload, MediaAssetOut, MediaSlotPayload } from '../api/types'
 import { formatDuration } from '../api/labels'
+import type { MediaFieldState } from '../composables/mediaThumbs'
+import MediaFieldCard from './MediaFieldCard.vue'
 import MediaPickerDialog from './MediaPickerDialog.vue'
 import FocusPicker from './FocusPicker.vue'
 
@@ -43,7 +45,7 @@ const pickerVisible = ref(false)
 const asset = ref<MediaAssetOut | null>(null)
 const missing = ref(false)
 const showFocus = computed(() => (props.focus ?? props.kind === 'image') && props.kind === 'image')
-const noun = computed(() => (props.kind === 'video' ? '影片' : '照片'))
+const noun = computed<'照片' | '影片'>(() => (props.kind === 'video' ? '影片' : '照片'))
 
 // 同一個版位換來換去（選了又改回）時不重查。
 const cache = new Map<string, Promise<MediaAssetOut | null>>()
@@ -72,6 +74,16 @@ watch(
 watch(asset, (value) => emit('asset', value))
 
 const previewUrl = computed(() => (asset.value ? mediaPreviewUrl(asset.value) : ''))
+const cardState = computed<MediaFieldState>(() => (!props.modelValue ? 'builtin' : missing.value ? 'missing' : 'media'))
+const cardSrc = computed(() => (props.modelValue ? previewUrl.value : props.builtinSrc))
+// 檔名下面那行：影片寫長度與尺寸，照片寫尺寸。
+const cardMeta = computed(() => {
+  const a = asset.value
+  if (!a) return ''
+  const size = a.width && a.height ? `${a.width}×${a.height}` : ''
+  if (props.kind === 'video') return [formatDuration(a.duration_seconds), size].filter(Boolean).join('・')
+  return size
+})
 const focusUrl = computed(() => (asset.value ? mediaFocusUrl(asset.value) : ''))
 const slotFocus = computed<FocusPointPayload | null>(() => {
   const slot = props.modelValue
@@ -106,26 +118,18 @@ function setFocus(point: FocusPointPayload | null) {
 
 <template>
   <div class="slot">
-    <div class="slot__main">
-      <div class="slot__thumb" :class="{ 'is-builtin': !modelValue }">
-        <img v-if="modelValue && previewUrl" :src="previewUrl" :alt="asset?.alt_text ?? ''" />
-        <img v-else-if="!modelValue && builtinSrc" :src="builtinSrc" alt="" />
-        <span v-else class="slot__placeholder">{{ modelValue ? noun : '內建' }}</span>
-      </div>
-      <div class="slot__info">
-        <template v-if="modelValue">
-          <strong class="slot__name" :title="asset?.original_filename">{{ asset?.original_filename ?? '素材庫的' + noun }}</strong>
-          <span v-if="asset && kind === 'video'" class="field-help">{{ formatDuration(asset.duration_seconds) }}<template v-if="asset.width && asset.height">・{{ asset.width }}×{{ asset.height }}</template></span>
-          <span v-else-if="asset?.width && asset?.height" class="field-help">{{ asset.width }}×{{ asset.height }}</span>
-          <span v-if="missing" class="slot__warn">讀不到這個素材（可能已刪除或沒有權限），請重新選擇</span>
-        </template>
-        <span v-else class="field-help">目前用{{ builtin }}</span>
-        <div v-if="!disabled" class="slot__actions">
-          <el-button size="small" @click="pickerVisible = true">{{ modelValue ? `更換${noun}` : `從素材庫選${noun}` }}</el-button>
-          <el-button v-if="modelValue" size="small" text @click="clearSlot">改回官網內建</el-button>
-        </div>
-      </div>
-    </div>
+    <MediaFieldCard
+      :state="cardState"
+      :noun="noun"
+      :src="cardSrc"
+      :name="asset?.original_filename ?? ''"
+      :meta="cardMeta"
+      :builtin-text="builtin"
+      :status="asset?.status ?? null"
+      :disabled="disabled"
+      @pick="pickerVisible = true"
+      @clear="clearSlot"
+    />
     <FocusPicker
       v-if="showFocus && modelValue && focusUrl"
       :src="focusUrl"
@@ -143,23 +147,4 @@ function setFocus(point: FocusPointPayload | null) {
 
 <style scoped>
 .slot { display: grid; gap: 10px; width: 100%; min-width: 0; }
-.slot__main { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
-.slot__thumb {
-  flex: 0 0 auto;
-  width: 160px;
-  max-width: 100%;
-  aspect-ratio: 4 / 3;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--surface-2);
-}
-.slot__thumb.is-builtin { border-style: dashed; }
-.slot__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.slot__placeholder { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: 12px; }
-.slot__info { display: grid; gap: 4px; flex: 1 1 180px; min-width: 0; }
-.slot__name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slot__warn { color: var(--el-color-danger); font-size: 12px; }
-.slot__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.slot__actions .el-button + .el-button { margin-left: 0; }
 </style>
