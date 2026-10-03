@@ -434,7 +434,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 **上線前必須由園方處理**：在後台補完 9 處【待確認】（8 項事項，規格第 8 節）、填最後更新日期、發布；並依政策第 7 段寫的保存天數設定保存政策、開啟自動清理（`WEBSITE_RETENTION_ALLOW_REAL_RUN`）。
 
-## 招生分析階段 1（2026-10-04，`feature/admin-analytics-phase1-20261003`，尚未部署）
+## 招生分析階段 1（2026-10-04，`feature/admin-analytics-phase1-20261003`，10-04 已部署 main `b4bb570`）
 
 規格 `docs/analysis/2026-09-30-enrollment-analytics-report.md` §4、§7；計畫 `docs/superpowers/plans/2026-10-03-admin-analytics-phase1.md`。
 
@@ -452,7 +452,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | E26 | 期間跨 10-01 | 通過 | `test_period_crossing_self_booking_switch_has_no_confirmation_rate`；既有 `analyticsFunnel.test.ts` 確認率測試 |
 | E27 | 流量期間跨 09-30 | 通過 | `traffic.test.ts`「每日瀏覽趨勢」兩項 |
 
-## 後台第八輪 UX（2026-10-04 實作，尚未部署）
+## 後台第八輪 UX（2026-10-04 實作，10-04 已部署 main `b4bb570`）
 
 | 項目 | 狀態 | 驗證 |
 |---|---|---|

@@ -13,6 +13,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 官網後台成效統計補強＋第八輪 UX（main CI 部署）
+
+使用者要求合併並部署。`feature/admin-analytics-phase1-20261003`（`937502c`）與 `feature/admin-ux8-20261003`（`eb1aeed`）依序合進 `merge/admin-wave1-20261004`；驗證期間 main 前進到 `e3a7600`（關於頁紀念章，另一個 session），再合 origin/main 成 `b4bb570`，快轉推上 main。
+
+- **合併衝突**：`backend/app/operations/dashboard_service.py` 的 import 區（保留 `open_condition` 與 `User`，拿掉已無人使用的 `group_condition`）；README 與 `docs/website-admin/acceptance.md` 兩邊新增的段落都保留。`npm run contract:generate` 重產後沒有差異。
+- **沒有 migration**：alembic head 仍是 `4a7e2c9d1b63`，不需要先備份正式 DB。
+- **本機驗證**（`b312c43`，合 origin/main 之前；之後只多 web 與文件）：後端 pytest 1334 passed；admin typecheck 0 錯、vitest 84 檔 1038 passed、build 成功；web typecheck 0 錯、748 passed；`contract:check` 一致；stack e2e keyboard 10 passed、整套 67／68——失敗的 `media.spec` 是 main 既有的測試時序問題（e2e 庫 `home_about` 第 2 版的 `photo.media_id` 正確）。合 origin/main 後 web typecheck 0 錯 0 警告、753 passed。
+- **CI**：run 37161427628（`b4bb570`）E2E、Frontend web／admin、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-03 23:19–23:40 UTC）。
+- **正式 `release.json`**：base commit `b4bb570`，created `2026-10-03T23:37:05Z`。
+- **線上唯讀檢查**：後台 lazy chunk 有新字樣——`AnalyticsView`「五校比較」「預約孩子的班別」「每日變化」「樣本較少」、`DashboardView`「我承辦的案件」「承辦人已停用」、`VisitDetailView`「最後處理」「這筆案件剛有更新」、`index`「登入帳號已改變」；三支新統計 API 與 `/auth/me` 未登入回 401（路由存在）；`/`、`/about`、`/visit`、`/admin/` 200。
+- **未做**：正式站沒登入看後台畫面；Safari／iOS 實機。待使用者確認（都先照預設上線）：到場率分母、班別預設學年與是否含已取消、唯讀角色看「我承辦的案件」、停用帳號不清承辦人、到期前 15 分鐘提醒、家長端錯誤訊息改中文狀態名。已知限制：沒有未儲存修改的分頁，在別的分頁換成另一個帳號登入後會直接以那個帳號回到原頁（同舊行為）。
+
 ## 2026-10-04 關於頁第一章：紀念章取代「拉拉看」、正反交替（main CI 部署）
 
 使用者要求上線 `feature/about-medal-20261003` 的兩個提交：`3c9e1fd`（章名旁紀念章跟著捲動翻面，取代拉紙條）與 `e3a76001`（正反交替，2001／2020 落在米白正面）。推送 `66a77a1c..e3a76001`（快轉）。規則見 DESIGN.md「關於頁第一章：紀念章取代『拉拉看』」。
