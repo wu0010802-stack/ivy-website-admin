@@ -297,6 +297,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/analytics/booking-outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Outcomes
+         * @description 五校並排與各校的預約結果（去識別統計）。只列授權範圍內的校區，沒有校區參數。
+         */
+        get: operations["get_booking_outcomes_api_website_v1_admin_analytics_booking_outcomes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/class-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Class Distribution */
+        get: operations["get_class_distribution_api_website_v1_admin_analytics_class_distribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/event-trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Event Trend */
+        get: operations["get_event_trend_api_website_v1_admin_analytics_event_trend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/funnel": {
         parameters: {
             query?: never;
@@ -2888,6 +2942,11 @@ export interface components {
         };
         /** AnalyticsFunnelOut */
         AnalyticsFunnelOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
             /** By Referral */
             by_referral: components["schemas"]["FunnelReferralOut"][];
             /** By Source */
@@ -3081,6 +3140,27 @@ export interface components {
          * @enum {string}
          */
         BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
+        /** BookingOutcomesOut */
+        BookingOutcomesOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campuses */
+            campuses: components["schemas"]["CampusOutcomeOut"][];
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            open_now_totals: components["schemas"]["PendingNowOut"];
+            totals: components["schemas"]["OutcomeCountsOut"];
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "visit_request";
+        };
         /**
          * BookingReadinessOut
          * @description 各預約方式要讀資料才知道的啟用條件（場次或規則）與影響範圍。
@@ -3182,6 +3262,41 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** CampusOutcomeOut */
+        CampusOutcomeOut: {
+            /** Active */
+            active: boolean;
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            /** Booking Mode */
+            booking_mode: string | null;
+            /** Campus Key */
+            campus_key: string;
+            cancel_rate: components["schemas"]["AdmissionsRate"];
+            /** Cancelled */
+            cancelled: number;
+            /** Cancelled By Reason */
+            cancelled_by_reason: {
+                [key: string]: number;
+            };
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            /** No Show */
+            no_show: number;
+            no_show_rate: components["schemas"]["AdmissionsRate"];
+            open_now: components["schemas"]["PendingNowOut"];
+            /** Pending */
+            pending: number;
+            /** Unscheduled */
+            unscheduled: number;
+            /** Upcoming */
+            upcoming: number;
+            /** Web Cases */
+            web_cases: number;
+        };
         /** CampusStatusOut */
         CampusStatusOut: {
             /** Active */
@@ -3206,6 +3321,35 @@ export interface components {
             active: boolean;
             /** Reason */
             reason?: string | null;
+        };
+        /** ClassDistributionOut */
+        ClassDistributionOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Grades */
+            grades: components["schemas"]["GradeCountOut"][];
+            /** Out Of Range */
+            out_of_range: number;
+            /** School Year */
+            school_year: number;
+            /** Total */
+            total: number;
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "visit_request";
+            /** Unrecorded */
+            unrecorded: number;
         };
         /** ContentItemOut */
         ContentItemOut: {
@@ -3329,6 +3473,51 @@ export interface components {
             /** Display Name */
             display_name: string | null;
         };
+        /** EventTrendDayOut */
+        EventTrendDayOut: {
+            /** Clicks */
+            clicks: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Request Created */
+            request_created: number;
+            /** Visit Cancelled */
+            visit_cancelled: number;
+            /** Visit Completed */
+            visit_completed: number;
+        };
+        /** EventTrendOut */
+        EventTrendOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Days */
+            days: components["schemas"]["EventTrendDayOut"][];
+            /** Truncated */
+            truncated: boolean;
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "event";
+        };
         /**
          * FeatureFlags
          * @description 後台依部署開關決定要不要顯示的功能（目前只有招生入學）。
@@ -3423,6 +3612,13 @@ export interface components {
             };
             /** Source */
             source: string;
+        };
+        /** GradeCountOut */
+        GradeCountOut: {
+            /** Count */
+            count: number;
+            /** Grade */
+            grade: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4012,6 +4208,38 @@ export interface components {
             line: boolean;
         };
         /**
+         * OutcomeCountsOut
+         * @description 一批預約案件（期間內送出）現在的結果；各結果加總＝cases。單位是預約案件，
+         *     同一個孩子預約兩校算兩筆，不依電話合併。
+         */
+        OutcomeCountsOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            cancel_rate: components["schemas"]["AdmissionsRate"];
+            /** Cancelled */
+            cancelled: number;
+            /** Cancelled By Reason */
+            cancelled_by_reason: {
+                [key: string]: number;
+            };
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            /** No Show */
+            no_show: number;
+            no_show_rate: components["schemas"]["AdmissionsRate"];
+            /** Pending */
+            pending: number;
+            /** Unscheduled */
+            unscheduled: number;
+            /** Upcoming */
+            upcoming: number;
+            /** Web Cases */
+            web_cases: number;
+        };
+        /**
          * ParentAccessLinkCreatedOut
          * @description manage_url 是可以直接給家長的完整網址（公開官網 origin＝
          *     WEBSITE_ADMIN_ORIGIN）；部署沒設定 origin 時為 None，只能用
@@ -4188,6 +4416,18 @@ export interface components {
         PasswordResetRequest: {
             /** Password */
             password: string;
+        };
+        /**
+         * PendingNowOut
+         * @description 現在的待處理三種（booking/pending_kinds.py），不受期間影響。
+         */
+        PendingNowOut: {
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            /** Follow Up Due */
+            follow_up_due: number;
+            /** Legacy Pending */
+            legacy_pending: number;
         };
         /** PendingReviewOut */
         PendingReviewOut: {
@@ -6507,6 +6747,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdmissionsStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_outcomes_api_website_v1_admin_analytics_booking_outcomes_get: {
+        parameters: {
+            query?: {
+                /** @description 送出日期起（台北，含），省略＝不限 */
+                from?: string | null;
+                /** @description 送出日期迄（台北，含），省略＝不限 */
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOutcomesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_class_distribution_api_website_v1_admin_analytics_class_distribution_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 換算用的民國學年度 */
+                school_year: number;
+                /** @description 送出日期起（台北，含） */
+                from?: string | null;
+                /** @description 送出日期迄（台北，含） */
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassDistributionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_trend_api_website_v1_admin_analytics_event_trend_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 台北日期（含），省略＝從第一筆事件 */
+                from?: string | null;
+                /** @description 台北日期（含），省略＝今天 */
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventTrendOut"];
                 };
             };
             /** @description Validation Error */

@@ -1,3 +1,13 @@
+## 2026-10-04 成效統計補強：預約結果、五校比較、每日趨勢與班別（`feature/admin-analytics-phase1-20261003`，未部署）
+
+依 `docs/analysis/2026-09-30-enrollment-analytics-report.md` 階段 1；計畫 `docs/superpowers/plans/2026-10-03-admin-analytics-phase1.md`。規則見 DESIGN.md「成效統計補強」。
+
+- **後端**：`GET /admin/analytics/booking-outcomes`（同批案件的結果、到場率、未到率、取消率、現在待處理三種，只列授權校區）、`/event-trend`（每日事件，台北日期）、`/class-distribution`（生日換算班別）；funnel 與 traffic 帶 `as_of`。待處理三種集中到 `booking/pending_kinds.py`，總覽與案件列表共用。不新增資料表、沒有 migration。
+- **後台**：`components/analytics/` 新增五個元件；官網瀏覽加每日趨勢與 09/30 標記。三個新面板換期間／校區時，標題與說明列標的是「目前畫面上這批資料」的期間與校區；重抓中舊數字變淡、重抓失敗只顯示錯誤，不留舊數字。
+- **驗證**（Node 22，HEAD 3f0fb96）：後端 pytest 1328 passed；admin typecheck 0 error、vitest 80 檔 994 passed、build 成功；web typecheck 0 error、單元 75 檔 748 passed；`contract:check` 一致；stack e2e keyboard 10 passed（含 `/analytics` 390／1440 不溢出），整套 66 passed／2 failed——`a11y.spec` 的入學 arrivals 頁在整套時 axe 逾時（單獨重跑通過），`media.spec` 是 main 既有的間歇失敗（測試在存檔完成前讀 API，本分支沒動到相關程式）。截圖 `output/playwright/analytics-{1440,390}.png`：兩寬度都不溢出，五校比較表在框內橫捲，09/30 標記線看得到。未驗證：Safari／iOS 實機、正式站資料、期間拉到一年時手機直條的實際觀感（只有單元測試與程式審查）。
+- **未做**：統計匯出（匯出擴充計畫）、測試案件人工排除（要 migration）、UTM（階段 3）。
+- **待使用者確認**：到場率分母（目前：已到場＋未到場，時間已過還沒標記的另列）、班別預設學年（目前學年）、班別含已取消（目前含）。
+
 ## 2026-10-03 404 頁加立體書校徽（`feature/404-crest-popup-20261003`，未部署）
 
 使用者要把 logo 做成 3D；比過全站右下角浮動三方向後，改成嵌在分頁某一段，選「404 × 立體書」先做。規則見 DESIGN.md「404 頁加立體書校徽」。

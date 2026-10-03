@@ -12,6 +12,7 @@ const vital = (metric: TrafficVital['metric'], device: TrafficVital['device'], p
   ({ metric, device, p75, samples, rating })
 
 const traffic = (days = 28): TrafficSummary => ({
+  as_of: '2026-10-03T06:05:00Z',
   days, since: '2026-09-02', until: '2026-09-29', total_views: 120,
   daily: [{ day: '2026-09-29', views: 7 }],
   pages: [{ page: 'home', campus_key: null, views: 80 }, { page: 'campus', campus_key: 'yihua', views: 40 }],
@@ -100,5 +101,30 @@ describe('瀏覽統計面板', () => {
     await flushPromises()
     expect(wrapper.find('h2').text()).toBe('官網瀏覽與速度（近 7 天）')
     expect(wrapper.text()).not.toContain('更新中…')
+  })
+})
+
+describe('每日瀏覽趨勢', () => {
+  async function mountWith(daily: TrafficSummary['daily']) {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...traffic(), daily } as never)
+    const wrapper = mount(SiteTrafficPanel, { global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    return wrapper
+  }
+
+  it('每天一根直條；期間包含 09/30 時標出內頁開始計入', async () => {
+    const wrapper = await mountWith([
+      { day: '2026-09-29', views: 3 }, { day: '2026-09-30', views: 5 }, { day: '2026-10-01', views: 1 },
+    ])
+    expect(wrapper.findAll('.daily-bars__col')).toHaveLength(3)
+    expect(wrapper.text()).toContain('09/30 起：')
+    expect(wrapper.text()).toContain('單位：瀏覽次數')
+    expect(wrapper.text()).toContain('10/03 14:05')
+  })
+
+  it('期間不含 09/30 時不畫標記', async () => {
+    const wrapper = await mountWith([{ day: '2026-10-02', views: 3 }, { day: '2026-10-03', views: 4 }])
+    expect(wrapper.text()).not.toContain('09/30 起：')
   })
 })

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants, records
 from app.admissions.models import RecruitmentVisit
-from app.booking import history, status_groups
+from app.booking import history, pending_kinds
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 from app.common.timezones import OPERATING_TZ, today_local
 
@@ -38,8 +38,6 @@ REFERRAL_SOURCE_TEXT: dict[str, str] = {
 NOTES_PREFIX = "家長想了解："
 # 「官網預約」分頁兩份清單各最多回幾筆（另回截斷前的總數）。
 ARRIVALS_LIMIT = 200
-
-_DONE = (VisitRequestStatus.COMPLETED.value, VisitRequestStatus.NO_SHOW.value)
 
 
 def _cut(value: str | None, limit: int) -> str | None:
@@ -125,10 +123,10 @@ async def arrivals(db: AsyncSession, campus_key: str, *, now: datetime | None = 
     """規格 6.1 第 2 點。兩份清單各最多 ARRIVALS_LIMIT 筆、新到舊，另回總數
     （awaiting_total、missing_total）。
 
-    - awaiting：confirmed 且場次已開始、還沒確認到場。直接用預約改版的
-      status_groups.group_condition("past") 再排除已到場、未到場，不另寫「已開始」
-      的判斷；已停止申請的場次照列，沒有場次的 confirmed 不在 past，也不列。依場次
-      日期與開始時間新到舊。
+    - awaiting：confirmed 且場次已開始、還沒確認到場。直接用
+      pending_kinds.condition("awaiting_attendance")（總覽、案件列表、成效統計共用的
+      「時間已過、還沒標記到場」），不另寫「已開始」的判斷；已停止申請的場次照列，
+      沒有場次的 confirmed 不在 past，也不列。依場次日期與開始時間新到舊。
     - missing：已到場、還沒匿名化、沒有招生訪視（本模組上線前就已到場、開關關閉時
       到場，或招生訪視被刪掉）。依場次日期與開始時間新到舊；沒有場次的舊案用建立
       時間（台北時間）一起排。"""
@@ -138,8 +136,7 @@ async def arrivals(db: AsyncSession, campus_key: str, *, now: datetime | None = 
         .join(VisitSlot, VisitSlot.id == VisitRequest.slot_id)
         .where(
             VisitRequest.campus_key == campus_key,
-            status_groups.group_condition("past", now),
-            VisitRequest.status.not_in(_DONE),
+            pending_kinds.condition("awaiting_attendance", now),
         ),
         VisitSlot.slot_date.desc(),
         VisitSlot.start_time.desc(),

@@ -433,3 +433,21 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 實際驗證結果（2026-10-03，本分支）：stack e2e `privacy-policy` ＋ `keyboard` 15 項（含 setup）全過；整套 stack 73 項，72 過、`media.spec.ts` 1 項整套跑時失敗（main 既有的間歇失敗），單獨重跑 2 項（含 setup）全過；`contract:check` 通過；admin typecheck 通過；admin 單元 957 項（75 檔）通過，但同一環境連跑有兩次出現 1 項失敗（未查出是哪一項，第三次全過，疑為間歇逾時）；web typecheck 無錯誤輸出；`test:website` 761 項（75 檔）通過；`admin build` 成功。後端整套 pytest 本次未在此跑（由主控另跑）。
 
 **上線前必須由園方處理**：在後台補完 9 處【待確認】（8 項事項，規格第 8 節）、填最後更新日期、發布；並依政策第 7 段寫的保存天數設定保存政策、開啟自動清理（`WEBSITE_RETENTION_ALLOW_REAL_RUN`）。
+
+## 招生分析階段 1（2026-10-04，`feature/admin-analytics-phase1-20261003`，尚未部署）
+
+規格 `docs/analysis/2026-09-30-enrollment-analytics-report.md` §4、§7；計畫 `docs/superpowers/plans/2026-10-03-admin-analytics-phase1.md`。
+
+| 編號 | 案例 | 狀態 | 證據 |
+|---|---|---|---|
+| E01 | 全區與單校帳號查同一張報表 | 通過 | `test_analytics_booking_outcomes.py::test_only_campuses_in_scope_are_listed`、`test_analytics_event_trend.py::test_other_campus_is_hidden`、`test_analytics_class_distribution.py::test_period_scope_and_school_year_bounds` |
+| E02 | 只有 analytics.read | 通過 | `test_analytics_only_role_sees_counts_without_personal_data`；`analyticsOutcomes.test.ts`「只有統計權限的人只看數字」 |
+| E03 | 台北午夜、月底、跨年 | 通過 | `test_period_uses_taipei_days_of_created_at`、`test_days_are_taipei_dates_and_zero_filled` |
+| E04 | 每日資料有空白日期、查詢失敗 | 通過 | `test_days_are_taipei_dates_and_zero_filled`、`test_no_events_gives_one_zero_day`；各面板「讀取失敗顯示錯誤」 |
+| E05 | 生日 9/1、9/2；學年 7/31、8/1 | 通過 | `test_analytics_class_distribution.py::test_shared_grade_cases`（共用 `grade-cases.json`） |
+| E06 | 缺生日、舊年齡文字、範圍外 | 通過 | `test_missing_or_anonymized_birthdays_are_unrecorded`、`test_shared_grade_cases` 的範圍外案例 |
+| E07 | 快速切換、回應順序顛倒 | 通過 | `analyticsOutcomes.test.ts`「回應順序顛倒…」；各面板以 `useRequestSequence` 擋；analyticsTrend.test.ts、analyticsClasses.test.ts 也各有回應順序顛倒測試 |
+| E08 | 待處理三種計數 | 通過 | `test_analytics_pending_kinds.py`、`test_open_now_matches_dashboard_and_ignores_period` |
+| E25 | 1440／390、鍵盤 | 通過（1440／390 截圖與 keyboard 溢出檢查；Safari／iOS 未驗證） | stack `keyboard.spec.ts` 後台溢出（含 `/analytics`）；截圖 `output/playwright/analytics-{1440,390}.png` |
+| E26 | 期間跨 10-01 | 通過 | `test_period_crossing_self_booking_switch_has_no_confirmation_rate`；既有 `analyticsFunnel.test.ts` 確認率測試 |
+| E27 | 流量期間跨 09-30 | 通過 | `traffic.test.ts`「每日瀏覽趨勢」兩項 |

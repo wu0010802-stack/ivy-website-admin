@@ -5,7 +5,7 @@ import io
 import logging
 import re
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, or_, select
@@ -21,6 +21,7 @@ from app.booking import (
     attention,
     consent,
     export_labels,
+    pending_kinds,
     presenters,
     readiness,
     service,
@@ -882,13 +883,9 @@ class VisitRequestFilters:
 
     def apply(self, stmt, user: User, capability: str):
         if self.follow_up_due:
-            # 與 dashboard_service 的「到期待追蹤」同一個定義，總覽的數字點進來
-            # 才會是同一批案件。
-            stmt = stmt.where(
-                VisitRequest.follow_up_at.is_not(None),
-                VisitRequest.follow_up_at <= datetime.now(timezone.utc),
-                VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
-            )
+            # 與總覽「到期待追蹤」、成效統計同一個定義（booking/pending_kinds.py），
+            # 總覽的數字點進來才會是同一批案件。
+            stmt = stmt.where(pending_kinds.condition("follow_up_due"))
         if self.needs_attention:
             stmt = stmt.where(attention.needs_attention_condition())
         if self.campus_key:
