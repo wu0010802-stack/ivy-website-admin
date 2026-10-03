@@ -142,13 +142,17 @@ class FunnelRange:
     date_from: date | None = None
     date_to: date | None = None
 
-    def conditions(self) -> list:
+    def on(self, column) -> list:
+        """套在任一個 UTC 時間欄位上（事件的 created_at、案件的 created_at）。"""
         conditions = []
         if self.date_from is not None:
-            conditions.append(AnalyticsEvent.created_at >= local_day_bounds_utc(self.date_from)[0])
+            conditions.append(column >= local_day_bounds_utc(self.date_from)[0])
         if self.date_to is not None:
-            conditions.append(AnalyticsEvent.created_at < local_day_bounds_utc(self.date_to)[1])
+            conditions.append(column < local_day_bounds_utc(self.date_to)[1])
         return conditions
+
+    def conditions(self) -> list:
+        return self.on(AnalyticsEvent.created_at)
 
 
 def _empty(types) -> dict[str, int]:

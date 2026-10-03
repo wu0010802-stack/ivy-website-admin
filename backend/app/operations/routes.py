@@ -11,19 +11,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
+from app.admissions.schemas import AdmissionsRate
 from app.auth.permissions import (
     campus_scope,
     can_edit_shared_content,
     can_publish_shared_content,
+    covers_campus,
     has_capability,
     require_scope,
 )
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.notifications.models import UserNotification
 from app.operations import (
     analytics_service,
     audit_service,
+    booking_outcomes_service,
     dashboard_service,
     public_caps,
     retention_service,
@@ -244,6 +247,22 @@ class AnalyticsFunnelOut(BaseModel):
 FUNNEL_MAX_DAYS = 400
 
 
+def _validate_range(date_from: date | None, date_to: date | None) -> None:
+    """成效統計共用的台北日期區間檢查（兩端都有才檢查）。"""
+    if date_from is None or date_to is None:
+        return
+    if date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
+        )
+    if (date_to - date_from).days + 1 > FUNNEL_MAX_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {FUNNEL_MAX_DAYS} 天"},
+        )
+
+
 @router.get("/admin/analytics/funnel", response_model=AnalyticsFunnelOut)
 async def get_analytics_funnel(
     campus_key: str,
@@ -253,22 +272,82 @@ async def get_analytics_funnel(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     require_scope(current_user, "analytics.read", campus_keys=[campus_key])
-    if date_from is not None and date_to is not None:
-        if date_from > date_to:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
-            )
-        if (date_to - date_from).days + 1 > FUNNEL_MAX_DAYS:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {FUNNEL_MAX_DAYS} 天"},
-            )
+    _validate_range(date_from, date_to)
     period = analytics_service.FunnelRange(date_from, date_to)
     funnel = await analytics_service.get_campus_funnel(db, campus_key, period)
     if campus_scope(current_user) is None:
         funnel["unassigned_clicks"] = await analytics_service.get_unassigned_clicks(db, period)
     return funnel
+
+
+class OutcomeCountsOut(BaseModel):
+    """一批預約案件（期間內送出）現在的結果；各結果加總＝cases。單位是預約案件，
+    同一個孩子預約兩校算兩筆，不依電話合併。"""
+
+    cases: int
+    # 官網表單送出的；其餘是後台補登（電話、LINE、親自到園、外部網站）。
+    web_cases: int
+    # 上線前的舊流程狀態（new／contacting／pending_confirmation）。
+    pending: int
+    # 已確認、場次還沒開始。
+    upcoming: int
+    # 已確認、場次已開始，還沒標記到場或未到場。
+    awaiting_attendance: int
+    completed: int
+    no_show: int
+    cancelled: int
+    # 已確認卻沒有場次（舊流程資料，通常是 0）。
+    unscheduled: int
+    # parent／staff／hold_expired／unknown（舊案沒記原因）。
+    cancelled_by_reason: dict[str, int]
+    # 已到場 ÷（已到場＋未到場）；還沒標記的不算進分母。
+    attendance_rate: AdmissionsRate
+    no_show_rate: AdmissionsRate
+    # 已取消 ÷ cases。
+    cancel_rate: AdmissionsRate
+
+
+class PendingNowOut(BaseModel):
+    """現在的待處理三種（booking/pending_kinds.py），不受期間影響。"""
+
+    legacy_pending: int
+    awaiting_attendance: int
+    follow_up_due: int
+
+
+class CampusOutcomeOut(OutcomeCountsOut):
+    campus_key: str
+    active: bool
+    # booking_configs.mode；還沒設定過為 null。
+    booking_mode: str | None
+    open_now: PendingNowOut
+
+
+class BookingOutcomesOut(BaseModel):
+    as_of: datetime
+    date_from: date | None
+    date_to: date | None
+    unit: Literal["visit_request"]
+    # 只有授權範圍內的校區，順序同 CAMPUS_KEYS。
+    campuses: list[CampusOutcomeOut]
+    totals: OutcomeCountsOut
+    open_now_totals: PendingNowOut
+
+
+@router.get("/admin/analytics/booking-outcomes", response_model=BookingOutcomesOut)
+async def get_booking_outcomes(
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含），省略＝不限"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含），省略＝不限"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """五校並排與各校的預約結果（去識別統計）。只列授權範圍內的校區，沒有校區參數。"""
+    require_scope(current_user, "analytics.read")
+    _validate_range(date_from, date_to)
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    return await booking_outcomes_service.booking_outcomes(
+        db, campus_keys, analytics_service.FunnelRange(date_from, date_to)
+    )
 
 
 class AuditLogEntryOut(BaseModel):
