@@ -206,7 +206,10 @@ async def me(
     # mutating 請求所需的 CSRF header，不用強迫使用者重新登入。
     settings: Settings = request.app.state.settings
     return MeResponse(
-        csrf_token=session.csrf_token, user=_user_out(current_user), features=_features(settings)
+        csrf_token=session.csrf_token,
+        user=_user_out(current_user),
+        features=_features(settings),
+        session_max_expires_at=service.session_max_expiry(session),
     )
 
 

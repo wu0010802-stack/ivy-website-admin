@@ -3575,6 +3575,8 @@ export interface components {
             /** Csrf Token */
             csrf_token: string;
             features: components["schemas"]["FeatureFlags"];
+            /** Session Max Expires At */
+            session_max_expires_at?: string | null;
             user: components["schemas"]["UserOut"];
         };
         /** MediaAssetOut */

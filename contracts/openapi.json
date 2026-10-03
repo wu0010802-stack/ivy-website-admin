@@ -3431,6 +3431,18 @@
           "features": {
             "$ref": "#/components/schemas/FeatureFlags"
           },
+          "session_max_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Max Expires At"
+          },
           "user": {
             "$ref": "#/components/schemas/UserOut"
           }
