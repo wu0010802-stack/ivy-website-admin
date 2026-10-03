@@ -11,7 +11,8 @@ from app.booking import slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.status_groups import group_condition
+from app.auth.models import User
+from app.booking.status_groups import group_condition, open_condition
 from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -314,3 +315,21 @@ async def _media_issues(
         row["not_ready"] = max(row["not_ready"], not_ready)
         row["live"] = row["live"] or is_live
     return sorted(issues.values(), key=lambda row: (not row["live"], row["kind"], row["campus_key"] or ""))
+
+
+def _scoped_count(campus_keys: list[str] | None, *conditions):
+    stmt = select(func.count()).select_from(VisitRequest).where(open_condition(), *conditions)
+    if campus_keys is not None:
+        stmt = stmt.where(VisitRequest.campus_key.in_(campus_keys))
+    return stmt
+
+
+async def count_open_cases_assigned_to(db: AsyncSession, user_id: uuid.UUID, campus_keys: list[str] | None) -> int:
+    """總覽「我承辦的案件」：指派給這個人、還沒結案的件數。和清單 ?assignee=me&open=true 同一批。"""
+    return (await db.execute(_scoped_count(campus_keys, VisitRequest.assigned_staff_id == user_id))).scalar_one()
+
+
+async def count_open_cases_with_inactive_assignee(db: AsyncSession, campus_keys: list[str] | None) -> int:
+    """承辦人帳號已停用、還沒結案的件數。和清單 ?assignee=inactive&open=true 同一批。"""
+    inactive = select(User.id).where(User.is_active.is_(False))
+    return (await db.execute(_scoped_count(campus_keys, VisitRequest.assigned_staff_id.in_(inactive)))).scalar_one()

@@ -201,6 +201,13 @@ async def get_dashboard(
             .where(UserNotification.recipient_user_id == current_user.id, UserNotification.read_at.is_(None))
         )
     ).scalar_one()
+    # 總覽「我承辦的案件」（2026-10-03 第八輪）；不算待辦，只是讓承辦人找得到自己的案件。
+    summary["my_open_cases"] = await dashboard_service.count_open_cases_assigned_to(db, current_user.id, campus_keys)
+    # 承辦人停用後案件沒人管：只給能重新指派的人（booking.manage）。
+    if has_capability(current_user, "booking.manage"):
+        summary["inactive_assignee_open_cases"] = await dashboard_service.count_open_cases_with_inactive_assignee(
+            db, campus_keys
+        )
     return summary
 
 

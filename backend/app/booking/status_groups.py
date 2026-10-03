@@ -19,6 +19,14 @@ PENDING_STATUSES = (
 )
 _DONE_STATUSES = (VisitRequestStatus.COMPLETED.value, VisitRequestStatus.NO_SHOW.value)
 
+# 還沒結案：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）。
+# 總覽「我承辦的案件」「承辦人已停用」與清單的 open=true 用同一個定義。
+OPEN_STATUSES = (*PENDING_STATUSES, VisitRequestStatus.CONFIRMED.value)
+
+
+def open_condition():
+    return VisitRequest.status.in_(OPEN_STATUSES)
+
 
 def display_status(status: str, slot_date: date | None, start_time: time | None, now: datetime | None = None) -> str:
     if status in PENDING_STATUSES:

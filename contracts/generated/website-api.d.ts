@@ -9315,7 +9315,7 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
                 assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
@@ -9327,6 +9327,8 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
+                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                open?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -9405,7 +9407,7 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
                 assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
@@ -9417,6 +9419,8 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
+                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                open?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -9457,7 +9461,7 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派，或承辦人的使用者 id */
+                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
                 assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
@@ -9469,6 +9473,8 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
+                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                open?: boolean;
             };
             header?: {
                 "x-csrf-token"?: string | null;
