@@ -33,8 +33,10 @@ const campusFilter = ref('')
 const groupFilter = ref('')
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(false)
-// 承辦人：''＝全部、me＝我承辦的、none＝尚未指派。
+// 承辦人：''＝全部、me＝我承辦的、none＝尚未指派、inactive＝承辦人已停用。
 const assigneeFilter = ref('')
+// 只看還沒結案的（待處理、待園方確認、預約正常），總覽「我承辦的案件」帶 ?open=1 進來。
+const openOnly = ref(false)
 const sourceFilter = ref('')
 // 送出日期區間（台灣日期，含頭尾）。櫃台會在手機上篩：窄螢幕的日期面板只顯示
 // 一個月，雙月面板約 646px 會超出 390px 螢幕。
@@ -73,7 +75,8 @@ function applyQuery(query: LocationQuery) {
   search.value = queryText(query.q)
   dueOnly.value = query.due === '1'
   const assignee = queryText(query.assignee)
-  assigneeFilter.value = assignee === 'me' || assignee === 'none' ? assignee : ''
+  assigneeFilter.value = ['me', 'none', 'inactive'].includes(assignee) ? assignee : ''
+  openOnly.value = query.open === '1'
   const source = queryText(query.source)
   sourceFilter.value = VISIT_SOURCE_LABELS[source] ? source : ''
   const from = queryText(query.created_from)
@@ -94,6 +97,7 @@ function stateQuery(): Record<string, string> {
   if (search.value.trim()) query.q = search.value.trim()
   if (campusFilter.value) query.campus = campusFilter.value
   if (assigneeFilter.value) query.assignee = assigneeFilter.value
+  if (openOnly.value) query.open = '1'
   if (sourceFilter.value) query.source = sourceFilter.value
   if (createdRange.value) {
     query.created_from = createdRange.value[0]
@@ -127,7 +131,7 @@ function syncUrl() {
 
 applyQuery(route.query)
 
-const hasFilters = computed(() => Boolean(campusFilter.value || groupFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value || createdRange.value || attentionOnly.value))
+const hasFilters = computed(() => Boolean(campusFilter.value || groupFilter.value || search.value.trim() || dueOnly.value || assigneeFilter.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value))
 function clearFilters() {
   campusFilter.value = ''
   groupFilter.value = ''
@@ -135,6 +139,7 @@ function clearFilters() {
   search.value = ''
   dueOnly.value = false
   assigneeFilter.value = ''
+  openOnly.value = false
   sourceFilter.value = ''
   createdRange.value = null
   attentionOnly.value = false
@@ -152,7 +157,7 @@ const statusTabs = computed(() => [
 // 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
 // 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
 const moreFiltersOpen = ref(false)
-const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value, createdRange.value, attentionOnly.value].filter(Boolean).length)
+const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value, createdRange.value, attentionOnly.value, openOnly.value].filter(Boolean).length)
 
 const hasNext = computed(() => requests.value.length === pageSize)
 
@@ -181,6 +186,7 @@ function filterParams(options: { withGroup?: boolean } = {}): URLSearchParams {
   if (searchTerm()) params.set('q', searchTerm())
   if (dueOnly.value) params.set('follow_up_due', 'true')
   if (assigneeFilter.value) params.set('assignee', assigneeFilter.value)
+  if (openOnly.value) params.set('open', 'true')
   if (sourceFilter.value) params.set('source', sourceFilter.value)
   if (createdRange.value) {
     params.set('created_from', createdRange.value[0])
@@ -268,7 +274,7 @@ function toggleAttendance(on: boolean) {
   if (on) groupFilter.value = 'past'
 }
 
-watch([campusFilter, groupFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly, attendanceOnly], () => {
+watch([campusFilter, groupFilter, dueOnly, order, assigneeFilter, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly], () => {
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
   queueLoad()
@@ -365,7 +371,8 @@ const emptyText = computed(() => {
   if (attentionOnly.value) return '沒有待人工處理的案件'
   if (attendanceOnly.value) return '沒有尚未確認到場的案件'
   if (dueOnly.value) return '沒有到期待追蹤的案件'
-  if (assigneeFilter.value === 'me') return '目前沒有你承辦的案件'
+  if (assigneeFilter.value === 'inactive') return '沒有承辦人已停用、還沒結案的案件'
+  if (assigneeFilter.value === 'me') return openOnly.value ? '目前沒有你承辦、還沒結案的案件' : '目前沒有你承辦的案件'
   if (assigneeFilter.value === 'none') return '沒有尚未指派的案件'
   if (groupFilter.value) return `沒有「${(VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? groupFilter.value}」的案件`
   return '還沒有任何參觀案件'
@@ -418,6 +425,7 @@ onMounted(() => {
         <el-select v-model="assigneeFilter" aria-label="承辦人" placeholder="全部承辦人" clearable class="order-select">
           <el-option label="我承辦的" value="me" />
           <el-option label="尚未指派" value="none" />
+          <el-option label="承辦人已停用" value="inactive" />
         </el-select>
         </div>
         <div class="filter-field"><span>來源</span>
@@ -432,6 +440,7 @@ onMounted(() => {
         <el-checkbox :model-value="attendanceOnly" class="filter-due" @update:model-value="(on: string | number | boolean) => toggleAttendance(Boolean(on))">只看尚未確認到場</el-checkbox>
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
         <el-checkbox v-model="attentionOnly" class="filter-due">只看待人工處理</el-checkbox>
+        <el-checkbox v-model="openOnly" class="filter-due">只看未結案</el-checkbox>
       </div>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>

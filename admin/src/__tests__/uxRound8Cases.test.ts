@@ -5,7 +5,11 @@ import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
+import DashboardView from '../views/DashboardView.vue'
+import UsersView from '../views/UsersView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
+import VisitRequestsView from '../views/VisitRequestsView.vue'
+import UserActions from '../components/UserActions.vue'
 import { api, ApiError } from '../api/client'
 import { lastHandled } from '../api/visitHistory'
 import { useAuthStore } from '../stores/auth'
@@ -164,5 +168,94 @@ describe('案件明細：同時處理', () => {
     expect(wrapper.find('.el-alert--error').exists()).toBe(false)
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('家長說下週再約')
     expect(String((warning.mock.calls[0]![0] as { message: string }).message)).toBe('無法更新案件，畫面可能不是最新。')
+  })
+})
+
+describe('我承辦的未結案', () => {
+  const stub = defineComponent({ template: '<div />' })
+
+  it('列表 ?assignee=inactive&open=1：送 assignee=inactive 與 open=true，勾著「只看未結案」', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin')
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests', component: VisitRequestsView }, { path: '/visit-requests/:id', component: stub }, { path: '/dashboard', component: stub }] })
+    await router.push('/visit-requests?assignee=inactive&open=1'); await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    const list = get.mock.calls.map(([p]) => String(p)).find((p) => p.startsWith('/admin/visit-requests?') && p.includes('page='))!
+    expect(list).toContain('assignee=inactive')
+    expect(list).toContain('open=true')
+    expect(router.currentRoute.value.query).toMatchObject({ assignee: 'inactive', open: '1' })
+    expect(wrapper.text()).toContain('沒有承辦人已停用、還沒結案的案件')
+  })
+
+  async function mountDashboard(summary: Record<string, unknown>, rows: unknown[] = [], role: 'super_admin' | 'reception' = 'super_admin') {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      const url = String(path)
+      if (url === '/admin/dashboard') return { today_visits: 0, today_visit_list: [], pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0, ...summary } as never
+      if (url.startsWith('/admin/visit-requests?')) return rows as never
+      return [] as never
+    })
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser(role)
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: DashboardView }, { path: '/visit-requests', component: stub }, { path: '/visit-requests/:id', component: stub }] })
+    await router.push('/'); await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] }, attachTo: document.body })
+    wrappers.push(wrapper); await flushPromises()
+    return { wrapper, get }
+  }
+
+  it('總覽：有我承辦的案件時列最多 5 筆＋查看全部；不算待辦', async () => {
+    const { wrapper, get } = await mountDashboard({ my_open_cases: 7 }, [caseOf({ id: 'c1', parent_name: '周美玲' })])
+    const section = wrapper.get('.dash__mine')
+    expect(section.get('h2').text()).toBe('我承辦的案件')
+    expect(section.text()).toContain('周美玲')
+    expect(section.get('a.dash__mine-all').attributes('href')).toBe('/visit-requests?assignee=me&open=1&order=oldest')
+    expect(section.get('a.dash__mine-all').text()).toContain('查看全部 7 件')
+    expect(get.mock.calls.map(([p]) => String(p))).toContain('/admin/visit-requests?assignee=me&open=true&order=oldest&page_size=5')
+    expect(wrapper.text()).toContain('目前沒有待處理事項')
+  })
+
+  it('總覽：承辦人已停用還沒結案的算待辦，連到篩好的列表', async () => {
+    const { wrapper } = await mountDashboard({ inactive_assignee_open_cases: 2 })
+    const task = wrapper.get('a.task[href="/visit-requests?assignee=inactive&open=1"]')
+    expect(task.text()).toContain('承辦人已停用，案件還沒結案')
+    expect(task.get('.task__number').text()).toBe('2')
+  })
+
+  it('停用帳號：對方還有未結案件時提示件數；查件數失敗時照樣只說已停用', async () => {
+    const colleague = testUser('campus_admin', { id: 'u-wang', email: 'wang@ivy.example', display_name: '王老師', campus_keys: ['yihua'] })
+    let countsFail = false
+    vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      const url = String(path)
+      if (url === '/admin/users') return [colleague] as never
+      if (url.startsWith('/admin/visit-requests/group-counts')) {
+        if (countsFail) throw new ApiError(500, {})
+        return { pending: 0, upcoming: 2, past: 1, cancelled: 0 } as never
+      }
+      return [] as never
+    })
+    vi.spyOn(api, 'patch').mockResolvedValue({ ...colleague, is_active: false } as never)
+    vi.spyOn(ElMessage, 'success').mockImplementation((() => undefined) as never)
+    const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    const error = vi.spyOn(ElMessage, 'error').mockImplementation((() => undefined) as never)
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin', { id: 'me' })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/users', component: UsersView }] })
+    await router.push('/users'); await router.isReady()
+    const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper); await flushPromises()
+
+    wrapper.findComponent(UserActions).vm.$emit('toggle', colleague)
+    await flushPromises()
+    expect(String((warning.mock.calls[0]![0] as { message: string }).message)).toBe('王老師還有 3 件沒結案的參觀案件：到「參觀案件」的承辦人篩選選「承辦人已停用」，重新指派給其他同事。')
+
+    warning.mockClear()
+    countsFail = true
+    wrapper.findComponent(UserActions).vm.$emit('toggle', { ...colleague, is_active: true })
+    await flushPromises()
+    expect(warning).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
   })
 })
