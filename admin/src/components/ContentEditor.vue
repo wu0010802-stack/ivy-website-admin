@@ -10,6 +10,8 @@ import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
+import { MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
+import EditorSectionNav from './EditorSectionNav.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -19,6 +21,8 @@ const props = defineProps<{
   placeholder?: string
   /** 表單寬度，預設 640 */
   width?: 'narrow' | 'wide'
+  /** 長頁面的段落目錄（composables/editorSections.ts）；少於兩段不顯示 */
+  sections?: EditorSection[]
 }>()
 
 const loading = computed(() => props.editor.loading.value)
@@ -32,6 +36,10 @@ const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const latestRevisionId = computed(() => props.editor.latestRevisionId?.value ?? null)
 const liveVersion = computed(() => props.editor.liveVersion?.value ?? null)
 const busy = computed(() => saving.value || publishing.value)
+
+// 段落目錄：頁面傳進來的段落（標題元素的 id 與字）。至少兩段才顯示。
+const navSections = computed(() => props.sections ?? [])
+const hasNav = computed(() => navSections.value.length >= MIN_NAV_SECTIONS)
 // 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
 // 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
 const conflict = computed(() => props.editor.conflict?.value ?? false)
@@ -472,7 +480,7 @@ defineExpose({ confirmLeave })
 </script>
 
 <template>
-  <div class="editor" :class="{ 'editor--wide': width === 'wide' }">
+  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav }">
     <div v-if="$slots.lead" class="page-lead"><slot name="lead" /></div>
 
     <div v-if="$slots.toolbar" class="toolbar"><slot name="toolbar" /></div>
@@ -610,11 +618,15 @@ defineExpose({ confirmLeave })
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
 
-      <div ref="body" class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
-        <div class="panel__body">
-          <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
-               刪除、拖曳等操作由頁面自己隱藏。 -->
-          <slot />
+      <div class="editor__layout" :class="{ 'has-nav': hasNav }">
+        <!-- 目錄在表單外面：處理中表單 inert 時目錄仍可用來捲動。 -->
+        <EditorSectionNav v-if="hasNav" :sections="navSections" class="editor__nav" />
+        <div ref="body" class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
+          <div class="panel__body">
+            <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
+                 刪除、拖曳等操作由頁面自己隱藏。 -->
+            <slot />
+          </div>
         </div>
       </div>
 
@@ -707,6 +719,14 @@ defineExpose({ confirmLeave })
 
 .editor--wide {
   max-width: 1200px;
+}
+
+/* 段落目錄：1280 以上放在表單右側（表單仍是 720 寬），較窄時目錄在表單上方。 */
+@media (min-width: 1280px) {
+  .editor--with-nav:not(.editor--wide) { max-width: 928px; }
+  .editor__layout.has-nav { display: grid; grid-template-columns: minmax(0, 1fr) 184px; gap: 24px; align-items: start; }
+  .editor__layout.has-nav .editor__nav { grid-column: 2; grid-row: 1; }
+  .editor__layout.has-nav .editor__body { grid-column: 1; grid-row: 1; min-width: 0; }
 }
 
 .editor__alert {

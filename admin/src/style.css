@@ -777,3 +777,9 @@ a.stat:hover {
   white-space: nowrap;
   border: 0;
 }
+
+/* 長編輯頁的段落標題（composables/editorSections.ts）：目錄捲過去時留出頁首高度；
+   程式移過去的焦點不畫框，鍵盤操作才畫。 */
+[data-section-anchor] { scroll-margin-top: 80px; }
+[data-section-anchor]:focus { outline: none; }
+[data-section-anchor]:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 4px; }
