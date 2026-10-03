@@ -5,9 +5,9 @@ import { notifyError, notifyWarning } from '../composables/notify'
 import { Plus } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
-import { apiErrorMessage, apiFieldError } from '../api/errors'
-import { CAMPUS_KEYS, type Role, type UserOut } from '../api/types'
-import { campusLabel, campusLabels, displayNameError, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
+import { apiErrorCode, apiErrorMessage, apiFieldError } from '../api/errors'
+import { CAMPUS_KEYS, type PasswordResetLinkOut, type Role, type UserOut } from '../api/types'
+import { campusLabel, campusLabels, displayNameError, formatShortDateTime, outboxErrorLabel, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
 import DisplayNameField from '../components/DisplayNameField.vue'
@@ -37,6 +37,12 @@ const resetTarget = ref<UserOut | null>(null)
 const resetPassword = ref('')
 const resetVisible = ref(false)
 const resetting = ref(false)
+// 2026-10-03：重設密碼有兩種方式。有寄信時預設寄連結給本人設定（使用者裁定只做總管理者寄連結）；
+// 沒設定寄信的部署只能直接設定新密碼（原本的做法）。
+type ResetMode = 'link' | 'direct'
+const resetMode = ref<ResetMode>('direct')
+const linkResult = ref<PasswordResetLinkOut | null>(null)
+const linkEnabled = computed(() => authStore.features.password_reset_email === true)
 const togglingId = ref<string | null>(null)
 const clearingId = ref<string | null>(null)
 
@@ -399,6 +405,7 @@ function openReset(target: UserOut) {
   if (operationBusy.value) return
   resetTarget.value = target
   clearReset()
+  resetMode.value = linkEnabled.value ? 'link' : 'direct'
   resetVisible.value = true
 }
 
@@ -416,6 +423,26 @@ async function submitReset() {
     // 自己的那一列沒有「重設密碼」（UserActions 只指到「我的帳號」）；後端對自己重設
     // 回 409 USE_CHANGE_PASSWORD 時，訊息本身就指向「我的帳號」。
     notifyError(apiErrorMessage(err, '重設密碼失敗'))
+  } finally {
+    resetting.value = false
+  }
+}
+
+// 寄送失敗時後端多帶 error_code（SMTP 例外名稱），翻成大概原因接在訊息後面。
+function resetLinkError(err: unknown): string {
+  const message = apiErrorMessage(err, '重設連結沒有寄出，請稍後再試')
+  if (!(err instanceof ApiError) || apiErrorCode(err) !== 'RESET_EMAIL_FAILED') return message
+  const code = (err.detail as { error_code?: unknown } | null)?.error_code
+  return typeof code === 'string' ? `${message}（${outboxErrorLabel(code)}）` : message
+}
+
+async function submitLink() {
+  if (!resetTarget.value || linkResult.value || !linkEnabled.value) return
+  resetting.value = true
+  try {
+    linkResult.value = await api.post<PasswordResetLinkOut>(`/admin/users/${resetTarget.value.id}/password-reset-link`)
+  } catch (err) {
+    notifyError(resetLinkError(err))
   } finally {
     resetting.value = false
   }
@@ -450,6 +477,7 @@ function clearCreated() {
 function clearReset() {
   resetPassword.value = ''
   resetDone.value = false
+  linkResult.value = null
 }
 
 const EXPORT_HELP = 'CSV 含家長姓名、電話、Email 與孩子資料，每次匯出都會留下操作紀錄。只開給確實需要的人。'
@@ -663,8 +691,13 @@ onMounted(loadUsers)
         </template>
       </el-dialog>
 
-      <el-dialog v-model="resetVisible" :title="`重設 ${staffWithEmail(resetTarget)} 的密碼`" width="440px" :show-close="!resetting" :close-on-click-modal="!resetting && !resetDone" :close-on-press-escape="!resetting" @closed="clearReset">
-        <div v-if="resetDone" class="password-result" data-test="reset-password">
+      <el-dialog v-model="resetVisible" :title="`重設 ${staffWithEmail(resetTarget)} 的密碼`" width="460px" :show-close="!resetting" :close-on-click-modal="!resetting && !resetDone && !linkResult" :close-on-press-escape="!resetting" @closed="clearReset">
+        <div v-if="linkResult" class="password-result" data-test="reset-link-sent">
+          <el-alert type="success" :closable="false" show-icon :title="`已寄出重設連結到 ${linkResult.sent_to}`" />
+          <p class="hint">連結在 {{ formatShortDateTime(linkResult.expires_at) }} 前有效，只能用一次。對方設好新密碼後，所有已登入的裝置都會登出。<template v-if="linkResult.replaced_previous">先前寄的連結已經失效。</template></p>
+          <p class="hint">對方沒收到信：請他看看垃圾郵件，或再寄一次（前一封的連結會失效）。</p>
+        </div>
+        <div v-else-if="resetDone" class="password-result" data-test="reset-password">
           <el-alert type="success" :closable="false" show-icon title="已重設密碼，對方所有裝置都已登出" />
           <p class="hint">系統不會寄信。請用電話或當面把下面的新密碼告訴 {{ staffWithEmail(resetTarget) }}；按「完成」關閉後，這裡不會再顯示。</p>
           <div class="password-row">
@@ -673,18 +706,27 @@ onMounted(loadUsers)
           </div>
         </div>
         <template v-else>
-          <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信；重設後會顯示新密碼與複製鈕，請用電話或當面告訴對方。</p>
-          <div class="password-row">
-            <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="12 字以上" aria-label="新密碼" :disabled="resetting" />
-            <el-button :disabled="resetting" @click="generateResetPassword">產生密碼</el-button>
-          </div>
-          <span class="field-help" :class="{ 'is-ok': passwordOk(resetPassword) }">{{ passwordHint(resetPassword) }}</span>
+          <el-radio-group v-model="resetMode" class="reset-mode" aria-label="重設方式" :disabled="resetting">
+            <el-radio value="link" :disabled="!linkEnabled">寄重設連結到 {{ resetTarget?.email }}</el-radio>
+            <el-radio value="direct">直接設定新密碼</el-radio>
+          </el-radio-group>
+          <p v-if="resetMode === 'link'" class="hint">對方會收到一封信，點信裡的連結自己設定新密碼。連結 30 分鐘內有效、只能用一次；設好之後，對方所有已登入的裝置都會登出。對方設好之前，原本的密碼照常可用。</p>
+          <template v-else>
+            <p v-if="!linkEnabled" class="hint" data-test="reset-link-disabled">尚未設定寄信，不能寄重設連結，只能直接設定新密碼。</p>
+            <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信；重設後會顯示新密碼與複製鈕，請用電話或當面告訴對方。</p>
+            <div class="password-row">
+              <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="12 字以上" aria-label="新密碼" :disabled="resetting" />
+              <el-button :disabled="resetting" @click="generateResetPassword">產生密碼</el-button>
+            </div>
+            <span class="field-help" :class="{ 'is-ok': passwordOk(resetPassword) }">{{ passwordHint(resetPassword) }}</span>
+          </template>
         </template>
         <template #footer>
-          <el-button v-if="resetDone" type="primary" @click="resetVisible = false">完成</el-button>
+          <el-button v-if="resetDone || linkResult" type="primary" @click="resetVisible = false">完成</el-button>
           <template v-else>
             <el-button :disabled="resetting" @click="resetVisible = false">取消</el-button>
-            <el-button type="primary" :loading="resetting" :disabled="!passwordOk(resetPassword)" @click="submitReset">重設密碼</el-button>
+            <el-button v-if="resetMode === 'link'" type="primary" :loading="resetting" @click="submitLink">寄出重設連結</el-button>
+            <el-button v-else type="primary" :loading="resetting" :disabled="!passwordOk(resetPassword)" @click="submitReset">重設密碼</el-button>
           </template>
         </template>
       </el-dialog>
@@ -772,5 +814,12 @@ onMounted(loadUsers)
 
 .field-help.is-ok {
   color: var(--el-color-success);
+}
+.reset-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 </style>
