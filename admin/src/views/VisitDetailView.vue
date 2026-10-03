@@ -156,6 +156,11 @@ async function load(options: { quiet?: boolean } = {}) {
     availableSlots.value = slots
   } catch (err) {
     if (gen !== generation) return
+    if (options.quiet) {
+      // 靜默重讀失敗不能換掉整個畫面（正在打的聯絡紀錄草稿會消失），保留現況並提醒。
+      notifyWarning('無法更新案件，畫面可能不是最新。')
+      return
+    }
     error.value = err instanceof ApiError && err.status === 404 ? '找不到這筆案件，可能已被移除或不在你的校區範圍。' : '無法讀取案件'
   } finally {
     if (gen === generation) loading.value = false
@@ -334,15 +339,26 @@ function activityKey(): string {
   const d = detail.value
   return d ? `${d.status}|${d.slot_id ?? ''}|${d.assigned_staff_id ?? ''}|${d.history?.length ?? 0}` : ''
 }
+// 切回時 focus 與 visibilitychange 通常連續觸發：重讀進行中就略過，只讀一次、只提示一次。
+let refreshing = false
 async function refreshIfStale() {
-  if (document.visibilityState === 'hidden' || loading.value || busy.value || !detail.value) return
+  if (refreshing || document.visibilityState === 'hidden' || loading.value || busy.value || !detail.value) return
   if (Date.now() - loadedAt < DETAIL_STALE_MS) return
-  const before = activityKey()
-  const gen = generation
-  await load({ quiet: true })
-  if (gen !== generation) return
-  const latest = handled.value
-  if (before && activityKey() !== before && latest && !latest.self) notifyWarning(`${latest.who}剛剛${latest.what}，畫面已更新。`)
+  refreshing = true
+  try {
+    const before = activityKey()
+    const handledBefore = handled.value?.at ?? null
+    const gen = generation
+    await load({ quiet: true })
+    if (gen !== generation || !before || activityKey() === before) return
+    const latest = handled.value
+    // 只有同事有比重讀前更新的動作才點名；變動來自家長或系統就用中性說法。
+    const newer = latest !== null && (handledBefore === null || Date.parse(latest.at) > Date.parse(handledBefore))
+    if (newer && latest.self) return
+    notifyWarning(newer ? `${latest.who}剛剛${latest.what}，畫面已更新。` : '這筆案件剛有更新，畫面已重新整理。')
+  } finally {
+    refreshing = false
+  }
 }
 
 // 已經開始的場次不能再排人（後端也會拒絕），名額滿或關閉的也不列。

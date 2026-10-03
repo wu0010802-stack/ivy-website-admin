@@ -115,4 +115,54 @@ describe('案件明細：同時處理', () => {
     expect(String((warning.mock.calls[0]![0] as { message: string }).message)).toBe('王老師剛剛指派承辦人，畫面已更新。')
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('家長說下週再約')
   })
+
+  it('focus 與 visibilitychange 連續觸發：只重讀一次、只提示一次', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T03:00:00Z'))
+    let current = caseOf()
+    let reads = 0
+    const wrapper = await mountDetail(() => { reads += 1; return current })
+    current = caseOf({ history: [event({ event_type: 'assigned', created_at: '2026-10-03T03:00:20Z' })] })
+    const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    const before = reads
+    vi.setSystemTime(new Date('2026-10-03T03:00:40Z'))
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(reads - before).toBe(1)
+    expect(warning).toHaveBeenCalledTimes(1)
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('變動來自家長、最近的同事動作是舊的：不點同事名字', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T03:00:00Z'))
+    const old = event({ created_at: '2026-10-01T02:00:00Z' })
+    let current = caseOf({ history: [old] })
+    await mountDetail(() => current)
+    current = caseOf({ history: [old, event({ source: 'parent', actor_user_id: null, actor_email: null, actor_display_name: null, event_type: 'details_updated', created_at: '2026-10-03T03:00:20Z' })] })
+    const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    vi.setSystemTime(new Date('2026-10-03T03:00:40Z'))
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    const message = String((warning.mock.calls[0]![0] as { message: string }).message)
+    expect(message).not.toContain('王老師')
+    expect(message).toBe('這筆案件剛有更新，畫面已重新整理。')
+  })
+
+  it('靜默重讀失敗：草稿與表單還在，不出現整頁錯誤', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T03:00:00Z'))
+    let fail = false
+    const wrapper = await mountDetail(() => { if (fail) throw new ApiError(500, { code: 'X', message: 'boom' }); return caseOf() })
+    await wrapper.get('textarea').setValue('家長說下週再約')
+    fail = true
+    const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    vi.setSystemTime(new Date('2026-10-03T03:00:40Z'))
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(wrapper.find('.el-alert--error').exists()).toBe(false)
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('家長說下週再約')
+    expect(String((warning.mock.calls[0]![0] as { message: string }).message)).toBe('無法更新案件，畫面可能不是最新。')
+  })
 })
