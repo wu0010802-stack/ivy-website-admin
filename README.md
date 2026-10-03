@@ -1,3 +1,13 @@
+## 2026-10-04 後台重設密碼改成寄連結（`feature/admin-password-reset-20261003`，未部署）
+
+使用者 10-03 裁定：只做「總管理者寄重設連結」，登入頁不開放自助忘記密碼。本分支接在後台第八輪 UX 之後開發，期間已把含第一波（UX8＋成效統計）的 origin/main 合入。
+
+- **後台**：「使用者」→「重設密碼」對話框多一種方式「寄重設連結到 <Email>」，有寄信時預設選它；寄出後顯示寄到哪裡、幾點前有效。沒設定寄信的部署只能「直接設定新密碼」（原本的做法，保留）。新頁 `/admin/reset-password` 不用登入，同事在這裡設定新密碼，完成後回登入頁。
+- **API**：`POST /admin/users/{id}/password-reset-link`、`POST /auth/password-reset/verify`、`POST /auth/password-reset/complete`；`/auth/me` 的 `features.password_reset_email`。新表 `password_reset_tokens`（migration `d2b7f4c9e1a3`，只新增表）。
+- **規則**：連結 30 分鐘、用一次，寄新的舊的就失效，DB 只存雜湊。信同步寄出，失敗就作廢連結、當場說明原因。設好新密碼後登出所有裝置、解除密碼登入暫停。停用帳號、本人改密碼、總管理者直接設新密碼也會作廢還沒用的連結；直接設新密碼也改成會解除密碼登入暫停（行為改變）。「保留直接設定新密碼」與「直接設定新密碼也會解除密碼登入暫停」兩點是使用者 2026-10-04 確認的。
+- **驗證**（Node 22）：後端 pytest 全套、admin vitest／typecheck、web typecheck、`contract:check`、stack e2e（含新的 `password-reset.spec.ts`），尚未驗證（Task 11 跑完後補實際數字）。
+- **上線前**：正式站要有 `WEBSITE_SMTP_*` 與 `WEBSITE_ADMIN_ORIGIN`，才會出現「寄重設連結」；沒設時行為跟現在一樣。push main＝正式部署，由使用者決定。
+
 ## 2026-10-04 官網後台第八輪 UX（`feature/admin-ux8-20261003`，未部署）
 
 09-28 稽核「還沒處理、需要決定的」表格裡使用者選的六項。錯誤定位（哪一則哪一欄）10-02 第七輪已做，這輪不動。規則見 DESIGN.md 同名段落。
