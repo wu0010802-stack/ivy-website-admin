@@ -373,10 +373,13 @@ describe('自訂開關與刪除場景', () => {
   })
 
   // 刪除場景要先在 popconfirm 按「刪除」（2026-10-02：場景有照片和熱點，不再一按就刪）。
+  // popconfirm 由計時器延後打開，負載高時一輪 flushPromises 還沒渲染出來（10-03 main CI 因此紅），要輪詢等它出現。
   async function confirmPop(text: string) {
-    await flushPromises()
-    const confirm = [...document.body.querySelectorAll<HTMLButtonElement>('.el-popconfirm button')].find((b) => b.textContent?.trim() === text)
-    if (!confirm) throw new Error(`找不到確認鈕：${text}`)
+    const confirm = await vi.waitFor(() => {
+      const found = [...document.body.querySelectorAll<HTMLButtonElement>('.el-popconfirm button')].find((b) => b.textContent?.trim() === text)
+      if (!found) throw new Error(`找不到確認鈕：${text}`)
+      return found
+    })
     confirm.click()
     await flushPromises()
   }
