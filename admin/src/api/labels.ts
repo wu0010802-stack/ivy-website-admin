@@ -410,6 +410,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.set_scope': '變更負責校區',
   'user.reset_password': '重設密碼',
   'user.change_password': '變更自己的密碼',
+  'user.password_reset_link_sent': '寄出重設密碼連結',
+  'user.password_reset_link_failed': '重設密碼連結沒有寄出',
+  'user.password_reset_link_rejected': '重設密碼連結無效，沒有改密碼',
+  'user.password_reset_completed': '用重設連結設定新密碼',
   'user.set_role': '變更角色與校區',
   'user.set_capabilities': '變更授權（全站內容／匯出個資）',
   'user.update_display_name': '變更顯示名稱',
@@ -494,6 +498,10 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
   formal_consent_migration: '系統把原型示範同意文字換成正式文字',
   // 定期清理時發現待清理的素材又被內容用到，改回一般素材。
   still_referenced: '仍被內容引用，取消清理',
+  // 重設密碼連結不能用的原因（user.password_reset_link_rejected，2026-10-03）。
+  link_expired: '連結已過期',
+  link_used: '連結已經用過',
+  link_revoked: '連結已作廢（寄了新連結、密碼已變更或帳號停用）',
 }
 
 export function auditReasonLabel(reason: string): string {
@@ -1202,6 +1210,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   capabilities_removed: (v) => (Array.isArray(v) ? `因改角色收回授權：${grantLabels(v)}` : null),
   is_active: (v) => (v ? '帳號改為啟用' : '帳號改為停用'),
   revoked_sessions: (v) => (countOf(v) ? `同時登出 ${countOf(v)} 個已登入的裝置` : '對方原本沒有登入中的裝置'),
+  // 重設密碼連結沒有寄出時的錯誤類別（SMTP 例外名稱），翻成大概原因。
+  error_code: (v) => `寄送失敗原因：${outboxErrorLabel(String(v))}`,
   reason: (v) => `原因：${auditReasonLabel(String(v))}`,
   // 帳密登入失敗發生在哪裡（user.login_password_failed：登入頁、重新驗證或改密碼）。
   context: (v) => `發生在：${AUDIT_CONTEXT_LABELS[String(v)] ?? String(v)}`,

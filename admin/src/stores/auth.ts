@@ -10,7 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
   const csrfToken = ref<string | null>(null)
   // 部署開關；讀不到（尚未登入、舊後端）一律當關閉。
-  const features = ref<FeatureFlags>({ admissions: false })
+  const features = ref<FeatureFlags>({ admissions: false, password_reset_email: false })
   const isLoading = ref(false)
   // 這次登入最晚到什麼時候（登入滿 12 小時；/auth/me 的 session_max_expires_at）。
   // 密碼登入的回應沒有這個值，之後第一次 /auth/me（閒置延長最多 10 分鐘一次）才補上。
@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
         password,
       })
       user.value = result.user
-      features.value = result.features ?? { admissions: false }
+      features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       announceSignedIn()
@@ -44,7 +44,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSession(): void {
     resetVisitStaff()
     user.value = null
-    features.value = { admissions: false }
+    features.value = { admissions: false, password_reset_email: false }
     csrfToken.value = null
     setCsrfToken(null)
     sessionMaxExpiresAt.value = null
@@ -77,7 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await api.get<MeResponse>('/auth/me')
       user.value = result.user
-      features.value = result.features ?? { admissions: false }
+      features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
@@ -85,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       user.value = null
       sessionMaxExpiresAt.value = null
-      features.value = { admissions: false }
+      features.value = { admissions: false, password_reset_email: false }
       csrfToken.value = null
       setCsrfToken(null)
       if (!(error instanceof ApiError && error.status === 401)) throw error
@@ -107,7 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 不能拿到對方的身分與 CSRF token。
       if (expectedUserId && result.user.id !== expectedUserId) return 'other-user'
       user.value = result.user
-      features.value = result.features ?? { admissions: false }
+      features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null

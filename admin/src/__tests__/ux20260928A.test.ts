@@ -216,7 +216,7 @@ describe('頁面點進去才下載（shell-9／cc-8）', () => {
     const pinia = createPinia()
     const auth = useAuthStore(pinia)
     auth.user = user('super_admin')
-    auth.features = { admissions: true }  // 招生入學依開關列出；要全部項目都在才能逐一驗圖示
+    auth.features = { admissions: true, password_reset_email: false }  // 招生入學依開關列出；要全部項目都在才能逐一驗圖示
     localStorage.setItem('ivy-admin-nav-expanded', JSON.stringify({ overview: true, visits: true, home: true, campus: true, site: true, system: true }))
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)*', component: { render: () => h('div') } }] })
     await router.push('/media')
