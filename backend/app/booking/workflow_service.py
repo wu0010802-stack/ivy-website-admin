@@ -11,6 +11,7 @@ from app.auth.models import User
 from app.auth.permissions import covers_campus, has_capability
 from app.booking import access_service, history, slot_service
 from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
+from app.booking.export_labels import status_label
 from app.booking.history import PARENT, SYSTEM, Actor
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
 from app.booking.outbox import (
@@ -68,7 +69,7 @@ async def confirm_with_slot(
         VisitRequestStatus.CONTACTING.value,
         VisitRequestStatus.PENDING_CONFIRMATION.value,
     ):
-        raise InvalidTransition(f"狀態 {visit_request.status} 不能確認")
+        raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能排入場次")
     before = await history.state_of(db, visit_request)
 
     slot = await slot_service.get_slot_for_update(db, slot_id)
@@ -176,7 +177,7 @@ async def cancel(
     if visit_request.status == VisitRequestStatus.CANCELLED.value:
         return visit_request
     if visit_request.status in (VisitRequestStatus.NO_SHOW.value, VisitRequestStatus.COMPLETED.value):
-        raise InvalidTransition(f"狀態 {visit_request.status} 不能取消")
+        raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能取消")
 
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.CANCELLED.value
@@ -495,7 +496,7 @@ async def update_details_by_parent(
         visit_request, attribute_names=["status", "version", *EDITABLE_BY_PARENT], with_for_update=True
     )
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
-        raise InvalidTransition(f"狀態 {visit_request.status} 的案件不能修改資料")
+        raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能修改資料")
     if visit_request.version != expected_version:
         raise VersionConflict(visit_request.version)
     changed = [f for f in EDITABLE_BY_PARENT if f in changes and getattr(visit_request, f) != changes[f]]
