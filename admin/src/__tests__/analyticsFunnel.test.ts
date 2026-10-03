@@ -22,6 +22,7 @@ const clicks = (form: number, line = 0, phone = 0, external = 0) => ({
 })
 
 const funnel: AnalyticsFunnelOut = {
+  as_of: '2026-10-03T06:05:00Z',
   campus_key: 'yihua',
   date_from: null,
   date_to: null,

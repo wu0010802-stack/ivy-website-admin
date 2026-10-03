@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import type { AnalyticsFunnelOut } from '../api/types'
+import { SELF_BOOKING_SINCE } from '../api/analytics'
 import { MANUAL_VISIT_SOURCES, cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabel } from '../api/labels'
 import { taipeiToday } from '../composables/newsContent'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -128,7 +129,6 @@ const sourceCount = (key: string, match: (source: string) => boolean) =>
 // 2026-10-01 起家長自選場次：官網送出即預約成功，同時記「已送出需求」與「已確認預約」，
 // 官網確認率必為 100%。期間的結束日在這天以後（含開站至今）就不算確認率，免得和舊流程的
 // 人工確認混在一起；取消率照算。
-const SELF_BOOKING_SINCE = '2026-10-01'
 const coversSelfBooking = computed(() => !range.value || range.value.to >= SELF_BOOKING_SINCE)
 
 // 舊資料沒有記來源（「未記錄來源」）：不算進官網比例也不算補登，另外寫，總數才對得起來。

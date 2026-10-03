@@ -12,6 +12,7 @@ const vital = (metric: TrafficVital['metric'], device: TrafficVital['device'], p
   ({ metric, device, p75, samples, rating })
 
 const traffic = (days = 28): TrafficSummary => ({
+  as_of: '2026-10-03T06:05:00Z',
   days, since: '2026-09-02', until: '2026-09-29', total_views: 120,
   daily: [{ day: '2026-09-29', views: 7 }],
   pages: [{ page: 'home', campus_key: null, views: 80 }, { page: 'campus', campus_key: 'yihua', views: 40 }],
