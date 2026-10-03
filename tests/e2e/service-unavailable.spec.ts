@@ -53,10 +53,7 @@ test.describe('後端不可用時的公開頁面行為', () => {
     expect(await res.text()).toContain('網站內容服務暫時無法使用')
   })
 
-  test('分校頁與 /visit 頁同樣回 503，不會有些頁面壞、有些頁面看起來正常', async ({ request }) => {
-    const campusRes = await request.get(`${BASE_URL}/campuses/minghua`)
-    expect(campusRes.status()).toBe(503)
-
+  test('/visit 頁同樣回 503，不會有些頁面壞、有些頁面看起來正常', async ({ request }) => {
     const visitRes = await request.get(`${BASE_URL}/visit`)
     expect(visitRes.status()).toBe(503)
   })

@@ -10,5 +10,5 @@ export default defineEventHandler(async (event) => {
   if (!config.public.indexingEnabled || !origin) return EMPTY_SITEMAP
   const published = await loadPublishedSite(config)
   if (!crawlerIndexable(true, origin, published.content.siteMeta)) return EMPTY_SITEMAP
-  return sitemapXml(origin, published.content.campuses, published.content.news, { privacy: Boolean(published.content.privacyPolicy) })
+  return sitemapXml(origin, published.content.news, { privacy: Boolean(published.content.privacyPolicy) })
 })

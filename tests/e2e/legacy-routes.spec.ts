@@ -6,9 +6,9 @@ test.describe('舊 hash 連結相容轉址', () => {
     await expect(page).toHaveURL(/\/$/)
   })
 
-  test('#/yihua 轉址到 /campuses/yihua', async ({ page }) => {
+  test('#/yihua 分校頁已移除，轉址到首頁五校區塊', async ({ page }) => {
     await page.goto('/#/yihua')
-    await expect(page).toHaveURL(/\/campuses\/yihua$/)
+    await expect(page).toHaveURL(/\/#campuses$/)
   })
 
   test('#/visit 轉址到 /visit', async ({ page }) => {

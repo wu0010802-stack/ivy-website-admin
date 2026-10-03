@@ -971,7 +971,12 @@ body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses {
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
 body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses button {
+  border:0;
+  background:transparent;
+  color:inherit;
+  font-family:inherit;
+  cursor:pointer;
   display:flex;
   flex-direction:column;
   justify-content:center;
@@ -984,10 +989,10 @@ body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
   font-weight:500;
   line-height:1.4;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a.is-active {background:var(--menu-social-hover)}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses button small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses button.is-active {background:var(--menu-social-hover)}
 @media(hover:hover) {
-  body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a:hover {background:var(--menu-social-hover)}
+  body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses button:hover {background:var(--menu-social-hover)}
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 const base = new URL(process.argv[2] ?? 'http://127.0.0.1:3100').origin
 const origin = process.env.SEO_EXPECT_ORIGIN ?? base
 const indexable = process.env.SEO_EXPECT_INDEXABLE !== 'false'
-const paths = ['/', ...['yihua', 'minghua', 'chongde', 'international', 'renwu'].map(key => `/campuses/${key}`)]
+const paths = ['/']
 let count = 0
 for (const path of paths) {
   const response = await fetch(base + path)
@@ -18,11 +18,8 @@ for (const path of paths) {
   const scripts = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]
   assert.equal(scripts.length, 1, `${path}: JSON-LD count`)
   const graph = JSON.parse(scripts[0][1])['@graph']
-  assert.ok(graph.some(item => item['@type'] === (path === '/' ? 'WebSite' : 'Preschool')))
-  if (path !== '/') {
-    const preloadTags = html.match(/<link[^>]*rel="preload"[^>]*>/g) ?? []
-    assert.ok(preloadTags.every(tag => !tag.includes('hero-campus-still')), `${path}: no homepage preload`)
-  }
+  assert.ok(graph.some(item => item['@type'] === 'WebSite'))
+  assert.ok(!graph.some(item => item['@type'] === 'Preschool'), `${path}: 不輸出各校 Preschool`)
   count++
 }
 const robots = await (await fetch(base + '/robots.txt')).text()
@@ -34,9 +31,13 @@ if (indexable) {
   for (const path of paths) assert.ok(xml.includes(`<loc>${origin}${path}</loc>`))
   assert.ok(!xml.includes('/visit') && !xml.includes('/admin'))
 }
-assert.equal((await fetch(base + '/campuses/not-a-campus')).status, 404)
+for (const path of ['/campuses/yihua', '/campuses/not-a-campus']) {
+  const response = await fetch(base + path, { redirect: 'manual' })
+  assert.equal(response.status, 301, `${path}: 分校頁已移除，轉回首頁`)
+  assert.equal(new URL(response.headers.get('location') ?? '', base).pathname, '/', path)
+}
 for (const path of ['/visit', '/preview']) {
   const response = await fetch(base + path)
   assert.match(response.headers.get('x-robots-tag') ?? '', /noindex/)
 }
-console.log(`PASS: ${count} 個 SSR 頁面、分享資料、JSON-LD、索引設定、sitemap、404 與私有頁隔離`)
+console.log(`PASS: ${count} 個 SSR 頁面、分享資料、JSON-LD、索引設定、sitemap、分校頁轉址與私有頁隔離`)

@@ -102,8 +102,8 @@ describe('入學資訊的搜尋資料', () => {
     expect(seo.canonical).toBe('https://ivy.example/admission')
     expect(seo.title).toContain('入學資訊')
     expect(JSON.stringify(seo.graph)).toContain('"name":"入學資訊"')
-    expect(sitemapXml('https://ivy.example', [])).toContain('<loc>https://ivy.example/admission</loc>')
-    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [] })).toContain('(https://ivy.example/admission)')
+    expect(sitemapXml('https://ivy.example')).toContain('<loc>https://ivy.example/admission</loc>')
+    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta })).toContain('(https://ivy.example/admission)')
   })
 
   it('沒有正式 origin 時不輸出 canonical 與結構化資料', () => {

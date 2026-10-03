@@ -39,7 +39,7 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
         <!-- 2026-09-27：每校補區域與參觀專線，家長最常找的聯絡方式在頁尾就拿得到。 -->
         <ul class="footer-campuses" id="footer-campuses">
           <li v-for="c in campuses" :key="c.key">
-            <NuxtLink :to="`/campuses/${c.key}`">{{ c.name }}</NuxtLink>
+            <span class="footer-campus-name">{{ c.name }}</span>
             <span class="footer-campus-area">{{ c.district }}</span>
             <a v-if="c.phone" class="footer-campus-phone" :href="`tel:${c.phone}`" :aria-label="`撥打${c.name}電話 ${c.phone}`">{{ c.phone }}</a>
           </li>

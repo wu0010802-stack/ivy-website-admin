@@ -192,33 +192,15 @@ function organizationSameAs(site: SiteContent): string[] {
   return (site.siteMeta.socialLinks ?? []).map((link) => httpsUrl(link.url)).filter((url): url is string => Boolean(url))
 }
 
-/**
- * 分校自己的社群帳號。沿用機構粉專的校區（facebook 填的就是機構那一個）不算
- * 該校的帳號，不列；目前只有義華有自己的 LINE／FB／IG／YouTube。
- */
-function campusSameAs(site: SiteContent, campus: Campus): string[] {
-  const shared = new Set(organizationSameAs(site))
-  return [campus.facebook, campus.line, campus.instagram, campus.youtube]
-    .map(httpsUrl).filter((url): url is string => Boolean(url) && !shared.has(url!))
-}
-
-/** 地址拆出縣市與行政區給在地搜尋用；只從已發布的地址與區名取，對不上就不輸出。 */
-function postalAddress(campus: Campus) {
-  const region = campus.address.match(/^(\S{2}[市縣])/)?.[1]
-  const locality = campus.district && campus.address.includes(campus.district) ? campus.district : undefined
-  return { '@type': 'PostalAddress', streetAddress: campus.address, ...(locality ? { addressLocality: locality } : {}), ...(region ? { addressRegion: region } : {}), addressCountry: 'TW' }
-}
-
-export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
+export function pageSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = campus ? `${campus.name}｜高雄${campus.district}｜${site.siteMeta.brandName}` : site.siteMeta.title
-  const description = campus?.description ?? site.siteMeta.description
-  const path = campus ? `/campuses/${encodeURIComponent(campus.key)}` : '/'
-  const canonical = origin ? `${origin}${path}` : undefined
+  const title = site.siteMeta.title
+  const description = site.siteMeta.description
+  const canonical = origin ? `${origin}/` : undefined
   // 分享圖用 1200×630 JPG（scripts/optimize-site-images.py 的 OG_IMAGES 產出）；
   // 社群平台對 WebP 支援不一致。
   const share = siteShareImage(site)
-  const imagePath = campus ? campusShareImagePath(campus) : share.path
+  const imagePath = share.path
   const image = origin ? `${origin}${imagePath}` : undefined
   const graph: Record<string, unknown>[] = []
   if (origin) {
@@ -229,37 +211,9 @@ export function pageSeo(site: SiteContent, siteOrigin: string, campus?: Campus) 
       ...(site.siteMeta.brandNameEn ? { alternateName: site.siteMeta.brandNameEn } : {}),
       ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}),
       foundingDate: '1997', ...(orgSameAs.length ? { sameAs: orgSameAs } : {}) })
-    const school = (c: Campus) => {
-      const url = `${origin}/campuses/${encodeURIComponent(c.key)}`
-      const sameAs = campusSameAs(site, c)
-      const map = httpsUrl(c.mapUrl)
-      return {
-        '@type': 'Preschool', '@id': `${url}#school`, name: `${site.siteMeta.brandName} ${c.name}`,
-        url, description: c.description ?? site.siteMeta.description, image: `${origin}${campusShareImagePath(c)}`, telephone: c.phone,
-        address: postalAddress(c), ...(map ? { hasMap: map } : {}), ...(sameAs.length ? { sameAs } : {}),
-        parentOrganization: { '@id': organization }
-      }
-    }
-    if (campus) {
-      graph.push(school(campus))
-      graph.push({ '@type': 'BreadcrumbList', itemListElement: [
-        { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
-        { '@type': 'ListItem', position: 2, name: campus.name, item: canonical }
-      ] })
-      // 與頁面上 CampusFaq 顯示的同一份問答（伺服器端就輸出），不另寫文案。
-      const faq = campus.faq.items.filter((item) => item.q.trim() && item.a.trim())
-      if (faq.length) {
-        graph.push({ '@type': 'FAQPage', '@id': `${canonical}#faq`, url: `${canonical}#faq`, inLanguage: 'zh-Hant-TW', mainEntity: faq.map((item) => ({
-          '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a }
-        })) })
-      }
-    } else {
-      graph.push({ '@type': 'WebSite', '@id': `${origin}/#website`, name: site.siteMeta.brandName, url: canonical, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } })
-      // 首頁列出已發布的每一校（地址、電話取自發布內容，不另編）。
-      for (const c of site.campuses) graph.push(school(c))
-    }
+    graph.push({ '@type': 'WebSite', '@id': `${origin}/#website`, name: site.siteMeta.brandName, url: canonical, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } })
   }
-  return { title, description, canonical, image, imagePath, imageAlt: campus ? `${campus.name}校園外觀` : share.alt, graph }
+  return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
 }
 
 /**
@@ -289,10 +243,10 @@ export function robotsTxt(origin: string, indexable: boolean): string {
 /** 不能收錄時回的 sitemap：合法但沒有任何網址。 */
 export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
-/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁與分校頁。 */
-export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[], news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean } = {}): string {
+/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。 */
+export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []), ...campuses.map((c) => `/campuses/${encodeURIComponent(c.key)}`),
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
     ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
@@ -301,26 +255,14 @@ export function sitemapXml(origin: string, campuses: Pick<Campus, 'key'>[], news
  * /llms.txt（https://llmstxt.org/）：給 AI 助理讀的網站摘要。只用已發布內容
  * 的名稱、描述、地址與電話，不另寫宣傳文案；未開放索引時不提供（見路由）。
  */
-export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta' | 'campuses'>): string {
+export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'>): string {
   const line = (value: string) => value.replace(/\s+/g, ' ').trim()
-  const campusUrl = (c: Campus) => `${origin}/campuses/${encodeURIComponent(c.key)}`
   const out = [
     `# ${line(site.siteMeta.brandName)}`,
     '',
     `> ${line(site.siteMeta.description)}`,
-    '',
-    '## 校區',
-    '',
-    // 分校頁沒有題目時不輸出 #faq 區塊（CampusPageMain），這裡也就不指過去。
-    ...site.campuses.map((c) => `- [${line(c.name)}](${campusUrl(c)})：高雄${line(c.district)}，${line(c.address)}，參觀專線 ${line(c.phone)}${c.faq.items.length ? `；常見問題見 ${campusUrl(c)}#faq` : ''}`),
     ''
   ]
-  // 各校常見問答直接列出（與分校頁 FAQPage 同一份），AI 助理不必再爬頁面也能引用。
-  for (const c of site.campuses) {
-    const faq = c.faq.items.filter((item) => item.q.trim() && item.a.trim())
-    if (!faq.length) continue
-    out.push(`## ${line(c.name)}常見問題`, '', ...faq.flatMap((item) => [`### ${line(item.q)}`, '', line(item.a), '']), `來源：${campusUrl(c)}#faq`, '')
-  }
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')

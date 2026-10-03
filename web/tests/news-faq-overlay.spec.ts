@@ -4,7 +4,6 @@ import type { NewsArticle, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, mergeCampusFaq, type LiveHomeNews } from '../app/utils/content-overlay'
 import { previewOverlay } from '../app/utils/draft-preview'
 import { eventTimeDetail, eventTimeText, homeArticles, isSampleNews, safeWebUrl, sampleCoverage } from '../app/utils/news-content'
-import { pageSeo } from '../app/utils/seo'
 
 const site = fixture as unknown as SiteContent
 
@@ -222,15 +221,13 @@ describe('常見問題：全站共用＋各校', () => {
     expect(other).toEqual([{ q: '共用一', a: '共用答一' }, { q: '可以改嗎？', a: '共用的回答' }])
   })
 
-  it('分校頁與 FAQPage 結構化資料都用合併後的題目；沒有各校設定的校區維持原文', () => {
+  it('合併後的題目（共用＋各校）；沒有各校設定的校區維持原文', () => {
     const next = applyContentOverlay(site, {
       shared_faq: shared,
       campus_faq: { renwu: { items: [{ q: '仁武自己的', a: '答' }], shared_position: 'after' } }
     })
     const renwu = next.campuses.find((c) => c.key === 'renwu')!
     expect(renwu.faq.items.map((i) => i.q)).toEqual(['仁武自己的', '共用一', '只給仁武', '可以改嗎？'])
-    const faqPage = pageSeo(next, 'https://ivy.example', renwu).graph.find((item) => item['@type'] === 'FAQPage')!
-    expect((faqPage.mainEntity as { name: string }[]).map((q) => q.name)).toEqual(renwu.faq.items.map((i) => i.q))
     expect(next.campuses.find((c) => c.key === 'yihua')!.faq.items).toEqual(site.campuses[0]!.faq.items)
   })
 })

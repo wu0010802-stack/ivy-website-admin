@@ -557,7 +557,6 @@ async function onSubmit() {
                   <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span>{{ selectedCampus.phone }}</span></a>
                   <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
                 </div>
-                <div class="visit-contact-foot"><p>想先看看校園環境？</p><NuxtLink class="visit-inline-link" :to="`/campuses/${selectedCampus.key}`">認識{{ selectedCampus.name }}</NuxtLink></div>
               </section>
 
               <form v-else ref="formRef" class="booking-form visit-contact-form" novalidate :aria-busy="submitting" @submit.prevent="onSubmit" @keydown.enter="onEnterKey">

@@ -61,13 +61,13 @@ describe('搜尋引擎收錄的閘門', () => {
     expect(EMPTY_SITEMAP).not.toContain('<url>')
   })
 
-  it('全部開啟時 robots.txt 放行公開頁、sitemap 列出校區、llms.txt 可讀', async () => {
+  it('全部開啟時 robots.txt 放行公開頁、sitemap 列出公開頁、llms.txt 可讀', async () => {
     state.allowIndexing = true
     const robots = await (await route('robots.txt'))({})
     expect(robots).not.toBe('User-agent: *\nDisallow: /\n')
     expect(robots).toContain('Disallow: /admin')
-    expect(await (await route('sitemap.xml'))({})).toContain('https://ivy.example/campuses/renwu')
-    expect(await (await route('llms.txt'))({})).toContain('仁武校')
+    expect(await (await route('sitemap.xml'))({})).toContain('https://ivy.example/about')
+    expect(await (await route('llms.txt'))({})).toContain('(https://ivy.example/about)')
   })
 
   it('後台關掉收錄（已發布 allow_indexing=false）：robots.txt 全擋、sitemap 為空、llms.txt 404', async () => {

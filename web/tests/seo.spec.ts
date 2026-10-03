@@ -13,47 +13,13 @@ describe('公開搜尋資料', () => {
       expect(normalizeSiteOrigin(value)).toBe('')
     }
   })
-  it('各校 canonical、分享圖與實體資料指向同一校；不杜撰時間或評論', () => {
-    const campus = site.campuses[4]!
-    const result = pageSeo(site, 'https://ivy.example', campus)
-    expect(result.canonical).toBe('https://ivy.example/campuses/renwu')
-    expect(result.title).toContain(campus.district)
-    expect(result.image).toMatch(/^https:\/\/ivy.example\/assets\//)
-    const school = result.graph.find((item) => item['@type'] === 'Preschool')!
-    expect(school.address).toMatchObject({ streetAddress: campus.address })
-    expect(school.telephone).toBe(campus.phone)
-    expect(school).not.toHaveProperty('openingHours')
-    expect(school).not.toHaveProperty('aggregateRating')
-    expect(result.graph.find((item) => item['@type'] === 'BreadcrumbList')).toBeTruthy()
-  })
-  it('首頁 JSON-LD 為每一所已發布校區列出 Preschool，地址電話取自內容、分享圖為 1200×630 JPG 且檔案存在', () => {
+  it('首頁結構化資料只有機構與網站，不列各校 Preschool／FAQPage／麵包屑；分享圖為 1200×630 JPG 且檔案存在', () => {
     const result = pageSeo(site, 'https://ivy.example')
-    const schools = result.graph.filter((item) => item['@type'] === 'Preschool')
-    expect(schools).toHaveLength(site.campuses.length)
-    for (const campus of site.campuses) {
-      const school = schools.find((item) => item['@id'] === `https://ivy.example/campuses/${campus.key}#school`)!
-      expect(school.address).toMatchObject({ streetAddress: campus.address })
-      expect(school.telephone).toBe(campus.phone)
-      expect(school.image).toBe(`https://ivy.example${ogImagePath(campus.image)}`)
-      expect(existsSync(new URL(`../public${ogImagePath(campus.image)}`, import.meta.url))).toBe(true)
-    }
+    expect(result.canonical).toBe('https://ivy.example/')
+    expect(result.graph.map((item) => item['@type'])).toEqual(['EducationalOrganization', 'WebSite'])
+    expect(JSON.stringify(result.graph)).not.toMatch(/campuses\/|Preschool|FAQPage|openingHours|aggregateRating/)
     expect(result.image).toMatch(/\/assets\/og\/[\w-]+\.jpg$/)
     expect(existsSync(new URL(`../public${ogImagePath(site.home.hero.heroImage)}`, import.meta.url))).toBe(true)
-    // 分校頁只列該校，不重複整份清單。
-    expect(pageSeo(site, 'https://ivy.example', site.campuses[0]!).graph.filter((item) => item['@type'] === 'Preschool')).toHaveLength(1)
-  })
-  it('在地資料：地址拆出縣市與行政區、只列該校自己的社群，沿用機構粉專的校區不列 sameAs', () => {
-    const schools = pageSeo(site, 'https://ivy.example').graph.filter((item) => item['@type'] === 'Preschool')
-    const byId = (key: string) => schools.find((item) => item['@id'] === `https://ivy.example/campuses/${key}#school`)!
-    expect(byId('renwu').address).toEqual({ '@type': 'PostalAddress', streetAddress: '高雄市仁武區京吉一路102號', addressLocality: '仁武區', addressRegion: '高雄市', addressCountry: 'TW' })
-    const yihua = site.campuses.find((c) => c.key === 'yihua')!
-    expect(byId('yihua').sameAs).toEqual([yihua.facebook, yihua.line, yihua.instagram, yihua.youtube])
-    for (const key of ['minghua', 'chongde', 'international', 'renwu']) expect(byId(key)).not.toHaveProperty('sameAs')
-    // 地址跟區名對不上時不硬拆。
-    const odd = { ...site.campuses[4]!, address: '仁武京吉一路102號', mapUrl: 'javascript:alert(1)' }
-    const oddSchool = pageSeo(site, 'https://ivy.example', odd).graph.find((item) => item['@type'] === 'Preschool')!
-    expect(oddSchool.address).toEqual({ '@type': 'PostalAddress', streetAddress: '仁武京吉一路102號', addressCountry: 'TW' })
-    expect(oddSchool).not.toHaveProperty('hasMap')
   })
   it('機構節點帶 logo、英文名、創立年份與全站社群', () => {
     const org = pageSeo(site, 'https://ivy.example').graph.find((item) => item['@type'] === 'EducationalOrganization')!
@@ -73,44 +39,15 @@ describe('公開搜尋資料', () => {
     expect(pageSeo(site, '').canonical).toBeUndefined()
     expect(pageSeo(site, '').graph).toEqual([])
   })
-  it('分校頁 FAQPage 與頁面顯示的問答一致，首頁不輸出；空白題目不列入', () => {
-    const campus = site.campuses[4]!
-    const faqPage = pageSeo(site, 'https://ivy.example', campus).graph.find((item) => item['@type'] === 'FAQPage')!
-    expect(faqPage['@id']).toBe('https://ivy.example/campuses/renwu#faq')
-    expect(faqPage.mainEntity).toEqual(campus.faq.items.map((item) => ({ '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a } })))
-    expect(pageSeo(site, 'https://ivy.example').graph.some((item) => item['@type'] === 'FAQPage')).toBe(false)
-    const blank = { ...campus, faq: { ...campus.faq, items: [{ q: ' ', a: '空白題目' }] } }
-    expect(pageSeo(site, 'https://ivy.example', blank).graph.some((item) => item['@type'] === 'FAQPage')).toBe(false)
-  })
-  it('llms.txt 只列已發布校區的名稱、地址、電話與正式網址', () => {
-    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [site.campuses[4]!] })
-    const c = site.campuses[4]!
+  it('llms.txt 不列各校網址與常見問答', () => {
+    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta })
     expect(text.startsWith(`# ${site.siteMeta.brandName}\n`)).toBe(true)
-    expect(text).toContain(`[${c.name}](https://ivy.example/campuses/renwu)`)
-    expect(text).toContain(c.address)
-    expect(text).toContain(c.phone)
-    expect(text).not.toContain('yihua')
-    expect(text).toContain('常見問題見 https://ivy.example/campuses/renwu#faq')
+    expect(text).not.toMatch(/campuses\/|常見問題|## 校區/)
   })
-  it('llms.txt 逐條列出分校頁上的常見問答，空白題目不列', () => {
-    const c = site.campuses[4]!
-    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [c] })
-    expect(text).toContain(`## ${c.name}常見問題`)
-    for (const item of c.faq.items) expect(text).toContain(`### ${item.q.replace(/\s+/g, ' ').trim()}`)
-    const blank = { ...c, faq: { ...c.faq, items: [{ q: ' ', a: '空白題目' }] } }
-    expect(llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [blank] })).not.toContain('常見問題\n')
-  })
-  it('llms.txt 在分校頁沒有常見問題時不指向不存在的 #faq', () => {
-    const c = site.campuses[4]!
-    const noFaq = { ...c, faq: { ...c.faq, items: [] } }
-    const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta, campuses: [noFaq] })
-    expect(text).toContain(`參觀專線 ${c.phone}\n`)
-    expect(text).not.toContain('#faq')
-  })
-  it('sitemap 僅含傳入的已發布校區、不虛構 lastmod', () => {
-    const xml = sitemapXml('https://ivy.example', [site.campuses[4]!])
-    expect(xml).toContain('/campuses/renwu')
-    expect(xml).not.toContain('yihua')
+  it('sitemap 不含分校頁、不虛構 lastmod', () => {
+    const xml = sitemapXml('https://ivy.example')
+    expect(xml).toContain('<loc>https://ivy.example/</loc>')
+    expect(xml).not.toContain('/campuses/')
     expect(xml).not.toContain('lastmod')
   })
   it('公開合成資料只保留 release 中已發布 profile，且不修改 fixture', () => {

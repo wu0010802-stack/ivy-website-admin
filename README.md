@@ -8,6 +8,18 @@
 - **文件**：`docs/website-admin/seo-performance.md` 的統計儲存說明改成現況。
 - **驗證**：stack e2e `privacy-policy` ＋ `keyboard` 15 項全過（含 1440／390 截圖不溢出、axe 無 serious／critical）；整套 stack 73 項，72 過，`media.spec.ts` 整套跑時間歇失敗、單獨重跑通過；`contract:check`、admin／web typecheck 通過；admin 單元 957 項、`test:website` 761 項通過（admin 單元連跑曾兩次各 1 項間歇失敗，第三次全過）；`admin build` 成功；後端整套 pytest 由主控另跑。
 
+## 2026-10-03 拿掉各校分校資訊頁（`feature/remove-campus-pages`）
+
+使用者裁定：不需要「首頁 / 五所校園 / 義華校」這種各校分校資訊頁；指向分校頁的連結、校區常見問題、各校結構化資料都拿掉。首頁五校輪播保留（照片、地址、電話、社群還在），只是不再連到內頁。
+
+- **web**：刪除 `pages/campuses/[key].vue` 與 `CampusPageMain.vue`；`/campuses`、`/campuses/**` 301 轉回首頁；舊 hash `#/<校>` 轉到 `/#campuses`。輪播照片與校名、頁尾與錯誤頁校名改為不可點；選單「找到你的校園」改按鈕（只切換電話與社群）；預約頁拿掉「認識某某校」；預約管理頁改成直接撥各校電話；關於頁時間軸的校名改純文字、緞帶書籤改連到 `/#campuses`；環境頁拿掉「到某某校頁」。
+- **SEO**：`pageSeo` 只輸出機構與網站，不再輸出各校 Preschool、FAQPage、麵包屑；sitemap 與 llms.txt 不列分校頁與校區常見問答；草稿預覽不再有 `?page=campus`。
+- **後台**：校區內容發布後「查看官網」改開 `/#campuses`，預覽改開首頁預覽；共用常見問題沒有公開頁面，預覽連結隱藏。
+- **腳本與 CI**：`deploy/railway_ci.py` 的 smoke、`audit-public-site.mjs`、`check-public-seo.mjs`、`first-screen-chars.cjs`（含產生的 json）不再檢查分校頁；check-public-seo 改驗 `/campuses/*` 為 301。
+- **未處理**：後台的分校簡介、常見問題、環境導覽、預約橫幅文案仍可編輯，但公開站已沒有頁面顯示；`CampusTour`、`CampusFaq`、`CampusTestimonials` 等元件目前沒有使用者。
+
+**驗證**（Node 22）：web typecheck、web vitest 74 檔 734 項、admin vue-tsc 通過；admin vitest 全套有 3 項在整套並行時偶發失敗、單獨跑 33 項全過；dev server（fixture）`/campuses/*` 301、首頁與內頁無 `/campuses` 連結、無 Preschool 結構化資料，桌機輪播與選單截圖確認。**未跑** stack／e2e。
+
 ## 2026-10-02 後台補登也拿掉同意勾選（`feature/manual-no-consent-20261002`）
 
 使用者追加：補登時「已向家長說明，並取得同意留存聯絡資料」也拿掉。

@@ -155,9 +155,9 @@ describe('SEO 與 sitemap', () => {
   })
 
   it('只有已發布才列進 sitemap', () => {
-    expect(sitemapXml('https://ivy.example', [site.campuses[4]!])).not.toContain('/privacy')
-    expect(sitemapXml('https://ivy.example', [site.campuses[4]!], undefined, { privacy: false })).not.toContain('/privacy')
-    expect(sitemapXml('https://ivy.example', [site.campuses[4]!], undefined, { privacy: true })).toContain('<loc>https://ivy.example/privacy</loc>')
+    expect(sitemapXml('https://ivy.example')).not.toContain('/privacy')
+    expect(sitemapXml('https://ivy.example', undefined, { privacy: false })).not.toContain('/privacy')
+    expect(sitemapXml('https://ivy.example', undefined, { privacy: true })).toContain('<loc>https://ivy.example/privacy</loc>')
   })
 })
 

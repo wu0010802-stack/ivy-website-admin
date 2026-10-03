@@ -20,7 +20,7 @@ useHead({
   meta: [{ name: 'robots', content: 'noindex, nofollow' }]
 })
 
-// ?page=admission 入學資訊頁、?page=privacy 隱私權政策、?page=campus&campus=<key> 分校頁、?page=visit
+// ?page=admission 入學資訊頁、?page=privacy 隱私權政策、?page=visit
 // 預約頁的同意說明，其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
 // 判斷消息上下架的日期（參數規則在 utils/draft-preview.ts）。
 const route = useRoute()
@@ -110,7 +110,6 @@ onMounted(async () => {
         <main v-else-if="page === 'privacy'" id="main" tabindex="-1">
           <div class="container breadcrumb">還沒有儲存過隱私權政策的草稿，請先在後台儲存。</div>
         </main>
-        <CampusPageMain v-else-if="page === 'campus' && previewCampus" :campus="previewCampus" :booking="draft.booking" :campuses="draft.campuses" />
         <main v-else-if="page === 'visit'" id="main" tabindex="-1">
           <div class="container breadcrumb"><NuxtLink to="/">首頁</NuxtLink> / 預約校園參觀</div>
           <BookingDraftPreview :booking="draft.booking" :banner-campus="previewCampus" />

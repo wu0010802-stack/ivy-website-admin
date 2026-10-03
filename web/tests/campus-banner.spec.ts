@@ -75,7 +75,7 @@ describe('分校頁預約橫幅讀預約文案', () => {
     })
   })
 
-  it('分校頁與草稿預覽都用同一個橫幅元件，文字不再寫死', () => {
+  it('預約文案頁的草稿預覽用橫幅元件，文字不再寫死', () => {
     const banner = read('../app/components/CampusVisitBanner.vue')
     expect(banner).toContain('campusBannerCopy(props.booking, props.campus.name)')
     expect(banner).toContain('data-cta-entry="campus_banner"')
@@ -83,14 +83,8 @@ describe('分校頁預約橫幅讀預約文案', () => {
     expect(banner).not.toContain(HARD_CODED.body)
     expect(banner).not.toContain('label="預約校園參觀"')
 
-    const main = read('../app/components/CampusPageMain.vue')
-    expect(main).toContain('<CampusVisitBanner :campus="campus" :booking="booking" />')
-    expect(main).not.toContain('class="visit-banner"')
-    expect(read('../app/pages/campuses/[key].vue')).toContain(':booking="data.content.booking"')
-
-    // 草稿預覽：分校頁用草稿的預約文案；預約文案頁（後台「預覽」開的那頁）也附一個橫幅例子。
+    // 草稿預覽：預約文案頁（後台「預覽」開的那頁）也附一個橫幅例子。
     const preview = read('../app/pages/preview.vue')
-    expect(preview).toContain(':campus="previewCampus" :booking="draft.booking"')
     expect(preview).toContain(':banner-campus="previewCampus"')
     const draftPreview = read('../app/components/BookingDraftPreview.vue')
     expect(draftPreview).toContain('<CampusVisitBanner v-if="bannerCampus" :campus="bannerCampus" :booking="booking" />')

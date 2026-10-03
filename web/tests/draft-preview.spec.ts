@@ -14,9 +14,9 @@ import {
 const site = fixture as unknown as SiteContent
 
 describe('草稿預覽的網址參數', () => {
-  it('頁面只認首頁、入學、分校、預約頁，寬度只有桌機與手機', () => {
+  it('頁面只認首頁、入學、預約頁，寬度只有桌機與手機', () => {
     expect(previewPage({ page: 'visit' })).toBe('visit')
-    expect(previewPage({ page: 'campus' })).toBe('campus')
+    expect(previewPage({ page: 'campus' })).toBe('home')
     expect(previewPage({ page: 'unknown' })).toBe('home')
     expect(previewViewport({ viewport: 'mobile' })).toBe('mobile')
     expect(previewViewport({ viewport: ['mobile'] })).toBe('desktop')
@@ -30,10 +30,10 @@ describe('草稿預覽的網址參數', () => {
   })
 
   it('手機 iframe 帶同一頁、校區與日期，加 embed=1、不再帶 viewport', () => {
-    const src = previewFrameSrc({ page: 'campus', campus: 'yihua', viewport: 'mobile', date: '2026-10-01' })
+    const src = previewFrameSrc({ page: 'visit', campus: 'yihua', viewport: 'mobile', date: '2026-10-01' })
     const params = new URL(src, 'https://example.test').searchParams
     expect(src.startsWith('/preview?')).toBe(true)
-    expect(Object.fromEntries(params)).toEqual({ page: 'campus', campus: 'yihua', date: '2026-10-01', embed: '1' })
+    expect(Object.fromEntries(params)).toEqual({ page: 'visit', campus: 'yihua', date: '2026-10-01', embed: '1' })
   })
 })
 

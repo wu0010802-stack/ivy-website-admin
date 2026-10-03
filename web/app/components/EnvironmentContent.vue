@@ -309,7 +309,6 @@ onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
               </div>
             </li>
           </ul>
-          <NuxtLink class="renv-link" :to="`/campuses/${tour.campus.key}#environment`">到{{ tour.campus.name }}頁，看完整的校園探索</NuxtLink>
         </div>
       </div>
     </section>

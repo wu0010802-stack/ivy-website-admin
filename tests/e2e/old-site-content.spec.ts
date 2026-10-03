@@ -17,23 +17,3 @@ test.describe('特色教學頁', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 })
-
-test.describe('分校頁', () => {
-  for (const key of ['minghua', 'chongde', 'international', 'renwu']) {
-    test(`${key} 校園探索是真實場景，不顯示模板提示`, async ({ page }) => {
-      await page.goto(`/campuses/${key}`, { waitUntil: 'networkidle' })
-      await expect(page.locator('.tour-todo-notice')).toHaveCount(0)
-      expect(await page.locator('.tour-scene').count()).toBeGreaterThanOrEqual(2)
-      await expect(page.locator('#stories')).toHaveCount(0)
-    })
-  }
-
-  test('義華有家長分享，點海報原地播放', async ({ page }) => {
-    await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>stub</title>' }))
-    await page.goto('/campuses/yihua', { waitUntil: 'networkidle' })
-    const stories = page.locator('#stories .story')
-    await expect(stories).toHaveCount(4)
-    await stories.first().locator('.story-play').click()
-    await expect(stories.first().locator('iframe')).toHaveAttribute('src', /youtube-nocookie\.com\/embed\//)
-  })
-})

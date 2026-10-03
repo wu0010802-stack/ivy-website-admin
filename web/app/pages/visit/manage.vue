@@ -286,13 +286,12 @@ async function submitEdit() {
           <h2 id="parent-contact-title">需要園所協助？</h2>
           <p>若連結失效，或需要其他協助，請直接與園所聯繫。</p>
           <div class="parent-visit-actions">
-            <NuxtLink v-if="visitCampus?.listed" class="text-link" :to="`/campuses/${visitCampus.key}`">聯絡{{ visitCampus.name }}</NuxtLink>
-            <template v-else-if="visitCampus">
+            <template v-if="visitCampus">
               <a v-if="visitCampus.phone" class="text-link" :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">致電{{ visitCampus.name || '園所' }} {{ visitCampus.phone }}</a>
               <NuxtLink v-else class="text-link" to="/">返回官網查看園所聯絡方式</NuxtLink>
             </template>
             <template v-else>
-              <NuxtLink v-for="item in data?.content.campuses || []" :key="item.key" class="text-link" :to="`/campuses/${item.key}`">{{ item.name }}</NuxtLink>
+              <a v-for="item in (data?.content.campuses || []).filter(c => c.phone)" :key="item.key" class="text-link" :href="`tel:${item.phone}`">致電{{ item.name }} {{ item.phone }}</a>
               <NuxtLink v-if="!data" class="text-link" to="/">返回官網查看園所聯絡方式</NuxtLink>
             </template>
           </div>

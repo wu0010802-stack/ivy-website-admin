@@ -9,7 +9,7 @@ if (!policy.value) {
   throw createError({ statusCode: 404, message: '找不到這個頁面' })
 }
 
-usePageSeo(computed(() => data.value?.content), undefined, 'privacy')
+usePageSeo(computed(() => data.value?.content), 'privacy')
 </script>
 
 <template>

@@ -115,7 +115,7 @@ describe('消息欄位的預設值與檢查', () => {
     expect(CONTENT_KIND_LABELS.campus_news).toBe('各校消息與活動')
     expect(contentEditorPath('campus_news', 'minghua')).toBe('/content/campus-news?campus=minghua')
     expect(contentPublicPath('campus_news', 'minghua')).toBe('/')
-    expect(contentPreviewPath('shared_faq')).toBe('/preview?page=campus&campus=yihua')
+    expect(contentPreviewPath('shared_faq')).toBe('')
   })
 })
 

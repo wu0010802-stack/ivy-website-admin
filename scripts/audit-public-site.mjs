@@ -15,8 +15,7 @@ const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)
 const out = path.resolve(repo, process.env.AUDIT_OUT ?? `output/playwright/audit-${modes.join('-')}-${stamp}`)
 const DESKTOP = { name: 'desktop', viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false }
 const MOBILE = { name: 'mobile', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
-const ROUTES = ['/', '/about', '/curriculum', '/environment', '/admission', '/news', '/visit',
-  '/campuses/yihua', '/campuses/minghua', '/campuses/chongde', '/campuses/international', '/campuses/renwu']
+const ROUTES = ['/', '/about', '/curriculum', '/environment', '/admission', '/news', '/visit']
 
 const blocked = []
 async function openContext(browser, device, { routePattern = '**/*', ...options } = {}) {

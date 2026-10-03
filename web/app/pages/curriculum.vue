@@ -3,7 +3,7 @@
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 
-usePageSeo(computed(() => data.value?.content), undefined, 'curriculum')
+usePageSeo(computed(() => data.value?.content), 'curriculum')
 </script>
 
 <template>

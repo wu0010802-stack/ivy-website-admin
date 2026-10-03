@@ -28,7 +28,7 @@ async function expectTabTrapped(page: Page, container: Locator, presses: number,
 test.describe('官網選單', () => {
   test('手機：Enter 打開選單、焦點進到選單、Escape 關閉並回到開關', async ({ page }) => {
     await page.setViewportSize(MOBILE)
-    await page.goto('/campuses/yihua', { waitUntil: 'networkidle' })
+    await page.goto('/', { waitUntil: 'networkidle' })
     const toggle = page.getByRole('button', { name: '開啟導覽選單' }).filter({ visible: true }).first()
     await toggle.focus()
     await page.keyboard.press('Enter')
@@ -109,7 +109,7 @@ test.describe('後台', () => {
   })
 })
 
-const PUBLIC_PAGES = ['/', '/campuses/yihua', '/curriculum', '/environment', '/admission', '/visit', `/visit/${SLOTS_CAMPUS}`, '/visit/manage']
+const PUBLIC_PAGES = ['/', '/curriculum', '/environment', '/admission', '/visit', `/visit/${SLOTS_CAMPUS}`, '/visit/manage']
 const ADMIN_PAGES: [string, string][] = [
   ['/', '營運總覽'],
   ['/visit-requests', '參觀案件'],

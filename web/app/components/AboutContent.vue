@@ -185,7 +185,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
           <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color }">
             <p class="abk-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
             <div>
-              <NuxtLink v-if="item.campus" class="abk-campus" :to="`/campuses/${item.campus.key}`">{{ item.campus.name }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+              <span v-if="item.campus" class="abk-campus">{{ item.campus.name }}</span>
               <p>{{ item.text }}</p>
             </div>
           </li>
@@ -361,7 +361,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
       <ul class="abk-ribbons">
         <template v-for="(item, i) in milestones" :key="item.key">
-          <li v-if="item.campus"><NuxtLink :to="`/campuses/${item.campus.key}`" :style="{ '--c': RIBBONS[i]!.color, '--len': `${RIBBONS[i]!.length}px` }"><b>{{ item.campus.name }}</b><small>{{ item.campus.district }}</small></NuxtLink></li>
+          <li v-if="item.campus"><NuxtLink to="/#campuses" :style="{ '--c': RIBBONS[i]!.color, '--len': `${RIBBONS[i]!.length}px` }"><b>{{ item.campus.name }}</b><small>{{ item.campus.district }}</small></NuxtLink></li>
         </template>
       </ul>
     </section>

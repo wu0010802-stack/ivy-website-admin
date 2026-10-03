@@ -9,9 +9,6 @@ import { SLOTS_CAMPUS } from './stack-env'
 
 const PAGES = [
   '/',
-  '/campuses/yihua',
-  '/campuses/minghua',
-  '/campuses/renwu',
   '/curriculum',
   '/environment',
   '/admission',

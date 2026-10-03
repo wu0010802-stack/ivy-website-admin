@@ -42,7 +42,7 @@ const reload = () => { window.location.reload() }
           <h2 id="error-campuses-title">五所校園</h2>
           <ul>
             <li v-for="campus in campuses" :key="campus.key">
-              <NuxtLink class="error-campus-name" :to="`/campuses/${campus.key}`">{{ campus.name }}</NuxtLink>
+              <span class="error-campus-name">{{ campus.name }}</span>
               <span class="error-campus-district">{{ campus.district }}</span>
               <a v-if="campus.phone" class="error-campus-phone" :href="`tel:${campus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campus.phone }}</a>
             </li>
