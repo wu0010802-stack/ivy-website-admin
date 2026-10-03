@@ -3,6 +3,7 @@ import type { NuxtError } from '#app'
 
 // 全站錯誤頁（2026-09-29 評析：原本掉進 Nuxt 預設的英文 404，沒有品牌也沒有路可走）。
 // 找不到頁面時列出五校電話與入口；內容服務本身掛掉（503 等）時讀不到發布內容，只留回首頁與重新整理。
+// 2026-10-03 404 加立體書校徽（CrestPopup，「這一頁不在書裡」）；503 不放，那時不該讓人覺得在玩。
 const props = defineProps<{ error: NuxtError }>()
 
 const notFound = computed(() => props.error.statusCode === 404)
@@ -26,6 +27,7 @@ const reload = () => { window.location.reload() }
     <SiteHeader v-if="content" :content="content" />
     <main id="main" class="error-page" tabindex="-1">
       <div class="error-inner">
+        <CrestPopup v-if="notFound" class="error-crest" />
         <p class="error-code">{{ error.statusCode }}</p>
         <h1>{{ notFound ? '找不到這一頁' : '網站暫時無法顯示' }}</h1>
         <p class="error-lead">
@@ -57,7 +59,12 @@ const reload = () => { window.location.reload() }
 <style scoped>
 .error-page {padding:clamp(56px,10vw,120px) 0 clamp(64px,10vw,128px);background:var(--paper);color:var(--text)}
 .error-page:focus {outline:none}
-.error-inner {width:min(720px,calc(100% - 40px));margin-inline:auto}
+.error-inner {position:relative;width:min(720px,calc(100% - 40px));margin-inline:auto}
+/* 立體書：窄螢幕在 404 字樣上方；夠寬時放到文字欄右側外面，不動原本的 720px 文字欄 */
+.error-crest {--size:132px;margin:0 0 16px -8px}
+@media(min-width:760px) {.error-crest {--size:168px}}
+@media(min-width:1180px) {.error-crest {--size:176px;position:absolute;top:-8px;left:calc(100% + 32px);margin:0}}
+@media(min-width:1320px) {.error-crest {--size:220px;left:calc(100% + 48px);top:-16px}}
 .error-code {margin:0 0 12px;color:var(--muted);font-size:var(--fs-sm);letter-spacing:.12em}
 h1 {margin:0;color:var(--green);font:700 clamp(2rem,1.5rem + 2vw,2.75rem)/1.35 var(--font-head);letter-spacing:.02em}
 .error-lead {max-width:34em;margin:20px 0 0;font-size:var(--fs-md);line-height:1.9;color:var(--muted)}

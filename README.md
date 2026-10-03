@@ -1,3 +1,14 @@
+## 2026-10-03 404 頁加立體書校徽（`feature/404-crest-popup-20261003`，未部署）
+
+使用者要把 logo 做成 3D；比過全站右下角浮動三方向後，改成嵌在分頁某一段，選「404 × 立體書」先做。規則見 DESIGN.md「404 頁加立體書校徽」。
+
+- **官網**：新元件 `CrestPopup.vue`＋`utils/crest-popup.ts`，`error.vue` 只在 404 放；503 不變。純 CSS 3D，不載 three.js；五張紙片 WebP 共 54KB（`scripts/build-crest-popup.py` 產生）。
+- **驗證**（Node 22）：
+  - `test:website` 76 檔 764 項（新增 `crest-popup.spec.ts` 10 項）、web typecheck 通過。
+  - dev server（fixture）＋Playwright：1440／1320／1319／1200／1180／1179／900／390 都不壓字、不橫向捲動；游標靠近會轉、離開後停穩；點擊 5 段動畫跑完歸零；減少動態 0 個動畫；手機點擊可用。
+  - 另開後端連不上的 dev server 打出 503：標題「網站暫時無法顯示」、沒有立體書。
+  - 未驗證：`nuxt build`／stack e2e、實機 iOS／Android。
+
 ## 2026-10-03 關於頁第一章五校卡紙改成一樣大（`feature/about-equal-cards-20261003`）
 
 使用者要求 /about「一路走來」右頁的五校照片「五間都是一樣的比例」。
