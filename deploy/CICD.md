@@ -11,6 +11,8 @@
 | push `main` | 同上 | 全部成功才部署 |
 | 手動 Run workflow | 同上 | 只在選擇 `main` 時部署 |
 
+**只改文件不觸發（2026-10-03 起）**：PR 與 push 都設了 `paths-ignore`（`**.md`、`docs/**`、`design/**`、`versions/**`），整次變更都落在這些路徑時不跑 CI、也不部署，所以 `deploy/README.md` 的部署紀錄提交不再重新部署正式站、也不會讓下一次部署排隊。混有其他檔案就照常全跑。副作用：`web/public/` 底下的 `.md`（字型 README）單獨修改時不會上線，要等下一次程式部署；需要強制重跑時用手動 Run workflow。
+
 Workflow：`.github/workflows/website.yml`。**部署分支為 `main`（2026-09-22 起，原為 `production`）**：每次成功推上 `main` 都會在 CI 全綠後部署正式站，`main` 不再是單純的整合分支。不想立即上線的工作留在 `feature/**`，確認要發布時才併進 `main`。
 
 GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `main`，Actions 的手動執行入口也以 `main` 上的 workflow 為準。`feature/website-admin` 保留為開發分支，未刪除。
