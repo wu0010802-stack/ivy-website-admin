@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
+from app.common.timezones import today_local
 from tests.conftest import create_slot, set_booking_mode
 
 
@@ -99,7 +100,7 @@ async def test_one_slot_cannot_accept_two_families(
     """計畫 Task 7 明確要求的真實 PostgreSQL 併發驗證：同一個時段的
     最後一個名額，兩個不同 idempotency key 的並發請求只能一個成功。"""
     version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=5)
-    slot_date = (date.today() + timedelta(days=5)).isoformat()
+    slot_date = (today_local() + timedelta(days=5)).isoformat()
 
     def _payload(name: str) -> dict:
         return {
@@ -185,7 +186,7 @@ def _hold_until_both_return(monkeypatch, module, name: str) -> None:
 async def _last_slot_payload(admin_client) -> tuple[dict, str, str]:
     """slots 模式，開一個只剩一個名額的時段。回傳 (送單內容, 時段 id, 日期)。"""
     version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=6)
-    slot_date = (date.today() + timedelta(days=6)).isoformat()
+    slot_date = (today_local() + timedelta(days=6)).isoformat()
     return _payload(version, slot_id), slot_id, slot_date
 
 
