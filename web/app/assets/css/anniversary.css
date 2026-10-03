@@ -1,0 +1,202 @@
+/* 常春藤 30 週年分頁（/anniversary，components/AnniversaryContent.vue）。
+   視覺延續開場影片：米白水彩紙＋綠色蠟筆＋立體書卡片。顏色一律引用 tokens.css。 */
+.anni {
+  --anni-crayon: var(--leaf);
+  --anni-rail: 168px;
+  --anni-aside: 210px;
+  --anni-print-tilt: -1.4deg;
+  background: var(--paper) var(--anni-paper-tile) repeat;
+  background-size: 512px;
+  background-blend-mode: multiply;
+  color: var(--text);
+  overflow-x: clip;
+}
+.anni h2 { font-size: clamp(var(--fs-4xl), 3.4vw, var(--fs-6xl)); color: var(--green); }
+.anni h3 { color: var(--deep); }
+
+/* ── 首屏 ───────────────────────────────────────────── */
+.anni-hero { padding-block: clamp(120px, 14vw, 176px) clamp(64px, 8vw, 112px); }
+.anni-hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: clamp(32px, 5vw, 80px); }
+.anni-hero-copy { display: grid; gap: 22px; min-width: 0; }
+.anni-hero-copy h1 { font-size: clamp(var(--fs-6xl), 5.6vw, 5.25rem); font-weight: 800; line-height: 1.15; color: var(--green); outline: none; }
+.anni-hero-years { display: flex; align-items: center; gap: 14px; font: 700 var(--fs-2xl)/1 var(--font-head); color: var(--deep); font-variant-numeric: tabular-nums; }
+.anni-hero-dash { display: block; width: 72px; height: 6px; border-radius: 3px; background: var(--anni-crayon); mask: var(--anni-paper-tile) 0 0 / 160px luminance; }
+.anni-hero-lead { font-size: var(--fs-lg); line-height: 1.9; max-width: 34em; }
+.anni-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+.anni-print { position: relative; margin: 0; padding: 12px 12px 14px; background: var(--white); transform: rotate(var(--anni-print-tilt));
+  box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .08), 0 22px 44px -18px rgb(var(--ink) / .45); }
+.anni-print img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.anni-print figcaption { margin-top: 10px; font-size: var(--fs-sm); color: var(--muted); }
+.anni-tape { position: absolute; left: 50%; top: -14px; width: 132px; height: 30px; transform: translateX(-50%) rotate(2deg);
+  background: rgb(var(--ivy-paint-sun-rgb) / .55); mask: var(--anni-paper-tile) 0 0 / 120px luminance; box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / .08); }
+
+/* ── 時間軸 ─────────────────────────────────────────── */
+.anni-line { padding-block: clamp(48px, 6vw, 96px) 0; }
+.anni-line-head { display: grid; gap: 14px; margin-bottom: clamp(40px, 5vw, 72px); }
+.anni-line-head p { font-size: var(--fs-lg); }
+.anni-track { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr) var(--anni-aside); padding-bottom: 40px; }
+.anni-rail { position: absolute; left: 0; top: 0; bottom: 0; width: var(--anni-rail); pointer-events: none; }
+/* 沒有 JS 時：一條靜態的蠟筆線 */
+.anni-rail::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--anni-crayon); opacity: .7;
+  mask: var(--anni-paper-tile) 0 0 / 140px luminance; }
+.anni.is-live .anni-rail::before { content: none; }
+.anni-ink, .anni-kids { position: absolute; left: 0; top: 0; }
+.anni-ink { width: 100%; height: 100%; mask: var(--anni-paper-tile) 0 0 / 150px luminance; }
+.anni-kids { width: 132px; height: auto; will-change: transform; filter: drop-shadow(0 6px 6px rgb(var(--ink) / .2)); }
+.anni-years { grid-column: 1 / 3; grid-row: 1; margin: 0; padding: 0; list-style: none; }
+.anni-years > li { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr); min-height: 58px; }
+.anni-year { grid-column: 1; align-self: start; justify-self: end; padding: 2px 18px 0 0; margin-right: calc(var(--anni-rail) / 2 + 16px); font: 700 var(--fs-md)/1.4 var(--font-head); color: var(--muted); font-variant-numeric: tabular-nums; opacity: .62; }
+.anni-years > li.is-campus { padding-block: 34px 70px; }
+.anni-years > li.is-campus > .anni-year { font-size: var(--fs-2xl); color: var(--green); opacity: 1; }
+.anni-campus { grid-column: 2; display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 8fr); gap: clamp(24px, 3vw, 44px); align-items: end; }
+
+/* 立體書卡片：平躺→立起（rotateX），可以翻面看校舍照片（rotateY） */
+.anni-card { position: relative; perspective: 1100px; perspective-origin: 50% 20%; }
+.anni-card-turn { position: relative; transform-style: preserve-3d; transform-origin: 50% 100%; transition: transform .8s cubic-bezier(.5, 0, .2, 1); }
+.anni-card[data-state="flat"] .anni-card-turn { transform: rotateX(-86deg); }
+.anni-card[data-state="pop"] .anni-card-turn { animation: anni-pop 1.15s cubic-bezier(.3, .6, .3, 1) both; }
+.anni-card.is-flipped .anni-card-turn { transform: rotateY(180deg); }
+.anni-card.is-flipped[data-state] .anni-card-turn { animation: none; transform: rotateY(180deg); }
+@keyframes anni-pop {
+  0% { transform: rotateX(-86deg); }
+  42% { transform: rotateX(9deg); }
+  64% { transform: rotateX(-4deg); }
+  82% { transform: rotateX(1.5deg); }
+  100% { transform: rotateX(0deg); }
+}
+.anni-card-face, .anni-card-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.anni-card-face { position: relative; aspect-ratio: 3 / 2; }
+.anni-card-still, .anni-card-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.anni-card-still { object-fit: contain; opacity: .9; }
+.anni.is-live .anni-card-still { opacity: 0; transition: opacity .4s; }
+.anni.is-live .anni-card.is-fallback .anni-card-still { opacity: .95; }
+.anni-card-back { position: absolute; inset: 6% 0 0; transform: rotateY(180deg); padding: 10px; background: var(--white); box-shadow: 0 16px 30px -18px rgb(var(--ink) / .5); }
+.anni-card-back img { width: 100%; height: 100%; object-fit: cover; }
+.anni-card-shadow { position: absolute; left: 6%; right: 6%; bottom: -8px; height: 18px; border-radius: 50%; background: rgb(var(--ink) / .22); filter: blur(10px); transform-origin: 50% 0;
+  transition: transform .9s, opacity .9s; }
+.anni-card[data-state="flat"] .anni-card-shadow { transform: scaleY(.25); opacity: .35; }
+.anni-campus-text { display: grid; gap: 10px; padding-bottom: 6px; }
+.anni-campus-year { display: flex; align-items: baseline; gap: 12px; font: 800 var(--fs-5xl)/1 var(--font-head); color: var(--green); font-variant-numeric: tabular-nums; }
+.anni-campus-year span { font: 600 var(--fs-sm)/1 var(--font); color: var(--muted); }
+.anni-campus-text h3 { font-size: var(--fs-3xl); }
+.anni-campus-history { font-size: var(--fs-lg); }
+.anni-campus-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0 0; font-size: var(--fs-sm); line-height: 1.7; }
+.anni-campus-info dt { color: var(--muted); }
+.anni-campus-info dd { margin: 0; }
+.anni-campus-info a { color: var(--green); border-bottom: 1px solid rgb(var(--ink) / .2); }
+.anni-campus-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 8px; }
+.anni-campus-actions .text-link { border: 0; border-bottom: 1px solid currentColor; padding: 0; background: none; color: var(--green); }
+:deep(.anni-book) { min-height: 46px; padding: 10px 22px; }
+
+/* 計數器：翻牌的年份 */
+.anni-counter { grid-column: 3; grid-row: 1; align-self: start; position: sticky; top: 42vh; display: grid; gap: 10px; justify-items: end; padding-top: 6px; z-index: 2; }
+.anni-flap { display: flex; gap: 4px; }
+.anni-flap-digit { display: grid; place-items: center; width: 40px; height: 56px; border-radius: 6px; background: var(--deep); color: var(--paper);
+  font: 800 var(--fs-4xl)/1 var(--font-head); font-variant-numeric: tabular-nums; position: relative; overflow: hidden;
+  box-shadow: inset 0 -2px 0 rgb(var(--shadow-rgb) / .25); animation: anni-flap .38s cubic-bezier(.3, .7, .3, 1); }
+.anni-flap-digit::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgb(var(--shadow-rgb) / .35); }
+@keyframes anni-flap { 0% { transform: perspective(200px) rotateX(-80deg); filter: brightness(.6); } 100% { transform: none; filter: none; } }
+.anni-counter-meta { display: grid; justify-items: end; gap: 2px; margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.anni-counter-meta b { font: 700 var(--fs-xl)/1 var(--font-head); color: var(--green); }
+
+/* 終點：校徽 */
+.anni-crest { grid-column: 1 / 3; display: grid; justify-items: center; gap: 18px; padding-top: 30px; padding-left: calc(var(--anni-rail) - 60px); }
+.anni-crest-art { position: relative; width: min(440px, 80vw); aspect-ratio: 1; }
+.anni-crest-art img, .anni-crest-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.anni-crest-art img { mix-blend-mode: multiply; }
+.anni.is-live .anni-crest-art img { opacity: 0; }
+.anni.is-live .anni-crest.is-fallback .anni-crest-art img { opacity: 1; }
+.anni-crest-caption { display: grid; gap: 6px; justify-items: center; text-align: center; font-size: var(--fs-lg); }
+.anni-crest-caption b { font: 800 var(--fs-3xl)/1.3 var(--font-head); color: var(--green); }
+
+/* ── 作品拼成的 30 ───────────────────────────────────── */
+.anni-art { padding-block: clamp(96px, 10vw, 160px) clamp(64px, 8vw, 120px); }
+.anni-art-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(32px, 5vw, 72px); align-items: center; }
+.anni-art-copy { display: grid; gap: 18px; min-width: 0; }
+.anni-art-copy > p { font-size: var(--fs-lg); }
+.anni-art-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; }
+.anni-art-list button { display: grid; gap: 6px; width: 100%; padding: 6px 6px 8px; border: 0; background: var(--white); text-align: center; font-size: var(--fs-xs); color: var(--muted);
+  box-shadow: 0 8px 18px -12px rgb(var(--ink) / .45); transition: transform .25s, box-shadow .25s; }
+.anni-art-list li:nth-child(odd) button { transform: rotate(-1.6deg); }
+.anni-art-list li:nth-child(even) button { transform: rotate(1.3deg); }
+.anni-art-list button:hover, .anni-art-list button.is-active { transform: translateY(-4px) rotate(0deg); box-shadow: 0 16px 26px -14px rgb(var(--ink) / .5); color: var(--green); }
+.anni-art-list img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.anni-mosaic { position: relative; aspect-ratio: 5 / 4; min-width: 0; }
+.anni-mosaic canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.anni-lightbox { width: min(920px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; background: var(--white); }
+.anni-lightbox::backdrop { background: rgb(var(--ink) / .6); }
+.anni-lightbox form { display: grid; gap: 14px; padding: 16px; }
+.anni-lightbox img { width: 100%; max-height: 70vh; object-fit: contain; background: var(--cream); }
+.anni-lightbox p { display: grid; gap: 4px; }
+.anni-lightbox p b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); }
+.anni-lightbox .button { justify-self: end; }
+
+/* ── 換你畫一個 30 ──────────────────────────────────── */
+.anni-draw { padding-block: clamp(72px, 8vw, 128px); background: rgb(var(--ivy-forest-rgb) / .06); }
+.anni-draw-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(28px, 4vw, 64px); align-items: center; }
+.anni-draw-copy { display: grid; gap: 20px; min-width: 0; }
+.anni-draw-copy > p { font-size: var(--fs-lg); }
+.anni-crayons { display: flex; flex-wrap: wrap; gap: 10px; }
+.anni-crayon { position: relative; width: 44px; height: 86px; padding: 0; border: 0; background: none; transition: transform .2s; }
+.anni-crayon-body { position: absolute; left: 9px; right: 9px; top: 22px; bottom: 0; border-radius: 3px; background: var(--crayon);
+  box-shadow: inset 0 -16px 0 rgb(var(--shadow-rgb) / .12), inset 0 10px 0 rgb(var(--on-dark) / .16); }
+.anni-crayon-tip { position: absolute; left: 13px; right: 13px; top: 4px; height: 22px; background: var(--crayon); clip-path: polygon(50% 0, 100% 100%, 0 100%); filter: brightness(.92); }
+.anni-crayon[aria-checked="true"] { transform: translateY(-10px); }
+.anni-crayon[aria-checked="true"]::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--green); }
+.anni-crayon:focus-visible { outline: 3px solid var(--leaf); outline-offset: 4px; border-radius: 6px; }
+.anni-draw-tools { display: flex; flex-wrap: wrap; gap: 10px; }
+.anni-draw-tools .button { min-height: 46px; padding: 10px 20px; }
+.anni-draw-tools .button[aria-pressed="true"] { background: var(--mint); border-color: var(--mint); }
+.anni-draw-note { min-height: 1.8em; font-size: var(--fs-sm); }
+.anni-draw-note a { color: var(--green); border-bottom: 1px solid currentColor; }
+.anni-pad { position: relative; aspect-ratio: 16 / 10; background: var(--white); box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .06), 0 28px 50px -26px rgb(var(--ink) / .5); }
+.anni-pad-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.anni-pad-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: var(--fs-sm); }
+
+/* ── 預約 ──────────────────────────────────────────── */
+.anni-visit { padding-block: clamp(64px, 7vw, 112px); }
+.anni-visit-inner { display: grid; justify-items: start; gap: 16px; }
+.anni-visit-inner p { font-size: var(--fs-lg); }
+
+/* ── 窄螢幕 ─────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .anni { --anni-rail: 120px; --anni-aside: 0px; }
+  .anni-counter { grid-column: 2; position: sticky; top: 78px; justify-self: end; justify-items: end; padding: 8px 10px; border-radius: 10px; background: rgb(var(--on-dark) / .86);
+    box-shadow: 0 6px 16px -10px rgb(var(--ink) / .4); backdrop-filter: blur(6px); }
+  .anni-flap-digit { width: 30px; height: 42px; font-size: var(--fs-2xl); }
+  .anni-campus { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .anni-hero-grid, .anni-art-grid, .anni-draw-grid { grid-template-columns: 1fr; }
+  .anni-hero { padding-top: 112px; }
+  .anni-print { justify-self: center; width: min(100%, 640px); }
+}
+@media (max-width: 760px) {
+  .anni { --anni-rail: 64px; }
+  .anni-year { margin-right: 0; padding: 0 0 0 calc(var(--anni-rail) / 2 + 22px); justify-self: start; grid-column: 1 / 3; font-size: var(--fs-sm); }
+  .anni-years > li { grid-template-columns: var(--anni-rail) minmax(0, 1fr); min-height: 44px; }
+  .anni-years > li.is-campus { padding-block: 22px 52px; }
+  .anni-years > li.is-campus > .anni-year { font-size: var(--fs-lg); }
+  .anni-campus { grid-row: 2; }
+  .anni-kids { width: 62px; }
+  .anni-campus-year { font-size: var(--fs-4xl); }
+  .anni-crest { padding-left: 0; }
+  .anni-art-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .anni-pad { aspect-ratio: 4 / 5; }
+  /* 手機：計數器改成頁首下方一條橫向黏頂列，不蓋住卡片 */
+  .anni-counter { grid-column: 1 / -1; justify-self: stretch; top: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-inline: -8px; padding: 6px 12px; border-radius: 10px; }
+  .anni-flap-digit { width: 22px; height: 30px; font-size: var(--fs-lg); border-radius: 4px; }
+  .anni-counter-meta { display: flex; gap: 14px; }
+  .anni-counter-meta b { font-size: var(--fs-md); }
+  .anni-years { padding-top: 56px; }
+}
+@media (max-aspect-ratio: 4/5) {
+  .anni-print { width: min(78vw, 360px); }
+  .anni-print img { aspect-ratio: 9 / 16; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anni-card[data-state] .anni-card-turn { animation: none; transform: none; }
+  .anni-card.is-flipped .anni-card-turn { transform: rotateY(180deg); transition: none; }
+  .anni-flap-digit { animation: none; }
+}

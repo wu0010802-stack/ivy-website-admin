@@ -12,7 +12,7 @@ const route = useRoute()
 // 分校頁與預約頁只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：
 // 手機內頁頁首原本一直佔 78px）。其他桌機內頁維持展開頁首與 `.navigation`。
 // 常春藤環境頁 2026-09-28 改成淺色紙底首屏（手繪版），不再是深色照片 hero，所以移出名單、跟分校頁一樣。
-const PILL_PAGES = ['/', '/about', '/admission', '/curriculum']
+const PILL_PAGES = ['/', '/about', '/admission', '/curriculum', '/anniversary']
 const isNarrow = ref(false)
 const usePanel = computed(() => PILL_PAGES.includes(route.path) || isNarrow.value)
 // 預約頁本身不再放「預約參觀」鈕（查詢／取消頁 /visit/manage 仍保留）。
