@@ -3,11 +3,9 @@
 依 `docs/analysis/2026-09-30-enrollment-analytics-report.md` 階段 1；計畫 `docs/superpowers/plans/2026-10-03-admin-analytics-phase1.md`。規則見 DESIGN.md「成效統計補強」。
 
 - **後端**：`GET /admin/analytics/booking-outcomes`（同批案件的結果、到場率、未到率、取消率、現在待處理三種，只列授權校區）、`/event-trend`（每日事件，台北日期）、`/class-distribution`（生日換算班別）；funnel 與 traffic 帶 `as_of`。待處理三種集中到 `booking/pending_kinds.py`，總覽與案件列表共用。不新增資料表、沒有 migration。
-- **後台**：`components/analytics/` 新增五個元件；官網瀏覽加每日趨勢與 09/30 標記。
+- **後台**：`components/analytics/` 新增五個元件；官網瀏覽加每日趨勢與 09/30 標記。三個新面板換期間／校區時，標題與說明列標的是「目前畫面上這批資料」的期間與校區；重抓中舊數字變淡、重抓失敗只顯示錯誤，不留舊數字。
 - **驗證**（Node 22）：（驗證閘門跑完後回填）。
 - **未做**：統計匯出（匯出擴充計畫）、測試案件人工排除（要 migration）、UTM（階段 3）。
-
-**實作與計畫不同之處**：三個新面板換期間／校區時，標題與說明列標的是「目前畫面上這批資料」的期間與校區；重抓中舊數字變淡、重抓失敗只顯示錯誤，不留舊數字。
 
 ## 2026-10-03 404 頁加立體書校徽（`feature/404-crest-popup-20261003`，未部署）
 
