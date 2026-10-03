@@ -1,9 +1,15 @@
 name: Website CI/CD
 
+# 只改文件（*.md、docs/、design/、versions/）的提交不跑 CI、也不重新部署：程式、建置與部署
+# 快照都不讀這些檔。部署紀錄類提交約占 main push 的一半（2026-10-03 統計 25 次中 14 次），
+# 原本每次都完整測試＋重新部署（api 會先停舊容器），還讓下一次真正的部署排隊 20 多分鐘。
+# 同一次 push 只要有一個檔案不在清單內就照跑；真要重跑用手動 Run workflow。
 on:
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'design/**', 'versions/**']
   push:
     branches: [production, 'feature/**', main]
+    paths-ignore: ['**.md', 'docs/**', 'design/**', 'versions/**']
   workflow_dispatch:
 
 permissions:
@@ -55,6 +61,8 @@ jobs:
     runs-on: ubuntu-24.04
     # 2026-09-30 全套 pytest 約 1040 項，平常整個 job 17–19 分鐘；慢的 runner 光 pytest 就要 21 分鐘，
     # 20 分鐘上限曾在 83%、零失敗時被取消，連帶略過部署。
+    # 2026-10-03 起測試的 bcrypt 降到 rounds 4（見 tests/conftest.py），本機全套少一半以上；
+    # 上限先不動，等 CI 實測穩定後再調。
     timeout-minutes: 30
     services:
       postgres:

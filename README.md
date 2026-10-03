@@ -1,3 +1,17 @@
+## 2026-10-03 CI 加速：測試的 bcrypt 降到 rounds 4、只改文件的提交不跑 CI（`feature/ci-speed-20261003`）
+
+使用者問：為什麼每次部署都要那麼久。
+
+- **根因**：部署要等 Backend job，job 裡的 `pytest -q` 在 CI 上約 22.7 分鐘；其中一半花在 bcrypt（建帳號＋登入的 fixture 走正式的 rounds 12，全套 2060 次）。另外最近 25 次 main push 有 14 次是部署紀錄／文件提交，每次都完整測試＋重新部署，main 的 run 又依序排隊，緊接著推的紀錄提交會讓下一次部署多排 20–28 分鐘（最長一次總共 56 分鐘）。
+- **測試**：`backend/tests/conftest.py` 把 `_pwd_context` 降到 rounds 4，查無帳號用的假雜湊跟著重算；正式環境不變。
+- **workflow**：PR 與 push 加 `paths-ignore`（`**.md`、`docs/**`、`design/**`、`versions/**`），整次變更都只有文件時不跑 CI、不部署。說明補在 `deploy/CICD.md`。
+
+**驗證**（本機、獨立測試庫）：
+- 對照實驗：origin/main 全套 1021 秒 → 只降 rounds 450 秒（-56%），失敗清單相同。
+- 同時段 A／B 交替（認證、招生紀錄等 4 檔 115 項）：修改後 33／37／37 秒三輪全過，rounds 12 是 141／128 秒；bcrypt 耗時 0.7 秒對 94 秒。
+- 本分支全套 1293 項通過（`test_referral_text_matches_admin_labels` 首輪因 sparse checkout 沒抽 `admin/` 讀不到檔，補抽後通過）；當時機器 load 11–12，總時間不具比較性。
+- workflow YAML 用 PyYAML 解析確認觸發條件；`paths-ignore` 的實際效果要推上 GitHub 後才看得到。
+
 ## 2026-10-03 官網預約拿掉「參觀人數」「想先了解的事」，得知管道改四選項（`feature/visit-no-party-size-20261003`）
 
 使用者要求：/visit 表單拿掉參觀人數；接著也拿掉整個「想先了解的事」欄位；「如何知道常春藤幼兒園？」改成只問來源追蹤看不到的管道，留四個。
