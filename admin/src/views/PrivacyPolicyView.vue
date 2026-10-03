@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, useTemplateRef } from 'vue'
+import type { EditorSection } from '../composables/editorSections'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { moveKeepingFocus } from '../composables/moveKeepingFocus'
@@ -17,6 +18,10 @@ import { vReadonlyValues } from '../composables/readonlyValues'
 const editor = useContentItem<PrivacyPolicyPayload>('privacy_policy', { title: '隱私權政策', updated_on: null, sections: [] })
 const form = editor.form
 const sections = computed(() => form.value.sections)
+// 段落目錄：每一段一項，小標空白時寫「第 N 段」（和清單標題同一個寫法）。
+const navSections = computed<EditorSection[]>(() =>
+  sections.value.map((section, index) => ({ id: `policy-section-${index}`, label: section.heading.trim() || `第 ${index + 1} 段` })),
+)
 const pending = computed(() => privacyPolicyPendingCount(form.value))
 // 從未存過任何版本：畫面上的是初稿（還沒存），按儲存才會變成第一個版本。
 const isUnsavedDraft = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)
@@ -52,7 +57,7 @@ onMounted(loadWithDraft)
 </script>
 
 <template>
-  <ContentEditor :editor="editor">
+  <ContentEditor :editor="editor" :sections="navSections">
     <template #lead>
       官網 <code>/privacy</code> 的隱私權政策。發布後頁尾與預約表單會多一個「隱私權政策」連結；還沒發布時官網沒有這一頁。
     </template>
@@ -97,7 +102,7 @@ onMounted(loadWithDraft)
         內文寫法：空一行就另起一段；一行開頭寫「- 」會變成條列；內文裡的 <code>https://</code> 網址會自動變成可點的連結。不能寫 HTML。
       </p>
       <div ref="sectionsList">
-        <div v-for="(section, index) in sections" :key="index" class="repeat-item" :data-list-item="index">
+        <div v-for="(section, index) in sections" :id="`policy-section-${index}`" :key="index" class="repeat-item" :data-list-item="index" data-section-anchor tabindex="-1">
           <div class="repeat-item__head">
             <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ section.heading.trim() || `第 ${index + 1} 段` }}</span>
             <span v-if="!editor.readOnly.value" class="policy__row-actions">

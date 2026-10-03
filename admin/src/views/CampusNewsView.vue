@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
 import type { CampusNewsPayload } from '../api/types'
@@ -7,7 +7,8 @@ import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 import CampusSelect from '../components/CampusSelect.vue'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
-import { NEWS_LIMITS, normalizeCampusArticle, normalizeCampusEvent } from '../composables/newsContent'
+import type { EditorSection } from '../composables/editorSections'
+import { NEWS_LIMITS, NEWS_SECTION_IDS, normalizeCampusArticle, normalizeCampusEvent } from '../composables/newsContent'
 
 // 各校自己的消息與活動（campus_news）：分校管理者與內容編輯只能編自己校，
 // 官網和全站消息合併顯示。跨校與首頁推薦由總部在「最新消息與活動」決定。
@@ -22,12 +23,17 @@ const campus = ref('')
 const editor = useContentItem<CampusNewsPayload>('campus_news', { articles: [], events: [] }, campus, { normalize })
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
+const navSections = computed<EditorSection[]>(() => [
+  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則` },
+  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場` },
+])
 </script>
 
 <template>
   <ContentEditor
     ref="shell"
     :editor="editor"
+    :sections="navSections"
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
     <template #lead>

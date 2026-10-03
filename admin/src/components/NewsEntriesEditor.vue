@@ -18,6 +18,7 @@ import {
   taipeiToday,
   useCollapsibleItems,
   webUrlError,
+  NEWS_SECTION_IDS,
   type NewsMode,
 } from '../composables/newsContent'
 import LengthHint from './LengthHint.vue'
@@ -111,7 +112,7 @@ function onPickMedia(asset: MediaAssetOut) {
 
 <template>
   <div class="section__title" style="margin-top: 20px">
-    <h2>最新消息</h2>
+    <h2 :id="NEWS_SECTION_IDS.articles" data-section-anchor tabindex="-1">最新消息</h2>
     <span class="hint">{{ articles.length }} / {{ maxArticles }} 則</span>
   </div>
   <p v-if="isGlobal" class="hint news-lead">
@@ -240,7 +241,7 @@ function onPickMedia(asset: MediaAssetOut) {
   </div>
 
   <div class="section__title" style="margin-top: 28px">
-    <h2>近期活動</h2>
+    <h2 :id="NEWS_SECTION_IDS.events" data-section-anchor tabindex="-1">近期活動</h2>
     <span class="hint">{{ events.length }} / {{ maxEvents }} 筆</span>
   </div>
   <div class="news-toolbar">

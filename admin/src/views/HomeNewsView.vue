@@ -6,7 +6,8 @@ import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
-import { NEWS_LIMITS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
+import type { EditorSection } from '../composables/editorSections'
+import { NEWS_LIMITS, NEWS_SECTION_IDS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
 import { normalizeHomeFilm } from '../composables/homeFilms'
 
 // 舊版消息沒有適用範圍、內文、推薦與活動時間：載入時換算成新欄位
@@ -29,6 +30,11 @@ const editor = useContentItem<HomeNewsPayload>(
 )
 
 const isSample = computed(() => editor.form.value.sample_note.trim() !== '')
+const navSections = computed<EditorSection[]>(() => [
+  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則` },
+  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場` },
+  { id: 'section-news-films', label: '手機版活動影片' },
+])
 
 function clearSampleNote() {
   editor.form.value.sample_note = ''
@@ -38,7 +44,7 @@ onMounted(editor.load)
 </script>
 
 <template>
-  <ContentEditor :editor="editor">
+  <ContentEditor :editor="editor" :sections="navSections">
     <template #lead>
       首頁「最新消息」與「近期活動」，適用全校或指定幾校（各校自己的消息在「各校 → 各校消息與活動」）。
       官網上的消息依日期新到舊排列；活動只顯示今天以後的，<strong>日期過了會自動從官網下架</strong>。
@@ -82,7 +88,7 @@ onMounted(editor.load)
         :read-only="editor.readOnly.value"
       />
 
-      <h3 class="films-section">手機版活動影片</h3>
+      <h3 id="section-news-films" class="films-section" data-section-anchor tabindex="-1">手機版活動影片</h3>
       <p class="field-help">手機上「近期活動」的位置改放活動影片輪播（桌機不顯示）。影片靜音循環，只有正中間那支會播放。</p>
       <HomeFilmsEditor v-model:films="editor.form.value.films" :read-only="editor.readOnly.value" />
     </el-form>

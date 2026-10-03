@@ -2,7 +2,17 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { computed, defineComponent } from 'vue'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
+import ElementPlus from 'element-plus'
+import { api } from '../api/client'
+import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
+import HomeNewsView from '../views/HomeNewsView.vue'
+import PrivacyPolicyView from '../views/PrivacyPolicyView.vue'
+import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 import EditorSectionNav from '../components/EditorSectionNav.vue'
 import { jumpToSection } from '../composables/editorSections'
 
@@ -62,5 +72,76 @@ describe('段落目錄', () => {
     expect(nav).toMatch(/\.section-nav a \{[^}]*min-height: 44px;/)
     const css = readSource('../style.css')
     expect(css).toMatch(/\[data-section-anchor\] \{ scroll-margin-top: 80px; \}/)
+  })
+})
+
+function contentItem(kind: string, payload: unknown, campusKey: string | null = null) {
+  return {
+    id: `${kind}-item`, kind, campus_key: campusKey, latest_version: 1, current_published_revision_id: 'rev-1',
+    latest_revision: { id: 'rev-1', version: 1, created_at: '2026-09-24T00:00:00Z', payload, review_status: 'draft' },
+  }
+}
+
+async function mountView(component: unknown) {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }) as never)
+  resetTitleFontCoverage()
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'me', email: 'me@example.invalid' })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+  await router.push('/')
+  await router.isReady()
+  const wrapper = mount(component as ReturnType<typeof defineComponent>, {
+    attachTo: document.body,
+    global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } },
+  } as never)
+  wrappers.push(wrapper)
+  await flushPromises()
+  return wrapper
+}
+
+describe('長編輯頁接上目錄', () => {
+  it('首頁消息：最新消息（則數）、近期活動（場數）、手機版活動影片；點了焦點到那一段標題', async () => {
+    Element.prototype.scrollIntoView = () => {}
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', {
+      sample_note: '', home_display_count: null, films: null,
+      articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: '', alt: '', scope: 'global', campus_keys: [], featured: false, body: [] }],
+      events: [],
+    }) as never)
+    const wrapper = await mountView(HomeNewsView)
+    const nav = wrapper.get('nav[aria-label="這一頁的段落"]')
+    expect(nav.findAll('.section-nav__label').map((s) => s.text())).toEqual(['最新消息', '近期活動', '手機版活動影片'])
+    expect(nav.findAll('.section-nav__note').map((s) => s.text())).toEqual(['1 則', '0 場'])
+    for (const id of ['section-news-articles', 'section-news-events', 'section-news-films']) {
+      expect(document.getElementById(id)?.hasAttribute('data-section-anchor')).toBe(true)
+    }
+    await nav.findAll('a')[1]!.trigger('click')
+    expect(document.activeElement?.id).toBe('section-news-events')
+  })
+
+  it('隱私權政策：每一段一個目錄項目，小標改了目錄跟著改；空白小標寫「第 N 段」', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path: string) => (
+      path.startsWith('/admin/content-items/') ? contentItem('privacy_policy', {
+        title: '隱私權政策', updated_on: '2026-10-03',
+        sections: [{ heading: '蒐集的資料', body: '內文' }, { heading: '', body: '內文' }],
+      }) : []
+    ) as never)
+    const wrapper = await mountView(PrivacyPolicyView)
+    const labels = () => wrapper.get('nav[aria-label="這一頁的段落"]').findAll('.section-nav__label').map((s) => s.text())
+    expect(labels()).toEqual(['蒐集的資料', '第 2 段'])
+    await wrapper.findAll('input').find((i) => (i.element as HTMLInputElement).value === '蒐集的資料')!.setValue('使用目的')
+    expect(labels()).toEqual(['使用目的', '第 2 段'])
+    expect(document.getElementById('policy-section-1')?.hasAttribute('data-section-anchor')).toBe(true)
+  })
+
+  it('入學資訊、孩子的一天、各校消息都傳了 sections', () => {
+    expect(readSource('../views/AdmissionContentView.vue')).toMatch(/<ContentEditor :editor="editor" :sections="navSections">/)
+    expect(readSource('../views/DayExperienceView.vue')).toMatch(/<ContentEditor :editor="editor" :sections="navSections">/)
+    expect(readSource('../views/CampusNewsView.vue')).toMatch(/:sections="navSections"/)
+    for (const id of ['section-admission-steps', 'section-admission-phases', 'section-admission-fees']) {
+      expect(readSource('../views/AdmissionContentView.vue')).toContain(`id="${id}" data-section-anchor tabindex="-1"`)
+    }
+    for (const id of ['section-day-film', 'section-day-moments']) {
+      expect(readSource('../views/DayExperienceView.vue')).toContain(`id="${id}" data-section-anchor tabindex="-1"`)
+    }
   })
 })

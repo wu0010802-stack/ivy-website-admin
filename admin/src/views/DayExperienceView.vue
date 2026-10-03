@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, useId, useTemplateRef } from 'vue'
+import type { EditorSection } from '../composables/editorSections'
 import { ArrowRight, Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { DAY_MOMENT_TINTS, type DayExperiencePayload, type DayMomentPayload, type MediaAssetOut } from '../api/types'
@@ -105,6 +106,10 @@ const momentsList = useTemplateRef<HTMLElement>('momentsList')
 // 新增的、存檔錯誤指到的會自動展開（revealListItem／revealContentPath）。
 const collapse = useCollapsibleItems()
 const uid = useId()
+const navSections = computed<EditorSection[]>(() => [
+  { id: 'section-day-film', label: '背景影片' },
+  { id: 'section-day-moments', label: '時刻卡', note: `${editor.form.value.moments.length} 張` },
+])
 const allMomentsOpen = computed(() => editor.form.value.moments.every((m) => collapse.isOpen(m.key)))
 
 // 新卡片加在最後（官網照這裡的順序），加完捲過去並聚焦時間欄；要插到中間用上移。
@@ -129,7 +134,7 @@ onMounted(editor.load)
 </script>
 
 <template>
-  <ContentEditor :editor="editor">
+  <ContentEditor :editor="editor" :sections="navSections">
     <template #lead>
       首頁「孩子的一天」的文字、背景影片與卡片。卡片的張數、順序照這裡顯示，刪掉的卡片官網也會拿掉。
       照片、影片沒選的沿用官網內建：原有的六張用原本的照片，<strong>新增的卡片沒選照片時以空白相紙顯示</strong>。
@@ -150,7 +155,7 @@ onMounted(editor.load)
       <!-- 影片來源標註（source_note）是原型程式註解抽成的欄位，官網從來沒有顯示；區塊的來源說明
            就是上面的「說明文字」。2026-09-29 查證後比照照片補充字：後台不列，舊值照原樣存回。 -->
 
-      <h3 class="form-section">背景影片</h3>
+      <h3 id="section-day-film" data-section-anchor tabindex="-1" class="form-section">背景影片</h3>
       <p class="field-help">影片靜音循環、當作背景，沒有字幕。手機版影片沒選時用桌機那支；影片封面是影片載入前看到的畫面。</p>
       <el-form-item label="桌機影片">
         <MediaSlotField v-model="editor.form.value.film_desktop" kind="video" builtin="官網內建的遊藝表演影片" :disabled="editor.readOnly.value" />
@@ -185,7 +190,7 @@ onMounted(editor.load)
       </div>
 
       <div class="section__title" style="margin-top: 20px">
-        <h2>時刻卡</h2>
+        <h2 id="section-day-moments" data-section-anchor tabindex="-1">時刻卡</h2>
         <span class="hint">{{ editor.form.value.moments.length }} / {{ MAX_MOMENTS }} 張</span>
       </div>
 
