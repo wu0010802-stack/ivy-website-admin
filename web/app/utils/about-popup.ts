@@ -3,15 +3,16 @@
 // - 跨頁：右頁以書脊為軸，從闔上（-178°）翻到攤平；scroll() 把捲動進度寫進 --open（只在 901px 以上）。
 //   2026-10-02 起右頁背面是章節封面；同時寫 --shade（立起來時紙面背光）與 --cast（還壓在左頁上方時，左頁靠書脊的影子）。
 // - 卡紙：--up 0 平躺 → 1 站好，用 spring 寫進 CSS 變數；彈簧會超過 1 一點（往前晃一下）。
-// - 一路走來：拉右頁下方的紙條，五個年份等距排在紙槽上；拉過哪一站、那一校就站起來，放手彈到最近一站。
-//   紙條是 role="slider"，左右鍵一站一格、Home／End 到頭尾；連按以「正要去的那一站」為準。
-//   到站的站點變實心；紙條動過（示範或讀者自己拉）之後，左頁沿革那一列跟著上色。
+// - 一路走來（2026-10-03 取代拉紙條；比稿 design/about-medal-directions-20261003/，使用者選「章名旁＋連續轉」）：
+//   章名旁的紀念章（AboutMedal）跟著捲動翻面：校徽正面 → 1997 義華 → … → 2021 仁武，翻到哪一站、那一校的卡紙站起來、
+//   左頁沿革那一列上色。放得下「紀念章頂端到沿革底」時跨頁釘住（手機釘右頁），多捲 6 × 0.4 個畫面；放不下就照常捲，
+//   跨頁經過時走完五站。每站中間 40% 停住讓人看清楚，兩站之間才轉；背對讀者的那一面先換成下一站。
 // - 全人教育：A2 六圈由 AboutWholePerson.vue 管理，收到 abk-open 後才播放。
 // - 我們的期許：房子站好後，牆角的常春藤長出來（.abk-scene 加 is-grown）。
 // - 家長怎麼說：swap() 讓大卡紙與後排小卡倒下、換內容、再站起來（AboutContent 換家長時呼叫）。
 // 沒有 JS（或還沒載入）時 CSS 預設 --open:1、--up:1：書是攤開的、卡紙是站好的，內容全部看得到。
 // 掛上時已經在視窗內的跨頁直接維持攤開，不闔上再翻（避免閃一下）。首屏跨頁（data-spread="static"）不翻。
-// 減少動態：書攤開、卡紙站好、紙條拉到底，紙條操作直接跳格，六圈維持完成圖，常春藤直接長好，換家長直接換。
+// 減少動態：書攤開、卡紙站好、紀念章停在校徽正面不釘住，六圈維持完成圖，常春藤直接長好，換家長直接換。
 import type { animate as MotionAnimate, inView as MotionInView, scroll as MotionScroll } from 'motion'
 
 export interface AboutPopupDeps {
@@ -25,10 +26,36 @@ export interface AboutPopup {
   destroy: () => void
 }
 
-/** 紙條位置 t（0–1）落在第幾站：等距的 n 站，四捨五入到最近一站。 */
-export function pullIndex(t: number, stops: number) {
-  if (stops < 2) return 0
-  return Math.round(Math.min(1, Math.max(0, t)) * (stops - 1))
+/** 紀念章靜止時往左偏的角度（AboutMedal.vue 的 rotateY(… - 18deg) 要同步）。 */
+export const MEDAL_YAW = -18
+/** 紀念章每一站佔幾個畫面高的捲動距離（釘住時）。 */
+export const MEDAL_STOP_SCREENS = 0.4
+
+/** 捲動位置 c（0＝校徽正面，k＝第 k 所校園，可以是小數）→ 紀念章轉了幾個半圈：每站中間 40% 停住，兩站之間 smoothstep 轉過去。 */
+export function medalTurn(c: number) {
+  const k = Math.round(c)
+  const x = c - k
+  const t = Math.min(1, Math.max(0, (Math.abs(x) - 0.2) / 0.3))
+  return k + Math.sign(x) * 0.5 * t * t * (3 - 2 * t)
+}
+
+/** 轉了 turn 個半圈時兩面各印哪一站：A 面印偶數站、B 面印奇數站，背對讀者的那一面先換成下一站（共 states 站，含校徽正面）。 */
+export function medalFaces(turn: number, states: number) {
+  return { a: Math.min(states - 1, 2 * Math.round(turn / 2)), b: Math.min(states - 1, 2 * Math.floor(turn / 2) + 1) }
+}
+
+/** 讀者現在看到哪一站：靜止時往左偏 MEDAL_YAW，朝外的是 A 面還是 B 面由實際角度決定。 */
+export function medalShown(turn: number, states: number) {
+  const { a, b } = medalFaces(turn, states)
+  return Math.cos(((turn * 180 + MEDAL_YAW) * Math.PI) / 180) > 0 ? a : b
+}
+
+/** 釘住時跨頁（或右頁）頂端離視窗頂多遠：要看到的範圍 [from, to]（相對元素頂端）放進上下留白之內，能置中就置中；放不下回傳 null。 */
+export function medalPinTop(viewport: number, height: number, from: number, to: number, margin: { top: number, bottom: number }) {
+  const lo = margin.top - from
+  const hi = viewport - margin.bottom - to
+  if (lo > hi) return null
+  return Math.min(hi, Math.max(lo, (viewport - height) / 2))
 }
 
 /** 捲動進度 p（0–1）→ 右頁翻開程度、紙面背光、壓在左頁的影子。翻開程度用 smoothstep，開頭與收尾比較慢。 */
@@ -108,92 +135,130 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
         spread.style.setProperty('--shade', turn.shade.toFixed(3))
         spread.style.setProperty('--cast', turn.cast.toFixed(3))
         if (progress > 0.92) open(false)
-      }, { target: spread, offset: ['start 0.95', 'start 0.3'] }))
+      }, { target: spread.closest<HTMLElement>('[data-medal-track]') ?? spread, offset: ['start 0.95', 'start 0.3'] }))
     } else {
       cleanups.push(inView(spread.querySelector('.abk-stage, .abk-whole') ?? spread, () => { open(false) }, { amount: 0.4 }))
     }
   }
 
-  // ---------- 一路走來：拉紙條 ----------
-  const pull = root.querySelector<HTMLElement>('[data-pull]')
-  const tab = pull?.querySelector<HTMLButtonElement>('[role="slider"]')
-  const cards = [...root.querySelectorAll<HTMLElement>('[data-stop]')]
-  if (pull && tab && cards.length) {
-    const labels = cards.map((card) => card.dataset.stop ?? '')
-    const years = cards.map((card) => Number(card.dataset.year))
-    const stops = [...pull.querySelectorAll<HTMLElement>('.abk-stop')]
-    const rows = [...root.querySelectorAll<HTMLElement>('.abk-list > li')]
-    const n = cards.length
-    let t = 0
-    let index = -1
-    let goal = 0
-    let armed = false
-    let moving: Control | undefined
-    const set = (v: number) => {
-      t = Math.min(1, Math.max(0, v))
-      tab.style.setProperty('--pull', t.toFixed(4))
-      const i = pullIndex(t, n)
-      if (i !== index) {
-        index = i
-        tab.setAttribute('aria-valuenow', String(i + 1))
-        tab.setAttribute('aria-valuetext', `${years[i]} ${labels[i]}`)
-        stops.forEach((stop, k) => stop.classList.toggle('is-on', k <= i))
-        rows.forEach((row, k) => row.classList.toggle('is-on', armed && k === i))
+  // ---------- 一路走來：紀念章跟著捲動翻面 ----------
+  const track = root.querySelector<HTMLElement>('[data-medal-track]')
+  const story = track?.querySelector<HTMLElement>('[data-spread]')
+  const left = story?.querySelector<HTMLElement>('.abk-page.is-left')
+  const right = story?.querySelector<HTMLElement>('.abk-page.is-right')
+  const cards = [...(story?.querySelectorAll<HTMLElement>('[data-stop]') ?? [])]
+  const medals = [...(story?.querySelectorAll<HTMLElement>('[data-medal]') ?? [])]
+  // 減少動態：不釘住、不轉，卡紙照 CSS 預設站好，紀念章停在校徽正面
+  if (track && story && left && right && cards.length && medals.length && !reducedMotion) {
+    const states = cards.length + 1
+    const stops = cards.map((card) => ({ name: card.dataset.stop ?? '', year: card.dataset.year ?? '' }))
+    const rows = [...story.querySelectorAll<HTMLElement>('.abk-list > li')]
+    const faces = medals.flatMap((medal) => [...medal.querySelectorAll<HTMLElement>('[data-face]')])
+    const print = (face: HTMLElement, k: number) => {
+      if (face.dataset.state === String(k)) return
+      face.dataset.state = String(k)
+      const stop = stops[k - 1]
+      if (!stop) return
+      face.querySelector('.is-name')!.textContent = stop.name
+      face.querySelector('.is-year')!.textContent = stop.year
+    }
+    let shown = -1
+    const show = (k: number, instant: boolean) => {
+      if (k === shown) return
+      shown = k
+      cards.forEach((card, i) => {
+        if (!instant) { stand(card, i < k); return }
+        aimOf.set(card, i < k ? 1 : 0)
+        setUp(card, i < k ? 1 : 0)
+      })
+      rows.forEach((row, i) => row.classList.toggle('is-on', i === k - 1))
+    }
+    const paint = (turn: number, instant = false) => {
+      const { a, b } = medalFaces(turn, states)
+      faces.forEach((face) => print(face, face.dataset.face === 'a' ? a : b))
+      const frac = turn - Math.floor(turn)
+      for (const medal of medals) {
+        medal.style.setProperty('--medal-turn', turn.toFixed(4))
+        medal.style.setProperty('--medal-lift', Math.sin(frac * Math.PI).toFixed(3))
+        medal.style.setProperty('--medal-frac', frac.toFixed(3))
       }
-      cards.forEach((card, k) => stand(card, k <= i))
+      show(medalShown(turn, states), instant)
     }
-    // 左頁那一列的底色：紙條動過才開始跟（index 歸零讓下一次 set 重畫）
-    const arm = () => { if (!armed) { armed = true; index = -1 } }
-    const toStop = (i: number) => {
-      goal = Math.min(n - 1, Math.max(0, i))
-      moving?.stop()
-      moving = spring(t, goal / (n - 1), set, { bounce: 0.35 })
+
+    // 釘住：要看到「紀念章頂端（含翻面時跳起）到卡紙與沿革底」；桌機釘整個跨頁，手機釘右頁（頁首膠囊約 80px 高）
+    let pinned = false
+    let wideNow = true
+    let pinTop = 0
+    let lastWidth = 0
+    const measure = () => {
+      lastWidth = innerWidth
+      wideNow = matchMedia('(min-width: 901px)').matches
+      const el = wideNow ? story : right
+      const box = el.getBoundingClientRect()
+      const medal = medals.find((m) => m.offsetParent)
+      const lift = medal ? medal.offsetHeight * 0.16 : 0
+      const from = medal ? medal.getBoundingClientRect().top - box.top - lift : 0
+      const bottoms = [...cards, ...(wideNow ? rows : [])].map((node) => node.getBoundingClientRect().bottom - box.top)
+      const top = medalPinTop(innerHeight, box.height, from, Math.max(...bottoms) + 12, wideNow ? { top: 16, bottom: 16 } : { top: 88, bottom: 12 })
+      pinned = top !== null
+      pinTop = top ?? 0
+      track.style.setProperty('--abk-pin-top', `${Math.round(pinTop)}px`)
+      // 撐高度的那一列和釘住的元素重疊（元素跨兩列），所以要加回元素自己的高度；用 svh，手機網址列收合時不跟著變
+      track.style.setProperty('--abk-pin-run', `calc(${Math.round(states * MEDAL_STOP_SCREENS * 100)}svh + ${Math.round(box.height)}px)`)
+      track.classList.toggle('is-pinned', pinned && wideNow)
+      story.classList.toggle('is-pinned', pinned && !wideNow)
     }
-    let drag: { x: number, t: number, moved: boolean } | null = null
-    const onDown = (e: PointerEvent) => { arm(); moving?.stop(); drag = { x: e.clientX, t, moved: false }; tab.setPointerCapture(e.pointerId) }
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return
-      const dx = e.clientX - drag.x
-      if (Math.abs(dx) > 4) drag.moved = true
-      set(drag.t + dx / Math.max(1, pull.clientWidth - tab.offsetWidth))
+    // 進度 0–1：釘住時看「沒釘住的話元素會在哪」（桌機是軌道頂、手機是左頁底），除以多出來的捲動距離；
+    // 沒釘住時看元素經過視窗（桌機等右頁翻開後才開始）
+    const progress = () => {
+      if (pinned) {
+        const natural = wideNow ? track.getBoundingClientRect().top : left.getBoundingClientRect().bottom
+        const run = wideNow ? track.offsetHeight - story.offsetHeight : story.offsetHeight - left.offsetHeight - right.offsetHeight
+        return (pinTop - natural) / Math.max(1, run)
+      }
+      const box = (wideNow ? story : right).getBoundingClientRect()
+      return wideNow
+        ? (innerHeight * 0.5 - box.top) / Math.max(300, box.height - innerHeight * 0.4)
+        : (innerHeight * 0.8 - box.top) / Math.max(300, box.height)
     }
-    const onUp = () => { if (!drag) return; const moved = drag.moved; drag = null; toStop(moved ? pullIndex(t, n) : pullIndex(t, n) + 1) }
-    const onKey = (e: KeyboardEvent) => {
-      const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]
-      if (step) { e.preventDefault(); arm(); toStop(goal + step) }
-      if (e.key === 'Home') { e.preventDefault(); arm(); toStop(0) }
-      if (e.key === 'End') { e.preventDefault(); arm(); toStop(n - 1) }
+    const aim = () => medalTurn(Math.min(states - 1, Math.max(0, progress() * states - 0.5)))
+
+    let turn = 0
+    let target = 0
+    let raf = 0
+    let last = 0
+    const tick = (now: number) => {
+      raf = 0
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000))
+      last = now
+      const diff = target - turn
+      turn = Math.abs(diff) < 0.001 ? target : turn + diff * (1 - Math.exp(-dt * 14))
+      paint(turn)
+      if (turn !== target) raf = requestAnimationFrame(tick)
     }
-    tab.addEventListener('pointerdown', onDown)
-    tab.addEventListener('pointermove', onMove)
-    tab.addEventListener('pointerup', onUp)
-    tab.addEventListener('pointercancel', onUp)
-    tab.addEventListener('keydown', onKey)
+    const onScroll = () => {
+      target = aim()
+      if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick) }
+    }
+    // 手機網址列收合只改高度：不重新量（避免釘住位置跟著跳）
+    const onResize = () => { if (wideNow || innerWidth !== lastWidth) measure(); onScroll() }
+    measure()
+    turn = target = aim()
+    paint(turn, true)
+    addEventListener('scroll', onScroll, { passive: true })
+    addEventListener('resize', onResize)
+    // 字型、沿革換行讓高度變了就重量（觀察左右頁本身，釘住多出來的那一列不會再觸發）
+    const resized = new ResizeObserver(() => { measure(); onScroll() })
+    resized.observe(left)
+    resized.observe(right)
     cleanups.push(() => {
-      tab.removeEventListener('pointerdown', onDown)
-      tab.removeEventListener('pointermove', onMove)
-      tab.removeEventListener('pointerup', onUp)
-      tab.removeEventListener('pointercancel', onUp)
-      tab.removeEventListener('keydown', onKey)
+      resized.disconnect()
+      removeEventListener('scroll', onScroll)
+      removeEventListener('resize', onResize)
+      cancelAnimationFrame(raf)
+      track.classList.remove('is-pinned')
+      story.classList.remove('is-pinned')
     })
-    const toEnd = () => { arm(); cards.forEach((card) => setUp(card, 1)); set(1); goal = n - 1 }
-    // 翻開時示範：紙條自己拉到底，五校一校一校站起來；已經在視窗內（或減少動態）就直接拉到底
-    const spread = pull.closest<HTMLElement>('[data-spread]')
-    const demo = (e: Event) => {
-      if ((e as CustomEvent<{ instant: boolean }>).detail?.instant || reducedMotion) { toEnd(); return }
-      arm()
-      later(() => {
-        if (drag) return
-        const control = animate(0, 1, { duration: 2.4, ease: [0.45, 0, 0.2, 1], onUpdate: (v: number) => { set(v); goal = pullIndex(v, n) } })
-        running.add(control)
-        moving = control
-      }, 400)
-    }
-    if (spread) spread.addEventListener('abk-open', demo, { once: true })
-    cards.forEach((card) => flat(card))
-    set(0)
-    // 掛上時就在視窗內（或減少動態）：翻開事件在上面那個迴圈裡已經發過，直接拉到底
-    if (reducedMotion || (spread && inViewport(spread))) toEnd()
   }
 
   return {

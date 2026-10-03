@@ -1,9 +1,10 @@
 /* 關於常春藤頁（/about）立體書版（2026-09-29，使用者選定 J：design/about-style-directions-20260929/j-popup.*）
    整頁是一本攤在淡綠桌面上的立體繪本：每段一個跨頁，左頁文字、右頁照片卡紙；卡紙是品牌色。
-   動態（翻頁 --open、背光 --shade、壓在左頁的影子 --cast、卡紙 --up、紙條 --pull）由 utils/about-popup.ts 寫進 CSS 變數；
-   沒有 JS 時預設 --open:1、--up:1、--pull:0，書是攤開的、卡紙是站好的。
+   動態（翻頁 --open、背光 --shade、壓在左頁的影子 --cast、卡紙 --up、紀念章 --medal-*）由 utils/about-popup.ts 寫進 CSS 變數；
+   沒有 JS 時預設 --open:1、--up:1，書是攤開的、卡紙是站好的、紀念章停在校徽正面。
    2026-10-02 精修（design/about-refine-mockup-20261002/）：紙改米白、書脊改窄折痕、頁緣厚度依跨頁位置（--n／--last）、
    右頁背面是章節封面、首屏目次、中文章名、紙槽、常春藤紙房子、第四章家長怎麼說、書底緞帶。
+   2026-10-03 一路走來的紙槽拿掉，改成章名旁的紀念章（AboutMedal；design/about-medal-directions-20261003/）。
    顏色一律走站內 token；透明度用 RGB 三元組（--ink）。不再共用 admission.css。 */
 
 .abk{
@@ -103,10 +104,10 @@
   .abk-toc a:hover span{color:var(--green);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
 }
 
-/* ---------- 第一章 一路走來：左頁沿革、右頁紙槽 ---------- */
+/* ---------- 第一章 一路走來：左頁沿革（章名旁紀念章）、右頁五校卡紙 ---------- */
 .abk-list{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:2px}
 .abk-list li{display:grid;grid-template-columns:92px 1fr;gap:14px;align-items:baseline;margin-inline:-12px;padding:6px 12px;border-radius:8px;transition:background-color .4s var(--abk-ease)}
-/* 紙條拉到哪一站，左頁那一列淡淡上那一校的卡紙色（紙條動過才開始跟） */
+/* 紀念章翻到哪一站，左頁那一列淡淡上那一校的卡紙色（翻回校徽正面時都不上色） */
 .abk-list li.is-on{background:color-mix(in oklch,var(--c) 26%,var(--abk-page))}
 .abk-year{display:grid;gap:2px}
 .abk-year span{font:600 1.4rem/1 var(--font-date);color:var(--ivy-forest)}
@@ -116,21 +117,17 @@
 .abk-list li div>p{font-size:var(--fs-sm);color:var(--muted)}
 
 .abk-story .abk-face{display:flex;flex-direction:column}
-.abk-story .abk-stage{flex:1;min-height:440px;margin-bottom:120px}
-.abk-pull{--tab:116px;position:absolute;left:clamp(28px,3.6vw,56px);right:clamp(28px,3.6vw,56px);bottom:clamp(64px,6vw,84px);height:96px;container-type:inline-size}
-/* 紙槽：一道割開的縫；五站等距（不寫相隔幾年），站名直接印在旁邊；到站的點變實心（小字不用淡化表示「還沒到」） */
-.abk-slot{position:absolute;left:0;right:0;top:26px;height:8px;border-radius:99px;background:rgb(var(--ink)/.13);box-shadow:inset 0 1px 2px rgb(var(--ink)/.3),0 1px 0 rgb(var(--on-dark)/.8)}
-.abk-stop{position:absolute;top:-2px;left:calc(var(--tab) / 2 + var(--t) * (100% - var(--tab)));display:grid;justify-items:center;width:64px;margin-left:-32px;padding-top:34px;font-size:var(--fs-xs);line-height:1.35;color:var(--muted);text-align:center}
-.abk-stop b{font:700 13px/1.2 var(--font-date);color:var(--muted)}
-.abk-stop::before{content:'';position:absolute;top:0;left:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--abk-page);box-shadow:inset 0 0 0 2px var(--trail)}
-.abk-stop.is-on{color:var(--ivy-forest);font-weight:700}
-.abk-stop.is-on b{color:var(--ivy-forest)}
-.abk-stop.is-on::before{background:var(--ivy-forest);box-shadow:inset 0 0 0 2px var(--ivy-forest)}
-.abk-tab{position:absolute;left:0;top:8px;z-index:2;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:var(--tab);min-height:44px;padding:0 10px 0 14px;border:0;border-radius:4px 22px 22px 4px;background:var(--studio-orange);color:rgb(var(--ink));font:800 var(--fs-sm)/1 var(--font);box-shadow:0 2px 0 rgb(var(--ink)/.2),0 10px 16px -8px rgb(var(--ink)/.45);cursor:grab;touch-action:none;transform:translateX(calc(var(--pull,0) * (100cqw - var(--tab))))}
-/* 字色 --ink：白字在 --studio-orange 只有 2.89:1，--ink 是 5.22:1（同 10-01 書籤，2026-10-02 手機審查）。 */
-.abk-tab .icon{width:16px;height:16px}
-.abk-tab:active{cursor:grabbing}
-.abk-tab:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:3px}
+.abk-story .abk-stage{flex:1;min-height:440px;margin-bottom:24px}
+/* 紀念章（AboutMedal，2026-10-03 取代拉紙條）：桌機在章名右邊、跟左頁內容右緣對齊；手機章名和卡紙不在同一個畫面，
+   改到右頁上緣、騎在兩頁的接縫上。不設 z-index：右頁翻過來時要蓋住它（左頁內容都一樣）。 */
+.abk .abk-medal.is-title{position:absolute;top:calc(clamp(36px,4vw,60px) + 12px);right:var(--abk-pad-x);--size:clamp(84px,8.9vw,128px);rotate:6deg}
+.abk .abk-medal.is-seam{display:none}
+/* 釘住（about-popup.ts 量過「紀念章頂端到沿革底」放得進視窗才加 is-pinned）：桌機整個跨頁貼在視窗裡，
+   外層軌道多一列 --abk-pin-run 撐出捲動距離，捲完才放開。軌道接手跨頁原本的上邊距，翻頁的捲動進度改量軌道（不受 sticky 影響）。 */
+.abk-track{margin-top:clamp(64px,8vw,120px)}
+.abk-track>.abk-spread{margin-top:0}
+.abk-track.is-pinned{display:grid;grid-template-rows:auto var(--abk-pin-run,0px)}
+.abk-track.is-pinned>.abk-spread{grid-row:1/3;align-self:start;position:sticky;top:var(--abk-pin-top,0px)}
 
 /* ---------- 第二章 全人教育：領域圓點與右頁六圈同色（右頁六圈樣式在 AboutWholePerson） ---------- */
 .abk-lists{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
@@ -260,12 +257,15 @@
   .abk-stage{max-width:480px;margin-inline:auto}
   .abk-face .abk-stage,.abk-hero .abk-stage{width:100%}
   .abk-hero .abk-stage{min-height:max(320px,calc(.74 * min(100cqw,480px) + 40px))}
-  .abk-story .abk-stage{min-height:max(340px,calc(.62 * min(100cqw,480px) + 120px));flex:none;margin-bottom:116px}
+  .abk-story .abk-stage{min-height:max(340px,calc(.62 * min(100cqw,480px) + 120px));flex:none;margin-bottom:12px}
   .abk-hope .abk-stage{min-height:max(360px,calc(.84 * min(100cqw,480px) + 40px))}
   .abk-theater{min-height:max(380px,calc(1.05 * min(100cqw,480px) + 60px))}
-  .abk-pull{left:20px;right:20px;bottom:56px;--tab:104px}
-  .abk-stop{width:48px;margin-left:-24px}
-  .abk-stop b{font-size:12px}
+  .abk .abk-medal.is-title{display:none}
+  .abk .abk-medal.is-seam{display:block;position:absolute;top:-46px;right:24px;--size:96px;rotate:6deg}
+  /* 手機釘右頁：右頁跨兩列（第三列 --abk-pin-run 撐出捲動距離），貼在頁首膠囊下方 */
+  .abk-track{margin-top:48px}
+  .abk-story.is-pinned{grid-template-rows:auto auto var(--abk-pin-run,0px)}
+  .abk-story.is-pinned>.abk-page.is-right{grid-row:2/4;align-self:start;position:sticky;top:var(--abk-pin-top,0px)}
   .abk-outro{grid-template-columns:minmax(0,1fr)}
   .abk-ribbons{order:-1;justify-content:center;gap:8px;padding:0 12px}
   .abk-ribbons a{width:min(64px,calc((100vw - 2 * var(--abk-gutter) - 56px) / 5));height:calc(var(--len) * .8);padding-bottom:26px}

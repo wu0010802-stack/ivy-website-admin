@@ -25,9 +25,6 @@ describe('關於頁立體書 900px 以下', () => {
       expect(narrow).toMatch(new RegExp(`\\.${stage} \\.abk-stage\\{min-height:max\\(\\d+px,calc\\([^;]*min\\(100cqw,480px\\)`))
     }
   })
-  it('「拉拉看」紙條字色用 --ink，不用白字壓橘底', () => {
-    expect(css).toMatch(/\.abk-tab\{[^}]*background:var\(--studio-orange\);color:rgb\(var\(--ink\)\)/)
-  })
 })
 
 describe('小字對比與點擊範圍', () => {
