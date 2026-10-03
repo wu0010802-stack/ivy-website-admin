@@ -12,6 +12,7 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
+import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
 type Dimension = 'source' | 'referral'
@@ -282,6 +283,8 @@ const entryRows = computed(() =>
         <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
         <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
       </section>
+
+      <EventTrendPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" />
 
       <section class="panel">
         <div class="panel__head analytics__dims-head">
