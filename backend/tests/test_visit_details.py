@@ -101,12 +101,13 @@ def test_details_normalize_names_email_and_referral_order():
         child_name="  陳小樹  ",
         child_birthdate="2022-06-18",
         email="parent@EXAMPLE.ORG",
-        referral_sources=["friends_family", "facebook", "facebook"],
+        referral_sources=["facebook", "online", "friends_family", "nearby", "facebook"],
     ))
     assert payload.child_name == "陳小樹"
     assert payload.child_birthdate == date(2022, 6, 18)
     assert payload.email == "parent@example.org"
-    assert payload.referral_sources == ["facebook", "friends_family"]
+    # 2026-10-03 起的四個選項在前，舊選項（更新前的頁面）照收、排在後面。
+    assert payload.referral_sources == ["friends_family", "nearby", "online", "facebook"]
 
 
 @pytest.mark.parametrize("changes", [
@@ -121,7 +122,7 @@ def test_details_normalize_names_email_and_referral_order():
     {"email": ""},
     {"email": None},
     {"referral_sources": ["untrusted_source"]},
-    {"referral_sources": ["facebook"] * 6},
+    {"referral_sources": ["facebook"] * 8},
     {"referral_sources": "facebook"},
 ])
 def test_invalid_details_are_rejected(changes):

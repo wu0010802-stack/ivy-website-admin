@@ -1,25 +1,23 @@
 import { normalizeVisitPhone, validateVisitContact, type VisitErrors, type VisitField } from './visit-form'
 
-export interface EditForm { parentName: string; phone: string; email: string; childName: string; childBirthdate: string; partySize: string; questions: string }
-interface EditRecord { parent_name: string; phone: string; email?: string | null; child_name?: string | null; child_birthdate?: string | null; party_size?: number | null; questions?: string | null }
-export type EditChanges = Partial<{ parent_name: string; phone: string; email: string; child_name: string; child_birthdate: string; party_size: number; questions: string | null }>
+export interface EditForm { parentName: string; phone: string; email: string; childName: string; childBirthdate: string }
+interface EditRecord { parent_name: string; phone: string; email?: string | null; child_name?: string | null; child_birthdate?: string | null }
+export type EditChanges = Partial<{ parent_name: string; phone: string; email: string; child_name: string; child_birthdate: string }>
 
-const KEYS = ['parentName', 'phone', 'email', 'childName', 'childBirthdate', 'partySize', 'questions'] as const
+const KEYS = ['parentName', 'phone', 'email', 'childName', 'childBirthdate'] as const
 
 export function editBaseFrom(record: EditRecord): EditForm {
   return {
     parentName: record.parent_name, phone: record.phone, email: record.email ?? '',
-    childName: record.child_name ?? '', childBirthdate: record.child_birthdate ?? '',
-    partySize: record.party_size ? String(record.party_size) : '', questions: record.questions ?? ''
+    childName: record.child_name ?? '', childBirthdate: record.child_birthdate ?? ''
   }
 }
 
-// 後端送出前的正規化：前後空白、手機分隔符、空白的提問＝沒有提問。
+// 後端送出前的正規化：前後空白、手機分隔符。
 function normalize(form: EditForm): Required<EditChanges> {
   return {
     parent_name: form.parentName.trim(), phone: normalizeVisitPhone(form.phone), email: form.email.trim(),
-    child_name: form.childName.trim(), child_birthdate: form.childBirthdate,
-    party_size: Number(form.partySize), questions: form.questions.trim() || null
+    child_name: form.childName.trim(), child_birthdate: form.childBirthdate
   }
 }
 
@@ -44,11 +42,11 @@ export function rebaseEdit(form: EditForm, base: EditForm, fresh: EditRecord): {
 }
 
 const CHANGE_FIELD: Record<string, VisitField> = {
-  parent_name: 'parentName', phone: 'phone', email: 'email', child_name: 'childName', child_birthdate: 'childBirthdate', party_size: 'partySize'
+  parent_name: 'parentName', phone: 'phone', email: 'email', child_name: 'childName', child_birthdate: 'childBirthdate'
 }
 
 /**
- * 只驗證這次改過的欄位：後台補登的案件孩子資料、人數、Email 可能是空的（後端也允許維持空值），
+ * 只驗證這次改過的欄位：後台補登的案件孩子資料、Email 可能是空的（後端也允許維持空值），
  * 家長只想改手機時，不能被沒碰過的欄位擋住。
  */
 export function validateEdit(current: EditRecord, form: EditForm, base: EditForm, today: string): VisitErrors {

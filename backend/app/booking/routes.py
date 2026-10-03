@@ -281,7 +281,6 @@ _SUBMIT_ERRORS = (
     service.IdempotencyConflict,
     service.BookingConfigVersionChanged,
     service.BookingUnavailable,
-    service.PartySizeRequired,
     service.PhoneSubmissionLimit,
     workflow_service.SlotFull,
     slot_service.SlotNotBookable,
@@ -309,11 +308,6 @@ def _submit_error(exc: Exception) -> HTTPException:
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"code": "RATE_LIMITED", "message": "送出次數過多，請稍後再試"},
             headers={"Retry-After": str(exc.retry_after_seconds)},
-        )
-    if isinstance(exc, service.PartySizeRequired):
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=[{"loc": ["body", "party_size"], "msg": "請選擇參觀人數", "type": "missing"}],
         )
     if isinstance(exc, workflow_service.SlotFull):
         return slot_unavailable(exc, suffix="，請選擇其他時段")

@@ -4,18 +4,17 @@ export interface VisitContact {
   childName?: string
   childBirthdate?: string
   email?: string
-  /** 參觀人數（下拉選單的值，未選為空字串） */
-  partySize?: string
 }
 
 export type VisitField = keyof VisitContact | 'visitDate' | 'slotId'
 export type VisitErrors = Partial<Record<VisitField, string>>
 
 export const REFERRAL_OPTIONS = [
-  { value: 'facebook', label: 'Facebook' },
-  { value: 'google_reviews', label: 'Google 評論' },
-  { value: 'parent_community', label: '媽媽社團' },
+  // 2026-10-03：只問來源歸因看不到的管道，網路來源合成一項（細節之後由自建歸因補）。
+  // 媽媽社團、LINE 群組的口碑算親友介紹；舊代碼 facebook／google_reviews／parent_community 後端仍收。
   { value: 'friends_family', label: '親友介紹' },
+  { value: 'nearby', label: '住附近／路過看到' },
+  { value: 'online', label: '網路上看到' },
   { value: 'other', label: '其他' }
 ] as const
 
@@ -30,13 +29,6 @@ export const CONTACT_TIME_OPTIONS = [
 
 export type ContactTimeCode = (typeof CONTACT_TIME_OPTIONS)[number]['value']
 
-// 規格 L194：參觀人數 1–10（含大人與孩子）。名額仍以家庭組數計，人數給園所準備接待。
-export const PARTY_SIZE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
-
-export function isValidPartySize(value: string | number | null | undefined): boolean {
-  const size = Number(value)
-  return value !== '' && value !== null && value !== undefined && Number.isInteger(size) && size >= 1 && size <= 10
-}
 
 export function contactTimeLabel(value: string): string {
   return CONTACT_TIME_OPTIONS.find((option) => option.value === value)?.label ?? value
@@ -94,8 +86,6 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
   }
-  // 舊呼叫端不帶人數；新版表單未選時是空字串。
-  if (contact.partySize !== undefined && !isValidPartySize(contact.partySize)) errors.partySize = '請選擇參觀人數。'
   // 新版表單一律帶 email 欄位（2026-09-30 起必填：確認信與修改連結寄到這裡）；舊呼叫端不帶。
   if (contact.email !== undefined) {
     const email = contact.email.trim()
@@ -107,7 +97,7 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
 
 const API_FIELDS: Record<string, VisitField> = {
   slot_id: 'slotId', email: 'email', phone: 'phone', parent_name: 'parentName', child_name: 'childName',
-  child_birthdate: 'childBirthdate', party_size: 'partySize'
+  child_birthdate: 'childBirthdate'
 }
 const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   slotId: '請選擇這一天的參觀場次。',
@@ -115,8 +105,7 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
   childName: '請填寫孩子姓名。',
-  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
-  partySize: '請選擇參觀人數。'
+  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。'
 }
 
 // 後端 422 是 FastAPI 的標準格式：detail 是陣列，loc[1] 是欄位名稱。

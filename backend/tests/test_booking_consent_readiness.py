@@ -466,12 +466,13 @@ async def test_config_audit_records_full_before_and_after(admin_client, db_sessi
 
 
 @pytest.mark.asyncio
-async def test_party_size_is_required_validated_and_exported(admin_client, public_client, db_session):
+async def test_party_size_is_optional_validated_and_exported(admin_client, public_client, db_session):
     await publish_booking_consent(db_session)
     version, slot_id = await _open_slot(admin_client)
 
-    missing = await _submit(public_client, version, "party-missing", slot_id, party_size=None)
-    assert missing.status_code == 422
+    # 2026-10-03 起官網不問參觀人數：沒帶照樣成立，存成 NULL。
+    missing = await _submit(public_client, version, "party-missing", slot_id, phone="0912345679")
+    assert missing.status_code == 201, missing.text
     for index, bad in enumerate((0, 11, "兩位")):
         assert (await _submit(public_client, version, f"party-bad-{index}", slot_id, party_size=bad)).status_code == 422
 
@@ -485,7 +486,7 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
     assert changed.json()["detail"]["code"] == "IDEMPOTENCY_CONFLICT"
 
     listed = (await admin_client.get(f"{API}/admin/visit-requests")).json()
-    assert [row["party_size"] for row in listed] == [10]
+    assert sorted(row["party_size"] or 0 for row in listed) == [0, 10]
 
     manual = await admin_client.post(
         f"{API}/admin/visit-requests",
@@ -504,7 +505,7 @@ async def test_party_size_is_required_validated_and_exported(admin_client, publi
 
     export = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
     rows = list(csv.DictReader(io.StringIO(export.content.decode("utf-8-sig"))))
-    assert {row["人數"] for row in rows} == {"10", "3"}
+    assert {row["人數"] for row in rows} == {"10", "3", ""}
     stored = await db_session.get(VisitRequest, uuid.UUID(receipt))
     assert stored.party_size == 10
 

@@ -6,7 +6,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay } from '../app/utils/content-overlay'
 import { DEFAULT_PRIVACY_TITLE, privacyNotice, privacyParagraphs } from '../app/utils/privacy-notice'
-import { isValidPartySize, PARTY_SIZE_OPTIONS, validateVisitContact } from '../app/utils/visit-form'
+import { validateVisitContact } from '../app/utils/visit-form'
 import { useCampusBooking } from '../app/composables/useCampusBooking'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -50,15 +50,11 @@ describe('隱私／個資使用說明', () => {
 })
 
 describe('參觀人數', () => {
-  it('下拉選項 1–10，未選或超出範圍都要提示', () => {
-    expect(PARTY_SIZE_OPTIONS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  it('2026-10-03 起官網表單不問參觀人數，也不擋送出', () => {
     const contact = { parentName: '陳媽媽', phone: '0912345678' }
-    expect(validateVisitContact({ ...contact, partySize: '' }).partySize).toBe('請選擇參觀人數。')
-    expect(validateVisitContact({ ...contact, partySize: '3' })).toEqual({})
-    // 舊呼叫端不帶人數時不檢查。
     expect(validateVisitContact(contact)).toEqual({})
-    for (const bad of ['0', '11', '2.5', 'abc']) expect(isValidPartySize(bad)).toBe(false)
-    expect(isValidPartySize(10)).toBe(true)
+    const form = readFileSync(fileURLToPath(new URL('../app/components/VisitForm.vue', import.meta.url)), 'utf8')
+    expect(form).not.toContain('參觀人數')
   })
 })
 

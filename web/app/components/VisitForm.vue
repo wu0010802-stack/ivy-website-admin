@@ -3,7 +3,7 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction, type BookingActionKind, type BookingConfig } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { apiFieldErrors, normalizeVisitPhone, PARTY_SIZE_OPTIONS, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
@@ -26,10 +26,7 @@ const form = reactive({
   childName: '',
   childBirthdate: '',
   email: '',
-  // 參觀人數：下拉選單預設不選（空字串），送出前必填 1–10。
-  partySize: '',
-  referralSources: [] as string[],
-  questions: ''
+  referralSources: [] as string[]
 })
 
 const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
@@ -42,7 +39,6 @@ const resultRef = ref<HTMLElement | null>(null)
 const campusError = ref('')
 const campusErrorRef = ref<HTMLElement | null>(null)
 const fieldErrors = ref<VisitErrors>({})
-const optionalOpen = ref(false)
 
 const selectedCampusKey = computed(() => form.campus)
 const { data: bookingConfig, pending: bookingPending, error: bookingError, refresh: refreshBookingConfig } = useCampusBooking(selectedCampusKey)
@@ -245,9 +241,9 @@ function campusModeLabel(campus: Campus): string {
 }
 const campusChoiceLabel = (campus: Campus) => [campus.name, campus.address || campus.district, campusModeLabel(campus)].filter(Boolean).join('，')
 
-// 送出列直接寫出這次要預約的日期、場次與人數，按下前最後確認一次。
+// 送出列直接寫出這次要預約的日期與場次，按下前最後確認一次。
 const bookingSummary = computed(() => selectedSlot.value
-  ? [shortDateLabel(selectedSlot.value.slot_date), slotTime(selectedSlot.value), form.partySize ? `${form.partySize} 位` : ''].filter(Boolean)
+  ? [shortDateLabel(selectedSlot.value.slot_date), slotTime(selectedSlot.value)]
   : [])
 // 線上 parent_email_enabled 為 false 時不會寄信：欄位說明不能承諾確認信。
 const emailHint = computed(() => bookingConfig.value?.parent_email_enabled
@@ -394,9 +390,7 @@ async function onSubmit() {
         child_name: form.childName,
         child_birthdate: form.childBirthdate,
         email: form.email,
-        party_size: Number(form.partySize),
         referral_sources: form.referralSources,
-        questions: form.questions || null,
         slot_id: selectedSlotId.value,
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
@@ -577,7 +571,6 @@ async function onSubmit() {
                       <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>
                       <fieldset class="visit-slot-list" aria-describedby="visit-slot-error"><legend>預約場次<small>必填</small></legend><p v-if="!selectedVisitDate" class="visit-field-hint">先在月曆選一天，再選當天的場次。</p><div v-else class="visit-slot-options"><label v-for="slot in daySlots" :key="slot.id"><input v-model="selectedSlotId" type="radio" name="slotId" :value="slot.id" required :aria-invalid="Boolean(fieldErrors.slotId)" @change="clearFieldError('slotId')"><span>{{ slotTime(slot) }}<small>尚可預約 {{ slot.remaining }} 組</small></span></label></div><p id="visit-slot-error" class="visit-field-error">{{ fieldErrors.slotId }}</p></fieldset>
                     </div>
-                    <div v-if="!slotsPending && !slotsError && availableSlots.length" class="visit-field visit-party-field"><label for="party-size">參觀人數<small>必填</small></label><select id="party-size" v-model="form.partySize" name="partySize" required :aria-invalid="Boolean(fieldErrors.partySize)" aria-describedby="visit-party-hint visit-party-error" @change="checkField('partySize')"><option value="">請選擇</option><option v-for="size in PARTY_SIZE_OPTIONS" :key="size" :value="String(size)">{{ size }} 位</option></select><small id="visit-party-hint" class="visit-field-hint">含大人與孩子，方便園所準備接待。</small><p id="visit-party-error" class="visit-field-error">{{ fieldErrors.partySize }}</p></div>
                   </section>
                   <p v-else class="visit-config-note">{{ selectedCampus.name }}將與你聯繫，另行確認參觀日期與場次。</p>
 
@@ -599,12 +592,6 @@ async function onSubmit() {
                   </section>
 
                   <fieldset class="visit-referrals"><legend>如何知道常春藤幼兒園？<small>可複選・選填</small></legend><div><label v-for="source in REFERRAL_OPTIONS" :key="source.value"><input v-model="form.referralSources" type="checkbox" name="referralSources" :value="source.value"><span>{{ source.label }}</span></label></div></fieldset>
-                  <details class="visit-optional" :open="optionalOpen" @toggle="optionalOpen = ($event.target as HTMLDetailsElement).open">
-                    <summary>其他想告訴我們的事<span>選填 <span class="visit-expand-mark" aria-hidden="true">＋</span></span></summary>
-                    <div class="visit-field-grid">
-                      <div class="visit-field visit-full"><label for="questions">有沒有想先了解的事？</label><textarea id="questions" v-model="form.questions" name="questions" maxlength="500" rows="3" placeholder="例如：課程安排、生活照顧、入學準備……" /></div>
-                    </div>
-                  </details>
                   <PrivacyNoticeDialog
                     v-if="privacyNotice && (privacyEntry === 'dialog' || privacyEntry === 'dialog-with-policy')"
                     :notice="privacyNotice"
@@ -630,7 +617,7 @@ async function onSubmit() {
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p v-if="resultKind === 'booked' && submittedSlot" class="visit-result-when"><span class="visit-nowrap">{{ shortDateLabel(submittedSlot.slot_date) }}</span> <span class="visit-nowrap">{{ slotTime(submittedSlot) }}</span><span class="visit-result-where">{{ selectedCampus?.name }}・{{ selectedCampus?.address }}</span></p>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
-            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.partySize"><dt>參觀人數</dt><dd>{{ form.partySize }} 位</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div><div v-if="form.questions.trim()"><dt>想了解的事</dt><dd>{{ form.questions }}</dd></div></dl>
+            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>
             <VisitCalendarActions
               v-if="resultKind === 'booked' && submittedSlot && selectedCampus"
               :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"

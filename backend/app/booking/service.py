@@ -46,10 +46,6 @@ class IdempotencyConflict(Exception):
     """同一個 idempotency key 但 body 不同——不能悄悄當成同一筆處理。"""
 
 
-class PartySizeRequired(Exception):
-    """官網新送的需求沒有參觀人數（規格 L194）。對應 422。"""
-
-
 class PhoneSubmissionLimit(Exception):
     """同一校同一支手機在窗口內建立的案件已達上限。對應 429 RATE_LIMITED。"""
 
@@ -242,9 +238,6 @@ async def _validate_submission(
 
     if config.mode != BookingMode.SLOTS:
         raise BookingUnavailable()
-
-    if payload.get("party_size") is None:
-        raise PartySizeRequired()
 
     slot_id = payload["slot_id"]
     if lock_slot:

@@ -107,7 +107,7 @@ describe('parent visit management', () => {
     const state = useParentVisit()
     await state.initialize('link')
 
-    expect(await state.updateDetails({ party_size: 3 })).toBe(false)
+    expect(await state.updateDetails({ phone: '0911222333' })).toBe(false)
 
     expect(fetch.mock.calls[2]?.[0]).toBe('/api/website/v1/public/visit-manage/me')
     expect(state.visit.value?.can_edit).toBe(false)
@@ -124,7 +124,7 @@ describe('parent visit management', () => {
     const state = useParentVisit()
     await state.initialize('link')
 
-    expect(await state.updateDetails({ party_size: 3 })).toBe(false)
+    expect(await state.updateDetails({ phone: '0911222333' })).toBe(false)
 
     expect(state.visit.value?.version).toBe(5)
     expect(state.error.value).toContain('剛被修改過')

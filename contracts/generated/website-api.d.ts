@@ -5369,7 +5369,7 @@ export interface components {
             /** Questions */
             questions?: string | null;
             /** Referral Sources */
-            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /**
              * Slot Id
              * Format: uuid
@@ -5439,7 +5439,7 @@ export interface components {
             /** Questions */
             questions: string | null;
             /** Referral Sources */
-            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
@@ -5529,7 +5529,7 @@ export interface components {
             /** Questions */
             questions: string | null;
             /** Referral Sources */
-            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
@@ -5582,7 +5582,7 @@ export interface components {
             /** Questions */
             questions?: string | null;
             /** Referral Sources */
-            referral_sources?: ("facebook" | "google_reviews" | "parent_community" | "friends_family" | "other")[];
+            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             /**

@@ -233,7 +233,7 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     const schemas = source('booking/schemas.py')
     const referralLine = schemas.slice(schemas.indexOf('ReferralSource = Literal['), schemas.indexOf('\n', schemas.indexOf('ReferralSource = Literal[')))
     const referrals = [...referralLine.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!)
-    expect(referrals.length).toBe(5)
+    expect(referrals.length).toBe(7)
     expect(referrals.filter((value) => !REFERRAL_SOURCE_LABELS[value])).toEqual([])
   })
 })

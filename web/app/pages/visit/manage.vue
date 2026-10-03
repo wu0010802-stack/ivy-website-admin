@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, PARTY_SIZE_OPTIONS, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotRange, slotWhen } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
@@ -129,7 +129,7 @@ async function submitReschedule() {
   await focusFeedback()
 }
 
-const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '', partySize: '', questions: '' })
+const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '' })
 let editBase: EditForm = { ...editForm }
 const editErrors = ref<VisitErrors>({})
 const editPanel = ref<HTMLElement | null>(null)
@@ -267,9 +267,6 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
                 <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
-                <label>參觀人數<select v-model="editForm.partySize" :aria-invalid="Boolean(editErrors.partySize)"><option v-for="n in PARTY_SIZE_OPTIONS" :key="n" :value="String(n)">{{ n }} 位</option></select></label>
-                <p class="parent-visit-error">{{ editErrors.partySize }}</p>
-                <label>想了解的事<textarea v-model="editForm.questions" maxlength="500" rows="3" /></label>
               </div>
               <div class="parent-visit-actions">
                 <button class="button primary" type="submit" :disabled="busy">{{ busy ? '正在儲存…' : '儲存修改' }}</button>
