@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
+from app.admissions.constants import SCHOOL_YEAR_MAX, SCHOOL_YEAR_MIN
 from app.admissions.schemas import AdmissionsRate
 from app.auth.permissions import (
     campus_scope,
@@ -392,6 +393,43 @@ async def get_event_trend(
         db, campus_key, analytics_service.FunnelRange(date_from, date_to), today_local()
     )
     return {**trend, "as_of": now_utc(), "unit": "event"}
+
+
+class GradeCountOut(BaseModel):
+    grade: str
+    count: int
+
+
+class ClassDistributionOut(BaseModel):
+    as_of: datetime
+    campus_key: str
+    date_from: date | None
+    date_to: date | None
+    school_year: int
+    unit: Literal["visit_request"]
+    total: int
+    # 幼幼班～大班固定四列（0 也列）。
+    grades: list[GradeCountOut]
+    # 有生日但不在幼幼班～大班。
+    out_of_range: int
+    # 沒有生日：舊案只有年齡文字、補登沒問，或已匿名化。
+    unrecorded: int
+
+
+@router.get("/admin/analytics/class-distribution", response_model=ClassDistributionOut)
+async def get_class_distribution(
+    campus_key: str,
+    school_year: int = Query(ge=SCHOOL_YEAR_MIN, le=SCHOOL_YEAR_MAX, description="換算用的民國學年度"),
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含）"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含）"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    _validate_range(date_from, date_to)
+    return await booking_outcomes_service.class_distribution(
+        db, campus_key, analytics_service.FunnelRange(date_from, date_to), school_year
+    )
 
 
 class AuditLogEntryOut(BaseModel):

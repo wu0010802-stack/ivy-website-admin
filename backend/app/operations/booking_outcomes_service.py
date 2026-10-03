@@ -16,6 +16,8 @@ from datetime import datetime
 from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions import academic
+from app.admissions.constants import GRADES
 from app.admissions.stats import pct
 from app.booking import pending_kinds
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestSource, VisitRequestStatus
@@ -148,4 +150,44 @@ async def booking_outcomes(
         "campuses": campuses,
         "totals": _with_rates(totals),
         "open_now_totals": open_totals,
+    }
+
+
+async def class_distribution(
+    db: AsyncSession, campus_key: str, period: FunnelRange, school_year: int, now: datetime | None = None
+) -> dict:
+    """期間內送出的案件（含已取消），孩子生日換算成 school_year 學年度的班別。換算同
+    招生入學（academic.grade_for_birthday，共用案例 contracts/ivy-recruitment/grade-cases.json）；
+    這是年齡對照，不是報名或入學結果。沒有生日（舊案只有年齡文字、補登沒問、已匿名化）
+    算 unrecorded；有生日但不在幼幼班～大班算 out_of_range。依生日分組在 SQL，換算在 Python。"""
+    rows = (
+        await db.execute(
+            select(VisitRequest.child_birthdate, func.count())
+            .where(VisitRequest.campus_key == campus_key, *period.on(VisitRequest.created_at))
+            .group_by(VisitRequest.child_birthdate)
+        )
+    ).all()
+    grades = {grade: 0 for grade in GRADES}
+    out_of_range = 0
+    unrecorded = 0
+    for birthday, count in rows:
+        if birthday is None:
+            unrecorded += count
+            continue
+        grade = academic.grade_for_birthday(birthday, school_year)
+        if grade is None:
+            out_of_range += count
+        else:
+            grades[grade] += count
+    return {
+        "as_of": now or now_utc(),
+        "campus_key": campus_key,
+        "date_from": period.date_from,
+        "date_to": period.date_to,
+        "school_year": school_year,
+        "unit": "visit_request",
+        "total": unrecorded + out_of_range + sum(grades.values()),
+        "grades": [{"grade": grade, "count": count} for grade, count in grades.items()],
+        "out_of_range": out_of_range,
+        "unrecorded": unrecorded,
     }
