@@ -549,7 +549,7 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     expect(await search('照片')).toContain('素材庫')
     expect(await search('名額')).toEqual(['參觀場次'])
     for (const word of ['場次', '每週規則', '休假']) expect(await search(word)).toContain('參觀場次')
-    expect(await search('ＦＡＱ')).toEqual(['各校常見問題', '共用常見問題'])
+    expect(await search('ＦＡＱ')).toEqual([])
     expect(await search('line')).toEqual(expect.arrayContaining(['LINE 通知', '我的帳號']))
   })
 

@@ -145,7 +145,7 @@ async function update(active: boolean, reason: string | null) {
         <p v-if="!campus.active" class="hint">
           {{ campus.deactivated_at ? `${formatDateTime(campus.deactivated_at)} 停用` : '已停用' }}{{ campus.deactivated_reason ? `・${campus.deactivated_reason}` : '' }}。這一校已從官網下架：分校網址顯示找不到頁面，首頁五校區塊、選單與頁尾都不列出，家長不能預約。下面的預約設定會在重新啟用後生效。
         </p>
-        <p v-else class="hint">停用後這一校會從官網下架：分校頁、首頁五校區塊、選單與頁尾都不再顯示，分校網址會顯示找不到頁面，家長也不能再預約。已收到的案件與內容都會保留，重新啟用後恢復。</p>
+        <p v-else class="hint">停用後這一校會從官網下架：首頁五校區塊、選單與頁尾都不再顯示，家長也不能再預約。已收到的案件與內容都會保留，重新啟用後恢復。</p>
       </div>
       <div ref="actions" class="campus-status__actions">
         <el-button v-if="!campus.active" text @click="router.push(attentionListPath(campus.key))">看待人工處理的案件</el-button>

@@ -8,7 +8,6 @@ import VisitCalendarView from '../views/VisitCalendarView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
-import CampusFaqView from '../views/CampusFaqView.vue'
 import UsersView from '../views/UsersView.vue'
 import AccountView from '../views/AccountView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -184,14 +183,6 @@ describe('分校內容唯讀模式', () => {
     expect(wrapper.findAll('input').every(input => input.attributes('disabled') !== undefined)).toBe(true)
     for (const label of ['儲存草稿', '送審', '發布到官網']) expect(buttonTexts(wrapper)).not.toContain(label)
     expect(wrapper.find('.editor__actions').exists()).toBe(false)
-  })
-
-  it('常見問題的排序、刪除與新增在唯讀時不出現', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(item as never)
-    const reader = testUser('readonly', { campus_keys: ['yihua'] })
-    const { wrapper } = await mountAs(CampusFaqView, reader, '/content/campus-faq')
-    expect(wrapper.findAll('input').some(input => (input.element as HTMLInputElement).value === '幾歲入園？')).toBe(true)
-    for (const label of ['上移', '下移', '移除', '新增一題']) expect(buttonTexts(wrapper)).not.toContain(label)
   })
 
   it('唯讀時狀態列只說現況，不叫人修改或送審', async () => {

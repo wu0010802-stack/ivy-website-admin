@@ -8,7 +8,7 @@ import { computed, defineComponent, h, nextTick, ref, withDirectives } from 'vue
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
-import { ApiError, api } from '../api/client'
+import { api } from '../api/client'
 import { CONTENT_FIELD_LABELS, mediaFieldPathLabel } from '../api/labels'
 import type { HomeFilmPayload, MediaAssetOut, UserOut } from '../api/types'
 import { LENGTH_HINTS, momentTimeError, normalizeMomentTime } from '../composables/contentHints'
@@ -19,7 +19,6 @@ import { sitePageName } from '../composables/siteLinks'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import AdmissionContentView from '../views/AdmissionContentView.vue'
 import BookingContentView from '../views/BookingContentView.vue'
-import CampusFaqView from '../views/CampusFaqView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import CampusTourView from '../views/CampusTourView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
@@ -27,7 +26,6 @@ import HomeAboutView from '../views/HomeAboutView.vue'
 import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
 import HomeHeroView from '../views/HomeHeroView.vue'
 import HomeNewsView from '../views/HomeNewsView.vue'
-import SharedFaqView from '../views/SharedFaqView.vue'
 import SiteFooterView from '../views/SiteFooterView.vue'
 import SiteMetaView from '../views/SiteMetaView.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
@@ -117,7 +115,7 @@ describe('欄位提示排版與手機輸入', () => {
 describe('用語：圖片說明、影片封面，不出現工程語', () => {
   const OWNED = [
     'HomeHeroView.vue', 'HomeAboutView.vue', 'HomeCampusBoardView.vue', 'HomeNewsView.vue', 'DayExperienceView.vue',
-    'CampusProfileView.vue', 'CampusFaqView.vue', 'SharedFaqView.vue', 'CampusNewsView.vue', 'AdmissionContentView.vue',
+    'CampusProfileView.vue', 'CampusNewsView.vue', 'AdmissionContentView.vue',
     'SiteFooterView.vue', 'SiteMetaView.vue', 'BookingContentView.vue', 'CampusTourView.vue', 'NewsEntriesEditor.vue',
     'NewsBodyEditor.vue', 'HomeFilmsEditor.vue', 'SiteLinksEditor.vue', 'FocusPicker.vue', 'MediaSlotField.vue',
   ]
@@ -319,79 +317,6 @@ describe('入學資訊：階段與補助可排序，新增鈕在清單下方', (
   })
 })
 
-describe('常見問題', () => {
-  const sharedPayload = {
-    items: [
-      { id: 's1', q: '參觀要預約嗎？', a: '要，請先預約。', enabled: true, scope: 'global', campus_keys: [] },
-      { id: 's2', q: '只給仁武', a: '仁武', enabled: true, scope: 'campus', campus_keys: ['renwu'] },
-    ],
-  }
-
-  it('共用題目讀取中、讀取失敗都不顯示成「沒有共用題目」，失敗可以重新載入', async () => {
-    let failShared: (err: unknown) => void = () => {}
-    let sharedOk = false
-    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
-      if (path.startsWith('/admin/content-items/shared_faq')) {
-        if (sharedOk) return contentItem('shared_faq', sharedPayload) as never
-        return new Promise((_, reject) => { failShared = reject }) as never
-      }
-      return contentItem('campus_faq', { items: [{ q: '幾歲入園？', a: '兩歲' }] }, 'yihua') as never
-    })
-    const wrapper = await mountView(CampusFaqView, testUser('readonly', { campus_keys: ['yihua'] }))
-    expect(wrapper.text()).toContain('讀取共用題目中')
-    expect(wrapper.text()).not.toContain('目前沒有適用本校的共用題目')
-
-    failShared(new ApiError(503, { detail: 'down' }))
-    await flushPromises()
-    expect(wrapper.text()).toContain('讀不到全站共用題目')
-    // 錯誤訊息（伺服器給的常常沒有句號）跟下一句分兩段，不會黏成一句。
-    expect(wrapper.findAll('.faq-shared__error-text').map((p) => p.text())).toEqual(['可能是網路不穩，請稍後重新載入。', '讀到之前，看不出哪些共用題目會出現在本校頁面。'])
-    expect(wrapper.text()).not.toContain('目前沒有適用本校的共用題目')
-    // 唯讀帳號也能重新載入（清單不在停用的表單裡）。
-    const reload = button(wrapper, '重新載入')
-    expect(reload.attributes('disabled')).toBeUndefined()
-
-    sharedOk = true
-    await reload.trigger('click')
-    await flushPromises()
-    expect(wrapper.get('.faq-shared__list').text()).toContain('參觀要預約嗎？')
-    expect(wrapper.text()).toContain('1 題適用本校')
-  })
-
-  it('標頭顯示問題；改寫本校版本後捲到新題目並聚焦回答', async () => {
-    const scrolled = stubScrollIntoView()
-    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
-      if (path.startsWith('/admin/content-items/shared_faq')) return contentItem('shared_faq', sharedPayload) as never
-      return contentItem('campus_faq', { items: [{ q: '幾歲入園？', a: '兩歲' }] }, 'yihua') as never
-    })
-    const wrapper = await mountView(CampusFaqView, testUser('campus_admin', { campus_keys: ['yihua'] }))
-    expect(wrapper.findAll('.faq-head__q').map((q) => q.text())).toEqual(['幾歲入園？'])
-    await button(wrapper.get('.faq-shared__list'), '改寫本校版本').trigger('click')
-    await flushPromises()
-    const added = wrapper.findAll('.repeat-item')[1]!
-    expect(added.get('.faq-head__q').text()).toBe('參觀要預約嗎？')
-    expect(scrolled).toContain(added.element)
-    expect(document.activeElement).toBe(added.get('textarea').element)
-    expect((added.get('textarea').element as HTMLTextAreaElement).value).toBe('要，請先預約。')
-  })
-
-  it('共用常見問題標頭顯示問題與適用範圍；兩頁的顯示開關同一種樣式', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(contentItem('shared_faq', sharedPayload) as never)
-    const wrapper = await mountView(SharedFaqView)
-    const heads = wrapper.findAll('.repeat-item__head')
-    expect(heads.map((head) => head.get('.faq-head__q').text())).toEqual(['參觀要預約嗎？', '只給仁武'])
-    expect(heads[0]!.text()).toContain('全校')
-    expect(heads[1]!.text()).toContain('仁武校')
-    const switches = wrapper.findAll('.repeat-item .el-switch')
-    expect(switches).toHaveLength(2)
-    for (const s of switches) {
-      expect(s.classes()).toContain('show-switch')
-      expect(s.find('.el-switch__inner').exists()).toBe(false)
-      expect(s.text()).toContain('在官網顯示')
-    }
-  })
-})
-
 describe('五校介紹：社群網址', () => {
   it('邊打邊檢查網址；說明與官網一致，不再寫「待補」', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
@@ -423,17 +348,15 @@ describe('官網沒顯示的欄位與預約橫幅', () => {
     expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
   })
 
-  it('預約橫幅接上官網：不再說是固定文字，校名記號的說明和實際存的值一致', async () => {
+  it('預約文案頁不再有分校頁預約橫幅（官網已沒有分校頁）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('booking_content', {
       cta_label: '', cta_label_en: '', consent_text: '', banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。', banner_body: '', banner_button_label: '',
       privacy_title: '', privacy_sections: [],
     }) as never)
     const wrapper = await mountView(BookingContentView)
-    expect(wrapper.find('.banner__notice').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('不會出現在官網')
-    expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
-    expect(wrapper.text()).toContain('{campusNameOrIvy}')
-    expect(wrapper.text()).not.toContain('{campus}')
+    expect(wrapper.text()).not.toContain('預約橫幅')
+    expect(wrapper.text()).not.toContain('分校頁')
+    expect(wrapper.text()).not.toContain('{campusNameOrIvy}')
   })
 })
 

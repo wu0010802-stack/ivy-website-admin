@@ -228,7 +228,7 @@ function nudge(i: number, event: KeyboardEvent) {
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
     <template #lead>
-      分校頁的「校園探索」互動圖。每個場景一張照片、最多 {{ MAX_SPOTS }} 個熱點；在照片上點一下新增熱點、拖曳圖釘調整位置。
+      官網「常春藤環境」頁的校園探索互動圖。每個場景一張照片、最多 {{ MAX_SPOTS }} 個熱點；在照片上點一下新增熱點、拖曳圖釘調整位置。
       發布後會整組取代該校原本的探索內容。
     </template>
     <template #toolbar>

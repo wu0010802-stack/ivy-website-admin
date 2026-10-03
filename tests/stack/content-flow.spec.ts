@@ -11,10 +11,10 @@ test('內容編輯送審、分校管理者核准後官網才更新', async ({ br
   const visitor = await openAs(browser, null)
 
   let description = ''
-  await test.step('內容編輯修改義華的詳細介紹並送審', async () => {
+  await test.step('內容編輯修改義華的地址並送審', async () => {
     const { page } = editor
     await gotoAdmin(page, '/content/campus-profile?campus=yihua', '五校介紹')
-    const field = page.getByRole('textbox', { name: '詳細介紹' })
+    const field = page.getByRole('textbox', { name: '地址' })
     await expect(field).not.toHaveValue('')
     description = `${await field.inputValue()}${marker}`
     await field.fill(description)
@@ -33,7 +33,7 @@ test('內容編輯送審、分校管理者核准後官網才更新', async ({ br
   await test.step('分校管理者打開同一頁核准並發布', async () => {
     const { page } = approver
     await gotoAdmin(page, '/content/campus-profile?campus=yihua', '五校介紹')
-    await expect(page.getByRole('textbox', { name: '詳細介紹' })).toHaveValue(description)
+    await expect(page.getByRole('textbox', { name: '地址' })).toHaveValue(description)
     await page.getByRole('button', { name: '核准並發布' }).click()
     // 確認框標題寫出內容與校區，並列出和官網目前版本的差異。
     await answerMessageBox(page, '核准並發布「五校介紹（義華）」？', '核准並發布')

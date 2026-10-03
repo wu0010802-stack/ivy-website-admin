@@ -34,7 +34,7 @@ describe('共用內容頁的角色限制', () => {
   })
 
   it('分校自有內容不受限制，分校管理者仍要能編', () => {
-    for (const name of ['campus-profile', 'campus-faq', 'campus-tour']) {
+    for (const name of ['campus-profile', 'campus-tour']) {
       // 2026-09-24 起側欄依角色顯示：分校管理者與編輯一定要看得到分校內容，
       // 只處理案件的櫃台不需要。
       expect(navItem(name)?.roles).toEqual(expect.arrayContaining(['super_admin', 'campus_admin', 'editor']))

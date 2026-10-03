@@ -7,8 +7,6 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import HomeNewsView from '../views/HomeNewsView.vue'
 import CampusNewsView from '../views/CampusNewsView.vue'
-import CampusFaqView from '../views/CampusFaqView.vue'
-import SharedFaqView from '../views/SharedFaqView.vue'
 import { api } from '../api/client'
 import type { UserOut } from '../api/types'
 import { CONTENT_KIND_LABELS, contentEditorPath, contentPreviewPath, contentPublicPath } from '../api/labels'
@@ -56,7 +54,6 @@ function contentItem(kind: string, payload: unknown, campusKey: string | null = 
   }
 }
 
-const buttonTexts = (wrapper: VueWrapper) => wrapper.findAll('button').map((button) => button.text())
 const superAdmin = () => testUser('super_admin', { id: 'me', email: 'me@example.invalid' })
 
 describe('消息欄位的預設值與檢查', () => {
@@ -105,9 +102,10 @@ describe('消息欄位的預設值與檢查', () => {
 
   it('側欄、編輯頁路由與官網位置', () => {
     const campus = NAV_GROUPS.find((group) => group.key === 'campus')!
-    const shared = campus.items.find((item) => item.name === 'shared-faq')!
     const news = campus.items.find((item) => item.name === 'campus-news')!
-    expect(shared).toMatchObject({ path: '/content/shared-faq', roles: ['super_admin'], shared: true })
+    // 官網已沒有顯示常見問題的頁面，側欄不再列各校／共用常見問題。
+    expect(campus.items.map((item) => item.name)).not.toEqual(expect.arrayContaining(['campus-faq']))
+    expect(campus.items.some((item) => item.name === 'shared-faq')).toBe(false)
     expect(news.path).toBe('/content/campus-news')
     expect(news.roles).toContain('campus_admin')
     expect(news.roles).toContain('editor')
@@ -165,82 +163,5 @@ describe('各校消息編輯頁', () => {
     expect(wrapper.text()).not.toContain('適用校區')
     expect(wrapper.text()).not.toContain('首頁推薦')
     expect(wrapper.text()).toContain('內文（選填')
-  })
-})
-
-describe('常見問題', () => {
-  const shared = {
-    items: [
-      { id: 's1', q: '參觀要預約嗎？', a: '要', enabled: true, scope: 'global', campus_keys: [] },
-      { id: 's2', q: '只給仁武', a: '仁武', enabled: true, scope: 'campus', campus_keys: ['renwu'] },
-      { id: 's3', q: '停用的', a: '不顯示', enabled: false, scope: 'global', campus_keys: [] },
-    ],
-  }
-
-  function mockFaq(campusPayload: unknown) {
-    return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
-      if (path.startsWith('/admin/content-items/shared_faq')) return contentItem('shared_faq', shared) as never
-      return contentItem('campus_faq', campusPayload, 'yihua') as never
-    })
-  }
-
-  it('舊版各校題目補上啟用狀態；列出適用本校的共用題目，可改成本校不顯示', async () => {
-    mockFaq({ items: [{ q: '幾歲入園？', a: '兩歲' }] })
-    const admin = testUser('campus_admin', { campus_keys: ['yihua'] })
-    const wrapper = await mountAs(CampusFaqView, admin, '/content/campus-faq')
-    expect(wrapper.text()).not.toContain('有未儲存的修改')
-    const sharedList = wrapper.get('.faq-shared__list')
-    expect(sharedList.findAll('li').map((li) => li.get('strong').text())).toEqual(['參觀要預約嗎？'])
-    expect(sharedList.text()).toContain('顯示共用答案')
-
-    await sharedList.findAll('button').find((button) => button.text() === '本校不顯示')!.trigger('click')
-    expect(wrapper.get('.faq-shared__list').text()).toContain('本校不顯示')
-    expect(wrapper.text()).toContain('和共用題目同一題：本校不顯示那一題')
-    expect(wrapper.findAll('.repeat-item')).toHaveLength(2)
-    expect(wrapper.text()).toContain('有未儲存的修改')
-  })
-
-  // el-form-item 的錯誤訊息延遲 100ms 才出現（refDebounced）。
-  const formErrorsShown = () => new Promise((resolve) => setTimeout(resolve, 150))
-
-  it('「本校不顯示」的題目切回在官網顯示卻沒有回答時，提示要先填回答', async () => {
-    mockFaq({ items: [{ q: '幾歲入園？', a: '兩歲' }] })
-    const wrapper = await mountAs(CampusFaqView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/content/campus-faq')
-    await wrapper.get('.faq-shared__list').findAll('button').find((button) => button.text() === '本校不顯示')!.trigger('click')
-    expect(wrapper.text()).toContain('移除這題就恢復顯示共用答案')
-    expect(wrapper.text()).not.toContain('要填回答')
-    await wrapper.findAll('.repeat-item')[1]!.get('.el-switch').trigger('click')
-    await formErrorsShown()
-    expect(wrapper.findAll('.repeat-item')[1]!.text()).toContain('在官網顯示的題目要填回答，不顯示請改成停用')
-    // 新增的空白題目兩格都空時先不提示，填了一格才提示另一格。
-    await wrapper.findAll('button').find((button) => button.text() === '新增一題')!.trigger('click')
-    await formErrorsShown()
-    const fresh = () => wrapper.findAll('.repeat-item')[2]!
-    expect(fresh().text()).not.toContain('要填')
-    await fresh().get('textarea').setValue('只有回答')
-    await formErrorsShown()
-    expect(fresh().text()).toContain('在官網顯示的題目要填問題，不顯示請改成停用')
-  })
-
-  it('本校題目可以是 0 題，唯讀帳號沒有操作按鈕', async () => {
-    mockFaq({ items: [], include_shared: false, shared_position: 'after' })
-    const reader = testUser('readonly', { campus_keys: ['yihua'] })
-    const wrapper = await mountAs(CampusFaqView, reader, '/content/campus-faq')
-    expect(wrapper.text()).toContain('本校沒有自己的題目。')
-    expect(wrapper.get('.faq-shared__list').text()).toContain('不顯示')
-    for (const label of ['新增一題', '本校不顯示', '改寫本校版本', '上移']) expect(buttonTexts(wrapper)).not.toContain(label)
-  })
-
-  it('共用常見問題只有共用內容權限的人能編；每題可停用與指定校區', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(contentItem('shared_faq', shared) as never)
-    const admin = await mountAs(SharedFaqView, superAdmin(), '/content/shared-faq')
-    expect(admin.findAll('.repeat-item')).toHaveLength(3)
-    expect(admin.text()).toContain('已停用，官網不顯示')
-    expect(admin.text()).toContain('仁武校')
-    expect(buttonTexts(admin)).toContain('新增一題')
-
-    const campusAdmin = await mountAs(SharedFaqView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/content/shared-faq')
-    expect(buttonTexts(campusAdmin)).not.toContain('新增一題')
-    expect(campusAdmin.findAll('input').every((input) => input.attributes('disabled') !== undefined)).toBe(true)
   })
 })

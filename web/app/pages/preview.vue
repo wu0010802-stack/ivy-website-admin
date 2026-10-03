@@ -38,10 +38,6 @@ const render = ref<((date: string) => DraftPreviewRender) | null>(null)
 const rendered = computed(() => (render.value ? render.value(date.value) : null))
 const draft = computed(() => rendered.value?.content ?? null)
 const hiddenNews = computed(() => rendered.value?.hiddenNews ?? [])
-const previewCampus = computed(() => {
-  const key = typeof route.query.campus === 'string' ? route.query.campus : ''
-  return draft.value?.campuses.find((c) => c.key === key) ?? draft.value?.campuses[0] ?? null
-})
 
 function setQuery(patch: Record<string, string | undefined>) {
   void router.replace({ query: { ...route.query, ...patch } })
@@ -112,7 +108,7 @@ onMounted(async () => {
         </main>
         <main v-else-if="page === 'visit'" id="main" tabindex="-1">
           <div class="container breadcrumb"><NuxtLink to="/">首頁</NuxtLink> / 預約校園參觀</div>
-          <BookingDraftPreview :booking="draft.booking" :banner-campus="previewCampus" />
+          <BookingDraftPreview :booking="draft.booking" />
         </main>
         <main v-else id="main" tabindex="-1">
           <HeroVideo :hero="draft.home.hero" />

@@ -160,7 +160,7 @@ describe('待人工處理的入口', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({ key: 'yihua', name: '義華', active: true } as never)
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
     const { wrapper } = await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })
-    expect(wrapper.text()).toContain('分校網址會顯示找不到頁面')
+    expect(wrapper.text()).toContain('家長也不能再預約')
     await wrapper.findAll('button').find(button => button.text() === '停用分校')!.trigger('click')
     await flushPromises()
     const [message, , options] = prompt.mock.calls[0]!

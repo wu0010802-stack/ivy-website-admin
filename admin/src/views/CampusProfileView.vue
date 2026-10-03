@@ -6,7 +6,6 @@ import type { CampusProfilePayload, FocusPointPayload, MediaAssetOut } from '../
 import { mediaFocusUrl } from '../api/client'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
-import LengthHint from '../components/LengthHint.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
@@ -67,9 +66,7 @@ const coverSrc = computed(() => {
 // heroPhotoPos，沒有就是元件預設）；換了封面＝封面設定的焦點，再來是素材庫設定的
 // 素材預設焦點（官網 slotPosition 的順序），都沒有才是元件預設。
 const BUILTIN_CARD_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 50, y: 12 } }
-const BUILTIN_HERO_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 85, y: 8 } }
 const CARD_DEFAULT: FocusPointPayload = { x: 50, y: 55 }
-const HERO_DEFAULT: FocusPointPayload = { x: 50, y: 50 }
 const coverFocus = computed<FocusPointPayload | null>(() => {
   const cover = editor.form.value.cover
   return cover && cover.focus_x != null && cover.focus_y != null ? { x: cover.focus_x, y: cover.focus_y } : null
@@ -85,11 +82,6 @@ const cardFallback = computed(() =>
     ? (coverFocus.value ?? assetFocus.value ?? CARD_DEFAULT)
     : (BUILTIN_CARD_FOCUS[campus.value] ?? CARD_DEFAULT),
 )
-const heroFallback = computed(() =>
-  editor.form.value.cover
-    ? (coverFocus.value ?? assetFocus.value ?? HERO_DEFAULT)
-    : (BUILTIN_HERO_FOCUS[campus.value] ?? HERO_DEFAULT),
-)
 const fallbackLabel = computed(() => (editor.form.value.cover ? '預設位置（封面或素材的焦點）' : '官網原本的位置'))
 
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
@@ -101,7 +93,7 @@ const mapPreviewUrl = computed(() => {
   return form.address.trim() ? addressSearchUrl(form.address) : ''
 })
 
-// 校名、地址、參觀專線清空後官網的五校卡、分校頁和預約頁會出現空白；存草稿照常
+// 校名、地址、參觀專線清空後官網的五校卡和預約頁會出現空白；存草稿照常
 // 可以，發布由後端擋（publish_blocker）。這裡先在欄位下方講。
 function blankError(value: string | null | undefined): string {
   if (editor.readOnly.value) return ''
@@ -115,7 +107,7 @@ function blankError(value: string | null | undefined): string {
     :editor="editor"
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
-    <template #lead>各校在首頁五校區塊、分校頁與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
+    <template #lead>各校在首頁五校區塊、選單與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
     <template #toolbar>
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
@@ -124,7 +116,7 @@ function blankError(value: string | null | undefined): string {
       <div class="field-row">
         <el-form-item label="校名" required :error="blankError(editor.form.value.name)">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
-          <!-- 首頁五校與分校頁大標用明體子集，分校頁「來認識…」小標用標題字型。 -->
+          <!-- 首頁五校大標用明體子集。 -->
           <GlyphHint :value="editor.form.value.name" :fonts="['serif', 'bd']" />
         </el-form-item>
         <el-form-item label="行政區">
@@ -145,18 +137,9 @@ function blankError(value: string | null | undefined): string {
         <el-input v-model="editor.form.value.phone" inputmode="tel" placeholder="07-000-0000" />
         <span class="field-help">也會出現在頁首選單、頁尾、預約表單與家長修改頁。</span>
       </el-form-item>
-      <el-form-item label="一句話簡介">
-        <el-input v-model="editor.form.value.intro" maxlength="40" show-word-limit />
-        <!-- 分校頁「認識〇〇校」下方的大標。 -->
-        <GlyphHint :value="editor.form.value.intro" />
-      </el-form-item>
-      <el-form-item label="詳細介紹">
-        <el-input v-model="editor.form.value.description" type="textarea" :autosize="{ minRows: 4, maxRows: 12 }" />
-        <LengthHint :value="editor.form.value.description" rule="campusDescription" />
-      </el-form-item>
 
       <h3 class="form-section">封面照片與建築線稿</h3>
-      <p class="field-help">沒選的沿用官網內建。封面在兩個地方裁成不同比例，可以各自點選要保留的位置；沒換封面也能只調位置。</p>
+      <p class="field-help">沒選的沿用官網內建。封面在首頁五校卡與預約頁裁成不同比例，可以點選要保留的位置；沒換封面也能只調位置。</p>
       <el-form-item label="封面照片">
         <MediaSlotField
           v-model="editor.form.value.cover"
@@ -179,19 +162,6 @@ function blankError(value: string | null | undefined): string {
             label="首頁五校卡片的裁切焦點"
             reset-label="改回預設位置"
             :previews="[{ label: '首頁卡片', ratio: '16 / 9' }, { label: '預約頁', ratio: '4 / 3' }]"
-            :disabled="editor.readOnly.value"
-          />
-        </el-form-item>
-        <el-form-item label="分校頁首屏的裁切焦點">
-          <FocusPicker
-            v-if="coverSrc"
-            v-model="editor.form.value.hero_focus"
-            :src="coverSrc"
-            :fallback="heroFallback"
-            :fallback-label="fallbackLabel"
-            label="分校頁首屏的裁切焦點"
-            reset-label="改回預設位置"
-            :previews="[{ label: '桌機', ratio: '21 / 9' }, { label: '手機', ratio: '3 / 4' }]"
             :disabled="editor.readOnly.value"
           />
         </el-form-item>
