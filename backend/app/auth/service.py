@@ -144,6 +144,15 @@ async def clear_login_attempts(limiter: ratelimit.RateLimiter, email: str) -> No
     await limiter.reset(LOGIN_ACCOUNT_LIMIT, _rate_limit_key(email))
 
 
+async def clear_login_lock(limiter: ratelimit.RateLimiter, email: str) -> None:
+    """重設密碼後解除密碼登入暫停與失敗計數。帳號鎖是用來擋猜舊密碼的；密碼換掉
+    之後，本人應該能立刻用新密碼登入。限流池忙碌時 reset 只記 warning，鎖會照原本
+    的期限自然解除。"""
+    key = _rate_limit_key(email)
+    await limiter.reset(LOGIN_LOCK, key)
+    await limiter.reset(LOGIN_ACCOUNT_LIMIT, key)
+
+
 async def _claim_password_attempt(limiter: ratelimit.RateLimiter, key: str) -> None:
     """已經拿到 bcrypt 名額、真的要驗密碼之前呼叫：再查一次帳號鎖（排隊期間
     可能已經鎖了），再原子地扣一次帳號額度（檢查＋累加在同一條 upsert）。

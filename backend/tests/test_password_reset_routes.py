@@ -191,3 +191,132 @@ async def test_two_super_admins_sending_at_once_leave_one_live_link(app, admin_c
     assert [r.status_code for r in results] == [200, 200]
     assert sorted(r.json()["replaced_previous"] for r in results) == [False, True]
     assert len(await _live_tokens(db_session, target.id)) == 1
+
+
+# ------------------------------------------------------------ 確認連結、設定新密碼
+
+
+async def test_verify_returns_account_and_deadline(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    async with _anon(app) as anon:
+        ok = await anon.post(VERIFY, json={"token": token})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["email"] == STAFF
+    assert "no-store" in ok.headers["cache-control"]
+    assert ok.headers["referrer-policy"] == "no-referrer"
+
+
+async def test_unknown_token_is_410_without_audit(app, db_session):
+    async with _anon(app) as anon:
+        verify = await anon.post(VERIFY, json={"token": "x" * 43})
+        complete = await anon.post(COMPLETE, json={"token": "x" * 43, "new_password": NEW_PW})
+    for response in (verify, complete):
+        assert response.status_code == 410
+        assert response.json()["detail"]["code"] == "RESET_LINK_INVALID"
+        assert response.json()["detail"]["reason"] == "link_unknown"
+    assert await _audits(db_session, "user.password_reset_link_rejected") == []
+
+
+async def test_complete_sets_password_logs_out_everywhere_and_is_single_use(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    target_id = target.id
+    victim = await _logged_in_client(app, STAFF, STAFF_PW)
+    token = await _send(admin_client, target_id, mailer)
+    try:
+        async with _anon(app) as anon:
+            done = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})
+            assert done.status_code == 204, done.text
+            again = await anon.post(COMPLETE, json={"token": token, "new_password": "another-password-789"})
+            assert again.status_code == 410
+            assert again.json()["detail"]["reason"] == "link_used"
+            assert (await victim.get(f"{API}/auth/me")).status_code == 401
+            assert (await anon.post(LOGIN, json={"email": STAFF, "password": STAFF_PW})).status_code == 401
+            assert (await anon.post(LOGIN, json={"email": STAFF, "password": NEW_PW})).status_code == 200
+    finally:
+        await victim.aclose()
+
+    completed = await _audits(db_session, "user.password_reset_completed")
+    assert len(completed) == 1
+    assert completed[0].actor_user_id == target_id
+    assert completed[0].metadata_json == {"revoked_sessions": 1}
+    rejected = await _audits(db_session, "user.password_reset_link_rejected")
+    assert [entry.metadata_json for entry in rejected] == [{"reason": "link_used"}]
+
+
+async def test_expired_link_is_rejected_and_audited(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    await db_session.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == target.id)
+        .values(expires_at=datetime.now(timezone.utc) - timedelta(seconds=1))
+    )
+    await db_session.commit()
+    async with _anon(app) as anon:
+        verify = await anon.post(VERIFY, json={"token": token})
+        complete = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})
+        still_old = await anon.post(LOGIN, json={"email": STAFF, "password": STAFF_PW})
+    assert verify.json()["detail"]["reason"] == "link_expired"
+    assert complete.status_code == 410
+    assert complete.json()["detail"]["reason"] == "link_expired"
+    assert still_old.status_code == 200
+    rejected = await _audits(db_session, "user.password_reset_link_rejected")
+    # 只有送出新密碼才寫稽核；打開連結（verify）不寫。
+    assert [entry.metadata_json for entry in rejected] == [{"reason": "link_expired"}]
+
+
+async def test_rejected_new_password_does_not_use_up_the_link(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    async with _anon(app) as anon:
+        short = await anon.post(COMPLETE, json={"token": token, "new_password": "short"})
+        too_long = await anon.post(COMPLETE, json={"token": token, "new_password": "常" * 25})
+        verify = await anon.post(VERIFY, json={"token": token})
+    assert short.status_code == 422
+    assert too_long.status_code == 422
+    assert verify.status_code == 200
+    assert len(await _live_tokens(db_session, target.id)) == 1
+
+
+async def test_inactive_account_cannot_use_link(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    # 直接改 DB（不走停用端點）：只驗「帳號停用」這一條判斷；停用端點會順便作廢連結，見 Task 5。
+    await db_session.execute(update(User).where(User.id == target.id).values(is_active=False))
+    await db_session.commit()
+    async with _anon(app) as anon:
+        verify = await anon.post(VERIFY, json={"token": token})
+        complete = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})
+    assert verify.json()["detail"]["reason"] == "inactive"
+    assert complete.json()["detail"]["reason"] == "inactive"
+
+
+async def test_complete_lifts_the_password_login_lock(app, admin_client, db_session, mailer):
+    freeze_rate_limit_clock(app)
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    async with _anon(app) as anon:
+        for _ in range(10):
+            await anon.post(LOGIN, json={"email": STAFF, "password": "wrong-password-xx"})
+        locked = await anon.post(LOGIN, json={"email": STAFF, "password": STAFF_PW})
+        assert locked.json()["detail"]["code"] == "LOGIN_LOCKED"
+        assert (await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})).status_code == 204
+        assert (await anon.post(LOGIN, json={"email": STAFF, "password": NEW_PW})).status_code == 200
+
+
+async def test_cross_site_origin_is_refused(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    token = await _send(admin_client, target.id, mailer)
+    async with _anon(app) as anon:
+        response = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW}, headers={"Origin": "https://evil.example"})
+    assert response.status_code == 403
+    assert len(await _live_tokens(db_session, target.id)) == 1
+
+
+async def test_open_and_submit_share_a_per_source_limit(app):
+    freeze_rate_limit_clock(app)
+    async with _anon(app) as anon:
+        statuses = [(await anon.post(VERIFY, json={"token": "x" * 43})).status_code for _ in range(31)]
+    assert statuses[:30] == [410] * 30
+    assert statuses[30] == 429

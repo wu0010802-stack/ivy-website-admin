@@ -5,16 +5,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import password_reset
+from app.auth import password_reset, service
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import User
+from app.auth.models import PasswordResetToken, User
+from app.auth.oauth_common import private
 from app.auth.permissions import require_scope
-from app.auth.schemas import PasswordResetLinkOut
+from app.auth.schemas import (
+    PasswordResetCompleteRequest,
+    PasswordResetLinkOut,
+    PasswordResetTokenRequest,
+    PasswordResetVerifyOut,
+)
 from app.common import ratelimit
 from app.operations import audit_service
 
@@ -115,3 +122,119 @@ async def send_password_reset_link(
     return PasswordResetLinkOut(
         sent_to=user.email, expires_at=issued.expires_at, replaced_previous=issued.replaced_previous
     )
+
+
+# 連結不能用時給本人看的話：每一種都說下一步。
+_INVALID_MESSAGES = {
+    password_reset.REJECT_UNKNOWN: "這個重設連結無效。請直接點信裡的連結，或請總管理者重新寄一次。",
+    password_reset.REJECT_EXPIRED: "這個重設連結已過期（30 分鐘內有效），請總管理者重新寄一次。",
+    password_reset.REJECT_USED: "這個重設連結已經用過了。密碼已更新，請直接登入；忘記新密碼請總管理者重新寄一次。",
+    password_reset.REJECT_REVOKED: "這個重設連結已失效：之後又寄了新的連結，或密碼已經變更。請使用最新一封信裡的連結。",
+    password_reset.REJECT_INACTIVE: "這個帳號已停用，無法重設密碼，請聯絡總管理者。",
+}
+
+
+def _invalid(reason: str) -> HTTPException:
+    return _error(status.HTTP_410_GONE, "RESET_LINK_INVALID", _INVALID_MESSAGES[reason], reason=reason)
+
+
+def _check_origin(request: Request) -> None:
+    """不用登入的端點沒有 CSRF token 可比；Origin 一樣要對（比照 deps.check_csrf_and_origin）。"""
+    admin_origin = request.app.state.settings.admin_origin
+    origin = request.headers.get("origin")
+    if admin_origin and origin is not None and origin != admin_origin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin 不符")
+
+
+async def _check_source_limit(request: Request) -> None:
+    try:
+        await ratelimit.limiter(request).check(password_reset.OPEN_SOURCE_LIMIT, ratelimit.client_key(request))
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RESET_LINK_SOURCE_LIMITED", "message": "嘗試太頻繁或系統忙碌，請稍候再試"},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
+@router.post("/auth/password-reset/verify", response_model=PasswordResetVerifyOut)
+async def verify_password_reset_link(
+    payload: PasswordResetTokenRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db_session),
+) -> PasswordResetVerifyOut:
+    """打開重設連結時先確認還能不能用，能用就回帳號與期限。只讀不寫：不消耗連結，
+    也不寫稽核（送出新密碼時才寫，test_audit_coverage 有列例外）。"""
+    private(response)
+    _check_origin(request)
+    await _check_source_limit(request)
+    token = await password_reset.find_token(db, payload.token)
+    if token is None:
+        raise _invalid(password_reset.REJECT_UNKNOWN)
+    user = await db.get(User, token.user_id)
+    reason = password_reset.rejection(token, user, datetime.now(timezone.utc))
+    if reason is not None:
+        raise _invalid(reason)
+    return PasswordResetVerifyOut(email=user.email, expires_at=token.expires_at)
+
+
+@router.post("/auth/password-reset/complete", status_code=status.HTTP_204_NO_CONTENT)
+async def complete_password_reset(
+    payload: PasswordResetCompleteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """用重設連結設定新密碼：連結標成已用、其他還有效的連結作廢、所有 session 登出、
+    解除密碼登入暫停。不自動登入，前端導回登入頁。
+
+    無效的 token 不跑 bcrypt；有效的先算好雜湊（約 250 ms）再上鎖，鎖住期間不做慢的事。
+    鎖的順序跟寄連結一樣「帳號 → 連結」。等鎖期間連結可能被用掉或作廢，上鎖後再判斷一次。"""
+    _check_origin(request)
+    await _check_source_limit(request)
+    token = await password_reset.find_token(db, payload.token)
+    if token is None:
+        raise _invalid(password_reset.REJECT_UNKNOWN)
+    user = await db.get(User, token.user_id)
+    reason = password_reset.rejection(token, user, datetime.now(timezone.utc))
+    new_hash = None
+    if reason is None:
+        new_hash = await service.hash_password_async(payload.new_password)
+        await db.execute(
+            select(User).where(User.id == token.user_id).with_for_update().execution_options(populate_existing=True)
+        )
+        await db.execute(
+            select(PasswordResetToken)
+            .where(PasswordResetToken.id == token.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        reason = password_reset.rejection(token, user, datetime.now(timezone.utc))
+    if reason is not None:
+        # 對得到帳號才寫稽核（亂打的 token 上面就回了，不會走到這裡）。
+        await audit_service.log_action(
+            db,
+            actor_user_id=None,
+            action="user.password_reset_link_rejected",
+            target_type="user",
+            target_id=str(token.user_id),
+            metadata={"reason": reason},
+        )
+        await db.commit()
+        raise _invalid(reason)
+
+    now = datetime.now(timezone.utc)
+    user.password_hash = new_hash
+    token.used_at = now
+    await password_reset.revoke_outstanding(db, user.id, now=now)
+    revoked = await service.revoke_user_sessions(db, user.id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=user.id,
+        action="user.password_reset_completed",
+        target_type="user",
+        target_id=str(user.id),
+        metadata={"revoked_sessions": revoked},
+    )
+    await db.commit()
+    await service.clear_login_lock(ratelimit.limiter(request), user.email)
