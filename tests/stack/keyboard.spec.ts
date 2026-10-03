@@ -117,6 +117,7 @@ const ADMIN_PAGES: [string, string][] = [
   ['/admissions', '招生入學'],
   ['/admissions?tab=stats', '招生入學'],
   ['/booking', '各校預約方式'],
+  ['/analytics', '成效統計'],
   ['/content/campus-profile?campus=yihua', '五校介紹'],
   ['/content/home-news', '最新消息與活動'],
   ['/media', '素材庫'],

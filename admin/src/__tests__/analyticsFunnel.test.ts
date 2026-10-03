@@ -279,4 +279,11 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(entries[1]).toContain('分校頁首屏')
     expect(wrapper.text()).toContain('另有 7 次點擊沒有指定校區')
   })
+
+  it('預約流程寫出單位與更新時間', async () => {
+    const { wrapper } = await setup()
+    const panel = wrapper.findAll('.panel').find((item) => item.text().includes('預約流程'))!
+    expect(panel.text()).toContain('單位：事件次數（依發生日期）')
+    expect(panel.text()).toContain('10/03 14:05')
+  })
 })
