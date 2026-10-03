@@ -1,7 +1,6 @@
 import { h } from 'vue'
 import type { Router } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { setCsrfToken } from '../api/client'
 import { notifyWarning } from '../composables/notify'
 import { waitForSignIn } from '../composables/sessionChannel'
 import { useAuthStore } from '../stores/auth'
@@ -98,20 +97,16 @@ async function recoverInPlace(router: Router): Promise<void> {
         signIn.cancel()
         signIn = waitForSignIn()
       }
-      const previousUser = authStore.user
-      if (await authStore.refreshSession()) {
-        if (expectedUserId && authStore.user?.id !== expectedUserId) {
-          // 這個瀏覽器現在登入的是別人：先把畫面上的登入者換回原本的人，繼續等。
-          // 對方的 session 已經存在 cookie 裡，按儲存會被當成對方，所以不接續；
-          // 也清掉剛拿到的對方 CSRF token，這一頁什麼都送不出去，直到原本的人登入。
-          authStore.user = previousUser
-          authStore.csrfToken = null
-          setCsrfToken(null)
-          notifyWarning('新分頁登入的是另一個帳號。這一頁的修改要用原本的帳號儲存，請先登出那個帳號，再用原本的帳號登入。')
-          continue
-        }
+      const refreshed = await authStore.refreshSession(expectedUserId ?? undefined)
+      if (refreshed === 'ok') {
         ElMessage.success('已恢復登入，請再按一次儲存。')
         return
+      }
+      if (refreshed === 'other-user') {
+        // 這個瀏覽器現在登入的是別人：refreshSession 沒有寫入任何對方的資料。
+        // 對方的 session 在 cookie 裡，按儲存會被當成對方，所以不接續，等原本的人登入。
+        notifyWarning('新分頁登入的是另一個帳號。這一頁的修改要用原本的帳號儲存，請先登出那個帳號，再用原本的帳號登入。')
+        continue
       }
       notifyWarning('還沒有重新登入：請先在新分頁登入後台，再回來按「我已重新登入」。')
     }

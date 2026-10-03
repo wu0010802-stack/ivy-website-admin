@@ -5,7 +5,7 @@ import { defineComponent, ref, type VNode } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
-import { api, ApiError, setUnauthorizedHandler } from '../api/client'
+import { api, ApiError, setCsrfToken, setUnauthorizedHandler } from '../api/client'
 import { redirectToLoginOnUnauthorized, resetUnauthorizedForTests } from '../router/unauthorized'
 import { registerUnsavedChanges } from '../composables/useUnsavedChanges'
 import { announceSignedIn, setSessionChannelFactory, type SessionChannelLike } from '../composables/sessionChannel'
@@ -101,6 +101,52 @@ describe('登入已逾時：一鍵開新分頁、別的分頁登入就自動接�
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(auth.user?.id).toBe('u1')
     expect(auth.csrfToken).toBeNull()
+    expect(auth.sessionMaxExpiresAt).toBeNull()
+  })
+
+  it('別的帳號登入後，store 與 api client 都沒有對方的 CSRF token；原本的帳號之後登入仍會接續', async () => {
+    fakeBus()
+    setCsrfToken(null)
+    const { auth } = await dirtyEditorAt('/content/news')
+    vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(new Promise(() => {}) as never)
+    vi.spyOn(ElMessageBox, 'close').mockImplementation(() => undefined)
+    const success = vi.spyOn(ElMessage, 'success').mockImplementation((() => undefined) as never)
+    vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+    const other = testUser('editor', { id: 'u2', email: 'other@example.invalid' })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: '未登入' }), { status: 401 }) as never)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ csrf_token: 'other-token', user: other, features: { admissions: false }, session_max_expires_at: '2099-01-01T00:00:00Z' }), { status: 200 }) as never)
+    await expect(api.post('/admin/content-items/home_news/revisions', {})).rejects.toBeInstanceOf(ApiError)
+    await flushPromises()
+    announceSignedIn()
+    await flushPromises()
+    expect(auth.user?.id).toBe('u1')
+    expect(auth.csrfToken).toBeNull()
+    expect(auth.sessionMaxExpiresAt).toBeNull()
+
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'x' }), { status: 400 }) as never)
+    await expect(api.post('/admin/content-items/home_news/revisions', {})).rejects.toBeInstanceOf(ApiError)
+    const init = fetchSpy.mock.calls.at(-1)![1] as RequestInit
+    expect(new Headers(init.headers).get('X-CSRF-Token')).toBeNull()
+
+    // 原本的帳號在新分頁登入（第二次廣播）：接續。
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ csrf_token: 'u1-token', user: auth.user, features: { admissions: false } }), { status: 200 }) as never)
+    announceSignedIn()
+    await flushPromises()
+    expect(auth.csrfToken).toBe('u1-token')
+    expect(success).toHaveBeenCalledWith('已恢復登入，請再按一次儲存。')
+  })
+
+  it('refreshSession 帶期望帳號：/auth/me 回別人就什麼都不寫（keepalive 也走這條）', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.user = testUser('editor', { id: 'u1' })
+    vi.spyOn(api, 'get').mockResolvedValue({ csrf_token: 'x', user: testUser('editor', { id: 'u2' }), features: { admissions: true }, session_max_expires_at: '2099-01-01T00:00:00Z' } as never)
+    expect(await auth.refreshSession('u1')).toBe('other-user')
+    expect(auth.user?.id).toBe('u1')
+    expect(auth.csrfToken).toBeNull()
+    expect(auth.features.admissions).toBe(false)
+    expect(auth.sessionMaxExpiresAt).toBeNull()
   })
 })
 
@@ -126,7 +172,7 @@ describe('登入滿 12 小時前提醒', () => {
     setActivePinia(createPinia())
     const auth = useAuthStore()
     vi.spyOn(api, 'get').mockResolvedValue({ csrf_token: 't', user: testUser('editor'), features: { admissions: false }, session_max_expires_at: '2026-10-03T12:00:00Z' } as never)
-    expect(await auth.refreshSession()).toBe(true)
+    expect(await auth.refreshSession()).toBe('ok')
     expect(auth.sessionMaxExpiresAt).toBe('2026-10-03T12:00:00Z')
     auth.clearSession()
     expect(auth.sessionMaxExpiresAt).toBeNull()

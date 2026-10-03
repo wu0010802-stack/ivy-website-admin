@@ -239,7 +239,7 @@ describe('操作中自動延長閒置期限', () => {
     const auth = useAuthStore()
     let now = 1_000_000
     const target = new EventTarget()
-    const refresh = vi.spyOn(auth, 'refreshSession').mockResolvedValue(true)
+    const refresh = vi.spyOn(auth, 'refreshSession').mockResolvedValue('ok')
     const stop = startSessionKeepAlive({ now: () => now, target: target as unknown as Window })
     try {
       now += KEEPALIVE_INTERVAL_MS

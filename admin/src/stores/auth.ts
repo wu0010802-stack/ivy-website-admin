@@ -98,18 +98,22 @@ export const useAuthStore = defineStore('auth', () => {
    * 重新取得登入狀態，但失敗時不清本地狀態（頁面上可能還有未儲存的修改）。
    * 閒置延長（sessionKeepAlive）與「登入已逾時、我已重新登入」用：成功時換上
    * 這個 session 的 CSRF token（在別的分頁重新登入後，新 session 的 token 不同）。
+   * 傳 expectedUserId 時，回來的是別的帳號就什麼都不寫、回 'other-user'。
    */
-  async function refreshSession(): Promise<boolean> {
+  async function refreshSession(expectedUserId?: string): Promise<'ok' | 'other-user' | 'failed'> {
     try {
       const result = await api.get<MeResponse>('/auth/me')
+      // 先比對再寫入：cookie 已換成別人時，這一頁（可能有原本帳號未儲存的修改）
+      // 不能拿到對方的身分與 CSRF token。
+      if (expectedUserId && result.user.id !== expectedUserId) return 'other-user'
       user.value = result.user
       features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
-      return true
+      return 'ok'
     } catch {
-      return false
+      return 'failed'
     }
   }
 
