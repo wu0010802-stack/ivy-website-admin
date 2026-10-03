@@ -440,14 +440,14 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 | 編號 | 案例 | 狀態 | 證據 |
 |---|---|---|---|
-| E01 | 全區與單校帳號查同一張報表 | | `test_analytics_booking_outcomes.py::test_only_campuses_in_scope_are_listed`、`test_analytics_event_trend.py::test_other_campus_is_hidden`、`test_analytics_class_distribution.py::test_period_scope_and_school_year_bounds` |
-| E02 | 只有 analytics.read | | `test_analytics_only_role_sees_counts_without_personal_data`；`analyticsOutcomes.test.ts`「只有統計權限的人只看數字」 |
-| E03 | 台北午夜、月底、跨年 | | `test_period_uses_taipei_days_of_created_at`、`test_days_are_taipei_dates_and_zero_filled` |
-| E04 | 每日資料有空白日期、查詢失敗 | | `test_days_are_taipei_dates_and_zero_filled`、`test_no_events_gives_one_zero_day`；各面板「讀取失敗顯示錯誤」 |
-| E05 | 生日 9/1、9/2；學年 7/31、8/1 | | `test_analytics_class_distribution.py::test_shared_grade_cases`（共用 `grade-cases.json`） |
-| E06 | 缺生日、舊年齡文字、範圍外 | | `test_missing_or_anonymized_birthdays_are_unrecorded`、`test_shared_grade_cases` 的範圍外案例 |
-| E07 | 快速切換、回應順序顛倒 | | `analyticsOutcomes.test.ts`「回應順序顛倒…」；各面板以 `useRequestSequence` 擋 |
-| E08 | 待處理三種計數 | | `test_analytics_pending_kinds.py`、`test_open_now_matches_dashboard_and_ignores_period` |
-| E25 | 1440／390、鍵盤 | | stack `keyboard.spec.ts` 後台溢出（含 `/analytics`）；截圖 `output/playwright/analytics-{1440,390}.png` |
-| E26 | 期間跨 10-01 | | `test_period_crossing_self_booking_switch_has_no_confirmation_rate`；既有 `analyticsFunnel.test.ts` 確認率測試 |
-| E27 | 流量期間跨 09-30 | | `traffic.test.ts`「每日瀏覽趨勢」兩項 |
+| E01 | 全區與單校帳號查同一張報表 | 通過 | `test_analytics_booking_outcomes.py::test_only_campuses_in_scope_are_listed`、`test_analytics_event_trend.py::test_other_campus_is_hidden`、`test_analytics_class_distribution.py::test_period_scope_and_school_year_bounds` |
+| E02 | 只有 analytics.read | 通過 | `test_analytics_only_role_sees_counts_without_personal_data`；`analyticsOutcomes.test.ts`「只有統計權限的人只看數字」 |
+| E03 | 台北午夜、月底、跨年 | 通過 | `test_period_uses_taipei_days_of_created_at`、`test_days_are_taipei_dates_and_zero_filled` |
+| E04 | 每日資料有空白日期、查詢失敗 | 通過 | `test_days_are_taipei_dates_and_zero_filled`、`test_no_events_gives_one_zero_day`；各面板「讀取失敗顯示錯誤」 |
+| E05 | 生日 9/1、9/2；學年 7/31、8/1 | 通過 | `test_analytics_class_distribution.py::test_shared_grade_cases`（共用 `grade-cases.json`） |
+| E06 | 缺生日、舊年齡文字、範圍外 | 通過 | `test_missing_or_anonymized_birthdays_are_unrecorded`、`test_shared_grade_cases` 的範圍外案例 |
+| E07 | 快速切換、回應順序顛倒 | 通過 | `analyticsOutcomes.test.ts`「回應順序顛倒…」；各面板以 `useRequestSequence` 擋；analyticsTrend.test.ts、analyticsClasses.test.ts 也各有回應順序顛倒測試 |
+| E08 | 待處理三種計數 | 通過 | `test_analytics_pending_kinds.py`、`test_open_now_matches_dashboard_and_ignores_period` |
+| E25 | 1440／390、鍵盤 | 通過（1440／390 截圖與 keyboard 溢出檢查；Safari／iOS 未驗證） | stack `keyboard.spec.ts` 後台溢出（含 `/analytics`）；截圖 `output/playwright/analytics-{1440,390}.png` |
+| E26 | 期間跨 10-01 | 通過 | `test_period_crossing_self_booking_switch_has_no_confirmation_rate`；既有 `analyticsFunnel.test.ts` 確認率測試 |
+| E27 | 流量期間跨 09-30 | 通過 | `traffic.test.ts`「每日瀏覽趨勢」兩項 |
