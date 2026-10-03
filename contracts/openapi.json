@@ -18789,13 +18789,13 @@
             }
           },
           {
-            "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }
@@ -19124,13 +19124,13 @@
             }
           },
           {
-            "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }
@@ -19368,13 +19368,13 @@
             }
           },
           {
-            "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }

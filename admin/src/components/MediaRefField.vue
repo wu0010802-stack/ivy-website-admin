@@ -93,6 +93,7 @@ function clear() {
       @thumb-error="thumbs.onError(modelValue)"
     >
       <template #hint><slot name="hint" /></template>
+      <template v-if="$slots.status" #status="s"><slot name="status" v-bind="s ?? {}" /></template>
     </MediaFieldCard>
     <MediaPickerDialog v-model="pickerVisible" :kind="kind" :campus-key="campusKey" @select="choose" />
   </div>

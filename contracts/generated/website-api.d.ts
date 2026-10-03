@@ -9329,7 +9329,7 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {
@@ -9421,7 +9421,7 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {
@@ -9475,7 +9475,7 @@ export interface operations {
                 needs_attention?: boolean;
                 /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {

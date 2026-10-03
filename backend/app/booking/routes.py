@@ -871,7 +871,7 @@ class VisitRequestFilters:
         open_only: bool = Query(
             default=False,
             alias="open",
-            description="只列還沒結案的：待處理、待園方確認、預約正常（含時間已過還沒標記到場）",
+            description="只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
         ),
     ) -> None:
         self.campus_key = campus_key

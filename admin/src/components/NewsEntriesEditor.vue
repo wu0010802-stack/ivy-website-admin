@@ -43,9 +43,6 @@ const today = taipeiToday()
 const isGlobal = computed(() => props.mode === 'global')
 const featuredCount = computed(() => props.articles.filter((a) => (a as NewsArticlePayload).featured).length)
 
-// 封面縮圖：素材庫照片載縮圖（讀不到退回原檔），舊示意消息的代號走官網靜態素材；
-// 都讀不到時在框裡寫出來，不是只剩一個空白框。
-
 function asGlobal<T>(entry: T): T & NewsArticlePayload & NewsEventPayload {
   return entry as T & NewsArticlePayload & NewsEventPayload
 }
@@ -162,6 +159,8 @@ function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
           :campus-key="campusKey"
           layout="stack"
           ratio="1.55"
+          :clearable="false"
+          required
           :disabled="readOnly"
           @picked="(asset, previous) => (article.alt = altAfterPick(article.alt, previous, asset))"
         >

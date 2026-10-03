@@ -66,6 +66,13 @@ describe('MediaRefField', () => {
     expect(wrapper.get('.media-field__thumb').classes()).toContain('is-builtin')
   })
 
+  it('父層給 #status 內容時會顯示在卡片上', () => {
+    const wrapper = mount(() => h(MediaRefField, { modelValue: '' }, { status: () => h('span', { class: 'my-status' }, '轉檔中') }),
+      { global: { plugins: [ElementPlus] }, attachTo: document.body })
+    wrappers.push(wrapper)
+    expect(wrapper.get('.media-field .my-status').text()).toBe('轉檔中')
+  })
+
   it('沒選、沒有內建、必填：寫「請從素材庫選一張照片」並標成錯誤', () => {
     const { wrapper } = mountRef({ modelValue: '', required: true, clearable: false })
     const help = wrapper.get('.media-field__info .field-help')
@@ -164,7 +171,7 @@ describe('四種舊寫法改用 MediaRefField', () => {
     expect(users).toEqual(['MediaRefField.vue', 'MediaSlotField.vue'])
   })
 
-  it('消息封面：展開後是共用欄位，可以移除照片；換照片帶入新照片的說明', async () => {
+  it('消息封面：展開後是共用欄位，沒有移除鈕（每則消息一定要有照片）；換照片帶入新照片的說明', async () => {
     mockLibrary(contentItem('home_news', {
       sample_note: '', home_display_count: null, films: null, events: [],
       articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: ID, alt: '舊說明', scope: 'global', campus_keys: [], featured: false, body: [] }],
@@ -172,13 +179,25 @@ describe('四種舊寫法改用 MediaRefField', () => {
     const wrapper = await mountView(HomeNewsView)
     await wrapper.get('.news-item .repeat-item__toggle').trigger('click')
     const field = wrapper.get('.news-item .media-field')
-    expect(field.findAll('.media-field__actions button').map((b) => b.text())).toEqual(['更換照片', '移除照片'])
+    expect(field.findAll('.media-field__actions button').map((b) => b.text())).toEqual(['更換照片'])
     await field.findAll('.media-field__actions button')[0]!.trigger('click')
     await flushPromises()
     Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('new.jpg'))!.click()
     await flushPromises()
     const alt = wrapper.findAll('.news-item textarea').map((t) => (t.element as HTMLTextAreaElement).value)
     expect(alt).toContain('新照片的說明')
+  })
+
+  it('消息封面：沒有照片時顯示必填提示，仍沒有移除鈕', async () => {
+    mockLibrary(contentItem('home_news', {
+      sample_note: '', home_display_count: null, films: null, events: [],
+      articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: '', alt: '', scope: 'global', campus_keys: [], featured: false, body: [] }],
+    }), [])
+    const wrapper = await mountView(HomeNewsView)
+    await wrapper.get('.news-item .repeat-item__toggle').trigger('click')
+    const field = wrapper.get('.news-item .media-field')
+    expect(field.get('.field-help.is-error').text()).toBe('請從素材庫選一張照片')
+    expect(field.text()).not.toContain('移除照片')
   })
 
   it('校園探索：換了照片，這個場景的熱點標成要重新確認', async () => {
