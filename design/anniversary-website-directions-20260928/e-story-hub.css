@@ -1,0 +1,348 @@
+/* 比稿 E：彙整頁 /story（/30 永久轉址）（2026-09-28）
+   網站片段沿用正式站 /about、/admission 的 adm-* 家族（admission.css 直接讀 web/ 原檔）：
+   薄荷帶 hero、米底五校、消息紙色的故事與活動、深綠舞台、從舞台升起的收尾紙。
+   不做相簿白邊、拍立得、傾斜；字級上限 --fs-7xl；沒有進場動畫、沒有自動播放。
+   說明（說明列、註記、門檻框）一律用藍灰色系，和網站本身的綠、米色分開。
+   顏色只引用 tokens.css，不寫色碼。 */
+
+:root {
+  /* 正式站 typography.css 的字型變數（admission.css 會用到） */
+  --font-date: 'Source Sans 3', Arial, var(--font);
+  --font-information: var(--font);
+  --font-body: var(--font);
+  --font-code: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* 說明用色：藍灰（和比稿 C、D 同一套） */
+  --c-bg: var(--ivy-news-paper-blue);
+  --c-ink: var(--ivy-news-ink);
+  --c-chip: var(--ivy-campus-ink);
+  --c-line: var(--ivy-news-rule);
+}
+
+/* ── 依狀態切換：沒列到目前狀態的片段直接不畫 ─────────────────────── */
+html[data-v="facts"] [data-only="full"],
+html[data-v="full"] [data-only="facts"] { display: none !important; }
+
+/* ── 共用小件 ──────────────────────────────────────────────── */
+.skip-link { position: absolute; left: 16px; top: -80px; z-index: 400; padding: 12px 18px; border-radius: 8px; background: var(--deep); color: var(--white); }
+.skip-link:focus { top: 12px; }
+.site-nav a { min-height: 44px; align-content: center; }
+.site-head .brand { min-height: 44px; }
+.site-menu { flex: none; }  /* 320px 時共用頁首的選單鈕會被壓窄，補回 44px */
+.site-foot-links a { display: flex; align-items: center; min-height: 44px; }  /* 共用頁尾連結只有 32px 高，這頁補到 44px */
+/* 比稿標記：這頁的標記字比較長，共用樣式會折成兩行、在 1440×900 首屏壓到 hero 的預約鈕。
+   只在本頁收成一條細標（桌機一行、手機兩行、字小一階），仍放左下角；shared/ 不動。 */
+.mock-flag { left: 12px; bottom: 12px; max-width: calc(100% - 24px); padding: 4px 12px; border-radius: 8px; line-height: 1.55; }
+@media (min-width: 761px) { .mock-flag { white-space: nowrap; } }
+@media (max-width: 760px) { .mock-flag { padding: 4px 10px; font-size: .6875rem; line-height: 1.5; } }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--leaf); outline-offset: 4px; }
+.sh-stage :focus-visible { outline-color: var(--gold); }
+.nw { white-space: nowrap; }
+code { padding: 1px 5px; border-radius: 4px; background: rgb(var(--ink) / .07); font: .86em/1.5 var(--font-code); overflow-wrap: anywhere; }
+
+/* 示意：虛線框（行內）＋虛線小膠囊 */
+.ph { outline: 1px dashed rgb(var(--ink) / .55); outline-offset: 3px; border-radius: 3px; }
+.sh-stage .ph { outline-color: rgb(var(--on-dark) / .6); }
+.tag { display: inline-flex; align-items: center; margin-left: 8px; padding: 0 8px; border: 1px dashed currentColor; border-radius: 999px; font: 400 var(--fs-xs)/1.6 var(--font); letter-spacing: .03em; white-space: nowrap; vertical-align: 3px; }
+h1 .tag, .adm-title .tag { vertical-align: .9em; }
+
+/* 註記：藍灰底＋深藍灰小籤，和網站內容分開 */
+.chip { display: inline-block; flex: none; padding: 0 8px; border-radius: 4px; background: var(--c-chip); color: var(--white); font: 400 var(--fs-xs)/1.8 var(--font); letter-spacing: .04em; white-space: nowrap; }
+.anno { display: flex; align-items: baseline; gap: 10px; max-width: 64em; margin: 0 0 32px; padding: 10px 14px; border-radius: 8px; background: var(--c-bg); color: var(--c-ink); font-size: var(--fs-sm); line-height: 1.75; text-shadow: none; }
+.sh p.anno { max-width: 64em; }
+.anno .dup, .anno .new { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 999px; font-size: var(--fs-xs); line-height: 1.7; font-weight: 700; white-space: nowrap; }
+.anno .dup { border: 1px solid var(--c-chip); color: var(--c-chip); }
+.anno .new { background: var(--c-chip); color: var(--white); }
+
+/* ── ⓪ 說明列 ──────────────────────────────────────────────── */
+.brief { padding: 24px 0 24px; border-bottom: 1px solid var(--c-line); background: var(--c-bg); color: var(--c-ink); }
+.brief-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 480px); gap: 48px; align-items: start; }
+.brief-kicker { font-size: var(--fs-sm); line-height: 1.9; letter-spacing: .04em; color: var(--c-chip); }
+.brief-kicker .chip { margin-right: 10px; }
+.brief-title { margin-top: 8px; font: 700 var(--fs-2xl)/1.45 var(--font-head); color: var(--c-ink); text-wrap: balance; }
+.brief-lede { margin-top: 8px; max-width: 44em; font-size: var(--fs-sm); line-height: 1.85; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 12px 0 0; padding: 0; list-style: none; font-size: var(--fs-xs); }
+.legend li { display: flex; align-items: center; gap: 8px; }
+.legend .tag { margin-left: 0; }
+.lg-ph { padding: 0 6px; border: 1px dashed currentColor; border-radius: 3px; }
+.ctrl-label { margin-bottom: 8px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; color: var(--c-chip); }
+.switch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.switch a { display: grid; align-content: start; gap: 4px; min-height: 80px; padding: 12px 14px; border: 1px solid var(--c-line); border-radius: 12px; background: var(--white); color: var(--c-ink); }
+.sw-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.sw-name { font-size: var(--fs-md); font-weight: 700; }
+.sw-badge { padding: 0 7px; border: 1px solid currentColor; border-radius: 999px; font-size: var(--fs-xs); line-height: 1.6; }
+.sw-hint { font-size: var(--fs-xs); line-height: 1.6; color: var(--ivy-news-muted); }
+.switch a[aria-current] { border-color: var(--ivy-forest); background: var(--ivy-forest); color: var(--white); }
+.switch a[aria-current] .sw-hint { color: rgb(var(--on-dark) / .86); }
+.switch a[aria-current] .sw-badge { color: var(--yellow); }
+@media (hover: hover) { .switch a:not([aria-current]):hover { border-color: var(--c-chip); } }
+.brief-state { margin-top: 10px; font-size: var(--fs-sm); line-height: 1.75; }
+
+/* ── ②③ hero：薄荷帶，左 6／12 字、右 5／12 圓角照片 ───────────────── */
+.sh-hero { position: relative; isolation: isolate; overflow: hidden; padding: 12px 0 72px; background: var(--ivy-forest-mist); color: var(--ivy-forest); }
+.sh-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; font-size: var(--fs-sm); color: var(--ivy-forest-soft); }
+.sh-crumb a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; margin-inline: -8px; padding-inline: 8px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.sh-crumb [aria-current] .tag { margin-left: 10px; }
+.sh-hero-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center; margin-top: 36px; }
+.sh-hero-copy { grid-column: 1 / span 6; }
+.sh-hero-photo { grid-column: 8 / span 5; margin: 0; }
+.sh-hero-photo img { width: 100%; height: auto; aspect-ratio: 10 / 9; object-fit: cover; object-position: 50% 42%; border-radius: 16px; }
+.sh-eyebrow { font-size: var(--fs-sm); font-weight: 600; letter-spacing: .18em; color: var(--ivy-forest-soft); }
+.sh-hero h1 { margin-top: 22px; font-weight: 800; font-size: clamp(2.5rem, 4.2vw, var(--fs-7xl)); line-height: 1.4; letter-spacing: .02em; color: var(--ivy-forest); text-wrap: nowrap; }
+.sh-hero h1 .ph { outline-offset: 6px; }
+.sh .sh-lede { margin-top: 30px; max-width: 30em; font-size: var(--fs-lg); line-height: 1.95; }
+.sh-lede .ph { outline-offset: 2px; }
+.sh-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 28px; margin-top: 36px; }
+.sh-actions .adm-text-link { color: var(--ivy-forest); }
+.sh p.sh-anno-hero { max-width: calc((100% - 24px * 11) / 12 * 5 + 24px * 4); margin: 40px 0 0 auto; }
+/* 淡字「1997–2027」：字級上限 --fs-7xl（規則：不做 168px 的年份裝飾字），壓在薄荷帶左下 */
+.sh-ghost { margin: 0; font: 800 var(--fs-7xl)/1 var(--font-head); letter-spacing: .01em; color: var(--ivy-forest-ghost); white-space: nowrap; pointer-events: none; user-select: none; }
+/* 桌機：淡字貼齊右欄註記的底線，填掉左欄動作列下方的空白，不再單獨浮在色帶最底 */
+.sh-ghost-d { position: absolute; z-index: -1; left: max(var(--gutter), calc((100% - 1280px) / 2)); bottom: 64px; }
+.sh-ghost-m { display: none; }
+
+/* 手機專用：hero 後的五校清單（桌機不畫） */
+.sh-mlist { display: none; }
+
+/* ── ③ 比例時間尺（桌機）／年份清單（手機） ─────────────────────── */
+.sh-years { padding: 64px 0 48px; background: var(--paper); color: var(--ivy-forest); }
+.sh-ruler { position: relative; height: 236px; margin: 8px 0 0; }
+.sh-ruler-line { position: absolute; left: 0; right: 0; top: 112px; height: 1px; background: var(--green); }
+.sh-ruler ol { margin: 0; padding: 0; list-style: none; }
+.sh-ruler li { position: absolute; top: 112px; left: var(--at); width: 0; height: 0; }
+.sh-ruler a { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; min-width: 64px; min-height: 44px; padding: 0 8px 6px; transform: translateX(-50%); color: var(--ivy-forest); text-align: center; white-space: nowrap; border-radius: 8px; }
+.rl-dot { flex: none; width: 13px; height: 13px; margin-top: -6px; border: 1.5px solid var(--green); border-radius: 50%; background: var(--paper); }
+.rl-year { margin-top: 14px; font: 400 var(--fs-3xl)/1.1 var(--font-date); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.rl-name { margin-top: 6px; font-size: var(--fs-sm); font-weight: 700; line-height: 1.5; }
+.rl-roc { font-size: var(--fs-xs); line-height: 1.6; letter-spacing: .06em; color: var(--ivy-forest-soft); }
+/* 2020 往上、2021 往下，兩個點擊區不重疊 */
+.sh-ruler .is-up a { top: auto; bottom: 0; flex-direction: column-reverse; padding: 6px 8px 0; }
+.sh-ruler .is-up .rl-dot { margin: 0 0 -7px; }
+.sh-ruler .is-up .rl-year { margin: 0 0 14px; }
+.sh-ruler .is-up .rl-name { margin: 0 0 4px; }
+.sh-ruler .is-start a { align-items: flex-start; padding-left: 0; transform: translateX(-6.5px); text-align: left; }
+.sh-ruler .is-end a { align-items: flex-end; padding-right: 0; transform: translateX(calc(-100% + 7.5px)); text-align: right; }
+/* 只有 2027 是金色實心點 */
+.sh-ruler .is-now .rl-dot { width: 15px; height: 15px; margin-top: -7px; border-color: var(--gold); background: var(--gold); }
+.sh-ruler .is-now .rl-year { margin-top: 13px; }
+@media (hover: hover) {
+  .sh-ruler a:hover .rl-year { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+}
+.sh-yearlist { display: none; }
+
+/* ── ④ 五所校園：米底、五張等寬卡 ──────────────────────────────── */
+.sh-campuses { padding: 112px 0 128px; background: var(--cream); }
+.sh-head { margin-bottom: 28px; }
+.sh-head .adm-kicker { margin-bottom: 12px; color: var(--ivy-forest-soft); }
+.sh-head .adm-title { color: var(--ivy-forest); }
+.sh-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.sh-card { display: flex; flex-direction: column; padding: 10px 10px 14px; border-radius: 14px; background: var(--white); box-shadow: 0 1px 0 var(--ivy-campus-line), 0 18px 40px rgb(var(--ink) / .05); scroll-margin-top: 32px; }
+.sh-card-photo { position: relative; }
+.sh-card-photo img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; }
+.sh-first { position: absolute; left: 8px; top: 8px; display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: var(--paper); color: var(--ivy-forest); font-size: var(--fs-xs); font-weight: 700; line-height: 1.6; }
+.sh-first .ph { outline-offset: 2px; }
+.sh-first .tag { margin-left: 6px; font-weight: 400; vertical-align: 0; }
+.sh-card-body { display: flex; flex-direction: column; flex: 1; padding: 14px 6px 0; }
+.sh-card h3 { font-size: var(--fs-xl); line-height: 1.4; color: var(--ivy-campus-heading-ink); }
+.sh-card-year { margin-top: 6px; font-size: var(--fs-sm); font-weight: 600; line-height: 1.6; color: var(--ivy-forest); font-variant-numeric: tabular-nums; }
+.sh-card-addr { margin-top: 2px; font-size: var(--fs-sm); line-height: 1.6; color: var(--ivy-campus-muted); }
+.sh-card-links { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin-top: auto; padding-top: 12px; }
+.sh-more { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: var(--fs-sm); font-weight: 700; color: var(--ivy-forest); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+.sh-more .icon { width: 16px; height: 16px; transition: transform .2s; }
+.sh-book { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--ivy-campus-control-border); border-radius: 999px; background: var(--ivy-campus-control); color: var(--ivy-forest); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+@media (hover: hover) {
+  .sh-book:hover { background: var(--ivy-campus-control-hover); }
+  .sh-more:hover .icon { transform: translateX(3px); }
+}
+
+/* ── ⑤ 故事：消息紙底，一大兩小 ─────────────────────────────────── */
+.sh-stories { padding: 112px 0 88px; background: var(--ivy-news-paper); color: var(--ivy-news-ink); }
+.sh-head-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 32px; }
+.sh-head-row .adm-text-link { margin-bottom: 8px; color: var(--ivy-news-green); font-weight: 600; }
+.sh-stories .adm-kicker, .sh-events .adm-kicker { color: var(--ivy-news-muted); }
+.sh-stories .adm-title, .sh-events .adm-title { color: var(--ivy-news-green); }
+.sh-story-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.sh-story { position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--ivy-news-note); }
+/* 大卡橫跨兩欄：左照片、右文字；兩張小卡並排在下面 */
+.sh-story-lg { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); background: var(--white); box-shadow: 0 1px 0 var(--ivy-news-line); }
+.sh-story-lg img { width: 100%; height: 100%; min-height: 340px; aspect-ratio: 16 / 9; object-fit: cover; object-position: 50% 35%; }
+.sh-story-lg .sh-story-body { justify-content: center; padding: 40px 44px; }
+.sh-story-body { display: flex; flex-direction: column; flex: 1; padding: 26px 28px 30px; }
+.sh-story-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ivy-news-muted); }
+.sh-story-meta .series { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--ivy-news-green); }
+/* 系列記號：12×2px 金色短線（金色只用在這麼小的面積） */
+.sh-story-meta .series::before { content: ''; width: 12px; height: 2px; background: var(--gold); }
+.sh-story-meta .tag { margin-left: -6px; }
+/* 系列名、校別、類型都是示意，整排包在同一個虛線框裡 */
+.sh-story-meta .meta-ph { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; padding: 0 4px; }
+.sh-story h3 { margin-top: 14px; font-size: var(--fs-2xl); line-height: 1.5; color: var(--ivy-news-green); }
+.sh-story-lg h3 { font-size: var(--fs-3xl); }
+.sh-story h3 a::after { content: ''; position: absolute; inset: 0; }
+.sh-story h3 a:focus-visible { outline: 0; }
+.sh-story:has(h3 a:focus-visible) { outline: 3px solid var(--leaf); outline-offset: 4px; }
+.sh-story-body > p:last-child { margin-top: 12px; font-size: var(--fs-sm); line-height: 1.9; color: var(--ivy-news-muted); }
+@media (hover: hover) {
+  .sh-story:hover h3 { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+}
+
+/* ── ⑤ 對照：門檻說明框（只在 facts） ───────────────────────────── */
+.sh-gate { padding: 72px 0 104px; background: var(--ivy-news-paper); }
+.gate-box { display: grid; gap: 8px; padding: 32px 36px; border: 2px dashed var(--c-chip); border-radius: 16px; background: var(--c-bg); color: var(--c-ink); }
+.gate-box p:not(.gate-title) { font-size: var(--fs-md); line-height: 1.85; }
+.gate-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font: 700 var(--fs-xl)/1.5 var(--font-head); }
+.gate-small { margin-top: 16px; padding: 20px 28px; border-width: 1px; }
+.gate-small .gate-title { font-size: var(--fs-md); }
+.gate-small p:not(.gate-title) { font-size: var(--fs-sm); }
+
+/* ── ⑥ 活動：接下來／辦過了 ──────────────────────────────────────── */
+.sh-events { padding: 0 0 112px; background: var(--ivy-news-paper); color: var(--ivy-news-ink); }
+.sh-events > .container { padding-top: 72px; border-top: 1px solid var(--ivy-news-line); }
+.sh-ev-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.sh-ev-col h3 { padding-bottom: 12px; border-bottom: 1px solid var(--ivy-news-line); font-size: var(--fs-xl); color: var(--ivy-news-green); }
+.sh-ev-list { margin: 16px 0 0; padding: 0; list-style: none; }
+.sh-ev { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px 20px; padding: 22px 24px; border-radius: 12px; background: var(--ivy-news-event-1); }
+.sh-ev-date { font-size: var(--fs-sm); font-weight: 700; line-height: 1.6; color: var(--ivy-news-date); }
+.sh-ev-campus { font-size: var(--fs-xs); font-weight: 600; line-height: 1.6; color: var(--ivy-news-green); }
+.sh-ev-copy h4 { margin: 6px 0 0; font: 700 var(--fs-lg)/1.55 var(--font-head); color: var(--ivy-news-green); }
+/* 地址列用 --ivy-news-ink：--ivy-news-muted 疊在 --ivy-news-event-1 上只有 4.3:1，不到 AA */
+.sh-ev-where { margin-top: 6px; font-size: var(--fs-sm); line-height: 1.7; color: var(--ivy-news-ink); }
+.sh-ev-where a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.sh-ev-cta { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; margin-top: 4px; padding: 0 22px; border-radius: 999px; background: var(--ivy-news-green); color: var(--white); font-size: var(--fs-sm); font-weight: 600; }
+@media (hover: hover) { .sh-ev-cta:hover { background: var(--deep); } }
+.anno-box { margin: 16px 0 0; border: 1px dashed var(--c-chip); }
+
+/* ── 深綠舞台：理念句 ───────────────────────────────────────────── */
+.sh-stage { padding: 112px 0 216px; background: var(--ivy-forest); color: var(--white); }
+.sh-stage .adm-kicker { margin-bottom: 20px; color: var(--gold); }
+.sh-stage .adm-title { color: var(--white); }
+.sh .sh-quote { max-width: 36em; margin: 40px 0 0; padding-left: 28px; border-left: 2px solid var(--gold); }
+.sh-quote p { font-size: var(--fs-xl); line-height: 1.95; color: rgb(var(--on-dark) / .88); }
+.anno-dark { margin: 48px 0 0; }
+
+/* ── ⑦ 收尾：從舞台升起的紙，預約膠囊＋五校文字連結 ──────────────── */
+.sh-visit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 56px 64px; border-radius: 24px; background: var(--ivy-forest-mist); color: var(--ivy-forest); }
+.sh-visit .adm-kicker { color: var(--ivy-forest-soft); }
+.sh-visit .adm-title { color: var(--ivy-forest); }
+.sh-visit .adm-pill-button { margin-top: 32px; }
+.sh-visit-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid rgb(var(--ivy-forest-rgb) / .22); }
+.sh-visit-list a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; min-height: 58px; border-bottom: 1px solid rgb(var(--ivy-forest-rgb) / .22); }
+.sh-visit-list b { font-size: var(--fs-lg); font-weight: 700; }
+.sh-visit-list span { font-size: var(--fs-sm); color: var(--ivy-forest-soft); font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .sh-visit-list a:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; } }
+.sh-end .anno { margin: 32px 0 0; }
+
+/* ── 斷點：沿用 admission 的 1100／900／760 ─────────────────────── */
+@media (max-width: 1100px) {
+  .brief-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 32px; }
+  .sh-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sh-visit { padding: 48px; gap: 40px; }
+}
+
+@media (max-width: 900px) {
+  .brief-grid { grid-template-columns: 1fr; gap: 20px; }
+  .sh-hero-copy { grid-column: 1 / span 7; }
+  .sh-hero-photo { grid-column: 8 / span 5; }
+  .sh p.sh-anno-hero { max-width: none; }
+  /* 900 以下註記改成滿寬，淡字退回註記下方 */
+  .sh-hero { padding-bottom: 112px; }
+  .sh-ghost-d { bottom: 36px; }
+  /* 比例尺在 900 以下改成年份文字清單 */
+  .sh-ruler { display: none; }
+  .sh-yearlist { position: relative; display: grid; gap: 0; margin: 0; padding: 0 0 0 26px; list-style: none; }
+  .sh-yearlist::before { content: ''; position: absolute; left: 5px; top: 14px; bottom: 14px; border-left: 1px solid var(--green); }
+  .sh-yearlist li { position: relative; padding: 4px 0 18px; }
+  .sh-yearlist li::before { content: ''; position: absolute; left: -26px; top: 10px; width: 11px; height: 11px; border: 1.5px solid var(--green); border-radius: 50%; background: var(--paper); }
+  .sh-yearlist li.is-now { padding-bottom: 0; }
+  .sh-yearlist li.is-now::before { left: -27px; width: 13px; height: 13px; border-color: var(--gold); background: var(--gold); }
+  .yl-year { font: 400 var(--fs-xl)/1.4 var(--font-date); color: var(--ivy-forest); font-variant-numeric: tabular-nums; }
+  .sh-yearlist p + p { margin-top: 2px; font-size: var(--fs-md); line-height: 1.8; color: var(--text); }
+  .sh-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sh-story-grid { grid-template-columns: 1fr; }
+  .sh-story-lg { grid-template-columns: 1fr; }
+  .sh-story-lg img { height: auto; min-height: 0; }
+  .sh-story-lg .sh-story-body { padding: 26px 28px 30px; }
+  .sh-ev-cols { grid-template-columns: 1fr; gap: 40px; }
+  .sh-visit { grid-template-columns: 1fr; gap: 32px; }
+}
+
+@media (max-width: 760px) {
+  .brief { padding: 18px 0 20px; }
+  .brief-kicker { font-size: var(--fs-xs); }
+  .brief-title { font-size: var(--fs-xl); }
+  .brief-lede { font-size: var(--fs-xs); line-height: 1.8; }
+  .legend, .sw-hint { display: none; }
+  .switch a { min-height: 56px; align-content: center; padding: 8px 12px; }
+  .brief-state { font-size: var(--fs-xs); }
+  .sw-name { font-size: var(--fs-sm); }
+  .anno { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 24px; padding: 10px 12px; font-size: var(--fs-xs); line-height: 1.75; }
+
+  /* hero：單欄，h1 只留「常春藤的故事」，照片放在 lede 下面，動作列改由下方五校清單承接 */
+  .sh-hero { padding: 0 0 40px; }
+  .sh-hero-grid { display: block; margin-top: 8px; }
+  .sh-eyebrow { font-size: var(--fs-xs); letter-spacing: .14em; }
+  .sh-ghost-d { display: none; }
+  .sh-ghost-m { display: block; margin: 12px 0 10px; font-size: var(--fs-5xl); line-height: 1.1; }
+  .sh-hero h1 { margin-top: 0; font-size: clamp(2rem, 10vw, 2.5rem); line-height: 1.35; }
+  .sh-h1-years, .sh-h1-end { display: none; }
+  .sh .sh-lede { margin-top: 16px; font-size: var(--fs-md); line-height: 1.9; }
+  .sh-actions { display: none; }
+  .sh-hero-photo { margin-top: 24px; }
+  .sh-hero-photo img { aspect-ratio: 4 / 3; border-radius: 14px; }
+  .sh p.sh-anno-hero { margin: 20px 0 0; }
+
+  .sh-mlist { display: block; padding: 40px 0 48px; background: var(--paper); color: var(--ivy-forest); }
+  .sh-mlist-title { font-size: var(--fs-3xl); line-height: 1.4; color: var(--ivy-forest); }
+  .sh-rows { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  .sh-rows a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 60px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+  .sh-rows b { font-size: var(--fs-lg); font-weight: 700; }
+  .sh-rows span { font-size: var(--fs-sm); color: var(--ivy-forest-soft); font-variant-numeric: tabular-nums; }
+  .sh-book-wide { display: flex; width: 100%; margin-top: 24px; }
+  .sh-mlist .anno { margin: 24px 0 0; }
+
+  .sh-years { padding: 48px 0 56px; background: var(--ivy-forest-mist); }
+
+  .sh-campuses { display: none; }
+
+  .sh-stories { padding: 72px 0 56px; }
+  .sh-head-row { align-items: flex-start; flex-direction: column; }
+  .sh-head-row .adm-text-link { margin-bottom: 0; }
+  .sh-story-body { padding: 20px 20px 24px; }
+  .sh-story h3 { font-size: var(--fs-xl); }
+  .sh-story-lg h3 { font-size: var(--fs-2xl); }
+
+  .sh-gate { padding: 48px 0 64px; }
+  .gate-box { padding: 22px 20px; }
+  .gate-small { padding: 16px 18px; }
+  .gate-title { font-size: var(--fs-lg); }
+
+  .sh-events { padding-bottom: 72px; }
+  .sh-events > .container { padding-top: 56px; }
+  .sh-ev { grid-template-columns: 1fr; padding: 20px; }
+  .sh-ev-cta { grid-column: 1; width: 100%; justify-content: center; }
+
+  .sh-stage { padding: 72px 0 150px; }
+  .sh .sh-quote { margin-top: 28px; padding-left: 18px; }
+  .sh-quote p { font-size: var(--fs-lg); }
+  .anno-dark { margin-top: 32px; }
+
+  .sh-visit { padding: 32px 22px 28px; border-radius: 20px; }
+  .sh-visit .adm-pill-button { margin-top: 24px; }
+}
+
+@media (max-width: 359px) {
+  .switch { grid-template-columns: 1fr; }
+  .switch a { min-height: 64px; }
+  .sh-ghost-m { font-size: var(--fs-4xl); }
+  /* 「孩子的第一所學校，」9 個字在 32px 下超過 288px，逗號會自己掉到第二行 */
+  .sh-stage .adm-title { font-size: var(--fs-3xl); }
+  .sh-rows a { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; }
+  .sh-rows span { grid-column: 1; grid-row: 2; }
+  .sh-rows .icon { grid-column: 2; grid-row: 1 / span 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-more .icon { transition: none; }
+}
+@media (forced-colors: active) {
+  .sh-ghost { display: none; }
+  .switch a[aria-current] { border-width: 3px; }
+}

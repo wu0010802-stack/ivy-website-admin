@@ -658,6 +658,15 @@ Playwright 在桌機 1440×900 與手機 390×844 驗過下一筆、核准差異
 使用者從三個主題比稿（`design/admission-theme-directions-20260928/`：A 上學路線圖、B 入學護照、C 木頭積木）選 B。入學頁整頁改成一本打開的護照：六格簽證欄捲到就蓋章、輸入生日蓋下「115 學年度・中班」大章、勾必備品蓋「已備」、補助做成補助券；防偽細紋只當紙張質感。同日裁定延續：不放預約參觀、分班用成長軌道邏輯、叮嚀不用翻面。新增 `PassportStamp.vue`、`utils/guilloche.ts`、`utils/passport-stamp.ts`、`utils/admission-motion.ts`（GSAP 只在這頁動態載入）、`admission-passport.css`、`tokens.css` 第 14 節兩個色票；明體 `Ivy Passport Serif`（Noto Serif TC 自託管分片，`scripts/subset-admission-fonts.py`、`scripts/admission-font-chars.cjs`，`web/public/assets/fonts/admission/` 共 3.4MB，頁面只下載用到的片）。改前快照 `versions/before-admission-passport-20260928-234037/`；細節見 DESIGN.md。
 
 驗證：Node 22 `npm --prefix web run typecheck` 通過；`npm run test:website` 55 檔 528 項通過（新增 `admission-passport.spec.ts`、`admission-fonts.spec.ts`，`page-hero.spec.ts` 改成入學頁用 `admissionHeroImage()`）。Playwright 在 dev server（接本機後端）1440／390 實測：hero 照片挑 800w（桌機顯示 483px、手機 304px）；六格簽證章捲到後都蓋上；2022/3/15 → 115 學年度中班、大章與「寶貝」小章在中班、寶貝那屆標出；2025/5/1 → 116 學年度幼幼班；勾兩項蓋兩枚「已備」；明體 600／900 都載入；`main` 內文字對比全數達標；無水平溢出、無 console 錯誤、無 hydration 警告。減少動態：六枚簽證章與歡迎章一載入就在紙上。關掉 JS：標題、6 步、5 條退費、3 張補助券、對照表都在。手機「寶貝」小章不壓到班名。`npm --prefix web run build` 通過：入學頁 chunk 10.6KB（gzip），gsap（27KB）是另一支 chunk，只在沒開減少動態時 `import()`。未驗：iOS／Android 實機、螢幕報讀器、Windows 明體、stack e2e。未 commit、未部署。
+
+## 2026-09-28 探索 30 週年在官網的呈現（`claude/school-30th-anniversary-website-5izwer`，只有比稿、未動 web／admin／backend）
+
+使用者問 30 週年可以在官網怎麼呈現。先盤點（既有週年決策、可放的位置、後台能力、真實素材、外部案例），再比五個方向（頁首記號與檔期、週年專頁、真人故事系列、參與、織進現有頁面），由家長、品牌、可行性三個角度評分後整理成第 0～5 層建議與五張 mock。結果、評分、時程、待業主決定的 12 件事與不做清單在 `design/anniversary-website-directions-20260928/README.md`，比較頁是同目錄 `index.html`。
+
+- 建議：先把 2027 年每一處說法改準確（台北日期時間閘＋就地事實），再用有書面同意的真人故事當主場；頁首記號、週年專頁等拍板與真內容到位再做。沒有新增 content kind、migration 或路由的需要（專頁除外）。
+- 盤點順便發現：正式站首屏小標仍是「高雄五校」（後台未發布；2026-09-30 首屏改版後首頁已不顯示小標，這條不再成立）；開場布幕 2026-09-23 起已投出「30th Anniversary」，比內文「近三十年」早一年；首頁消息輪播沒有看得見的暫停鍵（WCAG 2.2.2）；CLAUDE.md 說 `?anni=` 還在原型 app.js，實際已不在。
+- 比稿共用頁框 `shared/`（引用正式 tokens.css 與字型分片）、截圖腳本 `shoot.cjs`（WebP）。驗證：17 個變體桌機＋手機 34 組 ok，320／1024px 無溢出，mock 內無顏色字面值。Safari／iOS 未驗證；未部署。
+
 ## 2026-09-28 常春藤環境頁加 GSAP 動態層：小腳印、曬衣繩起風、太陽慣性、換校發牌（`feature/environment-gsap-20260928`）
 
 接在 `feature/environment-rough-20260928`（手繪版，尚未併入 main）之上。使用者看過 mock-up `design/environment-gsap-mockup-20260928/`（`feature/website-admin` 工作目錄、未追蹤）並要求把小腳印做得更好看，確認後同意上線。規則見 DESIGN.md「常春藤環境頁 GSAP 動態層」。
