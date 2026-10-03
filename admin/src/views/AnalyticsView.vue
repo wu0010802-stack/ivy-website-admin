@@ -11,6 +11,7 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
 type Dimension = 'source' | 'referral'
@@ -64,6 +65,9 @@ const rangeTooLong = computed(() => {
   const [from, to] = customRange.value.map((day) => Date.parse(`${day}T00:00:00Z`))
   return (to! - from!) / 86_400_000 + 1 > MAX_RANGE_DAYS
 })
+
+// 自訂區間還沒選好或太長時，各面板都不送請求（和預約流程同一個條件）。
+const rangeReady = computed(() => period.value !== 'custom' || (customRange.value !== null && !rangeTooLong.value))
 
 // 重新整理或換條件時保留上一次的數字、淡一點並寫「更新中…」（和上方瀏覽統計一致），
 // 只有第一次載入用骨架，整區不會消失再出現。
@@ -245,6 +249,14 @@ const entryRows = computed(() =>
       </label>
       <el-button :loading="loading" :disabled="!campusKey" @click="load">重新整理</el-button>
     </div>
+
+    <BookingOutcomesSection
+      v-if="visibleCampusKeys.length && campusKey && rangeReady"
+      :range="range"
+      :campus-key="campusKey"
+      :period-label="periodLabel"
+      :show-compare="visibleCampusKeys.length > 1"
+    />
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
     <el-alert v-else-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>

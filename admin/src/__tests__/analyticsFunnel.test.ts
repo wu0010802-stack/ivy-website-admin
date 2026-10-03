@@ -54,7 +54,7 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
   const wrapper = mount(AnalyticsView, {
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { SiteTrafficPanel: true },
+      stubs: { SiteTrafficPanel: true, BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -73,6 +73,13 @@ async function pickRange(wrapper: VueWrapper, from: string, to: string) {
 }
 
 describe('成效漏斗：期間、取消與來源維度', () => {
+  it('預約結果面板拿到目前的校區與期間；看得到兩校以上才畫五校比較', async () => {
+    const { wrapper } = await setup()
+    const section = wrapper.findComponent({ name: 'BookingOutcomesSection' })
+    expect(section.exists()).toBe(true)
+    expect(section.props()).toMatchObject({ campusKey: 'yihua', range: null, periodLabel: '開站至今', showCompare: true })
+  })
+
   it('預設看開站至今，列出取消數、取消率與取消原因', async () => {
     const { wrapper, get } = await setup()
     expect(get).toHaveBeenCalledWith('/admin/analytics/funnel?campus_key=yihua')
