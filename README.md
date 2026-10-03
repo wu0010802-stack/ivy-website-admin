@@ -10,9 +10,11 @@
 
 **後端與契約**：`InvalidTransition` 訊息中文化；案件清單、分組計數、匯出加 `open=true`、`assignee=inactive`；`/admin/dashboard` 加 `my_open_cases`、`inactive_assignee_open_cases`；`/auth/me` 加 `session_max_expires_at`。沒有 migration。已跑 `npm run contract:check`。
 
-**驗證**：（驗證閘門跑完後回填）
+**驗證**：Node 22，HEAD 6f41e38：後端 pytest 1299 passed；admin typecheck 0 error、vitest 79 檔 990 passed、build 成功；web typecheck 0 error、單元 75 檔 748 passed；`contract:check` 一致；stack e2e keyboard 10 passed、整套 68 passed（截圖基準沒變）。畫面量測（`output/ux8/`）：首頁消息、隱私權政策、分享圖、總覽在 1440／1280／390 都不橫向溢出；1280 與 1366 寬、隱私權政策填 60 字小標時表單仍是 720px、目錄在右側黏住；390 寬目錄是可橫捲的膠囊列、頁面不溢出；手機選圖按鈕 44px；點目錄會把焦點移到該段標題。
 
-**未驗證**：（驗證閘門跑完後回填）
+**未驗證**：Safari／iOS 實機；LINE 內建瀏覽器的 BroadcastChannel；兩個分頁真的換帳號登入的實機流程（只有單元測試）；總覽「我承辦的案件」與案件明細「最後處理」只有單元測試，沒有截圖。已知限制：沒有未儲存修改的分頁，在別的分頁換成另一個帳號登入後，會直接以那個帳號的身分回到原頁，登入頁的說明不會出現（和 main 原本閒置延長會切換帳號的行為相同）。
+
+- **待使用者確認**：沒有承辦權限的唯讀角色看不到「我承辦的案件」（目前：要有案件讀取權限才顯示）；停用帳號不自動清掉承辦人（目前：只提示件數）；登入滿 12 小時前 15 分鐘提醒。
 
 ## 2026-10-03 404 頁加立體書校徽（`feature/404-crest-popup-20261003`，未部署）
 

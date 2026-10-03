@@ -438,11 +438,11 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 | 項目 | 狀態 | 驗證 |
 |---|---|---|
-| 長編輯頁段落目錄（5 頁） | | `uxRound8Nav.test.ts`；Playwright 1440／1280／390 無橫捲 |
-| 選圖統一（MediaFieldCard／MediaRefField，4 處改用） | | `mediaField.test.ts`、`mediaSlots.test.ts`、`ux20260928E.test.ts` |
+| 長編輯頁段落目錄（5 頁） | 通過 | `uxRound8Nav.test.ts`；Playwright 1440／1280／390 無橫捲 |
+| 選圖統一（MediaFieldCard／MediaRefField，4 處改用） | 通過 | `mediaField.test.ts`、`mediaSlots.test.ts`、`ux20260928E.test.ts` |
 | 存檔錯誤定位到哪一則哪一欄 | 已於 10-02 第七輪完成 | `ContentEditor.vue:415-420,589-599` |
-| 兩人同時處理（最後處理、衝突重讀、切回更新、中文訊息） | | `uxRound8Cases.test.ts`、`test_visit_workflow.py` |
-| 我承辦的未結案、承辦人已停用 | | `uxRound8Cases.test.ts`、`test_dashboard_my_cases.py` |
-| 登入逾時接續、12 小時前提醒 | | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py` |
+| 兩人同時處理（最後處理、衝突重讀、切回更新、中文訊息） | 通過 | `uxRound8Cases.test.ts`、`test_visit_workflow.py` |
+| 我承辦的未結案、承辦人已停用 | 通過 | `uxRound8Cases.test.ts`、`test_dashboard_my_cases.py` |
+| 登入逾時接續、12 小時前提醒 | 通過（單元測試；兩分頁換帳號實機未驗證） | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py` |
 
 未驗證：Safari／iOS 實機；正式站（未部署）。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
