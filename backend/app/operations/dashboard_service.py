@@ -7,11 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.booking import slot_service
+from app.booking import pending_kinds, slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.status_groups import group_condition
 from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -74,23 +73,18 @@ async def get_dashboard_summary(
     ]
     today_visits = len(today_visit_list)
 
-    # 參觀時間已過、還沒標到場或未到的案件（已確認＋時段已開始，和案件列表
-    # 「時間已過」那一組的已確認部分同一個條件）。總覽提醒有人去補標記。
+    # 參觀時間已過、還沒標記到場或未到場的案件（booking/pending_kinds.py，和案件列表
+    # 「時間已過」那一組的已確認部分、成效統計同一個條件）。總覽提醒有人去補標記。
     awaiting_attendance_stmt = _scope(
-        select(func.count()).select_from(VisitRequest).where(
-            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
-            group_condition("past", now),
-        ),
+        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("awaiting_attendance", now)),
         VisitRequest.campus_key,
     )
     awaiting_attendance = (await db.execute(awaiting_attendance_stmt)).scalar_one()
 
-    pending_follow_up_stmt = select(func.count()).select_from(VisitRequest).where(
-        VisitRequest.follow_up_at.is_not(None),
-        VisitRequest.follow_up_at <= now,
-        VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
+    pending_follow_up_stmt = _scope(
+        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("follow_up_due", now)),
+        VisitRequest.campus_key,
     )
-    pending_follow_up_stmt = _scope(pending_follow_up_stmt, VisitRequest.campus_key)
     pending_follow_up = (await db.execute(pending_follow_up_stmt)).scalar_one()
 
     # 參觀案件的兩個待辦：新需求（園方還沒聯絡）與待園方確認（slots 人工確認
