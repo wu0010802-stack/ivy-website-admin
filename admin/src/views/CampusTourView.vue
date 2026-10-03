@@ -12,7 +12,7 @@ import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
-import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+import MediaRefField from '../components/MediaRefField.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import { moveItem } from '../composables/newsContent'
 
@@ -115,16 +115,12 @@ function selectScene(i: number) {
 }
 
 const stageRef = ref<HTMLDivElement | null>(null)
-const pickerVisible = ref(false)
 
-function onPickMedia(asset: MediaAssetOut) {
+// 換了照片，原本的熱點座標可能對不上：伺服器存檔時也會這樣標，這裡先標，畫面上
+// 立刻看得到要複核。值本身由 MediaRefField 的 v-model 換好了。
+function onPickMedia(asset: MediaAssetOut, previousId: string | null) {
   const scene = currentScene.value
-  if (scene) {
-    // 換照片後原本的座標可能對不上。伺服器存檔時也會這樣標，這裡先標，
-    // 畫面上立刻看得到要複核。
-    if (scene.image && scene.image !== asset.id) scene.spots_reviewed = false
-    scene.image = asset.id
-  }
+  if (scene && previousId && previousId !== asset.id) scene.spots_reviewed = false
   thumbs.forget(asset.id)
   imageBroken.value = false
 }
@@ -336,13 +332,16 @@ function nudge(i: number, event: KeyboardEvent) {
                 </div>
               </el-form-item>
               <el-form-item label="照片">
-                <div class="tour__image-row">
-                  <el-button size="small" @click="pickerVisible = true">
-                    {{ currentScene.image ? '更換照片' : '從素材庫選擇' }}
-                  </el-button>
-                  <span v-if="currentScene.image && !isMediaId(currentScene.image)" class="hint">目前用官網內建的照片</span>
-                </div>
-                <span class="field-help">{{ IMAGE_HINTS.tour }}</span>
+                <MediaRefField
+                  v-model="currentScene.image"
+                  :campus-key="campus"
+                  :thumb="false"
+                  :clearable="false"
+                  :disabled="editor.readOnly.value"
+                  @picked="onPickMedia"
+                >
+                  <template #hint><span class="field-help">{{ IMAGE_HINTS.tour }}</span></template>
+                </MediaRefField>
               </el-form-item>
               <el-form-item label="場景說明">
                 <el-input v-model="currentScene.intro" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
@@ -421,7 +420,6 @@ function nudge(i: number, event: KeyboardEvent) {
       </template>
     </div>
 
-    <MediaPickerDialog v-model="pickerVisible" :campus-key="campus" @select="onPickMedia" />
   </ContentEditor>
 </template>
 
@@ -620,13 +618,6 @@ function nudge(i: number, event: KeyboardEvent) {
 
 .tour__review p {
   margin: 4px 0 8px;
-}
-
-.tour__image-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 
 .tour__side-empty {

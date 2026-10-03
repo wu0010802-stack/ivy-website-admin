@@ -2,7 +2,14 @@
 // （稽核 09-28「選照片／影片有四種元件」）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { h, ref } from 'vue'
+import { computed, defineComponent, h, ref } from 'vue'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
+import CampusTourView from '../views/CampusTourView.vue'
+import HomeNewsView from '../views/HomeNewsView.vue'
+import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
+import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 import ElementPlus from 'element-plus'
 import MediaRefField from '../components/MediaRefField.vue'
 import { api } from '../api/client'
@@ -111,5 +118,81 @@ describe('MediaRefField', () => {
   it('唯讀：不顯示按鈕；不要縮圖時只留文字與按鈕', () => {
     expect(mountRef({ modelValue: ID, disabled: true }).wrapper.find('.media-field__actions').exists()).toBe(false)
     expect(mountRef({ modelValue: ID, thumb: false }).wrapper.find('.media-field__thumb').exists()).toBe(false)
+  })
+})
+
+const sources = import.meta.glob(['../views/*.vue', '../components/*.vue'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+function contentItem(kind: string, payload: unknown, campusKey: string | null = null) {
+  return {
+    id: `${kind}-item`, kind, campus_key: campusKey, latest_version: 1, current_published_revision_id: 'rev-1',
+    latest_revision: { id: 'rev-1', version: 1, created_at: '2026-09-24T00:00:00Z', payload, review_status: 'draft' },
+  }
+}
+
+async function mountView(component: unknown, path = '/') {
+  resetTitleFontCoverage()
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: ['yihua'] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+  await router.push(path)
+  await router.isReady()
+  const wrapper = mount(component as ReturnType<typeof defineComponent>, {
+    attachTo: document.body,
+    global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } },
+  } as never)
+  wrappers.push(wrapper)
+  await flushPromises()
+  return wrapper
+}
+
+function mockLibrary(item: ReturnType<typeof contentItem>, library: MediaAssetOut[]) {
+  vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+    if (path.startsWith('/admin/content-items/')) return item as never
+    if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+    if (path.startsWith('/admin/media')) return library as never
+    return [] as never
+  })
+}
+
+describe('四種舊寫法改用 MediaRefField', () => {
+  it('其他頁面與元件不直接開選圖器，一律經 MediaSlotField／MediaRefField', () => {
+    const users = Object.entries(sources)
+      .filter(([, src]) => src.includes("MediaPickerDialog.vue'"))
+      .map(([path]) => path.split('/').pop())
+      .sort()
+    expect(users).toEqual(['MediaRefField.vue', 'MediaSlotField.vue'])
+  })
+
+  it('消息封面：展開後是共用欄位，可以移除照片；換照片帶入新照片的說明', async () => {
+    mockLibrary(contentItem('home_news', {
+      sample_note: '', home_display_count: null, films: null, events: [],
+      articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: ID, alt: '舊說明', scope: 'global', campus_keys: [], featured: false, body: [] }],
+    }), [mediaAsset({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', original_filename: 'new.jpg', alt_text: '新照片的說明' })])
+    const wrapper = await mountView(HomeNewsView)
+    await wrapper.get('.news-item .repeat-item__toggle').trigger('click')
+    const field = wrapper.get('.news-item .media-field')
+    expect(field.findAll('.media-field__actions button').map((b) => b.text())).toEqual(['更換照片', '移除照片'])
+    await field.findAll('.media-field__actions button')[0]!.trigger('click')
+    await flushPromises()
+    Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('new.jpg'))!.click()
+    await flushPromises()
+    const alt = wrapper.findAll('.news-item textarea').map((t) => (t.element as HTMLTextAreaElement).value)
+    expect(alt).toContain('新照片的說明')
+  })
+
+  it('校園探索：換了照片，這個場景的熱點標成要重新確認', async () => {
+    mockLibrary(contentItem('campus_tour', {
+      scenes: [{ key: 'gate', name: '大門', image: ID, intro: '', spots_reviewed: true, spots: [{ name: '警衛室', x: 10, y: 10, text: '', question: '' }] }],
+    }, 'yihua'), [mediaAsset({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', original_filename: 'new.jpg', campus_key: 'yihua' })])
+    const wrapper = await mountView(CampusTourView, '/content/campus-tour?campus=yihua')
+    expect(wrapper.text()).not.toContain('熱點位置都確認過了')
+    const field = wrapper.get('.tour__side .media-field')
+    expect(field.find('.media-field__thumb').exists()).toBe(false)
+    await field.findAll('.media-field__actions button')[0]!.trigger('click')
+    await flushPromises()
+    Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('new.jpg'))!.click()
+    await flushPromises()
+    expect(wrapper.text()).toContain('熱點位置都確認過了')
   })
 })

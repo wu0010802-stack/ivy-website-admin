@@ -411,14 +411,15 @@ describe('縮圖與圖片說明', () => {
       articles: [{ id: 'a1', date: '2026-10-01', category: '', title: '菜園', description: '', image: ID, alt: '', scope: 'global', campus_keys: [], featured: false, body: [] }],
     }) as never)
     const wrapper = await mountView(HomeNewsView)
-    const img = () => wrapper.find('.news-item__thumb img')
+    await wrapper.get('.news-item .repeat-item__toggle').trigger('click')
+    const img = () => wrapper.find('.news-item .media-field__thumb img')
     expect(img().attributes('src')).toBe(`/api/website/v1/admin/media/${ID}/variants/thumbnail`)
     expect(img().attributes('loading')).toBe('lazy')
     await img().trigger('error')
     expect(img().attributes('src')).toBe(`/api/website/v1/admin/media/${ID}/file`)
     await img().trigger('error')
     expect(img().exists()).toBe(false)
-    expect(wrapper.get('.news-item__thumb').text()).toContain('讀不到這張照片，請重新選擇')
+    expect(wrapper.get('.news-item .media-field').text()).toContain('讀不到這張照片，請重新選擇')
   })
 
   it('換成另一張照片時換掉舊照片的說明；原本沒有照片時不蓋掉已打的字', () => {
@@ -519,7 +520,7 @@ describe('縮圖與圖片說明', () => {
     )
     const wrapper = await mountView(SiteMetaView)
     await button(wrapper, '改回首頁大圖').trigger('click')
-    await button(wrapper, '從素材庫選擇').trigger('click')
+    await button(wrapper, '從素材庫選圖片').trigger('click')
     await flushPromises()
     pickInOpenDialog('garden.jpg')
     await flushPromises()

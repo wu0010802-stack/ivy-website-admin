@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useContentItem } from '../composables/useContentItem'
 import { legacyCopyHint } from '../composables/contentHints'
 import type { MediaAssetOut, SiteMetaPayload } from '../api/types'
-import { altAfterPick, BUILTIN_PHOTO, useMediaThumbs } from '../composables/mediaThumbs'
+import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
-import MediaPickerDialog from '../components/MediaPickerDialog.vue'
+import MediaRefField from '../components/MediaRefField.vue'
 import SiteLinksEditor from '../components/SiteLinksEditor.vue'
 import { DEFAULT_PRIMARY_NAV, PRIMARY_NAV_MAX } from '../composables/siteLinks'
 
@@ -39,23 +39,12 @@ const editor = useContentItem<SiteMetaPayload>(
 )
 const nav = computed(() => editor.form.value.primary_nav ?? [])
 
-const pickerVisible = ref(false)
-// 分享圖預覽只有 240px 寬：載縮圖，讀不到退回原檔，都讀不到就請使用者重選。
-const thumbs = useMediaThumbs()
-function onPickShareImage(asset: MediaAssetOut) {
+// 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。說明欄
+// 只在設了分享圖時出現，沒設時留著的字是舊版本改回首頁大圖後留下的，一樣換掉。
+function onPickShareImage(asset: MediaAssetOut, previousId: string | null) {
   const form = editor.form.value
-  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。說明欄
-  // 只在設了分享圖時出現，沒設時留著的字是舊版本改回首頁大圖後留下的，一樣換掉。
-  form.share_image_alt = altAfterPick(form.share_image_alt, form.share_image || BUILTIN_PHOTO, asset)
-  form.share_image = asset.id
-  thumbs.forget(asset.id)
+  form.share_image_alt = altAfterPick(form.share_image_alt, previousId ?? BUILTIN_PHOTO, asset)
 }
-// 改回首頁大圖：分享圖說明描述的是拿掉的那張，一起清掉（官網改用首頁大圖的說明）。
-function clearShareImage() {
-  editor.form.value.share_image = ''
-  editor.form.value.share_image_alt = ''
-}
-const shareImage = computed(() => editor.form.value.share_image)
 
 onMounted(editor.load)
 </script>
@@ -85,15 +74,18 @@ onMounted(editor.load)
 
       <h3 class="meta-section">社群分享圖</h3>
       <el-form-item label="分享到 LINE、Facebook 時的預覽圖">
-        <div class="share">
-          <span v-if="shareImage && thumbs.isBroken(shareImage)" class="share__img share__broken">讀不到這張照片，請重新選擇</span>
-          <img v-else-if="shareImage" :src="thumbs.src(shareImage)" alt="" class="share__img" loading="lazy" @error="thumbs.onError(shareImage)" />
-          <div class="share__actions">
-            <el-button size="small" @click="pickerVisible = true">{{ editor.form.value.share_image ? '更換圖片' : '從素材庫選擇' }}</el-button>
-            <el-button v-if="editor.form.value.share_image" size="small" text @click="clearShareImage">改回首頁大圖</el-button>
-          </div>
-        </div>
-        <span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖。</span>
+        <MediaRefField
+          v-model="editor.form.value.share_image"
+          noun="圖片"
+          builtin="首頁大圖"
+          clear-label="改回首頁大圖"
+          ratio="1200 / 630"
+          :disabled="editor.readOnly.value"
+          @picked="onPickShareImage"
+          @cleared="editor.form.value.share_image_alt = ''"
+        >
+          <template #hint><span class="field-help">建議 1200×630 的橫式 JPG。沒設定時用首頁大圖。</span></template>
+        </MediaRefField>
       </el-form-item>
       <el-form-item v-if="editor.form.value.share_image" label="分享圖說明">
         <el-input v-model="editor.form.value.share_image_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子在戶外遊戲場玩耍" />
@@ -125,7 +117,6 @@ onMounted(editor.load)
         品牌名稱「常春藤教育機構」與 Logo 使用只含這幾個字的專用字型檔，改字會讓頁首退回系統字、版面走樣，所以不開放在後台修改。需要更換時請聯絡網站維護人員重新製作字型與圖檔。
       </p>
     </el-form>
-    <MediaPickerDialog v-model="pickerVisible" @select="onPickShareImage" />
   </ContentEditor>
 </template>
 
@@ -139,8 +130,4 @@ onMounted(editor.load)
 }
 
 .meta-section { margin: 24px 0 8px; font-size: 15px; }
-.share { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.share__img { width: 240px; max-width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
-.share__broken { display: grid; place-items: center; padding: 8px; border-color: var(--el-color-danger); color: var(--el-color-danger); font-size: 13px; text-align: center; }
-.share__actions { display: flex; gap: 8px; }
 </style>

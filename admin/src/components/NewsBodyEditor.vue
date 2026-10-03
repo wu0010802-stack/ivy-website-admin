@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, useId, useTemplateRef } from 'vue'
-import { Delete, Picture } from '@element-plus/icons-vue'
-import type { MediaAssetOut, NewsBodyBlock } from '../api/types'
-import MediaPickerDialog from './MediaPickerDialog.vue'
-import { altAfterPick, useMediaThumbs } from '../composables/mediaThumbs'
+import { useId, useTemplateRef } from 'vue'
+import { Delete } from '@element-plus/icons-vue'
+import type { NewsBodyBlock } from '../api/types'
+import MediaRefField from './MediaRefField.vue'
+import { altAfterPick } from '../composables/mediaThumbs'
 import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, revealListItem, webUrlError } from '../composables/newsContent'
 
 // 消息內文（規格 3.4）：只有段落、小標、清單、圖片與連結五種區塊，存成結構化
@@ -19,34 +19,15 @@ const BLOCK_TYPES = Object.keys(BLOCK_LABELS) as NewsBodyBlock['type'][]
 const root = useTemplateRef<HTMLElement>('root')
 // 連結網址錯誤訊息的 id（同一頁可能有好幾個內文編輯器）。
 const uid = useId()
-// 內文圖片縮圖：載縮圖、讀不到退回原檔，原檔也讀不到就請使用者重選。
-const thumbs = useMediaThumbs()
 
 // 新的區塊加在最後，加完捲過去並聚焦（圖片區塊聚焦「選擇圖片」）。
 function add(type: NewsBodyBlock['type']) {
   props.blocks.push(newBlock(type))
-  void revealListItem(root.value, `[data-list-item="${props.blocks.length - 1}"]`, 'textarea, input:not([type=checkbox]), .news-body__thumb')
+  void revealListItem(root.value, `[data-list-item="${props.blocks.length - 1}"]`, 'textarea, input:not([type=checkbox]), .media-field__actions button')
 }
 
 function remove(index: number) {
   props.blocks.splice(index, 1)
-}
-
-const pickerVisible = ref(false)
-const pickingIndex = ref<number | null>(null)
-
-function pickImage(index: number) {
-  pickingIndex.value = index
-  pickerVisible.value = true
-}
-
-function onPick(asset: MediaAssetOut) {
-  const block = pickingIndex.value === null ? null : props.blocks[pickingIndex.value]
-  if (!block || block.type !== 'image') return
-  // 換成另一張時換成新照片在素材庫的說明（沒填就清空），不留舊照片的說明。
-  block.alt = altAfterPick(block.alt, block.image, asset)
-  block.image = asset.id
-  thumbs.forget(asset.id)
 }
 
 function listText(block: Extract<NewsBodyBlock, { type: 'list' }>): string {
@@ -87,18 +68,17 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
         <el-checkbox v-model="block.ordered">加上編號（1. 2. 3.）</el-checkbox>
       </template>
       <div v-else-if="block.type === 'image'" class="news-body__image">
-        <button
-          type="button"
-          class="news-body__thumb"
-          :class="{ 'is-broken': block.image && thumbs.isBroken(block.image) }"
-          :aria-label="block.image && thumbs.isBroken(block.image) ? '讀不到這張照片，請重新選擇' : block.image ? '更換圖片' : '從素材庫選擇圖片'"
+        <MediaRefField
+          v-model="block.image"
+          :campus-key="campusKey"
+          noun="圖片"
+          layout="stack"
+          ratio="1.55"
+          :clearable="false"
+          required
           :disabled="readOnly"
-          @click="pickImage(index)"
-        >
-          <span v-if="block.image && thumbs.isBroken(block.image)" class="news-body__thumb-broken"><el-icon><Picture /></el-icon>讀不到這張照片，請重新選擇</span>
-          <img v-else-if="block.image" :src="thumbs.src(block.image)" alt="" loading="lazy" @error="thumbs.onError(block.image)" />
-          <span v-else><el-icon><Picture /></el-icon>選擇圖片</span>
-        </button>
+          @picked="(asset, previous) => (block.alt = altAfterPick(block.alt, previous, asset))"
+        />
         <div class="news-body__image-fields">
           <label class="news-body__field">
             <span>圖片說明（給看不到照片的人）</span>
@@ -108,7 +88,6 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
             <span>照片下方文字（選填）</span>
             <el-input v-model="block.caption" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" />
           </label>
-          <span v-if="!block.image" class="field-help is-error">請從素材庫選一張圖片</span>
         </div>
       </div>
       <div v-else-if="block.type === 'link'" class="field-row">
@@ -140,8 +119,6 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
         {{ BLOCK_LABELS[type] }}
       </el-button>
     </div>
-
-    <MediaPickerDialog v-model="pickerVisible" :campus-key="campusKey" @select="onPick" />
   </div>
 </template>
 
@@ -204,38 +181,6 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
   color: var(--ink-2);
 }
 
-.news-body__thumb {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  aspect-ratio: 1.55;
-  padding: 0;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface-2);
-  color: var(--ink-2);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.news-body__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.news-body__thumb.is-broken {
-  border-color: var(--el-color-danger);
-}
-
-.news-body__thumb-broken {
-  padding: 8px;
-  color: var(--el-color-danger);
-  text-align: center;
-  line-height: 1.4;
-}
-
 .news-body__add {
   display: flex;
   flex-wrap: wrap;
@@ -254,10 +199,6 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
 @media (max-width: 720px) {
   .news-body__image {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .news-body__thumb {
-    max-width: 200px;
   }
 }
 </style>
