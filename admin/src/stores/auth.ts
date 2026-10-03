@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, api, setCsrfToken } from '../api/client'
 import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/types'
+import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { clearVisitNoteDrafts } from '../composables/visitNoteDraft'
 
@@ -11,6 +12,9 @@ export const useAuthStore = defineStore('auth', () => {
   // 部署開關；讀不到（尚未登入、舊後端）一律當關閉。
   const features = ref<FeatureFlags>({ admissions: false })
   const isLoading = ref(false)
+  // 這次登入最晚到什麼時候（登入滿 12 小時；/auth/me 的 session_max_expires_at）。
+  // 密碼登入的回應沒有這個值，之後第一次 /auth/me（閒置延長最多 10 分鐘一次）才補上。
+  const sessionMaxExpiresAt = ref<string | null>(null)
   /**
    * 按下登出時先換到登入頁、不先打 API：頁面有未儲存的修改時，離頁攔截會先問
    * 「放棄修改？」。選留在這頁就什麼都不做，仍是登入狀態；答應了，router 的
@@ -30,6 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
       features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
+      announceSignedIn()
     } finally {
       isLoading.value = false
     }
@@ -42,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
     features.value = { admissions: false }
     csrfToken.value = null
     setCsrfToken(null)
+    sessionMaxExpiresAt.value = null
   }
 
   /**
@@ -74,8 +80,11 @@ export const useAuthStore = defineStore('auth', () => {
       features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
+      sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
+      announceSignedIn()
     } catch (error) {
       user.value = null
+      sessionMaxExpiresAt.value = null
       features.value = { admissions: false }
       csrfToken.value = null
       setCsrfToken(null)
@@ -97,11 +106,12 @@ export const useAuthStore = defineStore('auth', () => {
       features.value = result.features ?? { admissions: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
+      sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
       return true
     } catch {
       return false
     }
   }
 
-  return { user, features, csrfToken, isLoading, logoutPending, login, logout, restoreSession, refreshSession, clearSession }
+  return { user, features, csrfToken, isLoading, sessionMaxExpiresAt, logoutPending, login, logout, restoreSession, refreshSession, clearSession }
 })

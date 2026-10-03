@@ -172,7 +172,8 @@ describe('有未儲存的修改時收到 401：留在原頁，重新登入後再
     await flushPromises()
 
     expect(confirm).toHaveBeenCalledTimes(1)
-    expect(String(confirm.mock.calls[0]![0])).toContain('修改還沒儲存')
+    const message = confirm.mock.calls[0]![0]
+    expect(typeof message === 'string' ? message : mount(defineComponent({ render: () => message as never })).text()).toContain('修改還沒儲存')
     expect(router.currentRoute.value.fullPath).toBe('/content/campus-profile?campus=yihua')
     expect(auth.user).not.toBeNull()
     expect(auth.csrfToken).toBe('new-token')
