@@ -44,6 +44,15 @@ async function openReset(wrapper: VueWrapper) {
 }
 
 describe('寄重設密碼連結（2026-10-03）', () => {
+  it('目標帳號已停用：寄連結選項停用、預設直接設定，並說明原因', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue([{ ...other, is_active: false }] as never)
+    const wrapper = await setup(true)
+    await openReset(wrapper)
+    expect(radio(wrapper, '寄重設連結').classes()).toContain('is-disabled')
+    expect(radio(wrapper, '直接設定新密碼').classes()).toContain('is-checked')
+    expect(wrapper.get('[data-test="reset-link-disabled"]').text()).toContain('帳號已停用')
+  })
+
   it('有寄信時預設寄連結；寄出後顯示寄到哪裡、幾點前有效，按完成才關', async () => {
     vi.spyOn(api, 'get').mockResolvedValue([other] as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue(SENT as never)

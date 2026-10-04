@@ -42,7 +42,9 @@ const resetting = ref(false)
 type ResetMode = 'link' | 'direct'
 const resetMode = ref<ResetMode>('direct')
 const linkResult = ref<PasswordResetLinkOut | null>(null)
-const linkEnabled = computed(() => authStore.features.password_reset_email === true)
+const mailConfigured = computed(() => authStore.features.password_reset_email === true)
+// 停用的帳號寄了也只會收到 409；改成直接設定新密碼，或先恢復帳號。
+const linkEnabled = computed(() => mailConfigured.value && resetTarget.value?.is_active === true)
 const togglingId = ref<string | null>(null)
 const clearingId = ref<string | null>(null)
 
@@ -712,7 +714,7 @@ onMounted(loadUsers)
           </el-radio-group>
           <p v-if="resetMode === 'link'" class="hint">對方會收到一封信，點信裡的連結自己設定新密碼。連結 30 分鐘內有效、只能用一次；設好之後，對方所有已登入的裝置都會登出。對方設好之前，原本的密碼照常可用。</p>
           <template v-else>
-            <p v-if="!linkEnabled" class="hint" data-test="reset-link-disabled">尚未設定寄信，不能寄重設連結，只能直接設定新密碼。</p>
+            <p v-if="!linkEnabled" class="hint" data-test="reset-link-disabled">{{ mailConfigured ? '這個帳號已停用，不能寄重設連結；要寄請先恢復帳號，或直接設定新密碼。' : '尚未設定寄信，不能寄重設連結，只能直接設定新密碼。' }}</p>
             <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信；重設後會顯示新密碼與複製鈕，請用電話或當面告訴對方。</p>
             <div class="password-row">
               <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="12 字以上" aria-label="新密碼" :disabled="resetting" />
