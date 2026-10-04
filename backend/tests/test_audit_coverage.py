@@ -33,6 +33,9 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/my-notifications/{notification_id}/read"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/my-notifications/read-all"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/retention/dry-run"): "只試算筆數，不改任何資料",
+    ("POST", "/api/website/v1/auth/password-reset/verify"): (
+        "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
+    ),
     ("POST", "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting"): (
         "2026-09-30 自選場次上線後退場，固定回 410，不改任何資料"
     ),

@@ -127,7 +127,7 @@ async def _clean_tables(app):
     async with app.state.engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE sessions, user_campus_scopes, users, "
+                "TRUNCATE TABLE password_reset_tokens, sessions, user_campus_scopes, users, "
                 "media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
