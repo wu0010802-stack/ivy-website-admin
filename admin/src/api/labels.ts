@@ -454,6 +454,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.upload': '上傳素材',
   'media.update': '修改素材說明',
   'media.replace': '上傳新檔替換素材',
+  'media.retry': '重新處理影片',
   'media.delete': '刪除素材（移到待清理）',
   'media.restore': '復原刪除的素材',
   'media.archive': '封存素材',

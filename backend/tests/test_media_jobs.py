@@ -616,3 +616,39 @@ async def test_replace_references_accepts_processing_video(bg_admin, db_session)
     )
     assert failed_target.status_code == 422
     assert failed_target.json()["detail"]["message"] == "替換用的素材處理失敗或已刪除"
+
+
+@pytest.mark.asyncio
+async def test_retry_endpoint(bg_app, bg_admin, db_session):
+    asset, job = await _stored_video(bg_app, db_session)
+    url = f"/api/website/v1/admin/media/{asset.id}/retry"
+    not_failed = await bg_admin.post(url)
+    assert not_failed.status_code == 409 and not_failed.json()["detail"]["code"] == "MEDIA_NOT_RETRYABLE"
+
+    await db_session.execute(update(MediaJob).where(MediaJob.id == job.id).values(status="failed"))
+    await db_session.execute(update(MediaAsset).where(MediaAsset.id == asset.id).values(status=MediaStatus.FAILED, processing_error="壞掉"))
+    await db_session.commit()
+    ok = await bg_admin.post(url)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["status"] == "processing" and ok.json()["processing_error"] is None
+
+    from app.operations.models import AuditLogEntry
+
+    actions = (await db_session.execute(select(AuditLogEntry.action))).scalars().all()
+    assert "media.retry" in actions
+
+    await db_session.execute(update(MediaAsset).where(MediaAsset.id == asset.id).values(status=MediaStatus.FAILED))
+    await db_session.commit()
+    busy = await bg_admin.post(url)
+    assert busy.status_code == 409 and busy.json()["detail"]["code"] == "MEDIA_ALREADY_PROCESSING"
+
+
+@pytest.mark.asyncio
+async def test_retry_is_only_for_videos(admin_client):
+    image = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("test.jpg", Path("/tmp/media-fixtures/test.jpg").read_bytes(), "image/jpeg")},
+    )
+    response = await admin_client.post(f"/api/website/v1/admin/media/{image.json()['id']}/retry")
+    assert response.status_code == 409

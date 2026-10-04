@@ -13,6 +13,8 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   SLOT_NOT_FOUND: '找不到這個場次',
   SLOT_NOT_BOOKABLE: '這個場次目前無法預約',
   MEDIA_NOT_READY: '引用的素材還沒處理完成或已被刪除',
+  MEDIA_NOT_RETRYABLE: '只有處理失敗的影片可以重新處理',
+  MEDIA_ALREADY_PROCESSING: '這支影片已經在處理了',
   CAMPUS_INACTIVE: '分校已停用，內容不會發布',
   CONTENT_NOT_READY: '內容還不能發布',
   CONTENT_SCHEMA_OUTDATED: '這一版的欄位格式已經過時，請到編輯頁手動修改後再發布',
