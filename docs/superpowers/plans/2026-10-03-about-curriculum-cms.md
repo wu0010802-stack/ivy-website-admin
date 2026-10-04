@@ -135,12 +135,13 @@
 
 | 欄位 | 現在 | 建議 | 硬上限 | 可留空 |
 |---|---|---|---|---|
-| `hero_title` 首屏大標 | 7／7 | `aboutPageTitle` 16 | 每行 12、3 行 | 否 |
+| `hero_title` 首屏大標 | 7／7 | `aboutPageTitle` 16 | 每行 7、3 行 | 否 |
 | `hero_lede` | 59 | `aboutPageLede` 70 | 120 | 否 |
 | `hero_caption` 卡紙上的一句話 | 11 | `aboutPageCaption` 12 | 20 | 否 |
 | `chapter_names[]` 章名 | 5 | `aboutChapter` 5 | 6 | 否 |
-| `story_title`／`whole_title` | 8 | `aboutPageTitle` 16 | 每行 12、3 行 | 否 |
-| `hope_title` | 9／7 | `aboutPageTitle` 16 | 每行 14、3 行 | 否 |
+| `story_title` | 5／7 | `aboutPageTitle` 16 | 每行 7、3 行（紀念章在右上，1440 寬 7 字剛好不碰） | 否 |
+| `whole_title` | 6／8 | `aboutPageTitle` 16 | 每行 9、3 行 | 否 |
+| `hope_title` | 9／7 | `aboutPageTitle` 16 | 每行 9、3 行 | 否 |
 | `story_text` | 64 | `aboutPageText` 70 | 120 | 否 |
 | `milestones[].year` | — | — | 1950–2100、由早到晚 | 否 |
 | `milestones[].text` | 17 | `aboutMilestone` 18 | 30 | 否 |
@@ -3095,10 +3096,10 @@ class AboutMilestonePayload(_ContentPayload):
 
 # 欄位: (每行字數, 欄位名稱)
 _ABOUT_TITLES = {
-    "hero_title": (12, "首屏大標"),
-    "story_title": (12, "一路走來的標題"),
-    "whole_title": (12, "全人教育的標題"),
-    "hope_title": (14, "我們的期許的標題"),
+    "hero_title": (7, "首屏大標"),
+    "story_title": (7, "一路走來的標題"),
+    "whole_title": (9, "全人教育的標題"),
+    "hope_title": (9, "我們的期許的標題"),
 }
 # 欄位: (上限, 欄位名稱, 可留空)
 _ABOUT_TEXTS = {
@@ -4168,14 +4169,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ```js
   '/about': [
-    { sel: '.abk-hero-text h1', lines: 3, perLine: 12 },
+    { sel: '.abk-hero-text h1', lines: 3, perLine: 7 },
     { sel: '.abk-lede', chars: 120 },
     { sel: '.abk-pop.is-hero figcaption', chars: 20, box: '.abk-pop.is-hero' },
     { sel: '.abk-toc li span', chars: 6, box: '.abk-toc li' },
     { sel: '.abk-chap > span', chars: 6 },
     { sel: '.abk-cover b', chars: 6, box: '.abk-cover' },
-    { sel: '#story-title, #whole-title', lines: 3, perLine: 12, box: '.abk-page' },
-    { sel: '#hope-title', lines: 3, perLine: 14, box: '.abk-page' },
+    { sel: '#story-title', lines: 3, perLine: 7, box: '.abk-page' },
+    { sel: '#whole-title', lines: 3, perLine: 9, box: '.abk-page' },
+    { sel: '#hope-title', lines: 3, perLine: 9, box: '.abk-page' },
     { sel: '#story .abk-text', chars: 120, box: '.abk-page' },
     { sel: '.abk-list li div > p', chars: 30, box: '.abk-list li' },
     { sel: '#whole-child .abk-text', chars: 100, box: '.abk-page' },

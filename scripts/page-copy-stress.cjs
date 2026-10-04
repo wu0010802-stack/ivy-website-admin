@@ -55,6 +55,25 @@ const RULES = {
     { sel: '.cur-belief-list li', chars: 24, textNode: true },
     { sel: '.cur-belief-close', chars: 50, textNode: true },
     { sel: '.cur-belief-close .cur-source', chars: 30 }
+  ],
+  '/about': [
+    { sel: '.abk-hero-text h1', lines: 3, perLine: 7 },
+    { sel: '.abk-lede', chars: 120 },
+    { sel: '.abk-pop.is-hero figcaption', chars: 20, box: '.abk-pop.is-hero' },
+    { sel: '.abk-toc li span', chars: 6, box: '.abk-toc li' },
+    { sel: '.abk-chap > span', chars: 6 },
+    { sel: '.abk-cover b', chars: 6, box: '.abk-cover' },
+    { sel: '#story-title', lines: 3, perLine: 7, box: '.abk-page' },
+    { sel: '#whole-title', lines: 3, perLine: 9, box: '.abk-page' },
+    { sel: '#hope-title', lines: 3, perLine: 9, box: '.abk-page' },
+    { sel: '#story .abk-text', chars: 120, box: '.abk-page' },
+    { sel: '.abk-list li div > p', chars: 30, box: '.abk-list li' },
+    { sel: '#whole-child .abk-text', chars: 100, box: '.abk-page' },
+    { sel: '.abk-fine', chars: 100, textNode: true, box: '.abk-page' },
+    { sel: '.abk-fine small', chars: 30, box: '.abk-page' },
+    { sel: '.abk-quote p', chars: 70, box: '.abk-page' },
+    { sel: '#about-campuses-title', chars: 6 },
+    { sel: '.abk-outro-copy p', chars: 80 }
   ]
 }
 
@@ -71,7 +90,7 @@ const RULES = {
   let failed = 0
   try {
     for (const [device, viewport] of VIEWPORTS) {
-      const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' })
+      const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: process.env.STRESS_MOTION ? 'no-preference' : 'reduce' })
       const page = await context.newPage()
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
       const problems = await page.evaluate(async ({ rules, sample }) => {
@@ -143,7 +162,16 @@ const RULES = {
         }
         return [...new Set(out)]
       }, { rules, sample: SAMPLE })
-      await page.screenshot({ path: path.join(outDir, `${route.slice(1)}-${device}.png`), fullPage: true })
+      if (process.env.STRESS_MOTION) {
+        // 一般動態：逐段捲過整頁，讓釘住的立體書翻頁、紀念章啟動，再依捲動位置截圖
+        const h = await page.evaluate(() => document.documentElement.scrollHeight)
+        const step = Math.round(viewport.height * 0.8)
+        for (let y = 0, n = 0; y < h; y += step, n++) {
+          await page.evaluate((top) => window.scrollTo(0, top), y)
+          await page.waitForTimeout(900)
+          await page.screenshot({ path: path.join(outDir, `${route.slice(1)}-motion-${device}-${String(n).padStart(2, '0')}.png`) })
+        }
+      } else await page.screenshot({ path: path.join(outDir, `${route.slice(1)}-${device}.png`), fullPage: true })
       console.log(`${route} ${device}: ${problems.length ? problems.join('；') : '通過'}`)
       failed += problems.length
       await context.close()
