@@ -1,6 +1,6 @@
 // 整頁內容的字數硬上限實測：把每個欄位換成「上限字數」的文字（標題換成上限行數 × 每行上限），
-// 檢查 390／820／1024／1440 寬（手機、760–900、900–1100、桌機四段版面）沒有橫向捲動、文字沒有超出
-// 所在卡片或被裁掉。改了 page_schemas.py 的上限就重跑。
+// 檢查 390／820／901／1024／1440 寬（手機、760–900、900–1100、桌機四段版面，901 是立體書桌機版最窄的寬度）
+// 沒有橫向捲動、文字沒有超出所在卡片或被裁掉。改了 page_schemas.py 的上限就重跑。
 // 用法（fixture 模式 dev server，計畫 Task 1 Step 2）：node scripts/page-copy-stress.cjs /curriculum
 // 截圖存在 output/page-cms/stress/，失敗時結束碼 1。
 const fs = require('node:fs')
@@ -8,17 +8,23 @@ const path = require('node:path')
 const { chromium } = require('playwright')
 
 const BASE = process.env.PAGE_CMS_BASE ?? 'http://127.0.0.1:3141'
-// curriculum.css 的斷點是 1100／900／760：四個寬度各落在一段
+// curriculum.css 的斷點是 1100／900／760：390／820／1024／1440 各落在一段；about.css 的桌機版
+// （立體書左右頁、章名旁的紀念章）從 901 開始，901 是左頁最窄、標題最容易碰到紀念章的寬度
 const VIEWPORTS = [
   ['390', { width: 390, height: 844 }],
   ['820', { width: 820, height: 1180 }],
+  ['901', { width: 901, height: 900 }],
   ['1024', { width: 1024, height: 768 }],
   ['1440', { width: 1440, height: 900 }]
 ]
 const SAMPLE = [...'常春藤的孩子，在這裡快樂學習、慢慢長大。']
 const fill = (n) => Array.from({ length: n }, (_, i) => SAMPLE[i % SAMPLE.length]).join('')
 
-// sel：要換字的元素（全部符合的都換）；chars：一般欄位上限；lines＋perLine：標題；
+// sel：要換字的元素（全部符合的都換）；chars：一般欄位上限；lines＋perLine：標題（perLine 是陣列＝逐行上限）；
+// avoid：標題每一行的字都不能碰到這個圓形元素（中心＋半徑，量 offsetWidth，不受轉動影響）。每一行的左右用 Range
+// 量；上下換成字的墨跡：Range 的矩形是字型的 content area（ascent＋descent），LINE Seed TW 在 901 寬 63px 高、
+// 墨跡只有約 36px，照原框量，內建標題第二行在 901 寬也算重疊 9px，截圖上字離金幣還有空隙。
+// 墨跡用 canvas measureText：fontBoundingBoxAscent 從矩形上緣換算基線，actualBoundingBox 是整個標題的字最高最低處；
 // textNode：只換元素自己的第一個文字節點（元素裡還有 <b>／<small> 等子元素時用）；box：不能超出的外框；
 // paint：印在顏料上的字，每一行的四個角都要落在 box 裡這團顏料的實心範圍內：utils/watercolor.ts blotCanvas
 // 的基底橢圓（半徑為顏料框的 0.34 × 0.31），頂點本身有 ±17.5% 的起伏，所以容許到 (x/rx)²+(y/ry)² ≤ 1.1
@@ -63,7 +69,8 @@ const RULES = {
     { sel: '.abk-toc li span', chars: 6, box: '.abk-toc li' },
     { sel: '.abk-chap > span', chars: 6 },
     { sel: '.abk-cover b', chars: 6, box: '.abk-cover' },
-    { sel: '#story-title', lines: 3, perLine: 7, box: '.abk-page' },
+    // 右上角是紀念章：逐行上限第一行 6、第二三行 7（page_schemas.py 的 STORY_TITLE_PER_LINE）
+    { sel: '#story-title', lines: 3, perLine: [6, 7, 7], box: '.abk-page', avoid: '.abk-medal.is-title' },
     { sel: '#whole-title', lines: 3, perLine: 12, box: '.abk-page' },
     { sel: '#hope-title', lines: 3, perLine: 14, box: '.abk-page' },
     { sel: '#story .abk-text', chars: 120, box: '.abk-page' },
@@ -93,7 +100,7 @@ const RULES = {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: process.env.STRESS_MOTION ? 'no-preference' : 'reduce' })
       const page = await context.newPage()
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
-      const problems = await page.evaluate(async ({ rules, sample }) => {
+      const { problems, notes } = await page.evaluate(async ({ rules, sample }) => {
         const fillIn = (n) => Array.from({ length: n }, (_, i) => sample[i % sample.length]).join('')
         const touched = []
         for (const rule of rules) {
@@ -103,8 +110,9 @@ const RULES = {
             if (rule.lines) {
               // mark：第一行含一個上限字數的顏料標示（元件的 .cur-swash＋.cur-blot），其餘字數補滿該行
               el.innerHTML = Array.from({ length: rule.lines }, (_, i) => {
-                if (!rule.mark || i) return fillIn(rule.perLine)
-                const before = fillIn(rule.perLine - rule.mark)
+                const perLine = Array.isArray(rule.perLine) ? rule.perLine[Math.min(i, rule.perLine.length - 1)] : rule.perLine
+                if (!rule.mark || i) return fillIn(perLine)
+                const before = fillIn(perLine - rule.mark)
                 return `${before}<span class="cur-swash"><span class="cur-blot cur-swash-paint" data-blot="orange" aria-hidden="true"></span>${fillIn(rule.mark)}</span>`
               }).join('<br>')
             }
@@ -116,7 +124,9 @@ const RULES = {
           }
         }
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        await document.fonts.ready
         const out = []
+        const notes = []
         if (document.documentElement.scrollWidth > window.innerWidth) out.push(`整頁橫向捲動：${document.documentElement.scrollWidth} > ${window.innerWidth}`)
         for (const { rule, el, missing } of touched) {
           if (missing) { out.push(`找不到 ${rule.sel}`); continue }
@@ -146,6 +156,35 @@ const RULES = {
               .map(([x, y]) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2)))
             if (worst > 1.1) out.push(`${rule.sel} 超出顏料（${lines.length} 行，最遠的角在橢圓 ${worst.toFixed(2)} 倍處）`)
           }
+          const avoid = rule.avoid ? document.querySelector(rule.avoid) : null
+          if (rule.avoid && !avoid) out.push(`找不到 ${rule.avoid}`)
+          // display:none（手機版紀念章改在右頁接縫）時 offsetWidth 是 0，不量
+          if (avoid && avoid.offsetWidth > 0) {
+            const m = avoid.getBoundingClientRect()
+            const cx = m.left + m.width / 2, cy = m.top + m.height / 2, r = avoid.offsetWidth / 2
+            const canvas = document.createElement('canvas').getContext('2d')
+            canvas.font = getComputedStyle(el).font
+            const ink = canvas.measureText(el.textContent)
+            const range = document.createRange()
+            range.selectNodeContents(el)
+            // 同一行可能拆成好幾個矩形：依 top 合併成一行一個
+            const lines = new Map()
+            for (const x of [...range.getClientRects()].filter((x) => x.width > 1)) {
+              const key = Math.round(x.top)
+              const line = lines.get(key)
+              lines.set(key, line
+                ? { left: Math.min(line.left, x.left), right: Math.max(line.right, x.right), top: Math.min(line.top, x.top), bottom: Math.max(line.bottom, x.bottom) }
+                : { left: x.left, right: x.right, top: x.top, bottom: x.bottom })
+            }
+            const gaps = [...lines.values()].map((line) => {
+              const baseline = line.top + ink.fontBoundingBoxAscent
+              const top = baseline - ink.actualBoundingBoxAscent, bottom = baseline + ink.actualBoundingBoxDescent
+              const dx = Math.max(line.left - cx, 0, cx - line.right), dy = Math.max(top - cy, 0, cy - bottom)
+              return Math.round(Math.hypot(dx, dy) - r)
+            })
+            if (gaps.some((gap) => gap < 0)) out.push(`${rule.sel} 壓到 ${rule.avoid}（每行和它的距離 ${gaps.join('／')}px，負數＝重疊）`)
+            else notes.push(`${rule.sel} 每行和 ${rule.avoid} 的距離 ${gaps.join('／')}px`)
+          }
           for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
             const style = getComputedStyle(a)
             // 橫向捲動容器（手機的卡片橫滑帶）：卡片排在它的捲動範圍內，只檢查垂直方向，且不再往外層比對
@@ -160,7 +199,7 @@ const RULES = {
             }
           }
         }
-        return [...new Set(out)]
+        return { problems: [...new Set(out)], notes: [...new Set(notes)] }
       }, { rules, sample: SAMPLE })
       if (process.env.STRESS_MOTION) {
         // 一般動態：逐段捲過整頁，讓釘住的立體書翻頁、紀念章啟動，再依捲動位置截圖
@@ -172,7 +211,7 @@ const RULES = {
           await page.screenshot({ path: path.join(outDir, `${route.slice(1)}-motion-${device}-${String(n).padStart(2, '0')}.png`) })
         }
       } else await page.screenshot({ path: path.join(outDir, `${route.slice(1)}-${device}.png`), fullPage: true })
-      console.log(`${route} ${device}: ${problems.length ? problems.join('；') : '通過'}`)
+      console.log(`${route} ${device}: ${problems.length ? problems.join('；') : '通過'}${notes.length ? `（${notes.join('；')}）` : ''}`)
       failed += problems.length
       await context.close()
     }

@@ -139,9 +139,9 @@
 | `hero_lede` | 59 | `aboutPageLede` 70 | 120 | 否 |
 | `hero_caption` 卡紙上的一句話 | 11 | `aboutPageCaption` 12 | 20 | 否 |
 | `chapter_names[]` 章名 | 5 | `aboutChapter` 5 | 6 | 否 |
-| `story_title` | 5／7 | `aboutPageTitle` 16 | 每行 7、3 行（紀念章在右上，1440 寬 7 字剛好不碰） | 否 |
-| `whole_title` | 6／8 | `aboutPageTitle` 16 | 每行 12、3 行 | 否 |
-| `hope_title` | 9／7 | `aboutPageTitle` 16 | 每行 14、3 行 | 否 |
+| `story_title` | 5／7 | `aboutStoryTitle` 逐行 6／7／7 | 逐行：第一行 6、第二三行 7，3 行（`STORY_TITLE_PER_LINE`；紀念章在右上，見下方說明） | 否 |
+| `whole_title` | 5／8 | `aboutPageTitle` 16 | 每行 12、3 行 | 否 |
+| `hope_title` | 9／7 | `aboutHopeTitle` 18（含換行 17） | 每行 14、3 行 | 否 |
 | `story_text` | 64 | `aboutPageText` 70 | 120 | 否 |
 | `milestones[].year` | — | — | 1950–2100、由早到晚 | 否 |
 | `milestones[].text` | 17 | `aboutMilestone` 18 | 30 | 否 |
@@ -151,6 +151,8 @@
 | `hope_quotes[]` | 34 | `aboutQuote` 40 | 70 | 否 |
 | `outro_title`（也是目次最後一格） | 4 | `aboutOutroTitle` 6 | 6 | 否 |
 | `outro_text` | 37 | `aboutOutroText` 45 | 80 | 否 |
+
+一路走來的標題右上角是紀念章（`AboutMedal .is-title`），2026-10-04 最終審查 I3 改成逐行上限：`scripts/page-copy-stress.cjs` 量每一行字（左右用 Range、上下用字的墨跡）和圓形紀念章的距離，第一行 7 字在 901 寬重疊 24px、1024 寬 3px，6 字在 901 寬離 15px；第二行 7 字在 901 寬離 2px。立體書桌機版從 901 開始，所以關於頁的實測寬度是 390／820／901／1024／1440。後台的 `aboutStoryTitle` 也逐行算（`contentHints.ts` 的 `max` 是陣列），和硬上限一樣。
 
 固定項目：`chapter_names` 4（一路走來、全人教育、我們的期許、家長怎麼說；第四章沒有家長分享時整章不出現）、`milestones` 5（`yihua, minghua, chongde, international, renwu`）、`hope_quotes` 2。照片版位：`hero_photo`（about-hero）、`hero_back_photo`（about-curious）、`hope_photo`（about-together）。
 
