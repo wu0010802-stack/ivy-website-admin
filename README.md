@@ -1,3 +1,13 @@
+## 2026-10-04 預約頁背景大字不再被選校區蓋掉（`fix/visit-ghost-fit-20261004`）
+
+使用者回報 `/visit` 背景大字「參觀」被切掉。原因是 10-02 收短迎賓區後，大字仍是固定字級（`clamp(142px,14vw,208px)`、手機 30vw），而且掛在整個 `.visit-page` 上，第二行落到下方 `.visit-content`，被它的底色蓋掉。10-03 `feature/website-admin` 上的 `cb9bc89` 是在收短前的版面把色帶撐高，跟 10-02 的裁定衝突，所以沒有併進 main。規則見 DESIGN.md「預約頁 UI／UX 優化（2026-10-02）」的迎賓區收短。
+
+- **修法**：`VisitForm.vue` 把 `.visit-ghost` 移進 `<header class="visit-welcome">`。`visit-booking.css` 的 `.visit-ghost` 改成 `inset:0`＋`container-type:size`，`span` 字級取 `min(var(--visit-ghost-size),100cqh / 2.08)`，em 字距改寫在 `span`；手機改設 `--visit-ghost-size:30vw`。不支援 cqh 的瀏覽器退回原字級。
+- **驗證**（Node 22）：
+  - 新增 `web/tests/visit-ghost-20261004.spec.ts`（2 項，修改前紅燈）；`test:website` 77 檔 771 項全過；web typecheck 通過，沒有 WARN。
+  - dev server（fixture）＋Playwright 量「參觀」的行框底與內容區上緣，涵蓋 1920×1080、1440×900、1280×720、1000×800、1024×768、961×700、960×900、768×1024、720×450、390×844、375×667、320×568。修改前有 9 組被蓋 15–241px，修改後 12 組都是 0，也沒有水平溢出。字級變化：1440 從 202 變 195px、1280×720 從 179 變 130px、1000 從 142 變 120px、390 從 117 變 101px；960 以下單欄維持原尺寸。
+  - 未驗證：Safari／Firefox 實機、stack e2e。
+
 ## 2026-10-04 30 週年改成正式分頁：進主選單、頁尾、sitemap（`feature/anniversary-nav-20261004`，10-04 已部署 main `f935801`）
 
 使用者看完不公開上線的 `/anniversary` 後說「幫我做成一個分頁沒關係」。規則見 DESIGN.md「30 週年分頁」。
