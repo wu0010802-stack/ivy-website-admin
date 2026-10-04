@@ -21,6 +21,11 @@ describe('整頁內容的小工具', () => {
   it('標題用 \\n 換行', () => {
     expect(pageTitleLines('從動手做開始，\n愛上學習。')).toEqual(['從動手做開始，', '愛上學習。'])
   })
+  it('空行不輸出（官網不出現空的 <br>）', () => {
+    expect(pageTitleLines('a\n')).toEqual(['a'])
+    expect(pageTitleLines('a\n\nb')).toEqual(['a', 'b'])
+    expect(pageMarkedLines('a\n \nb', 'b')).toEqual([{ before: 'a', mark: '', after: '' }, { before: '', mark: 'b', after: '' }])
+  })
   it('顏料標示只畫第一次出現的地方；找不到或留空就整行不畫', () => {
     expect(pageMarkedLines('從動手做開始，\n愛上學習。', '動手做')).toEqual([
       { before: '從', mark: '動手做', after: '開始，' },
@@ -83,5 +88,25 @@ describe('特色教學頁的後台內容', () => {
     const live = livePayload<LiveCurriculumPage>(site.curriculumPage)
     live.hero_photo = { media_id: MEDIA }
     expect(curriculumHeroAttrs(applyContentOverlay(site, { curriculum_page: live }, media).curriculumPage).src).toBe(`/api/website/v1/public/media/${MEDIA}/file`)
+  })
+  it('格式壞掉的已發布內容（缺欄位、型別錯、清單裡有 null）整份退回內建內容且不丟錯', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const mutations: ((live: any) => void)[] = [
+      (live) => { delete live.hero_title },
+      (live) => { live.hero_title = 123 },
+      (live) => { live.beliefs = 'abcde' },
+      (live) => { live.gallery = null },
+      (live) => { live.gallery[1] = null },
+      (live) => { delete live.gallery[0].label },
+      (live) => { delete live.directions[2].key }
+    ]
+    for (const mutate of mutations) {
+      const live = livePayload<LiveCurriculumPage>(site.curriculumPage)
+      mutate(live)
+      expect(() => applyContentOverlay(site, { curriculum_page: live })).not.toThrow()
+      expect(applyContentOverlay(site, { curriculum_page: live }).curriculumPage).toEqual(site.curriculumPage)
+    }
+    expect(error).toHaveBeenCalledTimes(mutations.length * 2)
+    error.mockRestore()
   })
 })

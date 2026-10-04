@@ -1,6 +1,6 @@
 import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
-import { assertCounts, PAGE_COUNTS } from './page-content'
+import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
 import { siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
@@ -449,6 +449,13 @@ function pagePhoto(slot: LiveMediaSlot | null | undefined, alt: string | undefin
 
 function curriculumPage(c: LiveCurriculumPage, media: MediaInfoMap): CurriculumPageContent {
   assertCounts({ chapters: c.chapters, years: c.years, directions: c.directions, gallery: c.gallery, daily: c.daily, beliefs: c.beliefs }, PAGE_COUNTS.curriculum)
+  assertStrings(c, ['hero_eyebrow', 'hero_title', 'hero_lede', 'hero_notice', 'years_title', 'years_text', 'spiral_label', 'spiral_text', 'years_caption', 'directions_title', 'directions_text', 'gallery_title', 'gallery_text', 'gallery_source', 'daily_title', 'daily_text', 'daily_source', 'belief_title', 'belief_close', 'belief_source'], 'curriculum_page')
+  assertItems(c.chapters, ['label', 'hint'], 'chapters')
+  assertItems(c.years, ['motto', 'text'], 'years')
+  assertItems(c.directions, ['key', 'title', 'sub', 'text'], 'directions')
+  assertItems(c.gallery, ['label'], 'gallery')
+  assertItems(c.daily, ['title', 'text'], 'daily')
+  c.beliefs.forEach((b, i) => { if (typeof b !== 'string') throw new Error(`beliefs[${i}] 應為字串`) })
   const hero = pagePhoto(c.hero_photo, c.hero_photo_alt, media)
   const yearsPhoto = pagePhoto(c.years_photo, c.years_photo_alt, media)
   return {
