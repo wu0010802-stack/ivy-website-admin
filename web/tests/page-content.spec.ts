@@ -42,13 +42,16 @@ describe('整頁內容的小工具', () => {
     expect(pagePhotoStyle('40% 50%', undefined)).toEqual({ objectPosition: '40% 50%' })
     expect(pagePhotoStyle(undefined, undefined)).toBeUndefined()
     expect(pagePhotoStyle('40% 50%', photo)).toEqual({ objectPosition: '30% 40%' })
-    expect(pagePhotoStyle('40% 50%', { ...photo, position: null })).toBeUndefined()
+    // 後台照片沒設焦點（版位與素材都沒有）：置中，和後台預覽一樣，不沿用內建圖的位置
+    expect(pagePhotoStyle('40% 50%', { ...photo, position: null })).toEqual({ objectPosition: '50% 50%' })
+    expect(pagePhotoStyle(undefined, { ...photo, position: null })).toEqual({ objectPosition: '50% 50%' })
   })
-  it('原本沒有 style 的圖片：只有後台照片有焦點時才帶 style（SSR 不多出 style=""）', () => {
+  it('原本沒有 style 的圖片：內建圖不帶 style（SSR 不多出 style=""），後台照片一律帶焦點、沒設就置中', () => {
     const attrs = { src: '/a.webp', width: 10, height: 10, srcset: undefined, sizes: undefined }
     expect(withPhotoStyle(attrs, undefined)).toEqual(attrs)
     expect('style' in withPhotoStyle(attrs, undefined)).toBe(false)
-    expect('style' in withPhotoStyle(attrs, { src: '/x', candidates: [], position: null, alt: '' })).toBe(false)
+    // 首屏的 CSS 是 object-position: 80% 45%（為內建照片調的），新照片沒焦點時要蓋掉
+    expect(withPhotoStyle(attrs, { src: '/x', candidates: [], position: null, alt: '' }).style).toEqual({ objectPosition: '50% 50%' })
     expect(withPhotoStyle(attrs, { src: '/x', candidates: [], position: '30% 40%', alt: '' }).style).toEqual({ objectPosition: '30% 40%' })
   })
   it('民國年 = 西元 − 1911', () => {
@@ -73,6 +76,30 @@ describe('特色教學頁的後台內容', () => {
     expect(next.gallery[2]!.photoAlt).toBe('素材庫說明')
     expect(next.daily[0]!.photoAlt).toBe('孩子閉眼靜心')
     expect(next.gallery[0]!.photo).toBeUndefined()
+  })
+  it('後端實際輸出的形狀（沒換的照片是 null、說明是空字串）：照常套用文字，照片走內建', () => {
+    // 同後端 CurriculumPagePayload.model_dump()：每個照片版位都有 photo: null、photo_alt: ''
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const live = livePayload<LiveCurriculumPage>(site.curriculumPage)
+    Object.assign(live, { hero_photo: null, hero_photo_alt: '', years_photo: null, years_photo_alt: '' })
+    for (const list of [live.directions, live.gallery, live.daily]) {
+      list.forEach((item) => Object.assign(item, { photo: null, photo_alt: '' }))
+    }
+    live.hero_eyebrow = '後台改過的小標'
+    live.directions[3]!.sub = '好習慣受用一生'
+    const next = applyContentOverlay(site, { curriculum_page: live }, media).curriculumPage
+    expect(error).not.toHaveBeenCalled()
+    const expected = structuredClone(site.curriculumPage)
+    expected.heroEyebrow = '後台改過的小標'
+    expected.directions[3]!.sub = '好習慣受用一生'
+    expect(next).toEqual(expected)
+    for (const photo of [next.heroPhoto, next.yearsPhoto, ...[...next.directions, ...next.gallery, ...next.daily].map((x) => x.photo)]) {
+      expect(photo).toBeUndefined()
+    }
+    expect(next.heroPhotoAlt).toBeUndefined()
+    expect(next.gallery.every((x) => x.photoAlt === undefined)).toBe(true)
+    expect(curriculumHeroAttrs(next)).toEqual(responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES))
+    error.mockRestore()
   })
   it('項目數不符的舊版內容整份退回內建內容（不讓頁面壞掉）', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})

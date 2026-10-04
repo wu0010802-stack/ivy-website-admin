@@ -24,7 +24,7 @@ export function assertStrings(source: unknown, fields: readonly string[], label:
   }
 }
 
-/** 清單每一項都是物件且指定欄位為字串；beliefs 這類字串清單用 fields = []、itemsAreStrings。 */
+/** 清單每一項都是物件且指定欄位為字串（beliefs 這類字串清單由呼叫端逐項檢查 typeof）。 */
 export function assertItems(list: unknown, fields: readonly string[], label: string): void {
   ;(list as unknown[]).forEach((item, index) => assertStrings(item, fields, `${label}[${index}]`))
 }
@@ -59,16 +59,27 @@ export function pagePhotoAlt(builtinAlt: string, photo: MediaImage | undefined, 
 }
 
 /**
- * 改版前沒有 :style 的 <img> 用：後台照片有焦點時才把 style 併進 v-bind 物件。
+ * 後台照片的 object-position：版位焦點，其次素材預設焦點，都沒設就置中——和後台焦點預覽一樣
+ * （FocusPicker：版位焦點 ?? 素材焦點 ?? 正中央）。不能留給 CSS：首屏的 80% 45%、課程方向的
+ * 40% 50% 是為內建照片調的，套到新照片上會和後台預覽對不上。
+ */
+export const PAGE_PHOTO_DEFAULT_POSITION = '50% 50%'
+
+function pagePhotoPosition(photo: MediaImage): string {
+  return photo.position ?? PAGE_PHOTO_DEFAULT_POSITION
+}
+
+/**
+ * 改版前沒有 :style 的 <img> 用：後台照片才把 style 併進 v-bind 物件，內建圖不帶（沿用 CSS）。
  * 不能直接加 :style——v-bind 物件＋:style 會經 mergeProps 正規化成 {}，SSR 輸出 style=""，畫面比對就不再相同。
  */
 export function withPhotoStyle<T extends object>(attrs: T, photo: MediaImage | undefined): T | (T & { style: { objectPosition: string } }) {
-  return photo?.position ? { ...attrs, style: { objectPosition: photo.position } } : attrs
+  return photo ? { ...attrs, style: { objectPosition: pagePhotoPosition(photo) } } : attrs
 }
 
-/** 改版前就有 :style 的 <img> 用（課程方向）：後台照片用版位或素材的焦點（沒設就不寫），內建圖用元件寫的位置。 */
+/** 改版前就有 :style 的 <img> 用（課程方向）：後台照片用 pagePhotoPosition，內建圖用元件寫的位置（沒寫就不帶）。 */
 export function pagePhotoStyle(builtinPosition: string | undefined, photo: MediaImage | undefined): { objectPosition: string } | undefined {
-  const position = photo ? photo.position : builtinPosition
+  const position = photo ? pagePhotoPosition(photo) : builtinPosition
   return position ? { objectPosition: position } : undefined
 }
 
