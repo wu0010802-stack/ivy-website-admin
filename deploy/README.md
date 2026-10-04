@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 官網後台總管理者寄重設密碼連結（main CI 部署）
+
+使用者要求合進本機 main 後自行 push。本機 main 先快轉到 origin/main `fb3757c`，再 `--no-ff` 合入 `feature/admin-password-reset-20261003`（`fe88466`）成 `d559cae`，推送 `fb3757c4..d559cae6`（快轉）。規則見 DESIGN.md「官網後台重設密碼連結」。
+
+- **合併衝突**：只有 README 頂部（新段落在上，第八輪 UX 標題保留已部署版本）；`docs/website-admin/acceptance.md` 自動合併。合併結果與已驗證的 `fe88466` 只差 `fb3757c` 的三個文件檔，程式碼相同。
+- **Migration**：`d2b7f4c9e1a3`（新表 `password_reset_tokens`，只新增表、不改既有資料），down_revision `4a7e2c9d1b63`；只新增表，部署前不需先備份正式 DB。第三波背景轉檔 `e5b9c3a7d214` 合併前要改接 `d2b7f4c9e1a3`（已通知該 session）。
+- **本機驗證**（分支 `abd244d` 程式）：後端 pytest 全套 1363 passed；admin typecheck 0 錯、vitest 1054 passed（`admissionsRecords.test.ts` 2 項 5 秒逾時，單獨重跑 24 passed）；web typecheck 0 錯、753 passed；`contract:check` 一致；stack e2e 全套 69 passed（含新 `password-reset.spec.ts`）。
+- **CI**：run 37168565117（`d559cae`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 01:37–01:57 UTC）。
+- **正式 `release.json`**：base commit `d559cae`，created `2026-10-04T01:54:20Z`。
+- **線上唯讀檢查**：`/`、`/about`、`/visit`、`/admin/`、`/admin/reset-password` 200；`POST /auth/password-reset/verify` 帶假 token 回 410 `RESET_LINK_INVALID`／`link_unknown`（路由在線、新表可查，migration 已跑）；`/auth/me` 與寄出端點未登入回 401；後台主程式有「設定新密碼」「密碼已更新，請用新密碼登入」，`UsersView` chunk 有「寄重設連結到」「尚未設定寄信，不能寄重設連結」「這個帳號已停用，不能寄重設連結」。
+- **部署即生效的行為改變**（使用者 10-04 確認）：總管理者「直接設定新密碼」也會解除對方的密碼登入暫停。
+- **未做**：正式站沒有設定 `WEBSITE_SMTP_*`，「寄重設連結」目前顯示為停用並附說明；設定後才會實際寄信（尚未實寄驗證）。沒登入看後台畫面；iOS Safari／Gmail／LINE 內建瀏覽器實機未驗證。
+
 ## 2026-10-04 官網後台成效統計補強＋第八輪 UX（main CI 部署）
 
 使用者要求合併並部署。`feature/admin-analytics-phase1-20261003`（`937502c`）與 `feature/admin-ux8-20261003`（`eb1aeed`）依序合進 `merge/admin-wave1-20261004`；驗證期間 main 前進到 `e3a7600`（關於頁紀念章，另一個 session），再合 origin/main 成 `b4bb570`，快轉推上 main。
