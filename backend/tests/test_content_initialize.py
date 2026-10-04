@@ -15,7 +15,7 @@ async def test_initialize_preserves_source_and_skips_unverified_tours(db_session
     from app.content.initialize import initialize_content
 
     data = json.loads(FIXTURE.read_text())
-    assert await initialize_content(db_session, data) == 22
+    assert await initialize_content(db_session, data) == 23
     release_id, content = await service.get_public_content(db_session)
     assert release_id
     assert set(content["campus_profile"]) == {c["key"] for c in data["campuses"]}
@@ -45,7 +45,7 @@ async def test_initialize_preserves_source_and_skips_unverified_tours(db_session
     assert content["booking_content"]["privacy_sections"] == []
     assert await initialize_content(db_session, data) == 0
     assert (await service.get_public_content(db_session))[0] == release_id
-    assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 22
+    assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 23
 
 
 @pytest.mark.asyncio
@@ -58,7 +58,7 @@ async def test_initialize_never_overwrites_or_publishes_existing_drafts(db_sessi
         {"eyebrow": "園方草稿", "copy_lines": ["待審稿"], "cta_label": "參觀"},
         0, None,
     )
-    assert await initialize_content(db_session, json.loads(FIXTURE.read_text())) == 21
+    assert await initialize_content(db_session, json.loads(FIXTURE.read_text())) == 22
     assert item.latest_version == 1
     assert item.current_published_revision_id is None
     assert revision.payload["eyebrow"] == "園方草稿"

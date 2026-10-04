@@ -98,6 +98,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("admission_content", None, _copy_fields(data["admission"], "admission_content")),
         # 特色教學頁（2026-10 開放後台編輯）：照片版位不帶（留空＝官網內建照片）。
         ("curriculum_page", None, _copy_fields(data["curriculumPage"], "curriculum_page")),
+        # 關於常春藤頁（2026-10 開放後台編輯）：照片版位不帶（留空＝官網內建照片）。
+        ("about_page", None, _copy_fields(data["aboutPage"], "about_page")),
     ]
     # 五校共用的常見問題（2026-09-25）；各校只留自己的題目，預設顯示共用題。
     shared_faq = shared_faq_source(data)
