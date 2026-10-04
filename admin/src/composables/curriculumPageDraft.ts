@@ -54,11 +54,6 @@ export const CURRICULUM_PHOTO_PREVIEWS = {
   daily: [{ label: '官網裁切（8:5）', ratio: '8 / 5' }],
 } as const satisfies Record<string, readonly PhotoPreview[] | readonly (readonly PhotoPreview[])[]>
 
-/** 內建照片的預覽網址（後台和官網同源，/assets 由官網提供）。 */
-export function builtinPhotoSrc(code: string): string {
-  return `/assets/${code}.webp`
-}
-
 /** 大標裡找不到顏料標示的字（或跨行）時回 true；留空不算（同後端 page_schemas.py）。 */
 export function highlightMissing(title: string, highlight: string): boolean {
   return Boolean(highlight) && !title.split('\n').some((line) => line.includes(highlight))

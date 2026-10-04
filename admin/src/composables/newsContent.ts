@@ -223,7 +223,9 @@ export async function revealListItem(root: ParentNode | null | undefined, select
  * 存檔被擋下時，錯誤清單點一條就捲到那一欄：照 422 的 loc 一層層找。清單用
  * `[data-list="articles"]` 包住、每一項帶 `[data-list-item="3"]`（沒有 data-list
  * 時找 root 裡第一個對得上的項目）；欄位先找 `[data-field="title"]`，再找標籤以
- * fieldLabel 開頭的 el-form-item。找不到欄位就停在那一項；什麼都找不到回 false。
+ * fieldLabel 開頭的 el-form-item，都找不到時再找同名的清單 `[data-list="milestones"]`
+ * （整個清單的錯誤，例如沿革年份沒有由早到晚，loc 只有清單名）。找不到欄位就停在
+ * 那一項；什麼都找不到回 false。
  */
 export async function revealContentPath(root: HTMLElement | null | undefined, path: readonly (string | number)[], fieldLabel = ''): Promise<boolean> {
   if (!root) return false
@@ -247,6 +249,7 @@ export async function revealContentPath(root: HTMLElement | null | undefined, pa
         return text.startsWith(fieldLabel)
       }) ?? null
     }
+    target ??= scope.querySelector<HTMLElement>(`[data-list="${key}"]`)
   }
   target ??= scope === root ? null : scope
   if (!target) return false

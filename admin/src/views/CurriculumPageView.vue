@@ -7,8 +7,8 @@ import ContentEditor from '../components/ContentEditor.vue'
 import PageCopyField from '../components/PageCopyField.vue'
 import PagePhotoField from '../components/PagePhotoField.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
+import { builtinPhotoSrc } from '../composables/pageContent'
 import {
-  builtinPhotoSrc,
   CURRICULUM_BUILTIN_PHOTOS,
   CURRICULUM_PHOTO_PREVIEWS,
   CURRICULUM_YEAR_NAMES,

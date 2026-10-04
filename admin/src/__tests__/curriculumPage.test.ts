@@ -151,6 +151,13 @@ describe('特色教學頁（curriculum_page）', () => {
     expect(wrapper.text()).not.toContain('有未儲存的修改')
   })
 
+  it('從未存過：內建內容沒有一欄超過建議字數（一打開就不會有金色提醒）', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    expect(wrapper.findAll('.length-hint').length).toBeGreaterThan(20)
+    expect(wrapper.findAll('.length-hint.is-over').map((el) => el.text())).toEqual([])
+  })
+
   it('改了字再儲存：送出的內容保留固定項目與順序', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const post = vi.spyOn(api, 'post').mockImplementation(async (_path: string, body: unknown) => ({

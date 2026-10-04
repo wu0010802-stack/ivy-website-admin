@@ -15,6 +15,7 @@ import { NAV_GROUPS } from '../router/nav'
 import { CONTENT_KIND_LABELS, campusLabel, contentEditorPath, contentPreviewPath, contentPublicPath, mediaFieldPathLabel } from '../api/labels'
 import { contentFieldLabelFor, contentPathFieldLabel, contentPathLabel } from '../api/contentFieldLabels'
 import { revealContentPath } from '../composables/newsContent'
+import { LENGTH_HINTS, lengthHintText } from '../composables/contentHints'
 import { ABOUT_BUILTIN_PHOTOS, ABOUT_PHOTO_PREVIEWS, aboutPageDraft } from '../composables/aboutPageDraft'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { useAuthStore } from '../stores/auth'
@@ -89,7 +90,7 @@ describe('關於常春藤頁（about_page）', () => {
     }
   })
 
-  it('照片焦點預覽的比例和官網 about.css 一致；紙房子窗戶沒有固定比例', () => {
+  it('照片焦點預覽的比例和官網 about.css 一致；紙房子窗戶也裁成 4:3', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
     expect(css).toContain('.abk-card img,.abk-blank{display:block;width:100%;height:auto;aspect-ratio:4/3;')
     expect(css).toContain('.abk-pop.is-back img{aspect-ratio:4/5;')
@@ -158,6 +159,77 @@ describe('關於常春藤頁（about_page）', () => {
       await flushPromises()
       expect(wrapper.text()).not.toContain('有未儲存的修改')
     }
+  })
+
+  it('從未存過：內建內容沒有一欄超過建議字數（一打開就不會有金色提醒）', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    expect(wrapper.findAll('.length-hint').length).toBeGreaterThan(15)
+    expect(wrapper.findAll('.length-hint.is-over').map((el) => el.text())).toEqual([])
+  })
+
+  it('一路走來的標題逐行提醒（第一行 6、第二三行 7），和後端硬上限一樣', () => {
+    const rule = LENGTH_HINTS.aboutStoryTitle
+    expect(lengthHintText('近三十年，\n長出五所校園。', rule)).toEqual({ text: '每行 5／7 字・建議 6／7／7 字內', over: false })
+    expect(lengthHintText('一二三四五六七\n長出五所校園。', rule)).toEqual({ text: '第 1 行 7 字，超過建議的 6 字：會壓到右上角的紀念章，存不了', over: true })
+    expect(lengthHintText('近三十年，\n一二三四五六七八', rule).text).toContain('第 2 行 8 字，超過建議的 7 字')
+    // 單行 10 字：總字數不多，但第一行超過，存檔會被擋，提醒也要亮
+    expect(lengthHintText('一'.repeat(10), rule).over).toBe(true)
+    expect(lengthHintText('', rule).text).toBe('每行建議 6／7／7 字內')
+    const schemas = readFileSync(resolve(ROOT, 'backend/app/content/page_schemas.py'), 'utf8')
+    expect(schemas).toContain(`STORY_TITLE_PER_LINE = (${rule.max.join(', ')})`)
+  })
+
+  it('我們的期許的標題用自己的建議值（內建 9／7 字加換行是 17）', () => {
+    expect(lengthHintText(aboutPageDraft().hope_title, LENGTH_HINTS.aboutHopeTitle).over).toBe(false)
+    expect(LENGTH_HINTS.aboutHopeTitle.max).toBe(18)
+  })
+
+  it('沿革年份比上一站早：那一站即時提醒（不擋存檔），改回來提醒就消失', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    // el-form-item 的錯誤訊息延遲 100ms 才顯示（Element Plus 的 refDebounced）
+    const settle = async () => { await flushPromises(); await new Promise((done) => setTimeout(done, 150)); await flushPromises() }
+    const station = () => wrapper.find('[data-list="milestones"] [data-list-item="2"]')
+    expect(wrapper.find('[data-list="milestones"]').text()).not.toContain('年份要由早到晚，否則存不了')
+    await station().find('input').setValue('2000')
+    await settle()
+    expect(station().text()).toContain('比上一站（明華 2001）早，年份要由早到晚，否則存不了')
+    expect(wrapper.find('[data-list="milestones"] [data-list-item="1"]').text()).not.toContain('否則存不了')
+    await station().find('input').setValue('2005')
+    await settle()
+    expect(station().text()).not.toContain('否則存不了')
+  })
+
+  it('年份只收整數；清空時不顯示民國年（不會出現「民國 -1911 年」）', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    const station = () => wrapper.find('[data-list="milestones"] [data-list-item="1"]')
+    await station().find('input').setValue('2002.6')
+    await flushPromises()
+    expect(station().find('.page-copy__item-title').text()).toBe('明華民國 92 年')
+    await station().find('input').setValue('')
+    await flushPromises()
+    expect(station().find('.page-copy__item-title').text()).toBe('明華')
+    expect(wrapper.text()).not.toContain('-1911')
+  })
+
+  it('義華的年份旁說明哪些地方的 1997 不會跟著改', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    const yihua = wrapper.find('[data-list="milestones"] [data-list-item="0"]').text()
+    expect(yihua).toContain('30 週年頁上的 1997 不會跟著改，要改請通知工程師')
+    expect(wrapper.find('[data-list="milestones"] [data-list-item="1"]').text()).not.toContain('通知工程師')
+  })
+
+  it('存檔被擋在整個沿革（年份沒有由早到晚，loc 只有清單名）：點錯誤會捲到沿革、聚焦第一站的年份', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    const root = wrapper.element as HTMLElement
+    expect(contentPathFieldLabel('about_page', ['milestones'])).toBe('沿革')
+    expect(await revealContentPath(root, ['milestones'], contentPathFieldLabel('about_page', ['milestones']))).toBe(true)
+    const first = root.querySelector('[data-list="milestones"] [data-list-item="0"] input')
+    expect(document.activeElement).toBe(first)
   })
 
   it('存檔被擋：期許第 2 段、沿革第 4 站說明與第 2 站年份、章名，點錯誤會聚焦到那一欄', async () => {

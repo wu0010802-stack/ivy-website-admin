@@ -8,7 +8,7 @@ import ContentEditor from '../components/ContentEditor.vue'
 import PageCopyField from '../components/PageCopyField.vue'
 import PagePhotoField from '../components/PagePhotoField.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
-import { builtinPhotoSrc } from '../composables/curriculumPageDraft'
+import { builtinPhotoSrc } from '../composables/pageContent'
 import { ABOUT_BUILTIN_PHOTOS, ABOUT_CHAPTER_HINTS, ABOUT_PHOTO_PREVIEWS, aboutPageDraft } from '../composables/aboutPageDraft'
 
 // 關於常春藤頁（/about，立體書）。章節、沿革五站、期許兩段固定，只改字和換照片（2026-10-03 使用者裁定）。
@@ -24,6 +24,19 @@ const navSections = computed<EditorSection[]>(() => [
   { id: 'section-about-hope', label: '第三章：我們的期許' },
   { id: 'section-about-outro', label: '結尾：五所校園' },
 ])
+
+// 民國年＝西元 − 1911（同官網 utils/page-content.ts 的 rocYear）；年份清空時（null）不顯示。
+function rocLabel(year: number | null): string {
+  return typeof year === 'number' ? `民國 ${year - 1911} 年` : ''
+}
+
+// 年份要由早到晚：後端擋存檔時錯誤只指到整個沿革，這裡先在比上一站早的那一站提醒（不擋存檔）。
+function orderError(index: number): string {
+  const previous = form.value.milestones[index - 1]
+  const year = form.value.milestones[index]?.year
+  if (!previous || typeof previous.year !== 'number' || typeof year !== 'number' || year >= previous.year) return ''
+  return `比上一站（${campusLabel(previous.key)} ${previous.year}）早，年份要由早到晚，否則存不了`
+}
 
 onMounted(editor.load)
 </script>
@@ -83,14 +96,15 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-about-story" class="sub-title" data-section-anchor tabindex="-1">第一章：一路走來</h3>
-      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutPageTitle" title help="每行最多 7 字，避開右上角的紀念章。" />
+      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutStoryTitle" title help="第一行最多 6 字、第二三行最多 7 字，避開右上角的紀念章；超過存不了。" />
       <PageCopyField v-model="form.story_text" label="一路走來的說明" hint="aboutPageText" multiline />
       <div data-list="milestones">
         <div v-for="(milestone, i) in form.milestones" :key="milestone.key" class="page-copy__item" :data-list-item="i">
-          <p class="page-copy__item-title">{{ campusLabel(milestone.key) }}<span class="page-copy__item-note">民國 {{ milestone.year - 1911 }} 年</span></p>
-          <el-form-item label="年份">
-            <el-input-number v-model="milestone.year" :min="1950" :max="2100" :controls="false" />
+          <p class="page-copy__item-title">{{ campusLabel(milestone.key) }}<span v-if="rocLabel(milestone.year)" class="page-copy__item-note">{{ rocLabel(milestone.year) }}</span></p>
+          <el-form-item label="年份" :error="orderError(i)">
+            <el-input-number v-model="milestone.year" :min="1950" :max="2100" :precision="0" :controls="false" />
             <span class="field-help">西元年；官網的民國年自動換算。年份要由早到晚。</span>
+            <span v-if="i === 0" class="field-help">改了義華的年份，這一頁在搜尋結果的標題與說明會跟著改；首屏介紹和首頁「關於常春藤」（SINCE 1997 與介紹）寫的年份要自己改；30 週年頁上的 1997 不會跟著改，要改請通知工程師。</span>
           </el-form-item>
           <PageCopyField v-model="milestone.text" label="說明" hint="aboutMilestone" />
         </div>
@@ -103,7 +117,7 @@ onMounted(editor.load)
       <PageCopyField v-model="form.whole_fine_source" label="全人教育的出處" hint="aboutSource" help="清空就不顯示。六大領域與核心素養是課綱名詞，不在這裡改。" />
 
       <h3 id="section-about-hope" class="sub-title" data-section-anchor tabindex="-1">第三章：我們的期許</h3>
-      <PageCopyField v-model="form.hope_title" label="我們的期許的標題" hint="aboutPageTitle" title help="桌機每行超過約 7–10 字，官網會再自動折行，建議每行短一點。" />
+      <PageCopyField v-model="form.hope_title" label="我們的期許的標題" hint="aboutHopeTitle" title help="桌機每行超過約 7–10 字，官網會再自動折行，建議每行短一點。" />
       <div data-list="hope_quotes">
         <div v-for="(quote, i) in form.hope_quotes" :key="i" :data-list-item="i">
           <PageCopyField

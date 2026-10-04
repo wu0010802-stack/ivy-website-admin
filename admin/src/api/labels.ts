@@ -750,7 +750,7 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
 }
 
 // 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
-// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策與特色教學頁。
+// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策、特色教學頁與關於常春藤頁。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。

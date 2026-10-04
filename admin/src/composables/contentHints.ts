@@ -4,7 +4,8 @@
 
 /** 建議字數上限與超過時的後果（顯示在欄位下方） */
 export interface LengthHintRule {
-  max: number
+  /** 整個欄位的字數（標題的換行也算一個字）；陣列＝標題逐行的字數（第 i 行用第 i 個，超出的行用最後一個） */
+  max: number | readonly number[]
   why: string
 }
 
@@ -61,7 +62,10 @@ export const LENGTH_HINTS = {
   curBeliefTitle: { max: 22, why: '結尾大標在手機上會超過三行' },
   curClose: { max: 26, why: '結語會換成兩行' },
   // 關於常春藤頁（立體書）：左頁空間有限，建議值抓得比較緊。
-  aboutPageTitle: { max: 16, why: '立體書左頁的大標會超過兩行' },
+  aboutPageTitle: { max: 16, why: '標題太長，立體書左頁會折成很多行' },
+  aboutHopeTitle: { max: 18, why: '標題太長，立體書左頁會折成很多行' },
+  // 一路走來的標題右上角是紀念章：逐行算，和後端硬上限一樣（page_schemas.py 的 STORY_TITLE_PER_LINE）。
+  aboutStoryTitle: { max: [6, 7, 7], why: '會壓到右上角的紀念章，存不了' },
   aboutPageLede: { max: 70, why: '首屏介紹在手機上會變成很多行' },
   aboutPageCaption: { max: 12, why: '卡紙上的一句話會換行' },
   aboutChapter: { max: 5, why: '目次與章節封面放不下' },
@@ -82,10 +86,22 @@ export function textLength(value: string | null | undefined): number {
 }
 
 export function lengthHintText(value: string | null | undefined, rule: LengthHintRule): { text: string; over: boolean } {
+  if (typeof rule.max !== 'number') return lineHintText(value, rule.max, rule.why)
   const count = textLength(value)
   if (count === 0) return { text: `建議 ${rule.max} 字內`, over: false }
   if (count <= rule.max) return { text: `${count} 字・建議 ${rule.max} 字內`, over: false }
   return { text: `${count} 字，超過建議的 ${rule.max} 字：${rule.why}`, over: true }
+}
+
+/** 標題逐行的建議字數：哪一行超過就講第幾行。 */
+function lineHintText(value: string | null | undefined, limits: readonly number[], why: string): { text: string; over: boolean } {
+  const suggested = `建議 ${limits.join('／')} 字內`
+  if (!value) return { text: `每行${suggested}`, over: false }
+  const counts = value.split('\n').map(textLength)
+  const index = counts.findIndex((count, i) => count > limits[Math.min(i, limits.length - 1)]!)
+  if (index < 0) return { text: `每行 ${counts.join('／')} 字・${suggested}`, over: false }
+  const limit = limits[Math.min(index, limits.length - 1)]
+  return { text: `第 ${index + 1} 行 ${counts[index]} 字，超過建議的 ${limit} 字：${why}`, over: true }
 }
 
 // 分校頁底部的預約橫幅（預約文案）：標題裡的 {campusNameOrIvy} 是校名的位置，官網每個
