@@ -297,3 +297,134 @@ async def test_process_now_runs_in_callers_transaction(app, db_session):
     await db_session.commit()
     done = await _reload(db_session, asset.id)
     assert done.status == MediaStatus.READY and len(done.variants) == 3
+
+
+# ---- fix round 1 ----
+
+
+@pytest.mark.asyncio
+async def test_process_now_keeps_callers_unflushed_changes(app, db_session, monkeypatch):
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    fresh = await _reload(db_session, asset.id)
+    claimed = await _job(db_session, job.id)  # 會 expire_all，先取
+    fresh = await _reload(db_session, asset.id)
+    fresh.original_filename = "renamed.mp4"  # 還沒 flush
+    assert await jobs.process_now(db_session, storage, fresh, claimed) == "done"
+    await db_session.commit()
+    assert (await _reload(db_session, asset.id)).original_filename == "renamed.mp4"
+
+
+@pytest.mark.asyncio
+async def test_process_now_unexpected_error_marks_failed_not_stuck(app, db_session, monkeypatch):
+    def _oops(*args):
+        raise RuntimeError("disk exploded")
+
+    monkeypatch.setattr(processing, "extract_video_poster", _oops)
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    fresh = await _reload(db_session, asset.id)
+    claimed = await _job(db_session, job.id)
+    assert await jobs.process_now(db_session, storage, fresh, claimed) == "failed"
+    await db_session.commit()
+    failed = await _reload(db_session, asset.id)
+    status, error, key = failed.status, failed.processing_error, failed.storage_key
+    assert status == MediaStatus.FAILED and error == jobs.INLINE_ERROR_MESSAGE
+    done_job = await _job(db_session, job.id)
+    assert done_job.status == "failed" and done_job.leased_by is None
+    assert storage.exists(key)
+
+
+@pytest.mark.asyncio
+async def test_claim_prefers_process_over_backfill(app, db_session):
+    backfill_asset, backfill_job = await _stored_video(app, db_session, status=MediaStatus.READY, kind=MediaJobKind.BACKFILL)
+    process_asset, process_job = await _stored_video(app, db_session)
+    async with app.state.session_factory() as db:
+        first = await jobs.claim_next(db, "w1")
+        assert first is not None and first.id == process_job.id
+        await db.commit()
+    async with app.state.session_factory() as db:
+        second = await jobs.claim_next(db, "w1")
+        assert second is not None and second.id == backfill_job.id
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_run_claimed_with_job_deleted_returns_lost(app, db_session):
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    await db_session.execute(MediaJob.__table__.delete().where(MediaJob.id == job.id))
+    await db_session.commit()
+    assert await jobs.run_claimed(app.state.session_factory, storage, job.id, worker_id="w1") == "lost"
+
+
+@pytest.mark.asyncio
+async def test_release_then_finish_discards_files_and_keeps_job_pending(app, db_session, monkeypatch):
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    factory = app.state.session_factory
+    async with factory() as db:
+        claimed = await jobs.claim_next(db, "w1")
+        await db.commit()
+    before = set(Path(app.state.settings.media_root).iterdir())
+    outputs = await jobs._produce(storage, jobs._Snapshot(asset.id, MediaKind.VIDEO, asset.storage_key, asset.duration_seconds, frozenset()), MediaJobKind.PROCESS)
+    assert outputs and set(Path(app.state.settings.media_root).iterdir()) != before
+    assert await jobs.release(factory, claimed.id, "w1") is True
+    assert await jobs._finish(factory, storage, claimed.id, "w1", outputs) == "lost"
+    assert set(Path(app.state.settings.media_root).iterdir()) == before
+    pending = await _job(db_session, job.id)
+    assert pending.status == "pending" and pending.attempts == 0 and pending.leased_by is None
+    still = await _reload(db_session, asset.id)
+    assert still.status == MediaStatus.PROCESSING and still.variants == []
+
+
+@pytest.mark.asyncio
+async def test_two_sessions_claim_different_jobs(app, db_session):
+    _, job_a = await _stored_video(app, db_session)
+    _, job_b = await _stored_video(app, db_session)
+    async with app.state.session_factory() as db1, app.state.session_factory() as db2:
+        first = await jobs.claim_next(db1, "w1")  # 還沒 commit，列鎖著
+        second = await jobs.claim_next(db2, "w2")
+        assert first is not None and second is not None and first.id != second.id
+        assert {first.id, second.id} == {job_a.id, job_b.id}
+        await db1.commit()
+        await db2.commit()
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_file_write_leaves_no_orphans(app, db_session, monkeypatch):
+    import asyncio
+    import threading
+
+    started = threading.Event()
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    real_write = storage.write_bytes
+
+    def _slow_write(key, data):
+        started.set()
+        time.sleep(0.3)
+        real_write(key, data)
+
+    monkeypatch.setattr(storage, "write_bytes", _slow_write)
+    async with app.state.session_factory() as db:
+        claimed = await jobs.claim_next(db, "w1")
+        await db.commit()
+    def _files() -> set[Path]:
+        return {p for p in Path(app.state.settings.media_root).rglob("*") if p.is_file()}
+
+    before = _files()
+    task = asyncio.ensure_future(jobs.run_claimed(app.state.session_factory, storage, claimed.id, worker_id="w1"))
+    while not started.is_set():
+        await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0.5)  # 舊寫法的 thread 會在取消後才寫完，孤兒檔此時才出現
+    assert _files() == before

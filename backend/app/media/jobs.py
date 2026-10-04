@@ -22,11 +22,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from app.common.concurrency import run_in_thread
 from app.media import processing
 from app.media.models import (
     MediaAsset,
@@ -50,6 +51,7 @@ _BACKOFF_SECONDS = (60, 600)
 INLINE_WORKER = "inline"
 INTERRUPTED_MESSAGE = "處理中斷太多次（影片可能太大或太長），請剪短或降低解析度後重新上傳"
 MISSING_ORIGINAL_MESSAGE = "儲存空間裡找不到原檔，請刪除這支影片後重新上傳"
+INLINE_ERROR_MESSAGE = "處理時發生錯誤，請重新處理或換一支影片"
 _EDITIONS = (("desktop", VariantKind.VIDEO_DESKTOP), ("mobile", VariantKind.VIDEO_MOBILE))
 _ACTIVE = (MediaJobStatus.PENDING.value, MediaJobStatus.RUNNING.value)
 
@@ -182,7 +184,7 @@ def _apply(asset: MediaAsset, job: MediaJob, outputs: list[StoredVariant], now: 
 async def _delete_files(storage: MediaStorage, keys: list[str]) -> None:
     for key in keys:
         try:
-            await asyncio.to_thread(storage.delete, key)
+            await run_in_thread(storage.delete, key)
         except Exception:  # noqa: BLE001 - 刪不掉只留下孤兒檔
             logger.warning("背景處理：刪除沒用到的衍生檔 %s 失敗，留下孤兒檔", key)
 
@@ -197,14 +199,15 @@ async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKin
         with tempfile.TemporaryDirectory(prefix="media-job-") as tmp:
             source = Path(tmp) / "source.mp4"
             try:
-                await asyncio.to_thread(storage.download_file, snap.storage_key, source)
+                await run_in_thread(storage.download_file, snap.storage_key, source)
             except (MediaFileMissing, FileNotFoundError) as exc:
                 raise ProcessingError(MISSING_ORIGINAL_MESSAGE) from exc
             if job_kind == MediaJobKind.PROCESS and VariantKind.POSTER not in snap.existing:
                 poster = await processing.run_media_job(processing.extract_video_poster, source)
                 key = storage.generate_key(".webp")
-                await asyncio.to_thread(storage.write_bytes, key, poster.data)
+                # 先記下再寫：寫到一半被取消也刪得到（thread 會等寫完才讓取消往上丟）。
                 written.append(StoredVariant(VariantKind.POSTER, key, "image/webp", poster.width, poster.height))
+                await run_in_thread(storage.write_bytes, key, poster.data)
             color = await processing.run_media_job(processing.probe_video_color, source)
             for edition, variant_kind in _EDITIONS:
                 if variant_kind in snap.existing:
@@ -214,8 +217,8 @@ async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKin
                     processing.transcode_video, source, target, edition, color, snap.duration
                 )
                 key = storage.generate_key(".mp4")
-                await asyncio.to_thread(storage.write_file, key, target)
                 written.append(StoredVariant(variant_kind, key, "video/mp4", video.width, video.height))
+                await run_in_thread(storage.write_file, key, target)
     except BaseException:
         await _delete_files(storage, [v.storage_key for v in written])
         raise
@@ -233,7 +236,12 @@ async def claim_next(db: AsyncSession, worker_id: str, *, now: datetime | None =
                 ((MediaJob.status == MediaJobStatus.PENDING.value) & (MediaJob.next_attempt_at <= now))
                 | ((MediaJob.status == MediaJobStatus.RUNNING.value) & (MediaJob.leased_until < now))
             )
-            .order_by(MediaJob.next_attempt_at, MediaJob.created_at)
+            .order_by(
+                # 新上傳先於整批回補，各自再依排程時間。
+                case((MediaJob.kind == MediaJobKind.BACKFILL.value, 1), else_=0),
+                MediaJob.next_attempt_at,
+                MediaJob.created_at,
+            )
             .limit(1)
             .with_for_update(skip_locked=True)
             .execution_options(populate_existing=True)
@@ -298,6 +306,7 @@ async def _locked_job(db: AsyncSession, job_id: uuid.UUID, worker_id: str) -> Me
 async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, worker_id: str, outputs: list[StoredVariant]) -> str:
     keys = [o.storage_key for o in outputs]
     unused: list[str] = []
+    committed = False
     try:
         async with session_factory() as db:
             job = await _locked_job(db, job_id, worker_id)
@@ -318,9 +327,18 @@ async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, wor
                 job.finished_at = _now()
             else:
                 unused = _apply(asset, job, outputs, _now())
-            await db.commit()
-    except Exception:
-        await _delete_files(storage, keys)
+            # commit 不能被取消打斷到不知道成沒成：等它結束，再判斷檔案要不要留。
+            commit = asyncio.ensure_future(db.commit())
+            try:
+                await asyncio.shield(commit)
+            except asyncio.CancelledError:
+                await asyncio.wait({commit})
+                committed = not commit.cancelled() and commit.exception() is None
+                raise
+            committed = True
+    except BaseException:
+        # 取消與例外都一樣：沒提交就刪光這次寫的；已提交只刪沒用到的。
+        await _delete_files(storage, unused if committed else keys)
         raise
     await _delete_files(storage, unused)
     return "done"
@@ -343,6 +361,9 @@ async def _fail(session_factory, job_id: uuid.UUID, worker_id: str, message: str
 async def run_claimed(session_factory, storage: MediaStorage, job_id: uuid.UUID, *, worker_id: str) -> str:
     async with session_factory() as db:
         job = await db.get(MediaJob, job_id)
+        if job is None:  # 素材被實體刪除，CASCADE 帶走了工作
+            await db.rollback()
+            return "lost"
         result = await db.execute(
             select(MediaAsset).options(selectinload(MediaAsset.variants)).where(MediaAsset.id == job.media_id)
         )
@@ -380,6 +401,7 @@ async def process_now(db: AsyncSession, storage: MediaStorage, asset: MediaAsset
     """在呼叫端交易裡做完（本機開發、測試、指令列匯入；正式站走背景）。上傳的人
     正在等結果，失敗不排重試，直接標成處理失敗（原檔留著，可以重新處理）。"""
     # 呼叫端的物件可能已被 expire：整個重讀，async 下不能靠隱式 lazy load。
+    await db.flush()  # refresh 會先 expire：呼叫端還沒 flush 的修改要先寫出去
     await db.refresh(asset)
     await db.refresh(asset, attribute_names=["variants"])
     await db.refresh(job)
@@ -389,6 +411,11 @@ async def process_now(db: AsyncSession, storage: MediaStorage, asset: MediaAsset
         outputs = await _produce(storage, _snapshot(asset), MediaJobKind(job.kind))
     except ProcessingError as exc:
         _record_failure(asset, job, str(exc), retryable=False, now=_now())
+        await db.flush()
+        return "failed"
+    except Exception:  # 其他例外也不能讓工作卡在 running／素材卡在 processing
+        logger.exception("背景處理：素材 %s 就地處理發生未預期錯誤", asset.id)
+        _record_failure(asset, job, INLINE_ERROR_MESSAGE, retryable=False, now=_now())
         await db.flush()
         return "failed"
     unused = _apply(asset, job, outputs, _now())
