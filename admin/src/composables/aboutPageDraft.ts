@@ -13,10 +13,11 @@ export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', heroBack: 'about-curio
 
 // 官網實際裁切的比例（web/app/assets/css/about.css）：首屏大卡與後排小卡都在卡紙裡
 // （.abk-card img 4:3；.abk-pop.is-back img 4:5 直式），各寬度一樣。紙房子窗戶（.abk-window）
-// 沒有設比例，照片依本身比例顯示、不裁切，所以不放預覽。
+// 在 .abk-house 的 .abk-card 裡，同樣吃 .abk-card img 的 4:3 裁切。
 export const ABOUT_PHOTO_PREVIEWS = {
   hero: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
   heroBack: [{ label: '官網裁切（4:5 直式）', ratio: '4 / 5' }],
+  hope: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
 } as const
 
 export function aboutPageDraft(): AboutPagePayload {

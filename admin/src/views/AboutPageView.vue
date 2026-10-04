@@ -65,7 +65,7 @@ onMounted(editor.load)
         builtin="官網內建的孩子指著發現的照片"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.heroBack)"
         :previews="ABOUT_PHOTO_PREVIEWS.heroBack"
-        help="右頁後面那張小卡紙，裁成 4:5 的直式；官網預設把重點放在右上，換照片時請在下面點選焦點。"
+        help="右頁後面那張小卡紙，裁成 4:5 的直式；官網內建照片的重點在右上；換成自己的照片後沒設焦點就取中間，請在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 
@@ -121,8 +121,8 @@ onMounted(editor.load)
         label="紙房子窗戶的照片"
         builtin="官網內建的長輩與孩子合照"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.hope)"
-        no-focus
-        help="右頁紙房子的窗戶，照片依本身的比例顯示、不裁切，而且很小，選人臉清楚的。"
+        :previews="ABOUT_PHOTO_PREVIEWS.hope"
+        help="右頁紙房子的窗戶，裁成 4:3，而且很小，選人臉清楚的，並在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

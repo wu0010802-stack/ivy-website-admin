@@ -94,10 +94,15 @@ describe('關於常春藤頁（about_page）', () => {
     expect(css).toContain('.abk-card img,.abk-blank{display:block;width:100%;height:auto;aspect-ratio:4/3;')
     expect(css).toContain('.abk-pop.is-back img{aspect-ratio:4/5;')
     expect(css).toContain('.abk-window img{outline:none}')
-    expect(css).not.toMatch(/\.abk-window[^{]*\{[^}]*aspect-ratio/)
+    // 窗戶 img 在 .abk-house 的 .abk-card 裡，吃 .abk-card img 的 4:3 裁切（.abk-window img 只取消 outline）
+    const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')
+    const house = component.slice(component.indexOf('abk-pop abk-house'))
+    expect(house.indexOf('class="abk-card"')).toBeGreaterThan(-1)
+    expect(house.indexOf('class="abk-card"')).toBeLessThan(house.indexOf('class="abk-window"'))
+    expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['4 / 3'])
     expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 3'])
     expect(ABOUT_PHOTO_PREVIEWS.heroBack.map((p) => p.ratio)).toEqual(['4 / 5'])
-    expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'heroBack'])
+    expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'heroBack', 'hope'])
   })
 
   it('錯誤訊息指到沿革第幾站', () => {
