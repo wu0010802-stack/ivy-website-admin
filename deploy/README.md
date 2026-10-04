@@ -17,6 +17,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 不需要 migration、不需要改環境變數。上線後**不必**跑 `initialize-content`：官網沒發布過這份內容時顯示內建內容，後台打開編輯頁會帶出同一份。若要跑，先加 `--dry-run`，確認清單只有 `curriculum_page` 再跑（指令由使用者用 `! railway ssh …` 執行）；它會連帶補建其他從未建立的項目。
 
+## 2026-10-04 30 週年分頁 `/anniversary`（main CI 部署，不公開）
+
+使用者轉達業主同意：先以不公開方式上線（noindex、不進主選單與 sitemap），30 週年校徽可以用在這頁。PR #29（`feature/anniversary-page-20261004`）rebase 到 main `d559cae`（重設密碼連結，另一個 session）之後以 rebase 方式合併成 `9068de8`；等 `d559cae` 那次部署跑完才合併，兩次部署沒有疊在一起。規則見 DESIGN.md「30 週年分頁」。
+
+- **內容**：`pages/anniversary.vue`、`AnniversaryContent.vue`、`AnniversaryIntro.vue`、`utils/anniversary/*`、`assets/css/anniversary.css`；頁首 `PILL_PAGES` 加 `/anniversary`；素材 `web/public/assets/anniversary/*`（影片桌機 11.6MB、手機 6.0MB，其餘約 0.6MB，`scripts/build-anniversary-media.py` 產生）。
+- **沒有 migration**：只動 `web/`、`scripts/` 與文件。
+- **CI**：PR run 37168723849／37168721696（`16dd36a`）全綠；main run 37169637468（`9068de8`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 01:59–02:13 UTC）。
+- **正式 `release.json`**：base commit `9068de8`，created `2026-10-04T02:10:22Z`。
+- **線上唯讀檢查**（Playwright，擋 `POST /api/telemetry`）：1440×900 與 390×844 都是 200、標題「常春藤 30 週年｜1997—2027｜常春藤教育機構」、`robots: noindex, nofollow`；開場自動播放（桌機 `film-desktop`、手機 `film-mobile`），略過後飛進首屏海報；時間軸五張卡片都立起、終點校徽、拼圖、畫板可用；兩種寬度都沒有橫向捲動、沒有 pageerror 與失敗請求。影片 Range 206 `video/mp4`。預約按鈕顯示各校實際設定（義華「選擇參觀日期與場次」、崇德「線上預約即將開放」）。
+- **未做**：iOS Safari／Android 實機；真人聽開場配樂。
+
+## 2026-10-04 官網後台總管理者寄重設密碼連結（main CI 部署）
+
+使用者要求合進本機 main 後自行 push。本機 main 先快轉到 origin/main `fb3757c`，再 `--no-ff` 合入 `feature/admin-password-reset-20261003`（`fe88466`）成 `d559cae`，推送 `fb3757c4..d559cae6`（快轉）。規則見 DESIGN.md「官網後台重設密碼連結」。
+
+- **合併衝突**：只有 README 頂部（新段落在上，第八輪 UX 標題保留已部署版本）；`docs/website-admin/acceptance.md` 自動合併。合併結果與已驗證的 `fe88466` 只差 `fb3757c` 的三個文件檔，程式碼相同。
+- **Migration**：`d2b7f4c9e1a3`（新表 `password_reset_tokens`，只新增表、不改既有資料），down_revision `4a7e2c9d1b63`；只新增表，部署前不需先備份正式 DB。第三波背景轉檔 `e5b9c3a7d214` 合併前要改接 `d2b7f4c9e1a3`（已通知該 session）。
+- **本機驗證**（分支 `abd244d` 程式）：後端 pytest 全套 1363 passed；admin typecheck 0 錯、vitest 1054 passed（`admissionsRecords.test.ts` 2 項 5 秒逾時，單獨重跑 24 passed）；web typecheck 0 錯、753 passed；`contract:check` 一致；stack e2e 全套 69 passed（含新 `password-reset.spec.ts`）。
+- **CI**：run 37168565117（`d559cae`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 01:37–01:57 UTC）。
+- **正式 `release.json`**：base commit `d559cae`，created `2026-10-04T01:54:20Z`。
+- **線上唯讀檢查**：`/`、`/about`、`/visit`、`/admin/`、`/admin/reset-password` 200；`POST /auth/password-reset/verify` 帶假 token 回 410 `RESET_LINK_INVALID`／`link_unknown`（路由在線、新表可查，migration 已跑）；`/auth/me` 與寄出端點未登入回 401；後台主程式有「設定新密碼」「密碼已更新，請用新密碼登入」，`UsersView` chunk 有「寄重設連結到」「尚未設定寄信，不能寄重設連結」「這個帳號已停用，不能寄重設連結」。
+- **部署即生效的行為改變**（使用者 10-04 確認）：總管理者「直接設定新密碼」也會解除對方的密碼登入暫停。
+- **未做**：正式站沒有設定 `WEBSITE_SMTP_*`，「寄重設連結」目前顯示為停用並附說明；設定後才會實際寄信（尚未實寄驗證）。沒登入看後台畫面；iOS Safari／Gmail／LINE 內建瀏覽器實機未驗證。
+
 ## 2026-10-04 官網後台成效統計補強＋第八輪 UX（main CI 部署）
 
 使用者要求合併並部署。`feature/admin-analytics-phase1-20261003`（`937502c`）與 `feature/admin-ux8-20261003`（`eb1aeed`）依序合進 `merge/admin-wave1-20261004`；驗證期間 main 前進到 `e3a7600`（關於頁紀念章，另一個 session），再合 origin/main 成 `b4bb570`，快轉推上 main。

@@ -16,7 +16,23 @@
 - **未驗證**：實機 iOS／Android、正式站；「後台已發布且換了照片」的頁面上，沒設焦點時置中只有單元測試，沒在瀏覽器實測；`/about`（階段 B）未做。
 - **分支與合併**：已合併 origin/main `d559cae6`（重設密碼連結）。與 `feature/media-jobs-20261003`（背景轉檔）合併時 `web/app/utils/media-image.ts`、`content-overlay.ts`、`admin/src/api/labels.ts` 可自動合併，後合併者重跑 `contract:generate`；`backend/tests/test_content_initialize.py` 的初始化筆數與 `web/tests/fixtures/overlay-baseline-20260925.json` 之後新增初始化 kind 的分支都會撞到。
 
-## 2026-10-04 後台重設密碼改成寄連結（`feature/admin-password-reset-20261003`，未部署）
+## 2026-10-04 30 週年分頁 `/anniversary`（`feature/anniversary-page-20261004`，10-04 已部署 main `9068de8`，不公開、不進導覽）
+
+使用者要「依對我的了解自己找主題，做一個 30 週年分頁，盡量展示前端能力，並用《手牽手，走到 30》那支 30 秒影片當進入分頁的開場」。主題定為「孩子畫出的 30」：延續影片的米白水彩紙、綠色蠟筆與立體書卡片。規則見 DESIGN.md「30 週年分頁」。
+
+- **頁面**：`pages/anniversary.vue`（noindex、不進 sitemap 與主選單）＋`AnniversaryContent.vue`＋`AnniversaryIntro.vue`；樣式 `assets/css/anniversary.css`（只用 tokens）；程式 `utils/anniversary/*`；頁首膠囊加 `/anniversary`。
+  - 開場：第一次進站自動靜音播放（桌機橫式、手機直式各一支），可開聲音、略過；29.0 秒那一格整個畫面飛進首屏右邊的海報相框（FLIP）。
+  - 1997 到 2027：往下捲蠟筆線跟著畫、紙偶在線頭走、翻牌年份與校園數；五校在成立那年像立體書立起，鉛筆線沿測地時間描出、再暈水彩（共用一個 WebGL2 畫到各自的 canvas），可翻面看校舍照片，附地址電話與各校 `BookingCta`；終點把 30 週年校徽印上去。
+  - 孩子的作品拼成的 30：沿用特色教學頁的 8 件作品與替代文字，品牌字「30」切格拼圖，縮圖與格子互相亮起，點開燈箱。
+  - 換你畫一個 30：WebGL2 蠟筆畫板（一筆用 MAX 混合、放開才依紙紋沉積），品牌五色加深綠、影片同一組「30」虛線導引，存成圖片只在使用者裝置。
+- **素材**：`scripts/build-anniversary-media.py` 從展示作輸出（repo 外 `output/ivy-30th-20261003/`）壓影片、抽海報、複製素材場，檔名帶雜湊，產生 `utils/anniversary/media.ts`。影片桌機 11.6MB（1080p 3Mbps）、手機 6.0MB（720×1280）；其餘素材合計約 0.6MB。
+- **驗證**（Node 22）：
+  - `test:website` 76 檔 768 項全過（rebase 到 main `fb3757c` 後）（新增 `anniversary.spec.ts` 15 項：沿革和 /about 一字不差、作品和特色教學頁一致、禁用字、noindex、素材檔存在、拼圖相鄰不重複、導引幾何）、web typecheck 通過。
+  - dev server（fixture）＋Playwright：1440×900 與 390×844 開場自動播放→略過→飛進相框對齊海報、時間軸六個位置、拼圖亮起與燈箱、畫板換色／關導引／存圖、重看開場（展開後有聲播放）、減少動態（不播開場、整頁直接畫完、年份照樣跟捲動）；console 無錯誤。
+  - 未驗證：stack e2e、實機 iOS／Android 與 Safari、真人聽開場配樂。
+- **業主裁定（10-04）**：先以不公開方式上線（noindex、不進選單與 sitemap）；30 週年校徽同意用在這頁。
+
+## 2026-10-04 後台重設密碼改成寄連結（`feature/admin-password-reset-20261003`，10-04 已部署 main `d559cae`）
 
 使用者 10-03 裁定：只做「總管理者寄重設連結」，登入頁不開放自助忘記密碼。本分支接在後台第八輪 UX 之後開發，期間已把含第一波（UX8＋成效統計）的 origin/main 合入。
 

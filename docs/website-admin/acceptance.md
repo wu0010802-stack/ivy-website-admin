@@ -465,7 +465,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 未驗證：Safari／iOS 實機；正式站（未部署）。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
 
-## 總管理者寄重設密碼連結（2026-10-04 實作，尚未部署）
+## 總管理者寄重設密碼連結（2026-10-04 實作，10-04 已部署 main `d559cae`）
 
 使用者 10-03 裁定只做總管理者寄連結。計畫：`docs/superpowers/plans/2026-10-03-admin-password-reset-link.md`。
 
