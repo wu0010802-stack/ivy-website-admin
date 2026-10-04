@@ -173,7 +173,7 @@ async def _file_response(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材") from exc
 
 
-VariantName = Literal["thumbnail", "poster", "large"]
+VariantName = Literal["thumbnail", "poster", "large", "medium", "video_desktop", "video_mobile"]
 
 
 def _variant(asset: MediaAsset, name: VariantName) -> MediaVariant:
@@ -183,7 +183,7 @@ def _variant(asset: MediaAsset, name: VariantName) -> MediaVariant:
     for variant in asset.variants:
         if variant.kind == wanted:
             return variant
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這個素材沒有這種縮圖")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這個素材沒有這種衍生檔")
 
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
@@ -445,6 +445,7 @@ async def upload_media(
             alt_text=alt_text,
             source_attribution=source_attribution,
             quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
+            video_processing=request.app.state.settings.media_video_processing_mode,
         )
     except service.MediaQuotaExceeded as exc:
         await db.rollback()
@@ -657,6 +658,7 @@ async def replace_media(
             original_filename=file.filename or "unnamed",
             created_by=current_user.id,
             quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
+            video_processing=request.app.state.settings.media_video_processing_mode,
         )
     except service.MediaQuotaExceeded as exc:
         await db.rollback()

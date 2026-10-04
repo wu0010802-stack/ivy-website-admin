@@ -9,6 +9,7 @@ import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import DBAPIError
@@ -19,9 +20,10 @@ from app.config import Settings
 from app.content.models import ContentItem, ContentRevision, SiteReleaseEntry, SiteState
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.content.registry import MediaRef
+from app.media import jobs as media_jobs
 from app.media import metadata as media_metadata
 from app.media import references as media_references
-from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
+from app.media.models import MediaAsset, MediaJobKind, MediaKind, MediaStatus, MediaVariant, MediaUsage, VariantKind
 from app.media.schemas import PublicMediaOut, PublicMediaVariantOut
 from app.media.processing import (
     IMAGE_FORMATS,
@@ -160,12 +162,6 @@ def image_renditions(
     return out
 
 
-def _renditions(kind: MediaKind, source_path: Path, width: int | None, height: int | None) -> list[tuple[VariantKind, Rendition]]:
-    if kind == MediaKind.VIDEO:
-        return [(VariantKind.POSTER, extract_video_poster(source_path))]
-    return image_renditions(source_path, width, height)
-
-
 def strip_to_temp(source_path: Path, content_type: str) -> tuple[Path, tuple[int, int] | None]:
     """去掉拍攝資訊的複本寫進新的暫存檔，回傳 (路徑, 圖片實際寬高或 None)；呼叫端
     負責刪掉。不改 source_path：匯入官網內建素材時它是 repo 裡的檔案。"""
@@ -212,17 +208,18 @@ async def create_media_asset(
     alt_text: str | None = None,
     source_attribution: str | None = None,
     quota_bytes: int | None = None,
+    video_processing: Literal["inline", "background"] = "inline",
 ) -> MediaAsset:
-    """驗證 → 去除拍攝資訊 → 存檔 → 產生縮圖／poster → 寫入 metadata。上傳本體
-    已經由路由邊收邊寫進暫存檔（source_path），這裡全程讀檔，影片不會整份進記憶體。
+    """驗證 → 去除拍攝資訊 → 存檔 →（圖片）產生縮圖、中圖、大圖／（影片）排背景
+    工作 → 寫入 metadata。上傳本體已經由路由邊收邊寫進暫存檔（source_path），這裡
+    全程讀檔，影片不會整份進記憶體。
 
     存進儲存體的是去掉 EXIF／GPS 等拍攝資訊的複本（見 metadata 模組）：原檔會
-    公開在官網上。素材記的大小、sha256、寬高都是這份實際存下的檔案。
+    公開在官網上，所以這一步一定在請求裡、存檔之前做完，背景工作只讀這份乾淨檔。
 
-    仍在請求內完成（沒有背景轉檔佇列：目前只有抽一張 poster，ffmpeg 最長 30 秒），
-    但解碼、去除資訊、ffprobe 與 ffmpeg 都經 run_media_job 丟到 thread，而且整個
-    程序同時最多跑 MEDIA_JOB_CONCURRENCY 件：API 只有一個 event loop 與一個程序，
-    同步做會卡住所有請求，不設上限則並行上傳就能把 API 記憶體吃光。"""
+    影片的 poster 與桌機／手機轉檔交給 app/media/jobs.py：video_processing 為
+    background 時素材回傳時還是 processing，由 API 程序內的背景迴圈處理；inline
+    時在這個交易裡直接做完（本機開發、測試、指令列匯入）。"""
     content_type, width, height = await run_media_job(sniff_and_validate, source_path, declared_kind)
     clean_path, clean_size = await run_media_job(strip_to_temp, source_path, content_type)
     try:
@@ -267,9 +264,16 @@ async def create_media_asset(
             await asyncio.to_thread(storage.delete, storage_key)
             raise
 
+        if declared_kind == MediaKind.VIDEO:
+            job = await media_jobs.enqueue(db, asset, MediaJobKind.PROCESS, created_by=created_by)
+            if video_processing == "inline":
+                await media_jobs.process_now(db, storage, asset, job)
+            await db.flush()
+            return asset
+
         written: list[str] = []
         try:
-            renditions = await run_media_job(_renditions, declared_kind, clean_path, width, height)
+            renditions = await run_media_job(image_renditions, clean_path, width, height)
             for variant_kind, rendition in renditions:
                 variant_key = storage.generate_key(".webp")
                 await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
@@ -558,6 +562,7 @@ async def replace_media_asset(
     original_filename: str,
     created_by: uuid.UUID,
     quota_bytes: int | None = None,
+    video_processing: Literal["inline", "background"] = "inline",
 ) -> MediaAsset:
     """替換產生全新 asset（新 id），舊 asset 原樣保留、不變動——
     其他仍引用舊 id 的內容不受影響。要把內容改指到新素材，走
@@ -574,6 +579,7 @@ async def replace_media_asset(
         alt_text=old_asset.alt_text,
         source_attribution=old_asset.source_attribution,
         quota_bytes=quota_bytes,
+        video_processing=video_processing,
     )
     new_asset.replaces_media_id = old_asset.id
     new_asset.caption = old_asset.caption

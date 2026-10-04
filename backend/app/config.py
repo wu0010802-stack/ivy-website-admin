@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     media_max_video_mb: int = Field(default=150, ge=1, le=2048)
     # 刪除的素材先標記待清理，過這麼多天才由定期工作真的刪檔，期間可以復原。
     media_purge_delay_days: int = Field(default=7, ge=1, le=90)
+    # 影片上傳後的 poster 與轉檔（app/media/jobs.py）：background＝交給 API 程序內的
+    # 背景處理，上傳馬上回應「處理中」；inline＝在上傳請求裡做完。沒設時正式站
+    # background、其他環境 inline（測試與本機開發上傳完就能用）。
+    media_video_processing: Literal["inline", "background"] | None = None
+    media_jobs_poll_seconds: int = Field(default=5, ge=1, le=300)
     # migration 專用連線（schema owner）。沒設定時沿用 database_url；設定後
     # 執行期的 database_url 可以改成只有 DML 權限的角色，見 deploy/README.md。
     migration_database_url: str | None = Field(default=None, repr=False)
@@ -177,6 +182,12 @@ class Settings(BaseSettings):
         if self.background_jobs_interval_seconds is not None:
             return self.background_jobs_interval_seconds
         return 60 if self.environment == "production" else 0
+
+    @property
+    def media_video_processing_mode(self) -> Literal["inline", "background"]:
+        if self.media_video_processing is not None:
+            return self.media_video_processing
+        return "background" if self.environment == "production" else "inline"
 
     @property
     def turnstile_enabled(self) -> bool:

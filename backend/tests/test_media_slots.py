@@ -120,7 +120,8 @@ async def test_admin_variant_route_serves_thumbnail_and_404s_missing_kind(admin_
 @pytest.mark.asyncio
 async def test_video_poster_variant_route(admin_client):
     body = await _upload(admin_client, kind="video", name="a.mp4")
-    [poster] = body["variants"]
+    assert {v["kind"] for v in body["variants"]} == {"poster", "video_desktop", "video_mobile"}
+    poster = next(v for v in body["variants"] if v["kind"] == "poster")
     assert poster["kind"] == "poster" and poster["width"] == 160 and poster["height"] == 120
     response = await admin_client.get(f"{MEDIA}/{body['id']}/variants/poster")
     assert response.status_code == 200 and response.headers["content-type"] == "image/webp"

@@ -8,14 +8,17 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
+from app.main import create_app
 from app.media import jobs, processing, service
 from app.media.models import (
     MediaAsset, MediaJob, MediaJobKind, MediaJobStatus, MediaKind, MediaStatus, MediaVariant, VariantKind,
 )
 from app.media.processing import ProcessingError, VideoProbe
+from tests.conftest import _test_settings
 from tests.test_secfix_media import _ffprobe, _make_tagged_video, _rotation
 
 requires_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="需要 ffmpeg")
@@ -428,3 +431,117 @@ async def test_cancel_during_file_write_leaves_no_orphans(app, db_session, monke
         await task
     await asyncio.sleep(0.5)  # 舊寫法的 thread 會在取消後才寫完，孤兒檔此時才出現
     assert _files() == before
+
+
+@pytest_asyncio.fixture
+async def bg_app():
+    return create_app(_test_settings().model_copy(update={"media_video_processing": "background"}))
+
+
+@pytest_asyncio.fixture
+async def bg_admin(bg_app, db_session):
+    # 照 conftest 的 admin_client（conftest.py:342-347），只是換成背景模式的 app。
+    from app.auth.models import Role
+    from tests.conftest import _create_user, _logged_in_client
+
+    await _create_user(db_session, "bg-admin@ivy.example", "bg-admin-password-123", Role.SUPER_ADMIN)
+    client = await _logged_in_client(bg_app, "bg-admin@ivy.example", "bg-admin-password-123")
+    yield client
+    await client.aclose()
+
+
+CONTENT = "/api/website/v1/admin/content-items"
+
+
+async def _hero_draft(client, media_id: str, expected_version: int = 0) -> dict:
+    response = await client.post(
+        f"{CONTENT}/home_hero/revisions",
+        json={"expected_version": expected_version, "payload": {"eyebrow": "小標", "copy_lines": ["一"], "video_desktop": {"media_id": media_id}}},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_processing_mode_defaults():
+    base = _test_settings()
+    assert base.media_video_processing_mode == "inline"
+    assert base.model_copy(update={"environment": "production"}).media_video_processing_mode == "background"
+    assert base.model_copy(update={"media_video_processing": "background"}).media_video_processing_mode == "background"
+
+
+@pytest.mark.asyncio
+async def test_background_upload_returns_processing_and_queues_one_job(bg_app, bg_admin, db_session):
+    response = await bg_admin.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "video", "campus_key": "yihua"},
+        files={"file": ("test.mp4", FIXTURE_MP4.read_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "processing" and body["variants"] == []
+    assert body["duration_seconds"]  # ffprobe 仍在請求內做，片段秒數檢查才有長度
+    queued = (await db_session.execute(select(MediaJob))).scalars().all()
+    assert [(j.kind, j.status) for j in queued] == [("process", "pending")]
+    # 後台看得到乾淨原檔（預覽），官網拿不到。
+    assert (await bg_admin.get(f"/api/website/v1/admin/media/{body['id']}/file")).status_code == 200
+    from httpx import ASGITransport, AsyncClient
+
+    async with AsyncClient(transport=ASGITransport(app=bg_app), base_url="http://test") as anon:
+        assert (await anon.get(f"/api/website/v1/public/media/{body['id']}/file")).status_code == 404
+
+    storage = service.get_storage(bg_app.state.settings)
+    assert await jobs.process_next(bg_app.state.session_factory, storage, worker_id="w1") == "done"
+    ranged = await bg_admin.get(
+        f"/api/website/v1/admin/media/{body['id']}/variants/video_mobile", headers={"Range": "bytes=0-99"}
+    )
+    assert ranged.status_code == 206 and ranged.headers["content-type"] == "video/mp4"
+
+
+@pytest.mark.asyncio
+async def test_processing_video_can_be_drafted_but_not_published(bg_admin, db_session):
+    upload = await bg_admin.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "video"},
+        files={"file": ("hero.mp4", FIXTURE_MP4.read_bytes(), "video/mp4")},
+    )
+    media_id = upload.json()["id"]
+    draft = await _hero_draft(bg_admin, media_id)  # 存草稿不檢查素材狀態
+    published = await bg_admin.post(
+        f"{CONTENT}/home_hero/publish", json={"revision_id": draft["latest_revision"]["id"]}
+    )
+    assert published.status_code == 409
+    assert published.json()["detail"]["code"] == "MEDIA_NOT_READY"
+
+
+@pytest.mark.asyncio
+async def test_replace_references_accepts_processing_video(bg_admin, db_session):
+    async def _upload() -> str:
+        response = await bg_admin.post(
+            "/api/website/v1/admin/media",
+            data={"kind": "video"},
+            files={"file": ("clip.mp4", FIXTURE_MP4.read_bytes(), "video/mp4")},
+        )
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    old, new = await _upload(), await _upload()  # 背景模式：兩支都還在 processing
+    draft = await _hero_draft(bg_admin, old)
+    response = await bg_admin.post(
+        f"/api/website/v1/admin/media/{old}/replace-references",
+        json={"replacement_id": new, "items": [{"content_item_id": draft["id"], "expected_version": 1}]},
+    )
+    assert response.status_code == 200, response.text
+
+    await db_session.execute(update(MediaAsset).where(MediaAsset.id == uuid.UUID(new)).values(status=MediaStatus.FAILED))
+    await db_session.commit()
+    rejected = await bg_admin.post(
+        f"/api/website/v1/admin/media/{new}/replace-references",
+        json={"replacement_id": old, "items": [{"content_item_id": draft["id"], "expected_version": 2}]},
+    )
+    assert rejected.status_code == 200, rejected.text  # 換回處理中的 old：可以
+    failed_target = await bg_admin.post(
+        f"/api/website/v1/admin/media/{old}/replace-references",
+        json={"replacement_id": new, "items": [{"content_item_id": draft["id"], "expected_version": 3}]},
+    )
+    assert failed_target.status_code == 422
+    assert failed_target.json()["detail"]["message"] == "替換用的素材處理失敗或已刪除"

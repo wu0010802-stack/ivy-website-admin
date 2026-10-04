@@ -49,8 +49,7 @@ async def test_upload_real_video_succeeds_with_poster(admin_client):
     body = response.json()
     assert body["status"] == "ready"
     assert body["content_type"] == "video/mp4"
-    assert len(body["variants"]) == 1
-    assert body["variants"][0]["kind"] == "poster"
+    assert {v["kind"] for v in body["variants"]} == {"poster", "video_desktop", "video_mobile"}
 
 
 @pytest.mark.asyncio
